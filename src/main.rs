@@ -4,12 +4,12 @@ mod channel {
   extern "C" {
     // Call a method/destructor; virtual methods use C++ dynamic dispatch.
     fn Channel__DTOR(this: &mut Channel) -> ();
-    fn Channel__a(this: &mut Channel) -> ();
-    fn Channel__b(this: &Channel) -> i32;
+    fn Channel__method1(this: &mut Channel) -> ();
+    fn Channel__method2(this: &Channel) -> i32;
 
     // Call a method of a specific class implementation, bypassing dynamic
     // dispatch. C++ equivalent: `my_channel.Channel::a()`.
-    fn Channel__Channel__a(this: &mut Channel) -> ();
+    fn Channel__Channel__method1(this: &mut Channel) -> ();
 
     // Constructs a special class derived from Channel that forwards all
     // virtual method invocations to rust. It is assumed that this subclass
@@ -25,11 +25,11 @@ mod channel {
 
   #[allow(dead_code)]
   impl Channel {
-    pub fn a(&mut self) {
-      unsafe { Channel__a(self) }
+    pub fn method1(&mut self) {
+      unsafe { Channel__method1(self) }
     }
-    pub fn b(&self) -> i32 {
-      unsafe { Channel__b(self) }
+    pub fn method2(&self) -> i32 {
+      unsafe { Channel__method2(self) }
     }
   }
 
@@ -41,8 +41,8 @@ mod channel {
 
   pub struct ChannelDefaults;
   impl ChannelDefaults {
-    pub fn a(this: &mut Channel) {
-      unsafe { Channel__Channel__a(this) }
+    pub fn method1(this: &mut Channel) {
+      unsafe { Channel__Channel__method1(this) }
     }
   }
 
@@ -50,10 +50,10 @@ mod channel {
     fn extender(&self) -> &ChannelExtender;
     fn extender_mut(&mut self) -> &mut ChannelExtender;
 
-    fn a(&mut self) {
-      ChannelDefaults::a(self.extender_mut())
+    fn method1(&mut self) {
+      ChannelDefaults::method1(self.extender_mut())
     }
-    fn b(&self) -> i32;
+    fn method2(&self) -> i32;
   }
 
   pub struct ChannelExtender {
@@ -63,12 +63,16 @@ mod channel {
   }
 
   #[no_mangle]
-  unsafe extern "C" fn Channel__OVERRIDE__a__DISPATCH(this: &mut Channel) {
-    ChannelExtender::dispatch_mut(this).a()
+  unsafe extern "C" fn Channel__OVERRIDE__method1__DISPATCH(
+    this: &mut Channel,
+  ) {
+    ChannelExtender::dispatch_mut(this).method1()
   }
   #[no_mangle]
-  unsafe extern "C" fn Channel__OVERRIDE__b__DISPATCH(this: &Channel) -> i32 {
-    ChannelExtender::dispatch(this).b()
+  unsafe extern "C" fn Channel__OVERRIDE__method2__DISPATCH(
+    this: &Channel,
+  ) -> i32 {
+    ChannelExtender::dispatch(this).method2()
   }
 
   impl ChannelExtender {
@@ -159,32 +163,33 @@ mod trying {
   #[allow(dead_code)]
   pub struct Session {
     a: i32,
-    b: String,
-    c: ChannelExtender,
+    channel_extender: ChannelExtender,
+    b: i32,
   }
 
   impl ChannelOverrides for Session {
     fn extender(&self) -> &ChannelExtender {
-      &self.c
+      &self.channel_extender
     }
     fn extender_mut(&mut self) -> &mut ChannelExtender {
-      &mut self.c
+      &mut self.channel_extender
     }
-    fn a(&mut self) {
-      println!("ChannelExtender a!");
+    fn method1(&mut self) {
+      println!("overriden a() called");
+      self.a += self.b;
     }
-    fn b(&self) -> i32 {
-      println!("ChannelExtender b!");
-      42
+    fn method2(&self) -> i32 {
+      println!("overriden b() called");
+      self.a * self.b
     }
   }
 
   impl Session {
     pub fn new() -> Self {
       Self {
-        a: 1,
-        b: "abc".to_owned(),
-        c: ChannelExtender::new::<Self>(),
+        channel_extender: ChannelExtender::new::<Self>(),
+        a: 2,
+        b: 3,
       }
     }
   }
