@@ -20,7 +20,7 @@ mod channel {
 
   #[repr(C)]
   pub struct Channel {
-    _cxx_vtable: *const [usize; 0],
+    _cxx_vtable: *const util::Opaque,
   }
 
   impl Channel {
