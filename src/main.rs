@@ -38,26 +38,18 @@ mod channel {
     }
   }
 
-  pub struct ChannelDefaults;
-  impl ChannelDefaults {
-    pub fn method1(this: &mut Channel) {
-      unsafe { Channel__Channel__method1(this) }
-    }
-  }
-
-  pub trait ChannelOverrides: AsChannel {
-    fn extender(&self) -> &ChannelExtender;
-    fn extender_mut(&mut self) -> &mut ChannelExtender;
-
-    fn method1(&mut self) {
-      ChannelDefaults::method1(self.extender_mut().as_mut())
-    }
-    fn method2(&self) -> i32;
-  }
-
   pub trait AsChannel {
     fn as_channel(&self) -> &Channel;
     fn as_channel_mut(&mut self) -> &mut Channel;
+  }
+
+  impl AsChannel for Channel {
+    fn as_channel(&self) -> &Channel {
+      self
+    }
+    fn as_channel_mut(&mut self) -> &mut Channel {
+      self
+    }
   }
 
   impl AsChannel for ChannelExtender {
@@ -79,6 +71,23 @@ mod channel {
     fn as_channel_mut(&mut self) -> &mut Channel {
       &mut self.extender_mut().cxx_channel
     }
+  }
+
+  pub struct ChannelDefaults;
+  impl ChannelDefaults {
+    pub fn method1(channel: &mut Channel) {
+      unsafe { Channel__Channel__method1(channel) }
+    }
+  }
+
+  pub trait ChannelOverrides: AsChannel {
+    fn extender(&self) -> &ChannelExtender;
+    fn extender_mut(&mut self) -> &mut ChannelExtender;
+
+    fn method1(&mut self) {
+      ChannelDefaults::method1(self.as_channel_mut())
+    }
+    fn method2(&self) -> i32;
   }
 
   pub struct ChannelExtender {
@@ -168,18 +177,6 @@ mod channel {
       let vtable = this.rust_vtable;
       let embedder = this.get_embedder_offset().to_outer_mut(this);
       std::mem::transmute((embedder, vtable))
-    }
-  }
-
-  impl std::convert::AsRef<Channel> for ChannelExtender {
-    fn as_ref(&self) -> &Channel {
-      &self.cxx_channel
-    }
-  }
-
-  impl std::convert::AsMut<Channel> for ChannelExtender {
-    fn as_mut(&mut self) -> &mut Channel {
-      &mut self.cxx_channel
     }
   }
 }
