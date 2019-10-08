@@ -46,14 +46,40 @@ mod channel {
     }
   }
 
-  pub trait ChannelOverrides {
+  pub trait ChannelOverrides: AsChannel {
     fn extender(&self) -> &ChannelExtender;
     fn extender_mut(&mut self) -> &mut ChannelExtender;
 
     fn method1(&mut self) {
-      ChannelDefaults::method1(self.extender_mut())
+      ChannelDefaults::method1(self.extender_mut().as_mut())
     }
     fn method2(&self) -> i32;
+  }
+
+  pub trait AsChannel {
+    fn as_channel(&self) -> &Channel;
+    fn as_channel_mut(&mut self) -> &mut Channel;
+  }
+
+  impl AsChannel for ChannelExtender {
+    fn as_channel(&self) -> &Channel {
+      &self.cxx_channel
+    }
+    fn as_channel_mut(&mut self) -> &mut Channel {
+      &mut self.cxx_channel
+    }
+  }
+
+  impl<T> AsChannel for T
+  where
+    T: ChannelOverrides,
+  {
+    fn as_channel(&self) -> &Channel {
+      &self.extender().cxx_channel
+    }
+    fn as_channel_mut(&mut self) -> &mut Channel {
+      &mut self.extender_mut().cxx_channel
+    }
   }
 
   pub struct ChannelExtender {
@@ -143,54 +169,15 @@ mod channel {
     }
   }
 
-  impl std::ops::Deref for ChannelExtender {
-    type Target = Channel;
-    fn deref(&self) -> &Channel {
+  impl std::convert::AsRef<Channel> for ChannelExtender {
+    fn as_ref(&self) -> &Channel {
       &self.cxx_channel
     }
   }
 
-  impl std::ops::DerefMut for ChannelExtender {
-    fn deref_mut(&mut self) -> &mut Channel {
+  impl std::convert::AsMut<Channel> for ChannelExtender {
+    fn as_mut(&mut self) -> &mut Channel {
       &mut self.cxx_channel
-    }
-  }
-}
-
-mod trying {
-  use super::channel::*;
-
-  #[allow(dead_code)]
-  pub struct Session {
-    a: i32,
-    channel_extender: ChannelExtender,
-    b: i32,
-  }
-
-  impl ChannelOverrides for Session {
-    fn extender(&self) -> &ChannelExtender {
-      &self.channel_extender
-    }
-    fn extender_mut(&mut self) -> &mut ChannelExtender {
-      &mut self.channel_extender
-    }
-    fn method1(&mut self) {
-      println!("overriden a() called");
-      self.a += self.b;
-    }
-    fn method2(&self) -> i32 {
-      println!("overriden b() called");
-      self.a * self.b
-    }
-  }
-
-  impl Session {
-    pub fn new() -> Self {
-      Self {
-        channel_extender: ChannelExtender::new::<Self>(),
-        a: 2,
-        b: 3,
-      }
     }
   }
 }
@@ -249,6 +236,49 @@ mod util {
   }
 }
 
+mod example {
+  use super::channel::*;
+
+  #[allow(dead_code)]
+  pub struct Example {
+    a: i32,
+    channel_extender: ChannelExtender,
+    b: i32,
+  }
+
+  impl ChannelOverrides for Example {
+    fn extender(&self) -> &ChannelExtender {
+      &self.channel_extender
+    }
+    fn extender_mut(&mut self) -> &mut ChannelExtender {
+      &mut self.channel_extender
+    }
+    fn method1(&mut self) {
+      println!("overriden a() called");
+      self.a += self.b;
+    }
+    fn method2(&self) -> i32 {
+      println!("overriden b() called");
+      self.a * self.b
+    }
+  }
+
+  impl Example {
+    pub fn new() -> Self {
+      Self {
+        channel_extender: ChannelExtender::new::<Self>(),
+        a: 2,
+        b: 3,
+      }
+    }
+  }
+}
+
 fn main() {
-  trying::Session::new();
+  use channel::*;
+  use example::*;
+  let mut ex = Example::new();
+  let chan = ex.as_channel_mut();
+  chan.method1();
+  println!("{}", chan.method2());
 }
