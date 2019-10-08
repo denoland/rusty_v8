@@ -23,7 +23,6 @@ mod channel {
     _cxx_vtable: *const [usize; 0],
   }
 
-  #[allow(dead_code)]
   impl Channel {
     pub fn method1(&mut self) {
       unsafe { Channel__method1(self) }
@@ -225,16 +224,9 @@ mod util {
     pub unsafe fn to_outer<'a>(&self, inner: &'a I) -> &'a O {
       Self::shift::<I, O>(inner, -self.0).as_ref().unwrap()
     }
-    #[allow(dead_code)]
+
     pub unsafe fn to_outer_mut<'a>(&self, inner: &'a mut I) -> &'a mut O {
       Self::shift::<I, O>(inner, -self.0).as_mut().unwrap()
-    }
-  }
-
-  impl<O, M, I> std::ops::Add<FieldOffset<M, I>> for FieldOffset<O, M> {
-    type Output = FieldOffset<O, I>;
-    fn add(self, that: FieldOffset<M, I>) -> Self::Output {
-      FieldOffset::<O, I>::from_offset(self.offset() + that.offset())
     }
   }
 }
@@ -242,7 +234,6 @@ mod util {
 mod example {
   use super::channel::*;
 
-  #[allow(dead_code)]
   pub struct Example {
     a: i32,
     channel_extender: ChannelExtender,
