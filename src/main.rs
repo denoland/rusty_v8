@@ -14,7 +14,7 @@ mod channel {
     // Constructs a special class derived from Channel that forwards all
     // virtual method invocations to rust. It is assumed that this subclass
     // has the same size and memory layout as the class it's deriving from.
-    fn Channel__OVERRIDE__CTOR(this: &mut std::mem::MaybeUninit<Channel>)
+    fn Channel__EXTENDER__CTOR(this: &mut std::mem::MaybeUninit<Channel>)
       -> ();
   }
 
@@ -88,24 +88,27 @@ mod channel {
     rust_vtable: util::RustVTable<&'static dyn ChannelOverrides>,
   }
 
-  #[no_mangle]
-  unsafe extern "C" fn Channel__OVERRIDE__method1__DISPATCH(
-    this: &mut Channel,
-  ) {
-    ChannelExtender::dispatch_mut(this).method1()
-  }
-  #[no_mangle]
-  unsafe extern "C" fn Channel__OVERRIDE__method2__DISPATCH(
-    this: &Channel,
-  ) -> i32 {
-    ChannelExtender::dispatch(this).method2()
-  }
-
   impl ChannelExtender {
+    #[allow(non_snake_case)]
+    #[no_mangle]
+    unsafe extern "C" fn Channel__EXTENDER__method1__DISPATCH(
+      this: &mut Channel,
+    ) {
+      ChannelExtender::dispatch_mut(this).method1()
+    }
+
+    #[allow(non_snake_case)]
+    #[no_mangle]
+    unsafe extern "C" fn Channel__EXTENDER__method2__DISPATCH(
+      this: &Channel,
+    ) -> i32 {
+      ChannelExtender::dispatch(this).method2()
+    }
+
     fn construct_cxx_channel() -> Channel {
       unsafe {
         let mut buf = std::mem::MaybeUninit::<Channel>::uninit();
-        Channel__OVERRIDE__CTOR(&mut buf);
+        Channel__EXTENDER__CTOR(&mut buf);
         buf.assume_init()
       }
     }
@@ -144,27 +147,27 @@ mod channel {
       }
     }
 
-    fn channel_offset() -> util::FieldOffset<Self, Channel> {
+    fn get_channel_offset() -> util::FieldOffset<Self, Channel> {
       let buf = std::mem::MaybeUninit::<Self>::uninit();
       util::FieldOffset::from_ptrs(buf.as_ptr(), unsafe {
         &(*buf.as_ptr()).cxx_channel
       })
     }
 
-    fn embedder_offset(&self) -> util::FieldOffset<util::Opaque, Self> {
+    fn get_embedder_offset(&self) -> util::FieldOffset<util::Opaque, Self> {
       util::FieldOffset::<util::Opaque, Self>::from_offset(self.extender_offset)
     }
 
     unsafe fn dispatch(channel: &Channel) -> &dyn ChannelOverrides {
-      let this = Self::channel_offset().to_outer(channel);
-      let embedder = this.embedder_offset().to_outer(this);
+      let this = Self::get_channel_offset().to_outer(channel);
+      let embedder = this.get_embedder_offset().to_outer(this);
       std::mem::transmute((embedder, this.rust_vtable))
     }
 
     unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelOverrides {
-      let this = Self::channel_offset().to_outer_mut(channel);
+      let this = Self::get_channel_offset().to_outer_mut(channel);
       let vtable = this.rust_vtable;
-      let embedder = this.embedder_offset().to_outer_mut(this);
+      let embedder = this.get_embedder_offset().to_outer_mut(this);
       std::mem::transmute((embedder, vtable))
     }
   }
