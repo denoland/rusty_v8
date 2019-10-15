@@ -52,14 +52,14 @@ mod channel {
     }
   }
 
-  impl AsChannel for ChannelExtender {
-    fn as_channel(&self) -> &Channel {
-      &self.cxx_channel
-    }
-    fn as_channel_mut(&mut self) -> &mut Channel {
-      &mut self.cxx_channel
-    }
-  }
+  //impl AsChannel for ChannelExtender {
+  //  fn as_channel(&self) -> &Channel {
+  //    &self.cxx_channel
+  //  }
+  //  fn as_channel_mut(&mut self) -> &mut Channel {
+  //    &mut self.cxx_channel
+  //  }
+  //}
 
   impl<T> AsChannel for T
   where
@@ -92,7 +92,7 @@ mod channel {
 
   pub struct ChannelExtender {
     cxx_channel: Channel,
-    extender_offset: usize,
+    extender_offset: util::FieldOffset<Self>,
     rust_vtable: util::RustVTable<&'static dyn ChannelOverrides>,
   }
 
@@ -121,14 +121,14 @@ mod channel {
       }
     }
 
-    fn get_extender_offset<T>() -> usize
+    fn get_extender_offset<T>() -> util::FieldOffset<Self>
     where
       T: ChannelOverrides,
     {
       let buf = std::mem::MaybeUninit::<T>::uninit();
       let embedder_ptr: *const T = buf.as_ptr();
       let self_ptr: *const Self = unsafe { (*embedder_ptr).extender() };
-      util::FieldOffset::from_ptrs(embedder_ptr, self_ptr).offset()
+      util::FieldOffset::from_ptrs(embedder_ptr, self_ptr)
     }
 
     fn get_rust_vtable<T>() -> util::RustVTable<&'static dyn ChannelOverrides>
@@ -155,27 +155,23 @@ mod channel {
       }
     }
 
-    fn get_channel_offset() -> util::FieldOffset<Self, Channel> {
+    fn get_channel_offset() -> util::FieldOffset<Channel> {
       let buf = std::mem::MaybeUninit::<Self>::uninit();
       util::FieldOffset::from_ptrs(buf.as_ptr(), unsafe {
         &(*buf.as_ptr()).cxx_channel
       })
     }
 
-    fn get_embedder_offset(&self) -> util::FieldOffset<util::Opaque, Self> {
-      util::FieldOffset::<util::Opaque, Self>::from_offset(self.extender_offset)
-    }
-
     unsafe fn dispatch(channel: &Channel) -> &dyn ChannelOverrides {
-      let this = Self::get_channel_offset().to_outer(channel);
-      let embedder = this.get_embedder_offset().to_outer(this);
+      let this = Self::get_channel_offset().to_embedder::<Self>(channel);
+      let embedder = this.extender_offset.to_embedder::<util::Opaque>(this);
       std::mem::transmute((embedder, this.rust_vtable))
     }
 
     unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelOverrides {
-      let this = Self::get_channel_offset().to_outer_mut(channel);
+      let this = Self::get_channel_offset().to_embedder_mut::<Self>(channel);
       let vtable = this.rust_vtable;
-      let embedder = this.get_embedder_offset().to_outer_mut(this);
+      let embedder = this.extender_offset.to_embedder_mut::<util::Opaque>(this);
       std::mem::transmute((embedder, vtable))
     }
   }
@@ -191,39 +187,41 @@ mod util {
   #[derive(Copy, Clone, Debug)]
   pub struct RustVTable<DynT>(pub *const Opaque, pub PhantomData<DynT>);
 
-  #[derive(Copy, Clone, Debug)]
   #[repr(transparent)]
-  pub struct FieldOffset<O, I>(isize, PhantomData<(O, I)>);
+  #[derive(Debug)]
+  pub struct FieldOffset<F>(usize, PhantomData<F>);
 
-  impl<O, I> FieldOffset<O, I> {
-    pub fn from_ptrs(o_ptr: *const O, i_ptr: *const I) -> Self {
-      let o_addr = o_ptr as usize;
-      let i_addr = i_ptr as usize;
-      assert!(i_addr >= o_addr);
-      assert!((i_addr + size_of::<I>()) <= (o_addr + size_of::<O>()));
-      let offset = (o_addr - i_addr) as isize;
-      assert!(offset > 0);
-      Self(offset, PhantomData)
+  unsafe impl<F> Send for FieldOffset<F> where F: Send {}
+  unsafe impl<F> Sync for FieldOffset<F> where F: Sync {}
+  impl<F> Copy for FieldOffset<F> {}
+
+  impl<F> Clone for FieldOffset<F> {
+    fn clone(&self) -> Self {
+      Self(self.0, self.1)
+    }
+  }
+
+  impl<F> FieldOffset<F> {
+    pub fn from_ptrs<E>(embedder_ptr: *const E, field_ptr: *const F) -> Self {
+      let embedder_addr = embedder_ptr as usize;
+      let field_addr = field_ptr as usize;
+      assert!(field_addr >= embedder_addr);
+      assert!(
+        (field_addr + size_of::<F>()) <= (embedder_addr + size_of::<E>())
+      );
+      Self(embedder_addr - field_addr, PhantomData)
     }
 
-    pub fn from_offset(offset: usize) -> Self {
-      assert!((offset as isize) > 0);
-      Self(offset as isize, PhantomData)
+    pub unsafe fn to_embedder<E>(self, field: &F) -> &E {
+      (((field as *const _ as usize) - self.0) as *const E)
+        .as_ref()
+        .unwrap()
     }
 
-    pub fn offset(self) -> usize {
-      self.0 as usize
-    }
-
-    fn shift<PI, PO>(ptr: *const PI, delta: isize) -> *mut PO {
-      (ptr as isize + delta) as *mut PO
-    }
-    pub unsafe fn to_outer<'a>(&self, inner: &'a I) -> &'a O {
-      Self::shift::<I, O>(inner, -self.0).as_ref().unwrap()
-    }
-
-    pub unsafe fn to_outer_mut<'a>(&self, inner: &'a mut I) -> &'a mut O {
-      Self::shift::<I, O>(inner, -self.0).as_mut().unwrap()
+    pub unsafe fn to_embedder_mut<E>(self, field: &mut F) -> &mut E {
+      (((field as *mut _ as usize) - self.0) as *mut E)
+        .as_mut()
+        .unwrap()
     }
   }
 }
