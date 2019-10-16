@@ -3,20 +3,38 @@ mod channel {
 
   extern "C" {
     // Call a method/destructor; virtual methods use C++ dynamic dispatch.
-    fn Channel__DTOR(this: &mut Channel) -> ();
-    fn Channel__method1(this: &mut Channel) -> ();
-    fn Channel__method2(this: &Channel) -> i32;
+    fn v8__Channel__DTOR(this: &mut Channel) -> ();
+    fn v8__Channel__method1(this: &mut Channel, arg: i32) -> ();
+    fn v8__Channel__method2(this: &Channel) -> i32;
 
     // Call a method of a specific class implementation, bypassing dynamic
     // dispatch. C++ equivalent: `my_channel.Channel::a()`.
-    fn Channel__Channel__method1(this: &mut Channel) -> ();
+    fn v8__Channel__Channel__method1(this: &mut Channel, arg: i32) -> ();
 
     // Constructs a special class derived from Channel that forwards all
     // virtual method invocations to rust. It is assumed that this subclass
     // has the same size and memory layout as the class it's deriving from.
-    fn Channel__EXTENDER__CTOR(this: &mut std::mem::MaybeUninit<Channel>)
-      -> ();
+    fn v8__Channel__EXTENDER__CTOR(
+      buf: &mut std::mem::MaybeUninit<Channel>,
+    ) -> ();
   }
+
+    #[allow(non_snake_case)]
+    #[no_mangle]
+    pub unsafe extern "C"  fn v8__Channel__EXTENDER__method1(
+      this: &mut Channel,
+      arg: i32,
+    ) {
+      ChannelExtender::dispatch_mut(this).method1(arg)
+    }
+
+    #[allow(non_snake_case)]
+    #[no_mangle]
+    pub unsafe extern "C" fn v8__Channel__EXTENDER__method2(
+      this: &Channel,
+    ) -> i32 {
+      ChannelExtender::dispatch(this).method2()
+    }
 
   #[repr(C)]
   pub struct Channel {
@@ -24,17 +42,17 @@ mod channel {
   }
 
   impl Channel {
-    pub fn method1(&mut self) {
-      unsafe { Channel__method1(self) }
+    pub fn method1(&mut self, arg: i32) {
+      unsafe { v8__Channel__method1(self, arg) }
     }
     pub fn method2(&self) -> i32 {
-      unsafe { Channel__method2(self) }
+      unsafe { v8__Channel__method2(self) }
     }
   }
 
   impl Drop for Channel {
     fn drop(&mut self) {
-      unsafe { Channel__DTOR(self) }
+      unsafe { v8__Channel__DTOR(self) }
     }
   }
 
@@ -52,15 +70,6 @@ mod channel {
     }
   }
 
-  //impl AsChannel for ChannelExtender {
-  //  fn as_channel(&self) -> &Channel {
-  //    &self.cxx_channel
-  //  }
-  //  fn as_channel_mut(&mut self) -> &mut Channel {
-  //    &mut self.cxx_channel
-  //  }
-  //}
-
   impl<T> AsChannel for T
   where
     T: ChannelOverrides,
@@ -75,8 +84,8 @@ mod channel {
 
   pub struct ChannelDefaults;
   impl ChannelDefaults {
-    pub fn method1(channel: &mut Channel) {
-      unsafe { Channel__Channel__method1(channel) }
+    pub fn method1(channel: &mut Channel, arg: i32) {
+      unsafe { v8__Channel__Channel__method1(channel, arg) }
     }
   }
 
@@ -84,8 +93,8 @@ mod channel {
     fn extender(&self) -> &ChannelExtender;
     fn extender_mut(&mut self) -> &mut ChannelExtender;
 
-    fn method1(&mut self) {
-      ChannelDefaults::method1(self.as_channel_mut())
+    fn method1(&mut self, arg: i32) {
+      ChannelDefaults::method1(self.as_channel_mut(), arg)
     }
     fn method2(&self) -> i32;
   }
@@ -97,26 +106,10 @@ mod channel {
   }
 
   impl ChannelExtender {
-    #[allow(non_snake_case)]
-    #[no_mangle]
-    unsafe extern "C" fn Channel__EXTENDER__method1__DISPATCH(
-      this: &mut Channel,
-    ) {
-      ChannelExtender::dispatch_mut(this).method1()
-    }
-
-    #[allow(non_snake_case)]
-    #[no_mangle]
-    unsafe extern "C" fn Channel__EXTENDER__method2__DISPATCH(
-      this: &Channel,
-    ) -> i32 {
-      ChannelExtender::dispatch(this).method2()
-    }
-
     fn construct_cxx_channel() -> Channel {
       unsafe {
         let mut buf = std::mem::MaybeUninit::<Channel>::uninit();
-        Channel__EXTENDER__CTOR(&mut buf);
+        v8__Channel__EXTENDER__CTOR(&mut buf);
         buf.assume_init()
       }
     }
@@ -162,13 +155,13 @@ mod channel {
       })
     }
 
-    unsafe fn dispatch(channel: &Channel) -> &dyn ChannelOverrides {
+    pub unsafe fn dispatch(channel: &Channel) -> &dyn ChannelOverrides {
       let this = Self::get_channel_offset().to_embedder::<Self>(channel);
       let embedder = this.extender_offset.to_embedder::<util::Opaque>(this);
       std::mem::transmute((embedder, this.rust_vtable))
     }
 
-    unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelOverrides {
+    pub unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelOverrides {
       let this = Self::get_channel_offset().to_embedder_mut::<Self>(channel);
       let vtable = this.rust_vtable;
       let embedder = this.extender_offset.to_embedder_mut::<util::Opaque>(this);
@@ -242,12 +235,14 @@ mod example {
     fn extender_mut(&mut self) -> &mut ChannelExtender {
       &mut self.channel_extender
     }
-    fn method1(&mut self) {
-      println!("overriden a() called");
-      self.a += self.b;
+    fn method1(&mut self, arg: i32) {
+      println!("overriden method1({}) called", arg);
+      self.a += self.b * arg;
+      let arg = self.a;
+      ChannelDefaults::method1(self.as_channel_mut(), arg);
     }
     fn method2(&self) -> i32 {
-      println!("overriden b() called");
+      println!("overriden method2() called");
       self.a * self.b
     }
   }
@@ -268,6 +263,6 @@ fn main() {
   use example::*;
   let mut ex = Example::new();
   let chan = ex.as_channel_mut();
-  chan.method1();
+  chan.method1(3);
   println!("{}", chan.method2());
 }
