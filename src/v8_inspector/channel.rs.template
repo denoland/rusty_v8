@@ -1,4 +1,3 @@
-use crate::cxx_util::CxxVTable;
 use crate::cxx_util::FieldOffset;
 use crate::cxx_util::Opaque;
 use crate::cxx_util::RustVTable;
@@ -43,7 +42,7 @@ pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__method2(
 
 #[repr(C)]
 pub struct Channel {
-  _cxx_vtable: CxxVTable,
+  _cxx_vtable: *const Opaque,
 }
 
 impl Channel {

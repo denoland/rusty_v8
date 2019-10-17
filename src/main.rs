@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod cxx_util;
 mod v8_inspector;
 

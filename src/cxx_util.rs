@@ -1,7 +1,89 @@
 use std::marker::PhantomData;
 use std::mem::size_of;
+use std::ops::{Deref, DerefMut};
 
 pub type Opaque = [usize; 0];
+
+pub trait Delete
+where
+  Self: Sized + 'static,
+{
+  fn delete(&'static mut self) -> ();
+}
+
+/// Pointer to object allocated on the C++ heap.
+#[repr(transparent)]
+pub struct UniquePtr<T>(Option<&'static mut T>)
+where
+  T: Delete;
+
+impl<T> Deref for UniquePtr<T>
+where
+  T: Delete,
+{
+  type Target = Option<&'static mut T>;
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<T> DerefMut for UniquePtr<T>
+where
+  T: Delete,
+{
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
+  }
+}
+
+impl<T> Drop for UniquePtr<T>
+where
+  T: Delete,
+{
+  fn drop(&mut self) {
+    self.0.take().map(Delete::delete);
+  }
+}
+
+/// Reference to object allocated on the C++ heap, similar to UniquePtr<T>,
+/// but guaranteed to never contain a nullptr.
+#[repr(transparent)]
+pub struct UniqueRef<T>(&'static mut T)
+where
+  T: Delete;
+
+impl<T> Deref for UniqueRef<T>
+where
+  T: Delete,
+{
+  type Target = T;
+  fn deref(&self) -> &Self::Target {
+    self.0
+  }
+}
+
+impl<T> DerefMut for UniqueRef<T>
+where
+  T: Delete,
+{
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    self.0
+  }
+}
+
+impl<T> Drop for UniqueRef<T>
+where
+  T: Delete,
+{
+  fn drop(&mut self) {
+    let ptr: &'static mut T = unsafe { std::mem::transmute_copy(self.0) };
+    ptr.delete();
+  }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[repr(transparent)]
+pub struct CxxVTable(pub *const Opaque);
 
 #[derive(Copy, Clone, Debug)]
 pub struct RustVTable<DynT>(pub *const Opaque, pub PhantomData<DynT>);
