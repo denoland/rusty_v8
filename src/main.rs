@@ -22,8 +22,16 @@ mod example {
     fn extender_mut(&mut self) -> &mut ChannelExtender {
       &mut self.channel_extender
     }
-    fn sendResponse(&mut self, call_id: i32, message: UniquePtr<StringBuffer>) {
-      println!("call_id: {:?}, message: '{:?}'", call_id, message);
+    fn sendResponse(
+      &mut self,
+      call_id: i32,
+      mut message: UniquePtr<StringBuffer>,
+    ) {
+      println!(
+        "call_id: {:?}, message: '{:?}'",
+        call_id,
+        message.as_mut().unwrap().string().characters16().unwrap()
+      );
     }
     fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) {}
     fn flushProtocolNotifications(&mut self) {}
