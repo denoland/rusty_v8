@@ -1,10 +1,13 @@
 #![allow(dead_code)]
+#![allow(non_snake_case)]
 
 mod cxx_util;
 mod v8_inspector;
 
 mod example {
+  use crate::cxx_util::UniquePtr;
   use crate::v8_inspector::channel::*;
+  use crate::v8_inspector::*;
 
   pub struct Example {
     a: i32,
@@ -19,16 +22,11 @@ mod example {
     fn extender_mut(&mut self) -> &mut ChannelExtender {
       &mut self.channel_extender
     }
-    fn method1(&mut self, arg: i32) {
-      println!("overriden method1({}) called", arg);
-      self.a += self.b * arg;
-      let arg = self.a;
-      ChannelDefaults::method1(self.as_channel_mut(), arg);
+    fn sendResponse(&mut self, call_id: i32, message: UniquePtr<StringBuffer>) {
+      println!("call_id: {:?}, message: '{:?}'", call_id, message);
     }
-    fn method2(&self) -> i32 {
-      println!("overriden method2() called");
-      self.a * self.b
-    }
+    fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) {}
+    fn flushProtocolNotifications(&mut self) {}
   }
 
   impl Example {
@@ -44,9 +42,12 @@ mod example {
 
 fn main() {
   use crate::v8_inspector::channel::*;
+  use crate::v8_inspector::*;
   use example::*;
   let mut ex = Example::new();
   let chan = ex.as_channel_mut();
-  chan.method1(3);
-  println!("{}", chan.method2());
+  let message = b"hello";
+  let message = StringView::from(&message[..]);
+  let message = StringBuffer::create(&message);
+  chan.sendResponse(3, message);
 }

@@ -10,7 +10,7 @@ use std::slice;
 //    same size. TODO: find/open upstream issue to allow #[repr(bool)] support.
 
 // ```cpp
-// class V8_EXPORT StringView {
+// class StringView {
 //  public:
 //   StringView() : m_is8Bit(true), m_length(0), m_characters8(nullptr) {}
 //
@@ -63,7 +63,7 @@ impl<'a> From<&'a [u16]> for StringView<'a> {
 }
 
 impl<'a> StringView<'a> {
-  pub fn is_8bit(&self) -> bool {
+  pub fn is8Bit(&self) -> bool {
     match self {
       Self::U16(..) => false,
       Self::U8(..) => true,

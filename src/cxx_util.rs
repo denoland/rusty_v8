@@ -13,6 +13,7 @@ where
 
 /// Pointer to object allocated on the C++ heap.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct UniquePtr<T>(Option<&'static mut T>)
 where
   T: Delete;

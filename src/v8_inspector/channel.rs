@@ -1,44 +1,64 @@
+use std::os::raw::c_int;
+
 use crate::cxx_util::CxxVTable;
 use crate::cxx_util::FieldOffset;
 use crate::cxx_util::Opaque;
 use crate::cxx_util::RustVTable;
+use crate::cxx_util::UniquePtr;
+
+use super::StringBuffer;
+
+// class Channel {
+//  public:
+//   virtual ~Channel() = default;
+//   virtual void sendResponse(int callId,
+//                             std::unique_ptr<StringBuffer> message) = 0;
+//   virtual void sendNotification(std::unique_ptr<StringBuffer> message) = 0;
+//   virtual void flushProtocolNotifications() = 0;
+// };
 
 extern "C" {
-  // Call a method/destructor; virtual methods use C++ dynamic dispatch.
-  fn v8_inspector__Channel__DTOR(this: &mut Channel) -> ();
-  fn v8_inspector__Channel__method1(this: &mut Channel, arg: i32) -> ();
-  fn v8_inspector__Channel__method2(this: &Channel) -> i32;
-
-  // Call a method of a specific class implementation, bypassing dynamic
-  // dispatch. C++ equivalent: `my_channel.Channel::a()`.
-  fn v8_inspector__Channel__Channel__method1(
-    this: &mut Channel,
-    arg: i32,
-  ) -> ();
-
-  // Constructs a special class derived from Channel that forwards all
-  // virtual method invocations to rust. It is assumed that this subclass
-  // has the same size and memory layout as the class it's deriving from.
   fn v8_inspector__Channel__EXTENDER__CTOR(
     buf: &mut std::mem::MaybeUninit<Channel>,
   ) -> ();
+  fn v8_inspector__Channel__DTOR(this: &mut Channel) -> ();
+
+  fn v8_inspector__Channel__sendResponse(
+    this: &mut Channel,
+    callId: c_int,
+    message: UniquePtr<StringBuffer>,
+  ) -> ();
+  fn v8_inspector__Channel__sendNotification(
+    this: &mut Channel,
+    message: UniquePtr<StringBuffer>,
+  ) -> ();
+  fn v8_inspector__Channel__flushProtocolNotifications(
+    this: &mut Channel,
+  ) -> ();
 }
 
-#[allow(non_snake_case)]
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__method1(
+pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__sendResponse(
   this: &mut Channel,
-  arg: i32,
-) {
-  ChannelExtender::dispatch_mut(this).method1(arg)
+  callId: c_int,
+  message: UniquePtr<StringBuffer>,
+) -> () {
+  ChannelExtender::dispatch_mut(this).sendResponse(callId, message)
 }
 
-#[allow(non_snake_case)]
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__method2(
-  this: &Channel,
-) -> i32 {
-  ChannelExtender::dispatch(this).method2()
+pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__sendNotification(
+  this: &mut Channel,
+  message: UniquePtr<StringBuffer>,
+) -> () {
+  ChannelExtender::dispatch_mut(this).sendNotification(message)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__flushProtocolNotifications(
+  this: &mut Channel,
+) -> () {
+  ChannelExtender::dispatch_mut(this).flushProtocolNotifications()
 }
 
 #[repr(C)]
@@ -47,11 +67,18 @@ pub struct Channel {
 }
 
 impl Channel {
-  pub fn method1(&mut self, arg: i32) {
-    unsafe { v8_inspector__Channel__method1(self, arg) }
+  pub fn sendResponse(
+    &mut self,
+    callId: c_int,
+    message: UniquePtr<StringBuffer>,
+  ) -> () {
+    unsafe { v8_inspector__Channel__sendResponse(self, callId, message) }
   }
-  pub fn method2(&self) -> i32 {
-    unsafe { v8_inspector__Channel__method2(self) }
+  pub fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) -> () {
+    unsafe { v8_inspector__Channel__sendNotification(self, message) }
+  }
+  pub fn flushProtocolNotifications(&mut self) -> () {
+    unsafe { v8_inspector__Channel__flushProtocolNotifications(self) }
   }
 }
 
@@ -87,21 +114,17 @@ where
   }
 }
 
-pub struct ChannelDefaults;
-impl ChannelDefaults {
-  pub fn method1(channel: &mut Channel, arg: i32) {
-    unsafe { v8_inspector__Channel__Channel__method1(channel, arg) }
-  }
-}
-
 pub trait ChannelOverrides: AsChannel {
   fn extender(&self) -> &ChannelExtender;
   fn extender_mut(&mut self) -> &mut ChannelExtender;
 
-  fn method1(&mut self, arg: i32) {
-    ChannelDefaults::method1(self.as_channel_mut(), arg)
-  }
-  fn method2(&self) -> i32;
+  fn sendResponse(
+    &mut self,
+    callId: i32,
+    message: UniquePtr<StringBuffer>,
+  ) -> ();
+  fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) -> ();
+  fn flushProtocolNotifications(&mut self) -> ();
 }
 
 pub struct ChannelExtender {
