@@ -1,0 +1,15 @@
+# Copy this file to v8/out/release.x64
+
+is_component_build = false
+is_debug = false
+target_cpu = "x64"
+treat_warnings_as_errors = false
+use_custom_libcxx = false
+use_jumbo_build = true
+v8_enable_backtrace = true
+v8_enable_disassembler = true
+v8_enable_i18n_support = false
+v8_enable_object_print = true
+v8_enable_verify_heap = true
+v8_monolithic = true
+v8_use_external_startup_data = false

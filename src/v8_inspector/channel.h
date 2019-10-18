@@ -15,7 +15,8 @@ void v8_inspector__Channel__EXTENDER__flushProtocolNotifications(Channel& self);
 namespace v8_inspector {
 struct Channel__EXTENDER : public Channel {
   using Channel::Channel;
-  static_assert(sizeof(std::unique_ptr<StringBuffer>) == sizeof(StringBuffer*));
+  static_assert(sizeof(std::unique_ptr<StringBuffer>) == sizeof(StringBuffer*),
+                "sizeof(T*) != sizeof(unique_ptr<T>)");
 
   void sendResponse(int callId,
                     std::unique_ptr<StringBuffer> message) override {
@@ -35,7 +36,7 @@ extern "C" {
 using namespace v8_inspector;
 
 void v8_inspector__Channel__EXTENDER__CTOR(uninit_t<Channel__EXTENDER>& buf) {
-  new (std::launder(&buf)) Channel__EXTENDER();
+  new (launder(&buf)) Channel__EXTENDER();
 }
 void v8_inspector__Channel__DTOR(Channel& self) {
   self.~Channel();

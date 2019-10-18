@@ -1,2 +1,4 @@
 /target
 **/*.rs.bk
+/goog/.cipd/
+/goog/.gclient_entries
