@@ -67,43 +67,45 @@ use crate::cxx_util::RustVTable;
 // };
 
 extern "C" {
-  fn v8_inspector__Client__EXTENDER__CTOR(
+  fn v8_inspector__V8InspectorClient__BASE__CTOR(
     buf: &mut std::mem::MaybeUninit<Client>,
   ) -> ();
-  fn v8_inspector__Client__DTOR(this: &mut Client) -> ();
+  fn v8_inspector__V8InspectorClient__DTOR(this: &mut Client) -> ();
 
-  fn v8_inspector__Client__runMessageLoopOnPause(
+  fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut Client,
     contextGroupId: int,
   ) -> ();
-  fn v8_inspector__Client__quitMessageLoopOnPause(this: &mut Client) -> ();
-  fn v8_inspector__Client__runIfWaitingForDebugger(
+  fn v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
+    this: &mut Client,
+  ) -> ();
+  fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
     this: &mut Client,
     contextGroupId: int,
   ) -> ();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Client__EXTENDER__runMessageLoopOnPause(
+pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
   this: &mut Client,
   contextGroupId: int,
 ) -> () {
-  ClientExtender::dispatch_mut(this).runMessageLoopOnPause(contextGroupId)
+  ClientBase::dispatch_mut(this).runMessageLoopOnPause(contextGroupId)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Client__EXTENDER__quitMessageLoopOnPause(
+pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
   this: &mut Client,
 ) -> () {
-  ClientExtender::dispatch_mut(this).quitMessageLoopOnPause()
+  ClientBase::dispatch_mut(this).quitMessageLoopOnPause()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Client__EXTENDER__runIfWaitingForDebugger(
+pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
   this: &mut Client,
   contextGroupId: int,
 ) -> () {
-  ClientExtender::dispatch_mut(this).runIfWaitingForDebugger(contextGroupId)
+  ClientBase::dispatch_mut(this).runIfWaitingForDebugger(contextGroupId)
 }
 
 #[repr(C)]
@@ -113,21 +115,29 @@ pub struct Client {
 
 impl Client {
   pub fn runMessageLoopOnPause(&mut self, contextGroupId: int) -> () {
-    unsafe { v8_inspector__Client__runMessageLoopOnPause(self, contextGroupId) }
+    unsafe {
+      v8_inspector__V8InspectorClient__runMessageLoopOnPause(
+        self,
+        contextGroupId,
+      )
+    }
   }
   pub fn quitMessageLoopOnPause(&mut self) -> () {
-    unsafe { v8_inspector__Client__quitMessageLoopOnPause(self) }
+    unsafe { v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self) }
   }
   pub fn runIfWaitingForDebugger(&mut self, contextGroupId: int) -> () {
     unsafe {
-      v8_inspector__Client__runIfWaitingForDebugger(self, contextGroupId)
+      v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
+        self,
+        contextGroupId,
+      )
     }
   }
 }
 
 impl Drop for Client {
   fn drop(&mut self) {
-    unsafe { v8_inspector__Client__DTOR(self) }
+    unsafe { v8_inspector__V8InspectorClient__DTOR(self) }
   }
 }
 
@@ -147,58 +157,63 @@ impl AsClient for Client {
 
 impl<T> AsClient for T
 where
-  T: ClientOverrides,
+  T: ClientImpl,
 {
   fn as_client(&self) -> &Client {
-    &self.extender().cxx_client
+    &self.base().cxx_base
   }
   fn as_client_mut(&mut self) -> &mut Client {
-    &mut self.extender_mut().cxx_client
+    &mut self.base_mut().cxx_base
   }
 }
 
 #[allow(unused_variables)]
-pub trait ClientOverrides: AsClient {
-  fn extender(&self) -> &ClientExtender;
-  fn extender_mut(&mut self) -> &mut ClientExtender;
+pub trait ClientImpl: AsClient {
+  fn base(&self) -> &ClientBase;
+  fn base_mut(&mut self) -> &mut ClientBase;
 
   fn runMessageLoopOnPause(&mut self, contextGroupId: int) -> () {}
   fn quitMessageLoopOnPause(&mut self) -> () {}
   fn runIfWaitingForDebugger(&mut self, contextGroupId: int) -> () {}
 }
 
-pub struct ClientExtender {
-  cxx_client: Client,
-  extender_offset: FieldOffset<Self>,
-  rust_vtable: RustVTable<&'static dyn ClientOverrides>,
+pub struct ClientBase {
+  cxx_base: Client,
+  offset_within_embedder: FieldOffset<Self>,
+  rust_vtable: RustVTable<&'static dyn ClientImpl>,
 }
 
-impl ClientExtender {
-  fn construct_cxx_client() -> Client {
+impl ClientBase {
+  fn construct_cxx_base() -> Client {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<Client>::uninit();
-      v8_inspector__Client__EXTENDER__CTOR(&mut buf);
+      v8_inspector__V8InspectorClient__BASE__CTOR(&mut buf);
       buf.assume_init()
     }
   }
 
-  fn get_extender_offset<T>() -> FieldOffset<Self>
+  fn get_cxx_base_offset() -> FieldOffset<Client> {
+    let buf = std::mem::MaybeUninit::<Self>::uninit();
+    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+  }
+
+  fn get_offset_within_embedder<T>() -> FieldOffset<Self>
   where
-    T: ClientOverrides,
+    T: ClientImpl,
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = unsafe { (*embedder_ptr).extender() };
+    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
-  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ClientOverrides>
+  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ClientImpl>
   where
-    T: ClientOverrides,
+    T: ClientImpl,
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr = buf.as_ptr();
-    let trait_object: *const dyn ClientOverrides = embedder_ptr;
+    let trait_object: *const dyn ClientImpl = embedder_ptr;
     let (data_ptr, vtable): (*const T, RustVTable<_>) =
       unsafe { std::mem::transmute(trait_object) };
     assert_eq!(data_ptr, embedder_ptr);
@@ -207,30 +222,25 @@ impl ClientExtender {
 
   pub fn new<T>() -> Self
   where
-    T: ClientOverrides,
+    T: ClientImpl,
   {
     Self {
-      cxx_client: Self::construct_cxx_client(),
-      extender_offset: Self::get_extender_offset::<T>(),
+      cxx_base: Self::construct_cxx_base(),
+      offset_within_embedder: Self::get_offset_within_embedder::<T>(),
       rust_vtable: Self::get_rust_vtable::<T>(),
     }
   }
 
-  fn get_client_offset() -> FieldOffset<Client> {
-    let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_client })
-  }
-
-  pub unsafe fn dispatch(client: &Client) -> &dyn ClientOverrides {
-    let this = Self::get_client_offset().to_embedder::<Self>(client);
-    let embedder = this.extender_offset.to_embedder::<Opaque>(this);
+  pub unsafe fn dispatch(client: &Client) -> &dyn ClientImpl {
+    let this = Self::get_cxx_base_offset().to_embedder::<Self>(client);
+    let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
     std::mem::transmute((embedder, this.rust_vtable))
   }
 
-  pub unsafe fn dispatch_mut(client: &mut Client) -> &mut dyn ClientOverrides {
-    let this = Self::get_client_offset().to_embedder_mut::<Self>(client);
+  pub unsafe fn dispatch_mut(client: &mut Client) -> &mut dyn ClientImpl {
+    let this = Self::get_cxx_base_offset().to_embedder_mut::<Self>(client);
     let vtable = this.rust_vtable;
-    let embedder = this.extender_offset.to_embedder_mut::<Opaque>(this);
+    let embedder = this.offset_within_embedder.to_embedder_mut::<Opaque>(this);
     std::mem::transmute((embedder, vtable))
   }
 }

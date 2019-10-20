@@ -11,15 +11,15 @@ mod example {
 
   pub struct Example {
     a: i32,
-    channel_extender: ChannelExtender,
+    channel_extender: ChannelBase,
     b: i32,
   }
 
-  impl ChannelOverrides for Example {
-    fn extender(&self) -> &ChannelExtender {
+  impl ChannelImpl for Example {
+    fn base(&self) -> &ChannelBase {
       &self.channel_extender
     }
-    fn extender_mut(&mut self) -> &mut ChannelExtender {
+    fn base_mut(&mut self) -> &mut ChannelBase {
       &mut self.channel_extender
     }
     fn sendResponse(
@@ -40,7 +40,7 @@ mod example {
   impl Example {
     pub fn new() -> Self {
       Self {
-        channel_extender: ChannelExtender::new::<Self>(),
+        channel_extender: ChannelBase::new::<Self>(),
         a: 2,
         b: 3,
       }

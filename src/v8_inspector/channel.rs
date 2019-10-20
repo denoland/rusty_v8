@@ -17,47 +17,47 @@ use super::StringBuffer;
 // };
 
 extern "C" {
-  fn v8_inspector__Channel__EXTENDER__CTOR(
+  fn v8_inspector__V8Inspector__Channel__BASE__CTOR(
     buf: &mut std::mem::MaybeUninit<Channel>,
   ) -> ();
-  fn v8_inspector__Channel__DTOR(this: &mut Channel) -> ();
+  fn v8_inspector__V8Inspector__Channel__DTOR(this: &mut Channel) -> ();
 
-  fn v8_inspector__Channel__sendResponse(
+  fn v8_inspector__V8Inspector__Channel__sendResponse(
     this: &mut Channel,
     callId: int,
     message: UniquePtr<StringBuffer>,
   ) -> ();
-  fn v8_inspector__Channel__sendNotification(
+  fn v8_inspector__V8Inspector__Channel__sendNotification(
     this: &mut Channel,
     message: UniquePtr<StringBuffer>,
   ) -> ();
-  fn v8_inspector__Channel__flushProtocolNotifications(
+  fn v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
     this: &mut Channel,
   ) -> ();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__sendResponse(
+pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
   this: &mut Channel,
   callId: int,
   message: UniquePtr<StringBuffer>,
 ) -> () {
-  ChannelExtender::dispatch_mut(this).sendResponse(callId, message)
+  ChannelBase::dispatch_mut(this).sendResponse(callId, message)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__sendNotification(
+pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotification(
   this: &mut Channel,
   message: UniquePtr<StringBuffer>,
 ) -> () {
-  ChannelExtender::dispatch_mut(this).sendNotification(message)
+  ChannelBase::dispatch_mut(this).sendNotification(message)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__flushProtocolNotifications(
+pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
   this: &mut Channel,
 ) -> () {
-  ChannelExtender::dispatch_mut(this).flushProtocolNotifications()
+  ChannelBase::dispatch_mut(this).flushProtocolNotifications()
 }
 
 #[repr(C)]
@@ -71,19 +71,25 @@ impl Channel {
     callId: int,
     message: UniquePtr<StringBuffer>,
   ) -> () {
-    unsafe { v8_inspector__Channel__sendResponse(self, callId, message) }
+    unsafe {
+      v8_inspector__V8Inspector__Channel__sendResponse(self, callId, message)
+    }
   }
   pub fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) -> () {
-    unsafe { v8_inspector__Channel__sendNotification(self, message) }
+    unsafe {
+      v8_inspector__V8Inspector__Channel__sendNotification(self, message)
+    }
   }
   pub fn flushProtocolNotifications(&mut self) -> () {
-    unsafe { v8_inspector__Channel__flushProtocolNotifications(self) }
+    unsafe {
+      v8_inspector__V8Inspector__Channel__flushProtocolNotifications(self)
+    }
   }
 }
 
 impl Drop for Channel {
   fn drop(&mut self) {
-    unsafe { v8_inspector__Channel__DTOR(self) }
+    unsafe { v8_inspector__V8Inspector__Channel__DTOR(self) }
   }
 }
 
@@ -103,19 +109,19 @@ impl AsChannel for Channel {
 
 impl<T> AsChannel for T
 where
-  T: ChannelOverrides,
+  T: ChannelImpl,
 {
   fn as_channel(&self) -> &Channel {
-    &self.extender().cxx_channel
+    &self.base().cxx_base
   }
   fn as_channel_mut(&mut self) -> &mut Channel {
-    &mut self.extender_mut().cxx_channel
+    &mut self.base_mut().cxx_base
   }
 }
 
-pub trait ChannelOverrides: AsChannel {
-  fn extender(&self) -> &ChannelExtender;
-  fn extender_mut(&mut self) -> &mut ChannelExtender;
+pub trait ChannelImpl: AsChannel {
+  fn base(&self) -> &ChannelBase;
+  fn base_mut(&mut self) -> &mut ChannelBase;
 
   fn sendResponse(
     &mut self,
@@ -126,38 +132,43 @@ pub trait ChannelOverrides: AsChannel {
   fn flushProtocolNotifications(&mut self) -> ();
 }
 
-pub struct ChannelExtender {
-  cxx_channel: Channel,
-  extender_offset: FieldOffset<Self>,
-  rust_vtable: RustVTable<&'static dyn ChannelOverrides>,
+pub struct ChannelBase {
+  cxx_base: Channel,
+  offset_within_embedder: FieldOffset<Self>,
+  rust_vtable: RustVTable<&'static dyn ChannelImpl>,
 }
 
-impl ChannelExtender {
-  fn construct_cxx_channel() -> Channel {
+impl ChannelBase {
+  fn construct_cxx_base() -> Channel {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<Channel>::uninit();
-      v8_inspector__Channel__EXTENDER__CTOR(&mut buf);
+      v8_inspector__V8Inspector__Channel__BASE__CTOR(&mut buf);
       buf.assume_init()
     }
   }
 
-  fn get_extender_offset<T>() -> FieldOffset<Self>
+  fn get_cxx_base_offset() -> FieldOffset<Channel> {
+    let buf = std::mem::MaybeUninit::<Self>::uninit();
+    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+  }
+
+  fn get_offset_within_embedder<T>() -> FieldOffset<Self>
   where
-    T: ChannelOverrides,
+    T: ChannelImpl,
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = unsafe { (*embedder_ptr).extender() };
+    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
-  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ChannelOverrides>
+  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ChannelImpl>
   where
-    T: ChannelOverrides,
+    T: ChannelImpl,
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr = buf.as_ptr();
-    let trait_object: *const dyn ChannelOverrides = embedder_ptr;
+    let trait_object: *const dyn ChannelImpl = embedder_ptr;
     let (data_ptr, vtable): (*const T, RustVTable<_>) =
       unsafe { std::mem::transmute(trait_object) };
     assert_eq!(data_ptr, embedder_ptr);
@@ -166,34 +177,25 @@ impl ChannelExtender {
 
   pub fn new<T>() -> Self
   where
-    T: ChannelOverrides,
+    T: ChannelImpl,
   {
     Self {
-      cxx_channel: Self::construct_cxx_channel(),
-      extender_offset: Self::get_extender_offset::<T>(),
+      cxx_base: Self::construct_cxx_base(),
+      offset_within_embedder: Self::get_offset_within_embedder::<T>(),
       rust_vtable: Self::get_rust_vtable::<T>(),
     }
   }
 
-  fn get_channel_offset() -> FieldOffset<Channel> {
-    let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe {
-      &(*buf.as_ptr()).cxx_channel
-    })
-  }
-
-  pub unsafe fn dispatch(channel: &Channel) -> &dyn ChannelOverrides {
-    let this = Self::get_channel_offset().to_embedder::<Self>(channel);
-    let embedder = this.extender_offset.to_embedder::<Opaque>(this);
+  pub unsafe fn dispatch(channel: &Channel) -> &dyn ChannelImpl {
+    let this = Self::get_cxx_base_offset().to_embedder::<Self>(channel);
+    let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
     std::mem::transmute((embedder, this.rust_vtable))
   }
 
-  pub unsafe fn dispatch_mut(
-    channel: &mut Channel,
-  ) -> &mut dyn ChannelOverrides {
-    let this = Self::get_channel_offset().to_embedder_mut::<Self>(channel);
+  pub unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelImpl {
+    let this = Self::get_cxx_base_offset().to_embedder_mut::<Self>(channel);
     let vtable = this.rust_vtable;
-    let embedder = this.extender_offset.to_embedder_mut::<Opaque>(this);
+    let embedder = this.offset_within_embedder.to_embedder_mut::<Opaque>(this);
     std::mem::transmute((embedder, vtable))
   }
 }

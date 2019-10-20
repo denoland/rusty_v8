@@ -2,53 +2,57 @@
 #include <utility>
 
 using namespace v8_inspector;
-using Client = V8InspectorClient;
 
 extern "C" {
-void v8_inspector__Client__EXTENDER__runMessageLoopOnPause(Client& self,
-                                                           int contextGroupId);
-void v8_inspector__Client__EXTENDER__quitMessageLoopOnPause(Client& self);
-void v8_inspector__Client__EXTENDER__runIfWaitingForDebugger(
-    Client& self,
+void v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
+    V8InspectorClient& self,
+    int contextGroupId);
+void v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
+    V8InspectorClient& self);
+void v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
+    V8InspectorClient& self,
     int contextGroupId);
 
 }  // extern "C"
 
 namespace v8_inspector {
-struct Client__EXTENDER : public Client {
-  using Client::Client;
+struct Client__BASE : public V8InspectorClient {
+  using V8InspectorClient::V8InspectorClient;
 
   void runMessageLoopOnPause(int contextGroupId) override {
-    v8_inspector__Client__EXTENDER__runMessageLoopOnPause(*this,
-                                                          contextGroupId);
+    v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
+        *this, contextGroupId);
   }
   void quitMessageLoopOnPause() override {
-    v8_inspector__Client__EXTENDER__quitMessageLoopOnPause(*this);
+    v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(*this);
   }
   void runIfWaitingForDebugger(int contextGroupId) override {
-    v8_inspector__Client__EXTENDER__runIfWaitingForDebugger(*this,
-                                                            contextGroupId);
+    v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
+        *this, contextGroupId);
   }
 };
 }  // namespace v8_inspector
 
 extern "C" {
-void v8_inspector__Client__EXTENDER__CTOR(uninit_t<Client__EXTENDER>& buf) {
-  new (launder(&buf)) Client__EXTENDER();
+void v8_inspector__V8InspectorClient__BASE__CTOR(uninit_t<Client__BASE>& buf) {
+  new (launder(&buf)) Client__BASE();
 }
-void v8_inspector__Client__DTOR(Client& self) {
-  self.~Client();
+void v8_inspector__V8InspectorClient__DTOR(V8InspectorClient& self) {
+  self.~V8InspectorClient();
 }
 
-void v8_inspector__Client__runMessageLoopOnPause(Client& self,
-                                                 int contextGroupId) {
+void v8_inspector__V8InspectorClient__runMessageLoopOnPause(
+    V8InspectorClient& self,
+    int contextGroupId) {
   self.runMessageLoopOnPause(contextGroupId);
 }
-void v8_inspector__Client__quitMessageLoopOnPause(Client& self) {
+void v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
+    V8InspectorClient& self) {
   self.quitMessageLoopOnPause();
 }
-void v8_inspector__Client__runIfWaitingForDebugger(Client& self,
-                                                   int contextGroupId) {
+void v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
+    V8InspectorClient& self,
+    int contextGroupId) {
   self.runIfWaitingForDebugger(contextGroupId);
 }
 }  // extern "C"

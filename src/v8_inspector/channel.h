@@ -2,56 +2,63 @@
 #include <utility>
 
 using namespace v8_inspector;
-using Channel = V8Inspector::Channel;
 
 extern "C" {
-void v8_inspector__Channel__EXTENDER__sendResponse(Channel& self,
-                                                   int callId,
-                                                   StringBuffer* message);
-void v8_inspector__Channel__EXTENDER__sendNotification(Channel& self,
-                                                       StringBuffer* message);
-void v8_inspector__Channel__EXTENDER__flushProtocolNotifications(Channel& self);
+void v8_inspector__V8Inspector__Channel__BASE__sendResponse(
+    V8Inspector::Channel& self,
+    int callId,
+    StringBuffer* message);
+void v8_inspector__V8Inspector__Channel__BASE__sendNotification(
+    V8Inspector::Channel& self,
+    StringBuffer* message);
+void v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
+    V8Inspector::Channel& self);
 }  // extern "C"
 
 namespace v8_inspector {
-struct Channel__EXTENDER : public Channel {
-  using Channel::Channel;
+struct V8Inspector__Channel__BASE : public V8Inspector::Channel {
+  using V8Inspector::Channel::Channel;
   static_assert(sizeof(std::unique_ptr<StringBuffer>) == sizeof(StringBuffer*),
                 "sizeof(T*) != sizeof(unique_ptr<T>)");
 
   void sendResponse(int callId,
                     std::unique_ptr<StringBuffer> message) override {
-    v8_inspector__Channel__EXTENDER__sendResponse(*this, callId,
-                                                  message.release());
+    v8_inspector__V8Inspector__Channel__BASE__sendResponse(*this, callId,
+                                                           message.release());
   }
   void sendNotification(std::unique_ptr<StringBuffer> message) override {
-    v8_inspector__Channel__EXTENDER__sendNotification(*this, message.release());
+    v8_inspector__V8Inspector__Channel__BASE__sendNotification(
+        *this, message.release());
   }
   void flushProtocolNotifications() override {
-    v8_inspector__Channel__EXTENDER__flushProtocolNotifications(*this);
+    v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(*this);
   }
 };
 }  // namespace v8_inspector
 
 extern "C" {
-void v8_inspector__Channel__EXTENDER__CTOR(uninit_t<Channel__EXTENDER>& buf) {
-  new (launder(&buf)) Channel__EXTENDER();
+void v8_inspector__V8Inspector__Channel__BASE__CTOR(
+    uninit_t<V8Inspector__Channel__BASE>& buf) {
+  new (launder(&buf)) V8Inspector__Channel__BASE();
 }
-void v8_inspector__Channel__DTOR(Channel& self) {
+void v8_inspector__V8Inspector__Channel__DTOR(V8Inspector::Channel& self) {
   self.~Channel();
 }
 
-void v8_inspector__Channel__sendResponse(Channel& self,
-                                         int callId,
-                                         StringBuffer* message) {
+void v8_inspector__V8Inspector__Channel__sendResponse(
+    V8Inspector::Channel& self,
+    int callId,
+    StringBuffer* message) {
   self.sendResponse(callId,
                     static_cast<std::unique_ptr<StringBuffer>>(message));
 }
-void v8_inspector__Channel__sendNotification(Channel& self,
-                                             StringBuffer* message) {
+void v8_inspector__V8Inspector__Channel__sendNotification(
+    V8Inspector::Channel& self,
+    StringBuffer* message) {
   self.sendNotification(static_cast<std::unique_ptr<StringBuffer>>(message));
 }
-void v8_inspector__Channel__flushProtocolNotifications(Channel& self) {
+void v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
+    V8Inspector::Channel& self) {
   self.flushProtocolNotifications();
 }
 }  // extern "C"
