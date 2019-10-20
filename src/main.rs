@@ -33,7 +33,7 @@ mod example {
         message.as_mut().unwrap().string().characters16().unwrap()
       );
     }
-    fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) {}
+    fn sendNotification(&mut self, _message: UniquePtr<StringBuffer>) {}
     fn flushProtocolNotifications(&mut self) {}
   }
 

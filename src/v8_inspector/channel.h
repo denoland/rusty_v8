@@ -1,9 +1,10 @@
 #include <memory>
 #include <utility>
 
-extern "C" {
 using namespace v8_inspector;
+using Channel = V8Inspector::Channel;
 
+extern "C" {
 void v8_inspector__Channel__EXTENDER__sendResponse(Channel& self,
                                                    int callId,
                                                    StringBuffer* message);
@@ -33,8 +34,6 @@ struct Channel__EXTENDER : public Channel {
 }  // namespace v8_inspector
 
 extern "C" {
-using namespace v8_inspector;
-
 void v8_inspector__Channel__EXTENDER__CTOR(uninit_t<Channel__EXTENDER>& buf) {
   new (launder(&buf)) Channel__EXTENDER();
 }

@@ -1,6 +1,7 @@
 {
     "C_Cpp.clang_format_style": "Chromium",
     "files.associations": {
-        "memory": "cpp"
+        "memory": "cpp",
+        "vector": "cpp"
     }
 }

@@ -7,9 +7,6 @@
 #include <utility>
 
 #include "../goog/v8/include/v8-inspector.h"
-namespace v8_inspector {
-using Channel = V8Inspector::Channel;
-}
 
 template <class T>
 using uninit_t = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
@@ -21,4 +18,5 @@ auto launder(T ptr) {
 }
 
 #include "v8_inspector/channel.h"
+#include "v8_inspector/client.h"
 #include "v8_inspector/string_buffer.h"

@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 
+pub use std::os::raw::c_int as int;
+
 pub type Opaque = [usize; 0];
 
 pub trait Delete

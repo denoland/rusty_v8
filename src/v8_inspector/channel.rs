@@ -1,5 +1,4 @@
-use std::os::raw::c_int;
-
+use crate::cxx_util::int;
 use crate::cxx_util::CxxVTable;
 use crate::cxx_util::FieldOffset;
 use crate::cxx_util::Opaque;
@@ -25,7 +24,7 @@ extern "C" {
 
   fn v8_inspector__Channel__sendResponse(
     this: &mut Channel,
-    callId: c_int,
+    callId: int,
     message: UniquePtr<StringBuffer>,
   ) -> ();
   fn v8_inspector__Channel__sendNotification(
@@ -40,7 +39,7 @@ extern "C" {
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__Channel__EXTENDER__sendResponse(
   this: &mut Channel,
-  callId: c_int,
+  callId: int,
   message: UniquePtr<StringBuffer>,
 ) -> () {
   ChannelExtender::dispatch_mut(this).sendResponse(callId, message)
@@ -69,7 +68,7 @@ pub struct Channel {
 impl Channel {
   pub fn sendResponse(
     &mut self,
-    callId: c_int,
+    callId: int,
     message: UniquePtr<StringBuffer>,
   ) -> () {
     unsafe { v8_inspector__Channel__sendResponse(self, callId, message) }
@@ -120,7 +119,7 @@ pub trait ChannelOverrides: AsChannel {
 
   fn sendResponse(
     &mut self,
-    callId: i32,
+    callId: int,
     message: UniquePtr<StringBuffer>,
   ) -> ();
   fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) -> ();

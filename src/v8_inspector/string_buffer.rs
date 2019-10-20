@@ -28,6 +28,8 @@ pub struct StringBuffer {
 }
 
 impl StringBuffer {
+  // The C++ class definition does not declare `string()` to be a const method,
+  // therefore we declare self as mutable here.
   pub fn string(&mut self) -> &StringView {
     unsafe { v8_inspector__StringBuffer__string(self) }
   }
