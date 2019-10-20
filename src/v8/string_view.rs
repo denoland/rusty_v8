@@ -4,12 +4,6 @@ use std::ptr::null;
 use std::ptr::NonNull;
 use std::slice;
 
-// Notes:
-//  * This class is ported, not wrapped using bindings.
-//  * Since Rust `repr(bool)` is not allowed, assume `bool` and `u8` have the
-//    same size. TODO: find/open upstream issue to allow #[repr(bool)] support.
-
-// ```cpp
 // class StringView {
 //  public:
 //   StringView() : m_is8Bit(true), m_length(0), m_characters8(nullptr) {}
@@ -34,7 +28,11 @@ use std::slice;
 //     const uint16_t* m_characters16;
 //   };
 // };
-// ```
+
+// Notes:
+//  * This class is ported, not wrapped using bindings.
+//  * Since Rust `repr(bool)` is not allowed, assume `bool` and `u8` have the
+//    same size. TODO: find/open upstream issue to allow #[repr(bool)] support.
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]

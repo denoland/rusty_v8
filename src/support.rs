@@ -96,6 +96,7 @@ pub struct FieldOffset<F>(usize, PhantomData<F>);
 
 unsafe impl<F> Send for FieldOffset<F> where F: Send {}
 unsafe impl<F> Sync for FieldOffset<F> where F: Sync {}
+
 impl<F> Copy for FieldOffset<F> {}
 
 impl<F> Clone for FieldOffset<F> {

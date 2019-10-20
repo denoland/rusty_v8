@@ -1,11 +1,10 @@
-use crate::cxx_util::int;
-use crate::cxx_util::CxxVTable;
-use crate::cxx_util::FieldOffset;
-use crate::cxx_util::Opaque;
-use crate::cxx_util::RustVTable;
-use crate::cxx_util::UniquePtr;
-
-use super::StringBuffer;
+use crate::support::int;
+use crate::support::CxxVTable;
+use crate::support::FieldOffset;
+use crate::support::Opaque;
+use crate::support::RustVTable;
+use crate::support::UniquePtr;
+use crate::v8::StringBuffer;
 
 // class Channel {
 //  public:

@@ -1,26 +1,26 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-mod cxx_util;
-mod v8_inspector;
+mod support;
+mod v8;
 
 mod example {
-  use crate::cxx_util::UniquePtr;
-  use crate::v8_inspector::channel::*;
-  use crate::v8_inspector::*;
+  use crate::support::UniquePtr;
+  use crate::v8::inspector::channel::*;
+  use crate::v8::*;
 
   pub struct Example {
     a: i32,
-    channel_extender: ChannelBase,
+    channel_base: ChannelBase,
     b: i32,
   }
 
   impl ChannelImpl for Example {
     fn base(&self) -> &ChannelBase {
-      &self.channel_extender
+      &self.channel_base
     }
     fn base_mut(&mut self) -> &mut ChannelBase {
-      &mut self.channel_extender
+      &mut self.channel_base
     }
     fn sendResponse(
       &mut self,
@@ -40,7 +40,7 @@ mod example {
   impl Example {
     pub fn new() -> Self {
       Self {
-        channel_extender: ChannelBase::new::<Self>(),
+        channel_base: ChannelBase::new::<Self>(),
         a: 2,
         b: 3,
       }
@@ -49,8 +49,8 @@ mod example {
 }
 
 fn main() {
-  use crate::v8_inspector::channel::*;
-  use crate::v8_inspector::*;
+  use crate::v8::inspector::channel::*;
+  use crate::v8::*;
   use example::*;
   let mut ex = Example::new();
   let chan = ex.as_channel_mut();

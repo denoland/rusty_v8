@@ -2,6 +2,7 @@
     "C_Cpp.clang_format_style": "Chromium",
     "files.associations": {
         "memory": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "cctype": "cpp"
     }
 }

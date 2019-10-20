@@ -1,10 +1,9 @@
-use crate::cxx_util::CxxVTable;
-use crate::cxx_util::Delete;
-use crate::cxx_util::UniquePtr;
+use crate::support::CxxVTable;
+use crate::support::Delete;
+use crate::support::UniquePtr;
+use crate::v8::StringView;
 
-use super::StringView;
-
-// class V8_EXPORT StringBuffer {
+// class StringBuffer {
 //  public:
 //   virtual ~StringBuffer() = default;
 //   virtual const StringView& string() = 0;
