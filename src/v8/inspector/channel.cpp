@@ -1,7 +1,8 @@
-#include <memory>
-#include <utility>
+#include "../../../v8/include/v8-inspector.h"
+#include "../../support.h"
 
 using namespace v8_inspector;
+using namespace support;
 
 extern "C" {
 void v8_inspector__V8Inspector__Channel__BASE__sendResponse(
@@ -18,8 +19,6 @@ void v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
 namespace v8_inspector {
 struct V8Inspector__Channel__BASE : public V8Inspector::Channel {
   using V8Inspector::Channel::Channel;
-  static_assert(sizeof(std::unique_ptr<StringBuffer>) == sizeof(StringBuffer*),
-                "sizeof(T*) != sizeof(unique_ptr<T>)");
 
   void sendResponse(int callId,
                     std::unique_ptr<StringBuffer> message) override {
@@ -39,7 +38,7 @@ struct V8Inspector__Channel__BASE : public V8Inspector::Channel {
 extern "C" {
 void v8_inspector__V8Inspector__Channel__BASE__CTOR(
     uninit_t<V8Inspector__Channel__BASE>& buf) {
-  new (launder(&buf)) V8Inspector__Channel__BASE();
+  construct_in_place<V8Inspector__Channel__BASE>(buf);
 }
 void v8_inspector__V8Inspector__Channel__DTOR(V8Inspector::Channel& self) {
   self.~Channel();

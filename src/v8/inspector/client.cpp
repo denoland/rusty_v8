@@ -1,7 +1,8 @@
-#include <memory>
-#include <utility>
+#include "../../../v8/include/v8-inspector.h"
+#include "../../support.h"
 
 using namespace v8_inspector;
+using namespace support;
 
 extern "C" {
 void v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
@@ -35,7 +36,7 @@ struct Client__BASE : public V8InspectorClient {
 
 extern "C" {
 void v8_inspector__V8InspectorClient__BASE__CTOR(uninit_t<Client__BASE>& buf) {
-  new (launder(&buf)) Client__BASE();
+  construct_in_place<Client__BASE>(buf);
 }
 void v8_inspector__V8InspectorClient__DTOR(V8InspectorClient& self) {
   self.~V8InspectorClient();

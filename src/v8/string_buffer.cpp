@@ -1,7 +1,9 @@
+#include "../../v8/include/v8-inspector.h"
+#include "../support.h"
 
-extern "C" {
 using namespace v8_inspector;
 
+extern "C" {
 void v8_inspector__StringBuffer__DELETE(StringBuffer& self) {
   delete &self;
 }

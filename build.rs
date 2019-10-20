@@ -5,7 +5,9 @@ fn main() {
     .cpp(true)
     .flag("-std:c++17")
     .debug(true)
-    .file("src/lib.cpp")
+    .file("src/v8/inspector/channel.cpp")
+    .file("src/v8/inspector/client.cpp")
+    .file("src/v8/string_buffer.cpp")
     .compile("v8-bindings");
 
   println!("cargo:rustc-link-lib=static=v8_monolith");
