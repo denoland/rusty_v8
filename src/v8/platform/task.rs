@@ -22,7 +22,6 @@ extern "C" {
 
 #[no_mangle]
 pub unsafe extern "C" fn v8__Task__BASE__DELETE(this: &mut Task) -> () {
-  println!("v8__Task__BASE__DELETE");
   drop(TaskBase::dispatch_box(this))
 }
 
@@ -44,7 +43,6 @@ impl Task {
 
 impl Delete for Task {
   fn delete(&'static mut self) {
-    println!("Task::delete()");
     unsafe { v8__Task__DELETE(self) }
   }
 }
