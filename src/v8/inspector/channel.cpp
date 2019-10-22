@@ -19,27 +19,24 @@ void v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
 struct v8_inspector__V8Inspector__Channel__BASE : public V8Inspector::Channel {
   using V8Inspector::Channel::Channel;
 
-  inline void sendResponse(int callId,
-                           std::unique_ptr<StringBuffer> message) override {
+  void sendResponse(int callId,
+                    std::unique_ptr<StringBuffer> message) override {
     v8_inspector__V8Inspector__Channel__BASE__sendResponse(*this, callId,
                                                            message.release());
   }
-  inline void sendNotification(std::unique_ptr<StringBuffer> message) override {
+  void sendNotification(std::unique_ptr<StringBuffer> message) override {
     v8_inspector__V8Inspector__Channel__BASE__sendNotification(
         *this, message.release());
   }
-  inline void flushProtocolNotifications() override {
+  void flushProtocolNotifications() override {
     v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(*this);
   }
 };
 
 extern "C" {
-void v8_inspector__V8Inspector__Channel__BASE__CTOR(
+void v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
     uninit_t<v8_inspector__V8Inspector__Channel__BASE>& buf) {
   construct_in_place<v8_inspector__V8Inspector__Channel__BASE>(buf);
-}
-void v8_inspector__V8Inspector__Channel__DTOR(V8Inspector::Channel& self) {
-  self.~Channel();
 }
 
 void v8_inspector__V8Inspector__Channel__sendResponse(

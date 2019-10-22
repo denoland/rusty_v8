@@ -16,10 +16,9 @@ use crate::v8::StringBuffer;
 // };
 
 extern "C" {
-  fn v8_inspector__V8Inspector__Channel__BASE__CTOR(
+  fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<Channel>,
   ) -> ();
-  fn v8_inspector__V8Inspector__Channel__DTOR(this: &mut Channel) -> ();
 
   fn v8_inspector__V8Inspector__Channel__sendResponse(
     this: &mut Channel,
@@ -86,12 +85,6 @@ impl Channel {
   }
 }
 
-impl Drop for Channel {
-  fn drop(&mut self) {
-    unsafe { v8_inspector__V8Inspector__Channel__DTOR(self) }
-  }
-}
-
 pub trait AsChannel {
   fn as_channel(&self) -> &Channel;
   fn as_channel_mut(&mut self) -> &mut Channel;
@@ -141,7 +134,7 @@ impl ChannelBase {
   fn construct_cxx_base() -> Channel {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<Channel>::uninit();
-      v8_inspector__V8Inspector__Channel__BASE__CTOR(&mut buf);
+      v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(&mut buf);
       buf.assume_init()
     }
   }

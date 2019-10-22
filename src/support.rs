@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 use std::mem::size_of;
-use std::ops::{Deref, DerefMut};
+use std::mem::transmute;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 pub use std::os::raw::c_int as int;
 
@@ -19,6 +21,23 @@ where
 pub struct UniquePtr<T>(Option<&'static mut T>)
 where
   T: Delete;
+
+impl<T> UniquePtr<T>
+where
+  T: Delete,
+{
+  pub fn null() -> Self {
+    Self(None)
+  }
+
+  pub fn new(r: &'static mut T) -> Self {
+    Self(Some(r))
+  }
+
+  pub unsafe fn from_raw(p: *mut T) -> Self {
+    transmute(p)
+  }
+}
 
 impl<T> Deref for UniquePtr<T>
 where
@@ -45,42 +64,6 @@ where
 {
   fn drop(&mut self) {
     self.0.take().map(Delete::delete);
-  }
-}
-
-/// Reference to object allocated on the C++ heap, similar to UniquePtr<T>,
-/// but guaranteed to never contain a nullptr.
-#[repr(transparent)]
-pub struct UniqueRef<T>(&'static mut T)
-where
-  T: Delete;
-
-impl<T> Deref for UniqueRef<T>
-where
-  T: Delete,
-{
-  type Target = T;
-  fn deref(&self) -> &Self::Target {
-    self.0
-  }
-}
-
-impl<T> DerefMut for UniqueRef<T>
-where
-  T: Delete,
-{
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    self.0
-  }
-}
-
-impl<T> Drop for UniqueRef<T>
-where
-  T: Delete,
-{
-  fn drop(&mut self) {
-    let ptr: &'static mut T = unsafe { std::mem::transmute_copy(self.0) };
-    ptr.delete();
   }
 }
 

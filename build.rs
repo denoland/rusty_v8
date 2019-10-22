@@ -7,6 +7,7 @@ fn main() {
     .debug(true)
     .file("src/v8/inspector/channel.cpp")
     .file("src/v8/inspector/client.cpp")
+    .file("src/v8/platform/task.cpp")
     .file("src/v8/string_buffer.cpp")
     .compile("v8-bindings");
 

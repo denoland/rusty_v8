@@ -67,10 +67,9 @@ use crate::support::RustVTable;
 // };
 
 extern "C" {
-  fn v8_inspector__V8InspectorClient__BASE__CTOR(
+  fn v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<Client>,
   ) -> ();
-  fn v8_inspector__V8InspectorClient__DTOR(this: &mut Client) -> ();
 
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut Client,
@@ -135,12 +134,6 @@ impl Client {
   }
 }
 
-impl Drop for Client {
-  fn drop(&mut self) {
-    unsafe { v8_inspector__V8InspectorClient__DTOR(self) }
-  }
-}
-
 pub trait AsClient {
   fn as_client(&self) -> &Client;
   fn as_client_mut(&mut self) -> &mut Client;
@@ -187,7 +180,7 @@ impl ClientBase {
   fn construct_cxx_base() -> Client {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<Client>::uninit();
-      v8_inspector__V8InspectorClient__BASE__CTOR(&mut buf);
+      v8_inspector__V8InspectorClient__BASE__CONSTRUCT(&mut buf);
       buf.assume_init()
     }
   }

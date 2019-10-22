@@ -1,4 +1,5 @@
 pub mod inspector;
+pub mod platform;
 pub mod string_buffer;
 pub mod string_view;
 

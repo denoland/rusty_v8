@@ -7,15 +7,16 @@ mod v8;
 mod example {
   use crate::support::UniquePtr;
   use crate::v8::inspector::channel::*;
+  use crate::v8::platform::task::*;
   use crate::v8::*;
 
-  pub struct Example {
+  pub struct TestChannel {
     a: i32,
     channel_base: ChannelBase,
     b: i32,
   }
 
-  impl ChannelImpl for Example {
+  impl ChannelImpl for TestChannel {
     fn base(&self) -> &ChannelBase {
       &self.channel_base
     }
@@ -37,7 +38,7 @@ mod example {
     fn flushProtocolNotifications(&mut self) {}
   }
 
-  impl Example {
+  impl TestChannel {
     pub fn new() -> Self {
       Self {
         channel_base: ChannelBase::new::<Self>(),
@@ -46,16 +47,59 @@ mod example {
       }
     }
   }
+
+  pub struct TestTask {
+    a: i32,
+    base: TaskBase,
+    b: i32,
+  }
+
+  impl TaskImpl for TestTask {
+    fn base(&self) -> &TaskBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut TaskBase {
+      &mut self.base
+    }
+    fn Run(&mut self) -> () {
+      println!("TestTask::Run {} {}", self.a, self.b);
+    }
+  }
+
+  impl TestTask {
+    pub fn new() -> Self {
+      Self {
+        base: TaskBase::new::<Self>(),
+        a: 2,
+        b: 3,
+      }
+    }
+  }
+
+  impl Drop for TestTask {
+    fn drop(&mut self) {
+      println!("TestTask::drop()");
+    }
+  }
 }
 
-fn main() {
+fn main1() {
   use crate::v8::inspector::channel::*;
   use crate::v8::*;
   use example::*;
-  let mut ex = Example::new();
+  let mut ex = TestChannel::new();
   let chan = ex.as_channel_mut();
   let message = b"hello";
   let message = StringView::from(&message[..]);
   let message = StringBuffer::create(&message);
   chan.sendResponse(3, message);
+}
+
+fn main() {
+  use crate::v8::platform::task::*;
+  use example::*;
+  let mut v = TestTask::new();
+  v.Run();
+  let b = Box::new(v);
+  b.into_unique_ptr();
 }

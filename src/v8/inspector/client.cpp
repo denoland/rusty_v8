@@ -18,26 +18,23 @@ void v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
 struct v8_inspector__V8InspectorClient__BASE : public V8InspectorClient {
   using V8InspectorClient::V8InspectorClient;
 
-  inline void runMessageLoopOnPause(int contextGroupId) override {
+  void runMessageLoopOnPause(int contextGroupId) override {
     v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
         *this, contextGroupId);
   }
-  inline void quitMessageLoopOnPause() override {
+  void quitMessageLoopOnPause() override {
     v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(*this);
   }
-  inline void runIfWaitingForDebugger(int contextGroupId) override {
+  void runIfWaitingForDebugger(int contextGroupId) override {
     v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
         *this, contextGroupId);
   }
 };
 
 extern "C" {
-void v8_inspector__V8InspectorClient__BASE__CTOR(
+void v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
     uninit_t<v8_inspector__V8InspectorClient__BASE>& buf) {
   construct_in_place<v8_inspector__V8InspectorClient__BASE>(buf);
-}
-void v8_inspector__V8InspectorClient__DTOR(V8InspectorClient& self) {
-  self.~V8InspectorClient();
 }
 
 void v8_inspector__V8InspectorClient__runMessageLoopOnPause(
