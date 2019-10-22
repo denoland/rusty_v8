@@ -160,3 +160,66 @@ impl TaskBase {
     std::mem::transmute(Self::dispatch_mut(task))
   }
 }
+
+mod tests {
+  use super::*;
+  use std::sync::atomic::AtomicUsize;
+  use std::sync::atomic::Ordering::SeqCst;
+
+  static RUN_COUNT: AtomicUsize = AtomicUsize::new(0);
+  static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  // Using repr(C) to preserve field ordering and test that everything works
+  // when the TaskBase field is not the first element of the struct.
+  #[repr(C)]
+  pub struct TestTask {
+    f1: i32,
+    base: TaskBase,
+    f2: f64,
+  }
+
+  impl TestTask {
+    pub fn new() -> Self {
+      Self {
+        base: TaskBase::new::<Self>(),
+        f1: 42,
+        f2: 4.2,
+      }
+    }
+  }
+
+  impl TaskImpl for TestTask {
+    fn base(&self) -> &TaskBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut TaskBase {
+      &mut self.base
+    }
+    fn Run(&mut self) -> () {
+      RUN_COUNT.fetch_add(1, SeqCst);
+    }
+  }
+
+  impl Drop for TestTask {
+    fn drop(&mut self) {
+      DROP_COUNT.fetch_add(1, SeqCst);
+    }
+  }
+
+  #[test]
+  fn test_v8_platform_task() {
+    {
+      let mut v = TestTask::new();
+      v.Run();
+    }
+    assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
+    assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
+
+    {
+      let b = Box::new(TestTask::new());
+      b.into_unique_ptr();
+    }
+    assert_eq!(RUN_COUNT.swap(0, SeqCst), 0);
+    assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
+  }
+}

@@ -94,7 +94,7 @@ impl<F> FieldOffset<F> {
     let field_addr = field_ptr as usize;
     assert!(field_addr >= embedder_addr);
     assert!((field_addr + size_of::<F>()) <= (embedder_addr + size_of::<E>()));
-    Self(embedder_addr - field_addr, PhantomData)
+    Self(field_addr - embedder_addr, PhantomData)
   }
 
   pub unsafe fn to_embedder<E>(self, field: &F) -> &E {
