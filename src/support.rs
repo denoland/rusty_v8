@@ -63,7 +63,9 @@ where
   T: Delete,
 {
   fn drop(&mut self) {
-    self.0.take().map(Delete::delete);
+    if let Some(v) = self.0.take() {
+      Delete::delete(v)
+    }
   }
 }
 

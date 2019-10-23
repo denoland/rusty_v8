@@ -119,5 +119,7 @@
         "propagate_const": "cpp",
         "span": "cpp",
         "*.ipp": "cpp"
-    }
+    },
+    "rust.cfg_test": true,
+    "rust.clippy_preference": "on"
 }

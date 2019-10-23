@@ -21,12 +21,12 @@ extern "C" {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__Task__BASE__DELETE(this: &mut Task) -> () {
+pub unsafe extern "C" fn v8__Task__BASE__DELETE(this: &mut Task) {
   drop(TaskBase::dispatch_box(this))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__Task__BASE__Run(this: &mut Task) -> () {
+pub unsafe extern "C" fn v8__Task__BASE__Run(this: &mut Task) {
   TaskBase::dispatch_mut(this).Run()
 }
 
@@ -36,7 +36,7 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn Run(&mut self) -> () {
+  pub fn Run(&mut self) {
     unsafe { v8__Task__Run(self) }
   }
 }
@@ -161,6 +161,7 @@ impl TaskBase {
   }
 }
 
+#[cfg(test)]
 mod tests {
   use super::*;
   use std::sync::atomic::AtomicUsize;
@@ -172,7 +173,7 @@ mod tests {
   // Using repr(C) to preserve field ordering and test that everything works
   // when the TaskBase field is not the first element of the struct.
   #[repr(C)]
-  pub struct TestTask {
+  struct TestTask {
     field1: i32,
     base: TaskBase,
     field2: f64,
@@ -195,7 +196,7 @@ mod tests {
     fn base_mut(&mut self) -> &mut TaskBase {
       &mut self.base
     }
-    fn Run(&mut self) -> () {
+    fn Run(&mut self) {
       RUN_COUNT.fetch_add(1, SeqCst);
     }
   }

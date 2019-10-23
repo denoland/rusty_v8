@@ -39,7 +39,7 @@ pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
   this: &mut Channel,
   callId: int,
   message: UniquePtr<StringBuffer>,
-) -> () {
+) {
   ChannelBase::dispatch_mut(this).sendResponse(callId, message)
 }
 
@@ -47,14 +47,14 @@ pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
 pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotification(
   this: &mut Channel,
   message: UniquePtr<StringBuffer>,
-) -> () {
+) {
   ChannelBase::dispatch_mut(this).sendNotification(message)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
   this: &mut Channel,
-) -> () {
+) {
   ChannelBase::dispatch_mut(this).flushProtocolNotifications()
 }
 
@@ -68,17 +68,17 @@ impl Channel {
     &mut self,
     callId: int,
     message: UniquePtr<StringBuffer>,
-  ) -> () {
+  ) {
     unsafe {
       v8_inspector__V8Inspector__Channel__sendResponse(self, callId, message)
     }
   }
-  pub fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) -> () {
+  pub fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) {
     unsafe {
       v8_inspector__V8Inspector__Channel__sendNotification(self, message)
     }
   }
-  pub fn flushProtocolNotifications(&mut self) -> () {
+  pub fn flushProtocolNotifications(&mut self) {
     unsafe {
       v8_inspector__V8Inspector__Channel__flushProtocolNotifications(self)
     }

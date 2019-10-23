@@ -44,6 +44,7 @@ impl Delete for StringBuffer {
   }
 }
 
+#[cfg(test)]
 mod tests {
   use super::*;
 
@@ -51,17 +52,15 @@ mod tests {
   fn test_string_buffer() {
     let chars = b"Hello Venus!";
     let mut buf = {
-      let view1 = StringView::from(&chars[..]);
-      StringBuffer::create(&view1)
+      let src_view = StringView::from(&chars[..]);
+      StringBuffer::create(&src_view)
     };
-    let view2 = buf.as_mut().unwrap().string();
+    let view = buf.as_mut().unwrap().string();
 
-    let mut count = 0usize;
-    for (c1, c2) in chars.iter().copied().map(|c| c as u16).zip(view2) {
+    assert_eq!(chars.len(), view.into_iter().len());
+    assert_eq!(chars.len(), view.length());
+    for (c1, c2) in chars.iter().copied().map(u16::from).zip(view) {
       assert_eq!(c1, c2);
-      count += 1;
     }
-    assert_eq!(count, chars.len());
-    assert_eq!(count, view2.length());
   }
 }

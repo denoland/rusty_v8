@@ -88,14 +88,14 @@ extern "C" {
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
   this: &mut Client,
   contextGroupId: int,
-) -> () {
+) {
   ClientBase::dispatch_mut(this).runMessageLoopOnPause(contextGroupId)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
   this: &mut Client,
-) -> () {
+) {
   ClientBase::dispatch_mut(this).quitMessageLoopOnPause()
 }
 
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopO
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
   this: &mut Client,
   contextGroupId: int,
-) -> () {
+) {
   ClientBase::dispatch_mut(this).runIfWaitingForDebugger(contextGroupId)
 }
 
@@ -113,7 +113,7 @@ pub struct Client {
 }
 
 impl Client {
-  pub fn runMessageLoopOnPause(&mut self, contextGroupId: int) -> () {
+  pub fn runMessageLoopOnPause(&mut self, contextGroupId: int) {
     unsafe {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
         self,
@@ -121,10 +121,10 @@ impl Client {
       )
     }
   }
-  pub fn quitMessageLoopOnPause(&mut self) -> () {
+  pub fn quitMessageLoopOnPause(&mut self) {
     unsafe { v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self) }
   }
-  pub fn runIfWaitingForDebugger(&mut self, contextGroupId: int) -> () {
+  pub fn runIfWaitingForDebugger(&mut self, contextGroupId: int) {
     unsafe {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
         self,
@@ -165,9 +165,9 @@ pub trait ClientImpl: AsClient {
   fn base(&self) -> &ClientBase;
   fn base_mut(&mut self) -> &mut ClientBase;
 
-  fn runMessageLoopOnPause(&mut self, contextGroupId: int) -> () {}
-  fn quitMessageLoopOnPause(&mut self) -> () {}
-  fn runIfWaitingForDebugger(&mut self, contextGroupId: int) -> () {}
+  fn runMessageLoopOnPause(&mut self, contextGroupId: int) {}
+  fn quitMessageLoopOnPause(&mut self) {}
+  fn runIfWaitingForDebugger(&mut self, contextGroupId: int) {}
 }
 
 pub struct ClientBase {

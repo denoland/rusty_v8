@@ -176,7 +176,7 @@ impl<'a: 'b, 'b> Iterator for StringViewIterator<'a, 'b> {
   fn next(&mut self) -> Option<Self::Item> {
     let result = Some(match self.view {
       StringView::U16(v) => v.get_at(self.pos)?,
-      StringView::U8(v) => v.get_at(self.pos)? as u16,
+      StringView::U8(v) => u16::from(v.get_at(self.pos)?),
     });
     self.pos += 1;
     result
@@ -189,6 +189,7 @@ impl<'a: 'b, 'b> ExactSizeIterator for StringViewIterator<'a, 'b> {
   }
 }
 
+#[cfg(test)]
 mod tests {
   use super::*;
 
@@ -197,12 +198,10 @@ mod tests {
     let chars = b"Hello world!";
     let view = StringView::from(&chars[..]);
 
-    let mut count = 0usize;
-    for (c1, c2) in chars.iter().copied().map(|c| c as u16).zip(&view) {
+    assert_eq!(chars.len(), view.into_iter().len());
+    assert_eq!(chars.len(), view.length());
+    for (c1, c2) in chars.iter().copied().map(u16::from).zip(&view) {
       assert_eq!(c1, c2);
-      count += 1;
     }
-    assert_eq!(count, chars.len());
-    assert_eq!(count, view.length());
   }
 }
