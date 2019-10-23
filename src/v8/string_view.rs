@@ -1,3 +1,5 @@
+use std::iter::ExactSizeIterator;
+use std::iter::IntoIterator;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ptr::null;
@@ -35,7 +37,7 @@ use std::slice;
 //    same size. TODO: find/open upstream issue to allow #[repr(bool)] support.
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub enum StringView<'a> {
   // Do not reorder!
   U16(CharacterArray<'a, u16>),
@@ -70,8 +72,8 @@ impl<'a> StringView<'a> {
 
   pub fn length(&self) -> usize {
     match self {
-      Self::U16(v) => v.m_length,
-      Self::U8(v) => v.m_length,
+      Self::U16(v) => v.len(),
+      Self::U8(v) => v.len(),
     }
   }
 
@@ -90,6 +92,15 @@ impl<'a> StringView<'a> {
   }
 }
 
+impl<'a: 'b, 'b> IntoIterator for &'a StringView<'b> {
+  type IntoIter = StringViewIterator<'a, 'b>;
+  type Item = u16;
+
+  fn into_iter(self) -> Self::IntoIter {
+    StringViewIterator { view: self, pos: 0 }
+  }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct CharacterArray<'a, T> {
@@ -99,11 +110,30 @@ pub struct CharacterArray<'a, T> {
 }
 
 impl CharacterArray<'static, u8> {
-  fn empty() -> Self {
+  pub fn empty() -> Self {
     Self {
       m_length: 0,
       m_characters: null(),
       _phantom: PhantomData,
+    }
+  }
+}
+
+impl<'a, T> CharacterArray<'a, T>
+where
+  T: Copy,
+{
+  #[inline(always)]
+  fn len(&self) -> usize {
+    self.m_length
+  }
+
+  #[inline(always)]
+  fn get_at(&self, index: usize) -> Option<T> {
+    if index < self.m_length {
+      Some(unsafe { *self.m_characters.add(index) })
+    } else {
+      None
     }
   }
 }
@@ -131,5 +161,48 @@ impl<'a, T> Deref for CharacterArray<'a, T> {
       m_characters = NonNull::dangling().as_ptr()
     };
     unsafe { slice::from_raw_parts(m_characters, m_length) }
+  }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct StringViewIterator<'a: 'b, 'b> {
+  view: &'a StringView<'b>,
+  pos: usize,
+}
+
+impl<'a: 'b, 'b> Iterator for StringViewIterator<'a, 'b> {
+  type Item = u16;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    let result = Some(match self.view {
+      StringView::U16(v) => v.get_at(self.pos)?,
+      StringView::U8(v) => v.get_at(self.pos)? as u16,
+    });
+    self.pos += 1;
+    result
+  }
+}
+
+impl<'a: 'b, 'b> ExactSizeIterator for StringViewIterator<'a, 'b> {
+  fn len(&self) -> usize {
+    self.view.length()
+  }
+}
+
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_string_view() {
+    let chars = b"Hello world!";
+    let view = StringView::from(&chars[..]);
+
+    let mut count = 0usize;
+    for (c1, c2) in chars.iter().copied().map(|c| c as u16).zip(&view) {
+      assert_eq!(c1, c2);
+      count += 1;
+    }
+    assert_eq!(count, chars.len());
+    assert_eq!(count, view.length());
   }
 }

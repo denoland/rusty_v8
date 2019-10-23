@@ -173,17 +173,17 @@ mod tests {
   // when the TaskBase field is not the first element of the struct.
   #[repr(C)]
   pub struct TestTask {
-    f1: i32,
+    field1: i32,
     base: TaskBase,
-    f2: f64,
+    field2: f64,
   }
 
   impl TestTask {
     pub fn new() -> Self {
       Self {
         base: TaskBase::new::<Self>(),
-        f1: 42,
-        f2: 4.2,
+        field1: -42,
+        field2: 4.2,
       }
     }
   }
@@ -207,17 +207,15 @@ mod tests {
   }
 
   #[test]
-  fn test_v8_platform_task() {
+  fn test_task() {
     {
-      let mut v = TestTask::new();
-      v.Run();
+      TestTask::new().Run();
     }
     assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
     assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
 
     {
-      let b = Box::new(TestTask::new());
-      b.into_unique_ptr();
+      Box::new(TestTask::new()).into_unique_ptr();
     }
     assert_eq!(RUN_COUNT.swap(0, SeqCst), 0);
     assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);

@@ -9,10 +9,13 @@ mod example {
   use crate::v8::inspector::channel::*;
   use crate::v8::*;
 
+  // Using repr(C) to preserve field ordering and test that everything works
+  // when the ChannelBase field is not the first element of the struct.
+  #[repr(C)]
   pub struct TestChannel {
-    a: i32,
+    field1: i32,
     channel_base: ChannelBase,
-    b: i32,
+    field2: f64,
   }
 
   impl ChannelImpl for TestChannel {
@@ -41,8 +44,8 @@ mod example {
     pub fn new() -> Self {
       Self {
         channel_base: ChannelBase::new::<Self>(),
-        a: 2,
-        b: 3,
+        field1: -42,
+        field2: 4.2,
       }
     }
   }
@@ -54,8 +57,8 @@ fn main() {
   use example::*;
   let mut ex = TestChannel::new();
   let chan = ex.as_channel_mut();
-  let message = b"hello";
-  let message = StringView::from(&message[..]);
+  let message: &[u8] = b"hello";
+  let message = StringView::from(message);
   let message = StringBuffer::create(&message);
   chan.sendResponse(3, message);
 }
