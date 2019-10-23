@@ -22,7 +22,7 @@ extern "C" {
 
   fn v8_inspector__V8Inspector__Channel__sendResponse(
     this: &mut Channel,
-    callId: int,
+    call_id: int,
     message: UniquePtr<StringBuffer>,
   ) -> ();
   fn v8_inspector__V8Inspector__Channel__sendNotification(
@@ -37,10 +37,10 @@ extern "C" {
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
   this: &mut Channel,
-  callId: int,
+  call_id: int,
   message: UniquePtr<StringBuffer>,
 ) {
-  ChannelBase::dispatch_mut(this).sendResponse(callId, message)
+  ChannelBase::dispatch_mut(this).send_response(call_id, message)
 }
 
 #[no_mangle]
@@ -48,14 +48,14 @@ pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotificat
   this: &mut Channel,
   message: UniquePtr<StringBuffer>,
 ) {
-  ChannelBase::dispatch_mut(this).sendNotification(message)
+  ChannelBase::dispatch_mut(this).send_notification(message)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
   this: &mut Channel,
 ) {
-  ChannelBase::dispatch_mut(this).flushProtocolNotifications()
+  ChannelBase::dispatch_mut(this).flush_protocol_notifications()
 }
 
 #[repr(C)]
@@ -64,21 +64,21 @@ pub struct Channel {
 }
 
 impl Channel {
-  pub fn sendResponse(
+  pub fn send_response(
     &mut self,
-    callId: int,
+    call_id: int,
     message: UniquePtr<StringBuffer>,
   ) {
     unsafe {
-      v8_inspector__V8Inspector__Channel__sendResponse(self, callId, message)
+      v8_inspector__V8Inspector__Channel__sendResponse(self, call_id, message)
     }
   }
-  pub fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) {
+  pub fn send_notification(&mut self, message: UniquePtr<StringBuffer>) {
     unsafe {
       v8_inspector__V8Inspector__Channel__sendNotification(self, message)
     }
   }
-  pub fn flushProtocolNotifications(&mut self) {
+  pub fn flush_protocol_notifications(&mut self) {
     unsafe {
       v8_inspector__V8Inspector__Channel__flushProtocolNotifications(self)
     }
@@ -115,13 +115,13 @@ pub trait ChannelImpl: AsChannel {
   fn base(&self) -> &ChannelBase;
   fn base_mut(&mut self) -> &mut ChannelBase;
 
-  fn sendResponse(
+  fn send_response(
     &mut self,
-    callId: int,
+    call_id: int,
     message: UniquePtr<StringBuffer>,
   ) -> ();
-  fn sendNotification(&mut self, message: UniquePtr<StringBuffer>) -> ();
-  fn flushProtocolNotifications(&mut self) -> ();
+  fn send_notification(&mut self, message: UniquePtr<StringBuffer>) -> ();
+  fn flush_protocol_notifications(&mut self) -> ();
 }
 
 pub struct ChannelBase {

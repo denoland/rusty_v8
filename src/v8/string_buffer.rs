@@ -58,7 +58,7 @@ mod tests {
     let view = buf.as_mut().unwrap().string();
 
     assert_eq!(chars.len(), view.into_iter().len());
-    assert_eq!(chars.len(), view.length());
+    assert_eq!(chars.len(), view.len());
     for (c1, c2) in chars.iter().copied().map(u16::from).zip(view) {
       assert_eq!(c1, c2);
     }

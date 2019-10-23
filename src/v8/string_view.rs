@@ -33,8 +33,9 @@ use std::slice;
 
 // Notes:
 //  * This class is ported, not wrapped using bindings.
-//  * Since Rust `repr(bool)` is not allowed, assume `bool` and `u8` have the
-//    same size. TODO: find/open upstream issue to allow #[repr(bool)] support.
+//  * Since Rust `repr(bool)` is not allowed, we're assuming that `bool` and
+//    `u8` have the same size. This is assumption is checked in 'support.h'.
+//    TODO: find/open upstream issue to allow #[repr(bool)] support.
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -63,14 +64,14 @@ impl<'a> From<&'a [u16]> for StringView<'a> {
 }
 
 impl<'a> StringView<'a> {
-  pub fn is8Bit(&self) -> bool {
+  pub fn is_8bit(&self) -> bool {
     match self {
       Self::U16(..) => false,
       Self::U8(..) => true,
     }
   }
 
-  pub fn length(&self) -> usize {
+  pub fn len(&self) -> usize {
     match self {
       Self::U16(v) => v.len(),
       Self::U8(v) => v.len(),
@@ -150,6 +151,7 @@ impl<'a, T> From<&'a [T]> for CharacterArray<'a, T> {
 
 impl<'a, T> Deref for CharacterArray<'a, T> {
   type Target = [T];
+
   fn deref(&self) -> &[T] {
     let Self {
       m_length,
@@ -185,7 +187,7 @@ impl<'a: 'b, 'b> Iterator for StringViewIterator<'a, 'b> {
 
 impl<'a: 'b, 'b> ExactSizeIterator for StringViewIterator<'a, 'b> {
   fn len(&self) -> usize {
-    self.view.length()
+    self.view.len()
   }
 }
 
@@ -199,7 +201,7 @@ mod tests {
     let view = StringView::from(&chars[..]);
 
     assert_eq!(chars.len(), view.into_iter().len());
-    assert_eq!(chars.len(), view.length());
+    assert_eq!(chars.len(), view.len());
     for (c1, c2) in chars.iter().copied().map(u16::from).zip(&view) {
       assert_eq!(c1, c2);
     }

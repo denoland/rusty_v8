@@ -27,7 +27,7 @@ pub unsafe extern "C" fn v8__Task__BASE__DELETE(this: &mut Task) {
 
 #[no_mangle]
 pub unsafe extern "C" fn v8__Task__BASE__Run(this: &mut Task) {
-  TaskBase::dispatch_mut(this).Run()
+  TaskBase::dispatch_mut(this).run()
 }
 
 #[repr(C)]
@@ -36,7 +36,7 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn Run(&mut self) {
+  pub fn run(&mut self) {
     unsafe { v8__Task__Run(self) }
   }
 }
@@ -86,7 +86,7 @@ where
 pub trait TaskImpl: AsTask {
   fn base(&self) -> &TaskBase;
   fn base_mut(&mut self) -> &mut TaskBase;
-  fn Run(&mut self) -> ();
+  fn run(&mut self) -> ();
 }
 
 pub struct TaskBase {
@@ -196,7 +196,7 @@ mod tests {
     fn base_mut(&mut self) -> &mut TaskBase {
       &mut self.base
     }
-    fn Run(&mut self) {
+    fn run(&mut self) {
       RUN_COUNT.fetch_add(1, SeqCst);
     }
   }
@@ -210,7 +210,7 @@ mod tests {
   #[test]
   fn test_task() {
     {
-      TestTask::new().Run();
+      TestTask::new().run();
     }
     assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
     assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);

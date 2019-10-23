@@ -73,38 +73,38 @@ extern "C" {
 
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut Client,
-    contextGroupId: int,
+    context_group_id: int,
   ) -> ();
   fn v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
     this: &mut Client,
   ) -> ();
   fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
     this: &mut Client,
-    contextGroupId: int,
+    context_group_id: int,
   ) -> ();
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
   this: &mut Client,
-  contextGroupId: int,
+  context_group_id: int,
 ) {
-  ClientBase::dispatch_mut(this).runMessageLoopOnPause(contextGroupId)
+  ClientBase::dispatch_mut(this).run_message_loop_on_pause(context_group_id)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
   this: &mut Client,
 ) {
-  ClientBase::dispatch_mut(this).quitMessageLoopOnPause()
+  ClientBase::dispatch_mut(this).quit_message_loop_on_pause()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
   this: &mut Client,
-  contextGroupId: int,
+  context_group_id: int,
 ) {
-  ClientBase::dispatch_mut(this).runIfWaitingForDebugger(contextGroupId)
+  ClientBase::dispatch_mut(this).run_if_waiting_for_debugger(context_group_id)
 }
 
 #[repr(C)]
@@ -113,22 +113,22 @@ pub struct Client {
 }
 
 impl Client {
-  pub fn runMessageLoopOnPause(&mut self, contextGroupId: int) {
+  pub fn run_message_loop_on_pause(&mut self, context_group_id: int) {
     unsafe {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
         self,
-        contextGroupId,
+        context_group_id,
       )
     }
   }
-  pub fn quitMessageLoopOnPause(&mut self) {
+  pub fn quit_message_loop_on_pause(&mut self) {
     unsafe { v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self) }
   }
-  pub fn runIfWaitingForDebugger(&mut self, contextGroupId: int) {
+  pub fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {
     unsafe {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
         self,
-        contextGroupId,
+        context_group_id,
       )
     }
   }
@@ -165,9 +165,9 @@ pub trait ClientImpl: AsClient {
   fn base(&self) -> &ClientBase;
   fn base_mut(&mut self) -> &mut ClientBase;
 
-  fn runMessageLoopOnPause(&mut self, contextGroupId: int) {}
-  fn quitMessageLoopOnPause(&mut self) {}
-  fn runIfWaitingForDebugger(&mut self, contextGroupId: int) {}
+  fn run_message_loop_on_pause(&mut self, context_group_id: int) {}
+  fn quit_message_loop_on_pause(&mut self) {}
+  fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {}
 }
 
 pub struct ClientBase {

@@ -1,6 +1,5 @@
 #![warn(clippy::all)]
 #![allow(dead_code)]
-#![allow(non_snake_case)]
 
 mod support;
 mod v8;
@@ -15,18 +14,18 @@ mod example {
   #[repr(C)]
   pub struct TestChannel {
     field1: i32,
-    channel_base: ChannelBase,
+    base: ChannelBase,
     field2: f64,
   }
 
   impl ChannelImpl for TestChannel {
     fn base(&self) -> &ChannelBase {
-      &self.channel_base
+      &self.base
     }
     fn base_mut(&mut self) -> &mut ChannelBase {
-      &mut self.channel_base
+      &mut self.base
     }
-    fn sendResponse(
+    fn send_response(
       &mut self,
       call_id: i32,
       mut message: UniquePtr<StringBuffer>,
@@ -37,14 +36,14 @@ mod example {
         message.as_mut().unwrap().string().characters16().unwrap()
       );
     }
-    fn sendNotification(&mut self, _message: UniquePtr<StringBuffer>) {}
-    fn flushProtocolNotifications(&mut self) {}
+    fn send_notification(&mut self, _message: UniquePtr<StringBuffer>) {}
+    fn flush_protocol_notifications(&mut self) {}
   }
 
   impl TestChannel {
     pub fn new() -> Self {
       Self {
-        channel_base: ChannelBase::new::<Self>(),
+        base: ChannelBase::new::<Self>(),
         field1: -42,
         field2: 4.2,
       }
@@ -61,5 +60,5 @@ fn main() {
   let message: &[u8] = b"hello";
   let message = StringView::from(message);
   let message = StringBuffer::create(&message);
-  chan.sendResponse(3, message);
+  chan.send_response(3, message);
 }
