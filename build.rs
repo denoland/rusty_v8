@@ -5,10 +5,10 @@ fn main() {
     .cpp(true)
     .flag("-std:c++17")
     .debug(true)
-    .file("src/v8/inspector/channel.cpp")
-    .file("src/v8/inspector/client.cpp")
-    .file("src/v8/platform/task.cpp")
-    .file("src/v8/string_buffer.cpp")
+    .file("src/inspector/channel.cpp")
+    .file("src/inspector/client.cpp")
+    .file("src/platform/task.cpp")
+    .file("src/string_buffer.cpp")
     .compile("v8-bindings");
 
   println!("cargo:rustc-link-lib=static=v8_monolith");

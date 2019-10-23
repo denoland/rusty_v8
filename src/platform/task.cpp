@@ -1,5 +1,5 @@
-#include "../../../v8/include/v8-platform.h"
-#include "../../support.h"
+#include "../../v8/include/v8-platform.h"
+#include "../support.h"
 
 #include <iostream>
 

@@ -71,6 +71,10 @@ impl<'a> StringView<'a> {
     }
   }
 
+  pub fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
+
   pub fn len(&self) -> usize {
     match self {
       Self::U16(v) => v.len(),
@@ -138,6 +142,9 @@ where
     }
   }
 }
+
+unsafe impl<'a, T> Send for CharacterArray<'a, T> where T: Copy {}
+unsafe impl<'a, T> Sync for CharacterArray<'a, T> where T: Sync {}
 
 impl<'a, T> From<&'a [T]> for CharacterArray<'a, T> {
   fn from(v: &'a [T]) -> Self {
