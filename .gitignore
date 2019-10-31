@@ -1,4 +1,5 @@
 /target
 **/*.rs.bk
-/goog/.cipd/
-/goog/.gclient_entries
+/third_party/.cipd/
+/third_party/gclient_config.py_entries
+/third_party/v8

@@ -1,0 +1,53 @@
+# Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+import("//third_party/v8/gni/v8.gni")
+
+v8_static_library("rusty_v8") {
+  sources = [
+    "src/inspector/channel.cpp",
+    "src/inspector/client.cpp",
+    "src/platform/task.cpp",
+    "src/string_buffer.cpp",
+  ]
+  deps = [
+    "//build/config:shared_library_deps",
+    ":v8",
+  ]
+  configs = [ ":rusty_v8_config" ]
+}
+
+v8_source_set("v8") {
+  deps = [
+    "//third_party/v8:v8",
+    "//third_party/v8:v8_libbase",
+    "//third_party/v8:v8_libplatform",
+    "//third_party/v8:v8_libsampler",
+  ]
+  configs = [ ":rusty_v8_config" ]
+}
+
+config("rusty_v8_config") {
+  include_dirs = [ "//third_party/v8" ]  # This allows us to v8/src/base/ libraries.
+  configs = [ "//third_party/v8:external_config" ]
+  cflags = []
+
+  if (is_debug) {
+    defines = [ "DEBUG" ]
+  }
+
+  if (is_clang) {
+    cflags += [
+      "-fcolor-diagnostics",
+      "-fansi-escape-codes",
+    ]
+  }
+
+  if (is_debug && is_clang && !is_win) {
+    cflags += [ "-glldb" ]
+  }
+
+  if (is_win) {
+    # The `/Zl` ("omit default library name") flag makes the compiler produce
+    # object files that can link with both the static and dynamic CRT.
+    cflags += [ "/Zl" ]
+  }
+}

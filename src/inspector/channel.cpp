@@ -1,4 +1,4 @@
-#include "../../libdeno/v8/include/v8-inspector.h"
+#include "third_party/v8/include/v8-inspector.h"
 #include "../support.h"
 
 using namespace v8_inspector;

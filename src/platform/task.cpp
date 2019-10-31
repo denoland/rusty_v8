@@ -1,4 +1,4 @@
-#include "../../libdeno/v8/include/v8-platform.h"
+#include "third_party/v8/include/v8-platform.h"
 #include "../support.h"
 
 #include <iostream>
