@@ -48,22 +48,27 @@ fn git_submodule_update() {
   Command::new("git")
     .arg("submodule")
     .arg("update")
+    .arg("--init")
     .status()
     .expect("git submodule update failed");
 }
 
-// ./depot_tools/gclient sync --gclientfile=gclient_config.py
 fn gclient_sync() {
-  if !Path::new("third_party/depot_tools/gclient").is_file() {
-    // Need to run git submodule update.
+  let gclient = Path::new("third_party/depot_tools/gclient.py");
+
+  if !gclient.exists() {
     git_submodule_update();
   }
+  assert!(gclient.exists());
   disable_depot_tools_update();
 
-  println!("cargo:warning=Running gcient sync to download V8. This could take a while.");
-  let mut cmd = Command::new("./depot_tools/gclient");
+  println!("cargo:warning=Running gclient sync to download V8. This could take a while.");
+  let mut cmd = Command::new("python");
+  cmd.arg("depot_tools/gclient.py");
   cmd.arg("sync");
   cmd.arg("--gclientfile=gclient_config.py");
+  cmd.arg("--no-history");
+  cmd.arg("--shallow");
   cmd.current_dir("third_party");
   let status = cmd.status().expect("gclient sync failed");
   assert!(status.success());
