@@ -9,7 +9,7 @@ void v8_inspector__StringBuffer__DELETE(StringBuffer& self) {
 }
 
 const StringView* v8_inspector__StringBuffer__string(StringBuffer& self) {
-  return nullptr; // TODO(ry) self.string();
+  return &self.string();
 }
 
 StringBuffer* v8_inspector__StringBuffer__create(const StringView& source) {
