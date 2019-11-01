@@ -69,7 +69,7 @@ jobs:
 
       - name: Start sccache
         env:
-          AWS_ACCESS_KEY_ID: AKIAIVRN52PLDBP55LBQ
+          AWS_ACCESS_KEY_ID: AKIA6QEJVNZDGHRMR2KF
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SCCACHE_BUCKET: deno-sccache
           SCCACHE_IDLE_TIMEOUT: 0
