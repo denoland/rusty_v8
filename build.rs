@@ -71,6 +71,7 @@ fn gclient_sync() {
   );
 
   let mut cmd = Command::new("python");
+  cmd.current_dir(third_party);
   cmd.arg(gclient_rel);
   cmd.arg("sync");
   cmd.arg("--no-history");
@@ -78,7 +79,8 @@ fn gclient_sync() {
   cmd.arg("--verbose");
   cmd.env("DEPOT_TOOLS_UPDATE", "0");
   cmd.env("GCLIENT_FILE", third_party.join("gclient_config.py"));
-  cmd.current_dir(third_party);
+  // We're not using Google's internal infrastructure.
+  cmd.env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 
   println!("running: {:?}", cmd);
   let status = cmd.status().expect("gclient sync failed");
