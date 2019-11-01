@@ -1,6 +1,7 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
@@ -35,9 +36,10 @@ fn main() {
   }
 }
 
+// TODO(ry) Remove
 fn disable_depot_tools_update() {
   Command::new("python")
-    .arg("third_party/depot_tools/update_depot_tools_toggle.py")
+    .arg("src/third_party/depot_tools/update_depot_tools_toggle.py")
     .arg("--disable")
     .status()
     .expect("update_depot_tools_toggle.py failed");
@@ -54,21 +56,36 @@ fn git_submodule_update() {
 }
 
 fn gclient_sync() {
-  let third_party = PathBuf::new("src/third_party");
-  let gclient_rel = PathBuf::new("depot_tools/gclient.py");
+  let third_party = PathBuf::from("src/third_party");
+  let gclient_rel = PathBuf::from("depot_tools/gclient.py");
 
-  if !third_party.join(gclient_rel).exists() {
+  if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
   disable_depot_tools_update();
 
-  println!("cargo:warning=Running gclient sync to download V8. This could take a while.");
+  // Command::new(gclient config http://src.chromium.org/svn/trunk/src
+
+  /*
+  let mut cmd = Command::new("depot_tools/gclient");
+  cmd.arg("config");
+  cmd.arg("--gclientfile=gclient_config.py");
+  cmd.current_dir(third_party);
+  let status = cmd.status().expect("gclient sync failed");
+  assert!(status.success());
+  */
+
+  println!(
+    "cargo:warn=Running gclient sync to download V8. This could take a while."
+  );
+
   let mut cmd = Command::new("python");
   cmd.arg(gclient_rel);
   cmd.arg("sync");
-  cmd.arg("--gclientfile=gclient_config.py");
   cmd.arg("--no-history");
   cmd.arg("--shallow");
+  cmd.env("DEPOT_TOOLS_UPDATE", "0");
+  cmd.env("GCLIENT_FILE", "gclient_config.py");
   cmd.current_dir(third_party);
   let status = cmd.status().expect("gclient sync failed");
   assert!(status.success());
