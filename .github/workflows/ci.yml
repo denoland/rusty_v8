@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [macOS-10.14, ubuntu-16.04] # TODO(ry) windows-2019
+        os: [macOS-10.14, ubuntu-16.04, windows-2019]
     steps:
       - name: Configure git
         run: git config --global core.symlinks true
@@ -29,6 +29,20 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: "2.7.16"
+
+      - name: Remove unused versions of Python
+        # Depot_tools bootstraps its own copy of virtualenv. This fails on
+        # windows when multiple versions of python are in present in PATH,
+        # so we remove all but the first one.
+        # 🤯 Removing items from PATH does not seem possible on Github Actions,
+        # not even by using `echo ::set-env name=PATH`, so we have to rename
+        # or delete the actual Python directories.
+        if: startsWith(matrix.os, 'windows')
+        run: |-
+          $env:PATH -split ";" |
+            Where-Object { Test-Path "$_\python.exe" } |
+            Select-Object -Skip 1 |
+            ForEach-Object { Move-Item "$_" "$_.disabled" }
 
       - name: Environment (common)
         run: |
@@ -59,13 +73,9 @@ jobs:
       - name: Environment (windows)
         if: startsWith(matrix.os, 'windows')
         run: |
-          # These appear unnecessary:
-          #choco install curl
-          #choco install archive
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           tar -zxvf sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           echo ::add-path::$(pwd)\sccache-0.2.12-x86_64-pc-windows-msvc\
-          echo ::add-path::$(pwd)\third_party\depot_tools\
 
       - name: Start sccache
         env:

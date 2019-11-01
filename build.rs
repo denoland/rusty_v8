@@ -7,13 +7,17 @@ use std::process::Command;
 use which::which;
 
 fn main() {
+  if cfg!(windows) {
+    init_depot_tools_windows();
+  }
   if !Path::new("third_party/v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
     gclient_sync();
   }
 
-  let mut gn_args = if cargo_gn::is_debug() {
+  // On windows, rustc cannot link with a V8 debug build.
+  let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
     vec!["is_debug=true".to_string()]
   } else {
     vec!["is_debug=false".to_string()]
@@ -44,6 +48,39 @@ fn main() {
   if cfg!(target_os = "windows") {
     println!("cargo:rustc-link-lib=dylib=winmm");
   }
+}
+
+fn init_depot_tools_windows() {
+  let depot_tools = env::current_dir()
+    .unwrap()
+    .join("third_party")
+    .join("depot_tools");
+  // Bootstrap depot_tools.
+  if !depot_tools.join("git.bat").is_file() {
+    let status = Command::new("cmd.exe")
+      .arg("/c")
+      .arg("bootstrap\\win_tools.bat")
+      .current_dir(&depot_tools)
+      .status()
+      .expect("bootstrapping depot_tools failed");
+    assert!(status.success());
+  }
+  // Add third_party/depot_tools and buildtools/win to PATH.
+  // TODO: this should be done on all platforms.
+  // TODO: buildtools/win should not be added; instead, cargo_gn should invoke
+  // depot_tools/gn.bat.
+  let buildtools_win =
+    env::current_dir().unwrap().join("buildtools").join("win");
+  // Bootstrap depot_tools.
+  let path = env::var_os("PATH").unwrap();
+  let paths = vec![depot_tools, buildtools_win]
+    .into_iter()
+    .chain(env::split_paths(&path))
+    .collect::<Vec<_>>();
+  let path = env::join_paths(paths).unwrap();
+  env::set_var("PATH", &path);
+  // TODO: cargo_gn should do this.
+  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 }
 
 fn git_submodule_update() {

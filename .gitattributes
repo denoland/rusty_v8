@@ -1,0 +1,8 @@
+build                   symlink=dir
+buildtools              symlink=dir
+build_overrides         symlink=dir
+testing                 symlink=dir
+third_party/googletest  symlink=dir
+third_party/jinja2      symlink=dir
+third_party/llvm-build  symlink=dir
+third_party/markupsafe  symlink=dir
