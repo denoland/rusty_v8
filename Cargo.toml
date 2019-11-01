@@ -1,6 +1,6 @@
 [package]
-name = "test4"
-version = "0.1.0"
+name = "rusty_v8"
+version = "0.0.1"
 authors = ["Bert Belder <bertbelder@gmail.com>"]
 edition = "2018"
 
