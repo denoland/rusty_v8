@@ -76,7 +76,7 @@ fn gclient_sync() {
   cmd.arg("sync");
   cmd.arg("--no-history");
   cmd.arg("--shallow");
-  cmd.arg("--verbose");
+  // cmd.arg("--verbose");
   cmd.env("DEPOT_TOOLS_UPDATE", "0");
   cmd.env("DEPOT_TOOLS_METRICS", "0");
   cmd.env("GCLIENT_FILE", third_party.join("gclient_config.py"));
