@@ -71,8 +71,8 @@ fn gclient_sync() {
   );
 
   let mut cmd = Command::new("python");
-  cmd.current_dir(third_party);
-  cmd.arg(gclient_rel);
+  cmd.current_dir(&third_party);
+  cmd.arg(&gclient_rel);
   cmd.arg("sync");
   cmd.arg("--no-history");
   // cmd.arg("--shallow");
