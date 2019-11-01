@@ -25,7 +25,7 @@ fn main() {
     println!("cargo:warning=Not using sccache");
   }
 
-  let gn_out = cargo_gn::maybe_gen(".", gn_args);
+  let gn_out = cargo_gn::maybe_gen("src", gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8");
@@ -54,22 +54,22 @@ fn git_submodule_update() {
 }
 
 fn gclient_sync() {
-  let gclient = Path::new("third_party/depot_tools/gclient.py");
+  let third_party = PathBuf::new("src/third_party");
+  let gclient_rel = PathBuf::new("depot_tools/gclient.py");
 
-  if !gclient.exists() {
+  if !third_party.join(gclient_rel).exists() {
     git_submodule_update();
   }
-  assert!(gclient.exists());
   disable_depot_tools_update();
 
   println!("cargo:warning=Running gclient sync to download V8. This could take a while.");
   let mut cmd = Command::new("python");
-  cmd.arg("depot_tools/gclient.py");
+  cmd.arg(gclient_rel);
   cmd.arg("sync");
   cmd.arg("--gclientfile=gclient_config.py");
   cmd.arg("--no-history");
   cmd.arg("--shallow");
-  cmd.current_dir("third_party");
+  cmd.current_dir(third_party);
   let status = cmd.status().expect("gclient sync failed");
   assert!(status.success());
 }
