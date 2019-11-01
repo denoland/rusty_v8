@@ -37,7 +37,6 @@ fn main() {
 }
 
 // TODO(ry) Remove
-/*
 fn disable_depot_tools_update() {
   Command::new("python")
     .arg("src/third_party/depot_tools/update_depot_tools_toggle.py")
@@ -45,7 +44,6 @@ fn disable_depot_tools_update() {
     .status()
     .expect("update_depot_tools_toggle.py failed");
 }
-*/
 
 fn git_submodule_update() {
   println!("cargo:warning=Running git submodule update");
@@ -64,7 +62,7 @@ fn gclient_sync() {
   if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
-  // disable_depot_tools_update();
+  disable_depot_tools_update();
   // Command::new(gclient config http://src.chromium.org/svn/trunk/src
 
   println!(
