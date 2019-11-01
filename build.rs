@@ -1,3 +1,4 @@
+// Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use cargo_gn;
 use std::env;
 use std::path::Path;
@@ -26,25 +27,26 @@ fn main() {
     println!("cargo:warning=Not using sccache");
   }
 
-  // gn_root should be absolute.
+  // gn_root needs to be an absolute path.
   let gn_root = env::current_dir()
     .unwrap()
     .into_os_string()
     .into_string()
-    .unwrap();;
+    .unwrap();
 
   let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8");
+
   println!("cargo:rustc-link-lib=static=rusty_v8");
+
   if cfg!(target_os = "windows") {
     println!("cargo:rustc-link-lib=dylib=winmm");
   }
 }
 
 fn git_submodule_update() {
-  println!("cargo:warning=Running git submodule update");
   Command::new("git")
     .arg("submodule")
     .arg("update")
@@ -57,30 +59,27 @@ fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
   let gclient_rel = PathBuf::from("depot_tools/gclient.py");
+  let gclient_file = third_party.join("gclient_config.py");
+  assert!(gclient_file.exists());
 
   if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
 
-  println!(
-    "cargo:warning=Running gclient sync to download V8. This could take a while."
-  );
+  println!("Running gclient sync to download V8. This could take a while.");
 
-  let mut cmd = Command::new("python");
-  cmd.current_dir(&third_party);
-  cmd.arg(&gclient_rel);
-  cmd.arg("sync");
-  cmd.arg("--no-history");
-  cmd.arg("--shallow");
-  // cmd.arg("--verbose");
-  cmd.env("DEPOT_TOOLS_UPDATE", "0");
-  cmd.env("DEPOT_TOOLS_METRICS", "0");
-  cmd.env("GCLIENT_FILE", third_party.join("gclient_config.py"));
-  // We're not using Google's internal infrastructure.
-  cmd.env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-
-  println!("running: {:?}", cmd);
-  let status = cmd.status().expect("gclient sync failed");
+  let status = Command::new("python")
+    .current_dir(&third_party)
+    .arg(&gclient_rel)
+    .arg("sync")
+    .arg("--no-history")
+    .arg("--shallow")
+    .env("DEPOT_TOOLS_UPDATE", "0")
+    .env("DEPOT_TOOLS_METRICS", "0")
+    .env("GCLIENT_FILE", gclient_file)
+    .env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0")
+    .status()
+    .expect("gclient sync failed");
   assert!(status.success());
 }
 
