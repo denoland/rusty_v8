@@ -1,6 +1,6 @@
 name: ci
 
-on: [pull_request] # TODO(ry) [push, pull_request]
+on: [push] # TODO(ry) [push, pull_request]
 
 jobs:
   build:
