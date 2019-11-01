@@ -43,15 +43,6 @@ fn main() {
   }
 }
 
-// TODO(ry) Remove
-fn disable_depot_tools_update() {
-  Command::new("python")
-    .arg("third_party/depot_tools/update_depot_tools_toggle.py")
-    .arg("--disable")
-    .status()
-    .expect("update_depot_tools_toggle.py failed");
-}
-
 fn git_submodule_update() {
   println!("cargo:warning=Running git submodule update");
   Command::new("git")
@@ -70,8 +61,6 @@ fn gclient_sync() {
   if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
-  disable_depot_tools_update();
-  // Command::new(gclient config http://src.chromium.org/svn/trunk/src
 
   println!(
     "cargo:warning=Running gclient sync to download V8. This could take a while."
@@ -97,6 +86,7 @@ fn gclient_sync() {
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
   gn_args.push(format!("cc_wrapper={:?}", sccache_path));
+
   // Disable treat_warnings_as_errors until this sccache bug is fixed:
   // https://github.com/mozilla/sccache/issues/264
   if cfg!(target_os = "windows") {

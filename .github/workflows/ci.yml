@@ -87,3 +87,5 @@ jobs:
         run: |
           rustup component add clippy
           cargo clippy --all-targets --release --locked -- -D clippy::all
+
+      # TODO cpplint
