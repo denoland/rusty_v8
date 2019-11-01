@@ -6,7 +6,7 @@ use std::process::Command;
 use which::which;
 
 fn main() {
-  if !Path::new("third_party/v8/src").is_dir()
+  if !Path::new("src/third_party/v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
     gclient_sync();
