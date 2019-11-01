@@ -77,7 +77,7 @@ jobs:
 
       - name: Build
         run: |
-          git status
+          git --version
           cargo build -vv --release --locked --all-targets
 
       - name: Test
