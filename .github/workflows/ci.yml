@@ -76,7 +76,9 @@ jobs:
         run: sccache --start-server
 
       - name: Build
-        run: cargo build -vv --release --locked --all-targets
+        run: |
+          git status
+          cargo build -vv --release --locked --all-targets
 
       - name: Test
         if: matrix.kind == 'test'
