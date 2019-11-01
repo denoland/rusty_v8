@@ -56,7 +56,8 @@ fn git_submodule_update() {
 }
 
 fn gclient_sync() {
-  let third_party = PathBuf::from("src/third_party");
+  let root = env::current_dir().unwrap();
+  let third_party = root.join("src/third_party");
   let gclient_rel = PathBuf::from("depot_tools/gclient.py");
 
   if !third_party.join(&gclient_rel).exists() {
@@ -76,7 +77,7 @@ fn gclient_sync() {
   // cmd.arg("--shallow");
   cmd.arg("--verbose");
   cmd.env("DEPOT_TOOLS_UPDATE", "0");
-  cmd.env("GCLIENT_FILE", "gclient_config.py");
+  cmd.env("GCLIENT_FILE", third_party.join("gclient_config.py"));
   cmd.current_dir(third_party);
 
   println!("running: {:?}", cmd);
