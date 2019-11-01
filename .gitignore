@@ -1,5 +1,5 @@
 /target
 **/*.rs.bk
-/src/third_party/.cipd/
-/src/third_party/gclient_config.py_entries
-/src/third_party/v8/
+/third_party/.cipd/
+/third_party/gclient_config.py_entries
+/third_party/v8/

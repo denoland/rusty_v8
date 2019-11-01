@@ -6,7 +6,7 @@ use std::process::Command;
 use which::which;
 
 fn main() {
-  if !Path::new("src/third_party/v8/src").is_dir()
+  if !Path::new("third_party/v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
     gclient_sync();
@@ -26,7 +26,7 @@ fn main() {
     println!("cargo:warning=Not using sccache");
   }
 
-  let gn_out = cargo_gn::maybe_gen("src", gn_args);
+  let gn_out = cargo_gn::maybe_gen(".", gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8");
@@ -39,7 +39,7 @@ fn main() {
 // TODO(ry) Remove
 fn disable_depot_tools_update() {
   Command::new("python")
-    .arg("src/third_party/depot_tools/update_depot_tools_toggle.py")
+    .arg("third_party/depot_tools/update_depot_tools_toggle.py")
     .arg("--disable")
     .status()
     .expect("update_depot_tools_toggle.py failed");
@@ -57,7 +57,7 @@ fn git_submodule_update() {
 
 fn gclient_sync() {
   let root = env::current_dir().unwrap();
-  let third_party = root.join("src/third_party");
+  let third_party = root.join("third_party");
   let gclient_rel = PathBuf::from("depot_tools/gclient.py");
 
   if !third_party.join(&gclient_rel).exists() {
