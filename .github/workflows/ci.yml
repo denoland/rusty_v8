@@ -81,8 +81,9 @@ jobs:
           cargo build -vv --release --locked --all-targets
 
       - name: Test
-        if: matrix.kind == 'test'
         run: cargo test -vv --release --locked --all-targets
 
       - name: Clippy
-        run: cargo clippy --all-targets --release --locked -- -D clippy::all
+        run: |
+          rustup component add clippy
+          cargo clippy --all-targets --release --locked -- -D clippy::all
