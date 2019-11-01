@@ -37,6 +37,7 @@ fn main() {
 }
 
 // TODO(ry) Remove
+/*
 fn disable_depot_tools_update() {
   Command::new("python")
     .arg("src/third_party/depot_tools/update_depot_tools_toggle.py")
@@ -44,6 +45,7 @@ fn disable_depot_tools_update() {
     .status()
     .expect("update_depot_tools_toggle.py failed");
 }
+*/
 
 fn git_submodule_update() {
   println!("cargo:warning=Running git submodule update");
@@ -62,21 +64,11 @@ fn gclient_sync() {
   if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
-  disable_depot_tools_update();
-
+  // disable_depot_tools_update();
   // Command::new(gclient config http://src.chromium.org/svn/trunk/src
 
-  /*
-  let mut cmd = Command::new("depot_tools/gclient");
-  cmd.arg("config");
-  cmd.arg("--gclientfile=gclient_config.py");
-  cmd.current_dir(third_party);
-  let status = cmd.status().expect("gclient sync failed");
-  assert!(status.success());
-  */
-
   println!(
-    "cargo:warn=Running gclient sync to download V8. This could take a while."
+    "cargo:warning=Running gclient sync to download V8. This could take a while."
   );
 
   let mut cmd = Command::new("python");
@@ -87,6 +79,8 @@ fn gclient_sync() {
   cmd.env("DEPOT_TOOLS_UPDATE", "0");
   cmd.env("GCLIENT_FILE", "gclient_config.py");
   cmd.current_dir(third_party);
+
+  println!("running: {:?}", cmd);
   let status = cmd.status().expect("gclient sync failed");
   assert!(status.success());
 }
