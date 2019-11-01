@@ -1,6 +1,6 @@
 name: ci
 
-on: [pull_request] # TODO(ry) [push, pull_request]
+on: [push] # TODO(ry) [push, pull_request]
 
 jobs:
   build:
@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [macOS-10.14, windows-2019, ubuntu-16.04]
+        os: [macOS-10.14, ubuntu-16.04] # TODO(ry) windows-2019
     steps:
       - name: Configure git
         run: git config --global core.symlinks true
@@ -46,8 +46,7 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-unknown-linux-musl/
-          echo ::add-path::`pwd`/third_party/sscache/linux64
-          echo ::add-path::`pwd`/target/release
+          echo ::add-path::`pwd`/third_party/depot_tools/
 
       - name: Environment (mac)
         if: startsWith(matrix.os, 'macOS')
@@ -55,6 +54,7 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-apple-darwin.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-apple-darwin.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-apple-darwin/
+          echo ::add-path::`pwd`/third_party/depot_tools/
 
       - name: Environment (windows)
         if: startsWith(matrix.os, 'windows')
@@ -65,22 +65,25 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           tar -zxvf sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           echo ::add-path::$(pwd)\sccache-0.2.12-x86_64-pc-windows-msvc\
-          echo ::add-path::$(pwd)\target\release
+          echo ::add-path::$(pwd)\third_party\depot_tools\
 
       - name: Start sccache
         env:
-          AWS_ACCESS_KEY_ID: AKIAIVRN52PLDBP55LBQ
+          AWS_ACCESS_KEY_ID: AKIA6QEJVNZDGHRMR2KF
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SCCACHE_BUCKET: deno-sccache
           SCCACHE_IDLE_TIMEOUT: 0
         run: sccache --start-server
 
       - name: Build
-        run: cargo build -vv --release --locked --all-targets
+        run: |
+          git --version
+          cargo build -vv --release --locked --all-targets
 
       - name: Test
-        if: matrix.kind == 'test'
         run: cargo test -vv --release --locked --all-targets
 
       - name: Clippy
-        run: cargo clippy --all-targets --release --locked -- -D clippy::all
+        run: |
+          rustup component add clippy
+          cargo clippy --all-targets --release --locked -- -D clippy::all

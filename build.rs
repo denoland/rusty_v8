@@ -1,6 +1,7 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
@@ -25,7 +26,14 @@ fn main() {
     println!("cargo:warning=Not using sccache");
   }
 
-  let gn_out = cargo_gn::maybe_gen(".", gn_args);
+  // gn_root should be absolute.
+  let gn_root = env::current_dir()
+    .unwrap()
+    .into_os_string()
+    .into_string()
+    .unwrap();;
+
+  let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8");
@@ -35,6 +43,7 @@ fn main() {
   }
 }
 
+// TODO(ry) Remove
 fn disable_depot_tools_update() {
   Command::new("python")
     .arg("third_party/depot_tools/update_depot_tools_toggle.py")
@@ -54,22 +63,34 @@ fn git_submodule_update() {
 }
 
 fn gclient_sync() {
-  let gclient = Path::new("third_party/depot_tools/gclient.py");
+  let root = env::current_dir().unwrap();
+  let third_party = root.join("third_party");
+  let gclient_rel = PathBuf::from("depot_tools/gclient.py");
 
-  if !gclient.exists() {
+  if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
-  assert!(gclient.exists());
   disable_depot_tools_update();
+  // Command::new(gclient config http://src.chromium.org/svn/trunk/src
 
-  println!("cargo:warning=Running gclient sync to download V8. This could take a while.");
+  println!(
+    "cargo:warning=Running gclient sync to download V8. This could take a while."
+  );
+
   let mut cmd = Command::new("python");
-  cmd.arg("depot_tools/gclient.py");
+  cmd.current_dir(&third_party);
+  cmd.arg(&gclient_rel);
   cmd.arg("sync");
-  cmd.arg("--gclientfile=gclient_config.py");
   cmd.arg("--no-history");
   cmd.arg("--shallow");
-  cmd.current_dir("third_party");
+  // cmd.arg("--verbose");
+  cmd.env("DEPOT_TOOLS_UPDATE", "0");
+  cmd.env("DEPOT_TOOLS_METRICS", "0");
+  cmd.env("GCLIENT_FILE", third_party.join("gclient_config.py"));
+  // We're not using Google's internal infrastructure.
+  cmd.env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+
+  println!("running: {:?}", cmd);
   let status = cmd.status().expect("gclient sync failed");
   assert!(status.success());
 }
