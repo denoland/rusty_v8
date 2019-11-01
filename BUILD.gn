@@ -3,10 +3,10 @@ import("//third_party/v8/gni/v8.gni")
 
 v8_static_library("rusty_v8") {
   sources = [
-    "src/inspector/channel.cpp",
-    "src/inspector/client.cpp",
-    "src/platform/task.cpp",
-    "src/string_buffer.cpp",
+    "src/inspector/channel.cc",
+    "src/inspector/client.cc",
+    "src/platform/task.cc",
+    "src/string_buffer.cc",
   ]
   deps = [
     "//build/config:shared_library_deps",
