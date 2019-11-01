@@ -78,6 +78,7 @@ fn gclient_sync() {
   cmd.arg("--shallow");
   cmd.arg("--verbose");
   cmd.env("DEPOT_TOOLS_UPDATE", "0");
+  cmd.env("DEPOT_TOOLS_METRICS", "0");
   cmd.env("GCLIENT_FILE", third_party.join("gclient_config.py"));
   // We're not using Google's internal infrastructure.
   cmd.env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
