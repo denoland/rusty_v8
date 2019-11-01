@@ -33,7 +33,7 @@ fn main() {
     .into_string()
     .unwrap();;
 
-  let gn_out = cargo_gn::maybe_gen(gn_root, gn_args);
+  let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8");
