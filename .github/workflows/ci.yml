@@ -1,6 +1,6 @@
 name: ci
 
-on: [push] # TODO(ry) [push, pull_request]
+on: [push, pull_request]
 
 jobs:
   build:
@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [macOS-10.14, ubuntu-16.04, windows-2019]
+        os: [macOS-latest, ubuntu-16.04, windows-2019]
     steps:
       - name: Configure git
         run: git config --global core.symlinks true
@@ -17,7 +17,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v1
         with:
-          fetch-depth: 1
+          fetch-depth: 10
           submodules: true
 
       - name: Install rust
@@ -26,9 +26,9 @@ jobs:
           rust-version: "1.38.0"
 
       - name: Remove unused versions of Python
-        # Depot_tools bootstraps its own copy of virtualenv. This fails on
-        # windows when multiple versions of python are in present in PATH,
-        # so we remove all but the first one.
+        # Depot_tools brings its own Python and bootstraps virtualenv. The
+        # latter fails on windows when unused versions of Python are in present
+        # in PATH, so we remove those.
         # 🤯 Removing items from PATH does not seem possible on Github Actions,
         # not even by using `echo ::set-env name=PATH`, so we have to rename
         # or delete the actual Python directories.
@@ -36,7 +36,6 @@ jobs:
         run: |-
           $env:PATH -split ";" |
             Where-Object { Test-Path "$_\python.exe" } |
-            Select-Object -Skip 1 |
             ForEach-Object { Move-Item "$_" "$_.disabled" }
 
       - name: Environment (common)
@@ -44,10 +43,6 @@ jobs:
 
       - name: Environment (linux)
         if: startsWith(matrix.os, 'ubuntu')
-        # In order to test the installer scripts in std we need a deno
-        # executable in the path. See
-        # https://github.com/denoland/deno/blob/27cd2c97f18c0392bc04c66b786717b2bc677315/std/installer/mod.ts#L185-L193
-        # TODO(ry) This path modification should rather be done in "cargo test".
         run: |
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
@@ -87,5 +82,8 @@ jobs:
         run: |
           rustup component add clippy
           cargo clippy --all-targets --release --locked -- -D clippy::all
+
+      - name: Stop sccache
+        run: sccache --stop-server
 
       # TODO cpplint
