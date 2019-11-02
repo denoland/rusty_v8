@@ -25,11 +25,6 @@ jobs:
         with:
           rust-version: "1.38.0"
 
-      - name: Install python
-        uses: actions/setup-python@v1
-        with:
-          python-version: "2.7.16"
-
       - name: Remove unused versions of Python
         # Depot_tools bootstraps its own copy of virtualenv. This fails on
         # windows when multiple versions of python are in present in PATH,
@@ -45,10 +40,7 @@ jobs:
             ForEach-Object { Move-Item "$_" "$_.disabled" }
 
       - name: Environment (common)
-        run: |
-          echo ::set-env name=GH_ACTIONS::1
-          echo ::set-env name=RUSTC_WRAPPER::sccache
-          echo ::set-env name=DENO_BUILD_MODE::release
+        run: echo ::set-env name=RUSTC_WRAPPER::sccache
 
       - name: Environment (linux)
         if: startsWith(matrix.os, 'ubuntu')
@@ -60,7 +52,6 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-unknown-linux-musl/
-          echo ::add-path::`pwd`/third_party/depot_tools/
 
       - name: Environment (mac)
         if: startsWith(matrix.os, 'macOS')
@@ -68,7 +59,6 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-apple-darwin.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-apple-darwin.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-apple-darwin/
-          echo ::add-path::`pwd`/third_party/depot_tools/
 
       - name: Environment (windows)
         if: startsWith(matrix.os, 'windows')

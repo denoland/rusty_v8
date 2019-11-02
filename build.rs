@@ -2,14 +2,12 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
 fn main() {
-  if cfg!(windows) {
-    init_depot_tools_windows();
-  }
+  init_depot_tools();
+
   if !Path::new("third_party/v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
@@ -50,71 +48,77 @@ fn main() {
   }
 }
 
-fn init_depot_tools_windows() {
+fn init_depot_tools() {
+  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+  env::set_var("DEPOT_TOOLS_UPDATE", "0");
+  env::set_var("DEPOT_TOOLS_METRICS", "0");
+
   let depot_tools = env::current_dir()
     .unwrap()
     .join("third_party")
     .join("depot_tools");
-  // Bootstrap depot_tools.
-  if !depot_tools.join("git.bat").is_file() {
-    let status = Command::new("cmd.exe")
-      .arg("/c")
-      .arg("bootstrap\\win_tools.bat")
-      .current_dir(&depot_tools)
-      .status()
-      .expect("bootstrapping depot_tools failed");
-    assert!(status.success());
-  }
+
   // Add third_party/depot_tools and buildtools/win to PATH.
-  // TODO: this should be done on all platforms.
   // TODO: buildtools/win should not be added; instead, cargo_gn should invoke
   // depot_tools/gn.bat.
   let buildtools_win =
     env::current_dir().unwrap().join("buildtools").join("win");
+
   // Bootstrap depot_tools.
   let path = env::var_os("PATH").unwrap();
-  let paths = vec![depot_tools, buildtools_win]
+
+  // "Add depot_tools to the start of your PATH (must be ahead of any installs
+  // of Python)."
+  // https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
+  let paths = vec![depot_tools.clone(), buildtools_win]
     .into_iter()
     .chain(env::split_paths(&path))
     .collect::<Vec<_>>();
   let path = env::join_paths(paths).unwrap();
   env::set_var("PATH", &path);
-  // TODO: cargo_gn should do this.
-  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-}
 
-fn git_submodule_update() {
-  Command::new("git")
-    .arg("submodule")
-    .arg("update")
-    .arg("--init")
-    .status()
-    .expect("git submodule update failed");
+  env::set_var("GN", which("gn").unwrap());
+
+  if cfg!(windows) {
+    // Bootstrap depot_tools.
+    if !depot_tools.join("git.bat").is_file() {
+      let status = Command::new("cmd.exe")
+        .arg("/c")
+        .arg("bootstrap\\win_tools.bat")
+        .current_dir(&depot_tools)
+        .status()
+        .expect("bootstrapping depot_tools failed");
+      assert!(status.success());
+    }
+  }
 }
 
 fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
-  let gclient_rel = PathBuf::from("depot_tools/gclient.py");
+  let depot_tools = third_party.join("depot_tools");
   let gclient_file = third_party.join("gclient_config.py");
-  assert!(gclient_file.exists());
 
-  if !third_party.join(&gclient_rel).exists() {
-    git_submodule_update();
+  let gclient = depot_tools.join(if cfg!(windows) {
+    "gclient.bat"
+  } else {
+    "gclient"
+  });
+  if !gclient.is_file() {
+    panic!(
+      "Could not find gclient {}. Maybe run git submodule update?",
+      gclient.display()
+    );
   }
 
   println!("Running gclient sync to download V8. This could take a while.");
 
-  let status = Command::new("python")
+  let status = Command::new(gclient)
     .current_dir(&third_party)
-    .arg(&gclient_rel)
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
-    .env("DEPOT_TOOLS_UPDATE", "0")
-    .env("DEPOT_TOOLS_METRICS", "0")
     .env("GCLIENT_FILE", gclient_file)
-    .env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());
