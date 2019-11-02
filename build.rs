@@ -6,16 +6,7 @@ use std::process::Command;
 use which::which;
 
 fn main() {
-  env::set_var("DEPOT_TOOLS_UPDATE", "0");
-  env::set_var("DEPOT_TOOLS_METRICS", "0");
-
-  setup_depot_tools_path();
-  if cfg!(windows) {
-    init_depot_tools_windows();
-  }
-
-  let path = env::var_os("PATH").unwrap();
-  println!("PATH {:?}", path);
+  init_depot_tools();
 
   if !Path::new("third_party/v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
@@ -57,11 +48,29 @@ fn main() {
   }
 }
 
-fn setup_depot_tools_path() {
+fn init_depot_tools() {
+  env::set_var("DEPOT_TOOLS_UPDATE", "0");
+  env::set_var("DEPOT_TOOLS_METRICS", "0");
+
   let depot_tools = env::current_dir()
     .unwrap()
     .join("third_party")
     .join("depot_tools");
+
+  if cfg!(windows) {
+    // Bootstrap depot_tools.
+    if !depot_tools.join("git.bat").is_file() {
+      let status = Command::new("cmd.exe")
+        .arg("/c")
+        .arg("bootstrap\\win_tools.bat")
+        .current_dir(&depot_tools)
+        .status()
+        .expect("bootstrapping depot_tools failed");
+      assert!(status.success());
+    }
+    // TODO: cargo_gn should do this.
+    env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+  }
 
   // Add third_party/depot_tools and buildtools/win to PATH.
   // TODO: this should be done on all platforms.
@@ -91,19 +100,6 @@ fn init_depot_tools_windows() {
     .unwrap()
     .join("third_party")
     .join("depot_tools");
-  // Bootstrap depot_tools.
-  if !depot_tools.join("git.bat").is_file() {
-    let status = Command::new("cmd.exe")
-      .arg("/c")
-      .arg("bootstrap\\win_tools.bat")
-      .current_dir(&depot_tools)
-      .status()
-      .expect("bootstrapping depot_tools failed");
-    assert!(status.success());
-  }
-
-  // TODO: cargo_gn should do this.
-  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 }
 
 fn gclient_sync() {
