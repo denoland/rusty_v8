@@ -105,7 +105,11 @@ fn gclient_sync() {
 
   println!("Running gclient sync to download V8. This could take a while.");
 
-  let cmd = if cfg!(windows) { "gclient.bat" } else { "gclient" };
+  let cmd = if cfg!(windows) {
+    "depot_tools/gclient.bat"
+  } else {
+    "depot_tools/gclient"
+  };
 
   let status = Command::new(cmd)
     .current_dir(&third_party)
