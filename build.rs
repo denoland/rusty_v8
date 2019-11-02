@@ -13,6 +13,10 @@ fn main() {
   if cfg!(windows) {
     init_depot_tools_windows();
   }
+
+  let path = env::var_os("PATH").unwrap();
+  println!("PATH {:?}", path);
+
   if !Path::new("third_party/v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
@@ -72,12 +76,14 @@ fn setup_depot_tools_path() {
   // "Add depot_tools to the start of your PATH (must be ahead of any installs
   // of Python)."
   // https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
-  let paths = env::split_paths(&path)
+  let paths = vec![depot_tools, buildtools_win]
     .into_iter()
-    .chain(vec![depot_tools, buildtools_win])
+    .chain(env::split_paths(&path))
     .collect::<Vec<_>>();
   let path = env::join_paths(paths).unwrap();
   env::set_var("PATH", &path);
+
+  env::set_var("GN", which("gn").unwrap());
 }
 
 fn init_depot_tools_windows() {
