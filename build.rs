@@ -95,23 +95,27 @@ fn git_submodule_update() {
 fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
-  let gclient_rel = PathBuf::from("depot_tools/gclient.py");
+  let depot_tools = third_party.join("depot_tools");
   let gclient_file = third_party.join("gclient_config.py");
-  assert!(gclient_file.exists());
 
+  /*
+  let gclient_rel = PathBuf::from("depot_tools/gclient.py");
+  assert!(gclient_file.exists());
   if !third_party.join(&gclient_rel).exists() {
     git_submodule_update();
   }
+  */
 
   println!("Running gclient sync to download V8. This could take a while.");
 
-  let cmd = if cfg!(windows) {
-    "depot_tools/gclient.bat"
+  let gclient = depot_tools.join(if cfg!(windows) {
+    "gclient.bat"
   } else {
-    "depot_tools/gclient"
-  };
+    "gclient"
+  });
+  assert!(gclient.is_file());
 
-  let status = Command::new(cmd)
+  let status = Command::new(gclient)
     .current_dir(&third_party)
     .arg("sync")
     .arg("--no-history")
