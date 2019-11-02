@@ -2,7 +2,6 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
@@ -10,6 +9,7 @@ fn main() {
   env::set_var("DEPOT_TOOLS_UPDATE", "0");
   env::set_var("DEPOT_TOOLS_METRICS", "0");
 
+  setup_depot_tools_path();
   if cfg!(windows) {
     init_depot_tools_windows();
   }
@@ -53,6 +53,33 @@ fn main() {
   }
 }
 
+fn setup_depot_tools_path() {
+  let depot_tools = env::current_dir()
+    .unwrap()
+    .join("third_party")
+    .join("depot_tools");
+
+  // Add third_party/depot_tools and buildtools/win to PATH.
+  // TODO: this should be done on all platforms.
+  // TODO: buildtools/win should not be added; instead, cargo_gn should invoke
+  // depot_tools/gn.bat.
+  let buildtools_win =
+    env::current_dir().unwrap().join("buildtools").join("win");
+
+  // Bootstrap depot_tools.
+  let path = env::var_os("PATH").unwrap();
+
+  // "Add depot_tools to the start of your PATH (must be ahead of any installs
+  // of Python)."
+  // https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
+  let paths = env::split_paths(&path)
+    .into_iter()
+    .chain(vec![depot_tools, buildtools_win])
+    .collect::<Vec<_>>();
+  let path = env::join_paths(paths).unwrap();
+  env::set_var("PATH", &path);
+}
+
 fn init_depot_tools_windows() {
   let depot_tools = env::current_dir()
     .unwrap()
@@ -68,24 +95,7 @@ fn init_depot_tools_windows() {
       .expect("bootstrapping depot_tools failed");
     assert!(status.success());
   }
-  // Add third_party/depot_tools and buildtools/win to PATH.
-  // TODO: this should be done on all platforms.
-  // TODO: buildtools/win should not be added; instead, cargo_gn should invoke
-  // depot_tools/gn.bat.
-  let buildtools_win =
-    env::current_dir().unwrap().join("buildtools").join("win");
-  // Bootstrap depot_tools.
-  let path = env::var_os("PATH").unwrap();
 
-  // "Add depot_tools to the start of your PATH (must be ahead of any installs
-  // of Python)."
-  // https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
-  let paths = env::split_paths(&path)
-    .into_iter()
-    .chain(vec![depot_tools, buildtools_win])
-    .collect::<Vec<_>>();
-  let path = env::join_paths(paths).unwrap();
-  env::set_var("PATH", &path);
   // TODO: cargo_gn should do this.
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 }
