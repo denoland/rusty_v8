@@ -59,7 +59,6 @@ fn init_depot_tools() {
     .join("depot_tools");
 
   // Add third_party/depot_tools and buildtools/win to PATH.
-  // TODO: this should be done on all platforms.
   // TODO: buildtools/win should not be added; instead, cargo_gn should invoke
   // depot_tools/gn.bat.
   let buildtools_win =
