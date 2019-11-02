@@ -105,7 +105,7 @@ fn gclient_sync() {
 
   println!("Running gclient sync to download V8. This could take a while.");
 
-  let status = Command::new("depot_tools/gclient")
+  let status = Command::new("gclient")
     .current_dir(&third_party)
     .arg("sync")
     .arg("--no-history")
