@@ -7,6 +7,9 @@ use std::process::Command;
 use which::which;
 
 fn main() {
+  env::set_var("DEPOT_TOOLS_UPDATE", "0");
+  env::set_var("DEPOT_TOOLS_METRICS", "0");
+
   if cfg!(windows) {
     init_depot_tools_windows();
   }
@@ -108,8 +111,6 @@ fn gclient_sync() {
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
-    .env("DEPOT_TOOLS_UPDATE", "0")
-    .env("DEPOT_TOOLS_METRICS", "0")
     .env("GCLIENT_FILE", gclient_file)
     .status()
     .expect("gclient sync failed");

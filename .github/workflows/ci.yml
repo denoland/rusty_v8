@@ -41,7 +41,6 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-unknown-linux-musl/
-          echo ::add-path::`pwd`/third_party/depot_tools/
 
       - name: Environment (mac)
         if: startsWith(matrix.os, 'macOS')
@@ -49,7 +48,6 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-apple-darwin.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-apple-darwin.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-apple-darwin/
-          echo ::add-path::`pwd`/third_party/depot_tools/
 
       - name: Environment (windows)
         if: startsWith(matrix.os, 'windows')
@@ -57,7 +55,6 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           tar -zxvf sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           echo ::add-path::$(pwd)\sccache-0.2.12-x86_64-pc-windows-msvc\
-          echo ::add-path::$(pwd)\third_party\depot_tools\
 
       - name: Start sccache
         env:
