@@ -57,6 +57,7 @@ jobs:
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           tar -zxvf sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           echo ::add-path::$(pwd)\sccache-0.2.12-x86_64-pc-windows-msvc\
+          echo ::add-path::$(pwd)\third_party\depot_tools\
 
       - name: Start sccache
         env:
