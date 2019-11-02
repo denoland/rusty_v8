@@ -76,9 +76,13 @@ fn init_depot_tools_windows() {
     env::current_dir().unwrap().join("buildtools").join("win");
   // Bootstrap depot_tools.
   let path = env::var_os("PATH").unwrap();
-  let paths = vec![depot_tools, buildtools_win]
+
+  // "Add depot_tools to the start of your PATH (must be ahead of any installs
+  // of Python)."
+  // https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
+  let paths = env::split_paths(&path)
     .into_iter()
-    .chain(env::split_paths(&path))
+    .chain(vec![depot_tools, buildtools_win])
     .collect::<Vec<_>>();
   let path = env::join_paths(paths).unwrap();
   env::set_var("PATH", &path);
