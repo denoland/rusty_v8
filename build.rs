@@ -83,37 +83,25 @@ fn init_depot_tools_windows() {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 }
 
-fn git_submodule_update() {
-  Command::new("git")
-    .arg("submodule")
-    .arg("update")
-    .arg("--init")
-    .status()
-    .expect("git submodule update failed");
-}
-
 fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
   let depot_tools = third_party.join("depot_tools");
   let gclient_file = third_party.join("gclient_config.py");
 
-  /*
-  let gclient_rel = PathBuf::from("depot_tools/gclient.py");
-  assert!(gclient_file.exists());
-  if !third_party.join(&gclient_rel).exists() {
-    git_submodule_update();
-  }
-  */
-
-  println!("Running gclient sync to download V8. This could take a while.");
-
   let gclient = depot_tools.join(if cfg!(windows) {
     "gclient.bat"
   } else {
     "gclient"
   });
-  assert!(gclient.is_file());
+  if !gclient.is_file() {
+    panic!(
+      "Could not find gclient {}. Maybe run git submodule update?",
+      gclient.display()
+    );
+  }
+
+  println!("Running gclient sync to download V8. This could take a while.");
 
   let status = Command::new(gclient)
     .current_dir(&third_party)
