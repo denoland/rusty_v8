@@ -105,7 +105,9 @@ fn gclient_sync() {
 
   println!("Running gclient sync to download V8. This could take a while.");
 
-  let status = Command::new("gclient")
+  let cmd = if cfg!(windows) { "gclient.bat" } else { "gclient" };
+
+  let status = Command::new(cmd)
     .current_dir(&third_party)
     .arg("sync")
     .arg("--no-history")
@@ -113,7 +115,6 @@ fn gclient_sync() {
     .env("DEPOT_TOOLS_UPDATE", "0")
     .env("DEPOT_TOOLS_METRICS", "0")
     .env("GCLIENT_FILE", gclient_file)
-    .env("DEPOT_TOOLS_WIN_TOOLCHAIN", "0")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());
