@@ -11,6 +11,8 @@ extern "C" {
     argc: *mut c_int,
     argv: *mut *mut c_char,
   );
+
+  pub fn v8__V8__GetVersion() -> *const c_char;
 }
 
 /// Pass the command line arguments to v8.
@@ -64,4 +66,15 @@ fn test_set_flags_from_command_line() {
     r,
     vec!["binaryname".to_string(), "--should-be-ignored".to_string()]
   );
+}
+
+pub fn get_version() -> &'static str {
+  let version = unsafe { v8__V8__GetVersion() };
+  let c_str = unsafe { CStr::from_ptr(version) };
+  c_str.to_str().unwrap()
+}
+
+#[test]
+fn test_get_version() {
+  assert!(get_version().len() > 3);
 }
