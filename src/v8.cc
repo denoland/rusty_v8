@@ -6,4 +6,8 @@ void v8__V8__SetFlagsFromCommandLine(int *argc, char **argv) {
 }
 
 const char *v8__V8__GetVersion() { return v8::V8::GetVersion(); }
+
+void v8__V8__Initialize() { v8::V8::Initialize(); }
+
+bool v8__V8__Dispose() { return v8::V8::Dispose(); }
 }

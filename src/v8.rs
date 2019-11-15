@@ -11,8 +11,9 @@ extern "C" {
     argc: *mut c_int,
     argv: *mut *mut c_char,
   );
-
   pub fn v8__V8__GetVersion() -> *const c_char;
+  pub fn v8__V8__Initialize();
+  pub fn v8__V8__Dispose() -> bool;
 }
 
 /// Pass the command line arguments to v8.
@@ -68,6 +69,7 @@ fn test_set_flags_from_command_line() {
   );
 }
 
+/// Get the version string.
 pub fn get_version() -> &'static str {
   let version = unsafe { v8__V8__GetVersion() };
   let c_str = unsafe { CStr::from_ptr(version) };
@@ -77,4 +79,27 @@ pub fn get_version() -> &'static str {
 #[test]
 fn test_get_version() {
   assert!(get_version().len() > 3);
+}
+
+/// Initializes V8. This function needs to be called before the first Isolate
+/// is created. It always returns true.
+pub fn initialize() {
+  unsafe { v8__V8__Initialize() }
+}
+
+/// Releases any resources used by v8 and stops any utility threads
+/// that may be running.  Note that disposing v8 is permanent, it
+/// cannot be reinitialized.
+///
+/// It should generally not be necessary to dispose v8 before exiting
+/// a process, this should happen automatically.  It is only necessary
+/// to use if the process needs the resources taken up by v8.
+pub fn dispose() -> bool {
+  unsafe { v8__V8__Dispose() }
+}
+
+#[test]
+fn test_initialize_dispose() {
+  initialize();
+  dispose();
 }
