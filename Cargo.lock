@@ -58,6 +58,7 @@ name = "rusty_v8"
 version = "0.0.1"
 dependencies = [
  "cargo_gn 0.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
  "which 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
