@@ -4,6 +4,9 @@ version = "0.0.1"
 authors = ["Bert Belder <bertbelder@gmail.com>"]
 edition = "2018"
 
+[dependencies]
+libc = "0.2.65"
+
 [build-dependencies]
 cargo_gn = "0.0.13"
 which = "3.0.0"

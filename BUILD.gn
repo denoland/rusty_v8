@@ -7,10 +7,11 @@ v8_static_library("rusty_v8") {
     "src/inspector/client.cc",
     "src/platform/task.cc",
     "src/string_buffer.cc",
+    "src/v8.cc",
   ]
   deps = [
-    "//build/config:shared_library_deps",
     ":v8",
+    "//build/config:shared_library_deps",
   ]
   configs = [ ":rusty_v8_config" ]
 }
