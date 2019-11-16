@@ -4,7 +4,11 @@ use libc::c_char;
 use libc::c_int;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::sync::Mutex;
 use std::vec::Vec;
+
+use crate::platform::Platform;
+use crate::support::UniquePtr;
 
 extern "C" {
   pub fn v8__V8__SetFlagsFromCommandLine(
@@ -12,14 +16,37 @@ extern "C" {
     argv: *mut *mut c_char,
   );
   pub fn v8__V8__GetVersion() -> *const c_char;
+  pub fn v8__V8__InitializePlatform(platform: &'static mut Platform);
   pub fn v8__V8__Initialize();
   pub fn v8__V8__Dispose() -> bool;
+  pub fn v8__V8__ShutdownPlatform() -> ();
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum GlobalState {
+  Uninitialized,
+  PlatformInitialized,
+  Initialized,
+  Disposed,
+  PlatformShutdown,
+}
+use GlobalState::*;
+
+lazy_static! {
+  static ref GLOBAL_STATE: Mutex<GlobalState> =
+    Mutex::new(GlobalState::Uninitialized);
+}
+
+pub fn assert_initialized() {
+  let global_state_guard = GLOBAL_STATE.lock().unwrap();
+  assert_eq!(*global_state_guard, Initialized);
 }
 
 /// Pass the command line arguments to v8.
 /// The first element of args (which usually corresponds to the binary name) is
 /// ignored.
 /// Returns a vector of command line arguments that V8 did not understand.
+/// TODO: Check whether this is safe to do after globally initializing v8.
 pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
   // deno_set_v8_flags(int* argc, char** argv) mutates argc and argv to remove
   // flags that v8 understands.
@@ -56,7 +83,6 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
     .collect()
 }
 
-#[test]
 fn test_set_flags_from_command_line() {
   let r = set_flags_from_command_line(vec![
     "binaryname".to_string(),
@@ -81,10 +107,23 @@ fn test_get_version() {
   assert!(get_version().len() > 3);
 }
 
+// TODO: V8::InitializePlatform does not actually take a UniquePtr but rather
+// a raw pointer. This means that the Platform object is not released when
+// V8::ShutdownPlatform is called.
+pub fn initialize_platform(platform: UniquePtr<Platform>) {
+  let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
+  assert_eq!(*global_state_guard, Uninitialized);
+  unsafe { v8__V8__InitializePlatform(&mut *platform.into_raw()) };
+  *global_state_guard = PlatformInitialized;
+}
+
 /// Initializes V8. This function needs to be called before the first Isolate
 /// is created. It always returns true.
 pub fn initialize() {
-  unsafe { v8__V8__Initialize() }
+  let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
+  assert_eq!(*global_state_guard, PlatformInitialized);
+  unsafe { v8__V8__Initialize() };
+  *global_state_guard = Initialized;
 }
 
 /// Releases any resources used by v8 and stops any utility threads
@@ -95,11 +134,16 @@ pub fn initialize() {
 /// a process, this should happen automatically.  It is only necessary
 /// to use if the process needs the resources taken up by v8.
 pub fn dispose() -> bool {
-  unsafe { v8__V8__Dispose() }
+  let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
+  assert_eq!(*global_state_guard, Initialized);
+  assert_eq!(unsafe { v8__V8__Dispose() }, true);
+  *global_state_guard = Disposed;
+  true
 }
 
-#[test]
-fn test_initialize_dispose() {
-  initialize();
-  dispose();
+pub fn shutdown_platform() {
+  let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
+  assert_eq!(*global_state_guard, Disposed);
+  unsafe { v8__V8__ShutdownPlatform() };
+  *global_state_guard = PlatformShutdown;
 }

@@ -5,6 +5,7 @@ authors = ["Bert Belder <bertbelder@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+lazy_static = "1.4.0"
 libc = "0.2.65"
 
 [build-dependencies]

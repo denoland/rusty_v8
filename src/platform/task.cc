@@ -1,7 +1,5 @@
-#include "third_party/v8/include/v8-platform.h"
 #include "../support.h"
-
-#include <iostream>
+#include "third_party/v8/include/v8-platform.h"
 
 using namespace v8;
 using namespace support;

@@ -45,6 +45,7 @@ fn main() {
 
   if cfg!(target_os = "windows") {
     println!("cargo:rustc-link-lib=dylib=winmm");
+    println!("cargo:rustc-link-lib=dylib=dbghelp");
   }
 }
 

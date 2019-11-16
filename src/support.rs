@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::mem::transmute;
+use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -36,6 +37,10 @@ where
 
   pub unsafe fn from_raw(p: *mut T) -> Self {
     transmute(p)
+  }
+
+  pub fn into_raw(self) -> *mut T {
+    unsafe { transmute(self) }
   }
 }
 
@@ -109,5 +114,61 @@ impl<F> FieldOffset<F> {
     (((field as *mut _ as usize) - self.0) as *mut E)
       .as_mut()
       .unwrap()
+  }
+}
+
+pub(crate) trait ConstructOnStack
+where
+  Self: Sized,
+{
+  type Args;
+
+  // The `buf` parameter represents a pointer to uninitialized memory.
+  fn construct(buf: &mut MaybeUninit<Self>, args: &Self::Args);
+  fn destruct(buf: &mut Self);
+}
+
+pub(crate) struct StackOnly<T>(MaybeUninit<T>)
+where
+  T: ConstructOnStack;
+
+impl<T> StackOnly<T>
+where
+  T: ConstructOnStack,
+{
+  unsafe fn uninit() -> Self {
+    Self(MaybeUninit::<T>::uninit())
+  }
+
+  unsafe fn init(&mut self, args: &T::Args) {
+    T::construct(&mut self.0, args);
+  }
+}
+
+impl<T> Deref for StackOnly<T>
+where
+  T: ConstructOnStack,
+{
+  type Target = T;
+  fn deref(&self) -> &T {
+    unsafe { &*(self as *const StackOnly<T> as *const T) }
+  }
+}
+
+impl<T> DerefMut for StackOnly<T>
+where
+  T: ConstructOnStack,
+{
+  fn deref_mut(&mut self) -> &mut T {
+    unsafe { &mut *(self as *mut StackOnly<T> as *mut T) }
+  }
+}
+
+impl<T> Drop for StackOnly<T>
+where
+  T: ConstructOnStack,
+{
+  fn drop(&mut self) {
+    T::destruct(&mut *self)
   }
 }
