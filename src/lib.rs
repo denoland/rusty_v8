@@ -9,6 +9,7 @@
 extern crate lazy_static;
 extern crate libc;
 
+pub mod array_buffer;
 pub mod inspector;
 pub mod isolate;
 pub mod locker;
