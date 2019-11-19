@@ -8,6 +8,7 @@ solutions = [
             'v8/third_party/catapult': None,
             'v8/third_party/colorama/src': None,
             'v8/third_party/jinja2': None,
+            'v8/third_party/markupsafe': None,
             'v8/testing/gmock': None,
             'v8/tools/swarming_client': None,
             'v8/tools/gyp': None,
