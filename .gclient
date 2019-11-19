@@ -2,7 +2,7 @@ solutions = [
     {
         'url': 'https://chromium.googlesource.com/v8/v8.git@7.9.317.12',
         'name': 'v8',
-        #'deps_file': 'DEPS',
+        'deps_file': 'DEPS',
         'custom_deps': {
             #'v8/build': None,
             'v8/third_party/catapult': None,
