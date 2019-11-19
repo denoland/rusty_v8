@@ -113,7 +113,6 @@ fn gclient_sync() {
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
-    // .arg("--nohooks")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());
@@ -121,7 +120,6 @@ fn gclient_sync() {
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
   gn_args.push(format!("cc_wrapper={:?}", sccache_path));
-
   // Disable treat_warnings_as_errors until this sccache bug is fixed:
   // https://github.com/mozilla/sccache/issues/264
   if cfg!(target_os = "windows") {
