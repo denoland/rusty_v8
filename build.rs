@@ -98,7 +98,7 @@ fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
   let depot_tools = third_party.join("depot_tools");
-  let gclient_file = root.join("gclient_config.py");
+  //let gclient_file = root.join("gclient_config.py");
 
   let gclient = depot_tools.join(if cfg!(windows) {
     "gclient.bat"
@@ -120,8 +120,8 @@ fn gclient_sync() {
     .arg("--no-history")
     .arg("--shallow")
     .arg("--nohooks")
-    .env("GCLIENT_FILE", gclient_file)
-    .env("DEPOT_TOOLS_UPDATE", "0")
+    //.env("GCLIENT_FILE", gclient_file)
+    //.env("DEPOT_TOOLS_UPDATE", "0")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());

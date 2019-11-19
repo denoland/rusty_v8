@@ -4,6 +4,8 @@
 /.vscode/
 /target/
 /.cipd/
-/gclient_config.py_entries
+.gclient_entries
 /v8/
 /build/
+/buildtools/
+/tools/clang/

@@ -26,5 +26,15 @@ solutions = [
         'url':
         'https://chromium.googlesource.com/chromium/src/build.git@082f11b29976c3be67dddd74bd75c6d1793201c7',
         'name': 'build',
-    }
+    },
+    {
+        'url':
+        'https://chromium.googlesource.com/chromium/src/buildtools.git@cf454b247c611167388742c7a31ef138a6031172',
+        'name': 'buildtools',
+    },
+    {
+        'url':
+        'https://chromium.googlesource.com/chromium/src/tools/clang.git@c5d85f1e9d3a01e4de2ccf4dfaa7847653ae9121',
+        'name': 'tools/clang',
+    },
 ]
