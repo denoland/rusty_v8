@@ -5,6 +5,17 @@ use std::path::Path;
 use std::process::Command;
 use which::which;
 
+fn last_change() {
+  // 'python', 'v8/build/util/lastchange.py', '-o', 'v8/build/util/LASTCHANGE'],
+  let status = Command::new("python")
+    .arg("build/util/lastchange.py")
+    .arg("-o")
+    .arg("build/util/LASTCHANGE")
+    .status()
+    .expect("");
+  assert!(status.success());
+}
+
 fn main() {
   init_depot_tools();
 
@@ -93,7 +104,6 @@ fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
   let depot_tools = third_party.join("depot_tools");
-  //let gclient_file = root.join("gclient_config.py");
 
   let gclient = depot_tools.join(if cfg!(windows) {
     "gclient.bat"

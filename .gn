@@ -30,7 +30,8 @@ default_args = {
   # for now. See http://clang.llvm.org/docs/ControlFlowIntegrity.html
   is_cfi = false
 
-  use_sysroot=false
+  #use_sysroot=false
+  use_dummy_lastchange = true
 
   # TODO(ry) Remove this so debug builds can link faster. Currently removing
   # this breaks cargo build in debug mode in OSX.
