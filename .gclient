@@ -50,3 +50,99 @@ solutions = [
         'name': 'third_party/markupsafe',
     },
 ]
+
+hooks = [
+  {
+    # Ensure that the DEPS'd "depot_tools" has its self-update capability
+    # disabled.
+    'name': 'disable_depot_tools_selfupdate',
+    'pattern': '.',
+    'action': [
+        'python',
+        'third_party/depot_tools/update_depot_tools_toggle.py',
+        '--disable',
+    ],
+  },
+  {
+    # This clobbers when necessary (based on get_landmines.py). It must be the
+    # first hook so that other things that get/generate into the output
+    # directory will not subsequently be clobbered.
+    'name': 'landmines',
+    'pattern': '.',
+    'action': [
+        'python',
+        'build/landmines.py',
+        '--landmine-scripts',
+        'tools/get_landmines.py',
+    ],
+  },
+  {
+    'name': 'sysroot_arm',
+    'pattern': '.',
+    'condition': '(checkout_linux and checkout_arm)',
+    'action': ['python', 'build/linux/sysroot_scripts/install-sysroot.py',
+               '--arch=arm'],
+  },
+  {
+    'name': 'sysroot_arm64',
+    'pattern': '.',
+    'condition': '(checkout_linux and checkout_arm64)',
+    'action': ['python', 'build/linux/sysroot_scripts/install-sysroot.py',
+               '--arch=arm64'],
+  },
+  {
+    'name': 'sysroot_x86',
+    'pattern': '.',
+    'condition': '(checkout_linux and (checkout_x86 or checkout_x64))',
+    'action': ['python', 'build/linux/sysroot_scripts/install-sysroot.py',
+               '--arch=x86'],
+  },
+  {
+    'name': 'sysroot_x64',
+    'pattern': '.',
+    'condition': 'checkout_linux and checkout_x64',
+    'action': ['python', 'build/linux/sysroot_scripts/install-sysroot.py',
+               '--arch=x64'],
+  },
+  {
+    # Update the Windows toolchain if necessary.
+    'name': 'win_toolchain',
+    'pattern': '.',
+    'condition': 'checkout_win',
+    'action': ['python', 'build/vs_toolchain.py', 'update'],
+  },
+  {
+    # Update the Mac toolchain if necessary.
+    'name': 'mac_toolchain',
+    'pattern': '.',
+    'condition': 'checkout_mac',
+    'action': ['python', 'build/mac_toolchain.py'],
+  },
+  # Pull binutils for linux, enabled debug fission for faster linking /
+  # debugging when used with clang on Ubuntu Precise.
+  # https://code.google.com/p/chromium/issues/detail?id=352046
+  {
+    'name': 'binutils',
+    'pattern': 'third_party/binutils',
+    'condition': 'host_os == "linux"',
+    'action': [
+        'python',
+        'third_party/binutils/download.py',
+    ],
+  },
+  {
+    # Note: On Win, this should run after win_toolchain, as it may use it.
+    'name': 'clang',
+    'pattern': '.',
+    # clang not supported on aix
+    'condition': 'host_os != "aix"',
+    'action': ['python', 'tools/clang/scripts/update.py'],
+  },
+  {
+    # Update LASTCHANGE.
+    'name': 'lastchange',
+    'pattern': '.',
+    'action': ['python', 'build/util/lastchange.py',
+               '-o', 'build/util/LASTCHANGE'],
+  },
+]
