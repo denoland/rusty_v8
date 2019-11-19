@@ -6,7 +6,7 @@ use std::process::Command;
 use which::which;
 
 fn last_change() {
-  // 'python', 'v8/build/util/lastchange.py', '-o', 'v8/build/util/LASTCHANGE'],
+  // Despite using 'use_dummy_lastchange = true' this seems to be necessary.
   let status = Command::new("python")
     .arg("build/util/lastchange.py")
     .arg("-o")
@@ -24,6 +24,8 @@ fn main() {
   {
     gclient_sync();
   }
+
+  last_change();
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
