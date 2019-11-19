@@ -19,7 +19,7 @@ fn last_change() {
 fn main() {
   init_depot_tools();
 
-  if !Path::new("third_party/v8/src").is_dir()
+  if !Path::new("v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
     gclient_sync();
