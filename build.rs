@@ -113,6 +113,7 @@ fn gclient_sync() {
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
+    // .arg("--nohooks")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());

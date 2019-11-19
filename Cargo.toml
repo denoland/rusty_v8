@@ -15,6 +15,8 @@ exclude = [
  "tools/clang",
  "third_party/jinja2",
  "third_party/markupsafe",
+ "third_party/llvm-build",
+ ".landmines",
 ]
 
 [dependencies]

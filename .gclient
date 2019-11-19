@@ -2,9 +2,32 @@ solutions = [
     {
         'url': 'https://chromium.googlesource.com/v8/v8.git@7.9.317.12',
         'name': 'v8',
-        'deps_file': 'DEPS',
+        'custom_hooks': [
+          # Surpress v8 hooks... one wishes there was a better way to do this.
+          { 'name': 'disable_depot_tools_selfupdate' },
+          { 'name': 'landmines' },
+          { 'name': 'clang_format_win' },
+          { 'name': 'clang_format_mac' },
+          { 'name': 'clang_format_linux' },
+          { 'name': 'gcmole' },
+          { 'name': 'jsfunfuzz' },
+          { 'name': 'wasm_spec_tests' },
+          { 'name': 'wasm_js' },
+          { 'name': 'msan_chained_origins' },
+          { 'name': 'msan_no_origins' },
+          { 'name': 'win_toolchain' },
+          { 'name': 'mac_toolchain' },
+          { 'name': 'binutils' },
+          { 'name': 'clang' },
+          { 'name': 'lastchange' },
+          { 'name': 'fuchsia_sdk' },
+          { 'name': 'lld/mac' },
+          { 'name': 'llvm-objdump' },
+          { 'name': 'vpython_common' },
+          { 'name': 'check_v8_header_includes' },
+        ],
         'custom_deps': {
-            #'v8/build': None,
+            'v8/build': None,
             'v8/third_party/catapult': None,
             'v8/third_party/colorama/src': None,
             'v8/third_party/jinja2': None,
@@ -14,7 +37,7 @@ solutions = [
             'v8/tools/gyp': None,
             'v8/third_party/instrumented_libraries': None,
             'v8/third_party/android_tools': None,
-            #'v8/third_party/depot_tools': None,
+            'v8/third_party/depot_tools': None,
             'v8/test/wasm-js': None,
             'v8/test/benchmarks/data': None,
             'v8/test/mozilla/data': None,
@@ -63,19 +86,19 @@ hooks = [
         '--disable',
     ],
   },
-  {
-    # This clobbers when necessary (based on get_landmines.py). It must be the
-    # first hook so that other things that get/generate into the output
-    # directory will not subsequently be clobbered.
-    'name': 'landmines',
-    'pattern': '.',
-    'action': [
-        'python',
-        'build/landmines.py',
-        '--landmine-scripts',
-        'tools/get_landmines.py',
-    ],
-  },
+  # {
+  #   # This clobbers when necessary (based on get_landmines.py). It must be the
+  #   # first hook so that other things that get/generate into the output
+  #   # directory will not subsequently be clobbered.
+  #   'name': 'landmines',
+  #   'pattern': '.',
+  #   'action': [
+  #       'python',
+  #       'build/landmines.py',
+  #       '--landmine-scripts',
+  #       'tools/get_landmines.py',
+  #   ],
+  # },
   {
     'name': 'sysroot_arm',
     'pattern': '.',
