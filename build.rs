@@ -119,9 +119,6 @@ fn gclient_sync() {
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
-    // .arg("--nohooks")
-    //.env("GCLIENT_FILE", gclient_file)
-    //.env("DEPOT_TOOLS_UPDATE", "0")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());

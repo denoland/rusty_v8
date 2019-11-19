@@ -1,0 +1,7 @@
+This boilerplate code is copied from v8/third_party/googletest
+It is only a small bit of code, copied to avoid symlinks (symlinks introduce
+more problems, with git, with cargo package - and it seems copying this
+boilerplate code is less troublesome).
+
+If this ever needs to be updated simply copy the files from
+v8/third_party/googletest here.
