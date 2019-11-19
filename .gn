@@ -11,6 +11,11 @@ buildconfig = "//build/config/BUILDCONFIG.gn"
 # "gn check" or "gn gen --check".
 check_targets = []
 
+# The secondary source root is a parallel directory tree where
+# GN build files are placed when they can not be placed directly
+# in the source tree, e.g. for third party source trees.
+secondary_source = "//v8/"
+
 default_args = {
   # Various global chrome args that are unrelated to deno.
   proprietary_codecs = false

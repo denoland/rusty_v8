@@ -2,6 +2,7 @@
 name = "rusty_v8"
 version = "0.0.1"
 description = "Rust bindings to V8"
+readme = "README.md"
 authors = ["the Deno authors"]
 license = "MIT"
 edition = "2018"
