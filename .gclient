@@ -46,7 +46,7 @@ solutions = [
             'v8/third_party/catapult': None,
             'v8/third_party/colorama/src': None,
             'v8/third_party/depot_tools': None,
-            'v8/third_party/googletest/src': None,
+            #'v8/third_party/googletest/src': None,
             'v8/third_party/icu': None,
             'v8/third_party/instrumented_libraries': None,
             'v8/third_party/jinja2': None,
