@@ -1,8 +1,11 @@
 [package]
 name = "rusty_v8"
 version = "0.0.1"
-authors = ["Bert Belder <bertbelder@gmail.com>"]
+description = "Rust bindings to V8"
+authors = ["the Deno authors"]
+license = "MIT"
 edition = "2018"
+repository = "https://github.com/denoland/rusty_v8"
 
 [dependencies]
 lazy_static = "1.4.0"
