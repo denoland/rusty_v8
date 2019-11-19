@@ -8,7 +8,7 @@ use which::which;
 fn main() {
   init_depot_tools();
 
-  if !Path::new("third_party/v8/src").is_dir()
+  if !Path::new("v8/src").is_dir()
     || env::var_os("GCLIENT_SYNC").is_some()
   {
     gclient_sync();
@@ -29,12 +29,7 @@ fn main() {
     println!("cargo:warning=Not using sccache");
   }
 
-  // gn_root needs to be an absolute path.
-  let gn_root = env::current_dir()
-    .unwrap()
-    .into_os_string()
-    .into_string()
-    .unwrap();
+  let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
   let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
@@ -98,7 +93,6 @@ fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
   let depot_tools = third_party.join("depot_tools");
-  let gclient_file = third_party.join("gclient_config.py");
 
   let gclient = depot_tools.join(if cfg!(windows) {
     "gclient.bat"
@@ -115,11 +109,10 @@ fn gclient_sync() {
   println!("Running gclient sync to download V8. This could take a while.");
 
   let status = Command::new(gclient)
-    .current_dir(&third_party)
+    .current_dir(&root)
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
-    .env("GCLIENT_FILE", gclient_file)
     .status()
     .expect("gclient sync failed");
   assert!(status.success());
@@ -127,7 +120,6 @@ fn gclient_sync() {
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
   gn_args.push(format!("cc_wrapper={:?}", sccache_path));
-
   // Disable treat_warnings_as_errors until this sccache bug is fixed:
   // https://github.com/mozilla/sccache/issues/264
   if cfg!(target_os = "windows") {

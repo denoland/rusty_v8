@@ -1,8 +1,24 @@
 [package]
 name = "rusty_v8"
-version = "0.0.1"
-authors = ["Bert Belder <bertbelder@gmail.com>"]
+version = "0.0.2"
+description = "Rust bindings to V8"
+readme = "README.md"
+authors = ["the Deno authors"]
+license = "MIT"
 edition = "2018"
+repository = "https://github.com/denoland/rusty_v8"
+exclude = [
+ ".cipd",
+ ".gclient_entries",
+ "v8",
+ "build",
+ "buildtools",
+ "tools/clang",
+ "third_party/jinja2",
+ "third_party/markupsafe",
+ "third_party/llvm-build",
+ ".landmines",
+]
 
 [dependencies]
 lazy_static = "1.4.0"
