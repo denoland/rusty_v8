@@ -25,6 +25,10 @@ solutions = [
           { 'name': 'llvm-objdump' },
           { 'name': 'vpython_common' },
           { 'name': 'check_v8_header_includes' },
+          { 'name': 'sysroot_arm' },
+          { 'name': 'sysroot_arm64' },
+          { 'name': 'sysroot_x86' },
+          { 'name': 'sysroot_x64' },
         ],
         'custom_deps': {
             'v8/build': None,
