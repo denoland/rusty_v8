@@ -26,6 +26,8 @@ default_args = {
   # To disable "use_atk" and other features that we don't need.
   is_desktop_linux = false
 
+  linux_use_bundled_binutils = false
+
   # TODO(ry) We may want to turn on CFI at some point. Disabling for simplicity
   # for now. See http://clang.llvm.org/docs/ControlFlowIntegrity.html
   is_cfi = false
