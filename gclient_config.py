@@ -23,8 +23,8 @@ solutions = [
         }
     },
     {
-        'url': 'https://chromium.googlesource.com/chromium/src/build.git@082f11b29976c3be67dddd74bd75c
-6d1793201c7',
+        'url':
+        'https://chromium.googlesource.com/chromium/src/build.git@082f11b29976c3be67dddd74bd75c6d1793201c7',
         'name': 'build',
     }
 ]
