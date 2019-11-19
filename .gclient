@@ -1,6 +1,6 @@
 solutions = [
     {
-        'url': 'https://chromium.googlesource.com/v8/v8.git@7.9.317.12',
+        'url': 'https://github.com/v8/v8.git@7.9.317.12',
         'name': 'v8',
         'custom_hooks': [
           # Surpress v8 hooks... one wishes there was a better way to do this.
