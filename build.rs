@@ -98,7 +98,7 @@ fn gclient_sync() {
   let root = env::current_dir().unwrap();
   let third_party = root.join("third_party");
   let depot_tools = third_party.join("depot_tools");
-  let gclient_file = third_party.join("gclient_config.py");
+  let gclient_file = root.join("gclient_config.py");
 
   let gclient = depot_tools.join(if cfg!(windows) {
     "gclient.bat"
@@ -115,7 +115,7 @@ fn gclient_sync() {
   println!("Running gclient sync to download V8. This could take a while.");
 
   let status = Command::new(gclient)
-    .current_dir(&third_party)
+    .current_dir(&root)
     .arg("sync")
     .arg("--no-history")
     .arg("--shallow")
