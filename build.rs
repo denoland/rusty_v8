@@ -29,12 +29,7 @@ fn main() {
     println!("cargo:warning=Not using sccache");
   }
 
-  // gn_root needs to be an absolute path.
-  let gn_root = env::current_dir()
-    .unwrap()
-    .into_os_string()
-    .into_string()
-    .unwrap();
+  let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
   let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
