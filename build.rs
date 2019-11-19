@@ -120,6 +120,7 @@ fn gclient_sync() {
     .arg("--no-history")
     .arg("--shallow")
     .env("GCLIENT_FILE", gclient_file)
+    .env("DEPOT_TOOLS_UPDATE", "0")
     .status()
     .expect("gclient sync failed");
   assert!(status.success());

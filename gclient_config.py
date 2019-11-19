@@ -2,7 +2,7 @@ solutions = [
     {
         'url': 'https://chromium.googlesource.com/v8/v8.git@7.9.317.12',
         'name': 'v8',
-        'deps_file': 'DEPS',
+        #'deps_file': 'DEPS',
         'custom_deps': {
             'v8/build': None,
             'v8/third_party/catapult': None,
@@ -12,7 +12,7 @@ solutions = [
             'v8/tools/gyp': None,
             'v8/third_party/instrumented_libraries': None,
             'v8/third_party/android_tools': None,
-            'v8/third_party/depot_tools': None,
+            #'v8/third_party/depot_tools': None,
             'v8/test/wasm-js': None,
             'v8/test/benchmarks/data': None,
             'v8/test/mozilla/data': None,

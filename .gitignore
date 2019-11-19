@@ -3,6 +3,7 @@
 
 /.vscode/
 /target/
-/third_party/.cipd/
-/third_party/gclient_config.py_entries
-/third_party/v8/
+/.cipd/
+/gclient_config.py_entries
+/v8/
+/build/
