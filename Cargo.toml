@@ -6,6 +6,14 @@ authors = ["the Deno authors"]
 license = "MIT"
 edition = "2018"
 repository = "https://github.com/denoland/rusty_v8"
+exclude = [
+ "v8",
+ "build",
+ "buildtools",
+ "tools/clang",
+ "third_party/jinja2",
+ "third_party/markupsafe",
+]
 
 [dependencies]
 lazy_static = "1.4.0"
