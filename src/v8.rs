@@ -133,10 +133,15 @@ pub fn initialize() {
 /// It should generally not be necessary to dispose v8 before exiting
 /// a process, this should happen automatically.  It is only necessary
 /// to use if the process needs the resources taken up by v8.
-pub fn dispose() -> bool {
+///
+/// # Safety
+///
+/// Calling this function before completely disposing all isolates will lead
+/// to a crash.
+pub unsafe fn dispose() -> bool {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   assert_eq!(*global_state_guard, Initialized);
-  assert_eq!(unsafe { v8__V8__Dispose() }, true);
+  assert_eq!(v8__V8__Dispose(), true);
   *global_state_guard = Disposed;
   true
 }

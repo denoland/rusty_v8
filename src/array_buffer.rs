@@ -1,6 +1,6 @@
 use crate::support::Delete;
 use crate::support::Opaque;
-use crate::support::UniquePtr;
+use crate::support::UniqueRef;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
@@ -12,9 +12,9 @@ extern "C" {
 pub struct Allocator(Opaque);
 
 impl Allocator {
-  pub fn new_default_allocator() -> UniquePtr<Allocator> {
+  pub fn new_default_allocator() -> UniqueRef<Allocator> {
     unsafe {
-      UniquePtr::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
+      UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
     }
   }
 }

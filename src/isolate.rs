@@ -1,10 +1,23 @@
-use crate::support::Opaque;
-use crate::v8::assert_initialized;
 use std::ops::Deref;
 
+use crate::array_buffer::Allocator;
+use crate::support::Delete;
+use crate::support::Opaque;
+use crate::support::UniqueRef;
+use crate::v8::assert_initialized;
+
 extern "C" {
-  fn v8__Isolate__New() -> &'static mut UnlockedIsolate;
+  fn v8__Isolate__New(
+    params: *mut CreateParams,
+  ) -> &'static mut UnlockedIsolate;
   fn v8__Isolate__Dispose(this: &mut UnlockedIsolate) -> ();
+
+  fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
+  fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
+  fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
+    this: &mut CreateParams,
+    value: *mut Allocator,
+  );
 }
 
 #[repr(C)]
@@ -16,10 +29,10 @@ pub struct LockedIsolate(Opaque);
 pub struct Isolate(&'static mut UnlockedIsolate);
 
 impl Isolate {
-  pub fn new() -> Self {
+  pub fn new(params: UniqueRef<CreateParams>) -> Self {
     // TODO: support CreateParams.
     assert_initialized();
-    Self(unsafe { v8__Isolate__New() })
+    Self(unsafe { v8__Isolate__New(params.into_raw()) })
   }
 }
 
@@ -36,6 +49,30 @@ impl Deref for Isolate {
   }
 }
 
+#[repr(C)]
+pub struct CreateParams(Opaque);
+
+impl CreateParams {
+  pub fn new() -> UniqueRef<CreateParams> {
+    unsafe { UniqueRef::from_raw(v8__Isolate__CreateParams__NEW()) }
+  }
+
+  pub fn set_array_buffer_allocator(&mut self, value: UniqueRef<Allocator>) {
+    unsafe {
+      v8__Isolate__CreateParams__SET__array_buffer_allocator(
+        self,
+        value.into_raw(),
+      )
+    };
+  }
+}
+
+impl Delete for CreateParams {
+  fn delete(&'static mut self) {
+    unsafe { v8__Isolate__CreateParams__DELETE(self) }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -46,8 +83,8 @@ mod tests {
   fn test_isolate() {
     initialize_platform(new_default_platform());
     initialize();
-    //let isolate = Isolate::new();
-    dispose();
-    shutdown_platform();
+    let mut params = CreateParams::new();
+    params.set_array_buffer_allocator(Allocator::new_default_allocator());
+    Isolate::new(params);
   }
 }

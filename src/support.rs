@@ -1,9 +1,11 @@
 use std::marker::PhantomData;
+use std::mem::replace;
 use std::mem::size_of;
 use std::mem::transmute;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::NonNull;
 
 pub use std::os::raw::c_int as int;
 
@@ -16,7 +18,7 @@ where
   fn delete(&'static mut self) -> ();
 }
 
-/// Pointer to object allocated on the C++ heap.
+/// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct UniquePtr<T>(Option<&'static mut T>)
@@ -41,6 +43,12 @@ where
 
   pub fn into_raw(self) -> *mut T {
     unsafe { transmute(self) }
+  }
+
+  pub fn unwrap(self) -> UniqueRef<T> {
+    let p = self.into_raw();
+    assert!(!p.is_null());
+    unsafe { UniqueRef::from_raw(p) }
   }
 }
 
@@ -71,6 +79,61 @@ where
     if let Some(v) = self.0.take() {
       Delete::delete(v)
     }
+  }
+}
+
+/// Pointer to object allocated on the C++ heap. The pointer may not be null.
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct UniqueRef<T>(&'static mut T)
+where
+  T: Delete;
+
+impl<T> UniqueRef<T>
+where
+  T: Delete,
+{
+  pub fn new(r: &'static mut T) -> Self {
+    Self(r)
+  }
+
+  pub unsafe fn from_raw(p: *mut T) -> Self {
+    transmute(NonNull::new(p))
+  }
+
+  pub fn into_raw(self) -> *mut T {
+    unsafe { transmute(self) }
+  }
+}
+
+impl<T> Deref for UniqueRef<T>
+where
+  T: Delete,
+{
+  type Target = &'static mut T;
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<T> DerefMut for UniqueRef<T>
+where
+  T: Delete,
+{
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
+  }
+}
+
+impl<T> Drop for UniqueRef<T>
+where
+  T: Delete,
+{
+  fn drop(&mut self) {
+    let inner = replace(&mut self.0, unsafe {
+      transmute(NonNull::<&'static mut T>::dangling())
+    });
+    Delete::delete(inner)
   }
 }
 

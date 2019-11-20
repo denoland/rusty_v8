@@ -3,12 +3,35 @@
 using namespace v8;
 
 extern "C" {
-Isolate* v8__Isolate__New() {
-  Isolate::CreateParams params;
-  return Isolate::New(params);
+// This function consumes the Isolate::CreateParams object. The Isolate takes
+// ownership of the ArrayBuffer::Allocator referenced by the params object.
+Isolate* v8__Isolate__New(Isolate::CreateParams& params) {
+  auto isolate = Isolate::New(params);
+  delete &params;
+  return isolate;
 }
 
 void v8__Isolate__Dispose(Isolate& isolate) {
+  auto allocator = isolate.GetArrayBufferAllocator();
   isolate.Dispose();
+  delete allocator;
+}
+
+Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
+  return new Isolate::CreateParams();
+}
+
+// This function is only called if the Isolate::CreateParams object is *not*
+// consumed by Isolate::New().
+void v8__Isolate__CreateParams__DELETE(Isolate::CreateParams& self) {
+  delete self.array_buffer_allocator;
+  delete &self;
+}
+
+// This function takes ownership of the ArrayBuffer::Allocator.
+void v8__Isolate__CreateParams__SET__array_buffer_allocator(
+    Isolate::CreateParams& self, ArrayBuffer::Allocator* value) {
+  delete self.array_buffer_allocator;
+  self.array_buffer_allocator = value;
 }
 }
