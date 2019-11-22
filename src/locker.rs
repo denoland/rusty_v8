@@ -1,11 +1,9 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ops::DerefMut;
 
+use crate::isolate::CxxIsolate;
 use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
-use crate::isolate::UnlockedIsolate;
 
 // class Locker {
 //  public:
@@ -16,10 +14,7 @@ use crate::isolate::UnlockedIsolate;
 // }
 
 extern "C" {
-  fn v8__Locker__CONSTRUCT(
-    buf: &mut MaybeUninit<Locker>,
-    isolate: &UnlockedIsolate,
-  );
+  fn v8__Locker__CONSTRUCT(buf: &mut MaybeUninit<Locker>, isolate: &CxxIsolate);
   fn v8__Locker__DESTRUCT(this: &mut Locker);
 }
 
@@ -27,12 +22,12 @@ extern "C" {
 pub struct Locker<'a> {
   has_lock: bool,
   top_level: bool,
-  isolate: &'a mut LockedIsolate,
+  isolate: &'a mut CxxIsolate,
   phantom: PhantomData<&'a Isolate>,
 }
 
 impl<'a> Locker<'a> {
-  fn new(isolate: &UnlockedIsolate) -> Self {
+  pub fn new(isolate: &CxxIsolate) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__Locker__CONSTRUCT(&mut buf, isolate);
@@ -47,15 +42,8 @@ impl<'a> Drop for Locker<'a> {
   }
 }
 
-impl<'a> Deref for Locker<'a> {
-  type Target = LockedIsolate;
-  fn deref(&self) -> &LockedIsolate {
-    self.isolate
-  }
-}
-
-impl<'a> DerefMut for Locker<'a> {
-  fn deref_mut(&mut self) -> &mut LockedIsolate {
+impl<'a> LockedIsolate for Locker<'a> {
+  fn cxx_isolate(&mut self) -> &mut CxxIsolate {
     self.isolate
   }
 }
