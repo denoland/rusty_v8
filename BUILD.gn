@@ -4,6 +4,7 @@ import("//v8/gni/v8.gni")
 v8_static_library("rusty_v8") {
   sources = [
     "src/array_buffer.cc",
+    "src/handle_scope.cc",
     "src/inspector/channel.cc",
     "src/inspector/client.cc",
     "src/isolate.cc",
