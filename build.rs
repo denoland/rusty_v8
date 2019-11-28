@@ -40,6 +40,15 @@ fn main() {
   }
 }
 
+fn set_gn_ninja_vars() {
+  let root = env::current_dir().unwrap();
+  let buildtools = root.join("buildtools").join("mac");
+  let gn = buildtools.join("gn");
+  let ninja = buildtools.join("ninja");
+  env::set_var("GN", gn);
+  env::set_var("NINJA", ninja);
+}
+
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
 // modify the source directory.
 fn clang_download(gn_args: &mut Vec<String>) {
