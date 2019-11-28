@@ -10,3 +10,6 @@
 [submodule "tools/clang"]
 	path = tools/clang
 	url = https://chromium.googlesource.com/chromium/src/tools/clang.git
+[submodule "base/trace_event/common"]
+	path = base/trace_event/common
+	url = https://chromium.googlesource.com/chromium/src/base/trace_event/common.git

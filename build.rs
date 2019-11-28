@@ -2,6 +2,7 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
@@ -14,6 +15,8 @@ fn main() {
   } else {
     vec!["is_debug=false".to_string()]
   };
+
+  clang_download(&mut gn_args);
 
   if let Some(p) = env::var_os("SCCACHE") {
     cc_wrapper(&mut gn_args, &Path::new(&p));
@@ -36,6 +39,24 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
   }
+}
+
+// Download chromium's clang into OUT_DIR because Cargo will not allow us to
+// modify the source directory.
+fn clang_download(gn_args: &mut Vec<String>) {
+  let root = env::current_dir().unwrap();
+  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let clang_base_path = root.join(out_dir).join("clang");
+  println!("clang_base_path {}", clang_base_path.display());
+  let status = Command::new("python")
+    .arg("./tools/clang/scripts/update.py")
+    .arg("--clang-dir")
+    .arg(&clang_base_path)
+    .status()
+    .expect("clang download failed");
+  assert!(status.success());
+
+  gn_args.push(format!("clang_base_path={:?}", clang_base_path));
 }
 
 fn init_depot_tools() {
