@@ -2,7 +2,6 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
