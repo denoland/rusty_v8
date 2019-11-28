@@ -44,6 +44,8 @@ default_args = {
   # Cannot overlay submodules, //buildtools/third_party/libc++
   use_custom_libcxx = false
 
+  use_sysroot = false
+
   symbol_level = 1
   treat_warnings_as_errors = true
 

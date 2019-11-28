@@ -49,6 +49,12 @@ fn get_buildtools() -> PathBuf {
   root.join("buildtools").join("mac")
 }
 
+#[cfg(target_os = "linux")]
+fn get_buildtools() -> PathBuf {
+  let root = env::current_dir().unwrap();
+  root.join("buildtools").join("linux64")
+}
+
 fn set_gn_ninja_vars() {
   let buildtools = get_buildtools();
   let gn = buildtools.join("gn");
