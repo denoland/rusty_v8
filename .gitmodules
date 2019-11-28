@@ -1,3 +1,6 @@
 [submodule "depot_tools"]
 	path = third_party/depot_tools
 	url = https://chromium.googlesource.com/chromium/tools/depot_tools.git
+[submodule "v8"]
+	path = v8
+	url = https://github.com/v8/v8.git

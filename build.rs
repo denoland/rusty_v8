@@ -8,12 +8,6 @@ use which::which;
 fn main() {
   init_depot_tools();
 
-  if !Path::new("v8/src").is_dir()
-    || env::var_os("GCLIENT_SYNC").is_some()
-  {
-    gclient_sync();
-  }
-
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
     vec!["is_debug=true".to_string()]
@@ -87,35 +81,6 @@ fn init_depot_tools() {
       assert!(status.success());
     }
   }
-}
-
-fn gclient_sync() {
-  let root = env::current_dir().unwrap();
-  let third_party = root.join("third_party");
-  let depot_tools = third_party.join("depot_tools");
-
-  let gclient = depot_tools.join(if cfg!(windows) {
-    "gclient.bat"
-  } else {
-    "gclient"
-  });
-  if !gclient.is_file() {
-    panic!(
-      "Could not find gclient {}. Maybe run git submodule update?",
-      gclient.display()
-    );
-  }
-
-  println!("Running gclient sync to download V8. This could take a while.");
-
-  let status = Command::new(gclient)
-    .current_dir(&root)
-    .arg("sync")
-    .arg("--no-history")
-    .arg("--shallow")
-    .status()
-    .expect("gclient sync failed");
-  assert!(status.success());
 }
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
