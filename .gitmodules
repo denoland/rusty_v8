@@ -4,3 +4,9 @@
 [submodule "v8"]
 	path = v8
 	url = https://github.com/v8/v8.git
+[submodule "build"]
+	path = build
+	url = https://chromium.googlesource.com/chromium/src/build.git
+[submodule "tools/clang"]
+	path = tools/clang
+	url = https://chromium.googlesource.com/chromium/src/tools/clang.git

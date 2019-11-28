@@ -41,6 +41,9 @@ default_args = {
   # this breaks cargo build in debug mode in OSX.
   is_component_build = false
 
+  # Cannot overlay submodules, //buildtools/third_party/libc++
+  use_custom_libcxx = false
+
   symbol_level = 1
   treat_warnings_as_errors = true
 
