@@ -2,11 +2,14 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
 fn main() {
   init_depot_tools();
+
+  set_gn_ninja_vars();
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
@@ -40,9 +43,14 @@ fn main() {
   }
 }
 
-fn set_gn_ninja_vars() {
+#[cfg(target_os = "macos")]
+fn get_buildtools() -> PathBuf {
   let root = env::current_dir().unwrap();
-  let buildtools = root.join("buildtools").join("mac");
+  root.join("buildtools").join("mac")
+}
+
+fn set_gn_ninja_vars() {
+  let buildtools = get_buildtools();
   let gn = buildtools.join("gn");
   let ninja = buildtools.join("ninja");
   env::set_var("GN", gn);
