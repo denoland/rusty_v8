@@ -48,27 +48,6 @@ fn init_depot_tools() {
     .join("third_party")
     .join("depot_tools");
 
-  // Add third_party/depot_tools and buildtools/win to PATH.
-  // TODO: buildtools/win should not be added; instead, cargo_gn should invoke
-  // depot_tools/gn.bat.
-  let buildtools_win =
-    env::current_dir().unwrap().join("buildtools").join("win");
-
-  // Bootstrap depot_tools.
-  let path = env::var_os("PATH").unwrap();
-
-  // "Add depot_tools to the start of your PATH (must be ahead of any installs
-  // of Python)."
-  // https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
-  let paths = vec![depot_tools.clone(), buildtools_win]
-    .into_iter()
-    .chain(env::split_paths(&path))
-    .collect::<Vec<_>>();
-  let path = env::join_paths(paths).unwrap();
-  env::set_var("PATH", &path);
-
-  env::set_var("GN", which("gn").unwrap());
-
   if cfg!(windows) {
     // Bootstrap depot_tools.
     if !depot_tools.join("git.bat").is_file() {
