@@ -8,6 +8,10 @@ license = "MIT"
 edition = "2018"
 repository = "https://github.com/denoland/rusty_v8"
 
+exclude = [
+ "buildtools/third_party/libc++/trunk/test/"
+]
+
 [dependencies]
 lazy_static = "1.4.0"
 libc = "0.2.65"
