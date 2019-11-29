@@ -10,7 +10,7 @@ repository = "https://github.com/denoland/rusty_v8"
 
 exclude = [
  "buildtools/third_party/libc++/trunk/test/",
- "v8/test/webkit/",
+ "v8/test/webkit/*.txt",
 ]
 
 [dependencies]
