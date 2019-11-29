@@ -2,13 +2,17 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
 fn main() {
   // cargo publish doesn't like pyc files.
   env::set_var("PYTHONDONTWRITEBYTECODE", "1");
+
+  // Don't build if "cargo doc" is being run.
+  if env::var_os("RUSTDOCFLAGS").is_some() {
+    return;
+  }
 
   // TODO extract
   // https://s3.amazonaws.com/deno.land/gn_ninja_binaries.tar.gz
