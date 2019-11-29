@@ -111,23 +111,29 @@ fn need_gn_ninja_download() -> bool {
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
 // modify the source directory.
 fn clang_download() -> PathBuf {
+  // TODO(ry) We can support clang 10 and above.... if that is installed use
+  // it.
+  /*
   if let Ok(clang_path) = which("clang") {
+    //
     let bin_path = clang_path.parent().unwrap();
-    bin_path.parent().unwrap().to_path_buf()
-  } else {
-    let root = env::current_dir().unwrap();
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let clang_base_path = root.join(out_dir).join("clang");
-    println!("clang_base_path {}", clang_base_path.display());
-    let status = Command::new("python")
-      .arg("./tools/clang/scripts/update.py")
-      .arg("--clang-dir")
-      .arg(&clang_base_path)
-      .status()
-      .expect("clang download failed");
-    assert!(status.success());
-    clang_base_path
+    return bin_path.parent().unwrap().to_path_buf();
   }
+  */
+
+  let root = env::current_dir().unwrap();
+  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let clang_base_path = root.join(out_dir).join("clang");
+  println!("clang_base_path {}", clang_base_path.display());
+  let status = Command::new("python")
+    .arg("./tools/clang/scripts/update.py")
+    .arg("--clang-dir")
+    .arg(&clang_base_path)
+    .status()
+    .expect("clang download failed");
+  assert!(status.success());
+  assert!(clang_base_path.exists());
+  clang_base_path
 }
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
