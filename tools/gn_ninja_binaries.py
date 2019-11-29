@@ -2,7 +2,6 @@
 # Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """This script is used to download prebuilt gn/ninja binaries."""
 
 # TODO: Running stand-alone won't work on Windows due to the dia dll copying.
@@ -19,284 +18,124 @@ import tempfile
 import time
 
 try:
-  from urllib2 import HTTPError, URLError, urlopen
-except ImportError: # For Py3 compatibility
-  from urllib.error import HTTPError, URLError
-  from urllib.request import urlopen
+    from urllib2 import HTTPError, URLError, urlopen
+except ImportError:  # For Py3 compatibility
+    from urllib.error import HTTPError, URLError
+    from urllib.request import urlopen
 
 import zipfile
 
 URL = "https://s3.amazonaws.com/deno.land/gn_ninja_binaries.tar.gz"
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
+DIR = None
+
 
 def RmTree(dir):
-  """Delete dir."""
-  def ChmodAndRetry(func, path, _):
-    # Subversion can leave read-only files around.
-    if not os.access(path, os.W_OK):
-      os.chmod(path, stat.S_IWUSR)
-      return func(path)
-    raise
-  shutil.rmtree(dir, onerror=ChmodAndRetry)
+    """Delete dir."""
 
+    def ChmodAndRetry(func, path, _):
+        # Subversion can leave read-only files around.
+        if not os.access(path, os.W_OK):
+            os.chmod(path, stat.S_IWUSR)
+            return func(path)
+        raise
 
-def ReadStampFile(path):
-  """Return the contents of the stamp file, or '' if it doesn't exist."""
-  try:
-    with open(path, 'r') as f:
-      return f.read().rstrip()
-  except IOError:
-    return ''
-
-
-def WriteStampFile(s, path):
-  """Write s to the stamp file."""
-  EnsureDirExists(os.path.dirname(path))
-  with open(path, 'w') as f:
-    f.write(s)
-    f.write('\n')
+    shutil.rmtree(dir, onerror=ChmodAndRetry)
 
 
 def DownloadUrl(url, output_file):
-  """Download url into output_file."""
-  CHUNK_SIZE = 4096
-  TOTAL_DOTS = 10
-  num_retries = 3
-  retry_wait_s = 5  # Doubled at each retry.
+    """Download url into output_file."""
+    CHUNK_SIZE = 4096
+    TOTAL_DOTS = 10
+    num_retries = 3
+    retry_wait_s = 5  # Doubled at each retry.
 
-  while True:
-    try:
-      sys.stdout.write('Downloading %s ' % url)
-      sys.stdout.flush()
-      response = urlopen(url)
-      total_size = int(response.info().get('Content-Length').strip())
-      bytes_done = 0
-      dots_printed = 0
-      while True:
-        chunk = response.read(CHUNK_SIZE)
-        if not chunk:
-          break
-        output_file.write(chunk)
-        bytes_done += len(chunk)
-        num_dots = TOTAL_DOTS * bytes_done // total_size
-        sys.stdout.write('.' * (num_dots - dots_printed))
-        sys.stdout.flush()
-        dots_printed = num_dots
-      if bytes_done != total_size:
-        raise URLError("only got %d of %d bytes" %
-                       (bytes_done, total_size))
-      print(' Done.')
-      return
-    except URLError as e:
-      sys.stdout.write('\n')
-      print(e)
-      if num_retries == 0 or isinstance(e, HTTPError) and e.code == 404:
-        raise e
-      num_retries -= 1
-      print('Retrying in %d s ...' % retry_wait_s)
-      sys.stdout.flush()
-      time.sleep(retry_wait_s)
-      retry_wait_s *= 2
+    while True:
+        try:
+            sys.stdout.write('Downloading %s ' % url)
+            sys.stdout.flush()
+            response = urlopen(url)
+            total_size = int(response.info().get('Content-Length').strip())
+            bytes_done = 0
+            dots_printed = 0
+            while True:
+                chunk = response.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                output_file.write(chunk)
+                bytes_done += len(chunk)
+                num_dots = TOTAL_DOTS * bytes_done // total_size
+                sys.stdout.write('.' * (num_dots - dots_printed))
+                sys.stdout.flush()
+                dots_printed = num_dots
+            if bytes_done != total_size:
+                raise URLError(
+                    "only got %d of %d bytes" % (bytes_done, total_size))
+            print(' Done.')
+            return
+        except URLError as e:
+            sys.stdout.write('\n')
+            print(e)
+            if num_retries == 0 or isinstance(e, HTTPError) and e.code == 404:
+                raise e
+            num_retries -= 1
+            print('Retrying in %d s ...' % retry_wait_s)
+            sys.stdout.flush()
+            time.sleep(retry_wait_s)
+            retry_wait_s *= 2
 
 
 def EnsureDirExists(path):
-  if not os.path.exists(path):
-    os.makedirs(path)
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def DownloadAndUnpack(url, output_dir, path_prefixes=None):
-  """Download an archive from url and extract into output_dir. If path_prefixes
+    """Download an archive from url and extract into output_dir. If path_prefixes
      is not None, only extract files whose paths within the archive start with
      any prefix in path_prefixes."""
-  with tempfile.TemporaryFile() as f:
-    DownloadUrl(url, f)
-    f.seek(0)
-    EnsureDirExists(output_dir)
-    if url.endswith('.zip'):
-      assert path_prefixes is None
-      zipfile.ZipFile(f).extractall(path=output_dir)
-    else:
-      t = tarfile.open(mode='r:gz', fileobj=f)
-      members = None
-      if path_prefixes is not None:
-        members = [m for m in t.getmembers()
-                   if any(m.name.startswith(p) for p in path_prefixes)]
-      t.extractall(path=output_dir, members=members)
+    with tempfile.TemporaryFile() as f:
+        DownloadUrl(url, f)
+        f.seek(0)
+        EnsureDirExists(output_dir)
+        if url.endswith('.zip'):
+            assert path_prefixes is None
+            zipfile.ZipFile(f).extractall(path=output_dir)
+        else:
+            t = tarfile.open(mode='r:gz', fileobj=f)
+            members = None
+            if path_prefixes is not None:
+                members = [
+                    m for m in t.getmembers() if any(
+                        m.name.startswith(p) for p in path_prefixes)
+                ]
+            t.extractall(path=output_dir, members=members)
 
 
-def GetPlatformUrlPrefix(platform):
-  if platform == 'win32' or platform == 'cygwin':
-    return CDS_URL + '/Win/'
-  if platform == 'darwin':
-    return CDS_URL + '/Mac/'
-  assert platform.startswith('linux')
-  return CDS_URL + '/Linux_x64/'
+def Update():
+    if os.path.exists(DIR):
+        RmTree(DIR)
+    try:
+        DownloadAndUnpack(URL, DIR, None)
+    except URLError:
+        print('Failed to download prebuilt ninja/gn binaries %s' % URL)
+        print('Exiting.')
+        sys.exit(1)
 
-
-def DownloadAndUnpackClangPackage(platform, output_dir, path_prefixes=None):
-  cds_file = "clang-%s.tgz" %  PACKAGE_VERSION
-  cds_full_url = GetPlatformUrlPrefix(platform) + cds_file
-  try:
-    DownloadAndUnpack(cds_full_url, output_dir, path_prefixes)
-  except URLError:
-    print('Failed to download prebuilt clang %s' % cds_file)
-    print('Use --force-local-build if you want to build locally.')
-    print('Exiting.')
-    sys.exit(1)
-
-
-win_sdk_dir = None
-dia_dll = None
-def GetWinSDKDir():
-  """Get the location of the current SDK. Sets dia_dll as a side-effect."""
-  global win_sdk_dir
-  global dia_dll
-  if win_sdk_dir:
-    return win_sdk_dir
-
-  # Bump after VC updates.
-  DIA_DLL = {
-    '2013': 'msdia120.dll',
-    '2015': 'msdia140.dll',
-    '2017': 'msdia140.dll',
-    '2019': 'msdia140.dll',
-  }
-
-  # Don't let vs_toolchain overwrite our environment.
-  environ_bak = os.environ
-
-  sys.path.append(os.path.join(CHROMIUM_DIR, 'build'))
-  import vs_toolchain
-  win_sdk_dir = vs_toolchain.SetEnvironmentAndGetSDKDir()
-  msvs_version = vs_toolchain.GetVisualStudioVersion()
-
-  if bool(int(os.environ.get('DEPOT_TOOLS_WIN_TOOLCHAIN', '1'))):
-    dia_path = os.path.join(win_sdk_dir, '..', 'DIA SDK', 'bin', 'amd64')
-  else:
-    if 'GYP_MSVS_OVERRIDE_PATH' not in os.environ:
-      vs_path = vs_toolchain.DetectVisualStudioPath()
-    else:
-      vs_path = os.environ['GYP_MSVS_OVERRIDE_PATH']
-    dia_path = os.path.join(vs_path, 'DIA SDK', 'bin', 'amd64')
-
-  dia_dll = os.path.join(dia_path, DIA_DLL[msvs_version])
-
-  os.environ = environ_bak
-  return win_sdk_dir
-
-
-def CopyFile(src, dst):
-  """Copy a file from src to dst."""
-  print("Copying %s to %s" % (src, dst))
-  shutil.copy(src, dst)
-
-
-def CopyDiaDllTo(target_dir):
-  # This script always wants to use the 64-bit msdia*.dll.
-  GetWinSDKDir()
-  CopyFile(dia_dll, target_dir)
-
-
-def UpdateClang():
-  GCLIENT_CONFIG = os.path.join(os.path.dirname(CHROMIUM_DIR), '.gclient')
-
-  # Read target_os from .gclient so we know which non-native runtimes we need.
-  # TODO(pcc): See if we can download just the runtimes instead of the entire
-  # clang package, and do that from DEPS instead of here.
-  target_os = []
-  try:
-    env = {}
-    execfile(GCLIENT_CONFIG, env, env)
-    target_os = env.get('target_os', target_os)
-  except:
-    pass
-
-  if os.path.exists(OLD_STAMP_FILE):
-    # Delete the old stamp file so it doesn't look like an old version of clang
-    # is available in case the user rolls back to an old version of this script
-    # during a bisect for example (crbug.com/988933).
-    os.remove(OLD_STAMP_FILE)
-
-  expected_stamp = ','.join([PACKAGE_VERSION] + target_os)
-  if ReadStampFile(STAMP_FILE) == expected_stamp:
     return 0
-
-  if os.path.exists(LLVM_BUILD_DIR):
-    RmTree(LLVM_BUILD_DIR)
-
-  DownloadAndUnpackClangPackage(sys.platform, LLVM_BUILD_DIR)
-  if 'win' in target_os:
-    # When doing win/cross builds on other hosts, get the Windows runtime
-    # libraries, and llvm-symbolizer.exe (needed in asan builds).
-    path_prefixes =  [ 'lib/clang/' + RELEASE_VERSION + '/lib/',
-                       'bin/llvm-symbolizer.exe' ]
-    DownloadAndUnpackClangPackage('win32', LLVM_BUILD_DIR,
-                                  path_prefixes=path_prefixes)
-  if sys.platform == 'win32':
-    CopyDiaDllTo(os.path.join(LLVM_BUILD_DIR, 'bin'))
-  WriteStampFile(expected_stamp, STAMP_FILE)
-
-  return 0
 
 
 def main():
-  # TODO: Add an argument to download optional packages and remove the various
-  # download_ scripts we currently have for that.
+    parser = argparse.ArgumentParser(description='Download ninja/gn binaries.')
+    parser.add_argument('--dir', help='Where to extract the package.')
+    args = parser.parse_args()
 
-  parser = argparse.ArgumentParser(description='Update clang.')
-  parser.add_argument('--clang-dir',
-                      help='Where to extract the clang package.')
-  parser.add_argument('--force-local-build', action='store_true',
-                      help='(no longer used)')
-  parser.add_argument('--print-revision', action='store_true',
-                      help='Print current clang revision and exit.')
-  parser.add_argument('--llvm-force-head-revision', action='store_true',
-                      help='Print locally built revision with --print-revision')
-  parser.add_argument('--print-clang-version', action='store_true',
-                      help=('Print current clang release version (e.g. 9.0.0) '
-                            'and exit.'))
-  parser.add_argument('--verify-version',
-                      help='Verify that clang has the passed-in version.')
-  args = parser.parse_args()
+    if args.dir:
+        global DIR
+        DIR = os.path.abspath(args.dir)
 
-  if args.force_local_build:
-    print(('update.py --force-local-build is no longer used to build clang; '
-           'use build.py instead.'))
-    return 1
-
-  if args.verify_version and args.verify_version != RELEASE_VERSION:
-    print('RELEASE_VERSION is %s but --verify-version argument was %s.' % (
-        RELEASE_VERSION, args.verify_version))
-    print('clang_version in build/toolchain/toolchain.gni is likely outdated.')
-    return 1
-
-  if args.print_clang_version:
-    print(RELEASE_VERSION)
-    return 0
-
-  if args.print_revision:
-    if args.llvm_force_head_revision:
-      force_head_revision = ReadStampFile(FORCE_HEAD_REVISION_FILE)
-      if force_head_revision == '':
-        print('No locally built version found!')
-        return 1
-      print(force_head_revision)
-      return 0
-
-    print(PACKAGE_VERSION)
-    return 0
-
-  if args.llvm_force_head_revision:
-    print('--llvm-force-head-revision can only be used for --print-revision')
-    return 1
-
-  if args.clang_dir:
-    global LLVM_BUILD_DIR, STAMP_FILE
-    LLVM_BUILD_DIR = os.path.abspath(args.clang_dir)
-    STAMP_FILE = os.path.join(LLVM_BUILD_DIR, 'cr_build_revision')
-
-  return UpdateClang()
+    return Update()
 
 
 if __name__ == '__main__':
-  sys.exit(main())
+    sys.exit(main())

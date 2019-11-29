@@ -14,9 +14,7 @@ fn main() {
     return;
   }
 
-  // TODO extract
-  // https://s3.amazonaws.com/deno.land/gn_ninja_binaries.tar.gz
-  // set_gn_ninja_vars();
+  download_gn_ninja_binaries();
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
@@ -48,6 +46,38 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
   }
+}
+
+#[cfg(target_os = "windows")]
+fn platform() -> &'static str {
+  "win"
+}
+
+#[cfg(target_os = "linux")]
+fn platform() -> &'static str {
+  "linux64"
+}
+
+#[cfg(target_os = "macos")]
+fn platform() -> &'static str {
+  "mac"
+}
+
+fn download_gn_ninja_binaries() {
+  let root = env::current_dir().unwrap();
+  let out_dir = root.join(env::var_os("OUT_DIR").unwrap());
+  let status = Command::new("python")
+    .arg("./tools/gn_ninja_binaries.py")
+    .arg("--dir")
+    .arg(&out_dir)
+    .status()
+    .expect("gn_ninja_binaries.py download failed");
+  assert!(status.success());
+
+  let d = out_dir.join("gn_ninja_binaries").join(platform());
+
+  env::set_var("GN", d.join("gn"));
+  env::set_var("NINJA", d.join("ninja"));
 }
 
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
