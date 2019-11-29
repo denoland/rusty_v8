@@ -10,7 +10,9 @@ fn main() {
   // cargo publish doesn't like pyc files.
   env::set_var("PYTHONDONTWRITEBYTECODE", "1");
 
-  set_gn_ninja_vars();
+  // TODO extract
+  // https://s3.amazonaws.com/deno.land/gn_ninja_binaries.tar.gz
+  // set_gn_ninja_vars();
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
@@ -42,26 +44,6 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
   }
-}
-
-#[cfg(target_os = "macos")]
-fn get_buildtools() -> PathBuf {
-  let root = env::current_dir().unwrap();
-  root.join("buildtools2").join("mac")
-}
-
-#[cfg(target_os = "linux")]
-fn get_buildtools() -> PathBuf {
-  let root = env::current_dir().unwrap();
-  root.join("buildtools2").join("linux64")
-}
-
-fn set_gn_ninja_vars() {
-  let buildtools = get_buildtools();
-  let gn = buildtools.join("gn");
-  let ninja = buildtools.join("ninja");
-  env::set_var("GN", gn);
-  env::set_var("NINJA", ninja);
 }
 
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
