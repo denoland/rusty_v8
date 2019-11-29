@@ -17,6 +17,7 @@ exclude = [
  "!test-torque.tq",
  "v8/tools/",
  "!v8/tools/run.py",
+ "!v8/tools/testrunner/utils/dump_build_config.py",
  "build/android/",
  "build/fuchsia/",
  "build/chromeos/",
