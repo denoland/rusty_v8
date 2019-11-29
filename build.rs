@@ -7,6 +7,8 @@ use std::process::Command;
 use which::which;
 
 fn main() {
+  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+
   // cargo publish doesn't like pyc files.
   env::set_var("PYTHONDONTWRITEBYTECODE", "1");
 
