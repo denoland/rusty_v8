@@ -10,9 +10,6 @@
 [submodule "base/trace_event/common"]
 	path = base/trace_event/common
 	url = https://chromium.googlesource.com/chromium/src/base/trace_event/common.git
-[submodule "third_party/googletest/src"]
-	path = third_party/googletest/src
-	url = https://chromium.googlesource.com/external/github.com/google/googletest.git
 [submodule "third_party/jinja2"]
 	path = third_party/jinja2
 	url = https://chromium.googlesource.com/chromium/src/third_party/jinja2.git

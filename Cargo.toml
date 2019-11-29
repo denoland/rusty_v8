@@ -32,7 +32,6 @@ exclude = [
  "v8/test/",
  "v8/third_party/wasm-api",
  "v8/tools/",
- "third_party/googletest/",
  # These files are required for the build.
  "!BUILD.gn",
  "!test-torque.tq",
@@ -41,7 +40,6 @@ exclude = [
  "!v8/tools/gen-postmortem-metadata.py",
  "!v8/tools/js2c.py",
  "!tools/clang/scripts/update.py",
- "!third_party/googletest/src/googletest/include/gtest/gtest_prod.h",
 ]
 
 [dependencies]
