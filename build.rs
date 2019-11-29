@@ -2,6 +2,7 @@
 use cargo_gn;
 use std::env;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
@@ -14,7 +15,9 @@ fn main() {
     return;
   }
 
-  download_gn_ninja_binaries();
+  if need_gn_ninja_download() {
+    download_gn_ninja_binaries();
+  }
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if cargo_gn::is_debug() && !cfg!(target_os = "windows") {
@@ -23,7 +26,8 @@ fn main() {
     vec!["is_debug=false".to_string()]
   };
 
-  clang_download(&mut gn_args);
+  let clang_base_path = clang_download();
+  gn_args.push(format!("clang_base_path={:?}", clang_base_path));
 
   if let Some(p) = env::var_os("SCCACHE") {
     cc_wrapper(&mut gn_args, &Path::new(&p));
@@ -48,19 +52,19 @@ fn main() {
   }
 }
 
-#[cfg(target_os = "windows")]
 fn platform() -> &'static str {
-  "win"
-}
-
-#[cfg(target_os = "linux")]
-fn platform() -> &'static str {
-  "linux64"
-}
-
-#[cfg(target_os = "macos")]
-fn platform() -> &'static str {
-  "mac"
+  #[cfg(target_os = "windows")]
+  {
+    "win"
+  }
+  #[cfg(target_os = "linux")]
+  {
+    "linux64"
+  }
+  #[cfg(target_os = "macos")]
+  {
+    "mac"
+  }
 }
 
 fn download_gn_ninja_binaries() {
@@ -88,22 +92,31 @@ fn download_gn_ninja_binaries() {
   env::set_var("NINJA", ninja);
 }
 
+fn need_gn_ninja_download() -> bool {
+  !((which("ninja").is_ok() || env::var_os("NINJA").is_some())
+    && (which("gn").is_ok() || env::var_os("GN").is_some()))
+}
+
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
 // modify the source directory.
-fn clang_download(gn_args: &mut Vec<String>) {
-  let root = env::current_dir().unwrap();
-  let out_dir = env::var_os("OUT_DIR").unwrap();
-  let clang_base_path = root.join(out_dir).join("clang");
-  println!("clang_base_path {}", clang_base_path.display());
-  let status = Command::new("python")
-    .arg("./tools/clang/scripts/update.py")
-    .arg("--clang-dir")
-    .arg(&clang_base_path)
-    .status()
-    .expect("clang download failed");
-  assert!(status.success());
-
-  gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+fn clang_download() -> PathBuf {
+  if let Ok(clang_path) = which("clang") {
+    let bin_path = clang_path.parent().unwrap();
+    bin_path.parent().unwrap().to_path_buf()
+  } else {
+    let root = env::current_dir().unwrap();
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let clang_base_path = root.join(out_dir).join("clang");
+    println!("clang_base_path {}", clang_base_path.display());
+    let status = Command::new("python")
+      .arg("./tools/clang/scripts/update.py")
+      .arg("--clang-dir")
+      .arg(&clang_base_path)
+      .status()
+      .expect("clang download failed");
+    assert!(status.success());
+    clang_base_path
+  }
 }
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
