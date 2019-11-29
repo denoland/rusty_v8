@@ -19,6 +19,7 @@ exclude = [
  "!v8/tools/run.py",
  "!v8/tools/testrunner/utils/dump_build_config.py",
  "!v8/tools/gen-postmortem-metadata.py",
+ "!v8/tools/js2c.py",
  "build/android/",
  "build/fuchsia/",
  "build/chromeos/",
