@@ -21,4 +21,4 @@
 	url = https://chromium.googlesource.com/chromium/src/third_party/markupsafe.git
 [submodule "buildtools"]
 	path = buildtools
-	url = https://chromium.googlesource.com/chromium/src/buildtools.git
+	url = https://github.com/denoland/chromium_buildtools.git
