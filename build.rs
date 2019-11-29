@@ -76,8 +76,16 @@ fn download_gn_ninja_binaries() {
 
   let d = out_dir.join("gn_ninja_binaries").join(platform());
 
-  env::set_var("GN", d.join("gn"));
-  env::set_var("NINJA", d.join("ninja"));
+  let gn = d.join("gn");
+  let ninja = d.join("ninja");
+
+  #[cfg(windows)]
+  let gn = gn.with_extension("exe");
+  #[cfg(windows)]
+  let ninja = ninja.with_extension("exe");
+
+  env::set_var("GN", gn);
+  env::set_var("NINJA", ninja);
 }
 
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
