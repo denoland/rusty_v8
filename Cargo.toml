@@ -12,8 +12,9 @@ exclude = [
  "buildtools/third_party/libc++/trunk/test/",
  "buildtools/third_party/libc++abi/trunk/test/",
  "v8/ChangeLog",
- "!BUILD.gn",
  "v8/test/",
+ "!BUILD.gn",
+ "!.tq",
  "v8/tools/profview/",
  "v8/tools/profviz/",
 ]
