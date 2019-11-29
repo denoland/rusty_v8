@@ -10,7 +10,17 @@ repository = "https://github.com/denoland/rusty_v8"
 
 exclude = [
  "buildtools/third_party/libc++/trunk/test/",
+ "buildtools/third_party/libc++abi/trunk/test/",
  "v8/test/webkit/*.txt",
+ "v8/ChangeLog",
+  "v8/tools/profviz/",
+  "v8/tools/profview/",
+  "v8/test/",
+]
+
+include = [
+  "BUILD.gn",
+  "*.gni",
 ]
 
 [dependencies]
