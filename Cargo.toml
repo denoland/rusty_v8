@@ -14,7 +14,7 @@ exclude = [
  "v8/ChangeLog",
  "v8/test/",
  "!BUILD.gn",
- "!.tq",
+ "!test-torque.tq",
  "v8/tools/profview/",
  "v8/tools/profviz/",
 ]
