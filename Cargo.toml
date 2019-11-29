@@ -13,7 +13,6 @@ exclude = [
  # a lot of files that are not needed for the build.
  "*.md",
  "*.txt",
- "*.py",
  "*OWNERS*",
  "AUTHORS",
  "LICENSE*",
