@@ -11,7 +11,6 @@ repository = "https://github.com/denoland/rusty_v8"
 exclude = [
  # To keep the package under the 10mb limit imposed by crates.io we exclude
  # a lot of files that are not needed for the build.
- "*.json",
  "*.md",
  "*OWNERS*",
  "AUTHORS",
@@ -22,6 +21,8 @@ exclude = [
  "build/fuchsia/",
  "buildtools/third_party/libc++/trunk/test/",
  "buildtools/third_party/libc++abi/trunk/test/",
+ "buildtools/checkdeps/",
+ "buildtools/clang_format/",
  "v8/*.settings",
  "v8/ChangeLog",
  "v8/docs/",
