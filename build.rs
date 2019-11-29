@@ -7,7 +7,8 @@ use std::process::Command;
 use which::which;
 
 fn main() {
-  init_depot_tools();
+  // cargo publish doesn't like pyc files.
+  env::set_var("PYTHONDONTWRITEBYTECODE", "1");
 
   set_gn_ninja_vars();
 
@@ -79,30 +80,6 @@ fn clang_download(gn_args: &mut Vec<String>) {
   assert!(status.success());
 
   gn_args.push(format!("clang_base_path={:?}", clang_base_path));
-}
-
-fn init_depot_tools() {
-  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-  env::set_var("DEPOT_TOOLS_UPDATE", "0");
-  env::set_var("DEPOT_TOOLS_METRICS", "0");
-
-  let depot_tools = env::current_dir()
-    .unwrap()
-    .join("third_party")
-    .join("depot_tools");
-
-  if cfg!(windows) {
-    // Bootstrap depot_tools.
-    if !depot_tools.join("git.bat").is_file() {
-      let status = Command::new("cmd.exe")
-        .arg("/c")
-        .arg("bootstrap\\win_tools.bat")
-        .current_dir(&depot_tools)
-        .status()
-        .expect("bootstrapping depot_tools failed");
-      assert!(status.success());
-    }
-  }
 }
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
