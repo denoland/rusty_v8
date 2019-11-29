@@ -23,10 +23,7 @@ except ImportError:  # For Py3 compatibility
     from urllib.error import HTTPError, URLError
     from urllib.request import urlopen
 
-import zipfile
-
 URL = "https://s3.amazonaws.com/deno.land/gn_ninja_binaries.tar.gz"
-THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DIR = None
 
 
@@ -98,18 +95,14 @@ def DownloadAndUnpack(url, output_dir, path_prefixes=None):
         DownloadUrl(url, f)
         f.seek(0)
         EnsureDirExists(output_dir)
-        if url.endswith('.zip'):
-            assert path_prefixes is None
-            zipfile.ZipFile(f).extractall(path=output_dir)
-        else:
-            t = tarfile.open(mode='r:gz', fileobj=f)
-            members = None
-            if path_prefixes is not None:
-                members = [
-                    m for m in t.getmembers() if any(
-                        m.name.startswith(p) for p in path_prefixes)
-                ]
-            t.extractall(path=output_dir, members=members)
+        t = tarfile.open(mode='r:gz', fileobj=f)
+        members = None
+        if path_prefixes is not None:
+            members = [
+                m for m in t.getmembers() if any(
+                    m.name.startswith(p) for p in path_prefixes)
+            ]
+        t.extractall(path=output_dir, members=members)
 
 
 def Update():
