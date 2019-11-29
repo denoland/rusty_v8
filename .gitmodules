@@ -19,3 +19,6 @@
 [submodule "third_party/markupsafe"]
 	path = third_party/markupsafe
 	url = https://chromium.googlesource.com/chromium/src/third_party/markupsafe.git
+[submodule "buildtools/third_party/libc++/trunk"]
+	path = buildtools/third_party/libc++/trunk
+	url = https://chromium.googlesource.com/chromium/llvm-project/libcxx.git
