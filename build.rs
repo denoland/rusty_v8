@@ -96,7 +96,7 @@ fn download_gn_ninja_binaries() {
 
 fn need_gn_ninja_download() -> bool {
   !((which("ninja").is_ok() || env::var_os("NINJA").is_some())
-    && (which("gn").is_ok() || env::var_os("GN").is_some()))
+    && env::var_os("GN").is_some())
 }
 
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
