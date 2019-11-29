@@ -12,6 +12,8 @@ exclude = [
  # To keep the package under the 10mb limit imposed by crates.io we exclude
  # a lot of files that are not needed for the build.
  "*.md",
+ "*.txt",
+ "*.py",
  "*OWNERS*",
  "AUTHORS",
  "LICENSE*",
