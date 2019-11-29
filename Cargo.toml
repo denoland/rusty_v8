@@ -16,6 +16,7 @@ exclude = [
  "!BUILD.gn",
  "!test-torque.tq",
  "v8/tools/",
+ "!v8/tools/run.py",
  "build/android/",
  "build/fuchsia/",
  "build/chromeos/",
