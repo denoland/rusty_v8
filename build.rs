@@ -12,6 +12,15 @@ fn main() {
   // cargo publish doesn't like pyc files.
   env::set_var("PYTHONDONTWRITEBYTECODE", "1");
 
+  // git submodule update --init --recursive
+  let libcxx_src = PathBuf::from("buildtools/third_party/libc++/trunk/src");
+  if !libcxx_src.is_dir() {
+    eprintln!(
+      "missing source code. Run 'git submodule update --init --recursive'"
+    );
+    return;
+  }
+
   // Don't build if "cargo doc" is being run.
   if env::var_os("RUSTDOCFLAGS").is_some() {
     return;
