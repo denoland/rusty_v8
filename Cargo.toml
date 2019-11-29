@@ -40,6 +40,7 @@ exclude = [
  "!v8/tools/gen-postmortem-metadata.py",
  "!v8/tools/js2c.py",
  "!tools/clang/scripts/update.py",
+ "!build/mac/should_use_hermetic_xcode.py",
 ]
 
 [dependencies]
