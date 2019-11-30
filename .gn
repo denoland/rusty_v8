@@ -43,6 +43,8 @@ default_args = {
 
   use_sysroot = false
 
+  use_dummy_lastchange = true
+
   symbol_level = 1
   treat_warnings_as_errors = true
 
