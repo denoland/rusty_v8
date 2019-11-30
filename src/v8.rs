@@ -11,15 +11,15 @@ use crate::platform::Platform;
 use crate::support::UniquePtr;
 
 extern "C" {
-  pub fn v8__V8__SetFlagsFromCommandLine(
+  fn v8__V8__SetFlagsFromCommandLine(
     argc: *mut c_int,
     argv: *mut *mut c_char,
   );
-  pub fn v8__V8__GetVersion() -> *const c_char;
-  pub fn v8__V8__InitializePlatform(platform: &'static mut Platform);
-  pub fn v8__V8__Initialize();
-  pub fn v8__V8__Dispose() -> bool;
-  pub fn v8__V8__ShutdownPlatform() -> ();
+  fn v8__V8__GetVersion() -> *const c_char;
+  fn v8__V8__InitializePlatform(platform: &'static mut Platform);
+  fn v8__V8__Initialize();
+  fn v8__V8__Dispose() -> bool;
+  fn v8__V8__ShutdownPlatform() -> ();
 }
 
 #[derive(Debug, Eq, PartialEq)]
