@@ -4,7 +4,7 @@ use crate::array_buffer::Allocator;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
-use crate::v8::assert_initialized;
+use crate::V8::assert_initialized;
 
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> &'static mut CxxIsolate;
@@ -77,7 +77,7 @@ impl Delete for CreateParams {
 mod tests {
   use super::*;
   use crate::platform::*;
-  use crate::v8::*;
+  use crate::V8::*;
 
   #[test]
   fn test_isolate() {
