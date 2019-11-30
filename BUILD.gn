@@ -3,16 +3,16 @@ import("//v8/gni/v8.gni")
 
 v8_static_library("rusty_v8") {
   sources = [
+    "src/V8.cc",
     "src/array_buffer.cc",
     "src/handle_scope.cc",
     "src/inspector/channel.cc",
     "src/inspector/client.cc",
     "src/isolate.cc",
     "src/locker.cc",
-    "src/platform/task.cc",
     "src/platform/mod.cc",
+    "src/platform/task.cc",
     "src/string_buffer.cc",
-    "src/v8.cc",
   ]
   deps = [
     ":v8",

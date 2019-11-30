@@ -67,8 +67,8 @@ mod tests {
   use crate::array_buffer::Allocator;
   use crate::isolate::*;
   use crate::platform::*;
-  use crate::v8::*;
   use crate::Locker;
+  use crate::V8::*;
 
   #[test]
   fn test_handle_scope() {

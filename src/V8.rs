@@ -1,5 +1,4 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
-
 use libc::c_char;
 use libc::c_int;
 use std::ffi::CStr;
@@ -11,10 +10,7 @@ use crate::platform::Platform;
 use crate::support::UniquePtr;
 
 extern "C" {
-  fn v8__V8__SetFlagsFromCommandLine(
-    argc: *mut c_int,
-    argv: *mut *mut c_char,
-  );
+  fn v8__V8__SetFlagsFromCommandLine(argc: *mut c_int, argv: *mut *mut c_char);
   fn v8__V8__GetVersion() -> *const c_char;
   fn v8__V8__InitializePlatform(platform: &'static mut Platform);
   fn v8__V8__Initialize();

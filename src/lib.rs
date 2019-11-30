@@ -18,7 +18,11 @@ pub mod platform;
 pub mod string_buffer;
 pub mod string_view;
 pub mod support;
-pub mod v8;
+
+// This module is intentionally named "V8" rather than "v8" to match the
+// C++ namespace "v8::V8".
+#[allow(non_snake_case)]
+pub mod V8;
 
 pub use isolate::Isolate;
 pub use locker::Locker;
