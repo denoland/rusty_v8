@@ -25,6 +25,12 @@ jobs:
         with:
           rust-version: "1.38.0"
 
+      - name: Install python
+        uses: actions/setup-python@v1
+        with:
+          python-version: "2.7.x"
+          architecture: x64
+
       - name: Environment (common)
         run: echo ::set-env name=RUSTC_WRAPPER::sccache
 
