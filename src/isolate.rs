@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use std::ops::DerefMut;
 
 use crate::array_buffer::Allocator;
 use crate::support::Delete;
@@ -43,8 +44,14 @@ impl Drop for Isolate {
 
 impl Deref for Isolate {
   type Target = CxxIsolate;
-  fn deref(&self) -> &CxxIsolate {
+  fn deref(&self) -> &Self::Target {
     self.0
+  }
+}
+
+impl DerefMut for Isolate {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
   }
 }
 

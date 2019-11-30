@@ -18,4 +18,8 @@ void v8__HandleScope__CONSTRUCT(uninit_t<HandleScope>& buf, Isolate* isolate) {
 void v8__HandleScope__DESTRUCT(HandleScope& self) {
   self.~HandleScope();
 }
+
+Isolate* v8__HandleScope__GetIsolate(const HandleScope& self) {
+  return self.GetIsolate();
+}
 }

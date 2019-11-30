@@ -14,7 +14,10 @@ use crate::isolate::LockedIsolate;
 // }
 
 extern "C" {
-  fn v8__Locker__CONSTRUCT(buf: &mut MaybeUninit<Locker>, isolate: &CxxIsolate);
+  fn v8__Locker__CONSTRUCT(
+    buf: &mut MaybeUninit<Locker>,
+    isolate: &mut CxxIsolate,
+  );
   fn v8__Locker__DESTRUCT(this: &mut Locker);
 }
 
@@ -27,7 +30,7 @@ pub struct Locker<'a> {
 }
 
 impl<'a> Locker<'a> {
-  pub fn new(isolate: &CxxIsolate) -> Self {
+  pub fn new(isolate: &mut CxxIsolate) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__Locker__CONSTRUCT(&mut buf, isolate);

@@ -178,24 +178,3 @@ impl<F> FieldOffset<F> {
       .unwrap()
   }
 }
-
-pub struct Scope<'a, T>(pub(crate) &'a mut T);
-
-impl<'a, T> Scope<'a, T> {
-  pub(crate) fn new(inner: &'a mut T) -> Self {
-    Self(inner)
-  }
-}
-
-impl<'a, T> Deref for Scope<'a, T> {
-  type Target = T;
-  fn deref(&self) -> &Self::Target {
-    &self.0
-  }
-}
-
-impl<'a, T> DerefMut for Scope<'a, T> {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.0
-  }
-}
