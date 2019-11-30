@@ -79,6 +79,7 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
     .collect()
 }
 
+#[test]
 fn test_set_flags_from_command_line() {
   let r = set_flags_from_command_line(vec![
     "binaryname".to_string(),
@@ -106,6 +107,8 @@ fn test_get_version() {
 // TODO: V8::InitializePlatform does not actually take a UniquePtr but rather
 // a raw pointer. This means that the Platform object is not released when
 // V8::ShutdownPlatform is called.
+/// Sets the v8::Platform to use. This should be invoked before V8 is
+/// initialized.
 pub fn initialize_platform(platform: UniquePtr<Platform>) {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   assert_eq!(*global_state_guard, Uninitialized);
@@ -142,6 +145,8 @@ pub unsafe fn dispose() -> bool {
   true
 }
 
+/// Clears all references to the v8::Platform. This should be invoked after
+/// V8 was disposed.
 pub fn shutdown_platform() {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   assert_eq!(*global_state_guard, Disposed);

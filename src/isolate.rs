@@ -4,7 +4,6 @@ use crate::array_buffer::Allocator;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
-use crate::V8::assert_initialized;
 
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> &'static mut CxxIsolate;
@@ -31,7 +30,7 @@ pub struct Isolate(&'static mut CxxIsolate);
 impl Isolate {
   pub fn new(params: UniqueRef<CreateParams>) -> Self {
     // TODO: support CreateParams.
-    assert_initialized();
+    crate::V8::assert_initialized();
     Self(unsafe { v8__Isolate__New(params.into_raw()) })
   }
 }
