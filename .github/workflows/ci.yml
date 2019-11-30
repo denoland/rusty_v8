@@ -18,25 +18,18 @@ jobs:
         uses: actions/checkout@v1
         with:
           fetch-depth: 10
-          submodules: true
+          submodules: 'recursive'
 
       - name: Install rust
         uses: hecrj/setup-rust-action@v1
         with:
           rust-version: "1.38.0"
 
-      - name: Remove unused versions of Python
-        # Depot_tools brings its own Python and bootstraps virtualenv. The
-        # latter fails on windows when unused versions of Python are in present
-        # in PATH, so we remove those.
-        # 🤯 Removing items from PATH does not seem possible on Github Actions,
-        # not even by using `echo ::set-env name=PATH`, so we have to rename
-        # or delete the actual Python directories.
-        if: startsWith(matrix.os, 'windows')
-        run: |-
-          $env:PATH -split ";" |
-            Where-Object { Test-Path "$_\python.exe" } |
-            ForEach-Object { Move-Item "$_" "$_.disabled" }
+      - name: Install python
+        uses: actions/setup-python@v1
+        with:
+          python-version: "2.7.x"
+          architecture: x64
 
       - name: Environment (common)
         run: echo ::set-env name=RUSTC_WRAPPER::sccache

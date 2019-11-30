@@ -1,3 +1,21 @@
-[submodule "depot_tools"]
-	path = third_party/depot_tools
-	url = https://chromium.googlesource.com/chromium/tools/depot_tools.git
+[submodule "v8"]
+	path = v8
+	url = https://github.com/v8/v8.git
+[submodule "build"]
+	path = build
+	url = https://github.com/denoland/chromium_build.git
+[submodule "tools/clang"]
+	path = tools/clang
+	url = https://chromium.googlesource.com/chromium/src/tools/clang.git
+[submodule "base/trace_event/common"]
+	path = base/trace_event/common
+	url = https://chromium.googlesource.com/chromium/src/base/trace_event/common.git
+[submodule "third_party/jinja2"]
+	path = third_party/jinja2
+	url = https://chromium.googlesource.com/chromium/src/third_party/jinja2.git
+[submodule "third_party/markupsafe"]
+	path = third_party/markupsafe
+	url = https://chromium.googlesource.com/chromium/src/third_party/markupsafe.git
+[submodule "buildtools"]
+	path = buildtools
+	url = https://github.com/denoland/chromium_buildtools.git

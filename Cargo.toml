@@ -1,23 +1,45 @@
 [package]
 name = "rusty_v8"
-version = "0.0.2"
+version = "0.0.5"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
 license = "MIT"
 edition = "2018"
 repository = "https://github.com/denoland/rusty_v8"
+
 exclude = [
- ".cipd",
- ".gclient_entries",
- "v8",
- "build",
- "buildtools",
- "tools/clang",
- "third_party/jinja2",
- "third_party/markupsafe",
- "third_party/llvm-build",
- ".landmines",
+ # To keep the package under the 10mb limit imposed by crates.io we exclude
+ # a lot of files that are not needed for the build.
+ "*.md",
+ "*.txt",
+ "*.settings",
+ "*OWNERS*",
+ "AUTHORS",
+ "LICENSE*",
+ "README*",
+ "build/android/",
+ "build/chromeos/",
+ "build/fuchsia/",
+ "buildtools/third_party/libc++/trunk/test/",
+ "buildtools/third_party/libc++abi/trunk/test/",
+ "buildtools/checkdeps/",
+ "buildtools/clang_format/",
+ "v8/ChangeLog",
+ "v8/docs/",
+ "v8/benchmarks/",
+ "v8/samples/",
+ "v8/test/",
+ "v8/third_party/wasm-api",
+ "v8/tools/",
+ # These files are required for the build.
+ "!BUILD.gn",
+ "!test-torque.tq",
+ "!v8/tools/run.py",
+ "!v8/tools/testrunner/utils/dump_build_config.py",
+ "!v8/tools/gen-postmortem-metadata.py",
+ "!v8/tools/js2c.py",
+ "!tools/clang/scripts/update.py",
 ]
 
 [dependencies]

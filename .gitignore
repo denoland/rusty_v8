@@ -3,13 +3,3 @@
 
 /.vscode/
 /target/
-/.cipd/
-.gclient_entries
-/v8/
-/build/
-/buildtools/
-/tools/clang/
-/third_party/jinja2/
-/third_party/markupsafe/
-/third_party/llvm-build/
-.landmines
