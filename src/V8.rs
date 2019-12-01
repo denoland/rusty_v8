@@ -83,7 +83,7 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
 fn test_set_flags_from_command_line() {
   let r = set_flags_from_command_line(vec![
     "binaryname".to_string(),
-    "--log".to_string(),
+    "--log-colour".to_string(),
     "--should-be-ignored".to_string(),
   ]);
   assert_eq!(
