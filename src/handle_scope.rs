@@ -66,14 +66,11 @@ mod tests {
   use super::*;
   use crate::array_buffer::Allocator;
   use crate::isolate::*;
-  use crate::platform::*;
   use crate::Locker;
-  use crate::V8::*;
 
   #[test]
   fn test_handle_scope() {
-    initialize_platform(new_default_platform());
-    initialize();
+    let g = crate::test_util::setup();
     let mut params = CreateParams::new();
     params.set_array_buffer_allocator(Allocator::new_default_allocator());
     let isolate = Isolate::new(params);
@@ -81,5 +78,6 @@ mod tests {
     HandleScope::new(&mut locker).enter(|scope| {
       HandleScope::new(scope).enter(|_scope| {});
     });
+    drop(g);
   }
 }

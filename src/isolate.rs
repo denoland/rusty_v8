@@ -72,18 +72,16 @@ impl Delete for CreateParams {
   }
 }
 
-#[cfg(disabled_test)]
+#[cfg(test)]
 mod tests {
   use super::*;
-  use crate::platform::*;
-  use crate::V8::*;
 
   #[test]
   fn test_isolate() {
-    initialize_platform(new_default_platform());
-    initialize();
+    let g = crate::test_util::setup();
     let mut params = CreateParams::new();
     params.set_array_buffer_allocator(Allocator::new_default_allocator());
     Isolate::new(params);
+    drop(g);
   }
 }
