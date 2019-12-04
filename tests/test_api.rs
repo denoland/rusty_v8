@@ -88,8 +88,7 @@ fn test_string() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let reference = "Hello 🦕 world!";
     let local =
-      v8::String::new(scope, reference, v8::string::NewStringType::Normal)
-        .unwrap();
+      v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
     assert_eq!(reference, local.to_rust_string_lossy(scope));
   });
 }
