@@ -121,3 +121,31 @@ fn set_flags_from_command_line() {
     vec!["binaryname".to_string(), "--should-be-ignored".to_string()]
   );
 }
+
+#[test]
+fn inspector_string_view() {
+  let chars = b"Hello world!";
+  let view = v8::inspector::StringView::from(&chars[..]);
+
+  assert_eq!(chars.len(), view.into_iter().len());
+  assert_eq!(chars.len(), view.len());
+  for (c1, c2) in chars.iter().copied().map(u16::from).zip(&view) {
+    assert_eq!(c1, c2);
+  }
+}
+
+#[test]
+fn inspector_string_buffer() {
+  let chars = b"Hello Venus!";
+  let mut buf = {
+    let src_view = v8::inspector::StringView::from(&chars[..]);
+    v8::inspector::StringBuffer::create(&src_view)
+  };
+  let view = buf.as_mut().unwrap().string();
+
+  assert_eq!(chars.len(), view.into_iter().len());
+  assert_eq!(chars.len(), view.len());
+  for (c1, c2) in chars.iter().copied().map(u16::from).zip(view) {
+    assert_eq!(c1, c2);
+  }
+}
