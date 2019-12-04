@@ -5,6 +5,7 @@ v8_static_library("rusty_v8") {
   sources = [
     "src/V8.cc",
     "src/array_buffer.cc",
+    "src/context.cc",
     "src/handle_scope.cc",
     "src/inspector/channel.cc",
     "src/inspector/client.cc",
@@ -14,6 +15,7 @@ v8_static_library("rusty_v8") {
     "src/number.cc",
     "src/platform/mod.cc",
     "src/platform/task.cc",
+    "src/script.cc",
     "src/string.cc",
   ]
   deps = [

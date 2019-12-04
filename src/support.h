@@ -35,9 +35,29 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
 }
 }  // namespace support
 
+
 template <class T>
-inline static T* maybe_local_ptr(v8::MaybeLocal<T> value) {
-  return *value.FromMaybe(v8::Local<T>());
+inline static T* local_to_ptr(v8::Local<T> local) {
+  return *local;
+}
+
+template <class T>
+inline static v8::Local<T> ptr_to_local(T* ptr) {
+  static_assert(sizeof(v8::Local<T>) == sizeof(T*), "");
+  auto local = *reinterpret_cast<v8::Local<T>*>(&ptr);
+  assert(*local == ptr);
+  return local;
+}
+
+template <class T>
+inline static T* maybe_local_to_ptr(v8::MaybeLocal<T> local) {
+  return *local.FromMaybe(v8::Local<T>());
+}
+
+template <class T>
+inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
+  static_assert(sizeof(v8::MaybeLocal<T>) == sizeof(T*), "");
+  return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
 }
 
 #endif  // SUPPORT_H_

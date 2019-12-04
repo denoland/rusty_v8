@@ -25,10 +25,10 @@ impl<'sc> HandleScope<'sc> {
   {
     let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
     unsafe { v8__HandleScope__CONSTRUCT(&mut scope, parent.cxx_isolate()) };
-    let mut scope = unsafe { &mut *(&mut scope as *mut _ as *mut HandleScope) };
-    f(&mut scope);
+    let scope = unsafe { &mut *(scope.as_mut_ptr()) };
+    f(scope);
 
-    unsafe { v8__HandleScope__DESTRUCT(&mut scope) };
+    unsafe { v8__HandleScope__DESTRUCT(scope) };
   }
 }
 

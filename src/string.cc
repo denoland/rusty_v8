@@ -11,7 +11,7 @@ String* v8__String__NewFromUtf8(Isolate* isolate,
                                 const char* data,
                                 NewStringType type,
                                 int length) {
-  return maybe_local_ptr(String::NewFromUtf8(isolate, data, type, length));
+  return maybe_local_to_ptr(String::NewFromUtf8(isolate, data, type, length));
 }
 
 int v8__String__Utf8Length(const String& self, Isolate* isolate) {

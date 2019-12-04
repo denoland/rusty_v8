@@ -17,7 +17,7 @@ extern "C" {
     data: *const char,
     new_type: NewStringType,
     length: int,
-  ) -> *const String;
+  ) -> *mut String;
 
   fn v8__String__Utf8Length(this: &String, isolate: *mut CxxIsolate) -> int;
 
