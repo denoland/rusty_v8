@@ -78,17 +78,3 @@ impl Delete for CreateParams {
     unsafe { v8__Isolate__CreateParams__DELETE(self) }
   }
 }
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_isolate() {
-    let g = crate::test_util::setup();
-    let mut params = CreateParams::new();
-    params.set_array_buffer_allocator(Allocator::new_default_allocator());
-    Isolate::new(params);
-    drop(g);
-  }
-}

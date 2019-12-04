@@ -20,8 +20,6 @@ pub mod string_buffer;
 pub mod string_view;
 pub mod support;
 
-mod test_util;
-
 // This module is intentionally named "V8" rather than "v8" to match the
 // C++ namespace "v8::V8".
 #[allow(non_snake_case)]

@@ -79,29 +79,11 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
     .collect()
 }
 
-#[test]
-fn test_set_flags_from_command_line() {
-  let r = set_flags_from_command_line(vec![
-    "binaryname".to_string(),
-    "--log-colour".to_string(),
-    "--should-be-ignored".to_string(),
-  ]);
-  assert_eq!(
-    r,
-    vec!["binaryname".to_string(), "--should-be-ignored".to_string()]
-  );
-}
-
 /// Get the version string.
 pub fn get_version() -> &'static str {
   let version = unsafe { v8__V8__GetVersion() };
   let c_str = unsafe { CStr::from_ptr(version) };
   c_str.to_str().unwrap()
-}
-
-#[test]
-fn test_get_version() {
-  assert!(get_version().len() > 3);
 }
 
 // TODO: V8::InitializePlatform does not actually take a UniquePtr but rather
