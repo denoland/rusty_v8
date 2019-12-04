@@ -29,10 +29,22 @@ pub trait LockedIsolate {
 pub struct Isolate(&'static mut CxxIsolate);
 
 impl Isolate {
+  /// Creates a new isolate.  Does not change the currently entered
+  /// isolate.
+  ///
+  /// When an isolate is no longer used its resources should be freed
+  /// by calling V8::dispose().  Using the delete operator is not allowed.
+  ///
+  /// V8::initialize() must have run prior to this.
   pub fn new(params: UniqueRef<CreateParams>) -> Self {
     // TODO: support CreateParams.
     crate::V8::assert_initialized();
     Self(unsafe { v8__Isolate__New(params.into_raw()) })
+  }
+
+  /// Initial configuration parameters for a new Isolate.
+  pub fn create_params() -> UniqueRef<CreateParams> {
+    CreateParams::new()
   }
 }
 
@@ -76,19 +88,5 @@ impl CreateParams {
 impl Delete for CreateParams {
   fn delete(&'static mut self) {
     unsafe { v8__Isolate__CreateParams__DELETE(self) }
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_isolate() {
-    let g = crate::test_util::setup();
-    let mut params = CreateParams::new();
-    params.set_array_buffer_allocator(Allocator::new_default_allocator());
-    Isolate::new(params);
-    drop(g);
   }
 }
