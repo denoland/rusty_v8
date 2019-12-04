@@ -48,8 +48,21 @@ mod tests {
   use crate::Number;
 
   #[test]
+  fn nested() {
+    let g = crate::test_util::setup();
+    let mut params = CreateParams::new();
+    params.set_array_buffer_allocator(Allocator::new_default_allocator());
+    let mut isolate = Isolate::new(params);
+    let mut locker = Locker::new(&mut isolate);
+    HandleScope::enter(&mut locker, |scope| {
+      HandleScope::enter(scope, |_scope| {});
+    });
+    drop(g);
+  }
+
+  #[test]
   #[allow(clippy::float_cmp)]
-  fn test_handle_scope() {
+  fn numbers() {
     let g = crate::test_util::setup();
     let mut params = CreateParams::new();
     params.set_array_buffer_allocator(Allocator::new_default_allocator());
