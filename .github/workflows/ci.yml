@@ -37,6 +37,7 @@ jobs:
       - name: Environment (linux)
         if: startsWith(matrix.os, 'ubuntu')
         run: |
+          cd ..
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-unknown-linux-musl/
@@ -44,6 +45,7 @@ jobs:
       - name: Environment (mac)
         if: startsWith(matrix.os, 'macOS')
         run: |
+          cd ..
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-apple-darwin.tar.gz
           tar -xzvf sccache-0.2.12-x86_64-apple-darwin.tar.gz
           echo ::add-path::`pwd`/sccache-0.2.12-x86_64-apple-darwin/
@@ -51,6 +53,7 @@ jobs:
       - name: Environment (windows)
         if: startsWith(matrix.os, 'windows')
         run: |
+          cd ..
           curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           tar -zxvf sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
           echo ::add-path::$(pwd)\sccache-0.2.12-x86_64-pc-windows-msvc\
@@ -77,7 +80,7 @@ jobs:
           cargo clippy --all-targets --release --locked -- -D clippy::all
 
       - name: Publish
-        if: startsWith(github.ref, 'refs/tags/') && github.repository == 'denoland/rusty_v8'
+        if: github.repository == 'denoland/rusty_v8' && startsWith(matrix.os, 'ubuntu')
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish -vv
