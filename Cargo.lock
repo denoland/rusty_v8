@@ -65,7 +65,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rusty_v8"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cargo_gn 0.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
