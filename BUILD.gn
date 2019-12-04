@@ -8,13 +8,13 @@ v8_static_library("rusty_v8") {
     "src/handle_scope.cc",
     "src/inspector/channel.cc",
     "src/inspector/client.cc",
+    "src/inspector/string_buffer.cc",
     "src/isolate.cc",
     "src/locker.cc",
     "src/number.cc",
     "src/platform/mod.cc",
     "src/platform/task.cc",
     "src/string.cc",
-    "src/string_buffer.cc",
   ]
   deps = [
     ":v8",

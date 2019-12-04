@@ -197,20 +197,3 @@ impl<'a: 'b, 'b> ExactSizeIterator for StringViewIterator<'a, 'b> {
     self.view.len()
   }
 }
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_string_view() {
-    let chars = b"Hello world!";
-    let view = StringView::from(&chars[..]);
-
-    assert_eq!(chars.len(), view.into_iter().len());
-    assert_eq!(chars.len(), view.len());
-    for (c1, c2) in chars.iter().copied().map(u16::from).zip(&view) {
-      assert_eq!(c1, c2);
-    }
-  }
-}

@@ -1,7 +1,7 @@
+use super::string_view::StringView;
 use crate::support::CxxVTable;
 use crate::support::Delete;
 use crate::support::UniquePtr;
-use crate::StringView;
 
 // class StringBuffer {
 //  public:
@@ -51,26 +51,5 @@ impl StringBuffer {
 impl Delete for StringBuffer {
   fn delete(&'static mut self) {
     unsafe { v8_inspector__StringBuffer__DELETE(self) }
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_string_buffer() {
-    let chars = b"Hello Venus!";
-    let mut buf = {
-      let src_view = StringView::from(&chars[..]);
-      StringBuffer::create(&src_view)
-    };
-    let view = buf.as_mut().unwrap().string();
-
-    assert_eq!(chars.len(), view.into_iter().len());
-    assert_eq!(chars.len(), view.len());
-    for (c1, c2) in chars.iter().copied().map(u16::from).zip(view) {
-      assert_eq!(c1, c2);
-    }
   }
 }

@@ -1,10 +1,10 @@
+use super::*;
 use crate::support::int;
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
 use crate::support::Opaque;
 use crate::support::RustVTable;
 use crate::support::UniquePtr;
-use crate::StringBuffer;
 
 // class Channel {
 //  public:
@@ -196,8 +196,6 @@ impl ChannelBase {
 mod tests {
   use super::*;
   use crate::support::UniquePtr;
-  use crate::StringView;
-  use crate::*;
   use std::sync::atomic::AtomicUsize;
   use std::sync::atomic::Ordering::SeqCst;
 
