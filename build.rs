@@ -127,7 +127,7 @@ fn clang_download() -> PathBuf {
   println!("clang_base_path {}", clang_base_path.display());
   let status = Command::new("python")
     .arg("./tools/clang/scripts/update.py")
-    .arg("--clang-dir")
+    .arg("--output-dir")
     .arg(&clang_base_path)
     .status()
     .expect("clang download failed");
