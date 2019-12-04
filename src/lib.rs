@@ -9,22 +9,22 @@
 extern crate lazy_static;
 extern crate libc;
 
-pub mod array_buffer;
-pub mod handle_scope;
-pub mod inspector;
+mod handle_scope;
+mod inspector;
 mod isolate;
-pub mod local;
-pub mod locker;
-pub mod platform;
-pub mod string_buffer;
-pub mod string_view;
-pub mod support;
+mod local;
+mod locker;
+mod string_buffer;
+mod string_view;
+mod support;
+mod value;
 
+pub mod array_buffer;
+pub mod platform;
 // This module is intentionally named "V8" rather than "v8" to match the
 // C++ namespace "v8::V8".
 #[allow(non_snake_case)]
 pub mod V8;
-pub mod value;
 
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
