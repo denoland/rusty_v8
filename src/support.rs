@@ -6,6 +6,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
 
+pub use std::os::raw::c_char as char;
 pub use std::os::raw::c_int as int;
 
 pub type Opaque = [usize; 0];

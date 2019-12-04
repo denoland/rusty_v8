@@ -77,6 +77,24 @@ fn handle_scope_numbers() {
 }
 
 #[test]
+fn test_string() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let reference = "Hello 🦕 world!";
+    let local =
+      v8::String::new(scope, reference, v8::string::NewStringType::Normal)
+        .unwrap();
+    assert_eq!(reference, local.to_rust_string_lossy(scope));
+  });
+}
+
+#[test]
 fn isolate_new() {
   let g = setup();
   let mut params = v8::Isolate::create_params();

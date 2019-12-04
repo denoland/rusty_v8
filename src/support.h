@@ -7,6 +7,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "v8/include/v8.h"
+
 // Check assumptions made in binding code.
 // TODO(ry) re-enable the following
 // static_assert(sizeof(bool) == sizeof(uint8_t));
@@ -32,5 +34,10 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
       construct_in_place_helper<T, Args...>(buf, std::forward<Args>(args)...);
 }
 }  // namespace support
+
+template <class T>
+inline static T* maybe_local_ptr(v8::MaybeLocal<T> value) {
+  return *value.FromMaybe(v8::Local<T>());
+}
 
 #endif  // SUPPORT_H_

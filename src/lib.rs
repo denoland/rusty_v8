@@ -6,6 +6,8 @@
 #![allow(dead_code)]
 
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
 extern crate lazy_static;
 extern crate libc;
 
@@ -14,13 +16,14 @@ mod inspector;
 mod isolate;
 mod local;
 mod locker;
+mod number;
 mod string_buffer;
 mod string_view;
 mod support;
-mod value;
 
 pub mod array_buffer;
 pub mod platform;
+pub mod string;
 // This module is intentionally named "V8" rather than "v8" to match the
 // C++ namespace "v8::V8".
 #[allow(non_snake_case)]
@@ -30,6 +33,7 @@ pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use local::Local;
 pub use locker::Locker;
+pub use number::{Integer, Number};
+pub use string::String;
 pub use string_buffer::StringBuffer;
 pub use string_view::StringView;
-pub use value::{Integer, Number};
