@@ -12,7 +12,7 @@ extern crate libc;
 pub mod array_buffer;
 pub mod handle_scope;
 pub mod inspector;
-pub mod isolate;
+mod isolate;
 pub mod local;
 pub mod locker;
 pub mod platform;

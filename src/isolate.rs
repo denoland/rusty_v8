@@ -34,6 +34,10 @@ impl Isolate {
     crate::V8::assert_initialized();
     Self(unsafe { v8__Isolate__New(params.into_raw()) })
   }
+
+  pub fn create_params() -> UniqueRef<CreateParams> {
+    CreateParams::new()
+  }
 }
 
 impl Drop for Isolate {

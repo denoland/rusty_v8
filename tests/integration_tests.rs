@@ -39,7 +39,7 @@ fn setup() -> TestGuard {
 #[test]
 fn handle_scope_nested() {
   let g = setup();
-  let mut params = v8::isolate::CreateParams::new();
+  let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(
     v8::array_buffer::Allocator::new_default_allocator(),
   );
@@ -55,7 +55,7 @@ fn handle_scope_nested() {
 #[allow(clippy::float_cmp)]
 fn handle_scope_numbers() {
   let g = setup();
-  let mut params = v8::isolate::CreateParams::new();
+  let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(
     v8::array_buffer::Allocator::new_default_allocator(),
   );
@@ -79,7 +79,7 @@ fn handle_scope_numbers() {
 #[test]
 fn isolate_new() {
   let g = setup();
-  let mut params = v8::isolate::CreateParams::new();
+  let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(
     v8::array_buffer::Allocator::new_default_allocator(),
   );
