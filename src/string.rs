@@ -19,6 +19,8 @@ extern "C" {
     length: int,
   ) -> *mut String;
 
+  fn v8__String__Length(this: &String) -> int;
+
   fn v8__String__Utf8Length(this: &String, isolate: *mut CxxIsolate) -> int;
 
   fn v8__String__WriteUtf8(
@@ -78,6 +80,12 @@ impl String {
     }
   }
 
+  /// Returns the number of characters (UTF-16 code units) in this string.
+  pub fn length(&self) -> usize {
+    unsafe { v8__String__Length(self) as usize }
+  }
+
+  /// Returns the number of bytes in the UTF-8 encoded representation of this string.
   pub fn utf8_length(&self, isolate: &mut impl LockedIsolate) -> usize {
     unsafe { v8__String__Utf8Length(self, isolate.cxx_isolate()) as usize }
   }

@@ -14,6 +14,10 @@ String* v8__String__NewFromUtf8(Isolate* isolate,
   return maybe_local_to_ptr(String::NewFromUtf8(isolate, data, type, length));
 }
 
+int v8__String__Length(const String& self) {
+  return self.Length();
+}
+
 int v8__String__Utf8Length(const String& self, Isolate* isolate) {
   return self.Utf8Length(isolate);
 }

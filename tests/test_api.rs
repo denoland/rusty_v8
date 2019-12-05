@@ -90,6 +90,8 @@ fn test_string() {
     let reference = "Hello 🦕 world!";
     let local =
       v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
+    assert_eq!(15, local.length());
+    assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
   });
 }
