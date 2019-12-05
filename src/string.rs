@@ -19,6 +19,8 @@ extern "C" {
     length: int,
   ) -> *mut String;
 
+  fn v8__String__Length(this: &String) -> int;
+
   fn v8__String__Utf8Length(this: &String, isolate: *mut CxxIsolate) -> int;
 
   fn v8__String__WriteUtf8(
@@ -76,6 +78,10 @@ impl String {
       );
       Local::from_raw(ptr)
     }
+  }
+
+  pub fn length(&self) -> usize {
+    unsafe { v8__String__Length(self) as usize }
   }
 
   pub fn utf8_length(&self, isolate: &mut impl LockedIsolate) -> usize {
