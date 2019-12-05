@@ -85,7 +85,8 @@ impl String {
     unsafe { v8__String__Length(self) as usize }
   }
 
-  /// Returns the number of bytes in the UTF-8 encoded representation of this string.
+  /// Returns the number of bytes in the UTF-8 encoded representation of this
+  /// string.
   pub fn utf8_length(&self, isolate: &mut impl LockedIsolate) -> usize {
     unsafe { v8__String__Utf8Length(self, isolate.cxx_isolate()) as usize }
   }

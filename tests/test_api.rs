@@ -26,7 +26,7 @@ impl Drop for TestGuard {
   }
 }
 
-pub(crate) fn setup() -> TestGuard {
+fn setup() -> TestGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
@@ -178,4 +178,21 @@ fn inspector_string_buffer() {
   for (c1, c2) in chars.iter().copied().map(u16::from).zip(view) {
     assert_eq!(c1, c2);
   }
+}
+
+#[test]
+fn test_primitives() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let _null = v8::new_null(scope);
+    let _undefined = v8::new_undefined(scope);
+    let _true = v8::new_true(scope);
+    let _false = v8::new_false(scope);
+  });
 }
