@@ -81,24 +81,25 @@ fn platform() -> &'static str {
 fn download_gn_ninja_binaries() {
   let root = env::current_dir().unwrap();
   let out_dir = root.join(env::var_os("OUT_DIR").unwrap());
-  let status = Command::new("python")
-    .arg("./tools/gn_ninja_binaries.py")
-    .arg("--dir")
-    .arg(&out_dir)
-    .status()
-    .expect("gn_ninja_binaries.py download failed");
-  assert!(status.success());
-
   let d = out_dir.join("gn_ninja_binaries").join(platform());
-
   let gn = d.join("gn");
   let ninja = d.join("ninja");
-
   #[cfg(windows)]
   let gn = gn.with_extension("exe");
   #[cfg(windows)]
   let ninja = ninja.with_extension("exe");
 
+  if !gn.exists() || !ninja.exists() {
+    let status = Command::new("python")
+      .arg("./tools/gn_ninja_binaries.py")
+      .arg("--dir")
+      .arg(&out_dir)
+      .status()
+      .expect("gn_ninja_binaries.py download failed");
+    assert!(status.success());
+  }
+  assert!(gn.exists());
+  assert!(ninja.exists());
   env::set_var("GN", gn);
   env::set_var("NINJA", ninja);
 }
