@@ -42,6 +42,7 @@ default_args = {
   # tools/clang/dsymutil.
   enable_dsyms = false
 
-  # Necessary for debug builds on OSX. Unknown why.
-  symbol_level = 1
+  # TODO(ry) Remove this so debug builds can link faster. Currently removing
+  # this breaks cargo build in debug mode in OSX.
+  is_component_build = false
 }
