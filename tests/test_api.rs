@@ -130,6 +130,7 @@ fn script_compile_and_run() {
     let result: v8::Local<v8::String> =
       unsafe { std::mem::transmute_copy(&result) };
     assert_eq!(result.to_rust_string_lossy(s), "Hello 13th planet");
+    context.exit();
   });
 }
 
