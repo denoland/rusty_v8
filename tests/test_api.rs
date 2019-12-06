@@ -190,9 +190,24 @@ fn test_primitives() {
   let mut isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&mut isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
-    let _null = v8::new_null(scope);
-    let _undefined = v8::new_undefined(scope);
-    let _true = v8::new_true(scope);
-    let _false = v8::new_false(scope);
+    let null = v8::new_null(scope);
+    assert!(!null.is_undefined());
+    assert!(null.is_null());
+    assert!(null.is_null_or_undefined());
+
+    let undefined = v8::new_undefined(scope);
+    assert!(undefined.is_undefined());
+    assert!(!undefined.is_null());
+    assert!(undefined.is_null_or_undefined());
+
+    let true_ = v8::new_true(scope);
+    assert!(!true_.is_undefined());
+    assert!(!true_.is_null());
+    assert!(!true_.is_null_or_undefined());
+
+    let false_ = v8::new_false(scope);
+    assert!(!false_.is_undefined());
+    assert!(!false_.is_null());
+    assert!(!false_.is_null_or_undefined());
   });
 }

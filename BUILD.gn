@@ -18,6 +18,7 @@ v8_static_library("rusty_v8") {
     "src/primitives.cc",
     "src/script.cc",
     "src/string.cc",
+    "src/value.cc",
   ]
   deps = [
     ":v8",
