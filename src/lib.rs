@@ -21,6 +21,7 @@ mod primitives;
 mod script;
 mod string;
 mod support;
+mod value;
 
 pub mod array_buffer;
 pub mod inspector;
@@ -40,6 +41,4 @@ pub use primitives::*;
 pub use script::{Script, ScriptOrigin};
 pub use string::NewStringType;
 pub use string::String;
-
-#[repr(C)]
-pub struct Value(support::Opaque);
+pub use value::Value;

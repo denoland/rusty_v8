@@ -1,8 +1,11 @@
+use std::ops::Deref;
+
 use crate::isolate::CxxIsolate;
 use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
 use crate::HandleScope;
 use crate::Local;
+use crate::Value;
 
 /// The superclass of primitive values.  See ECMA-262 4.3.2.
 #[repr(C)]
@@ -39,4 +42,18 @@ pub fn new_true<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Boolean> {
 
 pub fn new_false<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Boolean> {
   unsafe { Local::from_raw(v8__False(scope.cxx_isolate())) }.unwrap()
+}
+
+impl Deref for Primitive {
+  type Target = Value;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Value) }
+  }
+}
+
+impl Deref for Boolean {
+  type Target = Primitive;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Primitive) }
+  }
 }
