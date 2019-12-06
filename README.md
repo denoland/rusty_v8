@@ -70,7 +70,7 @@ GN/Ninja.
 **V8 has a very large API with hundreds of methods. Why don't you automate the
 generation of this binding code?**
 
-In the limit we could like to auto-generate bindings. We have actually started
+In the limit we would like to auto-generate bindings. We have actually started
 down this route several times, however due to many excentric features of the V8
 API, this has not proven successful. Therefore we are proceeding in a
 brute-force fashion for now, focusing on solving our stated goals first. We hope
