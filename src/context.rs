@@ -29,4 +29,16 @@ impl Context {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
   }
+
+  pub fn scope<'sc>(
+    handle_scope: &mut HandleScope<'sc>,
+    mut f: impl FnMut(Local<Context>, &mut HandleScope<'sc>) -> (),
+  ) {
+    let mut context = unsafe {
+      Local::from_raw(v8__Context__New(handle_scope.cxx_isolate())).unwrap()
+    };
+    context.enter();
+    f(context, handle_scope);
+    context.exit();
+  }
 }

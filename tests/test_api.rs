@@ -118,19 +118,18 @@ fn script_compile_and_run() {
   let mut locker = v8::Locker::new(&mut isolate);
 
   v8::HandleScope::enter(&mut locker, |s| {
-    let mut context = v8::Context::new(s);
-    context.enter();
-    let source =
-      v8::String::new(s, "'Hello ' + 13 + 'th planet'", Default::default())
-        .unwrap();
-    let mut script = v8::Script::compile(s, context, source, None).unwrap();
-    source.to_rust_string_lossy(s);
-    let result = script.run(s, context).unwrap();
-    // TODO: safer casts.
-    let result: v8::Local<v8::String> =
-      unsafe { std::mem::transmute_copy(&result) };
-    assert_eq!(result.to_rust_string_lossy(s), "Hello 13th planet");
-    context.exit();
+    v8::Context::scope(s, |context, s| {
+      let source =
+        v8::String::new(s, "'Hello ' + 13 + 'th planet'", Default::default())
+          .unwrap();
+      let mut script = v8::Script::compile(s, context, source, None).unwrap();
+      source.to_rust_string_lossy(s);
+      let result = script.run(s, context).unwrap();
+      // TODO: safer casts.
+      let result: v8::Local<v8::String> =
+        unsafe { std::mem::transmute_copy(&result) };
+      assert_eq!(result.to_rust_string_lossy(s), "Hello 13th planet");
+    });
   });
 }
 
