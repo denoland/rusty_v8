@@ -118,7 +118,7 @@ fn script_compile_and_run() {
   let mut locker = v8::Locker::new(&mut isolate);
 
   v8::HandleScope::enter(&mut locker, |s| {
-    v8::Context::scope(s, |context, s| {
+    v8::Context::scope(s, |s, context| {
       let source =
         v8::String::new(s, "'Hello ' + 13 + 'th planet'", Default::default())
           .unwrap();

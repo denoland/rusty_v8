@@ -32,13 +32,11 @@ impl Context {
 
   pub fn scope<'sc>(
     handle_scope: &mut HandleScope<'sc>,
-    mut f: impl FnMut(Local<Context>, &mut HandleScope<'sc>) -> (),
+    mut f: impl FnMut(&mut HandleScope<'sc>, Local<Context>) -> (),
   ) {
-    let mut context = unsafe {
-      Local::from_raw(v8__Context__New(handle_scope.cxx_isolate())).unwrap()
-    };
+    let mut context = Context::new(handle_scope);
     context.enter();
-    f(context, handle_scope);
+    f(handle_scope, context);
     context.exit();
   }
 }
