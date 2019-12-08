@@ -225,10 +225,14 @@ fn exception() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut c = v8::Context::new(scope);
     c.enter();
-    let reference = "This is a test type error";
+    let reference = "This is a test error";
     let local =
       v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
+    v8::Exception::RangeError(local);
+    v8::Exception::ReferenceError(local);
+    v8::Exception::SyntaxError(local);
     v8::Exception::TypeError(local);
+    v8::Exception::Error(local);
     c.exit();
   });
   isolate.exit();
