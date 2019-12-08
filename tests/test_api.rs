@@ -232,7 +232,9 @@ fn exception() {
     v8::Exception::ReferenceError(local);
     v8::Exception::SyntaxError(local);
     v8::Exception::TypeError(local);
-    v8::Exception::Error(local);
+    let exception = v8::Exception::Error(local);
+    let mut msg = v8::Exception::CreateMessage(scope, exception);
+    msg.get();
     c.exit();
   });
   isolate.exit();
