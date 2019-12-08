@@ -211,3 +211,25 @@ fn test_primitives() {
     assert!(!false_.is_null_or_undefined());
   });
 }
+
+#[test]
+fn exception() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  isolate.enter();
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut c = v8::Context::new(scope);
+    c.enter();
+    let reference = "This is a test type error";
+    let local =
+      v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
+    v8::Exception::TypeError(local);
+    c.exit();
+  });
+  isolate.exit();
+}

@@ -9,6 +9,8 @@ use crate::support::UniqueRef;
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> &'static mut CxxIsolate;
   fn v8__Isolate__Dispose(this: &mut CxxIsolate) -> ();
+  fn v8__Isolate__Enter(this: &mut CxxIsolate) -> ();
+  fn v8__Isolate__Exit(this: &mut CxxIsolate) -> ();
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -45,6 +47,14 @@ impl Isolate {
   /// Initial configuration parameters for a new Isolate.
   pub fn create_params() -> UniqueRef<CreateParams> {
     CreateParams::new()
+  }
+
+  pub fn enter(&mut self) {
+    unsafe { v8__Isolate__Enter(self.0) }
+  }
+
+  pub fn exit(&mut self) {
+    unsafe { v8__Isolate__Exit(self.0) }
   }
 }
 

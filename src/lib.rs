@@ -12,6 +12,7 @@ extern crate lazy_static;
 extern crate libc;
 
 mod context;
+mod exception;
 mod handle_scope;
 mod isolate;
 mod local;
@@ -32,6 +33,7 @@ pub mod platform;
 pub mod V8;
 
 pub use context::Context;
+pub use exception::Exception;
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use local::Local;
