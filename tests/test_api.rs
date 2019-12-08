@@ -237,6 +237,7 @@ fn exception() {
     let msg_string = msg.get();
     let rust_msg_string = msg_string.to_rust_string_lossy(scope);
     assert_eq!("Uncaught Error: This is a test error".to_string(), rust_msg_string);
+    assert!(v8::Exception::GetStackTrace(exception).is_none());
     context.exit();
   });
   isolate.exit();
