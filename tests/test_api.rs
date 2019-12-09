@@ -2,15 +2,10 @@
 #[macro_use]
 extern crate lazy_static;
 
-use core::ptr;
 use rusty_v8 as v8;
 use rusty_v8::{new_null, Local};
 use std::default::Default;
 use std::sync::Mutex;
-<<<<<<< HEAD
-=======
-use rusty_v8::{Local, new_null};
->>>>>>> try fix
 
 lazy_static! {
   static ref INIT_LOCK: Mutex<u32> = Mutex::new(0);
@@ -278,6 +273,12 @@ fn json() {
   });
 }
 
+// TODO Safer casts https://github.com/denoland/rusty_v8/issues/51
+fn cast<U, T>(local: v8::Local<T>) -> v8::Local<U> {
+  let cast_local: v8::Local<U> = unsafe { std::mem::transmute_copy(&local) };
+  cast_local
+}
+
 #[test]
 fn object() {
   setup();
@@ -290,18 +291,14 @@ fn object() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
     context.enter();
-    let null = new_null(scope);
-    // TODO: safer casts.
-    let null: v8::Local<v8::Value> =
-        unsafe { std::mem::transmute_copy(&null) };
-
-    // TODO: safer casts.
-    let n1: Local<v8::Name> = unsafe { std::mem::transmute_copy(&v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap()) };
-    let n2: Local<v8::Name> = unsafe { std::mem::transmute_copy(&v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap()) };
-    let names = vec![n1, n2];
-    // TODO: safer casts.
-    let v1: v8::Local<v8::Value> = unsafe { std::mem::transmute_copy(&v8::Number::new(scope, 1.0)) };
-    let v2: v8::Local<v8::Value> = unsafe { std::mem::transmute_copy(&v8::Number::new(scope, 2.0)) };
+    let null: v8::Local<v8::Value> = cast(new_null(scope));
+    let s1 = v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap();
+    let s2 = v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap();
+    let name1: Local<v8::Name> = cast(s1);
+    let name2: Local<v8::Name> = cast(s2);
+    let names = vec![name1, name2];
+    let v1: v8::Local<v8::Value> = cast(v8::Number::new(scope, 1.0));
+    let v2: v8::Local<v8::Value> = cast(v8::Number::new(scope, 2.0));
     let values = vec![v1, v2];
     let object = v8::Object::new(scope, null, names, values, 2);
     assert!(!object.is_null_or_undefined());
