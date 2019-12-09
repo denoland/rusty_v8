@@ -32,7 +32,6 @@ impl<'sc, T> DerefMut for Local<'sc, T> {
   }
 }
 
-
 pub struct MaybeLocal<'sc, T>(*mut T, PhantomData<&'sc ()>);
 
 impl<'sc, T> Copy for MaybeLocal<'sc, T> {}

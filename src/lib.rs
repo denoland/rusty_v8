@@ -37,6 +37,7 @@ pub use exception::Exception;
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use local::Local;
+pub use local::MaybeLocal;
 pub use locker::Locker;
 pub use number::{Integer, Number};
 pub use primitives::*;
