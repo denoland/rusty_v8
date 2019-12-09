@@ -13,7 +13,7 @@ use crate::Value;
 pub struct Object(Opaque);
 
 extern "C" {
-  fn v8__Object__New(isolate: *mut CxxIsolate, prototype_or_null: *mut Value, names: **mut Name, values: **mut Value, length: usize) -> *mut Object;
+  fn v8__Object__New(isolate: *mut CxxIsolate, prototype_or_null: *mut Value, names: *mut *mut Name, values: *mut *mut Value, length: usize) -> *mut Object;
 
 
 }
@@ -27,19 +27,19 @@ impl Object {
  /// and writable properties.
   pub fn new<'sc>(
     scope: &mut HandleScope<'sc>,
-    prototype_or_null: Local<'sc, Value>,
-    names: Vec<Local<'sc, Name>>,
-    values: Vec<Local<'sc, Value>>,
+    mut prototype_or_null: Local<'sc, Value>,
+    names: &mut Vec<*mut Name>,
+    values: &mut Vec<*mut Value>,
     length: usize,
   ) -> Local<'sc, Object> {
     unsafe {
       Local::from_raw(v8__Object__New(
         scope.cxx_isolate(),
         &mut *prototype_or_null,
-        &mut **names,
-        &mut **values,
+        names.as_mut_ptr(),
+        values.as_mut_ptr(),
         length
-      ))
+      )).unwrap()
     }
   }
 }

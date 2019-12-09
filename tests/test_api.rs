@@ -284,12 +284,12 @@ fn object() {
   let mut isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&mut isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
-    let null = new_null(scope) as Local<v8::Value>;
+    let null = new_null(scope);
     let names = vec![
-      v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap()
-        as Local<v8::Name>,
-      v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap()
-        as Local<v8::Name>,
+      &mut *(v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap()
+        as Local<v8::Name>),
+      &mut *(v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap()
+        as Local<v8::Name>),
     ];
     let values = vec![
       v8::Number::new(scope, 1.0) as Local<v8::Value>,
@@ -297,6 +297,5 @@ fn object() {
     ];
     let object = v8::Object::new(scope, null, names, values, 2);
     assert!(!object.is_null_or_undefined());
-    context.exit();
   });
 }

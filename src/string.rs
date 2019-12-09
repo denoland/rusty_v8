@@ -151,10 +151,3 @@ impl Deref for String {
     unsafe { &*(self as *const _ as *const Value) }
   }
 }
-
-impl Deref for String {
-  type Target = Name;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Name) }
-  }
-}
