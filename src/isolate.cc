@@ -17,6 +17,14 @@ void v8__Isolate__Dispose(Isolate& isolate) {
   delete allocator;
 }
 
+void v8__Isolate__Enter(Isolate& isolate) {
+  isolate.Enter();
+}
+
+void v8__Isolate__Exit(Isolate& isolate) {
+  isolate.Exit();
+}
+
 Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new Isolate::CreateParams();
 }

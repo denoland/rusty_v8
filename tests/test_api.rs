@@ -211,3 +211,34 @@ fn test_primitives() {
     assert!(!false_.is_null_or_undefined());
   });
 }
+
+#[test]
+fn exception() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  isolate.enter();
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let reference = "This is a test error";
+    let local =
+      v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
+    v8::Exception::RangeError(local);
+    v8::Exception::ReferenceError(local);
+    v8::Exception::SyntaxError(local);
+    v8::Exception::TypeError(local);
+    let exception = v8::Exception::Error(local);
+    let mut msg = v8::Exception::CreateMessage(scope, exception);
+    let msg_string = msg.get();
+    let rust_msg_string = msg_string.to_rust_string_lossy(scope);
+    assert_eq!("Uncaught Error: This is a test error".to_string(), rust_msg_string);
+    assert!(v8::Exception::GetStackTrace(exception).is_none());
+    context.exit();
+  });
+  isolate.exit();
+}
