@@ -12,6 +12,7 @@ v8_static_library("rusty_v8") {
     "src/inspector/client.cc",
     "src/inspector/string_buffer.cc",
     "src/isolate.cc",
+    "src/json.cc",
     "src/locker.cc",
     "src/number.cc",
     "src/platform/mod.cc",
