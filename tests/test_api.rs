@@ -7,6 +7,10 @@ use rusty_v8 as v8;
 use rusty_v8::{new_null, Local};
 use std::default::Default;
 use std::sync::Mutex;
+<<<<<<< HEAD
+=======
+use rusty_v8::{Local, new_null};
+>>>>>>> try fix
 
 lazy_static! {
   static ref INIT_LOCK: Mutex<u32> = Mutex::new(0);
@@ -284,18 +288,23 @@ fn object() {
   let mut isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&mut isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
     let null = new_null(scope);
-    let names = vec![
-      &mut *(v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap()
-        as Local<v8::Name>),
-      &mut *(v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap()
-        as Local<v8::Name>),
-    ];
-    let values = vec![
-      v8::Number::new(scope, 1.0) as Local<v8::Value>,
-      v8::Number::new(scope, 2.0) as Local<v8::Value>,
-    ];
+    // TODO: safer casts.
+    let null: v8::Local<v8::Value> =
+        unsafe { std::mem::transmute_copy(&null) };
+
+    // TODO: safer casts.
+    let n1: Local<v8::Name> = unsafe { std::mem::transmute_copy(&v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap()) };
+    let n2: Local<v8::Name> = unsafe { std::mem::transmute_copy(&v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap()) };
+    let names = vec![n1, n2];
+    // TODO: safer casts.
+    let v1: v8::Local<v8::Value> = unsafe { std::mem::transmute_copy(&v8::Number::new(scope, 1.0)) };
+    let v2: v8::Local<v8::Value> = unsafe { std::mem::transmute_copy(&v8::Number::new(scope, 2.0)) };
+    let values = vec![v1, v2];
     let object = v8::Object::new(scope, null, names, values, 2);
     assert!(!object.is_null_or_undefined());
+    context.exit();
   });
 }

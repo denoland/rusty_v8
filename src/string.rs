@@ -9,7 +9,7 @@ use crate::isolate::LockedIsolate;
 use crate::support::char;
 use crate::support::int;
 use crate::support::Opaque;
-use crate::{HandleScope, Name};
+use crate::HandleScope;
 use crate::Local;
 use crate::Value;
 
