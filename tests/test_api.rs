@@ -242,3 +242,30 @@ fn exception() {
   });
   isolate.exit();
 }
+
+#[test]
+fn json() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |s| {
+    let mut context = v8::Context::new(s);
+    context.enter();
+    let json_string =
+        v8::String::new(s, "{\"a\": 1, \"b\": 2}", Default::default())
+            .unwrap();
+    let maybe_value = v8::JSON::Parse(context, json_string);
+    assert!(maybe_value.is_some());
+    let value = maybe_value.unwrap();
+    let maybe_stringified = v8::JSON::Stringify(context, value);
+    assert!(maybe_stringified.is_some());
+    let stringified = maybe_stringified.unwrap();
+    let rust_str = stringified.to_rust_string_lossy(s);
+    assert_eq!("{\"a\":1,\"b\":2}".to_string(), rust_str);
+    context.exit();
+  });
+}
