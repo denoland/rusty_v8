@@ -9,7 +9,7 @@ use crate::isolate::LockedIsolate;
 use crate::support::char;
 use crate::support::int;
 use crate::support::Opaque;
-use crate::HandleScope;
+use crate::{HandleScope, Name};
 use crate::Local;
 use crate::Value;
 
@@ -149,5 +149,12 @@ impl Deref for String {
   type Target = Value;
   fn deref(&self) -> &Self::Target {
     unsafe { &*(self as *const _ as *const Value) }
+  }
+}
+
+impl Deref for String {
+  type Target = Name;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Name) }
   }
 }

@@ -16,6 +16,10 @@ pub struct Primitive(Opaque);
 #[repr(C)]
 pub struct Boolean(Opaque);
 
+/// A superclass for symbols and strings.
+#[repr(C)]
+pub struct Name(Opaque);
+
 extern "C" {
   fn v8__Null(isolate: *mut CxxIsolate) -> *mut Primitive;
 
@@ -52,6 +56,13 @@ impl Deref for Primitive {
 }
 
 impl Deref for Boolean {
+  type Target = Primitive;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Primitive) }
+  }
+}
+
+impl Deref for Name {
   type Target = Primitive;
   fn deref(&self) -> &Self::Target {
     unsafe { &*(self as *const _ as *const Primitive) }

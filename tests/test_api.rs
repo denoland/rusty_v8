@@ -2,7 +2,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+use core::ptr;
 use rusty_v8 as v8;
+use rusty_v8::{new_null, Local};
 use std::default::Default;
 use std::sync::Mutex;
 
@@ -236,7 +238,10 @@ fn exception() {
     let mut msg = v8::Exception::CreateMessage(scope, exception);
     let msg_string = msg.get();
     let rust_msg_string = msg_string.to_rust_string_lossy(scope);
-    assert_eq!("Uncaught Error: This is a test error".to_string(), rust_msg_string);
+    assert_eq!(
+      "Uncaught Error: This is a test error".to_string(),
+      rust_msg_string
+    );
     assert!(v8::Exception::GetStackTrace(exception).is_none());
     context.exit();
   });
@@ -256,8 +261,7 @@ fn json() {
     let mut context = v8::Context::new(s);
     context.enter();
     let json_string =
-        v8::String::new(s, "{\"a\": 1, \"b\": 2}", Default::default())
-            .unwrap();
+      v8::String::new(s, "{\"a\": 1, \"b\": 2}", Default::default()).unwrap();
     let maybe_value = v8::JSON::Parse(context, json_string);
     assert!(maybe_value.is_some());
     let value = maybe_value.unwrap();
@@ -266,6 +270,33 @@ fn json() {
     let stringified = maybe_stringified.unwrap();
     let rust_str = stringified.to_rust_string_lossy(s);
     assert_eq!("{\"a\":1,\"b\":2}".to_string(), rust_str);
+    context.exit();
+  });
+}
+
+#[test]
+fn object() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let null = new_null(scope) as Local<v8::Value>;
+    let names = vec![
+      v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap()
+        as Local<v8::Name>,
+      v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap()
+        as Local<v8::Name>,
+    ];
+    let values = vec![
+      v8::Number::new(scope, 1.0) as Local<v8::Value>,
+      v8::Number::new(scope, 2.0) as Local<v8::Value>,
+    ];
+    let object = v8::Object::new(scope, null, names, values, 2);
+    assert!(!object.is_null_or_undefined());
     context.exit();
   });
 }
