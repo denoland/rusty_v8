@@ -306,8 +306,8 @@ fn object() {
   });
 }
 
-extern "C" fn callback(info: *mut FunctionCallbackInfo) {
-  eprintln!("callback called!");
+extern "C" fn callback(info: &mut FunctionCallbackInfo) {
+  assert_eq!(info.length(), 0)
 }
 
 #[test]
@@ -327,7 +327,7 @@ fn function() {
     let global = context.global();
     let recv: Local<v8::Value> = cast(global);
     eprintln!("before call!");
-    let value = function.call(context, recv, 0, vec![]);
+    let value = function.call(context, recv);
     eprintln!("after call!");
     context.exit();
   });

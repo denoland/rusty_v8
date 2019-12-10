@@ -12,9 +12,8 @@ extern "C" {
     function: *mut Function,
     context: *mut Context,
     recv: *mut Value,
-    argc: int,
-    argv: *mut *mut Value,
   ) -> *mut Value;
+  fn v8__FunctionCallbackInfo__Length(info: *mut FunctionCallbackInfo) -> int;
 }
 
 #[repr(C)]
@@ -24,10 +23,14 @@ impl FunctionCallbackInfo {
   pub fn get_return_value(&mut self) {
     unimplemented!();
   }
+
+  pub fn length(&mut self) -> int {
+    unsafe { v8__FunctionCallbackInfo__Length(&mut *self) }
+  }
 }
 
 pub type FunctionCallback =
-  unsafe extern "C" fn(info: *mut FunctionCallbackInfo);
+  unsafe extern "C" fn(info: &mut FunctionCallbackInfo);
 
 #[repr(C)]
 pub struct Function(Opaque);
@@ -48,23 +51,9 @@ impl Function {
     &mut self,
     mut context: Local<'_, Context>,
     mut recv: Local<'_, Value>,
-    argc: i32,
-    argv: Vec<Local<'_, Value>>,
   ) -> Option<Local<'_, Value>> {
-    let mut argv_: Vec<*mut Value> = vec![];
-    for mut arg in argv {
-      let n = &mut *arg;
-      argv_.push(n);
-    }
-
     unsafe {
-      Local::from_raw(v8__Function__Call(
-        &mut *self,
-        &mut *context,
-        &mut *recv,
-        argc,
-        argv_.as_mut_ptr(),
-      ))
+      Local::from_raw(v8__Function__Call(&mut *self, &mut *context, &mut *recv))
     }
   }
 }
