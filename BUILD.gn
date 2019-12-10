@@ -15,6 +15,7 @@ v8_static_library("rusty_v8") {
     "src/json.cc",
     "src/locker.cc",
     "src/number.cc",
+    "src/object.cc",
     "src/platform/mod.cc",
     "src/platform/task.cc",
     "src/primitives.cc",
