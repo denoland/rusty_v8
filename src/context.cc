@@ -21,4 +21,8 @@ void v8__Context__Exit(Context& self) {
 Isolate* v8__Context__GetIsolate(Context& self) {
   return self.GetIsolate();
 }
+
+Object* v8__Context__Global(Context& self) {
+  return *self.Global();
+}
 }

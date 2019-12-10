@@ -7,6 +7,7 @@ v8_static_library("rusty_v8") {
     "src/array_buffer.cc",
     "src/context.cc",
     "src/exception.cc",
+    "src/function.cc",
     "src/handle_scope.cc",
     "src/inspector/channel.cc",
     "src/inspector/client.cc",

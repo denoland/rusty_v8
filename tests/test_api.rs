@@ -3,7 +3,7 @@
 extern crate lazy_static;
 
 use rusty_v8 as v8;
-use rusty_v8::{new_null, Local};
+use rusty_v8::{new_null, FunctionCallbackInfo, Local};
 use std::default::Default;
 use std::sync::Mutex;
 
@@ -302,6 +302,33 @@ fn object() {
     let values = vec![v1, v2];
     let object = v8::Object::new(scope, null, names, values, 2);
     assert!(!object.is_null_or_undefined());
+    context.exit();
+  });
+}
+
+extern "C" fn callback(info: *mut FunctionCallbackInfo) {
+  eprintln!("callback called!");
+}
+
+#[test]
+fn function() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let mut function =
+      v8::Function::new(context, callback).expect("Unable to create function");
+    let global = context.global();
+    let recv: Local<v8::Value> = cast(global);
+    eprintln!("before call!");
+    let value = function.call(context, recv, 0, vec![]);
+    eprintln!("after call!");
     context.exit();
   });
 }
