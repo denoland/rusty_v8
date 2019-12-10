@@ -306,9 +306,9 @@ fn object() {
   });
 }
 
-extern "C" fn callback(info: &mut FunctionCallbackInfo) {
+extern "C" fn callback(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 0);
-  eprintln!("callback called")
+  eprintln!("callback called");
 }
 
 #[test]
@@ -330,11 +330,11 @@ fn function() {
     let mut function = fn_template
       .get_function(context)
       .expect("Unable to create function");
-    let value = v8::Function::call(&mut *function, context, recv);
+    let value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
     // create function without a template
     let mut function =
       v8::Function::new(context, callback).expect("Unable to create function");
-    let value = v8::Function::call(&mut *function, context, recv);
+    let value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
     context.exit();
   });
 }
