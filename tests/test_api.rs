@@ -327,9 +327,17 @@ fn promise_resolved() {
     let str =
       v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
-    let resolved = resolver.resolve(context, value);
-    assert!(resolved);
+    resolver.resolve(context, value);
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
+    let result = promise.result();
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    // Resolve again with different value, since promise is already in `Fulfilled` state
+    // it should be ignored.
+    let str =
+      v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    resolver.resolve(context, value);
     let result = promise.result();
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
@@ -361,6 +369,15 @@ fn promise_rejected() {
     let rejected = resolver.reject(context, value);
     assert!(rejected);
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
+    let result = promise.result();
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    // Reject again with different value, since promise is already in `Rejected` state
+    // it should be ignored.
+    let str =
+      v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    resolver.reject(context, value);
     let result = promise.result();
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
