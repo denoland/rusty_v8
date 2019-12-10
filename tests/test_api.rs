@@ -307,7 +307,8 @@ fn object() {
 }
 
 extern "C" fn callback(info: &mut FunctionCallbackInfo) {
-  assert_eq!(info.length(), 0)
+  assert_eq!(info.length(), 0);
+  eprintln!("callback called")
 }
 
 #[test]
@@ -322,21 +323,18 @@ fn function() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
     context.enter();
-
-    let mut fn_template = v8::FunctionTemplate::new(scope, callback);
-    let mut callback_val = fn_template
-      .get_function(context)
-      .expect("Unable to create function");
-    // auto print_tmpl = v8::FunctionTemplate::New(isolate, Print);
-    // auto print_val = print_tmpl->GetFunction(context).ToLocalChecked();
-
-    //    let mut function =
-    //      v8::Function::new(context, callback).expect("Unable to create function");
     let global = context.global();
     let recv: Local<v8::Value> = cast(global);
-    eprintln!("before call!");
-    let value = v8::Function::call(&mut *callback_val, context, recv);
-    eprintln!("after call!");
+    // create function using template
+    let mut fn_template = v8::FunctionTemplate::new(scope, callback);
+    let mut function = fn_template
+      .get_function(context)
+      .expect("Unable to create function");
+    let value = v8::Function::call(&mut *function, context, recv);
+    // create function without a template
+    let mut function =
+      v8::Function::new(context, callback).expect("Unable to create function");
+    let value = v8::Function::call(&mut *function, context, recv);
     context.exit();
   });
 }

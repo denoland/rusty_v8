@@ -7,7 +7,7 @@ use crate::Value;
 extern "C" {
   fn v8__Function__New(
     context: *mut Context,
-    callback: *mut FunctionCallback,
+    callback: extern "C" fn(&mut FunctionCallbackInfo),
   ) -> *mut Function;
   fn v8__Function__Call(
     function: *mut Function,
@@ -82,9 +82,9 @@ impl Function {
   /// for a given FunctionCallback.
   pub fn new(
     mut context: Local<'_, Context>,
-    mut callback: FunctionCallback,
+    callback: extern "C" fn(&mut FunctionCallbackInfo),
   ) -> Option<Local<'_, Function>> {
-    unsafe { Local::from_raw(v8__Function__New(&mut *context, &mut callback)) }
+    unsafe { Local::from_raw(v8__Function__New(&mut *context, callback)) }
   }
 
   pub fn call(
