@@ -305,3 +305,21 @@ fn object() {
     context.exit();
   });
 }
+
+#[test]
+fn promise() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let maybe_resolver = v8::PromiseResolver::new(context);
+    assert!(maybe_resolver.is_some());
+    context.exit();
+  });
+}
