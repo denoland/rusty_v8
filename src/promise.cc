@@ -12,16 +12,16 @@ v8::Promise *v8__Promise__Resolver__GetPromise(v8::Promise::Resolver *self) {
   return local_to_ptr(self->GetPromise());
 }
 
-bool *v8__Promise__Resolver__Resolve(v8::Promise::Resolver *self,
+bool v8__Promise__Resolver__Resolve(v8::Promise::Resolver *self,
                                      v8::Local<v8::Context> context,
                                      v8::Local<v8::Value> value) {
-  return maybe_to_ptr(self->Resolve(context, value));
+  return maybe_to_value(self->Resolve(context, value), false);
 }
 
-bool *v8__Promise__Resolver__Reject(v8::Promise::Resolver *self,
+bool v8__Promise__Resolver__Reject(v8::Promise::Resolver *self,
                                     v8::Local<v8::Context> context,
                                     v8::Local<v8::Value> value) {
-  return maybe_to_ptr(self->Reject(context, value));
+  return maybe_to_value(self->Reject(context, value), false);
 }
 
 v8::Promise::PromiseState v8__Promise__State(v8::Promise *self) {

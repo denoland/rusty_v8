@@ -12,12 +12,12 @@ extern "C" {
     resolver: *mut PromiseResolver,
     context: *mut Context,
     value: *mut Value,
-  ) -> *mut bool;
+  ) -> bool;
   fn v8__Promise__Resolver__Reject(
     resolver: *mut PromiseResolver,
     context: *mut Context,
     value: *mut Value,
-  ) -> *mut bool;
+  ) -> bool;
   fn v8__Promise__State(promise: *mut Promise) -> PromiseState;
   fn v8__Promise__HasHandler(promise: *mut Promise) -> bool;
   fn v8__Promise__Result(promise: *mut Promise) -> *mut Value;
@@ -80,15 +80,9 @@ impl PromiseResolver {
     mut context: Local<'sc, Context>,
     mut value: Local<'sc, Value>,
   ) -> bool {
-    let maybe_bool = unsafe {
+    unsafe {
       v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value)
-    };
-
-    if maybe_bool.is_null() {
-      return false;
     }
-
-    unsafe { *maybe_bool }
   }
 
   /// TODO: in v8 this function returns `Maybe<bool>`
@@ -99,14 +93,8 @@ impl PromiseResolver {
     mut context: Local<'sc, Context>,
     mut value: Local<'sc, Value>,
   ) -> bool {
-    let maybe_bool = unsafe {
+    unsafe {
       v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
-    };
-
-    if maybe_bool.is_null() {
-      return false;
     }
-
-    unsafe { *maybe_bool }
   }
 }

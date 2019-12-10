@@ -333,8 +333,6 @@ fn promise_resolved() {
     let result = promise.result();
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
-    let resolved = resolver.resolve(context, value);
-    assert!(!resolved);
     context.exit();
   });
 }
@@ -366,8 +364,6 @@ fn promise_rejected() {
     let result = promise.result();
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
-    let rejected = resolver.reject(context, value);
-    assert!(!rejected);
     context.exit();
   });
 }
