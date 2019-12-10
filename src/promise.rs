@@ -1,5 +1,6 @@
 use crate::support::Opaque;
 use crate::Context;
+use crate::Function;
 use crate::Local;
 use crate::Value;
 
@@ -21,6 +22,22 @@ extern "C" {
   fn v8__Promise__State(promise: *mut Promise) -> PromiseState;
   fn v8__Promise__HasHandler(promise: *mut Promise) -> bool;
   fn v8__Promise__Result(promise: *mut Promise) -> *mut Value;
+  fn v8__Promise__Catch(
+    promise: *mut Promise,
+    context: *mut Context,
+    handler: *mut Function,
+  ) -> *mut Promise;
+  fn v8__Promise__Then(
+    promise: *mut Promise,
+    context: *mut Context,
+    handler: *mut Function,
+  ) -> *mut Promise;
+  fn v8__Promise__Then2(
+    promise: *mut Promise,
+    context: *mut Context,
+    on_fulfilled: *mut Function,
+    on_rejected: *mut Function,
+  ) -> *mut Promise;
 }
 
 #[derive(Debug, PartialEq)]
@@ -51,6 +68,60 @@ impl Promise {
   /// be pending.
   pub fn result<'sc>(&mut self) -> Local<'sc, Value> {
     unsafe { Local::from_raw(v8__Promise__Result(&mut *self)).unwrap() }
+  }
+
+  /// Register a rejection handler with a promise.
+  ///
+  /// See `Self::then2`.
+  pub fn catch<'sc>(
+    &mut self,
+    mut context: Local<'sc, Context>,
+    mut handler: Local<'sc, Function>,
+  ) -> Option<Local<'sc, Promise>> {
+    unsafe {
+      Local::from_raw(v8__Promise__Catch(
+        &mut *self,
+        &mut *context,
+        &mut *handler,
+      ))
+    }
+  }
+
+  /// Register a resolution handler with a promise.
+  ///
+  /// See `Self::then2`.
+  pub fn then<'sc>(
+    &mut self,
+    mut context: Local<'sc, Context>,
+    mut handler: Local<'sc, Function>,
+  ) -> Option<Local<'sc, Promise>> {
+    unsafe {
+      Local::from_raw(v8__Promise__Then(
+        &mut *self,
+        &mut *context,
+        &mut *handler,
+      ))
+    }
+  }
+
+  /// Register a resolution/rejection handler with a promise.
+  /// The handler is given the respective resolution/rejection value as
+  /// an argument. If the promise is already resolved/rejected, the handler is
+  /// invoked at the end of turn.
+  pub fn then2<'sc>(
+    &mut self,
+    mut context: Local<'sc, Context>,
+    mut on_fulfilled: Local<'sc, Function>,
+    mut on_rejected: Local<'sc, Function>,
+  ) -> Option<Local<'sc, Promise>> {
+    unsafe {
+      Local::from_raw(v8__Promise__Then2(
+        &mut *self,
+        &mut *context,
+        &mut *on_fulfilled,
+        &mut *on_rejected,
+      ))
+    }
   }
 }
 

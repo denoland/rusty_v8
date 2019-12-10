@@ -35,4 +35,23 @@ bool v8__Promise__HasHandler(v8::Promise *self) {
 v8::Value *v8__Promise__Result(v8::Promise *self) {
   return local_to_ptr(self->Result());
 }
+
+v8::Promise *v8__Promise__Catch(v8::Promise *self,
+                                v8::Local<v8::Context> context,
+                                v8::Local<v8::Function> handler) {
+  return maybe_local_to_ptr(self->Catch(context, handler));
+}
+
+v8::Promise *v8__Promise__Then(v8::Promise *self,
+                               v8::Local<v8::Context> context,
+                               v8::Local<v8::Function> handler) {
+  return maybe_local_to_ptr(self->Then(context, handler));
+}
+
+v8::Promise *v8__Promise__Then2(v8::Promise *self,
+                                v8::Local<v8::Context> context,
+                                v8::Local<v8::Function> on_fulfilled,
+                                v8::Local<v8::Function> on_rejected) {
+  return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
+}
 }
