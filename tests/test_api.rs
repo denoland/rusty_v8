@@ -308,7 +308,6 @@ fn object() {
 
 extern "C" fn callback(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 0);
-  eprintln!("callback called");
   let mut locker = v8::Locker::new(info.get_isolate());
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
@@ -317,8 +316,7 @@ extern "C" fn callback(info: &FunctionCallbackInfo) {
       v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
         .unwrap();
     let value: Local<v8::Value> = cast(s);
-    let return_value = info.get_return_value();
-    return_value.set(value);
+    info.set_return_value(value);
     context.exit();
   });
 }
@@ -342,11 +340,16 @@ fn function() {
     let mut function = fn_template
       .get_function(context)
       .expect("Unable to create function");
-    let value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
+    let _value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
     // create function without a template
     let mut function =
       v8::Function::new(context, callback).expect("Unable to create function");
-    let value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
+    let maybe_value =
+      v8::Function::call(&mut *function, context, recv, 0, vec![]);
+    let value = maybe_value.unwrap();
+    let value_str: v8::Local<v8::String> = cast(value);
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "Hello callback!".to_string());
     context.exit();
   });
 }

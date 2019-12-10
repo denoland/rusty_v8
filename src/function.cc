@@ -30,16 +30,13 @@ int v8__FunctionCallbackInfo__Length(v8::FunctionCallbackInfo<v8::Value> *self) 
     return self->Length();
 }
 
-v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(v8::FunctionCallbackInfo<v8::Value> *self) {
+v8::Isolate *v8__FunctionCallbackInfo__GetIsolate(v8::FunctionCallbackInfo<v8::Value> *self) {
     return self->GetIsolate();
 }
 
-v8::ReturnValue<v8::Value> v8__FunctionCallbackInfo__GetReturnValue(v8::FunctionCallbackInfo<v8::Value> *self) {
-  return self->GetReturnValue();
-}
-
-void v8__ReturnValue__Set(v8::ReturnValue<v8::Value> *self,
-                          v8::Local<v8::Value> value) {
-    return self->Set(value);
+void v8__FunctionCallbackInfo__SetReturnValue(v8::FunctionCallbackInfo<v8::Value> *self,
+                                              v8::Local<v8::Value> value) {
+  auto rv = self->GetReturnValue();
+  rv.Set(value);
 }
 }
