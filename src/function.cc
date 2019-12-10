@@ -17,10 +17,6 @@ v8::Value *v8__Function__Call(v8::Function *self,
   return maybe_local_to_ptr(self->Call(context, recv, argc, argv));
 }
 
-int v8__FunctionCallbackInfo__Length(v8::FunctionCallbackInfo<v8::Value> *self) {
-    return self->Length();
-}
-
 v8::FunctionTemplate *v8__FunctionTemplate__New(v8::Isolate* isolate,
                                                 v8::FunctionCallback callback = nullptr) {
     return local_to_ptr(v8::FunctionTemplate::New(isolate, callback));
@@ -29,5 +25,21 @@ v8::FunctionTemplate *v8__FunctionTemplate__New(v8::Isolate* isolate,
 v8::Function *v8__FunctionTemplate__GetFunction(v8::Local<v8::FunctionTemplate> self,
                                                 v8::Local<v8::Context> context) {
     return maybe_local_to_ptr(self->GetFunction(context));
+}
+int v8__FunctionCallbackInfo__Length(v8::FunctionCallbackInfo<v8::Value> *self) {
+    return self->Length();
+}
+
+v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(v8::FunctionCallbackInfo<v8::Value> *self) {
+    return self->GetIsolate();
+}
+
+v8::ReturnValue<v8::Value> v8__FunctionCallbackInfo__GetReturnValue(v8::FunctionCallbackInfo<v8::Value> *self) {
+  return self->GetReturnValue();
+}
+
+void v8__ReturnValue__Set(v8::ReturnValue<v8::Value> *self,
+                          v8::Local<v8::Value> value) {
+    return self->Set(value);
 }
 }

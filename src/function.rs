@@ -1,8 +1,10 @@
 use crate::isolate::{CxxIsolate, LockedIsolate};
-use crate::support::{int, Opaque};
+use crate::support::{int, Delete, Opaque, UniquePtr};
 use crate::Context;
 use crate::Local;
 use crate::Value;
+use std;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__Function__New(
@@ -16,7 +18,7 @@ extern "C" {
     argc: int,
     argv: *mut *mut Value,
   ) -> *mut Value;
-  fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
+
   fn v8__FunctionTemplate__New(
     isolate: *mut CxxIsolate,
     callback: extern "C" fn(&FunctionCallbackInfo),
@@ -25,14 +27,45 @@ extern "C" {
     fn_template: *mut FunctionTemplate,
     context: *mut Context,
   ) -> *mut Function;
+
+  fn v8__FunctionCallbackInfo__GetIsolate(
+    info: &FunctionCallbackInfo,
+  ) -> &mut CxxIsolate;
+  fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
+  fn v8__FunctionCallbackInfo__GetReturnValue(
+    info: &FunctionCallbackInfo,
+  ) -> *mut ReturnValue;
+
+  fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value);
+}
+
+#[repr(C)]
+pub struct ReturnValue(Opaque);
+
+impl ReturnValue {
+  // TODO: supports only Local<Value>, add support for other
+  pub fn set(&mut self, mut value: Local<'_, Value>) {
+    unsafe { v8__ReturnValue__Set(&mut *self, &mut *value) }
+  }
+}
+
+impl Delete for ReturnValue {
+  fn delete(&'static mut self) -> () {}
 }
 
 #[repr(C)]
 pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
-  pub fn get_return_value(&self) {
-    unimplemented!();
+  pub fn get_return_value(&self) -> &mut ReturnValue {
+    let foo = unsafe { v8__FunctionCallbackInfo__GetReturnValue(&*self) };
+
+    let ref_imm: &mut ReturnValue = unsafe { &mut *foo };
+    ref_imm
+  }
+
+  pub fn get_isolate(&self) -> &mut CxxIsolate {
+    unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 
   pub fn length(&self) -> int {

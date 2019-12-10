@@ -309,6 +309,18 @@ fn object() {
 extern "C" fn callback(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 0);
   eprintln!("callback called");
+  let mut locker = v8::Locker::new(info.get_isolate());
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let s =
+      v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
+        .unwrap();
+    let value: Local<v8::Value> = cast(s);
+    let return_value = info.get_return_value();
+    return_value.set(value);
+    context.exit();
+  });
 }
 
 #[test]
