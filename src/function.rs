@@ -1,3 +1,4 @@
+use crate::isolate::{CxxIsolate, LockedIsolate};
 use crate::support::{int, Opaque};
 use crate::Context;
 use crate::Local;
@@ -14,6 +15,14 @@ extern "C" {
     recv: *mut Value,
   ) -> *mut Value;
   fn v8__FunctionCallbackInfo__Length(info: *mut FunctionCallbackInfo) -> int;
+  fn v8__FunctionTemplate__New(
+    isolate: *mut CxxIsolate,
+    callback: extern "C" fn(&mut FunctionCallbackInfo),
+  ) -> *mut FunctionTemplate;
+  fn v8__FunctionTemplate__GetFunction(
+    fn_template: *mut FunctionTemplate,
+    context: *mut Context,
+  ) -> *mut Function;
 }
 
 #[repr(C)]
@@ -31,6 +40,37 @@ impl FunctionCallbackInfo {
 
 pub type FunctionCallback =
   unsafe extern "C" fn(info: &mut FunctionCallbackInfo);
+
+#[repr(C)]
+pub struct FunctionTemplate(Opaque);
+
+impl FunctionTemplate {
+  /// Creates a function template.
+  pub fn new(
+    isolate: &mut impl LockedIsolate,
+    callback: extern "C" fn(&mut FunctionCallbackInfo),
+  ) -> Local<'_, FunctionTemplate> {
+    unsafe {
+      Local::from_raw(v8__FunctionTemplate__New(
+        isolate.cxx_isolate(),
+        callback,
+      ))
+      .unwrap()
+    }
+  }
+
+  pub fn get_function(
+    &mut self,
+    mut context: Local<'_, Context>,
+  ) -> Option<Local<'_, Function>> {
+    unsafe {
+      Local::from_raw(v8__FunctionTemplate__GetFunction(
+        &mut *self,
+        &mut *context,
+      ))
+    }
+  }
+}
 
 #[repr(C)]
 pub struct Function(Opaque);

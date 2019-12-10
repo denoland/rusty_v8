@@ -18,4 +18,14 @@ v8::Value *v8__Function__Call(v8::Function *self,
 int v8__FunctionCallbackInfo__Length(v8::FunctionCallbackInfo<v8::Value> *self) {
     return self->Length();
 }
+
+v8::FunctionTemplate *v8__FunctionTemplate__New(v8::Isolate* isolate,
+                                                v8::FunctionCallback callback = nullptr) {
+    return local_to_ptr(v8::FunctionTemplate::New(isolate, callback));
+}
+
+v8::Function *v8__FunctionTemplate__GetFunction(v8::Local<v8::FunctionTemplate> self,
+                                                v8::Local<v8::Context> context) {
+    return maybe_local_to_ptr(self->GetFunction(context));
+}
 }

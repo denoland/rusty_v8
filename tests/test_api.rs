@@ -322,12 +322,20 @@ fn function() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
     context.enter();
-    let mut function =
-      v8::Function::new(context, callback).expect("Unable to create function");
+
+    let mut fn_template = v8::FunctionTemplate::new(scope, callback);
+    let mut callback_val = fn_template
+      .get_function(context)
+      .expect("Unable to create function");
+    // auto print_tmpl = v8::FunctionTemplate::New(isolate, Print);
+    // auto print_val = print_tmpl->GetFunction(context).ToLocalChecked();
+
+    //    let mut function =
+    //      v8::Function::new(context, callback).expect("Unable to create function");
     let global = context.global();
     let recv: Local<v8::Value> = cast(global);
     eprintln!("before call!");
-    let value = function.call(context, recv);
+    let value = v8::Function::call(&mut *callback_val, context, recv);
     eprintln!("after call!");
     context.exit();
   });
