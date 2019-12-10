@@ -45,7 +45,7 @@ pub use locker::Locker;
 pub use number::{Integer, Number};
 pub use object::Object;
 pub use primitives::*;
-pub use promise::PromiseResolver;
+pub use promise::{Promise, PromiseResolver, PromiseState};
 pub use script::{Script, ScriptOrigin};
 pub use string::NewStringType;
 pub use string::String;

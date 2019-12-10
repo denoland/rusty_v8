@@ -60,4 +60,10 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
   return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
 }
 
+template <class T>
+inline static T* maybe_to_ptr(v8::Maybe<T> maybe) {
+  if (maybe.IsNothing()) return nullptr;
+  return *maybe.FromJust();
+}
+
 #endif  // SUPPORT_H_

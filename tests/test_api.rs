@@ -307,7 +307,7 @@ fn object() {
 }
 
 #[test]
-fn promise() {
+fn promise_resolved() {
   setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(
@@ -320,6 +320,54 @@ fn promise() {
     context.enter();
     let maybe_resolver = v8::PromiseResolver::new(context);
     assert!(maybe_resolver.is_some());
+    let mut resolver = maybe_resolver.unwrap();
+    let mut promise = resolver.get_promise();
+    assert!(!promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let str =
+      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    let resolved = resolver.resolve(context, value);
+    assert!(resolved);
+    assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
+    let result = promise.result();
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    let resolved = resolver.resolve(context, value);
+    assert!(!resolved);
+    context.exit();
+  });
+}
+
+#[test]
+fn promise_rejected() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let maybe_resolver = v8::PromiseResolver::new(context);
+    assert!(maybe_resolver.is_some());
+    let mut resolver = maybe_resolver.unwrap();
+    let mut promise = resolver.get_promise();
+    assert!(!promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let str =
+      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    let rejected = resolver.reject(context, value);
+    assert!(rejected);
+    assert_eq!(promise.state(), v8::PromiseState::Rejected);
+    let result = promise.result();
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    let rejected = resolver.reject(context, value);
+    assert!(!rejected);
     context.exit();
   });
 }
