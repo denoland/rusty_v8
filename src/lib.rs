@@ -13,6 +13,7 @@ extern crate libc;
 
 mod context;
 mod exception;
+mod function;
 mod handle_scope;
 mod isolate;
 mod json;
@@ -36,6 +37,7 @@ pub mod V8;
 
 pub use context::Context;
 pub use exception::Exception;
+pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use json::JSON;
