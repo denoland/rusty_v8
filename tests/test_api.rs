@@ -321,7 +321,7 @@ fn promise_resolved() {
     let maybe_resolver = v8::PromiseResolver::new(context);
     assert!(maybe_resolver.is_some());
     let mut resolver = maybe_resolver.unwrap();
-    let mut promise = resolver.get_promise();
+    let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let str =
@@ -329,7 +329,7 @@ fn promise_resolved() {
     let value: Local<v8::Value> = cast(str);
     resolver.resolve(context, value);
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
-    let result = promise.result();
+    let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in `Fulfilled` state
@@ -338,7 +338,7 @@ fn promise_resolved() {
       v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
     resolver.resolve(context, value);
-    let result = promise.result();
+    let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
@@ -375,7 +375,7 @@ fn promise_rejected() {
     let maybe_resolver = v8::PromiseResolver::new(context);
     assert!(maybe_resolver.is_some());
     let mut resolver = maybe_resolver.unwrap();
-    let mut promise = resolver.get_promise();
+    let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let str =
@@ -384,7 +384,7 @@ fn promise_rejected() {
     let rejected = resolver.reject(context, value);
     assert!(rejected);
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
-    let result = promise.result();
+    let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Reject again with different value, since promise is already in `Rejected` state
@@ -393,7 +393,7 @@ fn promise_rejected() {
       v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
     resolver.reject(context, value);
-    let result = promise.result();
+    let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
