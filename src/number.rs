@@ -5,6 +5,7 @@ use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
 use crate::HandleScope;
 use crate::Local;
+use crate::value::Value;
 
 extern "C" {
   fn v8__Number__New(isolate: &mut CxxIsolate, value: f64) -> *mut Number;
@@ -33,6 +34,13 @@ impl Number {
 
   pub fn value(&self) -> f64 {
     unsafe { v8__Number__Value(self) }
+  }
+}
+
+impl Deref for Number {
+  type Target = Value;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Value) }
   }
 }
 
