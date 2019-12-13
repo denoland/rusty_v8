@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
+use crate::value::Value;
 
 pub struct Local<'sc, T>(NonNull<T>, PhantomData<&'sc ()>);
 
@@ -29,5 +30,14 @@ impl<'sc, T> Deref for Local<'sc, T> {
 impl<'sc, T> DerefMut for Local<'sc, T> {
   fn deref_mut(&mut self) -> &mut T {
     unsafe { self.0.as_mut() }
+  }
+}
+
+impl<'sc, T> From<Local<'sc, T>> for Local<'sc, Value>
+where
+  T: Deref<Target = Value>,
+{
+  fn from(v: Local<'sc, T>) -> Local<'sc, Value> {
+    unsafe { std::mem::transmute(v) }
   }
 }
