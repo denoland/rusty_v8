@@ -74,10 +74,14 @@ jobs:
       - name: Test
         run: cargo test -vv --release --locked --all-targets
 
-      - name: Clippy
+      - name: Clippy & format
         run: |
+          rustup component add rustfmt
+          cargo fmt --all -- --check
           rustup component add clippy
           cargo clippy --all-targets --release --locked -- -D clippy::all
+
+      # TODO: add clang-format check
 
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/') && github.repository == 'denoland/rusty_v8' && startsWith(matrix.os, 'ubuntu')
