@@ -306,6 +306,45 @@ fn object() {
   });
 }
 
+#[test]
+fn promise_resolved() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let maybe_resolver = v8::PromiseResolver::new(context);
+    assert!(maybe_resolver.is_some());
+    let mut resolver = maybe_resolver.unwrap();
+    let mut promise = resolver.get_promise(scope);
+    assert!(!promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let str =
+      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    resolver.resolve(context, value);
+    assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
+    let result = promise.result(scope);
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    // Resolve again with different value, since promise is already in `Fulfilled` state
+    // it should be ignored.
+    let str =
+      v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    resolver.resolve(context, value);
+    let result = promise.result(scope);
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    context.exit();
+  });
+}
+
 extern "C" fn callback(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 0);
   let mut locker = v8::Locker::new(info.get_isolate());
@@ -317,6 +356,46 @@ extern "C" fn callback(info: &FunctionCallbackInfo) {
         .unwrap();
     let value: Local<v8::Value> = cast(s);
     info.set_return_value(value);
+    context.exit();
+  });
+}
+
+#[test]
+fn promise_rejected() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let maybe_resolver = v8::PromiseResolver::new(context);
+    assert!(maybe_resolver.is_some());
+    let mut resolver = maybe_resolver.unwrap();
+    let mut promise = resolver.get_promise(scope);
+    assert!(!promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let str =
+      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    let rejected = resolver.reject(context, value);
+    assert!(rejected);
+    assert_eq!(promise.state(), v8::PromiseState::Rejected);
+    let result = promise.result(scope);
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    // Reject again with different value, since promise is already in `Rejected` state
+    // it should be ignored.
+    let str =
+      v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
+    let value: Local<v8::Value> = cast(str);
+    resolver.reject(context, value);
+    let result = promise.result(scope);
+    let result_str: v8::Local<v8::String> = cast(result);
+    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   });
 }

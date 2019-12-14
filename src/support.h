@@ -60,4 +60,9 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
   return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
 }
 
+template <class T>
+inline static T maybe_to_value(v8::Maybe<T> maybe, T default_value) {
+  return maybe.FromMaybe(default_value);
+}
+
 #endif  // SUPPORT_H_
