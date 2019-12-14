@@ -160,7 +160,7 @@ impl PromiseResolver {
     unsafe {
       let maybe_bool =
         v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value);
-      eprintln!("maybe bool resolve {}", maybe_bool.is_null());
+      
       if maybe_bool.is_null() {
         return None;
       }
@@ -179,7 +179,7 @@ impl PromiseResolver {
     unsafe {
       let maybe_bool =
         v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value);
-      eprintln!("maybe bool reject {}", maybe_bool.is_null());
+      
       if maybe_bool.is_null() {
         return None;
       }
