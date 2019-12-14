@@ -1,6 +1,7 @@
 use crate::isolate::{CxxIsolate, LockedIsolate};
 use crate::support::{int, Opaque};
 use crate::Context;
+use crate::HandleScope;
 use crate::Local;
 use crate::Value;
 
@@ -34,6 +35,32 @@ extern "C" {
     info: &FunctionCallbackInfo,
     value: *mut Value,
   );
+  fn v8__FunctionCallbackInfo__GetReturnValue(
+    info: &FunctionCallbackInfo,
+  ) -> ReturnValue<Value>;
+}
+
+#[repr(C)]
+pub struct ReturnValue<T>(T, Opaque);
+
+impl <T>ReturnValue<T> {
+  // NOTE: simplest setter, possibly we'll need to add
+  // more setters specialized per type
+  pub fn set<U>(&self, _value: Local<'_, U>) {
+    unimplemented!();
+  }
+
+  /// Convenience getter for Isolate
+  pub fn get_isolate(&self) -> &mut CxxIsolate {
+    unimplemented!();
+  }
+
+  /// Getter. Creates a new Local<> so it comes with a certain performance
+  /// hit. If the ReturnValue was not yet set, this will return the undefined
+  /// value.
+  pub fn get<'sc>(&self, _scope: &mut HandleScope<'sc>) -> Local<'sc, Value> {
+    unimplemented!();
+  }
 }
 
 #[repr(C)]
@@ -42,6 +69,10 @@ pub struct FunctionCallbackInfo(Opaque);
 impl FunctionCallbackInfo {
   pub fn set_return_value(&self, mut value: Local<'_, Value>) {
     unsafe { v8__FunctionCallbackInfo__SetReturnValue(&*self, &mut *value) };
+  }
+
+  pub fn get_return_value(&self) -> ReturnValue<Value> {
+    unsafe { v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }
 
   pub fn get_isolate(&self) -> &mut CxxIsolate {
