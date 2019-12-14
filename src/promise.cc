@@ -54,4 +54,16 @@ v8::Promise *v8__Promise__Then2(v8::Promise *self,
                                 v8::Local<v8::Function> on_rejected) {
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
 }
+
+v8::Promise *v8__PromiseRejectMessage__GetPromise(const v8::PromiseRejectMessage& self) {
+  return local_to_ptr(self.GetPromise());
+}
+
+v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(const v8::PromiseRejectMessage& self) {
+  return self.GetEvent();
+}
+
+v8::Value *v8__PromiseRejectMessage__GetValue(const v8::PromiseRejectMessage& self) {
+  return local_to_ptr(self.GetValue());
+}
 }

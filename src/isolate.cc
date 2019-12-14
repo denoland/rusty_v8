@@ -25,6 +25,11 @@ void v8__Isolate__Exit(Isolate& isolate) {
   isolate.Exit();
 }
 
+void v8__Isolate__SetPromiseRejectCallback(Isolate& isolate,
+                                           v8::PromiseRejectCallback callback) {
+  isolate.SetPromiseRejectCallback(callback);
+}
+
 Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new Isolate::CreateParams();
 }

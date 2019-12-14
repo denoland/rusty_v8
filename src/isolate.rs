@@ -12,6 +12,10 @@ extern "C" {
   fn v8__Isolate__Dispose(this: &mut CxxIsolate) -> ();
   fn v8__Isolate__Enter(this: &mut CxxIsolate) -> ();
   fn v8__Isolate__Exit(this: &mut CxxIsolate) -> ();
+  fn v8__Isolate__SetPromiseRejectCallback(
+    isolate: &mut CxxIsolate,
+    callback: extern "C" fn(PromiseRejectMessage),
+  ) -> ();
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -72,7 +76,7 @@ impl Isolate {
     &mut self,
     callback: extern "C" fn(PromiseRejectMessage),
   ) {
-    unimplemented!()
+    unsafe { v8__Isolate__SetPromiseRejectCallback(self.0, callback) }
   }
 }
 

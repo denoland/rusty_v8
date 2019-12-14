@@ -1,8 +1,8 @@
+use crate::value::Value;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
-use crate::value::Value;
 
 pub struct Local<'sc, T>(NonNull<T>, PhantomData<&'sc ()>);
 
@@ -33,7 +33,7 @@ impl<'sc, T> DerefMut for Local<'sc, T> {
   }
 }
 
-// TODO make it possible for targets other than Local<Value>. For example 
+// TODO make it possible for targets other than Local<Value>. For example
 // Local<String> should be able to be down cast to Local<Name>.
 impl<'sc, T> From<Local<'sc, T>> for Local<'sc, Value>
 where
