@@ -33,6 +33,8 @@ impl<'sc, T> DerefMut for Local<'sc, T> {
   }
 }
 
+// TODO make it possible for targets other than Local<Value>. For example 
+// Local<String> should be able to be down cast to Local<Name>.
 impl<'sc, T> From<Local<'sc, T>> for Local<'sc, Value>
 where
   T: Deref<Target = Value>,
