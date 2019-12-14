@@ -39,4 +39,11 @@ void v8__FunctionCallbackInfo__SetReturnValue(v8::FunctionCallbackInfo<v8::Value
   auto rv = self->GetReturnValue();
   rv.Set(value);
 }
+
+v8::ReturnValue<v8::Value> *v8__FunctionCallbackInfo__GetReturnValue(v8::FunctionCallbackInfo<v8::Value> *self)
+{
+  v8::ReturnValue<v8::Value>* return_value = nullptr;
+  *return_value = self->GetReturnValue();
+  return return_value;
+}
 }
