@@ -37,16 +37,16 @@ extern "C" {
   );
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: &FunctionCallbackInfo,
-  ) -> ReturnValue;
+  ) -> ReturnValue<Value>;
 }
 
 #[repr(C)]
-pub struct ReturnValue(Opaque);
+pub struct ReturnValue<T>(T, Opaque);
 
-impl ReturnValue {
+impl <T>ReturnValue<T> {
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
-  pub fn set<T>(&self, _value: Local<'_, T>) {
+  pub fn set<U>(&self, _value: Local<'_, U>) {
     unimplemented!();
   }
 
@@ -71,7 +71,7 @@ impl FunctionCallbackInfo {
     unsafe { v8__FunctionCallbackInfo__SetReturnValue(&*self, &mut *value) };
   }
 
-  pub fn get_return_value(&self) -> ReturnValue {
+  pub fn get_return_value(&self) -> ReturnValue<Value> {
     unsafe { v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }
 
