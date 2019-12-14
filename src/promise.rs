@@ -39,6 +39,16 @@ extern "C" {
     on_fulfilled: *mut Function,
     on_rejected: *mut Function,
   ) -> *mut Promise;
+
+  fn v8__PromiseRejectMessage__GetPromise(
+    msg: &PromiseRejectMessage,
+  ) -> *mut Promise;
+  fn v8__PromiseRejectMessage__GetEvent(
+    msg: &PromiseRejectMessage,
+  ) -> PromiseRejectEvent;
+  fn v8__PromiseRejectMessage__GetValue(
+    msg: &PromiseRejectMessage,
+  ) -> *mut Value;
 }
 
 #[derive(Debug, PartialEq)]
@@ -174,5 +184,40 @@ impl PromiseResolver {
     unsafe {
       v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
     }
+  }
+}
+
+#[derive(Debug, PartialEq)]
+#[repr(C)]
+pub enum PromiseRejectEvent {
+  PromiseRejectWithNoHandler,
+  PromiseHandlerAddedAfterReject,
+  PromiseRejectAfterResolved,
+  PromiseResolveAfterResolved,
+}
+
+#[repr(C)]
+pub struct PromiseRejectMessage(Opaque);
+
+impl PromiseRejectMessage {
+  pub fn get_promise<'sc>(
+    &mut self,
+    _scope: &mut HandleScope<'sc>,
+  ) -> Local<'sc, Promise> {
+    unimplemented!()
+  }
+
+  pub fn get_event<'sc>(
+    &mut self,
+    _scope: &mut HandleScope<'sc>,
+  ) -> Local<'sc, PromiseRejectEvent> {
+    unimplemented!()
+  }
+
+  pub fn get_value<'sc>(
+    &mut self,
+    _scope: &mut HandleScope<'sc>,
+  ) -> Local<'sc, Value> {
+    unimplemented!()
   }
 }

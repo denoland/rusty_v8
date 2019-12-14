@@ -2,6 +2,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 
 use crate::array_buffer::Allocator;
+use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
@@ -63,6 +64,15 @@ impl Isolate {
   /// Requires: self == Isolate::GetCurrent().
   pub fn exit(&mut self) {
     unsafe { v8__Isolate__Exit(self.0) }
+  }
+
+  /// Set callback to notify about promise reject with no handler, or
+  /// revocation of such a previous notification once the handler is added.
+  pub fn set_promise_reject_callback(
+    &mut self,
+    callback: extern "C" fn(PromiseRejectMessage),
+  ) {
+    unimplemented!()
   }
 }
 
