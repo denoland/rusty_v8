@@ -435,9 +435,16 @@ fn function() {
 
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   eprintln!("promise reject!!!");
-  let event = msg.get_event();
-  eprintln!("promise reject!!! {:?}", event);
-  // assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
+  let mut isolate = &mut v8::Isolate::get_current().expect("No isolate");
+  let mut locker = v8::Locker::new(isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    // let mut promise = msg.get_promise(scope);
+    // eprintln!("promise reject!!! {:?}", promise.state());
+    // assert_ne!(promise.state(), v8::PromiseState::Pending);
+    let event = msg.get_event();
+    // eprintln!("promise reject!!! {:?}", event);
+    // assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
+  });
 }
 
 #[test]
@@ -449,6 +456,7 @@ fn set_promise_reject_callback() {
   );
   let mut isolate = v8::Isolate::new(params);
   isolate.set_promise_reject_callback(promise_reject_callback);
+  isolate.enter();
   let mut locker = v8::Locker::new(&mut isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
@@ -460,4 +468,5 @@ fn set_promise_reject_callback() {
     resolver.reject(context, value);
     context.exit();
   });
+  isolate.exit();
 }
