@@ -3,9 +3,9 @@ use std::ops::Deref;
 use crate::isolate::CxxIsolate;
 use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
+use crate::value::Value;
 use crate::HandleScope;
 use crate::Local;
-use crate::value::Value;
 
 extern "C" {
   fn v8__Number__New(isolate: &mut CxxIsolate, value: f64) -> *mut Number;
