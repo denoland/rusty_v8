@@ -61,8 +61,12 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
 }
 
 template <class T>
-inline static T maybe_to_value(v8::Maybe<T> maybe, T default_value) {
-  return maybe.FromMaybe(default_value);
+inline static T* maybe_to_ptr(v8::Maybe<T> maybe) {
+  T* ptr = new T();
+  if (maybe.IsJust()) {
+    *ptr = maybe.FromJust();
+  }
+  return ptr;
 }
 
 #endif  // SUPPORT_H_

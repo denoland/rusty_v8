@@ -14,12 +14,12 @@ extern "C" {
     resolver: *mut PromiseResolver,
     context: *mut Context,
     value: *mut Value,
-  ) -> bool;
+  ) -> *mut bool;
   fn v8__Promise__Resolver__Reject(
     resolver: *mut PromiseResolver,
     context: *mut Context,
     value: *mut Value,
-  ) -> bool;
+  ) -> *mut bool;
   fn v8__Promise__State(promise: *mut Promise) -> PromiseState;
   fn v8__Promise__HasHandler(promise: *mut Promise) -> bool;
   fn v8__Promise__Result(promise: *mut Promise) -> *mut Value;
@@ -150,29 +150,41 @@ impl PromiseResolver {
     }
   }
 
-  /// TODO: in v8 this function returns `Maybe<bool>`
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
   pub fn resolve<'sc>(
     &mut self,
     mut context: Local<'sc, Context>,
     mut value: Local<'sc, Value>,
-  ) -> bool {
+  ) -> Option<bool> {
     unsafe {
-      v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value)
+      let maybe_bool =
+        v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value);
+      eprintln!("maybe bool resolve {}", maybe_bool.is_null());
+      if maybe_bool.is_null() {
+        return None;
+      }
+
+      Some(*maybe_bool)
     }
   }
 
-  /// TODO: in v8 this function returns `Maybe<bool>`
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
   pub fn reject<'sc>(
     &mut self,
     mut context: Local<'sc, Context>,
     mut value: Local<'sc, Value>,
-  ) -> bool {
+  ) -> Option<bool> {
     unsafe {
-      v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
+      let maybe_bool =
+        v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value);
+      eprintln!("maybe bool reject {}", maybe_bool.is_null());
+      if maybe_bool.is_null() {
+        return None;
+      }
+
+      Some(*maybe_bool)
     }
   }
 }

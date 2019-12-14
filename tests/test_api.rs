@@ -327,7 +327,7 @@ fn promise_resolved() {
     let str =
       v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
-    resolver.resolve(context, value);
+    resolver.resolve(context, value).expect("Resolve thrown");
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
@@ -337,7 +337,7 @@ fn promise_resolved() {
     let str =
       v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
-    resolver.resolve(context, value);
+    resolver.resolve(context, value).expect("Resolve thrown");
     let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
@@ -381,7 +381,7 @@ fn promise_rejected() {
     let str =
       v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
-    let rejected = resolver.reject(context, value);
+    let rejected = resolver.reject(context, value).expect("Reject thrown");
     assert!(rejected);
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
@@ -392,7 +392,7 @@ fn promise_rejected() {
     let str =
       v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
-    resolver.reject(context, value);
+    resolver.reject(context, value).expect("Reject thrown");
     let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
