@@ -291,14 +291,14 @@ fn object() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
     context.enter();
-    let null: v8::Local<v8::Value> = cast(new_null(scope));
+    let null: v8::Local<v8::Value> = new_null(scope).into();
     let s1 = v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap();
     let s2 = v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap();
     let name1: Local<v8::Name> = cast(s1);
     let name2: Local<v8::Name> = cast(s2);
     let names = vec![name1, name2];
-    let v1: v8::Local<v8::Value> = cast(v8::Number::new(scope, 1.0));
-    let v2: v8::Local<v8::Value> = cast(v8::Number::new(scope, 2.0));
+    let v1: v8::Local<v8::Value> = v8::Number::new(scope, 1.0).into();
+    let v2: v8::Local<v8::Value> = v8::Number::new(scope, 2.0).into();
     let values = vec![v1, v2];
     let object = v8::Object::new(scope, null, names, values, 2);
     assert!(!object.is_null_or_undefined());
@@ -354,7 +354,7 @@ extern "C" fn callback(info: &FunctionCallbackInfo) {
     let s =
       v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
         .unwrap();
-    let value: Local<v8::Value> = cast(s);
+    let value: Local<v8::Value> = s.into();
     info.set_return_value(value);
     context.exit();
   });
@@ -413,7 +413,7 @@ fn function() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let global = context.global();
-    let recv: Local<v8::Value> = cast(global);
+    let recv: Local<v8::Value> = global.into();
     // create function using template
     let mut fn_template = v8::FunctionTemplate::new(scope, callback);
     let mut function = fn_template
