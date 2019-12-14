@@ -3,6 +3,7 @@ use cargo_gn;
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::exit;
 use std::process::Command;
 use which::which;
 
@@ -18,12 +19,12 @@ fn main() {
     eprintln!(
       "missing source code. Run 'git submodule update --init --recursive'"
     );
-    return;
+    exit(1);
   }
 
   // Don't build if "cargo doc" is being run.
   if env::var_os("RUSTDOCFLAGS").is_some() {
-    return;
+    exit(1);
   }
 
   if need_gn_ninja_download() {
