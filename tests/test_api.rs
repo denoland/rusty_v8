@@ -355,7 +355,10 @@ extern "C" fn callback(info: &FunctionCallbackInfo) {
       v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
         .unwrap();
     let value: Local<v8::Value> = s.into();
-    info.set_return_value(value);
+    let rv = info.get_return_value();
+    let rv_value = rv.get(scope);
+    assert!(rv_value.is_undefined());
+    rv.set(value);
     context.exit();
   });
 }

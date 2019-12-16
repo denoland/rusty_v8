@@ -42,8 +42,20 @@ void v8__FunctionCallbackInfo__SetReturnValue(v8::FunctionCallbackInfo<v8::Value
 
 v8::ReturnValue<v8::Value> *v8__FunctionCallbackInfo__GetReturnValue(v8::FunctionCallbackInfo<v8::Value> *self)
 {
-  v8::ReturnValue<v8::Value>* return_value = nullptr;
-  *return_value = self->GetReturnValue();
-  return return_value;
+  v8::ReturnValue<v8::Value> *rv = new v8::ReturnValue<v8::Value>(self->GetReturnValue());
+  return rv;
+}
+
+void v8__ReturnValue__Set(v8::ReturnValue<v8::Value> *self,
+                          v8::Local<v8::Value> value) {
+  self->Set(value);
+}
+
+v8::Value *v8__ReturnValue__Get(v8::ReturnValue<v8::Value> *self) {
+  return local_to_ptr(self->Get());
+}
+
+v8::Isolate *v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value> *self) {
+    return self->GetIsolate();
 }
 }
