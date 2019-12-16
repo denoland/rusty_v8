@@ -421,8 +421,8 @@ fn function() {
       .expect("Unable to create function");
     let _value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
     // create function without a template
-    let mut function =
-      v8::Function::new(context, fn_callback).expect("Unable to create function");
+    let mut function = v8::Function::new(context, fn_callback)
+      .expect("Unable to create function");
     let maybe_value =
       v8::Function::call(&mut *function, context, recv, 0, vec![]);
     let value = maybe_value.unwrap();
@@ -438,9 +438,6 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let mut isolate = &mut v8::Isolate::get_current().expect("No isolate");
   let mut locker = v8::Locker::new(isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
-    // let mut promise = msg.get_promise(scope);
-    // eprintln!("promise reject!!! {:?}", promise.state());
-    // assert_ne!(promise.state(), v8::PromiseState::Pending);
     let event = msg.get_event();
     // eprintln!("promise reject!!! {:?}", event);
     // assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);

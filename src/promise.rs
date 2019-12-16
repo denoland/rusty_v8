@@ -40,15 +40,9 @@ extern "C" {
     on_rejected: *mut Function,
   ) -> *mut Promise;
 
-  fn v8__PromiseRejectMessage__GetPromise(
-    this: &PromiseRejectMessage,
-  ) -> *mut Promise;
   fn v8__PromiseRejectMessage__GetEvent(
     this: &PromiseRejectMessage,
   ) -> PromiseRejectEvent;
-  fn v8__PromiseRejectMessage__GetValue(
-    this: &PromiseRejectMessage,
-  ) -> *mut Value;
 }
 
 #[derive(Debug, PartialEq)]
@@ -200,19 +194,7 @@ pub enum PromiseRejectEvent {
 pub struct PromiseRejectMessage(Opaque);
 
 impl PromiseRejectMessage {
-  pub fn get_promise<'sc>(&self, _scope: &mut HandleScope<'sc>) -> Local<'sc, Promise> {
-    unsafe {
-      Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
-    }
-  }
-
   pub fn get_event(&self) -> PromiseRejectEvent {
     unsafe { v8__PromiseRejectMessage__GetEvent(self) }
-  }
-
-  pub fn get_value<'sc>(&self, _scope: &mut HandleScope<'sc>) -> Local<'sc, Value> {
-    unsafe {
-      Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
-    }
   }
 }
