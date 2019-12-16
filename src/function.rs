@@ -31,10 +31,6 @@ extern "C" {
     info: &FunctionCallbackInfo,
   ) -> &mut CxxIsolate;
   fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
-  fn v8__FunctionCallbackInfo__SetReturnValue(
-    info: &FunctionCallbackInfo,
-    value: *mut Value,
-  );
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: &FunctionCallbackInfo,
   ) -> *mut ReturnValue;
@@ -78,10 +74,6 @@ impl ReturnValue {
 pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
-  pub fn set_return_value(&self, mut value: Local<'_, Value>) {
-    unsafe { v8__FunctionCallbackInfo__SetReturnValue(&*self, &mut *value) };
-  }
-
   pub fn get_return_value(&self) -> &mut ReturnValue {
     unsafe { &mut *v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }
