@@ -21,6 +21,7 @@ v8_static_library("rusty_v8") {
     "src/platform/task.cc",
     "src/primitives.cc",
     "src/promise.cc",
+    "src/property.cc",
     "src/script.cc",
     "src/string.cc",
     "src/value.cc",

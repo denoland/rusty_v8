@@ -23,6 +23,7 @@ mod number;
 mod object;
 mod primitives;
 mod promise;
+mod property;
 mod script;
 mod string;
 mod support;
@@ -38,7 +39,9 @@ pub mod V8;
 
 pub use context::Context;
 pub use exception::Exception;
-pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
+pub use function::{
+  Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
+};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use json::JSON;
@@ -48,6 +51,7 @@ pub use number::{Integer, Number};
 pub use object::Object;
 pub use primitives::*;
 pub use promise::{Promise, PromiseResolver, PromiseState};
+pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
 pub use string::NewStringType;
 pub use string::String;
