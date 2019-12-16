@@ -30,10 +30,6 @@ void v8__Isolate__SetPromiseRejectCallback(Isolate& isolate,
   isolate.SetPromiseRejectCallback(callback);
 }
 
-Isolate* v8__Isolate__GetCurrent() {
-  return Isolate::GetCurrent();
-}
-
 Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new Isolate::CreateParams();
 }

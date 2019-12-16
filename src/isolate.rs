@@ -16,7 +16,6 @@ extern "C" {
     isolate: &mut CxxIsolate,
     callback: extern "C" fn(PromiseRejectMessage),
   ) -> ();
-  fn v8__Isolate__GetCurrent() -> *mut CxxIsolate;
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -78,24 +77,6 @@ impl Isolate {
     callback: extern "C" fn(PromiseRejectMessage),
   ) {
     unsafe { v8__Isolate__SetPromiseRejectCallback(self.0, callback) }
-  }
-
-  /// Returns the entered isolate for the current thread or NULL in
-  /// case there is no current isolate.
-  ///
-  /// This method must not be invoked before V8::Initialize() was invoked.
-  pub fn get_current() -> Option<&'static mut CxxIsolate> {
-    unsafe {
-      let isolate_ptr = v8__Isolate__GetCurrent();
-
-      if isolate_ptr.is_null() {
-        return None;
-      }
-
-      let isolate_ptr: &'static mut CxxIsolate =
-        std::mem::transmute(isolate_ptr);
-      Some(isolate_ptr)
-    }
   }
 }
 

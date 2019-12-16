@@ -11,4 +11,8 @@ v8::Object *v8__Object__New(v8::Isolate *isolate,
                             size_t length) {
   return local_to_ptr(v8::Object::New(isolate, prototype_or_null, names, values, length));
 }
+
+v8::Isolate *v8__Object__GetIsolate(v8::Object& self) {
+  return self.GetIsolate();
+}
 }

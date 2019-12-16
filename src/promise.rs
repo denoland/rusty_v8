@@ -200,10 +200,7 @@ pub enum PromiseRejectEvent {
 pub struct PromiseRejectMessage([usize; 3]);
 
 impl PromiseRejectMessage {
-  pub fn get_promise<'sc>(
-    &self,
-    _scope: &mut HandleScope<'sc>,
-  ) -> Local<'sc, Promise> {
+  pub fn get_promise(&self) -> Local<'_, Promise> {
     unsafe {
       Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
     }
@@ -213,10 +210,7 @@ impl PromiseRejectMessage {
     unsafe { v8__PromiseRejectMessage__GetEvent(self) }
   }
 
-  pub fn get_value<'sc>(
-    &self,
-    _scope: &mut HandleScope<'sc>,
-  ) -> Local<'sc, Value> {
+  pub fn get_value(&self) -> Local<'_, Value> {
     unsafe {
       Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
     }

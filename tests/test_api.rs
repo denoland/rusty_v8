@@ -434,14 +434,15 @@ fn function() {
 }
 
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
-  let isolate = &mut v8::Isolate::get_current().expect("No isolate");
+  let event = msg.get_event();
+  assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
+  let mut promise = msg.get_promise();
+  assert_eq!(promise.state(), v8::PromiseState::Rejected);
+  let promise_obj: v8::Local<v8::Object> = cast(promise);
+  let isolate = promise_obj.get_isolate();
+  let value = msg.get_value();
   let mut locker = v8::Locker::new(isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
-    let event = msg.get_event();
-    assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
-    let mut promise = msg.get_promise(scope);
-    assert_eq!(promise.state(), v8::PromiseState::Rejected);
-    let value = msg.get_value(scope);
     let value_str: v8::Local<v8::String> = cast(value);
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "promise rejected".to_string());
