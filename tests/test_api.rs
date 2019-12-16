@@ -434,13 +434,17 @@ fn function() {
 }
 
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
-  eprintln!("promise reject!!!");
-  let mut isolate = &mut v8::Isolate::get_current().expect("No isolate");
+  let isolate = &mut v8::Isolate::get_current().expect("No isolate");
   let mut locker = v8::Locker::new(isolate);
   v8::HandleScope::enter(&mut locker, |scope| {
     let event = msg.get_event();
-    // eprintln!("promise reject!!! {:?}", event);
-    // assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
+    assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
+    let mut promise = msg.get_promise(scope);
+    assert_eq!(promise.state(), v8::PromiseState::Rejected);
+    let value = msg.get_value(scope);
+    let value_str: v8::Local<v8::String> = cast(value);
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "promise rejected".to_string());
   });
 }
 
@@ -460,7 +464,7 @@ fn set_promise_reject_callback() {
     context.enter();
     let mut resolver = v8::PromiseResolver::new(context).unwrap();
     let str_ =
-      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+      v8::String::new(scope, "promise rejected", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str_);
     resolver.reject(context, value);
     context.exit();

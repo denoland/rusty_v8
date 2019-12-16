@@ -70,4 +70,14 @@ extern "C"
   {
     return self.GetEvent();
   }
+
+  v8::Promise *v8__PromiseRejectMessage__GetPromise(const v8::PromiseRejectMessage &self)
+  {
+    return local_to_ptr(self.GetPromise());
+  }
+
+  v8::Value *v8__PromiseRejectMessage__GetValue(const v8::PromiseRejectMessage &self)
+  {
+    return local_to_ptr(self.GetValue());
+  }
 }

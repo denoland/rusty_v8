@@ -82,19 +82,20 @@ impl Isolate {
 
   /// Returns the entered isolate for the current thread or NULL in
   /// case there is no current isolate.
-  /// 
+  ///
   /// This method must not be invoked before V8::Initialize() was invoked.
-  pub fn get_current() -> Option<Self> {
-    unsafe { 
+  pub fn get_current() -> Option<&'static mut CxxIsolate> {
+    unsafe {
       let isolate_ptr = v8__Isolate__GetCurrent();
-      
+
       if isolate_ptr.is_null() {
         return None;
       }
 
-      let isolate_ptr: &'static mut CxxIsolate = std::mem::transmute(isolate_ptr);
-      Some(Self(isolate_ptr))
-    }  
+      let isolate_ptr: &'static mut CxxIsolate =
+        std::mem::transmute(isolate_ptr);
+      Some(isolate_ptr)
+    }
   }
 }
 
