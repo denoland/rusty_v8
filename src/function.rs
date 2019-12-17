@@ -31,35 +31,42 @@ extern "C" {
     info: &FunctionCallbackInfo,
   ) -> &mut CxxIsolate;
   fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
-  fn v8__FunctionCallbackInfo__SetReturnValue(
-    info: &FunctionCallbackInfo,
-    value: *mut Value,
-  );
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: &FunctionCallbackInfo,
-  ) -> ReturnValue<Value>;
+  ) -> *mut ReturnValue;
+
+  fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value) -> ();
+  fn v8__ReturnValue__Get(rv: *mut ReturnValue) -> *mut Value;
+  fn v8__ReturnValue__GetIsolate(rv: *mut ReturnValue) -> *mut CxxIsolate;
 }
 
 #[repr(C)]
-pub struct ReturnValue<T>(T, Opaque);
+pub struct ReturnValue(Opaque);
 
-impl <T>ReturnValue<T> {
+/// In V8 ReturnValue<> has a type parameter, but
+/// it turns out that in most of the APIs it's ReturnValue<Value>
+/// and for our purposes we currently don't need
+/// other types. So for now it's a simplified version.
+impl ReturnValue {
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
-  pub fn set<U>(&self, _value: Local<'_, U>) {
-    unimplemented!();
+  pub fn set(&mut self, mut value: Local<'_, Value>) {
+    unsafe { v8__ReturnValue__Set(&mut *self, &mut *value) }
   }
 
   /// Convenience getter for Isolate
-  pub fn get_isolate(&self) -> &mut CxxIsolate {
-    unimplemented!();
+  pub fn get_isolate(&mut self) -> *mut CxxIsolate {
+    unsafe { v8__ReturnValue__GetIsolate(&mut *self) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get<'sc>(&self, _scope: &mut HandleScope<'sc>) -> Local<'sc, Value> {
-    unimplemented!();
+  pub fn get<'sc>(
+    &mut self,
+    _scope: &mut HandleScope<'sc>,
+  ) -> Local<'sc, Value> {
+    unsafe { Local::from_raw(v8__ReturnValue__Get(&mut *self)).unwrap() }
   }
 }
 
@@ -67,12 +74,8 @@ impl <T>ReturnValue<T> {
 pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
-  pub fn set_return_value(&self, mut value: Local<'_, Value>) {
-    unsafe { v8__FunctionCallbackInfo__SetReturnValue(&*self, &mut *value) };
-  }
-
-  pub fn get_return_value(&self) -> ReturnValue<Value> {
-    unsafe { v8__FunctionCallbackInfo__GetReturnValue(&*self) }
+  pub fn get_return_value(&self) -> &mut ReturnValue {
+    unsafe { &mut *v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }
 
   pub fn get_isolate(&self) -> &mut CxxIsolate {
