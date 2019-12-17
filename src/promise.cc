@@ -3,6 +3,9 @@
 
 using namespace support;
 
+static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
+              "PromiseRejectMessage size mismatch");
+
 extern "C"
 {
   v8::Promise::Resolver *v8__Promise__Resolver__New(v8::Local<v8::Context> context)
