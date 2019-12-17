@@ -64,6 +64,7 @@ template <class T>
 inline static T* maybe_to_ptr(v8::Maybe<T> maybe) {
   T* ptr = new T();
   if (maybe.IsJust()) {
+    delete ptr;
     *ptr = maybe.FromJust();
   }
   return ptr;
