@@ -35,7 +35,6 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
 }
 }  // namespace support
 
-
 template <class T>
 inline static T* local_to_ptr(v8::Local<T> local) {
   return *local;
