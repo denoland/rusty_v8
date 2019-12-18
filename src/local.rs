@@ -15,7 +15,7 @@ impl<'sc, T> Clone for Local<'sc, T> {
 }
 
 impl<'sc, T> Local<'sc, T> {
-  pub(crate) unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
+  pub unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
     Some(Self(NonNull::new(ptr)?, PhantomData))
   }
 }
