@@ -137,6 +137,24 @@ where
   }
 }
 
+#[repr(C)]
+#[derive(Debug)]
+pub enum MaybeBool {
+  JustFalse = 0,
+  JustTrue = 1,
+  Nothing = 2,
+}
+
+impl Into<Option<bool>> for MaybeBool {
+  fn into(self) -> Option<bool> {
+    match self {
+      MaybeBool::JustFalse => Some(false),
+      MaybeBool::JustTrue => Some(true),
+      MaybeBool::Nothing => None,
+    }
+  }
+}
+
 #[derive(Copy, Clone, Debug)]
 #[repr(transparent)]
 pub struct CxxVTable(pub *const Opaque);

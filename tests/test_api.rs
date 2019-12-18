@@ -432,7 +432,7 @@ fn promise_rejected() {
       v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
     let rejected = resolver.reject(context, value);
-    assert!(rejected);
+    assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);
