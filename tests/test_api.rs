@@ -101,7 +101,7 @@ fn test_string() {
 }
 
 #[test]
-fn isolate_new() {
+fn isolate_add_message_listener() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(
@@ -109,6 +109,36 @@ fn isolate_new() {
   );
   let mut isolate = v8::Isolate::new(params);
   isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
+
+  use std::sync::atomic::{AtomicUsize, Ordering};
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  extern "C" fn check_message_0(
+    message: Local<'_, v8::Message>,
+    _exception: Local<'_, v8::Value>,
+  ) {
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    let isolate = message.get_isolate();
+    v8::HandleScope::enter(&isolate, |s| {
+      let message_str = message.get();
+      assert_eq!(message_str.to_rust_string_lossy(&isolate), "Uncaught foo");
+      // assert!(data.is_none());
+    });
+  }
+  isolate.add_message_listener(check_message_0);
+
+  let locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&isolate, |_s| {
+    let mut context = v8::Context::new(&isolate);
+    context.enter();
+    let source =
+      v8::String::new(&isolate, "throw 'foo'", Default::default()).unwrap();
+    let mut script = v8::Script::compile(context, source, None).unwrap();
+    assert!(script.run(context).is_none());
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+    context.exit();
+  });
+  drop(locker);
   drop(g);
 }
 
@@ -291,7 +321,7 @@ fn exception() {
     v8::Exception::SyntaxError(local);
     v8::Exception::TypeError(local);
     let exception = v8::Exception::Error(local);
-    let mut msg = v8::Exception::CreateMessage(&isolate, exception);
+    let msg = v8::Exception::CreateMessage(scope, exception);
     let msg_string = msg.get();
     let rust_msg_string = msg_string.to_rust_string_lossy(&isolate);
     assert_eq!(

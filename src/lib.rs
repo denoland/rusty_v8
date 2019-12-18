@@ -38,13 +38,14 @@ pub mod V8;
 
 pub use context::Context;
 pub use exception::Exception;
+pub use exception::Message;
 pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;
 pub use json::JSON;
 pub use local::Local;
-pub use locker::Locker;
+pub use locker::{AssumeLocked, Locker};
 pub use number::{Integer, Number};
 pub use object::Object;
 pub use primitives::*;

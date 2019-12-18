@@ -34,3 +34,24 @@ impl<'a> Drop for Locker<'a> {
     unsafe { v8__Locker__DESTRUCT(self) }
   }
 }
+
+impl<'a> LockedIsolate for Locker<'a> {
+  fn cxx_isolate(&mut self) -> &mut CxxIsolate {
+    self.isolate
+  }
+}
+
+#[repr(transparent)]
+pub struct AssumeLocked<'a>(&'a mut CxxIsolate);
+
+impl<'a> AssumeLocked<'a> {
+  pub unsafe fn new(isolate: &'a mut CxxIsolate) -> Self {
+    Self(isolate)
+  }
+}
+
+impl<'a> LockedIsolate for AssumeLocked<'a> {
+  fn cxx_isolate(&mut self) -> &mut CxxIsolate {
+    &mut self.0
+  }
+}

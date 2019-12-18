@@ -1,14 +1,18 @@
 #![allow(non_snake_case)]
 
-use crate::isolate::Isolate;
+use crate::isolate::CxxIsolate;
+use crate::isolate::LockedIsolate;
 use crate::support::int;
 use crate::support::Opaque;
+use crate::AssumeLocked;
 use crate::Local;
 use crate::String;
 use crate::Value;
 
 extern "C" {
-  fn v8__Message__Get(message: *mut Message) -> *mut String;
+  fn v8__Message__Get(message: *const Message) -> *mut String;
+  fn v8__Message__GetIsolate(message: *const Message) -> *mut CxxIsolate;
+
   fn v8__StackTrace__GetFrameCount(stack_trace: *mut StackTrace) -> int;
 
   fn v8__Exception__RangeError(message: *mut String) -> *mut Value;
@@ -43,8 +47,12 @@ impl StackTrace {
 pub struct Message(Opaque);
 
 impl Message {
-  pub fn get(&mut self) -> Local<'_, String> {
+  pub fn get(&self) -> Local<'_, String> {
     unsafe { Local::from_raw(v8__Message__Get(self)) }.unwrap()
+  }
+
+  pub fn get_isolate<'a>(&'_ self) -> impl LockedIsolate + 'a {
+    unsafe { AssumeLocked::new(&mut *(v8__Message__GetIsolate(self))) }
   }
 }
 

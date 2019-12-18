@@ -3,10 +3,14 @@ use std::ops::DerefMut;
 use std::ptr::NonNull;
 
 use crate::array_buffer::Allocator;
-use crate::promise::PromiseRejectMessage;
+use crate::exception::Message;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
+use crate::Local;
+use crate::Value;
+
+type MessageCallback = extern "C" fn(Local<'_, Message>, Local<'_, Value>);
 
 type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
@@ -20,10 +24,10 @@ extern "C" {
     caputre: bool,
     frame_limit: i32,
   );
-  fn v8__Isolate__SetPromiseRejectCallback(
-    isolate: *mut Isolate,
-    callback: PromiseRejectCallback,
-  );
+  fn v8__Isolate__AddMessageListener(
+    this: &mut CxxIsolate,
+    callback: MessageCallback,
+  ) -> bool;
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -31,6 +35,7 @@ extern "C" {
     this: &mut CreateParams,
     value: *mut Allocator,
   );
+
 }
 
 #[repr(C)]
@@ -89,19 +94,14 @@ impl Isolate {
     }
   }
 
-  /// Set callback to notify about promise reject with no handler, or
-  /// revocation of such a previous notification once the handler is added.
-  pub fn set_promise_reject_callback(
-    &mut self,
-    callback: PromiseRejectCallback,
-  ) {
-    unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
-  }
-
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  pub unsafe fn dispose(&mut self) {
-    v8__Isolate__Dispose(self)
+  /// Adds a message listener (errors only).
+  ///
+  /// The same message listener can be added more than once and in that
+  /// case it will be called more than once for each message.
+  ///
+  /// The exception object will be passed to the callback.
+  pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
+    unsafe { v8__Isolate__AddMessageListener(self.0, callback) }
   }
 }
 
