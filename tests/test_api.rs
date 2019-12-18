@@ -136,6 +136,53 @@ fn script_compile_and_run() {
 }
 
 #[test]
+fn script_origin() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+
+  v8::HandleScope::enter(&mut locker, |s| {
+    let mut context = v8::Context::new(s);
+    context.enter();
+
+    let resource_name =
+      v8::String::new(s, "foo.js", Default::default()).unwrap();
+    let resource_line_offset = v8::Integer::new(s, 4);
+    let resource_column_offset = v8::Integer::new(s, 5);
+    let resource_is_shared_cross_origin = v8::new_true(s);
+    let script_id = v8::Integer::new(s, 123);
+    let source_map_url =
+      v8::String::new(s, "source_map_url", Default::default()).unwrap();
+    let resource_is_opaque = v8::new_true(s);
+    let is_wasm = v8::new_false(s);
+    let is_module = v8::new_false(s);
+
+    let script_origin = v8::ScriptOrigin::new(
+      resource_name.into(),
+      resource_line_offset,
+      resource_column_offset,
+      resource_is_shared_cross_origin,
+      script_id,
+      source_map_url.into(),
+      resource_is_opaque,
+      is_wasm,
+      is_module,
+    );
+
+    let source = v8::String::new(s, "1+2", Default::default()).unwrap();
+    let mut script =
+      v8::Script::compile(s, context, source, Some(&script_origin)).unwrap();
+    source.to_rust_string_lossy(s);
+    let _result = script.run(s, context).unwrap();
+    context.exit();
+  });
+}
+
+#[test]
 fn get_version() {
   assert!(v8::V8::get_version().len() > 3);
 }
