@@ -10,6 +10,7 @@ use crate::Local;
 use crate::String;
 use crate::Value;
 
+/// The origin, within a file, of a script.
 #[repr(C)]
 pub struct ScriptOrigin([usize; 7]);
 
