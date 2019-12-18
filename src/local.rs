@@ -43,3 +43,10 @@ where
     unsafe { std::mem::transmute(v) }
   }
 }
+
+#[test]
+fn test_size_of_local() {
+  use std::mem::size_of;
+  assert_eq!(size_of::<Local<Value>>(), size_of::<*const Value>());
+  assert_eq!(size_of::<Option<Local<Value>>>(), size_of::<*const Value>());
+}
