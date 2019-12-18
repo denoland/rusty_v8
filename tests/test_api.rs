@@ -104,7 +104,8 @@ fn isolate_new() {
   params.set_array_buffer_allocator(
     v8::array_buffer::Allocator::new_default_allocator(),
   );
-  v8::Isolate::new(params);
+  let mut isolate = v8::Isolate::new(params);
+  isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
   drop(g);
 }
 

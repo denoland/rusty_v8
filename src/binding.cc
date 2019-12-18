@@ -54,6 +54,13 @@ void v8__Isolate__Enter(Isolate& isolate) { isolate.Enter(); }
 
 void v8__Isolate__Exit(Isolate& isolate) { isolate.Exit(); }
 
+void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate& isolate,
+                                                            bool capture,
+                                                            int frame_limit) {
+  // Note: StackTraceOptions are deprecated so we don't bother to bind to it.
+  isolate.SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
+}
+
 Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new Isolate::CreateParams();
 }
