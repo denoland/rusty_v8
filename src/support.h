@@ -46,7 +46,6 @@ inline static MaybeBool maybe_to_maybe_bool(v8::Maybe<bool> maybe) {
     return MaybeBool::JustFalse;
   }
 }
-}  // namespace support
 
 template <class T>
 inline static T* local_to_ptr(v8::Local<T> local) {
@@ -71,5 +70,6 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
   static_assert(sizeof(v8::MaybeLocal<T>) == sizeof(T*), "");
   return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
 }
+}  // namespace support
 
 #endif  // SUPPORT_H_
