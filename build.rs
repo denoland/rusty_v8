@@ -22,9 +22,9 @@ fn main() {
     exit(1);
   }
 
-  // Don't build if "cargo doc" is being run.
+  // Don't build if "cargo doc" is being run. This is to support docs.rs.
   if env::var_os("RUSTDOCFLAGS").is_some() {
-    exit(1);
+    exit(0);
   }
 
   if need_gn_ninja_download() {
