@@ -98,6 +98,26 @@ fn test_string() {
 }
 
 #[test]
+fn local_empty() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let local = v8::Local::<v8::String>::empty();
+    assert!(local.is_empty());
+
+    let mut local = v8::Number::new(scope, 1.0);
+    assert!(!local.is_empty());
+    local.clear();
+    assert!(local.is_empty());
+  });
+}
+
+#[test]
 fn isolate_new() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
