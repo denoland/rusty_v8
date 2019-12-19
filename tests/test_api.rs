@@ -516,7 +516,8 @@ fn set_promise_reject_callback() {
     context.enter();
     let mut resolver = v8::PromiseResolver::new(context).unwrap();
     let str_ =
-      v8::String::new(scope, "promise rejected", v8::NewStringType::Normal).unwrap();
+      v8::String::new(scope, "promise rejected", v8::NewStringType::Normal)
+        .unwrap();
     let value: Local<v8::Value> = cast(str_);
     resolver.reject(context, value);
     context.exit();
