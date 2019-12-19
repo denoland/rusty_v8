@@ -1,3 +1,4 @@
+use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::Context;
 use crate::Function;
@@ -14,12 +15,12 @@ extern "C" {
     resolver: *mut PromiseResolver,
     context: *mut Context,
     value: *mut Value,
-  ) -> bool;
+  ) -> MaybeBool;
   fn v8__Promise__Resolver__Reject(
     resolver: *mut PromiseResolver,
     context: *mut Context,
     value: *mut Value,
-  ) -> bool;
+  ) -> MaybeBool;
   fn v8__Promise__State(promise: *mut Promise) -> PromiseState;
   fn v8__Promise__HasHandler(promise: *mut Promise) -> bool;
   fn v8__Promise__Result(promise: *mut Promise) -> *mut Value;
@@ -167,9 +168,10 @@ impl PromiseResolver {
     &mut self,
     mut context: Local<'sc, Context>,
     mut value: Local<'sc, Value>,
-  ) -> bool {
+  ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value)
+        .into()
     }
   }
 
@@ -180,9 +182,10 @@ impl PromiseResolver {
     &mut self,
     mut context: Local<'sc, Context>,
     mut value: Local<'sc, Value>,
-  ) -> bool {
+  ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
+        .into()
     }
   }
 }

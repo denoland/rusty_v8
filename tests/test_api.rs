@@ -104,7 +104,8 @@ fn isolate_new() {
   params.set_array_buffer_allocator(
     v8::array_buffer::Allocator::new_default_allocator(),
   );
-  v8::Isolate::new(params);
+  let mut isolate = v8::Isolate::new(params);
+  isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
   drop(g);
 }
 
@@ -414,7 +415,7 @@ fn promise_rejected() {
       v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
     let value: Local<v8::Value> = cast(str);
     let rejected = resolver.reject(context, value);
-    assert!(rejected);
+    assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
     let result_str: v8::Local<v8::String> = cast(result);

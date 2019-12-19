@@ -12,6 +12,11 @@ extern "C" {
   fn v8__Isolate__Dispose(this: &mut CxxIsolate) -> ();
   fn v8__Isolate__Enter(this: &mut CxxIsolate) -> ();
   fn v8__Isolate__Exit(this: &mut CxxIsolate) -> ();
+  fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
+    this: &mut CxxIsolate,
+    caputre: bool,
+    frame_limit: i32,
+  );
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: &mut CxxIsolate,
     callback: extern "C" fn(PromiseRejectMessage),
@@ -68,6 +73,22 @@ impl Isolate {
   /// Requires: self == Isolate::GetCurrent().
   pub fn exit(&mut self) {
     unsafe { v8__Isolate__Exit(self.0) }
+  }
+
+  /// Tells V8 to capture current stack trace when uncaught exception occurs
+  /// and report it to the message listeners. The option is off by default.
+  pub fn set_capture_stack_trace_for_uncaught_exceptions(
+    &mut self,
+    capture: bool,
+    frame_limit: i32,
+  ) {
+    unsafe {
+      v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
+        self.0,
+        capture,
+        frame_limit,
+      )
+    }
   }
 
   /// Set callback to notify about promise reject with no handler, or
