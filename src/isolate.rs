@@ -7,6 +7,8 @@ use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
 
+type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
+
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> &'static mut CxxIsolate;
   fn v8__Isolate__Dispose(this: &mut CxxIsolate) -> ();
@@ -19,7 +21,7 @@ extern "C" {
   );
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: &mut CxxIsolate,
-    callback: extern "C" fn(PromiseRejectMessage),
+    callback: PromiseRejectCallback,
   ) -> ();
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
@@ -95,7 +97,7 @@ impl Isolate {
   /// revocation of such a previous notification once the handler is added.
   pub fn set_promise_reject_callback(
     &mut self,
-    callback: extern "C" fn(PromiseRejectMessage),
+    callback: PromiseRejectCallback,
   ) {
     unsafe { v8__Isolate__SetPromiseRejectCallback(self.0, callback) }
   }
