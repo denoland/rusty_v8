@@ -33,8 +33,19 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
   new (&buf)
       construct_in_place_helper<T, Args...>(buf, std::forward<Args>(args)...);
 }
-}  // namespace support
 
+// The C-ABI compatible equivalent of V8's Maybe<bool>.
+enum class MaybeBool { JustFalse = 0, JustTrue = 1, Nothing = 2 };
+
+inline static MaybeBool maybe_to_maybe_bool(v8::Maybe<bool> maybe) {
+  if (maybe.IsNothing()) {
+    return MaybeBool::Nothing;
+  } else if (maybe.FromJust()) {
+    return MaybeBool::JustTrue;
+  } else {
+    return MaybeBool::JustFalse;
+  }
+}
 
 template <class T>
 inline static T* local_to_ptr(v8::Local<T> local) {
@@ -59,10 +70,6 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
   static_assert(sizeof(v8::MaybeLocal<T>) == sizeof(T*), "");
   return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
 }
-
-template <class T>
-inline static T maybe_to_value(v8::Maybe<T> maybe, T default_value) {
-  return maybe.FromMaybe(default_value);
-}
+}  // namespace support
 
 #endif  // SUPPORT_H_
