@@ -40,9 +40,14 @@ pub trait LockedIsolate {
   fn cxx_isolate(&mut self) -> &mut CxxIsolate;
 }
 
+/// Isolate represents an isolated instance of the V8 engine.  V8 isolates have
+/// completely separate states.  Objects from one isolate must not be used in
+/// other isolates.  The embedder can create multiple isolates and use them in
+/// parallel in multiple threads.  An isolate can be entered by at most one
+/// thread at any given time.  The Locker/Unlocker API must be used to
+/// synchronize.
 // We wrap CxxIsolate so we can provide a destructor for the reference returned
 // from Isolate::new().
-#[repr(transparent)]
 pub struct Isolate(NonNull<CxxIsolate>);
 
 impl Isolate {
