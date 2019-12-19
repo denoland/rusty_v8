@@ -47,26 +47,26 @@ Isolate* v8__Isolate__New(Isolate::CreateParams& params) {
   return isolate;
 }
 
-void v8__Isolate__Dispose(Isolate& isolate) {
-  auto allocator = isolate.GetArrayBufferAllocator();
-  isolate.Dispose();
+void v8__Isolate__Dispose(Isolate* isolate) {
+  auto allocator = isolate->GetArrayBufferAllocator();
+  isolate->Dispose();
   delete allocator;
 }
 
-void v8__Isolate__Enter(Isolate& isolate) { isolate.Enter(); }
+void v8__Isolate__Enter(Isolate* isolate) { isolate->Enter(); }
 
-void v8__Isolate__Exit(Isolate& isolate) { isolate.Exit(); }
+void v8__Isolate__Exit(Isolate* isolate) { isolate->Exit(); }
 
-void v8__Isolate__SetPromiseRejectCallback(Isolate& isolate,
+void v8__Isolate__SetPromiseRejectCallback(Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
-  isolate.SetPromiseRejectCallback(callback);
+  isolate->SetPromiseRejectCallback(callback);
 }
 
-void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate& isolate,
+void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate* isolate,
                                                             bool capture,
                                                             int frame_limit) {
   // Note: StackTraceOptions are deprecated so we don't bother to bind to it.
-  isolate.SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
+  isolate->SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
 }
 
 Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
@@ -366,21 +366,18 @@ v8::Promise* v8__Promise__Then2(v8::Promise* self,
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
 }
 
-v8::PromiseRejectEvent 
-v8__PromiseRejectMessage__GetEvent(const v8::PromiseRejectMessage &self)
-{
+v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(
+    const v8::PromiseRejectMessage& self) {
   return self.GetEvent();
 }
 
-v8::Promise*
-v8__PromiseRejectMessage__GetPromise(const v8::PromiseRejectMessage &self)
-{
+v8::Promise* v8__PromiseRejectMessage__GetPromise(
+    const v8::PromiseRejectMessage& self) {
   return local_to_ptr(self.GetPromise());
 }
 
-v8::Value*
-v8__PromiseRejectMessage__GetValue(const v8::PromiseRejectMessage &self)
-{
+v8::Value* v8__PromiseRejectMessage__GetValue(
+    const v8::PromiseRejectMessage& self) {
   return local_to_ptr(self.GetValue());
 }
 

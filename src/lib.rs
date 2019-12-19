@@ -41,6 +41,7 @@ pub use exception::Exception;
 pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
+pub use isolate::OwnedIsolate;
 pub use json::JSON;
 pub use local::Local;
 pub use locker::Locker;
