@@ -20,7 +20,7 @@ extern "C" {
     values: *mut *mut Value,
     length: usize,
   ) -> *mut Object;
-
+  fn v8__Object__GetIsolate(object: &Object) -> &mut CxxIsolate;
 }
 
 impl Object {
@@ -58,6 +58,11 @@ impl Object {
       ))
       .unwrap()
     }
+  }
+
+  /// Return the isolate to which the Object belongs to.
+  pub fn get_isolate(&self) -> &mut CxxIsolate {
+    unsafe { v8__Object__GetIsolate(self) }
   }
 }
 

@@ -6,6 +6,7 @@ extern "C" {
   fn v8__Value__IsNullOrUndefined(this: &Value) -> bool;
 }
 
+/// The superclass of all JavaScript values and objects.
 #[repr(C)]
 pub struct Value(support::Opaque);
 

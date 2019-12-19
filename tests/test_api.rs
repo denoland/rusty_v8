@@ -393,24 +393,6 @@ fn promise_resolved() {
   });
 }
 
-extern "C" fn callback(info: &FunctionCallbackInfo) {
-  assert_eq!(info.length(), 0);
-  let mut locker = v8::Locker::new(info.get_isolate());
-  v8::HandleScope::enter(&mut locker, |scope| {
-    let mut context = v8::Context::new(scope);
-    context.enter();
-    let s =
-      v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
-        .unwrap();
-    let value: Local<v8::Value> = s.into();
-    let rv = info.get_return_value();
-    let rv_value = rv.get(scope);
-    assert!(rv_value.is_undefined());
-    rv.set(value);
-    context.exit();
-  });
-}
-
 #[test]
 fn promise_rejected() {
   setup();
@@ -451,6 +433,24 @@ fn promise_rejected() {
   });
 }
 
+extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
+  assert_eq!(info.length(), 0);
+  let mut locker = v8::Locker::new(info.get_isolate());
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let s =
+      v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
+        .unwrap();
+    let value: Local<v8::Value> = s.into();
+    let rv = info.get_return_value();
+    let rv_value = rv.get(scope);
+    assert!(rv_value.is_undefined());
+    rv.set(value);
+    context.exit();
+  });
+}
+
 #[test]
 fn function() {
   setup();
@@ -466,14 +466,14 @@ fn function() {
     let global = context.global();
     let recv: Local<v8::Value> = global.into();
     // create function using template
-    let mut fn_template = v8::FunctionTemplate::new(scope, callback);
+    let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
     let mut function = fn_template
       .get_function(context)
       .expect("Unable to create function");
     let _value = v8::Function::call(&mut *function, context, recv, 0, vec![]);
     // create function without a template
-    let mut function =
-      v8::Function::new(context, callback).expect("Unable to create function");
+    let mut function = v8::Function::new(context, fn_callback)
+      .expect("Unable to create function");
     let maybe_value =
       v8::Function::call(&mut *function, context, recv, 0, vec![]);
     let value = maybe_value.unwrap();
@@ -482,4 +482,45 @@ fn function() {
     assert_eq!(rust_str, "Hello callback!".to_string());
     context.exit();
   });
+}
+
+extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
+  let event = msg.get_event();
+  assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
+  let mut promise = msg.get_promise();
+  assert_eq!(promise.state(), v8::PromiseState::Rejected);
+  let promise_obj: v8::Local<v8::Object> = cast(promise);
+  let isolate = promise_obj.get_isolate();
+  let value = msg.get_value();
+  let mut locker = v8::Locker::new(isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let value_str: v8::Local<v8::String> = cast(value);
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "promise rejected".to_string());
+  });
+}
+
+#[test]
+fn set_promise_reject_callback() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  isolate.set_promise_reject_callback(promise_reject_callback);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&mut isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let mut resolver = v8::PromiseResolver::new(context).unwrap();
+    let str_ =
+      v8::String::new(scope, "promise rejected", v8::NewStringType::Normal)
+        .unwrap();
+    let value: Local<v8::Value> = cast(str_);
+    resolver.reject(context, value);
+    context.exit();
+  });
+  isolate.exit();
 }

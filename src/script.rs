@@ -36,10 +36,13 @@ extern "C" {
   );
 }
 
+/// A compiled JavaScript script, tied to a Context which was active when the
+/// script was compiled.
 #[repr(C)]
 pub struct Script(Opaque);
 
 impl Script {
+  /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'sc>(
     _scope: &mut HandleScope<'sc>,
     mut context: Local<'_, Context>,
@@ -57,6 +60,9 @@ impl Script {
     }
   }
 
+  /// Runs the script returning the resulting value. It will be run in the
+  /// context in which it was created (ScriptCompiler::CompileBound or
+  /// UnboundScript::BindToCurrentContext()).
   pub fn run<'sc>(
     &mut self,
     _scope: &mut HandleScope<'sc>,
@@ -66,6 +72,7 @@ impl Script {
   }
 }
 
+/// The origin, within a file, of a script.
 impl ScriptOrigin {
   pub fn new(
     mut resource_name: Local<'_, Value>,

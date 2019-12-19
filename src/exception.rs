@@ -25,15 +25,20 @@ extern "C" {
   fn v8__Exception__GetStackTrace(exception: *mut Value) -> *mut StackTrace;
 }
 
+/// Representation of a JavaScript stack trace. The information collected is a
+/// snapshot of the execution stack and the information remains valid after
+/// execution continues.
 #[repr(C)]
 pub struct StackTrace(Opaque);
 
 impl StackTrace {
+  /// Returns the number of StackFrames.
   pub fn get_frame_count(&mut self) -> usize {
     unsafe { v8__StackTrace__GetFrameCount(self) as usize }
   }
 }
 
+/// An error message.
 #[repr(C)]
 pub struct Message(Opaque);
 
