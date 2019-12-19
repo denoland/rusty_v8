@@ -50,10 +50,10 @@ pub enum PromiseState {
   Rejected,
 }
 
+/// An instance of the built-in Promise constructor (ES6 draft).
 #[repr(C)]
 pub struct Promise(Opaque);
 
-/// An instance of the built-in Promise constructor (ES6 draft).
 impl Promise {
   /// Returns the value of the [[PromiseState]] field.
   pub fn state(&mut self) -> PromiseState {
@@ -151,7 +151,6 @@ impl PromiseResolver {
     }
   }
 
-  /// TODO: in v8 this function returns `Maybe<bool>`
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
   pub fn resolve<'sc>(
@@ -165,7 +164,6 @@ impl PromiseResolver {
     }
   }
 
-  /// TODO: in v8 this function returns `Maybe<bool>`
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
   pub fn reject<'sc>(
