@@ -366,11 +366,6 @@ v8::Promise* v8__Promise__Then2(v8::Promise* self,
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
 }
 
-v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
-    v8::PropertyCallbackInfo<v8::Value>* self) {
-  return self->GetIsolate();
-}
-
 v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(
     const v8::PromiseRejectMessage& self) {
   return self.GetEvent();
@@ -386,13 +381,18 @@ v8::Value* v8__PromiseRejectMessage__GetValue(
   return local_to_ptr(self.GetValue());
 }
 
+v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
+    const v8::PropertyCallbackInfo<v8::Value>* self) {
+  return self->GetIsolate();
+}
+
 v8::Object* v8__PropertyCallbackInfo__This(
-    v8::PropertyCallbackInfo<v8::Value>* self) {
+    const v8::PropertyCallbackInfo<v8::Value>* self) {
   return local_to_ptr(self->This());
 }
 
 v8::ReturnValue<v8::Value>* v8__PropertyCallbackInfo__GetReturnValue(
-    v8::PropertyCallbackInfo<v8::Value>* self) {
+    const v8::PropertyCallbackInfo<v8::Value>* self) {
   v8::ReturnValue<v8::Value>* rv =
       new v8::ReturnValue<v8::Value>(self->GetReturnValue());
   return rv;
