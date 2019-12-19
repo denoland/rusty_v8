@@ -21,6 +21,9 @@ static_assert(sizeof(HandleScope) == sizeof(size_t) * 3,
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
+static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2,
+              "Locker size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {

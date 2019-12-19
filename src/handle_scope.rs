@@ -7,7 +7,7 @@ use crate::isolate::LockedIsolate;
 extern "C" {
   fn v8__HandleScope__CONSTRUCT(
     buf: &mut MaybeUninit<HandleScope>,
-    isolate: &mut Isolate,
+    isolate: &Isolate,
   );
   fn v8__HandleScope__DESTRUCT(this: &mut HandleScope);
   fn v8__HandleScope__GetIsolate<'sc>(
@@ -19,12 +19,12 @@ extern "C" {
 pub struct HandleScope<'sc>([usize; 3], PhantomData<&'sc mut ()>);
 
 impl<'sc> HandleScope<'sc> {
-  pub fn enter<P>(parent: &mut P, mut f: impl FnMut(&mut HandleScope<'_>) -> ())
-  where
-    P: LockedIsolate,
-  {
+  pub fn enter(
+    isolate: &Isolate,
+    mut f: impl FnMut(&mut HandleScope<'_>) -> (),
+  ) {
     let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
-    unsafe { v8__HandleScope__CONSTRUCT(&mut scope, parent.cxx_isolate()) };
+    unsafe { v8__HandleScope__CONSTRUCT(&mut scope, isolate) };
     let scope = unsafe { &mut *(scope.as_mut_ptr()) };
     f(scope);
 
