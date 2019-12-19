@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::isolate::CxxIsolate;
+use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
 use crate::value::Value;
@@ -8,11 +8,11 @@ use crate::HandleScope;
 use crate::Local;
 
 extern "C" {
-  fn v8__Number__New(isolate: &mut CxxIsolate, value: f64) -> *mut Number;
+  fn v8__Number__New(isolate: &mut Isolate, value: f64) -> *mut Number;
   fn v8__Number__Value(this: &Number) -> f64;
-  fn v8__Integer__New(isolate: &mut CxxIsolate, value: i32) -> *mut Integer;
+  fn v8__Integer__New(isolate: &mut Isolate, value: i32) -> *mut Integer;
   fn v8__Integer__NewFromUnsigned(
-    isolate: &mut CxxIsolate,
+    isolate: &mut Isolate,
     value: u32,
   ) -> *mut Integer;
   fn v8__Integer__Value(this: &Integer) -> i64;

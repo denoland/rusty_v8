@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::isolate::CxxIsolate;
+use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
 use crate::HandleScope;
@@ -14,13 +14,13 @@ pub struct Object(Opaque);
 
 extern "C" {
   fn v8__Object__New(
-    isolate: *mut CxxIsolate,
+    isolate: *mut Isolate,
     prototype_or_null: *mut Value,
     names: *mut *mut Name,
     values: *mut *mut Value,
     length: usize,
   ) -> *mut Object;
-  fn v8__Object__GetIsolate(object: &Object) -> &mut CxxIsolate;
+  fn v8__Object__GetIsolate(object: &Object) -> &mut Isolate;
 }
 
 impl Object {
@@ -61,7 +61,7 @@ impl Object {
   }
 
   /// Return the isolate to which the Object belongs to.
-  pub fn get_isolate(&self) -> &mut CxxIsolate {
+  pub fn get_isolate(&self) -> &mut Isolate {
     unsafe { v8__Object__GetIsolate(self) }
   }
 }

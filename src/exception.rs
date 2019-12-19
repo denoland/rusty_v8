@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::isolate::CxxIsolate;
+use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::Opaque;
 use crate::Local;
@@ -18,7 +18,7 @@ extern "C" {
   fn v8__Exception__Error(message: *mut String) -> *mut Value;
 
   fn v8__Exception__CreateMessage(
-    isolate: *mut CxxIsolate,
+    isolate: *mut Isolate,
     exception: *mut Value,
   ) -> *mut Message;
 

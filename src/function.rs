@@ -1,4 +1,4 @@
-use crate::isolate::{CxxIsolate, LockedIsolate};
+use crate::isolate::{Isolate, LockedIsolate};
 use crate::support::{int, Opaque};
 use crate::Context;
 use crate::HandleScope;
@@ -19,7 +19,7 @@ extern "C" {
   ) -> *mut Value;
 
   fn v8__FunctionTemplate__New(
-    isolate: *mut CxxIsolate,
+    isolate: *mut Isolate,
     callback: extern "C" fn(&FunctionCallbackInfo),
   ) -> *mut FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
@@ -29,7 +29,7 @@ extern "C" {
 
   fn v8__FunctionCallbackInfo__GetIsolate(
     info: &FunctionCallbackInfo,
-  ) -> &mut CxxIsolate;
+  ) -> &mut Isolate;
   fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: &FunctionCallbackInfo,
@@ -37,7 +37,7 @@ extern "C" {
 
   fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value) -> ();
   fn v8__ReturnValue__Get(rv: *mut ReturnValue) -> *mut Value;
-  fn v8__ReturnValue__GetIsolate(rv: *mut ReturnValue) -> *mut CxxIsolate;
+  fn v8__ReturnValue__GetIsolate(rv: *mut ReturnValue) -> *mut Isolate;
 }
 
 #[repr(C)]
@@ -55,7 +55,7 @@ impl ReturnValue {
   }
 
   /// Convenience getter for Isolate
-  pub fn get_isolate(&mut self) -> *mut CxxIsolate {
+  pub fn get_isolate(&mut self) -> *mut Isolate {
     unsafe { v8__ReturnValue__GetIsolate(&mut *self) }
   }
 
@@ -84,7 +84,7 @@ impl FunctionCallbackInfo {
   }
 
   /// The current Isolate.
-  pub fn get_isolate(&self) -> &mut CxxIsolate {
+  pub fn get_isolate(&self) -> &mut Isolate {
     unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 

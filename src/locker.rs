@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
-use crate::isolate::CxxIsolate;
 use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
 
@@ -16,7 +15,7 @@ use crate::isolate::LockedIsolate;
 extern "C" {
   fn v8__Locker__CONSTRUCT(
     buf: &mut MaybeUninit<Locker>,
-    isolate: &mut CxxIsolate,
+    isolate: &mut Isolate,
   );
   fn v8__Locker__DESTRUCT(this: &mut Locker);
 }
@@ -25,12 +24,12 @@ extern "C" {
 pub struct Locker<'a> {
   has_lock: bool,
   top_level: bool,
-  isolate: &'a mut CxxIsolate,
+  isolate: &'a mut Isolate,
   phantom: PhantomData<&'a Isolate>,
 }
 
 impl<'a> Locker<'a> {
-  pub fn new(isolate: &mut CxxIsolate) -> Self {
+  pub fn new(isolate: &mut Isolate) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__Locker__CONSTRUCT(&mut buf, isolate);
@@ -46,7 +45,7 @@ impl<'a> Drop for Locker<'a> {
 }
 
 impl<'a> LockedIsolate for Locker<'a> {
-  fn cxx_isolate(&mut self) -> &mut CxxIsolate {
+  fn cxx_isolate(&mut self) -> &mut Isolate {
     self.isolate
   }
 }

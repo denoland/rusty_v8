@@ -1,6 +1,3 @@
-use std::ops::Deref;
-use std::ops::DerefMut;
-
 use crate::array_buffer::Allocator;
 use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
@@ -10,19 +7,19 @@ use crate::support::UniqueRef;
 type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
 extern "C" {
-  fn v8__Isolate__New(params: *mut CreateParams) -> &'static mut CxxIsolate;
-  fn v8__Isolate__Dispose(this: &mut CxxIsolate) -> ();
-  fn v8__Isolate__Enter(this: &mut CxxIsolate) -> ();
-  fn v8__Isolate__Exit(this: &mut CxxIsolate) -> ();
+  fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
+  fn v8__Isolate__Dispose(this: *mut Isolate) -> ();
+  fn v8__Isolate__Enter(this: *mut Isolate) -> ();
+  fn v8__Isolate__Exit(this: *mut Isolate) -> ();
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
-    this: &mut CxxIsolate,
+    this: *mut Isolate,
     caputre: bool,
     frame_limit: i32,
   );
   fn v8__Isolate__SetPromiseRejectCallback(
-    isolate: &mut CxxIsolate,
+    isolate: *mut Isolate,
     callback: PromiseRejectCallback,
-  ) -> ();
+  );
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -33,14 +30,11 @@ extern "C" {
 }
 
 #[repr(C)]
-pub struct CxxIsolate(Opaque);
+pub struct Isolate(Opaque);
 
 pub trait LockedIsolate {
-  fn cxx_isolate(&mut self) -> &mut CxxIsolate;
+  fn cxx_isolate(&mut self) -> &mut Isolate;
 }
-
-#[repr(transparent)]
-pub struct Isolate(&'static mut CxxIsolate);
 
 impl Isolate {
   /// Creates a new isolate.  Does not change the currently entered
@@ -50,10 +44,11 @@ impl Isolate {
   /// by calling V8::dispose().  Using the delete operator is not allowed.
   ///
   /// V8::initialize() must have run prior to this.
-  pub fn new(params: UniqueRef<CreateParams>) -> Self {
+  pub fn new<'a>(params: UniqueRef<CreateParams>) -> &'a mut Self {
     // TODO: support CreateParams.
     crate::V8::assert_initialized();
-    Self(unsafe { v8__Isolate__New(params.into_raw()) })
+    let ptr = unsafe { v8__Isolate__New(params.into_raw()) };
+    unsafe { ptr.as_mut() }.unwrap()
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -65,7 +60,7 @@ impl Isolate {
   /// Saves the previously entered one (if any), so that it can be
   /// restored when exiting.  Re-entering an isolate is allowed.
   pub fn enter(&mut self) {
-    unsafe { v8__Isolate__Enter(self.0) }
+    unsafe { v8__Isolate__Enter(self) }
   }
 
   /// Exits this isolate by restoring the previously entered one in the
@@ -74,7 +69,7 @@ impl Isolate {
   ///
   /// Requires: self == Isolate::GetCurrent().
   pub fn exit(&mut self) {
-    unsafe { v8__Isolate__Exit(self.0) }
+    unsafe { v8__Isolate__Exit(self) }
   }
 
   /// Tells V8 to capture current stack trace when uncaught exception occurs
@@ -86,7 +81,7 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
-        self.0,
+        self,
         capture,
         frame_limit,
       )
@@ -99,26 +94,13 @@ impl Isolate {
     &mut self,
     callback: PromiseRejectCallback,
   ) {
-    unsafe { v8__Isolate__SetPromiseRejectCallback(self.0, callback) }
+    unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
   }
 }
 
 impl Drop for Isolate {
   fn drop(&mut self) {
-    unsafe { v8__Isolate__Dispose(self.0) }
-  }
-}
-
-impl Deref for Isolate {
-  type Target = CxxIsolate;
-  fn deref(&self) -> &Self::Target {
-    self.0
-  }
-}
-
-impl DerefMut for Isolate {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.0
+    unsafe { v8__Isolate__Dispose(self) }
   }
 }
 
