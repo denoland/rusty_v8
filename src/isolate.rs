@@ -2,9 +2,12 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 
 use crate::array_buffer::Allocator;
+use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
+
+type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> &'static mut CxxIsolate;
@@ -16,6 +19,10 @@ extern "C" {
     caputre: bool,
     frame_limit: i32,
   );
+  fn v8__Isolate__SetPromiseRejectCallback(
+    isolate: &mut CxxIsolate,
+    callback: PromiseRejectCallback,
+  ) -> ();
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -84,6 +91,15 @@ impl Isolate {
         frame_limit,
       )
     }
+  }
+
+  /// Set callback to notify about promise reject with no handler, or
+  /// revocation of such a previous notification once the handler is added.
+  pub fn set_promise_reject_callback(
+    &mut self,
+    callback: PromiseRejectCallback,
+  ) {
+    unsafe { v8__Isolate__SetPromiseRejectCallback(self.0, callback) }
   }
 }
 

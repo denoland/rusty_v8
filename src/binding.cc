@@ -18,6 +18,9 @@ static_assert(sizeof(ScriptOrigin) == sizeof(size_t) * 7,
 static_assert(sizeof(HandleScope) == sizeof(size_t) * 3,
               "HandleScope size mismatch");
 
+static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
+              "PromiseRejectMessage size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
@@ -53,6 +56,11 @@ void v8__Isolate__Dispose(Isolate& isolate) {
 void v8__Isolate__Enter(Isolate& isolate) { isolate.Enter(); }
 
 void v8__Isolate__Exit(Isolate& isolate) { isolate.Exit(); }
+
+void v8__Isolate__SetPromiseRejectCallback(Isolate& isolate,
+                                           v8::PromiseRejectCallback callback) {
+  isolate.SetPromiseRejectCallback(callback);
+}
 
 void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate& isolate,
                                                             bool capture,
@@ -141,6 +149,10 @@ v8::Object* v8__Object__New(v8::Isolate* isolate,
                             v8::Local<v8::Value>* values, size_t length) {
   return local_to_ptr(
       v8::Object::New(isolate, prototype_or_null, names, values, length));
+}
+
+v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
+  return self.GetIsolate();
 }
 
 Number* v8__Number__New(Isolate* isolate, double value) {
@@ -352,6 +364,24 @@ v8::Promise* v8__Promise__Then2(v8::Promise* self,
                                 v8::Local<v8::Function> on_fulfilled,
                                 v8::Local<v8::Function> on_rejected) {
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
+}
+
+v8::PromiseRejectEvent 
+v8__PromiseRejectMessage__GetEvent(const v8::PromiseRejectMessage &self)
+{
+  return self.GetEvent();
+}
+
+v8::Promise*
+v8__PromiseRejectMessage__GetPromise(const v8::PromiseRejectMessage &self)
+{
+  return local_to_ptr(self.GetPromise());
+}
+
+v8::Value*
+v8__PromiseRejectMessage__GetValue(const v8::PromiseRejectMessage &self)
+{
+  return local_to_ptr(self.GetValue());
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {
