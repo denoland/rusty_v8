@@ -41,6 +41,21 @@ pub trait LockedIsolate {
 }
 
 impl Isolate {
+  /// Creates a new isolate.  Does not change the currently entered
+  /// isolate.
+  ///
+  /// When an isolate is no longer used its resources should be freed
+  /// by calling V8::dispose().  Using the delete operator is not allowed.
+  ///
+  /// V8::initialize() must have run prior to this.
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
+    // TODO: support CreateParams.
+    crate::V8::assert_initialized();
+    let isolate_ptr = unsafe { v8__Isolate__New(params.into_raw()) };
+    OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
+  }
+
   /// Initial configuration parameters for a new Isolate.
   pub fn create_params() -> UniqueRef<CreateParams> {
     CreateParams::new()
@@ -96,22 +111,6 @@ impl Isolate {
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate(NonNull<Isolate>);
-
-impl OwnedIsolate {
-  /// Creates a new isolate.  Does not change the currently entered
-  /// isolate.
-  ///
-  /// When an isolate is no longer used its resources should be freed
-  /// by calling V8::dispose().  Using the delete operator is not allowed.
-  ///
-  /// V8::initialize() must have run prior to this.
-  pub fn new<'a>(params: UniqueRef<CreateParams>) -> Self {
-    // TODO: support CreateParams.
-    crate::V8::assert_initialized();
-    let isolate_ptr = unsafe { v8__Isolate__New(params.into_raw()) };
-    Self(NonNull::new(isolate_ptr).unwrap())
-  }
-}
 
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
