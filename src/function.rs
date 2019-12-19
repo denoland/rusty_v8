@@ -70,23 +70,50 @@ impl ReturnValue {
   }
 }
 
+/// The argument information given to function call callbacks.  This
+/// class provides access to information about the context of the call,
+/// including the receiver, the number and values of arguments, and
+/// the holder of the function.
 #[repr(C)]
 pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
+  /// The ReturnValue for the call.
   pub fn get_return_value(&self) -> &mut ReturnValue {
     unsafe { &mut *v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }
 
+  /// The current Isolate.
   pub fn get_isolate(&self) -> &mut CxxIsolate {
     unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 
+  /// The number of available arguments.
   pub fn length(&self) -> int {
     unsafe { v8__FunctionCallbackInfo__Length(&*self) }
   }
 }
 
+/// A FunctionTemplate is used to create functions at runtime. There
+/// can only be one function created from a FunctionTemplate in a
+/// context.  The lifetime of the created function is equal to the
+/// lifetime of the context.  So in case the embedder needs to create
+/// temporary functions that can be collected using Scripts is
+/// preferred.
+///
+/// Any modification of a FunctionTemplate after first instantiation will trigger
+/// a crash.
+///
+/// A FunctionTemplate can have properties, these properties are added to the
+/// function object when it is created.
+///
+/// A FunctionTemplate has a corresponding instance template which is
+/// used to create object instances when the function is used as a
+/// constructor. Properties added to the instance template are added to
+/// each object instance.
+///
+/// A FunctionTemplate can have a prototype template. The prototype template
+/// is used to create the prototype object of the function.
 #[repr(C)]
 pub struct FunctionTemplate(Opaque);
 
@@ -105,6 +132,7 @@ impl FunctionTemplate {
     }
   }
 
+  /// Returns the unique function instance in the current execution context.
   pub fn get_function(
     &mut self,
     mut context: Local<'_, Context>,
@@ -118,10 +146,10 @@ impl FunctionTemplate {
   }
 }
 
+/// A JavaScript function object (ECMA-262, 15.3).
 #[repr(C)]
 pub struct Function(Opaque);
 
-/// A JavaScript function object (ECMA-262, 15.3).
 impl Function {
   // TODO: add remaining arguments from C++
   /// Create a function in the current execution context

@@ -62,6 +62,7 @@ bitflags! {
   }
 }
 
+/// A JavaScript string value (ECMA-262, 4.3.17).
 #[repr(C)]
 pub struct String(Opaque);
 

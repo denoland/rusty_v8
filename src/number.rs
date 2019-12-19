@@ -18,6 +18,7 @@ extern "C" {
   fn v8__Integer__Value(this: &Integer) -> i64;
 }
 
+/// A JavaScript number value (ECMA-262, 4.3.20)
 #[repr(C)]
 pub struct Number(Opaque);
 
@@ -44,6 +45,7 @@ impl Deref for Number {
   }
 }
 
+/// A JavaScript value representing a signed integer.
 #[repr(C)]
 pub struct Integer(Opaque);
 
