@@ -11,7 +11,7 @@ use crate::support::UniqueRef;
 use crate::Local;
 use crate::Value;
 
-type MessageCallback = extern "C" fn(Local<'_, Message>, Local<'_, Value>);
+type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
 type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 

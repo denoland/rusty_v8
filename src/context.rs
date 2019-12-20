@@ -15,7 +15,7 @@ extern "C" {
 pub struct Context(Opaque);
 
 impl Context {
-  pub fn new<'sc>(isolate: &Isolate) -> Local<'sc, Context> {
+  pub fn new(isolate: &Isolate) -> Local<Context> {
     // TODO: optional arguments;
     unsafe { Local::from_raw(v8__Context__New(isolate)).unwrap() }
   }
@@ -30,7 +30,7 @@ impl Context {
   /// Please note that changes to global proxy object prototype most probably
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
-  pub fn global<'sc>(&mut self) -> Local<'sc, Object> {
+  pub fn global(&mut self) -> Local<Object> {
     unsafe { Local::from_raw(v8__Context__Global(&mut *self)).unwrap() }
   }
 

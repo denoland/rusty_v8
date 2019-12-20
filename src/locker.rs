@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
@@ -17,9 +16,9 @@ extern "C" {
 }
 
 #[repr(C)]
-pub struct Locker<'sc>([usize; 2], PhantomData<&'sc mut ()>);
+pub struct Locker([usize; 2]);
 
-impl<'a> Locker<'a> {
+impl Locker {
   pub fn new(isolate: &Isolate) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
@@ -29,7 +28,7 @@ impl<'a> Locker<'a> {
   }
 }
 
-impl<'a> Drop for Locker<'a> {
+impl Drop for Locker {
   fn drop(&mut self) {
     unsafe { v8__Locker__DESTRUCT(self) }
   }

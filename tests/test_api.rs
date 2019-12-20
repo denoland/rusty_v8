@@ -1,10 +1,10 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+
 #[macro_use]
 extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, Local};
-use std::default::Default;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -91,13 +91,16 @@ fn test_string() {
   let locker = v8::Locker::new(&isolate);
   v8::HandleScope::enter(&isolate, |_scope| {
     let reference = "Hello 🦕 world!";
-    let local =
-      v8::String::new(&isolate, reference, v8::NewStringType::Normal).unwrap();
+    let local = v8_str(&isolate, reference);
     assert_eq!(15, local.length());
     assert_eq!(17, local.utf8_length(&isolate));
     assert_eq!(reference, local.to_rust_string_lossy(&isolate));
   });
   drop(locker);
+}
+
+fn v8_str(isolate: &v8::Isolate, s: &str) -> v8::Local<v8::String> {
+  v8::String::new(&isolate, s, v8::NewStringType::Normal).unwrap()
 }
 
 #[test]
@@ -114,8 +117,8 @@ fn isolate_add_message_listener() {
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
-    message: Local<'_, v8::Message>,
-    _exception: Local<'_, v8::Value>,
+    message: Local<v8::Message>,
+    _exception: Local<v8::Value>,
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     let isolate = message.get_isolate();
@@ -128,8 +131,7 @@ fn isolate_add_message_listener() {
   v8::HandleScope::enter(&isolate, |_s| {
     let mut context = v8::Context::new(&isolate);
     context.enter();
-    let source =
-      v8::String::new(&isolate, "throw 'foo'", Default::default()).unwrap();
+    let source = v8_str(&isolate, "throw 'foo'");
     let mut script = v8::Script::compile(context, source, None).unwrap();
     assert!(script.run(context).is_none());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
@@ -152,12 +154,7 @@ fn script_compile_and_run() {
   v8::HandleScope::enter(&isolate, |_s| {
     let mut context = v8::Context::new(&isolate);
     context.enter();
-    let source = v8::String::new(
-      &isolate,
-      "'Hello ' + 13 + 'th planet'",
-      Default::default(),
-    )
-    .unwrap();
+    let source = v8_str(&isolate, "'Hello ' + 13 + 'th planet'");
     let mut script = v8::Script::compile(context, source, None).unwrap();
     source.to_rust_string_lossy(&isolate);
     let result = script.run(context).unwrap();
@@ -184,14 +181,12 @@ fn script_origin() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
 
-    let resource_name =
-      v8::String::new(&isolate, "foo.js", Default::default()).unwrap();
+    let resource_name = v8_str(&isolate, "foo.js");
     let resource_line_offset = v8::Integer::new(&isolate, 4);
     let resource_column_offset = v8::Integer::new(&isolate, 5);
     let resource_is_shared_cross_origin = v8::new_true(&isolate);
     let script_id = v8::Integer::new(&isolate, 123);
-    let source_map_url =
-      v8::String::new(&isolate, "source_map_url", Default::default()).unwrap();
+    let source_map_url = v8_str(&isolate, "source_map_url");
     let resource_is_opaque = v8::new_true(&isolate);
     let is_wasm = v8::new_false(&isolate);
     let is_module = v8::new_false(&isolate);
@@ -208,7 +203,7 @@ fn script_origin() {
       is_module,
     );
 
-    let source = v8::String::new(&isolate, "1+2", Default::default()).unwrap();
+    let source = v8_str(&isolate, "1+2");
     let mut script =
       v8::Script::compile(context, source, Some(&script_origin)).unwrap();
     source.to_rust_string_lossy(&isolate);
@@ -311,8 +306,7 @@ fn exception() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
     let reference = "This is a test error";
-    let local =
-      v8::String::new(&isolate, reference, v8::NewStringType::Normal).unwrap();
+    let local = v8_str(&isolate, reference);
     v8::Exception::RangeError(local);
     v8::Exception::ReferenceError(local);
     v8::Exception::SyntaxError(local);
@@ -344,9 +338,7 @@ fn json() {
   v8::HandleScope::enter(&isolate, |_s| {
     let mut context = v8::Context::new(&isolate);
     context.enter();
-    let json_string =
-      v8::String::new(&isolate, "{\"a\": 1, \"b\": 2}", Default::default())
-        .unwrap();
+    let json_string = v8_str(&isolate, "{\"a\": 1, \"b\": 2}");
     let maybe_value = v8::JSON::Parse(context, json_string);
     assert!(maybe_value.is_some());
     let value = maybe_value.unwrap();
@@ -379,8 +371,8 @@ fn object() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
     let null: v8::Local<v8::Value> = new_null(&isolate).into();
-    let s1 = v8::String::new(&isolate, "a", v8::NewStringType::Normal).unwrap();
-    let s2 = v8::String::new(&isolate, "b", v8::NewStringType::Normal).unwrap();
+    let s1 = v8_str(&isolate, "a");
+    let s2 = v8_str(&isolate, "b");
     let name1: Local<v8::Name> = cast(s1);
     let name2: Local<v8::Name> = cast(s2);
     let names = vec![name1, name2];
@@ -412,8 +404,7 @@ fn promise_resolved() {
     let mut promise = resolver.get_promise();
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str =
-      v8::String::new(&isolate, "test", v8::NewStringType::Normal).unwrap();
+    let str = v8_str(&isolate, "test");
     let value: Local<v8::Value> = cast(str);
     resolver.resolve(context, value);
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
@@ -425,8 +416,7 @@ fn promise_resolved() {
     );
     // Resolve again with different value, since promise is already in `Fulfilled` state
     // it should be ignored.
-    let str =
-      v8::String::new(&isolate, "test2", v8::NewStringType::Normal).unwrap();
+    let str = v8_str(&isolate, "test2");
     let value: Local<v8::Value> = cast(str);
     resolver.resolve(context, value);
     let result = promise.result();
@@ -458,8 +448,7 @@ fn promise_rejected() {
     let mut promise = resolver.get_promise();
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str =
-      v8::String::new(&isolate, "test", v8::NewStringType::Normal).unwrap();
+    let str = v8_str(&isolate, "test");
     let value: Local<v8::Value> = cast(str);
     let rejected = resolver.reject(context, value);
     assert!(rejected.unwrap());
@@ -472,8 +461,7 @@ fn promise_rejected() {
     );
     // Reject again with different value, since promise is already in `Rejected` state
     // it should be ignored.
-    let str =
-      v8::String::new(&isolate, "test2", v8::NewStringType::Normal).unwrap();
+    let str = v8_str(&isolate, "test2");
     let value: Local<v8::Value> = cast(str);
     resolver.reject(context, value);
     let result = promise.result();
@@ -493,9 +481,7 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
   v8::HandleScope::enter(&isolate, |_scope| {
     let mut context = v8::Context::new(&isolate);
     context.enter();
-    let s =
-      v8::String::new(&isolate, "Hello callback!", v8::NewStringType::Normal)
-        .unwrap();
+    let s = v8_str(&isolate, "Hello callback!");
     let value: Local<v8::Value> = s.into();
     let rv = info.get_return_value();
     let rv_value = rv.get();
@@ -571,9 +557,7 @@ fn set_promise_reject_callback() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
     let mut resolver = v8::PromiseResolver::new(context).unwrap();
-    let str_ =
-      v8::String::new(&isolate, "promise rejected", v8::NewStringType::Normal)
-        .unwrap();
+    let str_ = v8_str(&isolate, "promise rejected");
     let value: Local<v8::Value> = cast(str_);
     resolver.reject(context, value);
     context.exit();

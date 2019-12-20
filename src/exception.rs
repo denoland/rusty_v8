@@ -45,7 +45,7 @@ impl StackTrace {
 pub struct Message(Opaque);
 
 impl Message {
-  pub fn get(&self) -> Local<'_, String> {
+  pub fn get(&self) -> Local<String> {
     unsafe { Local::from_raw(v8__Message__Get(self)) }.unwrap()
   }
 
@@ -62,10 +62,10 @@ pub mod Exception {
   /// Creates an error message for the given exception.
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
-  pub fn CreateMessage<'sc>(
+  pub fn CreateMessage(
     isolate: &Isolate,
-    mut exception: Local<'sc, Value>,
-  ) -> Local<'sc, Message> {
+    mut exception: Local<Value>,
+  ) -> Local<Message> {
     unsafe {
       Local::from_raw(v8__Exception__CreateMessage(isolate, &mut *exception))
     }
@@ -75,31 +75,31 @@ pub mod Exception {
   /// Returns the original stack trace that was captured at the creation time
   /// of a given exception, or an empty handle if not available.
   pub fn GetStackTrace(
-    mut exception: Local<'_, Value>,
-  ) -> Option<Local<'_, StackTrace>> {
+    mut exception: Local<Value>,
+  ) -> Option<Local<StackTrace>> {
     unsafe { Local::from_raw(v8__Exception__GetStackTrace(&mut *exception)) }
   }
 
-  pub fn RangeError(mut message: Local<'_, String>) -> Local<'_, Value> {
+  pub fn RangeError(mut message: Local<String>) -> Local<Value> {
     unsafe { Local::from_raw(v8__Exception__RangeError(&mut *message)) }
       .unwrap()
   }
 
-  pub fn ReferenceError(mut message: Local<'_, String>) -> Local<'_, Value> {
+  pub fn ReferenceError(mut message: Local<String>) -> Local<Value> {
     unsafe { Local::from_raw(v8__Exception__ReferenceError(&mut *message)) }
       .unwrap()
   }
 
-  pub fn SyntaxError(mut message: Local<'_, String>) -> Local<'_, Value> {
+  pub fn SyntaxError(mut message: Local<String>) -> Local<Value> {
     unsafe { Local::from_raw(v8__Exception__SyntaxError(&mut *message)) }
       .unwrap()
   }
 
-  pub fn TypeError(mut message: Local<'_, String>) -> Local<'_, Value> {
+  pub fn TypeError(mut message: Local<String>) -> Local<Value> {
     unsafe { Local::from_raw(v8__Exception__TypeError(&mut *message)) }.unwrap()
   }
 
-  pub fn Error(mut message: Local<'_, String>) -> Local<'_, Value> {
+  pub fn Error(mut message: Local<String>) -> Local<Value> {
     unsafe { Local::from_raw(v8__Exception__Error(&mut *message)) }.unwrap()
   }
 }

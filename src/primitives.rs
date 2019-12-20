@@ -28,19 +28,19 @@ extern "C" {
   fn v8__False(isolate: &Isolate) -> *mut Boolean;
 }
 
-pub fn new_null<'sc>(isolate: &Isolate) -> Local<'sc, Primitive> {
+pub fn new_null(isolate: &Isolate) -> Local<Primitive> {
   unsafe { Local::from_raw(v8__Null(isolate)) }.unwrap()
 }
 
-pub fn new_undefined<'sc>(isolate: &Isolate) -> Local<'sc, Primitive> {
+pub fn new_undefined(isolate: &Isolate) -> Local<Primitive> {
   unsafe { Local::from_raw(v8__Undefined(isolate)) }.unwrap()
 }
 
-pub fn new_true<'sc>(isolate: &Isolate) -> Local<'sc, Boolean> {
+pub fn new_true(isolate: &Isolate) -> Local<Boolean> {
   unsafe { Local::from_raw(v8__True(isolate)) }.unwrap()
 }
 
-pub fn new_false<'sc>(isolate: &Isolate) -> Local<'sc, Boolean> {
+pub fn new_false(isolate: &Isolate) -> Local<Boolean> {
   unsafe { Local::from_raw(v8__False(isolate)) }.unwrap()
 }
 
