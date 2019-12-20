@@ -21,6 +21,9 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
+static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
+              "ReturnValue size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
@@ -272,11 +275,10 @@ v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
   return self->GetIsolate();
 }
 
-v8::ReturnValue<v8::Value>* v8__FunctionCallbackInfo__GetReturnValue(
-    v8::FunctionCallbackInfo<v8::Value>* self) {
-  v8::ReturnValue<v8::Value>* rv =
-      new v8::ReturnValue<v8::Value>(self->GetReturnValue());
-  return rv;
+void v8__FunctionCallbackInfo__GetReturnValue(
+    v8::FunctionCallbackInfo<v8::Value>* self,
+    v8::ReturnValue<v8::Value>* out) {
+  *out = self->GetReturnValue();
 }
 
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
@@ -393,6 +395,22 @@ v8::Promise* v8__PromiseRejectMessage__GetPromise(
 v8::Value* v8__PromiseRejectMessage__GetValue(
     const v8::PromiseRejectMessage& self) {
   return local_to_ptr(self.GetValue());
+}
+
+v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
+    const v8::PropertyCallbackInfo<v8::Value>* self) {
+  return self->GetIsolate();
+}
+
+v8::Object* v8__PropertyCallbackInfo__This(
+    const v8::PropertyCallbackInfo<v8::Value>* self) {
+  return local_to_ptr(self->This());
+}
+
+void v8__PropertyCallbackInfo__GetReturnValue(
+    const v8::PropertyCallbackInfo<v8::Value>* self,
+    v8::ReturnValue<v8::Value>* out) {
+  *out = self->GetReturnValue();
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {

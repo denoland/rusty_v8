@@ -21,6 +21,7 @@ mod number;
 mod object;
 mod primitives;
 mod promise;
+mod property;
 mod script;
 mod string;
 mod support;
@@ -37,7 +38,9 @@ pub mod V8;
 
 pub use context::Context;
 pub use exception::*;
-pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
+pub use function::{
+  Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
+};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;
@@ -51,6 +54,7 @@ pub use promise::{
   Promise, PromiseRejectEvent, PromiseRejectMessage, PromiseResolver,
   PromiseState,
 };
+pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
 pub use string::NewStringType;
 pub use string::String;

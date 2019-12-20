@@ -483,7 +483,7 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
     context.enter();
     let s = v8_str(&isolate, "Hello callback!");
     let value: Local<v8::Value> = s.into();
-    let rv = info.get_return_value();
+    let rv = &mut info.get_return_value();
     let rv_value = rv.get();
     assert!(rv_value.is_undefined());
     rv.set(value);
