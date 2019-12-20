@@ -14,7 +14,6 @@ mod exception;
 mod function;
 mod handle_scope;
 mod isolate;
-mod json;
 mod local;
 mod locker;
 mod number;
@@ -28,6 +27,7 @@ mod value;
 
 pub mod array_buffer;
 pub mod inspector;
+pub mod json;
 pub mod platform;
 // This module is intentionally named "V8" rather than "v8" to match the
 // C++ namespace "v8::V8".
@@ -35,13 +35,11 @@ pub mod platform;
 pub mod V8;
 
 pub use context::Context;
-pub use exception::Exception;
-pub use exception::Message;
+pub use exception::*;
 pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;
-pub use json::JSON;
 pub use local::Local;
 pub use locker::Locker;
 pub use number::{Integer, Number};

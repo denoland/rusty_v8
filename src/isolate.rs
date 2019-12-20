@@ -1,15 +1,15 @@
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::ptr::NonNull;
-
+// Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::array_buffer::Allocator;
-use crate::exception::Message;
 use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
 use crate::Local;
+use crate::Message;
 use crate::Value;
+use std::ops::Deref;
+use std::ops::DerefMut;
+use std::ptr::NonNull;
 
 type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
@@ -44,6 +44,12 @@ extern "C" {
 }
 
 #[repr(C)]
+/// Isolate represents an isolated instance of the V8 engine.  V8 isolates have
+/// completely separate states.  Objects from one isolate must not be used in
+/// other isolates.  The embedder can create multiple isolates and use them in
+/// parallel in multiple threads.  An isolate can be entered by at most one
+/// thread at any given time.  The Locker/Unlocker API must be used to
+/// synchronize.
 pub struct Isolate(Opaque);
 
 impl Isolate {

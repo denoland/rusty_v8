@@ -1,3 +1,4 @@
+// Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::isolate::Isolate;
 use crate::support::Opaque;
 use crate::Local;
@@ -11,6 +12,8 @@ extern "C" {
   fn v8__Context__Global(this: *mut Context) -> *mut Object;
 }
 
+/// A sandboxed execution context with its own set of built-in objects and
+/// functions.
 #[repr(C)]
 pub struct Context(Opaque);
 
@@ -34,11 +37,17 @@ impl Context {
     unsafe { Local::from_raw(v8__Context__Global(&mut *self)).unwrap() }
   }
 
+  /// Enter this context.  After entering a context, all code compiled
+  /// and run is compiled and run in this context.  If another context
+  /// is already entered, this old context is saved so it can be
+  /// restored when the new context is exited.
   pub fn enter(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Enter(self) };
   }
 
+  /// Exit this context.  Exiting the current context restores the
+  /// context that was in place when entering the current context.
   pub fn exit(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
