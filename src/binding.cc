@@ -8,114 +8,113 @@
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8.h"
 
-// TODO(ry) do not use "using namespace" so the binding code is more explicit.
-using namespace v8;
 using namespace support;
 
-static_assert(sizeof(ScriptOrigin) == sizeof(size_t) * 7,
+static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
               "ScriptOrigin size mismatch");
 
-static_assert(sizeof(HandleScope) == sizeof(size_t) * 3,
+static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
               "HandleScope size mismatch");
 
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
-static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2,
-              "Locker size mismatch");
+static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
-  V8::SetFlagsFromCommandLine(argc, argv, true);
+  v8::V8::SetFlagsFromCommandLine(argc, argv, true);
 }
 
-const char* v8__V8__GetVersion() { return V8::GetVersion(); }
+const char* v8__V8__GetVersion() { return v8::V8::GetVersion(); }
 
-void v8__V8__InitializePlatform(Platform& platform) {
-  V8::InitializePlatform(&platform);
+void v8__V8__InitializePlatform(v8::Platform& platform) {
+  v8::V8::InitializePlatform(&platform);
 }
 
-void v8__V8__Initialize() { V8::Initialize(); }
+void v8__V8__Initialize() { v8::V8::Initialize(); }
 
-bool v8__V8__Dispose() { return V8::Dispose(); }
+bool v8__V8__Dispose() { return v8::V8::Dispose(); }
 
-void v8__V8__ShutdownPlatform() { V8::ShutdownPlatform(); }
+void v8__V8__ShutdownPlatform() { v8::V8::ShutdownPlatform(); }
 
 // This function consumes the Isolate::CreateParams object. The Isolate takes
 // ownership of the ArrayBuffer::Allocator referenced by the params object.
-Isolate* v8__Isolate__New(Isolate::CreateParams& params) {
-  auto isolate = Isolate::New(params);
+v8::Isolate* v8__Isolate__New(v8::Isolate::CreateParams& params) {
+  auto isolate = v8::Isolate::New(params);
   delete &params;
   return isolate;
 }
 
-void v8__Isolate__Dispose(Isolate* isolate) {
+void v8__Isolate__Dispose(v8::Isolate* isolate) {
   auto allocator = isolate->GetArrayBufferAllocator();
   isolate->Dispose();
   delete allocator;
 }
 
-void v8__Isolate__Enter(Isolate* isolate) { isolate->Enter(); }
+void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
-void v8__Isolate__Exit(Isolate* isolate) { isolate->Exit(); }
+void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
-void v8__Isolate__SetPromiseRejectCallback(Isolate* isolate,
+void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
   isolate->SetPromiseRejectCallback(callback);
 }
 
-void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate* isolate,
-                                                            bool capture,
-                                                            int frame_limit) {
+void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
+    v8::Isolate* isolate, bool capture, int frame_limit) {
   // Note: StackTraceOptions are deprecated so we don't bother to bind to it.
   isolate->SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
 }
 
-bool v8__Isolate__AddMessageListener(Isolate& isolate,
+bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
                                      v8::MessageCallback callback) {
   return isolate.AddMessageListener(callback);
 }
 
-Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
-  return new Isolate::CreateParams();
+v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
+  return new v8::Isolate::CreateParams();
 }
 
 // This function is only called if the Isolate::CreateParams object is *not*
 // consumed by Isolate::New().
-void v8__Isolate__CreateParams__DELETE(Isolate::CreateParams& self) {
+void v8__Isolate__CreateParams__DELETE(v8::Isolate::CreateParams& self) {
   delete self.array_buffer_allocator;
   delete &self;
 }
 
 // This function takes ownership of the ArrayBuffer::Allocator.
 void v8__Isolate__CreateParams__SET__array_buffer_allocator(
-    Isolate::CreateParams& self, ArrayBuffer::Allocator* value) {
+    v8::Isolate::CreateParams& self, v8::ArrayBuffer::Allocator* value) {
   delete self.array_buffer_allocator;
   self.array_buffer_allocator = value;
 }
 
-void v8__HandleScope__CONSTRUCT(uninit_t<HandleScope>& buf, Isolate* isolate) {
-  construct_in_place<HandleScope>(buf, isolate);
+void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>& buf,
+                                v8::Isolate* isolate) {
+  construct_in_place<v8::HandleScope>(buf, isolate);
 }
 
-void v8__HandleScope__DESTRUCT(HandleScope& self) { self.~HandleScope(); }
+void v8__HandleScope__DESTRUCT(v8::HandleScope& self) { self.~HandleScope(); }
 
-Isolate* v8__HandleScope__GetIsolate(const HandleScope& self) {
+v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
   return self.GetIsolate();
 }
 
-void v8__Locker__CONSTRUCT(uninit_t<Locker>& buf, Isolate* isolate) {
-  construct_in_place<Locker>(buf, isolate);
+void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>& buf, v8::Isolate* isolate) {
+  construct_in_place<v8::Locker>(buf, isolate);
 }
 
-void v8__Locker__DESTRUCT(Locker& self) { self.~Locker(); }
+void v8__Locker__DESTRUCT(v8::Locker& self) { self.~Locker(); }
 
-bool v8__Value__IsUndefined(const Value& self) { return self.IsUndefined(); }
+bool v8__Value__IsUndefined(const v8::Value& self) {
+  return self.IsUndefined();
+}
 
-bool v8__Value__IsNull(const Value& self) { return self.IsNull(); }
+bool v8__Value__IsNull(const v8::Value& self) { return self.IsNull(); }
 
-bool v8__Value__IsNullOrUndefined(const Value& self) {
+bool v8__Value__IsNullOrUndefined(const v8::Value& self) {
   return self.IsNullOrUndefined();
 }
 
@@ -135,19 +134,21 @@ v8::Boolean* v8__False(v8::Isolate* isolate) {
   return local_to_ptr(v8::False(isolate));
 }
 
-String* v8__String__NewFromUtf8(Isolate* isolate, const char* data,
-                                NewStringType type, int length) {
-  return maybe_local_to_ptr(String::NewFromUtf8(isolate, data, type, length));
+v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
+                                    v8::NewStringType type, int length) {
+  return maybe_local_to_ptr(
+      v8::String::NewFromUtf8(isolate, data, type, length));
 }
 
-int v8__String__Length(const String& self) { return self.Length(); }
+int v8__String__Length(const v8::String& self) { return self.Length(); }
 
-int v8__String__Utf8Length(const String& self, Isolate* isolate) {
+int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
   return self.Utf8Length(isolate);
 }
 
-int v8__String__WriteUtf8(const String& self, Isolate* isolate, char* buffer,
-                          int length, int* nchars_ref, int options) {
+int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
+                          char* buffer, int length, int* nchars_ref,
+                          int options) {
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
@@ -163,42 +164,45 @@ v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
   return self.GetIsolate();
 }
 
-Number* v8__Number__New(Isolate* isolate, double value) {
-  return *Number::New(isolate, value);
+v8::Number* v8__Number__New(v8::Isolate* isolate, double value) {
+  return *v8::Number::New(isolate, value);
 }
 
-double v8__Number__Value(const Number& self) { return self.Value(); }
+double v8__Number__Value(const v8::Number& self) { return self.Value(); }
 
-Integer* v8__Integer__New(Isolate* isolate, int32_t value) {
-  return *Integer::New(isolate, value);
+v8::Integer* v8__Integer__New(v8::Isolate* isolate, int32_t value) {
+  return *v8::Integer::New(isolate, value);
 }
 
-Integer* v8__Integer__NewFromUnsigned(Isolate* isolate, uint32_t value) {
-  return *Integer::NewFromUnsigned(isolate, value);
+v8::Integer* v8__Integer__NewFromUnsigned(v8::Isolate* isolate,
+                                          uint32_t value) {
+  return *v8::Integer::NewFromUnsigned(isolate, value);
 }
 
-int64_t v8__Integer__Value(const Integer& self) { return self.Value(); }
+int64_t v8__Integer__Value(const v8::Integer& self) { return self.Value(); }
 
-ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
-  return ArrayBuffer::Allocator::NewDefaultAllocator();
+v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
+  return v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 }
 
-void v8__ArrayBuffer__Allocator__DELETE(ArrayBuffer::Allocator& self) {
+void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator& self) {
   delete &self;
 }
 
-Context* v8__Context__New(Isolate* isolate) {
+v8::Context* v8__Context__New(v8::Isolate* isolate) {
   // TODO: optional arguments.
-  return *Context::New(isolate);
+  return *v8::Context::New(isolate);
 }
 
-void v8__Context__Enter(Context& self) { self.Enter(); }
+void v8__Context__Enter(v8::Context& self) { self.Enter(); }
 
-void v8__Context__Exit(Context& self) { self.Exit(); }
+void v8__Context__Exit(v8::Context& self) { self.Exit(); }
 
-Isolate* v8__Context__GetIsolate(Context& self) { return self.GetIsolate(); }
+v8::Isolate* v8__Context__GetIsolate(v8::Context& self) {
+  return self.GetIsolate();
+}
 
-Object* v8__Context__Global(Context& self) { return *self.Global(); }
+v8::Object* v8__Context__Global(v8::Context& self) { return *self.Global(); }
 
 v8::String* v8__Message__Get(const v8::Message* self) {
   return local_to_ptr(self->Get());
@@ -292,25 +296,23 @@ int v8__StackTrace__GetFrameCount(v8::StackTrace* self) {
   return self->GetFrameCount();
 }
 
-Script* v8__Script__Compile(Context* context, String* source,
-                            ScriptOrigin* origin) {
+v8::Script* v8__Script__Compile(v8::Context* context, v8::String* source,
+                                v8::ScriptOrigin* origin) {
   return maybe_local_to_ptr(
-      Script::Compile(ptr_to_local(context), ptr_to_local(source), origin));
+      v8::Script::Compile(ptr_to_local(context), ptr_to_local(source), origin));
 }
 
-Value* v8__Script__Run(Script& script, Context* context) {
+v8::Value* v8__Script__Run(v8::Script& script, v8::Context* context) {
   return maybe_local_to_ptr(script.Run(ptr_to_local(context)));
 }
 
-void v8__ScriptOrigin__CONSTRUCT(uninit_t<ScriptOrigin>& buf,
-                                 Value* resource_name,
-                                 Integer* resource_line_offset,
-                                 Integer* resource_column_offset,
-                                 Boolean* resource_is_shared_cross_origin,
-                                 Integer* script_id, Value* source_map_url,
-                                 Boolean* resource_is_opaque, Boolean* is_wasm,
-                                 Boolean* is_module) {
-  construct_in_place<ScriptOrigin>(
+void v8__ScriptOrigin__CONSTRUCT(
+    uninit_t<v8::ScriptOrigin>& buf, v8::Value* resource_name,
+    v8::Integer* resource_line_offset, v8::Integer* resource_column_offset,
+    v8::Boolean* resource_is_shared_cross_origin, v8::Integer* script_id,
+    v8::Value* source_map_url, v8::Boolean* resource_is_opaque,
+    v8::Boolean* is_wasm, v8::Boolean* is_module) {
+  construct_in_place<v8::ScriptOrigin>(
       buf, ptr_to_local(resource_name), ptr_to_local(resource_line_offset),
       ptr_to_local(resource_column_offset),
       ptr_to_local(resource_is_shared_cross_origin), ptr_to_local(script_id),
@@ -399,13 +401,13 @@ v8::Platform* v8__platform__NewDefaultPlatform() {
 }
 
 void v8__Platform__DELETE(v8::Platform& self) { delete &self; }
-void v8__Task__BASE__DELETE(Task& self);
-void v8__Task__BASE__Run(Task& self);
+void v8__Task__BASE__DELETE(v8::Task& self);
+void v8__Task__BASE__Run(v8::Task& self);
 
-struct v8__Task__BASE : public Task {
+struct v8__Task__BASE : public v8::Task {
   using Task::Task;
   void operator delete(void* ptr) noexcept {
-    v8__Task__BASE__DELETE(*reinterpret_cast<Task*>(ptr));
+    v8__Task__BASE__DELETE(*reinterpret_cast<v8::Task*>(ptr));
   }
   void Run() override { v8__Task__BASE__Run(*this); }
 };
@@ -413,8 +415,8 @@ struct v8__Task__BASE : public Task {
 void v8__Task__BASE__CONSTRUCT(uninit_t<v8__Task__BASE>& buf) {
   construct_in_place<v8__Task__BASE>(buf);
 }
-void v8__Task__DELETE(Task& self) { delete &self; }
-void v8__Task__Run(Task& self) { self.Run(); }
+void v8__Task__DELETE(v8::Task& self) { delete &self; }
+void v8__Task__Run(v8::Task& self) { self.Run(); }
 
 void v8_inspector__V8Inspector__Channel__BASE__sendResponse(
     v8_inspector::V8Inspector::Channel& self, int callId,
