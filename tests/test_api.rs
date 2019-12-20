@@ -339,10 +339,10 @@ fn json() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
     let json_string = v8_str(&isolate, "{\"a\": 1, \"b\": 2}");
-    let maybe_value = v8::JSON::Parse(context, json_string);
+    let maybe_value = v8::json::parse(context, json_string);
     assert!(maybe_value.is_some());
     let value = maybe_value.unwrap();
-    let maybe_stringified = v8::JSON::Stringify(context, value);
+    let maybe_stringified = v8::json::stringify(context, value);
     assert!(maybe_stringified.is_some());
     let stringified = maybe_stringified.unwrap();
     let rust_str = stringified.to_rust_string_lossy(&isolate);
