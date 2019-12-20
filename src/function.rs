@@ -3,6 +3,7 @@ use crate::Context;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
+use std::mem::MaybeUninit;
 
 extern "C" {
   fn v8__Function__New(
@@ -32,7 +33,8 @@ extern "C" {
   fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: &FunctionCallbackInfo,
-  ) -> *mut ReturnValue;
+    out: *mut ReturnValue,
+  );
 
   fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value) -> ();
   fn v8__ReturnValue__Get(rv: *mut ReturnValue) -> *mut Value;
@@ -40,7 +42,7 @@ extern "C" {
 }
 
 #[repr(C)]
-pub struct ReturnValue(Opaque);
+pub struct ReturnValue([usize; 1]);
 
 /// In V8 ReturnValue<> has a type parameter, but
 /// it turns out that in most of the APIs it's ReturnValue<Value>
@@ -76,8 +78,12 @@ pub struct FunctionCallbackInfo(Opaque);
 impl FunctionCallbackInfo {
   /// The ReturnValue for the call.
   #[allow(clippy::mut_from_ref)]
-  pub fn get_return_value(&self) -> &mut ReturnValue {
-    unsafe { &mut *v8__FunctionCallbackInfo__GetReturnValue(&*self) }
+  pub fn get_return_value(&self) -> ReturnValue {
+    let mut rv = MaybeUninit::<ReturnValue>::uninit();
+    unsafe {
+      v8__FunctionCallbackInfo__GetReturnValue(&*self, rv.as_mut_ptr());
+      rv.assume_init()
+    }
   }
 
   /// The current Isolate.

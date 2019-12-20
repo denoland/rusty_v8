@@ -38,7 +38,9 @@ pub mod V8;
 
 pub use context::Context;
 pub use exception::*;
-pub use function::{Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue};
+pub use function::{
+  Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
+};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;

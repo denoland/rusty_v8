@@ -483,7 +483,7 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
     context.enter();
     let s = v8_str(&isolate, "Hello callback!");
     let value: Local<v8::Value> = s.into();
-    let rv = info.get_return_value();
+    let rv = &mut info.get_return_value();
     let rv_value = rv.get();
     assert!(rv_value.is_undefined());
     rv.set(value);
@@ -557,13 +557,7 @@ fn set_promise_reject_callback() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
     let mut resolver = v8::PromiseResolver::new(context).unwrap();
-<<<<<<< HEAD
-    let str_ =
-      v8::String::new(scope, "promise rejected", v8::NewStringType::Normal)
-        .unwrap();
-=======
     let str_ = v8_str(&isolate, "promise rejected");
->>>>>>> master
     let value: Local<v8::Value> = cast(str_);
     resolver.reject(context, value);
     context.exit();
