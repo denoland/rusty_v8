@@ -35,8 +35,7 @@ pub mod platform;
 pub mod V8;
 
 pub use context::Context;
-pub use exception::Exception;
-pub use exception::Message;
+pub use exception::*;
 pub use function::{Function, FunctionCallbackInfo, FunctionTemplate};
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;

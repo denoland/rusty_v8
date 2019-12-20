@@ -307,19 +307,19 @@ fn exception() {
     context.enter();
     let reference = "This is a test error";
     let local = v8_str(&isolate, reference);
-    v8::Exception::RangeError(local);
-    v8::Exception::ReferenceError(local);
-    v8::Exception::SyntaxError(local);
-    v8::Exception::TypeError(local);
-    let exception = v8::Exception::Error(local);
-    let msg = v8::Exception::CreateMessage(&isolate, exception);
+    v8::range_error(local);
+    v8::reference_error(local);
+    v8::syntax_error(local);
+    v8::type_error(local);
+    let exception = v8::error(local);
+    let msg = v8::create_message(&isolate, exception);
     let msg_string = msg.get();
     let rust_msg_string = msg_string.to_rust_string_lossy(&isolate);
     assert_eq!(
       "Uncaught Error: This is a test error".to_string(),
       rust_msg_string
     );
-    assert!(v8::Exception::GetStackTrace(exception).is_none());
+    assert!(v8::get_stack_trace(exception).is_none());
     context.exit();
   });
   drop(locker);
