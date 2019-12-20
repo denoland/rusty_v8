@@ -1,9 +1,7 @@
 use std::ops::Deref;
 
 use crate::isolate::Isolate;
-use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Local;
 use crate::Value;
 
@@ -21,31 +19,29 @@ pub struct Boolean(Opaque);
 pub struct Name(Opaque);
 
 extern "C" {
-  fn v8__Null(isolate: *mut Isolate) -> *mut Primitive;
+  fn v8__Null(isolate: &Isolate) -> *mut Primitive;
 
-  fn v8__Undefined(isolate: *mut Isolate) -> *mut Primitive;
+  fn v8__Undefined(isolate: &Isolate) -> *mut Primitive;
 
-  fn v8__True(isolate: *mut Isolate) -> *mut Boolean;
+  fn v8__True(isolate: &Isolate) -> *mut Boolean;
 
-  fn v8__False(isolate: *mut Isolate) -> *mut Boolean;
+  fn v8__False(isolate: &Isolate) -> *mut Boolean;
 }
 
-pub fn new_null<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Primitive> {
-  unsafe { Local::from_raw(v8__Null(scope.cxx_isolate())) }.unwrap()
+pub fn new_null<'sc>(isolate: &Isolate) -> Local<'sc, Primitive> {
+  unsafe { Local::from_raw(v8__Null(isolate)) }.unwrap()
 }
 
-pub fn new_undefined<'sc>(
-  scope: &mut HandleScope<'sc>,
-) -> Local<'sc, Primitive> {
-  unsafe { Local::from_raw(v8__Undefined(scope.cxx_isolate())) }.unwrap()
+pub fn new_undefined<'sc>(isolate: &Isolate) -> Local<'sc, Primitive> {
+  unsafe { Local::from_raw(v8__Undefined(isolate)) }.unwrap()
 }
 
-pub fn new_true<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Boolean> {
-  unsafe { Local::from_raw(v8__True(scope.cxx_isolate())) }.unwrap()
+pub fn new_true<'sc>(isolate: &Isolate) -> Local<'sc, Boolean> {
+  unsafe { Local::from_raw(v8__True(isolate)) }.unwrap()
 }
 
-pub fn new_false<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Boolean> {
-  unsafe { Local::from_raw(v8__False(scope.cxx_isolate())) }.unwrap()
+pub fn new_false<'sc>(isolate: &Isolate) -> Local<'sc, Boolean> {
+  unsafe { Local::from_raw(v8__False(isolate)) }.unwrap()
 }
 
 impl Deref for Primitive {

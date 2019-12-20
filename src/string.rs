@@ -5,17 +5,15 @@ use std::ops::Deref;
 use std::slice;
 
 use crate::isolate::Isolate;
-use crate::isolate::LockedIsolate;
 use crate::support::char;
 use crate::support::int;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Local;
 use crate::Value;
 
 extern "C" {
   fn v8__String__NewFromUtf8(
-    isolate: *mut Isolate,
+    isolate: &Isolate,
     data: *const char,
     new_type: NewStringType,
     length: int,
@@ -23,11 +21,11 @@ extern "C" {
 
   fn v8__String__Length(this: &String) -> int;
 
-  fn v8__String__Utf8Length(this: &String, isolate: *mut Isolate) -> int;
+  fn v8__String__Utf8Length(this: &String, isolate: &Isolate) -> int;
 
   fn v8__String__WriteUtf8(
     this: &String,
-    isolate: *mut Isolate,
+    isolate: &Isolate,
     buffer: *mut char,
     length: int,
     nchars_ref: *mut int,
@@ -68,13 +66,13 @@ pub struct String(Opaque);
 
 impl String {
   pub fn new_from_utf8<'sc>(
-    scope: &mut HandleScope<'sc>,
+    isolate: &Isolate,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'sc, String>> {
     unsafe {
       let ptr = v8__String__NewFromUtf8(
-        scope.cxx_isolate(),
+        isolate,
         buffer.as_ptr() as *const char,
         new_type,
         buffer.len().try_into().ok()?,
@@ -90,13 +88,13 @@ impl String {
 
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
-  pub fn utf8_length(&self, isolate: &mut impl LockedIsolate) -> usize {
-    unsafe { v8__String__Utf8Length(self, isolate.cxx_isolate()) as usize }
+  pub fn utf8_length(&self, isolate: &Isolate) -> usize {
+    unsafe { v8__String__Utf8Length(self, isolate) as usize }
   }
 
   pub fn write_utf8(
     &self,
-    isolate: &mut impl LockedIsolate,
+    isolate: &Isolate,
     buffer: &mut [u8],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
@@ -105,7 +103,7 @@ impl String {
     let bytes = unsafe {
       v8__String__WriteUtf8(
         self,
-        isolate.cxx_isolate(),
+        isolate,
         buffer.as_mut_ptr() as *mut char,
         buffer.len().try_into().unwrap_or(int::max_value()),
         &mut nchars_ref_int,
@@ -120,18 +118,15 @@ impl String {
 
   // Convenience function not present in the original V8 API.
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    isolate: &Isolate,
     value: &str,
     new_type: NewStringType,
   ) -> Option<Local<'sc, String>> {
-    Self::new_from_utf8(scope, value.as_ref(), new_type)
+    Self::new_from_utf8(isolate, value.as_ref(), new_type)
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn to_rust_string_lossy(
-    &self,
-    isolate: &mut impl LockedIsolate,
-  ) -> std::string::String {
+  pub fn to_rust_string_lossy(&self, isolate: &Isolate) -> std::string::String {
     let capacity = self.utf8_length(isolate);
     let mut string = std::string::String::with_capacity(capacity);
     let data = string.as_mut_ptr();

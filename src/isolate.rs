@@ -36,10 +36,6 @@ extern "C" {
 #[repr(C)]
 pub struct Isolate(Opaque);
 
-pub trait LockedIsolate {
-  fn cxx_isolate(&mut self) -> &mut Isolate;
-}
-
 impl Isolate {
   /// Creates a new isolate.  Does not change the currently entered
   /// isolate.

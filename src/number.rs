@@ -1,18 +1,16 @@
 use std::ops::Deref;
 
-use crate::isolate::Isolate;
-use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
-use crate::value::Value;
-use crate::HandleScope;
+use crate::Isolate;
 use crate::Local;
+use crate::Value;
 
 extern "C" {
-  fn v8__Number__New(isolate: &mut Isolate, value: f64) -> *mut Number;
+  fn v8__Number__New(isolate: &Isolate, value: f64) -> *mut Number;
   fn v8__Number__Value(this: &Number) -> f64;
-  fn v8__Integer__New(isolate: &mut Isolate, value: i32) -> *mut Integer;
+  fn v8__Integer__New(isolate: &Isolate, value: i32) -> *mut Integer;
   fn v8__Integer__NewFromUnsigned(
-    isolate: &mut Isolate,
+    isolate: &Isolate,
     value: u32,
   ) -> *mut Integer;
   fn v8__Integer__Value(this: &Integer) -> i64;
@@ -23,12 +21,9 @@ extern "C" {
 pub struct Number(Opaque);
 
 impl Number {
-  pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
-    value: f64,
-  ) -> Local<'sc, Number> {
+  pub fn new<'sc>(isolate: &Isolate, value: f64) -> Local<'sc, Number> {
     unsafe {
-      let local = v8__Number__New(scope.cxx_isolate(), value);
+      let local = v8__Number__New(isolate, value);
       Local::from_raw(local).unwrap()
     }
   }
@@ -50,22 +45,19 @@ impl Deref for Number {
 pub struct Integer(Opaque);
 
 impl Integer {
-  pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
-    value: i32,
-  ) -> Local<'sc, Integer> {
+  pub fn new<'sc>(isolate: &Isolate, value: i32) -> Local<'sc, Integer> {
     unsafe {
-      let local = v8__Integer__New(scope.cxx_isolate(), value);
+      let local = v8__Integer__New(isolate, value);
       Local::from_raw(local).unwrap()
     }
   }
 
   pub fn new_from_unsigned<'sc>(
-    scope: &mut HandleScope<'sc>,
+    isolate: &Isolate,
     value: u32,
   ) -> Local<'sc, Integer> {
     unsafe {
-      let local = v8__Integer__NewFromUnsigned(scope.cxx_isolate(), value);
+      let local = v8__Integer__NewFromUnsigned(isolate, value);
       Local::from_raw(local).unwrap()
     }
   }

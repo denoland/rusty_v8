@@ -2,7 +2,6 @@ use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::Context;
 use crate::Function;
-use crate::HandleScope;
 use crate::Local;
 use crate::Value;
 
@@ -78,10 +77,7 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'sc>(
-    &mut self,
-    _scope: &mut HandleScope<'sc>,
-  ) -> Local<'sc, Value> {
+  pub fn result<'sc>(&mut self) -> Local<'sc, Value> {
     unsafe { Local::from_raw(v8__Promise__Result(&mut *self)).unwrap() }
   }
 
@@ -152,10 +148,7 @@ impl PromiseResolver {
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'sc>(
-    &mut self,
-    _scope: &mut HandleScope<'sc>,
-  ) -> Local<'sc, Promise> {
+  pub fn get_promise<'sc>(&mut self) -> Local<'sc, Promise> {
     unsafe {
       Local::from_raw(v8__Promise__Resolver__GetPromise(&mut *self)).unwrap()
     }
