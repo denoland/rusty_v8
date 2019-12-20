@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::isolate::CxxIsolate;
+use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
 use crate::HandleScope;
@@ -21,13 +21,13 @@ pub struct Boolean(Opaque);
 pub struct Name(Opaque);
 
 extern "C" {
-  fn v8__Null(isolate: *mut CxxIsolate) -> *mut Primitive;
+  fn v8__Null(isolate: *mut Isolate) -> *mut Primitive;
 
-  fn v8__Undefined(isolate: *mut CxxIsolate) -> *mut Primitive;
+  fn v8__Undefined(isolate: *mut Isolate) -> *mut Primitive;
 
-  fn v8__True(isolate: *mut CxxIsolate) -> *mut Boolean;
+  fn v8__True(isolate: *mut Isolate) -> *mut Boolean;
 
-  fn v8__False(isolate: *mut CxxIsolate) -> *mut Boolean;
+  fn v8__False(isolate: *mut Isolate) -> *mut Boolean;
 }
 
 pub fn new_null<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Primitive> {

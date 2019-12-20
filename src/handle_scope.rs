@@ -1,18 +1,18 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
-use crate::isolate::CxxIsolate;
+use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
 
 extern "C" {
   fn v8__HandleScope__CONSTRUCT(
     buf: &mut MaybeUninit<HandleScope>,
-    isolate: &mut CxxIsolate,
+    isolate: &mut Isolate,
   );
   fn v8__HandleScope__DESTRUCT(this: &mut HandleScope);
   fn v8__HandleScope__GetIsolate<'sc>(
     this: &'sc HandleScope,
-  ) -> &'sc mut CxxIsolate;
+  ) -> &'sc mut Isolate;
 }
 
 #[repr(C)]
@@ -33,7 +33,7 @@ impl<'sc> HandleScope<'sc> {
 }
 
 impl<'sc> LockedIsolate for HandleScope<'sc> {
-  fn cxx_isolate(&mut self) -> &mut CxxIsolate {
+  fn cxx_isolate(&mut self) -> &mut Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
   }
 }

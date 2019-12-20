@@ -4,7 +4,7 @@ use std::mem::forget;
 use std::ops::Deref;
 use std::slice;
 
-use crate::isolate::CxxIsolate;
+use crate::isolate::Isolate;
 use crate::isolate::LockedIsolate;
 use crate::support::char;
 use crate::support::int;
@@ -15,7 +15,7 @@ use crate::Value;
 
 extern "C" {
   fn v8__String__NewFromUtf8(
-    isolate: *mut CxxIsolate,
+    isolate: *mut Isolate,
     data: *const char,
     new_type: NewStringType,
     length: int,
@@ -23,11 +23,11 @@ extern "C" {
 
   fn v8__String__Length(this: &String) -> int;
 
-  fn v8__String__Utf8Length(this: &String, isolate: *mut CxxIsolate) -> int;
+  fn v8__String__Utf8Length(this: &String, isolate: *mut Isolate) -> int;
 
   fn v8__String__WriteUtf8(
     this: &String,
-    isolate: *mut CxxIsolate,
+    isolate: *mut Isolate,
     buffer: *mut char,
     length: int,
     nchars_ref: *mut int,
