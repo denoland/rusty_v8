@@ -77,14 +77,14 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'sc>(&mut self) -> Local<Value> {
+  pub fn result(&mut self) -> Local<Value> {
     unsafe { Local::from_raw(v8__Promise__Result(&mut *self)).unwrap() }
   }
 
   /// Register a rejection handler with a promise.
   ///
   /// See `Self::then2`.
-  pub fn catch<'sc>(
+  pub fn catch(
     &mut self,
     mut context: Local<Context>,
     mut handler: Local<Function>,
@@ -101,7 +101,7 @@ impl Promise {
   /// Register a resolution handler with a promise.
   ///
   /// See `Self::then2`.
-  pub fn then<'sc>(
+  pub fn then(
     &mut self,
     mut context: Local<Context>,
     mut handler: Local<Function>,
@@ -119,7 +119,7 @@ impl Promise {
   /// The handler is given the respective resolution/rejection value as
   /// an argument. If the promise is already resolved/rejected, the handler is
   /// invoked at the end of turn.
-  pub fn then2<'sc>(
+  pub fn then2(
     &mut self,
     mut context: Local<Context>,
     mut on_fulfilled: Local<Function>,
@@ -146,7 +146,7 @@ impl PromiseResolver {
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'sc>(&mut self) -> Local<Promise> {
+  pub fn get_promise(&mut self) -> Local<Promise> {
     unsafe {
       Local::from_raw(v8__Promise__Resolver__GetPromise(&mut *self)).unwrap()
     }
@@ -154,7 +154,7 @@ impl PromiseResolver {
 
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn resolve<'sc>(
+  pub fn resolve(
     &mut self,
     mut context: Local<Context>,
     mut value: Local<Value>,
@@ -167,7 +167,7 @@ impl PromiseResolver {
 
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn reject<'sc>(
+  pub fn reject(
     &mut self,
     mut context: Local<Context>,
     mut value: Local<Value>,

@@ -62,7 +62,7 @@ pub mod Exception {
   /// Creates an error message for the given exception.
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
-  pub fn CreateMessage<'sc>(
+  pub fn CreateMessage(
     isolate: &Isolate,
     mut exception: Local<Value>,
   ) -> Local<Message> {

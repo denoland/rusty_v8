@@ -65,7 +65,7 @@ bitflags! {
 pub struct String(Opaque);
 
 impl String {
-  pub fn new_from_utf8<'sc>(
+  pub fn new_from_utf8(
     isolate: &Isolate,
     buffer: &[u8],
     new_type: NewStringType,

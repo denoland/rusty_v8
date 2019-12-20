@@ -28,7 +28,7 @@ impl Object {
   /// a prototype at all). This is similar to Object.create().
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
-  pub fn new<'sc>(
+  pub fn new(
     isolate: &Isolate,
     mut prototype_or_null: Local<Value>,
     names: Vec<Local<Name>>,

@@ -22,7 +22,7 @@ pub mod JSON {
 
   /// Tries to parse the string `json_string` and returns it as value if
   /// successful.
-  pub fn Parse<'sc>(
+  pub fn Parse(
     mut context: Local<Context>,
     mut json_string: Local<String>,
   ) -> Option<Local<Value>> {
@@ -33,7 +33,7 @@ pub mod JSON {
 
   /// Tries to stringify the JSON-serializable object `json_object` and returns
   /// it as string if successful.
-  pub fn Stringify<'sc>(
+  pub fn Stringify(
     mut context: Local<Context>,
     mut json_object: Local<Value>,
   ) -> Option<Local<String>> {

@@ -68,6 +68,7 @@ impl Script {
 
 /// The origin, within a file, of a script.
 impl ScriptOrigin {
+  #[allow(clippy::too_many_arguments)]
   pub fn new(
     mut resource_name: Local<Value>,
     mut resource_line_offset: Local<Integer>,

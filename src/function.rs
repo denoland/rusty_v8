@@ -75,6 +75,7 @@ pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
   /// The ReturnValue for the call.
+  #[allow(clippy::mut_from_ref)]
   pub fn get_return_value(&self) -> &mut ReturnValue {
     unsafe { &mut *v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }

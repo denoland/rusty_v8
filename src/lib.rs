@@ -1,6 +1,5 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 
-#![warn(clippy::all)]
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::new_without_default)]
 #![allow(dead_code)]
