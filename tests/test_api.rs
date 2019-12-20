@@ -565,3 +565,63 @@ fn set_promise_reject_callback() {
   drop(locker);
   isolate.exit();
 }
+
+fn mock_script_origin(isolate: &v8::Isolate) -> v8::ScriptOrigin {
+  let resource_name = v8_str(&isolate, "foo.js");
+  let resource_line_offset = v8::Integer::new(&isolate, 4);
+  let resource_column_offset = v8::Integer::new(&isolate, 5);
+  let resource_is_shared_cross_origin = v8::new_true(&isolate);
+  let script_id = v8::Integer::new(&isolate, 123);
+  let source_map_url = v8_str(&isolate, "source_map_url");
+  let resource_is_opaque = v8::new_true(&isolate);
+  let is_wasm = v8::new_false(&isolate);
+  let is_module = v8::new_true(&isolate);
+  v8::ScriptOrigin::new(
+    resource_name.into(),
+    resource_line_offset,
+    resource_column_offset,
+    resource_is_shared_cross_origin,
+    script_id,
+    source_map_url.into(),
+    resource_is_opaque,
+    is_wasm,
+    is_module,
+  )
+}
+
+#[test]
+fn script_compiler_source() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  isolate.set_promise_reject_callback(promise_reject_callback);
+  isolate.enter();
+  let locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&isolate, |_scope| {
+    let mut context = v8::Context::new(&isolate);
+    context.enter();
+
+    let source = "1+2";
+    let script_origin = mock_script_origin(&isolate);
+    let source = v8::script_compiler::Source::new(
+      v8_str(&isolate, source),
+      &script_origin,
+    );
+
+    let result = v8::script_compiler::compile_module(
+      &isolate,
+      source,
+      v8::script_compiler::CompileOptions::NoCompileOptions,
+      v8::script_compiler::NoCacheReason::NoReason,
+    );
+    assert!(result.is_some());
+
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}

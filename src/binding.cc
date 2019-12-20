@@ -21,6 +21,9 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
+static_assert(sizeof(v8::ScriptCompiler::Source) == sizeof(size_t) * 8,
+              "Source size mismatch");
+
 static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
               "ReturnValue size mismatch");
 
@@ -110,6 +113,30 @@ void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>& buf, v8::Isolate* isolate) {
 }
 
 void v8__Locker__DESTRUCT(v8::Locker& self) { self.~Locker(); }
+
+void v8__ScriptCompiler__Source__CONSTRUCT(
+    uninit_t<v8::ScriptCompiler::Source>& buf, v8::String* source_string,
+    v8::ScriptOrigin& origin) {
+  construct_in_place<v8::ScriptCompiler::Source>(
+      buf, ptr_to_local(source_string), origin);
+}
+
+void v8__ScriptCompiler__Source__DESTRUCT(v8::ScriptCompiler::Source& self) {
+  self.~Source();
+}
+
+v8::Module* v8__ScriptCompiler__CompileModule(
+    v8::Isolate* isolate, v8::ScriptCompiler::Source* source,
+    v8::ScriptCompiler::CompileOptions options,
+    v8::ScriptCompiler::NoCacheReason no_cache_reason) {
+  v8::MaybeLocal<v8::Module> maybe_local = v8::ScriptCompiler::CompileModule(
+      isolate, source, options, no_cache_reason);
+  if (maybe_local.IsEmpty()) {
+    return nullptr;
+  } else {
+    return local_to_ptr(maybe_local.ToLocalChecked());
+  }
+}
 
 bool v8__Value__IsUndefined(const v8::Value& self) {
   return self.IsUndefined();
