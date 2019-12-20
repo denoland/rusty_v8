@@ -1,7 +1,6 @@
-use crate::isolate::{CxxIsolate, LockedIsolate};
 use crate::support::{int, Opaque};
 use crate::Context;
-use crate::HandleScope;
+use crate::Isolate;
 use crate::Local;
 use crate::Value;
 
@@ -19,7 +18,7 @@ extern "C" {
   ) -> *mut Value;
 
   fn v8__FunctionTemplate__New(
-    isolate: *mut CxxIsolate,
+    isolate: &Isolate,
     callback: extern "C" fn(&FunctionCallbackInfo),
   ) -> *mut FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
@@ -29,7 +28,7 @@ extern "C" {
 
   fn v8__FunctionCallbackInfo__GetIsolate(
     info: &FunctionCallbackInfo,
-  ) -> &mut CxxIsolate;
+  ) -> &mut Isolate;
   fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: &FunctionCallbackInfo,
@@ -37,7 +36,7 @@ extern "C" {
 
   fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value) -> ();
   fn v8__ReturnValue__Get(rv: *mut ReturnValue) -> *mut Value;
-  fn v8__ReturnValue__GetIsolate(rv: *mut ReturnValue) -> *mut CxxIsolate;
+  fn v8__ReturnValue__GetIsolate(rv: &ReturnValue) -> *mut Isolate;
 }
 
 #[repr(C)]
@@ -50,22 +49,19 @@ pub struct ReturnValue(Opaque);
 impl ReturnValue {
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
-  pub fn set(&mut self, mut value: Local<'_, Value>) {
+  pub fn set(&mut self, mut value: Local<Value>) {
     unsafe { v8__ReturnValue__Set(&mut *self, &mut *value) }
   }
 
   /// Convenience getter for Isolate
-  pub fn get_isolate(&mut self) -> *mut CxxIsolate {
-    unsafe { v8__ReturnValue__GetIsolate(&mut *self) }
+  pub fn get_isolate(&self) -> &Isolate {
+    unsafe { v8__ReturnValue__GetIsolate(self).as_ref().unwrap() }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get<'sc>(
-    &mut self,
-    _scope: &mut HandleScope<'sc>,
-  ) -> Local<'sc, Value> {
+  pub fn get(&mut self) -> Local<Value> {
     unsafe { Local::from_raw(v8__ReturnValue__Get(&mut *self)).unwrap() }
   }
 }
@@ -79,12 +75,13 @@ pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
   /// The ReturnValue for the call.
+  #[allow(clippy::mut_from_ref)]
   pub fn get_return_value(&self) -> &mut ReturnValue {
     unsafe { &mut *v8__FunctionCallbackInfo__GetReturnValue(&*self) }
   }
 
   /// The current Isolate.
-  pub fn get_isolate(&self) -> &mut CxxIsolate {
+  pub fn get_isolate(&self) -> &Isolate {
     unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 
@@ -120,23 +117,19 @@ pub struct FunctionTemplate(Opaque);
 impl FunctionTemplate {
   /// Creates a function template.
   pub fn new(
-    isolate: &mut impl LockedIsolate,
+    isolate: &Isolate,
     callback: extern "C" fn(&FunctionCallbackInfo),
-  ) -> Local<'_, FunctionTemplate> {
+  ) -> Local<FunctionTemplate> {
     unsafe {
-      Local::from_raw(v8__FunctionTemplate__New(
-        isolate.cxx_isolate(),
-        callback,
-      ))
-      .unwrap()
+      Local::from_raw(v8__FunctionTemplate__New(isolate, callback)).unwrap()
     }
   }
 
   /// Returns the unique function instance in the current execution context.
   pub fn get_function(
     &mut self,
-    mut context: Local<'_, Context>,
-  ) -> Option<Local<'_, Function>> {
+    mut context: Local<Context>,
+  ) -> Option<Local<Function>> {
     unsafe {
       Local::from_raw(v8__FunctionTemplate__GetFunction(
         &mut *self,
@@ -155,19 +148,19 @@ impl Function {
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new(
-    mut context: Local<'_, Context>,
+    mut context: Local<Context>,
     callback: extern "C" fn(&FunctionCallbackInfo),
-  ) -> Option<Local<'_, Function>> {
+  ) -> Option<Local<Function>> {
     unsafe { Local::from_raw(v8__Function__New(&mut *context, callback)) }
   }
 
   pub fn call(
     &mut self,
-    mut context: Local<'_, Context>,
-    mut recv: Local<'_, Value>,
+    mut context: Local<Context>,
+    mut recv: Local<Value>,
     arc: i32,
-    argv: Vec<Local<'_, Value>>,
-  ) -> Option<Local<'_, Value>> {
+    argv: Vec<Local<Value>>,
+  ) -> Option<Local<Value>> {
     let mut argv_: Vec<*mut Value> = vec![];
     for mut arg in argv {
       argv_.push(&mut *arg);

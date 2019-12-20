@@ -21,6 +21,9 @@ static_assert(sizeof(HandleScope) == sizeof(size_t) * 3,
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
+static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2,
+              "Locker size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
@@ -47,26 +50,31 @@ Isolate* v8__Isolate__New(Isolate::CreateParams& params) {
   return isolate;
 }
 
-void v8__Isolate__Dispose(Isolate& isolate) {
-  auto allocator = isolate.GetArrayBufferAllocator();
-  isolate.Dispose();
+void v8__Isolate__Dispose(Isolate* isolate) {
+  auto allocator = isolate->GetArrayBufferAllocator();
+  isolate->Dispose();
   delete allocator;
 }
 
-void v8__Isolate__Enter(Isolate& isolate) { isolate.Enter(); }
+void v8__Isolate__Enter(Isolate* isolate) { isolate->Enter(); }
 
-void v8__Isolate__Exit(Isolate& isolate) { isolate.Exit(); }
+void v8__Isolate__Exit(Isolate* isolate) { isolate->Exit(); }
 
-void v8__Isolate__SetPromiseRejectCallback(Isolate& isolate,
+void v8__Isolate__SetPromiseRejectCallback(Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
-  isolate.SetPromiseRejectCallback(callback);
+  isolate->SetPromiseRejectCallback(callback);
 }
 
-void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate& isolate,
+void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(Isolate* isolate,
                                                             bool capture,
                                                             int frame_limit) {
   // Note: StackTraceOptions are deprecated so we don't bother to bind to it.
-  isolate.SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
+  isolate->SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
+}
+
+bool v8__Isolate__AddMessageListener(Isolate& isolate,
+                                     v8::MessageCallback callback) {
+  return isolate.AddMessageListener(callback);
 }
 
 Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
@@ -192,8 +200,12 @@ Isolate* v8__Context__GetIsolate(Context& self) { return self.GetIsolate(); }
 
 Object* v8__Context__Global(Context& self) { return *self.Global(); }
 
-v8::String* v8__Message__Get(v8::Message* self) {
+v8::String* v8__Message__Get(const v8::Message* self) {
   return local_to_ptr(self->Get());
+}
+
+v8::Isolate* v8__Message__GetIsolate(const v8::Message* self) {
+  return self->GetIsolate();
 }
 
 v8::Value* v8__Exception__RangeError(v8::Local<v8::String> message) {

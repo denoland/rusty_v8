@@ -1,9 +1,7 @@
 use std::ops::Deref;
 
-use crate::isolate::CxxIsolate;
-use crate::isolate::LockedIsolate;
+use crate::isolate::Isolate;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Local;
 use crate::Name;
 use crate::Value;
@@ -14,13 +12,13 @@ pub struct Object(Opaque);
 
 extern "C" {
   fn v8__Object__New(
-    isolate: *mut CxxIsolate,
+    isolate: &Isolate,
     prototype_or_null: *mut Value,
     names: *mut *mut Name,
     values: *mut *mut Value,
     length: usize,
   ) -> *mut Object;
-  fn v8__Object__GetIsolate(object: &Object) -> &mut CxxIsolate;
+  fn v8__Object__GetIsolate(object: &Object) -> &mut Isolate;
 }
 
 impl Object {
@@ -30,13 +28,13 @@ impl Object {
   /// a prototype at all). This is similar to Object.create().
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
-  pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
-    mut prototype_or_null: Local<'sc, Value>,
-    names: Vec<Local<'sc, Name>>,
-    values: Vec<Local<'sc, Value>>,
+  pub fn new(
+    isolate: &Isolate,
+    mut prototype_or_null: Local<Value>,
+    names: Vec<Local<Name>>,
+    values: Vec<Local<Value>>,
     length: usize,
-  ) -> Local<'sc, Object> {
+  ) -> Local<Object> {
     let mut names_: Vec<*mut Name> = vec![];
     for mut name in names {
       let n = &mut *name;
@@ -50,7 +48,7 @@ impl Object {
     }
     unsafe {
       Local::from_raw(v8__Object__New(
-        scope.cxx_isolate(),
+        isolate,
         &mut *prototype_or_null,
         names_.as_mut_ptr(),
         values_.as_mut_ptr(),
@@ -61,7 +59,7 @@ impl Object {
   }
 
   /// Return the isolate to which the Object belongs to.
-  pub fn get_isolate(&self) -> &mut CxxIsolate {
+  pub fn get_isolate(&self) -> &Isolate {
     unsafe { v8__Object__GetIsolate(self) }
   }
 }

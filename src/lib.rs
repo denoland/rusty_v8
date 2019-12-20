@@ -1,8 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 
-#![warn(clippy::all)]
 #![allow(clippy::missing_safety_doc)]
-#![allow(clippy::new_without_default)]
 #![allow(dead_code)]
 
 #[macro_use]
@@ -39,11 +37,13 @@ pub mod V8;
 
 pub use context::Context;
 pub use exception::Exception;
+pub use exception::Message;
 pub use function::{
   Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
 };
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
+pub use isolate::OwnedIsolate;
 pub use json::JSON;
 pub use local::Local;
 pub use locker::Locker;
