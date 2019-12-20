@@ -131,6 +131,18 @@ impl Isolate {
   }
 }
 
+impl AsRef<Isolate> for Isolate {
+  fn as_ref(&self) -> &Isolate {
+    self
+  }
+}
+
+impl AsMut<Isolate> for Isolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate(NonNull<Isolate>);
 

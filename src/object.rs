@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use crate::isolate::Isolate;
 use crate::support::Opaque;
+use crate::HandleScope;
 use crate::Local;
 use crate::Name;
 use crate::Value;
@@ -12,7 +13,7 @@ pub struct Object(Opaque);
 
 extern "C" {
   fn v8__Object__New(
-    isolate: &Isolate,
+    isolate: *mut Isolate,
     prototype_or_null: *mut Value,
     names: *mut *mut Name,
     values: *mut *mut Value,
@@ -28,13 +29,13 @@ impl Object {
   /// a prototype at all). This is similar to Object.create().
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
-  pub fn new(
-    isolate: &Isolate,
-    mut prototype_or_null: Local<Value>,
-    names: Vec<Local<Name>>,
-    values: Vec<Local<Value>>,
+  pub fn new<'sc>(
+    scope: &mut HandleScope<'sc>,
+    mut prototype_or_null: Local<'sc, Value>,
+    names: Vec<Local<'sc, Name>>,
+    values: Vec<Local<'sc, Value>>,
     length: usize,
-  ) -> Local<Object> {
+  ) -> Local<'sc, Object> {
     let mut names_: Vec<*mut Name> = vec![];
     for mut name in names {
       let n = &mut *name;
@@ -48,7 +49,7 @@ impl Object {
     }
     unsafe {
       Local::from_raw(v8__Object__New(
-        isolate,
+        scope.as_mut(),
         &mut *prototype_or_null,
         names_.as_mut_ptr(),
         values_.as_mut_ptr(),

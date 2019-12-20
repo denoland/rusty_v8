@@ -1,5 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::isolate::Isolate;
+use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 extern "C" {
@@ -12,9 +13,9 @@ extern "C" {
 /// construction and destruction, the current thread is allowed to use the locked
 /// isolate. V8 guarantees that an isolate can be locked by at most one thread at
 /// any time. In other words, the scope of a v8::Locker is a critical section.
-pub struct Locker([usize; 2]);
+pub struct Locker<'sc>([usize; 2], PhantomData<&'sc mut ()>);
 
-impl Locker {
+impl<'a> Locker<'a> {
   /// Initialize Locker for a given Isolate.
   pub fn new(isolate: &Isolate) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
@@ -25,7 +26,7 @@ impl Locker {
   }
 }
 
-impl Drop for Locker {
+impl<'a> Drop for Locker<'a> {
   fn drop(&mut self) {
     unsafe { v8__Locker__DESTRUCT(self) }
   }

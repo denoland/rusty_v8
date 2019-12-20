@@ -1,5 +1,6 @@
 use crate::support::{int, Opaque};
 use crate::Context;
+use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
@@ -63,7 +64,10 @@ impl ReturnValue {
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get(&mut self) -> Local<Value> {
+  pub fn get<'sc>(
+    &mut self,
+    _scope: &mut HandleScope<'sc>,
+  ) -> Local<'sc, Value> {
     unsafe { Local::from_raw(v8__ReturnValue__Get(&mut *self)).unwrap() }
   }
 }
@@ -122,20 +126,22 @@ pub struct FunctionTemplate(Opaque);
 
 impl FunctionTemplate {
   /// Creates a function template.
-  pub fn new(
-    isolate: &Isolate,
+  pub fn new<'sc>(
+    scope: &mut HandleScope<'sc>,
     callback: extern "C" fn(&FunctionCallbackInfo),
-  ) -> Local<FunctionTemplate> {
+  ) -> Local<'sc, FunctionTemplate> {
     unsafe {
-      Local::from_raw(v8__FunctionTemplate__New(isolate, callback)).unwrap()
+      Local::from_raw(v8__FunctionTemplate__New(scope.as_mut(), callback))
+        .unwrap()
     }
   }
 
   /// Returns the unique function instance in the current execution context.
-  pub fn get_function(
+  pub fn get_function<'sc>(
     &mut self,
+    _scope: &mut HandleScope<'sc>,
     mut context: Local<Context>,
-  ) -> Option<Local<Function>> {
+  ) -> Option<Local<'sc, Function>> {
     unsafe {
       Local::from_raw(v8__FunctionTemplate__GetFunction(
         &mut *self,
@@ -153,20 +159,22 @@ impl Function {
   // TODO: add remaining arguments from C++
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
-  pub fn new(
+  pub fn new<'sc>(
+    _scope: &mut HandleScope<'sc>,
     mut context: Local<Context>,
     callback: extern "C" fn(&FunctionCallbackInfo),
-  ) -> Option<Local<Function>> {
+  ) -> Option<Local<'sc, Function>> {
     unsafe { Local::from_raw(v8__Function__New(&mut *context, callback)) }
   }
 
-  pub fn call(
+  pub fn call<'sc>(
     &mut self,
+    _scope: &mut HandleScope<'sc>,
     mut context: Local<Context>,
     mut recv: Local<Value>,
     arc: i32,
     argv: Vec<Local<Value>>,
-  ) -> Option<Local<Value>> {
+  ) -> Option<Local<'sc, Value>> {
     let mut argv_: Vec<*mut Value> = vec![];
     for mut arg in argv {
       argv_.push(&mut *arg);

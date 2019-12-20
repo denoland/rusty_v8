@@ -1,4 +1,5 @@
 use crate::value::Value;
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
@@ -37,30 +38,30 @@ use std::ptr::NonNull;
 /// Note: Local handles in Rusty V8 differ from the V8 C++ API in that they are
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
-pub struct Local<T>(NonNull<T>);
+pub struct Local<'sc, T>(NonNull<T>, PhantomData<&'sc ()>);
 
-impl<T> Copy for Local<T> {}
+impl<'sc, T> Copy for Local<'sc, T> {}
 
-impl<T> Clone for Local<T> {
+impl<'sc, T> Clone for Local<'sc, T> {
   fn clone(&self) -> Self {
-    Self(self.0)
+    Self(self.0, self.1)
   }
 }
 
-impl<T> Local<T> {
+impl<'sc, T> Local<'sc, T> {
   pub unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
-    Some(Self(NonNull::new(ptr)?))
+    Some(Self(NonNull::new(ptr)?, PhantomData))
   }
 }
 
-impl<T> Deref for Local<T> {
+impl<'sc, T> Deref for Local<'sc, T> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_ref() }
   }
 }
 
-impl<T> DerefMut for Local<T> {
+impl<'sc, T> DerefMut for Local<'sc, T> {
   fn deref_mut(&mut self) -> &mut T {
     unsafe { self.0.as_mut() }
   }
@@ -68,11 +69,11 @@ impl<T> DerefMut for Local<T> {
 
 // TODO make it possible for targets other than Local<Value>. For example
 // Local<String> should be able to be down cast to Local<Name>.
-impl<T> From<Local<T>> for Local<Value>
+impl<'sc, T> From<Local<'sc, T>> for Local<'sc, Value>
 where
   T: Deref<Target = Value>,
 {
-  fn from(v: Local<T>) -> Local<Value> {
+  fn from(v: Local<'sc, T>) -> Local<'sc, Value> {
     unsafe { std::mem::transmute(v) }
   }
 }

@@ -8,12 +8,13 @@ use crate::isolate::Isolate;
 use crate::support::char;
 use crate::support::int;
 use crate::support::Opaque;
+use crate::HandleScope;
 use crate::Local;
 use crate::Value;
 
 extern "C" {
   fn v8__String__NewFromUtf8(
-    isolate: &Isolate,
+    isolate: *mut Isolate,
     data: *const char,
     new_type: NewStringType,
     length: int,
@@ -21,11 +22,11 @@ extern "C" {
 
   fn v8__String__Length(this: &String) -> int;
 
-  fn v8__String__Utf8Length(this: &String, isolate: &Isolate) -> int;
+  fn v8__String__Utf8Length(this: &String, isolate: *mut Isolate) -> int;
 
   fn v8__String__WriteUtf8(
     this: &String,
-    isolate: &Isolate,
+    isolate: *mut Isolate,
     buffer: *mut char,
     length: int,
     nchars_ref: *mut int,
@@ -65,14 +66,14 @@ bitflags! {
 pub struct String(Opaque);
 
 impl String {
-  pub fn new_from_utf8(
-    isolate: &Isolate,
+  pub fn new_from_utf8<'sc>(
+    scope: &mut HandleScope<'sc>,
     buffer: &[u8],
     new_type: NewStringType,
-  ) -> Option<Local<String>> {
+  ) -> Option<Local<'sc, String>> {
     unsafe {
       let ptr = v8__String__NewFromUtf8(
-        isolate,
+        scope.as_mut(),
         buffer.as_ptr() as *const char,
         new_type,
         buffer.len().try_into().ok()?,
@@ -88,13 +89,13 @@ impl String {
 
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
-  pub fn utf8_length(&self, isolate: &Isolate) -> usize {
-    unsafe { v8__String__Utf8Length(self, isolate) as usize }
+  pub fn utf8_length(&self, isolate: &mut impl AsMut<Isolate>) -> usize {
+    unsafe { v8__String__Utf8Length(self, isolate.as_mut()) as usize }
   }
 
   pub fn write_utf8(
     &self,
-    isolate: &Isolate,
+    isolate: &mut Isolate,
     buffer: &mut [u8],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
@@ -117,16 +118,20 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn new(
-    isolate: &Isolate,
+  pub fn new<'sc>(
+    scope: &mut HandleScope<'sc>,
     value: &str,
     new_type: NewStringType,
-  ) -> Option<Local<String>> {
-    Self::new_from_utf8(isolate, value.as_ref(), new_type)
+  ) -> Option<Local<'sc, String>> {
+    Self::new_from_utf8(scope, value.as_ref(), new_type)
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn to_rust_string_lossy(&self, isolate: &Isolate) -> std::string::String {
+  pub fn to_rust_string_lossy(
+    &self,
+    isolate: &mut impl AsMut<Isolate>,
+  ) -> std::string::String {
+    let isolate = isolate.as_mut();
     let capacity = self.utf8_length(isolate);
     let mut string = std::string::String::with_capacity(capacity);
     let data = string.as_mut_ptr();

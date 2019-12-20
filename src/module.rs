@@ -79,5 +79,8 @@ impl Module {
   }
 }
 
-type ResolveCallback =
-  dyn Fn(Local<Context>, Local<String>, Local<Module>) -> Option<Local<Module>>;
+type ResolveCallback<'sc> = dyn Fn(
+  Local<'sc, Context>,
+  Local<'sc, String>,
+  Local<'sc, Module>,
+) -> Option<Local<'sc, Module>>;
