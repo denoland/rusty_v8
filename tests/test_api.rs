@@ -1,10 +1,10 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+
 #[macro_use]
 extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, Local};
-use std::default::Default;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -129,7 +129,8 @@ fn isolate_add_message_listener() {
     let mut context = v8::Context::new(&isolate);
     context.enter();
     let source =
-      v8::String::new(&isolate, "throw 'foo'", Default::default()).unwrap();
+      v8::String::new(&isolate, "throw 'foo'", v8::NewStringType::Normal)
+        .unwrap();
     let mut script = v8::Script::compile(context, source, None).unwrap();
     assert!(script.run(context).is_none());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
@@ -155,7 +156,7 @@ fn script_compile_and_run() {
     let source = v8::String::new(
       &isolate,
       "'Hello ' + 13 + 'th planet'",
-      Default::default(),
+      v8::NewStringType::Normal,
     )
     .unwrap();
     let mut script = v8::Script::compile(context, source, None).unwrap();
@@ -185,13 +186,14 @@ fn script_origin() {
     context.enter();
 
     let resource_name =
-      v8::String::new(&isolate, "foo.js", Default::default()).unwrap();
+      v8::String::new(&isolate, "foo.js", v8::NewStringType::Normal).unwrap();
     let resource_line_offset = v8::Integer::new(&isolate, 4);
     let resource_column_offset = v8::Integer::new(&isolate, 5);
     let resource_is_shared_cross_origin = v8::new_true(&isolate);
     let script_id = v8::Integer::new(&isolate, 123);
     let source_map_url =
-      v8::String::new(&isolate, "source_map_url", Default::default()).unwrap();
+      v8::String::new(&isolate, "source_map_url", v8::NewStringType::Normal)
+        .unwrap();
     let resource_is_opaque = v8::new_true(&isolate);
     let is_wasm = v8::new_false(&isolate);
     let is_module = v8::new_false(&isolate);
@@ -208,7 +210,8 @@ fn script_origin() {
       is_module,
     );
 
-    let source = v8::String::new(&isolate, "1+2", Default::default()).unwrap();
+    let source =
+      v8::String::new(&isolate, "1+2", v8::NewStringType::Normal).unwrap();
     let mut script =
       v8::Script::compile(context, source, Some(&script_origin)).unwrap();
     source.to_rust_string_lossy(&isolate);
@@ -344,9 +347,12 @@ fn json() {
   v8::HandleScope::enter(&isolate, |_s| {
     let mut context = v8::Context::new(&isolate);
     context.enter();
-    let json_string =
-      v8::String::new(&isolate, "{\"a\": 1, \"b\": 2}", Default::default())
-        .unwrap();
+    let json_string = v8::String::new(
+      &isolate,
+      "{\"a\": 1, \"b\": 2}",
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
     let maybe_value = v8::JSON::Parse(context, json_string);
     assert!(maybe_value.is_some());
     let value = maybe_value.unwrap();
