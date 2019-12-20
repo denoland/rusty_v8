@@ -575,9 +575,8 @@ fn mock_script_origin(isolate: &v8::Isolate) -> v8::ScriptOrigin {
   let source_map_url = v8_str(&isolate, "source_map_url");
   let resource_is_opaque = v8::new_true(&isolate);
   let is_wasm = v8::new_false(&isolate);
-  let is_module = v8::new_false(&isolate);
-
-  let script_origin = v8::ScriptOrigin::new(
+  let is_module = v8::new_true(&isolate);
+  v8::ScriptOrigin::new(
     resource_name.into(),
     resource_line_offset,
     resource_column_offset,
@@ -587,8 +586,7 @@ fn mock_script_origin(isolate: &v8::Isolate) -> v8::ScriptOrigin {
     resource_is_opaque,
     is_wasm,
     is_module,
-  );
-  script_origin
+  )
 }
 
 #[test]
@@ -603,12 +601,25 @@ fn script_compiler_source() {
   isolate.enter();
   let locker = v8::Locker::new(&isolate);
   v8::HandleScope::enter(&isolate, |_scope| {
-    let source = "foo";
+    let mut context = v8::Context::new(&isolate);
+    context.enter();
+
+    let source = "1+2";
     let script_origin = mock_script_origin(&isolate);
-    let _source = v8::script_compiler::Source::new(
+    let source = v8::script_compiler::Source::new(
       v8_str(&isolate, source),
       &script_origin,
     );
+
+    let result = v8::script_compiler::compile_module(
+      &isolate,
+      source,
+      v8::script_compiler::CompileOptions::NoCompileOptions,
+      v8::script_compiler::NoCacheReason::NoReason,
+    );
+    assert!(result.is_some());
+
+    context.exit();
   });
   drop(locker);
   isolate.exit();

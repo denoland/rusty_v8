@@ -125,6 +125,19 @@ void v8__ScriptCompiler__Source__DESTRUCT(v8::ScriptCompiler::Source& self) {
   self.~Source();
 }
 
+v8::Module* v8__ScriptCompiler__CompileModule(
+    v8::Isolate* isolate, v8::ScriptCompiler::Source* source,
+    v8::ScriptCompiler::CompileOptions options,
+    v8::ScriptCompiler::NoCacheReason no_cache_reason) {
+  v8::MaybeLocal<v8::Module> maybe_local = v8::ScriptCompiler::CompileModule(
+      isolate, source, options, no_cache_reason);
+  if (maybe_local.IsEmpty()) {
+    return nullptr;
+  } else {
+    return local_to_ptr(maybe_local.ToLocalChecked());
+  }
+}
+
 bool v8__Value__IsUndefined(const v8::Value& self) {
   return self.IsUndefined();
 }

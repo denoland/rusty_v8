@@ -54,21 +54,21 @@ pub enum CompileOptions {
 /// The reason for which we are not requesting or providing a code cache.
 #[repr(C)]
 pub enum NoCacheReason {
-  NoCacheNoReason = 0,
-  NoCacheBecauseCachingDisabled,
-  NoCacheBecauseNoResource,
-  NoCacheBecauseInlineScript,
-  NoCacheBecauseModule,
-  NoCacheBecauseStreamingSource,
-  NoCacheBecauseInspector,
-  NoCacheBecauseScriptTooSmall,
-  NoCacheBecauseCacheTooCold,
-  NoCacheBecauseV8Extension,
-  NoCacheBecauseExtensionModule,
-  NoCacheBecausePacScript,
-  NoCacheBecauseInDocumentWrite,
-  NoCacheBecauseResourceWithNoCacheHandler,
-  NoCacheBecauseDeferredProduceCodeCache,
+  NoReason = 0,
+  BecauseCachingDisabled,
+  BecauseNoResource,
+  BecauseInlineScript,
+  BecauseModule,
+  BecauseStreamingSource,
+  BecauseInspector,
+  BecauseScriptTooSmall,
+  BecauseCacheTooCold,
+  BecauseV8Extension,
+  BecauseExtensionModule,
+  BecausePacScript,
+  BecauseInDocumentWrite,
+  BecauseResourceWithNoCacheHandler,
+  BecauseDeferredProduceCodeCache,
 }
 
 /// Compile an ES module, returning a Module that encapsulates the compiled
