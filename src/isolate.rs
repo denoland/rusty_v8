@@ -3,10 +3,15 @@ use std::ops::DerefMut;
 use std::ptr::NonNull;
 
 use crate::array_buffer::Allocator;
+use crate::exception::Message;
 use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
+use crate::Local;
+use crate::Value;
+
+type MessageCallback = extern "C" fn(Local<'_, Message>, Local<'_, Value>);
 
 type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
@@ -20,6 +25,10 @@ extern "C" {
     caputre: bool,
     frame_limit: i32,
   );
+  fn v8__Isolate__AddMessageListener(
+    this: &mut Isolate,
+    callback: MessageCallback,
+  ) -> bool;
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: *mut Isolate,
     callback: PromiseRejectCallback,
@@ -31,6 +40,7 @@ extern "C" {
     this: &mut CreateParams,
     value: *mut Allocator,
   );
+
 }
 
 #[repr(C)]
@@ -87,6 +97,16 @@ impl Isolate {
         frame_limit,
       )
     }
+  }
+
+  /// Adds a message listener (errors only).
+  ///
+  /// The same message listener can be added more than once and in that
+  /// case it will be called more than once for each message.
+  ///
+  /// The exception object will be passed to the callback.
+  pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
+    unsafe { v8__Isolate__AddMessageListener(self, callback) }
   }
 
   /// Set callback to notify about promise reject with no handler, or
