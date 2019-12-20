@@ -39,6 +39,10 @@ Depends on Python 2.7, not Python 3. [Do not open issues with us regarding
 Python 3; it's something that must be fixed in
 Chromium.](https://bugs.chromium.org/p/chromium/issues/detail?id=942720).
 
+For linux builds: glib-2.0 development files need to be installed such that
+pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
+install them.
+
 There are several binary tools that are automatically downloaded during the
 build: clang, gn, and ninja. V8 relies on bleeding edge features of clang that
 are not generally available, so we download the clang binary that chromium uses.
