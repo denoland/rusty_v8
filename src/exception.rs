@@ -54,52 +54,44 @@ impl Message {
   }
 }
 
-/// Create new error objects by calling the corresponding error object
-/// constructor with the message.
-pub mod Exception {
-  use super::*;
+/// Creates an error message for the given exception.
+/// Will try to reconstruct the original stack trace from the exception value,
+/// or capture the current stack trace if not available.
+pub fn create_message(
+  isolate: &Isolate,
+  mut exception: Local<Value>,
+) -> Local<Message> {
+  unsafe {
+    Local::from_raw(v8__Exception__CreateMessage(isolate, &mut *exception))
+  }
+  .unwrap()
+}
 
-  /// Creates an error message for the given exception.
-  /// Will try to reconstruct the original stack trace from the exception value,
-  /// or capture the current stack trace if not available.
-  pub fn CreateMessage(
-    isolate: &Isolate,
-    mut exception: Local<Value>,
-  ) -> Local<Message> {
-    unsafe {
-      Local::from_raw(v8__Exception__CreateMessage(isolate, &mut *exception))
-    }
+/// Returns the original stack trace that was captured at the creation time
+/// of a given exception, or an empty handle if not available.
+pub fn get_stack_trace(
+  mut exception: Local<Value>,
+) -> Option<Local<StackTrace>> {
+  unsafe { Local::from_raw(v8__Exception__GetStackTrace(&mut *exception)) }
+}
+
+pub fn range_error(mut message: Local<String>) -> Local<Value> {
+  unsafe { Local::from_raw(v8__Exception__RangeError(&mut *message)) }.unwrap()
+}
+
+pub fn reference_error(mut message: Local<String>) -> Local<Value> {
+  unsafe { Local::from_raw(v8__Exception__ReferenceError(&mut *message)) }
     .unwrap()
-  }
+}
 
-  /// Returns the original stack trace that was captured at the creation time
-  /// of a given exception, or an empty handle if not available.
-  pub fn GetStackTrace(
-    mut exception: Local<Value>,
-  ) -> Option<Local<StackTrace>> {
-    unsafe { Local::from_raw(v8__Exception__GetStackTrace(&mut *exception)) }
-  }
+pub fn syntax_error(mut message: Local<String>) -> Local<Value> {
+  unsafe { Local::from_raw(v8__Exception__SyntaxError(&mut *message)) }.unwrap()
+}
 
-  pub fn RangeError(mut message: Local<String>) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Exception__RangeError(&mut *message)) }
-      .unwrap()
-  }
+pub fn type_error(mut message: Local<String>) -> Local<Value> {
+  unsafe { Local::from_raw(v8__Exception__TypeError(&mut *message)) }.unwrap()
+}
 
-  pub fn ReferenceError(mut message: Local<String>) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Exception__ReferenceError(&mut *message)) }
-      .unwrap()
-  }
-
-  pub fn SyntaxError(mut message: Local<String>) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Exception__SyntaxError(&mut *message)) }
-      .unwrap()
-  }
-
-  pub fn TypeError(mut message: Local<String>) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Exception__TypeError(&mut *message)) }.unwrap()
-  }
-
-  pub fn Error(mut message: Local<String>) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Exception__Error(&mut *message)) }.unwrap()
-  }
+pub fn error(mut message: Local<String>) -> Local<Value> {
+  unsafe { Local::from_raw(v8__Exception__Error(&mut *message)) }.unwrap()
 }
