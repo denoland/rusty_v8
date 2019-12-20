@@ -1,12 +1,10 @@
 use crate::isolate::Isolate;
-use crate::isolate::LockedIsolate;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Local;
 use crate::Object;
 
 extern "C" {
-  fn v8__Context__New(isolate: *mut Isolate) -> *mut Context;
+  fn v8__Context__New(isolate: &Isolate) -> *mut Context;
   fn v8__Context__Enter(this: &mut Context);
   fn v8__Context__Exit(this: &mut Context);
   fn v8__Context__GetIsolate(this: &mut Context) -> *mut Isolate;
@@ -17,9 +15,9 @@ extern "C" {
 pub struct Context(Opaque);
 
 impl Context {
-  pub fn new<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Context> {
+  pub fn new<'sc>(isolate: &Isolate) -> Local<'sc, Context> {
     // TODO: optional arguments;
-    unsafe { Local::from_raw(v8__Context__New(scope.cxx_isolate())).unwrap() }
+    unsafe { Local::from_raw(v8__Context__New(isolate)).unwrap() }
   }
 
   /// Returns the global proxy object.

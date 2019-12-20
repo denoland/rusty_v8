@@ -1,7 +1,6 @@
-use crate::isolate::{Isolate, LockedIsolate};
 use crate::support::{int, Opaque};
 use crate::Context;
-use crate::HandleScope;
+use crate::Isolate;
 use crate::Local;
 use crate::Value;
 
@@ -19,7 +18,7 @@ extern "C" {
   ) -> *mut Value;
 
   fn v8__FunctionTemplate__New(
-    isolate: *mut Isolate,
+    isolate: &Isolate,
     callback: extern "C" fn(&FunctionCallbackInfo),
   ) -> *mut FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
@@ -62,10 +61,7 @@ impl ReturnValue {
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get<'sc>(
-    &mut self,
-    _scope: &mut HandleScope<'sc>,
-  ) -> Local<'sc, Value> {
+  pub fn get<'sc>(&mut self) -> Local<'sc, Value> {
     unsafe { Local::from_raw(v8__ReturnValue__Get(&mut *self)).unwrap() }
   }
 }
@@ -120,15 +116,11 @@ pub struct FunctionTemplate(Opaque);
 impl FunctionTemplate {
   /// Creates a function template.
   pub fn new(
-    isolate: &mut impl LockedIsolate,
+    isolate: &Isolate,
     callback: extern "C" fn(&FunctionCallbackInfo),
   ) -> Local<'_, FunctionTemplate> {
     unsafe {
-      Local::from_raw(v8__FunctionTemplate__New(
-        isolate.cxx_isolate(),
-        callback,
-      ))
-      .unwrap()
+      Local::from_raw(v8__FunctionTemplate__New(isolate, callback)).unwrap()
     }
   }
 

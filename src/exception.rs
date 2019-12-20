@@ -18,7 +18,7 @@ extern "C" {
   fn v8__Exception__Error(message: *mut String) -> *mut Value;
 
   fn v8__Exception__CreateMessage(
-    isolate: *mut Isolate,
+    isolate: &Isolate,
     exception: *mut Value,
   ) -> *mut Message;
 
@@ -52,20 +52,16 @@ impl Message {
 /// constructor with the message.
 pub mod Exception {
   use super::*;
-  use crate::isolate::LockedIsolate;
 
   /// Creates an error message for the given exception.
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
   pub fn CreateMessage<'sc>(
-    isolate: &mut impl LockedIsolate,
+    isolate: &Isolate,
     mut exception: Local<'sc, Value>,
   ) -> Local<'sc, Message> {
     unsafe {
-      Local::from_raw(v8__Exception__CreateMessage(
-        isolate.cxx_isolate(),
-        &mut *exception,
-      ))
+      Local::from_raw(v8__Exception__CreateMessage(isolate, &mut *exception))
     }
     .unwrap()
   }

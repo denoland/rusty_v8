@@ -4,7 +4,6 @@ use std::ptr::null;
 use crate::support::Opaque;
 use crate::Boolean;
 use crate::Context;
-use crate::HandleScope;
 use crate::Integer;
 use crate::Local;
 use crate::String;
@@ -44,7 +43,6 @@ pub struct Script(Opaque);
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'sc>(
-    _scope: &mut HandleScope<'sc>,
     mut context: Local<'_, Context>,
     mut source: Local<'_, String>,
     origin: Option<&'_ ScriptOrigin>,
@@ -65,7 +63,6 @@ impl Script {
   /// UnboundScript::BindToCurrentContext()).
   pub fn run<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
     mut context: Local<'_, Context>,
   ) -> Option<Local<Value>> {
     unsafe { Local::from_raw(v8__Script__Run(self, &mut *context)) }
