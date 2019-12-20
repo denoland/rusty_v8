@@ -114,8 +114,8 @@ fn isolate_add_message_listener() {
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
-    message: Local<'_, v8::Message>,
-    _exception: Local<'_, v8::Value>,
+    message: Local<v8::Message>,
+    _exception: Local<v8::Value>,
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     let isolate = message.get_isolate();

@@ -77,7 +77,7 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'sc>(&mut self) -> Local<'sc, Value> {
+  pub fn result<'sc>(&mut self) -> Local<Value> {
     unsafe { Local::from_raw(v8__Promise__Result(&mut *self)).unwrap() }
   }
 
@@ -86,9 +86,9 @@ impl Promise {
   /// See `Self::then2`.
   pub fn catch<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut handler: Local<'sc, Function>,
-  ) -> Option<Local<'sc, Promise>> {
+    mut context: Local<Context>,
+    mut handler: Local<Function>,
+  ) -> Option<Local<Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Catch(
         &mut *self,
@@ -103,9 +103,9 @@ impl Promise {
   /// See `Self::then2`.
   pub fn then<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut handler: Local<'sc, Function>,
-  ) -> Option<Local<'sc, Promise>> {
+    mut context: Local<Context>,
+    mut handler: Local<Function>,
+  ) -> Option<Local<Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Then(
         &mut *self,
@@ -121,10 +121,10 @@ impl Promise {
   /// invoked at the end of turn.
   pub fn then2<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut on_fulfilled: Local<'sc, Function>,
-    mut on_rejected: Local<'sc, Function>,
-  ) -> Option<Local<'sc, Promise>> {
+    mut context: Local<Context>,
+    mut on_fulfilled: Local<Function>,
+    mut on_rejected: Local<Function>,
+  ) -> Option<Local<Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Then2(
         &mut *self,
@@ -141,14 +141,12 @@ pub struct PromiseResolver(Opaque);
 
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
-  pub fn new(
-    mut context: Local<'_, Context>,
-  ) -> Option<Local<'_, PromiseResolver>> {
+  pub fn new(mut context: Local<Context>) -> Option<Local<PromiseResolver>> {
     unsafe { Local::from_raw(v8__Promise__Resolver__New(&mut *context)) }
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'sc>(&mut self) -> Local<'sc, Promise> {
+  pub fn get_promise<'sc>(&mut self) -> Local<Promise> {
     unsafe {
       Local::from_raw(v8__Promise__Resolver__GetPromise(&mut *self)).unwrap()
     }
@@ -158,8 +156,8 @@ impl PromiseResolver {
   /// Ignored if the promise is no longer pending.
   pub fn resolve<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut value: Local<'sc, Value>,
+    mut context: Local<Context>,
+    mut value: Local<Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value)
@@ -171,8 +169,8 @@ impl PromiseResolver {
   /// Ignored if the promise is no longer pending.
   pub fn reject<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut value: Local<'sc, Value>,
+    mut context: Local<Context>,
+    mut value: Local<Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
@@ -194,7 +192,7 @@ pub enum PromiseRejectEvent {
 pub struct PromiseRejectMessage([usize; 3]);
 
 impl PromiseRejectMessage {
-  pub fn get_promise(&self) -> Local<'_, Promise> {
+  pub fn get_promise(&self) -> Local<Promise> {
     unsafe {
       Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
     }
@@ -204,7 +202,7 @@ impl PromiseRejectMessage {
     unsafe { v8__PromiseRejectMessage__GetEvent(self) }
   }
 
-  pub fn get_value(&self) -> Local<'_, Value> {
+  pub fn get_value(&self) -> Local<Value> {
     unsafe {
       Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
     }

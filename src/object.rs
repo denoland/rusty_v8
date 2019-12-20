@@ -30,11 +30,11 @@ impl Object {
   /// and writable properties.
   pub fn new<'sc>(
     isolate: &Isolate,
-    mut prototype_or_null: Local<'sc, Value>,
-    names: Vec<Local<'sc, Name>>,
-    values: Vec<Local<'sc, Value>>,
+    mut prototype_or_null: Local<Value>,
+    names: Vec<Local<Name>>,
+    values: Vec<Local<Value>>,
     length: usize,
-  ) -> Local<'sc, Object> {
+  ) -> Local<Object> {
     let mut names_: Vec<*mut Name> = vec![];
     for mut name in names {
       let n = &mut *name;

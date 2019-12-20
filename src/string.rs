@@ -69,7 +69,7 @@ impl String {
     isolate: &Isolate,
     buffer: &[u8],
     new_type: NewStringType,
-  ) -> Option<Local<'sc, String>> {
+  ) -> Option<Local<String>> {
     unsafe {
       let ptr = v8__String__NewFromUtf8(
         isolate,
@@ -117,11 +117,11 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn new<'sc>(
+  pub fn new(
     isolate: &Isolate,
     value: &str,
     new_type: NewStringType,
-  ) -> Option<Local<'sc, String>> {
+  ) -> Option<Local<String>> {
     Self::new_from_utf8(isolate, value.as_ref(), new_type)
   }
 

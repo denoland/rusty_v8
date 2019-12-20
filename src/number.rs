@@ -21,7 +21,7 @@ extern "C" {
 pub struct Number(Opaque);
 
 impl Number {
-  pub fn new<'sc>(isolate: &Isolate, value: f64) -> Local<'sc, Number> {
+  pub fn new<'sc>(isolate: &Isolate, value: f64) -> Local<Number> {
     unsafe {
       let local = v8__Number__New(isolate, value);
       Local::from_raw(local).unwrap()
@@ -45,7 +45,7 @@ impl Deref for Number {
 pub struct Integer(Opaque);
 
 impl Integer {
-  pub fn new<'sc>(isolate: &Isolate, value: i32) -> Local<'sc, Integer> {
+  pub fn new<'sc>(isolate: &Isolate, value: i32) -> Local<Integer> {
     unsafe {
       let local = v8__Integer__New(isolate, value);
       Local::from_raw(local).unwrap()
@@ -55,7 +55,7 @@ impl Integer {
   pub fn new_from_unsigned<'sc>(
     isolate: &Isolate,
     value: u32,
-  ) -> Local<'sc, Integer> {
+  ) -> Local<Integer> {
     unsafe {
       let local = v8__Integer__NewFromUnsigned(isolate, value);
       Local::from_raw(local).unwrap()
