@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
 
+#[repr(C)]
 /// An object reference managed by the v8 garbage collector.
 ///
 /// All objects returned from v8 have to be tracked by the garbage

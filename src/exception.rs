@@ -8,7 +8,9 @@ use crate::String;
 use crate::Value;
 
 extern "C" {
-  fn v8__Message__Get(message: *mut Message) -> *mut String;
+  fn v8__Message__Get(message: *const Message) -> *mut String;
+  fn v8__Message__GetIsolate(message: &Message) -> &mut Isolate;
+
   fn v8__StackTrace__GetFrameCount(stack_trace: *mut StackTrace) -> int;
 
   fn v8__Exception__RangeError(message: *mut String) -> *mut Value;
@@ -43,8 +45,12 @@ impl StackTrace {
 pub struct Message(Opaque);
 
 impl Message {
-  pub fn get(&mut self) -> Local<'_, String> {
+  pub fn get(&self) -> Local<'_, String> {
     unsafe { Local::from_raw(v8__Message__Get(self)) }.unwrap()
+  }
+
+  pub fn get_isolate(&self) -> &Isolate {
+    unsafe { v8__Message__GetIsolate(self) }
   }
 }
 
