@@ -4,8 +4,11 @@ use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
+use crate::Context;
 use crate::Local;
 use crate::Message;
+use crate::Module;
+use crate::Object;
 use crate::StartupData;
 use crate::Value;
 use std::ops::Deref;
@@ -15,6 +18,9 @@ use std::ptr::NonNull;
 type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
 type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
+
+type HostInitializeImportMetaObjectCallback =
+  extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
 
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
@@ -33,6 +39,10 @@ extern "C" {
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: *mut Isolate,
     callback: PromiseRejectCallback,
+  );
+  fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
+    isolate: *mut Isolate,
+    callback: HostInitializeImportMetaObjectCallback,
   );
   fn v8__Isolate__ThrowException(
     isolate: &Isolate,
@@ -130,6 +140,16 @@ impl Isolate {
     callback: PromiseRejectCallback,
   ) {
     unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
+  }
+  /// This specifies the callback called by the upcoming importa.meta
+  /// language feature to retrieve host-defined meta data for a module.
+  pub fn set_host_initialize_import_meta_object_callback(
+    &mut self,
+    callback: HostInitializeImportMetaObjectCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetHostInitializeImportMetaObjectCallback(self, callback)
+    }
   }
 
   /// Schedules an exception to be thrown when returning to JavaScript. When an
