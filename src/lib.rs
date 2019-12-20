@@ -25,6 +25,7 @@ mod property;
 mod script;
 mod string;
 mod support;
+mod try_catch;
 mod value;
 
 pub mod array_buffer;
@@ -59,4 +60,5 @@ pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
 pub use string::NewStringType;
 pub use string::String;
+pub use try_catch::TryCatch;
 pub use value::Value;

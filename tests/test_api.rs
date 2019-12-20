@@ -109,6 +109,75 @@ fn v8_str<'sc>(
 }
 
 #[test]
+fn try_catch() {
+  fn eval<'sc>(
+    scope: &mut HandleScope<'sc>,
+    context: Local<v8::Context>,
+    code: &'static str,
+  ) -> Option<Local<'sc, v8::Value>> {
+    let source = v8_str(scope, code);
+    let mut script =
+      v8::Script::compile(&mut *scope, context, source, None).unwrap();
+    script.run(scope, context)
+  };
+
+  let _g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let isolate = v8::Isolate::new(params);
+  let _locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&isolate, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    {
+      // Error thrown - should be caught.
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
+      let result = eval(scope, context, "throw new Error('foo')");
+      assert!(result.is_none());
+      assert!(tc.has_caught());
+      assert!(tc.exception().is_some());
+      assert!(tc.stack_trace(scope, context).is_some());
+      assert!(tc.message().is_some());
+      assert_eq!(
+        tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
+        "Uncaught Error: foo"
+      );
+    };
+    {
+      // No error thrown.
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
+      let result = eval(scope, context, "1 + 1");
+      assert!(result.is_some());
+      assert!(!tc.has_caught());
+      assert!(tc.exception().is_none());
+      assert!(tc.stack_trace(scope, context).is_none());
+      assert!(tc.message().is_none());
+      assert!(tc.rethrow().is_none());
+    };
+    {
+      // Rethrow and reset.
+      let mut try_catch_1 = v8::TryCatch::new(scope);
+      let tc1 = try_catch_1.enter();
+      {
+        let mut try_catch_2 = v8::TryCatch::new(scope);
+        let tc2 = try_catch_2.enter();
+        eval(scope, context, "throw 'bar'");
+        assert!(tc2.has_caught());
+        assert!(tc2.rethrow().is_some());
+        tc2.reset();
+        assert!(!tc2.has_caught());
+      }
+      assert!(tc1.has_caught());
+    };
+    context.exit();
+  });
+}
+
+#[test]
 fn isolate_add_message_listener() {
   let g = setup();
   let mut params = v8::Isolate::create_params();

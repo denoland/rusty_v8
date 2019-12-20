@@ -27,6 +27,9 @@ static_assert(sizeof(v8::ScriptCompiler::Source) == sizeof(size_t) * 8,
 static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
               "ReturnValue size mismatch");
 
+static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
+              "TryCatch size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
@@ -323,6 +326,56 @@ v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>* self) {
 
 int v8__StackTrace__GetFrameCount(v8::StackTrace* self) {
   return self->GetFrameCount();
+}
+
+void v8__TryCatch__CONSTRUCT(uninit_t<v8::TryCatch>& buf,
+                             v8::Isolate* isolate) {
+  construct_in_place<v8::TryCatch>(buf, isolate);
+}
+
+void v8__TryCatch__DESTRUCT(v8::TryCatch& self) { self.~TryCatch(); }
+
+bool v8__TryCatch__HasCaught(const v8::TryCatch& self) {
+  return self.HasCaught();
+}
+
+bool v8__TryCatch__CanContinue(const v8::TryCatch& self) {
+  return self.CanContinue();
+}
+
+bool v8__TryCatch__HasTerminated(const v8::TryCatch& self) {
+  return self.HasTerminated();
+}
+
+v8::Value* v8__TryCatch__Exception(const v8::TryCatch& self) {
+  return local_to_ptr(self.Exception());
+}
+
+v8::Value* v8__TryCatch__StackTrace(const v8::TryCatch& self,
+                                    v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.StackTrace(context));
+}
+
+v8::Message* v8__TryCatch__Message(const v8::TryCatch& self) {
+  return local_to_ptr(self.Message());
+}
+
+void v8__TryCatch__Reset(v8::TryCatch& self) { self.Reset(); }
+
+v8::Value* v8__TryCatch__ReThrow(v8::TryCatch& self) {
+  return local_to_ptr(self.ReThrow());
+}
+
+bool v8__TryCatch__IsVerbose(const v8::TryCatch& self) {
+  return self.IsVerbose();
+}
+
+void v8__TryCatch__SetVerbose(v8::TryCatch& self, bool value) {
+  self.SetVerbose(value);
+}
+
+void v8__TryCatch__SetCaptureMessage(v8::TryCatch& self, bool value) {
+  self.SetCaptureMessage(value);
 }
 
 v8::Script* v8__Script__Compile(v8::Context* context, v8::String* source,

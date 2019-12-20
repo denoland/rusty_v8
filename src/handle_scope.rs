@@ -31,6 +31,18 @@ impl<'sc> HandleScope<'sc> {
   }
 }
 
+impl<'sc> AsRef<HandleScope<'sc>> for HandleScope<'sc> {
+  fn as_ref(&self) -> &Self {
+    self
+  }
+}
+
+impl<'sc> AsMut<HandleScope<'sc>> for HandleScope<'sc> {
+  fn as_mut(&mut self) -> &mut Self {
+    self
+  }
+}
+
 impl<'sc> AsRef<Isolate> for HandleScope<'sc> {
   fn as_ref(&self) -> &Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
