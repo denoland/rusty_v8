@@ -37,7 +37,7 @@ extern "C" {
 
   fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value) -> ();
   fn v8__ReturnValue__Get(rv: *mut ReturnValue) -> *mut Value;
-  fn v8__ReturnValue__GetIsolate(rv: *mut ReturnValue) -> *mut Isolate;
+  fn v8__ReturnValue__GetIsolate(rv: &ReturnValue) -> *mut Isolate;
 }
 
 #[repr(C)]
@@ -55,8 +55,8 @@ impl ReturnValue {
   }
 
   /// Convenience getter for Isolate
-  pub fn get_isolate(&mut self) -> *mut Isolate {
-    unsafe { v8__ReturnValue__GetIsolate(&mut *self) }
+  pub fn get_isolate(&self) -> &Isolate {
+    unsafe { v8__ReturnValue__GetIsolate(self).as_ref().unwrap() }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
@@ -84,7 +84,7 @@ impl FunctionCallbackInfo {
   }
 
   /// The current Isolate.
-  pub fn get_isolate(&self) -> &mut Isolate {
+  pub fn get_isolate(&self) -> &Isolate {
     unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 

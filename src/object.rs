@@ -61,7 +61,7 @@ impl Object {
   }
 
   /// Return the isolate to which the Object belongs to.
-  pub fn get_isolate(&self) -> &mut Isolate {
+  pub fn get_isolate(&self) -> &Isolate {
     unsafe { v8__Object__GetIsolate(self) }
   }
 }
