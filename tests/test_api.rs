@@ -119,11 +119,8 @@ fn isolate_add_message_listener() {
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     let isolate = message.get_isolate();
-    v8::HandleScope::enter(&isolate, |_s| {
-      let message_str = message.get();
-      assert_eq!(message_str.to_rust_string_lossy(&isolate), "Uncaught foo");
-      // assert!(data.is_none());
-    });
+    let message_str = message.get();
+    assert_eq!(message_str.to_rust_string_lossy(&isolate), "Uncaught foo");
   }
   isolate.add_message_listener(check_message_0);
 
