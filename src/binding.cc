@@ -167,6 +167,19 @@ v8::Boolean* v8__False(v8::Isolate* isolate) {
   return local_to_ptr(v8::False(isolate));
 }
 
+v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate, int length) {
+  return local_to_ptr(v8::PrimitiveArray::New(isolate, length));
+}
+
+int v8__PrimitiveArray__Length(v8::PrimitiveArray& self) {
+  return self.Length();
+}
+
+v8::Primitive* v8__PrimitiveArray__Get(v8::PrimitiveArray& self,
+                                       v8::Isolate* isolate, int index) {
+  return local_to_ptr(self.Get(isolate, index));
+}
+
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
                                     v8::NewStringType type, int length) {
   return maybe_local_to_ptr(

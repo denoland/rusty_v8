@@ -685,3 +685,35 @@ fn script_compiler_source() {
   isolate.exit();
   drop(g);
 }
+
+#[test]
+fn primitive_array() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let length = 5;
+    let array = v8::PrimitiveArray::new(scope, length);
+    assert_eq!(length, array.length());
+
+    for i in 0..length {
+      let item = array.get(scope, i);
+      assert!(item.is_undefined());
+    }
+
+    // TODO more checks
+
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}

@@ -7,6 +7,11 @@ use crate::Local;
 use crate::Primitive;
 
 extern "C" {
+  fn v8__PrimitiveArray__New(
+    isolate: *mut Isolate,
+    length: int,
+  ) -> *mut PrimitiveArray;
+
   fn v8__PrimitiveArray__Length(this: &PrimitiveArray) -> int;
 
   fn v8__PrimitiveArray__Set(
@@ -31,15 +36,25 @@ extern "C" {
 pub struct PrimitiveArray(Opaque);
 
 impl PrimitiveArray {
-  fn length(&self) -> usize {
+  pub fn new<'sc>(
+    scope: &mut HandleScope<'sc>,
+    length: usize,
+  ) -> Local<'sc, PrimitiveArray> {
+    unsafe {
+      let ptr = v8__PrimitiveArray__New(scope.as_mut(), length as int);
+      Local::from_raw(ptr).unwrap()
+    }
+  }
+
+  pub fn length(&self) -> usize {
     unsafe { v8__PrimitiveArray__Length(self) as usize }
   }
 
-  fn set(&self, index: usize, item: Local<'_, Primitive>) {
+  pub fn set(&self, index: usize, item: Local<'_, Primitive>) {
     unsafe { v8__PrimitiveArray__Set(self, index as int, &item) }
   }
 
-  fn get<'sc>(
+  pub fn get<'sc>(
     &self,
     scope: &mut HandleScope<'sc>,
     index: usize,
