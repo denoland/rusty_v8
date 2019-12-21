@@ -69,6 +69,8 @@ impl<'sc> AsMut<Isolate> for HandleScope<'sc> {
 }
 
 #[repr(C)]
+/// A HandleScope which first allocates a handle in the current scope
+/// which will be later filled with the escape value.
 pub struct EscapableHandleScope<'sc>([usize; 4], PhantomData<&'sc mut ()>);
 
 impl<'sc> EscapableHandleScope<'sc> {
@@ -80,6 +82,8 @@ impl<'sc> EscapableHandleScope<'sc> {
     scope
   }
 
+  /// Pushes the value into the previous scope and returns a handle to it.
+  /// Cannot be called twice.
   pub fn escape<'parent>(
     &mut self,
     mut value: Local<'sc, Value>,
