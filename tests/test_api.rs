@@ -133,6 +133,17 @@ fn escapable_handle_scope() {
     let l4: Local<v8::String> = cast(escapable_scope.escape(l4));
     drop(escapable_scope);
     assert_eq!("Hello 🦕 world!", l4.to_rust_string_lossy(scope1));
+
+    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
+    let mut nested_escapable_scope = v8::EscapableHandleScope::new(&mut escapable_scope);
+    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&nested_escapable_scope) };
+    let l4: Local<v8::Value> = cast(v8::String::new(&mut scope, "Hello 🦕 world!").unwrap());
+    let l4 = nested_escapable_scope.escape(l4);
+    drop(nested_escapable_scope);
+    let l4 = escapable_scope.escape(l4);
+    drop(escapable_scope);
+    let l4: Local<v8::String> = cast(l4);
+    assert_eq!("Hello 🦕 world!", l4.to_rust_string_lossy(scope1));
   });
   drop(locker);
   isolate.exit();

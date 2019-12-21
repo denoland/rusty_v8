@@ -24,6 +24,9 @@ extern "C" {
     this: &mut EscapableHandleScope,
     value: *mut Value,
   ) -> *mut Value;
+  fn v8__EscapableHandleScope__GetIsolate<'sc>(
+    this: &'sc EscapableHandleScope,
+  ) -> &'sc mut Isolate;
 }
 
 #[repr(C)]
@@ -99,5 +102,29 @@ impl<'sc> EscapableHandleScope<'sc> {
 impl<'sc> Drop for EscapableHandleScope<'sc> {
   fn drop(&mut self) {
     unsafe { v8__EscapableHandleScope__DESTRUCT(self) }
+  }
+}
+
+impl<'sc> AsRef<EscapableHandleScope<'sc>> for EscapableHandleScope<'sc> {
+  fn as_ref(&self) -> &Self {
+    self
+  }
+}
+
+impl<'sc> AsMut<EscapableHandleScope<'sc>> for EscapableHandleScope<'sc> {
+  fn as_mut(&mut self) -> &mut Self {
+    self
+  }
+}
+
+impl<'sc> AsRef<Isolate> for EscapableHandleScope<'sc> {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { v8__EscapableHandleScope__GetIsolate(self) }
+  }
+}
+
+impl<'sc> AsMut<Isolate> for EscapableHandleScope<'sc> {
+  fn as_mut(&mut self) -> &mut Isolate {
+    unsafe { v8__EscapableHandleScope__GetIsolate(self) }
   }
 }
