@@ -18,10 +18,12 @@ mod local;
 mod locker;
 mod number;
 mod object;
+mod primitive_array;
 mod primitives;
 mod promise;
 mod property;
 mod script;
+mod script_or_module;
 mod string;
 mod support;
 mod try_catch;
@@ -51,6 +53,7 @@ pub use locker::Locker;
 pub use module::Module;
 pub use number::{Integer, Number};
 pub use object::Object;
+pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{
   Promise, PromiseRejectEvent, PromiseRejectMessage, PromiseResolver,
@@ -58,6 +61,7 @@ pub use promise::{
 };
 pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
+pub use script_or_module::ScriptOrModule;
 pub use string::NewStringType;
 pub use string::String;
 pub use try_catch::{TryCatch, TryCatchScope};

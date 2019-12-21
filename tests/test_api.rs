@@ -687,6 +687,47 @@ fn script_compiler_source() {
 }
 
 #[test]
+fn primitive_array() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let length = 3;
+    let array = v8::PrimitiveArray::new(scope, length);
+    assert_eq!(length, array.length());
+
+    for i in 0..length {
+      let item = array.get(scope, i);
+      assert!(item.is_undefined());
+    }
+
+    let string = v8_str(scope, "test");
+    array.set(scope, 1, cast(string));
+    assert!(array.get(scope, 0).is_undefined());
+    assert!(array.get(scope, 1).is_string());
+
+    let num = v8::Number::new(scope, 0.42);
+    array.set(scope, 2, cast(num));
+    assert!(array.get(scope, 0).is_undefined());
+    assert!(array.get(scope, 1).is_string());
+    assert!(array.get(scope, 2).is_number());
+
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
 fn module() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
@@ -694,7 +735,6 @@ fn module() {
     v8::array_buffer::Allocator::new_default_allocator(),
   );
   let mut isolate = v8::Isolate::new(params);
-  isolate.set_promise_reject_callback(promise_reject_callback);
   isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
   v8::HandleScope::enter(&mut locker, |scope| {

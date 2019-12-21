@@ -151,6 +151,10 @@ bool v8__Value__IsNullOrUndefined(const v8::Value& self) {
   return self.IsNullOrUndefined();
 }
 
+bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
+
+bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
+
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
@@ -165,6 +169,24 @@ v8::Boolean* v8__True(v8::Isolate* isolate) {
 
 v8::Boolean* v8__False(v8::Isolate* isolate) {
   return local_to_ptr(v8::False(isolate));
+}
+
+v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate, int length) {
+  return local_to_ptr(v8::PrimitiveArray::New(isolate, length));
+}
+
+int v8__PrimitiveArray__Length(v8::PrimitiveArray& self) {
+  return self.Length();
+}
+
+void v8__PrimitiveArray__Set(v8::PrimitiveArray& self, v8::Isolate* isolate,
+                             int index, v8::Local<v8::Primitive> item) {
+  self.Set(isolate, index, item);
+}
+
+v8::Primitive* v8__PrimitiveArray__Get(v8::PrimitiveArray& self,
+                                       v8::Isolate* isolate, int index) {
+  return local_to_ptr(self.Get(isolate, index));
 }
 
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
@@ -400,6 +422,15 @@ void v8__ScriptOrigin__CONSTRUCT(
       ptr_to_local(resource_is_shared_cross_origin), ptr_to_local(script_id),
       ptr_to_local(source_map_url), ptr_to_local(resource_is_opaque),
       ptr_to_local(is_wasm), ptr_to_local(is_module));
+}
+
+v8::Value* v8__ScriptOrModule__GetResourceName(v8::ScriptOrModule& self) {
+  return local_to_ptr(self.GetResourceName());
+}
+
+v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
+    v8::ScriptOrModule& self) {
+  return local_to_ptr(self.GetHostDefinedOptions());
 }
 
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,
