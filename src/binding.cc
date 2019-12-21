@@ -714,6 +714,16 @@ int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
 
+void v8__MaybeLocal__Module(v8::MaybeLocal<v8::Module>* out,
+                            v8::Local<v8::Module> value) {
+  *out = v8::MaybeLocal<v8::Module>(value);
+}
+
+void v8__MaybeLocal__Value(v8::MaybeLocal<v8::Value>* out,
+                           v8::Local<v8::Value> value) {
+  *out = v8::MaybeLocal<v8::Value>(value);
+}
+
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
                                         v8::Local<v8::Context> context,
                                         v8::Module::ResolveCallback callback) {

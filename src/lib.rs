@@ -48,7 +48,7 @@ pub use function::{
 pub use handle_scope::{EscapableHandleScope, HandleScope};
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;
-pub use local::Local;
+pub use local::{Local, MaybeLocal};
 pub use locker::Locker;
 pub use module::Module;
 pub use number::{Integer, Number};

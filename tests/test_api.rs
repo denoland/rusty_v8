@@ -4,7 +4,7 @@
 extern crate lazy_static;
 
 use rusty_v8 as v8;
-use rusty_v8::{new_null, FunctionCallbackInfo, HandleScope, Local};
+use rusty_v8::{new_null, FunctionCallbackInfo, HandleScope, Local, MaybeLocal};
 use std::sync::Mutex;
 
 lazy_static! {
@@ -731,9 +731,66 @@ extern "C" fn unexpected_module_resolve_callback(
   _context: Local<v8::Context>, 
   _specifier: Local<v8::String>, 
   _referrer: Local<v8::Module>
-) -> *mut v8::Module {
+) -> MaybeLocal {
+  eprintln!("before panic!");
   panic!("Unexpected call to resolve callback")
 }
+
+extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
+  mut context: Local<v8::Context>,
+  mut module: Local<v8::Module>
+) -> MaybeLocal {
+  eprintln!("start synth");
+  let isolate = context.get_isolate();
+  let mut locker = v8::Locker::new(&isolate);
+  let mut e_scope = v8::EscapableHandleScope::new(&mut locker);
+  let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&e_scope) };
+  let value: Local<v8::Value> = cast(v8_str(&mut scope, "42"));
+  eprintln!("pre export synth");
+  module.set_synthetic_module_export(
+    isolate, 
+    v8_str(&mut scope, "test_export"), 
+    value,
+  ).expect("Unable to set synthetic module export");
+  eprintln!("post export synth");
+  let undefined = v8::new_undefined(&mut scope);
+  let undefined_value: Local<v8::Value> = cast(undefined);
+  eprintln!("pre escape");
+  let mut escaped_value = e_scope.escape(undefined_value);
+  eprintln!("post escpae");
+  MaybeLocal::from_value(escaped_value)
+}
+
+extern "C" fn synthetic_module_resolve_callback(
+  mut context: Local<v8::Context>, 
+  _specifier: Local<v8::String>, 
+  _referrer: Local<v8::Module>
+) -> MaybeLocal {
+  let isolate = context.get_isolate();
+  let mut locker = v8::Locker::new(&isolate);
+  let e_scope = v8::EscapableHandleScope::new(&mut locker);
+  let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&e_scope) };
+  let export_names = vec![v8_str(&mut scope, "test_export")];
+  eprintln!("pre synth");
+  let mut module = v8::Module::create_synthetic_module(
+    isolate,
+    v8_str(&mut scope, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
+    export_names, 
+    synthetic_module_evaluation_steps_callback_set_export
+  );
+  eprintln!("post synth");
+  module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");  
+  eprintln!("pre inst synth");
+  let a = MaybeLocal::from_module(module);
+  eprintln!("got maybe local cowabunga!");
+  a
+}
+
+
+// const char* origin = "code cache test";
+//   const char* source =
+//       "export default 5; export const a = 10; function f() { return 42; } "
+//       "(function() { return f(); })();
 
 #[test]
 fn module() {
@@ -750,7 +807,7 @@ fn module() {
     context.enter();
 
     let url = v8_str(scope, "www.test.com");
-    let source_text = v8_str(scope, "export default 5; export const a = 10; function f() { return \"42\"; } (function() { return f(); })();");
+    let source_text = v8_str(scope, "import {test_export} from './synthetic.module'; (function() { return test_export; })();");
 
     let origin = v8::ScriptOrigin::new(
       url.into(),
@@ -772,12 +829,12 @@ fn module() {
       v8::script_compiler::NoCacheReason::NoReason,
     ).expect("Unable to compile module");
     
-    module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");
-    assert_eq!(module.get_status(), v8::module::Status::Instantiated);
+    let maybe_bool = module.instantiate_module(context, synthetic_module_resolve_callback);
+    assert!(maybe_bool.is_some());
+
     let completion_value = module.evaluate(context).expect("Empty completion value");
     let completion_value_str: Local<v8::String> = cast(completion_value);
     assert_eq!(completion_value_str.to_rust_string_lossy(scope), "42".to_string());
-    assert_eq!(module.get_status(), v8::module::Status::Evaluated);
     context.exit();
   });
   drop(locker);

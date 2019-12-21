@@ -6,11 +6,12 @@ use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::Value;
+use crate::local::MaybeLocal;
 use std::mem::MaybeUninit;
 
 // Ideally the return value would be Option<Local<Module>>... but not FFI-safe
 type ResolveCallback =
-  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
+  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> MaybeLocal;
 
 /// Callback defined in the embedder.  This is responsible for setting
 /// the module's exported values with calls to SetSyntheticModuleExport().
@@ -20,7 +21,7 @@ type ResolveCallback =
 ///
 // Ideally the return value would be Option<Local<Value>>... but not FFI-safe
 pub type SyntheticModuleEvaluationSteps =
-  extern "C" fn(Local<Context>, Local<Module>) -> *mut Value;
+  extern "C" fn(Local<Context>, Local<Module>) -> MaybeLocal;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> Status;

@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
+use std::mem::MaybeUninit;
+use crate::Module;
 
 #[repr(C)]
 /// An object reference managed by the v8 garbage collector.
@@ -83,4 +85,36 @@ fn test_size_of_local() {
   use std::mem::size_of;
   assert_eq!(size_of::<Local<Value>>(), size_of::<*const Value>());
   assert_eq!(size_of::<Option<Local<Value>>>(), size_of::<*const Value>());
+}
+
+extern "C" {
+  fn v8__MaybeLocal__Module(
+    ptr: *mut MaybeLocal, 
+    value: *mut Module,
+  ) -> ();
+  fn v8__MaybeLocal__Value(
+    ptr: *mut MaybeLocal, 
+    value: *mut Value,
+  ) -> ();
+}
+
+#[repr(C)]
+pub struct MaybeLocal([usize; 2]);
+
+impl MaybeLocal {
+  pub fn from_module(mut value: Local<Module>) -> Self {
+    let mut ptr = MaybeUninit::<MaybeLocal>::uninit();
+    unsafe {
+      v8__MaybeLocal__Module(ptr.as_mut_ptr(), &mut *value);
+      ptr.assume_init()
+    }
+  }
+
+  pub fn from_value(mut value: Local<Value>) -> Self {
+    let mut ptr = MaybeUninit::<MaybeLocal>::uninit();
+    unsafe {
+      v8__MaybeLocal__Value(ptr.as_mut_ptr(), &mut *value);
+      ptr.assume_init()
+    }
+  }
 }
