@@ -49,7 +49,7 @@ generally available they are automatically download during the build by default.
 It should be possible to opt out of the gn and ninja download by specifying the
 `$GN` and `$NINJA` environmental variables. The clang download can be skipped by
 providing a `$CLANG_BASE_PATH` environmental variable pointing to a recent
-`llvm`/`clang` installation (currently LLVM v9.0+ or Apple clang v11.0+).
+`llvm`/`clang` installation (currently LLVM v8.0+ or Apple clang v11.0+).
 You could also pass in additional arguments to `gn` by setting the `$GN_ARGS`
 environmental variable.
 
