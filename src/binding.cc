@@ -33,6 +33,10 @@ static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
               "TryCatch size mismatch");
 
+typedef v8::Module* (*ResolveModuleCallback)(v8::Local<v8::Context> context,
+                                              v8::Local<v8::String> specifier,
+                                              v8::Local<v8::Module> referrer);
+                                              
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
