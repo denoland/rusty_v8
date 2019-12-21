@@ -105,45 +105,27 @@ fn escapable_handle_scope() {
   v8::HandleScope::enter(&mut locker, |scope1| {
     // After dropping EscapableHandleScope, we should be able to 
     // read escaped values.  
+    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
+    let number: Local<v8::Value> = cast(v8::Number::new(&mut escapable_scope, 78.9));
+    let number: Local<v8::Number> = cast(escapable_scope.escape(number));
+    drop(escapable_scope);
+    assert_eq!(number.value(), 78.9);
 
     let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
-    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
-    let l1: Local<v8::Value> = cast(v8::Integer::new(&mut scope, -123));
-    let l1: Local<v8::Integer> = cast(escapable_scope.escape(l1));
+    let str_: Local<v8::Value> = cast(v8::String::new(&mut escapable_scope, "Hello 🦕 world!").unwrap());
+    let str_: Local<v8::String> = cast(escapable_scope.escape(str_));
     drop(escapable_scope);
-    assert_eq!(l1.value(), -123);
-
-    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
-    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
-    let l2: Local<v8::Value> = cast(v8::Integer::new_from_unsigned(&mut scope, 456));
-    let l2: Local<v8::Integer> = cast(escapable_scope.escape(l2));
-    drop(escapable_scope);
-    assert_eq!(l2.value(), 456);
-
-    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
-    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
-    let l3: Local<v8::Value> = cast(v8::Number::new(&mut scope, 78.9));
-    let l3: Local<v8::Number> = cast(escapable_scope.escape(l3));
-    drop(escapable_scope);
-    assert_eq!(l3.value(), 78.9);
-
-    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
-    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
-    let l4: Local<v8::Value> = cast(v8::String::new(&mut scope, "Hello 🦕 world!").unwrap());
-    let l4: Local<v8::String> = cast(escapable_scope.escape(l4));
-    drop(escapable_scope);
-    assert_eq!("Hello 🦕 world!", l4.to_rust_string_lossy(scope1));
+    assert_eq!("Hello 🦕 world!", str_.to_rust_string_lossy(scope1));
 
     let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
     let mut nested_escapable_scope = v8::EscapableHandleScope::new(&mut escapable_scope);
-    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&nested_escapable_scope) };
-    let l4: Local<v8::Value> = cast(v8::String::new(&mut scope, "Hello 🦕 world!").unwrap());
-    let l4 = nested_escapable_scope.escape(l4);
+    let str_: Local<v8::Value> = cast(v8::String::new(&mut escapable_scope, "Hello 🦕 world!").unwrap());
+    let str_ = nested_escapable_scope.escape(str_);
     drop(nested_escapable_scope);
-    let l4 = escapable_scope.escape(l4);
+    let str_ = escapable_scope.escape(str_);
     drop(escapable_scope);
-    let l4: Local<v8::String> = cast(l4);
-    assert_eq!("Hello 🦕 world!", l4.to_rust_string_lossy(scope1));
+    let str_: Local<v8::String> = cast(str_);
+    assert_eq!("Hello 🦕 world!", str_.to_rust_string_lossy(scope1));
   });
   drop(locker);
   isolate.exit();

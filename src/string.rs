@@ -67,7 +67,7 @@ pub struct String(Opaque);
 
 impl String {
   pub fn new_from_utf8<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl AsMut<Isolate>,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'sc, String>> {
@@ -119,7 +119,7 @@ impl String {
 
   // Convenience function not present in the original V8 API.
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl AsMut<Isolate>,
     value: &str,
   ) -> Option<Local<'sc, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)

@@ -3,7 +3,6 @@ use std::ops::Deref;
 use crate::isolate::Isolate;
 use crate::support::Opaque;
 use crate::value::Value;
-use crate::HandleScope;
 use crate::Local;
 
 extern "C" {
@@ -23,7 +22,7 @@ pub struct Number(Opaque);
 
 impl Number {
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl AsMut<Isolate>,
     value: f64,
   ) -> Local<'sc, Number> {
     unsafe {
@@ -50,7 +49,7 @@ pub struct Integer(Opaque);
 
 impl Integer {
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl AsMut<Isolate>,
     value: i32,
   ) -> Local<'sc, Integer> {
     unsafe {
@@ -60,7 +59,7 @@ impl Integer {
   }
 
   pub fn new_from_unsigned<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl AsMut<Isolate>,
     value: u32,
   ) -> Local<'sc, Integer> {
     unsafe {
