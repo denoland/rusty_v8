@@ -107,6 +107,10 @@ fn array_buffer() {
     let ab = v8::ArrayBuffer::new(scope, 42);
     assert_eq!(42, ab.byte_length());
 
+    let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
+    assert_eq!(84, bs.byte_length());
+    assert_eq!(false, bs.is_shared());
+
     context.exit();
   });
   drop(locker);

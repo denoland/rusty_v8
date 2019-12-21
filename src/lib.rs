@@ -42,6 +42,7 @@ pub mod V8;
 
 pub use array_buffer::Allocator;
 pub use array_buffer::ArrayBuffer;
+pub use array_buffer::BackingStore;
 pub use context::Context;
 pub use exception::*;
 pub use function::{
