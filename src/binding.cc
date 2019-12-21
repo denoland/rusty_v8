@@ -628,9 +628,50 @@ v8_inspector::StringBuffer* v8_inspector__StringBuffer__create(
   return v8_inspector::StringBuffer::create(source).release();
 }
 
+int v8__Location__GetLineNumber(v8::Location& self) {
+  return self.GetLineNumber();
+}
+
+int v8__Location__GetColumnNumber(v8::Location& self) {
+  return self.GetColumnNumber();
+}
+
+v8::Module::Status v8__Module__GetStatus(const v8::Module& self) {
+  return self.GetStatus();
+}
+
+v8::Value* v8__Module__GetException(const v8::Module& self) {
+  return local_to_ptr(self.GetException());
+}
+
+int v8__Module__GetModuleRequestsLength(const v8::Module& self) {
+  return self.GetModuleRequestsLength();
+}
+
+v8::String* v8__Module__GetModuleRequest(const v8::Module& self,
+                                         int i) {
+  return local_to_ptr(self.GetModuleRequest(i));
+}
+
+void v8__Module__GetModuleRequestLocation(const v8::Module& self,
+                                          int i,
+                                          v8::Location* out) {
+  *out = self.GetModuleRequestLocation(i);
+}
+
+int v8__Module__GetIdentityHash(const v8::Module& self) {
+  return self.GetIdentityHash();
+}
+
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
                                         v8::Local<v8::Context> context,
                                         v8::Module::ResolveCallback callback) {
   return maybe_to_maybe_bool(self.InstantiateModule(context, callback));
 }
+
+v8::Value* v8__Module__Evaluate(v8::Module& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.Evaluate(context));
+}
+
 }  // extern "C"

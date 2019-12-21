@@ -685,3 +685,49 @@ fn script_compiler_source() {
   isolate.exit();
   drop(g);
 }
+
+#[test]
+fn module() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  isolate.set_promise_reject_callback(promise_reject_callback);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let source = "import \"foo.js\";\nimport \"bar.js\";\n1+2";
+    let script_origin = mock_script_origin(scope);
+    let source =
+      v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
+
+    let result = v8::script_compiler::compile_module(
+      &isolate,
+      source,
+      v8::script_compiler::CompileOptions::NoCompileOptions,
+      v8::script_compiler::NoCacheReason::NoReason,
+    );
+    assert!(result.is_some());
+    let mut module = result.unwrap();
+    assert_eq!(module.get_status(), v8::module::Status::Uninstantiated);
+    assert_eq!(module.get_module_requests_length(), 2);
+    assert_eq!(
+      module.get_module_request(0).to_rust_string_lossy(scope), 
+      "foo.js".to_string()
+    );
+    assert_eq!(
+      module.get_module_request(1).to_rust_string_lossy(scope), 
+      "bar.js".to_string()
+    );
+    // TODO: add instantation and evaluation test
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}

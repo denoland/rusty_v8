@@ -16,7 +16,6 @@ mod handle_scope;
 mod isolate;
 mod local;
 mod locker;
-mod module;
 mod number;
 mod object;
 mod primitives;
@@ -31,6 +30,7 @@ mod value;
 pub mod array_buffer;
 pub mod inspector;
 pub mod json;
+pub mod module;
 pub mod platform;
 pub mod script_compiler;
 // This module is intentionally named "V8" rather than "v8" to match the
