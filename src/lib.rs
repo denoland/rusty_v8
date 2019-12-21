@@ -48,7 +48,7 @@ pub use exception::*;
 pub use function::{
   Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
 };
-pub use handle_scope::HandleScope;
+pub use handle_scope::{EscapableHandleScope, HandleScope};
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;
 pub use local::Local;

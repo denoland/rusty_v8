@@ -94,6 +94,52 @@ fn test_string() {
 }
 
 #[test]
+#[allow(clippy::float_cmp)]
+fn escapable_handle_scope() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  isolate.enter();
+  v8::HandleScope::enter(&mut locker, |scope1| {
+    // After dropping EscapableHandleScope, we should be able to 
+    // read escaped values.  
+
+    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
+    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
+    let l1: Local<v8::Value> = cast(v8::Integer::new(&mut scope, -123));
+    let l1: Local<v8::Integer> = cast(escapable_scope.escape(l1));
+    drop(escapable_scope);
+    assert_eq!(l1.value(), -123);
+
+    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
+    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
+    let l2: Local<v8::Value> = cast(v8::Integer::new_from_unsigned(&mut scope, 456));
+    let l2: Local<v8::Integer> = cast(escapable_scope.escape(l2));
+    drop(escapable_scope);
+    assert_eq!(l2.value(), 456);
+
+    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
+    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
+    let l3: Local<v8::Value> = cast(v8::Number::new(&mut scope, 78.9));
+    let l3: Local<v8::Number> = cast(escapable_scope.escape(l3));
+    drop(escapable_scope);
+    assert_eq!(l3.value(), 78.9);
+
+    let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
+    let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&escapable_scope) };
+    let l4: Local<v8::Value> = cast(v8::String::new(&mut scope, "Hello 🦕 world!").unwrap());
+    let l4: Local<v8::String> = cast(escapable_scope.escape(l4));
+    drop(escapable_scope);
+    assert_eq!("Hello 🦕 world!", l4.to_rust_string_lossy(scope1));
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
 fn array_buffer() {
   setup();
   let mut params = v8::Isolate::create_params();
