@@ -93,6 +93,25 @@ fn test_string() {
   drop(locker);
 }
 
+#[test]
+fn array_buffer() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let ab = v8::ArrayBuffer::new(scope, 42);
+    assert_eq!(42, ab.byte_length());
+
+    context.exit();
+  });
+  drop(locker);
+}
+
 fn v8_str<'sc>(
   scope: &mut HandleScope<'sc>,
   s: &str,

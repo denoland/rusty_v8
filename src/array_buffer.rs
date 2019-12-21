@@ -1,10 +1,19 @@
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
+use crate::HandleScope;
+use crate::Isolate;
+use crate::Local;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: &'static mut Allocator);
+
+  fn v8__ArrayBuffer__New(
+    isolate: *mut Isolate,
+    byte_length: usize,
+  ) -> *mut ArrayBuffer;
+  fn v8__ArrayBuffer__ByteLength(self_: *const ArrayBuffer) -> usize;
 }
 
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
@@ -39,18 +48,38 @@ impl Allocator {
   }
 }
 
+#[test]
+fn test_default_allocator() {
+  Allocator::new_default_allocator();
+}
+
 impl Delete for Allocator {
   fn delete(&'static mut self) {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
 }
 
-#[cfg(test)]
-mod tests {
-  use super::*;
+/// An instance of the built-in ArrayBuffer constructor (ES6 draft 15.13.5).
+#[repr(C)]
+pub struct ArrayBuffer(Opaque);
 
-  #[test]
-  fn test_default_allocator() {
-    Allocator::new_default_allocator();
+impl ArrayBuffer {
+  /// Create a new ArrayBuffer. Allocate |byte_length| bytes.
+  /// Allocated memory will be owned by a created ArrayBuffer and
+  /// will be deallocated when it is garbage-collected,
+  /// unless the object is externalized.
+  pub fn new<'sc>(
+    scope: &mut HandleScope<'sc>,
+    byte_length: usize,
+  ) -> Local<'sc, ArrayBuffer> {
+    unsafe {
+      let ptr = v8__ArrayBuffer__New(scope.as_mut(), byte_length);
+      Local::from_raw(ptr).unwrap()
+    }
+  }
+
+  /// Data length in bytes.
+  pub fn byte_length(&self) -> usize {
+    unsafe { v8__ArrayBuffer__ByteLength(self) }
   }
 }

@@ -40,9 +40,8 @@ pub mod script_compiler;
 #[allow(non_snake_case)]
 pub mod V8;
 
-// Rather than use the namespace array_buffer, which will contain only the
-// Allocator we opt in Rust to allow it to live in the top level: v8::Allocator
 pub use array_buffer::Allocator;
+pub use array_buffer::ArrayBuffer;
 pub use context::Context;
 pub use exception::*;
 pub use function::{
