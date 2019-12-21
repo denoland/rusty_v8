@@ -627,4 +627,10 @@ v8_inspector::StringBuffer* v8_inspector__StringBuffer__create(
     const v8_inspector::StringView& source) {
   return v8_inspector::StringBuffer::create(source).release();
 }
+
+MaybeBool v8__Module__InstantiateModule(v8::Module& self,
+                                        v8::Local<v8::Context> context,
+                                        v8::Module::ResolveCallback callback) {
+  return maybe_to_maybe_bool(self.InstantiateModule(context, callback));
+}
 }  // extern "C"
