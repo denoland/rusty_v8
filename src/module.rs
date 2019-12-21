@@ -47,6 +47,7 @@ extern "C" {
     isolate: &mut Isolate,
     module_name: *const String,
     export_names: *const *const String,
+    export_names_len: usize,
     evaluation_steps: SyntheticModuleEvaluationSteps,
   ) -> *mut Module;
   fn v8__Module__SetSyntheticModuleExport(
@@ -179,6 +180,7 @@ impl Module {
         &mut *isolate,
         &*module_name,
         exports_.as_ptr(),
+        exports_.len(),
         evaluation_steps,
       ))
       .unwrap()

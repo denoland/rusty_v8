@@ -723,9 +723,11 @@ v8::Value* v8__Module__Evaluate(v8::Module& self,
 
 v8::Module* v8__Module__CreateSyntheticModule(v8::Isolate* isolate,
                                               v8::Local<v8::String> module_name,
-                                              const std::vector<v8::Local<v8::String>>& export_names,
+                                              v8::Local<v8::String>* export_names,
+                                              size_t export_names_len,
                                               v8::Module::SyntheticModuleEvaluationSteps evaluation_steps) {
-  return local_to_ptr(v8::Module::CreateSyntheticModule(isolate, module_name, export_names, evaluation_steps));
+  const std::vector<v8::Local<v8::String>> names(export_names, export_names + export_names_len);
+  return local_to_ptr(v8::Module::CreateSyntheticModule(isolate, module_name, names, evaluation_steps));
 }
 
 MaybeBool v8__Module__SetSyntheticModuleExport(v8::Module& self,
