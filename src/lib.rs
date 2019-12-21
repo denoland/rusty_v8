@@ -60,5 +60,5 @@ pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
 pub use string::NewStringType;
 pub use string::String;
-pub use try_catch::TryCatch;
+pub use try_catch::{TryCatch, TryCatchScope};
 pub use value::Value;

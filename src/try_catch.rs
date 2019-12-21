@@ -53,6 +53,7 @@ extern "C" {
 /// An external exception handler.
 pub struct TryCatch<'tc>(TryCatchState<'tc>);
 
+/// An activated TryCatch handler that is active as long as it is in scope.
 #[repr(transparent)]
 pub struct TryCatchScope<'tc>(CxxTryCatch, PhantomData<&'tc ()>);
 
@@ -66,15 +67,17 @@ enum TryCatchState<'tc> {
 }
 
 impl<'tc> TryCatch<'tc> {
-  /// Creates a new try/catch block and registers it with v8. Note that
-  /// all TryCatch blocks should be stack allocated because the memory
-  /// location itself is compared against JavaScript try/catch blocks.
+  /// Creates a new try/catch block. Note that all TryCatch blocks should be
+  /// stack allocated because the memory location itself is compared against
+  /// JavaScript try/catch blocks.
   pub fn new(scope: &mut impl AsMut<Isolate>) -> Self {
     Self(TryCatchState::New {
       isolate: scope.as_mut(),
     })
   }
 
+  /// Enters the TryCatch block. Exceptions are caught as long as the returned
+  /// TryCatchScope remains in scope.
   pub fn enter(&'tc mut self) -> &'tc mut TryCatchScope {
     use TryCatchState::*;
     let state = &mut self.0;
@@ -156,10 +159,7 @@ impl<'tc> TryCatchScope<'tc> {
   ///
   /// The returned handle is valid until this TryCatch block has been
   /// destroyed.
-  pub fn message(&self) -> Option<Local<'tc, Message>>
-  where
-    Self: 'tc,
-  {
+  pub fn message(&self) -> Option<Local<'tc, Message>> {
     unsafe { Local::from_raw(v8__TryCatch__Message(&self.0)) }
   }
 
