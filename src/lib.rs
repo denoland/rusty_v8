@@ -23,6 +23,7 @@ mod primitives;
 mod promise;
 mod property;
 mod script;
+mod script_or_module;
 mod string;
 mod support;
 mod try_catch;
@@ -58,6 +59,7 @@ pub use promise::{
 };
 pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
+pub use script_or_module::ScriptOrModule;
 pub use string::NewStringType;
 pub use string::String;
 pub use try_catch::{TryCatch, TryCatchScope};
