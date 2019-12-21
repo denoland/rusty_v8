@@ -1,10 +1,22 @@
 use crate::support::int;
+use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::Context;
 use crate::Local;
+use crate::String;
 use crate::Value;
 
-extern "C" {}
+// Ideally the return value would be Option<Local<Module>>... but not FFI-safe
+type ResolveCallback =
+  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
+
+extern "C" {
+  fn v8__Module__InstantiateModule(
+    this: *mut Module,
+    context: Local<Context>,
+    callback: ResolveCallback,
+  ) -> MaybeBool;
+}
 
 /// The different states a module can be in.
 ///
@@ -60,11 +72,11 @@ impl Module {
   /// exception is propagated.)
   #[must_use]
   pub fn instantiate_module(
-    &self,
-    _context: Local<Context>,
-    _callback: Box<ResolveCallback>,
+    &mut self,
+    context: Local<Context>,
+    callback: ResolveCallback,
   ) -> Option<bool> {
-    unimplemented!();
+    unsafe { v8__Module__InstantiateModule(self, context, callback) }.into()
   }
 
   /// Evaluates the module and its dependencies.
@@ -78,9 +90,3 @@ impl Module {
     unimplemented!();
   }
 }
-
-type ResolveCallback<'sc> = dyn Fn(
-  Local<'sc, Context>,
-  Local<'sc, String>,
-  Local<'sc, Module>,
-) -> Option<Local<'sc, Module>>;
