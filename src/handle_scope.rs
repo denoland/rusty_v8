@@ -77,9 +77,10 @@ impl<'sc> EscapableHandleScope<'sc> {
   pub fn new(isolate: &mut impl AsMut<Isolate>) -> Self {
     let isolate = isolate.as_mut();
     let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
-    unsafe { v8__EscapableHandleScope__CONSTRUCT(&mut scope, isolate) };
-    let scope = unsafe { scope.assume_init() };
-    scope
+    unsafe {
+      v8__EscapableHandleScope__CONSTRUCT(&mut scope, isolate);
+      scope.assume_init()
+    }
   }
 
   /// Pushes the value into the previous scope and returns a handle to it.
