@@ -55,7 +55,7 @@ impl Context {
   }
 
   /// Returns an isolate associated with a current context.
-  pub fn get_isolate(&mut self) -> &Isolate {
+  pub fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { v8__Context__GetIsolate(self) }
   }
 }

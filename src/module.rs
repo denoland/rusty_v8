@@ -43,6 +43,18 @@ extern "C" {
     this: *mut Module,
     context: *mut Context,
   ) -> *mut Value;
+  fn v8__Module__CreateSyntheticModule(
+    isolate: &mut Isolate,
+    module_name: *const String,
+    export_names: *const *const String,
+    evaluation_steps: SyntheticModuleEvaluationSteps,
+  ) -> *mut Module;
+  fn v8__Module__SetSyntheticModuleExport(
+    this: *mut Module,
+    isolate: &Isolate,
+    export_name: *mut String,
+    export_value: *mut Value,
+  ) -> MaybeBool;
 
   fn v8__Location__GetLineNumber(this: &Location) -> int;
   fn v8__Location__GetColumnNumber(this: &Location) -> int;
@@ -153,12 +165,24 @@ impl Module {
   /// module_name is used solely for logging/debugging and doesn't affect module
   /// behavior.
   pub fn create_synthetic_module<'sc>(
-    isolate: &Isolate,
+    isolate: &mut Isolate,
     module_name: Local<String>,
     export_names: Vec<Local<String>>,
     evaluation_steps: SyntheticModuleEvaluationSteps,
   ) -> Local<'sc, Module> {
-    unimplemented!();
+    let mut exports_: Vec<*const String> = vec![];
+    for name in export_names {
+      exports_.push(&*name);
+    }
+    unsafe {
+      Local::from_raw(v8__Module__CreateSyntheticModule(
+        &mut *isolate,
+        &*module_name,
+        exports_.as_ptr(),
+        evaluation_steps,
+      ))
+      .unwrap()
+    }
   }
 
   /// Set this module's exported value for the name export_name to the specified
@@ -170,9 +194,17 @@ impl Module {
   pub fn set_synthetic_module_export(
     &mut self,
     isolate: &Isolate,
-    export_name: Local<String>,
-    export_value: Local<Value>,
+    mut export_name: Local<String>,
+    mut export_value: Local<Value>,
   ) -> Option<bool> {
-    unimplemented!();
+    unsafe {
+      v8__Module__SetSyntheticModuleExport(
+        self,
+        isolate,
+        &mut *export_name,
+        &mut *export_value,
+      )
+      .into()
+    }
   }
 }

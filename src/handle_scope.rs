@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
+use crate::Local;
+use crate::Value;
 
 extern "C" {
   fn v8__HandleScope__CONSTRUCT(
@@ -12,6 +14,16 @@ extern "C" {
   fn v8__HandleScope__GetIsolate<'sc>(
     this: &'sc HandleScope,
   ) -> &'sc mut Isolate;
+
+  fn v8__EscapableHandleScope__CONSTRUCT(
+    buf: &mut MaybeUninit<EscapableHandleScope>,
+    isolate: &Isolate,
+  );
+  fn v8__EscapableHandleScope__DESTRUCT(this: &mut EscapableHandleScope);
+  fn v8__EscapableHandleScope__Escape(
+    this: &mut EscapableHandleScope,
+    value: *mut Value,
+  ) -> *mut Value;
 }
 
 #[repr(C)]
@@ -53,5 +65,31 @@ impl<'sc> AsRef<Isolate> for HandleScope<'sc> {
 impl<'sc> AsMut<Isolate> for HandleScope<'sc> {
   fn as_mut(&mut self) -> &mut Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
+  }
+}
+
+#[repr(C)]
+pub struct EscapableHandleScope<'sc>([usize; 4], PhantomData<&'sc mut ()>);
+
+impl<'sc> EscapableHandleScope<'sc> {
+  pub fn new(isolate: &mut impl AsMut<Isolate>) -> Self {
+    let isolate = isolate.as_mut();
+    let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
+    unsafe { v8__EscapableHandleScope__CONSTRUCT(&mut scope, isolate) };
+    let scope = unsafe { scope.assume_init() };
+    scope
+  }
+
+  pub fn escape(&mut self, mut value: Local<Value>) -> Local<Value> {
+    unsafe {
+      Local::from_raw(v8__EscapableHandleScope__Escape(self, &mut *value))
+        .unwrap()
+    }
+  }
+}
+
+impl<'sc> Drop for EscapableHandleScope<'sc> {
+  fn drop(&mut self) {
+    unsafe { v8__EscapableHandleScope__DESTRUCT(self) }
   }
 }

@@ -16,6 +16,9 @@ static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
 static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
               "HandleScope size mismatch");
 
+static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * 4,
+              "EscapableHandleScope size mismatch");
+
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
@@ -110,6 +113,19 @@ void v8__HandleScope__DESTRUCT(v8::HandleScope& self) { self.~HandleScope(); }
 v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
   return self.GetIsolate();
 }
+
+void v8__EscapableHandleScope__CONSTRUCT(uninit_t<v8::EscapableHandleScope>& buf,
+                                         v8::Isolate* isolate) {
+  construct_in_place<v8::EscapableHandleScope>(buf, isolate);
+}
+
+void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) { self.~EscapableHandleScope(); }
+
+v8::Value* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope& self,
+                                            v8::Local<v8::Value> value) {
+  return local_to_ptr(self.Escape(value));
+}
+
 
 void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>& buf, v8::Isolate* isolate) {
   construct_in_place<v8::Locker>(buf, isolate);
@@ -705,4 +721,17 @@ v8::Value* v8__Module__Evaluate(v8::Module& self,
   return maybe_local_to_ptr(self.Evaluate(context));
 }
 
+v8::Module* v8__Module__CreateSyntheticModule(v8::Isolate* isolate,
+                                              v8::Local<v8::String> module_name,
+                                              const std::vector<v8::Local<v8::String>>& export_names,
+                                              v8::Module::SyntheticModuleEvaluationSteps evaluation_steps) {
+  return local_to_ptr(v8::Module::CreateSyntheticModule(isolate, module_name, export_names, evaluation_steps));
+}
+
+MaybeBool v8__Module__SetSyntheticModuleExport(v8::Module& self,
+                                               v8::Isolate* isolate,
+                                               v8::Local<v8::String> export_name,
+                                               v8::Local<v8::Value> export_value) {
+  return maybe_to_maybe_bool(self.SetSyntheticModuleExport(isolate, export_name, export_value));
+}
 }  // extern "C"

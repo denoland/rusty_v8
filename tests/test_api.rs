@@ -728,38 +728,48 @@ fn primitive_array() {
 }
 
 extern "C" fn unexpected_module_resolve_callback(
-  context: Local<v8::Context>, 
-  specifier: Local<v8::String>, 
-  referrer: Local<v8::Module>
+  _context: Local<v8::Context>, 
+  _specifier: Local<v8::String>, 
+  _referrer: Local<v8::Module>
 ) -> *mut v8::Module {
   panic!("Unexpected call to resolve callback")
 }
 
 extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
-  context: Local<v8::Context>,
-  module: Local<v8::Module>
+  mut context: Local<v8::Context>,
+  mut module: Local<v8::Module>
 ) -> *mut v8::Value {
-  let set_export_result = module.set_synthetic_module_export(
-    context.get_isolate(), 
-    v8_str(context, "test_export"), 
-    v8_str(context, "42"),
+  let isolate = context.get_isolate();
+  let mut locker = v8::Locker::new(&isolate);
+  let mut e_scope = v8::EscapableHandleScope::new(&mut locker);
+  let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&e_scope) };
+  let value: Local<v8::Value> = cast(v8_str(&mut scope, "42"));
+  module.set_synthetic_module_export(
+    isolate, 
+    v8_str(&mut scope, "test_export"), 
+    value,
   ).expect("Unable to set synthetic module export");
 
-  let undefined = v8::new_undefined(context);
+  let undefined = v8::new_undefined(&mut scope);
   let undefined_value: Local<v8::Value> = cast(undefined);
-  &mut *undefined_value
+  let mut escaped_value = e_scope.escape(undefined_value);
+  &mut *escaped_value
 }
 
 extern "C" fn synthetic_module_resolve_callback(
-  context: Local<v8::Context>, 
-  specifier: Local<v8::String>, 
-  referrer: Local<v8::Module>
+  mut context: Local<v8::Context>, 
+  _specifier: Local<v8::String>, 
+  _referrer: Local<v8::Module>
 ) -> *mut v8::Module {
-  let export_names = vec![v8_str(context, "test_export")];
+  let isolate = context.get_isolate();
+  let mut locker = v8::Locker::new(&isolate);
+  let e_scope = v8::EscapableHandleScope::new(&mut locker);
+  let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&e_scope) };
+  let export_names = vec![v8_str(&mut scope, "test_export")];
 
-  let module = v8::Module::create_synthetic_module(
-    context.get_isolate(),
-    v8_str(context, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
+  let mut module = v8::Module::create_synthetic_module(
+    isolate,
+    v8_str(&mut scope, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
     export_names, 
     synthetic_module_evaluation_steps_callback_set_export
   );
