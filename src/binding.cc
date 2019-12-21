@@ -189,6 +189,23 @@ v8::Primitive* v8__PrimitiveArray__Get(v8::PrimitiveArray& self,
   return local_to_ptr(self.Get(isolate, index));
 }
 
+v8::BackingStore* v8__ArrayBuffer__NewBackingStore(v8::Isolate* isolate,
+                                                   size_t length) {
+  std::unique_ptr<v8::BackingStore> u =
+      v8::ArrayBuffer::NewBackingStore(isolate, length);
+  return u.release();
+}
+
+size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
+  return self.ByteLength();
+}
+
+bool v8__BackingStore__IsShared(v8::BackingStore& self) {
+  return self.IsShared();
+}
+
+void v8__BackingStore__DELETE(v8::BackingStore& self) { delete &self; }
+
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
                                     v8::NewStringType type, int length) {
   return maybe_local_to_ptr(
