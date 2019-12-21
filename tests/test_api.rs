@@ -727,6 +727,47 @@ fn primitive_array() {
   drop(g);
 }
 
+extern "C" fn unexpected_module_resolve_callback(
+  context: Local<v8::Context>, 
+  specifier: Local<v8::String>, 
+  referrer: Local<v8::Module>
+) -> *mut v8::Module {
+  panic!("Unexpected call to resolve callback")
+}
+
+extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
+  context: Local<v8::Context>,
+  module: Local<v8::Module>
+) -> *mut v8::Value {
+  let set_export_result = module.set_synthetic_module_export(
+    context.get_isolate(), 
+    v8_str(context, "test_export"), 
+    v8_str(context, "42"),
+  ).expect("Unable to set synthetic module export");
+
+  let undefined = v8::new_undefined(context);
+  let undefined_value: Local<v8::Value> = cast(undefined);
+  &mut *undefined_value
+}
+
+extern "C" fn synthetic_module_resolve_callback(
+  context: Local<v8::Context>, 
+  specifier: Local<v8::String>, 
+  referrer: Local<v8::Module>
+) -> *mut v8::Module {
+  let export_names = vec![v8_str(context, "test_export")];
+
+  let module = v8::Module::create_synthetic_module(
+    context.get_isolate(),
+    v8_str(context, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
+    export_names, 
+    synthetic_module_evaluation_steps_callback_set_export
+  );
+  module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");
+
+  &mut *module
+}
+
 #[test]
 fn module() {
   let g = setup();
@@ -741,30 +782,35 @@ fn module() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    let source = "import \"foo.js\";\nimport \"bar.js\";\n1+2";
-    let script_origin = mock_script_origin(scope);
-    let source =
-      v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
+    let url = v8_str(scope, "www.test.com");
+    let source_text = v8_str(scope, "import {test_export} from './synthetic.module';(function() { return test_export; })();");
 
-    let result = v8::script_compiler::compile_module(
+    let origin = v8::ScriptOrigin::new(
+      url.into(),
+      v8::Integer::new(scope, 0),
+      v8::Integer::new(scope, 0),
+      v8::new_true(scope),
+      v8::Integer::new(scope, 1),
+      v8_str(scope, "source_map_url").into(),
+      v8::new_true(scope),
+      v8::new_false(scope),
+      v8::new_true(scope),
+    );
+
+    let source = v8::script_compiler::Source::new(source_text, &origin);
+    let mut module = v8::script_compiler::compile_module(
       &isolate,
       source,
       v8::script_compiler::CompileOptions::NoCompileOptions,
       v8::script_compiler::NoCacheReason::NoReason,
-    );
-    assert!(result.is_some());
-    let mut module = result.unwrap();
-    assert_eq!(module.get_status(), v8::module::Status::Uninstantiated);
-    assert_eq!(module.get_module_requests_length(), 2);
-    assert_eq!(
-      module.get_module_request(0).to_rust_string_lossy(scope), 
-      "foo.js".to_string()
-    );
-    assert_eq!(
-      module.get_module_request(1).to_rust_string_lossy(scope), 
-      "bar.js".to_string()
-    );
-    // TODO: add instantation and evaluation test
+    ).expect("Unable to compile module");
+    
+    let maybe_bool = module.instantiate_module(context, synthetic_module_resolve_callback);
+    assert!(maybe_bool.is_some());
+
+    let completion_value = module.evaluate(context).expect("Empty completion value");
+    let completion_value_str: Local<v8::String> = cast(completion_value);
+    assert_eq!(completion_value_str.to_rust_string_lossy(scope), "42".to_string());
     context.exit();
   });
   drop(locker);

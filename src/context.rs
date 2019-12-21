@@ -9,7 +9,7 @@ extern "C" {
   fn v8__Context__New(isolate: &Isolate) -> *mut Context;
   fn v8__Context__Enter(this: &mut Context);
   fn v8__Context__Exit(this: &mut Context);
-  fn v8__Context__GetIsolate(this: &mut Context) -> *mut Isolate;
+  fn v8__Context__GetIsolate(this: &mut Context) -> &mut Isolate;
   fn v8__Context__Global(this: *mut Context) -> *mut Object;
 }
 
@@ -52,5 +52,10 @@ impl Context {
   pub fn exit(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
+  }
+
+  /// Returns an isolate associated with a current context.
+  pub fn get_isolate(&mut self) -> &Isolate {
+    unsafe { v8__Context__GetIsolate(self) }
   }
 }
