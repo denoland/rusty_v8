@@ -715,8 +715,8 @@ fn mock_script_origin<'sc>(
   scope: &mut HandleScope<'sc>,
 ) -> v8::ScriptOrigin<'sc> {
   let resource_name = v8_str(scope, "foo.js");
-  let resource_line_offset = v8::Integer::new(scope, 4);
-  let resource_column_offset = v8::Integer::new(scope, 5);
+  let resource_line_offset = v8::Integer::new(scope, 0);
+  let resource_column_offset = v8::Integer::new(scope, 0);
   let resource_is_shared_cross_origin = v8::new_true(scope);
   let script_id = v8::Integer::new(scope, 123);
   let source_map_url = v8_str(scope, "source_map_url");
@@ -761,6 +761,61 @@ fn script_compiler_source() {
       v8::script_compiler::NoCacheReason::NoReason,
     );
     assert!(result.is_some());
+
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
+fn module_instantiation_failures1() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let source_text = v8_str(
+      scope,
+      "import './foo.js';\n\
+       export {} from './bar.js';",
+    );
+    let origin = mock_script_origin(scope);
+    let source = v8::script_compiler::Source::new(source_text, &origin);
+
+    let module = v8::script_compiler::compile_module(
+      &isolate,
+      source,
+      v8::script_compiler::CompileOptions::NoCompileOptions,
+      v8::script_compiler::NoCacheReason::NoReason,
+    )
+    .unwrap();
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    assert_eq!(2, module.get_module_requests_length());
+
+    assert_eq!(
+      "./foo.js",
+      module.get_module_request(0).to_rust_string_lossy(scope)
+    );
+    let loc = module.get_module_request_location(0);
+    assert_eq!(0, loc.get_line_number());
+    assert_eq!(7, loc.get_column_number());
+
+    assert_eq!(
+      "./bar.js",
+      module.get_module_request(1).to_rust_string_lossy(scope)
+    );
+    let loc = module.get_module_request_location(1);
+    assert_eq!(1, loc.get_line_number());
+    assert_eq!(15, loc.get_column_number());
+
+    // TODO(ry) Instantiation should fail.
 
     context.exit();
   });

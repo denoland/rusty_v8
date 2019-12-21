@@ -5,17 +5,48 @@ use crate::Context;
 use crate::Local;
 use crate::String;
 use crate::Value;
+use std::mem::MaybeUninit;
 
-// Ideally the return value would be Option<Local<Module>>... but not FFI-safe
 type ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 extern "C" {
+  fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
+  fn v8__Module__GetException(this: *const Module) -> *mut Value;
+  fn v8__Module__GetModuleRequestsLength(this: *const Module) -> int;
+  fn v8__Module__GetModuleRequest(this: *const Module, i: usize)
+    -> *mut String;
+  fn v8__Module__GetModuleRequestLocation(
+    this: *const Module,
+    i: usize,
+    out: &mut MaybeUninit<Location>,
+  ) -> Location;
+  fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__InstantiateModule(
     this: *mut Module,
     context: Local<Context>,
     callback: ResolveCallback,
   ) -> MaybeBool;
+  fn v8__Module__Evaluate(
+    this: *mut Module,
+    context: *mut Context,
+  ) -> *mut Value;
+  fn v8__Location__GetLineNumber(this: &Location) -> int;
+  fn v8__Location__GetColumnNumber(this: &Location) -> int;
+}
+
+#[repr(C)]
+/// A location in JavaScript source.
+pub struct Location([usize; 2]);
+
+impl Location {
+  pub fn get_line_number(&self) -> int {
+    unsafe { v8__Location__GetLineNumber(self) }
+  }
+
+  pub fn get_column_number(&self) -> int {
+    unsafe { v8__Location__GetColumnNumber(self) }
+  }
 }
 
 /// The different states a module can be in.
@@ -25,7 +56,7 @@ extern "C" {
 /// respectively.
 #[derive(Debug, PartialEq)]
 #[repr(C)]
-pub enum Status {
+pub enum ModuleStatus {
   Uninstantiated,
   Instantiating,
   Instantiated,
@@ -40,29 +71,39 @@ pub struct Module(Opaque);
 /// A compiled JavaScript module.
 impl Module {
   /// Returns the module's current status.
-  pub fn get_status(&self) -> Status {
-    unimplemented!();
+  pub fn get_status(&self) -> ModuleStatus {
+    unsafe { v8__Module__GetStatus(self) }
   }
 
   /// For a module in kErrored status, this returns the corresponding exception.
   pub fn get_exception(&self) -> Local<Value> {
-    unimplemented!();
+    unsafe { Local::from_raw(v8__Module__GetException(self)).unwrap() }
   }
 
   /// Returns the number of modules requested by this module.
   pub fn get_module_requests_length(&self) -> int {
-    unimplemented!();
+    unsafe { v8__Module__GetModuleRequestsLength(self) }
   }
 
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
-  pub fn get_module_request(&self, _i: usize) -> Local<String> {
-    unimplemented!();
+  pub fn get_module_request(&self, i: usize) -> Local<String> {
+    unsafe { Local::from_raw(v8__Module__GetModuleRequest(self, i)).unwrap() }
+  }
+
+  /// Returns the source location (line number and column number) of the ith
+  /// module specifier's first occurrence in this module.
+  pub fn get_module_request_location(&self, i: usize) -> Location {
+    let mut out = MaybeUninit::<Location>::uninit();
+    unsafe {
+      v8__Module__GetModuleRequestLocation(self, i, &mut out);
+      out.assume_init()
+    }
   }
 
   /// Returns the identity hash for this object.
   pub fn get_identity_hash(&self) -> int {
-    unimplemented!();
+    unsafe { v8__Module__GetIdentityHash(self) }
   }
 
   /// Instantiates the module and its dependencies.
@@ -86,7 +127,10 @@ impl Module {
   /// kErrored and propagate the thrown exception (which is then also available
   /// via |GetException|).
   #[must_use]
-  pub fn evaluate(&self, _context: Local<Context>) -> Option<Local<Value>> {
-    unimplemented!();
+  pub fn evaluate(
+    &mut self,
+    mut context: Local<Context>,
+  ) -> Option<Local<Value>> {
+    unsafe { Local::from_raw(v8__Module__Evaluate(&mut *self, &mut *context)) }
   }
 }

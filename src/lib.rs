@@ -56,6 +56,7 @@ pub use isolate::OwnedIsolate;
 pub use local::Local;
 pub use locker::Locker;
 pub use module::Module;
+pub use module::ModuleStatus;
 pub use number::{Integer, Number};
 pub use object::Object;
 pub use primitive_array::PrimitiveArray;
