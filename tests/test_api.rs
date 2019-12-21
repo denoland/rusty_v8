@@ -731,7 +731,7 @@ extern "C" fn unexpected_module_resolve_callback(
   _context: Local<v8::Context>, 
   _specifier: Local<v8::String>, 
   _referrer: Local<v8::Module>
-) -> MaybeLocal {
+) -> MaybeLocal<v8::Module> {
   eprintln!("before panic!");
   panic!("Unexpected call to resolve callback")
 }
@@ -739,7 +739,7 @@ extern "C" fn unexpected_module_resolve_callback(
 extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
   mut context: Local<v8::Context>,
   mut module: Local<v8::Module>
-) -> MaybeLocal {
+) -> MaybeLocal<v8::Value> {
   eprintln!("start synth");
   let isolate = context.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
@@ -758,14 +758,14 @@ extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
   eprintln!("pre escape");
   let mut escaped_value = e_scope.escape(undefined_value);
   eprintln!("post escpae");
-  MaybeLocal::from_value(escaped_value)
+  escaped_value.into()
 }
 
 extern "C" fn synthetic_module_resolve_callback(
   mut context: Local<v8::Context>, 
   _specifier: Local<v8::String>, 
   _referrer: Local<v8::Module>
-) -> MaybeLocal {
+) -> MaybeLocal<v8::Module> {
   let isolate = context.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
   let e_scope = v8::EscapableHandleScope::new(&mut locker);
@@ -780,10 +780,7 @@ extern "C" fn synthetic_module_resolve_callback(
   );
   eprintln!("post synth");
   module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");  
-  eprintln!("pre inst synth");
-  let a = MaybeLocal::from_module(module);
-  eprintln!("got maybe local cowabunga!");
-  a
+  module.into()
 }
 
 

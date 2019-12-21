@@ -1,3 +1,4 @@
+use crate::local::MaybeLocal;
 use crate::support::int;
 use crate::support::MaybeBool;
 use crate::support::Opaque;
@@ -6,12 +7,14 @@ use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::Value;
-use crate::local::MaybeLocal;
 use std::mem::MaybeUninit;
 
 // Ideally the return value would be Option<Local<Module>>... but not FFI-safe
-type ResolveCallback =
-  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> MaybeLocal;
+type ResolveCallback = extern "C" fn(
+  Local<Context>,
+  Local<String>,
+  Local<Module>,
+) -> MaybeLocal<Module>;
 
 /// Callback defined in the embedder.  This is responsible for setting
 /// the module's exported values with calls to SetSyntheticModuleExport().
@@ -21,7 +24,7 @@ type ResolveCallback =
 ///
 // Ideally the return value would be Option<Local<Value>>... but not FFI-safe
 pub type SyntheticModuleEvaluationSteps =
-  extern "C" fn(Local<Context>, Local<Module>) -> MaybeLocal;
+  extern "C" fn(Local<Context>, Local<Module>) -> MaybeLocal<Value>;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> Status;
@@ -57,7 +60,10 @@ extern "C" {
     export_name: *mut String,
     export_value: *mut Value,
   ) -> MaybeBool;
-
+  fn v8__Module__MaybeLocal(
+    this: *mut Module,
+    out: &mut MaybeUninit<MaybeLocal<Module>>,
+  );
   fn v8__Location__GetLineNumber(this: &Location) -> int;
   fn v8__Location__GetColumnNumber(this: &Location) -> int;
 }
@@ -208,6 +214,16 @@ impl Module {
         &mut *export_value,
       )
       .into()
+    }
+  }
+}
+
+impl Into<MaybeLocal<Module>> for Local<'_, Module> {
+  fn into(mut self) -> MaybeLocal<Module> {
+    let mut ptr = MaybeUninit::<MaybeLocal<Module>>::uninit();
+    unsafe {
+      v8__Module__MaybeLocal(&mut *self, &mut ptr);
+      ptr.assume_init()
     }
   }
 }

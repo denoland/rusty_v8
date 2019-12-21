@@ -175,6 +175,11 @@ bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
 
 bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
 
+void v8__Value__MaybeLocal(v8::Value* value,
+                           v8::MaybeLocal<v8::Value>* out) {
+  *out = ptr_to_maybe_local(value);
+}
+
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
@@ -714,14 +719,9 @@ int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
 
-void v8__MaybeLocal__Module(v8::MaybeLocal<v8::Module>* out,
-                            v8::Local<v8::Module> value) {
-  *out = v8::MaybeLocal<v8::Module>(value);
-}
-
-void v8__MaybeLocal__Value(v8::MaybeLocal<v8::Value>* out,
-                           v8::Local<v8::Value> value) {
-  *out = v8::MaybeLocal<v8::Value>(value);
+void v8__Module__MaybeLocal(v8::Module* value,
+                            v8::MaybeLocal<v8::Module>* out) {
+  *out = ptr_to_maybe_local(value);
 }
 
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
