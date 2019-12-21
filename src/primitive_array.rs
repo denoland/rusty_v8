@@ -16,6 +16,7 @@ extern "C" {
 
   fn v8__PrimitiveArray__Set(
     this: &PrimitiveArray,
+    isolate: *mut Isolate,
     index: int,
     item: &Primitive,
   );
@@ -50,8 +51,15 @@ impl PrimitiveArray {
     unsafe { v8__PrimitiveArray__Length(self) as usize }
   }
 
-  pub fn set(&self, index: usize, item: Local<'_, Primitive>) {
-    unsafe { v8__PrimitiveArray__Set(self, index as int, &item) }
+  pub fn set<'sc>(
+    &self,
+    scope: &mut HandleScope<'sc>,
+    index: usize,
+    item: Local<'_, Primitive>,
+  ) {
+    unsafe {
+      v8__PrimitiveArray__Set(self, scope.as_mut(), index as int, &item)
+    }
   }
 
   pub fn get<'sc>(

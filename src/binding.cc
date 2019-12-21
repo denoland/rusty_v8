@@ -151,6 +151,10 @@ bool v8__Value__IsNullOrUndefined(const v8::Value& self) {
   return self.IsNullOrUndefined();
 }
 
+bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
+
+bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
+
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
@@ -173,6 +177,11 @@ v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate, int length) {
 
 int v8__PrimitiveArray__Length(v8::PrimitiveArray& self) {
   return self.Length();
+}
+
+void v8__PrimitiveArray__Set(v8::PrimitiveArray& self, v8::Isolate* isolate,
+                             int index, v8::Local<v8::Primitive> item) {
+  self.Set(isolate, index, item);
 }
 
 v8::Primitive* v8__PrimitiveArray__Get(v8::PrimitiveArray& self,

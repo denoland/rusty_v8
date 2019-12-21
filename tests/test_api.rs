@@ -700,7 +700,7 @@ fn primitive_array() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    let length = 5;
+    let length = 3;
     let array = v8::PrimitiveArray::new(scope, length);
     assert_eq!(length, array.length());
 
@@ -709,7 +709,16 @@ fn primitive_array() {
       assert!(item.is_undefined());
     }
 
-    // TODO more checks
+    let string = v8_str(scope, "test");
+    array.set(scope, 1, cast(string));
+    assert!(array.get(scope, 0).is_undefined());
+    assert!(array.get(scope, 1).is_string());
+
+    let num = v8::Number::new(scope, 3.1415926);
+    array.set(scope, 2, cast(num));
+    assert!(array.get(scope, 0).is_undefined());
+    assert!(array.get(scope, 1).is_string());
+    assert!(array.get(scope, 2).is_number());
 
     context.exit();
   });
