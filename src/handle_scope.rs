@@ -19,9 +19,10 @@ pub struct HandleScope<'sc>([usize; 3], PhantomData<&'sc mut ()>);
 
 impl<'sc> HandleScope<'sc> {
   pub fn enter(
-    isolate: &Isolate,
+    isolate: &mut impl AsMut<Isolate>,
     mut f: impl FnMut(&mut HandleScope<'_>) -> (),
   ) {
+    let isolate = isolate.as_mut();
     let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
     unsafe { v8__HandleScope__CONSTRUCT(&mut scope, isolate) };
     let scope = unsafe { &mut *(scope.as_mut_ptr()) };

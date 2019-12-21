@@ -296,32 +296,32 @@ v8::Function* v8__FunctionTemplate__GetFunction(
   return maybe_local_to_ptr(self->GetFunction(context));
 }
 int v8__FunctionCallbackInfo__Length(
-    v8::FunctionCallbackInfo<v8::Value>* self) {
-  return self->Length();
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.Length();
 }
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
-    v8::FunctionCallbackInfo<v8::Value>* self) {
-  return self->GetIsolate();
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.GetIsolate();
 }
 
 void v8__FunctionCallbackInfo__GetReturnValue(
-    v8::FunctionCallbackInfo<v8::Value>* self,
+    const v8::FunctionCallbackInfo<v8::Value>& self,
     v8::ReturnValue<v8::Value>* out) {
-  *out = self->GetReturnValue();
+  *out = self.GetReturnValue();
 }
 
-void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
+void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>& self,
                           v8::Local<v8::Value> value) {
-  self->Set(value);
+  self.Set(value);
 }
 
-v8::Value* v8__ReturnValue__Get(v8::ReturnValue<v8::Value>* self) {
-  return local_to_ptr(self->Get());
+v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
+  return local_to_ptr(self.Get());
 }
 
-v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>* self) {
-  return self->GetIsolate();
+v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>& self) {
+  return self.GetIsolate();
 }
 
 int v8__StackTrace__GetFrameCount(v8::StackTrace* self) {
@@ -478,19 +478,19 @@ v8::Value* v8__PromiseRejectMessage__GetValue(
 }
 
 v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
-    const v8::PropertyCallbackInfo<v8::Value>* self) {
-  return self->GetIsolate();
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return self.GetIsolate();
 }
 
 v8::Object* v8__PropertyCallbackInfo__This(
-    const v8::PropertyCallbackInfo<v8::Value>* self) {
-  return local_to_ptr(self->This());
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.This());
 }
 
 void v8__PropertyCallbackInfo__GetReturnValue(
-    const v8::PropertyCallbackInfo<v8::Value>* self,
+    const v8::PropertyCallbackInfo<v8::Value>& self,
     v8::ReturnValue<v8::Value>* out) {
-  *out = self->GetReturnValue();
+  *out = self.GetReturnValue();
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {

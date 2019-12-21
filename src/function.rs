@@ -1,10 +1,12 @@
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+
 use crate::support::{int, Opaque};
 use crate::Context;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
-use std::mem::MaybeUninit;
 
 extern "C" {
   fn v8__Function__New(
@@ -37,19 +39,22 @@ extern "C" {
     out: *mut ReturnValue,
   );
 
-  fn v8__ReturnValue__Set(rv: *mut ReturnValue, value: *mut Value) -> ();
-  fn v8__ReturnValue__Get(rv: *mut ReturnValue) -> *mut Value;
+  fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *mut Value);
+  fn v8__ReturnValue__Get(rv: &ReturnValue) -> *mut Value;
   fn v8__ReturnValue__GetIsolate(rv: &ReturnValue) -> *mut Isolate;
 }
 
+// Npte: the 'cb lifetime is required because the ReturnValue object must not
+// outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
+// is derived.
 #[repr(C)]
-pub struct ReturnValue([usize; 1]);
+pub struct ReturnValue<'cb>(*mut Opaque, PhantomData<&'cb ()>);
 
 /// In V8 ReturnValue<> has a type parameter, but
 /// it turns out that in most of the APIs it's ReturnValue<Value>
 /// and for our purposes we currently don't need
 /// other types. So for now it's a simplified version.
-impl ReturnValue {
+impl<'cb> ReturnValue<'cb> {
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
   pub fn set(&mut self, mut value: Local<Value>) {
@@ -68,7 +73,7 @@ impl ReturnValue {
     &mut self,
     _scope: &mut HandleScope<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { Local::from_raw(v8__ReturnValue__Get(&mut *self)).unwrap() }
+    unsafe { Local::from_raw(v8__ReturnValue__Get(self)).unwrap() }
   }
 }
 
@@ -81,23 +86,23 @@ pub struct FunctionCallbackInfo(Opaque);
 
 impl FunctionCallbackInfo {
   /// The ReturnValue for the call.
-  #[allow(clippy::mut_from_ref)]
   pub fn get_return_value(&self) -> ReturnValue {
     let mut rv = MaybeUninit::<ReturnValue>::uninit();
     unsafe {
-      v8__FunctionCallbackInfo__GetReturnValue(&*self, rv.as_mut_ptr());
+      v8__FunctionCallbackInfo__GetReturnValue(self, rv.as_mut_ptr());
       rv.assume_init()
     }
   }
 
   /// The current Isolate.
-  pub fn get_isolate(&self) -> &Isolate {
-    unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
+  #[allow(clippy::mut_from_ref)]
+  pub unsafe fn get_isolate(&self) -> &mut Isolate {
+    v8__FunctionCallbackInfo__GetIsolate(self)
   }
 
   /// The number of available arguments.
   pub fn length(&self) -> int {
-    unsafe { v8__FunctionCallbackInfo__Length(&*self) }
+    unsafe { v8__FunctionCallbackInfo__Length(self) }
   }
 }
 
