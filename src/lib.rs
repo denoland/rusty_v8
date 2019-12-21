@@ -19,6 +19,7 @@ mod locker;
 mod module;
 mod number;
 mod object;
+mod primitive_array;
 mod primitives;
 mod promise;
 mod property;
@@ -52,6 +53,7 @@ pub use locker::Locker;
 pub use module::Module;
 pub use number::{Integer, Number};
 pub use object::Object;
+pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{
   Promise, PromiseRejectEvent, PromiseRejectMessage, PromiseResolver,

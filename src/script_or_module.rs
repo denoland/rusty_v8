@@ -1,6 +1,7 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::support::Opaque;
 use crate::Local;
+use crate::PrimitiveArray;
 use crate::Value;
 
 extern "C" {
@@ -8,7 +9,7 @@ extern "C" {
 
   fn v8__ScriptOrModule__GetHostDefinedOptions(
     this: &ScriptOrModule,
-  ) -> *mut Value;
+  ) -> *mut PrimitiveArray;
 }
 
 /// A container type that holds relevant metadata for module loading.
@@ -22,12 +23,18 @@ impl ScriptOrModule {
   /// The name that was passed by the embedder as ResourceName to the
   /// ScriptOrigin. This can be either a v8::String or v8::Undefined.
   fn get_resource_name(&self) -> Local<'_, Value> {
-    unsafe { Local::from_raw(v8__ScriptOrModule__GetResourceName(self)) }
+    unsafe {
+      let ptr = v8__ScriptOrModule__GetResourceName(self);
+      Local::from_raw(ptr).unwrap()
+    }
   }
 
   /// The options that were passed by the embedder as HostDefinedOptions to the
   /// ScriptOrigin.
   fn get_host_defined_options(&self) -> Local<'_, PrimitiveArray> {
-    unsafe { Local::from_raw(v8__ScriptOrModule__GetHostDefinedOptions(self)) }
+    unsafe {
+      let ptr = v8__ScriptOrModule__GetHostDefinedOptions(self);
+      Local::from_raw(ptr).unwrap()
+    }
   }
 }

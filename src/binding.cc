@@ -402,13 +402,13 @@ void v8__ScriptOrigin__CONSTRUCT(
       ptr_to_local(is_wasm), ptr_to_local(is_module));
 }
 
-v8::Value* v8__ScriptOrModule__GetResourceName(const v8::ScriptOrModule& self) {
-  return self.GetResourceName();
+v8::Value* v8__ScriptOrModule__GetResourceName(v8::ScriptOrModule& self) {
+  return local_to_ptr(self.GetResourceName());
 }
 
 v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
-    const v8::ScriptOrModule& self) {
-  return self.GetResourceName();
+    v8::ScriptOrModule& self) {
+  return local_to_ptr(self.GetHostDefinedOptions());
 }
 
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,
