@@ -714,7 +714,7 @@ fn primitive_array() {
     assert!(array.get(scope, 0).is_undefined());
     assert!(array.get(scope, 1).is_string());
 
-    let num = v8::Number::new(scope, 3.1415926);
+    let num = v8::Number::new(scope, 0.42);
     array.set(scope, 2, cast(num));
     assert!(array.get(scope, 0).is_undefined());
     assert!(array.get(scope, 1).is_string());
