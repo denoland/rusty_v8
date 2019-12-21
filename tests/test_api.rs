@@ -756,7 +756,7 @@ extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
   let undefined = v8::new_undefined(&mut scope);
   let undefined_value: Local<v8::Value> = cast(undefined);
   eprintln!("pre escape");
-  let mut escaped_value = e_scope.escape(undefined_value);
+  let escaped_value = e_scope.escape(undefined_value);
   eprintln!("post escpae");
   escaped_value.into()
 }
@@ -782,12 +782,6 @@ extern "C" fn synthetic_module_resolve_callback(
   module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");  
   module.into()
 }
-
-
-// const char* origin = "code cache test";
-//   const char* source =
-//       "export default 5; export const a = 10; function f() { return 42; } "
-//       "(function() { return f(); })();
 
 #[test]
 fn module() {
