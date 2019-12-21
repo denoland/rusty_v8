@@ -244,6 +244,15 @@ void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator& self) {
   delete &self;
 }
 
+v8::ArrayBuffer* v8__ArrayBuffer__New(v8::Isolate* isolate,
+                                      size_t byte_length) {
+  return local_to_ptr(v8::ArrayBuffer::New(isolate, byte_length));
+}
+
+size_t v8__ArrayBuffer__ByteLength(v8::ArrayBuffer& self) {
+  return self.ByteLength();
+}
+
 v8::Context* v8__Context__New(v8::Isolate* isolate) {
   // TODO: optional arguments.
   return *v8::Context::New(isolate);
