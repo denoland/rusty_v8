@@ -13,6 +13,7 @@ mod array_buffer;
 mod context;
 mod exception;
 mod function;
+mod global;
 mod handle_scope;
 mod isolate;
 mod local;
@@ -48,6 +49,7 @@ pub use exception::*;
 pub use function::{
   Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
 };
+pub use global::Global;
 pub use handle_scope::HandleScope;
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;

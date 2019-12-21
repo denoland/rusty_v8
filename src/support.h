@@ -1,6 +1,7 @@
 #ifndef SUPPORT_H_
 #define SUPPORT_H_
 
+#include <algorithm>
 #include <cassert>
 #include <memory>
 #include <new>
@@ -70,6 +71,22 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
   static_assert(sizeof(v8::MaybeLocal<T>) == sizeof(T*), "");
   return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
 }
+
+template <class T>
+inline static T* global_to_ptr(v8::Global<T>& global) {
+  static_assert(sizeof(v8::Global<T>) == sizeof(T*), "");
+  T* ptr = nullptr;
+  std::swap(ptr, reinterpret_cast<T*&>(global));
+  return ptr;
+}
+
+template <class T>
+inline static v8::Global<T> ptr_to_global(T* ptr) {
+  v8::Global<T> global;
+  std::swap(ptr, *reinterpret_cast<T**>(&global));
+  return global;
+}
+
 }  // namespace support
 
 #endif  // SUPPORT_H_
