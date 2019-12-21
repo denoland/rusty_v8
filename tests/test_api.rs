@@ -5,7 +5,6 @@ extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, HandleScope, Local};
-use std::default::Default;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -92,8 +91,7 @@ fn test_string() {
   let locker = v8::Locker::new(&isolate);
   v8::HandleScope::enter(&isolate, |scope| {
     let reference = "Hello 🦕 world!";
-    let local =
-      v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
+    let local = v8::String::new(scope, reference).unwrap();
     assert_eq!(15, local.length());
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
@@ -105,7 +103,7 @@ fn v8_str<'sc>(
   scope: &mut HandleScope<'sc>,
   s: &str,
 ) -> v8::Local<'sc, v8::String> {
-  v8::String::new(scope, s, v8::NewStringType::Normal).unwrap()
+  v8::String::new(scope, s).unwrap()
 }
 
 #[test]
@@ -207,7 +205,7 @@ fn isolate_add_message_listener() {
   v8::HandleScope::enter(&isolate, |s| {
     let mut context = v8::Context::new(s);
     context.enter();
-    let source = v8::String::new(s, "throw 'foo'", Default::default()).unwrap();
+    let source = v8::String::new(s, "throw 'foo'").unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     assert!(script.run(s, context).is_none());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
@@ -230,9 +228,7 @@ fn script_compile_and_run() {
   v8::HandleScope::enter(&isolate, |s| {
     let mut context = v8::Context::new(s);
     context.enter();
-    let source =
-      v8::String::new(s, "'Hello ' + 13 + 'th planet'", Default::default())
-        .unwrap();
+    let source = v8::String::new(s, "'Hello ' + 13 + 'th planet'").unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
@@ -259,14 +255,12 @@ fn script_origin() {
     let mut context = v8::Context::new(s);
     context.enter();
 
-    let resource_name =
-      v8::String::new(s, "foo.js", Default::default()).unwrap();
+    let resource_name = v8::String::new(s, "foo.js").unwrap();
     let resource_line_offset = v8::Integer::new(s, 4);
     let resource_column_offset = v8::Integer::new(s, 5);
     let resource_is_shared_cross_origin = v8::new_true(s);
     let script_id = v8::Integer::new(s, 123);
-    let source_map_url =
-      v8::String::new(s, "source_map_url", Default::default()).unwrap();
+    let source_map_url = v8::String::new(s, "source_map_url").unwrap();
     let resource_is_opaque = v8::new_true(s);
     let is_wasm = v8::new_false(s);
     let is_module = v8::new_false(s);
@@ -283,7 +277,7 @@ fn script_origin() {
       is_module,
     );
 
-    let source = v8::String::new(s, "1+2", Default::default()).unwrap();
+    let source = v8::String::new(s, "1+2").unwrap();
     let mut script =
       v8::Script::compile(s, context, source, Some(&script_origin)).unwrap();
     source.to_rust_string_lossy(s);
@@ -386,8 +380,7 @@ fn exception() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let reference = "This is a test error";
-    let local =
-      v8::String::new(scope, reference, v8::NewStringType::Normal).unwrap();
+    let local = v8::String::new(scope, reference).unwrap();
     v8::range_error(scope, local);
     v8::reference_error(scope, local);
     v8::syntax_error(scope, local);
@@ -452,8 +445,8 @@ fn object() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let null: v8::Local<v8::Value> = new_null(scope).into();
-    let s1 = v8::String::new(scope, "a", v8::NewStringType::Normal).unwrap();
-    let s2 = v8::String::new(scope, "b", v8::NewStringType::Normal).unwrap();
+    let s1 = v8::String::new(scope, "a").unwrap();
+    let s2 = v8::String::new(scope, "b").unwrap();
     let name1: Local<v8::Name> = cast(s1);
     let name2: Local<v8::Name> = cast(s2);
     let names = vec![name1, name2];
@@ -485,8 +478,7 @@ fn promise_resolved() {
     let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str =
-      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+    let str = v8::String::new(scope, "test").unwrap();
     let value: Local<v8::Value> = cast(str);
     resolver.resolve(context, value);
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
@@ -495,8 +487,7 @@ fn promise_resolved() {
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in `Fulfilled` state
     // it should be ignored.
-    let str =
-      v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
+    let str = v8::String::new(scope, "test2").unwrap();
     let value: Local<v8::Value> = cast(str);
     resolver.resolve(context, value);
     let result = promise.result(scope);
@@ -525,8 +516,7 @@ fn promise_rejected() {
     let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str =
-      v8::String::new(scope, "test", v8::NewStringType::Normal).unwrap();
+    let str = v8::String::new(scope, "test").unwrap();
     let value: Local<v8::Value> = cast(str);
     let rejected = resolver.reject(context, value);
     assert!(rejected.unwrap());
@@ -536,8 +526,7 @@ fn promise_rejected() {
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Reject again with different value, since promise is already in `Rejected` state
     // it should be ignored.
-    let str =
-      v8::String::new(scope, "test2", v8::NewStringType::Normal).unwrap();
+    let str = v8::String::new(scope, "test2").unwrap();
     let value: Local<v8::Value> = cast(str);
     resolver.reject(context, value);
     let result = promise.result(scope);
@@ -552,9 +541,7 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 0);
   let isolate = info.get_isolate();
   v8::HandleScope::enter(&isolate, |scope| {
-    let s =
-      v8::String::new(scope, "Hello callback!", v8::NewStringType::Normal)
-        .unwrap();
+    let s = v8::String::new(scope, "Hello callback!").unwrap();
     let value: Local<v8::Value> = s.into();
     let rv = &mut info.get_return_value();
     let rv_value = rv.get(scope);
@@ -630,9 +617,7 @@ fn set_promise_reject_callback() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let mut resolver = v8::PromiseResolver::new(scope, context).unwrap();
-    let str_ =
-      v8::String::new(scope, "promise rejected", v8::NewStringType::Normal)
-        .unwrap();
+    let str_ = v8::String::new(scope, "promise rejected").unwrap();
     let value: Local<v8::Value> = cast(str_);
     resolver.reject(context, value);
     context.exit();

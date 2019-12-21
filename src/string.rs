@@ -121,9 +121,8 @@ impl String {
   pub fn new<'sc>(
     scope: &mut HandleScope<'sc>,
     value: &str,
-    new_type: NewStringType,
   ) -> Option<Local<'sc, String>> {
-    Self::new_from_utf8(scope, value.as_ref(), new_type)
+    Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
   // Convenience function not present in the original V8 API.
