@@ -13,7 +13,7 @@ type ResolveCallback =
 extern "C" {
   fn v8__Module__InstantiateModule(
     this: *mut Module,
-    context: &Context,
+    context: Local<Context>,
     callback: ResolveCallback,
   ) -> MaybeBool;
 }
@@ -76,7 +76,7 @@ impl Module {
     context: Local<Context>,
     callback: ResolveCallback,
   ) -> Option<bool> {
-    unsafe { v8__Module__InstantiateModule(self, &context, callback) }.into()
+    unsafe { v8__Module__InstantiateModule(self, context, callback) }.into()
   }
 
   /// Evaluates the module and its dependencies.
@@ -90,4 +90,3 @@ impl Module {
     unimplemented!();
   }
 }
-
