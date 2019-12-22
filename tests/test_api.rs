@@ -145,11 +145,12 @@ fn escapable_handle_scope() {
   let mut locker = v8::Locker::new(&isolate);
   isolate.enter();
   v8::HandleScope::enter(&mut locker, |scope1| {
-    // After dropping EscapableHandleScope, we should be able to 
+    // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
     let number_val = {
       let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
-      let number: Local<v8::Value> = cast(v8::Number::new(&mut escapable_scope, 78.9));
+      let number: Local<v8::Value> =
+        cast(v8::Number::new(&mut escapable_scope, 78.9));
       escapable_scope.escape(number)
     };
     let number: Local<v8::Number> = cast(number_val);
@@ -157,8 +158,9 @@ fn escapable_handle_scope() {
 
     let str_val = {
       let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
-      let string = v8::String::new(&mut escapable_scope, "Hello 🦕 world!").unwrap();
-      escapable_scope.escape(cast(string))  
+      let string =
+        v8::String::new(&mut escapable_scope, "Hello 🦕 world!").unwrap();
+      escapable_scope.escape(cast(string))
     };
     let string: Local<v8::String> = cast(str_val);
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
@@ -166,8 +168,11 @@ fn escapable_handle_scope() {
     let str_val = {
       let mut escapable_scope = v8::EscapableHandleScope::new(scope1);
       let nested_str_val = {
-        let mut nested_escapable_scope = v8::EscapableHandleScope::new(&mut escapable_scope);
-        let string = v8::String::new(&mut nested_escapable_scope, "Hello 🦕 world!").unwrap();
+        let mut nested_escapable_scope =
+          v8::EscapableHandleScope::new(&mut escapable_scope);
+        let string =
+          v8::String::new(&mut nested_escapable_scope, "Hello 🦕 world!")
+            .unwrap();
         nested_escapable_scope.escape(cast(string))
       };
       escapable_scope.escape(nested_str_val)
