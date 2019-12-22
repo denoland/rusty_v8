@@ -876,7 +876,7 @@ extern "C" fn synthetic_module_resolve_callback(
 ) -> *mut v8::Module {
   let isolate = context.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
-  let module = {
+  let mut module = {
     let scope = &mut v8::EscapableHandleScope::new(&mut locker);
     let export_names = vec![v8_str(scope, "test_export")];
     eprintln!("pre synth");
@@ -893,7 +893,7 @@ extern "C" fn synthetic_module_resolve_callback(
     scope.escape_module(module)
   };
   // TODO need a better external API so we dont need a pointer to the module
-  unsafe { std::mem::transmute(&*module) }
+  &mut *module
 }
 
 #[test]
