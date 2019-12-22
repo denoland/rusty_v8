@@ -130,6 +130,11 @@ v8::Value* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope& self,
   return local_to_ptr(self.Escape(value));
 }
 
+v8::Module* v8__EscapableHandleScope__EscapeModule(v8::EscapableHandleScope& self,
+                                                   v8::Local<v8::Module> module) {
+  return local_to_ptr(self.Escape(module));
+}
+
 v8::Isolate* v8__EscapableHandleScope__GetIsolate(const v8::EscapableHandleScope& self) {
   return self.GetIsolate();
 }

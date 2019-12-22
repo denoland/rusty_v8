@@ -170,7 +170,7 @@ fn array_buffer() {
 }
 
 fn v8_str<'sc>(
-  scope: &mut HandleScope<'sc>,
+  scope: &mut impl AsMut<v8::Isolate>,
   s: &str,
 ) -> v8::Local<'sc, v8::String> {
   v8::String::new(scope, s).unwrap()
@@ -801,22 +801,23 @@ extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
   eprintln!("start synth");
   let isolate = context.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
-  let mut e_scope = v8::EscapableHandleScope::new(&mut locker);
-  let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&e_scope) };
-  let value: Local<v8::Value> = cast(v8_str(&mut scope, "42"));
-  eprintln!("pre export synth");
-  module.set_synthetic_module_export(
-    isolate, 
-    v8_str(&mut scope, "test_export"), 
-    value,
-  ).expect("Unable to set synthetic module export");
-  eprintln!("post export synth");
-  let undefined = v8::new_undefined(&mut scope);
-  let undefined_value: Local<v8::Value> = cast(undefined);
-  eprintln!("pre escape");
-  let escaped_value = e_scope.escape(undefined_value);
+  let undefined_value = {
+    let scope = &mut v8::EscapableHandleScope::new(&mut locker);
+    let value: Local<v8::Value> = cast(v8_str(scope, "42"));
+    eprintln!("pre export synth");
+    module.set_synthetic_module_export(
+      isolate, 
+      v8_str(scope, "test_export"), 
+      value,
+    ).expect("Unable to set synthetic module export");
+    eprintln!("post export synth");
+    let undefined = v8::new_undefined(scope);
+    let undefined_value: Local<v8::Value> = cast(undefined);
+    eprintln!("pre escape");
+    scope.escape(undefined_value)
+  };
   eprintln!("post escpae");
-  escaped_value.into()
+  undefined_value.into()
 }
 
 extern "C" fn synthetic_module_resolve_callback(
@@ -826,18 +827,20 @@ extern "C" fn synthetic_module_resolve_callback(
 ) -> MaybeLocal<v8::Module> {
   let isolate = context.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
-  let e_scope = v8::EscapableHandleScope::new(&mut locker);
-  let mut scope: v8::HandleScope = unsafe { std::mem::transmute_copy(&e_scope) };
-  let export_names = vec![v8_str(&mut scope, "test_export")];
-  eprintln!("pre synth");
-  let mut module = v8::Module::create_synthetic_module(
-    isolate,
-    v8_str(&mut scope, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
-    export_names, 
-    synthetic_module_evaluation_steps_callback_set_export
-  );
-  eprintln!("post synth");
-  module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");  
+  let module = {
+    let scope = &mut v8::EscapableHandleScope::new(&mut locker);
+    let export_names = vec![v8_str(scope, "test_export")];
+    eprintln!("pre synth");
+    let mut module = v8::Module::create_synthetic_module(
+      isolate,
+      v8_str(scope, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
+      export_names, 
+      synthetic_module_evaluation_steps_callback_set_export
+    );
+    eprintln!("post synth");
+    module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");  
+    scope.escape_module(module)
+  };
   module.into()
 }
 
@@ -845,13 +848,12 @@ extern "C" fn synthetic_module_resolve_callback(
 fn module() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
-  params.set_array_buffer_allocator(
-    v8::array_buffer::Allocator::new_default_allocator(),
-  );
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
   isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let scope = &mut v8::HandleScope::new(&mut locker);
     let mut context = v8::Context::new(scope);
     context.enter();
 
@@ -885,7 +887,7 @@ fn module() {
     let completion_value_str: Local<v8::String> = cast(completion_value);
     assert_eq!(completion_value_str.to_rust_string_lossy(scope), "42".to_string());
     context.exit();
-  });
+  }
   drop(locker);
   isolate.exit();
   drop(g);

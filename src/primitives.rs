@@ -34,7 +34,7 @@ pub fn new_null<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Primitive> {
 }
 
 pub fn new_undefined<'sc>(
-  scope: &mut HandleScope<'sc>,
+  scope: &mut impl AsMut<Isolate>,
 ) -> Local<'sc, Primitive> {
   unsafe { Local::from_raw(v8__Undefined(scope.as_mut())) }.unwrap()
 }

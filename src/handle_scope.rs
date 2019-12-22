@@ -3,6 +3,7 @@ use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
 use crate::Local;
+use crate::Module;
 use crate::Value;
 
 extern "C" {
@@ -24,6 +25,10 @@ extern "C" {
     this: &mut EscapableHandleScope,
     value: *mut Value,
   ) -> *mut Value;
+  fn v8__EscapableHandleScope__EscapeModule(
+    this: &mut EscapableHandleScope,
+    value: *mut Module,
+  ) -> *mut Module;
   fn v8__EscapableHandleScope__GetIsolate<'sc>(
     this: &'sc EscapableHandleScope,
   ) -> &'sc mut Isolate;
@@ -96,6 +101,16 @@ impl<'sc> EscapableHandleScope<'sc> {
   ) -> Local<'parent, Value> {
     unsafe {
       Local::from_raw(v8__EscapableHandleScope__Escape(self, &mut *value))
+        .unwrap()
+    }
+  }
+
+  pub fn escape_module<'parent>(
+    &mut self,
+    mut value: Local<'sc, Module>,
+  ) -> Local<'parent, Module> {
+    unsafe {
+      Local::from_raw(v8__EscapableHandleScope__EscapeModule(self, &mut *value))
         .unwrap()
     }
   }
