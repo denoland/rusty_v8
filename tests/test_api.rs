@@ -93,15 +93,17 @@ fn global_handles() {
   let mut g3 = v8::Global::<v8::Integer>::new();
   let mut g4 = v8::Global::<v8::Integer>::new();
   let g5 = v8::Global::<v8::Script>::new();
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let scope = &mut v8::HandleScope::new(&mut locker);
     let l1 = v8::String::new(scope, "bla").unwrap();
     let l2 = v8::Integer::new(scope, 123);
     g1.set(scope, l1);
     g2.set(scope, l2);
     g3.set(scope, &g2);
     g4 = v8::Global::new_from(scope, l2);
-  });
-  v8::HandleScope::enter(&mut locker, |scope| {
+  }
+  {
+    let scope = &mut v8::HandleScope::new(&mut locker);
     assert!(!g1.is_empty());
     assert_eq!(g1.get(scope).unwrap().to_rust_string_lossy(scope), "bla");
     assert!(!g2.is_empty());
@@ -111,7 +113,7 @@ fn global_handles() {
     assert!(!g4.is_empty());
     assert_eq!(g4.get(scope).unwrap().value(), 123);
     assert!(g5.is_empty());
-  });
+  }
   g1.reset(&mut locker);
   assert!(g1.is_empty());
   g2.reset(&mut locker);
