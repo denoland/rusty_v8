@@ -82,6 +82,48 @@ fn handle_scope_numbers() {
 }
 
 #[test]
+fn global_handles() {
+  let _g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  let mut g1 = v8::Global::<v8::String>::new();
+  let mut g2 = v8::Global::<v8::Integer>::new();
+  let mut g3 = v8::Global::<v8::Integer>::new();
+  let mut g4 = v8::Global::<v8::Integer>::new();
+  let g5 = v8::Global::<v8::Script>::new();
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let l1 = v8::String::new(scope, "bla").unwrap();
+    let l2 = v8::Integer::new(scope, 123);
+    g1.set(scope, l1);
+    g2.set(scope, l2);
+    g3.set(scope, &g2);
+    g4 = v8::Global::new_from(scope, l2);
+  });
+  v8::HandleScope::enter(&mut locker, |scope| {
+    assert!(!g1.is_empty());
+    assert_eq!(g1.get(scope).unwrap().to_rust_string_lossy(scope), "bla");
+    assert!(!g2.is_empty());
+    assert_eq!(g2.get(scope).unwrap().value(), 123);
+    assert!(!g3.is_empty());
+    assert_eq!(g3.get(scope).unwrap().value(), 123);
+    assert!(!g4.is_empty());
+    assert_eq!(g4.get(scope).unwrap().value(), 123);
+    assert!(g5.is_empty());
+  });
+  g1.reset(&mut locker);
+  assert!(g1.is_empty());
+  g2.reset(&mut locker);
+  assert!(g2.is_empty());
+  g3.reset(&mut locker);
+  assert!(g3.is_empty());
+  g4.reset(&mut locker);
+  assert!(g4.is_empty());
+  assert!(g5.is_empty());
+}
+
+#[test]
 fn test_string() {
   setup();
   let mut params = v8::Isolate::create_params();
