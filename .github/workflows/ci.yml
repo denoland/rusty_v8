@@ -72,7 +72,7 @@ jobs:
           cargo build -vv --release --locked --all-targets
 
       - name: Test
-        run: cargo test -vv --release --locked --all-targets
+        run: RUST_BACKTRACE=full cargo test -vv --release --locked --all-targets
 
       - name: Clippy
         run: |
