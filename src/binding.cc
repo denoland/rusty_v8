@@ -39,11 +39,10 @@ static_assert(sizeof(v8::MaybeLocal<v8::Value>) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::MaybeLocal<v8::Module>) == sizeof(size_t) * 1,
               "MaybeLocal<Module> size mismatch");
 
-
 typedef v8::Module* (*ResolveModuleCallback)(v8::Local<v8::Context> context,
-                                              v8::Local<v8::String> specifier,
-                                              v8::Local<v8::Module> referrer);
-                                              
+                                             v8::Local<v8::String> specifier,
+                                             v8::Local<v8::Module> referrer);
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
@@ -125,24 +124,27 @@ v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
   return self.GetIsolate();
 }
 
-void v8__EscapableHandleScope__CONSTRUCT(uninit_t<v8::EscapableHandleScope>& buf,
-                                         v8::Isolate* isolate) {
+void v8__EscapableHandleScope__CONSTRUCT(
+    uninit_t<v8::EscapableHandleScope>& buf, v8::Isolate* isolate) {
   construct_in_place<v8::EscapableHandleScope>(buf, isolate);
 }
 
-void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) { self.~EscapableHandleScope(); }
+void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) {
+  self.~EscapableHandleScope();
+}
 
 v8::Value* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope& self,
                                             v8::Local<v8::Value> value) {
   return local_to_ptr(self.Escape(value));
 }
 
-v8::Module* v8__EscapableHandleScope__EscapeModule(v8::EscapableHandleScope& self,
-                                                   v8::Local<v8::Module> module) {
+v8::Module* v8__EscapableHandleScope__EscapeModule(
+    v8::EscapableHandleScope& self, v8::Local<v8::Module> module) {
   return local_to_ptr(self.Escape(module));
 }
 
-v8::Isolate* v8__EscapableHandleScope__GetIsolate(const v8::EscapableHandleScope& self) {
+v8::Isolate* v8__EscapableHandleScope__GetIsolate(
+    const v8::EscapableHandleScope& self) {
   return self.GetIsolate();
 }
 
@@ -212,8 +214,7 @@ bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
 
 bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
 
-void v8__Value__MaybeLocal(v8::Value* value,
-                           v8::MaybeLocal<v8::Value>* out) {
+void v8__Value__MaybeLocal(v8::Value* value, v8::MaybeLocal<v8::Value>* out) {
   *out = ptr_to_maybe_local(value);
 }
 
@@ -767,13 +768,11 @@ int v8__Module__GetModuleRequestsLength(const v8::Module& self) {
   return self.GetModuleRequestsLength();
 }
 
-v8::String* v8__Module__GetModuleRequest(const v8::Module& self,
-                                         int i) {
+v8::String* v8__Module__GetModuleRequest(const v8::Module& self, int i) {
   return local_to_ptr(self.GetModuleRequest(i));
 }
 
-void v8__Module__GetModuleRequestLocation(const v8::Module& self,
-                                          int i,
+void v8__Module__GetModuleRequestLocation(const v8::Module& self, int i,
                                           v8::Location* out) {
   *out = self.GetModuleRequestLocation(i);
 }
@@ -787,10 +786,26 @@ void v8__Module__MaybeLocal(v8::Module* value,
   *out = ptr_to_maybe_local(value);
 }
 
+typedef v8::Module* (*ResolveCallback2)(v8::Local<v8::Context> context,
+                                        v8::Local<v8::String> specifier,
+                                        v8::Local<v8::Module> referrer);
+
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
                                         v8::Local<v8::Context> context,
-                                        v8::Module::ResolveCallback callback) {
-  return maybe_to_maybe_bool(self.InstantiateModule(context, callback));
+                                        ResolveCallback2 callback2) {
+  static ResolveCallback2 callback2_static = callback2;
+  auto lambda = [](v8::Local<v8::Context> context,
+                   v8::Local<v8::String> specifier,
+                   v8::Local<v8::Module> referrer) {
+    v8::Module* m = callback2_static(context, specifier, referrer);
+    if (m == nullptr) {
+      return v8::MaybeLocal<v8::Module>();
+    } else {
+      return v8::MaybeLocal<v8::Module>(ptr_to_local(m));
+    }
+  };
+
+  return maybe_to_maybe_bool(self.InstantiateModule(context, lambda));
 }
 
 v8::Value* v8__Module__Evaluate(v8::Module& self,
@@ -798,19 +813,20 @@ v8::Value* v8__Module__Evaluate(v8::Module& self,
   return maybe_local_to_ptr(self.Evaluate(context));
 }
 
-v8::Module* v8__Module__CreateSyntheticModule(v8::Isolate* isolate,
-                                              v8::Local<v8::String> module_name,
-                                              v8::Local<v8::String>* export_names,
-                                              size_t export_names_len,
-                                              v8::Module::SyntheticModuleEvaluationSteps evaluation_steps) {
-  const std::vector<v8::Local<v8::String>> names(export_names, export_names + export_names_len);
-  return local_to_ptr(v8::Module::CreateSyntheticModule(isolate, module_name, names, evaluation_steps));
+v8::Module* v8__Module__CreateSyntheticModule(
+    v8::Isolate* isolate, v8::Local<v8::String> module_name,
+    v8::Local<v8::String>* export_names, size_t export_names_len,
+    v8::Module::SyntheticModuleEvaluationSteps evaluation_steps) {
+  const std::vector<v8::Local<v8::String>> names(
+      export_names, export_names + export_names_len);
+  return local_to_ptr(v8::Module::CreateSyntheticModule(
+      isolate, module_name, names, evaluation_steps));
 }
 
-MaybeBool v8__Module__SetSyntheticModuleExport(v8::Module& self,
-                                               v8::Isolate* isolate,
-                                               v8::Local<v8::String> export_name,
-                                               v8::Local<v8::Value> export_value) {
-  return maybe_to_maybe_bool(self.SetSyntheticModuleExport(isolate, export_name, export_value));
+MaybeBool v8__Module__SetSyntheticModuleExport(
+    v8::Module& self, v8::Isolate* isolate, v8::Local<v8::String> export_name,
+    v8::Local<v8::Value> export_value) {
+  return maybe_to_maybe_bool(
+      self.SetSyntheticModuleExport(isolate, export_name, export_value));
 }
 }  // extern "C"

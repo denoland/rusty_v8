@@ -4,7 +4,9 @@
 extern crate lazy_static;
 
 use rusty_v8 as v8;
-use rusty_v8::{new_null, FunctionCallbackInfo, HandleScope, Local, MaybeLocal};
+use rusty_v8::{
+  new_null, FunctionCallbackInfo, HandleScope, Local, MaybeLocal,
+};
 use std::sync::Mutex;
 
 lazy_static! {
@@ -154,11 +156,12 @@ fn escapable_handle_scope() {
   isolate.enter();
   {
     let scope = &mut v8::HandleScope::new(&mut locker);
-    // After dropping EscapableHandleScope, we should be able to 
+    // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
     let number_val = {
       let mut escapable_scope = v8::EscapableHandleScope::new(scope);
-      let number: Local<v8::Value> = cast(v8::Number::new(&mut escapable_scope, 78.9));
+      let number: Local<v8::Value> =
+        cast(v8::Number::new(&mut escapable_scope, 78.9));
       escapable_scope.escape(number)
     };
     let number: Local<v8::Number> = cast(number_val);
@@ -166,8 +169,9 @@ fn escapable_handle_scope() {
 
     let str_val = {
       let mut escapable_scope = v8::EscapableHandleScope::new(scope);
-      let string = v8::String::new(&mut escapable_scope, "Hello 🦕 world!").unwrap();
-      escapable_scope.escape(cast(string))  
+      let string =
+        v8::String::new(&mut escapable_scope, "Hello 🦕 world!").unwrap();
+      escapable_scope.escape(cast(string))
     };
     let string: Local<v8::String> = cast(str_val);
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope));
@@ -175,8 +179,11 @@ fn escapable_handle_scope() {
     let str_val = {
       let mut escapable_scope = v8::EscapableHandleScope::new(scope);
       let nested_str_val = {
-        let mut nested_escapable_scope = v8::EscapableHandleScope::new(&mut escapable_scope);
-        let string = v8::String::new(&mut nested_escapable_scope, "Hello 🦕 world!").unwrap();
+        let mut nested_escapable_scope =
+          v8::EscapableHandleScope::new(&mut escapable_scope);
+        let string =
+          v8::String::new(&mut nested_escapable_scope, "Hello 🦕 world!")
+            .unwrap();
         nested_escapable_scope.escape(cast(string))
       };
       escapable_scope.escape(nested_str_val)
@@ -830,17 +837,17 @@ fn primitive_array() {
 }
 
 extern "C" fn unexpected_module_resolve_callback(
-  _context: Local<v8::Context>, 
-  _specifier: Local<v8::String>, 
-  _referrer: Local<v8::Module>
-) -> MaybeLocal<v8::Module> {
+  _context: Local<v8::Context>,
+  _specifier: Local<v8::String>,
+  _referrer: Local<v8::Module>,
+) -> *mut v8::Module {
   eprintln!("before panic!");
   panic!("Unexpected call to resolve callback")
 }
 
 extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
   mut context: Local<v8::Context>,
-  mut module: Local<v8::Module>
+  mut module: Local<v8::Module>,
 ) -> MaybeLocal<v8::Value> {
   eprintln!("start synth");
   let isolate = context.get_isolate();
@@ -849,11 +856,9 @@ extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
     let scope = &mut v8::EscapableHandleScope::new(&mut locker);
     let value: Local<v8::Value> = cast(v8_str(scope, "42"));
     eprintln!("pre export synth");
-    module.set_synthetic_module_export(
-      isolate, 
-      v8_str(scope, "test_export"), 
-      value,
-    ).expect("Unable to set synthetic module export");
+    module
+      .set_synthetic_module_export(isolate, v8_str(scope, "test_export"), value)
+      .expect("Unable to set synthetic module export");
     eprintln!("post export synth");
     let undefined = v8::new_undefined(scope);
     let undefined_value: Local<v8::Value> = cast(undefined);
@@ -865,10 +870,10 @@ extern "C" fn synthetic_module_evaluation_steps_callback_set_export(
 }
 
 extern "C" fn synthetic_module_resolve_callback(
-  mut context: Local<v8::Context>, 
-  _specifier: Local<v8::String>, 
-  _referrer: Local<v8::Module>
-) -> MaybeLocal<v8::Module> {
+  mut context: Local<v8::Context>,
+  _specifier: Local<v8::String>,
+  _referrer: Local<v8::Module>,
+) -> *mut v8::Module {
   let isolate = context.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
   let module = {
@@ -877,15 +882,18 @@ extern "C" fn synthetic_module_resolve_callback(
     eprintln!("pre synth");
     let mut module = v8::Module::create_synthetic_module(
       isolate,
-      v8_str(scope, "SyntheticModuleResolveCallback-TestSyntheticModule"), 
-      export_names, 
-      synthetic_module_evaluation_steps_callback_set_export
+      v8_str(scope, "SyntheticModuleResolveCallback-TestSyntheticModule"),
+      export_names,
+      synthetic_module_evaluation_steps_callback_set_export,
     );
     eprintln!("post synth");
-    module.instantiate_module(context, unexpected_module_resolve_callback).expect("Unable to instantiate module");  
+    module
+      .instantiate_module(context, unexpected_module_resolve_callback)
+      .expect("Unable to instantiate module");
     scope.escape_module(module)
   };
-  module.into()
+  // TODO need a better external API so we dont need a pointer to the module
+  unsafe { std::mem::transmute(&*module) }
 }
 
 #[test]
@@ -922,14 +930,20 @@ fn module() {
       source,
       v8::script_compiler::CompileOptions::NoCompileOptions,
       v8::script_compiler::NoCacheReason::NoReason,
-    ).expect("Unable to compile module");
-    
-    let maybe_bool = module.instantiate_module(context, synthetic_module_resolve_callback);
+    )
+    .expect("Unable to compile module");
+
+    let maybe_bool =
+      module.instantiate_module(context, synthetic_module_resolve_callback);
     assert!(maybe_bool.is_some());
 
-    let completion_value = module.evaluate(context).expect("Empty completion value");
+    let completion_value =
+      module.evaluate(context).expect("Empty completion value");
     let completion_value_str: Local<v8::String> = cast(completion_value);
-    assert_eq!(completion_value_str.to_rust_string_lossy(scope), "42".to_string());
+    assert_eq!(
+      completion_value_str.to_rust_string_lossy(scope),
+      "42".to_string()
+    );
     context.exit();
   }
   drop(locker);

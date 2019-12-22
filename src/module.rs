@@ -9,12 +9,8 @@ use crate::String;
 use crate::Value;
 use std::mem::MaybeUninit;
 
-// Ideally the return value would be Option<Local<Module>>... but not FFI-safe
-type ResolveCallback = extern "C" fn(
-  Local<Context>,
-  Local<String>,
-  Local<Module>,
-) -> MaybeLocal<Module>;
+type ResolveCallback2 =
+  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 /// Callback defined in the embedder.  This is responsible for setting
 /// the module's exported values with calls to SetSyntheticModuleExport().
@@ -41,7 +37,7 @@ extern "C" {
   fn v8__Module__InstantiateModule(
     this: *mut Module,
     context: Local<Context>,
-    callback: ResolveCallback,
+    callback: ResolveCallback2,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *mut Module,
@@ -148,7 +144,7 @@ impl Module {
   pub fn instantiate_module(
     &mut self,
     context: Local<Context>,
-    callback: ResolveCallback,
+    callback: ResolveCallback2,
   ) -> Option<bool> {
     unsafe { v8__Module__InstantiateModule(self, context, callback) }.into()
   }
