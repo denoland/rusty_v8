@@ -90,4 +90,4 @@ fn test_size_of_local() {
 }
 
 #[repr(C)]
-pub struct MaybeLocal<T>(T, [usize; 2]);
+pub struct MaybeLocal<T>(T, [usize; 1]);
