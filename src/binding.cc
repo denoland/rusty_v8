@@ -16,6 +16,9 @@ static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
 static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
               "HandleScope size mismatch");
 
+static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * 4,
+              "EscapableHandleScope size mismatch");
+
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
@@ -108,6 +111,25 @@ void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>& buf,
 void v8__HandleScope__DESTRUCT(v8::HandleScope& self) { self.~HandleScope(); }
 
 v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
+  return self.GetIsolate();
+}
+
+void v8__EscapableHandleScope__CONSTRUCT(
+    uninit_t<v8::EscapableHandleScope>& buf, v8::Isolate* isolate) {
+  construct_in_place<v8::EscapableHandleScope>(buf, isolate);
+}
+
+void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) {
+  self.~EscapableHandleScope();
+}
+
+v8::Value* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope& self,
+                                            v8::Local<v8::Value> value) {
+  return local_to_ptr(self.Escape(value));
+}
+
+v8::Isolate* v8__EscapableHandleScope__GetIsolate(
+    const v8::EscapableHandleScope& self) {
   return self.GetIsolate();
 }
 
