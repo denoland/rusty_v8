@@ -33,17 +33,19 @@ extern "C" {
 pub struct HandleScope<'sc>([usize; 3], PhantomData<&'sc mut ()>);
 
 impl<'sc> HandleScope<'sc> {
-  pub fn enter(
-    isolate: &mut impl AsMut<Isolate>,
-    mut f: impl FnMut(&mut HandleScope<'_>) -> (),
-  ) {
+  pub fn new(isolate: &mut impl AsMut<Isolate>) -> Self {
     let isolate = isolate.as_mut();
     let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
-    unsafe { v8__HandleScope__CONSTRUCT(&mut scope, isolate) };
-    let scope = unsafe { &mut *(scope.as_mut_ptr()) };
-    f(scope);
+    unsafe {
+      v8__HandleScope__CONSTRUCT(&mut scope, isolate);
+      scope.assume_init()
+    }
+  }
+}
 
-    unsafe { v8__HandleScope__DESTRUCT(scope) };
+impl<'sc> Drop for HandleScope<'sc> {
+  fn drop(&mut self) {
+    unsafe { v8__HandleScope__DESTRUCT(self) }
   }
 }
 

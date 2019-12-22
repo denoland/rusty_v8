@@ -64,7 +64,7 @@ impl PrimitiveArray {
 
   pub fn get<'sc>(
     &self,
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl AsMut<Isolate>,
     index: usize,
   ) -> Local<'sc, Primitive> {
     unsafe {
