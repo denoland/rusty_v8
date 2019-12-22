@@ -114,19 +114,22 @@ v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
   return self.GetIsolate();
 }
 
-void v8__EscapableHandleScope__CONSTRUCT(uninit_t<v8::EscapableHandleScope>& buf,
-                                         v8::Isolate* isolate) {
+void v8__EscapableHandleScope__CONSTRUCT(
+    uninit_t<v8::EscapableHandleScope>& buf, v8::Isolate* isolate) {
   construct_in_place<v8::EscapableHandleScope>(buf, isolate);
 }
 
-void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) { self.~EscapableHandleScope(); }
+void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) {
+  self.~EscapableHandleScope();
+}
 
 v8::Value* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope& self,
                                             v8::Local<v8::Value> value) {
   return local_to_ptr(self.Escape(value));
 }
 
-v8::Isolate* v8__EscapableHandleScope__GetIsolate(const v8::EscapableHandleScope& self) {
+v8::Isolate* v8__EscapableHandleScope__GetIsolate(
+    const v8::EscapableHandleScope& self) {
   return self.GetIsolate();
 }
 
