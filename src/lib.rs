@@ -9,6 +9,7 @@ extern crate bitflags;
 extern crate lazy_static;
 extern crate libc;
 
+mod array_buffer;
 mod context;
 mod exception;
 mod function;
@@ -29,7 +30,6 @@ mod support;
 mod try_catch;
 mod value;
 
-pub mod array_buffer;
 pub mod inspector;
 pub mod json;
 pub mod module;
@@ -40,6 +40,9 @@ pub mod script_compiler;
 #[allow(non_snake_case)]
 pub mod V8;
 
+pub use array_buffer::Allocator;
+pub use array_buffer::ArrayBuffer;
+pub use array_buffer::BackingStore;
 pub use context::Context;
 pub use exception::*;
 pub use function::{
