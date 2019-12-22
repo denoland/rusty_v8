@@ -136,6 +136,28 @@ void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>& buf, v8::Isolate* isolate) {
 
 void v8__Locker__DESTRUCT(v8::Locker& self) { self.~Locker(); }
 
+v8::Value* v8__Local__New(v8::Isolate* isolate, v8::Value* other) {
+  return local_to_ptr(v8::Local<v8::Value>::New(isolate, ptr_to_local(other)));
+}
+
+v8::Value* v8__Global__New(v8::Isolate* isolate, v8::Value* other) {
+  auto global = v8::Global<v8::Value>(isolate, ptr_to_local(other));
+  return global_to_ptr(global);
+}
+
+void v8__Global__Reset__0(v8::Value*& self) {
+  auto global = ptr_to_global(self);
+  global.Reset();
+  self = global_to_ptr(global);
+}
+
+void v8__Global__Reset__2(v8::Value*& self, v8::Isolate* isolate,
+                          v8::Value* const& other) {
+  auto global = ptr_to_global(self);
+  global.Reset(isolate, ptr_to_local(other));
+  self = global_to_ptr(global);
+}
+
 void v8__ScriptCompiler__Source__CONSTRUCT(
     uninit_t<v8::ScriptCompiler::Source>& buf, v8::String* source_string,
     v8::ScriptOrigin& origin) {
