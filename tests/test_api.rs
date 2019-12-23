@@ -906,20 +906,16 @@ fn module_evaluation() {
       _referrer: v8::Local<v8::Module>,
     ) -> Option<*mut v8::Module> {
       let isolate_: &mut v8::Isolate = context.as_mut();
-      let module_ = {
-        let mut escapable_scope = v8::EscapableHandleScope::new(isolate_);
-        let origin = mock_script_origin(isolate_, "module.js");
-        let source = v8::script_compiler::Source::new(specifier, &origin);
-        let module = v8::script_compiler::compile_module(
-          isolate_,
-          source,
-          v8::script_compiler::CompileOptions::NoCompileOptions,
-          v8::script_compiler::NoCacheReason::NoReason,
-        )
-        .unwrap();
-        escapable_scope.escape(cast(module))
-      };
-      Some(&mut *cast(module_))
+      let origin = mock_script_origin(isolate_, "module.js");
+      let source = v8::script_compiler::Source::new(specifier, &origin);
+      let module = v8::script_compiler::compile_module(
+        isolate_,
+        source,
+        v8::script_compiler::CompileOptions::NoCompileOptions,
+        v8::script_compiler::NoCacheReason::NoReason,
+      )
+      .unwrap();
+      Some(&mut *cast(module))
     }
     let result = module.instantiate_module(context, resolve_callback);
     assert!(result.unwrap());
