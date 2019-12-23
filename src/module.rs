@@ -11,6 +11,9 @@ use std::mem::MaybeUninit;
 type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
+type ResolveCallback =
+  fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
+
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
   fn v8__Module__GetException(this: *const Module) -> *mut Value;
@@ -116,9 +119,30 @@ impl Module {
   pub fn instantiate_module(
     &mut self,
     context: Local<Context>,
-    callback: v8__Module__ResolveCallback,
+    callback: ResolveCallback,
   ) -> Option<bool> {
-    unsafe { v8__Module__InstantiateModule(self, context, callback) }.into()
+    use std::sync::Mutex;
+    lazy_static! {
+      static ref RESOLVE_CALLBACK: Mutex<Option<ResolveCallback>> =
+        Mutex::new(None);
+    }
+
+    {
+      let mut guard = RESOLVE_CALLBACK.lock().unwrap();
+      *guard = Some(callback);
+    }
+
+    extern "C" fn c_cb(
+      context: Local<Context>,
+      specifier: Local<String>,
+      referrer: Local<Module>,
+    ) -> *mut Module {
+      let guard = RESOLVE_CALLBACK.lock().unwrap();
+      let cb = guard.unwrap();
+      cb(context, specifier, referrer)
+    }
+
+    unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into()
   }
 
   /// Evaluates the module and its dependencies.

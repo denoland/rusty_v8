@@ -844,7 +844,7 @@ fn module_instantiation_failures1() {
     {
       let mut try_catch = v8::TryCatch::new(scope);
       let tc = try_catch.enter();
-      extern "C" fn resolve_callback(
+      fn resolve_callback(
         mut context: v8::Local<v8::Context>,
         _specifier: v8::Local<v8::String>,
         _referrer: v8::Local<v8::Module>,
@@ -900,7 +900,7 @@ fn module_evaluation() {
     .unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
-    extern "C" fn resolve_callback(
+    fn resolve_callback(
       mut context: v8::Local<v8::Context>,
       specifier: v8::Local<v8::String>,
       _referrer: v8::Local<v8::Module>,
