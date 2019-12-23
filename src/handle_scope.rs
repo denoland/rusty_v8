@@ -1,8 +1,9 @@
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
-use crate::scope::{Scope, Scoped};
+use crate::scope::Entered;
+use crate::scope::Scope;
+use crate::scope::Scoped;
 use crate::Local;
 use crate::Value;
 
@@ -31,42 +32,49 @@ extern "C" {
 }
 
 #[repr(C)]
-pub struct HandleScope<'sc>([usize; 3], PhantomData<&'sc mut ()>);
+pub struct HandleScope([usize; 3]);
 
-impl<'sc> HandleScope<'sc> {
-  pub fn enter(
-    isolate: &mut impl AsMut<Isolate>,
-    mut f: impl FnMut(&mut HandleScope<'_>) -> (),
-  ) {
-    let isolate = isolate.as_mut();
-    let mut scope: MaybeUninit<Self> = MaybeUninit::uninit();
-    unsafe { v8__HandleScope__CONSTRUCT(&mut scope, isolate) };
-    let scope = unsafe { &mut *(scope.as_mut_ptr()) };
-    f(scope);
-
-    unsafe { v8__HandleScope__DESTRUCT(scope) };
+impl HandleScope {
+  pub fn new<'sc>(
+    isolate: &'sc mut impl AsMut<Entered<'sc, Isolate>>,
+  ) -> Scope<'sc, Self> {
+    Scope::new(isolate.entered().as_mut())
   }
 }
 
-impl<'sc> AsRef<HandleScope<'sc>> for HandleScope<'sc> {
+unsafe impl<'s> Scoped<'s> for HandleScope {
+  type Args = &'s mut Isolate;
+
+  fn enter_scope(buf: &mut MaybeUninit<Self>, isolate: &mut Isolate) {
+    unsafe { v8__HandleScope__CONSTRUCT(buf, isolate) };
+  }
+}
+
+impl Drop for HandleScope {
+  fn drop(&mut self) {
+    unsafe { v8__HandleScope__DESTRUCT(self) }
+  }
+}
+
+impl AsRef<HandleScope> for HandleScope {
   fn as_ref(&self) -> &Self {
     self
   }
 }
 
-impl<'sc> AsMut<HandleScope<'sc>> for HandleScope<'sc> {
+impl AsMut<HandleScope> for HandleScope {
   fn as_mut(&mut self) -> &mut Self {
     self
   }
 }
 
-impl<'sc> AsRef<Isolate> for HandleScope<'sc> {
+impl AsRef<Isolate> for HandleScope {
   fn as_ref(&self) -> &Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
   }
 }
 
-impl<'sc> AsMut<Isolate> for HandleScope<'sc> {
+impl AsMut<Isolate> for HandleScope {
   fn as_mut(&mut self) -> &mut Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
   }
@@ -79,7 +87,7 @@ pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
   pub fn new<'sc>(
-    isolate: &'sc mut impl AsMut<crate::scope::Entered<'sc, Isolate>>,
+    isolate: &'sc mut impl AsMut<Entered<'sc, Isolate>>,
   ) -> Scope<'sc, Self> {
     Scope::new(&mut **(isolate.as_mut()))
   }
