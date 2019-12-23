@@ -778,10 +778,32 @@ int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
 
+// This is an extern C calling convention compatible version of
+// v8::Module::ResolveCallback.
+typedef v8::Module* (*v8__Module__ResolveCallback)(
+    v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
+    v8::Local<v8::Module> referrer);
+
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
                                         v8::Local<v8::Context> context,
-                                        v8::Module::ResolveCallback callback) {
-  return maybe_to_maybe_bool(self.InstantiateModule(context, callback));
+                                        v8__Module__ResolveCallback callback) {
+  static v8__Module__ResolveCallback static_cb = nullptr;
+  assert(static_cb == nullptr);
+  static_cb = callback;
+  auto cxx_callback = [](v8::Local<v8::Context> context,
+                         v8::Local<v8::String> specifier,
+                         v8::Local<v8::Module> referrer) {
+    v8::Module* m = static_cb(context, specifier, referrer);
+    if (m == nullptr) {
+      return v8::MaybeLocal<v8::Module>();
+    } else {
+      return v8::MaybeLocal<v8::Module>(ptr_to_local(m));
+    }
+  };
+
+  auto r = maybe_to_maybe_bool(self.InstantiateModule(context, cxx_callback));
+  static_cb = nullptr;
+  return r;
 }
 
 v8::Value* v8__Module__Evaluate(v8::Module& self,
