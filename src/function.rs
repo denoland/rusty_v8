@@ -3,9 +3,10 @@ use std::mem::MaybeUninit;
 
 use crate::support::{int, Opaque};
 use crate::Context;
-use crate::HandleScope;
+use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
+use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -62,8 +63,8 @@ impl<'cb> ReturnValue<'cb> {
   }
 
   /// Convenience getter for Isolate
-  pub fn get_isolate(&self) -> &Isolate {
-    unsafe { v8__ReturnValue__GetIsolate(self).as_ref().unwrap() }
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { &mut *v8__ReturnValue__GetIsolate(self) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
@@ -71,9 +72,9 @@ impl<'cb> ReturnValue<'cb> {
   /// value.
   pub fn get<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { Local::from_raw(v8__ReturnValue__Get(self)).unwrap() }
+    unsafe { scope.to_local(v8__ReturnValue__Get(self)) }.unwrap()
   }
 }
 
@@ -83,6 +84,18 @@ impl<'cb> ReturnValue<'cb> {
 /// the holder of the function.
 #[repr(C)]
 pub struct FunctionCallbackInfo(Opaque);
+
+impl InIsolate for FunctionCallbackInfo {
+  #[allow(clippy::cast_ref_to_mut)]
+  fn isolate(&mut self) -> &mut Isolate {
+    unsafe {
+      let m = &mut **(self as *mut _ as *mut *mut FunctionCallbackInfo);
+      m.get_isolate()
+    }
+  }
+}
+
+impl<'s> ToLocal<'s> for FunctionCallbackInfo {}
 
 impl FunctionCallbackInfo {
   /// The ReturnValue for the call.
@@ -96,8 +109,8 @@ impl FunctionCallbackInfo {
 
   /// The current Isolate.
   #[allow(clippy::mut_from_ref)]
-  pub unsafe fn get_isolate(&self) -> &mut Isolate {
-    v8__FunctionCallbackInfo__GetIsolate(self)
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 
   /// The number of available arguments.
@@ -132,26 +145,22 @@ pub struct FunctionTemplate(Opaque);
 impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     callback: extern "C" fn(&FunctionCallbackInfo),
   ) -> Local<'sc, FunctionTemplate> {
-    unsafe {
-      Local::from_raw(v8__FunctionTemplate__New(scope.as_mut(), callback))
-        .unwrap()
-    }
+    let ptr = unsafe { v8__FunctionTemplate__New(scope.isolate(), callback) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Returns the unique function instance in the current execution context.
   pub fn get_function<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
   ) -> Option<Local<'sc, Function>> {
     unsafe {
-      Local::from_raw(v8__FunctionTemplate__GetFunction(
-        &mut *self,
-        &mut *context,
-      ))
+      scope
+        .to_local(v8__FunctionTemplate__GetFunction(&mut *self, &mut *context))
     }
   }
 }
@@ -165,16 +174,16 @@ impl Function {
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new<'sc>(
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
     callback: extern "C" fn(&FunctionCallbackInfo),
   ) -> Option<Local<'sc, Function>> {
-    unsafe { Local::from_raw(v8__Function__New(&mut *context, callback)) }
+    unsafe { scope.to_local(v8__Function__New(&mut *context, callback)) }
   }
 
   pub fn call<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
     mut recv: Local<Value>,
     arc: i32,
@@ -185,7 +194,7 @@ impl Function {
       argv_.push(&mut *arg);
     }
     unsafe {
-      Local::from_raw(v8__Function__Call(
+      scope.to_local(v8__Function__Call(
         &mut *self,
         &mut *context,
         &mut *recv,

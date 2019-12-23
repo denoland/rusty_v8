@@ -1,10 +1,10 @@
 use std::ops::Deref;
 
 use crate::isolate::Isolate;
-use crate::scope::Entered;
 use crate::support::Opaque;
 use crate::value::Value;
 use crate::Local;
+use crate::ToLocal;
 
 extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *mut Number;
@@ -23,13 +23,11 @@ pub struct Number(Opaque);
 
 impl Number {
   pub fn new<'sc>(
-    scope: &mut impl AsMut<Isolate>,
+    scope: &mut impl ToLocal<'sc>,
     value: f64,
   ) -> Local<'sc, Number> {
-    unsafe {
-      let local = v8__Number__New(scope.as_mut(), value);
-      Local::from_raw(local).unwrap()
-    }
+    let local = unsafe { v8__Number__New(scope.isolate(), value) };
+    unsafe { scope.to_local(local) }.unwrap()
   }
 
   pub fn value(&self) -> f64 {
@@ -50,23 +48,19 @@ pub struct Integer(Opaque);
 
 impl Integer {
   pub fn new<'sc>(
-    scope: &mut impl AsMut<Entered<'sc, Isolate>>,
+    scope: &mut impl ToLocal<'sc>,
     value: i32,
   ) -> Local<'sc, Integer> {
-    unsafe {
-      let local = v8__Integer__New(&mut **(scope.as_mut()), value);
-      Local::from_raw(local).unwrap()
-    }
+    let local = unsafe { v8__Integer__New(scope.isolate(), value) };
+    unsafe { scope.to_local(local) }.unwrap()
   }
 
   pub fn new_from_unsigned<'sc>(
-    scope: &mut impl AsMut<Isolate>,
+    scope: &mut impl ToLocal<'sc>,
     value: u32,
   ) -> Local<'sc, Integer> {
-    unsafe {
-      let local = v8__Integer__NewFromUnsigned(scope.as_mut(), value);
-      Local::from_raw(local).unwrap()
-    }
+    let local = unsafe { v8__Integer__NewFromUnsigned(scope.isolate(), value) };
+    unsafe { scope.to_local(local) }.unwrap()
   }
 
   pub fn value(&self) -> i64 {

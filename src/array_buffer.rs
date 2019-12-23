@@ -1,9 +1,9 @@
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::ToLocal;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
@@ -117,13 +117,12 @@ impl ArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     byte_length: usize,
   ) -> Local<'sc, ArrayBuffer> {
-    unsafe {
-      let ptr = v8__ArrayBuffer__New(scope.as_mut(), byte_length);
-      Local::from_raw(ptr).unwrap()
-    }
+    let isolate = scope.isolate();
+    let ptr = unsafe { v8__ArrayBuffer__New(isolate, byte_length) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Data length in bytes.
@@ -139,12 +138,12 @@ impl ArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   pub fn new_backing_store<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore(
-        scope.as_mut(),
+        scope.isolate(),
         byte_length,
       ))
     }

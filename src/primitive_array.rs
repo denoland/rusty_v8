@@ -1,10 +1,10 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::support::int;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Primitive;
+use crate::ToLocal;
 
 extern "C" {
   fn v8__PrimitiveArray__New(
@@ -38,13 +38,12 @@ pub struct PrimitiveArray(Opaque);
 
 impl PrimitiveArray {
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     length: usize,
   ) -> Local<'sc, PrimitiveArray> {
-    unsafe {
-      let ptr = v8__PrimitiveArray__New(scope.as_mut(), length as int);
-      Local::from_raw(ptr).unwrap()
-    }
+    let ptr =
+      unsafe { v8__PrimitiveArray__New(scope.isolate(), length as int) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   pub fn length(&self) -> usize {
@@ -53,23 +52,22 @@ impl PrimitiveArray {
 
   pub fn set<'sc>(
     &self,
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
     unsafe {
-      v8__PrimitiveArray__Set(self, scope.as_mut(), index as int, &item)
+      v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &item)
     }
   }
 
   pub fn get<'sc>(
     &self,
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     index: usize,
   ) -> Local<'sc, Primitive> {
-    unsafe {
-      let ptr = v8__PrimitiveArray__Get(self, scope.as_mut(), index as int);
-      Local::from_raw(ptr).unwrap()
-    }
+    let ptr =
+      unsafe { v8__PrimitiveArray__Get(self, scope.isolate(), index as int) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 }

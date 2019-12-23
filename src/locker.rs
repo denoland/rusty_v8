@@ -1,5 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
-use crate::isolate::Isolate;
+use crate::InIsolate;
+use crate::Isolate;
 use std::mem::MaybeUninit;
 
 extern "C" {
@@ -26,6 +27,12 @@ impl Locker {
       v8__Locker__CONSTRUCT(&mut buf, isolate);
       buf.assume_init()
     }
+  }
+}
+
+impl InIsolate for Locker {
+  fn isolate(&mut self) -> &mut Isolate {
+    unsafe { &mut *self.isolate }
   }
 }
 

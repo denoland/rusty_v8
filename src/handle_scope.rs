@@ -1,9 +1,9 @@
 use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
-use crate::scope::Entered;
 use crate::scope::Scope;
 use crate::scope::Scoped;
+use crate::InIsolate;
 use crate::Local;
 use crate::Value;
 
@@ -35,10 +35,8 @@ extern "C" {
 pub struct HandleScope([usize; 3]);
 
 impl HandleScope {
-  pub fn new<'sc>(
-    isolate: &'sc mut impl AsMut<Entered<'sc, Isolate>>,
-  ) -> Scope<'sc, Self> {
-    Scope::new(isolate.entered().as_mut())
+  pub fn new(scope: &mut impl InIsolate) -> Scope<Self> {
+    Scope::new(scope.isolate())
   }
 }
 
@@ -86,10 +84,8 @@ impl AsMut<Isolate> for HandleScope {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
-  pub fn new<'sc>(
-    isolate: &'sc mut impl AsMut<Entered<'sc, Isolate>>,
-  ) -> Scope<'sc, Self> {
-    Scope::new(&mut **(isolate.as_mut()))
+  pub fn new(scope: &mut impl InIsolate) -> Scope<Self> {
+    Scope::new(scope.isolate())
   }
 
   /// Pushes the value into the previous scope and returns a handle to it.
@@ -99,9 +95,9 @@ impl EscapableHandleScope {
     value: Local<Value>,
   ) -> Local<'parent, Value> {
     unsafe {
-      Local::from_raw(v8__EscapableHandleScope__Escape(self, value.as_ptr()))
-        .unwrap()
+      Local::from_raw_(v8__EscapableHandleScope__Escape(self, value.as_ptr()))
     }
+    .unwrap()
   }
 }
 
@@ -142,3 +138,24 @@ impl AsMut<Isolate> for EscapableHandleScope {
     unsafe { v8__EscapableHandleScope__GetIsolate(self) }
   }
 }
+
+impl InIsolate for HandleScope {
+  fn isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__HandleScope__GetIsolate(self) }
+  }
+}
+
+impl InIsolate for EscapableHandleScope {
+  fn isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__EscapableHandleScope__GetIsolate(self) }
+  }
+}
+
+pub trait ToLocal<'sc>: InIsolate {
+  unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<'sc, T>> {
+    crate::Local::<'sc, T>::from_raw_(ptr)
+  }
+}
+
+impl<'s> ToLocal<'s> for HandleScope where Self: Scoped<'s> {}
+impl<'s> ToLocal<'s> for EscapableHandleScope where Self: Scoped<'s> {}

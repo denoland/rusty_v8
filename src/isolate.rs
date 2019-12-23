@@ -165,6 +165,39 @@ impl DerefMut for OwnedIsolate {
   }
 }
 
+/// Trait for retrieving the current isolate from a scope object.
+pub trait InIsolate {
+  // Do not implement this trait on unscoped Isolate references
+  // (e.g. OwnedIsolate).
+  fn isolate(&mut self) -> &mut Isolate;
+}
+
+use crate::scope::{Scope, Scoped};
+use std::mem::MaybeUninit;
+
+pub struct MessageListenerScope<'s> {
+  message: Local<'s, Message>,
+}
+
+unsafe impl<'s> Scoped<'s> for MessageListenerScope<'s> {
+  type Args = Local<'s, Message>;
+  fn enter_scope(buf: &mut MaybeUninit<Self>, message: Local<'s, Message>) {
+    *buf = MaybeUninit::new(MessageListenerScope { message });
+  }
+}
+
+impl<'s> MessageListenerScope<'s> {
+  pub fn new(message: Local<'s, Message>) -> Scope<Self> {
+    Scope::new(message)
+  }
+}
+
+impl<'s> InIsolate for MessageListenerScope<'s> {
+  fn isolate(&mut self) -> &mut Isolate {
+    self.message.get_isolate()
+  }
+}
+
 #[repr(C)]
 pub struct CreateParams(Opaque);
 

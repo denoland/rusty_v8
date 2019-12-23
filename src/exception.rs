@@ -3,9 +3,9 @@
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Local;
 use crate::String;
+use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -46,13 +46,13 @@ impl StackTrace {
 pub struct Message(Opaque);
 
 impl Message {
-  pub fn get<'sc>(&self, _scope: &mut HandleScope<'sc>) -> Local<'sc, String> {
-    unsafe { Local::from_raw(v8__Message__Get(self)) }.unwrap()
+  pub fn get<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
+    unsafe { scope.to_local(v8__Message__Get(self)) }.unwrap()
   }
 
   #[allow(clippy::mut_from_ref)]
-  pub unsafe fn get_isolate(&self) -> &mut Isolate {
-    v8__Message__GetIsolate(self)
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__Message__GetIsolate(self) }
   }
 }
 
@@ -60,59 +60,55 @@ impl Message {
 /// Will try to reconstruct the original stack trace from the exception value,
 /// or capture the current stack trace if not available.
 pub fn create_message<'sc>(
-  scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut exception: Local<'sc, Value>,
 ) -> Local<'sc, Message> {
-  unsafe {
-    Local::from_raw(v8__Exception__CreateMessage(
-      scope.as_mut(),
-      &mut *exception,
-    ))
-  }
-  .unwrap()
+  let isolate = scope.isolate();
+  let ptr = unsafe { v8__Exception__CreateMessage(isolate, &mut *exception) };
+  unsafe { scope.to_local(ptr) }.unwrap()
 }
 
 /// Returns the original stack trace that was captured at the creation time
 /// of a given exception, or an empty handle if not available.
 pub fn get_stack_trace<'sc>(
-  _scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut exception: Local<Value>,
 ) -> Option<Local<'sc, StackTrace>> {
-  unsafe { Local::from_raw(v8__Exception__GetStackTrace(&mut *exception)) }
+  unsafe { scope.to_local(v8__Exception__GetStackTrace(&mut *exception)) }
 }
 
 pub fn range_error<'sc>(
-  _scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { Local::from_raw(v8__Exception__RangeError(&mut *message)) }.unwrap()
+  unsafe { scope.to_local(v8__Exception__RangeError(&mut *message)) }.unwrap()
 }
 
 pub fn reference_error<'sc>(
-  _scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { Local::from_raw(v8__Exception__ReferenceError(&mut *message)) }
+  unsafe { scope.to_local(v8__Exception__ReferenceError(&mut *message)) }
     .unwrap()
 }
 
 pub fn syntax_error<'sc>(
-  _scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { Local::from_raw(v8__Exception__SyntaxError(&mut *message)) }.unwrap()
+  unsafe { scope.to_local(v8__Exception__SyntaxError(&mut *message)) }.unwrap()
 }
 
 pub fn type_error<'sc>(
-  _scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { Local::from_raw(v8__Exception__TypeError(&mut *message)) }.unwrap()
+  unsafe { scope.to_local(v8__Exception__TypeError(&mut *message)) }.unwrap()
 }
 
 pub fn error<'sc>(
-  _scope: &mut HandleScope<'sc>,
+  scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { Local::from_raw(v8__Exception__Error(&mut *message)) }.unwrap()
+  unsafe { scope.to_local(v8__Exception__Error(&mut *message)) }.unwrap()
 }

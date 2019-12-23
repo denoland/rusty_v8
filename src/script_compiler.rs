@@ -83,7 +83,7 @@ pub fn compile_module(
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<Module>> {
   unsafe {
-    Local::from_raw(v8__ScriptCompiler__CompileModule(
+    Local::from_raw_(v8__ScriptCompiler__CompileModule(
       isolate,
       &source,
       options,

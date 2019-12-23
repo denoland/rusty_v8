@@ -51,9 +51,8 @@ pub use function::{
   Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
 };
 pub use global::Global;
-pub use handle_scope::{EscapableHandleScope, HandleScope};
-pub use isolate::Isolate;
-pub use isolate::OwnedIsolate;
+pub use handle_scope::{EscapableHandleScope, HandleScope, ToLocal};
+pub use isolate::{InIsolate, Isolate, MessageListenerScope, OwnedIsolate};
 pub use local::Local;
 pub use locker::Locker;
 pub use module::Module;

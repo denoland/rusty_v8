@@ -74,7 +74,7 @@ where
     };
 
     match state {
-      Ready(v) => v,
+      Ready(v) => &mut *v,
       _ => unreachable!(),
     }
   }
