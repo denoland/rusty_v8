@@ -202,6 +202,14 @@ bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
 
 bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
 
+bool v8__Value__StrictEquals(const v8::Value& self, v8::Value* that) {
+  return self.StrictEquals(ptr_to_local(that));
+}
+
+bool v8__Value__SameValue(const v8::Value& self, v8::Value* that) {
+  return self.SameValue(ptr_to_local(that));
+}
+
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }

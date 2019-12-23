@@ -1,4 +1,5 @@
 use crate::support;
+use crate::Local;
 
 extern "C" {
   fn v8__Value__IsUndefined(this: &Value) -> bool;
@@ -6,6 +7,8 @@ extern "C" {
   fn v8__Value__IsNullOrUndefined(this: &Value) -> bool;
   fn v8__Value__IsString(this: &Value) -> bool;
   fn v8__Value__IsNumber(this: &Value) -> bool;
+  fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
+  fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
 }
 
 /// The superclass of all JavaScript values and objects.
@@ -38,5 +41,13 @@ impl Value {
   /// Returns true if this value is a number.
   pub fn is_number(&self) -> bool {
     unsafe { v8__Value__IsNumber(self) }
+  }
+
+  pub fn strict_equals<'sc>(&self, that: Local<'sc, Value>) -> bool {
+    unsafe { v8__Value__StrictEquals(self, &that) }
+  }
+
+  pub fn same_value<'sc>(&self, that: Local<'sc, Value>) -> bool {
+    unsafe { v8__Value__SameValue(self, &that) }
   }
 }

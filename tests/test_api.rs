@@ -872,3 +872,28 @@ fn ui() {
   let t = trybuild::TestCases::new();
   t.compile_fail("tests/compile_fail/*.rs");
 }
+
+#[test]
+fn equality() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    assert!(v8_str(scope, "a").strict_equals(v8_str(scope, "a").into()));
+    assert!(!v8_str(scope, "a").strict_equals(v8_str(scope, "b").into()));
+
+    assert!(v8_str(scope, "a").same_value(v8_str(scope, "a").into()));
+    assert!(!v8_str(scope, "a").same_value(v8_str(scope, "b").into()));
+
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
