@@ -685,3 +685,37 @@ fn script_compiler_source() {
   isolate.exit();
   drop(g);
 }
+
+#[test]
+fn array_buffer_view() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(
+    v8::array_buffer::Allocator::new_default_allocator(),
+  );
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+
+  let locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&isolate, |s| {
+    let mut context = v8::Context::new(s);
+    context.enter();
+    let source = v8::String::new(s, "new Uint8Array([23,23,23,23])").unwrap();
+    let mut script = v8::Script::compile(s, context, source, None).unwrap();
+    source.to_rust_string_lossy(s);
+    let result = script.run(s, context).unwrap();
+    // TODO: safer casts.
+    let mut result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
+      unsafe { std::mem::transmute_copy(&result) };
+    assert_eq!(result.byte_length(), 4);
+    assert_eq!(result.byte_offset(), 0);
+    let mut dest = [0; 4];
+    let copy_bytes = result.copy_contents(&mut dest);
+    assert_eq!(copy_bytes, 4);
+    assert_eq!(dest, [23, 23, 23, 23]);
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}

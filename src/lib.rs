@@ -29,6 +29,7 @@ mod try_catch;
 mod value;
 
 pub mod array_buffer;
+pub mod array_buffer_view;
 pub mod inspector;
 pub mod json;
 pub mod platform;
