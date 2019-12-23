@@ -12,7 +12,7 @@ type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 type ResolveCallback =
-  fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
+  fn(Local<Context>, Local<String>, Local<Module>) -> Option<*mut Module>;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -121,6 +121,7 @@ impl Module {
     context: Local<Context>,
     callback: ResolveCallback,
   ) -> Option<bool> {
+    // TODO make this thread safe
     use std::sync::Mutex;
     lazy_static! {
       static ref RESOLVE_CALLBACK: Mutex<Option<ResolveCallback>> =
@@ -139,7 +140,10 @@ impl Module {
     ) -> *mut Module {
       let guard = RESOLVE_CALLBACK.lock().unwrap();
       let cb = guard.unwrap();
-      cb(context, specifier, referrer)
+      match cb(context, specifier, referrer) {
+        None => std::ptr::null_mut(),
+        Some(p) => p,
+      }
     }
 
     unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into()

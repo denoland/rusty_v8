@@ -848,11 +848,11 @@ fn module_instantiation_failures1() {
         mut context: v8::Local<v8::Context>,
         _specifier: v8::Local<v8::String>,
         _referrer: v8::Local<v8::Module>,
-      ) -> *mut v8::Module {
+      ) -> Option<*mut v8::Module> {
         let isolate: &mut v8::Isolate = context.as_mut();
         let e = v8_str(isolate, "boom");
         isolate.throw_exception(e.into());
-        std::ptr::null_mut()
+        None
       }
       let result = module.instantiate_module(context, resolve_callback);
       assert!(result.is_none());
@@ -904,7 +904,7 @@ fn module_evaluation() {
       mut context: v8::Local<v8::Context>,
       specifier: v8::Local<v8::String>,
       _referrer: v8::Local<v8::Module>,
-    ) -> *mut v8::Module {
+    ) -> Option<*mut v8::Module> {
       let isolate: &mut v8::Isolate = context.as_mut();
       let origin = mock_script_origin(isolate, "module.js");
       let source = v8::script_compiler::Source::new(specifier, &origin);
@@ -915,7 +915,7 @@ fn module_evaluation() {
         v8::script_compiler::NoCacheReason::NoReason,
       )
       .unwrap();
-      &mut *module
+      Some(&mut *module)
     }
     let result = module.instantiate_module(context, resolve_callback);
     assert!(result.unwrap());
