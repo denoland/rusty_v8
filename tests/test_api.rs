@@ -283,6 +283,27 @@ fn try_catch() {
 }
 
 #[test]
+fn throw_exception() {
+  let _g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    {
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
+      isolate.throw_exception(v8_str(scope, "boom").into());
+      assert!(tc.has_caught());
+      assert!(tc.exception().is_some());
+    };
+    context.exit();
+  });
+}
+
+#[test]
 fn isolate_add_message_listener() {
   let g = setup();
   let mut params = v8::Isolate::create_params();

@@ -88,6 +88,11 @@ bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
   return isolate.AddMessageListener(callback);
 }
 
+v8::Value* v8__Isolate__ThrowException(v8::Isolate& isolate,
+                                       v8::Value* exception) {
+  return local_to_ptr(isolate.ThrowException(ptr_to_local(exception)));
+}
+
 v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new v8::Isolate::CreateParams();
 }

@@ -33,6 +33,10 @@ extern "C" {
     isolate: *mut Isolate,
     callback: PromiseRejectCallback,
   );
+  fn v8__Isolate__ThrowException(
+    isolate: &Isolate,
+    exception: &Value,
+  ) -> *mut Value;
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -122,6 +126,20 @@ impl Isolate {
     callback: PromiseRejectCallback,
   ) {
     unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
+  }
+
+  /// Schedules an exception to be thrown when returning to JavaScript. When an
+  /// exception has been scheduled it is illegal to invoke any JavaScript
+  /// operation; the caller must return immediately and only after the exception
+  /// has been handled does it become legal to invoke JavaScript operations.
+  pub fn throw_exception<'sc>(
+    &self,
+    exception: Local<'_, Value>,
+  ) -> Local<'sc, Value> {
+    unsafe {
+      let ptr = v8__Isolate__ThrowException(self, &exception);
+      Local::from_raw(ptr).unwrap()
+    }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any
