@@ -209,25 +209,25 @@ fn array_buffer() {
 }
 
 fn v8_str<'sc>(
-  scope: &mut HandleScope<'sc>,
+  isolate: &mut impl AsMut<v8::Isolate>,
   s: &str,
 ) -> v8::Local<'sc, v8::String> {
-  v8::String::new(scope, s).unwrap()
+  v8::String::new(isolate, s).unwrap()
+}
+
+fn eval<'sc>(
+  scope: &mut HandleScope<'sc>,
+  context: Local<v8::Context>,
+  code: &'static str,
+) -> Option<Local<'sc, v8::Value>> {
+  let source = v8_str(scope, code);
+  let mut script =
+    v8::Script::compile(&mut *scope, context, source, None).unwrap();
+  script.run(scope, context)
 }
 
 #[test]
 fn try_catch() {
-  fn eval<'sc>(
-    scope: &mut HandleScope<'sc>,
-    context: Local<v8::Context>,
-    code: &'static str,
-  ) -> Option<Local<'sc, v8::Value>> {
-    let source = v8_str(scope, code);
-    let mut script =
-      v8::Script::compile(&mut *scope, context, source, None).unwrap();
-    script.run(scope, context)
-  };
-
   let _g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
@@ -736,17 +736,18 @@ fn set_promise_reject_callback() {
 }
 
 fn mock_script_origin<'sc>(
-  scope: &mut HandleScope<'sc>,
+  isolate: &mut impl AsMut<v8::Isolate>,
+  resource_name_: &str,
 ) -> v8::ScriptOrigin<'sc> {
-  let resource_name = v8_str(scope, "foo.js");
-  let resource_line_offset = v8::Integer::new(scope, 0);
-  let resource_column_offset = v8::Integer::new(scope, 0);
-  let resource_is_shared_cross_origin = v8::new_true(scope);
-  let script_id = v8::Integer::new(scope, 123);
-  let source_map_url = v8_str(scope, "source_map_url");
-  let resource_is_opaque = v8::new_true(scope);
-  let is_wasm = v8::new_false(scope);
-  let is_module = v8::new_true(scope);
+  let resource_name = v8_str(isolate, resource_name_);
+  let resource_line_offset = v8::Integer::new(isolate, 0);
+  let resource_column_offset = v8::Integer::new(isolate, 0);
+  let resource_is_shared_cross_origin = v8::new_true(isolate);
+  let script_id = v8::Integer::new(isolate, 123);
+  let source_map_url = v8_str(isolate, "source_map_url");
+  let resource_is_opaque = v8::new_true(isolate);
+  let is_wasm = v8::new_false(isolate);
+  let is_module = v8::new_true(isolate);
   v8::ScriptOrigin::new(
     resource_name.into(),
     resource_line_offset,
@@ -774,7 +775,7 @@ fn script_compiler_source() {
     context.enter();
 
     let source = "1+2";
-    let script_origin = mock_script_origin(scope);
+    let script_origin = mock_script_origin(scope, "foo.js");
     let source =
       v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
 
@@ -810,10 +811,10 @@ fn module_instantiation_failures1() {
       "import './foo.js';\n\
        export {} from './bar.js';",
     );
-    let origin = mock_script_origin(scope);
+    let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let module = v8::script_compiler::compile_module(
+    let mut module = v8::script_compiler::compile_module(
       &isolate,
       source,
       v8::script_compiler::CompileOptions::NoCompileOptions,
@@ -839,7 +840,95 @@ fn module_instantiation_failures1() {
     assert_eq!(1, loc.get_line_number());
     assert_eq!(15, loc.get_column_number());
 
-    // TODO(ry) Instantiation should fail.
+    // Instantiation should fail.
+    {
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
+      extern "C" fn resolve_callback(
+        mut context: v8::Local<v8::Context>,
+        _specifier: v8::Local<v8::String>,
+        _referrer: v8::Local<v8::Module>,
+      ) -> *mut v8::Module {
+        let isolate: &mut v8::Isolate = context.as_mut();
+        let e = v8_str(isolate, "boom");
+        isolate.throw_exception(e.into());
+        std::ptr::null_mut()
+      }
+      let result = module.instantiate_module(context, resolve_callback);
+      assert!(result.is_none());
+      assert!(tc.has_caught());
+      assert!(tc
+        .exception()
+        .unwrap()
+        .strict_equals(v8_str(scope, "boom").into()));
+      assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    }
+
+    context.exit();
+  });
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
+fn module_evaluation() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let source_text = v8_str(
+      scope,
+      "import 'Object.expando = 5';\n\
+       import 'Object.expando *= 2';",
+    );
+    let origin = mock_script_origin(scope, "foo.js");
+    let source = v8::script_compiler::Source::new(source_text, &origin);
+
+    let mut module = v8::script_compiler::compile_module(
+      &isolate,
+      source,
+      v8::script_compiler::CompileOptions::NoCompileOptions,
+      v8::script_compiler::NoCacheReason::NoReason,
+    )
+    .unwrap();
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+
+    extern "C" fn resolve_callback(
+      mut context: v8::Local<v8::Context>,
+      specifier: v8::Local<v8::String>,
+      _referrer: v8::Local<v8::Module>,
+    ) -> *mut v8::Module {
+      let isolate: &mut v8::Isolate = context.as_mut();
+      let origin = mock_script_origin(isolate, "module.js");
+      let source = v8::script_compiler::Source::new(specifier, &origin);
+      let mut module = v8::script_compiler::compile_module(
+        isolate,
+        source,
+        v8::script_compiler::CompileOptions::NoCompileOptions,
+        v8::script_compiler::NoCacheReason::NoReason,
+      )
+      .unwrap();
+      &mut *module
+    }
+    let result = module.instantiate_module(context, resolve_callback);
+    assert!(result.unwrap());
+    assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+
+    let result = module.evaluate(context);
+    assert!(result.is_some());
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let result = eval(scope, context, "Object.expando").unwrap();
+    assert!(result.is_number());
+    let n: Local<v8::Number> = cast(result);
+    assert_eq!(n.value(), 10.);
 
     context.exit();
   });
