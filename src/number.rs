@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use crate::isolate::Isolate;
+use crate::scope::Entered;
 use crate::support::Opaque;
 use crate::value::Value;
 use crate::Local;
@@ -49,11 +50,11 @@ pub struct Integer(Opaque);
 
 impl Integer {
   pub fn new<'sc>(
-    scope: &mut impl AsMut<Isolate>,
+    scope: &mut impl AsMut<Entered<'sc, Isolate>>,
     value: i32,
   ) -> Local<'sc, Integer> {
     unsafe {
-      let local = v8__Integer__New(scope.as_mut(), value);
+      let local = v8__Integer__New(&mut **(scope.as_mut()), value);
       Local::from_raw(local).unwrap()
     }
   }

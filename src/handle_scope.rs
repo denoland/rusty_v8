@@ -78,8 +78,10 @@ impl<'sc> AsMut<Isolate> for HandleScope<'sc> {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
-  pub fn new(isolate: &mut impl AsMut<Isolate>) -> Scope<Self> {
-    Scope::new(isolate.as_mut())
+  pub fn new<'sc>(
+    isolate: &'sc mut impl AsMut<crate::scope::Entered<'sc, Isolate>>,
+  ) -> Scope<'sc, Self> {
+    Scope::new(&mut **(isolate.as_mut()))
   }
 
   /// Pushes the value into the previous scope and returns a handle to it.

@@ -1,5 +1,9 @@
+use std::marker::PhantomData;
+use std::mem::size_of;
 use std::mem::take;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 // Note: the 's lifetime is there to ensure that after entering a scope once,
 // the same scope object can't ever be entered again.
@@ -26,8 +30,12 @@ where
   Empty,
   New(S::Args),
   Uninit(MaybeUninit<S>),
-  Entered(S),
+  Ready(Entered<'s, S>),
 }
+
+/// A wrapper around the an instantiated and entered scope object.
+#[repr(transparent)]
+pub struct Entered<'s, S>(S, PhantomData<&'s ()>);
 
 impl<'s, S> Scope<'s, S>
 where
@@ -40,7 +48,10 @@ where
 
   /// Initializes the guarded object and returns a mutable reference to it.
   /// A scope can only be entered once.
-  pub fn enter(&'s mut self) -> &'s mut S {
+  pub fn enter(&'s mut self) -> &'s mut Entered<S> {
+    assert_eq!(size_of::<S>(), size_of::<MaybeUninit<S>>());
+    assert_eq!(size_of::<S>(), size_of::<Entered<S>>());
+
     use ScopeState::*;
     let state = &mut self.0;
 
@@ -58,12 +69,12 @@ where
     S::enter_scope(buf, args);
 
     *state = match take(state) {
-      Uninit(b) => Entered(unsafe { b.assume_init() }),
+      Uninit(b) => Ready(unsafe { b.assume_init() }.into()),
       _ => unreachable!(),
     };
 
     match state {
-      Entered(v) => v,
+      Ready(v) => v,
       _ => unreachable!(),
     }
   }
@@ -75,5 +86,63 @@ where
 {
   fn default() -> Self {
     Self::Empty
+  }
+}
+
+impl<'s, S> From<S> for Entered<'s, S> {
+  fn from(value: S) -> Self {
+    Self(value, PhantomData)
+  }
+}
+
+impl<'s, S> Deref for Entered<'s, S> {
+  type Target = S;
+  fn deref(&self) -> &S {
+    unsafe { &*(self as *const _ as *const S) }
+  }
+}
+
+impl<'s, S> DerefMut for Entered<'s, S> {
+  fn deref_mut(&mut self) -> &mut S {
+    unsafe { &mut *(self as *mut _ as *mut S) }
+  }
+}
+/*
+impl<'s, S, T> AsRef<T> for Entered<'s, S>
+where
+  S: AsRef<T>,
+{
+  fn as_ref(&self) -> &T {
+    self.deref().as_ref()
+  }
+}
+
+impl<'s, S, T> AsMut<T> for Entered<'s, S>
+where
+  S: AsMut<T>,
+{
+  fn as_mut(&mut self) -> &mut T {
+    self.deref_mut().as_mut()
+  }
+}
+*/
+
+impl<'s, S, T> AsRef<Entered<'s, T>> for Entered<'s, S>
+where
+  S: AsRef<T>,
+{
+  fn as_ref(&self) -> &Entered<'s, T> {
+    let t: &T = self.deref().as_ref();
+    unsafe { &*(t as *const _ as *const Entered<'s, T>) }
+  }
+}
+
+impl<'s, S, T> AsMut<Entered<'s, T>> for Entered<'s, S>
+where
+  S: AsMut<T>,
+{
+  fn as_mut(&mut self) -> &mut Entered<'s, T> {
+    let t: &mut T = self.deref_mut().as_mut();
+    unsafe { &mut *(t as *mut _ as *mut Entered<'s, T>) }
   }
 }
