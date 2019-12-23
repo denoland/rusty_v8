@@ -927,8 +927,8 @@ fn module_evaluation() {
 
     let result = eval(scope, context, "Object.expando").unwrap();
     assert!(result.is_number());
-    let n: Local<v8::Number> = cast(result);
-    assert_eq!(n.value(), 10.);
+    let expected = v8::Number::new(scope, 10.);
+    assert!(result.strict_equals(expected.into()));
 
     context.exit();
   });
