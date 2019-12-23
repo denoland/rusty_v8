@@ -11,8 +11,11 @@ use std::mem::MaybeUninit;
 type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
-type ResolveCallback =
-  fn(Local<Context>, Local<String>, Local<Module>) -> Option<*mut Module>;
+type ResolveCallback = fn(
+  Local<Context>,
+  Local<String>,
+  Local<Module>,
+) -> Option<Local<'static, Module>>;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -142,7 +145,7 @@ impl Module {
       let cb = guard.unwrap();
       match cb(context, specifier, referrer) {
         None => std::ptr::null_mut(),
-        Some(p) => p,
+        Some(mut p) => &mut *p,
       }
     }
 
