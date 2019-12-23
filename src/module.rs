@@ -7,7 +7,8 @@ use crate::String;
 use crate::Value;
 use std::mem::MaybeUninit;
 
-type ResolveCallback =
+#[allow(non_camel_case_types)]
+type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 extern "C" {
@@ -25,7 +26,7 @@ extern "C" {
   fn v8__Module__InstantiateModule(
     this: *mut Module,
     context: Local<Context>,
-    callback: ResolveCallback,
+    callback: v8__Module__ResolveCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *mut Module,
@@ -115,7 +116,7 @@ impl Module {
   pub fn instantiate_module(
     &mut self,
     context: Local<Context>,
-    callback: ResolveCallback,
+    callback: v8__Module__ResolveCallback,
   ) -> Option<bool> {
     unsafe { v8__Module__InstantiateModule(self, context, callback) }.into()
   }
