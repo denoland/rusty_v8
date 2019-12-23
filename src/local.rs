@@ -56,6 +56,10 @@ impl<'sc, T> Local<'sc, T> {
   pub(crate) fn as_non_null(self) -> NonNull<T> {
     self.0
   }
+
+  pub(crate) fn as_ptr(self) -> *mut T {
+    self.0.as_ptr()
+  }
 }
 
 impl<'sc, T> Deref for Local<'sc, T> {
