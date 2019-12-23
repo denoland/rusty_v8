@@ -125,39 +125,31 @@ impl Module {
     callback: ResolveCallback,
   ) -> Option<bool> {
     // TODO make this thread safe
-    use std::cell::RefCell;
-    thread_local! {
-        static RESOLVE_CALLBACK: RefCell<Option<ResolveCallback>> = RefCell::new(None);
+    use std::sync::Mutex;
+    lazy_static! {
+      static ref RESOLVE_CALLBACK: Mutex<Option<ResolveCallback>> =
+        Mutex::new(None);
     }
 
-    RESOLVE_CALLBACK.with(|f| {
-      assert!(f.borrow().is_none());
-      *f.borrow_mut() = Some(callback);
-    });
+    {
+      let mut guard = RESOLVE_CALLBACK.lock().unwrap();
+      *guard = Some(callback);
+    }
 
     extern "C" fn c_cb(
       context: Local<Context>,
       specifier: Local<String>,
       referrer: Local<Module>,
     ) -> *mut Module {
-      RESOLVE_CALLBACK.with(|f| {
-        let cb = f.borrow().unwrap();
-        match cb(context, specifier, referrer) {
-          None => std::ptr::null_mut(),
-          Some(mut p) => &mut *p,
-        }
-      })
+      let guard = RESOLVE_CALLBACK.lock().unwrap();
+      let cb = guard.unwrap();
+      match cb(context, specifier, referrer) {
+        None => std::ptr::null_mut(),
+        Some(mut p) => &mut *p,
+      }
     }
 
-    let r =
-      unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into();
-
-    RESOLVE_CALLBACK.with(|f| {
-      assert!(f.borrow().is_some());
-      *f.borrow_mut() = None;
-    });
-
-    r
+    unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into()
   }
 
   /// Evaluates the module and its dependencies.
