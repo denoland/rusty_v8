@@ -51,8 +51,8 @@ impl Message {
   }
 
   #[allow(clippy::mut_from_ref)]
-  pub fn get_isolate(&self) -> &mut Isolate {
-    unsafe { v8__Message__GetIsolate(self) }
+  pub unsafe fn get_isolate(&self) -> &mut Isolate {
+    v8__Message__GetIsolate(self)
   }
 }
 

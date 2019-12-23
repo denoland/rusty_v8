@@ -16,6 +16,9 @@ static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
 static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
               "HandleScope size mismatch");
 
+static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * 4,
+              "EscapableHandleScope size mismatch");
+
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
@@ -29,6 +32,9 @@ static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
 
 static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
               "TryCatch size mismatch");
+
+static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
+              "Location size mismatch");
 
 extern "C" {
 
@@ -82,6 +88,11 @@ bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
   return isolate.AddMessageListener(callback);
 }
 
+v8::Value* v8__Isolate__ThrowException(v8::Isolate& isolate,
+                                       v8::Value* exception) {
+  return local_to_ptr(isolate.ThrowException(ptr_to_local(exception)));
+}
+
 v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new v8::Isolate::CreateParams();
 }
@@ -111,11 +122,52 @@ v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
   return self.GetIsolate();
 }
 
+void v8__EscapableHandleScope__CONSTRUCT(
+    uninit_t<v8::EscapableHandleScope>& buf, v8::Isolate* isolate) {
+  construct_in_place<v8::EscapableHandleScope>(buf, isolate);
+}
+
+void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope& self) {
+  self.~EscapableHandleScope();
+}
+
+v8::Value* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope& self,
+                                            v8::Local<v8::Value> value) {
+  return local_to_ptr(self.Escape(value));
+}
+
+v8::Isolate* v8__EscapableHandleScope__GetIsolate(
+    const v8::EscapableHandleScope& self) {
+  return self.GetIsolate();
+}
+
 void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>& buf, v8::Isolate* isolate) {
   construct_in_place<v8::Locker>(buf, isolate);
 }
 
 void v8__Locker__DESTRUCT(v8::Locker& self) { self.~Locker(); }
+
+v8::Value* v8__Local__New(v8::Isolate* isolate, v8::Value* other) {
+  return local_to_ptr(v8::Local<v8::Value>::New(isolate, ptr_to_local(other)));
+}
+
+v8::Value* v8__Global__New(v8::Isolate* isolate, v8::Value* other) {
+  auto global = v8::Global<v8::Value>(isolate, ptr_to_local(other));
+  return global_to_ptr(global);
+}
+
+void v8__Global__Reset__0(v8::Value*& self) {
+  auto global = ptr_to_global(self);
+  global.Reset();
+  self = global_to_ptr(global);
+}
+
+void v8__Global__Reset__2(v8::Value*& self, v8::Isolate* isolate,
+                          v8::Value* const& other) {
+  auto global = ptr_to_global(self);
+  global.Reset(isolate, ptr_to_local(other));
+  self = global_to_ptr(global);
+}
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
     uninit_t<v8::ScriptCompiler::Source>& buf, v8::String* source_string,
@@ -151,6 +203,18 @@ bool v8__Value__IsNullOrUndefined(const v8::Value& self) {
   return self.IsNullOrUndefined();
 }
 
+bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
+
+bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
+
+bool v8__Value__StrictEquals(const v8::Value& self, v8::Value* that) {
+  return self.StrictEquals(ptr_to_local(that));
+}
+
+bool v8__Value__SameValue(const v8::Value& self, v8::Value* that) {
+  return self.SameValue(ptr_to_local(that));
+}
+
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
@@ -166,6 +230,41 @@ v8::Boolean* v8__True(v8::Isolate* isolate) {
 v8::Boolean* v8__False(v8::Isolate* isolate) {
   return local_to_ptr(v8::False(isolate));
 }
+
+v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate, int length) {
+  return local_to_ptr(v8::PrimitiveArray::New(isolate, length));
+}
+
+int v8__PrimitiveArray__Length(v8::PrimitiveArray& self) {
+  return self.Length();
+}
+
+void v8__PrimitiveArray__Set(v8::PrimitiveArray& self, v8::Isolate* isolate,
+                             int index, v8::Local<v8::Primitive> item) {
+  self.Set(isolate, index, item);
+}
+
+v8::Primitive* v8__PrimitiveArray__Get(v8::PrimitiveArray& self,
+                                       v8::Isolate* isolate, int index) {
+  return local_to_ptr(self.Get(isolate, index));
+}
+
+v8::BackingStore* v8__ArrayBuffer__NewBackingStore(v8::Isolate* isolate,
+                                                   size_t length) {
+  std::unique_ptr<v8::BackingStore> u =
+      v8::ArrayBuffer::NewBackingStore(isolate, length);
+  return u.release();
+}
+
+size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
+  return self.ByteLength();
+}
+
+bool v8__BackingStore__IsShared(v8::BackingStore& self) {
+  return self.IsShared();
+}
+
+void v8__BackingStore__DELETE(v8::BackingStore& self) { delete &self; }
 
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
                                     v8::NewStringType type, int length) {
@@ -236,6 +335,15 @@ v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
 
 void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator& self) {
   delete &self;
+}
+
+v8::ArrayBuffer* v8__ArrayBuffer__New(v8::Isolate* isolate,
+                                      size_t byte_length) {
+  return local_to_ptr(v8::ArrayBuffer::New(isolate, byte_length));
+}
+
+size_t v8__ArrayBuffer__ByteLength(v8::ArrayBuffer& self) {
+  return self.ByteLength();
 }
 
 v8::Context* v8__Context__New(v8::Isolate* isolate) {
@@ -312,32 +420,32 @@ v8::Function* v8__FunctionTemplate__GetFunction(
   return maybe_local_to_ptr(self->GetFunction(context));
 }
 int v8__FunctionCallbackInfo__Length(
-    v8::FunctionCallbackInfo<v8::Value>* self) {
-  return self->Length();
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.Length();
 }
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
-    v8::FunctionCallbackInfo<v8::Value>* self) {
-  return self->GetIsolate();
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.GetIsolate();
 }
 
 void v8__FunctionCallbackInfo__GetReturnValue(
-    v8::FunctionCallbackInfo<v8::Value>* self,
+    const v8::FunctionCallbackInfo<v8::Value>& self,
     v8::ReturnValue<v8::Value>* out) {
-  *out = self->GetReturnValue();
+  *out = self.GetReturnValue();
 }
 
-void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
+void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>& self,
                           v8::Local<v8::Value> value) {
-  self->Set(value);
+  self.Set(value);
 }
 
-v8::Value* v8__ReturnValue__Get(v8::ReturnValue<v8::Value>* self) {
-  return local_to_ptr(self->Get());
+v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
+  return local_to_ptr(self.Get());
 }
 
-v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>* self) {
-  return self->GetIsolate();
+v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>& self) {
+  return self.GetIsolate();
 }
 
 int v8__StackTrace__GetFrameCount(v8::StackTrace* self) {
@@ -418,6 +526,15 @@ void v8__ScriptOrigin__CONSTRUCT(
       ptr_to_local(is_wasm), ptr_to_local(is_module));
 }
 
+v8::Value* v8__ScriptOrModule__GetResourceName(v8::ScriptOrModule& self) {
+  return local_to_ptr(self.GetResourceName());
+}
+
+v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
+    v8::ScriptOrModule& self) {
+  return local_to_ptr(self.GetHostDefinedOptions());
+}
+
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,
                            v8::Local<v8::String> json_string) {
   return maybe_local_to_ptr(v8::JSON::Parse(context, json_string));
@@ -494,19 +611,19 @@ v8::Value* v8__PromiseRejectMessage__GetValue(
 }
 
 v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
-    const v8::PropertyCallbackInfo<v8::Value>* self) {
-  return self->GetIsolate();
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return self.GetIsolate();
 }
 
 v8::Object* v8__PropertyCallbackInfo__This(
-    const v8::PropertyCallbackInfo<v8::Value>* self) {
-  return local_to_ptr(self->This());
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.This());
 }
 
 void v8__PropertyCallbackInfo__GetReturnValue(
-    const v8::PropertyCallbackInfo<v8::Value>* self,
+    const v8::PropertyCallbackInfo<v8::Value>& self,
     v8::ReturnValue<v8::Value>* out) {
-  *out = self->GetReturnValue();
+  *out = self.GetReturnValue();
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {
@@ -644,9 +761,48 @@ v8_inspector::StringBuffer* v8_inspector__StringBuffer__create(
   return v8_inspector::StringBuffer::create(source).release();
 }
 
+int v8__Location__GetLineNumber(v8::Location& self) {
+  return self.GetLineNumber();
+}
+
+int v8__Location__GetColumnNumber(v8::Location& self) {
+  return self.GetColumnNumber();
+}
+
+v8::Module::Status v8__Module__GetStatus(const v8::Module& self) {
+  return self.GetStatus();
+}
+
+v8::Value* v8__Module__GetException(const v8::Module& self) {
+  return local_to_ptr(self.GetException());
+}
+
+int v8__Module__GetModuleRequestsLength(const v8::Module& self) {
+  return self.GetModuleRequestsLength();
+}
+
+v8::String* v8__Module__GetModuleRequest(const v8::Module& self, int i) {
+  return local_to_ptr(self.GetModuleRequest(i));
+}
+
+void v8__Module__GetModuleRequestLocation(const v8::Module& self, int i,
+                                          v8::Location* out) {
+  *out = self.GetModuleRequestLocation(i);
+}
+
+int v8__Module__GetIdentityHash(const v8::Module& self) {
+  return self.GetIdentityHash();
+}
+
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
                                         v8::Local<v8::Context> context,
                                         v8::Module::ResolveCallback callback) {
   return maybe_to_maybe_bool(self.InstantiateModule(context, callback));
 }
+
+v8::Value* v8__Module__Evaluate(v8::Module& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.Evaluate(context));
+}
+
 }  // extern "C"

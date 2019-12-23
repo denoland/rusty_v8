@@ -9,9 +9,11 @@ extern crate bitflags;
 extern crate lazy_static;
 extern crate libc;
 
+mod array_buffer;
 mod context;
 mod exception;
 mod function;
+mod global;
 mod handle_scope;
 mod isolate;
 mod local;
@@ -19,16 +21,17 @@ mod locker;
 mod module;
 mod number;
 mod object;
+mod primitive_array;
 mod primitives;
 mod promise;
 mod property;
 mod script;
+mod script_or_module;
 mod string;
 mod support;
 mod try_catch;
 mod value;
 
-pub mod array_buffer;
 pub mod array_buffer_view;
 pub mod inspector;
 pub mod json;
@@ -39,19 +42,25 @@ pub mod script_compiler;
 #[allow(non_snake_case)]
 pub mod V8;
 
+pub use array_buffer::Allocator;
+pub use array_buffer::ArrayBuffer;
+pub use array_buffer::BackingStore;
 pub use context::Context;
 pub use exception::*;
 pub use function::{
   Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
 };
-pub use handle_scope::HandleScope;
+pub use global::Global;
+pub use handle_scope::{EscapableHandleScope, HandleScope};
 pub use isolate::Isolate;
 pub use isolate::OwnedIsolate;
 pub use local::Local;
 pub use locker::Locker;
 pub use module::Module;
+pub use module::ModuleStatus;
 pub use number::{Integer, Number};
 pub use object::Object;
+pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{
   Promise, PromiseRejectEvent, PromiseRejectMessage, PromiseResolver,
@@ -59,7 +68,8 @@ pub use promise::{
 };
 pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
+pub use script_or_module::ScriptOrModule;
 pub use string::NewStringType;
 pub use string::String;
-pub use try_catch::TryCatch;
+pub use try_catch::{TryCatch, TryCatchScope};
 pub use value::Value;

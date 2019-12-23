@@ -1,6 +1,6 @@
 [package]
 name = "rusty_v8"
-version = "0.0.13"
+version = "0.0.14"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -49,9 +49,12 @@ exclude = [
 
 [dependencies]
 lazy_static = "1.4.0"
-libc = "0.2.65"
+libc = "0.2.66"
 bitflags = "1.2.1"
 
 [build-dependencies]
 cargo_gn = "0.0.13"
-which = "3.0.0"
+which = "3.1.0"
+
+[dev-dependencies]
+trybuild = "1.0.18"

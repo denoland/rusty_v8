@@ -4,7 +4,6 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
 
-#[repr(C)]
 /// An object reference managed by the v8 garbage collector.
 ///
 /// All objects returned from v8 have to be tracked by the garbage
@@ -38,19 +37,24 @@ use std::ptr::NonNull;
 /// Note: Local handles in Rusty V8 differ from the V8 C++ API in that they are
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
+#[repr(C)]
 pub struct Local<'sc, T>(NonNull<T>, PhantomData<&'sc ()>);
 
 impl<'sc, T> Copy for Local<'sc, T> {}
 
 impl<'sc, T> Clone for Local<'sc, T> {
   fn clone(&self) -> Self {
-    Self(self.0, self.1)
+    *self
   }
 }
 
 impl<'sc, T> Local<'sc, T> {
-  pub unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
+  pub(crate) unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
     Some(Self(NonNull::new(ptr)?, PhantomData))
+  }
+
+  pub(crate) fn as_non_null(self) -> NonNull<T> {
+    self.0
   }
 }
 
