@@ -794,7 +794,7 @@ fn script_compiler_source() {
   drop(g);
 }
 
-#[test]
+// #[disable_test]
 fn module_instantiation_failures1() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
