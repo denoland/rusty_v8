@@ -37,7 +37,7 @@ extern "C" {
 
 #[repr(C)]
 /// A location in JavaScript source.
-pub struct Location([usize; 2]);
+pub struct Location([usize; 1]);
 
 impl Location {
   pub fn get_line_number(&self) -> int {

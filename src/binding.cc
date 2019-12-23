@@ -33,6 +33,9 @@ static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
               "TryCatch size mismatch");
 
+static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
+              "Location size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
