@@ -6,13 +6,17 @@ use crate::Local;
 use crate::String;
 use crate::Value;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
 
 #[allow(non_camel_case_types)]
 type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
-type ResolveCallback =
-  fn(Local<Context>, Local<String>, Local<Module>) -> Option<*mut Module>;
+type ResolveCallback = fn(
+  Local<Context>,
+  Local<String>,
+  Local<Module>,
+) -> Option<Local<'static, Module>>;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -142,7 +146,7 @@ impl Module {
       let cb = guard.unwrap();
       match cb(context, specifier, referrer) {
         None => std::ptr::null_mut(),
-        Some(p) => p,
+        Some(mut p) => &mut *p,
       }
     }
 
@@ -161,5 +165,12 @@ impl Module {
     mut context: Local<Context>,
   ) -> Option<Local<Value>> {
     unsafe { Local::from_raw(v8__Module__Evaluate(&mut *self, &mut *context)) }
+  }
+}
+
+impl Deref for Module {
+  type Target = Value;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Value) }
   }
 }
