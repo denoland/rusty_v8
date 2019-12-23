@@ -124,12 +124,13 @@ impl Module {
     context: Local<Context>,
     callback: ResolveCallback,
   ) -> Option<bool> {
-    // TODO make this thread safe
     use std::sync::Mutex;
     lazy_static! {
       static ref RESOLVE_CALLBACK: Mutex<Option<ResolveCallback>> =
         Mutex::new(None);
+      static ref INSTANTIATE_LOCK: Mutex<()> = Mutex::new(());
     }
+    let instantiate_guard = INSTANTIATE_LOCK.lock().unwrap();
 
     {
       let mut guard = RESOLVE_CALLBACK.lock().unwrap();
@@ -148,8 +149,10 @@ impl Module {
         Some(mut p) => &mut *p,
       }
     }
-
-    unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into()
+    let r =
+      unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into();
+    drop(instantiate_guard);
+    r
   }
 
   /// Evaluates the module and its dependencies.
