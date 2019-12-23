@@ -297,7 +297,10 @@ fn throw_exception() {
       let tc = try_catch.enter();
       isolate.throw_exception(v8_str(scope, "boom").into());
       assert!(tc.has_caught());
-      assert!(tc.exception().is_some());
+      assert!(tc
+        .exception()
+        .unwrap()
+        .strict_equals(v8_str(scope, "boom").into()));
     };
     context.exit();
   });
