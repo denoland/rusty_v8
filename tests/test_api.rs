@@ -938,7 +938,7 @@ fn array_buffer_view() {
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
-    let mut result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
+    let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
       unsafe { std::mem::transmute_copy(&result) };
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
@@ -946,6 +946,10 @@ fn array_buffer_view() {
     let copy_bytes = result.copy_contents(&mut dest);
     assert_eq!(copy_bytes, 4);
     assert_eq!(dest, [23, 23, 23, 23]);
+    let maybe_ab = result.buffer();
+    assert!(maybe_ab.is_some());
+    let ab = maybe_ab.unwrap();
+    assert_eq!(ab.byte_length(), 4);
     context.exit();
   });
   drop(locker);

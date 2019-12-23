@@ -3,15 +3,18 @@ use std::ops::Deref;
 
 use crate::support::int;
 use crate::support::Opaque;
+use crate::ArrayBuffer;
+use crate::Local;
 use crate::Object;
 
 extern "C" {
-  // TODO(afinch7) add this in when ArrayBuffer exists.
-  // fn v8__ArrayBufferView__Buffer(this: &mut ArrayBufferView) -> *mut ArrayBuffer;
-  fn v8__ArrayBufferView__ByteLength(this: &mut ArrayBufferView) -> usize;
-  fn v8__ArrayBufferView__ByteOffset(this: &mut ArrayBufferView) -> usize;
+  fn v8__ArrayBufferView__Buffer(
+    this: *const ArrayBufferView,
+  ) -> *mut ArrayBuffer;
+  fn v8__ArrayBufferView__ByteLength(this: *const ArrayBufferView) -> usize;
+  fn v8__ArrayBufferView__ByteOffset(this: *const ArrayBufferView) -> usize;
   fn v8__ArrayBufferView__CopyContents(
-    this: &mut ArrayBufferView,
+    this: *const ArrayBufferView,
     dest: *mut u8,
     byte_length: int,
   ) -> usize;
@@ -21,15 +24,19 @@ extern "C" {
 pub struct ArrayBufferView(Opaque);
 
 impl ArrayBufferView {
-  pub fn byte_length(&mut self) -> usize {
+  pub fn buffer<'sc>(&self) -> Option<Local<'sc, ArrayBuffer>> {
+    unsafe { Local::from_raw(v8__ArrayBufferView__Buffer(self)) }
+  }
+
+  pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBufferView__ByteLength(self) }
   }
 
-  pub fn byte_offset(&mut self) -> usize {
+  pub fn byte_offset(&self) -> usize {
     unsafe { v8__ArrayBufferView__ByteOffset(self) }
   }
 
-  pub fn copy_contents(&mut self, dest: &mut [u8]) -> usize {
+  pub fn copy_contents(&self, dest: &mut [u8]) -> usize {
     unsafe {
       v8__ArrayBufferView__CopyContents(
         self,
