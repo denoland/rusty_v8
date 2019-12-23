@@ -6,6 +6,7 @@ use crate::support::Opaque;
 use crate::support::UniqueRef;
 use crate::Local;
 use crate::Message;
+use crate::StartupData;
 use crate::Value;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -44,7 +45,10 @@ extern "C" {
     this: &mut CreateParams,
     value: *mut Allocator,
   );
-
+  fn v8__Isolate__CreateParams__SET__snapshot_blob(
+    this: &mut CreateParams,
+    snapshot_blob: *mut StartupData,
+  );
 }
 
 #[repr(C)]
@@ -197,6 +201,12 @@ impl CreateParams {
         self,
         value.into_raw(),
       )
+    };
+  }
+
+  pub fn set_snapshot_blob(&mut self, snapshot_blob: &mut StartupData) {
+    unsafe {
+      v8__Isolate__CreateParams__SET__snapshot_blob(self, &mut *snapshot_blob)
     };
   }
 }

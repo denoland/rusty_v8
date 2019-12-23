@@ -1028,3 +1028,51 @@ fn array_buffer_view() {
   isolate.exit();
   drop(g);
 }
+
+#[test]
+fn snapshot_creator() {
+  let g = setup();
+  let mut snapshot_creator = v8::SnapshotCreator::default();
+  let mut startup_data = {
+    let isolate = snapshot_creator.get_isolate();
+    let mut locker = v8::Locker::new(&isolate);
+    v8::HandleScope::enter(&mut locker, |scope| {
+      let mut context = v8::Context::new(scope);
+      context.enter();
+      let source =
+        v8::String::new(scope, "a = 'Hello ' + 13 + 'th planet'").unwrap();
+      let mut script =
+        v8::Script::compile(scope, context, source, None).unwrap();
+      script.run(scope, context).unwrap();
+      snapshot_creator.set_default_context(context);
+      context.exit();
+    });
+
+    let startup_data =
+      snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear);
+    eprintln!("startup data {:?}", startup_data);
+    assert!(startup_data.raw_size > 0);
+    drop(locker);
+    drop(snapshot_creator);
+    startup_data
+  };
+
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  params.set_snapshot_blob(&mut startup_data);
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let source = v8::String::new(scope, "a === 'Hello 13th planet'").unwrap();
+    let mut script = v8::Script::compile(scope, context, source, None).unwrap();
+    let result = script.run(scope, context).unwrap();
+    let true_val: Local<v8::Value> = cast(v8::new_true(scope));
+    assert!(result.same_value(true_val));
+    context.exit();
+  });
+  drop(locker);
+  drop(startup_data);
+  drop(g);
+}
