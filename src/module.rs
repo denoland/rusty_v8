@@ -7,8 +7,15 @@ use crate::String;
 use crate::Value;
 use std::mem::MaybeUninit;
 
-type ResolveCallback =
+#[allow(non_camel_case_types)]
+type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
+
+type ResolveCallback = fn(
+  Local<Context>,
+  Local<String>,
+  Local<Module>,
+) -> Option<Local<'static, Module>>;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -25,7 +32,7 @@ extern "C" {
   fn v8__Module__InstantiateModule(
     this: *mut Module,
     context: Local<Context>,
-    callback: ResolveCallback,
+    callback: v8__Module__ResolveCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *mut Module,
@@ -117,7 +124,35 @@ impl Module {
     context: Local<Context>,
     callback: ResolveCallback,
   ) -> Option<bool> {
-    unsafe { v8__Module__InstantiateModule(self, context, callback) }.into()
+    use std::sync::Mutex;
+    lazy_static! {
+      static ref RESOLVE_CALLBACK: Mutex<Option<ResolveCallback>> =
+        Mutex::new(None);
+      static ref INSTANTIATE_LOCK: Mutex<()> = Mutex::new(());
+    }
+    let instantiate_guard = INSTANTIATE_LOCK.lock().unwrap();
+
+    {
+      let mut guard = RESOLVE_CALLBACK.lock().unwrap();
+      *guard = Some(callback);
+    }
+
+    extern "C" fn c_cb(
+      context: Local<Context>,
+      specifier: Local<String>,
+      referrer: Local<Module>,
+    ) -> *mut Module {
+      let guard = RESOLVE_CALLBACK.lock().unwrap();
+      let cb = guard.unwrap();
+      match cb(context, specifier, referrer) {
+        None => std::ptr::null_mut(),
+        Some(mut p) => &mut *p,
+      }
+    }
+    let r =
+      unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into();
+    drop(instantiate_guard);
+    r
   }
 
   /// Evaluates the module and its dependencies.
