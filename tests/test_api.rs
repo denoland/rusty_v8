@@ -779,12 +779,7 @@ fn script_compiler_source() {
     let source =
       v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
 
-    let result = v8::script_compiler::compile_module(
-      &isolate,
-      source,
-      v8::script_compiler::CompileOptions::NoCompileOptions,
-      v8::script_compiler::NoCacheReason::NoReason,
-    );
+    let result = v8::script_compiler::compile_module(&isolate, source);
     assert!(result.is_some());
 
     context.exit();
@@ -814,13 +809,8 @@ fn module_instantiation_failures1() {
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let mut module = v8::script_compiler::compile_module(
-      &isolate,
-      source,
-      v8::script_compiler::CompileOptions::NoCompileOptions,
-      v8::script_compiler::NoCacheReason::NoReason,
-    )
-    .unwrap();
+    let mut module =
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
 
@@ -891,13 +881,8 @@ fn module_evaluation() {
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let mut module = v8::script_compiler::compile_module(
-      &isolate,
-      source,
-      v8::script_compiler::CompileOptions::NoCompileOptions,
-      v8::script_compiler::NoCacheReason::NoReason,
-    )
-    .unwrap();
+    let mut module =
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
     fn resolve_callback(
@@ -910,13 +895,8 @@ fn module_evaluation() {
         let mut escapable_scope = v8::EscapableHandleScope::new(isolate_);
         let origin = mock_script_origin(isolate_, "module.js");
         let source = v8::script_compiler::Source::new(specifier, &origin);
-        let module = v8::script_compiler::compile_module(
-          isolate_,
-          source,
-          v8::script_compiler::CompileOptions::NoCompileOptions,
-          v8::script_compiler::NoCacheReason::NoReason,
-        )
-        .unwrap();
+        let module =
+          v8::script_compiler::compile_module(isolate_, source).unwrap();
         escapable_scope.escape(cast(module))
       };
       Some(cast(module_))
