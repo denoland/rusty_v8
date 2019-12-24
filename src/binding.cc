@@ -216,6 +216,12 @@ bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
 
 bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
 
+bool v8__Value__IsObject(const v8::Value& self) { return self.IsObject(); }
+
+bool v8__Value__IsArray(const v8::Value& self) { return self.IsArray(); }
+
+bool v8__Value__IsFunction(const v8::Value& self) { return self.IsFunction(); }
+
 bool v8__Value__StrictEquals(const v8::Value& self, v8::Value* that) {
   return self.StrictEquals(ptr_to_local(that));
 }
@@ -299,6 +305,18 @@ v8::Object* v8__Object__New(v8::Isolate* isolate,
                             v8::Local<v8::Value>* values, size_t length) {
   return local_to_ptr(
       v8::Object::New(isolate, prototype_or_null, names, values, length));
+}
+
+v8::Value* v8__Object__Get(v8::Object& self, v8::Local<v8::Context> context,
+                           v8::Local<v8::Value> key) {
+  return maybe_local_to_ptr(self.Get(context, key));
+}
+
+MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
+                                         v8::Local<v8::Context> context,
+                                         v8::Local<v8::Name> key,
+                                         v8::Local<v8::Value> value) {
+  return maybe_to_maybe_bool(self.CreateDataProperty(context, key, value));
 }
 
 v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
