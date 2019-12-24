@@ -890,6 +890,8 @@ fn module_evaluation() {
       specifier: v8::Local<v8::String>,
       _referrer: v8::Local<v8::Module>,
     ) -> *mut v8::Module {
+      // Be very careful that isolate does not shadow the outer isolate, as it
+      // can cause it to be dropped. isolate_ is intentionally named.
       let isolate_: &mut v8::Isolate = context.as_mut();
       let origin = mock_script_origin(isolate_, "module.js");
       let source = v8::script_compiler::Source::new(specifier, &origin);
