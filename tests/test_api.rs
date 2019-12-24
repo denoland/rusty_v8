@@ -1032,9 +1032,8 @@ fn array_buffer_view() {
 #[test]
 fn snapshot_creator() {
   let g = setup();
-  let mut startup_data: Option<v8::StartupData> = None;
 
-  {
+  let startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::default();
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
@@ -1052,12 +1051,13 @@ fn snapshot_creator() {
       context.exit();
     });
 
-    startup_data =
-      Some(snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear));
+    let startup_data =
+      snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear);
 
     drop(locker);
     drop(snapshot_creator);
-  }
+    startup_data
+  };
 
   let mut startup_data = startup_data.unwrap();
   eprintln!("startup data {:?}", startup_data);
@@ -1078,6 +1078,10 @@ fn snapshot_creator() {
     assert!(result.same_value(true_val));
     context.exit();
   });
+
+  // TODO(ry) startup_data is getting leaked and is not cleaned up properly!
+  // It must be freed using c++ delete.
+
   drop(locker);
   drop(g);
 }
