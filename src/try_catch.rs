@@ -51,62 +51,32 @@ extern "C" {
 // once, the same TryCatch object can't be entered again.
 
 /// An external exception handler.
-pub struct TryCatch<'tc>(TryCatchState<'tc>);
-
-/// An activated TryCatch handler that is active as long as it is in scope.
 #[repr(transparent)]
-pub struct TryCatchScope<'tc>(CxxTryCatch, PhantomData<&'tc ()>);
+pub struct TryCatch<'tc>(CxxTryCatch, PhantomData<&'tc ()>);
 
 #[repr(C)]
 struct CxxTryCatch([usize; 6]);
 
+/// A scope object that will, when entered, active the embedded TryCatch block.
+pub struct TryCatchScope<'tc>(TryCatchState<'tc>);
+
 enum TryCatchState<'tc> {
   New { isolate: *mut Isolate },
-  Uninit(MaybeUninit<TryCatchScope<'tc>>),
-  Constructed(TryCatchScope<'tc>),
+  Uninit(MaybeUninit<TryCatch<'tc>>),
+  Entered(TryCatch<'tc>),
 }
 
 impl<'tc> TryCatch<'tc> {
   /// Creates a new try/catch block. Note that all TryCatch blocks should be
   /// stack allocated because the memory location itself is compared against
   /// JavaScript try/catch blocks.
-  pub fn new(scope: &mut impl AsMut<Isolate>) -> Self {
-    Self(TryCatchState::New {
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(scope: &mut impl AsMut<Isolate>) -> TryCatchScope<'tc> {
+    TryCatchScope(TryCatchState::New {
       isolate: scope.as_mut(),
     })
   }
 
-  /// Enters the TryCatch block. Exceptions are caught as long as the returned
-  /// TryCatchScope remains in scope.
-  pub fn enter(&'tc mut self) -> &'tc mut TryCatchScope {
-    use TryCatchState::*;
-    let state = &mut self.0;
-
-    let isolate = match take(state) {
-      New { isolate } => isolate,
-      _ => unreachable!(),
-    };
-
-    let buf = match state {
-      Uninit(b) => b,
-      _ => unreachable!(),
-    };
-
-    TryCatchScope::construct(buf, isolate);
-
-    *state = match take(state) {
-      Uninit(b) => Constructed(unsafe { b.assume_init() }),
-      _ => unreachable!(),
-    };
-
-    match state {
-      Constructed(v) => v,
-      _ => unreachable!(),
-    }
-  }
-}
-
-impl<'tc> TryCatchScope<'tc> {
   /// Returns true if an exception has been caught by this try/catch block.
   pub fn has_caught(&self) -> bool {
     unsafe { v8__TryCatch__HasCaught(&self.0) }
@@ -206,7 +176,7 @@ impl<'tc> TryCatchScope<'tc> {
     unsafe { v8__TryCatch__SetCaptureMessage(&mut self.0, value) };
   }
 
-  fn construct(buf: &mut MaybeUninit<TryCatchScope>, isolate: *mut Isolate) {
+  fn construct(buf: &mut MaybeUninit<TryCatch>, isolate: *mut Isolate) {
     unsafe {
       assert_eq!(size_of_val(buf), size_of::<CxxTryCatch>());
       let buf = &mut *(buf as *mut _ as *mut MaybeUninit<CxxTryCatch>);
@@ -218,6 +188,37 @@ impl<'tc> TryCatchScope<'tc> {
 impl Drop for CxxTryCatch {
   fn drop(&mut self) {
     unsafe { v8__TryCatch__DESTRUCT(self) }
+  }
+}
+
+impl<'tc> TryCatchScope<'tc> {
+  /// Enters the TryCatch block. Exceptions are caught as long as the returned
+  /// TryCatch object remains in scope.
+  pub fn enter(&'tc mut self) -> &'tc mut TryCatch {
+    use TryCatchState::*;
+    let state = &mut self.0;
+
+    let isolate = match take(state) {
+      New { isolate } => isolate,
+      _ => unreachable!(),
+    };
+
+    let buf = match state {
+      Uninit(b) => b,
+      _ => unreachable!(),
+    };
+
+    TryCatch::construct(buf, isolate);
+
+    *state = match take(state) {
+      Uninit(b) => Entered(unsafe { b.assume_init() }),
+      _ => unreachable!(),
+    };
+
+    match state {
+      Entered(v) => v,
+      _ => unreachable!(),
+    }
   }
 }
 

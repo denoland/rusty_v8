@@ -79,6 +79,11 @@ jobs:
           rustup component add clippy
           cargo clippy --all-targets --release --locked -- -D clippy::all
 
+      - name: Rustfmt
+        run: |
+          rustup component add rustfmt
+          cargo fmt -- --check
+
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/') && github.repository == 'denoland/rusty_v8' && startsWith(matrix.os, 'ubuntu')
         env:

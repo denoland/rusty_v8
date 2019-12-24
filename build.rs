@@ -12,6 +12,21 @@ const MIN_APPLE_CLANG_VER: f32 = 11.0;
 const MIN_LLVM_CLANG_VER: f32 = 8.0;
 
 fn main() {
+  // Detect if trybuild tests are being compiled.
+  let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
+
+  // Don't build if "cargo doc" is being run. This is to support docs.rs.
+  let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
+
+  if !(is_trybuild || is_cargo_doc) {
+    build_v8()
+  }
+  if !is_cargo_doc {
+    print_link_flags()
+  }
+}
+
+fn build_v8() {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 
   // cargo publish doesn't like pyc files.
@@ -24,11 +39,6 @@ fn main() {
       "missing source code. Run 'git submodule update --init --recursive'"
     );
     exit(1);
-  }
-
-  // Don't build if "cargo doc" is being run. This is to support docs.rs.
-  if env::var_os("RUSTDOCFLAGS").is_some() {
-    exit(0);
   }
 
   if need_gn_ninja_download() {
@@ -74,13 +84,6 @@ fn main() {
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8");
-
-  println!("cargo:rustc-link-lib=static=rusty_v8");
-
-  if cfg!(target_os = "windows") {
-    println!("cargo:rustc-link-lib=dylib=winmm");
-    println!("cargo:rustc-link-lib=dylib=dbghelp");
-  }
 }
 
 fn platform() -> &'static str {
@@ -122,6 +125,15 @@ fn download_gn_ninja_binaries() {
   assert!(ninja.exists());
   env::set_var("GN", gn);
   env::set_var("NINJA", ninja);
+}
+
+fn print_link_flags() {
+  println!("cargo:rustc-link-lib=static=rusty_v8");
+
+  if cfg!(target_os = "windows") {
+    println!("cargo:rustc-link-lib=dylib=winmm");
+    println!("cargo:rustc-link-lib=dylib=dbghelp");
+  }
 }
 
 fn need_gn_ninja_download() -> bool {
