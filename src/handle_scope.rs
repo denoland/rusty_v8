@@ -35,8 +35,8 @@ extern "C" {
 pub struct HandleScope([usize; 3]);
 
 impl HandleScope {
-  pub fn new(scope: &mut impl InIsolate) -> Scope<Self> {
-    Scope::new(scope.isolate())
+  pub fn new(scope: &impl InIsolate) -> Scope<Self> {
+    Scope::new(unsafe { scope.isolate_from_ref() })
   }
 }
 
@@ -139,13 +139,15 @@ impl AsMut<Isolate> for EscapableHandleScope {
   }
 }
 
-impl InIsolate for HandleScope {
+use crate::scope::Entered;
+
+impl<'s> InIsolate for Entered<'s, HandleScope> {
   fn isolate(&mut self) -> &mut Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
   }
 }
 
-impl InIsolate for EscapableHandleScope {
+impl<'s> InIsolate for Entered<'s, EscapableHandleScope> {
   fn isolate(&mut self) -> &mut Isolate {
     unsafe { v8__EscapableHandleScope__GetIsolate(self) }
   }
@@ -157,5 +159,5 @@ pub trait ToLocal<'sc>: InIsolate {
   }
 }
 
-impl<'s> ToLocal<'s> for HandleScope where Self: Scoped<'s> {}
-impl<'s> ToLocal<'s> for EscapableHandleScope where Self: Scoped<'s> {}
+impl<'s> ToLocal<'s> for crate::scope::Entered<'s, HandleScope> {}
+impl<'s> ToLocal<'s> for crate::scope::Entered<'s, EscapableHandleScope> {}

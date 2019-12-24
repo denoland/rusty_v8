@@ -170,6 +170,13 @@ pub trait InIsolate {
   // Do not implement this trait on unscoped Isolate references
   // (e.g. OwnedIsolate).
   fn isolate(&mut self) -> &mut Isolate;
+
+  #[allow(clippy::mut_from_ref)]
+  #[allow(clippy::cast_ref_to_mut)]
+  unsafe fn isolate_from_ref(&self) -> &mut Isolate {
+    let s: &mut Self = &mut *(self as *const Self as *mut Self);
+    s.isolate()
+  }
 }
 
 use crate::scope::{Scope, Scoped};
@@ -192,7 +199,7 @@ impl<'s> MessageListenerScope<'s> {
   }
 }
 
-impl<'s> InIsolate for MessageListenerScope<'s> {
+impl<'s> InIsolate for crate::scope::Entered<'s, MessageListenerScope<'s>> {
   fn isolate(&mut self) -> &mut Isolate {
     self.message.get_isolate()
   }

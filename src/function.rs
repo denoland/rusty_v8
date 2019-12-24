@@ -88,10 +88,7 @@ pub struct FunctionCallbackInfo(Opaque);
 impl InIsolate for FunctionCallbackInfo {
   #[allow(clippy::cast_ref_to_mut)]
   fn isolate(&mut self) -> &mut Isolate {
-    unsafe {
-      let m = &mut **(self as *mut _ as *mut *mut FunctionCallbackInfo);
-      m.get_isolate()
-    }
+    self.get_isolate()
   }
 }
 

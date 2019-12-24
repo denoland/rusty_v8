@@ -1,5 +1,5 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
-/*
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -167,7 +167,8 @@ fn escapable_handle_scope() {
     let number_val = {
       let mut hs = v8::EscapableHandleScope::new(scope1);
       let escapable_scope = hs.enter();
-      let number: Local<v8::Value> = cast(v8::Number::new(escapable_scope, 78.9));
+      let number: Local<v8::Value> =
+        cast(v8::Number::new(escapable_scope, 78.9));
       escapable_scope.escape(number)
     };
     let number: Local<v8::Number> = cast(number_val);
@@ -188,7 +189,8 @@ fn escapable_handle_scope() {
       let nested_str_val = {
         let mut hs = v8::EscapableHandleScope::new(escapable_scope);
         let nested_escapable_scope = hs.enter();
-        let string = v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
+        let string =
+          v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
         nested_escapable_scope.escape(cast(string))
       };
       escapable_scope.escape(nested_str_val)
@@ -226,17 +228,25 @@ fn array_buffer() {
   drop(locker);
 }
 
-fn v8_str<'sc>(scope: &mut impl v8::ToLocal<'sc>, s: &str) -> v8::Local<'sc, v8::String> {
+fn v8_str<'sc>(
+  scope: &mut impl v8::ToLocal<'sc>,
+  s: &str,
+) -> v8::Local<'sc, v8::String> {
   v8::String::new(scope, s).unwrap()
 }
 
 #[test]
 fn try_catch() {
-  fn eval<'sc>(scope: &mut impl v8::InIsolate, context: Local<v8::Context>, code: &'static str) -> Option<Local<'sc, v8::Value>> {
+  fn eval<'sc>(
+    scope: &mut impl v8::InIsolate,
+    context: Local<v8::Context>,
+    code: &'static str,
+  ) -> Option<Local<'sc, v8::Value>> {
     let mut hs = v8::EscapableHandleScope::new(scope);
     let scope = hs.enter();
     let source = v8_str(scope, code);
-    let mut script = v8::Script::compile(&mut *scope, context, source, None).unwrap();
+    let mut script =
+      v8::Script::compile(&mut *scope, context, source, None).unwrap();
     let r = script.run(scope, context);
     r.map(|v| scope.escape(v))
   };
@@ -261,7 +271,10 @@ fn try_catch() {
       assert!(tc.exception().is_some());
       assert!(tc.stack_trace(scope, context).is_some());
       assert!(tc.message().is_some());
-      assert_eq!(tc.message().unwrap().get(scope).to_rust_string_lossy(scope), "Uncaught Error: foo");
+      assert_eq!(
+        tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
+        "Uncaught Error: foo"
+      );
     };
     {
       // No error thrown.
@@ -305,7 +318,10 @@ fn isolate_add_message_listener() {
   use std::sync::atomic::{AtomicUsize, Ordering};
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn check_message_0(message: Local<v8::Message>, _exception: Local<v8::Value>) {
+  extern "C" fn check_message_0(
+    message: Local<v8::Message>,
+    _exception: Local<v8::Value>,
+  ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     let mut mls = v8::MessageListenerScope::new(message);
     let scope = mls.enter();
@@ -352,7 +368,8 @@ fn script_compile_and_run() {
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
-    let result: v8::Local<v8::String> = unsafe { std::mem::transmute_copy(&result) };
+    let result: v8::Local<v8::String> =
+      unsafe { std::mem::transmute_copy(&result) };
     assert_eq!(result.to_rust_string_lossy(s), "Hello 13th planet");
     context.exit();
   }
@@ -383,10 +400,21 @@ fn script_origin() {
     let is_wasm = v8::new_false(s);
     let is_module = v8::new_false(s);
 
-    let script_origin = v8::ScriptOrigin::new(resource_name.into(), resource_line_offset, resource_column_offset, resource_is_shared_cross_origin, script_id, source_map_url.into(), resource_is_opaque, is_wasm, is_module);
+    let script_origin = v8::ScriptOrigin::new(
+      resource_name.into(),
+      resource_line_offset,
+      resource_column_offset,
+      resource_is_shared_cross_origin,
+      script_id,
+      source_map_url.into(),
+      resource_is_opaque,
+      is_wasm,
+      is_module,
+    );
 
     let source = v8::String::new(s, "1+2").unwrap();
-    let mut script = v8::Script::compile(s, context, source, Some(&script_origin)).unwrap();
+    let mut script =
+      v8::Script::compile(s, context, source, Some(&script_origin)).unwrap();
     source.to_rust_string_lossy(s);
     let _result = script.run(s, context).unwrap();
     context.exit();
@@ -401,8 +429,15 @@ fn get_version() {
 
 #[test]
 fn set_flags_from_command_line() {
-  let r = v8::V8::set_flags_from_command_line(vec!["binaryname".to_string(), "--log-colour".to_string(), "--should-be-ignored".to_string()]);
-  assert_eq!(r, vec!["binaryname".to_string(), "--should-be-ignored".to_string()]);
+  let r = v8::V8::set_flags_from_command_line(vec![
+    "binaryname".to_string(),
+    "--log-colour".to_string(),
+    "--should-be-ignored".to_string(),
+  ]);
+  assert_eq!(
+    r,
+    vec!["binaryname".to_string(), "--should-be-ignored".to_string()]
+  );
 }
 
 #[test]
@@ -489,7 +524,10 @@ fn exception() {
     let msg = v8::create_message(scope, exception);
     let msg_string = msg.get(scope);
     let rust_msg_string = msg_string.to_rust_string_lossy(scope);
-    assert_eq!("Uncaught Error: This is a test error".to_string(), rust_msg_string);
+    assert_eq!(
+      "Uncaught Error: This is a test error".to_string(),
+      rust_msg_string
+    );
     assert!(v8::get_stack_trace(scope, exception).is_none());
     context.exit();
   }
@@ -637,15 +675,19 @@ fn promise_rejected() {
 extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 0);
   {
-    let info2: &mut FunctionCallbackInfo = unsafe { std::mem::transmute_copy(info) };
-    let mut hs = v8::HandleScope::new(info2);
-    let scope = hs.enter();
-    let s = v8::String::new(scope, "Hello callback!").unwrap();
-    let value: Local<v8::Value> = s.into();
     let rv = &mut info.get_return_value();
-    let rv_value = rv.get(scope);
-    assert!(rv_value.is_undefined());
-    rv.set(value);
+    #[allow(mutable_transmutes)]
+    #[allow(clippy::transmute_ptr_to_ptr)]
+    let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
+    {
+      let mut hs = v8::HandleScope::new(info);
+      let scope = hs.enter();
+      let s = v8::String::new(scope, "Hello callback!").unwrap();
+      let value: Local<v8::Value> = s.into();
+      let rv_value = rv.get(scope);
+      assert!(rv_value.is_undefined());
+      rv.set(value);
+    }
   }
 }
 
@@ -665,11 +707,16 @@ fn function() {
     let recv: Local<v8::Value> = global.into();
     // create function using template
     let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
-    let mut function = fn_template.get_function(scope, context).expect("Unable to create function");
-    let _value = v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
+    let mut function = fn_template
+      .get_function(scope, context)
+      .expect("Unable to create function");
+    let _value =
+      v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
     // create function without a template
-    let mut function = v8::Function::new(scope, context, fn_callback).expect("Unable to create function");
-    let maybe_value = v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
+    let mut function = v8::Function::new(scope, context, fn_callback)
+      .expect("Unable to create function");
+    let maybe_value =
+      v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
     let value = maybe_value.unwrap();
     let value_str: v8::Local<v8::String> = cast(value);
     let rust_str = value_str.to_rust_string_lossy(scope);
@@ -722,7 +769,9 @@ fn set_promise_reject_callback() {
   isolate.exit();
 }
 
-fn mock_script_origin<'sc>(scope: &mut impl v8::ToLocal<'sc>) -> v8::ScriptOrigin<'sc> {
+fn mock_script_origin<'sc>(
+  scope: &mut impl v8::ToLocal<'sc>,
+) -> v8::ScriptOrigin<'sc> {
   let resource_name = v8_str(scope, "foo.js");
   let resource_line_offset = v8::Integer::new(scope, 4);
   let resource_column_offset = v8::Integer::new(scope, 5);
@@ -732,7 +781,17 @@ fn mock_script_origin<'sc>(scope: &mut impl v8::ToLocal<'sc>) -> v8::ScriptOrigi
   let resource_is_opaque = v8::new_true(scope);
   let is_wasm = v8::new_false(scope);
   let is_module = v8::new_true(scope);
-  v8::ScriptOrigin::new(resource_name.into(), resource_line_offset, resource_column_offset, resource_is_shared_cross_origin, script_id, source_map_url.into(), resource_is_opaque, is_wasm, is_module)
+  v8::ScriptOrigin::new(
+    resource_name.into(),
+    resource_line_offset,
+    resource_column_offset,
+    resource_is_shared_cross_origin,
+    script_id,
+    source_map_url.into(),
+    resource_is_opaque,
+    is_wasm,
+    is_module,
+  )
 }
 
 #[test]
@@ -752,9 +811,15 @@ fn script_compiler_source() {
 
     let source = "1+2";
     let script_origin = mock_script_origin(scope);
-    let source = v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
+    let source =
+      v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
 
-    let result = v8::script_compiler::compile_module(&isolate, source, v8::script_compiler::CompileOptions::NoCompileOptions, v8::script_compiler::NoCacheReason::NoReason);
+    let result = v8::script_compiler::compile_module(
+      &isolate,
+      source,
+      v8::script_compiler::CompileOptions::NoCompileOptions,
+      v8::script_compiler::NoCacheReason::NoReason,
+    );
     assert!(result.is_some());
 
     context.exit();
@@ -804,7 +869,7 @@ fn primitive_array() {
   isolate.exit();
   drop(g);
 }
-*/
+
 #[test]
 fn ui() {
   // This environment variable tells build.rs that we're running trybuild tests,

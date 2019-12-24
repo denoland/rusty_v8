@@ -107,6 +107,7 @@ impl<'s, S> DerefMut for Entered<'s, S> {
     unsafe { &mut *(self as *mut _ as *mut S) }
   }
 }
+
 /*
 impl<'s, S, T> AsRef<T> for Entered<'s, S>
 where

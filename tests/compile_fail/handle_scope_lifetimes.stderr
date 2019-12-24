@@ -1,108 +1,36 @@
-error[E0597]: `hs` does not live long enough
-  --> $DIR/handle_scope_lifetimes.rs:7:14
-   |
-7  |     let hs = hs.enter();
-   |              ^^ borrowed value does not live long enough
-...
-10 |   }
-   |   - `hs` dropped here while still borrowed
-...
-13 |     let mut hs1 = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                 ------------ borrow later used here
-
 error[E0499]: cannot borrow `isolate` as mutable more than once at a time
- --> $DIR/handle_scope_lifetimes.rs:8:47
-  |
-6 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-  |                                                ------------ first mutable borrow occurs here
-7 |     let hs = hs.enter();
-8 |     let _fail = v8::EscapableHandleScope::new(&mut isolate);
-  |                                               ^^^^^^^^^^^^ second mutable borrow occurs here
-9 |     let _local = v8::Integer::new(hs, 123);
-  |                                   -- first borrow later used here
-
-error[E0499]: cannot borrow `isolate` as mutable more than once at a time
-  --> $DIR/handle_scope_lifetimes.rs:13:49
+  --> $DIR/handle_scope_lifetimes.rs:9:47
    |
-6  |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
+7  |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
    |                                                ------------ first mutable borrow occurs here
-...
-13 |     let mut hs1 = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                 ^^^^^^^^^^^^
-   |                                                 |
-   |                                                 second mutable borrow occurs here
-   |                                                 first borrow later used here
-
-error[E0597]: `hs1` does not live long enough
-  --> $DIR/handle_scope_lifetimes.rs:14:15
-   |
-14 |     let hs1 = hs1.enter();
-   |               ^^^ borrowed value does not live long enough
-...
-22 |   }
-   |   - `hs1` dropped here while still borrowed
-...
-25 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ------------ borrow later used here
-
-error[E0597]: `hs2` does not live long enough
-  --> $DIR/handle_scope_lifetimes.rs:18:15
-   |
-18 |     let hs2 = hs2.enter();
-   |               ^^^ borrowed value does not live long enough
-...
-22 |   }
-   |   - `hs2` dropped here while still borrowed
-...
-25 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ------------ borrow later used here
+8  |     let hs = hs.enter();
+9  |     let _fail = v8::EscapableHandleScope::new(&mut isolate);
+   |                                               ^^^^^^^^^^^^ second mutable borrow occurs here
+10 |     let _local = v8::Integer::new(hs, 123);
+   |                                   -- first borrow later used here
 
 error[E0499]: cannot borrow `*hs1` as mutable more than once at a time
-  --> $DIR/handle_scope_lifetimes.rs:19:34
+  --> $DIR/handle_scope_lifetimes.rs:20:34
    |
-17 |     let mut hs2 = v8::EscapableHandleScope::new(hs1);
+18 |     let mut hs2 = v8::EscapableHandleScope::new(hs1);
    |                                                 --- first mutable borrow occurs here
-18 |     let hs2 = hs2.enter();
-19 |     let _fail = v8::Integer::new(hs1, 123);
+19 |     let hs2 = hs2.enter();
+20 |     let _fail = v8::Integer::new(hs1, 123);
    |                                  ^^^ second mutable borrow occurs here
-20 |     let _local2 = v8::Integer::new(hs2, 123);
+21 |     let _local2 = v8::Integer::new(hs2, 123);
    |                                    --- first borrow later used here
 
-error[E0499]: cannot borrow `isolate` as mutable more than once at a time
-  --> $DIR/handle_scope_lifetimes.rs:25:48
-   |
-6  |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ------------ first mutable borrow occurs here
-...
-25 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ^^^^^^^^^^^^
-   |                                                |
-   |                                                second mutable borrow occurs here
-   |                                                first borrow later used here
-
 error[E0597]: `hs` does not live long enough
-  --> $DIR/handle_scope_lifetimes.rs:26:14
+  --> $DIR/handle_scope_lifetimes.rs:27:14
    |
-26 |     let hs = hs.enter();
+25 |   let _leak1 = {
+   |       ------ borrow later stored here
+26 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
+27 |     let hs = hs.enter();
    |              ^^ borrowed value does not live long enough
-...
+28 |     v8::Integer::new(hs, 456)
 29 |   };
    |   - `hs` dropped here while still borrowed
-...
-32 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ------------ borrow later used here
-
-error[E0499]: cannot borrow `isolate` as mutable more than once at a time
-  --> $DIR/handle_scope_lifetimes.rs:32:48
-   |
-6  |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ------------ first mutable borrow occurs here
-...
-32 |     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
-   |                                                ^^^^^^^^^^^^
-   |                                                |
-   |                                                second mutable borrow occurs here
-   |                                                first borrow later used here
 
 error[E0597]: `hs` does not live long enough
   --> $DIR/handle_scope_lifetimes.rs:33:5

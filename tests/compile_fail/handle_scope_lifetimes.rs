@@ -1,7 +1,8 @@
 extern crate rusty_v8 as v8;
 
 pub fn main() {
-  let mut isolate: v8::scope::Entered<'_, v8::Isolate> = mock();
+  let mut isolate: v8::scope::Entered<'_, v8::HandleScope> = mock();
+
   {
     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
     let hs = hs.enter();
@@ -24,8 +25,7 @@ pub fn main() {
   let _leak1 = {
     let mut hs = v8::EscapableHandleScope::new(&mut isolate);
     let hs = hs.enter();
-    // BUG: this should be rejected.
-    v8::Integer::new(hs, 456);
+    v8::Integer::new(hs, 456)
   };
 
   let _leak = {
