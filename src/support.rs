@@ -138,7 +138,7 @@ where
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MaybeBool {
   JustFalse = 0,
   JustTrue = 1,

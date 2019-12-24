@@ -588,22 +588,22 @@ fn create_data_property() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    eval(
-      scope,
-      context,
-      "var a = {};\n\
-       var b = [];\n\
-       Object.defineProperty(a, 'foo', {value: 23});\n\
-       Object.defineProperty(a, 'bar', {value: 23, configurable: true});",
-    );
+    eval(scope, context, "var a = {};");
 
-    //v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(
-    //   env->Global()->Get(env.local(), v8_str("a")).ToLocalChecked());
     let obj = context
       .global()
       .get(context, v8_str(scope, "a").into())
       .unwrap();
     assert!(obj.is_object());
+    let obj: Local<v8::Object> = cast(obj);
+    let foo = v8_str(scope, "foo");
+    let bar = v8_str(scope, "bar");
+    assert_eq!(
+      obj.create_data_property(context, cast(foo), cast(bar)),
+      v8::MaybeBool::JustTrue
+    );
+    let actual = obj.get(context, cast(foo)).unwrap();
+    assert!(bar.strict_equals(actual));
 
     context.exit();
   });

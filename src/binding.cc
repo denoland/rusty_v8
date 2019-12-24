@@ -312,6 +312,13 @@ v8::Value* v8__Object__Get(v8::Object& self, v8::Local<v8::Context> context,
   return maybe_local_to_ptr(self.Get(context, key));
 }
 
+MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
+                                         v8::Local<v8::Context> context,
+                                         v8::Local<v8::Name> key,
+                                         v8::Local<v8::Value> value) {
+  return maybe_to_maybe_bool(self.CreateDataProperty(context, key, value));
+}
+
 v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
   return self.GetIsolate();
 }

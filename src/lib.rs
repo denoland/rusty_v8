@@ -72,5 +72,7 @@ pub use script_or_module::ScriptOrModule;
 pub use snapshot::{FunctionCodeHandling, SnapshotCreator, StartupData};
 pub use string::NewStringType;
 pub use string::String;
+pub use support::MaybeBool;
+pub use support::UniqueRef;
 pub use try_catch::{TryCatch, TryCatchScope};
 pub use value::Value;
