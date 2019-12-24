@@ -79,6 +79,19 @@ pub enum NoCacheReason {
 pub fn compile_module(
   isolate: &Isolate,
   source: Source,
+) -> Option<Local<Module>> {
+  compile_module2(
+    isolate,
+    source,
+    CompileOptions::NoCompileOptions,
+    NoCacheReason::NoReason,
+  )
+}
+
+/// Same as compile_module with more options.
+pub fn compile_module2(
+  isolate: &Isolate,
+  source: Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<Module>> {

@@ -21,14 +21,6 @@ extern "C" {
   );
 }
 
-#[repr(C)]
-pub struct Global<T> {
-  value: Option<NonNull<T>>,
-  isolate: Option<NonNull<Isolate>>,
-}
-
-unsafe impl<T> Send for Global<T> {}
-
 /// An object reference that is independent of any handle scope. Where
 /// a Local handle only lives as long as the HandleScope in which it was
 /// allocated, a global handle remains valid until it is explicitly
@@ -39,6 +31,14 @@ unsafe impl<T> Send for Global<T> {}
 /// the garbage collector whenever the object is moved. A new storage
 /// cell can be created using the constructor or Global::set and
 /// existing handles can be disposed using Global::reset.
+#[repr(C)]
+pub struct Global<T> {
+  value: Option<NonNull<T>>,
+  isolate: Option<NonNull<Isolate>>,
+}
+
+unsafe impl<T> Send for Global<T> {}
+
 impl<T> Global<T> {
   /// Construct a Global with no storage cell.
   pub fn new() -> Self {

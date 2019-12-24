@@ -1,7 +1,9 @@
 use std::ops::Deref;
 
 use crate::isolate::Isolate;
+use crate::support::MaybeBool;
 use crate::support::Opaque;
+use crate::Context;
 use crate::Local;
 use crate::Name;
 use crate::ToLocal;
@@ -20,6 +22,19 @@ extern "C" {
     length: usize,
   ) -> *mut Object;
   fn v8__Object__GetIsolate(object: &Object) -> &mut Isolate;
+
+  fn v8__Object__Get(
+    object: &Object,
+    context: *const Context,
+    key: *const Value,
+  ) -> *mut Value;
+
+  fn v8__Object__CreateDataProperty(
+    object: &Object,
+    context: *const Context,
+    key: *const Name,
+    value: *const Value,
+  ) -> MaybeBool;
 }
 
 impl Object {
@@ -57,6 +72,37 @@ impl Object {
       )
     };
     unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  /// Implements CreateDataProperty (ECMA-262, 7.3.4).
+  ///
+  /// Defines a configurable, writable, enumerable property with the given value
+  /// on the object unless the property already exists and is not configurable
+  /// or the object is not extensible.
+  ///
+  /// Returns true on success.
+  pub fn create_data_property(
+    &self,
+    context: Local<Context>,
+    key: Local<Name>,
+    value: Local<Value>,
+  ) -> MaybeBool {
+    unsafe { v8__Object__CreateDataProperty(self, &*context, &*key, &*value) }
+  }
+
+  pub fn get<'a>(
+    &self,
+    context: Local<Context>,
+    key: Local<Value>,
+  ) -> Option<Local<'a, Value>> {
+    unsafe {
+      let ptr = v8__Object__Get(self, &*context, &*key);
+      if ptr.is_null() {
+        None
+      } else {
+        Some(Local::from_raw(ptr).unwrap())
+      }
+    }
   }
 
   /// Return the isolate to which the Object belongs to.
