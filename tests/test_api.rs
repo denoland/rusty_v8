@@ -861,6 +861,18 @@ fn module_instantiation_failures1() {
   drop(g);
 }
 
+fn compile_specifier_as_module_resolve_callback(
+  mut context: v8::Local<v8::Context>,
+  specifier: v8::Local<v8::String>,
+  _referrer: v8::Local<v8::Module>,
+) -> *mut v8::Module {
+  let isolate: &mut v8::Isolate = context.as_mut();
+  let origin = mock_script_origin(isolate, "module.js");
+  let source = v8::script_compiler::Source::new(specifier, &origin);
+  let module = v8::script_compiler::compile_module(isolate, source).unwrap();
+  &mut *cast(module)
+}
+
 #[test]
 fn module_evaluation() {
   let g = setup();
@@ -885,21 +897,10 @@ fn module_evaluation() {
       v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
-    fn resolve_callback(
-      mut context: v8::Local<v8::Context>,
-      specifier: v8::Local<v8::String>,
-      _referrer: v8::Local<v8::Module>,
-    ) -> *mut v8::Module {
-      // Be very careful that isolate does not shadow the outer isolate, as it
-      // can cause it to be dropped. isolate_ is intentionally named.
-      let isolate_: &mut v8::Isolate = context.as_mut();
-      let origin = mock_script_origin(isolate_, "module.js");
-      let source = v8::script_compiler::Source::new(specifier, &origin);
-      let module =
-        v8::script_compiler::compile_module(isolate_, source).unwrap();
-      &mut *cast(module)
-    }
-    let result = module.instantiate_module(context, resolve_callback);
+    let result = module.instantiate_module(
+      context,
+      compile_specifier_as_module_resolve_callback,
+    );
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
 
