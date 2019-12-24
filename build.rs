@@ -169,7 +169,7 @@ fn is_compatible_clang_version(clang_path: &Path) -> bool {
 }
 
 fn find_compatible_system_clang() -> Option<PathBuf> {
-  if let Ok(p) = env::var("CLANG_BASE_PATH") { // check environment variable
+  if let Ok(p) = env::var("CLANG_BASE_PATH") {
     let base_path = Path::new(&p);
     let clang_path = base_path.join("bin").join("clang");
     if is_compatible_clang_version(&clang_path) {
@@ -177,7 +177,7 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
     }
   }
 
-  if let Ok(clang_path) = which("clang") { // check clang in PATH
+  if let Ok(clang_path) = which("clang") {
     if is_compatible_clang_version(&clang_path) {
       return Some(
         clang_path.parent().unwrap().parent().unwrap().to_path_buf(),
