@@ -49,12 +49,16 @@ impl<'sc, T> Clone for Local<'sc, T> {
 }
 
 impl<'sc, T> Local<'sc, T> {
-  pub(crate) unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
+  pub(crate) unsafe fn from_raw_(ptr: *mut T) -> Option<Self> {
     Some(Self(NonNull::new(ptr)?, PhantomData))
   }
 
   pub(crate) fn as_non_null(self) -> NonNull<T> {
     self.0
+  }
+
+  pub(crate) fn as_ptr(self) -> *mut T {
+    self.0.as_ptr()
   }
 }
 

@@ -28,7 +28,7 @@ pub struct ArrayBufferView(Opaque);
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
   pub fn buffer<'sc>(&self) -> Option<Local<'sc, ArrayBuffer>> {
-    unsafe { Local::from_raw(v8__ArrayBufferView__Buffer(self)) }
+    unsafe { Local::from_raw_(v8__ArrayBufferView__Buffer(self)) }
   }
 
   /// Size of a view in bytes.

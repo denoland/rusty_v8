@@ -22,7 +22,7 @@ pub fn parse<'sc>(
   mut context: Local<'sc, Context>,
   mut json_string: Local<'sc, String>,
 ) -> Option<Local<'sc, Value>> {
-  unsafe { Local::from_raw(v8__JSON__Parse(&mut *context, &mut *json_string)) }
+  unsafe { Local::from_raw_(v8__JSON__Parse(&mut *context, &mut *json_string)) }
 }
 
 /// Tries to stringify the JSON-serializable object `json_object` and returns
@@ -32,6 +32,6 @@ pub fn stringify<'sc>(
   mut json_object: Local<'sc, Value>,
 ) -> Option<Local<'sc, String>> {
   unsafe {
-    Local::from_raw(v8__JSON__Stringify(&mut *context, &mut *json_object))
+    Local::from_raw_(v8__JSON__Stringify(&mut *context, &mut *json_object))
   }
 }

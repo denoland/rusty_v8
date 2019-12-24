@@ -2,7 +2,7 @@ extern crate rusty_v8 as v8;
 
 pub fn main() {
   let context: v8::Local<v8::Context> = mock();
-  let scope: &mut v8::HandleScope<'_> = mock();
+  let scope: &mut v8::scope::Entered<'_, v8::HandleScope> = mock();
 
   let _leaked = {
     let mut try_catch = v8::TryCatch::new(scope);

@@ -3,6 +3,7 @@ use std::ops::Deref;
 use crate::isolate::Isolate;
 use crate::support::Opaque;
 use crate::Local;
+use crate::ToLocal;
 use crate::Value;
 
 /// The superclass of primitive values.  See ECMA-262 4.3.2.
@@ -28,22 +29,26 @@ extern "C" {
   fn v8__False(isolate: *mut Isolate) -> *mut Boolean;
 }
 
-pub fn new_null<'sc>(scope: &mut impl AsMut<Isolate>) -> Local<'sc, Primitive> {
-  unsafe { Local::from_raw(v8__Null(scope.as_mut())) }.unwrap()
+pub fn new_null<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Primitive> {
+  let ptr = unsafe { v8__Null(scope.isolate()) };
+  unsafe { scope.to_local(ptr) }.unwrap()
 }
 
 pub fn new_undefined<'sc>(
-  scope: &mut impl AsMut<Isolate>,
+  scope: &mut impl ToLocal<'sc>,
 ) -> Local<'sc, Primitive> {
-  unsafe { Local::from_raw(v8__Undefined(scope.as_mut())) }.unwrap()
+  let ptr = unsafe { v8__Undefined(scope.isolate()) };
+  unsafe { scope.to_local(ptr) }.unwrap()
 }
 
-pub fn new_true<'sc>(scope: &mut impl AsMut<Isolate>) -> Local<'sc, Boolean> {
-  unsafe { Local::from_raw(v8__True(scope.as_mut())) }.unwrap()
+pub fn new_true<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Boolean> {
+  let ptr = unsafe { v8__True(scope.isolate()) };
+  unsafe { scope.to_local(ptr) }.unwrap()
 }
 
-pub fn new_false<'sc>(scope: &mut impl AsMut<Isolate>) -> Local<'sc, Boolean> {
-  unsafe { Local::from_raw(v8__False(scope.as_mut())) }.unwrap()
+pub fn new_false<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Boolean> {
+  let ptr = unsafe { v8__False(scope.isolate()) };
+  unsafe { scope.to_local(ptr) }.unwrap()
 }
 
 impl Deref for Primitive {

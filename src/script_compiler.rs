@@ -76,10 +76,10 @@ pub enum NoCacheReason {
 ///
 /// Corresponds to the ParseModule abstract operation in the ECMAScript
 /// specification.
-pub fn compile_module(
+pub fn compile_module<'a>(
   isolate: &Isolate,
   source: Source,
-) -> Option<Local<Module>> {
+) -> Option<Local<'a, Module>> {
   compile_module2(
     isolate,
     source,
@@ -89,14 +89,14 @@ pub fn compile_module(
 }
 
 /// Same as compile_module with more options.
-pub fn compile_module2(
+pub fn compile_module2<'a>(
   isolate: &Isolate,
   source: Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
-) -> Option<Local<Module>> {
+) -> Option<Local<'a, Module>> {
   unsafe {
-    Local::from_raw(v8__ScriptCompiler__CompileModule(
+    Local::from_raw_(v8__ScriptCompiler__CompileModule(
       isolate,
       &source,
       options,

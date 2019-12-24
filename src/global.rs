@@ -1,9 +1,10 @@
 use std::mem::transmute;
 use std::ptr::NonNull;
 
-use crate::HandleScope;
+use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
+use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -51,10 +52,10 @@ impl<T> Global<T> {
   /// is non-empty, a new storage cell is created pointing to the same object,
   /// and no flags are set.
   pub fn new_from(
-    isolate: &mut impl AsMut<Isolate>,
+    scope: &mut impl InIsolate,
     other: impl AnyHandle<T>,
   ) -> Self {
-    let isolate = isolate.as_mut();
+    let isolate = scope.isolate();
     let other_value = other.read(isolate);
     Self {
       value: other_value
@@ -72,23 +73,19 @@ impl<T> Global<T> {
   /// Construct a Local<T> from this global handle.
   pub fn get<'sc>(
     &self,
-    scope: &'_ mut (impl AsMut<Isolate> + AsMut<HandleScope<'sc>>),
+    scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, T>> {
-    self.check_isolate(scope.as_mut());
+    self.check_isolate(scope.isolate());
     match &self.value {
       None => None,
-      Some(p) => unsafe { Local::from_raw(p.as_ptr()) },
+      Some(p) => unsafe { scope.to_local(p.as_ptr()) },
     }
   }
 
   /// If non-empty, destroy the underlying storage cell
   /// and create a new one with the contents of other if other is non empty.
-  pub fn set(
-    &mut self,
-    isolate: &mut impl AsMut<Isolate>,
-    other: impl AnyHandle<T>,
-  ) {
-    let isolate = isolate.as_mut();
+  pub fn set(&mut self, scope: &mut impl InIsolate, other: impl AnyHandle<T>) {
+    let isolate = scope.isolate();
     self.check_isolate(isolate);
     let other_value = other.read(isolate);
     match (&mut self.value, &other_value) {
@@ -111,8 +108,8 @@ impl<T> Global<T> {
 
   /// If non-empty, destroy the underlying storage cell
   /// IsEmpty() will return true after this call.
-  pub fn reset(&mut self, isolate: &mut impl AsMut<Isolate>) {
-    self.set(isolate, None);
+  pub fn reset(&mut self, scope: &mut impl InIsolate) {
+    self.set(scope, None);
   }
 
   fn check_isolate(&self, other: &Isolate) {

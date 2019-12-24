@@ -5,10 +5,10 @@ use std::ptr::null;
 use crate::support::Opaque;
 use crate::Boolean;
 use crate::Context;
-use crate::HandleScope;
 use crate::Integer;
 use crate::Local;
 use crate::String;
+use crate::ToLocal;
 use crate::Value;
 
 /// The origin, within a file, of a script.
@@ -45,20 +45,21 @@ pub struct Script(Opaque);
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'sc>(
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
     mut source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'sc, Script>> {
     // TODO: use the type system to enforce that a Context has been entered.
     // TODO: `context` and `source` probably shouldn't be mut.
-    unsafe {
-      Local::from_raw(v8__Script__Compile(
+    let ptr = unsafe {
+      v8__Script__Compile(
         &mut *context,
         &mut *source,
         origin.map(|r| r as *const _).unwrap_or(null()),
-      ))
-    }
+      )
+    };
+    unsafe { scope.to_local(ptr) }
   }
 
   /// Runs the script returning the resulting value. It will be run in the
@@ -66,10 +67,10 @@ impl Script {
   /// UnboundScript::BindToCurrentContext()).
   pub fn run<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { Local::from_raw(v8__Script__Run(self, &mut *context)) }
+    unsafe { scope.to_local(v8__Script__Run(self, &mut *context)) }
   }
 }
 

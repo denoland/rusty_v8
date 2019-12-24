@@ -3,6 +3,7 @@ use crate::support::Opaque;
 use crate::Local;
 use crate::Object;
 use crate::ReturnValue;
+
 use std::mem::MaybeUninit;
 
 extern "C" {
@@ -30,11 +31,11 @@ impl PropertyCallbackInfo {
   }
 
   #[allow(clippy::mut_from_ref)]
-  pub unsafe fn get_isolate(&self) -> &mut Isolate {
-    v8__PropertyCallbackInfo__GetIsolate(self)
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__PropertyCallbackInfo__GetIsolate(self) }
   }
 
   pub fn this(&self) -> Local<Object> {
-    unsafe { Local::from_raw(v8__PropertyCallbackInfo__This(self)).unwrap() }
+    unsafe { Local::from_raw_(v8__PropertyCallbackInfo__This(self)).unwrap() }
   }
 }

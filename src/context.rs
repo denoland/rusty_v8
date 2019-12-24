@@ -1,9 +1,9 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::isolate::Isolate;
 use crate::support::Opaque;
-use crate::HandleScope;
 use crate::Local;
 use crate::Object;
+use crate::ToLocal;
 
 extern "C" {
   fn v8__Context__New(isolate: &Isolate) -> *mut Context;
@@ -19,9 +19,10 @@ extern "C" {
 pub struct Context(Opaque);
 
 impl Context {
-  pub fn new<'sc>(scope: &mut HandleScope<'sc>) -> Local<'sc, Context> {
+  pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Context> {
     // TODO: optional arguments;
-    unsafe { Local::from_raw(v8__Context__New(scope.as_mut())).unwrap() }
+    let ptr = unsafe { v8__Context__New(scope.isolate()) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Returns the global proxy object.
@@ -34,8 +35,11 @@ impl Context {
   /// Please note that changes to global proxy object prototype most probably
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
-  pub fn global<'sc>(&mut self) -> Local<'sc, Object> {
-    unsafe { Local::from_raw(v8__Context__Global(&mut *self)).unwrap() }
+  pub fn global<'sc>(
+    &mut self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Local<'sc, Object> {
+    unsafe { scope.to_local(v8__Context__Global(&mut *self)) }.unwrap()
   }
 
   /// Enter this context.  After entering a context, all code compiled
@@ -52,6 +56,10 @@ impl Context {
   pub fn exit(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
+  }
+
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__Context__GetIsolate(self) }
   }
 }
 

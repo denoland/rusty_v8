@@ -162,7 +162,7 @@ impl Isolate {
   ) -> Local<'sc, Value> {
     unsafe {
       let ptr = v8__Isolate__ThrowException(self, &exception);
-      Local::from_raw(ptr).unwrap()
+      Local::from_raw_(ptr).unwrap()
     }
   }
 
@@ -205,6 +205,13 @@ impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { self.0.as_mut() }
   }
+}
+
+/// Trait for retrieving the current isolate from a scope object.
+pub trait InIsolate {
+  // Do not implement this trait on unscoped Isolate references
+  // (e.g. OwnedIsolate).
+  fn isolate(&mut self) -> &mut Isolate;
 }
 
 #[repr(C)]

@@ -4,9 +4,9 @@ use crate::isolate::Isolate;
 use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::Name;
+use crate::ToLocal;
 use crate::Value;
 
 /// A JavaScript object (ECMA-262, 4.3.3)
@@ -45,7 +45,7 @@ impl Object {
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
   pub fn new<'sc>(
-    scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut prototype_or_null: Local<'sc, Value>,
     names: Vec<Local<'sc, Name>>,
     values: Vec<Local<'sc, Value>>,
@@ -62,16 +62,16 @@ impl Object {
       let n = &mut *value;
       values_.push(n);
     }
-    unsafe {
-      Local::from_raw(v8__Object__New(
-        scope.as_mut(),
+    let ptr = unsafe {
+      v8__Object__New(
+        scope.isolate(),
         &mut *prototype_or_null,
         names_.as_mut_ptr(),
         values_.as_mut_ptr(),
         length,
-      ))
-      .unwrap()
-    }
+      )
+    };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
@@ -92,21 +92,18 @@ impl Object {
 
   pub fn get<'a>(
     &self,
+    scope: &mut impl ToLocal<'a>,
     context: Local<Context>,
     key: Local<Value>,
   ) -> Option<Local<'a, Value>> {
     unsafe {
       let ptr = v8__Object__Get(self, &*context, &*key);
-      if ptr.is_null() {
-        None
-      } else {
-        Some(Local::from_raw(ptr).unwrap())
-      }
+      scope.to_local(ptr)
     }
   }
 
   /// Return the isolate to which the Object belongs to.
-  pub fn get_isolate(&self) -> &Isolate {
+  pub fn get_isolate(&mut self) -> &Isolate {
     unsafe { v8__Object__GetIsolate(self) }
   }
 }

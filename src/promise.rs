@@ -4,8 +4,8 @@ use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::Context;
 use crate::Function;
-use crate::HandleScope;
 use crate::Local;
+use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -82,9 +82,9 @@ impl Promise {
   /// be pending.
   pub fn result<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { Local::from_raw(v8__Promise__Result(&mut *self)).unwrap() }
+    unsafe { scope.to_local(v8__Promise__Result(&mut *self)) }.unwrap()
   }
 
   /// Register a rejection handler with a promise.
@@ -96,7 +96,7 @@ impl Promise {
     mut handler: Local<'sc, Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw(v8__Promise__Catch(
+      Local::from_raw_(v8__Promise__Catch(
         &mut *self,
         &mut *context,
         &mut *handler,
@@ -113,7 +113,7 @@ impl Promise {
     mut handler: Local<'sc, Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw(v8__Promise__Then(
+      Local::from_raw_(v8__Promise__Then(
         &mut *self,
         &mut *context,
         &mut *handler,
@@ -132,7 +132,7 @@ impl Promise {
     mut on_rejected: Local<'sc, Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw(v8__Promise__Then2(
+      Local::from_raw_(v8__Promise__Then2(
         &mut *self,
         &mut *context,
         &mut *on_fulfilled,
@@ -148,20 +148,19 @@ pub struct PromiseResolver(Opaque);
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   pub fn new<'sc>(
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<'sc, Context>,
   ) -> Option<Local<'sc, PromiseResolver>> {
-    unsafe { Local::from_raw(v8__Promise__Resolver__New(&mut *context)) }
+    unsafe { scope.to_local(v8__Promise__Resolver__New(&mut *context)) }
   }
 
   /// Extract the associated promise.
   pub fn get_promise<'sc>(
     &mut self,
-    _scope: &mut HandleScope<'sc>,
+    scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Promise> {
-    unsafe {
-      Local::from_raw(v8__Promise__Resolver__GetPromise(&mut *self)).unwrap()
-    }
+    unsafe { scope.to_local(v8__Promise__Resolver__GetPromise(&mut *self)) }
+      .unwrap()
   }
 
   /// Resolve the associated promise with a given value.
@@ -206,7 +205,7 @@ pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 impl<'msg> PromiseRejectMessage<'msg> {
   pub fn get_promise(&self) -> Local<'msg, Promise> {
     unsafe {
-      Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
+      Local::from_raw_(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
     }
   }
 
@@ -216,7 +215,7 @@ impl<'msg> PromiseRejectMessage<'msg> {
 
   pub fn get_value(&self) -> Local<'msg, Value> {
     unsafe {
-      Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
+      Local::from_raw_(v8__PromiseRejectMessage__GetValue(self)).unwrap()
     }
   }
 }
