@@ -11,7 +11,12 @@ use std::mem::MaybeUninit;
 type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
-type ResolveCallback =
+/// Called during Module::instantiate_module. Provided with arguments: 
+/// (context, specifier, referrer)
+/// Return null on error.
+/// Hint: to tranform Local<Module> to *mut Module do this:
+///   &mut *module
+pub type ResolveCallback =
   fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 extern "C" {
