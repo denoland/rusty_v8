@@ -1072,6 +1072,6 @@ fn snapshot_creator() {
     context.exit();
   });
   drop(locker);
-  drop(startup_data);
+  // drop(startup_data);
   drop(g);
 }
