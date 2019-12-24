@@ -596,14 +596,14 @@ fn create_data_property() {
       .unwrap();
     assert!(obj.is_object());
     let obj: Local<v8::Object> = cast(obj);
-    let foo = v8_str(scope, "foo");
-    let bar = v8_str(scope, "bar");
+    let key = v8_str(scope, "foo");
+    let value = v8_str(scope, "bar");
     assert_eq!(
-      obj.create_data_property(context, cast(foo), cast(bar)),
+      obj.create_data_property(context, cast(key), cast(value)),
       v8::MaybeBool::JustTrue
     );
-    let actual = obj.get(context, cast(foo)).unwrap();
-    assert!(bar.strict_equals(actual));
+    let actual = obj.get(context, cast(key)).unwrap();
+    assert!(value.strict_equals(actual));
 
     context.exit();
   });
