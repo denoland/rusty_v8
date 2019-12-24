@@ -779,12 +779,7 @@ fn script_compiler_source() {
     let source =
       v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
 
-    let result = v8::script_compiler::compile_module(
-      &isolate,
-      source,
-      v8::script_compiler::CompileOptions::NoCompileOptions,
-      v8::script_compiler::NoCacheReason::NoReason,
-    );
+    let result = v8::script_compiler::compile_module(&isolate, source);
     assert!(result.is_some());
 
     context.exit();
@@ -814,13 +809,8 @@ fn module_instantiation_failures1() {
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let mut module = v8::script_compiler::compile_module(
-      &isolate,
-      source,
-      v8::script_compiler::CompileOptions::NoCompileOptions,
-      v8::script_compiler::NoCacheReason::NoReason,
-    )
-    .unwrap();
+    let mut module =
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
 
@@ -848,11 +838,11 @@ fn module_instantiation_failures1() {
         mut context: v8::Local<v8::Context>,
         _specifier: v8::Local<v8::String>,
         _referrer: v8::Local<v8::Module>,
-      ) -> Option<v8::Local<'static, v8::Module>> {
+      ) -> *mut v8::Module {
         let isolate: &mut v8::Isolate = context.as_mut();
         let e = v8_str(isolate, "boom");
         isolate.throw_exception(e.into());
-        None
+        std::ptr::null_mut()
       }
       let result = module.instantiate_module(context, resolve_callback);
       assert!(result.is_none());
@@ -869,6 +859,18 @@ fn module_instantiation_failures1() {
   drop(locker);
   isolate.exit();
   drop(g);
+}
+
+fn compile_specifier_as_module_resolve_callback(
+  mut context: v8::Local<v8::Context>,
+  specifier: v8::Local<v8::String>,
+  _referrer: v8::Local<v8::Module>,
+) -> *mut v8::Module {
+  let isolate: &mut v8::Isolate = context.as_mut();
+  let origin = mock_script_origin(isolate, "module.js");
+  let source = v8::script_compiler::Source::new(specifier, &origin);
+  let module = v8::script_compiler::compile_module(isolate, source).unwrap();
+  &mut *cast(module)
 }
 
 #[test]
@@ -891,37 +893,14 @@ fn module_evaluation() {
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let mut module = v8::script_compiler::compile_module(
-      &isolate,
-      source,
-      v8::script_compiler::CompileOptions::NoCompileOptions,
-      v8::script_compiler::NoCacheReason::NoReason,
-    )
-    .unwrap();
+    let mut module =
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
-    fn resolve_callback(
-      mut context: v8::Local<v8::Context>,
-      specifier: v8::Local<v8::String>,
-      _referrer: v8::Local<v8::Module>,
-    ) -> Option<v8::Local<'static, v8::Module>> {
-      let isolate_: &mut v8::Isolate = context.as_mut();
-      let module_ = {
-        let mut escapable_scope = v8::EscapableHandleScope::new(isolate_);
-        let origin = mock_script_origin(isolate_, "module.js");
-        let source = v8::script_compiler::Source::new(specifier, &origin);
-        let module = v8::script_compiler::compile_module(
-          isolate_,
-          source,
-          v8::script_compiler::CompileOptions::NoCompileOptions,
-          v8::script_compiler::NoCacheReason::NoReason,
-        )
-        .unwrap();
-        escapable_scope.escape(cast(module))
-      };
-      Some(cast(module_))
-    }
-    let result = module.instantiate_module(context, resolve_callback);
+    let result = module.instantiate_module(
+      context,
+      compile_specifier_as_module_resolve_callback,
+    );
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
 
