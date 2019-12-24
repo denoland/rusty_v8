@@ -36,6 +36,9 @@ static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
 static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
               "Location size mismatch");
 
+static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
+              "SnapshotCreator size mismatch");
+
 extern "C" {
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
@@ -109,6 +112,12 @@ void v8__Isolate__CreateParams__SET__array_buffer_allocator(
     v8::Isolate::CreateParams& self, v8::ArrayBuffer::Allocator* value) {
   delete self.array_buffer_allocator;
   self.array_buffer_allocator = value;
+}
+
+// This function does not take ownership of the StartupData.
+void v8__Isolate__CreateParams__SET__snapshot_blob(
+    v8::Isolate::CreateParams& self, v8::StartupData* snapshot_blob) {
+  self.snapshot_blob = snapshot_blob;
 }
 
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>& buf,
@@ -325,7 +334,8 @@ size_t v8__ArrayBufferView__ByteOffset(v8::ArrayBufferView& self) {
   return self.ByteOffset();
 }
 
-size_t v8__ArrayBufferView__CopyContents(v8::ArrayBufferView& self, void* dest, int byte_length) {
+size_t v8__ArrayBufferView__CopyContents(v8::ArrayBufferView& self, void* dest,
+                                         int byte_length) {
   return self.CopyContents(dest, byte_length);
 }
 
@@ -624,6 +634,29 @@ void v8__PropertyCallbackInfo__GetReturnValue(
     const v8::PropertyCallbackInfo<v8::Value>& self,
     v8::ReturnValue<v8::Value>* out) {
   *out = self.GetReturnValue();
+}
+
+void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf) {
+  construct_in_place<v8::SnapshotCreator>(buf);
+}
+
+void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator& self) {
+  self.~SnapshotCreator();
+}
+
+v8::Isolate* v8__SnapshotCreator__GetIsolate(v8::SnapshotCreator& self) {
+  return self.GetIsolate();
+}
+
+void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator& self,
+                                            v8::Local<v8::Context> context) {
+  self.SetDefaultContext(context);
+}
+
+v8::StartupData v8__SnapshotCreator__CreateBlob(
+    v8::SnapshotCreator* self,
+    v8::SnapshotCreator::FunctionCodeHandling function_code_handling) {
+  return self->CreateBlob(function_code_handling);
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {
