@@ -8,6 +8,7 @@ use std::process::exit;
 use std::process::Command;
 use which::which;
 
+// Update these whenever a V8 upgrade depends on newer clang features
 const MIN_APPLE_CLANG_VER: f32 = 11.0;
 const MIN_LLVM_CLANG_VER: f32 = 8.0;
 
@@ -141,6 +142,12 @@ fn need_gn_ninja_download() -> bool {
     && env::var_os("GN").is_some())
 }
 
+// Chromiums gn arg clang_base_path is currently compatible with:
+// * Apples clang and clang from homebrew's llvm@x packages
+// * the official binaries from releases.llvm.org
+// * unversioned (Linux) packages of clang (if recent enough)
+// but unfortunately it doesn't work with version-suffixed packages commonly
+// found in Linux packet managers
 fn is_compatible_clang_version(clang_path: &Path) -> bool {
   let apple_clang_re =
     Regex::new(r"(^Apple (?:clang|LLVM) version) ([0-9]+\.[0-9]+)").unwrap();
