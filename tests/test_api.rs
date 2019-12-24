@@ -1032,29 +1032,36 @@ fn array_buffer_view() {
 #[test]
 fn snapshot_creator() {
   let g = setup();
-  let mut snapshot_creator = v8::SnapshotCreator::default();
-  let mut startup_data = {
+  let mut startup_data: Option<v8::StartupData> = None;
+
+  {
+    let mut snapshot_creator = v8::SnapshotCreator::default();
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     v8::HandleScope::enter(&mut locker, |scope| {
       let mut context = v8::Context::new(scope);
       context.enter();
+
       let source = v8::String::new(scope, "a = 1 + 2").unwrap();
       let mut script =
         v8::Script::compile(scope, context, source, None).unwrap();
       script.run(scope, context).unwrap();
+
       snapshot_creator.set_default_context(context);
+
       context.exit();
     });
 
-    let startup_data =
-      snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear);
-    eprintln!("startup data {:?}", startup_data);
-    assert!(startup_data.raw_size > 0);
+    startup_data =
+      Some(snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear));
+
     drop(locker);
     drop(snapshot_creator);
-    startup_data
-  };
+  }
+
+  let mut startup_data = startup_data.unwrap();
+  eprintln!("startup data {:?}", startup_data);
+  assert!(startup_data.raw_size > 0);
 
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
@@ -1072,6 +1079,5 @@ fn snapshot_creator() {
     context.exit();
   });
   drop(locker);
-  // drop(startup_data);
   drop(g);
 }

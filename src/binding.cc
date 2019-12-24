@@ -636,9 +636,8 @@ void v8__PropertyCallbackInfo__GetReturnValue(
   *out = self.GetReturnValue();
 }
 
-void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf,
-                                    const intptr_t* external_references) {
-  construct_in_place<v8::SnapshotCreator>(buf, external_references);
+void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf) {
+  construct_in_place<v8::SnapshotCreator>(buf);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator& self) {
