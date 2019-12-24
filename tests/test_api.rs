@@ -838,11 +838,11 @@ fn module_instantiation_failures1() {
         mut context: v8::Local<v8::Context>,
         _specifier: v8::Local<v8::String>,
         _referrer: v8::Local<v8::Module>,
-      ) -> Option<v8::Local<'static, v8::Module>> {
+      ) -> *mut v8::Module {
         let isolate: &mut v8::Isolate = context.as_mut();
         let e = v8_str(isolate, "boom");
         isolate.throw_exception(e.into());
-        None
+        std::ptr::null_mut()
       }
       let result = module.instantiate_module(context, resolve_callback);
       assert!(result.is_none());
@@ -889,7 +889,7 @@ fn module_evaluation() {
       mut context: v8::Local<v8::Context>,
       specifier: v8::Local<v8::String>,
       _referrer: v8::Local<v8::Module>,
-    ) -> Option<v8::Local<'static, v8::Module>> {
+    ) -> *mut v8::Module {
       let isolate_: &mut v8::Isolate = context.as_mut();
       let module_ = {
         let mut escapable_scope = v8::EscapableHandleScope::new(isolate_);
@@ -899,7 +899,7 @@ fn module_evaluation() {
           v8::script_compiler::compile_module(isolate_, source).unwrap();
         escapable_scope.escape(cast(module))
       };
-      Some(cast(module_))
+      &mut *cast(module_)
     }
     let result = module.instantiate_module(context, resolve_callback);
     assert!(result.unwrap());

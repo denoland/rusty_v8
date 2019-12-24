@@ -11,11 +11,8 @@ use std::mem::MaybeUninit;
 type v8__Module__ResolveCallback =
   extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
-type ResolveCallback = fn(
-  Local<Context>,
-  Local<String>,
-  Local<Module>,
-) -> Option<Local<'static, Module>>;
+type ResolveCallback =
+  fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -144,10 +141,7 @@ impl Module {
     ) -> *mut Module {
       let guard = RESOLVE_CALLBACK.lock().unwrap();
       let cb = guard.unwrap();
-      match cb(context, specifier, referrer) {
-        None => std::ptr::null_mut(),
-        Some(mut p) => &mut *p,
-      }
+      cb(context, specifier, referrer)
     }
     let r =
       unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into();
