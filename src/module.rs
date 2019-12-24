@@ -4,6 +4,7 @@ use crate::support::Opaque;
 use crate::Context;
 use crate::Local;
 use crate::String;
+use crate::ToLocal;
 use crate::Value;
 use std::mem::MaybeUninit;
 
@@ -86,7 +87,7 @@ impl Module {
 
   /// For a module in kErrored status, this returns the corresponding exception.
   pub fn get_exception(&self) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Module__GetException(self)).unwrap() }
+    unsafe { Local::from_raw_(v8__Module__GetException(self)).unwrap() }
   }
 
   /// Returns the number of modules requested by this module.
@@ -97,7 +98,7 @@ impl Module {
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
   pub fn get_module_request(&self, i: usize) -> Local<String> {
-    unsafe { Local::from_raw(v8__Module__GetModuleRequest(self, i)).unwrap() }
+    unsafe { Local::from_raw_(v8__Module__GetModuleRequest(self, i)).unwrap() }
   }
 
   /// Returns the source location (line number and column number) of the ith
@@ -161,10 +162,11 @@ impl Module {
   /// kErrored and propagate the thrown exception (which is then also available
   /// via |GetException|).
   #[must_use]
-  pub fn evaluate(
+  pub fn evaluate<'sc>(
     &mut self,
+    scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
-  ) -> Option<Local<Value>> {
-    unsafe { Local::from_raw(v8__Module__Evaluate(&mut *self, &mut *context)) }
+  ) -> Option<Local<'sc, Value>> {
+    unsafe { scope.to_local(v8__Module__Evaluate(&mut *self, &mut *context)) }
   }
 }

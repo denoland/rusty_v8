@@ -4,7 +4,7 @@
 extern crate lazy_static;
 
 use rusty_v8 as v8;
-use rusty_v8::{new_null, FunctionCallbackInfo, Local};
+use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local};
 use std::sync::Mutex;
 
 lazy_static! {
@@ -174,16 +174,15 @@ fn escapable_handle_scope() {
     let number: Local<v8::Number> = cast(number_val);
     assert_eq!(number.value(), 78.9);
 
-    let str_val = {
+    let string = {
       let mut hs = v8::EscapableHandleScope::new(scope1);
       let escapable_scope = hs.enter();
       let string = v8::String::new(escapable_scope, "Hello 🦕 world!").unwrap();
-      escapable_scope.escape(cast(string))
+      escapable_scope.escape(string)
     };
-    let string: Local<v8::String> = cast(str_val);
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
 
-    let str_val = {
+    let string = {
       let mut hs = v8::EscapableHandleScope::new(scope1);
       let escapable_scope = hs.enter();
       let nested_str_val = {
@@ -191,11 +190,10 @@ fn escapable_handle_scope() {
         let nested_escapable_scope = hs.enter();
         let string =
           v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
-        nested_escapable_scope.escape(cast(string))
+        nested_escapable_scope.escape(string)
       };
       escapable_scope.escape(nested_str_val)
     };
-    let string: Local<v8::String> = cast(str_val);
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
   }
   drop(locker);
@@ -236,32 +234,21 @@ fn v8_str<'sc>(
 }
 
 fn eval<'sc>(
-  scope: &mut HandleScope<'sc>,
+  scope: &mut impl v8::InIsolate,
   context: Local<v8::Context>,
   code: &'static str,
 ) -> Option<Local<'sc, v8::Value>> {
+  let mut hs = v8::EscapableHandleScope::new(scope);
+  let scope = hs.enter();
   let source = v8_str(scope, code);
   let mut script =
     v8::Script::compile(&mut *scope, context, source, None).unwrap();
-  script.run(scope, context)
+  let r = script.run(scope, context);
+  r.map(|v| scope.escape(v))
 }
 
 #[test]
 fn try_catch() {
-  fn eval<'sc>(
-    scope: &mut impl v8::InIsolate,
-    context: Local<v8::Context>,
-    code: &'static str,
-  ) -> Option<Local<'sc, v8::Value>> {
-    let mut hs = v8::EscapableHandleScope::new(scope);
-    let scope = hs.enter();
-    let source = v8_str(scope, code);
-    let mut script =
-      v8::Script::compile(&mut *scope, context, source, None).unwrap();
-    let r = script.run(scope, context);
-    r.map(|v| scope.escape(v))
-  };
-
   let _g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
@@ -315,7 +302,7 @@ fn try_catch() {
       assert!(tc1.has_caught());
     };
     context.exit();
-  });
+  }
 }
 
 #[test]
@@ -325,7 +312,9 @@ fn throw_exception() {
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
     {
@@ -358,8 +347,8 @@ fn isolate_add_message_listener() {
     _exception: Local<v8::Value>,
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    let mut mls = v8::MessageListenerScope::new(message);
-    let scope = mls.enter();
+    let mut cbs = v8::CallbackScope::new(message);
+    let scope = cbs.enter();
     {
       let mut hs = v8::HandleScope::new(scope);
       let scope = hs.enter();
@@ -637,15 +626,18 @@ fn create_data_property() {
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
 
     eval(scope, context, "var a = {};");
 
+    let key = v8_str(scope, "a");
     let obj = context
-      .global()
-      .get(context, v8_str(scope, "a").into())
+      .global(scope)
+      .get(scope, context, key.into())
       .unwrap();
     assert!(obj.is_object());
     let obj: Local<v8::Object> = cast(obj);
@@ -655,11 +647,11 @@ fn create_data_property() {
       obj.create_data_property(context, cast(key), cast(value)),
       v8::MaybeBool::JustTrue
     );
-    let actual = obj.get(context, cast(key)).unwrap();
+    let actual = obj.get(scope, context, cast(key)).unwrap();
     assert!(value.strict_equals(actual));
 
     context.exit();
-  });
+  }
   drop(locker);
 }
 
@@ -842,8 +834,8 @@ fn mock_script_origin<'sc>(
   resource_name_: &str,
 ) -> v8::ScriptOrigin<'sc> {
   let resource_name = v8_str(scope, resource_name_);
-  let resource_line_offset = v8::Integer::new(scope, 4);
-  let resource_column_offset = v8::Integer::new(scope, 5);
+  let resource_line_offset = v8::Integer::new(scope, 0);
+  let resource_column_offset = v8::Integer::new(scope, 0);
   let resource_is_shared_cross_origin = v8::new_true(scope);
   let script_id = v8::Integer::new(scope, 123);
   let source_map_url = v8_str(scope, "source_map_url");
@@ -887,7 +879,7 @@ fn script_compiler_source() {
     assert!(result.is_some());
 
     context.exit();
-  });
+  }
   drop(locker);
   isolate.exit();
   drop(g);
@@ -901,7 +893,9 @@ fn module_instantiation_failures1() {
   let mut isolate = v8::Isolate::new(params);
   isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
 
@@ -939,13 +933,15 @@ fn module_instantiation_failures1() {
       let mut try_catch = v8::TryCatch::new(scope);
       let tc = try_catch.enter();
       fn resolve_callback(
-        mut context: v8::Local<v8::Context>,
+        context: v8::Local<v8::Context>,
         _specifier: v8::Local<v8::String>,
         _referrer: v8::Local<v8::Module>,
       ) -> *mut v8::Module {
-        let isolate: &mut v8::Isolate = context.as_mut();
-        let e = v8_str(isolate, "boom");
-        isolate.throw_exception(e.into());
+        let mut cbs = v8::CallbackScope::new(context);
+        let mut hs = v8::HandleScope::new(cbs.enter());
+        let scope = hs.enter();
+        let e = v8_str(scope, "boom");
+        scope.isolate().throw_exception(e.into());
         std::ptr::null_mut()
       }
       let result = module.instantiate_module(context, resolve_callback);
@@ -959,22 +955,25 @@ fn module_instantiation_failures1() {
     }
 
     context.exit();
-  });
+  }
   drop(locker);
   isolate.exit();
   drop(g);
 }
 
 fn compile_specifier_as_module_resolve_callback(
-  mut context: v8::Local<v8::Context>,
+  context: v8::Local<v8::Context>,
   specifier: v8::Local<v8::String>,
   _referrer: v8::Local<v8::Module>,
 ) -> *mut v8::Module {
-  let isolate: &mut v8::Isolate = context.as_mut();
-  let origin = mock_script_origin(isolate, "module.js");
+  let mut cbs = v8::CallbackScope::new(context);
+  let mut hs = v8::EscapableHandleScope::new(cbs.enter());
+  let scope = hs.enter();
+  let origin = mock_script_origin(scope, "module.js");
   let source = v8::script_compiler::Source::new(specifier, &origin);
-  let module = v8::script_compiler::compile_module(isolate, source).unwrap();
-  &mut *cast(module)
+  let module =
+    v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
+  &mut *cast(scope.escape(module))
 }
 
 #[test]
@@ -985,7 +984,9 @@ fn module_evaluation() {
   let mut isolate = v8::Isolate::new(params);
   isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
 
@@ -1008,7 +1009,7 @@ fn module_evaluation() {
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
 
-    let result = module.evaluate(context);
+    let result = module.evaluate(scope, context);
     assert!(result.is_some());
     assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
 
@@ -1083,7 +1084,9 @@ fn equality() {
   let mut isolate = v8::Isolate::new(params);
   isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
 
@@ -1094,7 +1097,7 @@ fn equality() {
     assert!(!v8_str(scope, "a").same_value(v8_str(scope, "b").into()));
 
     context.exit();
-  });
+  }
   drop(locker);
   isolate.exit();
   drop(g);
@@ -1108,7 +1111,9 @@ fn array_buffer_view() {
   let mut isolate = v8::Isolate::new(params);
   isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |s| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
     let mut context = v8::Context::new(s);
     context.enter();
     let source = v8::String::new(s, "new Uint8Array([23,23,23,23])").unwrap();
@@ -1129,7 +1134,7 @@ fn array_buffer_view() {
     let ab = maybe_ab.unwrap();
     assert_eq!(ab.byte_length(), 4);
     context.exit();
-  });
+  }
   drop(locker);
   isolate.exit();
   drop(g);
@@ -1144,7 +1149,9 @@ fn snapshot_creator() {
     let mut snapshot_creator = v8::SnapshotCreator::default();
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
-    v8::HandleScope::enter(&mut locker, |scope| {
+    {
+      let mut hs = v8::HandleScope::new(&mut locker);
+      let scope = hs.enter();
       let mut context = v8::Context::new(scope);
       context.enter();
 
@@ -1156,7 +1163,7 @@ fn snapshot_creator() {
       snapshot_creator.set_default_context(context);
 
       context.exit();
-    });
+    }
 
     snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear)
   };
@@ -1169,7 +1176,9 @@ fn snapshot_creator() {
     params.set_snapshot_blob(&mut startup_data);
     let isolate = v8::Isolate::new(params);
     let mut locker = v8::Locker::new(&isolate);
-    v8::HandleScope::enter(&mut locker, |scope| {
+    {
+      let mut hs = v8::HandleScope::new(&mut locker);
+      let scope = hs.enter();
       let mut context = v8::Context::new(scope);
       context.enter();
       let source = v8::String::new(scope, "a === 3").unwrap();
@@ -1179,7 +1188,7 @@ fn snapshot_creator() {
       let true_val: Local<v8::Value> = cast(v8::new_true(scope));
       assert!(result.same_value(true_val));
       context.exit();
-    });
+    }
   }
 
   // TODO(ry) startup_data is getting leaked and is not cleaned up properly!

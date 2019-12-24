@@ -92,16 +92,13 @@ impl Object {
 
   pub fn get<'a>(
     &self,
+    scope: &mut impl ToLocal<'a>,
     context: Local<Context>,
     key: Local<Value>,
   ) -> Option<Local<'a, Value>> {
     unsafe {
       let ptr = v8__Object__Get(self, &*context, &*key);
-      if ptr.is_null() {
-        None
-      } else {
-        Some(Local::from_raw(ptr).unwrap())
-      }
+      scope.to_local(ptr)
     }
   }
 

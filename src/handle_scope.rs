@@ -35,8 +35,8 @@ extern "C" {
 pub struct HandleScope([usize; 3]);
 
 impl HandleScope {
-  pub fn new(scope: &impl InIsolate) -> Scope<Self> {
-    Scope::new(unsafe { scope.isolate_from_ref() })
+  pub fn new(scope: &mut impl InIsolate) -> Scope<Self> {
+    Scope::new(scope.isolate())
   }
 }
 
@@ -90,12 +90,12 @@ impl EscapableHandleScope {
 
   /// Pushes the value into the previous scope and returns a handle to it.
   /// Cannot be called twice.
-  pub fn escape<'parent>(
-    &mut self,
-    value: Local<Value>,
-  ) -> Local<'parent, Value> {
+  pub fn escape<'parent, T>(&mut self, value: Local<T>) -> Local<'parent, T> {
     unsafe {
-      Local::from_raw_(v8__EscapableHandleScope__Escape(self, value.as_ptr()))
+      Local::from_raw_(v8__EscapableHandleScope__Escape(
+        self,
+        value.as_ptr() as *mut Value,
+      ) as *mut T)
     }
     .unwrap()
   }

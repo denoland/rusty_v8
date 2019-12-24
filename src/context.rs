@@ -57,6 +57,10 @@ impl Context {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
   }
+
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { v8__Context__GetIsolate(self) }
+  }
 }
 
 impl AsRef<Isolate> for Context {

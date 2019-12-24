@@ -10,6 +10,7 @@ extern crate lazy_static;
 extern crate libc;
 
 mod array_buffer;
+mod callback_scope;
 mod context;
 mod exception;
 mod function;
@@ -47,6 +48,7 @@ pub mod V8;
 pub use array_buffer::Allocator;
 pub use array_buffer::ArrayBuffer;
 pub use array_buffer::BackingStore;
+pub use callback_scope::CallbackScope;
 pub use context::Context;
 pub use exception::*;
 pub use function::{
@@ -54,7 +56,7 @@ pub use function::{
 };
 pub use global::Global;
 pub use handle_scope::{EscapableHandleScope, HandleScope, ToLocal};
-pub use isolate::{InIsolate, Isolate, MessageListenerScope, OwnedIsolate};
+pub use isolate::{InIsolate, Isolate, OwnedIsolate};
 pub use local::Local;
 pub use locker::Locker;
 pub use module::*;

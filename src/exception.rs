@@ -50,7 +50,6 @@ impl Message {
     unsafe { scope.to_local(v8__Message__Get(self)) }.unwrap()
   }
 
-  #[allow(clippy::mut_from_ref)]
   pub fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { v8__Message__GetIsolate(self) }
   }

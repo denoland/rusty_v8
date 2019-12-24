@@ -142,7 +142,7 @@ impl Isolate {
   ) -> Local<'sc, Value> {
     unsafe {
       let ptr = v8__Isolate__ThrowException(self, &exception);
-      Local::from_raw(ptr).unwrap()
+      Local::from_raw_(ptr).unwrap()
     }
   }
 
@@ -192,39 +192,6 @@ pub trait InIsolate {
   // Do not implement this trait on unscoped Isolate references
   // (e.g. OwnedIsolate).
   fn isolate(&mut self) -> &mut Isolate;
-
-  #[allow(clippy::mut_from_ref)]
-  #[allow(clippy::cast_ref_to_mut)]
-  unsafe fn isolate_from_ref(&self) -> &mut Isolate {
-    let s: &mut Self = &mut *(self as *const Self as *mut Self);
-    s.isolate()
-  }
-}
-
-use crate::scope::{Scope, Scoped};
-use std::mem::MaybeUninit;
-
-pub struct MessageListenerScope<'s> {
-  message: Local<'s, Message>,
-}
-
-unsafe impl<'s> Scoped<'s> for MessageListenerScope<'s> {
-  type Args = Local<'s, Message>;
-  fn enter_scope(buf: &mut MaybeUninit<Self>, message: Local<'s, Message>) {
-    *buf = MaybeUninit::new(MessageListenerScope { message });
-  }
-}
-
-impl<'s> MessageListenerScope<'s> {
-  pub fn new(message: Local<'s, Message>) -> Scope<Self> {
-    Scope::new(message)
-  }
-}
-
-impl<'s> InIsolate for crate::scope::Entered<'s, MessageListenerScope<'s>> {
-  fn isolate(&mut self) -> &mut Isolate {
-    self.message.get_isolate()
-  }
 }
 
 #[repr(C)]
