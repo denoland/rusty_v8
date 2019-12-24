@@ -72,7 +72,7 @@ jobs:
           cargo build -vv --release --locked --all-targets
 
       - name: Test
-        run: cargo test -vv --release --locked snapshot -- --test-threads=1 --nocapture
+        run: cargo test -vv --release --locked --all-targets -- --test-threads=1 --nocapture
 
       - name: Clippy
         run: |
