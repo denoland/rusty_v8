@@ -578,6 +578,35 @@ fn object() {
 }
 
 #[test]
+fn create_data_property() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    eval(
+      scope,
+      context,
+      "var a = {};\n\
+       var b = [];\n\
+       Object.defineProperty(a, 'foo', {value: 23});\n\
+       Object.defineProperty(a, 'bar', {value: 23, configurable: true});",
+    );
+
+    //v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(
+    //   env->Global()->Get(env.local(), v8_str("a")).ToLocalChecked());
+    let _obj = context.global().get(context, v8_str(scope, "a").into());
+
+    context.exit();
+  });
+  drop(locker);
+}
+
+#[test]
 fn promise_resolved() {
   setup();
   let mut params = v8::Isolate::create_params();

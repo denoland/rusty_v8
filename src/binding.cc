@@ -301,6 +301,11 @@ v8::Object* v8__Object__New(v8::Isolate* isolate,
       v8::Object::New(isolate, prototype_or_null, names, values, length));
 }
 
+v8::Value* v8__Object__Get(v8::Object& self, v8::Local<v8::Context> context,
+                           v8::Local<v8::Value> key) {
+  return maybe_local_to_ptr(self.Get(context, key));
+}
+
 v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
   return self.GetIsolate();
 }
