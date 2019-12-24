@@ -307,7 +307,7 @@ fn throw_exception() {
 }
 
 #[test]
-fn isolate_add_message_listener() {
+fn add_message_listener() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
@@ -338,6 +338,62 @@ fn isolate_add_message_listener() {
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     assert!(script.run(s, context).is_none());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+    context.exit();
+  });
+  drop(locker);
+  drop(g);
+}
+
+fn unexpected_module_resolve_callback(
+  _context: v8::Local<v8::Context>,
+  _specifier: v8::Local<v8::String>,
+  _referrer: v8::Local<v8::Module>,
+) -> *mut v8::Module {
+  unreachable!()
+}
+
+#[test]
+fn set_host_initialize_import_meta_object_callback() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  use std::sync::atomic::{AtomicUsize, Ordering};
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  extern "C" fn callback(
+    mut context: Local<v8::Context>,
+    _module: Local<v8::Module>,
+    meta: Local<v8::Object>,
+  ) {
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    let key = v8::String::new(&mut *context, "foo").unwrap();
+    let value = v8::String::new(&mut *context, "bar").unwrap();
+    meta.create_data_property(context, cast(key), value.into());
+  }
+  isolate.set_host_initialize_import_meta_object_callback(callback);
+
+  let mut locker = v8::Locker::new(&isolate);
+  v8::HandleScope::enter(&mut locker, |s| {
+    let mut context = v8::Context::new(s);
+    context.enter();
+
+    let source = mock_source(s, "google.com", "import.meta;");
+    let mut module =
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
+    let result =
+      module.instantiate_module(context, unexpected_module_resolve_callback);
+    assert!(result.is_some());
+    let meta = module.evaluate(context).unwrap();
+    assert!(meta.is_object());
+    let meta: Local<v8::Object> = cast(meta);
+    let key = v8::String::new(&mut *context, "foo").unwrap();
+    let expected = v8::String::new(&mut *context, "bar").unwrap();
+    let actual = meta.get(context, key.into()).unwrap();
+    assert!(expected.strict_equals(actual));
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
     context.exit();
   });
   drop(locker);
@@ -792,6 +848,15 @@ fn mock_script_origin<'sc>(
     is_wasm,
     is_module,
   )
+}
+
+fn mock_source(
+  isolate: &mut impl AsMut<v8::Isolate>,
+  resource_name: &str,
+  source: &str,
+) -> v8::script_compiler::Source {
+  let script_origin = mock_script_origin(isolate, resource_name);
+  v8::script_compiler::Source::new(v8_str(isolate, source), &script_origin)
 }
 
 #[test]

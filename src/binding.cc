@@ -82,8 +82,12 @@ void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
 
 void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     v8::Isolate* isolate, bool capture, int frame_limit) {
-  // Note: StackTraceOptions are deprecated so we don't bother to bind to it.
   isolate->SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
+}
+
+void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
+    v8::Isolate* isolate, v8::HostInitializeImportMetaObjectCallback callback) {
+  isolate->SetHostInitializeImportMetaObjectCallback(callback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
