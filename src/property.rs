@@ -1,7 +1,9 @@
 use crate::isolate::Isolate;
 use crate::support::Opaque;
+use crate::Local;
 use crate::Object;
 use crate::ReturnValue;
+
 use std::mem::MaybeUninit;
 
 extern "C" {

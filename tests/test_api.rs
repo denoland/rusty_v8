@@ -4,7 +4,7 @@
 extern crate lazy_static;
 
 use rusty_v8 as v8;
-use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local};
+use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local, ToLocal};
 use std::sync::Mutex;
 
 lazy_static! {
@@ -393,39 +393,43 @@ fn set_host_initialize_import_meta_object_callback() {
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn callback(
-    mut context: Local<v8::Context>,
+    context: Local<v8::Context>,
     _module: Local<v8::Module>,
     meta: Local<v8::Object>,
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    let key = v8::String::new(&mut *context, "foo").unwrap();
-    let value = v8::String::new(&mut *context, "bar").unwrap();
+    let mut cbs = v8::CallbackScope::new(context);
+    let mut hs = v8::HandleScope::new(cbs.enter());
+    let scope = hs.enter();
+    let key = v8::String::new(scope, "foo").unwrap();
+    let value = v8::String::new(scope, "bar").unwrap();
     meta.create_data_property(context, cast(key), value.into());
   }
   isolate.set_host_initialize_import_meta_object_callback(callback);
 
   let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |s| {
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
     let mut context = v8::Context::new(s);
     context.enter();
-
     let source = mock_source(s, "google.com", "import.meta;");
     let mut module =
       v8::script_compiler::compile_module(&isolate, source).unwrap();
     let result =
       module.instantiate_module(context, unexpected_module_resolve_callback);
     assert!(result.is_some());
-    let meta = module.evaluate(context).unwrap();
+    let meta = module.evaluate(s, context).unwrap();
     assert!(meta.is_object());
     let meta: Local<v8::Object> = cast(meta);
-    let key = v8::String::new(&mut *context, "foo").unwrap();
-    let expected = v8::String::new(&mut *context, "bar").unwrap();
-    let actual = meta.get(context, key.into()).unwrap();
+    let key = v8::String::new(s, "foo").unwrap();
+    let expected = v8::String::new(s, "bar").unwrap();
+    let actual = meta.get(s, context, key.into()).unwrap();
     assert!(expected.strict_equals(actual));
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 
     context.exit();
-  });
+  }
   drop(locker);
   drop(g);
 }
@@ -437,7 +441,6 @@ fn script_compile_and_run() {
   params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
-
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let s = hs.enter();
@@ -911,13 +914,14 @@ fn mock_script_origin<'sc>(
   )
 }
 
-fn mock_source(
-  isolate: &mut impl AsMut<v8::Isolate>,
+fn mock_source<'sc>(
+  scope: &mut impl ToLocal<'sc>,
   resource_name: &str,
   source: &str,
 ) -> v8::script_compiler::Source {
-  let script_origin = mock_script_origin(isolate, resource_name);
-  v8::script_compiler::Source::new(v8_str(isolate, source), &script_origin)
+  let source_str = v8_str(scope, source);
+  let script_origin = mock_script_origin(scope, resource_name);
+  v8::script_compiler::Source::new(source_str, &script_origin)
 }
 
 #[test]
