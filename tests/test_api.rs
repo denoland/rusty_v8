@@ -1039,8 +1039,7 @@ fn snapshot_creator() {
     v8::HandleScope::enter(&mut locker, |scope| {
       let mut context = v8::Context::new(scope);
       context.enter();
-      let source =
-        v8::String::new(scope, "a = 'Hello ' + 13 + 'th planet'").unwrap();
+      let source = v8::String::new(scope, "a = 1 + 2").unwrap();
       let mut script =
         v8::Script::compile(scope, context, source, None).unwrap();
       script.run(scope, context).unwrap();
@@ -1065,7 +1064,7 @@ fn snapshot_creator() {
   v8::HandleScope::enter(&mut locker, |scope| {
     let mut context = v8::Context::new(scope);
     context.enter();
-    let source = v8::String::new(scope, "a === 'Hello 13th planet'").unwrap();
+    let source = v8::String::new(scope, "a === 3").unwrap();
     let mut script = v8::Script::compile(scope, context, source, None).unwrap();
     let result = script.run(scope, context).unwrap();
     let true_val: Local<v8::Value> = cast(v8::new_true(scope));
