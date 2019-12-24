@@ -1032,7 +1032,8 @@ fn array_buffer_view() {
 #[test]
 fn snapshot_creator() {
   let g = setup();
-
+  // First we create the snapshot, there is a single global variable 'a' set to
+  // the value 3.
   let mut startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::default();
     let isolate = snapshot_creator.get_isolate();
@@ -1053,29 +1054,29 @@ fn snapshot_creator() {
 
     snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear)
   };
-
-  eprintln!("startup data {:?}", startup_data);
   assert!(startup_data.raw_size > 0);
-
-  let mut params = v8::Isolate::create_params();
-  params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
-  params.set_snapshot_blob(&mut startup_data);
-  let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
-  v8::HandleScope::enter(&mut locker, |scope| {
-    let mut context = v8::Context::new(scope);
-    context.enter();
-    let source = v8::String::new(scope, "a === 3").unwrap();
-    let mut script = v8::Script::compile(scope, context, source, None).unwrap();
-    let result = script.run(scope, context).unwrap();
-    let true_val: Local<v8::Value> = cast(v8::new_true(scope));
-    assert!(result.same_value(true_val));
-    context.exit();
-  });
+  // Now we try to load up the snapshot and check that 'a' has the correct
+  // value.
+  {
+    let mut params = v8::Isolate::create_params();
+    params.set_array_buffer_allocator(v8::Allocator::new_default_allocator());
+    params.set_snapshot_blob(&mut startup_data);
+    let isolate = v8::Isolate::new(params);
+    let mut locker = v8::Locker::new(&isolate);
+    v8::HandleScope::enter(&mut locker, |scope| {
+      let mut context = v8::Context::new(scope);
+      context.enter();
+      let source = v8::String::new(scope, "a === 3").unwrap();
+      let mut script =
+        v8::Script::compile(scope, context, source, None).unwrap();
+      let result = script.run(scope, context).unwrap();
+      let true_val: Local<v8::Value> = cast(v8::new_true(scope));
+      assert!(result.same_value(true_val));
+      context.exit();
+    });
+  }
 
   // TODO(ry) startup_data is getting leaked and is not cleaned up properly!
   // It must be freed using c++ delete.
-
-  drop(locker);
   drop(g);
 }

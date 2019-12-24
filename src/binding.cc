@@ -656,10 +656,7 @@ void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator& self,
 v8::StartupData v8__SnapshotCreator__CreateBlob(
     v8::SnapshotCreator* self,
     v8::SnapshotCreator::FunctionCodeHandling function_code_handling) {
-  printf("working fine here\n");
-  auto a = self->CreateBlob(function_code_handling);
-  printf("working fine here too\n");
-  return a;
+  return self->CreateBlob(function_code_handling);
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {
