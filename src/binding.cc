@@ -334,7 +334,8 @@ size_t v8__ArrayBufferView__ByteOffset(v8::ArrayBufferView& self) {
   return self.ByteOffset();
 }
 
-size_t v8__ArrayBufferView__CopyContents(v8::ArrayBufferView& self, void* dest, int byte_length) {
+size_t v8__ArrayBufferView__CopyContents(v8::ArrayBufferView& self, void* dest,
+                                         int byte_length) {
   return self.CopyContents(dest, byte_length);
 }
 
