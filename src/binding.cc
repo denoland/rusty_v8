@@ -313,6 +313,22 @@ v8::Integer* v8__Integer__NewFromUnsigned(v8::Isolate* isolate,
 
 int64_t v8__Integer__Value(const v8::Integer& self) { return self.Value(); }
 
+v8::ArrayBuffer* v8__ArrayBufferView__Buffer(v8::ArrayBufferView& self) {
+  return local_to_ptr(self.Buffer());
+}
+
+size_t v8__ArrayBufferView__ByteLength(v8::ArrayBufferView& self) {
+  return self.ByteLength();
+}
+
+size_t v8__ArrayBufferView__ByteOffset(v8::ArrayBufferView& self) {
+  return self.ByteOffset();
+}
+
+size_t v8__ArrayBufferView__CopyContents(v8::ArrayBufferView& self, void* dest, int byte_length) {
+  return self.CopyContents(dest, byte_length);
+}
+
 v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
   return v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 }
