@@ -599,7 +599,11 @@ fn create_data_property() {
 
     //v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(
     //   env->Global()->Get(env.local(), v8_str("a")).ToLocalChecked());
-    let _obj = context.global().get(context, v8_str(scope, "a").into());
+    let obj = context
+      .global()
+      .get(context, v8_str(scope, "a").into())
+      .unwrap();
+    assert!(obj.is_object());
 
     context.exit();
   });

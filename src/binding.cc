@@ -216,6 +216,12 @@ bool v8__Value__IsString(const v8::Value& self) { return self.IsString(); }
 
 bool v8__Value__IsNumber(const v8::Value& self) { return self.IsNumber(); }
 
+bool v8__Value__IsObject(const v8::Value& self) { return self.IsObject(); }
+
+bool v8__Value__IsArray(const v8::Value& self) { return self.IsArray(); }
+
+bool v8__Value__IsFunction(const v8::Value& self) { return self.IsFunction(); }
+
 bool v8__Value__StrictEquals(const v8::Value& self, v8::Value* that) {
   return self.StrictEquals(ptr_to_local(that));
 }
