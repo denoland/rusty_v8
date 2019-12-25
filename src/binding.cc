@@ -75,6 +75,18 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+void v8__Isolate__SetData(v8::Isolate* isolate, uint32_t slot, void* data) {
+  isolate->SetData(slot, data);
+}
+
+void* v8__Isolate__GetData(v8::Isolate* isolate, uint32_t slot) {
+  return isolate->GetData(slot);
+}
+
+uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
+  return isolate->GetNumberOfDataSlots();
+}
+
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
   isolate->SetPromiseRejectCallback(callback);
