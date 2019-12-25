@@ -1191,7 +1191,7 @@ fn array_buffer_view() {
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
     let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
-      unsafe { std::mem::transmute_copy(&result) };
+      cast(result);
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1287,7 +1287,7 @@ fn uint8_array() {
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
     let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
-      unsafe { std::mem::transmute_copy(&result) };
+      cast(result);
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
