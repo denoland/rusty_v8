@@ -95,8 +95,10 @@ impl SnapshotCreator {
     let blob =
       unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {
+      debug_assert!(blob.raw_size == 0);
       None
     } else {
+      debug_assert!(blob.raw_size > 0);
       Some(blob)
     }
   }
