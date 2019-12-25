@@ -3,6 +3,8 @@ use crate::Context;
 use crate::Isolate;
 use crate::Local;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(buf: &mut MaybeUninit<SnapshotCreator>);
@@ -18,13 +20,33 @@ extern "C" {
     this: &mut SnapshotCreator,
     context: *mut Context,
   );
+  fn v8__StartupData__DESTRUCT(this: &mut StartupData);
 }
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct StartupData {
-  pub data: *const u8,
-  pub raw_size: int,
+  data: *mut u8,
+  raw_size: int,
+}
+
+impl Deref for StartupData {
+  type Target = [u8];
+  fn deref(&self) -> &Self::Target {
+    unsafe { std::slice::from_raw_parts(self.data, self.raw_size as usize) }
+  }
+}
+
+impl DerefMut for StartupData {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { std::slice::from_raw_parts_mut(self.data, self.raw_size as usize) }
+  }
+}
+
+impl Drop for StartupData {
+  fn drop(&mut self) {
+    unsafe { v8__StartupData__DESTRUCT(self) }
+  }
 }
 
 #[repr(C)]
@@ -66,9 +88,6 @@ impl SnapshotCreator {
 
   /// Creates a snapshot data blob.
   /// This must not be called from within a handle scope.
-  ///
-  /// Returns { nullptr, 0 } on failure, and a startup snapshot on success.
-  /// The caller acquires ownership of the data array in the return value.
   pub fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,

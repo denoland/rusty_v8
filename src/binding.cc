@@ -666,6 +666,8 @@ void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator& self) {
   self.~SnapshotCreator();
 }
 
+void v8__StartupData__DESTRUCT(v8::StartupData& self) { delete[] self.data; }
+
 v8::Isolate* v8__SnapshotCreator__GetIsolate(v8::SnapshotCreator& self) {
   return self.GetIsolate();
 }
