@@ -45,9 +45,7 @@ pub mod script_compiler;
 #[allow(non_snake_case)]
 pub mod V8;
 
-pub use array_buffer::Allocator;
-pub use array_buffer::ArrayBuffer;
-pub use array_buffer::BackingStore;
+pub use array_buffer::*;
 pub use callback_scope::CallbackScope;
 pub use context::Context;
 pub use exception::*;

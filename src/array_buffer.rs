@@ -44,21 +44,19 @@ extern "C" {
 #[repr(C)]
 pub struct Allocator(Opaque);
 
-impl Allocator {
-  /// malloc/free based convenience allocator.
-  ///
-  /// Caller takes ownership, i.e. the returned object needs to be freed using
-  /// |delete allocator| once it is no longer in use.
-  pub fn new_default_allocator() -> UniqueRef<Allocator> {
-    unsafe {
-      UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
-    }
+/// malloc/free based convenience allocator.
+///
+/// Caller takes ownership, i.e. the returned object needs to be freed using
+/// |delete allocator| once it is no longer in use.
+pub fn new_default_allocator() -> UniqueRef<Allocator> {
+  unsafe {
+    UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
   }
 }
 
 #[test]
 fn test_default_allocator() {
-  Allocator::new_default_allocator();
+  new_default_allocator();
 }
 
 impl Delete for Allocator {
