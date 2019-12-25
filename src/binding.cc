@@ -546,6 +546,10 @@ void v8__TryCatch__SetCaptureMessage(v8::TryCatch& self, bool value) {
   self.SetCaptureMessage(value);
 }
 
+v8::Uint8Array* v8__Uint8Array__New(v8::ArrayBuffer* buf_ptr, size_t byte_offset, size_t length) {
+  return local_to_ptr(v8::Uint8Array::New(ptr_to_local(buf_ptr), byte_offset, length));
+}
+
 v8::Script* v8__Script__Compile(v8::Context* context, v8::String* source,
                                 v8::ScriptOrigin* origin) {
   return maybe_local_to_ptr(
