@@ -162,7 +162,7 @@ impl Isolate {
   ) -> Local<'sc, Value> {
     unsafe {
       let ptr = v8__Isolate__ThrowException(self, &exception);
-      Local::from_raw_(ptr).unwrap()
+      Local::from_raw(ptr).unwrap()
     }
   }
 
@@ -170,18 +170,6 @@ impl Isolate {
   /// thread to be disposable.
   pub unsafe fn dispose(&mut self) {
     v8__Isolate__Dispose(self)
-  }
-}
-
-impl AsRef<Isolate> for Isolate {
-  fn as_ref(&self) -> &Isolate {
-    self
-  }
-}
-
-impl AsMut<Isolate> for Isolate {
-  fn as_mut(&mut self) -> &mut Isolate {
-    self
   }
 }
 

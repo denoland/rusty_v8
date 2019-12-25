@@ -30,12 +30,11 @@ impl PropertyCallbackInfo {
     }
   }
 
-  #[allow(clippy::mut_from_ref)]
   pub fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { v8__PropertyCallbackInfo__GetIsolate(self) }
   }
 
   pub fn this(&self) -> Local<Object> {
-    unsafe { Local::from_raw_(v8__PropertyCallbackInfo__This(self)).unwrap() }
+    unsafe { Local::from_raw(v8__PropertyCallbackInfo__This(self)).unwrap() }
   }
 }

@@ -1,6 +1,7 @@
 use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
+use crate::scope::Entered;
 use crate::scope::Scope;
 use crate::scope::Scoped;
 use crate::InIsolate;
@@ -54,30 +55,6 @@ impl Drop for HandleScope {
   }
 }
 
-impl AsRef<HandleScope> for HandleScope {
-  fn as_ref(&self) -> &Self {
-    self
-  }
-}
-
-impl AsMut<HandleScope> for HandleScope {
-  fn as_mut(&mut self) -> &mut Self {
-    self
-  }
-}
-
-impl AsRef<Isolate> for HandleScope {
-  fn as_ref(&self) -> &Isolate {
-    unsafe { v8__HandleScope__GetIsolate(self) }
-  }
-}
-
-impl AsMut<Isolate> for HandleScope {
-  fn as_mut(&mut self) -> &mut Isolate {
-    unsafe { v8__HandleScope__GetIsolate(self) }
-  }
-}
-
 /// A HandleScope which first allocates a handle in the current scope
 /// which will be later filled with the escape value.
 #[repr(C)]
@@ -92,7 +69,7 @@ impl EscapableHandleScope {
   /// Cannot be called twice.
   pub fn escape<'parent, T>(&mut self, value: Local<T>) -> Local<'parent, T> {
     unsafe {
-      Local::from_raw_(v8__EscapableHandleScope__Escape(
+      Local::from_raw(v8__EscapableHandleScope__Escape(
         self,
         value.as_ptr() as *mut Value,
       ) as *mut T)
@@ -115,32 +92,6 @@ impl Drop for EscapableHandleScope {
   }
 }
 
-impl AsRef<EscapableHandleScope> for EscapableHandleScope {
-  fn as_ref(&self) -> &Self {
-    self
-  }
-}
-
-impl AsMut<EscapableHandleScope> for EscapableHandleScope {
-  fn as_mut(&mut self) -> &mut Self {
-    self
-  }
-}
-
-impl AsRef<Isolate> for EscapableHandleScope {
-  fn as_ref(&self) -> &Isolate {
-    unsafe { v8__EscapableHandleScope__GetIsolate(self) }
-  }
-}
-
-impl AsMut<Isolate> for EscapableHandleScope {
-  fn as_mut(&mut self) -> &mut Isolate {
-    unsafe { v8__EscapableHandleScope__GetIsolate(self) }
-  }
-}
-
-use crate::scope::Entered;
-
 impl<'s> InIsolate for Entered<'s, HandleScope> {
   fn isolate(&mut self) -> &mut Isolate {
     unsafe { v8__HandleScope__GetIsolate(self) }
@@ -155,7 +106,7 @@ impl<'s> InIsolate for Entered<'s, EscapableHandleScope> {
 
 pub trait ToLocal<'sc>: InIsolate {
   unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<'sc, T>> {
-    crate::Local::<'sc, T>::from_raw_(ptr)
+    crate::Local::<'sc, T>::from_raw(ptr)
   }
 }
 

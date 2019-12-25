@@ -112,7 +112,7 @@ impl<'tc> TryCatch<'tc> {
   ///
   /// The returned handle is valid until this TryCatch block has been destroyed.
   pub fn exception(&self) -> Option<Local<'tc, Value>> {
-    unsafe { Local::from_raw_(v8__TryCatch__Exception(&self.0)) }
+    unsafe { Local::from_raw(v8__TryCatch__Exception(&self.0)) }
   }
 
   /// Returns the .stack property of the thrown object. If no .stack
@@ -131,7 +131,7 @@ impl<'tc> TryCatch<'tc> {
   /// The returned handle is valid until this TryCatch block has been
   /// destroyed.
   pub fn message(&self) -> Option<Local<'tc, Message>> {
-    unsafe { Local::from_raw_(v8__TryCatch__Message(&self.0)) }
+    unsafe { Local::from_raw(v8__TryCatch__Message(&self.0)) }
   }
 
   /// Clears any exceptions that may have been caught by this try/catch block.
@@ -152,7 +152,7 @@ impl<'tc> TryCatch<'tc> {
   /// ReThrow; the caller must return immediately to where the exception
   /// is caught.
   pub fn rethrow<'a>(&'_ mut self) -> Option<Local<'a, Value>> {
-    unsafe { Local::from_raw_(v8__TryCatch__ReThrow(&mut self.0)) }
+    unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) }
   }
 
   /// Returns true if verbosity is enabled.

@@ -41,15 +41,3 @@ impl Drop for Locker {
     unsafe { v8__Locker__DESTRUCT(self) }
   }
 }
-
-impl AsRef<Isolate> for Locker {
-  fn as_ref(&self) -> &Isolate {
-    unsafe { &*self.isolate }
-  }
-}
-
-impl AsMut<Isolate> for Locker {
-  fn as_mut(&mut self) -> &mut Isolate {
-    unsafe { &mut *self.isolate }
-  }
-}

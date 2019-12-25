@@ -62,15 +62,3 @@ impl Context {
     unsafe { v8__Context__GetIsolate(self) }
   }
 }
-
-impl AsRef<Isolate> for Context {
-  fn as_ref(&self) -> &Isolate {
-    unsafe { v8__Context__GetIsolate(self) }
-  }
-}
-
-impl AsMut<Isolate> for Context {
-  fn as_mut(&mut self) -> &mut Isolate {
-    unsafe { v8__Context__GetIsolate(self) }
-  }
-}

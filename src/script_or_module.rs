@@ -25,7 +25,7 @@ impl ScriptOrModule {
   pub fn get_resource_name(&self) -> Local<'_, Value> {
     unsafe {
       let ptr = v8__ScriptOrModule__GetResourceName(self);
-      Local::from_raw_(ptr).unwrap()
+      Local::from_raw(ptr).unwrap()
     }
   }
 
@@ -34,7 +34,7 @@ impl ScriptOrModule {
   pub fn get_host_defined_options(&self) -> Local<'_, PrimitiveArray> {
     unsafe {
       let ptr = v8__ScriptOrModule__GetHostDefinedOptions(self);
-      Local::from_raw_(ptr).unwrap()
+      Local::from_raw(ptr).unwrap()
     }
   }
 }

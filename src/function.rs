@@ -86,7 +86,6 @@ impl<'cb> ReturnValue<'cb> {
 pub struct FunctionCallbackInfo(Opaque);
 
 impl InIsolate for FunctionCallbackInfo {
-  #[allow(clippy::cast_ref_to_mut)]
   fn isolate(&mut self) -> &mut Isolate {
     self.get_isolate()
   }

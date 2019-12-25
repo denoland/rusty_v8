@@ -96,7 +96,7 @@ impl Promise {
     mut handler: Local<'sc, Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw_(v8__Promise__Catch(
+      Local::from_raw(v8__Promise__Catch(
         &mut *self,
         &mut *context,
         &mut *handler,
@@ -113,7 +113,7 @@ impl Promise {
     mut handler: Local<'sc, Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw_(v8__Promise__Then(
+      Local::from_raw(v8__Promise__Then(
         &mut *self,
         &mut *context,
         &mut *handler,
@@ -132,7 +132,7 @@ impl Promise {
     mut on_rejected: Local<'sc, Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw_(v8__Promise__Then2(
+      Local::from_raw(v8__Promise__Then2(
         &mut *self,
         &mut *context,
         &mut *on_fulfilled,
@@ -205,7 +205,7 @@ pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 impl<'msg> PromiseRejectMessage<'msg> {
   pub fn get_promise(&self) -> Local<'msg, Promise> {
     unsafe {
-      Local::from_raw_(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
+      Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
     }
   }
 
@@ -215,7 +215,7 @@ impl<'msg> PromiseRejectMessage<'msg> {
 
   pub fn get_value(&self) -> Local<'msg, Value> {
     unsafe {
-      Local::from_raw_(v8__PromiseRejectMessage__GetValue(self)).unwrap()
+      Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
     }
   }
 }
