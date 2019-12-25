@@ -11,6 +11,7 @@ use crate::Module;
 use crate::Object;
 use crate::StartupData;
 use crate::Value;
+use std::ffi::c_void;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
@@ -25,6 +26,9 @@ type HostInitializeImportMetaObjectCallback =
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
+  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
+  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
+  fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
@@ -89,6 +93,24 @@ impl Isolate {
   /// Initial configuration parameters for a new Isolate.
   pub fn create_params() -> UniqueRef<CreateParams> {
     CreateParams::new()
+  }
+
+  /// Associate embedder-specific data with the isolate. |slot| has to be
+  /// between 0 and GetNumberOfDataSlots() - 1.
+  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
+    v8__Isolate__SetData(self, slot, ptr)
+  }
+
+  /// Retrieve embedder-specific data from the isolate.
+  /// Returns NULL if SetData has never been called for the given |slot|.
+  pub fn get_data(&self, slot: u32) -> *mut c_void {
+    unsafe { v8__Isolate__GetData(self, slot) }
+  }
+
+  /// Returns the maximum number of available embedder data slots. Valid slots
+  /// are in the range of 0 - GetNumberOfDataSlots() - 1.
+  pub fn get_number_of_data_slots(&self) -> u32 {
+    unsafe { v8__Isolate__GetNumberOfDataSlots(self) }
   }
 
   /// Sets this isolate as the entered one for the current thread.
