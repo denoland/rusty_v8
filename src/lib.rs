@@ -55,7 +55,7 @@ pub use function::{
 };
 pub use global::Global;
 pub use handle_scope::{EscapableHandleScope, HandleScope, ToLocal};
-pub use isolate::{InIsolate, Isolate, OwnedIsolate};
+pub use isolate::*;
 pub use local::Local;
 pub use locker::Locker;
 pub use module::*;

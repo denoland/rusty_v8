@@ -9,19 +9,54 @@ use crate::Local;
 use crate::Message;
 use crate::Module;
 use crate::Object;
+use crate::Promise;
+use crate::ScriptOrModule;
 use crate::StartupData;
+use crate::String;
 use crate::Value;
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
 
-type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
+pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
-type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
+pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
-type HostInitializeImportMetaObjectCallback =
+/// HostInitializeImportMetaObjectCallback is called the first time import.meta
+/// is accessed for a module. Subsequent access will reuse the same value.
+///
+/// The method combines two implementation-defined abstract operations into one:
+/// HostGetImportMetaProperties and HostFinalizeImportMeta.
+///
+/// The embedder should use v8::Object::CreateDataProperty to add properties on
+/// the meta object.
+pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
+
+/// HostImportModuleDynamicallyCallback is called when we require the
+/// embedder to load a module. This is used as part of the dynamic
+/// import syntax.
+///
+/// The referrer contains metadata about the script/module that calls
+/// import.
+///
+/// The specifier is the name of the module that should be imported.
+///
+/// The embedder must compile, instantiate, evaluate the Module, and
+/// obtain it's namespace object.
+///
+/// The Promise returned from this function is forwarded to userland
+/// JavaScript. The embedder must resolve this promise with the module
+/// namespace object. In case of an exception, the embedder must reject
+/// this promise with the exception. If the promise creation itself
+/// fails (e.g. due to stack overflow), the embedder must propagate
+/// that exception by returning an empty MaybeLocal.
+pub type HostImportModuleDynamicallyCallback = extern "C" fn(
+  Local<Context>,
+  Local<ScriptOrModule>,
+  Local<String>,
+) -> *mut Promise;
 
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
@@ -47,6 +82,10 @@ extern "C" {
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     isolate: *mut Isolate,
     callback: HostInitializeImportMetaObjectCallback,
+  );
+  fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
+    isolate: *mut Isolate,
+    callback: HostImportModuleDynamicallyCallback,
   );
   fn v8__Isolate__ThrowException(
     isolate: &Isolate,
@@ -171,6 +210,17 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetHostInitializeImportMetaObjectCallback(self, callback)
+    }
+  }
+
+  /// This specifies the callback called by the upcoming dynamic
+  /// import() language feature to load modules.
+  pub fn set_host_import_module_dynamically_callback(
+    &mut self,
+    callback: HostImportModuleDynamicallyCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
     }
   }
 
