@@ -1,7 +1,5 @@
 # Rusty V8 Binding
 
-Status: Early development, not usable.
-
 V8 Version: 8.0.427
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=master)](https://github.com/denoland/rusty_v8/actions)

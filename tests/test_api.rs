@@ -1234,9 +1234,11 @@ fn snapshot_creator() {
       context.exit();
     }
 
-    snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear)
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
   };
-  assert!(startup_data.raw_size > 0);
+  assert!(startup_data.len() > 0);
   // Now we try to load up the snapshot and check that 'a' has the correct
   // value.
   {
@@ -1259,8 +1261,5 @@ fn snapshot_creator() {
       context.exit();
     }
   }
-
-  // TODO(ry) startup_data is getting leaked and is not cleaned up properly!
-  // It must be freed using c++ delete.
   drop(g);
 }
