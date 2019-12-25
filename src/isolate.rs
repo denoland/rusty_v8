@@ -97,8 +97,8 @@ impl Isolate {
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
-  pub fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    unsafe { v8__Isolate__SetData(self, slot, ptr) }
+  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
+    v8__Isolate__SetData(self, slot, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
