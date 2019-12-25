@@ -1234,7 +1234,9 @@ fn snapshot_creator() {
       context.exit();
     }
 
-    snapshot_creator.create_blob(v8::FunctionCodeHandling::Clear)
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
   };
   assert!(startup_data.len() > 0);
   // Now we try to load up the snapshot and check that 'a' has the correct

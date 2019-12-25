@@ -91,8 +91,14 @@ impl SnapshotCreator {
   pub fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,
-  ) -> StartupData {
-    unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) }
+  ) -> Option<StartupData> {
+    let blob =
+      unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
+    if blob.data.is_null() {
+      None
+    } else {
+      Some(blob)
+    }
   }
 
   /// Returns the isolate prepared by the snapshot creator.
