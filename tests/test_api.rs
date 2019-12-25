@@ -1260,6 +1260,10 @@ fn snapshot_creator() {
       assert!(result.same_value(true_val));
       context.exit();
     }
+    // TODO(ry) WARNING! startup_data needs to be kept alive as long the isolate
+    // using it. See note in CreateParams::set_snapshot_blob
+    drop(startup_data);
   }
+
   drop(g);
 }
