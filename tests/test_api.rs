@@ -1191,7 +1191,7 @@ fn array_buffer_view() {
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
     let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
-      unsafe { std::mem::transmute_copy(&result) };
+      cast(result);
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1265,5 +1265,43 @@ fn snapshot_creator() {
     drop(startup_data);
   }
 
+  drop(g);
+}
+
+#[test]
+fn uint8_array() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
+    let mut context = v8::Context::new(s);
+    context.enter();
+    let source = v8::String::new(s, "new Uint8Array([23,23,23,23])").unwrap();
+    let mut script = v8::Script::compile(s, context, source, None).unwrap();
+    source.to_rust_string_lossy(s);
+    let result = script.run(s, context).unwrap();
+    // TODO: safer casts.
+    let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
+      cast(result);
+    assert_eq!(result.byte_length(), 4);
+    assert_eq!(result.byte_offset(), 0);
+    let mut dest = [0; 4];
+    let copy_bytes = result.copy_contents(&mut dest);
+    assert_eq!(copy_bytes, 4);
+    assert_eq!(dest, [23, 23, 23, 23]);
+    let maybe_ab = result.buffer();
+    assert!(maybe_ab.is_some());
+    let ab = maybe_ab.unwrap();
+    let uint8_array = v8::Uint8Array::new(ab, 0, 0);
+    assert!(uint8_array.is_some());
+    context.exit();
+  }
+  drop(locker);
+  isolate.exit();
   drop(g);
 }

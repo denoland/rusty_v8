@@ -32,6 +32,7 @@ mod snapshot;
 mod string;
 mod support;
 mod try_catch;
+mod uint8_array;
 mod value;
 
 pub mod array_buffer_view;
@@ -75,4 +76,5 @@ pub use string::String;
 pub use support::MaybeBool;
 pub use support::UniqueRef;
 pub use try_catch::{TryCatch, TryCatchScope};
+pub use uint8_array::Uint8Array;
 pub use value::Value;
