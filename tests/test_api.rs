@@ -859,8 +859,7 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
     let rv = &mut info.get_return_value();
     #[allow(mutable_transmutes)]
     #[allow(clippy::transmute_ptr_to_ptr)]
-    let info: &mut FunctionCallbackInfo =
-      unsafe { std::mem::transmute(info) };
+    let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
     {
       let mut hs = v8::HandleScope::new(info);
       let scope = hs.enter();
@@ -1349,12 +1348,12 @@ fn external_references() {
 
       // create function using template
       let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
-      let mut function = fn_template
+      let function = fn_template
         .get_function(scope, context)
         .expect("Unable to create function");
 
       let global = context.global(scope);
-      global.set(context, v8_str(scope, "F"), function).unwrap();
+      global.set(context, cast(v8_str(scope, "F")), cast(function));
 
       snapshot_creator.set_default_context(context);
 
