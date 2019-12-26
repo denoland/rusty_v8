@@ -1,11 +1,16 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use cargo_gn;
+use regex::Regex;
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
 use std::process::Command;
 use which::which;
+
+// Update these whenever a V8 upgrade depends on newer clang features
+const MIN_APPLE_CLANG_VER: f32 = 11.0;
+const MIN_LLVM_CLANG_VER: f32 = 8.0;
 
 fn main() {
   // Detect if trybuild tests are being compiled.
@@ -48,8 +53,17 @@ fn build_v8() {
     vec!["is_debug=false".to_string()]
   };
 
-  let clang_base_path = clang_download();
-  gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+  if let Some(clang_base_path) = find_compatible_system_clang() {
+    println!("clang_base_path {}", clang_base_path.display());
+    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+    // TODO: Dedupe this with the one from cc_wrapper()
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    // we can't use chromiums clang plugins with a system clang
+    gn_args.push("clang_use_chrome_plugins=false".to_string());
+  } else {
+    let clang_base_path = clang_download();
+    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+  }
 
   if let Some(p) = env::var_os("SCCACHE") {
     cc_wrapper(&mut gn_args, &Path::new(&p));
@@ -57,6 +71,12 @@ fn build_v8() {
     cc_wrapper(&mut gn_args, &p);
   } else {
     println!("cargo:warning=Not using sccache");
+  }
+
+  if let Ok(args) = env::var("GN_ARGS") {
+    for arg in args.split_whitespace() {
+      gn_args.push(arg.to_string());
+    }
   }
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -122,19 +142,63 @@ fn need_gn_ninja_download() -> bool {
     && env::var_os("GN").is_some())
 }
 
+// Chromiums gn arg clang_base_path is currently compatible with:
+// * Apples clang and clang from homebrew's llvm@x packages
+// * the official binaries from releases.llvm.org
+// * unversioned (Linux) packages of clang (if recent enough)
+// but unfortunately it doesn't work with version-suffixed packages commonly
+// found in Linux packet managers
+fn is_compatible_clang_version(clang_path: &Path) -> bool {
+  let apple_clang_re =
+    Regex::new(r"(^Apple (?:clang|LLVM) version) ([0-9]+\.[0-9]+)").unwrap();
+  let llvm_clang_re =
+    Regex::new(r"(^(?:FreeBSD )?clang version|based on LLVM) ([0-9]+\.[0-9]+)")
+      .unwrap();
+
+  if let Ok(o) = Command::new(clang_path).arg("--version").output() {
+    let output = String::from_utf8(o.stdout).unwrap();
+    if let Some(clang_ver) = apple_clang_re.captures(&output) {
+      let ver: f32 = clang_ver.get(2).unwrap().as_str().parse().unwrap();
+      if ver >= MIN_APPLE_CLANG_VER {
+        println!("using Apple clang v{}", ver);
+        return true;
+      }
+    }
+    if let Some(clang_ver) = llvm_clang_re.captures(&output) {
+      let ver: f32 = clang_ver.get(2).unwrap().as_str().parse().unwrap();
+      if ver >= MIN_LLVM_CLANG_VER {
+        println!("using LLVM clang v{}", ver);
+        return true;
+      }
+    }
+  }
+  false
+}
+
+fn find_compatible_system_clang() -> Option<PathBuf> {
+  if let Ok(p) = env::var("CLANG_BASE_PATH") {
+    let base_path = Path::new(&p);
+    let clang_path = base_path.join("bin").join("clang");
+    if is_compatible_clang_version(&clang_path) {
+      return Some(base_path.to_path_buf());
+    }
+  }
+
+  if let Ok(clang_path) = which("clang") {
+    if is_compatible_clang_version(&clang_path) {
+      return Some(
+        clang_path.parent().unwrap().parent().unwrap().to_path_buf(),
+      );
+    }
+  }
+
+  println!("using Chromiums clang");
+  None
+}
+
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
 // modify the source directory.
 fn clang_download() -> PathBuf {
-  // TODO(ry) We can support clang 10 and above.... if that is installed use
-  // it.
-  /*
-  if let Ok(clang_path) = which("clang") {
-    //
-    let bin_path = clang_path.parent().unwrap();
-    return bin_path.parent().unwrap().to_path_buf();
-  }
-  */
-
   let root = env::current_dir().unwrap();
   let out_dir = env::var_os("OUT_DIR").unwrap();
   let clang_base_path = root.join(out_dir).join("clang");
