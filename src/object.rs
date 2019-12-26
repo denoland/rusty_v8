@@ -31,7 +31,7 @@ extern "C" {
   fn v8__Object__Set(
     object: &Object,
     context: *const Context,
-    key: *const Name,
+    key: *const Value,
     value: *const Value,
   ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
