@@ -75,10 +75,10 @@ pub enum ModuleStatus {
   Errored,
 }
 
+/// A compiled JavaScript module.
 #[repr(C)]
 pub struct Module(Opaque);
 
-/// A compiled JavaScript module.
 impl Module {
   /// Returns the module's current status.
   pub fn get_status(&self) -> ModuleStatus {
