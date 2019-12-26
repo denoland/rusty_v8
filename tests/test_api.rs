@@ -227,6 +227,61 @@ fn array_buffer() {
   drop(locker);
 }
 
+#[test]
+fn array_buffer_with_shared_backing_store() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let ab1 = v8::ArrayBuffer::new(scope, 42);
+    assert_eq!(42, ab1.byte_length());
+
+    let bs1 = ab1.get_backing_store();
+    assert_eq!(ab1.byte_length(), bs1.byte_length());
+    assert_eq!(2, v8::SharedRef::use_count(&bs1));
+
+    let bs2 = ab1.get_backing_store();
+    assert_eq!(ab1.byte_length(), bs2.byte_length());
+    assert_eq!(3, v8::SharedRef::use_count(&bs1));
+    assert_eq!(3, v8::SharedRef::use_count(&bs2));
+
+    let mut bs3 = ab1.get_backing_store();
+    assert_eq!(ab1.byte_length(), bs3.byte_length());
+    assert_eq!(4, v8::SharedRef::use_count(&bs1));
+    assert_eq!(4, v8::SharedRef::use_count(&bs2));
+    assert_eq!(4, v8::SharedRef::use_count(&bs3));
+
+    drop(bs2);
+    assert_eq!(3, v8::SharedRef::use_count(&bs1));
+    assert_eq!(3, v8::SharedRef::use_count(&bs3));
+
+    drop(bs1);
+    assert_eq!(2, v8::SharedRef::use_count(&bs3));
+
+    let ab2 = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs3);
+    assert_eq!(ab1.byte_length(), ab2.byte_length());
+    assert_eq!(3, v8::SharedRef::use_count(&bs3));
+
+    let bs4 = ab2.get_backing_store();
+    assert_eq!(ab2.byte_length(), bs4.byte_length());
+    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+    assert_eq!(4, v8::SharedRef::use_count(&bs3));
+
+    drop(bs3);
+    assert_eq!(3, v8::SharedRef::use_count(&bs4));
+
+    context.exit();
+  }
+}
+
 fn v8_str<'sc>(
   scope: &mut impl v8::ToLocal<'sc>,
   s: &str,
