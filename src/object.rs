@@ -28,7 +28,12 @@ extern "C" {
     context: *const Context,
     key: *const Value,
   ) -> *mut Value;
-
+  fn v8__Object__Set(
+    object: &Object,
+    context: *const Context,
+    key: *const Name,
+    value: *const Value,
+  ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
     object: &Object,
     context: *const Context,
@@ -72,6 +77,17 @@ impl Object {
       )
     };
     unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  /// Set only return Just(true) or Empty(), so if it should never fail, use
+  /// result.Check().
+  pub fn set(
+    &self,
+    context: Local<Context>,
+    key: Local<Value>,
+    value: Local<Value>,
+  ) -> MaybeBool {
+    unsafe { v8__Object__Set(self, &*context, &*key, &*value) }
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
