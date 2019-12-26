@@ -9,10 +9,12 @@ use crate::Local;
 use crate::ToLocal;
 use crate::Value;
 
+pub type FunctionCallback = extern "C" fn(&FunctionCallbackInfo);
+
 extern "C" {
   fn v8__Function__New(
     context: *mut Context,
-    callback: extern "C" fn(&FunctionCallbackInfo),
+    callback: FunctionCallback,
   ) -> *mut Function;
   fn v8__Function__Call(
     function: *mut Function,
@@ -24,7 +26,7 @@ extern "C" {
 
   fn v8__FunctionTemplate__New(
     isolate: &Isolate,
-    callback: extern "C" fn(&FunctionCallbackInfo),
+    callback: FunctionCallback,
   ) -> *mut FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     fn_template: *mut FunctionTemplate,
@@ -142,7 +144,7 @@ impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    callback: extern "C" fn(&FunctionCallbackInfo),
+    callback: FunctionCallback,
   ) -> Local<'sc, FunctionTemplate> {
     let ptr = unsafe { v8__FunctionTemplate__New(scope.isolate(), callback) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -172,7 +174,7 @@ impl Function {
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
-    callback: extern "C" fn(&FunctionCallbackInfo),
+    callback: FunctionCallback,
   ) -> Option<Local<'sc, Function>> {
     unsafe { scope.to_local(v8__Function__New(&mut *context, callback)) }
   }

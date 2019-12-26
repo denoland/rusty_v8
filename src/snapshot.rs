@@ -1,3 +1,4 @@
+use crate::function::FunctionCallback;
 use crate::support::int;
 use crate::Context;
 use crate::Isolate;
@@ -7,7 +8,10 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 
 extern "C" {
-  fn v8__SnapshotCreator__CONSTRUCT(buf: &mut MaybeUninit<SnapshotCreator>);
+  fn v8__SnapshotCreator__CONSTRUCT(
+    buf: &mut MaybeUninit<SnapshotCreator>,
+    external_references: *mut isize,
+  );
   fn v8__SnapshotCreator__DESTRUCT(this: &mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
     this: &mut SnapshotCreator,
@@ -59,14 +63,23 @@ pub enum FunctionCodeHandling {
 #[repr(C)]
 pub struct SnapshotCreator([usize; 1]);
 
-impl Default for SnapshotCreator {
+impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  fn default() -> Self {
+  pub fn new(external_references: &[FunctionCallback]) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
 
+    let mut null_terminated = Vec::with_capacity(external_references.len() + 1);
+    for i in 0..external_references.len() {
+      null_terminated
+        .push(external_references[i] as *mut std::ffi::c_void as isize);
+    }
+    null_terminated.push(0);
+
+    let ptr = null_terminated.as_mut_ptr();
+
     unsafe {
-      v8__SnapshotCreator__CONSTRUCT(&mut snapshot_creator);
+      v8__SnapshotCreator__CONSTRUCT(&mut snapshot_creator, ptr);
       snapshot_creator.assume_init()
     }
   }
