@@ -8,6 +8,8 @@
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8.h"
 
+const uint32_t kSlotDynamicImport = 1000;
+
 using namespace support;
 
 static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
@@ -38,6 +40,27 @@ static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
 
 static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
               "SnapshotCreator size mismatch");
+
+// This is an extern C calling convention compatible version of
+// v8::HostImportModuleDynamicallyCallback
+typedef v8::Promise* (*v8__HostImportModuleDynamicallyCallback)(
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
+    v8::Local<v8::String> specifier);
+
+v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
+    v8::Local<v8::String> specifier) {
+  auto* isolate = context->GetIsolate();
+  auto* callback = reinterpret_cast<v8__HostImportModuleDynamicallyCallback>(
+      isolate->GetData(kSlotDynamicImport));
+  assert(callback != nullptr);
+  auto* promise_ptr = callback(context, referrer, specifier);
+  if (promise_ptr == nullptr) {
+    return v8::MaybeLocal<v8::Promise>();
+  } else {
+    return v8::MaybeLocal<v8::Promise>(ptr_to_local(promise_ptr));
+  }
+}
 
 extern "C" {
 
@@ -100,6 +123,13 @@ void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
 void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     v8::Isolate* isolate, v8::HostInitializeImportMetaObjectCallback callback) {
   isolate->SetHostInitializeImportMetaObjectCallback(callback);
+}
+
+void v8__Isolate__SetHostImportModuleDynamicallyCallback(
+    v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
+  isolate->SetData(kSlotDynamicImport, reinterpret_cast<void*>(callback));
+  isolate->SetHostImportModuleDynamicallyCallback(
+      HostImportModuleDynamicallyCallback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
@@ -546,8 +576,10 @@ void v8__TryCatch__SetCaptureMessage(v8::TryCatch& self, bool value) {
   self.SetCaptureMessage(value);
 }
 
-v8::Uint8Array* v8__Uint8Array__New(v8::ArrayBuffer* buf_ptr, size_t byte_offset, size_t length) {
-  return local_to_ptr(v8::Uint8Array::New(ptr_to_local(buf_ptr), byte_offset, length));
+v8::Uint8Array* v8__Uint8Array__New(v8::ArrayBuffer* buf_ptr,
+                                    size_t byte_offset, size_t length) {
+  return local_to_ptr(
+      v8::Uint8Array::New(ptr_to_local(buf_ptr), byte_offset, length));
 }
 
 v8::Script* v8__Script__Compile(v8::Context* context, v8::String* source,

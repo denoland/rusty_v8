@@ -5,6 +5,7 @@ extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local, ToLocal};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 lazy_static! {
@@ -339,7 +340,6 @@ fn add_message_listener() {
   let mut isolate = v8::Isolate::new(params);
   isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
 
-  use std::sync::atomic::{AtomicUsize, Ordering};
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
@@ -389,7 +389,6 @@ fn set_host_initialize_import_meta_object_callback() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
 
-  use std::sync::atomic::{AtomicUsize, Ordering};
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn callback(
@@ -791,25 +790,6 @@ fn promise_rejected() {
   drop(locker);
 }
 
-extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
-  assert_eq!(info.length(), 0);
-  {
-    let rv = &mut info.get_return_value();
-    #[allow(mutable_transmutes)]
-    #[allow(clippy::transmute_ptr_to_ptr)]
-    let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
-    {
-      let mut hs = v8::HandleScope::new(info);
-      let scope = hs.enter();
-      let s = v8::String::new(scope, "Hello callback!").unwrap();
-      let value: Local<v8::Value> = s.into();
-      let rv_value = rv.get(scope);
-      assert!(rv_value.is_undefined());
-      rv.set(value);
-    }
-  }
-}
-
 #[test]
 fn function() {
   setup();
@@ -817,6 +797,27 @@ fn function() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
+
+  extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
+    assert_eq!(info.length(), 0);
+    {
+      let rv = &mut info.get_return_value();
+      #[allow(mutable_transmutes)]
+      #[allow(clippy::transmute_ptr_to_ptr)]
+      let info: &mut FunctionCallbackInfo =
+        unsafe { std::mem::transmute(info) };
+      {
+        let mut hs = v8::HandleScope::new(info);
+        let scope = hs.enter();
+        let s = v8::String::new(scope, "Hello callback!").unwrap();
+        let value: Local<v8::Value> = s.into();
+        let rv_value = rv.get(scope);
+        assert!(rv_value.is_undefined());
+        rv.set(value);
+      }
+    }
+  }
+
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
@@ -1299,6 +1300,56 @@ fn uint8_array() {
     let ab = maybe_ab.unwrap();
     let uint8_array = v8::Uint8Array::new(ab, 0, 0);
     assert!(uint8_array.is_some());
+    context.exit();
+  }
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
+fn dynamic_import() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  extern "C" fn dynamic_import_cb(
+    context: v8::Local<v8::Context>,
+    _referrer: v8::Local<v8::ScriptOrModule>,
+    specifier: v8::Local<v8::String>,
+  ) -> *mut v8::Promise {
+    let mut cbs = v8::CallbackScope::new(context);
+    let mut hs = v8::HandleScope::new(cbs.enter());
+    let scope = hs.enter();
+    assert!(specifier.strict_equals(v8_str(scope, "bar.js").into()));
+    let e = v8_str(scope, "boom");
+    scope.isolate().throw_exception(e.into());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    std::ptr::null_mut()
+  }
+  isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
+
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
+    let mut context = v8::Context::new(s);
+    context.enter();
+
+    let result = eval(
+      s,
+      context,
+      "(async function () {\n\
+       let x = await import('bar.js');\n\
+       })();",
+    );
+    assert!(result.is_some());
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
     context.exit();
   }
   drop(locker);
