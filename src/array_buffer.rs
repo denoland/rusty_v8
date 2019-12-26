@@ -1,6 +1,10 @@
+use crate::support::long;
 use crate::support::Delete;
 use crate::support::Opaque;
+use crate::support::Shared;
+use crate::support::SharedRef;
 use crate::support::UniqueRef;
+use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
 use crate::ToLocal;
@@ -8,13 +12,18 @@ use crate::ToLocal;
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: &'static mut Allocator);
-
-  fn v8__ArrayBuffer__New(
+  fn v8__ArrayBuffer__New__byte_length(
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut ArrayBuffer;
+  fn v8__ArrayBuffer__New__backing_store(
+    isolate: *mut Isolate,
+    backing_store: *mut SharedRef<BackingStore>,
+  ) -> *mut ArrayBuffer;
   fn v8__ArrayBuffer__ByteLength(self_: *const ArrayBuffer) -> usize;
-
+  fn v8__ArrayBuffer__GetBackingStore(
+    self_: *const ArrayBuffer,
+  ) -> SharedRef<BackingStore>;
   fn v8__ArrayBuffer__NewBackingStore(
     isolate: *mut Isolate,
     byte_length: usize,
@@ -22,6 +31,15 @@ extern "C" {
   fn v8__BackingStore__ByteLength(self_: &BackingStore) -> usize;
   fn v8__BackingStore__IsShared(self_: &BackingStore) -> bool;
   fn v8__BackingStore__DELETE(self_: &mut BackingStore);
+  fn std__shared_ptr__v8__BackingStore__get(
+    ptr: *const SharedRef<BackingStore>,
+  ) -> *mut BackingStore;
+  fn std__shared_ptr__v8__BackingStore__reset(
+    ptr: *mut SharedRef<BackingStore>,
+  );
+  fn std__shared_ptr__v8__BackingStore__use_count(
+    ptr: *const SharedRef<BackingStore>,
+  ) -> long;
 }
 
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
@@ -105,6 +123,18 @@ impl Delete for BackingStore {
   }
 }
 
+impl Shared for BackingStore {
+  fn deref(ptr: *const SharedRef<Self>) -> *mut Self {
+    unsafe { std__shared_ptr__v8__BackingStore__get(ptr) }
+  }
+  fn reset(ptr: *mut SharedRef<Self>) {
+    unsafe { std__shared_ptr__v8__BackingStore__reset(ptr) }
+  }
+  fn use_count(ptr: *const SharedRef<Self>) -> long {
+    unsafe { std__shared_ptr__v8__BackingStore__use_count(ptr) }
+  }
+}
+
 /// An instance of the built-in ArrayBuffer constructor (ES6 draft 15.13.5).
 #[repr(C)]
 pub struct ArrayBuffer(Opaque);
@@ -119,13 +149,28 @@ impl ArrayBuffer {
     byte_length: usize,
   ) -> Local<'sc, ArrayBuffer> {
     let isolate = scope.isolate();
-    let ptr = unsafe { v8__ArrayBuffer__New(isolate, byte_length) };
+    let ptr =
+      unsafe { v8__ArrayBuffer__New__byte_length(isolate, byte_length) };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  pub fn new_with_backing_store<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    backing_store: &mut SharedRef<BackingStore>,
+  ) -> Local<'sc, ArrayBuffer> {
+    let isolate = scope.isolate();
+    let ptr = unsafe {
+      v8__ArrayBuffer__New__backing_store(isolate, &mut *backing_store)
+    };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Data length in bytes.
   pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBuffer__ByteLength(self) }
+  }
+  pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
+    unsafe { v8__ArrayBuffer__GetBackingStore(self) }
   }
 
   /// Returns a new standalone BackingStore that is allocated using the array
@@ -135,8 +180,8 @@ impl ArrayBuffer {
   /// If the allocator returns nullptr, then the function may cause GCs in the
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
-  pub fn new_backing_store<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new_backing_store(
+    scope: &mut impl InIsolate,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

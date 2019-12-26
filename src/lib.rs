@@ -74,6 +74,7 @@ pub use snapshot::{FunctionCodeHandling, SnapshotCreator, StartupData};
 pub use string::NewStringType;
 pub use string::String;
 pub use support::MaybeBool;
+pub use support::SharedRef;
 pub use support::UniqueRef;
 pub use try_catch::{TryCatch, TryCatchScope};
 pub use uint8_array::Uint8Array;

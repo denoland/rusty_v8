@@ -8,6 +8,7 @@ use std::ptr::NonNull;
 
 pub use std::os::raw::c_char as char;
 pub use std::os::raw::c_int as int;
+pub use std::os::raw::c_long as long;
 
 pub type Opaque = [usize; 0];
 
@@ -134,6 +135,61 @@ where
       transmute(NonNull::<&'static mut T>::dangling())
     });
     Delete::delete(inner)
+  }
+}
+
+pub trait Shared
+where
+  Self: Sized + 'static,
+{
+  fn deref(shared_ptr: *const SharedRef<Self>) -> *mut Self;
+  fn reset(shared_ptr: *mut SharedRef<Self>);
+  fn use_count(shared_ptr: *const SharedRef<Self>) -> long;
+}
+
+/// Wrapper around a C++ shared_ptr. The shared_ptr is assumed to contain a
+/// value and not be null.
+#[repr(C)]
+#[derive(Debug)]
+pub struct SharedRef<T>([*mut Opaque; 2], PhantomData<T>)
+where
+  T: Shared;
+
+impl<T> SharedRef<T>
+where
+  T: Shared,
+{
+  pub fn use_count(&self) -> long {
+    <T as Shared>::use_count(self)
+  }
+}
+
+impl<T> Deref for SharedRef<T>
+where
+  T: Shared,
+{
+  // TODO: Maybe this should deref to UnsafeCell<T>?
+  type Target = T;
+  fn deref(&self) -> &T {
+    unsafe { &*<T as Shared>::deref(self) }
+  }
+}
+
+impl<T> DerefMut for SharedRef<T>
+where
+  T: Shared,
+{
+  fn deref_mut(&mut self) -> &mut T {
+    unsafe { &mut *<T as Shared>::deref(self) }
+  }
+}
+
+impl<T> Drop for SharedRef<T>
+where
+  T: Shared,
+{
+  fn drop(&mut self) {
+    <T as Shared>::reset(self);
   }
 }
 

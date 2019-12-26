@@ -70,7 +70,6 @@ v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
 }
 
 extern "C" {
-
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
   v8::V8::SetFlagsFromCommandLine(argc, argv, true);
 }
@@ -325,6 +324,10 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore(v8::Isolate* isolate,
   return u.release();
 }
 
+two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
+  return make_pod<two_pointers_t>(self.GetBackingStore());
+}
+
 size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
   return self.ByteLength();
 }
@@ -334,6 +337,21 @@ bool v8__BackingStore__IsShared(v8::BackingStore& self) {
 }
 
 void v8__BackingStore__DELETE(v8::BackingStore& self) { delete &self; }
+
+v8::BackingStore* std__shared_ptr__v8__BackingStore__get(
+    const std::shared_ptr<v8::BackingStore>& ptr) {
+  return ptr.get();
+}
+
+void std__shared_ptr__v8__BackingStore__reset(
+    std::shared_ptr<v8::BackingStore>& ptr) {
+  ptr.reset();
+}
+
+long std__shared_ptr__v8__BackingStore__use_count(
+    const std::shared_ptr<v8::BackingStore>& ptr) {
+  return ptr.use_count();
+}
 
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
                                     v8::NewStringType type, int length) {
@@ -419,9 +437,14 @@ void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator& self) {
   delete &self;
 }
 
-v8::ArrayBuffer* v8__ArrayBuffer__New(v8::Isolate* isolate,
-                                      size_t byte_length) {
+v8::ArrayBuffer* v8__ArrayBuffer__New__byte_length(v8::Isolate* isolate,
+                                                   size_t byte_length) {
   return local_to_ptr(v8::ArrayBuffer::New(isolate, byte_length));
+}
+
+v8::ArrayBuffer* v8__ArrayBuffer__New__backing_store(
+    v8::Isolate* isolate, std::shared_ptr<v8::BackingStore>& backing_store) {
+  return local_to_ptr(v8::ArrayBuffer::New(isolate, backing_store));
 }
 
 size_t v8__ArrayBuffer__ByteLength(v8::ArrayBuffer& self) {
