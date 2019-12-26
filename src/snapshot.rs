@@ -7,10 +7,15 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+// TODO use libc::intptr_t when stable.
+// https://doc.rust-lang.org/1.7.0/libc/type.intptr_t.html
+#[allow(non_camel_case_types)]
+type intptr_t = isize;
+
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
     buf: &mut MaybeUninit<SnapshotCreator>,
-    external_references: *mut isize,
+    external_references: *const intptr_t,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: &mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
@@ -71,12 +76,17 @@ impl SnapshotCreator {
 
     let mut null_terminated = Vec::with_capacity(external_references.len() + 1);
     for i in 0..external_references.len() {
-      null_terminated
-        .push(external_references[i] as *mut std::ffi::c_void as isize);
+      null_terminated.push(external_references[i] as *const std::ffi::c_void);
     }
-    null_terminated.push(0);
+    null_terminated.push(std::ptr::null());
+    let ptr = null_terminated.as_mut_ptr() as *const intptr_t;
+    debug_assert!(null_terminated.len() == external_references.len() + 1);
+    debug_assert!(
+      null_terminated[external_references.len()] == std::ptr::null()
+    );
 
-    let ptr = null_terminated.as_mut_ptr();
+    // TODO Don't leak memory.
+    std::mem::forget(null_terminated);
 
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(&mut snapshot_creator, ptr);
