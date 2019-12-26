@@ -763,6 +763,14 @@ fn create_data_property() {
     let actual = obj.get(scope, context, cast(key)).unwrap();
     assert!(value.strict_equals(actual));
 
+    let key2 = v8_str(scope, "foo2");
+    assert_eq!(
+      obj.set(context, cast(key2), cast(value)),
+      v8::MaybeBool::JustTrue
+    );
+    let actual = obj.get(scope, context, cast(key2)).unwrap();
+    assert!(value.strict_equals(actual));
+
     context.exit();
   }
   drop(locker);
