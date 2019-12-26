@@ -579,6 +579,10 @@ v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
   return local_to_ptr(self.GetHostDefinedOptions());
 }
 
+v8::SharedArrayBuffer* v8__SharedArrayBuffer__New(v8::Isolate* isolate, void *data, size_t byte_length) {
+  return local_to_ptr(v8::SharedArrayBuffer::New(isolate, data, byte_length, v8::ArrayBufferCreationMode::kExternalized));
+}
+
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,
                            v8::Local<v8::String> json_string) {
   return maybe_local_to_ptr(v8::JSON::Parse(context, json_string));
