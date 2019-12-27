@@ -32,6 +32,18 @@ extern "C" {
   ) -> &'sc mut Isolate;
 }
 
+/// A stack-allocated class that governs a number of local handles.
+/// After a handle scope has been created, all local handles will be
+/// allocated within that handle scope until either the handle scope is
+/// deleted or another handle scope is created.  If there is already a
+/// handle scope and a new one is created, all allocations will take
+/// place in the new handle scope until it is deleted.  After that,
+/// new handles will again be allocated in the original handle scope.
+///
+/// After the handle scope of a local handle has been deleted the
+/// garbage collector will no longer track the object stored in the
+/// handle and may deallocate it.  The behavior of accessing a handle
+/// for which the handle scope has been deleted is undefined.
 #[repr(C)]
 pub struct HandleScope([usize; 3]);
 
