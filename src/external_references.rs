@@ -12,8 +12,8 @@ unsafe impl Sync for ExternalReferences {}
 impl ExternalReferences {
   pub fn new(refs: &[FunctionCallback]) -> Self {
     let mut null_terminated = Vec::with_capacity(refs.len() + 1);
-    for i in 0..refs.len() {
-      null_terminated.push(refs[i] as *const c_void);
+    for r in refs {
+      null_terminated.push(*r as *const c_void);
     }
     null_terminated.push(std::ptr::null());
     Self { null_terminated }
