@@ -2,4 +2,5 @@
 **/*.orig
 
 /.vscode/
+/.idea/
 /target/
