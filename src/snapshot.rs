@@ -71,22 +71,10 @@ pub struct SnapshotCreator([usize; 1]);
 impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  pub fn new(external_references: &[FunctionCallback]) -> Self {
+  pub fn new(external_references: &'static [FunctionCallback]) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
 
-    let mut null_terminated = Vec::with_capacity(external_references.len() + 1);
-    for i in 0..external_references.len() {
-      null_terminated.push(external_references[i] as *const std::ffi::c_void);
-    }
-    null_terminated.push(std::ptr::null());
-    let ptr = null_terminated.as_mut_ptr() as *const intptr_t;
-    debug_assert!(null_terminated.len() == external_references.len() + 1);
-    debug_assert!(
-      null_terminated[external_references.len()] == std::ptr::null()
-    );
-
-    // TODO Don't leak memory.
-    std::mem::forget(null_terminated);
+    let ptr = external_references.as_ptr() as *const intptr_t;
 
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(&mut snapshot_creator, ptr);
