@@ -50,7 +50,9 @@ pub use array_buffer::*;
 pub use callback_scope::CallbackScope;
 pub use context::Context;
 pub use exception::*;
-pub use function::*;
+pub use function::{
+  Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
+};
 pub use global::Global;
 pub use handle_scope::{EscapableHandleScope, HandleScope, ToLocal};
 pub use isolate::*;

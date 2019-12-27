@@ -1336,13 +1336,8 @@ fn external_references() {
   let g = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
-
-  //use std::ffi::c_void;
-  static EXTERNAL_REFERENCES: &'static [v8::FunctionCallback] =
-    &[fn_callback, 0];
-
   let mut startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(EXTERNAL_REFERENCES);
+    let mut snapshot_creator = v8::SnapshotCreator::new(&[fn_callback]);
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {
