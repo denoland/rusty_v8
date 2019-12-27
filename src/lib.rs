@@ -14,22 +14,27 @@
 //! create_params.set_array_buffer_allocator(new_default_allocator());
 //! let isolate = Isolate::new(create_params);
 //! let mut locker = Locker::new(&isolate);
-//! let mut handle_scope = HandleScope::new(&mut locker);
-//! let scope = handle_scope.enter();
 //!
-//! let mut context = Context::new(scope);
-//! context.enter();
-//! let code = rusty_v8::String::new(scope, "'Hello World!'").unwrap();
-//! code.to_rust_string_lossy(scope);
-//! let mut script = Script::compile(scope, context, code, None).unwrap();
-//! let result = script.run(scope, context).unwrap();
-//! let result: Local<rusty_v8::String> = unsafe { std::mem::transmute_copy(&result) };
+//! {
+//!   let mut handle_scope = HandleScope::new(&mut locker);
+//!   let scope = handle_scope.enter();
 //!
-//! let str = result.to_rust_string_lossy(scope);
+//!   let mut context = Context::new(scope);
+//!   context.enter();
+//!   let code = rusty_v8::String::new(scope, "'Hello World!'").unwrap();
+//!   code.to_rust_string_lossy(scope);
+//!   let mut script = Script::compile(scope, context, code, None).unwrap();
+//!   let result = script.run(scope, context).unwrap();
+//!   let result: Local<rusty_v8::String> = unsafe { std::mem::transmute_copy(&result) };
 //!
-//! println!("{}", str);
+//!   let str = result.to_rust_string_lossy(scope);
 //!
-//! context.exit();
+//!   println!("{}", str);
+//!
+//!   context.exit();
+//! }
+//!
+//! drop(locker);
 //!
 //! ```
 //!
