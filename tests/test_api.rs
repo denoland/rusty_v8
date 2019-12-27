@@ -1386,7 +1386,12 @@ fn external_references() {
       let mut context = v8::Context::new(scope);
       context.enter();
 
-      let result = eval(scope, context, "F() === 'Hello callback!'");
+      let result =
+        eval(scope, context, "if(F() != 'wrong answer') throw 'boom1'");
+      assert!(result.is_none());
+
+      let result =
+        eval(scope, context, "if(F() != 'Hello callback!') throw 'boom2'");
       assert!(result.is_some());
 
       context.exit();
