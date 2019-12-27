@@ -853,6 +853,25 @@ fn promise_rejected() {
   drop(locker);
 }
 
+extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
+  assert_eq!(info.length(), 0);
+  {
+    let rv = &mut info.get_return_value();
+    #[allow(mutable_transmutes)]
+    #[allow(clippy::transmute_ptr_to_ptr)]
+    let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
+    {
+      let mut hs = v8::HandleScope::new(info);
+      let scope = hs.enter();
+      let s = v8::String::new(scope, "Hello callback!").unwrap();
+      let value: Local<v8::Value> = s.into();
+      let rv_value = rv.get(scope);
+      assert!(rv_value.is_undefined());
+      rv.set(value);
+    }
+  }
+}
+
 #[test]
 fn function() {
   setup();
@@ -860,26 +879,6 @@ fn function() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
-
-  extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
-    assert_eq!(info.length(), 0);
-    {
-      let rv = &mut info.get_return_value();
-      #[allow(mutable_transmutes)]
-      #[allow(clippy::transmute_ptr_to_ptr)]
-      let info: &mut FunctionCallbackInfo =
-        unsafe { std::mem::transmute(info) };
-      {
-        let mut hs = v8::HandleScope::new(info);
-        let scope = hs.enter();
-        let s = v8::String::new(scope, "Hello callback!").unwrap();
-        let value: Local<v8::Value> = s.into();
-        let rv_value = rv.get(scope);
-        assert!(rv_value.is_undefined());
-        rv.set(value);
-      }
-    }
-  }
 
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1279,7 +1278,7 @@ fn snapshot_creator() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let mut startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::default();
+    let mut snapshot_creator = v8::SnapshotCreator::new(None);
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {
@@ -1322,6 +1321,79 @@ fn snapshot_creator() {
       let result = script.run(scope, context).unwrap();
       let true_val: Local<v8::Value> = cast(v8::new_true(scope));
       assert!(result.same_value(true_val));
+      context.exit();
+    }
+    // TODO(ry) WARNING! startup_data needs to be kept alive as long the isolate
+    // using it. See note in CreateParams::set_snapshot_blob
+    drop(startup_data);
+  }
+
+  drop(g);
+}
+
+lazy_static! {
+  static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
+    v8::ExternalReferences::new(&[fn_callback]);
+}
+
+#[test]
+fn external_references() {
+  let g = setup();
+  // First we create the snapshot, there is a single global variable 'a' set to
+  // the value 3.
+  let mut startup_data = {
+    let mut snapshot_creator =
+      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
+    let isolate = snapshot_creator.get_isolate();
+    let mut locker = v8::Locker::new(&isolate);
+    {
+      let mut hs = v8::HandleScope::new(&mut locker);
+      let scope = hs.enter();
+      let mut context = v8::Context::new(scope);
+      context.enter();
+
+      // create function using template
+      let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+      let function = fn_template
+        .get_function(scope, context)
+        .expect("Unable to create function");
+
+      let global = context.global(scope);
+      global.set(context, cast(v8_str(scope, "F")), cast(function));
+
+      snapshot_creator.set_default_context(context);
+
+      context.exit();
+    }
+
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+  assert!(startup_data.len() > 0);
+  // Now we try to load up the snapshot and check that 'a' has the correct
+  // value.
+  {
+    let mut params = v8::Isolate::create_params();
+    params.set_array_buffer_allocator(v8::new_default_allocator());
+    params.set_snapshot_blob(&mut startup_data);
+    params.set_external_references(&EXTERNAL_REFERENCES);
+    let isolate = v8::Isolate::new(params);
+    let mut locker = v8::Locker::new(&isolate);
+    {
+      let mut hs = v8::HandleScope::new(&mut locker);
+      let scope = hs.enter();
+      let mut context = v8::Context::new(scope);
+      context.enter();
+
+      let result =
+        eval(scope, context, "if(F() != 'wrong answer') throw 'boom1'");
+      assert!(result.is_none());
+
+      let result =
+        eval(scope, context, "if(F() != 'Hello callback!') throw 'boom2'");
+      assert!(result.is_some());
+
       context.exit();
     }
     // TODO(ry) WARNING! startup_data needs to be kept alive as long the isolate

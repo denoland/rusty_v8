@@ -167,6 +167,13 @@ void v8__Isolate__CreateParams__SET__array_buffer_allocator(
   self.array_buffer_allocator = value;
 }
 
+// external_references should probably have static lifetime.
+void v8__Isolate__CreateParams__SET__external_references(
+    v8::Isolate::CreateParams& self, const intptr_t* external_references) {
+  assert(self.external_references == nullptr);
+  self.external_references = external_references;
+}
+
 // This function does not take ownership of the StartupData.
 void v8__Isolate__CreateParams__SET__snapshot_blob(
     v8::Isolate::CreateParams& self, v8::StartupData* snapshot_blob) {
@@ -457,9 +464,32 @@ size_t v8__ArrayBuffer__ByteLength(v8::ArrayBuffer& self) {
   return self.ByteLength();
 }
 
+struct InternalFieldData {
+  uint32_t data;
+};
+
+std::vector<InternalFieldData*> deserialized_data;
+
+void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
+                               v8::StartupData payload, void* data) {
+  assert(data == nullptr);
+  if (payload.raw_size == 0) {
+    holder->SetAlignedPointerInInternalField(index, nullptr);
+    return;
+  }
+  InternalFieldData* embedder_field = new InternalFieldData{0};
+  memcpy(embedder_field, payload.data, payload.raw_size);
+  holder->SetAlignedPointerInInternalField(index, embedder_field);
+  deserialized_data.push_back(embedder_field);
+}
+
 v8::Context* v8__Context__New(v8::Isolate* isolate) {
   // TODO: optional arguments.
-  return *v8::Context::New(isolate);
+  return *v8::Context::New(isolate, nullptr,
+                           v8::MaybeLocal<v8::ObjectTemplate>(),
+                           v8::MaybeLocal<v8::Value>(),
+                           v8::DeserializeInternalFieldsCallback(
+                               DeserializeInternalFields, nullptr));
 }
 
 void v8__Context__Enter(v8::Context& self) { self.Enter(); }
@@ -743,8 +773,9 @@ void v8__PropertyCallbackInfo__GetReturnValue(
   *out = self.GetReturnValue();
 }
 
-void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf) {
-  construct_in_place<v8::SnapshotCreator>(buf);
+void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf,
+                                    const intptr_t* external_references) {
+  construct_in_place<v8::SnapshotCreator>(buf, external_references);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator& self) {
@@ -757,9 +788,22 @@ v8::Isolate* v8__SnapshotCreator__GetIsolate(v8::SnapshotCreator& self) {
   return self.GetIsolate();
 }
 
+v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
+                                        void* data) {
+  assert(data == nullptr);
+  InternalFieldData* embedder_field = static_cast<InternalFieldData*>(
+      holder->GetAlignedPointerFromInternalField(index));
+  if (embedder_field == nullptr) return {nullptr, 0};
+  int size = sizeof(*embedder_field);
+  char* payload = new char[size];
+  // We simply use memcpy to serialize the content.
+  memcpy(payload, embedder_field, size);
+  return {payload, size};
+}
+
 void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator& self,
                                             v8::Local<v8::Context> context) {
-  self.SetDefaultContext(context);
+  self.SetDefaultContext(context, SerializeInternalFields);
 }
 
 v8::StartupData v8__SnapshotCreator__CreateBlob(
