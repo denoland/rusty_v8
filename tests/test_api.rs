@@ -1278,8 +1278,12 @@ fn snapshot_creator() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let mut startup_data = {
-    let external_references = v8::ExternalReferences::new(&[]);
-    let mut snapshot_creator = v8::SnapshotCreator::new(&external_references);
+    lazy_static! {
+      static ref EXTERNAL_REFERENCES_EMPTY: v8::ExternalReferences =
+        v8::ExternalReferences::new(&[]);
+    }
+    let mut snapshot_creator =
+      v8::SnapshotCreator::new(&EXTERNAL_REFERENCES_EMPTY);
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {

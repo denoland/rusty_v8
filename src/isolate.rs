@@ -1,8 +1,8 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::array_buffer::Allocator;
-use crate::external_references::intptr_t;
 use crate::external_references::ExternalReferences;
 use crate::promise::PromiseRejectMessage;
+use crate::support::intptr_t;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
@@ -311,7 +311,7 @@ impl CreateParams {
   /// entire lifetime of the isolate.
   pub fn set_external_references(
     &mut self,
-    external_references: &ExternalReferences,
+    external_references: &'static ExternalReferences,
   ) {
     unsafe {
       v8__Isolate__CreateParams__SET__external_references(

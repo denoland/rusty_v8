@@ -1,6 +1,6 @@
-use crate::external_references::intptr_t;
 use crate::external_references::ExternalReferences;
 use crate::support::int;
+use crate::support::intptr_t;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
@@ -67,7 +67,7 @@ pub struct SnapshotCreator([usize; 1]);
 impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  pub fn new(external_references: &ExternalReferences) -> Self {
+  pub fn new(external_references: &'static ExternalReferences) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(
