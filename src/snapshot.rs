@@ -67,12 +67,17 @@ pub struct SnapshotCreator([usize; 1]);
 impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  pub fn new(external_references: &'static ExternalReferences) -> Self {
+  pub fn new(external_references: Option<&'static ExternalReferences>) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
+    let external_references_ptr = if let Some(er) = external_references {
+      er.as_ptr()
+    } else {
+      std::ptr::null()
+    };
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
-        external_references.as_ptr(),
+        external_references_ptr,
       );
       snapshot_creator.assume_init()
     }
