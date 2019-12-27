@@ -472,7 +472,7 @@ std::vector<InternalFieldData*> deserialized_data;
 
 void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
                                v8::StartupData payload, void* data) {
-  // DCHECK_NULL(data);
+  assert(data == nullptr);
   if (payload.raw_size == 0) {
     holder->SetAlignedPointerInInternalField(index, nullptr);
     return;
@@ -790,7 +790,7 @@ v8::Isolate* v8__SnapshotCreator__GetIsolate(v8::SnapshotCreator& self) {
 
 v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
                                         void* data) {
-  // DCHECK_NULL(data);
+  assert(data == nullptr);
   InternalFieldData* embedder_field = static_cast<InternalFieldData*>(
       holder->GetAlignedPointerFromInternalField(index));
   if (embedder_field == nullptr) return {nullptr, 0};
