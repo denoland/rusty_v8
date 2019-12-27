@@ -167,6 +167,13 @@ void v8__Isolate__CreateParams__SET__array_buffer_allocator(
   self.array_buffer_allocator = value;
 }
 
+// external_references should probably have static lifetime.
+void v8__Isolate__CreateParams__SET__external_references(
+    v8::Isolate::CreateParams& self, const intptr_t* external_references) {
+  assert(self.external_references == nullptr);
+  self.external_references = external_references;
+}
+
 // This function does not take ownership of the StartupData.
 void v8__Isolate__CreateParams__SET__snapshot_blob(
     v8::Isolate::CreateParams& self, v8::StartupData* snapshot_blob) {

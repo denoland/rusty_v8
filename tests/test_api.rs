@@ -1278,7 +1278,8 @@ fn snapshot_creator() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let mut startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(&[]);
+    let external_references = v8::ExternalReferences::new(&[]);
+    let mut snapshot_creator = v8::SnapshotCreator::new(&external_references);
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {
@@ -1331,13 +1332,18 @@ fn snapshot_creator() {
   drop(g);
 }
 
+lazy_static! {
+  static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
+    v8::ExternalReferences::new(&[fn_callback]);
+}
+
 #[test]
 fn external_references() {
   let g = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let mut startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(&[fn_callback]);
+    let mut snapshot_creator = v8::SnapshotCreator::new(&EXTERNAL_REFERENCES);
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {
@@ -1371,6 +1377,7 @@ fn external_references() {
     let mut params = v8::Isolate::create_params();
     params.set_array_buffer_allocator(v8::new_default_allocator());
     params.set_snapshot_blob(&mut startup_data);
+    params.set_external_references(&EXTERNAL_REFERENCES);
     let isolate = v8::Isolate::new(params);
     let mut locker = v8::Locker::new(&isolate);
     {

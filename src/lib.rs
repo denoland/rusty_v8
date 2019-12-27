@@ -13,6 +13,7 @@ mod array_buffer;
 mod callback_scope;
 mod context;
 mod exception;
+mod external_references;
 mod function;
 mod global;
 mod handle_scope;
@@ -50,6 +51,7 @@ pub use array_buffer::*;
 pub use callback_scope::CallbackScope;
 pub use context::Context;
 pub use exception::*;
+pub use external_references::ExternalReferences;
 pub use function::{
   Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
 };

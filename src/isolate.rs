@@ -1,5 +1,7 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::array_buffer::Allocator;
+use crate::external_references::intptr_t;
+use crate::external_references::ExternalReferences;
 use crate::promise::PromiseRejectMessage;
 use crate::support::Delete;
 use crate::support::Opaque;
@@ -97,6 +99,10 @@ extern "C" {
   fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
     this: &mut CreateParams,
     value: *mut Allocator,
+  );
+  fn v8__Isolate__CreateParams__SET__external_references(
+    this: &mut CreateParams,
+    value: *const intptr_t,
   );
   fn v8__Isolate__CreateParams__SET__snapshot_blob(
     this: &mut CreateParams,
@@ -274,6 +280,7 @@ pub trait InIsolate {
   fn isolate(&mut self) -> &mut Isolate;
 }
 
+/// Initial configuration parameters for a new Isolate.
 #[repr(C)]
 pub struct CreateParams(Opaque);
 
@@ -282,11 +289,34 @@ impl CreateParams {
     unsafe { UniqueRef::from_raw(v8__Isolate__CreateParams__NEW()) }
   }
 
+  /// The ArrayBuffer::Allocator to use for allocating and freeing the backing
+  /// store of ArrayBuffers.
+  ///
+  /// If the shared_ptr version is used, the Isolate instance and every
+  /// |BackingStore| allocated using this allocator hold a std::shared_ptr
+  /// to the allocator, in order to facilitate lifetime
+  /// management for the allocator instance.
   pub fn set_array_buffer_allocator(&mut self, value: UniqueRef<Allocator>) {
     unsafe {
       v8__Isolate__CreateParams__SET__array_buffer_allocator(
         self,
         value.into_raw(),
+      )
+    };
+  }
+
+  /// Specifies an optional nullptr-terminated array of raw addresses in the
+  /// embedder that V8 can match against during serialization and use for
+  /// deserialization. This array and its content must stay valid for the
+  /// entire lifetime of the isolate.
+  pub fn set_external_references(
+    &mut self,
+    external_references: &ExternalReferences,
+  ) {
+    unsafe {
+      v8__Isolate__CreateParams__SET__external_references(
+        self,
+        external_references.as_ptr(),
       )
     };
   }
