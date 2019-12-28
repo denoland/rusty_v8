@@ -778,6 +778,8 @@ fn create_data_property() {
 
 #[test]
 fn promise_resolved() {
+  use std::convert::TryInto;
+  
   setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
@@ -794,12 +796,11 @@ fn promise_resolved() {
     let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str = v8::String::new(scope, "test").unwrap();
-    let value: Local<v8::Value> = cast(str);
-    resolver.resolve(context, value);
+    let str_ = v8::String::new(scope, "test").unwrap();
+    resolver.resolve(context, str_.into());
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
-    let result_str: v8::Local<v8::String> = cast(result);
+    let result_str: v8::Local<v8::String> = result.try_into().expect("asdf");
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in `Fulfilled` state
     // it should be ignored.

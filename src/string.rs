@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::convert::TryFrom;
 use std::default::Default;
 use std::mem::forget;
 use std::ops::Deref;
@@ -149,5 +150,31 @@ impl Deref for String {
   type Target = Value;
   fn deref(&self) -> &Self::Target {
     unsafe { &*(self as *const _ as *const Value) }
+  }
+}
+
+
+impl TryFrom<Value> for String
+{
+  type Error = &'static str;
+
+  fn try_from(v: Value) -> Result<Self, Self::Error> {
+    if !v.is_string() {
+      Err("Could not convert to string")
+    } else {
+      let b = unsafe { std::mem::transmute(v) };
+      Ok(b)
+    }
+  }
+}
+
+impl<'sc> TryFrom<Local<'sc, Value>> for Local<'sc, String> {
+  type Error = &'static str;
+
+  fn try_from(v: Local<'sc, Value>) -> Result<Self, Self::Error> {
+    let v: Value = *v;
+    let mut a: self::String = v.try_into()?;
+    let l = unsafe { Local::from_raw(&mut a).unwrap() };
+    Ok(l)
   }
 }
