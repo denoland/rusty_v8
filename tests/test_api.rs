@@ -1508,8 +1508,8 @@ fn shared_array_buffer() {
     let maybe_sab = v8::SharedArrayBuffer::new(s, 16);
     assert!(maybe_sab.is_some());
     let sab = maybe_sab.unwrap();
-    let mut contents = sab.get_contents();
-    let shared_buf = contents.data();
+    let mut backing_store = sab.get_backing_store();
+    let shared_buf = backing_store.data_bytes();
     shared_buf[5] = 12;
     shared_buf[12] = 52;
     let global = context.global(s);

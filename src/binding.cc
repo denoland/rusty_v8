@@ -335,6 +335,10 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(self.GetBackingStore());
 }
 
+void* v8__BackingStore__Data(v8::BackingStore& self) {
+  return self.Data();
+}
+
 size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
   return self.ByteLength();
 }
@@ -690,16 +694,8 @@ size_t v8__SharedArrayBuffer__ByteLength(v8::SharedArrayBuffer& self) {
   return self.ByteLength();
 }
 
-void v8__SharedArrayBuffer__GetContents(v8::SharedArrayBuffer& self, v8::SharedArrayBuffer::Contents* out) {
-  *out = self.GetContents();
-}
-
-size_t v8__SharedArrayBuffer__Contents__ByteLength(v8::SharedArrayBuffer::Contents& self) {
-  return self.ByteLength();
-}
-
-void* v8__SharedArrayBuffer__Contents__Data(v8::SharedArrayBuffer::Contents& self) {
-  return self.Data();
+two_pointers_t v8__SharedArrayBuffer__GetBackingStore(v8::SharedArrayBuffer& self) {
+  return make_pod<two_pointers_t>(self.GetBackingStore());
 }
 
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,

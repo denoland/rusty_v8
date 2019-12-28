@@ -1,7 +1,8 @@
-use std::mem::MaybeUninit;
 use std::ops::Deref;
 
 use crate::support::Opaque;
+use crate::support::SharedRef;
+use crate::BackingStore;
 use crate::Isolate;
 use crate::Local;
 use crate::ToLocal;
@@ -12,18 +13,12 @@ extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut SharedArrayBuffer;
-  fn v8__SharedArrayBuffer__ByteLength(this: *const SharedArrayBuffer)
-    -> usize;
-  fn v8__SharedArrayBuffer__GetContents(
-    this: *const SharedArrayBuffer,
-    out: &mut MaybeUninit<SharedArrayBuffer__Contents>,
-  );
-  fn v8__SharedArrayBuffer__Contents__ByteLength(
-    this: *const SharedArrayBuffer__Contents,
+  fn v8__SharedArrayBuffer__ByteLength(
+    self_: *const SharedArrayBuffer,
   ) -> usize;
-  fn v8__SharedArrayBuffer__Contents__Data(
-    this: *mut SharedArrayBuffer__Contents,
-  ) -> *mut u8;
+  fn v8__SharedArrayBuffer__GetBackingStore(
+    self_: *const SharedArrayBuffer,
+  ) -> SharedRef<BackingStore>;
 }
 
 #[repr(C)]
@@ -43,12 +38,8 @@ impl SharedArrayBuffer {
     unsafe { v8__SharedArrayBuffer__ByteLength(self) }
   }
 
-  pub fn get_contents(&self) -> SharedArrayBuffer__Contents {
-    let mut out = MaybeUninit::<SharedArrayBuffer__Contents>::uninit();
-    unsafe {
-      v8__SharedArrayBuffer__GetContents(self, &mut out);
-      out.assume_init()
-    }
+  pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
+    unsafe { v8__SharedArrayBuffer__GetBackingStore(self) }
   }
 }
 
@@ -56,23 +47,5 @@ impl Deref for SharedArrayBuffer {
   type Target = Value;
   fn deref(&self) -> &Self::Target {
     unsafe { &*(self as *const _ as *const Value) }
-  }
-}
-
-#[repr(C)]
-pub struct SharedArrayBuffer__Contents([usize; 1]);
-
-impl SharedArrayBuffer__Contents {
-  pub fn byte_length(&self) -> usize {
-    unsafe { v8__SharedArrayBuffer__Contents__ByteLength(self) }
-  }
-
-  pub fn data<'a>(&mut self) -> &'a mut [u8] {
-    unsafe {
-      std::slice::from_raw_parts_mut::<'a, u8>(
-        v8__SharedArrayBuffer__Contents__Data(self),
-        self.byte_length(),
-      )
-    }
   }
 }
