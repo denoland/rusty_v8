@@ -41,15 +41,17 @@ For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
 install them.
 
-There are several binary tools that are automatically downloaded during the
-build: clang, gn, and ninja. V8 relies on bleeding edge features of clang that
-are not generally available, so we download the clang binary that chromium uses.
-gn and ninja are also not generally available so we download them. It should be
-possible to opt out of the gn and ninja download by specifying the `$GN` and
-`$NINJA` environmental variables. The clang download cannot currently be
-skipped, but we welcome any patches to make that possible.
+The build depends on several binary tools: `gn`, `ninja` and a recent version
+of `clang` (V8 relies on bleeding edge features). Because these are not
+generally available they are automatically download during the build by default.
+It should be possible to opt out of the gn and ninja download by specifying the
+`$GN` and `$NINJA` environmental variables. The clang download can be skipped by
+providing a `$CLANG_BASE_PATH` environmental variable pointing to a recent
+`llvm`/`clang` installation (currently LLVM v8.0+ or Apple clang v11.0+).
+You could also pass in additional arguments to `gn` by setting the `$GN_ARGS`
+environmental variable.
 
-Env vars used in build.rs: `SCCACHE`, `GN`, `NINJA`
+Env vars used in build.rs: `SCCACHE`, `GN`, `NINJA`, `CLANG_BASE_PATH`, `GN_ARGS`
 
 ## FAQ
 

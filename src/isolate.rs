@@ -1,6 +1,8 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use crate::array_buffer::Allocator;
+use crate::external_references::ExternalReferences;
 use crate::promise::PromiseRejectMessage;
+use crate::support::intptr_t;
 use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
@@ -9,19 +11,54 @@ use crate::Local;
 use crate::Message;
 use crate::Module;
 use crate::Object;
+use crate::Promise;
+use crate::ScriptOrModule;
 use crate::StartupData;
+use crate::String;
 use crate::Value;
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
 
-type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
+pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
-type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
+pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
-type HostInitializeImportMetaObjectCallback =
+/// HostInitializeImportMetaObjectCallback is called the first time import.meta
+/// is accessed for a module. Subsequent access will reuse the same value.
+///
+/// The method combines two implementation-defined abstract operations into one:
+/// HostGetImportMetaProperties and HostFinalizeImportMeta.
+///
+/// The embedder should use v8::Object::CreateDataProperty to add properties on
+/// the meta object.
+pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
+
+/// HostImportModuleDynamicallyCallback is called when we require the
+/// embedder to load a module. This is used as part of the dynamic
+/// import syntax.
+///
+/// The referrer contains metadata about the script/module that calls
+/// import.
+///
+/// The specifier is the name of the module that should be imported.
+///
+/// The embedder must compile, instantiate, evaluate the Module, and
+/// obtain it's namespace object.
+///
+/// The Promise returned from this function is forwarded to userland
+/// JavaScript. The embedder must resolve this promise with the module
+/// namespace object. In case of an exception, the embedder must reject
+/// this promise with the exception. If the promise creation itself
+/// fails (e.g. due to stack overflow), the embedder must propagate
+/// that exception by returning an empty MaybeLocal.
+pub type HostImportModuleDynamicallyCallback = extern "C" fn(
+  Local<Context>,
+  Local<ScriptOrModule>,
+  Local<String>,
+) -> *mut Promise;
 
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
@@ -48,6 +85,10 @@ extern "C" {
     isolate: *mut Isolate,
     callback: HostInitializeImportMetaObjectCallback,
   );
+  fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
+    isolate: *mut Isolate,
+    callback: HostImportModuleDynamicallyCallback,
+  );
   fn v8__Isolate__ThrowException(
     isolate: &Isolate,
     exception: &Value,
@@ -58,6 +99,10 @@ extern "C" {
   fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
     this: &mut CreateParams,
     value: *mut Allocator,
+  );
+  fn v8__Isolate__CreateParams__SET__external_references(
+    this: &mut CreateParams,
+    value: *const intptr_t,
   );
   fn v8__Isolate__CreateParams__SET__snapshot_blob(
     this: &mut CreateParams,
@@ -174,6 +219,17 @@ impl Isolate {
     }
   }
 
+  /// This specifies the callback called by the upcoming dynamic
+  /// import() language feature to load modules.
+  pub fn set_host_import_module_dynamically_callback(
+    &mut self,
+    callback: HostImportModuleDynamicallyCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
+    }
+  }
+
   /// Schedules an exception to be thrown when returning to JavaScript. When an
   /// exception has been scheduled it is illegal to invoke any JavaScript
   /// operation; the caller must return immediately and only after the exception
@@ -224,6 +280,7 @@ pub trait InIsolate {
   fn isolate(&mut self) -> &mut Isolate;
 }
 
+/// Initial configuration parameters for a new Isolate.
 #[repr(C)]
 pub struct CreateParams(Opaque);
 
@@ -232,11 +289,34 @@ impl CreateParams {
     unsafe { UniqueRef::from_raw(v8__Isolate__CreateParams__NEW()) }
   }
 
+  /// The ArrayBuffer::Allocator to use for allocating and freeing the backing
+  /// store of ArrayBuffers.
+  ///
+  /// If the shared_ptr version is used, the Isolate instance and every
+  /// |BackingStore| allocated using this allocator hold a std::shared_ptr
+  /// to the allocator, in order to facilitate lifetime
+  /// management for the allocator instance.
   pub fn set_array_buffer_allocator(&mut self, value: UniqueRef<Allocator>) {
     unsafe {
       v8__Isolate__CreateParams__SET__array_buffer_allocator(
         self,
         value.into_raw(),
+      )
+    };
+  }
+
+  /// Specifies an optional nullptr-terminated array of raw addresses in the
+  /// embedder that V8 can match against during serialization and use for
+  /// deserialization. This array and its content must stay valid for the
+  /// entire lifetime of the isolate.
+  pub fn set_external_references(
+    &mut self,
+    external_references: &'static ExternalReferences,
+  ) {
+    unsafe {
+      v8__Isolate__CreateParams__SET__external_references(
+        self,
+        external_references.as_ptr(),
       )
     };
   }

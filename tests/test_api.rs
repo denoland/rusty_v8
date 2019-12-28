@@ -5,6 +5,7 @@ extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local, ToLocal};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 lazy_static! {
@@ -226,6 +227,61 @@ fn array_buffer() {
   drop(locker);
 }
 
+#[test]
+fn array_buffer_with_shared_backing_store() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let ab1 = v8::ArrayBuffer::new(scope, 42);
+    assert_eq!(42, ab1.byte_length());
+
+    let bs1 = ab1.get_backing_store();
+    assert_eq!(ab1.byte_length(), bs1.byte_length());
+    assert_eq!(2, v8::SharedRef::use_count(&bs1));
+
+    let bs2 = ab1.get_backing_store();
+    assert_eq!(ab1.byte_length(), bs2.byte_length());
+    assert_eq!(3, v8::SharedRef::use_count(&bs1));
+    assert_eq!(3, v8::SharedRef::use_count(&bs2));
+
+    let mut bs3 = ab1.get_backing_store();
+    assert_eq!(ab1.byte_length(), bs3.byte_length());
+    assert_eq!(4, v8::SharedRef::use_count(&bs1));
+    assert_eq!(4, v8::SharedRef::use_count(&bs2));
+    assert_eq!(4, v8::SharedRef::use_count(&bs3));
+
+    drop(bs2);
+    assert_eq!(3, v8::SharedRef::use_count(&bs1));
+    assert_eq!(3, v8::SharedRef::use_count(&bs3));
+
+    drop(bs1);
+    assert_eq!(2, v8::SharedRef::use_count(&bs3));
+
+    let ab2 = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs3);
+    assert_eq!(ab1.byte_length(), ab2.byte_length());
+    assert_eq!(3, v8::SharedRef::use_count(&bs3));
+
+    let bs4 = ab2.get_backing_store();
+    assert_eq!(ab2.byte_length(), bs4.byte_length());
+    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+    assert_eq!(4, v8::SharedRef::use_count(&bs3));
+
+    drop(bs3);
+    assert_eq!(3, v8::SharedRef::use_count(&bs4));
+
+    context.exit();
+  }
+}
+
 fn v8_str<'sc>(
   scope: &mut impl v8::ToLocal<'sc>,
   s: &str,
@@ -339,7 +395,6 @@ fn add_message_listener() {
   let mut isolate = v8::Isolate::new(params);
   isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
 
-  use std::sync::atomic::{AtomicUsize, Ordering};
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
@@ -389,7 +444,6 @@ fn set_host_initialize_import_meta_object_callback() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
 
-  use std::sync::atomic::{AtomicUsize, Ordering};
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn callback(
@@ -709,6 +763,14 @@ fn create_data_property() {
     let actual = obj.get(scope, context, cast(key)).unwrap();
     assert!(value.strict_equals(actual));
 
+    let key2 = v8_str(scope, "foo2");
+    assert_eq!(
+      obj.set(context, cast(key2), cast(value)),
+      v8::MaybeBool::JustTrue
+    );
+    let actual = obj.get(scope, context, cast(key2)).unwrap();
+    assert!(value.strict_equals(actual));
+
     context.exit();
   }
   drop(locker);
@@ -817,6 +879,7 @@ fn function() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
+
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
@@ -1191,7 +1254,7 @@ fn array_buffer_view() {
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
     let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
-      unsafe { std::mem::transmute_copy(&result) };
+      cast(result);
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1215,7 +1278,7 @@ fn snapshot_creator() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let mut startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::default();
+    let mut snapshot_creator = v8::SnapshotCreator::new(None);
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {
@@ -1265,6 +1328,167 @@ fn snapshot_creator() {
     drop(startup_data);
   }
 
+  drop(g);
+}
+
+lazy_static! {
+  static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
+    v8::ExternalReferences::new(&[fn_callback]);
+}
+
+#[test]
+fn external_references() {
+  let g = setup();
+  // First we create the snapshot, there is a single global variable 'a' set to
+  // the value 3.
+  let mut startup_data = {
+    let mut snapshot_creator =
+      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
+    let isolate = snapshot_creator.get_isolate();
+    let mut locker = v8::Locker::new(&isolate);
+    {
+      let mut hs = v8::HandleScope::new(&mut locker);
+      let scope = hs.enter();
+      let mut context = v8::Context::new(scope);
+      context.enter();
+
+      // create function using template
+      let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+      let function = fn_template
+        .get_function(scope, context)
+        .expect("Unable to create function");
+
+      let global = context.global(scope);
+      global.set(context, cast(v8_str(scope, "F")), cast(function));
+
+      snapshot_creator.set_default_context(context);
+
+      context.exit();
+    }
+
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+  assert!(startup_data.len() > 0);
+  // Now we try to load up the snapshot and check that 'a' has the correct
+  // value.
+  {
+    let mut params = v8::Isolate::create_params();
+    params.set_array_buffer_allocator(v8::new_default_allocator());
+    params.set_snapshot_blob(&mut startup_data);
+    params.set_external_references(&EXTERNAL_REFERENCES);
+    let isolate = v8::Isolate::new(params);
+    let mut locker = v8::Locker::new(&isolate);
+    {
+      let mut hs = v8::HandleScope::new(&mut locker);
+      let scope = hs.enter();
+      let mut context = v8::Context::new(scope);
+      context.enter();
+
+      let result =
+        eval(scope, context, "if(F() != 'wrong answer') throw 'boom1'");
+      assert!(result.is_none());
+
+      let result =
+        eval(scope, context, "if(F() != 'Hello callback!') throw 'boom2'");
+      assert!(result.is_some());
+
+      context.exit();
+    }
+    // TODO(ry) WARNING! startup_data needs to be kept alive as long the isolate
+    // using it. See note in CreateParams::set_snapshot_blob
+    drop(startup_data);
+  }
+
+  drop(g);
+}
+
+#[test]
+fn uint8_array() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
+    let mut context = v8::Context::new(s);
+    context.enter();
+    let source = v8::String::new(s, "new Uint8Array([23,23,23,23])").unwrap();
+    let mut script = v8::Script::compile(s, context, source, None).unwrap();
+    source.to_rust_string_lossy(s);
+    let result = script.run(s, context).unwrap();
+    // TODO: safer casts.
+    let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
+      cast(result);
+    assert_eq!(result.byte_length(), 4);
+    assert_eq!(result.byte_offset(), 0);
+    let mut dest = [0; 4];
+    let copy_bytes = result.copy_contents(&mut dest);
+    assert_eq!(copy_bytes, 4);
+    assert_eq!(dest, [23, 23, 23, 23]);
+    let maybe_ab = result.buffer();
+    assert!(maybe_ab.is_some());
+    let ab = maybe_ab.unwrap();
+    let uint8_array = v8::Uint8Array::new(ab, 0, 0);
+    assert!(uint8_array.is_some());
+    context.exit();
+  }
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
+fn dynamic_import() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  extern "C" fn dynamic_import_cb(
+    context: v8::Local<v8::Context>,
+    _referrer: v8::Local<v8::ScriptOrModule>,
+    specifier: v8::Local<v8::String>,
+  ) -> *mut v8::Promise {
+    let mut cbs = v8::CallbackScope::new(context);
+    let mut hs = v8::HandleScope::new(cbs.enter());
+    let scope = hs.enter();
+    assert!(specifier.strict_equals(v8_str(scope, "bar.js").into()));
+    let e = v8_str(scope, "boom");
+    scope.isolate().throw_exception(e.into());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    std::ptr::null_mut()
+  }
+  isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
+
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
+    let mut context = v8::Context::new(s);
+    context.enter();
+
+    let result = eval(
+      s,
+      context,
+      "(async function () {\n\
+       let x = await import('bar.js');\n\
+       })();",
+    );
+    assert!(result.is_some());
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    context.exit();
+  }
+  drop(locker);
+  isolate.exit();
   drop(g);
 }
 

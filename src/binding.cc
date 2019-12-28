@@ -39,8 +39,37 @@ static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
               "SnapshotCreator size mismatch");
 
-extern "C" {
+enum InternalSlots {
+  kSlotDynamicImport = 0,
+  kNumInternalSlots,
+};
+#define SLOT_NUM_EXTERNAL(isolate) \
+  (isolate->GetNumberOfDataSlots() - kNumInternalSlots)
+#define SLOT_INTERNAL(isolate, slot) \
+  (isolate->GetNumberOfDataSlots() - 1 - slot)
 
+// This is an extern C calling convention compatible version of
+// v8::HostImportModuleDynamicallyCallback
+typedef v8::Promise* (*v8__HostImportModuleDynamicallyCallback)(
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
+    v8::Local<v8::String> specifier);
+
+v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
+    v8::Local<v8::String> specifier) {
+  auto* isolate = context->GetIsolate();
+  void* d = isolate->GetData(SLOT_INTERNAL(isolate, kSlotDynamicImport));
+  auto* callback = reinterpret_cast<v8__HostImportModuleDynamicallyCallback>(d);
+  assert(callback != nullptr);
+  auto* promise_ptr = callback(context, referrer, specifier);
+  if (promise_ptr == nullptr) {
+    return v8::MaybeLocal<v8::Promise>();
+  } else {
+    return v8::MaybeLocal<v8::Promise>(ptr_to_local(promise_ptr));
+  }
+}
+
+extern "C" {
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
   v8::V8::SetFlagsFromCommandLine(argc, argv, true);
 }
@@ -84,7 +113,7 @@ void* v8__Isolate__GetData(v8::Isolate* isolate, uint32_t slot) {
 }
 
 uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
-  return isolate->GetNumberOfDataSlots();
+  return SLOT_NUM_EXTERNAL(isolate);
 }
 
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
@@ -100,6 +129,14 @@ void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
 void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     v8::Isolate* isolate, v8::HostInitializeImportMetaObjectCallback callback) {
   isolate->SetHostInitializeImportMetaObjectCallback(callback);
+}
+
+void v8__Isolate__SetHostImportModuleDynamicallyCallback(
+    v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
+  isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
+                   reinterpret_cast<void*>(callback));
+  isolate->SetHostImportModuleDynamicallyCallback(
+      HostImportModuleDynamicallyCallback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
@@ -128,6 +165,13 @@ void v8__Isolate__CreateParams__SET__array_buffer_allocator(
     v8::Isolate::CreateParams& self, v8::ArrayBuffer::Allocator* value) {
   delete self.array_buffer_allocator;
   self.array_buffer_allocator = value;
+}
+
+// external_references should probably have static lifetime.
+void v8__Isolate__CreateParams__SET__external_references(
+    v8::Isolate::CreateParams& self, const intptr_t* external_references) {
+  assert(self.external_references == nullptr);
+  self.external_references = external_references;
 }
 
 // This function does not take ownership of the StartupData.
@@ -287,6 +331,10 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore(v8::Isolate* isolate,
   return u.release();
 }
 
+two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
+  return make_pod<two_pointers_t>(self.GetBackingStore());
+}
+
 size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
   return self.ByteLength();
 }
@@ -296,6 +344,21 @@ bool v8__BackingStore__IsShared(v8::BackingStore& self) {
 }
 
 void v8__BackingStore__DELETE(v8::BackingStore& self) { delete &self; }
+
+v8::BackingStore* std__shared_ptr__v8__BackingStore__get(
+    const std::shared_ptr<v8::BackingStore>& ptr) {
+  return ptr.get();
+}
+
+void std__shared_ptr__v8__BackingStore__reset(
+    std::shared_ptr<v8::BackingStore>& ptr) {
+  ptr.reset();
+}
+
+long std__shared_ptr__v8__BackingStore__use_count(
+    const std::shared_ptr<v8::BackingStore>& ptr) {
+  return ptr.use_count();
+}
 
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
                                     v8::NewStringType type, int length) {
@@ -326,6 +389,12 @@ v8::Object* v8__Object__New(v8::Isolate* isolate,
 v8::Value* v8__Object__Get(v8::Object& self, v8::Local<v8::Context> context,
                            v8::Local<v8::Value> key) {
   return maybe_local_to_ptr(self.Get(context, key));
+}
+
+MaybeBool v8__Object__Set(v8::Object& self, v8::Local<v8::Context> context,
+                          v8::Local<v8::Value> key,
+                          v8::Local<v8::Value> value) {
+  return maybe_to_maybe_bool(self.Set(context, key, value));
 }
 
 MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
@@ -381,18 +450,46 @@ void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator& self) {
   delete &self;
 }
 
-v8::ArrayBuffer* v8__ArrayBuffer__New(v8::Isolate* isolate,
-                                      size_t byte_length) {
+v8::ArrayBuffer* v8__ArrayBuffer__New__byte_length(v8::Isolate* isolate,
+                                                   size_t byte_length) {
   return local_to_ptr(v8::ArrayBuffer::New(isolate, byte_length));
+}
+
+v8::ArrayBuffer* v8__ArrayBuffer__New__backing_store(
+    v8::Isolate* isolate, std::shared_ptr<v8::BackingStore>& backing_store) {
+  return local_to_ptr(v8::ArrayBuffer::New(isolate, backing_store));
 }
 
 size_t v8__ArrayBuffer__ByteLength(v8::ArrayBuffer& self) {
   return self.ByteLength();
 }
 
+struct InternalFieldData {
+  uint32_t data;
+};
+
+std::vector<InternalFieldData*> deserialized_data;
+
+void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
+                               v8::StartupData payload, void* data) {
+  assert(data == nullptr);
+  if (payload.raw_size == 0) {
+    holder->SetAlignedPointerInInternalField(index, nullptr);
+    return;
+  }
+  InternalFieldData* embedder_field = new InternalFieldData{0};
+  memcpy(embedder_field, payload.data, payload.raw_size);
+  holder->SetAlignedPointerInInternalField(index, embedder_field);
+  deserialized_data.push_back(embedder_field);
+}
+
 v8::Context* v8__Context__New(v8::Isolate* isolate) {
   // TODO: optional arguments.
-  return *v8::Context::New(isolate);
+  return *v8::Context::New(isolate, nullptr,
+                           v8::MaybeLocal<v8::ObjectTemplate>(),
+                           v8::MaybeLocal<v8::Value>(),
+                           v8::DeserializeInternalFieldsCallback(
+                               DeserializeInternalFields, nullptr));
 }
 
 void v8__Context__Enter(v8::Context& self) { self.Enter(); }
@@ -546,6 +643,12 @@ void v8__TryCatch__SetCaptureMessage(v8::TryCatch& self, bool value) {
   self.SetCaptureMessage(value);
 }
 
+v8::Uint8Array* v8__Uint8Array__New(v8::ArrayBuffer* buf_ptr,
+                                    size_t byte_offset, size_t length) {
+  return local_to_ptr(
+      v8::Uint8Array::New(ptr_to_local(buf_ptr), byte_offset, length));
+}
+
 v8::Script* v8__Script__Compile(v8::Context* context, v8::String* source,
                                 v8::ScriptOrigin* origin) {
   return maybe_local_to_ptr(
@@ -690,8 +793,9 @@ void v8__PropertyCallbackInfo__GetReturnValue(
   *out = self.GetReturnValue();
 }
 
-void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf) {
-  construct_in_place<v8::SnapshotCreator>(buf);
+void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf,
+                                    const intptr_t* external_references) {
+  construct_in_place<v8::SnapshotCreator>(buf, external_references);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator& self) {
@@ -704,9 +808,22 @@ v8::Isolate* v8__SnapshotCreator__GetIsolate(v8::SnapshotCreator& self) {
   return self.GetIsolate();
 }
 
+v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
+                                        void* data) {
+  assert(data == nullptr);
+  InternalFieldData* embedder_field = static_cast<InternalFieldData*>(
+      holder->GetAlignedPointerFromInternalField(index));
+  if (embedder_field == nullptr) return {nullptr, 0};
+  int size = sizeof(*embedder_field);
+  char* payload = new char[size];
+  // We simply use memcpy to serialize the content.
+  memcpy(payload, embedder_field, size);
+  return {payload, size};
+}
+
 void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator& self,
                                             v8::Local<v8::Context> context) {
-  self.SetDefaultContext(context);
+  self.SetDefaultContext(context, SerializeInternalFields);
 }
 
 v8::StartupData v8__SnapshotCreator__CreateBlob(
