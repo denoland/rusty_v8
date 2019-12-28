@@ -61,6 +61,7 @@ mod promise;
 mod property;
 mod script;
 mod script_or_module;
+mod shared_array_buffer;
 mod snapshot;
 mod string;
 mod support;
@@ -104,6 +105,7 @@ pub use promise::{
 pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
 pub use script_or_module::ScriptOrModule;
+pub use shared_array_buffer::SharedArrayBuffer;
 pub use snapshot::{FunctionCodeHandling, SnapshotCreator, StartupData};
 pub use string::NewStringType;
 pub use string::String;

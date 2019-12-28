@@ -1491,3 +1491,52 @@ fn dynamic_import() {
   isolate.exit();
   drop(g);
 }
+
+#[test]
+fn shared_array_buffer() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let s = hs.enter();
+    let mut context = v8::Context::new(s);
+    context.enter();
+    let maybe_sab = v8::SharedArrayBuffer::new(s, 16);
+    assert!(maybe_sab.is_some());
+    let sab = maybe_sab.unwrap();
+    let mut backing_store = sab.get_backing_store();
+    let shared_buf = backing_store.data_bytes();
+    shared_buf[5] = 12;
+    shared_buf[12] = 52;
+    let global = context.global(s);
+    assert_eq!(
+      global.create_data_property(
+        context,
+        cast(v8_str(s, "shared")),
+        cast(sab)
+      ),
+      v8::MaybeBool::JustTrue
+    );
+    let source = v8::String::new(
+      s,
+      "sharedBytes = new Uint8Array(shared); sharedBytes[2] = 16; sharedBytes[14] = 62; sharedBytes[5] + sharedBytes[12]",
+    )
+    .unwrap();
+    let mut script = v8::Script::compile(s, context, source, None).unwrap();
+    source.to_rust_string_lossy(s);
+    let result = script.run(s, context).unwrap();
+    // TODO: safer casts.
+    let result: v8::Local<v8::Integer> = cast(result);
+    assert_eq!(result.value(), 64);
+    assert_eq!(shared_buf[2], 16);
+    assert_eq!(shared_buf[14], 62);
+    context.exit();
+  }
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}

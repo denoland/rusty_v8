@@ -28,6 +28,7 @@ extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
+  fn v8__BackingStore__Data(self_: &mut BackingStore) -> *mut std::ffi::c_void;
   fn v8__BackingStore__ByteLength(self_: &BackingStore) -> usize;
   fn v8__BackingStore__IsShared(self_: &BackingStore) -> bool;
   fn v8__BackingStore__DELETE(self_: &mut BackingStore);
@@ -98,11 +99,21 @@ impl Delete for Allocator {
 pub struct BackingStore([usize; 6]);
 
 impl BackingStore {
+  /// Returns a rust u8 slice with a lifetime equal to the lifetime of the BackingStore.
+  pub fn data_bytes<'a>(&'a mut self) -> &'a mut [u8] {
+    unsafe {
+      std::slice::from_raw_parts_mut::<'a, u8>(
+        v8__BackingStore__Data(self) as *mut u8,
+        self.byte_length(),
+      )
+    }
+  }
+
   /// Return a pointer to the beginning of the memory block for this backing
   /// store. The pointer is only valid as long as this backing store object
   /// lives.
-  pub fn data(&self) -> std::ffi::c_void {
-    unimplemented!()
+  pub fn data(&mut self) -> &mut std::ffi::c_void {
+    unsafe { &mut *v8__BackingStore__Data(self) }
   }
 
   /// The length (in bytes) of this backing store.
