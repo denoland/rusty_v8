@@ -86,14 +86,6 @@ where
   }
 }
 
-// impl<'sc, T> From<Local<'sc, Value>> for Local<'sc, T>
-// where
-//   T: From<Value>,
-// {
-//   fn from(v: Local<'sc, Value>) -> Local<'sc, T> {
-//     unsafe { std::mem::transmute(v) }
-//   }
-// }
 
 #[test]
 fn test_size_of_local() {
