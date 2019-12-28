@@ -1281,11 +1281,13 @@ fn shared_array_buffer() {
     let s = hs.enter();
     let mut context = v8::Context::new(s);
     context.enter();
-    let (maybe_sab, mut shared_buf) = v8::SharedArrayBuffer::new(s, 16);
-    shared_buf.bytes_mut()[5] = 12;
-    shared_buf.bytes_mut()[12] = 52;
+    let maybe_sab = v8::SharedArrayBuffer::new(s, 16);
     assert!(maybe_sab.is_some());
     let sab = maybe_sab.unwrap();
+    let mut contents = sab.get_contents();
+    let shared_buf = contents.data();
+    shared_buf[5] = 12;
+    shared_buf[12] = 52;
     let global = context.global(s);
     assert_eq!(
       global.create_data_property(
@@ -1306,8 +1308,8 @@ fn shared_array_buffer() {
     // TODO: safer casts.
     let result: v8::Local<v8::Integer> = cast(result);
     assert_eq!(result.value(), 64);
-    assert_eq!(shared_buf.bytes()[2], 16);
-    assert_eq!(shared_buf.bytes()[14], 62);
+    assert_eq!(shared_buf[2], 16);
+    assert_eq!(shared_buf[14], 62);
     context.exit();
   }
   drop(locker);
