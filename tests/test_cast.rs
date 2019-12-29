@@ -73,6 +73,5 @@ fn eval<'sc>(
 ) -> v8::Local<'sc, Value> {
   let source = v8::String::new(scope, code).unwrap();
   let mut script = v8::Script::compile(scope, context, source, None).unwrap();
-  let result = script.run(scope, context).unwrap();
-  result
+  script.run(scope, context).unwrap()
 }
