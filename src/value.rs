@@ -12,6 +12,7 @@ extern "C" {
   fn v8__Value__IsObject(this: &Value) -> bool;
   fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
   fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
+  fn v8__Value__IsBoolean(this: &Value) -> bool;
 }
 
 /// The superclass of all JavaScript values and objects.
@@ -39,6 +40,13 @@ impl Value {
   /// See ECMA-262 8.4.
   pub fn is_string(&self) -> bool {
     unsafe { v8__Value__IsString(self) }
+  }
+
+  /// Returns true if this value is boolean.
+  /// This is equivalent to `typeof value === 'boolean'` in JS.
+  /// See ECMA-262 4.3.14.
+  pub fn is_boolean(&self) -> bool {
+    unsafe { v8__Value__IsBoolean(self) }
   }
 
   /// Returns true if this value is an array. Note that it will return false for

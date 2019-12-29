@@ -2,12 +2,13 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 use crate::support::{int, Opaque};
-use crate::Context;
 use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
 use crate::ToLocal;
 use crate::Value;
+use crate::{Context, Object};
+use std::ops::Deref;
 
 pub type FunctionCallback = extern "C" fn(&FunctionCallbackInfo);
 
@@ -200,5 +201,12 @@ impl Function {
         argv_.as_mut_ptr(),
       ))
     }
+  }
+}
+
+impl Deref for Function {
+  type Target = Object;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(self as *const _ as *const Object) }
   }
 }

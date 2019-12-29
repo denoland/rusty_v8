@@ -1,4 +1,12 @@
+use crate::array_buffer_view::ArrayBufferView;
+use crate::function::Function;
+use crate::number::Integer;
+use crate::number::Number;
+use crate::object::Object;
+use crate::primitives::Boolean;
+use crate::uint8_array::Uint8Array;
 use crate::value::Value;
+use crate::String;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -85,6 +93,29 @@ where
     unsafe { std::mem::transmute(v) }
   }
 }
+
+macro_rules! into_subtype {
+  ($($child:ident),+) => {
+    $(
+      impl<'sc> From<Local<'sc, Value>> for Local<'sc, $child> {
+        fn from(child: Local<'sc, Value>) -> Local<'sc, $child> {
+            unsafe { std::mem::transmute(child) }
+        }
+      }
+    )+
+  }
+}
+
+into_subtype!(
+  String,
+  Boolean,
+  Integer,
+  Number,
+  Object,
+  ArrayBufferView,
+  Function,
+  Uint8Array
+);
 
 #[test]
 fn test_size_of_local() {

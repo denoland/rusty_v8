@@ -282,6 +282,8 @@ bool v8__Value__IsArray(const v8::Value& self) { return self.IsArray(); }
 
 bool v8__Value__IsFunction(const v8::Value& self) { return self.IsFunction(); }
 
+bool v8__Value__IsBoolean(const v8::Value& self) { return self.IsBoolean(); }
+
 bool v8__Value__StrictEquals(const v8::Value& self, v8::Value* that) {
   return self.StrictEquals(ptr_to_local(that));
 }
