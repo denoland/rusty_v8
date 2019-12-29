@@ -5,6 +5,7 @@ use rusty_v8::{
 };
 
 #[test]
+#[allow(clippy::float_cmp)]
 fn test_downcast() {
   let platform = v8::platform::new_default_platform();
   v8::V8::initialize_platform(platform);
@@ -47,9 +48,9 @@ fn test_downcast() {
     assert!(integer.is_number());
     assert_eq!(integer.value(), 66);
 
-    let number: Local<Number> = eval(scope, context, "3.14").into();
+    let number: Local<Number> = eval(scope, context, "3.5").into();
     assert!(number.is_number());
-    assert_eq!(number.value(), 3.14);
+    assert_eq!(number.value(), 3.5);
 
     let uint8array: Local<ArrayBufferView> =
         eval(scope, context, "new Uint8Array([10])").into();
@@ -68,7 +69,7 @@ fn test_downcast() {
 
 fn eval<'sc>(
   scope: &mut impl ToLocal<'sc>,
-  mut context: Local<Context>,
+  context: Local<Context>,
   code: &str,
 ) -> v8::Local<'sc, Value> {
   let source = v8::String::new(scope, code).unwrap();
