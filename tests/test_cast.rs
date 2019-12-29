@@ -33,16 +33,16 @@ fn test_downcast() {
     eval(scope, context, "var obj = { prop:'value' }");
     let obj_key = v8::String::new(scope, "obj").unwrap();
     let obj = context
-        .global(scope)
-        .get(scope, context, obj_key.into())
-        .unwrap();
+      .global(scope)
+      .get(scope, context, obj_key.into())
+      .unwrap();
     let obj: Local<Object> = obj.into();
     assert!(obj.is_object());
     let prop_key = v8::String::new(scope, "prop").unwrap();
     assert!(obj
-        .get(scope, context, prop_key.into())
-        .unwrap()
-        .is_string());
+      .get(scope, context, prop_key.into())
+      .unwrap()
+      .is_string());
 
     let integer: Local<Integer> = eval(scope, context, "66").into();
     assert!(integer.is_number());
@@ -53,7 +53,7 @@ fn test_downcast() {
     assert_eq!(number.value(), 3.5);
 
     let uint8array: Local<ArrayBufferView> =
-        eval(scope, context, "new Uint8Array([10])").into();
+      eval(scope, context, "new Uint8Array([10])").into();
     assert_eq!(uint8array.byte_length(), 1);
     assert!(uint8array.is_object());
 
