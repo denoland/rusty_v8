@@ -99,6 +99,8 @@ impl Delete for Allocator {
 #[repr(C)]
 pub struct BackingStore([usize; 6]);
 
+unsafe impl Send for BackingStore {}
+
 impl BackingStore {
   /// Returns a rust u8 slice with a lifetime equal to the lifetime of the BackingStore.
   pub fn data_bytes<'a>(&'a mut self) -> &'a mut [u8] {
@@ -200,3 +202,5 @@ impl ArrayBuffer {
     }
   }
 }
+
+unsafe impl Send for ArrayBuffer {}
