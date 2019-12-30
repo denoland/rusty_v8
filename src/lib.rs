@@ -23,7 +23,7 @@
 //!   code.to_rust_string_lossy(scope);
 //!   let mut script = v8::Script::compile(scope, context, code, None).unwrap();
 //!   let result = script.run(scope, context).unwrap();
-//!   let result: v8::Local<v8::String> = unsafe { std::mem::transmute_copy(&result) };
+//!   let result = unsafe { v8::Local::<v8::String>::cast(result) };
 //!   let str = result.to_rust_string_lossy(scope);
 //!   println!("{}", str);
 //!
