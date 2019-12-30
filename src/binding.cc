@@ -582,6 +582,12 @@ void v8__FunctionCallbackInfo__GetReturnValue(
   *out = self.GetReturnValue();
 }
 
+v8::Value* v8__FunctionCallbackInfo__GetArgument(
+    const v8::FunctionCallbackInfo<v8::Value>& self,
+    int i) {
+  return local_to_ptr(self[i]);
+}
+
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>& self,
                           v8::Local<v8::Value> value) {
   self.Set(value);
