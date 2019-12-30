@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
 use crate::support::MaybeBool;
-use crate::support::Opaque;
 use crate::Context;
 use crate::Function;
 use crate::Local;
+use crate::Promise;
+use crate::PromiseResolver;
 use crate::ToLocal;
 use crate::Value;
 
@@ -61,10 +62,6 @@ pub enum PromiseState {
   Fulfilled,
   Rejected,
 }
-
-/// An instance of the built-in Promise constructor (ES6 draft).
-#[repr(C)]
-pub struct Promise(Opaque);
 
 impl Promise {
   /// Returns the value of the [[PromiseState]] field.
@@ -141,9 +138,6 @@ impl Promise {
     }
   }
 }
-
-#[repr(C)]
-pub struct PromiseResolver(Opaque);
 
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.

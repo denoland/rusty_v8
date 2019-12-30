@@ -1,8 +1,8 @@
 use crate::support::int;
 use crate::support::MaybeBool;
-use crate::support::Opaque;
 use crate::Context;
 use crate::Local;
+use crate::Module;
 use crate::String;
 use crate::ToLocal;
 use crate::Value;
@@ -74,10 +74,6 @@ pub enum ModuleStatus {
   Evaluated,
   Errored,
 }
-
-/// A compiled JavaScript module.
-#[repr(C)]
-pub struct Module(Opaque);
 
 impl Module {
   /// Returns the module's current status.

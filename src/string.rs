@@ -6,10 +6,10 @@ use std::slice;
 
 use crate::support::char;
 use crate::support::int;
-use crate::support::Opaque;
 use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
+use crate::String;
 use crate::ToLocal;
 use crate::Value;
 
@@ -61,10 +61,6 @@ bitflags! {
     const REPLACE_INVALID_UTF8 = 8;
   }
 }
-
-/// A JavaScript string value (ECMA-262, 4.3.17).
-#[repr(C)]
-pub struct String(Opaque);
 
 impl String {
   pub fn new_from_utf8<'sc>(

@@ -1,23 +1,12 @@
 use std::ops::Deref;
 
 use crate::isolate::Isolate;
-use crate::support::Opaque;
+use crate::Boolean;
 use crate::Local;
+use crate::Name;
+use crate::Primitive;
 use crate::ToLocal;
 use crate::Value;
-
-/// The superclass of primitive values.  See ECMA-262 4.3.2.
-#[repr(C)]
-pub struct Primitive(Opaque);
-
-/// A primitive boolean value (ECMA-262, 4.3.14).  Either the true
-/// or false value.
-#[repr(C)]
-pub struct Boolean(Opaque);
-
-/// A superclass for symbols and strings.
-#[repr(C)]
-pub struct Name(Opaque);
 
 extern "C" {
   fn v8__Null(isolate: *mut Isolate) -> *mut Primitive;

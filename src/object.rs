@@ -2,16 +2,12 @@ use std::ops::Deref;
 
 use crate::isolate::Isolate;
 use crate::support::MaybeBool;
-use crate::support::Opaque;
 use crate::Context;
 use crate::Local;
 use crate::Name;
+use crate::Object;
 use crate::ToLocal;
 use crate::Value;
-
-/// A JavaScript object (ECMA-262, 4.3.3)
-#[repr(C)]
-pub struct Object(Opaque);
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *mut Object;

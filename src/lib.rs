@@ -44,6 +44,7 @@ extern crate libc;
 mod array_buffer;
 mod callback_scope;
 mod context;
+mod data;
 mod exception;
 mod external_references;
 mod function;
@@ -83,35 +84,25 @@ pub mod V8;
 pub use array_buffer::*;
 pub use callback_scope::CallbackScope;
 pub use context::Context;
+pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReferences;
-pub use function::{
-  Function, FunctionCallbackInfo, FunctionTemplate, ReturnValue,
-};
+pub use function::{FunctionCallbackInfo, ReturnValue};
 pub use global::Global;
 pub use handle_scope::{EscapableHandleScope, HandleScope, ToLocal};
 pub use isolate::*;
 pub use local::Local;
 pub use locker::Locker;
 pub use module::*;
-pub use number::{Integer, Number};
-pub use object::Object;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
-pub use promise::{
-  Promise, PromiseRejectEvent, PromiseRejectMessage, PromiseResolver,
-  PromiseState,
-};
+pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
 pub use property::PropertyCallbackInfo;
 pub use script::{Script, ScriptOrigin};
 pub use script_or_module::ScriptOrModule;
-pub use shared_array_buffer::SharedArrayBuffer;
 pub use snapshot::{FunctionCodeHandling, SnapshotCreator, StartupData};
 pub use string::NewStringType;
-pub use string::String;
 pub use support::MaybeBool;
 pub use support::SharedRef;
 pub use support::UniqueRef;
 pub use try_catch::{TryCatch, TryCatchScope};
-pub use uint8_array::Uint8Array;
-pub use value::Value;

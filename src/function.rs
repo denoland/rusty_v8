@@ -3,6 +3,8 @@ use std::mem::MaybeUninit;
 
 use crate::support::{int, Opaque};
 use crate::Context;
+use crate::Function;
+use crate::FunctionTemplate;
 use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
@@ -117,29 +119,6 @@ impl FunctionCallbackInfo {
   }
 }
 
-/// A FunctionTemplate is used to create functions at runtime. There
-/// can only be one function created from a FunctionTemplate in a
-/// context.  The lifetime of the created function is equal to the
-/// lifetime of the context.  So in case the embedder needs to create
-/// temporary functions that can be collected using Scripts is
-/// preferred.
-///
-/// Any modification of a FunctionTemplate after first instantiation will trigger
-/// a crash.
-///
-/// A FunctionTemplate can have properties, these properties are added to the
-/// function object when it is created.
-///
-/// A FunctionTemplate has a corresponding instance template which is
-/// used to create object instances when the function is used as a
-/// constructor. Properties added to the instance template are added to
-/// each object instance.
-///
-/// A FunctionTemplate can have a prototype template. The prototype template
-/// is used to create the prototype object of the function.
-#[repr(C)]
-pub struct FunctionTemplate(Opaque);
-
 impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'sc>(
@@ -162,10 +141,6 @@ impl FunctionTemplate {
     }
   }
 }
-
-/// A JavaScript function object (ECMA-262, 15.3).
-#[repr(C)]
-pub struct Function(Opaque);
 
 impl Function {
   // TODO: add remaining arguments from C++

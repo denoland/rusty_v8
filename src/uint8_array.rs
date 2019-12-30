@@ -1,8 +1,8 @@
 use std::ops::DerefMut;
 
-use crate::support::Opaque;
 use crate::ArrayBuffer;
 use crate::Local;
+use crate::Uint8Array;
 
 extern "C" {
   fn v8__Uint8Array__New(
@@ -11,10 +11,6 @@ extern "C" {
     length: usize,
   ) -> *mut Uint8Array;
 }
-
-/// An instance of Uint8Array constructor (ES6 draft 15.13.6).
-#[repr(C)]
-pub struct Uint8Array(Opaque);
 
 impl Uint8Array {
   pub fn new<'sc>(

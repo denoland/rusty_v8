@@ -1,5 +1,5 @@
-use crate::value::Value;
 use std::marker::PhantomData;
+use std::mem::transmute;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
@@ -49,6 +49,15 @@ impl<'sc, T> Clone for Local<'sc, T> {
 }
 
 impl<'sc, T> Local<'sc, T> {
+  /// Create a local handle by downcasting from one of its super types.
+  /// This function is unsafe because the cast is unchecked.
+  pub unsafe fn cast<A>(other: Local<'sc, A>) -> Self
+  where
+    Local<'sc, A>: From<Self>,
+  {
+    transmute(other)
+  }
+
   pub(crate) unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
     Some(Self(NonNull::new(ptr)?, PhantomData))
   }
@@ -75,19 +84,9 @@ impl<'sc, T> DerefMut for Local<'sc, T> {
   }
 }
 
-// TODO make it possible for targets other than Local<Value>. For example
-// Local<String> should be able to be down cast to Local<Name>.
-impl<'sc, T> From<Local<'sc, T>> for Local<'sc, Value>
-where
-  T: Deref<Target = Value>,
-{
-  fn from(v: Local<'sc, T>) -> Local<'sc, Value> {
-    unsafe { std::mem::transmute(v) }
-  }
-}
-
 #[test]
 fn test_size_of_local() {
+  use crate::Value;
   use std::mem::size_of;
   assert_eq!(size_of::<Local<Value>>(), size_of::<*const Value>());
   assert_eq!(size_of::<Option<Local<Value>>>(), size_of::<*const Value>());

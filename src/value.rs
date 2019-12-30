@@ -1,5 +1,5 @@
-use crate::support;
 use crate::Local;
+use crate::Value;
 
 extern "C" {
   fn v8__Value__IsUndefined(this: &Value) -> bool;
@@ -13,10 +13,6 @@ extern "C" {
   fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
   fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
 }
-
-/// The superclass of all JavaScript values and objects.
-#[repr(C)]
-pub struct Value(support::Opaque);
 
 impl Value {
   /// Returns true if this value is the undefined value.  See ECMA-262 4.3.10.

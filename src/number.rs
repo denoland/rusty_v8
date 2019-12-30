@@ -1,10 +1,11 @@
 use std::ops::Deref;
 
 use crate::isolate::Isolate;
-use crate::support::Opaque;
-use crate::value::Value;
+use crate::Integer;
 use crate::Local;
+use crate::Number;
 use crate::ToLocal;
+use crate::Value;
 
 extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *mut Number;
@@ -16,10 +17,6 @@ extern "C" {
   ) -> *mut Integer;
   fn v8__Integer__Value(this: *const Integer) -> i64;
 }
-
-/// A JavaScript number value (ECMA-262, 4.3.20)
-#[repr(C)]
-pub struct Number(Opaque);
 
 impl Number {
   pub fn new<'sc>(
@@ -41,10 +38,6 @@ impl Deref for Number {
     unsafe { &*(self as *const _ as *const Value) }
   }
 }
-
-/// A JavaScript value representing a signed integer.
-#[repr(C)]
-pub struct Integer(Opaque);
 
 impl Integer {
   pub fn new<'sc>(

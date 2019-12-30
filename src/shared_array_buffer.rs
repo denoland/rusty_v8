@@ -1,10 +1,10 @@
 use std::ops::Deref;
 
-use crate::support::Opaque;
 use crate::support::SharedRef;
 use crate::BackingStore;
 use crate::Isolate;
 use crate::Local;
+use crate::SharedArrayBuffer;
 use crate::ToLocal;
 use crate::Value;
 
@@ -20,11 +20,6 @@ extern "C" {
     self_: *const SharedArrayBuffer,
   ) -> SharedRef<BackingStore>;
 }
-
-/// An instance of the built-in SharedArrayBuffer constructor.
-/// This API is experimental and may change significantly.
-#[repr(C)]
-pub struct SharedArrayBuffer(Opaque);
 
 impl SharedArrayBuffer {
   /// Create a new SharedArrayBuffer. Allocate |byte_length| bytes.

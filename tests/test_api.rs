@@ -5,6 +5,7 @@ extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local, ToLocal};
+use std::convert::Into;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
@@ -165,14 +166,12 @@ fn escapable_handle_scope() {
     let scope1 = hs.enter();
     // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
-    let number_val = {
+    let number = {
       let mut hs = v8::EscapableHandleScope::new(scope1);
       let escapable_scope = hs.enter();
-      let number: Local<v8::Value> =
-        cast(v8::Number::new(escapable_scope, 78.9));
+      let number = v8::Number::new(escapable_scope, 78.9);
       escapable_scope.escape(number)
     };
-    let number: Local<v8::Number> = cast(number_val);
     assert_eq!(number.value(), 78.9);
 
     let string = {
@@ -457,7 +456,7 @@ fn set_host_initialize_import_meta_object_callback() {
     let scope = hs.enter();
     let key = v8::String::new(scope, "foo").unwrap();
     let value = v8::String::new(scope, "bar").unwrap();
-    meta.create_data_property(context, cast(key), value.into());
+    meta.create_data_property(context, key.into(), value.into());
   }
   isolate.set_host_initialize_import_meta_object_callback(callback);
 
@@ -475,7 +474,7 @@ fn set_host_initialize_import_meta_object_callback() {
     assert!(result.is_some());
     let meta = module.evaluate(s, context).unwrap();
     assert!(meta.is_object());
-    let meta: Local<v8::Object> = cast(meta);
+    let meta = unsafe { Local::<v8::Object>::cast(meta) };
     let key = v8::String::new(s, "foo").unwrap();
     let expected = v8::String::new(s, "bar").unwrap();
     let actual = meta.get(s, context, key.into()).unwrap();
@@ -698,12 +697,6 @@ fn json() {
   drop(locker);
 }
 
-// TODO Safer casts https://github.com/denoland/rusty_v8/issues/51
-fn cast<U, T>(local: v8::Local<T>) -> v8::Local<U> {
-  let cast_local: v8::Local<U> = unsafe { std::mem::transmute_copy(&local) };
-  cast_local
-}
-
 #[test]
 fn object() {
   setup();
@@ -719,8 +712,8 @@ fn object() {
     let null: v8::Local<v8::Value> = new_null(scope).into();
     let s1 = v8::String::new(scope, "a").unwrap();
     let s2 = v8::String::new(scope, "b").unwrap();
-    let name1: Local<v8::Name> = cast(s1);
-    let name2: Local<v8::Name> = cast(s2);
+    let name1 = s1.into();
+    let name2 = s2.into();
     let names = vec![name1, name2];
     let v1: v8::Local<v8::Value> = v8::Number::new(scope, 1.0).into();
     let v2: v8::Local<v8::Value> = v8::Number::new(scope, 2.0).into();
@@ -757,22 +750,22 @@ fn create_data_property() {
       .get(scope, context, key.into())
       .unwrap();
     assert!(obj.is_object());
-    let obj: Local<v8::Object> = cast(obj);
+    let obj = unsafe { Local::<v8::Object>::cast(obj) };
     let key = v8_str(scope, "foo");
     let value = v8_str(scope, "bar");
     assert_eq!(
-      obj.create_data_property(context, cast(key), cast(value)),
+      obj.create_data_property(context, key.into(), value.into()),
       v8::MaybeBool::JustTrue
     );
-    let actual = obj.get(scope, context, cast(key)).unwrap();
+    let actual = obj.get(scope, context, key.into()).unwrap();
     assert!(value.strict_equals(actual));
 
     let key2 = v8_str(scope, "foo2");
     assert_eq!(
-      obj.set(context, cast(key2), cast(value)),
+      obj.set(context, key2.into(), value.into()),
       v8::MaybeBool::JustTrue
     );
-    let actual = obj.get(scope, context, cast(key2)).unwrap();
+    let actual = obj.get(scope, context, key2.into()).unwrap();
     assert!(value.strict_equals(actual));
 
     context.exit();
@@ -798,20 +791,18 @@ fn promise_resolved() {
     let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str = v8::String::new(scope, "test").unwrap();
-    let value: Local<v8::Value> = cast(str);
-    resolver.resolve(context, value);
+    let value = v8::String::new(scope, "test").unwrap();
+    resolver.resolve(context, value.into());
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
-    let result_str: v8::Local<v8::String> = cast(result);
+    let result_str = unsafe { Local::<v8::String>::cast(result) };
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in `Fulfilled` state
     // it should be ignored.
-    let str = v8::String::new(scope, "test2").unwrap();
-    let value: Local<v8::Value> = cast(str);
-    resolver.resolve(context, value);
+    let value = v8::String::new(scope, "test2").unwrap();
+    resolver.resolve(context, value.into());
     let result = promise.result(scope);
-    let result_str: v8::Local<v8::String> = cast(result);
+    let result_str = unsafe { Local::<v8::String>::cast(result) };
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   }
@@ -836,21 +827,19 @@ fn promise_rejected() {
     let mut promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
-    let str = v8::String::new(scope, "test").unwrap();
-    let value: Local<v8::Value> = cast(str);
-    let rejected = resolver.reject(context, value);
+    let value = v8::String::new(scope, "test").unwrap();
+    let rejected = resolver.reject(context, value.into());
     assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
-    let result_str: v8::Local<v8::String> = cast(result);
+    let result_str = unsafe { Local::<v8::String>::cast(result) };
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Reject again with different value, since promise is already in `Rejected` state
     // it should be ignored.
-    let str = v8::String::new(scope, "test2").unwrap();
-    let value: Local<v8::Value> = cast(str);
-    resolver.reject(context, value);
+    let value = v8::String::new(scope, "test2").unwrap();
+    resolver.reject(context, value.into());
     let result = promise.result(scope);
-    let result_str: v8::Local<v8::String> = cast(result);
+    let result_str = unsafe { Local::<v8::String>::cast(result) };
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   }
@@ -904,7 +893,7 @@ fn function() {
     let maybe_value =
       v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
     let value = maybe_value.unwrap();
-    let value_str: v8::Local<v8::String> = cast(value);
+    let value_str = unsafe { Local::<v8::String>::cast(value) };
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "Hello callback!".to_string());
     context.exit();
@@ -917,14 +906,14 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
   let mut promise = msg.get_promise();
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
-  let mut promise_obj: v8::Local<v8::Object> = cast(promise);
+  let mut promise_obj: Local<v8::Object> = promise.into();
   let isolate = promise_obj.get_isolate();
   let value = msg.get_value();
   let mut locker = v8::Locker::new(isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
-    let value_str: v8::Local<v8::String> = cast(value);
+    let value_str = unsafe { Local::<v8::String>::cast(value) };
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "promise rejected".to_string());
   }
@@ -946,9 +935,8 @@ fn set_promise_reject_callback() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let mut resolver = v8::PromiseResolver::new(scope, context).unwrap();
-    let str_ = v8::String::new(scope, "promise rejected").unwrap();
-    let value: Local<v8::Value> = cast(str_);
-    resolver.reject(context, value);
+    let value = v8::String::new(scope, "promise rejected").unwrap();
+    resolver.reject(context, value.into());
     context.exit();
   }
   drop(locker);
@@ -1109,7 +1097,7 @@ fn compile_specifier_as_module_resolve_callback(
   let source = v8::script_compiler::Source::new(specifier, &origin);
   let module =
     v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
-  &mut *cast(scope.escape(module))
+  &mut *scope.escape(module)
 }
 
 #[test]
@@ -1185,12 +1173,12 @@ fn primitive_array() {
     }
 
     let string = v8_str(scope, "test");
-    array.set(scope, 1, cast(string));
+    array.set(scope, 1, string.into());
     assert!(array.get(scope, 0).is_undefined());
     assert!(array.get(scope, 1).is_string());
 
     let num = v8::Number::new(scope, 0.42);
-    array.set(scope, 2, cast(num));
+    array.set(scope, 2, num.into());
     assert!(array.get(scope, 0).is_undefined());
     assert!(array.get(scope, 1).is_string());
     assert!(array.get(scope, 2).is_number());
@@ -1257,8 +1245,7 @@ fn array_buffer_view() {
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
-    let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
-      cast(result);
+    let result = unsafe { Local::<v8::ArrayBufferView>::cast(result) };
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1323,7 +1310,7 @@ fn snapshot_creator() {
       let mut script =
         v8::Script::compile(scope, context, source, None).unwrap();
       let result = script.run(scope, context).unwrap();
-      let true_val: Local<v8::Value> = cast(v8::new_true(scope));
+      let true_val = v8::new_true(scope).into();
       assert!(result.same_value(true_val));
       context.exit();
     }
@@ -1363,7 +1350,7 @@ fn external_references() {
         .expect("Unable to create function");
 
       let global = context.global(scope);
-      global.set(context, cast(v8_str(scope, "F")), cast(function));
+      global.set(context, v8_str(scope, "F").into(), function.into());
 
       snapshot_creator.set_default_context(context);
 
@@ -1426,8 +1413,7 @@ fn uint8_array() {
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
-    let result: v8::Local<v8::array_buffer_view::ArrayBufferView> =
-      cast(result);
+    let result = unsafe { Local::<v8::ArrayBufferView>::cast(result) };
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1520,8 +1506,8 @@ fn shared_array_buffer() {
     assert_eq!(
       global.create_data_property(
         context,
-        cast(v8_str(s, "shared")),
-        cast(sab)
+        v8_str(s, "shared").into(),
+        sab.into()
       ),
       v8::MaybeBool::JustTrue
     );
@@ -1534,7 +1520,7 @@ fn shared_array_buffer() {
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
     // TODO: safer casts.
-    let result: v8::Local<v8::Integer> = cast(result);
+    let result = unsafe { Local::<v8::Integer>::cast(result) };
     assert_eq!(result.value(), 64);
     assert_eq!(shared_buf[2], 16);
     assert_eq!(shared_buf[14], 62);

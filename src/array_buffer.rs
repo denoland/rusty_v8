@@ -4,6 +4,7 @@ use crate::support::Opaque;
 use crate::support::Shared;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
+use crate::ArrayBuffer;
 use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
@@ -145,10 +146,6 @@ impl Shared for BackingStore {
     unsafe { std__shared_ptr__v8__BackingStore__use_count(ptr) }
   }
 }
-
-/// An instance of the built-in ArrayBuffer constructor (ES6 draft 15.13.5).
-#[repr(C)]
-pub struct ArrayBuffer(Opaque);
 
 impl ArrayBuffer {
   /// Create a new ArrayBuffer. Allocate |byte_length| bytes.

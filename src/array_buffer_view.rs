@@ -2,8 +2,8 @@ use std::convert::TryInto;
 use std::ops::Deref;
 
 use crate::support::int;
-use crate::support::Opaque;
 use crate::ArrayBuffer;
+use crate::ArrayBufferView;
 use crate::Local;
 use crate::Object;
 
@@ -19,11 +19,6 @@ extern "C" {
     byte_length: int,
   ) -> usize;
 }
-
-/// A base class for an instance of one of "views" over ArrayBuffer,
-/// including TypedArrays and DataView (ES6 draft 15.13).
-#[repr(C)]
-pub struct ArrayBufferView(Opaque);
 
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
