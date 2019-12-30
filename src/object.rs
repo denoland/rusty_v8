@@ -44,7 +44,7 @@ extern "C" {
 }
 
 impl Object {
-  /// Creates a new empty object.
+  /// Creates an empty object.
   pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Object> {
     let ptr = unsafe { v8__Object__New(scope.isolate()) };
     unsafe { scope.to_local(ptr) }.unwrap()
