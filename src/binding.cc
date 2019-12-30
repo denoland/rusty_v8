@@ -335,9 +335,7 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(self.GetBackingStore());
 }
 
-void* v8__BackingStore__Data(v8::BackingStore& self) {
-  return self.Data();
-}
+void* v8__BackingStore__Data(v8::BackingStore& self) { return self.Data(); }
 
 size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
   return self.ByteLength();
@@ -382,10 +380,14 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
-v8::Object* v8__Object__New(v8::Isolate* isolate,
-                            v8::Local<v8::Value> prototype_or_null,
-                            v8::Local<v8::Name>* names,
-                            v8::Local<v8::Value>* values, size_t length) {
+v8::Object* v8__Object__New(v8::Isolate* isolate) {
+  return local_to_ptr(v8::Object::New(isolate));
+}
+
+v8::Object* v8__Object__New2(v8::Isolate* isolate,
+                             v8::Local<v8::Value> prototype_or_null,
+                             v8::Local<v8::Name>* names,
+                             v8::Local<v8::Value>* values, size_t length) {
   return local_to_ptr(
       v8::Object::New(isolate, prototype_or_null, names, values, length));
 }
@@ -686,7 +688,8 @@ v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
   return local_to_ptr(self.GetHostDefinedOptions());
 }
 
-v8::SharedArrayBuffer* v8__SharedArrayBuffer__New(v8::Isolate* isolate, size_t byte_length) {
+v8::SharedArrayBuffer* v8__SharedArrayBuffer__New(v8::Isolate* isolate,
+                                                  size_t byte_length) {
   return local_to_ptr(v8::SharedArrayBuffer::New(isolate, byte_length));
 }
 
@@ -694,7 +697,8 @@ size_t v8__SharedArrayBuffer__ByteLength(v8::SharedArrayBuffer& self) {
   return self.ByteLength();
 }
 
-two_pointers_t v8__SharedArrayBuffer__GetBackingStore(v8::SharedArrayBuffer& self) {
+two_pointers_t v8__SharedArrayBuffer__GetBackingStore(
+    v8::SharedArrayBuffer& self) {
   return make_pod<two_pointers_t>(self.GetBackingStore());
 }
 
