@@ -169,6 +169,8 @@ where
   }
 }
 
+unsafe impl<T> Send for SharedRef<T> where T: Shared + Send {}
+
 impl<T> Deref for SharedRef<T>
 where
   T: Shared,
