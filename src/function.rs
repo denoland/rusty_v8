@@ -43,6 +43,10 @@ extern "C" {
     info: &FunctionCallbackInfo,
     out: *mut ReturnValue,
   );
+  fn v8__FunctionCallbackInfo__GetArgument(
+    info: &FunctionCallbackInfo,
+    i: int,
+  ) -> *mut Value;
 
   fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *mut Value);
   fn v8__ReturnValue__Get(rv: &ReturnValue) -> *mut Value;
@@ -116,6 +120,11 @@ impl FunctionCallbackInfo {
   /// The number of available arguments.
   pub fn length(&self) -> int {
     unsafe { v8__FunctionCallbackInfo__Length(self) }
+  }
+
+  /// Accessor for the available arguments.
+  pub fn get_argument<'sc>(&mut self, i: int) -> Local<'sc, Value> {
+    unsafe { Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self, i)).unwrap() }
   }
 }
 
