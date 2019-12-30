@@ -202,5 +202,3 @@ impl ArrayBuffer {
     }
   }
 }
-
-unsafe impl Send for ArrayBuffer {}
