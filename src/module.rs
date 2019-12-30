@@ -24,8 +24,7 @@ extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
   fn v8__Module__GetException(this: *const Module) -> *mut Value;
   fn v8__Module__GetModuleRequestsLength(this: *const Module) -> int;
-  fn v8__Module__GetModuleRequest(this: *const Module, i: usize)
-    -> *mut String;
+  fn v8__Module__GetModuleRequest(this: *const Module, i: int) -> *mut String;
   fn v8__Module__GetModuleRequestLocation(
     this: *const Module,
     i: usize,
@@ -87,14 +86,16 @@ impl Module {
   }
 
   /// Returns the number of modules requested by this module.
-  pub fn get_module_requests_length(&self) -> int {
-    unsafe { v8__Module__GetModuleRequestsLength(self) }
+  pub fn get_module_requests_length(&self) -> usize {
+    unsafe { v8__Module__GetModuleRequestsLength(self) as usize }
   }
 
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
   pub fn get_module_request(&self, i: usize) -> Local<String> {
-    unsafe { Local::from_raw(v8__Module__GetModuleRequest(self, i)).unwrap() }
+    unsafe {
+      Local::from_raw(v8__Module__GetModuleRequest(self, i as int)).unwrap()
+    }
   }
 
   /// Returns the source location (line number and column number) of the ith
