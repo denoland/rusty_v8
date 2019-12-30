@@ -865,6 +865,40 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
   }
 }
 
+extern "C" fn fn_callback2(info: &FunctionCallbackInfo) {
+  #[allow(mutable_transmutes)]
+  #[allow(clippy::transmute_ptr_to_ptr)]
+  let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
+  assert_eq!(info.length(), 2);
+  let isolate = info.get_isolate();
+  let mut locker = v8::Locker::new(&isolate);
+  let arg1 = info.get_argument(0);
+  let arg2 = info.get_argument(1);
+  let rv = &mut info.get_return_value();
+
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let arg1_val = v8::String::new(scope, "arg1").unwrap();
+    assert!(arg1.is_string());
+    assert!(arg1.strict_equals(arg1_val.into()));
+
+    let arg2_val = v8::Integer::new(scope, 2);
+    assert!(arg2.is_number());
+    assert!(arg2.strict_equals(arg2_val.into()));
+
+    let s = v8::String::new(scope, "Hello callback!").unwrap();
+    let value: Local<v8::Value> = s.into();
+    let rv_value = rv.get(scope);
+    assert!(rv_value.is_undefined());
+    rv.set(value);
+    context.exit();
+  }
+}
+
 #[test]
 fn function() {
   setup();
@@ -888,10 +922,18 @@ fn function() {
     let _value =
       v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
     // create function without a template
-    let mut function = v8::Function::new(scope, context, fn_callback)
+    let mut function = v8::Function::new(scope, context, fn_callback2)
       .expect("Unable to create function");
-    let maybe_value =
-      v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
+    let arg1 = v8::String::new(scope, "arg1").unwrap();
+    let arg2 = v8::Integer::new(scope, 2);
+    let maybe_value = v8::Function::call(
+      &mut *function,
+      scope,
+      context,
+      recv,
+      2,
+      vec![arg1.into(), arg2.into()],
+    );
     let value = maybe_value.unwrap();
     let value_str = unsafe { Local::<v8::String>::cast(value) };
     let rust_str = value_str.to_rust_string_lossy(scope);
