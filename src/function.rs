@@ -124,7 +124,9 @@ impl FunctionCallbackInfo {
 
   /// Accessor for the available arguments.
   pub fn get_argument<'sc>(&mut self, i: int) -> Local<'sc, Value> {
-    unsafe { Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self, i)).unwrap() }
+    unsafe {
+      Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self, i)).unwrap()
+    }
   }
 }
 
