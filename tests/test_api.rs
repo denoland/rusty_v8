@@ -725,8 +725,12 @@ fn object() {
     let v1: v8::Local<v8::Value> = v8::Number::new(scope, 1.0).into();
     let v2: v8::Local<v8::Value> = v8::Number::new(scope, 2.0).into();
     let values = vec![v1, v2];
-    let object = v8::Object::new(scope, null, names, values, 2);
+    let object = v8::Object::new2(scope, null, names, values);
     assert!(!object.is_null_or_undefined());
+
+    let object_ = v8::Object::new(scope);
+    assert!(!object_.is_null_or_undefined());
+
     context.exit();
   }
   drop(locker);
