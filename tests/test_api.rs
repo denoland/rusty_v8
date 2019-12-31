@@ -1438,6 +1438,22 @@ fn external_references() {
 }
 
 #[test]
+fn startup_data() {
+  let data1 = b"abcd";
+  let sd1 = v8::StartupData::new(data1);
+  assert_eq!(&*sd1, data1);
+
+  let data2 = b"defg";
+  let vec2 = Vec::from(&data2[..]);
+  let sd2 = v8::StartupData::new(&vec2);
+  assert_eq!(&*sd2, data2);
+
+  let data3 = b"hijk";
+  let sd3 = Box::new(v8::StartupData::new(data3));
+  assert_eq!(&**sd3, data3);
+}
+
+#[test]
 fn uint8_array() {
   let g = setup();
   let mut params = v8::Isolate::create_params();

@@ -336,7 +336,7 @@ impl CreateParams {
   /// - The call will abort if the data is invalid.
   pub fn set_snapshot_blob(&mut self, snapshot_blob: &mut StartupData) {
     unsafe {
-      v8__Isolate__CreateParams__SET__snapshot_blob(self, &mut *snapshot_blob)
+      v8__Isolate__CreateParams__SET__snapshot_blob(self, snapshot_blob)
     };
   }
 }

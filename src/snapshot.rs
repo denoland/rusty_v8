@@ -1,12 +1,15 @@
+use std::borrow::Borrow;
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::ops::DerefMut;
+
 use crate::external_references::ExternalReferences;
 use crate::support::int;
 use crate::support::intptr_t;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
-use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ops::DerefMut;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
@@ -20,7 +23,7 @@ extern "C" {
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
     function_code_handling: FunctionCodeHandling,
-  ) -> StartupData;
+  ) -> OwnedStartupData;
   fn v8__SnapshotCreator__SetDefaultContext(
     this: &mut SnapshotCreator,
     context: *mut Context,
@@ -28,29 +31,53 @@ extern "C" {
   fn v8__StartupData__DESTRUCT(this: &mut StartupData);
 }
 
-#[derive(Debug)]
 #[repr(C)]
-pub struct StartupData {
-  data: *mut u8,
+pub struct StartupData<'a> {
+  data: *const u8,
   raw_size: int,
+  _phantom: PhantomData<&'a [u8]>,
 }
 
-impl Deref for StartupData {
+impl<'a> StartupData<'a> {
+  pub fn new<D>(data: &'a D) -> Self
+  where
+    D: Borrow<[u8]>,
+  {
+    let data = data.borrow();
+    Self {
+      data: data.as_ptr(),
+      raw_size: data.len() as int,
+      _phantom: PhantomData,
+    }
+  }
+}
+
+impl<'a> Deref for StartupData<'a> {
   type Target = [u8];
   fn deref(&self) -> &Self::Target {
     unsafe { std::slice::from_raw_parts(self.data, self.raw_size as usize) }
   }
 }
 
-impl DerefMut for StartupData {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { std::slice::from_raw_parts_mut(self.data, self.raw_size as usize) }
+#[repr(transparent)]
+pub struct OwnedStartupData(StartupData<'static>);
+
+impl Deref for OwnedStartupData {
+  type Target = StartupData<'static>;
+  fn deref(&self) -> &Self::Target {
+    &self.0
   }
 }
 
-impl Drop for StartupData {
+impl DerefMut for OwnedStartupData {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
+  }
+}
+
+impl Drop for OwnedStartupData {
   fn drop(&mut self) {
-    unsafe { v8__StartupData__DESTRUCT(self) }
+    unsafe { v8__StartupData__DESTRUCT(&mut self.0) }
   }
 }
 
@@ -103,7 +130,7 @@ impl SnapshotCreator {
   pub fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,
-  ) -> Option<StartupData> {
+  ) -> Option<OwnedStartupData> {
     let blob =
       unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {
