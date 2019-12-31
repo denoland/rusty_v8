@@ -17,6 +17,17 @@ macro_rules! impl_from {
   };
 }
 
+macro_rules! impl_deref {
+  ($a:ident, $b:ident) => {
+    impl Deref for $a {
+      type Target = $b;
+      fn deref(&self) -> &Self::Target {
+        unsafe { &*(self as *const _ as *const Self::Target) }
+      }
+    }
+  };
+}
+
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
 pub struct Data(Opaque);
@@ -26,26 +37,14 @@ pub struct Data(Opaque);
 #[repr(C)]
 pub struct AccessorSignature(Opaque);
 
-impl Deref for AccessorSignature {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(AccessorSignature, Data);
 impl_from!(AccessorSignature, Data);
 
 /// A compiled JavaScript module.
 #[repr(C)]
 pub struct Module(Opaque);
 
-impl Deref for Module {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Module, Data);
 impl_from!(Module, Data);
 
 /// A private symbol
@@ -54,13 +53,7 @@ impl_from!(Module, Data);
 #[repr(C)]
 pub struct Private(Opaque);
 
-impl Deref for Private {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Private, Data);
 impl_from!(Private, Data);
 
 /// A Signature specifies which receiver is valid for a function.
@@ -72,26 +65,14 @@ impl_from!(Private, Data);
 #[repr(C)]
 pub struct Signature(Opaque);
 
-impl Deref for Signature {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Signature, Data);
 impl_from!(Signature, Data);
 
 /// The superclass of object and function templates.
 #[repr(C)]
 pub struct Template(Opaque);
 
-impl Deref for Template {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Template, Data);
 impl_from!(Template, Data);
 
 /// A FunctionTemplate is used to create functions at runtime. There
@@ -195,13 +176,7 @@ impl_from!(Template, Data);
 #[repr(C)]
 pub struct FunctionTemplate(Opaque);
 
-impl Deref for FunctionTemplate {
-  type Target = Template;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(FunctionTemplate, Template);
 impl_from!(FunctionTemplate, Data);
 impl_from!(FunctionTemplate, Template);
 
@@ -212,13 +187,7 @@ impl_from!(FunctionTemplate, Template);
 #[repr(C)]
 pub struct ObjectTemplate(Opaque);
 
-impl Deref for ObjectTemplate {
-  type Target = Template;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(ObjectTemplate, Template);
 impl_from!(ObjectTemplate, Data);
 impl_from!(ObjectTemplate, Template);
 
@@ -226,26 +195,14 @@ impl_from!(ObjectTemplate, Template);
 #[repr(C)]
 pub struct UnboundModuleScript(Opaque);
 
-impl Deref for UnboundModuleScript {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(UnboundModuleScript, Data);
 impl_from!(UnboundModuleScript, Data);
 
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
 pub struct Value(Opaque);
 
-impl Deref for Value {
-  type Target = Data;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Value, Data);
 impl_from!(Value, Data);
 
 /// A JavaScript value that wraps a C++ void*. This type of value is mainly used
@@ -253,13 +210,7 @@ impl_from!(Value, Data);
 #[repr(C)]
 pub struct External(Opaque);
 
-impl Deref for External {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(External, Value);
 impl_from!(External, Data);
 impl_from!(External, Value);
 
@@ -267,13 +218,7 @@ impl_from!(External, Value);
 #[repr(C)]
 pub struct Object(Opaque);
 
-impl Deref for Object {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Object, Value);
 impl_from!(Object, Data);
 impl_from!(Object, Value);
 
@@ -281,13 +226,7 @@ impl_from!(Object, Value);
 #[repr(C)]
 pub struct Array(Opaque);
 
-impl Deref for Array {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Array, Object);
 impl_from!(Array, Data);
 impl_from!(Array, Value);
 impl_from!(Array, Object);
@@ -296,13 +235,7 @@ impl_from!(Array, Object);
 #[repr(C)]
 pub struct ArrayBuffer(Opaque);
 
-impl Deref for ArrayBuffer {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(ArrayBuffer, Object);
 impl_from!(ArrayBuffer, Data);
 impl_from!(ArrayBuffer, Value);
 impl_from!(ArrayBuffer, Object);
@@ -312,13 +245,7 @@ impl_from!(ArrayBuffer, Object);
 #[repr(C)]
 pub struct ArrayBufferView(Opaque);
 
-impl Deref for ArrayBufferView {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(ArrayBufferView, Object);
 impl_from!(ArrayBufferView, Data);
 impl_from!(ArrayBufferView, Value);
 impl_from!(ArrayBufferView, Object);
@@ -327,13 +254,7 @@ impl_from!(ArrayBufferView, Object);
 #[repr(C)]
 pub struct DataView(Opaque);
 
-impl Deref for DataView {
-  type Target = ArrayBufferView;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(DataView, ArrayBufferView);
 impl_from!(DataView, Data);
 impl_from!(DataView, Value);
 impl_from!(DataView, Object);
@@ -344,13 +265,7 @@ impl_from!(DataView, ArrayBufferView);
 #[repr(C)]
 pub struct TypedArray(Opaque);
 
-impl Deref for TypedArray {
-  type Target = ArrayBufferView;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(TypedArray, ArrayBufferView);
 impl_from!(TypedArray, Data);
 impl_from!(TypedArray, Value);
 impl_from!(TypedArray, Object);
@@ -360,13 +275,7 @@ impl_from!(TypedArray, ArrayBufferView);
 #[repr(C)]
 pub struct BigInt64Array(Opaque);
 
-impl Deref for BigInt64Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(BigInt64Array, TypedArray);
 impl_from!(BigInt64Array, Data);
 impl_from!(BigInt64Array, Value);
 impl_from!(BigInt64Array, Object);
@@ -377,13 +286,7 @@ impl_from!(BigInt64Array, TypedArray);
 #[repr(C)]
 pub struct BigUint64Array(Opaque);
 
-impl Deref for BigUint64Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(BigUint64Array, TypedArray);
 impl_from!(BigUint64Array, Data);
 impl_from!(BigUint64Array, Value);
 impl_from!(BigUint64Array, Object);
@@ -394,13 +297,7 @@ impl_from!(BigUint64Array, TypedArray);
 #[repr(C)]
 pub struct Float32Array(Opaque);
 
-impl Deref for Float32Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Float32Array, TypedArray);
 impl_from!(Float32Array, Data);
 impl_from!(Float32Array, Value);
 impl_from!(Float32Array, Object);
@@ -411,13 +308,7 @@ impl_from!(Float32Array, TypedArray);
 #[repr(C)]
 pub struct Float64Array(Opaque);
 
-impl Deref for Float64Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Float64Array, TypedArray);
 impl_from!(Float64Array, Data);
 impl_from!(Float64Array, Value);
 impl_from!(Float64Array, Object);
@@ -428,13 +319,7 @@ impl_from!(Float64Array, TypedArray);
 #[repr(C)]
 pub struct Int16Array(Opaque);
 
-impl Deref for Int16Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Int16Array, TypedArray);
 impl_from!(Int16Array, Data);
 impl_from!(Int16Array, Value);
 impl_from!(Int16Array, Object);
@@ -445,13 +330,7 @@ impl_from!(Int16Array, TypedArray);
 #[repr(C)]
 pub struct Int32Array(Opaque);
 
-impl Deref for Int32Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Int32Array, TypedArray);
 impl_from!(Int32Array, Data);
 impl_from!(Int32Array, Value);
 impl_from!(Int32Array, Object);
@@ -462,13 +341,7 @@ impl_from!(Int32Array, TypedArray);
 #[repr(C)]
 pub struct Int8Array(Opaque);
 
-impl Deref for Int8Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Int8Array, TypedArray);
 impl_from!(Int8Array, Data);
 impl_from!(Int8Array, Value);
 impl_from!(Int8Array, Object);
@@ -479,13 +352,7 @@ impl_from!(Int8Array, TypedArray);
 #[repr(C)]
 pub struct Uint16Array(Opaque);
 
-impl Deref for Uint16Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Uint16Array, TypedArray);
 impl_from!(Uint16Array, Data);
 impl_from!(Uint16Array, Value);
 impl_from!(Uint16Array, Object);
@@ -496,13 +363,7 @@ impl_from!(Uint16Array, TypedArray);
 #[repr(C)]
 pub struct Uint32Array(Opaque);
 
-impl Deref for Uint32Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Uint32Array, TypedArray);
 impl_from!(Uint32Array, Data);
 impl_from!(Uint32Array, Value);
 impl_from!(Uint32Array, Object);
@@ -513,13 +374,7 @@ impl_from!(Uint32Array, TypedArray);
 #[repr(C)]
 pub struct Uint8Array(Opaque);
 
-impl Deref for Uint8Array {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Uint8Array, TypedArray);
 impl_from!(Uint8Array, Data);
 impl_from!(Uint8Array, Value);
 impl_from!(Uint8Array, Object);
@@ -530,13 +385,7 @@ impl_from!(Uint8Array, TypedArray);
 #[repr(C)]
 pub struct Uint8ClampedArray(Opaque);
 
-impl Deref for Uint8ClampedArray {
-  type Target = TypedArray;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Uint8ClampedArray, TypedArray);
 impl_from!(Uint8ClampedArray, Data);
 impl_from!(Uint8ClampedArray, Value);
 impl_from!(Uint8ClampedArray, Object);
@@ -547,13 +396,7 @@ impl_from!(Uint8ClampedArray, TypedArray);
 #[repr(C)]
 pub struct BigIntObject(Opaque);
 
-impl Deref for BigIntObject {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(BigIntObject, Object);
 impl_from!(BigIntObject, Data);
 impl_from!(BigIntObject, Value);
 impl_from!(BigIntObject, Object);
@@ -562,13 +405,7 @@ impl_from!(BigIntObject, Object);
 #[repr(C)]
 pub struct BooleanObject(Opaque);
 
-impl Deref for BooleanObject {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(BooleanObject, Object);
 impl_from!(BooleanObject, Data);
 impl_from!(BooleanObject, Value);
 impl_from!(BooleanObject, Object);
@@ -577,13 +414,7 @@ impl_from!(BooleanObject, Object);
 #[repr(C)]
 pub struct Date(Opaque);
 
-impl Deref for Date {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Date, Object);
 impl_from!(Date, Data);
 impl_from!(Date, Value);
 impl_from!(Date, Object);
@@ -594,13 +425,7 @@ impl_from!(Date, Object);
 #[repr(C)]
 pub struct FinalizationGroup(Opaque);
 
-impl Deref for FinalizationGroup {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(FinalizationGroup, Object);
 impl_from!(FinalizationGroup, Data);
 impl_from!(FinalizationGroup, Value);
 impl_from!(FinalizationGroup, Object);
@@ -609,13 +434,7 @@ impl_from!(FinalizationGroup, Object);
 #[repr(C)]
 pub struct Function(Opaque);
 
-impl Deref for Function {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Function, Object);
 impl_from!(Function, Data);
 impl_from!(Function, Value);
 impl_from!(Function, Object);
@@ -624,13 +443,7 @@ impl_from!(Function, Object);
 #[repr(C)]
 pub struct Map(Opaque);
 
-impl Deref for Map {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Map, Object);
 impl_from!(Map, Data);
 impl_from!(Map, Value);
 impl_from!(Map, Object);
@@ -639,13 +452,7 @@ impl_from!(Map, Object);
 #[repr(C)]
 pub struct NumberObject(Opaque);
 
-impl Deref for NumberObject {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(NumberObject, Object);
 impl_from!(NumberObject, Data);
 impl_from!(NumberObject, Value);
 impl_from!(NumberObject, Object);
@@ -654,13 +461,7 @@ impl_from!(NumberObject, Object);
 #[repr(C)]
 pub struct Promise(Opaque);
 
-impl Deref for Promise {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Promise, Object);
 impl_from!(Promise, Data);
 impl_from!(Promise, Value);
 impl_from!(Promise, Object);
@@ -668,13 +469,7 @@ impl_from!(Promise, Object);
 #[repr(C)]
 pub struct PromiseResolver(Opaque);
 
-impl Deref for PromiseResolver {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(PromiseResolver, Object);
 impl_from!(PromiseResolver, Data);
 impl_from!(PromiseResolver, Value);
 impl_from!(PromiseResolver, Object);
@@ -684,13 +479,7 @@ impl_from!(PromiseResolver, Object);
 #[repr(C)]
 pub struct Proxy(Opaque);
 
-impl Deref for Proxy {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Proxy, Object);
 impl_from!(Proxy, Data);
 impl_from!(Proxy, Value);
 impl_from!(Proxy, Object);
@@ -699,13 +488,7 @@ impl_from!(Proxy, Object);
 #[repr(C)]
 pub struct RegExp(Opaque);
 
-impl Deref for RegExp {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(RegExp, Object);
 impl_from!(RegExp, Data);
 impl_from!(RegExp, Value);
 impl_from!(RegExp, Object);
@@ -714,13 +497,7 @@ impl_from!(RegExp, Object);
 #[repr(C)]
 pub struct Set(Opaque);
 
-impl Deref for Set {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Set, Object);
 impl_from!(Set, Data);
 impl_from!(Set, Value);
 impl_from!(Set, Object);
@@ -730,13 +507,7 @@ impl_from!(Set, Object);
 #[repr(C)]
 pub struct SharedArrayBuffer(Opaque);
 
-impl Deref for SharedArrayBuffer {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(SharedArrayBuffer, Object);
 impl_from!(SharedArrayBuffer, Data);
 impl_from!(SharedArrayBuffer, Value);
 impl_from!(SharedArrayBuffer, Object);
@@ -745,13 +516,7 @@ impl_from!(SharedArrayBuffer, Object);
 #[repr(C)]
 pub struct StringObject(Opaque);
 
-impl Deref for StringObject {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(StringObject, Object);
 impl_from!(StringObject, Data);
 impl_from!(StringObject, Value);
 impl_from!(StringObject, Object);
@@ -760,13 +525,7 @@ impl_from!(StringObject, Object);
 #[repr(C)]
 pub struct SymbolObject(Opaque);
 
-impl Deref for SymbolObject {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(SymbolObject, Object);
 impl_from!(SymbolObject, Data);
 impl_from!(SymbolObject, Value);
 impl_from!(SymbolObject, Object);
@@ -774,13 +533,7 @@ impl_from!(SymbolObject, Object);
 #[repr(C)]
 pub struct WasmModuleObject(Opaque);
 
-impl Deref for WasmModuleObject {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(WasmModuleObject, Object);
 impl_from!(WasmModuleObject, Data);
 impl_from!(WasmModuleObject, Value);
 impl_from!(WasmModuleObject, Object);
@@ -789,13 +542,7 @@ impl_from!(WasmModuleObject, Object);
 #[repr(C)]
 pub struct Primitive(Opaque);
 
-impl Deref for Primitive {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Primitive, Value);
 impl_from!(Primitive, Data);
 impl_from!(Primitive, Value);
 
@@ -803,13 +550,7 @@ impl_from!(Primitive, Value);
 #[repr(C)]
 pub struct BigInt(Opaque);
 
-impl Deref for BigInt {
-  type Target = Primitive;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(BigInt, Primitive);
 impl_from!(BigInt, Data);
 impl_from!(BigInt, Value);
 impl_from!(BigInt, Primitive);
@@ -819,13 +560,7 @@ impl_from!(BigInt, Primitive);
 #[repr(C)]
 pub struct Boolean(Opaque);
 
-impl Deref for Boolean {
-  type Target = Primitive;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Boolean, Primitive);
 impl_from!(Boolean, Data);
 impl_from!(Boolean, Value);
 impl_from!(Boolean, Primitive);
@@ -834,13 +569,7 @@ impl_from!(Boolean, Primitive);
 #[repr(C)]
 pub struct Name(Opaque);
 
-impl Deref for Name {
-  type Target = Primitive;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Name, Primitive);
 impl_from!(Name, Data);
 impl_from!(Name, Value);
 impl_from!(Name, Primitive);
@@ -849,13 +578,7 @@ impl_from!(Name, Primitive);
 #[repr(C)]
 pub struct String(Opaque);
 
-impl Deref for String {
-  type Target = Name;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(String, Name);
 impl_from!(String, Data);
 impl_from!(String, Value);
 impl_from!(String, Primitive);
@@ -865,13 +588,7 @@ impl_from!(String, Name);
 #[repr(C)]
 pub struct Symbol(Opaque);
 
-impl Deref for Symbol {
-  type Target = Name;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Symbol, Name);
 impl_from!(Symbol, Data);
 impl_from!(Symbol, Value);
 impl_from!(Symbol, Primitive);
@@ -881,13 +598,7 @@ impl_from!(Symbol, Name);
 #[repr(C)]
 pub struct Number(Opaque);
 
-impl Deref for Number {
-  type Target = Primitive;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Number, Primitive);
 impl_from!(Number, Data);
 impl_from!(Number, Value);
 impl_from!(Number, Primitive);
@@ -896,13 +607,7 @@ impl_from!(Number, Primitive);
 #[repr(C)]
 pub struct Integer(Opaque);
 
-impl Deref for Integer {
-  type Target = Number;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Integer, Number);
 impl_from!(Integer, Data);
 impl_from!(Integer, Value);
 impl_from!(Integer, Primitive);
@@ -912,13 +617,7 @@ impl_from!(Integer, Number);
 #[repr(C)]
 pub struct Int32(Opaque);
 
-impl Deref for Int32 {
-  type Target = Integer;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Int32, Integer);
 impl_from!(Int32, Data);
 impl_from!(Int32, Value);
 impl_from!(Int32, Primitive);
@@ -929,13 +628,7 @@ impl_from!(Int32, Integer);
 #[repr(C)]
 pub struct Uint32(Opaque);
 
-impl Deref for Uint32 {
-  type Target = Integer;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Self::Target) }
-  }
-}
-
+impl_deref!(Uint32, Integer);
 impl_from!(Uint32, Data);
 impl_from!(Uint32, Value);
 impl_from!(Uint32, Primitive);
