@@ -29,8 +29,27 @@ extern "C" {
   fn v8__Message__GetEndColumn(message: &Message) -> int;
   fn v8__Message__IsSharedCrossOrigin(message: &Message) -> bool;
   fn v8__Message__IsOpaque(message: &Message) -> bool;
+  fn v8__Message__GetStackTrace(message: &Message) -> *mut StackTrace;
 
-  fn v8__StackTrace__GetFrameCount(stack_trace: *mut StackTrace) -> int;
+  fn v8__StackTrace__GetFrameCount(self_: &StackTrace) -> int;
+  fn v8__StackTrace__GetFrame(
+    self_: &StackTrace,
+    isolate: *mut Isolate,
+    index: u32,
+  ) -> *mut StackFrame;
+
+  fn v8__StackFrame__GetLineNumber(self_: &StackFrame) -> int;
+  fn v8__StackFrame__GetColumn(self_: &StackFrame) -> int;
+  fn v8__StackFrame__GetScriptId(self_: &StackFrame) -> int;
+  fn v8__StackFrame__GetScriptName(self_: &StackFrame) -> *mut String;
+  fn v8__StackFrame__GetScriptNameOrSourceURL(
+    self_: &StackFrame,
+  ) -> *mut String;
+  fn v8__StackFrame__GetFunctionName(self_: &StackFrame) -> *mut String;
+  fn v8__StackFrame__IsEval(self_: &StackFrame) -> bool;
+  fn v8__StackFrame__IsConstructor(self_: &StackFrame) -> bool;
+  fn v8__StackFrame__IsWasm(self_: &StackFrame) -> bool;
+  fn v8__StackFrame__IsUserJavaScript(self_: &StackFrame) -> bool;
 
   fn v8__Exception__RangeError(message: *mut String) -> *mut Value;
   fn v8__Exception__ReferenceError(message: *mut String) -> *mut Value;
@@ -54,8 +73,101 @@ pub struct StackTrace(Opaque);
 
 impl StackTrace {
   /// Returns the number of StackFrames.
-  pub fn get_frame_count(&mut self) -> usize {
+  pub fn get_frame_count(&self) -> usize {
     unsafe { v8__StackTrace__GetFrameCount(self) as usize }
+  }
+
+  /// Returns a StackFrame at a particular index.
+  pub fn get_frame<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+    index: usize,
+  ) -> Option<Local<'sc, StackFrame>> {
+    let isolate = scope.isolate();
+    unsafe {
+      Local::from_raw(v8__StackTrace__GetFrame(self, isolate, index as u32))
+    }
+  }
+}
+
+/// A single JavaScript stack frame.
+#[repr(C)]
+pub struct StackFrame(Opaque);
+
+impl StackFrame {
+  /// Returns the number, 1-based, of the line for the associate function call.
+  /// This method will return Message::kNoLineNumberInfo if it is unable to
+  /// retrieve the line number, or if kLineNumber was not passed as an option
+  /// when capturing the StackTrace.
+  pub fn get_line_number(&self) -> usize {
+    unsafe { v8__StackFrame__GetLineNumber(self) as usize }
+  }
+
+  /// Returns the 1-based column offset on the line for the associated function
+  /// call.
+  /// This method will return Message::kNoColumnInfo if it is unable to retrieve
+  /// the column number, or if kColumnOffset was not passed as an option when
+  /// capturing the StackTrace.
+  pub fn get_column(&self) -> usize {
+    unsafe { v8__StackFrame__GetColumn(self) as usize }
+  }
+
+  /// Returns the id of the script for the function for this StackFrame.
+  /// This method will return Message::kNoScriptIdInfo if it is unable to
+  /// retrieve the script id, or if kScriptId was not passed as an option when
+  /// capturing the StackTrace.
+  pub fn get_script_id(&self) -> usize {
+    unsafe { v8__StackFrame__GetScriptId(self) as usize }
+  }
+
+  /// Returns the name of the resource that contains the script for the
+  /// function for this StackFrame.
+  pub fn get_script_name<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, String>> {
+    unsafe { scope.to_local(v8__StackFrame__GetScriptName(self)) }
+  }
+
+  /// Returns the name of the resource that contains the script for the
+  /// function for this StackFrame or sourceURL value if the script name
+  /// is undefined and its source ends with //# sourceURL=... string or
+  /// deprecated //@ sourceURL=... string.
+  pub fn get_script_name_or_source_url<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, String>> {
+    unsafe { scope.to_local(v8__StackFrame__GetScriptNameOrSourceURL(self)) }
+  }
+
+  /// Returns the name of the function associated with this stack frame.
+  pub fn get_function_name<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, String>> {
+    unsafe { scope.to_local(v8__StackFrame__GetFunctionName(self)) }
+  }
+
+  /// Returns whether or not the associated function is compiled via a call to
+  /// eval().
+  pub fn is_eval(&self) -> bool {
+    unsafe { v8__StackFrame__IsEval(self) }
+  }
+
+  /// Returns whether or not the associated function is called as a
+  /// constructor via "new".
+  pub fn is_constructor(&self) -> bool {
+    unsafe { v8__StackFrame__IsConstructor(self) }
+  }
+
+  /// Returns whether or not the associated functions is defined in wasm.
+  pub fn is_wasm(&self) -> bool {
+    unsafe { v8__StackFrame__IsWasm(self) }
+  }
+
+  /// Returns whether or not the associated function is defined by the user.
+  pub fn is_user_javascript(&self) -> bool {
+    unsafe { v8__StackFrame__IsUserJavaScript(self) }
   }
 }
 
@@ -70,6 +182,16 @@ impl Message {
 
   pub fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { v8__Message__GetIsolate(self) }
+  }
+
+  /// Exception stack trace. By default stack traces are not captured for
+  /// uncaught exceptions. SetCaptureStackTraceForUncaughtExceptions allows
+  /// to change this option.
+  pub fn get_stack_trace<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, StackTrace>> {
+    unsafe { scope.to_local(v8__Message__GetStackTrace(self)) }
   }
 
   pub fn get_source_line<'s>(

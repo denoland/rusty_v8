@@ -546,6 +546,10 @@ int v8__Message__GetLineNumber(const v8::Message& self, v8::Context* context) {
   }
 }
 
+v8::StackTrace* v8__Message__GetStackTrace(v8::Message& self) {
+  return local_to_ptr(self.GetStackTrace());
+}
+
 int v8__Message__GetStartPosition(const v8::Message& self) {
   return self.GetStartPosition();
 }
@@ -666,6 +670,45 @@ v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>& self) {
 
 int v8__StackTrace__GetFrameCount(v8::StackTrace* self) {
   return self->GetFrameCount();
+}
+
+v8::StackFrame* v8__StackTrace__GetFrame(v8::StackTrace& self,
+                                         v8::Isolate* isolate, uint32_t index) {
+  return local_to_ptr(self.GetFrame(isolate, index));
+}
+
+int v8__StackFrame__GetLineNumber(v8::StackFrame& self) {
+  return self.GetLineNumber();
+}
+
+int v8__StackFrame__GetColumn(v8::StackFrame& self) { return self.GetColumn(); }
+
+int v8__StackFrame__GetScriptId(v8::StackFrame& self) {
+  return self.GetScriptId();
+}
+
+v8::String* v8__StackFrame__GetScriptName(v8::StackFrame& self) {
+  return local_to_ptr(self.GetScriptName());
+}
+
+v8::String* v8__StackFrame__GetScriptNameOrSourceURL(v8::StackFrame& self) {
+  return local_to_ptr(self.GetScriptNameOrSourceURL());
+}
+
+v8::String* v8__StackFrame__GetFunctionName(v8::StackFrame& self) {
+  return local_to_ptr(self.GetFunctionName());
+}
+
+bool v8__StackFrame__IsEval(v8::StackFrame& self) { return self.IsEval(); }
+
+bool v8__StackFrame__IsConstructor(v8::StackFrame& self) {
+  return self.IsConstructor();
+}
+
+bool v8__StackFrame__IsWasm(v8::StackFrame& self) { return self.IsWasm(); }
+
+bool v8__StackFrame__IsUserJavaScript(v8::StackFrame& self) {
+  return self.IsUserJavaScript();
 }
 
 void v8__TryCatch__CONSTRUCT(uninit_t<v8::TryCatch>& buf,
