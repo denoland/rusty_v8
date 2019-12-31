@@ -937,14 +937,13 @@ extern "C" fn fn_callback2(info: &FunctionCallbackInfo) {
   assert_eq!(info.length(), 2);
   let isolate = info.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
+  let mut context = isolate.get_current_context();
   let arg1 = info.get_argument(0);
   let arg2 = info.get_argument(1);
   let rv = &mut info.get_return_value();
-
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
-    let mut context = v8::Context::new(scope);
     context.enter();
 
     let arg1_val = v8::String::new(scope, "arg1").unwrap();
