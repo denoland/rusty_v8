@@ -548,7 +548,7 @@ fn set_host_initialize_import_meta_object_callback() {
     assert!(result.is_some());
     let meta = module.evaluate(s, context).unwrap();
     assert!(meta.is_object());
-    let meta = unsafe { Local::<v8::Object>::cast(meta) };
+    let meta = meta.to_object(s).unwrap();
     let key = v8::String::new(s, "foo").unwrap();
     let expected = v8::String::new(s, "bar").unwrap();
     let actual = meta.get(s, context, key.into()).unwrap();
@@ -577,9 +577,7 @@ fn script_compile_and_run() {
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
-    // TODO: safer casts.
-    let result: v8::Local<v8::String> =
-      unsafe { std::mem::transmute_copy(&result) };
+    let result = result.to_string(s).unwrap();
     assert_eq!(result.to_rust_string_lossy(s), "Hello 13th planet");
     context.exit();
   }
@@ -824,7 +822,7 @@ fn create_data_property() {
       .get(scope, context, key.into())
       .unwrap();
     assert!(obj.is_object());
-    let obj = unsafe { Local::<v8::Object>::cast(obj) };
+    let obj = obj.to_object(scope).unwrap();
     let key = v8_str(scope, "foo");
     let value = v8_str(scope, "bar");
     assert_eq!(
@@ -869,14 +867,14 @@ fn promise_resolved() {
     resolver.resolve(context, value.into());
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
-    let result_str = unsafe { Local::<v8::String>::cast(result) };
+    let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in `Fulfilled` state
     // it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.resolve(context, value.into());
     let result = promise.result(scope);
-    let result_str = unsafe { Local::<v8::String>::cast(result) };
+    let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   }
@@ -906,14 +904,14 @@ fn promise_rejected() {
     assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
-    let result_str = unsafe { Local::<v8::String>::cast(result) };
+    let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     // Reject again with different value, since promise is already in `Rejected` state
     // it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.reject(context, value.into());
     let result = promise.result(scope);
-    let result_str = unsafe { Local::<v8::String>::cast(result) };
+    let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   }
@@ -1008,7 +1006,7 @@ fn function() {
       vec![arg1.into(), arg2.into()],
     );
     let value = maybe_value.unwrap();
-    let value_str = unsafe { Local::<v8::String>::cast(value) };
+    let value_str = value.to_string(scope).unwrap();
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "Hello callback!".to_string());
     context.exit();
@@ -1028,7 +1026,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
-    let value_str = unsafe { Local::<v8::String>::cast(value) };
+    let value_str = value.to_string(scope).unwrap();
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "promise rejected".to_string());
   }

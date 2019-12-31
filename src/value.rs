@@ -1,4 +1,9 @@
+use crate::Context;
 use crate::Local;
+use crate::Number;
+use crate::Object;
+use crate::String;
+use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -12,6 +17,9 @@ extern "C" {
   fn v8__Value__IsObject(this: &Value) -> bool;
   fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
   fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
+  fn v8__Value__ToString(this: &Value, context: *mut Context) -> *mut String;
+  fn v8__Value__ToNumber(this: &Value, context: *mut Context) -> *mut Number;
+  fn v8__Value__ToObject(this: &Value, context: *mut Context) -> *mut Object;
 }
 
 impl Value {
@@ -64,5 +72,32 @@ impl Value {
 
   pub fn same_value<'sc>(&self, that: Local<'sc, Value>) -> bool {
     unsafe { v8__Value__SameValue(self, &that) }
+  }
+
+  pub fn to_string<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, String>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToString(self, &mut *context)) }
+  }
+
+  pub fn to_number<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Number>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToNumber(self, &mut *context)) }
+  }
+
+  pub fn to_object<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Object>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToObject(self, &mut *context)) }
   }
 }

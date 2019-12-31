@@ -306,6 +306,18 @@ bool v8__Value__SameValue(const v8::Value& self, v8::Value* that) {
   return self.SameValue(ptr_to_local(that));
 }
 
+v8::String* v8__Value__ToString(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToString(ptr_to_local(context)));
+}
+
+v8::Number* v8__Value__ToNumber(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToNumber(ptr_to_local(context)));
+}
+
+v8::Object* v8__Value__ToObject(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToObject(ptr_to_local(context)));
+}
+
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
