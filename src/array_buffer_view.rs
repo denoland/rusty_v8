@@ -1,11 +1,9 @@
 use std::convert::TryInto;
-use std::ops::Deref;
 
 use crate::support::int;
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
 use crate::Local;
-use crate::Object;
 
 extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -48,12 +46,5 @@ impl ArrayBufferView {
         dest.len().try_into().unwrap(),
       )
     }
-  }
-}
-
-impl Deref for ArrayBufferView {
-  type Target = Object;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Object) }
   }
 }

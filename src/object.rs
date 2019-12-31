@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use crate::isolate::Isolate;
 use crate::support::MaybeBool;
 use crate::Context;
@@ -125,12 +123,5 @@ impl Object {
   /// Return the isolate to which the Object belongs to.
   pub fn get_isolate(&mut self) -> &Isolate {
     unsafe { v8__Object__GetIsolate(self) }
-  }
-}
-
-impl Deref for Object {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Value) }
   }
 }

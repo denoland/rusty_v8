@@ -1,7 +1,6 @@
 use std::convert::TryInto;
 use std::default::Default;
 use std::mem::forget;
-use std::ops::Deref;
 use std::slice;
 
 use crate::support::char;
@@ -11,7 +10,6 @@ use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::ToLocal;
-use crate::Value;
 
 extern "C" {
   fn v8__String__NewFromUtf8(
@@ -138,12 +136,5 @@ impl String {
       WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
     );
     unsafe { std::string::String::from_raw_parts(data, length, capacity) }
-  }
-}
-
-impl Deref for String {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Value) }
   }
 }

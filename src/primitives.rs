@@ -1,12 +1,8 @@
-use std::ops::Deref;
-
 use crate::isolate::Isolate;
 use crate::Boolean;
 use crate::Local;
-use crate::Name;
 use crate::Primitive;
 use crate::ToLocal;
-use crate::Value;
 
 extern "C" {
   fn v8__Null(isolate: *mut Isolate) -> *mut Primitive;
@@ -38,25 +34,4 @@ pub fn new_true<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Boolean> {
 pub fn new_false<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Boolean> {
   let ptr = unsafe { v8__False(scope.isolate()) };
   unsafe { scope.to_local(ptr) }.unwrap()
-}
-
-impl Deref for Primitive {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Value) }
-  }
-}
-
-impl Deref for Boolean {
-  type Target = Primitive;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Primitive) }
-  }
-}
-
-impl Deref for Name {
-  type Target = Primitive;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Primitive) }
-  }
 }

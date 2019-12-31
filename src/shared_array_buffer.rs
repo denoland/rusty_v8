@@ -1,12 +1,9 @@
-use std::ops::Deref;
-
 use crate::support::SharedRef;
 use crate::BackingStore;
 use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::ToLocal;
-use crate::Value;
 
 extern "C" {
   fn v8__SharedArrayBuffer__New(
@@ -46,12 +43,5 @@ impl SharedArrayBuffer {
   /// should not attempt to manage lifetime of the storage through other means.
   pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
     unsafe { v8__SharedArrayBuffer__GetBackingStore(self) }
-  }
-}
-
-impl Deref for SharedArrayBuffer {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Value) }
   }
 }

@@ -1,11 +1,8 @@
-use std::ops::Deref;
-
 use crate::isolate::Isolate;
 use crate::Integer;
 use crate::Local;
 use crate::Number;
 use crate::ToLocal;
-use crate::Value;
 
 extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *mut Number;
@@ -32,13 +29,6 @@ impl Number {
   }
 }
 
-impl Deref for Number {
-  type Target = Value;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Value) }
-  }
-}
-
 impl Integer {
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
@@ -58,12 +48,5 @@ impl Integer {
 
   pub fn value(&self) -> i64 {
     unsafe { v8__Integer__Value(self) }
-  }
-}
-
-impl Deref for Integer {
-  type Target = Number;
-  fn deref(&self) -> &Self::Target {
-    unsafe { &*(self as *const _ as *const Number) }
   }
 }
