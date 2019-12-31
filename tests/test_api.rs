@@ -447,7 +447,7 @@ fn add_message_listener() {
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
-    message: Local<v8::Message>,
+    mut message: Local<v8::Message>,
     _exception: Local<v8::Value>,
   ) {
     let mut cbs = v8::CallbackScope::new(message);
@@ -460,7 +460,9 @@ fn add_message_listener() {
 
       // TODO(ry) Improve/fix the following two asserts.
       assert!(message.get_script_resource_name(scope).is_some());
-      // assert!(message.get_source_line(scope, context).is_some());
+      let isolate = message.get_isolate();
+      let context = isolate.get_current_context();
+      assert!(message.get_source_line(scope, context).is_some());
     }
 
     // println!("get_line_number {:?}", message.get_line_number(context));
