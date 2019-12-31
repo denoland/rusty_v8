@@ -7,6 +7,16 @@ use std::ops::Deref;
 use crate::support::Opaque;
 use crate::Local;
 
+macro_rules! impl_from {
+  ($a:ident, $b:ident) => {
+    impl<'sc> From<Local<'sc, $a>> for Local<'sc, $b> {
+      fn from(l: Local<'sc, $a>) -> Self {
+        unsafe { transmute(l) }
+      }
+    }
+  };
+}
+
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
 pub struct Data(Opaque);
@@ -23,11 +33,7 @@ impl Deref for AccessorSignature {
   }
 }
 
-impl<'sc> From<Local<'sc, AccessorSignature>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, AccessorSignature>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(AccessorSignature, Data);
 
 /// A compiled JavaScript module.
 #[repr(C)]
@@ -40,11 +46,7 @@ impl Deref for Module {
   }
 }
 
-impl<'sc> From<Local<'sc, Module>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Module>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Module, Data);
 
 /// A private symbol
 ///
@@ -59,11 +61,7 @@ impl Deref for Private {
   }
 }
 
-impl<'sc> From<Local<'sc, Private>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Private>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Private, Data);
 
 /// A Signature specifies which receiver is valid for a function.
 ///
@@ -81,11 +79,7 @@ impl Deref for Signature {
   }
 }
 
-impl<'sc> From<Local<'sc, Signature>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Signature>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Signature, Data);
 
 /// The superclass of object and function templates.
 #[repr(C)]
@@ -98,11 +92,7 @@ impl Deref for Template {
   }
 }
 
-impl<'sc> From<Local<'sc, Template>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Template>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Template, Data);
 
 /// A FunctionTemplate is used to create functions at runtime. There
 /// can only be one function created from a FunctionTemplate in a
@@ -212,17 +202,8 @@ impl Deref for FunctionTemplate {
   }
 }
 
-impl<'sc> From<Local<'sc, FunctionTemplate>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, FunctionTemplate>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, FunctionTemplate>> for Local<'sc, Template> {
-  fn from(l: Local<'sc, FunctionTemplate>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(FunctionTemplate, Data);
+impl_from!(FunctionTemplate, Template);
 
 /// An ObjectTemplate is used to create objects at runtime.
 ///
@@ -238,17 +219,8 @@ impl Deref for ObjectTemplate {
   }
 }
 
-impl<'sc> From<Local<'sc, ObjectTemplate>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, ObjectTemplate>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, ObjectTemplate>> for Local<'sc, Template> {
-  fn from(l: Local<'sc, ObjectTemplate>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(ObjectTemplate, Data);
+impl_from!(ObjectTemplate, Template);
 
 /// A compiled JavaScript module, not yet tied to a Context.
 #[repr(C)]
@@ -261,11 +233,7 @@ impl Deref for UnboundModuleScript {
   }
 }
 
-impl<'sc> From<Local<'sc, UnboundModuleScript>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, UnboundModuleScript>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(UnboundModuleScript, Data);
 
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
@@ -278,11 +246,7 @@ impl Deref for Value {
   }
 }
 
-impl<'sc> From<Local<'sc, Value>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Value>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Value, Data);
 
 /// A JavaScript value that wraps a C++ void*. This type of value is mainly used
 /// to associate C++ data structures with JavaScript objects.
@@ -296,17 +260,8 @@ impl Deref for External {
   }
 }
 
-impl<'sc> From<Local<'sc, External>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, External>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, External>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, External>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(External, Data);
+impl_from!(External, Value);
 
 /// A JavaScript object (ECMA-262, 4.3.3)
 #[repr(C)]
@@ -319,17 +274,8 @@ impl Deref for Object {
   }
 }
 
-impl<'sc> From<Local<'sc, Object>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Object>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Object>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Object>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Object, Data);
+impl_from!(Object, Value);
 
 /// An instance of the built-in array constructor (ECMA-262, 15.4.2).
 #[repr(C)]
@@ -342,23 +288,9 @@ impl Deref for Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Array, Data);
+impl_from!(Array, Value);
+impl_from!(Array, Object);
 
 /// An instance of the built-in ArrayBuffer constructor (ES6 draft 15.13.5).
 #[repr(C)]
@@ -371,23 +303,9 @@ impl Deref for ArrayBuffer {
   }
 }
 
-impl<'sc> From<Local<'sc, ArrayBuffer>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, ArrayBuffer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, ArrayBuffer>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, ArrayBuffer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, ArrayBuffer>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, ArrayBuffer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(ArrayBuffer, Data);
+impl_from!(ArrayBuffer, Value);
+impl_from!(ArrayBuffer, Object);
 
 /// A base class for an instance of one of "views" over ArrayBuffer,
 /// including TypedArrays and DataView (ES6 draft 15.13).
@@ -401,23 +319,9 @@ impl Deref for ArrayBufferView {
   }
 }
 
-impl<'sc> From<Local<'sc, ArrayBufferView>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, ArrayBufferView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, ArrayBufferView>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, ArrayBufferView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, ArrayBufferView>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, ArrayBufferView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(ArrayBufferView, Data);
+impl_from!(ArrayBufferView, Value);
+impl_from!(ArrayBufferView, Object);
 
 /// An instance of DataView constructor (ES6 draft 15.13.7).
 #[repr(C)]
@@ -430,29 +334,10 @@ impl Deref for DataView {
   }
 }
 
-impl<'sc> From<Local<'sc, DataView>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, DataView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, DataView>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, DataView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, DataView>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, DataView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, DataView>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, DataView>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(DataView, Data);
+impl_from!(DataView, Value);
+impl_from!(DataView, Object);
+impl_from!(DataView, ArrayBufferView);
 
 /// A base class for an instance of TypedArray series of constructors
 /// (ES6 draft 15.13.6).
@@ -466,29 +351,10 @@ impl Deref for TypedArray {
   }
 }
 
-impl<'sc> From<Local<'sc, TypedArray>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, TypedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, TypedArray>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, TypedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, TypedArray>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, TypedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, TypedArray>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, TypedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(TypedArray, Data);
+impl_from!(TypedArray, Value);
+impl_from!(TypedArray, Object);
+impl_from!(TypedArray, ArrayBufferView);
 
 /// An instance of BigInt64Array constructor.
 #[repr(C)]
@@ -501,35 +367,11 @@ impl Deref for BigInt64Array {
   }
 }
 
-impl<'sc> From<Local<'sc, BigInt64Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, BigInt64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigInt64Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, BigInt64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigInt64Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, BigInt64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigInt64Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, BigInt64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigInt64Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, BigInt64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(BigInt64Array, Data);
+impl_from!(BigInt64Array, Value);
+impl_from!(BigInt64Array, Object);
+impl_from!(BigInt64Array, ArrayBufferView);
+impl_from!(BigInt64Array, TypedArray);
 
 /// An instance of BigUint64Array constructor.
 #[repr(C)]
@@ -542,35 +384,11 @@ impl Deref for BigUint64Array {
   }
 }
 
-impl<'sc> From<Local<'sc, BigUint64Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, BigUint64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigUint64Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, BigUint64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigUint64Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, BigUint64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigUint64Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, BigUint64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigUint64Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, BigUint64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(BigUint64Array, Data);
+impl_from!(BigUint64Array, Value);
+impl_from!(BigUint64Array, Object);
+impl_from!(BigUint64Array, ArrayBufferView);
+impl_from!(BigUint64Array, TypedArray);
 
 /// An instance of Float32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -583,35 +401,11 @@ impl Deref for Float32Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Float32Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Float32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float32Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Float32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float32Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Float32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float32Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Float32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float32Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Float32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Float32Array, Data);
+impl_from!(Float32Array, Value);
+impl_from!(Float32Array, Object);
+impl_from!(Float32Array, ArrayBufferView);
+impl_from!(Float32Array, TypedArray);
 
 /// An instance of Float64Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -624,35 +418,11 @@ impl Deref for Float64Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Float64Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Float64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float64Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Float64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float64Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Float64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float64Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Float64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Float64Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Float64Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Float64Array, Data);
+impl_from!(Float64Array, Value);
+impl_from!(Float64Array, Object);
+impl_from!(Float64Array, ArrayBufferView);
+impl_from!(Float64Array, TypedArray);
 
 /// An instance of Int16Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -665,35 +435,11 @@ impl Deref for Int16Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Int16Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Int16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int16Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Int16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int16Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Int16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int16Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Int16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int16Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Int16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Int16Array, Data);
+impl_from!(Int16Array, Value);
+impl_from!(Int16Array, Object);
+impl_from!(Int16Array, ArrayBufferView);
+impl_from!(Int16Array, TypedArray);
 
 /// An instance of Int32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -706,35 +452,11 @@ impl Deref for Int32Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Int32Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Int32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Int32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Int32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Int32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Int32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Int32Array, Data);
+impl_from!(Int32Array, Value);
+impl_from!(Int32Array, Object);
+impl_from!(Int32Array, ArrayBufferView);
+impl_from!(Int32Array, TypedArray);
 
 /// An instance of Int8Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -747,35 +469,11 @@ impl Deref for Int8Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Int8Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Int8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int8Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Int8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int8Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Int8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int8Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Int8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int8Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Int8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Int8Array, Data);
+impl_from!(Int8Array, Value);
+impl_from!(Int8Array, Object);
+impl_from!(Int8Array, ArrayBufferView);
+impl_from!(Int8Array, TypedArray);
 
 /// An instance of Uint16Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -788,35 +486,11 @@ impl Deref for Uint16Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Uint16Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Uint16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint16Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Uint16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint16Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Uint16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint16Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Uint16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint16Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Uint16Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Uint16Array, Data);
+impl_from!(Uint16Array, Value);
+impl_from!(Uint16Array, Object);
+impl_from!(Uint16Array, ArrayBufferView);
+impl_from!(Uint16Array, TypedArray);
 
 /// An instance of Uint32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -829,35 +503,11 @@ impl Deref for Uint32Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Uint32Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Uint32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Uint32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Uint32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Uint32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Uint32Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Uint32Array, Data);
+impl_from!(Uint32Array, Value);
+impl_from!(Uint32Array, Object);
+impl_from!(Uint32Array, ArrayBufferView);
+impl_from!(Uint32Array, TypedArray);
 
 /// An instance of Uint8Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -870,35 +520,11 @@ impl Deref for Uint8Array {
   }
 }
 
-impl<'sc> From<Local<'sc, Uint8Array>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Uint8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8Array>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Uint8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8Array>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Uint8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8Array>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Uint8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8Array>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Uint8Array>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Uint8Array, Data);
+impl_from!(Uint8Array, Value);
+impl_from!(Uint8Array, Object);
+impl_from!(Uint8Array, ArrayBufferView);
+impl_from!(Uint8Array, TypedArray);
 
 /// An instance of Uint8ClampedArray constructor (ES6 draft 15.13.6).
 #[repr(C)]
@@ -911,35 +537,11 @@ impl Deref for Uint8ClampedArray {
   }
 }
 
-impl<'sc> From<Local<'sc, Uint8ClampedArray>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Uint8ClampedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8ClampedArray>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Uint8ClampedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8ClampedArray>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Uint8ClampedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8ClampedArray>> for Local<'sc, ArrayBufferView> {
-  fn from(l: Local<'sc, Uint8ClampedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint8ClampedArray>> for Local<'sc, TypedArray> {
-  fn from(l: Local<'sc, Uint8ClampedArray>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Uint8ClampedArray, Data);
+impl_from!(Uint8ClampedArray, Value);
+impl_from!(Uint8ClampedArray, Object);
+impl_from!(Uint8ClampedArray, ArrayBufferView);
+impl_from!(Uint8ClampedArray, TypedArray);
 
 /// A BigInt object (https://tc39.github.io/proposal-bigint)
 #[repr(C)]
@@ -952,23 +554,9 @@ impl Deref for BigIntObject {
   }
 }
 
-impl<'sc> From<Local<'sc, BigIntObject>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, BigIntObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigIntObject>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, BigIntObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigIntObject>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, BigIntObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(BigIntObject, Data);
+impl_from!(BigIntObject, Value);
+impl_from!(BigIntObject, Object);
 
 /// A Boolean object (ECMA-262, 4.3.15).
 #[repr(C)]
@@ -981,23 +569,9 @@ impl Deref for BooleanObject {
   }
 }
 
-impl<'sc> From<Local<'sc, BooleanObject>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, BooleanObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BooleanObject>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, BooleanObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BooleanObject>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, BooleanObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(BooleanObject, Data);
+impl_from!(BooleanObject, Value);
+impl_from!(BooleanObject, Object);
 
 /// An instance of the built-in Date constructor (ECMA-262, 15.9).
 #[repr(C)]
@@ -1010,23 +584,9 @@ impl Deref for Date {
   }
 }
 
-impl<'sc> From<Local<'sc, Date>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Date>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Date>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Date>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Date>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Date>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Date, Data);
+impl_from!(Date, Value);
+impl_from!(Date, Object);
 
 /// An instance of the built-in FinalizationGroup constructor.
 ///
@@ -1041,23 +601,9 @@ impl Deref for FinalizationGroup {
   }
 }
 
-impl<'sc> From<Local<'sc, FinalizationGroup>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, FinalizationGroup>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, FinalizationGroup>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, FinalizationGroup>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, FinalizationGroup>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, FinalizationGroup>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(FinalizationGroup, Data);
+impl_from!(FinalizationGroup, Value);
+impl_from!(FinalizationGroup, Object);
 
 /// A JavaScript function object (ECMA-262, 15.3).
 #[repr(C)]
@@ -1070,23 +616,9 @@ impl Deref for Function {
   }
 }
 
-impl<'sc> From<Local<'sc, Function>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Function>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Function>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Function>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Function>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Function>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Function, Data);
+impl_from!(Function, Value);
+impl_from!(Function, Object);
 
 /// An instance of the built-in Map constructor (ECMA-262, 6th Edition, 23.1.1).
 #[repr(C)]
@@ -1099,23 +631,9 @@ impl Deref for Map {
   }
 }
 
-impl<'sc> From<Local<'sc, Map>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Map>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Map>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Map>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Map>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Map>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Map, Data);
+impl_from!(Map, Value);
+impl_from!(Map, Object);
 
 /// A Number object (ECMA-262, 4.3.21).
 #[repr(C)]
@@ -1128,23 +646,9 @@ impl Deref for NumberObject {
   }
 }
 
-impl<'sc> From<Local<'sc, NumberObject>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, NumberObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, NumberObject>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, NumberObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, NumberObject>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, NumberObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(NumberObject, Data);
+impl_from!(NumberObject, Value);
+impl_from!(NumberObject, Object);
 
 /// An instance of the built-in Promise constructor (ES6 draft).
 #[repr(C)]
@@ -1157,23 +661,9 @@ impl Deref for Promise {
   }
 }
 
-impl<'sc> From<Local<'sc, Promise>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Promise>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Promise>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Promise>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Promise>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Promise>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Promise, Data);
+impl_from!(Promise, Value);
+impl_from!(Promise, Object);
 
 #[repr(C)]
 pub struct PromiseResolver(Opaque);
@@ -1185,23 +675,9 @@ impl Deref for PromiseResolver {
   }
 }
 
-impl<'sc> From<Local<'sc, PromiseResolver>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, PromiseResolver>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, PromiseResolver>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, PromiseResolver>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, PromiseResolver>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, PromiseResolver>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(PromiseResolver, Data);
+impl_from!(PromiseResolver, Value);
+impl_from!(PromiseResolver, Object);
 
 /// An instance of the built-in Proxy constructor (ECMA-262, 6th Edition,
 /// 26.2.1).
@@ -1215,23 +691,9 @@ impl Deref for Proxy {
   }
 }
 
-impl<'sc> From<Local<'sc, Proxy>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Proxy>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Proxy>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Proxy>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Proxy>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Proxy>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Proxy, Data);
+impl_from!(Proxy, Value);
+impl_from!(Proxy, Object);
 
 /// An instance of the built-in RegExp constructor (ECMA-262, 15.10).
 #[repr(C)]
@@ -1244,23 +706,9 @@ impl Deref for RegExp {
   }
 }
 
-impl<'sc> From<Local<'sc, RegExp>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, RegExp>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, RegExp>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, RegExp>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, RegExp>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, RegExp>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(RegExp, Data);
+impl_from!(RegExp, Value);
+impl_from!(RegExp, Object);
 
 /// An instance of the built-in Set constructor (ECMA-262, 6th Edition, 23.2.1).
 #[repr(C)]
@@ -1273,23 +721,9 @@ impl Deref for Set {
   }
 }
 
-impl<'sc> From<Local<'sc, Set>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Set>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Set>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Set>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Set>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, Set>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Set, Data);
+impl_from!(Set, Value);
+impl_from!(Set, Object);
 
 /// An instance of the built-in SharedArrayBuffer constructor.
 /// This API is experimental and may change significantly.
@@ -1303,23 +737,9 @@ impl Deref for SharedArrayBuffer {
   }
 }
 
-impl<'sc> From<Local<'sc, SharedArrayBuffer>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, SharedArrayBuffer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, SharedArrayBuffer>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, SharedArrayBuffer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, SharedArrayBuffer>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, SharedArrayBuffer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(SharedArrayBuffer, Data);
+impl_from!(SharedArrayBuffer, Value);
+impl_from!(SharedArrayBuffer, Object);
 
 /// A String object (ECMA-262, 4.3.18).
 #[repr(C)]
@@ -1332,23 +752,9 @@ impl Deref for StringObject {
   }
 }
 
-impl<'sc> From<Local<'sc, StringObject>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, StringObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, StringObject>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, StringObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, StringObject>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, StringObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(StringObject, Data);
+impl_from!(StringObject, Value);
+impl_from!(StringObject, Object);
 
 /// A Symbol object (ECMA-262 edition 6).
 #[repr(C)]
@@ -1361,23 +767,9 @@ impl Deref for SymbolObject {
   }
 }
 
-impl<'sc> From<Local<'sc, SymbolObject>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, SymbolObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, SymbolObject>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, SymbolObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, SymbolObject>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, SymbolObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(SymbolObject, Data);
+impl_from!(SymbolObject, Value);
+impl_from!(SymbolObject, Object);
 
 #[repr(C)]
 pub struct WasmModuleObject(Opaque);
@@ -1389,23 +781,9 @@ impl Deref for WasmModuleObject {
   }
 }
 
-impl<'sc> From<Local<'sc, WasmModuleObject>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, WasmModuleObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, WasmModuleObject>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, WasmModuleObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, WasmModuleObject>> for Local<'sc, Object> {
-  fn from(l: Local<'sc, WasmModuleObject>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(WasmModuleObject, Data);
+impl_from!(WasmModuleObject, Value);
+impl_from!(WasmModuleObject, Object);
 
 /// The superclass of primitive values. See ECMA-262 4.3.2.
 #[repr(C)]
@@ -1418,17 +796,8 @@ impl Deref for Primitive {
   }
 }
 
-impl<'sc> From<Local<'sc, Primitive>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Primitive>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Primitive>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Primitive>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Primitive, Data);
+impl_from!(Primitive, Value);
 
 /// A JavaScript BigInt value (https://tc39.github.io/proposal-bigint)
 #[repr(C)]
@@ -1441,23 +810,9 @@ impl Deref for BigInt {
   }
 }
 
-impl<'sc> From<Local<'sc, BigInt>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, BigInt>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigInt>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, BigInt>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, BigInt>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, BigInt>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(BigInt, Data);
+impl_from!(BigInt, Value);
+impl_from!(BigInt, Primitive);
 
 /// A primitive boolean value (ECMA-262, 4.3.14). Either the true
 /// or false value.
@@ -1471,23 +826,9 @@ impl Deref for Boolean {
   }
 }
 
-impl<'sc> From<Local<'sc, Boolean>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Boolean>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Boolean>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Boolean>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Boolean>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Boolean>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Boolean, Data);
+impl_from!(Boolean, Value);
+impl_from!(Boolean, Primitive);
 
 /// A superclass for symbols and strings.
 #[repr(C)]
@@ -1500,23 +841,9 @@ impl Deref for Name {
   }
 }
 
-impl<'sc> From<Local<'sc, Name>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Name>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Name>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Name>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Name>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Name>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Name, Data);
+impl_from!(Name, Value);
+impl_from!(Name, Primitive);
 
 /// A JavaScript string value (ECMA-262, 4.3.17).
 #[repr(C)]
@@ -1529,29 +856,10 @@ impl Deref for String {
   }
 }
 
-impl<'sc> From<Local<'sc, String>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, String>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, String>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, String>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, String>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, String>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, String>> for Local<'sc, Name> {
-  fn from(l: Local<'sc, String>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(String, Data);
+impl_from!(String, Value);
+impl_from!(String, Primitive);
+impl_from!(String, Name);
 
 /// A JavaScript symbol (ECMA-262 edition 6)
 #[repr(C)]
@@ -1564,29 +872,10 @@ impl Deref for Symbol {
   }
 }
 
-impl<'sc> From<Local<'sc, Symbol>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Symbol>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Symbol>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Symbol>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Symbol>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Symbol>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Symbol>> for Local<'sc, Name> {
-  fn from(l: Local<'sc, Symbol>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Symbol, Data);
+impl_from!(Symbol, Value);
+impl_from!(Symbol, Primitive);
+impl_from!(Symbol, Name);
 
 /// A JavaScript number value (ECMA-262, 4.3.20)
 #[repr(C)]
@@ -1599,23 +888,9 @@ impl Deref for Number {
   }
 }
 
-impl<'sc> From<Local<'sc, Number>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Number>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Number>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Number>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Number>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Number>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Number, Data);
+impl_from!(Number, Value);
+impl_from!(Number, Primitive);
 
 /// A JavaScript value representing a signed integer.
 #[repr(C)]
@@ -1628,29 +903,10 @@ impl Deref for Integer {
   }
 }
 
-impl<'sc> From<Local<'sc, Integer>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Integer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Integer>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Integer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Integer>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Integer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Integer>> for Local<'sc, Number> {
-  fn from(l: Local<'sc, Integer>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Integer, Data);
+impl_from!(Integer, Value);
+impl_from!(Integer, Primitive);
+impl_from!(Integer, Number);
 
 /// A JavaScript value representing a 32-bit signed integer.
 #[repr(C)]
@@ -1663,35 +919,11 @@ impl Deref for Int32 {
   }
 }
 
-impl<'sc> From<Local<'sc, Int32>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Int32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Int32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Int32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32>> for Local<'sc, Number> {
-  fn from(l: Local<'sc, Int32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Int32>> for Local<'sc, Integer> {
-  fn from(l: Local<'sc, Int32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Int32, Data);
+impl_from!(Int32, Value);
+impl_from!(Int32, Primitive);
+impl_from!(Int32, Number);
+impl_from!(Int32, Integer);
 
 /// A JavaScript value representing a 32-bit unsigned integer.
 #[repr(C)]
@@ -1704,32 +936,8 @@ impl Deref for Uint32 {
   }
 }
 
-impl<'sc> From<Local<'sc, Uint32>> for Local<'sc, Data> {
-  fn from(l: Local<'sc, Uint32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32>> for Local<'sc, Value> {
-  fn from(l: Local<'sc, Uint32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32>> for Local<'sc, Primitive> {
-  fn from(l: Local<'sc, Uint32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32>> for Local<'sc, Number> {
-  fn from(l: Local<'sc, Uint32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
-
-impl<'sc> From<Local<'sc, Uint32>> for Local<'sc, Integer> {
-  fn from(l: Local<'sc, Uint32>) -> Self {
-    unsafe { transmute(l) }
-  }
-}
+impl_from!(Uint32, Data);
+impl_from!(Uint32, Value);
+impl_from!(Uint32, Primitive);
+impl_from!(Uint32, Number);
+impl_from!(Uint32, Integer);
