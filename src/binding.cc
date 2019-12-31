@@ -524,6 +524,54 @@ v8::String* v8__Message__Get(const v8::Message* self) {
   return local_to_ptr(self->Get());
 }
 
+v8::String* v8__Message__GetSourceLine(const v8::Message& self,
+                                       v8::Context* context) {
+  return maybe_local_to_ptr(self.GetSourceLine(ptr_to_local(context)));
+}
+
+v8::Value* v8__Message__GetScriptResourceName(const v8::Message& self) {
+  return local_to_ptr(self.GetScriptResourceName());
+}
+
+int v8__Message__GetLineNumber(const v8::Message& self, v8::Context* context) {
+  v8::Maybe<int> maybe = self.GetLineNumber(ptr_to_local(context));
+  if (maybe.IsJust()) {
+    return maybe.ToChecked();
+  } else {
+    return -1;
+  }
+}
+
+int v8__Message__GetStartPosition(const v8::Message& self) {
+  return self.GetStartPosition();
+}
+
+int v8__Message__GetEndPosition(const v8::Message& self) {
+  return self.GetEndPosition();
+}
+
+int v8__Message__GetWasmFunctionIndex(const v8::Message& self) {
+  return self.GetWasmFunctionIndex();
+}
+
+int v8__Message__ErrorLevel(const v8::Message& self) {
+  return self.ErrorLevel();
+}
+
+int v8__Message__GetStartColumn(const v8::Message& self) {
+  return self.GetStartColumn();
+}
+
+int v8__Message__GetEndColumn(const v8::Message& self) {
+  return self.GetEndColumn();
+}
+
+bool v8__Message__IsSharedCrossOrigin(const v8::Message& self) {
+  return self.IsSharedCrossOrigin();
+}
+
+bool v8__Message__IsOpaque(const v8::Message& self) { return self.IsOpaque(); }
+
 v8::Isolate* v8__Message__GetIsolate(const v8::Message* self) {
   return self->GetIsolate();
 }
