@@ -93,6 +93,9 @@ extern "C" {
     isolate: &Isolate,
     exception: &Value,
   ) -> *mut Value;
+  fn v8__Isolate__TerminateExecution(isolate: &Isolate);
+  fn v8__Isolate__IsExecutionTerminating(isolate: &Isolate) -> bool;
+  fn v8__Isolate__CancelTerminateExecution(isolate: &Isolate);
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -242,6 +245,41 @@ impl Isolate {
       let ptr = v8__Isolate__ThrowException(self, &exception);
       Local::from_raw(ptr).unwrap()
     }
+  }
+
+  /// Forcefully terminate the current thread of JavaScript execution
+  /// in the given isolate.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn terminate_execution(&self) {
+    unsafe { v8__Isolate__TerminateExecution(self) }
+  }
+
+  /// Is V8 terminating JavaScript execution.
+  ///
+  /// Returns true if JavaScript execution is currently terminating
+  /// because of a call to TerminateExecution.  In that case there are
+  /// still JavaScript frames on the stack and the termination
+  /// exception is still active.
+  pub fn is_execution_terminating(&self) -> bool {
+    unsafe { v8__Isolate__IsExecutionTerminating(self) }
+  }
+
+  /// Resume execution capability in the given isolate, whose execution
+  /// was previously forcefully terminated using TerminateExecution().
+  ///
+  /// When execution is forcefully terminated using TerminateExecution(),
+  /// the isolate can not resume execution until all JavaScript frames
+  /// have propagated the uncatchable exception which is generated.  This
+  /// method allows the program embedding the engine to handle the
+  /// termination event and resume execution capability, even if
+  /// JavaScript frames remain on the stack.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn cancel_terminate_execution(&self) {
+    unsafe { v8__Isolate__CancelTerminateExecution(self) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any

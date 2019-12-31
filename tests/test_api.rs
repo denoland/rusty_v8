@@ -387,6 +387,56 @@ fn throw_exception() {
 }
 
 #[test]
+fn terminate_execution() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  // Originally run fine.
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let result = eval(scope, context, "true").unwrap();
+    let true_val = v8::new_true(scope).into();
+    assert!(result.same_value(true_val));
+    context.exit();
+  }
+  // Terminate.
+  isolate.terminate_execution();
+  // Below run should fail with terminated knowledge.
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let mut try_catch = v8::TryCatch::new(scope);
+    let tc = try_catch.enter();
+    let _ = eval(scope, context, "true");
+    assert!(tc.has_caught());
+    assert!(tc.has_terminated());
+    context.exit();
+  }
+  // Cancel termination.
+  isolate.cancel_terminate_execution();
+  // Works again.
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let result = eval(scope, context, "true").unwrap();
+    let true_val = v8::new_true(scope).into();
+    assert!(result.same_value(true_val));
+    context.exit();
+  }
+  drop(locker);
+  drop(g);
+}
+
+#[test]
 fn add_message_listener() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
