@@ -149,6 +149,18 @@ v8::Value* v8__Isolate__ThrowException(v8::Isolate& isolate,
   return local_to_ptr(isolate.ThrowException(ptr_to_local(exception)));
 }
 
+void v8__Isolate__TerminateExecution(v8::Isolate& isolate) {
+  isolate.TerminateExecution();
+}
+
+bool v8__Isolate__IsExecutionTerminating(v8::Isolate& isolate) {
+  return isolate.IsExecutionTerminating();
+}
+
+void v8__Isolate__CancelTerminateExecution(v8::Isolate& isolate) {
+  isolate.CancelTerminateExecution();
+}
+
 v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new v8::Isolate::CreateParams();
 }
