@@ -450,22 +450,17 @@ fn add_message_listener() {
     mut message: Local<v8::Message>,
     _exception: Local<v8::Value>,
   ) {
+    let isolate = message.get_isolate();
+    let context = isolate.get_current_context();
     let mut cbs = v8::CallbackScope::new(message);
     let scope = cbs.enter();
-    {
-      let mut hs = v8::HandleScope::new(scope);
-      let scope = hs.enter();
-      let message_str = message.get(scope);
-      assert_eq!(message_str.to_rust_string_lossy(scope), "Uncaught foo");
-
-      // TODO(ry) Improve/fix the following two asserts.
-      assert!(message.get_script_resource_name(scope).is_some());
-      let isolate = message.get_isolate();
-      let context = isolate.get_current_context();
-      assert!(message.get_source_line(scope, context).is_some());
-    }
-
-    // println!("get_line_number {:?}", message.get_line_number(context));
+    let mut hs = v8::HandleScope::new(scope);
+    let scope = hs.enter();
+    let message_str = message.get(scope);
+    assert_eq!(message_str.to_rust_string_lossy(scope), "Uncaught foo");
+    assert_eq!(Some(1), message.get_line_number(context));
+    assert!(message.get_script_resource_name(scope).is_some());
+    assert!(message.get_source_line(scope, context).is_some());
     assert_eq!(message.get_start_position(), 0);
     assert_eq!(message.get_end_position(), 1);
     assert_eq!(message.get_wasm_function_index(), -1);
@@ -474,7 +469,6 @@ fn add_message_listener() {
     assert_eq!(message.get_end_column(), 1);
     assert!(!message.is_shared_cross_origin());
     assert!(!message.is_opaque());
-
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
   isolate.add_message_listener(check_message_0);
