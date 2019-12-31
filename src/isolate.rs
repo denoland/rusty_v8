@@ -68,6 +68,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__GetCurrentContext(this: *mut Isolate) -> *mut Context;
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     this: *mut Isolate,
     caputre: bool,
@@ -175,6 +176,12 @@ impl Isolate {
   /// Requires: self == Isolate::GetCurrent().
   pub fn exit(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
+  }
+
+  /// Returns the context of the currently running JavaScript, or the context
+  /// on the top of the stack if no JavaScript is running.
+  pub fn get_current_context<'sc>(&mut self) -> Local<'sc, Context> {
+    unsafe { Local::from_raw(v8__Isolate__GetCurrentContext(self)).unwrap() }
   }
 
   /// Tells V8 to capture current stack trace when uncaught exception occurs

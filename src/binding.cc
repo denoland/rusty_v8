@@ -104,6 +104,10 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+v8::Context* v8__Isolate__GetCurrentContext(v8::Isolate* isolate) {
+  return local_to_ptr(isolate->GetCurrentContext());
+}
+
 void v8__Isolate__SetData(v8::Isolate* isolate, uint32_t slot, void* data) {
   isolate->SetData(slot, data);
 }
