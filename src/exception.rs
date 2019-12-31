@@ -3,6 +3,7 @@
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::Opaque;
+use crate::Context;
 use crate::Local;
 use crate::String;
 use crate::ToLocal;
@@ -11,6 +12,23 @@ use crate::Value;
 extern "C" {
   fn v8__Message__Get(message: *const Message) -> *mut String;
   fn v8__Message__GetIsolate(message: &Message) -> &mut Isolate;
+  fn v8__Message__GetSourceLine(
+    message: &Message,
+    context: *mut Context,
+  ) -> *mut String;
+  fn v8__Message__GetScriptResourceName(message: &Message) -> *mut Value;
+  fn v8__Message__GetLineNumber(
+    message: &Message,
+    context: *mut Context,
+  ) -> int;
+  fn v8__Message__GetStartPosition(message: &Message) -> int;
+  fn v8__Message__GetEndPosition(message: &Message) -> int;
+  fn v8__Message__GetWasmFunctionIndex(message: &Message) -> int;
+  fn v8__Message__ErrorLevel(message: &Message) -> int;
+  fn v8__Message__GetStartColumn(message: &Message) -> int;
+  fn v8__Message__GetEndColumn(message: &Message) -> int;
+  fn v8__Message__IsSharedCrossOrigin(message: &Message) -> bool;
+  fn v8__Message__IsOpaque(message: &Message) -> bool;
 
   fn v8__StackTrace__GetFrameCount(stack_trace: *mut StackTrace) -> int;
 
@@ -52,6 +70,78 @@ impl Message {
 
   pub fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { v8__Message__GetIsolate(self) }
+  }
+
+  pub fn get_source_line<'s>(
+    &self,
+    scope: &mut impl ToLocal<'s>,
+    mut context: Local<Context>,
+  ) -> Option<Local<'s, String>> {
+    unsafe { scope.to_local(v8__Message__GetSourceLine(self, &mut *context)) }
+  }
+
+  /// Returns the resource name for the script from where the function causing
+  /// the error originates.
+  pub fn get_script_resource_name<'s>(
+    &self,
+    scope: &mut impl ToLocal<'s>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe { scope.to_local(v8__Message__GetScriptResourceName(self)) }
+  }
+
+  /// Returns the number, 1-based, of the line where the error occurred.
+  pub fn get_line_number(&self, mut context: Local<Context>) -> Option<usize> {
+    let i = unsafe { v8__Message__GetLineNumber(self, &mut *context) };
+    if i < 0 {
+      None
+    } else {
+      Some(i as usize)
+    }
+  }
+
+  /// Returns the index within the script of the first character where
+  /// the error occurred.
+  pub fn get_start_position(&self) -> int {
+    unsafe { v8__Message__GetStartPosition(self) }
+  }
+
+  /// Returns the index within the script of the last character where
+  /// the error occurred.
+  pub fn get_end_position(&self) -> int {
+    unsafe { v8__Message__GetEndPosition(self) }
+  }
+
+  /// Returns the Wasm function index where the error occurred. Returns -1 if
+  /// message is not from a Wasm script.
+  pub fn get_wasm_function_index(&self) -> int {
+    unsafe { v8__Message__GetWasmFunctionIndex(self) }
+  }
+
+  /// Returns the error level of the message.
+  pub fn error_level(&self) -> int {
+    unsafe { v8__Message__ErrorLevel(self) }
+  }
+
+  /// Returns the index within the line of the first character where
+  /// the error occurred.
+  pub fn get_start_column(&self) -> usize {
+    unsafe { v8__Message__GetStartColumn(self) as usize }
+  }
+
+  /// Returns the index within the line of the last character where
+  /// the error occurred.
+  pub fn get_end_column(&self) -> usize {
+    unsafe { v8__Message__GetEndColumn(self) as usize }
+  }
+
+  /// Passes on the value set by the embedder when it fed the script from which
+  /// this Message was generated to V8.
+  pub fn is_shared_cross_origin(&self) -> bool {
+    unsafe { v8__Message__IsSharedCrossOrigin(self) }
+  }
+
+  pub fn is_opaque(&self) -> bool {
+    unsafe { v8__Message__IsOpaque(self) }
   }
 }
 
