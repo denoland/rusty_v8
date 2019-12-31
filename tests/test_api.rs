@@ -469,6 +469,19 @@ fn add_message_listener() {
     assert_eq!(message.get_end_column(), 1);
     assert!(!message.is_shared_cross_origin());
     assert!(!message.is_opaque());
+    let stack_trace = message.get_stack_trace(scope).unwrap();
+    assert_eq!(1, stack_trace.get_frame_count());
+    let frame = stack_trace.get_frame(scope, 0).unwrap();
+    assert_eq!(1, frame.get_line_number());
+    assert_eq!(1, frame.get_column());
+    assert_eq!(3, frame.get_script_id());
+    assert!(frame.get_script_name(scope).is_none());
+    assert!(frame.get_script_name_or_source_url(scope).is_none());
+    assert!(frame.get_function_name(scope).is_none());
+    assert_eq!(false, frame.is_eval());
+    assert_eq!(false, frame.is_constructor());
+    assert_eq!(false, frame.is_wasm());
+    assert_eq!(true, frame.is_user_javascript());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
   isolate.add_message_listener(check_message_0);
