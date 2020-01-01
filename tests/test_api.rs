@@ -189,7 +189,7 @@ fn escapable_handle_scope() {
         let mut hs = v8::EscapableHandleScope::new(escapable_scope);
         let nested_escapable_scope = hs.enter();
         let string =
-            v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
+          v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
         nested_escapable_scope.escape(string)
       };
       escapable_scope.escape(nested_str_val)
@@ -297,7 +297,7 @@ fn eval<'sc>(
   let scope = hs.enter();
   let source = v8_str(scope, code);
   let mut script =
-      v8::Script::compile(&mut *scope, context, source, None).unwrap();
+    v8::Script::compile(&mut *scope, context, source, None).unwrap();
   let r = script.run(scope, context);
   r.map(|v| scope.escape(v))
 }
@@ -378,9 +378,9 @@ fn throw_exception() {
       isolate.throw_exception(v8_str(scope, "boom").into());
       assert!(tc.has_caught());
       assert!(tc
-          .exception()
-          .unwrap()
-          .strict_equals(v8_str(scope, "boom").into()));
+        .exception()
+        .unwrap()
+        .strict_equals(v8_str(scope, "boom").into()));
     };
     context.exit();
   }
@@ -542,9 +542,9 @@ fn set_host_initialize_import_meta_object_callback() {
     context.enter();
     let source = mock_source(s, "google.com", "import.meta;");
     let mut module =
-        v8::script_compiler::compile_module(&isolate, source).unwrap();
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     let result =
-        module.instantiate_module(context, unexpected_module_resolve_callback);
+      module.instantiate_module(context, unexpected_module_resolve_callback);
     assert!(result.is_some());
     let meta = module.evaluate(s, context).unwrap();
     assert!(meta.is_object());
@@ -622,7 +622,7 @@ fn script_origin() {
 
     let source = v8::String::new(s, "1+2").unwrap();
     let mut script =
-        v8::Script::compile(s, context, source, Some(&script_origin)).unwrap();
+      v8::Script::compile(s, context, source, Some(&script_origin)).unwrap();
     source.to_rust_string_lossy(s);
     let _result = script.run(s, context).unwrap();
     context.exit();
@@ -818,9 +818,9 @@ fn create_data_property() {
 
     let key = v8_str(scope, "a");
     let obj = context
-        .global(scope)
-        .get(scope, context, key.into())
-        .unwrap();
+      .global(scope)
+      .get(scope, context, key.into())
+      .unwrap();
     assert!(obj.is_object());
     let obj = obj.to_object(scope).unwrap();
     let key = v8_str(scope, "foo");
@@ -923,8 +923,8 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
   {
     let rv = &mut info.get_return_value();
     #[allow(mutable_transmutes)]
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
+    #[allow(clippy::transmute_ptr_to_ptr)]
+    let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
     {
       let mut hs = v8::HandleScope::new(info);
       let scope = hs.enter();
@@ -939,8 +939,8 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
 
 extern "C" fn fn_callback2(info: &FunctionCallbackInfo) {
   #[allow(mutable_transmutes)]
-      #[allow(clippy::transmute_ptr_to_ptr)]
-      let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
+  #[allow(clippy::transmute_ptr_to_ptr)]
+  let info: &mut FunctionCallbackInfo = unsafe { std::mem::transmute(info) };
   assert_eq!(info.length(), 2);
   let isolate = info.get_isolate();
   let mut locker = v8::Locker::new(&isolate);
@@ -988,13 +988,13 @@ fn function() {
     // create function using template
     let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
     let mut function = fn_template
-        .get_function(scope, context)
-        .expect("Unable to create function");
+      .get_function(scope, context)
+      .expect("Unable to create function");
     let _value =
-        v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
+      v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
     // create function without a template
     let mut function = v8::Function::new(scope, context, fn_callback2)
-        .expect("Unable to create function");
+      .expect("Unable to create function");
     let arg1 = v8::String::new(scope, "arg1").unwrap();
     let arg2 = v8::Integer::new(scope, 2);
     let maybe_value = v8::Function::call(
@@ -1110,7 +1110,7 @@ fn script_compiler_source() {
     let source = "1+2";
     let script_origin = mock_script_origin(scope, "foo.js");
     let source =
-        v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
+      v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
 
     let result = v8::script_compiler::compile_module(&isolate, source);
     assert!(result.is_some());
@@ -1145,7 +1145,7 @@ fn module_instantiation_failures1() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let mut module =
-        v8::script_compiler::compile_module(&isolate, source).unwrap();
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
 
@@ -1185,9 +1185,9 @@ fn module_instantiation_failures1() {
       assert!(result.is_none());
       assert!(tc.has_caught());
       assert!(tc
-          .exception()
-          .unwrap()
-          .strict_equals(v8_str(scope, "boom").into()));
+        .exception()
+        .unwrap()
+        .strict_equals(v8_str(scope, "boom").into()));
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     }
 
@@ -1209,7 +1209,7 @@ fn compile_specifier_as_module_resolve_callback(
   let origin = mock_script_origin(scope, "module.js");
   let source = v8::script_compiler::Source::new(specifier, &origin);
   let module =
-      v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
+    v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
   &mut *scope.escape(module)
 }
 
@@ -1236,7 +1236,7 @@ fn module_evaluation() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let mut module =
-        v8::script_compiler::compile_module(&isolate, source).unwrap();
+      v8::script_compiler::compile_module(&isolate, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
     let result = module.instantiate_module(
@@ -1393,7 +1393,7 @@ fn snapshot_creator() {
 
       let source = v8::String::new(scope, "a = 1 + 2").unwrap();
       let mut script =
-          v8::Script::compile(scope, context, source, None).unwrap();
+        v8::Script::compile(scope, context, source, None).unwrap();
       script.run(scope, context).unwrap();
 
       snapshot_creator.set_default_context(context);
@@ -1402,8 +1402,8 @@ fn snapshot_creator() {
     }
 
     snapshot_creator
-        .create_blob(v8::FunctionCodeHandling::Clear)
-        .unwrap()
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
   };
   assert!(startup_data.len() > 0);
   // Now we try to load up the snapshot and check that 'a' has the correct
@@ -1421,7 +1421,7 @@ fn snapshot_creator() {
       context.enter();
       let source = v8::String::new(scope, "a === 3").unwrap();
       let mut script =
-          v8::Script::compile(scope, context, source, None).unwrap();
+        v8::Script::compile(scope, context, source, None).unwrap();
       let result = script.run(scope, context).unwrap();
       let true_val = v8::new_true(scope).into();
       assert!(result.same_value(true_val));
@@ -1447,7 +1447,7 @@ fn external_references() {
   // the value 3.
   let mut startup_data = {
     let mut snapshot_creator =
-        v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
+      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
     let isolate = snapshot_creator.get_isolate();
     let mut locker = v8::Locker::new(&isolate);
     {
@@ -1459,8 +1459,8 @@ fn external_references() {
       // create function using template
       let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
       let function = fn_template
-          .get_function(scope, context)
-          .expect("Unable to create function");
+        .get_function(scope, context)
+        .expect("Unable to create function");
 
       let global = context.global(scope);
       global.set(context, v8_str(scope, "F").into(), function.into());
@@ -1471,8 +1471,8 @@ fn external_references() {
     }
 
     snapshot_creator
-        .create_blob(v8::FunctionCodeHandling::Clear)
-        .unwrap()
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
   };
   assert!(startup_data.len() > 0);
   // Now we try to load up the snapshot and check that 'a' has the correct
@@ -1491,11 +1491,11 @@ fn external_references() {
       context.enter();
 
       let result =
-          eval(scope, context, "if(F() != 'wrong answer') throw 'boom1'");
+        eval(scope, context, "if(F() != 'wrong answer') throw 'boom1'");
       assert!(result.is_none());
 
       let result =
-          eval(scope, context, "if(F() != 'Hello callback!') throw 'boom2'");
+        eval(scope, context, "if(F() != 'Hello callback!') throw 'boom2'");
       assert!(result.is_some());
 
       context.exit();
@@ -1729,7 +1729,7 @@ fn value_checker() {
     assert!(value.is_date());
 
     let value =
-        eval(scope, context, "(function(){return arguments})()").unwrap();
+      eval(scope, context, "(function(){return arguments})()").unwrap();
     assert!(value.is_arguments_object());
 
     let value = eval(scope, context, "new Promise(function(){})").unwrap();
