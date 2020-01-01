@@ -279,13 +279,13 @@ v8::Module* v8__ScriptCompiler__CompileModule(
 }
 
 bool v8__Value__IsUndefined(const v8::Value& self) {
-    return self.IsUndefined();
+  return self.IsUndefined();
 }
 
 bool v8__Value__IsNull(const v8::Value& self) { return self.IsNull(); }
 
 bool v8__Value__IsNullOrUndefined(const v8::Value& self) {
-    return self.IsNullOrUndefined();
+  return self.IsNullOrUndefined();
 }
 
 bool v8__Value__IsTrue(const v8::Value& self) { return self.IsTrue(); }
@@ -319,61 +319,59 @@ bool v8__Value__IsUint32(const v8::Value& self) { return self.IsUint32(); }
 bool v8__Value__IsDate(const v8::Value& self) { return self.IsDate(); }
 
 bool v8__Value__IsArgumentsObject(const v8::Value& self) {
-    return self.IsArgumentsObject();
+  return self.IsArgumentsObject();
 }
 
 bool v8__Value__IsBigIntObject(const v8::Value& self) {
-    return self.IsBigIntObject();
+  return self.IsBigIntObject();
 }
 
 bool v8__Value__IsBooleanObject(const v8::Value& self) {
-    return self.IsBooleanObject();
+  return self.IsBooleanObject();
 }
 
 bool v8__Value__IsNumberObject(const v8::Value& self) {
-    return self.IsNumberObject();
+  return self.IsNumberObject();
 }
 
 bool v8__Value__IsStringObject(const v8::Value& self) {
-    return self.IsStringObject();
+  return self.IsStringObject();
 }
 
 bool v8__Value__IsSymbolObject(const v8::Value& self) {
-    return self.IsSymbolObject();
+  return self.IsSymbolObject();
 }
 
 bool v8__Value__IsNativeError(const v8::Value& self) {
-    return self.IsNativeError();
+  return self.IsNativeError();
 }
 
 bool v8__Value__IsRegExp(const v8::Value& self) { return self.IsRegExp(); }
 
 bool v8__Value__IsAsyncFunction(const v8::Value& self) {
-    return self.IsAsyncFunction();
+  return self.IsAsyncFunction();
 }
 
 bool v8__Value__IsGeneratorFunction(const v8::Value& self) {
-    return self.IsGeneratorFunction();
+  return self.IsGeneratorFunction();
 }
 
 bool v8__Value__IsGeneratorObject(const v8::Value& self) {
-    return self.IsGeneratorObject();
+  return self.IsGeneratorObject();
 }
 
-bool v8__Value__IsPromise(const v8::Value& self) {
-    return self.IsPromise();
-}
+bool v8__Value__IsPromise(const v8::Value& self) { return self.IsPromise(); }
 
 bool v8__Value__IsMap(const v8::Value& self) { return self.IsMap(); }
 
 bool v8__Value__IsSet(const v8::Value& self) { return self.IsSet(); }
 
 bool v8__Value__IsMapIterator(const v8::Value& self) {
-    return self.IsMapIterator();
+  return self.IsMapIterator();
 }
 
 bool v8__Value__IsSetIterator(const v8::Value& self) {
-    return self.IsSetIterator();
+  return self.IsSetIterator();
 }
 
 bool v8__Value__IsWeakMap(const v8::Value& self) { return self.IsWeakMap(); }
@@ -381,75 +379,75 @@ bool v8__Value__IsWeakMap(const v8::Value& self) { return self.IsWeakMap(); }
 bool v8__Value__IsWeakSet(const v8::Value& self) { return self.IsWeakSet(); }
 
 bool v8__Value__IsArrayBuffer(const v8::Value& self) {
-    return self.IsArrayBuffer();
+  return self.IsArrayBuffer();
 }
 
 bool v8__Value__IsArrayBufferView(const v8::Value& self) {
-    return self.IsArrayBufferView();
+  return self.IsArrayBufferView();
 }
 
 bool v8__Value__IsTypedArray(const v8::Value& self) {
-    return self.IsTypedArray();
+  return self.IsTypedArray();
 }
 
 bool v8__Value__IsUint8Array(const v8::Value& self) {
-    return self.IsUint8Array();
+  return self.IsUint8Array();
 }
 
 bool v8__Value__IsUint8ClampedArray(const v8::Value& self) {
-    return self.IsUint8ClampedArray();
+  return self.IsUint8ClampedArray();
 }
 
 bool v8__Value__IsInt8Array(const v8::Value& self) {
-    return self.IsInt8Array();
+  return self.IsInt8Array();
 }
 
 bool v8__Value__IsUint16Array(const v8::Value& self) {
-    return self.IsUint16Array();
+  return self.IsUint16Array();
 }
 
 bool v8__Value__IsInt16Array(const v8::Value& self) {
-    return self.IsInt16Array();
+  return self.IsInt16Array();
 }
 
 bool v8__Value__IsUint32Array(const v8::Value& self) {
-    return self.IsUint32Array();
+  return self.IsUint32Array();
 }
 
 bool v8__Value__IsInt32Array(const v8::Value& self) {
-    return self.IsInt32Array();
+  return self.IsInt32Array();
 }
 
 bool v8__Value__IsFloat32Array(const v8::Value& self) {
-    return self.IsFloat32Array();
+  return self.IsFloat32Array();
 }
 
 bool v8__Value__IsFloat64Array(const v8::Value& self) {
-    return self.IsFloat64Array();
+  return self.IsFloat64Array();
 }
 
 bool v8__Value__IsBigInt64Array(const v8::Value& self) {
-    return self.IsBigInt64Array();
+  return self.IsBigInt64Array();
 }
 
 bool v8__Value__IsBigUint64Array(const v8::Value& self) {
-    return self.IsBigUint64Array();
+  return self.IsBigUint64Array();
 }
 
 bool v8__Value__IsDataView(const v8::Value& self) { return self.IsDataView(); }
 
 bool v8__Value__IsSharedArrayBuffer(const v8::Value& self) {
-    return self.IsSharedArrayBuffer();
+  return self.IsSharedArrayBuffer();
 }
 
 bool v8__Value__IsProxy(const v8::Value& self) { return self.IsProxy(); }
 
 bool v8__Value__IsWebAssemblyCompiledModule(const v8::Value& self) {
-    return self.IsWebAssemblyCompiledModule();
+  return self.IsWebAssemblyCompiledModule();
 }
 
 bool v8__Value__IsModuleNamespaceObject(const v8::Value& self) {
-    return self.IsModuleNamespaceObject();
+  return self.IsModuleNamespaceObject();
 }
 
 bool v8__Value__StrictEquals(const v8::Value& self, v8::Value* that) {
