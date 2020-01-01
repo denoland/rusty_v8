@@ -1636,7 +1636,7 @@ fn shared_array_buffer() {
       global.create_data_property(
         context,
         v8_str(s, "shared").into(),
-        sab.into()
+        sab.into(),
       ),
       v8::MaybeBool::JustTrue
     );
@@ -1644,7 +1644,7 @@ fn shared_array_buffer() {
       s,
       "sharedBytes = new Uint8Array(shared); sharedBytes[2] = 16; sharedBytes[14] = 62; sharedBytes[5] + sharedBytes[12]",
     )
-    .unwrap();
+        .unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
     let result = script.run(s, context).unwrap();
@@ -1653,6 +1653,175 @@ fn shared_array_buffer() {
     assert_eq!(result.value(), 64);
     assert_eq!(shared_buf[2], 16);
     assert_eq!(shared_buf[14], 62);
+    context.exit();
+  }
+  drop(locker);
+  isolate.exit();
+  drop(g);
+}
+
+#[test]
+#[allow(clippy::cognitive_complexity)]
+fn value_checker() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  isolate.enter();
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let value = eval(scope, context, "undefined").unwrap();
+    assert!(value.is_undefined());
+    assert!(value.is_null_or_undefined());
+
+    let value = eval(scope, context, "null").unwrap();
+    assert!(value.is_null());
+    assert!(value.is_null_or_undefined());
+
+    let value = eval(scope, context, "true").unwrap();
+    assert!(value.is_boolean());
+    assert!(value.is_true());
+    assert!(!value.is_false());
+
+    let value = eval(scope, context, "false").unwrap();
+    assert!(value.is_boolean());
+    assert!(!value.is_true());
+    assert!(value.is_false());
+
+    let value = eval(scope, context, "'name'").unwrap();
+    assert!(value.is_name());
+    assert!(value.is_string());
+
+    let value = eval(scope, context, "Symbol()").unwrap();
+    assert!(value.is_name());
+    assert!(value.is_symbol());
+
+    let value = eval(scope, context, "() => 0").unwrap();
+    assert!(value.is_function());
+
+    let value = eval(scope, context, "async () => 0").unwrap();
+    assert!(value.is_async_function());
+
+    let value = eval(scope, context, "[]").unwrap();
+    assert!(value.is_array());
+
+    let value = eval(scope, context, "BigInt('9007199254740995')").unwrap();
+    assert!(value.is_big_int());
+
+    let value = eval(scope, context, "123").unwrap();
+    assert!(value.is_number());
+
+    let value = eval(scope, context, "123").unwrap();
+    assert!(value.is_number());
+    assert!(value.is_int32());
+    assert!(value.is_uint32());
+
+    let value = eval(scope, context, "-123").unwrap();
+    assert!(value.is_number());
+    assert!(!value.is_uint32());
+
+    let value = eval(scope, context, "new Date()").unwrap();
+    assert!(value.is_date());
+
+    let value =
+      eval(scope, context, "(function(){return arguments})()").unwrap();
+    assert!(value.is_arguments_object());
+
+    let value = eval(scope, context, "new Promise(function(){})").unwrap();
+    assert!(value.is_promise());
+
+    let value = eval(scope, context, "new Map()").unwrap();
+    assert!(value.is_map());
+
+    let value = eval(scope, context, "new Set").unwrap();
+    assert!(value.is_set());
+
+    let value = eval(scope, context, "new Map().entries()").unwrap();
+    assert!(value.is_map_iterator());
+
+    let value = eval(scope, context, "new Set().entries()").unwrap();
+    assert!(value.is_set_iterator());
+
+    let value = eval(scope, context, "new WeakMap()").unwrap();
+    assert!(value.is_weak_map());
+
+    let value = eval(scope, context, "new WeakSet()").unwrap();
+    assert!(value.is_weak_set());
+
+    let value = eval(scope, context, "new ArrayBuffer(8)").unwrap();
+    assert!(value.is_array_buffer());
+
+    let value = eval(scope, context, "new Uint8Array([])").unwrap();
+    assert!(value.is_uint8_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Uint8ClampedArray([])").unwrap();
+    assert!(value.is_uint8_clamped_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Int8Array([])").unwrap();
+    assert!(value.is_int8_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Uint16Array([])").unwrap();
+    assert!(value.is_uint16_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Int16Array([])").unwrap();
+    assert!(value.is_int16_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Uint32Array([])").unwrap();
+    assert!(value.is_uint32_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Int32Array([])").unwrap();
+    assert!(value.is_int32_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Float32Array([])").unwrap();
+    assert!(value.is_float32_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new Float64Array([])").unwrap();
+    assert!(value.is_float64_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new BigInt64Array([])").unwrap();
+    assert!(value.is_big_int64_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new BigUint64Array([])").unwrap();
+    assert!(value.is_big_uint64_array());
+    assert!(value.is_array_buffer_view());
+    assert!(value.is_typed_array());
+
+    let value = eval(scope, context, "new SharedArrayBuffer(64)").unwrap();
+    assert!(value.is_shared_array_buffer());
+
+    let value = eval(scope, context, "new Proxy({},{})").unwrap();
+    assert!(value.is_proxy());
+
+    // Other checker, Just check if it can be called
+    value.is_external();
+    value.is_web_assembly_compiled_module();
+    value.is_module_namespace_object();
+
     context.exit();
   }
   drop(locker);
