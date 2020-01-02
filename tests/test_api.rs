@@ -910,6 +910,55 @@ fn create_data_property() {
 }
 
 #[test]
+fn object_set_accessor() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+    let mut obj = v8::Object::new(scope);
+    let key = v8_str(scope, "key");
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+    extern "C" fn getter(
+      name: v8::Local<v8::Name>,
+      info: &v8::PropertyCallbackInfo,
+    ) {
+      let rv = &mut info.get_return_value();
+      // TODO fix callback mutability.
+      #[allow(mutable_transmutes)]
+      #[allow(clippy::transmute_ptr_to_ptr)]
+      let info: &mut v8::PropertyCallbackInfo =
+        unsafe { std::mem::transmute(info) };
+      {
+        let mut hs = v8::HandleScope::new(info);
+        let scope = hs.enter();
+        let name_str =
+          name.to_string(scope).unwrap().to_rust_string_lossy(scope);
+        assert_eq!(name_str, "key");
+        let s = v8::String::new(scope, "hello").unwrap();
+        rv.set(s.into());
+      }
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
+    obj.set_accessor(context, key.into(), getter);
+    let global = context.global(scope);
+    let obj_name = v8_str(scope, "obj");
+    global.set(context, obj_name.into(), obj.into());
+    let actual = eval(scope, context, "obj.key;").unwrap();
+    let expected = v8_str(scope, "hello");
+    assert!(actual.strict_equals(expected.into()));
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+    context.exit();
+  }
+  drop(locker);
+}
+
+#[test]
 fn promise_resolved() {
   setup();
   let mut params = v8::Isolate::create_params();

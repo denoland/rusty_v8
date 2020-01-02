@@ -6,8 +6,12 @@ use crate::Context;
 use crate::Local;
 use crate::Name;
 use crate::Object;
+use crate::PropertyCallbackInfo;
 use crate::ToLocal;
 use crate::Value;
+
+pub type AccessorNameGetterCallback =
+  extern "C" fn(Local<Name>, &PropertyCallbackInfo);
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *mut Object;
@@ -18,6 +22,12 @@ extern "C" {
     values: *mut *mut Value,
     length: usize,
   ) -> *mut Object;
+  fn v8__Object__SetAccessor(
+    self_: &Object,
+    context: *const Context,
+    name: *const Name,
+    getter: AccessorNameGetterCallback,
+  ) -> MaybeBool;
   fn v8__Object__GetIsolate(object: &Object) -> &mut Isolate;
 
   fn v8__Object__Get(
@@ -122,6 +132,16 @@ impl Object {
       let ptr = v8__Object__Get(self, &*context, &*key);
       scope.to_local(ptr)
     }
+  }
+
+  /// Note: SideEffectType affects the getter only, not the setter.
+  pub fn set_accessor(
+    &mut self,
+    context: Local<Context>,
+    name: Local<Name>,
+    getter: AccessorNameGetterCallback,
+  ) -> MaybeBool {
+    unsafe { v8__Object__SetAccessor(self, &*context, &*name, getter) }
   }
 
   /// Return the isolate to which the Object belongs to.

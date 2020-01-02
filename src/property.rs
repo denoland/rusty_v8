@@ -1,9 +1,9 @@
 use crate::isolate::Isolate;
 use crate::support::Opaque;
+use crate::InIsolate;
 use crate::Local;
 use crate::Object;
 use crate::ReturnValue;
-
 use std::mem::MaybeUninit;
 
 /// The information passed to a property callback about the context
@@ -48,5 +48,11 @@ impl PropertyCallbackInfo {
   /// object passed in as receiver or thisArg.
   pub fn this(&self) -> Local<Object> {
     unsafe { Local::from_raw(v8__PropertyCallbackInfo__This(self)).unwrap() }
+  }
+}
+
+impl InIsolate for PropertyCallbackInfo {
+  fn isolate(&mut self) -> &mut Isolate {
+    self.get_isolate()
   }
 }
