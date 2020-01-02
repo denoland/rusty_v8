@@ -202,6 +202,38 @@ fn escapable_handle_scope() {
 }
 
 #[test]
+fn microtasks() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+
+  isolate.run_microtasks();
+
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+    extern "C" fn cb(_info: &FunctionCallbackInfo) {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
+    let function = v8::Function::new(scope, context, cb).unwrap();
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
+
+    isolate.enqueue_microtask(function);
+    isolate.run_microtasks();
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+    context.exit();
+  }
+}
+
+#[test]
 fn array_buffer() {
   setup();
   let mut params = v8::Isolate::create_params();

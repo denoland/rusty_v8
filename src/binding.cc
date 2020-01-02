@@ -120,6 +120,15 @@ uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
   return SLOT_NUM_EXTERNAL(isolate);
 }
 
+void v8__Isolate__RunMicrotasks(v8::Isolate& isolate) {
+  isolate.RunMicrotasks();
+}
+
+void v8__Isolate__EnqueueMicrotask(v8::Isolate& isolate,
+                                   v8::Function* function) {
+  isolate.EnqueueMicrotask(ptr_to_local(function));
+}
+
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
   isolate->SetPromiseRejectCallback(callback);
