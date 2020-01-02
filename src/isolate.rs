@@ -7,6 +7,7 @@ use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
 use crate::Context;
+use crate::Function;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -97,6 +98,8 @@ extern "C" {
   fn v8__Isolate__TerminateExecution(isolate: &Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: &Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: &Isolate);
+  fn v8__Isolate__RunMicrotasks(isolate: &Isolate);
+  fn v8__Isolate__EnqueueMicrotask(isolate: &Isolate, microtask: *mut Function);
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -287,6 +290,17 @@ impl Isolate {
   /// acquired the V8 lock with a Locker object.
   pub fn cancel_terminate_execution(&self) {
     unsafe { v8__Isolate__CancelTerminateExecution(self) }
+  }
+
+  /// Runs the default MicrotaskQueue until it gets empty.
+  /// Any exceptions thrown by microtask callbacks are swallowed.
+  pub fn run_microtasks(&self) {
+    unsafe { v8__Isolate__RunMicrotasks(self) }
+  }
+
+  /// Enqueues the callback to the default MicrotaskQueue
+  pub fn enqueue_microtask(&self, mut microtask: Local<Function>) {
+    unsafe { v8__Isolate__EnqueueMicrotask(self, &mut *microtask) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any
