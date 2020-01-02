@@ -37,7 +37,7 @@ impl SharedArrayBuffer {
     }
   }
 
-  /// DEPRECATED 
+  /// DEPRECATED
   /// Use the version that takes a BackingStore.
   /// See http://crbug.com/v8/9908.
   ///
@@ -53,10 +53,11 @@ impl SharedArrayBuffer {
   ) -> Local<'sc, SharedArrayBuffer> {
     unsafe {
       Local::from_raw(v8__SharedArrayBuffer__New__DEPRECATED(
-        scope.isolate(), 
+        scope.isolate(),
         data_ptr,
-        data_length
-      )).unwrap()
+        data_length,
+      ))
+      .unwrap()
     }
   }
 

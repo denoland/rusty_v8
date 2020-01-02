@@ -994,13 +994,12 @@ v8::SharedArrayBuffer* v8__SharedArrayBuffer__New(v8::Isolate* isolate,
 }
 
 v8::SharedArrayBuffer* v8__SharedArrayBuffer__New__DEPRECATED(
-    v8::Isolate* isolate,
-    void* data_ptr, 
-    size_t data_length) {
-  auto ab = v8::SharedArrayBuffer::New(isolate, data_ptr, data_length, v8::ArrayBufferCreationMode::kExternalized);
+    v8::Isolate* isolate, void* data_ptr, size_t data_length) {
+  auto ab =
+      v8::SharedArrayBuffer::New(isolate, data_ptr, data_length,
+                                 v8::ArrayBufferCreationMode::kExternalized);
   return local_to_ptr(ab);
 }
-
 
 size_t v8__SharedArrayBuffer__ByteLength(v8::SharedArrayBuffer& self) {
   return self.ByteLength();
