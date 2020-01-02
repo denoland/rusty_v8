@@ -37,7 +37,8 @@ extern "C" {
     key: *const Name,
     value: *const Value,
   ) -> MaybeBool;
-
+  fn v8__Object__GetIdentityHash(object: &Object) -> int;
+  
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
 }
 
@@ -127,6 +128,15 @@ impl Object {
   /// Return the isolate to which the Object belongs to.
   pub fn get_isolate(&mut self) -> &Isolate {
     unsafe { v8__Object__GetIsolate(self) }
+  }
+
+  /// Returns the identity hash for this object. The current implementation
+  /// uses a hidden property on the object to store the identity hash.
+  ///
+  /// The return value will never be 0. Also, it is not guaranteed to be
+  /// unique.
+  pub fn get_identity_hash(&self) -> int {
+    unsafe { v8__Object__GetIdentityHash(self) }
   }
 }
 
