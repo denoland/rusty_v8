@@ -46,6 +46,7 @@ impl SharedArrayBuffer {
   /// array buffer is immediately in externalized state unless otherwise
   /// specified. The memory block will not be reclaimed when a created
   /// SharedArrayBuffer is garbage-collected.
+  #[allow(non_snake_case)]
   pub fn new_DEPRECATED<'sc>(
     scope: &mut impl ToLocal<'sc>,
     data_ptr: *mut std::ffi::c_void,
