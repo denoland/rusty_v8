@@ -599,6 +599,13 @@ MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
   return maybe_to_maybe_bool(self.CreateDataProperty(context, key, value));
 }
 
+MaybeBool v8__Object__SetAccessor(v8::Object& self,
+                                  v8::Local<v8::Context> context,
+                                  v8::Local<v8::Name> key,
+                                  v8::AccessorNameGetterCallback getter) {
+  return maybe_to_maybe_bool(self.SetAccessor(context, key, getter));
+}
+
 v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
   return self.GetIsolate();
 }

@@ -94,6 +94,7 @@ pub use isolate::*;
 pub use local::Local;
 pub use locker::Locker;
 pub use module::*;
+pub use object::*;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
