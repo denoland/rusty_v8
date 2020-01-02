@@ -38,7 +38,7 @@ extern "C" {
     value: *const Value,
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
-  
+
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
 }
 
