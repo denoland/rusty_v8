@@ -1,5 +1,7 @@
 use crate::isolate::Isolate;
+use crate::support::int;
 use crate::support::MaybeBool;
+use crate::Array;
 use crate::Context;
 use crate::Local;
 use crate::Name;
@@ -35,6 +37,8 @@ extern "C" {
     key: *const Name,
     value: *const Value,
   ) -> MaybeBool;
+
+  fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
 }
 
 impl Object {
@@ -123,5 +127,17 @@ impl Object {
   /// Return the isolate to which the Object belongs to.
   pub fn get_isolate(&mut self) -> &Isolate {
     unsafe { v8__Object__GetIsolate(self) }
+  }
+}
+
+impl Array {
+  /// Creates a JavaScript array with the given length. If the length
+  /// is negative the returned array will have length 0.
+  pub fn new<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    length: i32,
+  ) -> Local<'sc, Array> {
+    let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 }
