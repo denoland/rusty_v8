@@ -10,6 +10,11 @@ extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut SharedArrayBuffer;
+  fn v8__SharedArrayBuffer__New__DEPRECATED(
+    isolate: *mut Isolate,
+    data_ptr: *mut std::ffi::c_void,
+    data_length: usize,
+  ) -> *mut SharedArrayBuffer;
   fn v8__SharedArrayBuffer__ByteLength(
     self_: *const SharedArrayBuffer,
   ) -> usize;
@@ -29,6 +34,29 @@ impl SharedArrayBuffer {
   ) -> Option<Local<'sc, SharedArrayBuffer>> {
     unsafe {
       Local::from_raw(v8__SharedArrayBuffer__New(scope.isolate(), byte_length))
+    }
+  }
+
+  /// DEPRECATED 
+  /// Use the version that takes a BackingStore.
+  /// See http://crbug.com/v8/9908.
+  ///
+  ///
+  /// Create a new SharedArrayBuffer over an existing memory block.  The created
+  /// array buffer is immediately in externalized state unless otherwise
+  /// specified. The memory block will not be reclaimed when a created
+  /// SharedArrayBuffer is garbage-collected.
+  pub fn new_DEPRECATED<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    data_ptr: *mut std::ffi::c_void,
+    data_length: usize,
+  ) -> Local<'sc, SharedArrayBuffer> {
+    unsafe {
+      Local::from_raw(v8__SharedArrayBuffer__New__DEPRECATED(
+        scope.isolate(), 
+        data_ptr,
+        data_length
+      )).unwrap()
     }
   }
 
