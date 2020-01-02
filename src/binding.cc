@@ -1062,6 +1062,10 @@ v8::Promise* v8__Promise__Then2(v8::Promise* self,
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
 }
 
+v8::Isolate* v8__Promise__GetIsolate(v8::Promise* self) {
+  return self->GetIsolate();
+}
+
 v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(
     const v8::PromiseRejectMessage& self) {
   return self.GetEvent();
