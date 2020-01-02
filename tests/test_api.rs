@@ -820,14 +820,14 @@ fn array() {
     let array = v8::Array::new(s, 2);
     array.set(context, index1.into(), s1.into());
     array.set(context, index2.into(), s2.into());
-    
+
     let maybe_v1 = array.get(s, context, index1.into());
     assert!(maybe_v1.is_some());
     assert!(maybe_v1.unwrap().same_value(s1.into()));
     let maybe_v2 = array.get(s, context, index2.into());
     assert!(maybe_v2.is_some());
     assert!(maybe_v2.unwrap().same_value(s2.into()));
-    
+
     context.exit();
   }
   drop(locker);
