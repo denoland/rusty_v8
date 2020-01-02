@@ -4,7 +4,13 @@ use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
 use crate::Message;
+use crate::Promise;
+use crate::PromiseRejectMessage;
 use std::mem::MaybeUninit;
+
+extern "C" {
+  fn v8__Promise__GetIsolate(promise: *mut Promise) -> *mut Isolate;
+}
 
 pub trait GetIsolate
 where
@@ -13,15 +19,27 @@ where
   fn get_isolate(&mut self) -> &mut Isolate;
 }
 
+impl GetIsolate for Context {
+  fn get_isolate(&mut self) -> &mut Isolate {
+    self.get_isolate()
+  }
+}
+
 impl GetIsolate for Message {
   fn get_isolate(&mut self) -> &mut Isolate {
     self.get_isolate()
   }
 }
 
-impl GetIsolate for Context {
+impl GetIsolate for Promise {
   fn get_isolate(&mut self) -> &mut Isolate {
-    self.get_isolate()
+    unsafe { &mut *v8__Promise__GetIsolate(self) }
+  }
+}
+
+impl<'a> GetIsolate for PromiseRejectMessage<'a> {
+  fn get_isolate(&mut self) -> &mut Isolate {
+    unsafe { &mut *v8__Promise__GetIsolate(&mut *self.get_promise()) }
   }
 }
 
