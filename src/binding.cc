@@ -610,6 +610,10 @@ v8::Isolate* v8__Object__GetIsolate(v8::Object& self) {
   return self.GetIsolate();
 }
 
+int v8__Object__GetIdentityHash(v8::Object& self) {
+  return self.GetIdentityHash();
+}
+
 v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }

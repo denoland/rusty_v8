@@ -827,7 +827,8 @@ fn object() {
 
     let object_ = v8::Object::new(scope);
     assert!(!object_.is_null_or_undefined());
-
+    let id = object_.get_identity_hash();
+    assert_ne!(id, 0);
     context.exit();
   }
   drop(locker);
