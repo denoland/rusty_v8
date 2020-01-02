@@ -1,4 +1,4 @@
-// Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallback;
 use crate::support::intptr_t;
 use std::ffi::c_void;

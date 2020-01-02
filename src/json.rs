@@ -1,4 +1,4 @@
-// Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 //! A JSON Parser and Stringifier.
 use crate::Context;
 use crate::Local;
