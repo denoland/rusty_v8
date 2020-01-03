@@ -1349,6 +1349,10 @@ void v8__Module__GetModuleRequestLocation(const v8::Module& self, int i,
   *out = self.GetModuleRequestLocation(i);
 }
 
+v8::Value* v8__Module__GetModuleNamespace(v8::Module* self) {
+  return local_to_ptr(self->GetModuleNamespace());
+}
+
 int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
