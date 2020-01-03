@@ -138,8 +138,7 @@ impl Isolate {
   pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
     // TODO: support CreateParams.
     crate::V8::assert_initialized();
-    let isolate_ptr = unsafe { v8__Isolate__New(params.into_raw()) };
-    OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
+    unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) }
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -308,6 +307,11 @@ impl Isolate {
   pub unsafe fn dispose(&mut self) {
     v8__Isolate__Dispose(self)
   }
+}
+
+/// Internal method for constructing an OwnedIsolate.
+pub unsafe fn new_owned_isolate(isolate_ptr: *mut Isolate) -> OwnedIsolate {
+  OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
 }
 
 /// Same as Isolate but gets disposed when it goes out of scope.

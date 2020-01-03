@@ -1,15 +1,15 @@
-use std::borrow::Borrow;
-use std::marker::PhantomData;
-use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ops::DerefMut;
-
 use crate::external_references::ExternalReferences;
 use crate::support::int;
 use crate::support::intptr_t;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use crate::OwnedIsolate;
+use std::borrow::Borrow;
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
@@ -140,6 +140,16 @@ impl SnapshotCreator {
       debug_assert!(blob.raw_size > 0);
       Some(blob)
     }
+  }
+
+  /// This is marked unsafe because it should be called at most once per snapshot
+  /// creator.
+  // TODO Because the SnapshotCreator creates its own isolate, we need a way to
+  // get an owned handle to it. This is a questionable design which ought to be
+  // revisited after the libdeno integration is complete.
+  pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
+    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
+    crate::isolate::new_owned_isolate(isolate_ptr)
   }
 
   /// Returns the isolate prepared by the snapshot creator.

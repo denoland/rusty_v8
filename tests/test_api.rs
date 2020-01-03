@@ -1550,7 +1550,9 @@ fn snapshot_creator() {
 
 lazy_static! {
   static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
-    v8::ExternalReferences::new(&[fn_callback]);
+    v8::ExternalReferences::new(&[v8::ExternalReference {
+      function: fn_callback
+    }]);
 }
 
 #[test]
