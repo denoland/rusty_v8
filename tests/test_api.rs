@@ -5,7 +5,7 @@ extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local, ToLocal};
-use std::convert::Into;
+use std::convert::{Into, TryInto};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
@@ -1470,9 +1470,8 @@ fn array_buffer_view() {
     let source = v8::String::new(s, "new Uint8Array([23,23,23,23])").unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
-    let result = script.run(s, context).unwrap();
-    // TODO: safer casts.
-    let result = unsafe { Local::<v8::ArrayBufferView>::cast(result) };
+    let result: Local<v8::ArrayBufferView> =
+      script.run(s, context).unwrap().try_into().unwrap();
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1654,9 +1653,8 @@ fn uint8_array() {
     let source = v8::String::new(s, "new Uint8Array([23,23,23,23])").unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
-    let result = script.run(s, context).unwrap();
-    // TODO: safer casts.
-    let result = unsafe { Local::<v8::ArrayBufferView>::cast(result) };
+    let result: Local<v8::ArrayBufferView> =
+      script.run(s, context).unwrap().try_into().unwrap();
     assert_eq!(result.byte_length(), 4);
     assert_eq!(result.byte_offset(), 0);
     let mut dest = [0; 4];
@@ -1761,9 +1759,8 @@ fn shared_array_buffer() {
         .unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
-    let result = script.run(s, context).unwrap();
-    // TODO: safer casts.
-    let result = unsafe { Local::<v8::Integer>::cast(result) };
+    let result: Local<v8::Integer> =
+      script.run(s, context).unwrap().try_into().unwrap();
     assert_eq!(result.value(), 64);
     assert_eq!(shared_buf[2], 16);
     assert_eq!(shared_buf[14], 62);
