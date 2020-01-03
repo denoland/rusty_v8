@@ -1,8 +1,11 @@
 use std::marker::PhantomData;
 
+use crate::callback_scope::GetIsolate;
 use crate::support::MaybeBool;
 use crate::Context;
 use crate::Function;
+use crate::InIsolate;
+use crate::Isolate;
 use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
@@ -195,6 +198,12 @@ pub enum PromiseRejectEvent {
 
 #[repr(C)]
 pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
+
+impl<'msg> InIsolate for PromiseRejectMessage<'msg> {
+  fn isolate(&mut self) -> &mut Isolate {
+    self.get_isolate()
+  }
+}
 
 impl<'msg> PromiseRejectMessage<'msg> {
   pub fn get_promise(&self) -> Local<'msg, Promise> {
