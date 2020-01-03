@@ -260,3 +260,20 @@ impl<F> FieldOffset<F> {
       .unwrap()
   }
 }
+
+#[repr(C)]
+#[derive(Default)]
+pub struct Maybe<T> {
+  has_value: bool,
+  value: T,
+}
+
+impl<T> Into<Option<T>> for Maybe<T> {
+  fn into(self) -> Option<T> {
+    if self.has_value {
+      Some(self.value)
+    } else {
+      None
+    }
+  }
+}

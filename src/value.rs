@@ -1,3 +1,4 @@
+use crate::support::Maybe;
 use crate::BigInt;
 use crate::Context;
 use crate::Int32;
@@ -80,6 +81,27 @@ extern "C" {
   fn v8__Value__ToInteger(this: &Value, context: *mut Context) -> *mut Integer;
   fn v8__Value__ToUint32(this: &Value, context: *mut Context) -> *mut Uint32;
   fn v8__Value__ToInt32(this: &Value, context: *mut Context) -> *mut Int32;
+
+  fn v8__Value__NumberValue(
+    this: &Value,
+    context: *mut Context,
+    out: *mut Maybe<f64>,
+  );
+  fn v8__Value__IntegerValue(
+    this: &Value,
+    context: *mut Context,
+    out: *mut Maybe<i64>,
+  );
+  fn v8__Value__Uint32Value(
+    this: &Value,
+    context: *mut Context,
+    out: *mut Maybe<u32>,
+  );
+  fn v8__Value__Int32Value(
+    this: &Value,
+    context: *mut Context,
+    out: *mut Maybe<i32>,
+  );
 }
 
 impl Value {
@@ -445,5 +467,46 @@ impl Value {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToInt32(self, &mut *context)) }
+  }
+
+  pub fn number_value<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<f64> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    let mut out = Maybe::<f64>::default();
+    unsafe { v8__Value__NumberValue(self, &mut *context, &mut out) };
+    out.into()
+  }
+
+  pub fn integer_value<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<i64> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    let mut out = Maybe::<i64>::default();
+    unsafe { v8__Value__IntegerValue(self, &mut *context, &mut out) };
+    out.into()
+  }
+
+  pub fn uint32_value<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<u32> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    let mut out = Maybe::<u32>::default();
+    unsafe { v8__Value__Uint32Value(self, &mut *context, &mut out) };
+    out.into()
+  }
+
+  pub fn int32_value<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Option<i32> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    let mut out = Maybe::<i32>::default();
+    unsafe { v8__Value__Int32Value(self, &mut *context, &mut out) };
+    out.into()
   }
 }

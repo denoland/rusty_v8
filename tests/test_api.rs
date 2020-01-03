@@ -1835,6 +1835,12 @@ fn value_checker() {
     assert_eq!(123, value.to_uint32(scope).unwrap().value());
     assert_eq!(123, value.to_int32(scope).unwrap().value());
     assert_eq!(123, value.to_integer(scope).unwrap().value());
+    assert_eq!(123, value.integer_value(scope).unwrap());
+    assert_eq!(123, value.uint32_value(scope).unwrap());
+    assert_eq!(123, value.int32_value(scope).unwrap());
+
+    let value = eval(scope, context, "12.3").unwrap();
+    assert!(12.3 - value.number_value(scope).unwrap() < 0.00001);
 
     let value = eval(scope, context, "-123").unwrap();
     assert!(value.is_number());
