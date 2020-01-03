@@ -30,6 +30,7 @@ extern "C" {
     i: usize,
     out: &mut MaybeUninit<Location>,
   ) -> Location;
+  fn v8__Module__GetModuleNamespace(this: *mut Module) -> *mut Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__InstantiateModule(
     this: *mut Module,
@@ -111,6 +112,11 @@ impl Module {
   /// Returns the identity hash for this object.
   pub fn get_identity_hash(&self) -> int {
     unsafe { v8__Module__GetIdentityHash(self) }
+  }
+
+  /// Returns the identity hash for this object.
+  pub fn get_module_namespace(&mut self) -> Local<Value> {
+    unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
   }
 
   /// Instantiates the module and its dependencies.
