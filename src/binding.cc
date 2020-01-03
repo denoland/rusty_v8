@@ -467,8 +467,29 @@ bool v8__Value__SameValue(const v8::Value& self, v8::Value* that) {
   return self.SameValue(ptr_to_local(that));
 }
 
+v8::Uint32* v8__Value__ToUint32(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToUint32(ptr_to_local(context)));
+}
+
+v8::Int32* v8__Value__ToInt32(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToInt32(ptr_to_local(context)));
+}
+
+v8::Integer* v8__Value__ToInteger(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToInteger(ptr_to_local(context)));
+}
+
+v8::BigInt* v8__Value__ToBigInt(const v8::Value& self, v8::Context* context) {
+  return maybe_local_to_ptr(self.ToBigInt(ptr_to_local(context)));
+}
+
 v8::String* v8__Value__ToString(const v8::Value& self, v8::Context* context) {
   return maybe_local_to_ptr(self.ToString(ptr_to_local(context)));
+}
+
+v8::String* v8__Value__ToDetailString(const v8::Value& self,
+                                      v8::Context* context) {
+  return maybe_local_to_ptr(self.ToDetailString(ptr_to_local(context)));
 }
 
 v8::Number* v8__Value__ToNumber(const v8::Value& self, v8::Context* context) {
