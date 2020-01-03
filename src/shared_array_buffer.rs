@@ -47,19 +47,17 @@ impl SharedArrayBuffer {
   /// specified. The memory block will not be reclaimed when a created
   /// SharedArrayBuffer is garbage-collected.
   #[allow(non_snake_case)]
-  pub fn new_DEPRECATED<'sc>(
+  pub unsafe fn new_DEPRECATED<'sc>(
     scope: &mut impl ToLocal<'sc>,
     data_ptr: *mut std::ffi::c_void,
     data_length: usize,
   ) -> Local<'sc, SharedArrayBuffer> {
-    unsafe {
-      Local::from_raw(v8__SharedArrayBuffer__New__DEPRECATED(
-        scope.isolate(),
-        data_ptr,
-        data_length,
-      ))
-      .unwrap()
-    }
+    Local::from_raw(v8__SharedArrayBuffer__New__DEPRECATED(
+      scope.isolate(),
+      data_ptr,
+      data_length,
+    ))
+    .unwrap()
   }
 
   /// Data length in bytes.
