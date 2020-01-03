@@ -1,9 +1,13 @@
+use crate::BigInt;
 use crate::Context;
+use crate::Int32;
+use crate::Integer;
 use crate::Local;
 use crate::Number;
 use crate::Object;
 use crate::String;
 use crate::ToLocal;
+use crate::Uint32;
 use crate::Value;
 
 extern "C" {
@@ -64,9 +68,18 @@ extern "C" {
   fn v8__Value__IsModuleNamespaceObject(this: &Value) -> bool;
   fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
   fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
-  fn v8__Value__ToString(this: &Value, context: *mut Context) -> *mut String;
+
+  fn v8__Value__ToBigInt(this: &Value, context: *mut Context) -> *mut BigInt;
   fn v8__Value__ToNumber(this: &Value, context: *mut Context) -> *mut Number;
+  fn v8__Value__ToString(this: &Value, context: *mut Context) -> *mut String;
+  fn v8__Value__ToDetailString(
+    this: &Value,
+    context: *mut Context,
+  ) -> *mut String;
   fn v8__Value__ToObject(this: &Value, context: *mut Context) -> *mut Object;
+  fn v8__Value__ToInteger(this: &Value, context: *mut Context) -> *mut Integer;
+  fn v8__Value__ToUint32(this: &Value, context: *mut Context) -> *mut Uint32;
+  fn v8__Value__ToInt32(this: &Value, context: *mut Context) -> *mut Int32;
 }
 
 impl Value {
@@ -362,13 +375,13 @@ impl Value {
     unsafe { v8__Value__SameValue(self, &that) }
   }
 
-  pub fn to_string<'sc>(
+  pub fn to_big_int<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, String>> {
+  ) -> Option<Local<'sc, BigInt>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
-    unsafe { Local::from_raw(v8__Value__ToString(self, &mut *context)) }
+    unsafe { Local::from_raw(v8__Value__ToBigInt(self, &mut *context)) }
   }
 
   pub fn to_number<'sc>(
@@ -380,6 +393,24 @@ impl Value {
     unsafe { Local::from_raw(v8__Value__ToNumber(self, &mut *context)) }
   }
 
+  pub fn to_string<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, String>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToString(self, &mut *context)) }
+  }
+
+  pub fn to_detail_string<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, String>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToDetailString(self, &mut *context)) }
+  }
+
   pub fn to_object<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
@@ -387,5 +418,32 @@ impl Value {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToObject(self, &mut *context)) }
+  }
+
+  pub fn to_integer<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Integer>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToInteger(self, &mut *context)) }
+  }
+
+  pub fn to_uint32<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Uint32>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToUint32(self, &mut *context)) }
+  }
+
+  pub fn to_int32<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Int32>> {
+    let isolate = scope.isolate();
+    let mut context = isolate.get_current_context();
+    unsafe { Local::from_raw(v8__Value__ToInt32(self, &mut *context)) }
   }
 }

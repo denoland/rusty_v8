@@ -1823,14 +1823,18 @@ fn value_checker() {
 
     let value = eval(scope, context, "BigInt('9007199254740995')").unwrap();
     assert!(value.is_big_int());
-
-    let value = eval(scope, context, "123").unwrap();
-    assert!(value.is_number());
+    assert!(value.to_big_int(scope).is_some());
+    let detail_string = value.to_detail_string(scope).unwrap();
+    let detail_string = detail_string.to_rust_string_lossy(scope);
+    assert_eq!("9007199254740995", detail_string);
 
     let value = eval(scope, context, "123").unwrap();
     assert!(value.is_number());
     assert!(value.is_int32());
     assert!(value.is_uint32());
+    assert_eq!(123, value.to_uint32(scope).unwrap().value());
+    assert_eq!(123, value.to_int32(scope).unwrap().value());
+    assert_eq!(123, value.to_integer(scope).unwrap().value());
 
     let value = eval(scope, context, "-123").unwrap();
     assert!(value.is_number());
