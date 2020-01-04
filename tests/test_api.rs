@@ -5,7 +5,7 @@ extern crate lazy_static;
 
 use rusty_v8 as v8;
 use rusty_v8::{new_null, FunctionCallbackInfo, InIsolate, Local, ToLocal};
-use std::convert::{Into, TryInto};
+use std::convert::{Into, TryFrom, TryInto};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
@@ -1950,4 +1950,146 @@ fn value_checker() {
   drop(locker);
   isolate.exit();
   drop(g);
+}
+
+#[test]
+fn try_from_local() {
+  let _g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    {
+      let value: v8::Local<v8::Value> = v8::new_undefined(scope).into();
+      let _primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
+      assert_eq!(
+        v8::Local::<v8::Object>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Object expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::Int32>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Int32 expected"
+      );
+    }
+
+    {
+      let value: v8::Local<v8::Value> = v8::new_true(scope).into();
+      let primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
+      let _boolean = v8::Local::<v8::Boolean>::try_from(value).unwrap();
+      let _boolean = v8::Local::<v8::Boolean>::try_from(primitive).unwrap();
+      assert_eq!(
+        v8::Local::<v8::String>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "String expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::Number>::try_from(primitive)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Number expected"
+      );
+    }
+
+    {
+      let value: v8::Local<v8::Value> = v8::Number::new(scope, -1234f64).into();
+      let primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
+      let _number = v8::Local::<v8::Number>::try_from(value).unwrap();
+      let number = v8::Local::<v8::Number>::try_from(primitive).unwrap();
+      let _integer = v8::Local::<v8::Integer>::try_from(value).unwrap();
+      let _integer = v8::Local::<v8::Integer>::try_from(primitive).unwrap();
+      let integer = v8::Local::<v8::Integer>::try_from(number).unwrap();
+      let _int32 = v8::Local::<v8::Int32>::try_from(value).unwrap();
+      let _int32 = v8::Local::<v8::Int32>::try_from(primitive).unwrap();
+      let _int32 = v8::Local::<v8::Int32>::try_from(integer).unwrap();
+      let _int32 = v8::Local::<v8::Int32>::try_from(number).unwrap();
+      assert_eq!(
+        v8::Local::<v8::String>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "String expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::Boolean>::try_from(primitive)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Boolean expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::Uint32>::try_from(integer)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Uint32 expected"
+      );
+    }
+
+    {
+      let value: v8::Local<v8::Value> =
+        eval(scope, context, "(() => {})").unwrap();
+      let object = v8::Local::<v8::Object>::try_from(value).unwrap();
+      let _function = v8::Local::<v8::Function>::try_from(value).unwrap();
+      let _function = v8::Local::<v8::Function>::try_from(object).unwrap();
+      assert_eq!(
+        v8::Local::<v8::Primitive>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Primitive expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::BigInt>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "BigInt expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::NumberObject>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "NumberObject expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::NumberObject>::try_from(object)
+          .err()
+          .unwrap()
+          .to_string(),
+        "NumberObject expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::Set>::try_from(value)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Set expected"
+      );
+      assert_eq!(
+        v8::Local::<v8::Set>::try_from(object)
+          .err()
+          .unwrap()
+          .to_string(),
+        "Set expected"
+      );
+    }
+
+    context.exit();
+  }
 }
