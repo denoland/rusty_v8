@@ -79,7 +79,7 @@ fn build_v8() {
   let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
-  cargo_gn::build("rusty_v8");
+  cargo_gn::build("rusty_v8", None);
 }
 
 fn platform() -> &'static str {
