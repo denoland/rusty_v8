@@ -432,7 +432,7 @@ fn terminate_execution() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let result = eval(scope, context, "true").unwrap();
-    let true_val = v8::new_true(scope).into();
+    let true_val = v8::Boolean::new(scope, true).into();
     assert!(result.same_value(true_val));
     context.exit();
   }
@@ -460,7 +460,7 @@ fn terminate_execution() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let result = eval(scope, context, "true").unwrap();
-    let true_val = v8::new_true(scope).into();
+    let true_val = v8::Boolean::new(scope, true).into();
     assert!(result.same_value(true_val));
     context.exit();
   }
@@ -633,12 +633,12 @@ fn script_origin() {
     let resource_name = v8::String::new(s, "foo.js").unwrap();
     let resource_line_offset = v8::Integer::new(s, 4);
     let resource_column_offset = v8::Integer::new(s, 5);
-    let resource_is_shared_cross_origin = v8::new_true(s);
+    let resource_is_shared_cross_origin = v8::Boolean::new(s, true);
     let script_id = v8::Integer::new(s, 123);
     let source_map_url = v8::String::new(s, "source_map_url").unwrap();
-    let resource_is_opaque = v8::new_true(s);
-    let is_wasm = v8::new_false(s);
-    let is_module = v8::new_false(s);
+    let resource_is_opaque = v8::Boolean::new(s, true);
+    let is_wasm = v8::Boolean::new(s, false);
+    let is_module = v8::Boolean::new(s, false);
 
     let script_origin = v8::ScriptOrigin::new(
       resource_name.into(),
@@ -728,21 +728,17 @@ fn test_primitives() {
     assert!(!undefined.is_null());
     assert!(undefined.is_null_or_undefined());
 
-    let true_ = v8::new_true(scope);
+    let true_ = v8::Boolean::new(scope, true);
+    assert!(true_.is_true());
     assert!(!true_.is_undefined());
     assert!(!true_.is_null());
     assert!(!true_.is_null_or_undefined());
 
-    let false_ = v8::new_false(scope);
+    let false_ = v8::Boolean::new(scope, false);
+    assert!(false_.is_false());
     assert!(!false_.is_undefined());
     assert!(!false_.is_null());
     assert!(!false_.is_null_or_undefined());
-
-    let true_ = v8::Boolean::new(scope, true);
-    assert!(true_.is_true());
-
-    let false_ = v8::Boolean::new(scope, false);
-    assert!(false_.is_false());
   }
   drop(locker);
 }
@@ -1183,12 +1179,12 @@ fn mock_script_origin<'sc>(
   let resource_name = v8_str(scope, resource_name_);
   let resource_line_offset = v8::Integer::new(scope, 0);
   let resource_column_offset = v8::Integer::new(scope, 0);
-  let resource_is_shared_cross_origin = v8::new_true(scope);
+  let resource_is_shared_cross_origin = v8::Boolean::new(scope, true);
   let script_id = v8::Integer::new(scope, 123);
   let source_map_url = v8_str(scope, "source_map_url");
-  let resource_is_opaque = v8::new_true(scope);
-  let is_wasm = v8::new_false(scope);
-  let is_module = v8::new_true(scope);
+  let resource_is_opaque = v8::Boolean::new(scope, true);
+  let is_wasm = v8::Boolean::new(scope, false);
+  let is_module = v8::Boolean::new(scope, true);
   v8::ScriptOrigin::new(
     resource_name.into(),
     resource_line_offset,
@@ -1542,7 +1538,7 @@ fn snapshot_creator() {
       let mut script =
         v8::Script::compile(scope, context, source, None).unwrap();
       let result = script.run(scope, context).unwrap();
-      let true_val = v8::new_true(scope).into();
+      let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
       context.exit();
     }
@@ -1991,7 +1987,7 @@ fn try_from_local() {
     }
 
     {
-      let value: v8::Local<v8::Value> = v8::new_true(scope).into();
+      let value: v8::Local<v8::Value> = v8::Boolean::new(scope, true).into();
       let primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
       let _boolean = v8::Local::<v8::Boolean>::try_from(value).unwrap();
       let _boolean = v8::Local::<v8::Boolean>::try_from(primitive).unwrap();
