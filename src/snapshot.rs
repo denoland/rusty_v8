@@ -41,7 +41,7 @@ pub struct StartupData<'a> {
 impl<'a> StartupData<'a> {
   pub fn new<D>(data: &'a D) -> Self
   where
-    D: Borrow<[u8]>,
+    D: Borrow<[u8]> + ?Sized,
   {
     let data = data.borrow();
     Self {

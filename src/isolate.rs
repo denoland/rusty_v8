@@ -397,9 +397,12 @@ impl CreateParams {
   /// - Compression of the startup blob might be useful, but needs to
   ///   handled entirely on the embedders' side.
   /// - The call will abort if the data is invalid.
-  pub fn set_snapshot_blob(&mut self, snapshot_blob: &mut StartupData) {
+  pub fn set_snapshot_blob(&mut self, snapshot_blob: &StartupData) {
     unsafe {
-      v8__Isolate__CreateParams__SET__snapshot_blob(self, snapshot_blob)
+      v8__Isolate__CreateParams__SET__snapshot_blob(
+        self,
+        snapshot_blob as *const _ as *mut StartupData,
+      )
     };
   }
 }
