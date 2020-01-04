@@ -25,15 +25,15 @@ extern "C" {
 
   fn v8__ScriptOrigin__CONSTRUCT(
     buf: &mut MaybeUninit<ScriptOrigin>,
-    resource_name: *mut Value,
-    resource_line_offset: *mut Integer,
-    resource_column_offset: *mut Integer,
-    resource_is_shared_cross_origin: *mut Boolean,
-    script_id: *mut Integer,
-    source_map_url: *mut Value,
-    resource_is_opaque: *mut Boolean,
-    is_wasm: *mut Boolean,
-    is_module: *mut Boolean,
+    resource_name: *const Value,
+    resource_line_offset: *const Integer,
+    resource_column_offset: *const Integer,
+    resource_is_shared_cross_origin: *const Boolean,
+    script_id: *const Integer,
+    source_map_url: *const Value,
+    resource_is_opaque: *const Boolean,
+    is_wasm: *const Boolean,
+    is_module: *const Boolean,
   );
 }
 
@@ -78,29 +78,29 @@ impl Script {
 impl<'sc> ScriptOrigin<'sc> {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
-    mut resource_name: Local<'sc, Value>,
-    mut resource_line_offset: Local<'sc, Integer>,
-    mut resource_column_offset: Local<'sc, Integer>,
-    mut resource_is_shared_cross_origin: Local<'sc, Boolean>,
-    mut script_id: Local<'sc, Integer>,
-    mut source_map_url: Local<'sc, Value>,
-    mut resource_is_opaque: Local<'sc, Boolean>,
-    mut is_wasm: Local<'sc, Boolean>,
-    mut is_module: Local<'sc, Boolean>,
+    resource_name: impl Into<Local<'sc, Value>>,
+    resource_line_offset: impl Into<Local<'sc, Integer>>,
+    resource_column_offset: impl Into<Local<'sc, Integer>>,
+    resource_is_shared_cross_origin: impl Into<Local<'sc, Boolean>>,
+    script_id: impl Into<Local<'sc, Integer>>,
+    source_map_url: impl Into<Local<'sc, Value>>,
+    resource_is_opaque: impl Into<Local<'sc, Boolean>>,
+    is_wasm: impl Into<Local<'sc, Boolean>>,
+    is_module: impl Into<Local<'sc, Boolean>>,
   ) -> Self {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
       v8__ScriptOrigin__CONSTRUCT(
         &mut buf,
-        &mut *resource_name,
-        &mut *resource_line_offset,
-        &mut *resource_column_offset,
-        &mut *resource_is_shared_cross_origin,
-        &mut *script_id,
-        &mut *source_map_url,
-        &mut *resource_is_opaque,
-        &mut *is_wasm,
-        &mut *is_module,
+        &*resource_name.into(),
+        &*resource_line_offset.into(),
+        &*resource_column_offset.into(),
+        &*resource_is_shared_cross_origin.into(),
+        &*script_id.into(),
+        &*source_map_url.into(),
+        &*resource_is_opaque.into(),
+        &*is_wasm.into(),
+        &*is_module.into(),
       );
       buf.assume_init()
     }

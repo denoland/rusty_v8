@@ -48,7 +48,7 @@ extern "C" {
     i: int,
   ) -> *mut Value;
 
-  fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *mut Value);
+  fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *const Value);
   fn v8__ReturnValue__Get(rv: &ReturnValue) -> *mut Value;
   fn v8__ReturnValue__GetIsolate(rv: &ReturnValue) -> *mut Isolate;
 }
@@ -66,8 +66,8 @@ pub struct ReturnValue<'cb>(*mut Opaque, PhantomData<&'cb ()>);
 impl<'cb> ReturnValue<'cb> {
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
-  pub fn set(&mut self, mut value: Local<Value>) {
-    unsafe { v8__ReturnValue__Set(&mut *self, &mut *value) }
+  pub fn set<'sc>(&mut self, value: impl Into<Local<'sc, Value>>) {
+    unsafe { v8__ReturnValue__Set(&mut *self, &*value.into()) }
   }
 
   /// Convenience getter for Isolate

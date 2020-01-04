@@ -98,13 +98,13 @@ impl Object {
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
-  pub fn set(
+  pub fn set<'sc>(
     &self,
     context: Local<Context>,
-    key: Local<Value>,
-    value: Local<Value>,
+    key: impl Into<Local<'sc, Value>>,
+    value: impl Into<Local<'sc, Value>>,
   ) -> MaybeBool {
-    unsafe { v8__Object__Set(self, &*context, &*key, &*value) }
+    unsafe { v8__Object__Set(self, &*context, &*key.into(), &*value.into()) }
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
@@ -114,35 +114,42 @@ impl Object {
   /// or the object is not extensible.
   ///
   /// Returns true on success.
-  pub fn create_data_property(
+  pub fn create_data_property<'a>(
     &self,
     context: Local<Context>,
-    key: Local<Name>,
-    value: Local<Value>,
+    key: impl Into<Local<'a, Name>>,
+    value: impl Into<Local<'a, Value>>,
   ) -> MaybeBool {
-    unsafe { v8__Object__CreateDataProperty(self, &*context, &*key, &*value) }
+    unsafe {
+      v8__Object__CreateDataProperty(
+        self,
+        &*context,
+        &*key.into(),
+        &*value.into(),
+      )
+    }
   }
 
-  pub fn get<'a>(
+  pub fn get<'sc>(
     &self,
-    scope: &mut impl ToLocal<'a>,
+    scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
-    key: Local<Value>,
-  ) -> Option<Local<'a, Value>> {
+    key: impl Into<Local<'sc, Value>>,
+  ) -> Option<Local<'sc, Value>> {
     unsafe {
-      let ptr = v8__Object__Get(self, &*context, &*key);
+      let ptr = v8__Object__Get(self, &*context, &*key.into());
       scope.to_local(ptr)
     }
   }
 
   /// Note: SideEffectType affects the getter only, not the setter.
-  pub fn set_accessor(
+  pub fn set_accessor<'sc>(
     &mut self,
     context: Local<Context>,
-    name: Local<Name>,
+    name: impl Into<Local<'sc, Name>>,
     getter: AccessorNameGetterCallback,
   ) -> MaybeBool {
-    unsafe { v8__Object__SetAccessor(self, &*context, &*name, getter) }
+    unsafe { v8__Object__SetAccessor(self, &*context, &*name.into(), getter) }
   }
 
   /// Return the isolate to which the Object belongs to.

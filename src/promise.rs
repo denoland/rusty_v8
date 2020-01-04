@@ -19,13 +19,13 @@ extern "C" {
   ) -> *mut Promise;
   fn v8__Promise__Resolver__Resolve(
     resolver: *mut PromiseResolver,
-    context: *mut Context,
-    value: *mut Value,
+    context: *const Context,
+    value: *const Value,
   ) -> MaybeBool;
   fn v8__Promise__Resolver__Reject(
     resolver: *mut PromiseResolver,
-    context: *mut Context,
-    value: *mut Value,
+    context: *const Context,
+    value: *const Value,
   ) -> MaybeBool;
   fn v8__Promise__State(promise: *mut Promise) -> PromiseState;
   fn v8__Promise__HasHandler(promise: *mut Promise) -> bool;
@@ -164,11 +164,11 @@ impl PromiseResolver {
   /// Ignored if the promise is no longer pending.
   pub fn resolve<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut value: Local<'sc, Value>,
+    context: Local<'sc, Context>,
+    value: impl Into<Local<'sc, Value>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value)
+      v8__Promise__Resolver__Resolve(&mut *self, &*context, &*value.into())
         .into()
     }
   }
@@ -177,11 +177,11 @@ impl PromiseResolver {
   /// Ignored if the promise is no longer pending.
   pub fn reject<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut value: Local<'sc, Value>,
+    context: Local<'sc, Context>,
+    value: impl Into<Local<'sc, Value>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
+      v8__Promise__Resolver__Reject(&mut *self, &*context, &*value.into())
         .into()
     }
   }

@@ -54,10 +54,15 @@ impl PrimitiveArray {
     &self,
     scope: &mut impl ToLocal<'sc>,
     index: usize,
-    item: Local<'_, Primitive>,
+    item: impl Into<Local<'sc, Primitive>>,
   ) {
     unsafe {
-      v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &item)
+      v8__PrimitiveArray__Set(
+        self,
+        scope.isolate(),
+        index as int,
+        &*item.into(),
+      )
     }
   }
 

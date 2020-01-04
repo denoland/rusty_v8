@@ -248,10 +248,10 @@ impl Isolate {
   /// has been handled does it become legal to invoke JavaScript operations.
   pub fn throw_exception<'sc>(
     &self,
-    exception: Local<'_, Value>,
-  ) -> Local<'sc, Value> {
+    exception: impl Into<Local<'sc, Value>>,
+  ) -> Local<'_, Value> {
     unsafe {
-      let ptr = v8__Isolate__ThrowException(self, &exception);
+      let ptr = v8__Isolate__ThrowException(self, &*exception.into());
       Local::from_raw(ptr).unwrap()
     }
   }

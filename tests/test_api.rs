@@ -407,12 +407,9 @@ fn throw_exception() {
     {
       let mut try_catch = v8::TryCatch::new(scope);
       let tc = try_catch.enter();
-      isolate.throw_exception(v8_str(scope, "boom").into());
+      isolate.throw_exception(v8_str(scope, "boom"));
       assert!(tc.has_caught());
-      assert!(tc
-        .exception()
-        .unwrap()
-        .strict_equals(v8_str(scope, "boom").into()));
+      assert!(tc.exception().unwrap().strict_equals(v8_str(scope, "boom")));
     };
     context.exit();
   }
@@ -432,7 +429,7 @@ fn terminate_execution() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let result = eval(scope, context, "true").unwrap();
-    let true_val = v8::new_true(scope).into();
+    let true_val = v8::new_true(scope);
     assert!(result.same_value(true_val));
     context.exit();
   }
@@ -460,7 +457,7 @@ fn terminate_execution() {
     let mut context = v8::Context::new(scope);
     context.enter();
     let result = eval(scope, context, "true").unwrap();
-    let true_val = v8::new_true(scope).into();
+    let true_val = v8::new_true(scope);
     assert!(result.same_value(true_val));
     context.exit();
   }
@@ -562,7 +559,7 @@ fn set_host_initialize_import_meta_object_callback() {
     let scope = hs.enter();
     let key = v8::String::new(scope, "foo").unwrap();
     let value = v8::String::new(scope, "bar").unwrap();
-    meta.create_data_property(context, key.into(), value.into());
+    meta.create_data_property(context, key, value);
   }
   isolate.set_host_initialize_import_meta_object_callback(callback);
 
@@ -583,7 +580,7 @@ fn set_host_initialize_import_meta_object_callback() {
     let meta = meta.to_object(s).unwrap();
     let key = v8::String::new(s, "foo").unwrap();
     let expected = v8::String::new(s, "bar").unwrap();
-    let actual = meta.get(s, context, key.into()).unwrap();
+    let actual = meta.get(s, context, key).unwrap();
     assert!(expected.strict_equals(actual));
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 
@@ -641,12 +638,12 @@ fn script_origin() {
     let is_module = v8::new_false(s);
 
     let script_origin = v8::ScriptOrigin::new(
-      resource_name.into(),
+      resource_name,
       resource_line_offset,
       resource_column_offset,
       resource_is_shared_cross_origin,
       script_id,
-      source_map_url.into(),
+      source_map_url,
       resource_is_opaque,
       is_wasm,
       is_module,
@@ -851,15 +848,15 @@ fn array() {
     let s2 = v8::String::new(s, "b").unwrap();
     let index2 = v8::Integer::new(s, 1);
     let array = v8::Array::new(s, 2);
-    array.set(context, index1.into(), s1.into());
-    array.set(context, index2.into(), s2.into());
+    array.set(context, index1, s1);
+    array.set(context, index2, s2);
 
-    let maybe_v1 = array.get(s, context, index1.into());
+    let maybe_v1 = array.get(s, context, index1);
     assert!(maybe_v1.is_some());
-    assert!(maybe_v1.unwrap().same_value(s1.into()));
-    let maybe_v2 = array.get(s, context, index2.into());
+    assert!(maybe_v1.unwrap().same_value(s1));
+    let maybe_v2 = array.get(s, context, index2);
     assert!(maybe_v2.is_some());
-    assert!(maybe_v2.unwrap().same_value(s2.into()));
+    assert!(maybe_v2.unwrap().same_value(s2));
 
     context.exit();
   }
@@ -882,27 +879,21 @@ fn create_data_property() {
     eval(scope, context, "var a = {};");
 
     let key = v8_str(scope, "a");
-    let obj = context
-      .global(scope)
-      .get(scope, context, key.into())
-      .unwrap();
+    let obj = context.global(scope).get(scope, context, key).unwrap();
     assert!(obj.is_object());
     let obj = obj.to_object(scope).unwrap();
     let key = v8_str(scope, "foo");
     let value = v8_str(scope, "bar");
     assert_eq!(
-      obj.create_data_property(context, key.into(), value.into()),
+      obj.create_data_property(context, key, value),
       v8::MaybeBool::JustTrue
     );
-    let actual = obj.get(scope, context, key.into()).unwrap();
+    let actual = obj.get(scope, context, key).unwrap();
     assert!(value.strict_equals(actual));
 
     let key2 = v8_str(scope, "foo2");
-    assert_eq!(
-      obj.set(context, key2.into(), value.into()),
-      v8::MaybeBool::JustTrue
-    );
-    let actual = obj.get(scope, context, key2.into()).unwrap();
+    assert_eq!(obj.set(context, key2, value), v8::MaybeBool::JustTrue);
+    let actual = obj.get(scope, context, key2).unwrap();
     assert!(value.strict_equals(actual));
 
     context.exit();
@@ -942,17 +933,17 @@ fn object_set_accessor() {
           name.to_string(scope).unwrap().to_rust_string_lossy(scope);
         assert_eq!(name_str, "key");
         let s = v8::String::new(scope, "hello").unwrap();
-        rv.set(s.into());
+        rv.set(s);
       }
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     }
-    obj.set_accessor(context, key.into(), getter);
+    obj.set_accessor(context, key, getter);
     let global = context.global(scope);
     let obj_name = v8_str(scope, "obj");
-    global.set(context, obj_name.into(), obj.into());
+    global.set(context, obj_name, obj);
     let actual = eval(scope, context, "obj.key;").unwrap();
     let expected = v8_str(scope, "hello");
-    assert!(actual.strict_equals(expected.into()));
+    assert!(actual.strict_equals(expected));
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
     context.exit();
   }
@@ -978,7 +969,7 @@ fn promise_resolved() {
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let value = v8::String::new(scope, "test").unwrap();
-    resolver.resolve(context, value.into());
+    resolver.resolve(context, value);
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
@@ -986,7 +977,7 @@ fn promise_resolved() {
     // Resolve again with different value, since promise is already in `Fulfilled` state
     // it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
-    resolver.resolve(context, value.into());
+    resolver.resolve(context, value);
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
@@ -1014,7 +1005,7 @@ fn promise_rejected() {
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let value = v8::String::new(scope, "test").unwrap();
-    let rejected = resolver.reject(context, value.into());
+    let rejected = resolver.reject(context, value);
     assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
@@ -1023,7 +1014,7 @@ fn promise_rejected() {
     // Reject again with different value, since promise is already in `Rejected` state
     // it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
-    resolver.reject(context, value.into());
+    resolver.reject(context, value);
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
@@ -1043,10 +1034,9 @@ extern "C" fn fn_callback(info: &FunctionCallbackInfo) {
       let mut hs = v8::HandleScope::new(info);
       let scope = hs.enter();
       let s = v8::String::new(scope, "Hello callback!").unwrap();
-      let value: Local<v8::Value> = s.into();
       let rv_value = rv.get(scope);
       assert!(rv_value.is_undefined());
-      rv.set(value);
+      rv.set(s);
     }
   }
 }
@@ -1069,17 +1059,16 @@ extern "C" fn fn_callback2(info: &FunctionCallbackInfo) {
 
     let arg1_val = v8::String::new(scope, "arg1").unwrap();
     assert!(arg1.is_string());
-    assert!(arg1.strict_equals(arg1_val.into()));
+    assert!(arg1.strict_equals(arg1_val));
 
     let arg2_val = v8::Integer::new(scope, 2);
     assert!(arg2.is_number());
-    assert!(arg2.strict_equals(arg2_val.into()));
+    assert!(arg2.strict_equals(arg2_val));
 
     let s = v8::String::new(scope, "Hello callback!").unwrap();
-    let value: Local<v8::Value> = s.into();
     let rv_value = rv.get(scope);
     assert!(rv_value.is_undefined());
-    rv.set(value);
+    rv.set(s);
     context.exit();
   }
 }
@@ -1163,7 +1152,7 @@ fn set_promise_reject_callback() {
     context.enter();
     let mut resolver = v8::PromiseResolver::new(scope, context).unwrap();
     let value = v8::String::new(scope, "promise rejected").unwrap();
-    resolver.reject(context, value.into());
+    resolver.reject(context, value);
     context.exit();
   }
   drop(locker);
@@ -1184,12 +1173,12 @@ fn mock_script_origin<'sc>(
   let is_wasm = v8::new_false(scope);
   let is_module = v8::new_true(scope);
   v8::ScriptOrigin::new(
-    resource_name.into(),
+    resource_name,
     resource_line_offset,
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    source_map_url,
     resource_is_opaque,
     is_wasm,
     is_module,
@@ -1292,16 +1281,13 @@ fn module_instantiation_failures1() {
         let mut hs = v8::HandleScope::new(cbs.enter());
         let scope = hs.enter();
         let e = v8_str(scope, "boom");
-        scope.isolate().throw_exception(e.into());
+        scope.isolate().throw_exception(e);
         std::ptr::null_mut()
       }
       let result = module.instantiate_module(context, resolve_callback);
       assert!(result.is_none());
       assert!(tc.has_caught());
-      assert!(tc
-        .exception()
-        .unwrap()
-        .strict_equals(v8_str(scope, "boom").into()));
+      assert!(tc.exception().unwrap().strict_equals(v8_str(scope, "boom")));
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     }
 
@@ -1367,7 +1353,7 @@ fn module_evaluation() {
     let result = eval(scope, context, "Object.expando").unwrap();
     assert!(result.is_number());
     let expected = v8::Number::new(scope, 10.);
-    assert!(result.strict_equals(expected.into()));
+    assert!(result.strict_equals(expected));
 
     context.exit();
   }
@@ -1400,12 +1386,12 @@ fn primitive_array() {
     }
 
     let string = v8_str(scope, "test");
-    array.set(scope, 1, string.into());
+    array.set(scope, 1, string);
     assert!(array.get(scope, 0).is_undefined());
     assert!(array.get(scope, 1).is_string());
 
     let num = v8::Number::new(scope, 0.42);
-    array.set(scope, 2, num.into());
+    array.set(scope, 2, num);
     assert!(array.get(scope, 0).is_undefined());
     assert!(array.get(scope, 1).is_string());
     assert!(array.get(scope, 2).is_number());
@@ -1441,11 +1427,11 @@ fn equality() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    assert!(v8_str(scope, "a").strict_equals(v8_str(scope, "a").into()));
-    assert!(!v8_str(scope, "a").strict_equals(v8_str(scope, "b").into()));
+    assert!(v8_str(scope, "a").strict_equals(v8_str(scope, "a")));
+    assert!(!v8_str(scope, "a").strict_equals(v8_str(scope, "b")));
 
-    assert!(v8_str(scope, "a").same_value(v8_str(scope, "a").into()));
-    assert!(!v8_str(scope, "a").same_value(v8_str(scope, "b").into()));
+    assert!(v8_str(scope, "a").same_value(v8_str(scope, "a")));
+    assert!(!v8_str(scope, "a").same_value(v8_str(scope, "b")));
 
     context.exit();
   }
@@ -1536,7 +1522,7 @@ fn snapshot_creator() {
       let mut script =
         v8::Script::compile(scope, context, source, None).unwrap();
       let result = script.run(scope, context).unwrap();
-      let true_val = v8::new_true(scope).into();
+      let true_val = v8::new_true(scope);
       assert!(result.same_value(true_val));
       context.exit();
     }
@@ -1578,7 +1564,7 @@ fn external_references() {
         .expect("Unable to create function");
 
       let global = context.global(scope);
-      global.set(context, v8_str(scope, "F").into(), function.into());
+      global.set(context, v8_str(scope, "F"), function);
 
       snapshot_creator.set_default_context(context);
 
@@ -1692,9 +1678,9 @@ fn dynamic_import() {
     let mut cbs = v8::CallbackScope::new(context);
     let mut hs = v8::HandleScope::new(cbs.enter());
     let scope = hs.enter();
-    assert!(specifier.strict_equals(v8_str(scope, "bar.js").into()));
+    assert!(specifier.strict_equals(v8_str(scope, "bar.js")));
     let e = v8_str(scope, "boom");
-    scope.isolate().throw_exception(e.into());
+    scope.isolate().throw_exception(e);
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     std::ptr::null_mut()
   }
@@ -1747,11 +1733,7 @@ fn shared_array_buffer() {
     shared_buf[12] = 52;
     let global = context.global(s);
     assert_eq!(
-      global.create_data_property(
-        context,
-        v8_str(s, "shared").into(),
-        sab.into(),
-      ),
+      global.create_data_property(context, v8_str(s, "shared"), sab,),
       v8::MaybeBool::JustTrue
     );
     let source = v8::String::new(

@@ -100,6 +100,14 @@ inline static v8::Local<T> ptr_to_local(T* ptr) {
 }
 
 template <class T>
+inline static const v8::Local<T> ptr_to_local(const T* ptr) {
+  static_assert(sizeof(v8::Local<T>) == sizeof(T*), "");
+  auto local = *reinterpret_cast<v8::Local<T>*>(&ptr);
+  assert(*local == ptr);
+  return local;
+}
+
+template <class T>
 inline static T* maybe_local_to_ptr(v8::MaybeLocal<T> local) {
   return *local.FromMaybe(v8::Local<T>());
 }

@@ -885,8 +885,8 @@ v8::Value* v8__FunctionCallbackInfo__GetArgument(
 }
 
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>& self,
-                          v8::Local<v8::Value> value) {
-  self.Set(value);
+                          const v8::Value* value) {
+  self.Set(ptr_to_local(value));
 }
 
 v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
@@ -1007,11 +1007,13 @@ v8::Value* v8__Script__Run(v8::Script& script, v8::Context* context) {
 }
 
 void v8__ScriptOrigin__CONSTRUCT(
-    uninit_t<v8::ScriptOrigin>& buf, v8::Value* resource_name,
-    v8::Integer* resource_line_offset, v8::Integer* resource_column_offset,
-    v8::Boolean* resource_is_shared_cross_origin, v8::Integer* script_id,
-    v8::Value* source_map_url, v8::Boolean* resource_is_opaque,
-    v8::Boolean* is_wasm, v8::Boolean* is_module) {
+    uninit_t<v8::ScriptOrigin>& buf, const v8::Value* resource_name,
+    const v8::Integer* resource_line_offset,
+    const v8::Integer* resource_column_offset,
+    const v8::Boolean* resource_is_shared_cross_origin,
+    const v8::Integer* script_id, const v8::Value* source_map_url,
+    const v8::Boolean* resource_is_opaque, const v8::Boolean* is_wasm,
+    const v8::Boolean* is_module) {
   construct_in_place<v8::ScriptOrigin>(
       buf, ptr_to_local(resource_name), ptr_to_local(resource_line_offset),
       ptr_to_local(resource_column_offset),
@@ -1071,15 +1073,17 @@ v8::Promise* v8__Promise__Resolver__GetPromise(v8::Promise::Resolver* self) {
 }
 
 MaybeBool v8__Promise__Resolver__Resolve(v8::Promise::Resolver* self,
-                                         v8::Local<v8::Context> context,
-                                         v8::Local<v8::Value> value) {
-  return maybe_to_maybe_bool(self->Resolve(context, value));
+                                         const v8::Context* context,
+                                         const v8::Value* value) {
+  return maybe_to_maybe_bool(
+      self->Resolve(ptr_to_local(context), ptr_to_local(value)));
 }
 
 MaybeBool v8__Promise__Resolver__Reject(v8::Promise::Resolver* self,
-                                        v8::Local<v8::Context> context,
-                                        v8::Local<v8::Value> value) {
-  return maybe_to_maybe_bool(self->Reject(context, value));
+                                        const v8::Context* context,
+                                        const v8::Value* value) {
+  return maybe_to_maybe_bool(
+      self->Reject(ptr_to_local(context), ptr_to_local(value)));
 }
 
 v8::Promise::PromiseState v8__Promise__State(v8::Promise* self) {

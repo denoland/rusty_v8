@@ -389,12 +389,12 @@ impl Value {
     unsafe { v8__Value__IsModuleNamespaceObject(self) }
   }
 
-  pub fn strict_equals<'sc>(&self, that: Local<'sc, Value>) -> bool {
-    unsafe { v8__Value__StrictEquals(self, &that) }
+  pub fn strict_equals<'sc>(&self, that: impl Into<Local<'sc, Value>>) -> bool {
+    unsafe { v8__Value__StrictEquals(self, &*that.into()) }
   }
 
-  pub fn same_value<'sc>(&self, that: Local<'sc, Value>) -> bool {
-    unsafe { v8__Value__SameValue(self, &that) }
+  pub fn same_value<'sc>(&self, that: impl Into<Local<'sc, Value>>) -> bool {
+    unsafe { v8__Value__SameValue(self, &*that.into()) }
   }
 
   pub fn to_big_int<'sc>(
