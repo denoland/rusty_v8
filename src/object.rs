@@ -1,17 +1,15 @@
 use crate::isolate::Isolate;
 use crate::support::int;
+use crate::support::MapFnTo;
 use crate::support::MaybeBool;
+use crate::AccessorNameGetterCallback;
 use crate::Array;
 use crate::Context;
 use crate::Local;
 use crate::Name;
 use crate::Object;
-use crate::PropertyCallbackInfo;
 use crate::ToLocal;
 use crate::Value;
-
-pub type AccessorNameGetterCallback =
-  extern "C" fn(Local<Name>, &PropertyCallbackInfo);
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *mut Object;
@@ -28,7 +26,6 @@ extern "C" {
     name: *const Name,
     getter: AccessorNameGetterCallback,
   ) -> MaybeBool;
-  fn v8__Object__GetIsolate(object: &Object) -> &mut Isolate;
 
   fn v8__Object__Get(
     object: &Object,
@@ -140,14 +137,11 @@ impl Object {
     &mut self,
     context: Local<Context>,
     name: Local<Name>,
-    getter: AccessorNameGetterCallback,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
   ) -> MaybeBool {
-    unsafe { v8__Object__SetAccessor(self, &*context, &*name, getter) }
-  }
-
-  /// Return the isolate to which the Object belongs to.
-  pub fn get_isolate(&mut self) -> &Isolate {
-    unsafe { v8__Object__GetIsolate(self) }
+    unsafe {
+      v8__Object__SetAccessor(self, &*context, &*name, getter.map_fn_to())
+    }
   }
 
   /// Returns the identity hash for this object. The current implementation

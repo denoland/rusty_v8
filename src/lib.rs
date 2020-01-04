@@ -59,7 +59,7 @@ mod object;
 mod primitive_array;
 mod primitives;
 mod promise;
-mod property;
+mod scope_traits;
 mod script;
 mod script_or_module;
 mod shared_array_buffer;
@@ -82,21 +82,20 @@ pub mod script_compiler;
 pub mod V8;
 
 pub use array_buffer::*;
-pub use callback_scope::CallbackScope;
+pub use callback_scope::{
+  CallbackScope, FunctionCallbackScope, PropertyCallbackScope,
+};
 pub use context::Context;
 pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReference;
 pub use external_references::ExternalReferences;
-pub use function::FunctionCallback;
-pub use function::FunctionCallbackInfo;
-pub use function::ReturnValue;
+pub use function::*;
 pub use global::Global;
-pub use handle_scope::{EscapableHandleScope, HandleScope, ToLocal};
+pub use handle_scope::{EscapableHandleScope, HandleScope};
 pub use isolate::CreateParams;
 pub use isolate::HostImportModuleDynamicallyCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
-pub use isolate::InIsolate;
 pub use isolate::Isolate;
 pub use isolate::MessageCallback;
 pub use isolate::OwnedIsolate;
@@ -108,7 +107,7 @@ pub use object::*;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
-pub use property::PropertyCallbackInfo;
+pub use scope_traits::*;
 pub use script::{Script, ScriptOrigin};
 pub use script_or_module::ScriptOrModule;
 pub use snapshot::FunctionCodeHandling;
@@ -120,3 +119,6 @@ pub use support::MaybeBool;
 pub use support::SharedRef;
 pub use support::UniqueRef;
 pub use try_catch::{TryCatch, TryCatchScope};
+
+// TODO(piscisaureus): Ideally this trait would not be exported.
+pub use support::MapFnTo;

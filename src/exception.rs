@@ -11,7 +11,6 @@ use crate::Value;
 
 extern "C" {
   fn v8__Message__Get(message: *const Message) -> *mut String;
-  fn v8__Message__GetIsolate(message: &Message) -> &mut Isolate;
   fn v8__Message__GetSourceLine(
     message: &Message,
     context: *mut Context,
@@ -178,10 +177,6 @@ pub struct Message(Opaque);
 impl Message {
   pub fn get<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
     unsafe { scope.to_local(v8__Message__Get(self)) }.unwrap()
-  }
-
-  pub fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { v8__Message__GetIsolate(self) }
   }
 
   /// Exception stack trace. By default stack traces are not captured for

@@ -1,17 +1,22 @@
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 
+use crate::scope::Entered;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
+use crate::support::ToCFn;
+use crate::support::UnitType;
 use crate::support::{int, Opaque};
 use crate::Context;
 use crate::Function;
+use crate::FunctionCallbackScope;
 use crate::FunctionTemplate;
-use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
+use crate::Name;
+use crate::Object;
+use crate::PropertyCallbackScope;
 use crate::ToLocal;
 use crate::Value;
-
-pub type FunctionCallback = extern "C" fn(&FunctionCallbackInfo);
 
 extern "C" {
   fn v8__Function__New(
@@ -35,44 +40,56 @@ extern "C" {
     context: *mut Context,
   ) -> *mut Function;
 
-  fn v8__FunctionCallbackInfo__GetIsolate(
-    info: &FunctionCallbackInfo,
-  ) -> &mut Isolate;
-  fn v8__FunctionCallbackInfo__Length(info: &FunctionCallbackInfo) -> int;
   fn v8__FunctionCallbackInfo__GetReturnValue(
-    info: &FunctionCallbackInfo,
-    out: *mut ReturnValue,
-  );
+    info: *const FunctionCallbackInfo,
+  ) -> *mut Value;
+  fn v8__FunctionCallbackInfo__This(
+    info: *const FunctionCallbackInfo,
+  ) -> *mut Object;
+  fn v8__FunctionCallbackInfo__Length(info: *const FunctionCallbackInfo)
+    -> int;
   fn v8__FunctionCallbackInfo__GetArgument(
-    info: &FunctionCallbackInfo,
+    info: *const FunctionCallbackInfo,
     i: int,
   ) -> *mut Value;
 
+  fn v8__PropertyCallbackInfo__GetReturnValue(
+    info: *const PropertyCallbackInfo,
+  ) -> *mut Value;
+  fn v8__PropertyCallbackInfo__This(
+    info: *const PropertyCallbackInfo,
+  ) -> *mut Object;
+
   fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *mut Value);
   fn v8__ReturnValue__Get(rv: &ReturnValue) -> *mut Value;
-  fn v8__ReturnValue__GetIsolate(rv: &ReturnValue) -> *mut Isolate;
+
 }
 
 // Npte: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.
 #[repr(C)]
-pub struct ReturnValue<'cb>(*mut Opaque, PhantomData<&'cb ()>);
+pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
 
 /// In V8 ReturnValue<> has a type parameter, but
 /// it turns out that in most of the APIs it's ReturnValue<Value>
 /// and for our purposes we currently don't need
 /// other types. So for now it's a simplified version.
 impl<'cb> ReturnValue<'cb> {
+  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
+    let slot = unsafe { v8__FunctionCallbackInfo__GetReturnValue(info) };
+    Self(slot, PhantomData)
+  }
+
+  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+    let slot = unsafe { v8__PropertyCallbackInfo__GetReturnValue(info) };
+    Self(slot, PhantomData)
+  }
+
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
   pub fn set(&mut self, mut value: Local<Value>) {
     unsafe { v8__ReturnValue__Set(&mut *self, &mut *value) }
-  }
-
-  /// Convenience getter for Isolate
-  pub fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *v8__ReturnValue__GetIsolate(self) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
@@ -91,42 +108,170 @@ impl<'cb> ReturnValue<'cb> {
 /// including the receiver, the number and values of arguments, and
 /// the holder of the function.
 #[repr(C)]
-pub struct FunctionCallbackInfo(Opaque);
-
-impl InIsolate for FunctionCallbackInfo {
-  fn isolate(&mut self) -> &mut Isolate {
-    self.get_isolate()
-  }
+pub struct FunctionCallbackInfo {
+  // The layout of this struct must match that of `class FunctionCallbackInfo`
+  // as defined in v8.h.
+  implicit_args: *mut Opaque,
+  values: *mut Value,
+  length: int,
 }
 
-impl<'s> ToLocal<'s> for FunctionCallbackInfo {}
+/// The information passed to a property callback about the context
+/// of the property access.
+#[repr(C)]
+pub struct PropertyCallbackInfo {
+  // The layout of this struct must match that of `class PropertyCallbackInfo`
+  // as defined in v8.h.
+  args: *mut Opaque,
+}
 
-impl FunctionCallbackInfo {
-  /// The ReturnValue for the call.
-  pub fn get_return_value(&self) -> ReturnValue {
-    let mut rv = MaybeUninit::<ReturnValue>::uninit();
-    unsafe {
-      v8__FunctionCallbackInfo__GetReturnValue(self, rv.as_mut_ptr());
-      rv.assume_init()
+pub struct FunctionCallbackArguments<'s> {
+  info: *const FunctionCallbackInfo,
+  phantom: PhantomData<&'s ()>,
+}
+
+impl<'s> FunctionCallbackArguments<'s> {
+  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
+    Self {
+      info,
+      phantom: PhantomData,
     }
   }
 
-  /// The current Isolate.
-  #[allow(clippy::mut_from_ref)]
-  pub fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
+  /// Returns the receiver. This corresponds to the "this" value.
+  pub fn this(&self) -> Local<Object> {
+    unsafe {
+      Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
+    }
   }
 
   /// The number of available arguments.
   pub fn length(&self) -> int {
-    unsafe { v8__FunctionCallbackInfo__Length(self) }
+    unsafe {
+      let length = (*self.info).length;
+      debug_assert_eq!(length, v8__FunctionCallbackInfo__Length(self.info));
+      length
+    }
   }
 
-  /// Accessor for the available arguments.
-  pub fn get_argument<'sc>(&mut self, i: int) -> Local<'sc, Value> {
+  /// Accessor for the available arguments. Returns `undefined` if the index is
+  /// out of bounds.
+  pub fn get(&self, i: int) -> Local<Value> {
     unsafe {
-      Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self, i)).unwrap()
+      Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self.info, i))
+        .unwrap()
     }
+  }
+}
+
+pub struct PropertyCallbackArguments<'s> {
+  info: *const PropertyCallbackInfo,
+  phantom: PhantomData<&'s ()>,
+}
+
+impl<'s> PropertyCallbackArguments<'s> {
+  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+    Self {
+      info,
+      phantom: PhantomData,
+    }
+  }
+
+  /// Returns the receiver. In many cases, this is the object on which the
+  /// property access was intercepted. When using
+  /// `Reflect.get`, `Function.prototype.call`, or similar functions, it is the
+  /// object passed in as receiver or thisArg.
+  ///
+  /// ```c++
+  ///   void GetterCallback(Local<Name> name,
+  ///                       const v8::PropertyCallbackInfo<v8::Value>& info) {
+  ///      auto context = info.GetIsolate()->GetCurrentContext();
+  ///
+  ///      v8::Local<v8::Value> a_this =
+  ///          info.This()
+  ///              ->GetRealNamedProperty(context, v8_str("a"))
+  ///              .ToLocalChecked();
+  ///      v8::Local<v8::Value> a_holder =
+  ///          info.Holder()
+  ///              ->GetRealNamedProperty(context, v8_str("a"))
+  ///              .ToLocalChecked();
+  ///
+  ///     CHECK(v8_str("r")->Equals(context, a_this).FromJust());
+  ///     CHECK(v8_str("obj")->Equals(context, a_holder).FromJust());
+  ///
+  ///     info.GetReturnValue().Set(name);
+  ///   }
+  ///
+  ///   v8::Local<v8::FunctionTemplate> templ =
+  ///   v8::FunctionTemplate::New(isolate);
+  ///   templ->InstanceTemplate()->SetHandler(
+  ///       v8::NamedPropertyHandlerConfiguration(GetterCallback));
+  ///   LocalContext env;
+  ///   env->Global()
+  ///       ->Set(env.local(), v8_str("obj"), templ->GetFunction(env.local())
+  ///                                            .ToLocalChecked()
+  ///                                            ->NewInstance(env.local())
+  ///                                            .ToLocalChecked())
+  ///       .FromJust();
+  ///
+  ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
+  /// ```
+  pub fn this(&self) -> Local<Object> {
+    unsafe {
+      Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
+    }
+  }
+}
+
+pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
+
+impl<F> MapFnFrom<F> for FunctionCallback
+where
+  F: UnitType
+    + Fn(FunctionCallbackScope, FunctionCallbackArguments, ReturnValue),
+{
+  fn mapping() -> Self {
+    let f = |info: *const FunctionCallbackInfo| {
+      let scope: FunctionCallbackScope = unsafe {
+        &mut *(info as *const _ as *mut Entered<FunctionCallbackInfo>)
+      };
+      let args = FunctionCallbackArguments::from_function_callback_info(info);
+      let rv = ReturnValue::from_function_callback_info(info);
+      (F::get())(scope, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+/// AccessorNameGetterCallback is used as callback functions when getting a
+/// particular property. See Object and ObjectTemplate's method SetAccessor.
+// TODO(piscisaureus): The actual signature of this callback is
+// `extern "C" fn(Local<Name>, *const PropertyCallbackInfo)`. This works in
+// practice but is not strictly correct, and should be fixed.
+pub type AccessorNameGetterCallback =
+  extern "C" fn(*mut Name, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for AccessorNameGetterCallback
+where
+  F: UnitType
+    + Fn(
+      PropertyCallbackScope,
+      Local<Name>,
+      PropertyCallbackArguments,
+      ReturnValue,
+    ),
+{
+  fn mapping() -> Self {
+    let f = |key: *mut Name, info: *const PropertyCallbackInfo| {
+      let scope: PropertyCallbackScope = unsafe {
+        &mut *(info as *const _ as *mut Entered<PropertyCallbackInfo>)
+      };
+      let key = unsafe { scope.to_local(key) }.unwrap();
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, args, rv);
+    };
+    f.to_c_fn()
   }
 }
 
@@ -134,9 +279,11 @@ impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    callback: FunctionCallback,
+    callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'sc, FunctionTemplate> {
-    let ptr = unsafe { v8__FunctionTemplate__New(scope.isolate(), callback) };
+    let ptr = unsafe {
+      v8__FunctionTemplate__New(scope.isolate(), callback.map_fn_to())
+    };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
@@ -160,9 +307,11 @@ impl Function {
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
     mut context: Local<Context>,
-    callback: FunctionCallback,
+    callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'sc, Function>> {
-    unsafe { scope.to_local(v8__Function__New(&mut *context, callback)) }
+    unsafe {
+      scope.to_local(v8__Function__New(&mut *context, callback.map_fn_to()))
+    }
   }
 
   pub fn call<'sc>(
