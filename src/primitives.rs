@@ -12,6 +12,8 @@ extern "C" {
   fn v8__True(isolate: *mut Isolate) -> *mut Boolean;
 
   fn v8__False(isolate: *mut Isolate) -> *mut Boolean;
+
+  fn v8__Boolean__New(isolate: *mut Isolate, value: bool) -> *mut Boolean;
 }
 
 pub fn new_null<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Primitive> {
@@ -40,9 +42,6 @@ pub fn new_boolean<'sc>(
   scope: &mut impl ToLocal<'sc>,
   value: bool,
 ) -> Local<'sc, Boolean> {
-  if value {
-    new_true(scope)
-  } else {
-    new_false(scope)
-  }
+  let ptr = unsafe { v8__Boolean__New(scope.isolate(), value) };
+  unsafe { scope.to_local(ptr) }.unwrap()
 }

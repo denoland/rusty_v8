@@ -737,6 +737,12 @@ fn test_primitives() {
     assert!(!false_.is_undefined());
     assert!(!false_.is_null());
     assert!(!false_.is_null_or_undefined());
+
+    let true_ = v8::new_boolean(scope, true);
+    assert!(true_.is_true());
+
+    let false_ = v8::new_boolean(scope, false);
+    assert!(false_.is_false());
   }
   drop(locker);
 }

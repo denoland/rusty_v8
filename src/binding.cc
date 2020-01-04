@@ -536,6 +536,10 @@ v8::Boolean* v8__False(v8::Isolate* isolate) {
   return local_to_ptr(v8::False(isolate));
 }
 
+v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
+  return local_to_ptr(v8::Boolean::New(isolate, value));
+}
+
 v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::PrimitiveArray::New(isolate, length));
 }
