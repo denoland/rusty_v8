@@ -38,10 +38,12 @@ pub fn new_false<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Boolean> {
   unsafe { scope.to_local(ptr) }.unwrap()
 }
 
-pub fn new_boolean<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  value: bool,
-) -> Local<'sc, Boolean> {
-  let ptr = unsafe { v8__Boolean__New(scope.isolate(), value) };
-  unsafe { scope.to_local(ptr) }.unwrap()
+impl Boolean {
+  pub fn new<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    value: bool,
+  ) -> Local<'sc, Boolean> {
+    let ptr = unsafe { v8__Boolean__New(scope.isolate(), value) };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
 }

@@ -738,10 +738,10 @@ fn test_primitives() {
     assert!(!false_.is_null());
     assert!(!false_.is_null_or_undefined());
 
-    let true_ = v8::new_boolean(scope, true);
+    let true_ = v8::Boolean::new(scope, true);
     assert!(true_.is_true());
 
-    let false_ = v8::new_boolean(scope, false);
+    let false_ = v8::Boolean::new(scope, false);
     assert!(false_.is_false());
   }
   drop(locker);
