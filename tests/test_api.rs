@@ -746,7 +746,7 @@ fn exception() {
   setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   let mut hs = v8::HandleScope::new(&mut locker);
   let scope = hs.enter();
@@ -768,7 +768,6 @@ fn exception() {
   );
   assert!(v8::get_stack_trace(scope, exception).is_none());
   context.exit();
-  drop(locker);
 }
 
 #[test]

@@ -294,10 +294,9 @@ pub fn range_error<'sc>(
 ) -> Local<'sc, Value> {
   let isolate = scope.isolate();
   isolate.enter();
-  let e = unsafe { scope.to_local(v8__Exception__RangeError(&mut *message)) }
-    .unwrap();
+  let e = unsafe { v8__Exception__RangeError(&mut *message) };
   isolate.exit();
-  e
+  unsafe { scope.to_local(e) }.unwrap()
 }
 
 pub fn reference_error<'sc>(
@@ -306,11 +305,9 @@ pub fn reference_error<'sc>(
 ) -> Local<'sc, Value> {
   let isolate = scope.isolate();
   isolate.enter();
-  let e =
-    unsafe { scope.to_local(v8__Exception__ReferenceError(&mut *message)) }
-      .unwrap();
+  let e = unsafe { v8__Exception__ReferenceError(&mut *message) };
   isolate.exit();
-  e
+  unsafe { scope.to_local(e) }.unwrap()
 }
 
 pub fn syntax_error<'sc>(
@@ -319,10 +316,9 @@ pub fn syntax_error<'sc>(
 ) -> Local<'sc, Value> {
   let isolate = scope.isolate();
   isolate.enter();
-  let e = unsafe { scope.to_local(v8__Exception__SyntaxError(&mut *message)) }
-    .unwrap();
+  let e = unsafe { v8__Exception__SyntaxError(&mut *message) };
   isolate.exit();
-  e
+  unsafe { scope.to_local(e) }.unwrap()
 }
 
 pub fn type_error<'sc>(
@@ -331,10 +327,9 @@ pub fn type_error<'sc>(
 ) -> Local<'sc, Value> {
   let isolate = scope.isolate();
   isolate.enter();
-  let e =
-    unsafe { scope.to_local(v8__Exception__TypeError(&mut *message)) }.unwrap();
+  let e = unsafe { v8__Exception__TypeError(&mut *message) };
   isolate.exit();
-  e
+  unsafe { scope.to_local(e) }.unwrap()
 }
 
 pub fn error<'sc>(
@@ -343,8 +338,7 @@ pub fn error<'sc>(
 ) -> Local<'sc, Value> {
   let isolate = scope.isolate();
   isolate.enter();
-  let e =
-    unsafe { scope.to_local(v8__Exception__Error(&mut *message)) }.unwrap();
+  let e = unsafe { v8__Exception__Error(&mut *message) };
   isolate.exit();
-  e
+  unsafe { scope.to_local(e) }.unwrap()
 }
