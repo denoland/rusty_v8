@@ -75,11 +75,13 @@ impl<T> Global<T> {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, T>> {
-    self.check_isolate(scope.isolate());
-    match &self.value {
-      None => None,
-      Some(p) => unsafe { scope.to_local(p.as_ptr()) },
-    }
+    let isolate = scope.isolate();
+    self.check_isolate(isolate);
+    self
+      .value
+      .map(|g| g.as_ptr() as *mut Value)
+      .map(|g| unsafe { v8__Local__New(isolate, g) })
+      .and_then(|l| unsafe { scope.to_local(l as *mut T) })
   }
 
   /// If non-empty, destroy the underlying storage cell
