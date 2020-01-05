@@ -11,13 +11,22 @@ fn main() {
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
-  // Don't build if "cargo doc" is being run. This is to support docs.rs.
+  // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
   let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
 
-  if !(is_trybuild || is_cargo_doc) {
+  // Don't build V8 if the rust language server (RLS) is running.
+  let is_rls = env::var_os("CARGO")
+    .map(PathBuf::from)
+    .as_ref()
+    .and_then(|p| p.file_stem())
+    .and_then(|f| f.to_str())
+    .map(|s| s.starts_with("rls"))
+    .unwrap_or(false);
+
+  if !(is_trybuild || is_cargo_doc | is_rls) {
     build_v8()
   }
-  if !is_cargo_doc {
+  if !(is_cargo_doc || is_rls) {
     print_link_flags()
   }
 }
