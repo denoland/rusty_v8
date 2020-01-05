@@ -1,6 +1,6 @@
 [package]
 name = "rusty_v8"
-version = "0.0.21"
+version = "0.0.22"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -36,7 +36,6 @@ exclude = [
  "v8/samples/",
  "v8/test/",
  "v8/third_party/wasm-api/",
- "v8/tools/",
  # These files are required for the build.
  "!BUILD.gn",
  "!test-torque.tq",
