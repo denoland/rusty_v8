@@ -754,33 +754,28 @@ fn exception() {
   setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
-  isolate.enter();
-  {
-    let mut hs = v8::HandleScope::new(&mut locker);
-    let scope = hs.enter();
-    let mut context = v8::Context::new(scope);
-    context.enter();
-    let reference = "This is a test error";
-    let local = v8::String::new(scope, reference).unwrap();
-    v8::range_error(scope, local);
-    v8::reference_error(scope, local);
-    v8::syntax_error(scope, local);
-    v8::type_error(scope, local);
-    let exception = v8::error(scope, local);
-    let msg = v8::create_message(scope, exception);
-    let msg_string = msg.get(scope);
-    let rust_msg_string = msg_string.to_rust_string_lossy(scope);
-    assert_eq!(
-      "Uncaught Error: This is a test error".to_string(),
-      rust_msg_string
-    );
-    assert!(v8::get_stack_trace(scope, exception).is_none());
-    context.exit();
-  }
-  drop(locker);
-  isolate.exit();
+  let mut hs = v8::HandleScope::new(&mut locker);
+  let scope = hs.enter();
+  let mut context = v8::Context::new(scope);
+  context.enter();
+  let reference = "This is a test error";
+  let local = v8::String::new(scope, reference).unwrap();
+  v8::range_error(scope, local);
+  v8::reference_error(scope, local);
+  v8::syntax_error(scope, local);
+  v8::type_error(scope, local);
+  let exception = v8::error(scope, local);
+  let msg = v8::create_message(scope, exception);
+  let msg_string = msg.get(scope);
+  let rust_msg_string = msg_string.to_rust_string_lossy(scope);
+  assert_eq!(
+    "Uncaught Error: This is a test error".to_string(),
+    rust_msg_string
+  );
+  assert!(v8::get_stack_trace(scope, exception).is_none());
+  context.exit();
 }
 
 #[test]
