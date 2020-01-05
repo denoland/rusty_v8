@@ -292,34 +292,59 @@ pub fn range_error<'sc>(
   scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { scope.to_local(v8__Exception__RangeError(&mut *message)) }.unwrap()
+  let isolate = scope.isolate();
+  isolate.enter();
+  let e = unsafe { scope.to_local(v8__Exception__RangeError(&mut *message)) }
+    .unwrap();
+  isolate.exit();
+  e
 }
 
 pub fn reference_error<'sc>(
   scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { scope.to_local(v8__Exception__ReferenceError(&mut *message)) }
-    .unwrap()
+  let isolate = scope.isolate();
+  isolate.enter();
+  let e =
+    unsafe { scope.to_local(v8__Exception__ReferenceError(&mut *message)) }
+      .unwrap();
+  isolate.exit();
+  e
 }
 
 pub fn syntax_error<'sc>(
   scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { scope.to_local(v8__Exception__SyntaxError(&mut *message)) }.unwrap()
+  let isolate = scope.isolate();
+  isolate.enter();
+  let e = unsafe { scope.to_local(v8__Exception__SyntaxError(&mut *message)) }
+    .unwrap();
+  isolate.exit();
+  e
 }
 
 pub fn type_error<'sc>(
   scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { scope.to_local(v8__Exception__TypeError(&mut *message)) }.unwrap()
+  let isolate = scope.isolate();
+  isolate.enter();
+  let e =
+    unsafe { scope.to_local(v8__Exception__TypeError(&mut *message)) }.unwrap();
+  isolate.exit();
+  e
 }
 
 pub fn error<'sc>(
   scope: &mut impl ToLocal<'sc>,
   mut message: Local<String>,
 ) -> Local<'sc, Value> {
-  unsafe { scope.to_local(v8__Exception__Error(&mut *message)) }.unwrap()
+  let isolate = scope.isolate();
+  isolate.enter();
+  let e =
+    unsafe { scope.to_local(v8__Exception__Error(&mut *message)) }.unwrap();
+  isolate.exit();
+  e
 }
