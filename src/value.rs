@@ -40,7 +40,6 @@ extern "C" {
   fn v8__Value__IsRegExp(this: &Value) -> bool;
   fn v8__Value__IsAsyncFunction(this: &Value) -> bool;
   fn v8__Value__IsGeneratorFunction(this: &Value) -> bool;
-  fn v8__Value__IsGeneratorObject(this: &Value) -> bool;
   fn v8__Value__IsPromise(this: &Value) -> bool;
   fn v8__Value__IsMap(this: &Value) -> bool;
   fn v8__Value__IsSet(this: &Value) -> bool;

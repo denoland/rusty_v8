@@ -1,5 +1,5 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-
+#![deny(warnings)]
 //! # Example
 //!
 //! ```
@@ -31,9 +31,6 @@
 //! }
 //! drop(locker);
 //! ```
-
-#![allow(clippy::missing_safety_doc)]
-#![allow(dead_code)]
 
 #[macro_use]
 extern crate bitflags;
