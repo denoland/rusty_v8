@@ -26,7 +26,6 @@ extern "C" {
 }
 
 #[repr(C)]
-#[derive(Debug)]
 pub struct StringBuffer {
   _cxx_vtable: CxxVTable,
 }

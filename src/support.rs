@@ -26,7 +26,6 @@ where
 
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
-#[derive(Debug)]
 pub struct UniquePtr<T>(Option<&'static mut T>)
 where
   T: Delete;
@@ -90,7 +89,6 @@ where
 
 /// Pointer to object allocated on the C++ heap. The pointer may not be null.
 #[repr(transparent)]
-#[derive(Debug)]
 pub struct UniqueRef<T>(&'static mut T)
 where
   T: Delete;
@@ -155,7 +153,6 @@ where
 /// Wrapper around a C++ shared_ptr. The shared_ptr is assumed to contain a
 /// value and not be null.
 #[repr(C)]
-#[derive(Debug)]
 pub struct SharedRef<T>([*mut Opaque; 2], PhantomData<T>)
 where
   T: Shared;
@@ -201,7 +198,7 @@ where
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum MaybeBool {
   JustFalse = 0,
   JustTrue = 1,
@@ -218,14 +215,13 @@ impl Into<Option<bool>> for MaybeBool {
   }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct CxxVTable(pub *const Opaque);
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct RustVTable<DynT>(pub *const Opaque, pub PhantomData<DynT>);
 
-#[derive(Debug)]
 pub struct FieldOffset<F>(usize, PhantomData<F>);
 
 unsafe impl<F> Send for FieldOffset<F> where F: Send {}
