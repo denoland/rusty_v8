@@ -1,15 +1,24 @@
 name: ci
 
-on: [push, pull_request]
+on:
+  - push
+  - pull_request
 
 jobs:
   build:
     name: ${{ matrix.kind }} ${{ matrix.os }}
+    if: |
+      github.event_name == 'push' ||
+      !startsWith(github.event.pull_request.head.label, 'denoland:')
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       matrix:
-        os: [macOS-latest, ubuntu-16.04, windows-2019]
+        os:
+          - macos-latest
+          - ubuntu-16.04
+          - windows-2019
+
     steps:
       - name: Configure git
         run: git config --global core.symlinks true
@@ -18,7 +27,7 @@ jobs:
         uses: actions/checkout@v1
         with:
           fetch-depth: 10
-          submodules: 'recursive'
+          submodules: "recursive"
 
       - name: Install rust
         uses: hecrj/setup-rust-action@v1
@@ -31,66 +40,59 @@ jobs:
           python-version: "2.7.x"
           architecture: x64
 
-      - name: Environment (common)
-        run: echo ::set-env name=RUSTC_WRAPPER::sccache
-
-      - name: Environment (linux)
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          cd ..
-          curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
-          tar -xzvf sccache-0.2.12-x86_64-unknown-linux-musl.tar.gz
-          echo ::add-path::`pwd`/sccache-0.2.12-x86_64-unknown-linux-musl/
-
-      - name: Environment (mac)
-        if: startsWith(matrix.os, 'macOS')
-        run: |
-          cd ..
-          curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-apple-darwin.tar.gz
-          tar -xzvf sccache-0.2.12-x86_64-apple-darwin.tar.gz
-          echo ::add-path::`pwd`/sccache-0.2.12-x86_64-apple-darwin/
-
-      - name: Environment (windows)
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          cd ..
-          curl -LO https://github.com/mozilla/sccache/releases/download/0.2.12/sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
-          tar -zxvf sccache-0.2.12-x86_64-pc-windows-msvc.tar.gz
-          echo ::add-path::$(pwd)\sccache-0.2.12-x86_64-pc-windows-msvc\
-
-      - name: Start sccache
+      - name: Install and start sccache
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
         env:
           AWS_ACCESS_KEY_ID: AKIA6QEJVNZDGHRMR2KF
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SCCACHE_BUCKET: deno-sccache
           SCCACHE_IDLE_TIMEOUT: 0
-        run: sccache --start-server
-
-      - name: Build
         run: |
-          git --version
-          cargo build -vv --release --locked --all-targets
+          $version = "0.2.12"
+          $platform =
+            @{ "macOS"   = "x86_64-apple-darwin"
+               "Linux"   = "x86_64-unknown-linux-musl"
+               "Windows" = "x86_64-pc-windows-msvc"
+             }.${{ runner.os }}
+          $basename = "sccache-$version-$platform"
+          $url = "https://github.com/mozilla/sccache/releases/download/" +
+                 "$version/$basename.tar.gz"
+
+          curl -LO $url
+          tar -xzvf "$basename.tar.gz"
+          . $basename/sccache --start-server
+
+          echo "::add-path::$(pwd)/$basename"
+          echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test
-        run: cargo test -vv --release --locked --all-targets
+        run: cargo test -vv --locked --all-targets
 
       - name: Clippy
         run: |
           rustup component add clippy
-          cargo clippy --all-targets --release --locked -- -D clippy::all
+          cargo clippy --all-targets --locked -- -D clippy::all
 
       - name: Rustfmt
         run: |
           rustup component add rustfmt
           cargo fmt -- --check
 
+      # TODO: add clang-format and maybe cpplint.
+
+      - name: Package
+        run: cargo package -vv --locked
+
       - name: Publish
-        if: startsWith(github.ref, 'refs/tags/') && github.repository == 'denoland/rusty_v8' && startsWith(matrix.os, 'ubuntu')
+        if: >
+          startsWith(github.ref, 'refs/tags/') &&
+          github.repository == 'denoland/rusty_v8' &&
+          runner.os == 'Linux'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish -vv
 
       - name: Stop sccache
+        if: always()
         run: sccache --stop-server
-
-      # TODO cpplint
