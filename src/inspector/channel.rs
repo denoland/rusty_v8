@@ -16,6 +16,10 @@ use crate::support::UniquePtr;
 // };
 
 extern "C" {
+  fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
+    buf: &mut std::mem::MaybeUninit<Channel>,
+  ) -> ();
+
   fn v8_inspector__V8Inspector__Channel__sendResponse(
     this: &mut Channel,
     call_id: int,
@@ -127,9 +131,57 @@ pub struct ChannelBase {
 }
 
 impl ChannelBase {
+  fn construct_cxx_base() -> Channel {
+    unsafe {
+      let mut buf = std::mem::MaybeUninit::<Channel>::uninit();
+      v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(&mut buf);
+      buf.assume_init()
+    }
+  }
+
   fn get_cxx_base_offset() -> FieldOffset<Channel> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
     FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+  }
+
+  fn get_offset_within_embedder<T>() -> FieldOffset<Self>
+  where
+    T: ChannelImpl,
+  {
+    let buf = std::mem::MaybeUninit::<T>::uninit();
+    let embedder_ptr: *const T = buf.as_ptr();
+    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
+    FieldOffset::from_ptrs(embedder_ptr, self_ptr)
+  }
+
+  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ChannelImpl>
+  where
+    T: ChannelImpl,
+  {
+    let buf = std::mem::MaybeUninit::<T>::uninit();
+    let embedder_ptr = buf.as_ptr();
+    let trait_object: *const dyn ChannelImpl = embedder_ptr;
+    let (data_ptr, vtable): (*const T, RustVTable<_>) =
+      unsafe { std::mem::transmute(trait_object) };
+    assert_eq!(data_ptr, embedder_ptr);
+    vtable
+  }
+
+  pub fn new<T>() -> Self
+  where
+    T: ChannelImpl,
+  {
+    Self {
+      cxx_base: Self::construct_cxx_base(),
+      offset_within_embedder: Self::get_offset_within_embedder::<T>(),
+      rust_vtable: Self::get_rust_vtable::<T>(),
+    }
+  }
+
+  pub unsafe fn dispatch(channel: &Channel) -> &dyn ChannelImpl {
+    let this = Self::get_cxx_base_offset().to_embedder::<Self>(channel);
+    let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
+    std::mem::transmute((embedder, this.rust_vtable))
   }
 
   pub unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelImpl {

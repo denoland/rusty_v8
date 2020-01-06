@@ -67,6 +67,10 @@ use crate::support::RustVTable;
 // };
 
 extern "C" {
+  fn v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
+    buf: &mut std::mem::MaybeUninit<Client>,
+  ) -> ();
+
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut Client,
     context_group_id: int,
@@ -173,9 +177,57 @@ pub struct ClientBase {
 }
 
 impl ClientBase {
+  fn construct_cxx_base() -> Client {
+    unsafe {
+      let mut buf = std::mem::MaybeUninit::<Client>::uninit();
+      v8_inspector__V8InspectorClient__BASE__CONSTRUCT(&mut buf);
+      buf.assume_init()
+    }
+  }
+
   fn get_cxx_base_offset() -> FieldOffset<Client> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
     FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+  }
+
+  fn get_offset_within_embedder<T>() -> FieldOffset<Self>
+  where
+    T: ClientImpl,
+  {
+    let buf = std::mem::MaybeUninit::<T>::uninit();
+    let embedder_ptr: *const T = buf.as_ptr();
+    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
+    FieldOffset::from_ptrs(embedder_ptr, self_ptr)
+  }
+
+  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ClientImpl>
+  where
+    T: ClientImpl,
+  {
+    let buf = std::mem::MaybeUninit::<T>::uninit();
+    let embedder_ptr = buf.as_ptr();
+    let trait_object: *const dyn ClientImpl = embedder_ptr;
+    let (data_ptr, vtable): (*const T, RustVTable<_>) =
+      unsafe { std::mem::transmute(trait_object) };
+    assert_eq!(data_ptr, embedder_ptr);
+    vtable
+  }
+
+  pub fn new<T>() -> Self
+  where
+    T: ClientImpl,
+  {
+    Self {
+      cxx_base: Self::construct_cxx_base(),
+      offset_within_embedder: Self::get_offset_within_embedder::<T>(),
+      rust_vtable: Self::get_rust_vtable::<T>(),
+    }
+  }
+
+  pub unsafe fn dispatch(client: &Client) -> &dyn ClientImpl {
+    let this = Self::get_cxx_base_offset().to_embedder::<Self>(client);
+    let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
+    std::mem::transmute((embedder, this.rust_vtable))
   }
 
   pub unsafe fn dispatch_mut(client: &mut Client) -> &mut dyn ClientImpl {
