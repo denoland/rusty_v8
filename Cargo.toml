@@ -1,6 +1,6 @@
 [package]
 name = "rusty_v8"
-version = "0.0.23"
+version = "0.0.24"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
