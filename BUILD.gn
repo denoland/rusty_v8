@@ -37,6 +37,10 @@ config("rusty_v8_config") {
     ]
   }
 
+  if (use_lld) {
+    configs += [ "//build/config/compiler:thin_archive" ]
+  }
+
   if (is_debug && is_clang && !is_win) {
     cflags += [ "-glldb" ]
   }
