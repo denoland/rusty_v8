@@ -99,6 +99,7 @@ pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::InIsolate;
 pub use isolate::Isolate;
 pub use isolate::MessageCallback;
+pub use isolate::MicrotasksPolicy;
 pub use isolate::OwnedIsolate;
 pub use isolate::PromiseRejectCallback;
 pub use local::Local;

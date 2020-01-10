@@ -21,6 +21,10 @@ extern "C" {
     isolate: *mut Isolate,
     backing_store: *mut SharedRef<BackingStore>,
   ) -> *mut ArrayBuffer;
+  fn v8__ArrayBuffer__New__unique_backing_store(
+    isolate: *mut Isolate,
+    backing_store: *mut UniqueRef<BackingStore>,
+  ) -> *mut ArrayBuffer;
   fn v8__ArrayBuffer__ByteLength(self_: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
     self_: *const ArrayBuffer,
@@ -29,6 +33,13 @@ extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
+  fn v8__ArrayBuffer__NewBackingStore_FromRaw(
+    data: *mut std::ffi::c_void,
+    byte_length: usize,
+    deleter: *const BackingStoreDeleterCallback,
+    deleter_data: *mut std::ffi::c_void,
+  ) -> *mut BackingStore;
+
   fn v8__BackingStore__Data(self_: &mut BackingStore) -> *mut std::ffi::c_void;
   fn v8__BackingStore__ByteLength(self_: &BackingStore) -> usize;
   fn v8__BackingStore__IsShared(self_: &BackingStore) -> bool;
@@ -84,6 +95,12 @@ impl Delete for Allocator {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
 }
+
+pub type BackingStoreDeleterCallback = extern "C" fn(
+  data: *mut std::ffi::c_void,
+  byte_length: usize,
+  deleter_data: *mut std::ffi::c_void,
+);
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
 /// See a document linked in http://crbug.com/v8/9908 for more information.
@@ -175,6 +192,17 @@ impl ArrayBuffer {
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
+  pub fn new_with_unique_backing_store<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    backing_store: &mut UniqueRef<BackingStore>,
+  ) -> Local<'sc, ArrayBuffer> {
+    let isolate = scope.isolate();
+    let ptr = unsafe {
+      v8__ArrayBuffer__New__unique_backing_store(isolate, &mut *backing_store)
+    };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
   /// Data length in bytes.
   pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBuffer__ByteLength(self) }
@@ -198,6 +226,28 @@ impl ArrayBuffer {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore(
         scope.isolate(),
         byte_length,
+      ))
+    }
+  }
+
+  /// Returns a new standalone BackingStore that takes over the ownership of
+  /// the given buffer. The destructor of the BackingStore invokes the given
+  /// deleter callback.
+  ///
+  /// The result can be later passed to ArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  pub fn new_backing_store_from_raw(
+    data: *mut std::ffi::c_void,
+    byte_length: usize,
+    deleter: *const BackingStoreDeleterCallback,
+    deleter_data: *mut std::ffi::c_void,
+  ) -> UniqueRef<BackingStore> {
+    unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore_FromRaw(
+        data,
+        byte_length,
+        deleter,
+        deleter_data,
       ))
     }
   }
