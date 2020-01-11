@@ -120,11 +120,6 @@ uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
   return SLOT_NUM_EXTERNAL(isolate);
 }
 
-void v8__Isolate__SetMicrotasksPolicy(v8::Isolate& isolate,
-                                      v8::MicrotasksPolicy policy) {
-  isolate.SetMicrotasksPolicy(policy);
-}
-
 void v8__Isolate__RunMicrotasks(v8::Isolate& isolate) {
   isolate.RunMicrotasks();
 }
@@ -562,12 +557,12 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore(v8::Isolate* isolate,
   return u.release();
 }
 
-v8::BackingStore* v8__ArrayBuffer__NewBackingStore_FromRaw(
-    void* data, size_t length, v8::BackingStoreDeleterCallback deleter,
-    void* deleter_data) {
+two_pointers_t v8__ArrayBuffer__NewBackingStore_FromRaw(
+    void* data, size_t length, v8::BackingStoreDeleterCallback deleter) {
   std::unique_ptr<v8::BackingStore> u =
-      v8::ArrayBuffer::NewBackingStore(data, length, deleter, deleter_data);
-  return u.release();
+      v8::ArrayBuffer::NewBackingStore(data, length, deleter, nullptr);
+  const std::shared_ptr<v8::BackingStore> bs = std::move(u);
+  return make_pod<two_pointers_t>(bs);
 }
 
 two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
@@ -724,6 +719,7 @@ v8::ArrayBuffer* v8__ArrayBuffer__New__unique_backing_store(
     v8::Isolate* isolate, std::unique_ptr<v8::BackingStore>& backing_store) {
   std::shared_ptr<v8::BackingStore> bs = std::move(backing_store);
   auto ab = v8::ArrayBuffer::New(isolate, bs);
+  printf("ab byte length %zu\n", ab->ByteLength());
   return local_to_ptr(ab);
 }
 

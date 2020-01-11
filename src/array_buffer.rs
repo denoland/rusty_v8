@@ -36,9 +36,11 @@ extern "C" {
   fn v8__ArrayBuffer__NewBackingStore_FromRaw(
     data: *mut std::ffi::c_void,
     byte_length: usize,
-    deleter: *const BackingStoreDeleterCallback,
-    deleter_data: *mut std::ffi::c_void,
-  ) -> *mut BackingStore;
+    deleter: BackingStoreDeleterCallback,
+  ) -> SharedRef<BackingStore>;
+  // fn v8__BackingStore_UniqueShared(
+  //   backing_store: *mut UniqueRef<BackingStore>,
+  // ) -> SharedRef<BackingStore>;
 
   fn v8__BackingStore__Data(self_: &mut BackingStore) -> *mut std::ffi::c_void;
   fn v8__BackingStore__ByteLength(self_: &BackingStore) -> usize;
@@ -192,6 +194,14 @@ impl ArrayBuffer {
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
+  // pub fn unique_backing_store_to_shared<'sc>(
+  //   backing_store: &mut UniqueRef<BackingStore>,
+  // ) -> &mut SharedRef<BackingStore> {
+  //   unsafe {
+  //     v8__BackingStore_UniqueShared(&mut *backing_store)
+  //   }
+  // }
+
   pub fn new_with_unique_backing_store<'sc>(
     scope: &mut impl ToLocal<'sc>,
     backing_store: &mut UniqueRef<BackingStore>,
@@ -239,16 +249,10 @@ impl ArrayBuffer {
   pub fn new_backing_store_from_raw(
     data: *mut std::ffi::c_void,
     byte_length: usize,
-    deleter: *const BackingStoreDeleterCallback,
-    deleter_data: *mut std::ffi::c_void,
-  ) -> UniqueRef<BackingStore> {
+    deleter: BackingStoreDeleterCallback,
+  ) -> SharedRef<BackingStore> {
     unsafe {
-      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore_FromRaw(
-        data,
-        byte_length,
-        deleter,
-        deleter_data,
-      ))
+      v8__ArrayBuffer__NewBackingStore_FromRaw(data, byte_length, deleter)
     }
   }
 }

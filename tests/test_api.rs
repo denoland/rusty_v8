@@ -245,8 +245,8 @@ extern "C" fn deleter_callback(
   _deleter_data: *mut std::ffi::c_void,
 ) {
   eprintln!("deleter called");
-  let v = unsafe { Vec::from_raw_parts(data, byte_length, byte_length) };
-  drop(v)
+  // let v = unsafe { Vec::from_raw_parts(data, byte_length, byte_length) };
+  // drop(v)
 }
 
 #[test]
@@ -269,17 +269,21 @@ fn array_buffer() {
     assert_eq!(84, bs.byte_length());
     assert_eq!(false, bs.is_shared());
 
-    let mut data: Vec<u8> = Vec::with_capacity(100);
+    let capacity = 100;
+    let mut data: Vec<u8> = Vec::with_capacity(capacity);
+    // let data_ptr = Box::into_raw(data);
     let mut bs = v8::ArrayBuffer::new_backing_store_from_raw(
-      data.as_mut_ptr() as *mut std::ffi::c_void,
-      data.capacity(),
-      deleter_callback as *const v8::BackingStoreDeleterCallback,
-      std::ptr::null_mut() as *mut std::ffi::c_void,
+      data.as_ptr() as *mut std::ffi::c_void,
+      capacity,
+      deleter_callback,
     );
     assert_eq!(100, bs.byte_length());
     assert_eq!(false, bs.is_shared());
-    let ab = v8::ArrayBuffer::new_with_unique_backing_store(scope, &mut bs);
+    let ab = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs);
+    eprintln!("after ab!");
+    ab.get_backing_store();
     assert_eq!(100, ab.byte_length());
+    eprintln!("after ab1!");
     context.exit();
   }
   drop(locker);

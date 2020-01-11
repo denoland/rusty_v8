@@ -98,10 +98,6 @@ extern "C" {
   fn v8__Isolate__TerminateExecution(isolate: &Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: &Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: &Isolate);
-  fn v8__Isolate__SetMicrotasksPolicy(
-    isolate: &Isolate,
-    policy: MicrotasksPolicy,
-  );
   fn v8__Isolate__RunMicrotasks(isolate: &Isolate);
   fn v8__Isolate__EnqueueMicrotask(isolate: &Isolate, microtask: *mut Function);
 
@@ -119,18 +115,6 @@ extern "C" {
     this: &mut CreateParams,
     snapshot_blob: *mut StartupData,
   );
-}
-
-#[repr(C)]
-/// Policy for running microtasks:
-///  Explicit: microtasks are invoked with Isolate::run_microtasks() method;
-///  Scoped: microtasks invocation is controlled by MicrotasksScope objects;
-///  Auto: microtasks are invoked when the script call depth decrements
-///          to zero.
-pub enum MicrotasksPolicy {
-  Explicit,
-  Scoped,
-  Auto,
 }
 
 #[repr(C)]
@@ -305,11 +289,6 @@ impl Isolate {
   /// acquired the V8 lock with a Locker object.
   pub fn cancel_terminate_execution(&self) {
     unsafe { v8__Isolate__CancelTerminateExecution(self) }
-  }
-
-  /// Controls how Microtasks are invoked. See MicrotasksPolicy for details.
-  pub fn set_microtasks_policy(&self, policy: MicrotasksPolicy) {
-    unsafe { v8__Isolate__SetMicrotasksPolicy(self, policy) }
   }
 
   /// Runs the default MicrotaskQueue until it gets empty.
