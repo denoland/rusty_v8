@@ -715,14 +715,6 @@ v8::ArrayBuffer* v8__ArrayBuffer__New__backing_store(
   return local_to_ptr(v8::ArrayBuffer::New(isolate, backing_store));
 }
 
-v8::ArrayBuffer* v8__ArrayBuffer__New__unique_backing_store(
-    v8::Isolate* isolate, std::unique_ptr<v8::BackingStore>& backing_store) {
-  std::shared_ptr<v8::BackingStore> bs = std::move(backing_store);
-  auto ab = v8::ArrayBuffer::New(isolate, bs);
-  printf("ab byte length %zu\n", ab->ByteLength());
-  return local_to_ptr(ab);
-}
-
 size_t v8__ArrayBuffer__ByteLength(v8::ArrayBuffer& self) {
   return self.ByteLength();
 }

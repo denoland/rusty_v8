@@ -21,10 +21,6 @@ extern "C" {
     isolate: *mut Isolate,
     backing_store: *mut SharedRef<BackingStore>,
   ) -> *mut ArrayBuffer;
-  fn v8__ArrayBuffer__New__unique_backing_store(
-    isolate: *mut Isolate,
-    backing_store: *mut UniqueRef<BackingStore>,
-  ) -> *mut ArrayBuffer;
   fn v8__ArrayBuffer__ByteLength(self_: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
     self_: *const ArrayBuffer,
@@ -187,17 +183,6 @@ impl ArrayBuffer {
     let isolate = scope.isolate();
     let ptr = unsafe {
       v8__ArrayBuffer__New__backing_store(isolate, &mut *backing_store)
-    };
-    unsafe { scope.to_local(ptr) }.unwrap()
-  }
-
-  pub fn new_with_unique_backing_store<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    backing_store: &mut UniqueRef<BackingStore>,
-  ) -> Local<'sc, ArrayBuffer> {
-    let isolate = scope.isolate();
-    let ptr = unsafe {
-      v8__ArrayBuffer__New__unique_backing_store(isolate, &mut *backing_store)
     };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
