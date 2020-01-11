@@ -241,12 +241,12 @@ fn microtasks() {
 
 extern "C" fn deleter_callback(
   data: *mut std::ffi::c_void,
-  byte_length: usize,
+  _byte_length: usize,
   _deleter_data: *mut std::ffi::c_void,
 ) {
   eprintln!("deleter called");
-  // let v = unsafe { Vec::from_raw_parts(data, byte_length, byte_length) };
-  // drop(v)
+  let b = unsafe { Box::from_raw(data) };
+  drop(b)
 }
 
 #[test]
@@ -270,20 +270,18 @@ fn array_buffer() {
     assert_eq!(false, bs.is_shared());
 
     let capacity = 100;
-    let mut data: Vec<u8> = Vec::with_capacity(capacity);
-    // let data_ptr = Box::into_raw(data);
+    let mut data: Box<Vec<u8>> = Box::new(Vec::with_capacity(capacity));
+    let data_ptr = Box::into_raw(data);
     let mut bs = v8::ArrayBuffer::new_backing_store_from_raw(
-      data.as_ptr() as *mut std::ffi::c_void,
+      data_ptr as *mut std::ffi::c_void,
       capacity,
       deleter_callback,
     );
     assert_eq!(100, bs.byte_length());
     assert_eq!(false, bs.is_shared());
     let ab = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs);
-    eprintln!("after ab!");
     ab.get_backing_store();
     assert_eq!(100, ab.byte_length());
-    eprintln!("after ab1!");
     context.exit();
   }
   drop(locker);

@@ -38,9 +38,6 @@ extern "C" {
     byte_length: usize,
     deleter: BackingStoreDeleterCallback,
   ) -> SharedRef<BackingStore>;
-  // fn v8__BackingStore_UniqueShared(
-  //   backing_store: *mut UniqueRef<BackingStore>,
-  // ) -> SharedRef<BackingStore>;
 
   fn v8__BackingStore__Data(self_: &mut BackingStore) -> *mut std::ffi::c_void;
   fn v8__BackingStore__ByteLength(self_: &BackingStore) -> usize;
@@ -193,14 +190,6 @@ impl ArrayBuffer {
     };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
-
-  // pub fn unique_backing_store_to_shared<'sc>(
-  //   backing_store: &mut UniqueRef<BackingStore>,
-  // ) -> &mut SharedRef<BackingStore> {
-  //   unsafe {
-  //     v8__BackingStore_UniqueShared(&mut *backing_store)
-  //   }
-  // }
 
   pub fn new_with_unique_backing_store<'sc>(
     scope: &mut impl ToLocal<'sc>,
