@@ -270,13 +270,15 @@ fn array_buffer() {
     assert_eq!(false, bs.is_shared());
 
     let capacity = 100;
-    let mut data: Box<Vec<u8>> = Box::new(Vec::with_capacity(capacity));
+    let data: Box<Vec<u8>> = Box::new(Vec::with_capacity(capacity));
     let data_ptr = Box::into_raw(data);
-    let mut bs = v8::ArrayBuffer::new_backing_store_from_raw(
-      data_ptr as *mut std::ffi::c_void,
-      capacity,
-      deleter_callback,
-    );
+    let mut bs = unsafe {
+      v8::ArrayBuffer::new_backing_store_from_raw(
+        data_ptr as *mut std::ffi::c_void,
+        capacity,
+        deleter_callback,
+      )
+    };
     assert_eq!(100, bs.byte_length());
     assert_eq!(false, bs.is_shared());
     let ab = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs);

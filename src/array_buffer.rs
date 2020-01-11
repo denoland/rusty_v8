@@ -220,13 +220,11 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
-  pub fn new_backing_store_from_raw(
+  pub unsafe fn new_backing_store_from_raw(
     data: *mut std::ffi::c_void,
     byte_length: usize,
     deleter: BackingStoreDeleterCallback,
   ) -> SharedRef<BackingStore> {
-    unsafe {
-      v8__ArrayBuffer__NewBackingStore_FromRaw(data, byte_length, deleter)
-    }
+    v8__ArrayBuffer__NewBackingStore_FromRaw(data, byte_length, deleter)
   }
 }
