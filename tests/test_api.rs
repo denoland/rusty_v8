@@ -1759,9 +1759,12 @@ fn shared_array_buffer() {
     );
     let source = v8::String::new(
       s,
-      "sharedBytes = new Uint8Array(shared); sharedBytes[2] = 16; sharedBytes[14] = 62; sharedBytes[5] + sharedBytes[12]",
+      r"sharedBytes = new Uint8Array(shared);
+        sharedBytes[2] = 16;
+        sharedBytes[14] = 62;
+        sharedBytes[5] + sharedBytes[12]",
     )
-        .unwrap();
+    .unwrap();
     let mut script = v8::Script::compile(s, context, source, None).unwrap();
     source.to_rust_string_lossy(s);
     let result: Local<v8::Integer> =
