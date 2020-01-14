@@ -1,20 +1,44 @@
-use super::string_view::StringView;
+use super::StringBuffer;
 use crate::support::Delete;
 
 extern "C" {
 
-  // -> *mut v8_inspector::V8InspectorSession
+  fn v8_inspector__V8InspectorSession__DispatchProtocolMessage(
+    session: *mut V8InspectorSession,
+    message: *mut StringBuffer,
+  );
+
+  fn v8_inspector__V8InspectorSession__SchedulePauseOnNextStatement(
+    session: *mut V8InspectorSession,
+    break_reason: *mut StringBuffer,
+    break_details: *mut StringBuffer,
+  );
 }
 
 pub struct V8InspectorSession {}
 
 impl V8InspectorSession {
-  pub fn dispatch_protocol_message(&mut self, message: &StringView) {
-    todo!()
+  pub fn dispatch_protocol_message(&mut self, message: &mut StringBuffer) {
+    unsafe {
+      v8_inspector__V8InspectorSession__DispatchProtocolMessage(
+        self,
+        &mut *message,
+      )
+    }
   }
 
-  pub fn schedule_pause_on_next_statement(&mut self) {
-    todo!()
+  pub fn schedule_pause_on_next_statement(
+    &mut self,
+    reason: &mut StringBuffer,
+    detail: &mut StringBuffer,
+  ) {
+    unsafe {
+      v8_inspector__V8InspectorSession__SchedulePauseOnNextStatement(
+        self,
+        &mut *reason,
+        &mut *detail,
+      )
+    }
   }
 }
 

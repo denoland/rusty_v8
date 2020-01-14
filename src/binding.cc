@@ -1296,6 +1296,18 @@ void v8_inspector__V8ContextInfo__ContextCreated(
   self.contextCreated(context);
 }
 
+void v8_inspector__V8InspectorSession__DispatchProtocolMessage(
+    v8_inspector::V8InspectorSession& self,
+    v8_inspector::StringBuffer& message) {
+  self.dispatchProtocolMessage(message.string());
+}
+
+void v8_inspector__V8InspectorSession__SchedulePauseOnNextStatement(
+    v8_inspector::V8InspectorSession& self, v8_inspector::StringBuffer& reason,
+    v8_inspector::StringBuffer& detail) {
+  self.schedulePauseOnNextStatement(reason.string(), detail.string());
+}
+
 struct v8_inspector__V8InspectorClient__BASE
     : public v8_inspector::V8InspectorClient {
   using v8_inspector::V8InspectorClient::V8InspectorClient;
