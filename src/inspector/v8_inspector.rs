@@ -1,15 +1,16 @@
 use super::channel::AsChannel;
 use super::client::AsClient;
-use super::context_info::V8ContextInfo;
 use super::session::V8InspectorSession;
 use super::Channel;
 use super::Client;
 use super::StringBuffer;
-use super::StringView;
 use crate::support::int;
 use crate::support::Delete;
+use crate::support::Opaque;
 use crate::support::UniqueRef;
+use crate::Context;
 use crate::Isolate;
+use crate::Local;
 
 extern "C" {
   fn v8_inspector__V8Inspector__Create(
@@ -24,11 +25,14 @@ extern "C" {
   ) -> *mut V8InspectorSession;
   fn v8_inspector__V8Inspector__ContextCreated(
     inspector: *mut V8Inspector,
-    context: *const V8ContextInfo,
+    context: *mut Context,
+    context_group_id: int,
+    human_readable_name: *mut StringBuffer,
   );
 }
 
-pub struct V8Inspector {}
+#[repr(C)]
+pub struct V8Inspector(Opaque);
 
 impl V8Inspector {
   pub fn create<T>(
@@ -65,8 +69,20 @@ impl V8Inspector {
     }
   }
 
-  pub fn context_created(&mut self, context_info: &V8ContextInfo) {
-    unsafe { v8_inspector__V8Inspector__ContextCreated(self, &*context_info) }
+  pub fn context_created<'sc>(
+    &mut self,
+    mut context: Local<'sc, Context>,
+    context_group_id: int,
+    human_readable_name: &mut StringBuffer,
+  ) {
+    unsafe {
+      v8_inspector__V8Inspector__ContextCreated(
+        self,
+        &mut *context,
+        context_group_id,
+        &mut *human_readable_name,
+      )
+    }
   }
 }
 

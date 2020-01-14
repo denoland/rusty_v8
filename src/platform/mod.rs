@@ -35,7 +35,7 @@ impl Platform {
   /// Returns true if a task was executed, and false otherwise. Unless requested
   /// through the |behavior| parameter, this call does not block if no task is
   /// pending. The |platform| has to be created using |NewDefaultPlatform|.
-  pub fn pump_message_loop(platform: &Self, isolate: &Isolate) -> bool {
+  pub fn pump_message_loop(_platform: &Self, _isolate: &Isolate) -> bool {
     todo!()
   }
 }

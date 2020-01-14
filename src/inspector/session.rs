@@ -1,5 +1,6 @@
 use super::StringBuffer;
 use crate::support::Delete;
+use crate::support::Opaque;
 
 extern "C" {
 
@@ -15,7 +16,8 @@ extern "C" {
   );
 }
 
-pub struct V8InspectorSession {}
+#[repr(C)]
+pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
   pub fn dispatch_protocol_message(&mut self, message: &mut StringBuffer) {

@@ -52,3 +52,5 @@ impl Delete for StringBuffer {
     unsafe { v8_inspector__StringBuffer__DELETE(self) }
   }
 }
+
+unsafe impl Send for StringBuffer {}
