@@ -1266,6 +1266,36 @@ void v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
     v8_inspector::V8InspectorClient& self, int contextGroupId);
 }  // extern "C"
 
+v8_inspector::V8ContextInfo* v8_inspector__V8ContextInfo__New(
+    v8::Context* context, int contextGroupId,
+    v8_inspector::StringBuffer& humanReadableName) {
+  auto string_view = humanReadableName.string();
+  auto ci = v8_inspector::V8ContextInfo(context, contextGroupId, string_view);
+  return ci;
+}
+
+v8_inspector::V8Inspector* v8_inspector__V8Inspector__Create(
+    v8::Isolate* isolate, v8_inspector::V8InspectorClient& client) {
+  std::unique_ptr<v8_inspector::V8Inspector> u =
+      v8_inspector::V8Inspector(isolate, client);
+  return u.release();
+}
+
+v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__Connect(
+    v8_inspector::V8Inspector& self, int context_group_id,
+    v8_inspector::V8Inspector::Channel* channel,
+    v8_inspector::StringBuffer& state) {
+  auto string_view = state.string();
+  std::unique_ptr<v8_inspector::V8InspectorSession> u =
+      self.connect(context_group_id, channel, string_view);
+  return u.release();
+}
+
+void v8_inspector__V8ContextInfo__ContextCreated(
+    v8_inspector::V8Inspector& self, v8_inspector::V8ContextInfo& context) {
+  self.contextCreated(context);
+}
+
 struct v8_inspector__V8InspectorClient__BASE
     : public v8_inspector::V8InspectorClient {
   using v8_inspector::V8InspectorClient::V8InspectorClient;
