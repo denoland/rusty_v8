@@ -2108,15 +2108,44 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
   let _g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let isolate = v8::Isolate::new(params);
+  let mut isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
+
+  use v8::inspector::*;
+
+  pub struct Client {
+    base: V8InspectorClientBase,
+  }
+
+  impl Client {
+    fn new() -> Self {
+      Self {
+        base: V8InspectorClientBase::new::<Self>(),
+      }
+    }
+  }
+
+  impl V8InspectorClientImpl for Client {
+    fn base(&self) -> &V8InspectorClientBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
+      &mut self.base
+    }
+  }
+
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    // let default_client = v8::inspector::V8InspectorClient::default();
+    let mut default_client = Client::new();
+    let _inspector = V8Inspector::create(&mut isolate, &mut default_client);
+    let name = b"";
+    let mut name_view = StringView::from(&name[..]);
+    let context_info = V8ContextInfo::new(context, 1, &mut name_view);
+
     context.exit();
   }
   /*

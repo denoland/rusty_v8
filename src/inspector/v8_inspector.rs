@@ -88,6 +88,6 @@ impl V8Inspector {
 
 impl Delete for V8Inspector {
   fn delete(&'static mut self) {
-    todo!()
+    // todo!()
   }
 }

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::StringBuffer;
+use super::StringView;
 use crate::support::int;
 use crate::support::Opaque;
 use crate::support::UniqueRef;
@@ -21,7 +21,7 @@ impl V8ContextInfo {
   pub fn new<'sc>(
     mut context: Local<'sc, Context>,
     context_group_id: int,
-    human_readable_name: &mut StringBuffer,
+    human_readable_name: &mut StringView,
   ) -> &'sc mut Self {
     unsafe {
       //   let ci = v8_inspector__V8ContextInfo__New(
