@@ -7,7 +7,10 @@ mod string_view;
 mod v8_inspector;
 
 pub use channel::{AsChannel, Channel, ChannelBase, ChannelImpl};
-pub use client::{AsClient, Client, ClientBase, ClientImpl};
+pub use client::AsV8InspectorClient;
+pub use client::V8InspectorClient;
+pub use client::V8InspectorClientBase;
+pub use client::V8InspectorClientImpl;
 pub use context_info::V8ContextInfo;
 pub use session::V8InspectorSession;
 pub use string_buffer::StringBuffer;

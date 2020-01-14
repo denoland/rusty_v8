@@ -1,9 +1,9 @@
 use super::channel::AsChannel;
-use super::client::AsClient;
+use super::client::AsV8InspectorClient;
 use super::session::V8InspectorSession;
 use super::Channel;
-use super::Client;
 use super::StringBuffer;
+use super::V8InspectorClient;
 use crate::support::int;
 use crate::support::Delete;
 use crate::support::Opaque;
@@ -15,7 +15,7 @@ use crate::Local;
 extern "C" {
   fn v8_inspector__V8Inspector__Create(
     isolate: *mut Isolate,
-    client: *mut Client,
+    client: *mut V8InspectorClient,
   ) -> *mut V8Inspector;
   fn v8_inspector__V8Inspector__Connect(
     inspector: *mut V8Inspector,
@@ -40,7 +40,7 @@ impl V8Inspector {
     client: &mut T,
   ) -> UniqueRef<V8Inspector>
   where
-    T: AsClient,
+    T: AsV8InspectorClient,
   {
     unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__Create(
