@@ -2113,7 +2113,7 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
 
   use v8::inspector::*;
 
-  pub struct Client {
+  struct Client {
     base: V8InspectorClientBase,
   }
 
@@ -2134,6 +2134,40 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
     }
   }
 
+  struct NoopChannel {
+    base: ChannelBase,
+  }
+
+  impl ChannelImpl for NoopChannel {
+    fn base(&self) -> &ChannelBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut ChannelBase {
+      &mut self.base
+    }
+    fn send_response(
+      &mut self,
+      _call_id: i32,
+      _message: v8::UniquePtr<StringBuffer>,
+    ) {
+      unreachable!()
+    }
+    fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
+      unreachable!()
+    }
+    fn flush_protocol_notifications(&mut self) {
+      unreachable!()
+    }
+  }
+
+  impl NoopChannel {
+    pub fn new() -> Self {
+      Self {
+        base: ChannelBase::new::<Self>(),
+      }
+    }
+  }
+
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
@@ -2141,10 +2175,22 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
     context.enter();
 
     let mut default_client = Client::new();
-    let _inspector = V8Inspector::create(&mut isolate, &mut default_client);
+    let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
     let name = b"";
     let mut name_view = StringView::from(&name[..]);
-    let context_info = V8ContextInfo::new(context, 1, &mut name_view);
+    // let context_info = V8ContextInfo::new(context, 1, &mut name_view);
+
+    inspector.context_created(context, 1, &mut name_view);
+
+    let mut channel = NoopChannel::new();
+
+    let state = b"{}";
+    let state_view = StringView::from(&state[..]);
+
+    inspector.connect(1, &mut channel, &state_view);
+
+    let object_group = b"";
+    let object_group_view = StringView::from(&object_group[..]);
 
     context.exit();
   }
