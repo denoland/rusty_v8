@@ -2199,75 +2199,48 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
     }
   }
 
-  {
-    let mut hs = v8::HandleScope::new(&mut locker);
-    let scope = hs.enter();
-    let mut context = v8::Context::new(scope);
-    context.enter();
+  let mut hs = v8::HandleScope::new(&mut locker);
+  let scope = hs.enter();
+  let mut context = v8::Context::new(scope);
+  context.enter();
 
-    let mut default_client = Client::new();
-    let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
-    let name = b"";
-    let mut name_view = StringView::from(&name[..]);
-    // let context_info = V8ContextInfo::new(context, 1, &mut name_view);
+  let mut default_client = Client::new();
+  let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
+  let name = b"";
+  let mut name_view = StringView::from(&name[..]);
+  // let context_info = V8ContextInfo::new(context, 1, &mut name_view);
 
-    inspector.context_created(context, 1, &mut name_view);
+  inspector.context_created(context, 1, &mut name_view);
 
-    let mut channel = NoopChannel::new();
+  let mut channel = NoopChannel::new();
 
-    let state = b"{}";
-    let state_view = StringView::from(&state[..]);
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
 
-    let session = inspector.connect(1, &mut channel, &state_view);
+  let session = inspector.connect(1, &mut channel, &state_view);
 
+  let object_group = b"";
+  let _object_group_view = StringView::from(&object_group[..]);
+
+  extern "C" fn wrap_on_interrupt(
+    _isolate: &mut v8::Isolate,
+    _data: *mut std::ffi::c_void,
+  ) {
     let object_group = b"";
-    let object_group_view = StringView::from(&object_group[..]);
-
-    extern "C" fn wrap_on_interrupt(
-      isolate: &mut v8::Isolate,
-      data: *mut std::ffi::c_void,
-    ) {
-      let object_group = b"";
-      let object_group_view = StringView::from(&object_group[..]);
-      /*
-      reinterpret_cast<V8InspectorSession*>(data)->wrapObject(
-          isolate->GetCurrentContext(), v8::Null(isolate), object_group_view,
-          false);
-      */
-    }
-
-    let session_ptr = session.into_raw();
-    isolate.request_interrupt(
-      wrap_on_interrupt,
-      session_ptr as *mut std::ffi::c_void,
-    );
-    // session.wrap_object(context, v8::new_null(), object_group_view, false);
-
-    context.exit();
+    let _object_group_view = StringView::from(&object_group[..]);
+    /*
+    reinterpret_cast<V8InspectorSession*>(data)->wrapObject(
+        isolate->GetCurrentContext(), v8::Null(isolate), object_group_view,
+        false);
+    */
   }
-  /*
-  LocalContext env;
-  v8::Isolate* isolate = env->GetIsolate();
-  v8::HandleScope handle_scope(isolate);
 
-  v8_inspector::V8InspectorClient default_client;
-  std::unique_ptr<V8Inspector> inspector =
-      V8Inspector::create(isolate, &default_client);
-  const char* name = "";
-  StringView name_view(reinterpret_cast<const uint8_t*>(name), strlen(name));
-  V8ContextInfo context_info(env.local(), 1, name_view);
-  inspector->contextCreated(context_info);
+  let session_ptr = session.into_raw();
+  isolate.request_interrupt(
+    wrap_on_interrupt,
+    session_ptr as *mut std::ffi::c_void,
+  );
+  // session.wrap_object(context, v8::new_null(), object_group_view, false);
 
-  NoopChannel channel;
-  const char* state = "{}";
-  StringView state_view(reinterpret_cast<const uint8_t*>(state), strlen(state));
-  std::unique_ptr<V8InspectorSession> session =
-      inspector->connect(1, &channel, state_view);
-
-  const char* object_group = "";
-  StringView object_group_view(reinterpret_cast<const uint8_t*>(object_group),
-                               strlen(object_group));
-  isolate->RequestInterrupt(&WrapOnInterrupt, session.get());
-  session->wrapObject(env.local(), v8::Null(isolate), object_group_view, false);
-  */
+  context.exit();
 }
