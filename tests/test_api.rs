@@ -476,6 +476,37 @@ fn terminate_execution() {
 }
 
 #[test]
+fn request_interrupt_small_scripts() {
+  let g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+    extern "C" fn callback(
+      _isolate: &mut v8::Isolate,
+      data: *mut std::ffi::c_void,
+    ) {
+      assert_eq!(data, std::ptr::null_mut());
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
+    isolate.request_interrupt(callback, std::ptr::null_mut());
+    eval(scope, context, "(function(x){return x;})(1);");
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    context.exit();
+  }
+  drop(locker);
+  drop(g);
+}
+
+#[test]
 fn add_message_listener() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
