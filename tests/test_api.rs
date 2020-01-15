@@ -572,11 +572,11 @@ fn add_message_listener() {
   drop(g);
 }
 
-extern "C" fn unexpected_module_resolve_callback(
-  _context: v8::Local<v8::Context>,
-  _specifier: v8::Local<v8::String>,
-  _referrer: v8::Local<v8::Module>,
-) -> *const v8::Module {
+fn unexpected_module_resolve_callback<'a>(
+  _context: v8::Local<'a, v8::Context>,
+  _specifier: v8::Local<'a, v8::String>,
+  _referrer: v8::Local<'a, v8::Module>,
+) -> Option<v8::Local<'a, v8::Module>> {
   unreachable!()
 }
 
@@ -1320,17 +1320,17 @@ fn module_instantiation_failures1() {
     {
       let mut try_catch = v8::TryCatch::new(scope);
       let tc = try_catch.enter();
-      extern "C" fn resolve_callback(
-        context: v8::Local<v8::Context>,
-        _specifier: v8::Local<v8::String>,
-        _referrer: v8::Local<v8::Module>,
-      ) -> *const v8::Module {
+      fn resolve_callback<'a>(
+        context: v8::Local<'a, v8::Context>,
+        _specifier: v8::Local<'a, v8::String>,
+        _referrer: v8::Local<'a, v8::Module>,
+      ) -> Option<v8::Local<'a, v8::Module>> {
         let mut cbs = v8::CallbackScope::new(context);
         let mut hs = v8::HandleScope::new(cbs.enter());
         let scope = hs.enter();
         let e = v8_str(scope, "boom");
         scope.isolate().throw_exception(e.into());
-        std::ptr::null()
+        None
       }
       let result = module.instantiate_module(context, resolve_callback);
       assert!(result.is_none());
@@ -1349,11 +1349,11 @@ fn module_instantiation_failures1() {
   drop(g);
 }
 
-extern "C" fn compile_specifier_as_module_resolve_callback(
-  context: v8::Local<v8::Context>,
-  specifier: v8::Local<v8::String>,
-  _referrer: v8::Local<v8::Module>,
-) -> *const v8::Module {
+fn compile_specifier_as_module_resolve_callback<'a>(
+  context: v8::Local<'a, v8::Context>,
+  specifier: v8::Local<'a, v8::String>,
+  _referrer: v8::Local<'a, v8::Module>,
+) -> Option<v8::Local<'a, v8::Module>> {
   let mut cbs = v8::CallbackScope::new(context);
   let mut hs = v8::EscapableHandleScope::new(cbs.enter());
   let scope = hs.enter();
@@ -1361,7 +1361,7 @@ extern "C" fn compile_specifier_as_module_resolve_callback(
   let source = v8::script_compiler::Source::new(specifier, &origin);
   let module =
     v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
-  &*scope.escape(module)
+  Some(scope.escape(module))
 }
 
 #[test]

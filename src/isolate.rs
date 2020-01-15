@@ -316,6 +316,9 @@ impl Isolate {
   /// There may be a number of interrupt requests in flight.
   /// Can be called from another thread without acquiring a |Locker|.
   /// Registered |callback| must not reenter interrupted Isolate.
+  // Clippy warns that this method is dereferencing a raw pointer, but it is
+  // not: https://github.com/rust-lang/rust-clippy/issues/3045
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
   pub fn request_interrupt(
     &self,
     callback: InterruptCallback,
