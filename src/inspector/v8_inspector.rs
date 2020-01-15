@@ -13,6 +13,7 @@ use crate::Isolate;
 use crate::Local;
 
 extern "C" {
+  fn v8_inspector__V8Inspector__DELETE(this: &'static mut V8Inspector);
   fn v8_inspector__V8Inspector__Create(
     isolate: *mut Isolate,
     client: *mut V8InspectorClient,
@@ -88,6 +89,6 @@ impl V8Inspector {
 
 impl Delete for V8Inspector {
   fn delete(&'static mut self) {
-    // todo!()
+    unsafe { v8_inspector__V8Inspector__DELETE(self) };
   }
 }

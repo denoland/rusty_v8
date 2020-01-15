@@ -39,6 +39,9 @@ static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
               "SnapshotCreator size mismatch");
 
+static_assert(sizeof(v8_inspector::V8ContextInfo) == sizeof(size_t) * 12,
+              "V8ContextInfo size mismatch");
+
 enum InternalSlots {
   kSlotDynamicImport = 0,
   kNumInternalSlots,
@@ -1213,6 +1216,10 @@ void v8_inspector__V8Inspector__Channel__BASE__sendNotification(
 void v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
     v8_inspector::V8Inspector::Channel& self);
 
+void v8_inspector__V8Inspector__DELETE(v8_inspector::V8Inspector& self) {
+  delete &self;
+}
+
 v8_inspector::V8Inspector* v8_inspector__V8Inspector__Create(
     v8::Isolate* isolate, v8_inspector::V8InspectorClient* client) {
   std::unique_ptr<v8_inspector::V8Inspector> u =
@@ -1228,6 +1235,13 @@ v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__Connect(
   std::unique_ptr<v8_inspector::V8InspectorSession> u =
       self.connect(context_group_id, channel, string_view);
   return u.release();
+}
+
+void v8_inspector__V8ContextInfo__CONSTRUCT(
+    uninit_t<v8_inspector::V8ContextInfo>& buf, v8::Context* context,
+    int context_group_id, v8_inspector::StringView& human_readable_name) {
+  construct_in_place<v8_inspector::V8ContextInfo>(
+      buf, ptr_to_local(context), context_group_id, human_readable_name);
 }
 
 void v8_inspector__V8Inspector__ContextCreated(
