@@ -2187,10 +2187,13 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
     let state = b"{}";
     let state_view = StringView::from(&state[..]);
 
-    inspector.connect(1, &mut channel, &state_view);
+    let session = inspector.connect(1, &mut channel, &state_view);
 
     let object_group = b"";
     let object_group_view = StringView::from(&object_group[..]);
+
+    //isolate.request_interrupt(wrap_on_interrupt, session.get());
+    // session.wrap_object(context, null, object_group_view, false);
 
     context.exit();
   }
