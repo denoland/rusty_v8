@@ -2223,8 +2223,18 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
     let object_group = b"";
     let object_group_view = StringView::from(&object_group[..]);
 
-    //isolate.request_interrupt(wrap_on_interrupt, session.get());
-    // session.wrap_object(context, null, object_group_view, false);
+    extern "C" fn wrap_on_interrupt(isolate: &mut v8::Isolate, data: *mut std::ffi::c_void) {
+      let object_group = b"";
+      let object_group_view = StringView::from(&object_group[..]);
+
+      reinterpret_cast<V8InspectorSession*>(data)->wrapObject(
+          isolate->GetCurrentContext(), v8::Null(isolate), object_group_view,
+          false);
+    }
+
+    let session_ptr = session.into_raw();
+    isolate.request_interrupt(wrap_on_interrupt, session_ptr);
+    // session.wrap_object(context, v8::new_null(), object_group_view, false);
 
     context.exit();
   }
