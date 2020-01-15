@@ -61,6 +61,9 @@ pub type HostImportModuleDynamicallyCallback = extern "C" fn(
   Local<String>,
 ) -> *mut Promise;
 
+pub type InterruptCallback =
+  extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
+
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
@@ -90,6 +93,11 @@ extern "C" {
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
     callback: HostImportModuleDynamicallyCallback,
+  );
+  fn v8__Isolate__RequestInterrupt(
+    isolate: *const Isolate,
+    callback: InterruptCallback,
+    data: *mut c_void,
   );
   fn v8__Isolate__ThrowException(
     isolate: &Isolate,
@@ -300,6 +308,20 @@ impl Isolate {
   /// Enqueues the callback to the default MicrotaskQueue
   pub fn enqueue_microtask(&self, mut microtask: Local<Function>) {
     unsafe { v8__Isolate__EnqueueMicrotask(self, &mut *microtask) }
+  }
+
+  /// Request V8 to interrupt long running JavaScript code and invoke
+  /// the given |callback| passing the given |data| to it. After |callback|
+  /// returns control will be returned to the JavaScript code.
+  /// There may be a number of interrupt requests in flight.
+  /// Can be called from another thread without acquiring a |Locker|.
+  /// Registered |callback| must not reenter interrupted Isolate.
+  pub fn request_interrupt(
+    &self,
+    callback: InterruptCallback,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RequestInterrupt(self, callback, data) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any
