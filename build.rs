@@ -180,8 +180,17 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 // modify the source directory.
 fn clang_download() -> PathBuf {
   let root = env::current_dir().unwrap();
+  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
   let out_dir = env::var_os("OUT_DIR").unwrap();
-  let clang_base_path = root.join(out_dir).join("clang");
+  let clang_base_path = root
+    .join(out_dir)
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .join("clang");
   println!("clang_base_path {}", clang_base_path.display());
   let status = Command::new("python")
     .arg("./tools/clang/scripts/update.py")
