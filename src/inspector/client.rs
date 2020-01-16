@@ -4,115 +4,55 @@ use crate::support::FieldOffset;
 use crate::support::Opaque;
 use crate::support::RustVTable;
 
-// class V8InspectorClient {
-//  public:
-//   virtual ~V8InspectorClient() = default;
-//
-//   virtual void runMessageLoopOnPause(int contextGroupId) {}
-//   virtual void quitMessageLoopOnPause() {}
-//   virtual void runIfWaitingForDebugger(int contextGroupId) {}
-//
-//   virtual void muteMetrics(int contextGroupId) {}
-//   virtual void unmuteMetrics(int contextGroupId) {}
-//
-//   virtual void beginUserGesture() {}
-//   virtual void endUserGesture() {}
-//
-//   virtual std::unique_ptr<StringBuffer> valueSubtype(v8::Local<v8::Value>) {
-//     return nullptr;
-//   }
-//   virtual bool formatAccessorsAsProperties(v8::Local<v8::Value>) {
-//     return false;
-//   }
-//   virtual bool isInspectableHeapObject(v8::Local<v8::Object>) {
-//     return true;
-//   }
-//
-//   virtual v8::Local<v8::Context> ensureDefaultContextInGroup(
-//       int contextGroupId) {
-//     return v8::Local<v8::Context>();
-//   }
-//   virtual void beginEnsureAllContextsInGroup(int contextGroupId) {}
-//   virtual void endEnsureAllContextsInGroup(int contextGroupId) {}
-//
-//   virtual void installAdditionalCommandLineAPI(v8::Local<v8::Context>,
-//                                                v8::Local<v8::Object>) {}
-//   virtual void consoleAPIMessage(int contextGroupId,
-//                                  v8::Isolate::MessageErrorLevel level,
-//                                  const StringView& message,
-//                                  const StringView& url, unsigned lineNumber,
-//                                  unsigned columnNumber, V8StackTrace*) {}
-//   virtual v8::MaybeLocal<v8::Value> memoryInfo(v8::Isolate*,
-//                                                v8::Local<v8::Context>) {
-//     return v8::MaybeLocal<v8::Value>();
-//   }
-//
-//   virtual void consoleTime(const StringView& title) {}
-//   virtual void consoleTimeEnd(const StringView& title) {}
-//   virtual void consoleTimeStamp(const StringView& title) {}
-//   virtual void consoleClear(int contextGroupId) {}
-//   virtual double currentTimeMS() { return 0; }
-//   typedef void (*TimerCallback)(void*);
-//   virtual void startRepeatingTimer(double, TimerCallback, void* data) {}
-//   virtual void cancelTimer(void* data) {}
-//
-//   virtual bool canExecuteScripts(int contextGroupId) { return true; }
-//
-//   virtual void maxAsyncCallStackDepthChanged(int depth) {}
-//
-//   virtual std::unique_ptr<StringBuffer> resourceNameToUrl(
-//       const StringView& resourceName) {
-//     return nullptr;
-//   }
-// };
-
 extern "C" {
   fn v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
-    buf: &mut std::mem::MaybeUninit<Client>,
+    buf: &mut std::mem::MaybeUninit<V8InspectorClient>,
   ) -> ();
 
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
-    this: &mut Client,
+    this: &mut V8InspectorClient,
     context_group_id: int,
   ) -> ();
   fn v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
-    this: &mut Client,
+    this: &mut V8InspectorClient,
   ) -> ();
   fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
-    this: &mut Client,
+    this: &mut V8InspectorClient,
     context_group_id: int,
   ) -> ();
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
-  this: &mut Client,
+  this: &mut V8InspectorClient,
   context_group_id: int,
 ) {
-  ClientBase::dispatch_mut(this).run_message_loop_on_pause(context_group_id)
+  V8InspectorClientBase::dispatch_mut(this)
+    .run_message_loop_on_pause(context_group_id)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
-  this: &mut Client,
+  this: &mut V8InspectorClient,
 ) {
-  ClientBase::dispatch_mut(this).quit_message_loop_on_pause()
+  V8InspectorClientBase::dispatch_mut(this).quit_message_loop_on_pause()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
-  this: &mut Client,
+  this: &mut V8InspectorClient,
   context_group_id: int,
 ) {
-  ClientBase::dispatch_mut(this).run_if_waiting_for_debugger(context_group_id)
+  V8InspectorClientBase::dispatch_mut(this)
+    .run_if_waiting_for_debugger(context_group_id)
 }
 
 #[repr(C)]
-pub struct Client {
+pub struct V8InspectorClient {
   _cxx_vtable: CxxVTable,
 }
 
-impl Client {
+impl V8InspectorClient {
   pub fn run_message_loop_on_pause(&mut self, context_group_id: int) {
     unsafe {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
@@ -134,65 +74,65 @@ impl Client {
   }
 }
 
-pub trait AsClient {
-  fn as_client(&self) -> &Client;
-  fn as_client_mut(&mut self) -> &mut Client;
+pub trait AsV8InspectorClient {
+  fn as_client(&self) -> &V8InspectorClient;
+  fn as_client_mut(&mut self) -> &mut V8InspectorClient;
 }
 
-impl AsClient for Client {
-  fn as_client(&self) -> &Client {
+impl AsV8InspectorClient for V8InspectorClient {
+  fn as_client(&self) -> &V8InspectorClient {
     self
   }
-  fn as_client_mut(&mut self) -> &mut Client {
+  fn as_client_mut(&mut self) -> &mut V8InspectorClient {
     self
   }
 }
 
-impl<T> AsClient for T
+impl<T> AsV8InspectorClient for T
 where
-  T: ClientImpl,
+  T: V8InspectorClientImpl,
 {
-  fn as_client(&self) -> &Client {
+  fn as_client(&self) -> &V8InspectorClient {
     &self.base().cxx_base
   }
-  fn as_client_mut(&mut self) -> &mut Client {
+  fn as_client_mut(&mut self) -> &mut V8InspectorClient {
     &mut self.base_mut().cxx_base
   }
 }
 
 #[allow(unused_variables)]
-pub trait ClientImpl: AsClient {
-  fn base(&self) -> &ClientBase;
-  fn base_mut(&mut self) -> &mut ClientBase;
+pub trait V8InspectorClientImpl: AsV8InspectorClient {
+  fn base(&self) -> &V8InspectorClientBase;
+  fn base_mut(&mut self) -> &mut V8InspectorClientBase;
 
   fn run_message_loop_on_pause(&mut self, context_group_id: int) {}
   fn quit_message_loop_on_pause(&mut self) {}
   fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {}
 }
 
-pub struct ClientBase {
-  cxx_base: Client,
+pub struct V8InspectorClientBase {
+  cxx_base: V8InspectorClient,
   offset_within_embedder: FieldOffset<Self>,
-  rust_vtable: RustVTable<&'static dyn ClientImpl>,
+  rust_vtable: RustVTable<&'static dyn V8InspectorClientImpl>,
 }
 
-impl ClientBase {
-  fn construct_cxx_base() -> Client {
+impl V8InspectorClientBase {
+  fn construct_cxx_base() -> V8InspectorClient {
     unsafe {
-      let mut buf = std::mem::MaybeUninit::<Client>::uninit();
+      let mut buf = std::mem::MaybeUninit::<V8InspectorClient>::uninit();
       v8_inspector__V8InspectorClient__BASE__CONSTRUCT(&mut buf);
       buf.assume_init()
     }
   }
 
-  fn get_cxx_base_offset() -> FieldOffset<Client> {
+  fn get_cxx_base_offset() -> FieldOffset<V8InspectorClient> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
     FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
   }
 
   fn get_offset_within_embedder<T>() -> FieldOffset<Self>
   where
-    T: ClientImpl,
+    T: V8InspectorClientImpl,
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
@@ -200,13 +140,13 @@ impl ClientBase {
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
-  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ClientImpl>
+  fn get_rust_vtable<T>() -> RustVTable<&'static dyn V8InspectorClientImpl>
   where
-    T: ClientImpl,
+    T: V8InspectorClientImpl,
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr = buf.as_ptr();
-    let trait_object: *const dyn ClientImpl = embedder_ptr;
+    let trait_object: *const dyn V8InspectorClientImpl = embedder_ptr;
     let (data_ptr, vtable): (*const T, RustVTable<_>) =
       unsafe { std::mem::transmute(trait_object) };
     assert_eq!(data_ptr, embedder_ptr);
@@ -215,7 +155,7 @@ impl ClientBase {
 
   pub fn new<T>() -> Self
   where
-    T: ClientImpl,
+    T: V8InspectorClientImpl,
   {
     Self {
       cxx_base: Self::construct_cxx_base(),
@@ -224,13 +164,17 @@ impl ClientBase {
     }
   }
 
-  pub unsafe fn dispatch(client: &Client) -> &dyn ClientImpl {
+  pub unsafe fn dispatch(
+    client: &V8InspectorClient,
+  ) -> &dyn V8InspectorClientImpl {
     let this = Self::get_cxx_base_offset().to_embedder::<Self>(client);
     let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
     std::mem::transmute((embedder, this.rust_vtable))
   }
 
-  pub unsafe fn dispatch_mut(client: &mut Client) -> &mut dyn ClientImpl {
+  pub unsafe fn dispatch_mut(
+    client: &mut V8InspectorClient,
+  ) -> &mut dyn V8InspectorClientImpl {
     let this = Self::get_cxx_base_offset().to_embedder_mut::<Self>(client);
     let vtable = this.rust_vtable;
     let embedder = this.offset_within_embedder.to_embedder_mut::<Opaque>(this);

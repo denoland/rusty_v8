@@ -1224,6 +1224,50 @@ void v8_inspector__V8Inspector__Channel__BASE__sendNotification(
     v8_inspector::StringBuffer* message);
 void v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
     v8_inspector::V8Inspector::Channel& self);
+
+void v8_inspector__V8Inspector__DELETE(v8_inspector::V8Inspector& self) {
+  delete &self;
+}
+
+v8_inspector::V8Inspector* v8_inspector__V8Inspector__create(
+    v8::Isolate* isolate, v8_inspector::V8InspectorClient* client) {
+  std::unique_ptr<v8_inspector::V8Inspector> u =
+      v8_inspector::V8Inspector::create(isolate, client);
+  return u.release();
+}
+
+v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
+    v8_inspector::V8Inspector& self, int context_group_id,
+    v8_inspector::V8Inspector::Channel* channel,
+    v8_inspector::StringView& state) {
+  std::unique_ptr<v8_inspector::V8InspectorSession> u =
+      self.connect(context_group_id, channel, state);
+  return u.release();
+}
+
+void v8_inspector__V8Inspector__contextCreated(
+    v8_inspector::V8Inspector& self, v8::Context* context, int contextGroupId,
+    v8_inspector::StringView& humanReadableName) {
+  self.contextCreated(v8_inspector::V8ContextInfo(
+      ptr_to_local(context), contextGroupId, humanReadableName));
+}
+
+void v8_inspector__V8InspectorSession__DELETE(
+    v8_inspector::V8InspectorSession& self) {
+  delete &self;
+}
+
+void v8_inspector__V8InspectorSession__dispatchProtocolMessage(
+    v8_inspector::V8InspectorSession& self,
+    v8_inspector::StringView& message) {
+  self.dispatchProtocolMessage(message);
+}
+
+void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
+    v8_inspector::V8InspectorSession& self, v8_inspector::StringBuffer& reason,
+    v8_inspector::StringBuffer& detail) {
+  self.schedulePauseOnNextStatement(reason.string(), detail.string());
+}
 }  // extern "C"
 
 struct v8_inspector__V8Inspector__Channel__BASE

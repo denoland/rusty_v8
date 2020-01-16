@@ -2127,3 +2127,101 @@ fn try_from_local() {
     context.exit();
   }
 }
+
+#[test]
+fn inspector_dispatch_protocol_message() {
+  let _g = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+
+  use v8::inspector::*;
+
+  struct Client {
+    base: V8InspectorClientBase,
+  }
+
+  impl Client {
+    fn new() -> Self {
+      Self {
+        base: V8InspectorClientBase::new::<Self>(),
+      }
+    }
+  }
+
+  impl V8InspectorClientImpl for Client {
+    fn base(&self) -> &V8InspectorClientBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
+      &mut self.base
+    }
+  }
+
+  struct TestChannel {
+    base: ChannelBase,
+    send_response_count: usize,
+    send_notification_count: usize,
+    flush_protocol_notifications_count: usize,
+  }
+
+  impl TestChannel {
+    pub fn new() -> Self {
+      Self {
+        base: ChannelBase::new::<Self>(),
+        send_response_count: 0,
+        send_notification_count: 0,
+        flush_protocol_notifications_count: 0,
+      }
+    }
+  }
+
+  impl ChannelImpl for TestChannel {
+    fn base(&self) -> &ChannelBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut ChannelBase {
+      &mut self.base
+    }
+    fn send_response(
+      &mut self,
+      _call_id: i32,
+      _message: v8::UniquePtr<StringBuffer>,
+    ) {
+      self.send_response_count += 1;
+    }
+    fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
+      self.send_notification_count += 1;
+    }
+    fn flush_protocol_notifications(&mut self) {
+      self.flush_protocol_notifications_count += 1;
+    }
+  }
+
+  let mut hs = v8::HandleScope::new(&mut locker);
+  let scope = hs.enter();
+  let mut context = v8::Context::new(scope);
+  context.enter();
+
+  let mut default_client = Client::new();
+  let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, &name_view);
+  let mut channel = TestChannel::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let mut session = inspector.connect(1, &mut channel, &state_view);
+  let message = String::from(
+    r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
+  );
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  session.dispatch_protocol_message(&string_view);
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
+
+  context.exit();
+}
