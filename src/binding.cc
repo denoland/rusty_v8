@@ -1252,8 +1252,8 @@ void v8_inspector__V8InspectorSession__DELETE(
 
 void v8_inspector__V8InspectorSession__dispatchProtocolMessage(
     v8_inspector::V8InspectorSession& self,
-    v8_inspector::StringBuffer& message) {
-  self.dispatchProtocolMessage(message.string());
+    v8_inspector::StringView& message) {
+  self.dispatchProtocolMessage(message);
 }
 
 void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(

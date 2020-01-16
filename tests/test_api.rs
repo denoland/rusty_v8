@@ -2135,7 +2135,7 @@ fn try_from_local() {
 }
 
 #[test]
-fn inspector_wrap_inside_wrap_on_interrupt() {
+fn inspector_dispatch_protocol_message() {
   let _g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
@@ -2165,11 +2165,21 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
     }
   }
 
-  struct NoopChannel {
+  struct TestChannel {
     base: ChannelBase,
+    send_response_count: usize,
   }
 
-  impl ChannelImpl for NoopChannel {
+  impl TestChannel {
+    pub fn new() -> Self {
+      Self {
+        base: ChannelBase::new::<Self>(),
+        send_response_count: 0,
+      }
+    }
+  }
+
+  impl ChannelImpl for TestChannel {
     fn base(&self) -> &ChannelBase {
       &self.base
     }
@@ -2181,21 +2191,13 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
       _call_id: i32,
       _message: v8::UniquePtr<StringBuffer>,
     ) {
-      unreachable!()
+      self.send_response_count += 1;
     }
     fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
-      unreachable!()
+      //unreachable!()
     }
     fn flush_protocol_notifications(&mut self) {
-      unreachable!()
-    }
-  }
-
-  impl NoopChannel {
-    pub fn new() -> Self {
-      Self {
-        base: ChannelBase::new::<Self>(),
-      }
+      //unreachable!()
     }
   }
 
@@ -2212,35 +2214,21 @@ fn inspector_wrap_inside_wrap_on_interrupt() {
 
   inspector.context_created(context, 1, &mut name_view);
 
-  let mut channel = NoopChannel::new();
+  let mut channel = TestChannel::new();
 
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
 
-  let session = inspector.connect(1, &mut channel, &state_view);
+  let mut session = inspector.connect(1, &mut channel, &state_view);
 
-  let object_group = b"";
-  let _object_group_view = StringView::from(&object_group[..]);
-
-  extern "C" fn wrap_on_interrupt(
-    _isolate: &mut v8::Isolate,
-    _data: *mut std::ffi::c_void,
-  ) {
-    let object_group = b"";
-    let _object_group_view = StringView::from(&object_group[..]);
-    /*
-    reinterpret_cast<V8InspectorSession*>(data)->wrapObject(
-        isolate->GetCurrentContext(), v8::Null(isolate), object_group_view,
-        false);
-    */
-  }
-
-  let session_ptr = session.into_raw();
-  isolate.request_interrupt(
-    wrap_on_interrupt,
-    session_ptr as *mut std::ffi::c_void,
+  let message = String::from(
+    r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
   );
-  // session.wrap_object(context, v8::new_null(), object_group_view, false);
+  let message = &message.into_bytes()[..];
+  let string_view = v8::inspector::StringView::from(message);
+  session.dispatch_protocol_message(&string_view);
+
+  assert_eq!(channel.send_response_count, 1);
 
   context.exit();
 }

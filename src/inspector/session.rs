@@ -1,4 +1,5 @@
 use super::StringBuffer;
+use super::StringView;
 use crate::support::Delete;
 use crate::support::Opaque;
 
@@ -8,7 +9,7 @@ extern "C" {
   );
   fn v8_inspector__V8InspectorSession__dispatchProtocolMessage(
     session: *mut V8InspectorSession,
-    message: *mut StringBuffer,
+    message: &StringView,
   );
   fn v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     session: *mut V8InspectorSession,
@@ -21,12 +22,9 @@ extern "C" {
 pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
-  pub fn dispatch_protocol_message(&mut self, message: &mut StringBuffer) {
+  pub fn dispatch_protocol_message(&mut self, message: &StringView) {
     unsafe {
-      v8_inspector__V8InspectorSession__dispatchProtocolMessage(
-        self,
-        &mut *message,
-      )
+      v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message)
     }
   }
 
