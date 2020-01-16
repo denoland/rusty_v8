@@ -361,13 +361,6 @@ impl DerefMut for OwnedIsolate {
   }
 }
 
-/// Trait for retrieving the current isolate from a scope object.
-pub trait InIsolate {
-  // Do not implement this trait on unscoped Isolate references
-  // (e.g. OwnedIsolate).
-  fn isolate(&mut self) -> &mut Isolate;
-}
-
 /// Initial configuration parameters for a new Isolate.
 #[repr(C)]
 pub struct CreateParams(Opaque);

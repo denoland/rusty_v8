@@ -27,6 +27,12 @@ static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 static_assert(sizeof(v8::ScriptCompiler::Source) == sizeof(size_t) * 8,
               "Source size mismatch");
 
+static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
+              "FunctionCallbackInfo size mismatch");
+
+static_assert(sizeof(v8::PropertyCallbackInfo<v8::Value>) == sizeof(size_t) * 1,
+              "PropertyCallbackInfo size mismatch");
+
 static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
               "ReturnValue size mismatch");
 
@@ -864,20 +870,25 @@ v8::Function* v8__FunctionTemplate__GetFunction(
     v8::Local<v8::FunctionTemplate> self, v8::Local<v8::Context> context) {
   return maybe_local_to_ptr(self->GetFunction(context));
 }
-int v8__FunctionCallbackInfo__Length(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return self.Length();
-}
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
 }
 
-void v8__FunctionCallbackInfo__GetReturnValue(
-    const v8::FunctionCallbackInfo<v8::Value>& self,
-    v8::ReturnValue<v8::Value>* out) {
-  *out = self.GetReturnValue();
+v8::Value* v8__FunctionCallbackInfo__GetReturnValue(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return make_pod<v8::Value*>(self.GetReturnValue());
+}
+
+v8::Object* v8__FunctionCallbackInfo__This(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.This());
+}
+
+int v8__FunctionCallbackInfo__Length(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.Length();
 }
 
 v8::Value* v8__FunctionCallbackInfo__GetArgument(
@@ -894,7 +905,8 @@ v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
   return local_to_ptr(self.Get());
 }
 
-v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>& self) {
+v8::Isolate* v8__ReturnValue__GetIsolate(
+    const v8::ReturnValue<v8::Value>& self) {
   return self.GetIsolate();
 }
 
@@ -1112,10 +1124,6 @@ v8::Promise* v8__Promise__Then2(v8::Promise* self,
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
 }
 
-v8::Isolate* v8__Promise__GetIsolate(v8::Promise* self) {
-  return self->GetIsolate();
-}
-
 v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(
     const v8::PromiseRejectMessage& self) {
   return self.GetEvent();
@@ -1136,15 +1144,14 @@ v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
   return self.GetIsolate();
 }
 
+v8::Value* v8__PropertyCallbackInfo__GetReturnValue(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return make_pod<v8::Value*>(self.GetReturnValue());
+}
+
 v8::Object* v8__PropertyCallbackInfo__This(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.This());
-}
-
-void v8__PropertyCallbackInfo__GetReturnValue(
-    const v8::PropertyCallbackInfo<v8::Value>& self,
-    v8::ReturnValue<v8::Value>* out) {
-  *out = self.GetReturnValue();
 }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf,

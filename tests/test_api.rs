@@ -8,7 +8,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use rusty_v8 as v8;
+
+// TODO(piscisaureus): Ideally there would be no need to import traits.
 use v8::InIsolate;
+use v8::MapFnTo;
 
 lazy_static! {
   static ref INIT_LOCK: Mutex<u32> = Mutex::new(0);
@@ -225,10 +228,16 @@ fn microtasks() {
     context.enter();
 
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-    extern "C" fn cb(_info: &v8::FunctionCallbackInfo) {
-      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    }
-    let function = v8::Function::new(scope, context, cb).unwrap();
+    let function = v8::Function::new(
+      scope,
+      context,
+      |_: v8::FunctionCallbackScope,
+       _: v8::FunctionCallbackArguments,
+       _: v8::ReturnValue| {
+        CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      },
+    )
+    .unwrap();
 
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 
@@ -517,15 +526,13 @@ fn add_message_listener() {
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
-    mut message: v8::Local<v8::Message>,
+    message: v8::Local<v8::Message>,
     _exception: v8::Local<v8::Value>,
   ) {
-    let isolate = message.get_isolate();
-    let context = isolate.get_current_context();
-    let mut cbs = v8::CallbackScope::new(message);
-    let scope = cbs.enter();
-    let mut hs = v8::HandleScope::new(scope);
-    let scope = hs.enter();
+    let mut sc = v8::CallbackScope::new(message);
+    let mut sc = v8::HandleScope::new(sc.enter());
+    let scope = sc.enter();
+    let context = scope.isolate().get_current_context();
     let message_str = message.get(scope);
     assert_eq!(message_str.to_rust_string_lossy(scope), "Uncaught foo");
     assert_eq!(Some(1), message.get_line_number(context));
@@ -952,46 +959,57 @@ fn object_set_accessor() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
+  let mut hs = v8::HandleScope::new(&mut locker);
+  let scope = hs.enter();
+  let mut context = v8::Context::new(scope);
+  context.enter();
+
   {
-    let mut hs = v8::HandleScope::new(&mut locker);
-    let scope = hs.enter();
-    let mut context = v8::Context::new(scope);
-    context.enter();
-    let mut obj = v8::Object::new(scope);
-    let key = v8_str(scope, "key");
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-    extern "C" fn getter(
-      name: v8::Local<v8::Name>,
-      info: &v8::PropertyCallbackInfo,
-    ) {
-      let rv = &mut info.get_return_value();
-      // TODO fix callback mutability.
-      #[allow(mutable_transmutes)]
-      #[allow(clippy::transmute_ptr_to_ptr)]
-      let info: &mut v8::PropertyCallbackInfo =
-        unsafe { std::mem::transmute(info) };
-      {
-        let mut hs = v8::HandleScope::new(info);
-        let scope = hs.enter();
-        let name_str =
-          name.to_string(scope).unwrap().to_rust_string_lossy(scope);
-        assert_eq!(name_str, "key");
-        let s = v8::String::new(scope, "hello").unwrap();
-        rv.set(s.into());
-      }
+
+    let getter = |scope: v8::PropertyCallbackScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let context = scope.isolate().get_current_context();
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "getter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, context, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let s = v8::String::new(scope, "hello").unwrap();
+      assert!(rv.get(scope).is_undefined());
+      rv.set(s.into());
+
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    }
-    obj.set_accessor(context, key.into(), getter);
-    let global = context.global(scope);
-    let obj_name = v8_str(scope, "obj");
-    global.set(context, obj_name.into(), obj.into());
-    let actual = eval(scope, context, "obj.key;").unwrap();
-    let expected = v8_str(scope, "hello");
+    };
+
+    let mut obj = v8::Object::new(scope);
+
+    let getter_key = v8::String::new(scope, "getter_key").unwrap();
+    obj.set_accessor(context, getter_key.into(), getter);
+
+    let int_key = v8::String::new(scope, "int_key").unwrap();
+    obj.set(context, int_key.into(), v8::Integer::new(scope, 42).into());
+
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(context, obj_name.into(), obj.into());
+
+    let actual = eval(scope, context, "obj.getter_key").unwrap();
+    let expected = v8::String::new(scope, "hello").unwrap();
     assert!(actual.strict_equals(expected.into()));
+
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
-    context.exit();
   }
-  drop(locker);
+
+  context.exit();
 }
 
 #[test]
@@ -1067,58 +1085,36 @@ fn promise_rejected() {
   drop(locker);
 }
 
-extern "C" fn fn_callback(info: &v8::FunctionCallbackInfo) {
-  assert_eq!(info.length(), 0);
-  {
-    let rv = &mut info.get_return_value();
-    #[allow(mutable_transmutes)]
-    #[allow(clippy::transmute_ptr_to_ptr)]
-    let info: &mut v8::FunctionCallbackInfo =
-      unsafe { std::mem::transmute(info) };
-    {
-      let mut hs = v8::HandleScope::new(info);
-      let scope = hs.enter();
-      let s = v8::String::new(scope, "Hello callback!").unwrap();
-      let value: v8::Local<v8::Value> = s.into();
-      let rv_value = rv.get(scope);
-      assert!(rv_value.is_undefined());
-      rv.set(value);
-    }
-  }
+fn fn_callback(
+  scope: v8::FunctionCallbackScope,
+  args: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue,
+) {
+  assert_eq!(args.length(), 0);
+  let s = v8::String::new(scope, "Hello callback!").unwrap();
+  assert!(rv.get(scope).is_undefined());
+  rv.set(s.into());
 }
 
-extern "C" fn fn_callback2(info: &v8::FunctionCallbackInfo) {
-  #[allow(mutable_transmutes)]
-  #[allow(clippy::transmute_ptr_to_ptr)]
-  let info: &mut v8::FunctionCallbackInfo =
-    unsafe { std::mem::transmute(info) };
-  assert_eq!(info.length(), 2);
-  let isolate = info.get_isolate();
-  let mut locker = v8::Locker::new(&isolate);
-  let mut context = isolate.get_current_context();
-  let arg1 = info.get_argument(0);
-  let arg2 = info.get_argument(1);
-  let rv = &mut info.get_return_value();
-  {
-    let mut hs = v8::HandleScope::new(&mut locker);
-    let scope = hs.enter();
-    context.enter();
+fn fn_callback2(
+  scope: v8::FunctionCallbackScope,
+  args: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue,
+) {
+  assert_eq!(args.length(), 2);
+  let arg1_val = v8::String::new(scope, "arg1").unwrap();
+  let arg1 = args.get(0);
+  assert!(arg1.is_string());
+  assert!(arg1.strict_equals(arg1_val.into()));
 
-    let arg1_val = v8::String::new(scope, "arg1").unwrap();
-    assert!(arg1.is_string());
-    assert!(arg1.strict_equals(arg1_val.into()));
+  let arg2_val = v8::Integer::new(scope, 2);
+  let arg2 = args.get(1);
+  assert!(arg2.is_number());
+  assert!(arg2.strict_equals(arg2_val.into()));
 
-    let arg2_val = v8::Integer::new(scope, 2);
-    assert!(arg2.is_number());
-    assert!(arg2.strict_equals(arg2_val.into()));
-
-    let s = v8::String::new(scope, "Hello callback!").unwrap();
-    let value: v8::Local<v8::Value> = s.into();
-    let rv_value = rv.get(scope);
-    assert!(rv_value.is_undefined());
-    rv.set(value);
-    context.exit();
-  }
+  let s = v8::String::new(scope, "Hello callback!").unwrap();
+  assert!(rv.get(scope).is_undefined());
+  rv.set(s.into());
 }
 
 #[test]
@@ -1166,22 +1162,20 @@ fn function() {
 }
 
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
+  let mut scope = v8::CallbackScope::new(&msg);
+  let scope = scope.enter();
   let event = msg.get_event();
   assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
   let mut promise = msg.get_promise();
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
-  let mut promise_obj: v8::Local<v8::Object> = promise.into();
-  let isolate = promise_obj.get_isolate();
   let value = msg.get_value();
-  let mut locker = v8::Locker::new(isolate);
   {
-    let mut hs = v8::HandleScope::new(&mut locker);
+    let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
     let value_str = value.to_string(scope).unwrap();
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "promise rejected".to_string());
   }
-  drop(locker);
 }
 
 #[test]
@@ -1588,7 +1582,7 @@ fn snapshot_creator() {
 lazy_static! {
   static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
     v8::ExternalReferences::new(&[v8::ExternalReference {
-      function: fn_callback
+      function: fn_callback.map_fn_to()
     }]);
 }
 
