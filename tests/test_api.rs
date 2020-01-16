@@ -2162,6 +2162,8 @@ fn inspector_dispatch_protocol_message() {
   struct TestChannel {
     base: ChannelBase,
     send_response_count: usize,
+    send_notification_count: usize,
+    flush_protocol_notifications_count: usize,
   }
 
   impl TestChannel {
@@ -2169,6 +2171,8 @@ fn inspector_dispatch_protocol_message() {
       Self {
         base: ChannelBase::new::<Self>(),
         send_response_count: 0,
+        send_notification_count: 0,
+        flush_protocol_notifications_count: 0,
       }
     }
   }
@@ -2188,10 +2192,10 @@ fn inspector_dispatch_protocol_message() {
       self.send_response_count += 1;
     }
     fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
-      //unreachable!()
+      self.send_notification_count += 1;
     }
     fn flush_protocol_notifications(&mut self) {
-      //unreachable!()
+      self.flush_protocol_notifications_count += 1;
     }
   }
 
@@ -2203,26 +2207,21 @@ fn inspector_dispatch_protocol_message() {
   let mut default_client = Client::new();
   let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
   let name = b"";
-  let mut name_view = StringView::from(&name[..]);
-  // let context_info = V8ContextInfo::new(context, 1, &mut name_view);
-
-  inspector.context_created(context, 1, &mut name_view);
-
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, &name_view);
   let mut channel = TestChannel::new();
-
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-
   let mut session = inspector.connect(1, &mut channel, &state_view);
-
   let message = String::from(
     r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
   );
   let message = &message.into_bytes()[..];
-  let string_view = v8::inspector::StringView::from(message);
+  let string_view = StringView::from(message);
   session.dispatch_protocol_message(&string_view);
-
   assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
 
   context.exit();
 }
