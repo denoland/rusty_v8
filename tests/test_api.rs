@@ -763,12 +763,12 @@ fn test_primitives() {
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
-    let null = v8::new_null(scope);
+    let null = v8::null(scope);
     assert!(!null.is_undefined());
     assert!(null.is_null());
     assert!(null.is_null_or_undefined());
 
-    let undefined = v8::new_undefined(scope);
+    let undefined = v8::undefined(scope);
     assert!(undefined.is_undefined());
     assert!(!undefined.is_null());
     assert!(undefined.is_null_or_undefined());
@@ -894,7 +894,7 @@ fn object() {
     let scope = hs.enter();
     let mut context = v8::Context::new(scope);
     context.enter();
-    let null: v8::Local<v8::Value> = v8::new_null(scope).into();
+    let null: v8::Local<v8::Value> = v8::null(scope).into();
     let s1 = v8::String::new(scope, "a").unwrap();
     let s2 = v8::String::new(scope, "b").unwrap();
     let name1 = s1.into();
@@ -2034,7 +2034,7 @@ fn try_from_local() {
     context.enter();
 
     {
-      let value: v8::Local<v8::Value> = v8::new_undefined(scope).into();
+      let value: v8::Local<v8::Value> = v8::undefined(scope).into();
       let _primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
       assert_eq!(
         v8::Local::<v8::Object>::try_from(value)
