@@ -168,9 +168,8 @@ fn escapable_handle_scope() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
-  isolate.enter();
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope1 = hs.enter();
@@ -207,7 +206,6 @@ fn escapable_handle_scope() {
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1219,7 +1217,6 @@ fn set_promise_reject_callback() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
   isolate.set_promise_reject_callback(promise_reject_callback);
-  isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1232,7 +1229,6 @@ fn set_promise_reject_callback() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
 }
 
 fn mock_script_origin<'sc>(
@@ -1278,7 +1274,6 @@ fn script_compiler_source() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
   isolate.set_promise_reject_callback(promise_reject_callback);
-  isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1297,7 +1292,6 @@ fn script_compiler_source() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1306,8 +1300,7 @@ fn module_instantiation_failures1() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1373,7 +1366,6 @@ fn module_instantiation_failures1() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1397,8 +1389,7 @@ fn module_evaluation() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1437,7 +1428,6 @@ fn module_evaluation() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1446,8 +1436,7 @@ fn primitive_array() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1478,7 +1467,6 @@ fn primitive_array() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1497,8 +1485,7 @@ fn equality() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1515,7 +1502,6 @@ fn equality() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1524,8 +1510,7 @@ fn array_buffer_view() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1550,7 +1535,6 @@ fn array_buffer_view() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1709,8 +1693,7 @@ fn uint8_array() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1736,7 +1719,6 @@ fn uint8_array() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1765,7 +1747,6 @@ fn dynamic_import() {
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
-  isolate.enter();
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1786,7 +1767,6 @@ fn dynamic_import() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1795,8 +1775,7 @@ fn shared_array_buffer() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -1837,7 +1816,6 @@ fn shared_array_buffer() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
@@ -1847,8 +1825,7 @@ fn value_checker() {
   let g = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.enter();
+  let isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   {
     let mut hs = v8::HandleScope::new(&mut locker);
@@ -2016,7 +1993,6 @@ fn value_checker() {
     context.exit();
   }
   drop(locker);
-  isolate.exit();
   drop(g);
 }
 
