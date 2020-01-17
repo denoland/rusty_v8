@@ -5,7 +5,7 @@
 //! ```
 //! use rusty_v8 as v8;
 //!
-//! let platform = v8::platform::new_default_platform();
+//! let platform = v8::new_default_platform();
 //! v8::V8::initialize_platform(platform);
 //! v8::V8::initialize();
 //!
@@ -42,6 +42,7 @@ extern crate lazy_static;
 extern crate libc;
 
 mod array_buffer;
+mod array_buffer_view;
 mod callback_scope;
 mod context;
 mod data;
@@ -56,6 +57,7 @@ mod locker;
 mod module;
 mod number;
 mod object;
+mod platform;
 mod primitive_array;
 mod primitives;
 mod promise;
@@ -70,10 +72,8 @@ mod try_catch;
 mod uint8_array;
 mod value;
 
-pub mod array_buffer_view;
 pub mod inspector;
 pub mod json;
-pub mod platform;
 pub mod scope;
 pub mod script_compiler;
 // This module is intentionally named "V8" rather than "v8" to match the
@@ -104,6 +104,9 @@ pub use local::Local;
 pub use locker::Locker;
 pub use module::*;
 pub use object::*;
+pub use platform::new_default_platform;
+pub use platform::Platform;
+pub use platform::Task;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};

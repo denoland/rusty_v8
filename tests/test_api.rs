@@ -30,7 +30,7 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
-    v8::V8::initialize_platform(v8::platform::new_default_platform());
+    v8::V8::initialize_platform(v8::new_default_platform());
     v8::V8::initialize();
   }
   SetupGuard {}
