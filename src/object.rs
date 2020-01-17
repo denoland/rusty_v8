@@ -137,7 +137,7 @@ impl Object {
     &mut self,
     context: Local<Context>,
     name: Local<Name>,
-    getter: impl MapFnTo<AccessorNameGetterCallback>,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
   ) -> MaybeBool {
     unsafe {
       v8__Object__SetAccessor(self, &*context, &*name, getter.map_fn_to())

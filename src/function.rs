@@ -246,13 +246,10 @@ where
 
 /// AccessorNameGetterCallback is used as callback functions when getting a
 /// particular property. See Object and ObjectTemplate's method SetAccessor.
-// TODO(piscisaureus): The actual signature of this callback is
-// `extern "C" fn(Local<Name>, *const PropertyCallbackInfo)`. This works in
-// practice but is not strictly correct, and should be fixed.
-pub type AccessorNameGetterCallback =
-  extern "C" fn(*mut Name, *const PropertyCallbackInfo);
+pub type AccessorNameGetterCallback<'s> =
+  extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for AccessorNameGetterCallback
+impl<F> MapFnFrom<F> for AccessorNameGetterCallback<'_>
 where
   F: UnitType
     + Fn(
@@ -263,11 +260,10 @@ where
     ),
 {
   fn mapping() -> Self {
-    let f = |key: *mut Name, info: *const PropertyCallbackInfo| {
+    let f = |key: Local<Name>, info: *const PropertyCallbackInfo| {
       let scope: PropertyCallbackScope = unsafe {
         &mut *(info as *const _ as *mut Entered<PropertyCallbackInfo>)
       };
-      let key = unsafe { scope.to_local(key) }.unwrap();
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv);
