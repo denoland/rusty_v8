@@ -176,7 +176,9 @@ impl Module {
     unsafe { v8__Module__GetIdentityHash(self) }
   }
 
-  /// Returns the identity hash for this object.
+  /// Returns the namespace object of this module.
+  ///
+  /// The module's status must be at least kInstantiated.
   pub fn get_module_namespace(&mut self) -> Local<Value> {
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
   }
