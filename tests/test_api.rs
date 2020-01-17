@@ -1766,6 +1766,17 @@ fn shared_array_buffer() {
     assert_eq!(result.value(), 64);
     assert_eq!(shared_buf[2], 16);
     assert_eq!(shared_buf[14], 62);
+
+    let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
+    let mut bs = unsafe {
+      v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data)
+    };
+    assert_eq!(10, bs.byte_length());
+    assert_eq!(true, bs.is_shared());
+    let ab = v8::SharedArrayBuffer::new_with_backing_store(s, &mut bs);
+    ab.get_backing_store();
+    assert_eq!(10, ab.byte_length());
+
     context.exit();
   }
 }

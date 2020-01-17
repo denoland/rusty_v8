@@ -1,5 +1,7 @@
+use crate::array_buffer::backing_store_deleter_callback;
 use crate::support::SharedRef;
 use crate::BackingStore;
+use crate::BackingStoreDeleterCallback;
 use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
@@ -21,6 +23,15 @@ extern "C" {
   fn v8__SharedArrayBuffer__GetBackingStore(
     self_: *const SharedArrayBuffer,
   ) -> SharedRef<BackingStore>;
+  fn v8__SharedArrayBuffer__NewBackingStore_FromRaw(
+    data: *mut std::ffi::c_void,
+    byte_length: usize,
+    deleter: BackingStoreDeleterCallback,
+  ) -> SharedRef<BackingStore>;
+  fn v8__SharedArrayBuffer__New__backing_store(
+    isolate: *mut Isolate,
+    backing_store: *mut SharedRef<BackingStore>,
+  ) -> *mut SharedArrayBuffer;
 }
 
 impl SharedArrayBuffer {
@@ -37,29 +48,6 @@ impl SharedArrayBuffer {
     }
   }
 
-  /// DEPRECATED
-  /// Use the version that takes a BackingStore.
-  /// See http://crbug.com/v8/9908.
-  ///
-  ///
-  /// Create a new SharedArrayBuffer over an existing memory block.  The created
-  /// array buffer is immediately in externalized state unless otherwise
-  /// specified. The memory block will not be reclaimed when a created
-  /// SharedArrayBuffer is garbage-collected.
-  #[allow(non_snake_case)]
-  pub unsafe fn new_DEPRECATED<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    data_ptr: *mut std::ffi::c_void,
-    data_length: usize,
-  ) -> Local<'sc, SharedArrayBuffer> {
-    Local::from_raw(v8__SharedArrayBuffer__New__DEPRECATED(
-      scope.isolate(),
-      data_ptr,
-      data_length,
-    ))
-    .unwrap()
-  }
-
   /// Data length in bytes.
   pub fn byte_length(&self) -> usize {
     unsafe { v8__SharedArrayBuffer__ByteLength(self) }
@@ -71,5 +59,34 @@ impl SharedArrayBuffer {
   /// should not attempt to manage lifetime of the storage through other means.
   pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
     unsafe { v8__SharedArrayBuffer__GetBackingStore(self) }
+  }
+
+  pub fn new_with_backing_store<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    backing_store: &mut SharedRef<BackingStore>,
+  ) -> Local<'sc, SharedArrayBuffer> {
+    let isolate = scope.isolate();
+    let ptr = unsafe {
+      v8__SharedArrayBuffer__New__backing_store(isolate, &mut *backing_store)
+    };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  /// Returns a new standalone BackingStore that takes over the ownership of
+  /// the given buffer. The destructor of the BackingStore invokes the given
+  /// deleter callback.
+  ///
+  /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  pub unsafe fn new_backing_store_from_boxed_slice(
+    data: Box<[u8]>,
+  ) -> SharedRef<BackingStore> {
+    let byte_length = data.len();
+    let data_ptr = Box::into_raw(data) as *mut std::ffi::c_void;
+    v8__SharedArrayBuffer__NewBackingStore_FromRaw(
+      data_ptr,
+      byte_length,
+      backing_store_deleter_callback,
+    )
   }
 }

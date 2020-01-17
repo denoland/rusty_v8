@@ -97,7 +97,7 @@ pub type BackingStoreDeleterCallback = extern "C" fn(
   deleter_data: *mut std::ffi::c_void,
 );
 
-extern "C" fn deleter_callback(
+pub extern "C" fn backing_store_deleter_callback(
   data: *mut std::ffi::c_void,
   _byte_length: usize,
   _deleter_data: *mut std::ffi::c_void,
@@ -237,7 +237,7 @@ impl ArrayBuffer {
     v8__ArrayBuffer__NewBackingStore_FromRaw(
       data_ptr,
       byte_length,
-      deleter_callback,
+      backing_store_deleter_callback,
     )
   }
 }

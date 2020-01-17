@@ -1072,6 +1072,19 @@ two_pointers_t v8__SharedArrayBuffer__GetBackingStore(
   return make_pod<two_pointers_t>(self.GetBackingStore());
 }
 
+two_pointers_t v8__SharedArrayBuffer__NewBackingStore_FromRaw(
+    void* data, size_t length, v8::BackingStoreDeleterCallback deleter) {
+  std::unique_ptr<v8::BackingStore> u =
+      v8::SharedArrayBuffer::NewBackingStore(data, length, deleter, nullptr);
+  const std::shared_ptr<v8::BackingStore> bs = std::move(u);
+  return make_pod<two_pointers_t>(bs);
+}
+
+v8::SharedArrayBuffer* v8__SharedArrayBuffer__New__backing_store(
+    v8::Isolate* isolate, std::shared_ptr<v8::BackingStore>& backing_store) {
+  return local_to_ptr(v8::SharedArrayBuffer::New(isolate, backing_store));
+}
+
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,
                            v8::Local<v8::String> json_string) {
   return maybe_local_to_ptr(v8::JSON::Parse(context, json_string));
