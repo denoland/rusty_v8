@@ -91,18 +91,18 @@ impl Delete for Allocator {
   }
 }
 
-pub type BackingStoreDeleterCallback = extern "C" fn(
+pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
   data: *mut std::ffi::c_void,
   byte_length: usize,
   deleter_data: *mut std::ffi::c_void,
 );
 
-pub extern "C" fn backing_store_deleter_callback(
+pub unsafe extern "C" fn backing_store_deleter_callback(
   data: *mut std::ffi::c_void,
   _byte_length: usize,
   _deleter_data: *mut std::ffi::c_void,
 ) {
-  let b = unsafe { Box::from_raw(data) };
+  let b = Box::from_raw(data);
   drop(b)
 }
 
