@@ -224,8 +224,9 @@ impl ArrayBuffer {
   }
 
   /// Returns a new standalone BackingStore that takes over the ownership of
-  /// the given buffer. The destructor of the BackingStore invokes the given
-  /// deleter callback.
+  /// the given buffer. 
+  /// 
+  /// The destructor of the BackingStore frees owned buffer memory.
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
