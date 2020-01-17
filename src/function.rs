@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::marker::PhantomData;
 
 use crate::scope::Entered;
@@ -24,11 +25,11 @@ extern "C" {
     callback: FunctionCallback,
   ) -> *mut Function;
   fn v8__Function__Call(
-    function: *mut Function,
-    context: *mut Context,
-    recv: *mut Value,
+    function: *const Function,
+    context: Local<Context>,
+    recv: Local<Value>,
     argc: int,
-    argv: *mut *mut Value,
+    argv: *const Local<Value>,
   ) -> *mut Value;
 
   fn v8__FunctionTemplate__New(
@@ -315,25 +316,16 @@ impl Function {
   }
 
   pub fn call<'sc>(
-    &mut self,
+    &self,
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
-    mut recv: Local<Value>,
-    arc: i32,
-    argv: Vec<Local<Value>>,
+    context: Local<Context>,
+    recv: Local<Value>,
+    args: &[Local<Value>],
   ) -> Option<Local<'sc, Value>> {
-    let mut argv_: Vec<*mut Value> = vec![];
-    for mut arg in argv {
-      argv_.push(&mut *arg);
-    }
+    let argv = args.as_ptr();
+    let argc = int::try_from(args.len()).unwrap();
     unsafe {
-      scope.to_local(v8__Function__Call(
-        &mut *self,
-        &mut *context,
-        &mut *recv,
-        arc,
-        argv_.as_mut_ptr(),
-      ))
+      scope.to_local(v8__Function__Call(self, context, recv, argc, argv))
     }
   }
 }

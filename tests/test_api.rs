@@ -830,7 +830,7 @@ fn create_message_argument_lifetimes() {
   context.enter();
 
   {
-    let mut create_message = v8::Function::new(
+    let create_message = v8::Function::new(
       scope,
       context,
       |scope: v8::FunctionCallbackScope,
@@ -846,7 +846,7 @@ fn create_message_argument_lifetimes() {
     let message_str = v8::String::new(scope, "mishap").unwrap();
     let exception = v8::type_error(scope, message_str);
     let actual = create_message
-      .call(scope, context, receiver.into(), 1, vec![exception])
+      .call(scope, context, receiver.into(), &[exception])
       .unwrap();
     let expected =
       v8::String::new(scope, "Uncaught TypeError: mishap").unwrap();
@@ -1173,25 +1173,20 @@ fn function() {
     let recv: v8::Local<v8::Value> = global.into();
     // create function using template
     let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
-    let mut function = fn_template
+    let function = fn_template
       .get_function(scope, context)
       .expect("Unable to create function");
-    let _value =
-      v8::Function::call(&mut *function, scope, context, recv, 0, vec![]);
+    function
+      .call(scope, context, recv, &[])
+      .expect("Function call failed");
     // create function without a template
-    let mut function = v8::Function::new(scope, context, fn_callback2)
+    let function = v8::Function::new(scope, context, fn_callback2)
       .expect("Unable to create function");
     let arg1 = v8::String::new(scope, "arg1").unwrap();
     let arg2 = v8::Integer::new(scope, 2);
-    let maybe_value = v8::Function::call(
-      &mut *function,
-      scope,
-      context,
-      recv,
-      2,
-      vec![arg1.into(), arg2.into()],
-    );
-    let value = maybe_value.unwrap();
+    let value = function
+      .call(scope, context, recv, &[arg1.into(), arg2.into()])
+      .unwrap();
     let value_str = value.to_string(scope).unwrap();
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "Hello callback!".to_string());
