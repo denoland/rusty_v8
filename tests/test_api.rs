@@ -200,10 +200,10 @@ fn microtasks() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-
-  isolate.run_microtasks();
-
   let mut locker = v8::Locker::new(&isolate);
+
+  locker.isolate().run_microtasks();
+
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
@@ -221,13 +221,12 @@ fn microtasks() {
       },
     )
     .unwrap();
+    scope.isolate().enqueue_microtask(function);
 
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
-
-    isolate.enqueue_microtask(function);
-    isolate.run_microtasks();
-
+    scope.isolate().run_microtasks();
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
     context.exit();
   }
 }
@@ -416,7 +415,8 @@ fn throw_exception() {
     {
       let mut try_catch = v8::TryCatch::new(scope);
       let tc = try_catch.enter();
-      isolate.throw_exception(v8_str(scope, "boom").into());
+      let exception = v8_str(scope, "boom");
+      scope.isolate().throw_exception(exception.into());
       assert!(tc.has_caught());
       assert!(tc
         .exception()

@@ -100,14 +100,17 @@ extern "C" {
     data: *mut c_void,
   );
   fn v8__Isolate__ThrowException(
-    isolate: &Isolate,
-    exception: &Value,
+    isolate: *mut Isolate,
+    exception: Local<Value>,
   ) -> *mut Value;
-  fn v8__Isolate__TerminateExecution(isolate: &Isolate);
-  fn v8__Isolate__IsExecutionTerminating(isolate: &Isolate) -> bool;
-  fn v8__Isolate__CancelTerminateExecution(isolate: &Isolate);
-  fn v8__Isolate__RunMicrotasks(isolate: &Isolate);
-  fn v8__Isolate__EnqueueMicrotask(isolate: &Isolate, microtask: *mut Function);
+  fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
+  fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
+  fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
+  fn v8__Isolate__RunMicrotasks(isolate: *mut Isolate);
+  fn v8__Isolate__EnqueueMicrotask(
+    isolate: *mut Isolate,
+    microtask: Local<Function>,
+  );
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -255,11 +258,11 @@ impl Isolate {
   /// operation; the caller must return immediately and only after the exception
   /// has been handled does it become legal to invoke JavaScript operations.
   pub fn throw_exception<'sc>(
-    &self,
-    exception: Local<'_, Value>,
+    &mut self,
+    exception: Local<Value>,
   ) -> Local<'sc, Value> {
     unsafe {
-      let ptr = v8__Isolate__ThrowException(self, &exception);
+      let ptr = v8__Isolate__ThrowException(self, exception);
       Local::from_raw(ptr).unwrap()
     }
   }
@@ -301,13 +304,13 @@ impl Isolate {
 
   /// Runs the default MicrotaskQueue until it gets empty.
   /// Any exceptions thrown by microtask callbacks are swallowed.
-  pub fn run_microtasks(&self) {
+  pub fn run_microtasks(&mut self) {
     unsafe { v8__Isolate__RunMicrotasks(self) }
   }
 
   /// Enqueues the callback to the default MicrotaskQueue
-  pub fn enqueue_microtask(&self, mut microtask: Local<Function>) {
-    unsafe { v8__Isolate__EnqueueMicrotask(self, &mut *microtask) }
+  pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
+    unsafe { v8__Isolate__EnqueueMicrotask(self, microtask) }
   }
 
   /// Request V8 to interrupt long running JavaScript code and invoke

@@ -130,14 +130,14 @@ void v8__Isolate__RunMicrotasks(v8::Isolate& isolate) {
   isolate.RunMicrotasks();
 }
 
-void v8__Isolate__EnqueueMicrotask(v8::Isolate& isolate,
-                                   v8::Function* function) {
-  isolate.EnqueueMicrotask(ptr_to_local(function));
+void v8__Isolate__EnqueueMicrotask(v8::Isolate* isolate,
+                                   v8::Local<v8::Function> function) {
+  isolate->EnqueueMicrotask(function);
 }
 
-void v8__Isolate__RequestInterrupt(v8::Isolate& isolate,
+void v8__Isolate__RequestInterrupt(v8::Isolate* isolate,
                                    v8::InterruptCallback callback, void* data) {
-  isolate.RequestInterrupt(callback, data);
+  isolate->RequestInterrupt(callback, data);
 }
 
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
@@ -168,21 +168,21 @@ bool v8__Isolate__AddMessageListener(v8::Isolate& isolate,
   return isolate.AddMessageListener(callback);
 }
 
-v8::Value* v8__Isolate__ThrowException(v8::Isolate& isolate,
-                                       v8::Value* exception) {
-  return local_to_ptr(isolate.ThrowException(ptr_to_local(exception)));
+v8::Value* v8__Isolate__ThrowException(v8::Isolate* isolate,
+                                       v8::Local<v8::Value> exception) {
+  return local_to_ptr(isolate->ThrowException(exception));
 }
 
-void v8__Isolate__TerminateExecution(v8::Isolate& isolate) {
-  isolate.TerminateExecution();
+void v8__Isolate__TerminateExecution(v8::Isolate* isolate) {
+  isolate->TerminateExecution();
 }
 
-bool v8__Isolate__IsExecutionTerminating(v8::Isolate& isolate) {
-  return isolate.IsExecutionTerminating();
+bool v8__Isolate__IsExecutionTerminating(v8::Isolate* isolate) {
+  return isolate->IsExecutionTerminating();
 }
 
-void v8__Isolate__CancelTerminateExecution(v8::Isolate& isolate) {
-  isolate.CancelTerminateExecution();
+void v8__Isolate__CancelTerminateExecution(v8::Isolate* isolate) {
+  isolate->CancelTerminateExecution();
 }
 
 v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
