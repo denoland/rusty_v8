@@ -97,6 +97,15 @@ pub type BackingStoreDeleterCallback = extern "C" fn(
   deleter_data: *mut std::ffi::c_void,
 );
 
+extern "C" fn deleter_callback(
+  data: *mut std::ffi::c_void,
+  _byte_length: usize,
+  _deleter_data: *mut std::ffi::c_void,
+) {
+  let b = unsafe { Box::from_raw(data) };
+  drop(b)
+}
+
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
 /// See a document linked in http://crbug.com/v8/9908 for more information.
 ///
@@ -220,11 +229,15 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
-  pub unsafe fn new_backing_store_from_raw(
-    data: *mut std::ffi::c_void,
-    byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
+  pub unsafe fn new_backing_store_from_boxed_slice(
+    data: Box<[u8]>,
   ) -> SharedRef<BackingStore> {
-    v8__ArrayBuffer__NewBackingStore_FromRaw(data, byte_length, deleter)
+    let byte_length = data.len();
+    let data_ptr = Box::into_raw(data) as *mut std::ffi::c_void;
+    v8__ArrayBuffer__NewBackingStore_FromRaw(
+      data_ptr,
+      byte_length,
+      deleter_callback,
+    )
   }
 }

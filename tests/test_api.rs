@@ -232,16 +232,6 @@ fn microtasks() {
   }
 }
 
-extern "C" fn deleter_callback(
-  data: *mut std::ffi::c_void,
-  _byte_length: usize,
-  _deleter_data: *mut std::ffi::c_void,
-) {
-  eprintln!("deleter called");
-  let b = unsafe { Box::from_raw(data) };
-  drop(b)
-}
-
 #[test]
 fn array_buffer() {
   let _setup_guard = setup();
@@ -262,21 +252,14 @@ fn array_buffer() {
     assert_eq!(84, bs.byte_length());
     assert_eq!(false, bs.is_shared());
 
-    let capacity = 100;
-    let data: Box<Vec<u8>> = Box::new(Vec::with_capacity(capacity));
-    let data_ptr = Box::into_raw(data);
-    let mut bs = unsafe {
-      v8::ArrayBuffer::new_backing_store_from_raw(
-        data_ptr as *mut std::ffi::c_void,
-        capacity,
-        deleter_callback,
-      )
-    };
-    assert_eq!(100, bs.byte_length());
+    let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
+    let mut bs =
+      unsafe { v8::ArrayBuffer::new_backing_store_from_boxed_slice(data) };
+    assert_eq!(10, bs.byte_length());
     assert_eq!(false, bs.is_shared());
     let ab = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs);
     ab.get_backing_store();
-    assert_eq!(100, ab.byte_length());
+    assert_eq!(10, ab.byte_length());
     context.exit();
   }
 }
