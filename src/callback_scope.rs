@@ -1,70 +1,76 @@
-use crate::scope::{Scope, Scoped};
-use crate::Context;
-use crate::InIsolate;
-use crate::Isolate;
-use crate::Local;
-use crate::Message;
-use crate::Promise;
-use crate::PromiseRejectMessage;
 use std::mem::MaybeUninit;
 
-extern "C" {
-  fn v8__Promise__GetIsolate(promise: *mut Promise) -> *mut Isolate;
+use crate::scope::Entered;
+use crate::scope::Scope;
+use crate::scope::Scoped;
+use crate::scope_traits::internal::GetRawIsolate;
+use crate::FunctionCallbackInfo;
+use crate::Isolate;
+use crate::Local;
+use crate::PromiseRejectMessage;
+use crate::PropertyCallbackInfo;
+
+/// A CallbackScope can be used to obtain a mutable Isolate reference within
+/// a callback that is called by V8 on the thread that already has a Locker
+/// on the stack.
+///
+/// Using a CallbackScope in any other situation is unsafe.
+/// Also note that CallbackScope should not be used for function and property
+/// accessor callbacks; use FunctionCallbackScope and PropertyCallbackScope
+/// instead.
+///
+/// A CallbackScope can be created from the following inputs:
+///   - `&mut Isolate`
+/// ` - `Local<Context>`
+///   - `Local<Message>`
+///   - `Local<Object>`
+///   - `Local<Promise>`
+///   - `Local<SharedArrayBuffer>`
+///   - `&PromiseRejectMessage`
+pub struct CallbackScope {
+  isolate: *mut Isolate,
 }
 
-pub trait GetIsolate
+impl CallbackScope {
+  pub fn new<'s, I>(input: I) -> Scope<'s, Self>
+  where
+    Scope<'s, Self>: From<I>,
+  {
+    Scope::from(input)
+  }
+
+  pub(crate) fn get_raw_isolate_(&self) -> *mut Isolate {
+    self.isolate
+  }
+}
+
+unsafe impl<'s> Scoped<'s> for CallbackScope {
+  type Args = *mut Isolate;
+  fn enter_scope(buf: &mut MaybeUninit<Self>, isolate: Self::Args) {
+    *buf = MaybeUninit::new(Self { isolate });
+  }
+}
+
+impl<'s> From<&'s mut Isolate> for Scope<'s, CallbackScope> {
+  fn from(isolate: &'s mut Isolate) -> Self {
+    Scope::new(isolate as *mut Isolate)
+  }
+}
+
+impl<'s, T> From<Local<'s, T>> for Scope<'s, CallbackScope>
 where
-  Self: Sized,
+  Local<'s, T>: GetRawIsolate,
 {
-  fn get_isolate(&mut self) -> &mut Isolate;
-}
-
-impl GetIsolate for Context {
-  fn get_isolate(&mut self) -> &mut Isolate {
-    self.get_isolate()
+  fn from(local: Local<'s, T>) -> Self {
+    Scope::new(local.get_raw_isolate())
   }
 }
 
-impl GetIsolate for Message {
-  fn get_isolate(&mut self) -> &mut Isolate {
-    self.get_isolate()
+impl<'s> From<&'s PromiseRejectMessage<'s>> for Scope<'s, CallbackScope> {
+  fn from(msg: &'s PromiseRejectMessage<'s>) -> Self {
+    Self::from(msg.get_promise())
   }
 }
 
-impl GetIsolate for Promise {
-  fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *v8__Promise__GetIsolate(self) }
-  }
-}
-
-impl<'a> GetIsolate for PromiseRejectMessage<'a> {
-  fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *v8__Promise__GetIsolate(&mut *self.get_promise()) }
-  }
-}
-
-pub struct CallbackScope<'s, T> {
-  local: Local<'s, T>,
-}
-
-unsafe impl<'s, T> Scoped<'s> for CallbackScope<'s, T> {
-  type Args = Local<'s, T>;
-  fn enter_scope(buf: &mut MaybeUninit<Self>, local: Local<'s, T>) {
-    *buf = MaybeUninit::new(CallbackScope { local });
-  }
-}
-
-impl<'s, T> CallbackScope<'s, T> {
-  pub fn new(local: Local<'s, T>) -> Scope<Self> {
-    Scope::new(local)
-  }
-}
-
-impl<'s, T> InIsolate for crate::scope::Entered<'s, CallbackScope<'s, T>>
-where
-  T: GetIsolate,
-{
-  fn isolate(&mut self) -> &mut Isolate {
-    self.local.get_isolate()
-  }
-}
+pub type FunctionCallbackScope<'s> = &'s mut Entered<'s, FunctionCallbackInfo>;
+pub type PropertyCallbackScope<'s> = &'s mut Entered<'s, PropertyCallbackInfo>;

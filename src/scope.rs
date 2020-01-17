@@ -35,7 +35,7 @@ where
 
 /// A wrapper around the an instantiated and entered scope object.
 #[repr(transparent)]
-pub struct Entered<'s, S>(S, PhantomData<&'s ()>);
+pub struct Entered<'s, S>(PhantomData<&'s ()>, S);
 
 impl<'s, S> Scope<'s, S>
 where
@@ -91,7 +91,7 @@ where
 
 impl<'s, S> From<S> for Entered<'s, S> {
   fn from(value: S) -> Self {
-    Self(value, PhantomData)
+    Self(PhantomData, value)
   }
 }
 

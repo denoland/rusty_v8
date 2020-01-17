@@ -1,7 +1,6 @@
 use std::mem::MaybeUninit;
 
 use crate::isolate::Isolate;
-use crate::scope::Entered;
 use crate::scope::Scope;
 use crate::scope::Scoped;
 use crate::InIsolate;
@@ -14,10 +13,6 @@ extern "C" {
     isolate: &Isolate,
   );
   fn v8__HandleScope__DESTRUCT(this: &mut HandleScope);
-  fn v8__HandleScope__GetIsolate<'sc>(
-    this: &'sc HandleScope,
-  ) -> &'sc mut Isolate;
-
   fn v8__EscapableHandleScope__CONSTRUCT(
     buf: &mut MaybeUninit<EscapableHandleScope>,
     isolate: &Isolate,
@@ -27,9 +22,6 @@ extern "C" {
     this: &mut EscapableHandleScope,
     value: *mut Value,
   ) -> *mut Value;
-  fn v8__EscapableHandleScope__GetIsolate<'sc>(
-    this: &'sc EscapableHandleScope,
-  ) -> &'sc mut Isolate;
 }
 
 /// A stack-allocated class that governs a number of local handles.
@@ -103,24 +95,3 @@ impl Drop for EscapableHandleScope {
     unsafe { v8__EscapableHandleScope__DESTRUCT(self) }
   }
 }
-
-impl<'s> InIsolate for Entered<'s, HandleScope> {
-  fn isolate(&mut self) -> &mut Isolate {
-    unsafe { v8__HandleScope__GetIsolate(self) }
-  }
-}
-
-impl<'s> InIsolate for Entered<'s, EscapableHandleScope> {
-  fn isolate(&mut self) -> &mut Isolate {
-    unsafe { v8__EscapableHandleScope__GetIsolate(self) }
-  }
-}
-
-pub trait ToLocal<'sc>: InIsolate {
-  unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<'sc, T>> {
-    crate::Local::<'sc, T>::from_raw(ptr)
-  }
-}
-
-impl<'s> ToLocal<'s> for crate::scope::Entered<'s, HandleScope> {}
-impl<'s> ToLocal<'s> for crate::scope::Entered<'s, EscapableHandleScope> {}

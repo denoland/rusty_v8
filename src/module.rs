@@ -1,24 +1,86 @@
+use std::mem::MaybeUninit;
+use std::ptr::null;
+
 use crate::support::int;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
 use crate::support::MaybeBool;
+use crate::support::ToCFn;
+use crate::support::UnitType;
 use crate::Context;
 use crate::Local;
 use crate::Module;
 use crate::String;
 use crate::ToLocal;
 use crate::Value;
-use std::mem::MaybeUninit;
-
-#[allow(non_camel_case_types)]
-type v8__Module__ResolveCallback =
-  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
 
 /// Called during Module::instantiate_module. Provided with arguments:
-/// (context, specifier, referrer)
-/// Return null on error.
-/// Hint: to tranform Local<Module> to *mut Module do this:
-///   &mut *module
-pub type ResolveCallback =
-  fn(Local<Context>, Local<String>, Local<Module>) -> *mut Module;
+/// (context, specifier, referrer). Return None on error.
+///
+/// Note: this callback has an unusual signature due to ABI incompatibilities
+/// between Rust and C++. However end users can implement the callback as
+/// follows; it'll be automatically converted.
+///
+/// ```rust,ignore
+///   fn my_resolve_callback<'a>(
+///      context: v8::Local<'a, v8::Context>,
+///      specifier: v8::Local<'a, v8::String>,
+///      referrer: v8::Local<'a, v8::Module>,
+///   ) -> Option<v8::Local<'a, v8::Module>> {
+///      // ...
+///      Some(resolved_module)
+///   }
+/// ```
+///
+
+// System V AMD64 ABI: Local<Module> returned in a register.
+#[cfg(not(target_os = "windows"))]
+pub type ResolveCallback<'a> = extern "C" fn(
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, Module>,
+) -> *const Module;
+
+// Windows x64 ABI: Local<Module> returned on the stack.
+#[cfg(target_os = "windows")]
+pub type ResolveCallback<'a> = extern "C" fn(
+  *mut *const Module,
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, Module>,
+) -> *mut *const Module;
+
+impl<'a, F> MapFnFrom<F> for ResolveCallback<'a>
+where
+  F: UnitType
+    + Fn(
+      Local<'a, Context>,
+      Local<'a, String>,
+      Local<'a, Module>,
+    ) -> Option<Local<'a, Module>>,
+{
+  #[cfg(not(target_os = "windows"))]
+  fn mapping() -> Self {
+    let f = |context, specifier, referrer| {
+      (F::get())(context, specifier, referrer)
+        .map(|r| -> *const Module { &*r })
+        .unwrap_or(null())
+    };
+    f.to_c_fn()
+  }
+
+  #[cfg(target_os = "windows")]
+  fn mapping() -> Self {
+    let f = |ret_ptr, context, specifier, referrer| {
+      let r = (F::get())(context, specifier, referrer)
+        .map(|r| -> *const Module { &*r })
+        .unwrap_or(null());
+      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
+      ret_ptr // Return stack pointer to the return value.
+    };
+    f.to_c_fn()
+  }
+}
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -35,7 +97,7 @@ extern "C" {
   fn v8__Module__InstantiateModule(
     this: *mut Module,
     context: Local<Context>,
-    callback: v8__Module__ResolveCallback,
+    callback: ResolveCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *mut Module,
@@ -125,37 +187,15 @@ impl Module {
   /// instantiation. (In the case where the callback throws an exception, that
   /// exception is propagated.)
   #[must_use]
-  pub fn instantiate_module(
+  pub fn instantiate_module<'a>(
     &mut self,
     context: Local<Context>,
-    callback: ResolveCallback,
+    callback: impl MapFnTo<ResolveCallback<'a>>,
   ) -> Option<bool> {
-    use std::sync::Mutex;
-    lazy_static! {
-      static ref RESOLVE_CALLBACK: Mutex<Option<ResolveCallback>> =
-        Mutex::new(None);
-      static ref INSTANTIATE_LOCK: Mutex<()> = Mutex::new(());
+    unsafe {
+      v8__Module__InstantiateModule(self, context, callback.map_fn_to())
     }
-    let instantiate_guard = INSTANTIATE_LOCK.lock().unwrap();
-
-    {
-      let mut guard = RESOLVE_CALLBACK.lock().unwrap();
-      *guard = Some(callback);
-    }
-
-    extern "C" fn c_cb(
-      context: Local<Context>,
-      specifier: Local<String>,
-      referrer: Local<Module>,
-    ) -> *mut Module {
-      let guard = RESOLVE_CALLBACK.lock().unwrap();
-      let cb = guard.unwrap();
-      cb(context, specifier, referrer)
-    }
-    let r =
-      unsafe { v8__Module__InstantiateModule(self, context, c_cb) }.into();
-    drop(instantiate_guard);
-    r
+    .into()
   }
 
   /// Evaluates the module and its dependencies.

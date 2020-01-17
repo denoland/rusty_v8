@@ -27,6 +27,12 @@ static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 static_assert(sizeof(v8::ScriptCompiler::Source) == sizeof(size_t) * 8,
               "Source size mismatch");
 
+static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
+              "FunctionCallbackInfo size mismatch");
+
+static_assert(sizeof(v8::PropertyCallbackInfo<v8::Value>) == sizeof(size_t) * 1,
+              "PropertyCallbackInfo size mismatch");
+
 static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
               "ReturnValue size mismatch");
 
@@ -127,6 +133,11 @@ void v8__Isolate__RunMicrotasks(v8::Isolate& isolate) {
 void v8__Isolate__EnqueueMicrotask(v8::Isolate& isolate,
                                    v8::Function* function) {
   isolate.EnqueueMicrotask(ptr_to_local(function));
+}
+
+void v8__Isolate__RequestInterrupt(v8::Isolate& isolate,
+                                   v8::InterruptCallback callback, void* data) {
+  isolate.RequestInterrupt(callback, data);
 }
 
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
@@ -867,20 +878,25 @@ v8::Function* v8__FunctionTemplate__GetFunction(
     v8::Local<v8::FunctionTemplate> self, v8::Local<v8::Context> context) {
   return maybe_local_to_ptr(self->GetFunction(context));
 }
-int v8__FunctionCallbackInfo__Length(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return self.Length();
-}
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
 }
 
-void v8__FunctionCallbackInfo__GetReturnValue(
-    const v8::FunctionCallbackInfo<v8::Value>& self,
-    v8::ReturnValue<v8::Value>* out) {
-  *out = self.GetReturnValue();
+v8::Value* v8__FunctionCallbackInfo__GetReturnValue(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return make_pod<v8::Value*>(self.GetReturnValue());
+}
+
+v8::Object* v8__FunctionCallbackInfo__This(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.This());
+}
+
+int v8__FunctionCallbackInfo__Length(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.Length();
 }
 
 v8::Value* v8__FunctionCallbackInfo__GetArgument(
@@ -897,7 +913,8 @@ v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
   return local_to_ptr(self.Get());
 }
 
-v8::Isolate* v8__ReturnValue__GetIsolate(v8::ReturnValue<v8::Value>& self) {
+v8::Isolate* v8__ReturnValue__GetIsolate(
+    const v8::ReturnValue<v8::Value>& self) {
   return self.GetIsolate();
 }
 
@@ -1115,10 +1132,6 @@ v8::Promise* v8__Promise__Then2(v8::Promise* self,
   return maybe_local_to_ptr(self->Then(context, on_fulfilled, on_rejected));
 }
 
-v8::Isolate* v8__Promise__GetIsolate(v8::Promise* self) {
-  return self->GetIsolate();
-}
-
 v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(
     const v8::PromiseRejectMessage& self) {
   return self.GetEvent();
@@ -1139,15 +1152,14 @@ v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
   return self.GetIsolate();
 }
 
+v8::Value* v8__PropertyCallbackInfo__GetReturnValue(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return make_pod<v8::Value*>(self.GetReturnValue());
+}
+
 v8::Object* v8__PropertyCallbackInfo__This(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.This());
-}
-
-void v8__PropertyCallbackInfo__GetReturnValue(
-    const v8::PropertyCallbackInfo<v8::Value>& self,
-    v8::ReturnValue<v8::Value>* out) {
-  *out = self.GetReturnValue();
 }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf,
@@ -1220,6 +1232,49 @@ void v8_inspector__V8Inspector__Channel__BASE__sendNotification(
     v8_inspector::StringBuffer* message);
 void v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
     v8_inspector::V8Inspector::Channel& self);
+
+void v8_inspector__V8Inspector__DELETE(v8_inspector::V8Inspector& self) {
+  delete &self;
+}
+
+v8_inspector::V8Inspector* v8_inspector__V8Inspector__create(
+    v8::Isolate* isolate, v8_inspector::V8InspectorClient* client) {
+  std::unique_ptr<v8_inspector::V8Inspector> u =
+      v8_inspector::V8Inspector::create(isolate, client);
+  return u.release();
+}
+
+v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
+    v8_inspector::V8Inspector& self, int context_group_id,
+    v8_inspector::V8Inspector::Channel* channel,
+    v8_inspector::StringView& state) {
+  std::unique_ptr<v8_inspector::V8InspectorSession> u =
+      self.connect(context_group_id, channel, state);
+  return u.release();
+}
+
+void v8_inspector__V8Inspector__contextCreated(
+    v8_inspector::V8Inspector& self, v8::Context* context, int contextGroupId,
+    v8_inspector::StringView& humanReadableName) {
+  self.contextCreated(v8_inspector::V8ContextInfo(
+      ptr_to_local(context), contextGroupId, humanReadableName));
+}
+
+void v8_inspector__V8InspectorSession__DELETE(
+    v8_inspector::V8InspectorSession& self) {
+  delete &self;
+}
+
+void v8_inspector__V8InspectorSession__dispatchProtocolMessage(
+    v8_inspector::V8InspectorSession& self, v8_inspector::StringView& message) {
+  self.dispatchProtocolMessage(message);
+}
+
+void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
+    v8_inspector::V8InspectorSession& self, v8_inspector::StringBuffer& reason,
+    v8_inspector::StringBuffer& detail) {
+  self.schedulePauseOnNextStatement(reason.string(), detail.string());
+}
 }  // extern "C"
 
 struct v8_inspector__V8Inspector__Channel__BASE
@@ -1361,32 +1416,10 @@ int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
 
-// This is an extern C calling convention compatible version of
-// v8::Module::ResolveCallback.
-typedef v8::Module* (*v8__Module__ResolveCallback)(
-    v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
-    v8::Local<v8::Module> referrer);
-
 MaybeBool v8__Module__InstantiateModule(v8::Module& self,
                                         v8::Local<v8::Context> context,
-                                        v8__Module__ResolveCallback c_cb) {
-  static v8__Module__ResolveCallback static_cb = nullptr;
-  assert(static_cb == nullptr);
-  static_cb = c_cb;
-  auto cxx_cb = [](v8::Local<v8::Context> context,
-                   v8::Local<v8::String> specifier,
-                   v8::Local<v8::Module> referrer) {
-    v8::Module* m = static_cb(context, specifier, referrer);
-    if (m == nullptr) {
-      return v8::MaybeLocal<v8::Module>();
-    } else {
-      return v8::MaybeLocal<v8::Module>(ptr_to_local(m));
-    }
-  };
-
-  auto r = maybe_to_maybe_bool(self.InstantiateModule(context, cxx_cb));
-  static_cb = nullptr;
-  return r;
+                                        v8::Module::ResolveCallback cb) {
+  return maybe_to_maybe_bool(self.InstantiateModule(context, cb));
 }
 
 v8::Value* v8__Module__Evaluate(v8::Module& self,

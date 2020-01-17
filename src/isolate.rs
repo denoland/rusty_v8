@@ -61,6 +61,9 @@ pub type HostImportModuleDynamicallyCallback = extern "C" fn(
   Local<String>,
 ) -> *mut Promise;
 
+pub type InterruptCallback =
+  extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
+
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
@@ -90,6 +93,11 @@ extern "C" {
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
     callback: HostImportModuleDynamicallyCallback,
+  );
+  fn v8__Isolate__RequestInterrupt(
+    isolate: *const Isolate,
+    callback: InterruptCallback,
+    data: *mut c_void,
   );
   fn v8__Isolate__ThrowException(
     isolate: &Isolate,
@@ -167,7 +175,7 @@ impl Isolate {
   /// Sets this isolate as the entered one for the current thread.
   /// Saves the previously entered one (if any), so that it can be
   /// restored when exiting.  Re-entering an isolate is allowed.
-  pub fn enter(&mut self) {
+  pub(crate) fn enter(&mut self) {
     unsafe { v8__Isolate__Enter(self) }
   }
 
@@ -176,7 +184,7 @@ impl Isolate {
   /// entered more than once.
   ///
   /// Requires: self == Isolate::GetCurrent().
-  pub fn exit(&mut self) {
+  pub(crate) fn exit(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
   }
 
@@ -302,6 +310,23 @@ impl Isolate {
     unsafe { v8__Isolate__EnqueueMicrotask(self, &mut *microtask) }
   }
 
+  /// Request V8 to interrupt long running JavaScript code and invoke
+  /// the given |callback| passing the given |data| to it. After |callback|
+  /// returns control will be returned to the JavaScript code.
+  /// There may be a number of interrupt requests in flight.
+  /// Can be called from another thread without acquiring a |Locker|.
+  /// Registered |callback| must not reenter interrupted Isolate.
+  // Clippy warns that this method is dereferencing a raw pointer, but it is
+  // not: https://github.com/rust-lang/rust-clippy/issues/3045
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  pub fn request_interrupt(
+    &self,
+    callback: InterruptCallback,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RequestInterrupt(self, callback, data) }
+  }
+
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   pub unsafe fn dispose(&mut self) {
@@ -334,13 +359,6 @@ impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { self.0.as_mut() }
   }
-}
-
-/// Trait for retrieving the current isolate from a scope object.
-pub trait InIsolate {
-  // Do not implement this trait on unscoped Isolate references
-  // (e.g. OwnedIsolate).
-  fn isolate(&mut self) -> &mut Isolate;
 }
 
 /// Initial configuration parameters for a new Isolate.
