@@ -818,6 +818,45 @@ fn exception() {
 }
 
 #[test]
+fn create_message_argument_lifetimes() {
+  setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  let mut hs = v8::HandleScope::new(&mut locker);
+  let scope = hs.enter();
+  let mut context = v8::Context::new(scope);
+  context.enter();
+
+  {
+    let mut create_message = v8::Function::new(
+      scope,
+      context,
+      |scope: v8::FunctionCallbackScope,
+       args: v8::FunctionCallbackArguments,
+       mut rv: v8::ReturnValue| {
+        let message = v8::create_message(scope, args.get(0));
+        let message_str = message.get(scope);
+        rv.set(message_str.into())
+      },
+    )
+    .unwrap();
+    let receiver = context.global(scope);
+    let message_str = v8::String::new(scope, "mishap").unwrap();
+    let exception = v8::type_error(scope, message_str);
+    let actual = create_message
+      .call(scope, context, receiver.into(), 1, vec![exception])
+      .unwrap();
+    let expected =
+      v8::String::new(scope, "Uncaught TypeError: mishap").unwrap();
+    assert!(actual.strict_equals(expected.into()));
+  }
+
+  context.exit();
+}
+
+#[test]
 fn json() {
   setup();
   let mut params = v8::Isolate::create_params();

@@ -58,7 +58,7 @@ extern "C" {
 
   fn v8__Exception__CreateMessage(
     isolate: &Isolate,
-    exception: *mut Value,
+    exception: Local<Value>,
   ) -> *mut Message;
 
   fn v8__Exception__GetStackTrace(exception: *mut Value) -> *mut StackTrace;
@@ -267,10 +267,10 @@ impl Message {
 /// or capture the current stack trace if not available.
 pub fn create_message<'sc>(
   scope: &mut impl ToLocal<'sc>,
-  mut exception: Local<'sc, Value>,
+  exception: Local<Value>,
 ) -> Local<'sc, Message> {
   let isolate = scope.isolate();
-  let ptr = unsafe { v8__Exception__CreateMessage(isolate, &mut *exception) };
+  let ptr = unsafe { v8__Exception__CreateMessage(isolate, exception) };
   unsafe { scope.to_local(ptr) }.unwrap()
 }
 
