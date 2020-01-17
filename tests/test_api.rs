@@ -17,36 +17,28 @@ lazy_static! {
   static ref INIT_LOCK: Mutex<u32> = Mutex::new(0);
 }
 
-struct TestGuard {}
+#[must_use]
+struct SetupGuard {}
 
-impl Drop for TestGuard {
+impl Drop for SetupGuard {
   fn drop(&mut self) {
     // TODO shutdown process cleanly.
-    /*
-    *g -= 1;
-    if *g  == 0 {
-      unsafe { v8::V8::dispose() };
-      v8::V8::shutdown_platform();
-    }
-    drop(g);
-    */
   }
 }
 
-fn setup() -> TestGuard {
+fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
     v8::V8::initialize_platform(v8::platform::new_default_platform());
     v8::V8::initialize();
   }
-  drop(g);
-  TestGuard {}
+  SetupGuard {}
 }
 
 #[test]
 fn handle_scope_nested() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -59,14 +51,12 @@ fn handle_scope_nested() {
       let _scope2 = hs.enter();
     }
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 #[allow(clippy::float_cmp)]
 fn handle_scope_numbers() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -87,13 +77,11 @@ fn handle_scope_numbers() {
       assert_eq!(v8::Number::value(&l2), 456f64);
     }
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn global_handles() {
-  let _g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -145,7 +133,7 @@ fn global_handles() {
 
 #[test]
 fn test_string() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -159,13 +147,12 @@ fn test_string() {
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
   }
-  drop(locker);
 }
 
 #[test]
 #[allow(clippy::float_cmp)]
 fn escapable_handle_scope() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -205,13 +192,11 @@ fn escapable_handle_scope() {
     };
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn microtasks() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -249,7 +234,7 @@ fn microtasks() {
 
 #[test]
 fn array_buffer() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -269,12 +254,11 @@ fn array_buffer() {
 
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn array_buffer_with_shared_backing_store() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -350,7 +334,7 @@ fn eval<'sc>(
 
 #[test]
 fn try_catch() {
-  let _g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -408,7 +392,7 @@ fn try_catch() {
 
 #[test]
 fn throw_exception() {
-  let _g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -434,7 +418,7 @@ fn throw_exception() {
 
 #[test]
 fn terminate_execution() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -478,13 +462,11 @@ fn terminate_execution() {
     assert!(result.same_value(true_val));
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn request_interrupt_small_scripts() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -509,13 +491,11 @@ fn request_interrupt_small_scripts() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn add_message_listener() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
@@ -573,8 +553,6 @@ fn add_message_listener() {
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 fn unexpected_module_resolve_callback<'a>(
@@ -587,7 +565,7 @@ fn unexpected_module_resolve_callback<'a>(
 
 #[test]
 fn set_host_initialize_import_meta_object_callback() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
@@ -632,13 +610,11 @@ fn set_host_initialize_import_meta_object_callback() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn script_compile_and_run() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -656,12 +632,11 @@ fn script_compile_and_run() {
     assert_eq!(result.to_rust_string_lossy(s), "Hello 13th planet");
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn script_origin() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -702,7 +677,6 @@ fn script_origin() {
     let _result = script.run(s, context).unwrap();
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
@@ -753,7 +727,7 @@ fn inspector_string_buffer() {
 
 #[test]
 fn test_primitives() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -783,12 +757,11 @@ fn test_primitives() {
     assert!(!false_.is_null());
     assert!(!false_.is_null_or_undefined());
   }
-  drop(locker);
 }
 
 #[test]
 fn exception() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -817,7 +790,7 @@ fn exception() {
 
 #[test]
 fn create_message_argument_lifetimes() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -856,7 +829,7 @@ fn create_message_argument_lifetimes() {
 
 #[test]
 fn json() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -877,12 +850,11 @@ fn json() {
     assert_eq!("{\"a\":1,\"b\":2}".to_string(), rust_str);
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn object() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -910,12 +882,11 @@ fn object() {
     assert_ne!(id, 0);
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn array() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -942,12 +913,11 @@ fn array() {
 
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn create_data_property() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -986,12 +956,11 @@ fn create_data_property() {
 
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn object_set_accessor() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1051,7 +1020,7 @@ fn object_set_accessor() {
 
 #[test]
 fn promise_resolved() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1082,12 +1051,11 @@ fn promise_resolved() {
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   }
-  drop(locker);
 }
 
 #[test]
 fn promise_rejected() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1119,7 +1087,6 @@ fn promise_rejected() {
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
     context.exit();
   }
-  drop(locker);
 }
 
 fn fn_callback(
@@ -1156,7 +1123,7 @@ fn fn_callback2(
 
 #[test]
 fn function() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1190,7 +1157,6 @@ fn function() {
     assert_eq!(rust_str, "Hello callback!".to_string());
     context.exit();
   }
-  drop(locker);
 }
 
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
@@ -1212,7 +1178,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
 
 #[test]
 fn set_promise_reject_callback() {
-  setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
@@ -1228,7 +1194,6 @@ fn set_promise_reject_callback() {
     resolver.reject(context, value.into());
     context.exit();
   }
-  drop(locker);
 }
 
 fn mock_script_origin<'sc>(
@@ -1269,7 +1234,7 @@ fn mock_source<'sc>(
 
 #[test]
 fn script_compiler_source() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
@@ -1291,13 +1256,11 @@ fn script_compiler_source() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn module_instantiation_failures1() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1365,8 +1328,6 @@ fn module_instantiation_failures1() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 fn compile_specifier_as_module_resolve_callback<'a>(
@@ -1386,7 +1347,7 @@ fn compile_specifier_as_module_resolve_callback<'a>(
 
 #[test]
 fn module_evaluation() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1427,13 +1388,11 @@ fn module_evaluation() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn primitive_array() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1466,8 +1425,6 @@ fn primitive_array() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
@@ -1482,7 +1439,7 @@ fn ui() {
 
 #[test]
 fn equality() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1501,13 +1458,11 @@ fn equality() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn array_buffer_view() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1534,13 +1489,11 @@ fn array_buffer_view() {
     assert_eq!(ab.byte_length(), 4);
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn snapshot_creator() {
-  let g = setup();
+  let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
@@ -1593,8 +1546,6 @@ fn snapshot_creator() {
     // using it. See note in CreateParams::set_snapshot_blob
     drop(startup_data);
   }
-
-  drop(g);
 }
 
 lazy_static! {
@@ -1606,7 +1557,7 @@ lazy_static! {
 
 #[test]
 fn external_references() {
-  let g = setup();
+  let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
@@ -1668,8 +1619,6 @@ fn external_references() {
     // using it. See note in CreateParams::set_snapshot_blob
     drop(startup_data);
   }
-
-  drop(g);
 }
 
 #[test]
@@ -1690,7 +1639,7 @@ fn startup_data() {
 
 #[test]
 fn uint8_array() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1718,13 +1667,11 @@ fn uint8_array() {
     assert!(uint8_array.is_some());
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn dynamic_import() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
@@ -1766,13 +1713,11 @@ fn dynamic_import() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn shared_array_buffer() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1815,14 +1760,12 @@ fn shared_array_buffer() {
     assert_eq!(shared_buf[14], 62);
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 #[allow(clippy::cognitive_complexity)]
 fn value_checker() {
-  let g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -1992,13 +1935,11 @@ fn value_checker() {
 
     context.exit();
   }
-  drop(locker);
-  drop(g);
 }
 
 #[test]
 fn try_from_local() {
-  let _g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
@@ -2140,7 +2081,7 @@ fn try_from_local() {
 
 #[test]
 fn inspector_dispatch_protocol_message() {
-  let _g = setup();
+  let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
