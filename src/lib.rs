@@ -105,6 +105,7 @@ pub use locker::Locker;
 pub use module::*;
 pub use object::*;
 pub use platform::new_default_platform;
+pub use platform::Platform;
 pub use platform::Task;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
