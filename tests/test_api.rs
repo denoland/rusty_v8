@@ -799,21 +799,21 @@ fn exception() {
   let scope = hs.enter();
   let mut context = v8::Context::new(scope);
   context.enter();
-  let reference = "This is a test error";
-  let local = v8::String::new(scope, reference).unwrap();
-  v8::range_error(scope, local);
-  v8::reference_error(scope, local);
-  v8::syntax_error(scope, local);
-  v8::type_error(scope, local);
-  let exception = v8::error(scope, local);
-  let msg = v8::create_message(scope, exception);
-  let msg_string = msg.get(scope);
-  let rust_msg_string = msg_string.to_rust_string_lossy(scope);
-  assert_eq!(
-    "Uncaught Error: This is a test error".to_string(),
-    rust_msg_string
-  );
-  assert!(v8::get_stack_trace(scope, exception).is_none());
+
+  let msg_in = v8::String::new(scope, "This is a test error").unwrap();
+  let _exception = v8::Exception::error(scope, msg_in);
+  let _exception = v8::Exception::range_error(scope, msg_in);
+  let _exception = v8::Exception::reference_error(scope, msg_in);
+  let _exception = v8::Exception::syntax_error(scope, msg_in);
+  let exception = v8::Exception::type_error(scope, msg_in);
+
+  let actual_msg_out =
+    v8::Exception::create_message(scope, exception).get(scope);
+  let expected_msg_out =
+    v8::String::new(scope, "Uncaught TypeError: This is a test error").unwrap();
+  assert!(actual_msg_out.strict_equals(expected_msg_out.into()));
+  assert!(v8::Exception::get_stack_trace(scope, exception).is_none());
+
   context.exit();
 }
 
@@ -836,7 +836,7 @@ fn create_message_argument_lifetimes() {
       |scope: v8::FunctionCallbackScope,
        args: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
-        let message = v8::create_message(scope, args.get(0));
+        let message = v8::Exception::create_message(scope, args.get(0));
         let message_str = message.get(scope);
         rv.set(message_str.into())
       },
@@ -844,7 +844,7 @@ fn create_message_argument_lifetimes() {
     .unwrap();
     let receiver = context.global(scope);
     let message_str = v8::String::new(scope, "mishap").unwrap();
-    let exception = v8::type_error(scope, message_str);
+    let exception = v8::Exception::type_error(scope, message_str);
     let actual = create_message
       .call(scope, context, receiver.into(), &[exception])
       .unwrap();

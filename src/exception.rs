@@ -50,18 +50,18 @@ extern "C" {
   fn v8__StackFrame__IsWasm(self_: &StackFrame) -> bool;
   fn v8__StackFrame__IsUserJavaScript(self_: &StackFrame) -> bool;
 
-  fn v8__Exception__RangeError(message: *mut String) -> *mut Value;
-  fn v8__Exception__ReferenceError(message: *mut String) -> *mut Value;
-  fn v8__Exception__SyntaxError(message: *mut String) -> *mut Value;
-  fn v8__Exception__TypeError(message: *mut String) -> *mut Value;
-  fn v8__Exception__Error(message: *mut String) -> *mut Value;
+  fn v8__Exception__Error(message: Local<String>) -> *mut Value;
+  fn v8__Exception__RangeError(message: Local<String>) -> *mut Value;
+  fn v8__Exception__ReferenceError(message: Local<String>) -> *mut Value;
+  fn v8__Exception__SyntaxError(message: Local<String>) -> *mut Value;
+  fn v8__Exception__TypeError(message: Local<String>) -> *mut Value;
 
   fn v8__Exception__CreateMessage(
     isolate: &Isolate,
     exception: Local<Value>,
   ) -> *mut Message;
 
-  fn v8__Exception__GetStackTrace(exception: *mut Value) -> *mut StackTrace;
+  fn v8__Exception__GetStackTrace(exception: Local<Value>) -> *mut StackTrace;
 }
 
 /// Representation of a JavaScript stack trace. The information collected is a
@@ -262,78 +262,84 @@ impl Message {
   }
 }
 
-/// Creates an error message for the given exception.
-/// Will try to reconstruct the original stack trace from the exception value,
-/// or capture the current stack trace if not available.
-pub fn create_message<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  exception: Local<Value>,
-) -> Local<'sc, Message> {
-  let isolate = scope.isolate();
-  let ptr = unsafe { v8__Exception__CreateMessage(isolate, exception) };
-  unsafe { scope.to_local(ptr) }.unwrap()
-}
+/// Create new error objects by calling the corresponding error object
+/// constructor with the message.
+pub struct Exception;
 
-/// Returns the original stack trace that was captured at the creation time
-/// of a given exception, or an empty handle if not available.
-pub fn get_stack_trace<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  mut exception: Local<Value>,
-) -> Option<Local<'sc, StackTrace>> {
-  unsafe { scope.to_local(v8__Exception__GetStackTrace(&mut *exception)) }
-}
+impl Exception {
+  pub fn error<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    message: Local<String>,
+  ) -> Local<'sc, Value> {
+    let isolate = scope.isolate();
+    isolate.enter();
+    let e = unsafe { v8__Exception__Error(message) };
+    isolate.exit();
+    unsafe { scope.to_local(e) }.unwrap()
+  }
 
-pub fn range_error<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  mut message: Local<String>,
-) -> Local<'sc, Value> {
-  let isolate = scope.isolate();
-  isolate.enter();
-  let e = unsafe { v8__Exception__RangeError(&mut *message) };
-  isolate.exit();
-  unsafe { scope.to_local(e) }.unwrap()
-}
+  pub fn range_error<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    message: Local<String>,
+  ) -> Local<'sc, Value> {
+    let isolate = scope.isolate();
+    isolate.enter();
+    let e = unsafe { v8__Exception__RangeError(message) };
+    isolate.exit();
+    unsafe { scope.to_local(e) }.unwrap()
+  }
 
-pub fn reference_error<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  mut message: Local<String>,
-) -> Local<'sc, Value> {
-  let isolate = scope.isolate();
-  isolate.enter();
-  let e = unsafe { v8__Exception__ReferenceError(&mut *message) };
-  isolate.exit();
-  unsafe { scope.to_local(e) }.unwrap()
-}
+  pub fn reference_error<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    message: Local<String>,
+  ) -> Local<'sc, Value> {
+    let isolate = scope.isolate();
+    isolate.enter();
+    let e = unsafe { v8__Exception__ReferenceError(message) };
+    isolate.exit();
+    unsafe { scope.to_local(e) }.unwrap()
+  }
 
-pub fn syntax_error<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  mut message: Local<String>,
-) -> Local<'sc, Value> {
-  let isolate = scope.isolate();
-  isolate.enter();
-  let e = unsafe { v8__Exception__SyntaxError(&mut *message) };
-  isolate.exit();
-  unsafe { scope.to_local(e) }.unwrap()
-}
+  pub fn syntax_error<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    message: Local<String>,
+  ) -> Local<'sc, Value> {
+    let isolate = scope.isolate();
+    isolate.enter();
+    let e = unsafe { v8__Exception__SyntaxError(message) };
+    isolate.exit();
+    unsafe { scope.to_local(e) }.unwrap()
+  }
 
-pub fn type_error<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  mut message: Local<String>,
-) -> Local<'sc, Value> {
-  let isolate = scope.isolate();
-  isolate.enter();
-  let e = unsafe { v8__Exception__TypeError(&mut *message) };
-  isolate.exit();
-  unsafe { scope.to_local(e) }.unwrap()
-}
+  pub fn type_error<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    message: Local<String>,
+  ) -> Local<'sc, Value> {
+    let isolate = scope.isolate();
+    isolate.enter();
+    let e = unsafe { v8__Exception__TypeError(message) };
+    isolate.exit();
+    unsafe { scope.to_local(e) }.unwrap()
+  }
 
-pub fn error<'sc>(
-  scope: &mut impl ToLocal<'sc>,
-  mut message: Local<String>,
-) -> Local<'sc, Value> {
-  let isolate = scope.isolate();
-  isolate.enter();
-  let e = unsafe { v8__Exception__Error(&mut *message) };
-  isolate.exit();
-  unsafe { scope.to_local(e) }.unwrap()
+  /// Creates an error message for the given exception.
+  /// Will try to reconstruct the original stack trace from the exception value,
+  /// or capture the current stack trace if not available.
+  pub fn create_message<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    exception: Local<Value>,
+  ) -> Local<'sc, Message> {
+    let isolate = scope.isolate();
+    let ptr = unsafe { v8__Exception__CreateMessage(isolate, exception) };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  /// Returns the original stack trace that was captured at the creation time
+  /// of a given exception, or an empty handle if not available.
+  pub fn get_stack_trace<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    exception: Local<Value>,
+  ) -> Option<Local<'sc, StackTrace>> {
+    unsafe { scope.to_local(v8__Exception__GetStackTrace(exception)) }
+  }
 }
