@@ -29,6 +29,12 @@ extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
+  fn v8__ArrayBuffer__NewBackingStore_FromRaw(
+    data: *mut std::ffi::c_void,
+    byte_length: usize,
+    deleter: BackingStoreDeleterCallback,
+  ) -> SharedRef<BackingStore>;
+
   fn v8__BackingStore__Data(self_: &mut BackingStore) -> *mut std::ffi::c_void;
   fn v8__BackingStore__ByteLength(self_: &BackingStore) -> usize;
   fn v8__BackingStore__IsShared(self_: &BackingStore) -> bool;
@@ -83,6 +89,21 @@ impl Delete for Allocator {
   fn delete(&'static mut self) {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
+}
+
+pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
+  data: *mut std::ffi::c_void,
+  byte_length: usize,
+  deleter_data: *mut std::ffi::c_void,
+);
+
+pub unsafe extern "C" fn backing_store_deleter_callback(
+  data: *mut std::ffi::c_void,
+  _byte_length: usize,
+  _deleter_data: *mut std::ffi::c_void,
+) {
+  let b = Box::from_raw(data);
+  drop(b)
 }
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
@@ -200,5 +221,24 @@ impl ArrayBuffer {
         byte_length,
       ))
     }
+  }
+
+  /// Returns a new standalone BackingStore that takes over the ownership of
+  /// the given buffer.
+  ///
+  /// The destructor of the BackingStore frees owned buffer memory.
+  ///
+  /// The result can be later passed to ArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  pub unsafe fn new_backing_store_from_boxed_slice(
+    data: Box<[u8]>,
+  ) -> SharedRef<BackingStore> {
+    let byte_length = data.len();
+    let data_ptr = Box::into_raw(data) as *mut std::ffi::c_void;
+    v8__ArrayBuffer__NewBackingStore_FromRaw(
+      data_ptr,
+      byte_length,
+      backing_store_deleter_callback,
+    )
   }
 }
