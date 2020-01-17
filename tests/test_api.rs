@@ -258,8 +258,11 @@ fn array_buffer() {
     assert_eq!(10, bs.byte_length());
     assert_eq!(false, bs.is_shared());
     let ab = v8::ArrayBuffer::new_with_backing_store(scope, &mut bs);
-    ab.get_backing_store();
+    let mut bs = ab.get_backing_store();
     assert_eq!(10, ab.byte_length());
+    let data = bs.data_bytes();
+    assert_eq!(data[0], 0);
+    assert_eq!(data[9], 9);
     context.exit();
   }
 }
@@ -1774,9 +1777,11 @@ fn shared_array_buffer() {
     assert_eq!(10, bs.byte_length());
     assert_eq!(true, bs.is_shared());
     let ab = v8::SharedArrayBuffer::new_with_backing_store(s, &mut bs);
-    ab.get_backing_store();
+    let mut bs = ab.get_backing_store();
     assert_eq!(10, ab.byte_length());
-
+    let data = bs.data_bytes();
+    assert_eq!(data[0], 0);
+    assert_eq!(data[9], 9);
     context.exit();
   }
 }
