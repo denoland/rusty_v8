@@ -5,6 +5,7 @@ use std::ptr::null;
 use crate::support::Opaque;
 use crate::Boolean;
 use crate::Context;
+use crate::InContext;
 use crate::Integer;
 use crate::Local;
 use crate::String;
@@ -45,7 +46,7 @@ pub struct Script(Opaque);
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut (impl ToLocal<'sc> + InContext),
     mut context: Local<Context>,
     mut source: Local<String>,
     origin: Option<&ScriptOrigin>,

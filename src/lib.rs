@@ -2,7 +2,7 @@
 
 //! # Example
 //!
-//! ```
+//! ```rust
 //! use rusty_v8 as v8;
 //!
 //! let platform = v8::new_default_platform();
@@ -12,24 +12,23 @@
 //! let mut create_params = v8::Isolate::create_params();
 //! create_params.set_array_buffer_allocator(v8::new_default_allocator());
 //! let isolate = v8::Isolate::new(create_params);
+//!
 //! let mut locker = v8::Locker::new(&isolate);
-//! {
-//!   let mut handle_scope = v8::HandleScope::new(&mut locker);
-//!   let scope = handle_scope.enter();
-//!   let mut context = v8::Context::new(scope);
-//!   context.enter();
 //!
-//!   let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
-//!   code.to_rust_string_lossy(scope);
-//!   let mut script = v8::Script::compile(scope, context, code, None).unwrap();
-//!   let result = script.run(scope, context).unwrap();
-//!   let result = result.to_string(scope).unwrap();
-//!   let str = result.to_rust_string_lossy(scope);
-//!   println!("{}", str);
+//! let mut handle_scope = v8::HandleScope::new(&mut locker);
+//! let scope = handle_scope.enter();
 //!
-//!   context.exit();
-//! }
-//! drop(locker);
+//! let context = v8::Context::new(scope);
+//! let mut context_scope = v8::ContextScope::new(scope, context);
+//! let scope = context_scope.enter();
+//!
+//! let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
+//! println!("javascript code: {}", code.to_rust_string_lossy(scope));
+//!
+//! let mut script = v8::Script::compile(scope, context, code, None).unwrap();
+//! let result = script.run(scope, context).unwrap();
+//! let result = result.to_string(scope).unwrap();
+//! println!("result: {}", result.to_rust_string_lossy(scope));
 //! ```
 
 #![allow(clippy::missing_safety_doc)]
@@ -43,7 +42,6 @@ extern crate libc;
 
 mod array_buffer;
 mod array_buffer_view;
-mod callback_scope;
 mod context;
 mod data;
 mod exception;
@@ -82,9 +80,6 @@ pub mod script_compiler;
 pub mod V8;
 
 pub use array_buffer::*;
-pub use callback_scope::{
-  CallbackScope, FunctionCallbackScope, PropertyCallbackScope,
-};
 pub use context::Context;
 pub use data::*;
 pub use exception::*;
@@ -92,7 +87,8 @@ pub use external_references::ExternalReference;
 pub use external_references::ExternalReferences;
 pub use function::*;
 pub use global::Global;
-pub use handle_scope::{EscapableHandleScope, HandleScope};
+pub use handle_scope::EscapableHandleScope;
+pub use handle_scope::HandleScope;
 pub use isolate::CreateParams;
 pub use isolate::HostImportModuleDynamicallyCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
@@ -110,6 +106,11 @@ pub use platform::Task;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
+pub use scope::CallbackScope;
+pub use scope::ContextScope;
+pub use scope::FunctionCallbackScope;
+pub use scope::PropertyCallbackScope;
+pub use scope::Scope;
 pub use scope_traits::*;
 pub use script::{Script, ScriptOrigin};
 pub use script_or_module::ScriptOrModule;

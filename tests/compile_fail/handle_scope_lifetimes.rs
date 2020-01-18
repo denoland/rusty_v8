@@ -1,7 +1,7 @@
 extern crate rusty_v8 as v8;
 
 pub fn main() {
-  let mut isolate: v8::scope::Entered<'_, v8::HandleScope> = mock();
+  let mut isolate: v8::scope::Entered<v8::HandleScope<v8::Locker>> = mock();
 
   {
     let mut hs = v8::EscapableHandleScope::new(&mut isolate);

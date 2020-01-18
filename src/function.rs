@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 
-use crate::scope::Entered;
+use crate::scope::ScopeDefinition;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::ToCFn;
@@ -117,6 +117,12 @@ pub struct FunctionCallbackInfo {
   length: int,
 }
 
+unsafe impl<'s> ScopeDefinition<'s> for FunctionCallbackInfo {
+  type Parent = ();
+  type Args = ();
+  unsafe fn enter_scope(_: *mut Self, _: Self::Args) {}
+}
+
 /// The information passed to a property callback about the context
 /// of the property access.
 #[repr(C)]
@@ -124,6 +130,12 @@ pub struct PropertyCallbackInfo {
   // The layout of this struct must match that of `class PropertyCallbackInfo`
   // as defined in v8.h.
   args: *mut Opaque,
+}
+
+unsafe impl<'s> ScopeDefinition<'s> for PropertyCallbackInfo {
+  type Parent = ();
+  type Args = ();
+  unsafe fn enter_scope(_: *mut Self, _: Self::Args) {}
 }
 
 pub struct FunctionCallbackArguments<'s> {
@@ -233,9 +245,8 @@ where
 {
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
-      let scope: FunctionCallbackScope = unsafe {
-        &mut *(info as *const _ as *mut Entered<FunctionCallbackInfo>)
-      };
+      let scope: FunctionCallbackScope =
+        &mut crate::scope::Entered::new(info as *mut FunctionCallbackInfo);
       let args = FunctionCallbackArguments::from_function_callback_info(info);
       let rv = ReturnValue::from_function_callback_info(info);
       (F::get())(scope, args, rv);
@@ -261,9 +272,8 @@ where
 {
   fn mapping() -> Self {
     let f = |key: Local<Name>, info: *const PropertyCallbackInfo| {
-      let scope: PropertyCallbackScope = unsafe {
-        &mut *(info as *const _ as *mut Entered<PropertyCallbackInfo>)
-      };
+      let scope: PropertyCallbackScope =
+        &mut crate::scope::Entered::new(info as *mut PropertyCallbackInfo);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv);

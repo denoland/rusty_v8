@@ -35,24 +35,25 @@ impl Context {
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
   pub fn global<'sc>(
-    &mut self,
+    &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Object> {
-    unsafe { scope.to_local(v8__Context__Global(&mut *self)) }.unwrap()
+    let context = self as *const _ as *mut Context;
+    unsafe { scope.to_local(v8__Context__Global(context)) }.unwrap()
   }
 
   /// Enter this context.  After entering a context, all code compiled
   /// and run is compiled and run in this context.  If another context
   /// is already entered, this old context is saved so it can be
   /// restored when the new context is exited.
-  pub fn enter(&mut self) {
+  pub(crate) fn enter(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Enter(self) };
   }
 
   /// Exit this context.  Exiting the current context restores the
   /// context that was in place when entering the current context.
-  pub fn exit(&mut self) {
+  pub(crate) fn exit(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
   }
