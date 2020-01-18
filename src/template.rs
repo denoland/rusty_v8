@@ -10,6 +10,7 @@ use crate::Function;
 use crate::FunctionCallback;
 use crate::Local;
 use crate::Object;
+use crate::String;
 use crate::ToLocal;
 
 extern "C" {
@@ -22,6 +23,10 @@ extern "C" {
   fn v8__FunctionTemplate__GetFunction(
     fn_template: *mut FunctionTemplate,
     context: *mut Context,
+  ) -> *mut Function;
+  fn v8__FunctionTemplate__SetClassName(
+    fn_template: *mut FunctionTemplate,
+    name: Local<String>,
   ) -> *mut Function;
 
   fn v8__ObjectTemplate__New(
@@ -64,6 +69,13 @@ impl FunctionTemplate {
       scope
         .to_local(v8__FunctionTemplate__GetFunction(&mut *self, &mut *context))
     }
+  }
+
+  /// Set the class name of the FunctionTemplate. This is used for
+  /// printing objects created with the function created from the
+  /// FunctionTemplate as its constructor.
+  pub fn set_class_name(&mut self, name: Local<String>) {
+    unsafe { v8__FunctionTemplate__SetClassName(&mut *self, name) };
   }
 }
 

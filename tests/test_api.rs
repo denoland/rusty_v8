@@ -895,7 +895,10 @@ fn object_template_from_function_template() {
   {
     let mut hs = v8::HandleScope::new(&mut locker);
     let scope = hs.enter();
-    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let mut function_templ =
+      v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let expected_class_name = v8_str(scope, "fortytwo");
+    function_templ.set_class_name(expected_class_name);
     let object_templ =
       v8::ObjectTemplate::new_from_template(scope, function_templ);
     let context = v8::Context::new(scope);
@@ -907,9 +910,8 @@ fn object_template_from_function_template() {
     context
       .global(scope)
       .set(context, name.into(), object.into());
-    let actual = eval(scope, context, "g.constructor.name").unwrap();
-    let expected = v8::String::new(scope, "").unwrap();
-    assert!(expected.strict_equals(actual));
+    let actual_class_name = eval(scope, context, "g.constructor.name").unwrap();
+    assert!(expected_class_name.strict_equals(actual_class_name));
   }
 }
 

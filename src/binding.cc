@@ -897,6 +897,11 @@ v8::Function* v8__FunctionTemplate__GetFunction(
   return maybe_local_to_ptr(self->GetFunction(context));
 }
 
+void v8__FunctionTemplate__SetClassName(
+    v8::Local<v8::FunctionTemplate> self, v8::Local<v8::String> name) {
+  self->SetClassName(name);
+}
+
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
