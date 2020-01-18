@@ -2247,3 +2247,26 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(channel.send_notification_count, 0);
   assert_eq!(channel.flush_protocol_notifications_count, 0);
 }
+
+#[test]
+fn context_from_object_template() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let object_templ = v8::ObjectTemplate::new(scope);
+    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let name = v8_str(scope, "f");
+    object_templ.set(name.into(), function_templ.into());
+    let context = v8::Context::new_from_template(scope, object_templ);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+    let actual = eval(scope, context, "f()").unwrap();
+    let expected = v8::Integer::new(scope, 42);
+    assert!(expected.strict_equals(actual));
+  }
+}

@@ -3,10 +3,17 @@ use crate::isolate::Isolate;
 use crate::support::Opaque;
 use crate::Local;
 use crate::Object;
+use crate::ObjectTemplate;
 use crate::ToLocal;
+use crate::Value;
+use std::ptr::null;
 
 extern "C" {
-  fn v8__Context__New(isolate: &Isolate) -> *mut Context;
+  fn v8__Context__New(
+    isolate: &Isolate,
+    templ: *const ObjectTemplate,
+    data: *const Value,
+  ) -> *mut Context;
   fn v8__Context__Enter(this: &mut Context);
   fn v8__Context__Exit(this: &mut Context);
   fn v8__Context__Global(this: *mut Context) -> *mut Object;
@@ -18,9 +25,20 @@ extern "C" {
 pub struct Context(Opaque);
 
 impl Context {
+  /// Creates a new context.
   pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Context> {
     // TODO: optional arguments;
-    let ptr = unsafe { v8__Context__New(scope.isolate()) };
+    let ptr = unsafe { v8__Context__New(scope.isolate(), null(), null()) };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  /// Creates a new context using the object template as the template for
+  /// the global object.
+  pub fn new_from_template<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    templ: Local<ObjectTemplate>,
+  ) -> Local<'sc, Context> {
+    let ptr = unsafe { v8__Context__New(scope.isolate(), &*templ, null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 

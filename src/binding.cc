@@ -767,11 +767,10 @@ void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
   deserialized_data.push_back(embedder_field);
 }
 
-v8::Context* v8__Context__New(v8::Isolate* isolate) {
-  // TODO: optional arguments.
-  return *v8::Context::New(isolate, nullptr,
-                           v8::MaybeLocal<v8::ObjectTemplate>(),
-                           v8::MaybeLocal<v8::Value>(),
+v8::Context* v8__Context__New(v8::Isolate* isolate,
+                              v8::MaybeLocal<v8::ObjectTemplate> templ,
+                              v8::MaybeLocal<v8::Value> global_object) {
+  return *v8::Context::New(isolate, nullptr, templ, global_object,
                            v8::DeserializeInternalFieldsCallback(
                                DeserializeInternalFields, nullptr));
 }
