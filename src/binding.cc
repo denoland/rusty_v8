@@ -625,6 +625,24 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
+void v8__Template__Set(v8::Template& self, v8::Local<v8::Name> key,
+                       v8::Local<v8::Data> value) {
+  // TODO(bnoordhuis) Allow setting PropertyAttributes.
+  self.Set(key, value);
+}
+
+v8::ObjectTemplate* v8__ObjectTemplate__New(
+    v8::Isolate* isolate,
+    v8::Local<v8::FunctionTemplate> templ) {
+  return local_to_ptr(v8::ObjectTemplate::New(isolate, templ));
+}
+
+v8::Object* v8__ObjectTemplate__NewInstance(
+    v8::ObjectTemplate& self,
+    v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.NewInstance(context));
+}
+
 v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }

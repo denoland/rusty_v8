@@ -66,6 +66,7 @@ mod shared_array_buffer;
 mod snapshot;
 mod string;
 mod support;
+mod template;
 mod try_catch;
 mod uint8_array;
 mod value;
@@ -124,6 +125,7 @@ pub use support::MaybeBool;
 pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;
+pub use template::*;
 pub use try_catch::{TryCatch, TryCatchScope};
 
 // TODO(piscisaureus): Ideally this trait would not be exported.

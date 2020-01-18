@@ -10,8 +10,6 @@ use crate::support::{int, Opaque};
 use crate::Context;
 use crate::Function;
 use crate::FunctionCallbackScope;
-use crate::FunctionTemplate;
-use crate::Isolate;
 use crate::Local;
 use crate::Name;
 use crate::Object;
@@ -31,15 +29,6 @@ extern "C" {
     argc: int,
     argv: *const Local<Value>,
   ) -> *mut Value;
-
-  fn v8__FunctionTemplate__New(
-    isolate: &Isolate,
-    callback: FunctionCallback,
-  ) -> *mut FunctionTemplate;
-  fn v8__FunctionTemplate__GetFunction(
-    fn_template: *mut FunctionTemplate,
-    context: *mut Context,
-  ) -> *mut Function;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -279,31 +268,6 @@ where
       (F::get())(scope, key, args, rv);
     };
     f.to_c_fn()
-  }
-}
-
-impl FunctionTemplate {
-  /// Creates a function template.
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    callback: impl MapFnTo<FunctionCallback>,
-  ) -> Local<'sc, FunctionTemplate> {
-    let ptr = unsafe {
-      v8__FunctionTemplate__New(scope.isolate(), callback.map_fn_to())
-    };
-    unsafe { scope.to_local(ptr) }.unwrap()
-  }
-
-  /// Returns the unique function instance in the current execution context.
-  pub fn get_function<'sc>(
-    &mut self,
-    scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
-  ) -> Option<Local<'sc, Function>> {
-    unsafe {
-      scope
-        .to_local(v8__FunctionTemplate__GetFunction(&mut *self, &mut *context))
-    }
   }
 }
 

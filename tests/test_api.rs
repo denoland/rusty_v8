@@ -857,6 +857,63 @@ fn json() {
 }
 
 #[test]
+fn object_template() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let object_templ = v8::ObjectTemplate::new(scope);
+    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let name = v8_str(scope, "f");
+    object_templ.set(name.into(), function_templ.into());
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+    let object = object_templ.new_instance(scope, context).unwrap();
+    assert!(!object.is_null_or_undefined());
+    let name = v8_str(scope, "g");
+    context
+      .global(scope)
+      .set(context, name.into(), object.into());
+    let actual = eval(scope, context, "g.f()").unwrap();
+    let expected = v8::Integer::new(scope, 42);
+    assert!(expected.strict_equals(actual));
+  }
+}
+
+#[test]
+fn object_template_from_function_template() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  {
+    let mut hs = v8::HandleScope::new(&mut locker);
+    let scope = hs.enter();
+    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let object_templ =
+      v8::ObjectTemplate::new_from_template(scope, function_templ);
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+    let object = object_templ.new_instance(scope, context).unwrap();
+    assert!(!object.is_null_or_undefined());
+    let name = v8_str(scope, "g");
+    context
+      .global(scope)
+      .set(context, name.into(), object.into());
+    let actual = eval(scope, context, "g.constructor.name").unwrap();
+    let expected = v8::String::new(scope, "").unwrap();
+    assert!(expected.strict_equals(actual));
+  }
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
@@ -1120,6 +1177,14 @@ fn fn_callback2(
   let s = v8::String::new(scope, "Hello callback!").unwrap();
   assert!(rv.get(scope).is_undefined());
   rv.set(s.into());
+}
+
+fn fortytwo_callback(
+  scope: v8::FunctionCallbackScope,
+  _: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue,
+) {
+  rv.set(v8::Integer::new(scope, 42).into());
 }
 
 #[test]
