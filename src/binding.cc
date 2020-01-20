@@ -672,6 +672,14 @@ MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
   return maybe_to_maybe_bool(self.CreateDataProperty(context, key, value));
 }
 
+MaybeBool v8__Object__DefineOwnProperty(v8::Object& self,
+                                        v8::Local<v8::Context> context,
+                                        v8::Local<v8::Name> key,
+                                        v8::Local<v8::Value> value,
+                                        v8::PropertyAttribute attr) {
+  return maybe_to_maybe_bool(self.DefineOwnProperty(context, key, value, attr));
+}
+
 MaybeBool v8__Object__SetAccessor(v8::Object& self,
                                   v8::Local<v8::Context> context,
                                   v8::Local<v8::Name> key,
