@@ -626,9 +626,8 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
 }
 
 void v8__Template__Set(v8::Template& self, v8::Local<v8::Name> key,
-                       v8::Local<v8::Data> value) {
-  // TODO(bnoordhuis) Allow setting PropertyAttributes.
-  self.Set(key, value);
+                       v8::Local<v8::Data> value, v8::PropertyAttribute attr) {
+  self.Set(key, value, attr);
 }
 
 v8::ObjectTemplate* v8__ObjectTemplate__New(

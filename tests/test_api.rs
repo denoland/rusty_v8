@@ -869,7 +869,8 @@ fn object_template() {
     let object_templ = v8::ObjectTemplate::new(scope);
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8_str(scope, "f");
-    object_templ.set(name.into(), function_templ.into());
+    let attr = v8::READ_ONLY + v8::DONT_ENUM + v8::DONT_DELETE;
+    object_templ.set_with_attr(name.into(), function_templ.into(), attr);
     let context = v8::Context::new(scope);
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
@@ -881,6 +882,15 @@ fn object_template() {
       .set(context, name.into(), object.into());
     let actual = eval(scope, context, "g.f()").unwrap();
     let expected = v8::Integer::new(scope, 42);
+    assert!(expected.strict_equals(actual));
+    let source = r#"
+      {
+        const d = Object.getOwnPropertyDescriptor(g, "f");
+        [d.configurable, d.enumerable, d.writable].toString()
+      }
+    "#;
+    let actual = eval(scope, context, source).unwrap();
+    let expected = v8_str(scope, "false,false,false");
     assert!(expected.strict_equals(actual));
   }
 }
