@@ -626,9 +626,8 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
 }
 
 void v8__Template__Set(v8::Template& self, v8::Local<v8::Name> key,
-                       v8::Local<v8::Data> value) {
-  // TODO(bnoordhuis) Allow setting PropertyAttributes.
-  self.Set(key, value);
+                       v8::Local<v8::Data> value, v8::PropertyAttribute attr) {
+  self.Set(key, value, attr);
 }
 
 v8::ObjectTemplate* v8__ObjectTemplate__New(
@@ -671,6 +670,14 @@ MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
                                          v8::Local<v8::Name> key,
                                          v8::Local<v8::Value> value) {
   return maybe_to_maybe_bool(self.CreateDataProperty(context, key, value));
+}
+
+MaybeBool v8__Object__DefineOwnProperty(v8::Object& self,
+                                        v8::Local<v8::Context> context,
+                                        v8::Local<v8::Name> key,
+                                        v8::Local<v8::Value> value,
+                                        v8::PropertyAttribute attr) {
+  return maybe_to_maybe_bool(self.DefineOwnProperty(context, key, value, attr));
 }
 
 MaybeBool v8__Object__SetAccessor(v8::Object& self,

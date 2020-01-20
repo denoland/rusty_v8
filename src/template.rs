@@ -10,11 +10,18 @@ use crate::Function;
 use crate::FunctionCallback;
 use crate::Local;
 use crate::Object;
+use crate::PropertyAttribute;
 use crate::String;
 use crate::ToLocal;
+use crate::NONE;
 
 extern "C" {
-  fn v8__Template__Set(self_: &Template, key: *const Name, value: *const Data);
+  fn v8__Template__Set(
+    self_: &Template,
+    key: *const Name,
+    value: *const Data,
+    attr: PropertyAttribute,
+  );
 
   fn v8__FunctionTemplate__New(
     isolate: &Isolate,
@@ -42,8 +49,18 @@ extern "C" {
 impl Template {
   /// Adds a property to each instance created by this template.
   pub fn set(&self, key: Local<Name>, value: Local<Data>) {
-    // TODO(bnoordhuis) Allow setting PropertyAttributes.
-    unsafe { v8__Template__Set(self, &*key, &*value) }
+    self.set_with_attr(key, value, NONE)
+  }
+
+  /// Adds a property to each instance created by this template with
+  /// the specified property attributes.
+  pub fn set_with_attr(
+    &self,
+    key: Local<Name>,
+    value: Local<Data>,
+    attr: PropertyAttribute,
+  ) {
+    unsafe { v8__Template__Set(self, &*key, &*value, attr) }
   }
 }
 

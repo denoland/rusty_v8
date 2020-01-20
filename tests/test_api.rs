@@ -869,18 +869,40 @@ fn object_template() {
     let object_templ = v8::ObjectTemplate::new(scope);
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8_str(scope, "f");
-    object_templ.set(name.into(), function_templ.into());
+    let attr = v8::READ_ONLY + v8::DONT_ENUM + v8::DONT_DELETE;
+    object_templ.set_with_attr(name.into(), function_templ.into(), attr);
     let context = v8::Context::new(scope);
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
     let object = object_templ.new_instance(scope, context).unwrap();
     assert!(!object.is_null_or_undefined());
     let name = v8_str(scope, "g");
-    context
-      .global(scope)
-      .set(context, name.into(), object.into());
+    context.global(scope).define_own_property(
+      context,
+      name.into(),
+      object.into(),
+      v8::DONT_ENUM,
+    );
+    let source = r#"
+      {
+        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+        [d.configurable, d.enumerable, d.writable].toString()
+      }
+    "#;
+    let actual = eval(scope, context, source).unwrap();
+    let expected = v8_str(scope, "true,false,true");
+    assert!(expected.strict_equals(actual));
     let actual = eval(scope, context, "g.f()").unwrap();
     let expected = v8::Integer::new(scope, 42);
+    assert!(expected.strict_equals(actual));
+    let source = r#"
+      {
+        const d = Object.getOwnPropertyDescriptor(g, "f");
+        [d.configurable, d.enumerable, d.writable].toString()
+      }
+    "#;
+    let actual = eval(scope, context, source).unwrap();
+    let expected = v8_str(scope, "false,false,false");
     assert!(expected.strict_equals(actual));
   }
 }

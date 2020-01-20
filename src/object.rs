@@ -8,6 +8,7 @@ use crate::Context;
 use crate::Local;
 use crate::Name;
 use crate::Object;
+use crate::PropertyAttribute;
 use crate::ToLocal;
 use crate::Value;
 
@@ -43,6 +44,13 @@ extern "C" {
     context: *const Context,
     key: *const Name,
     value: *const Value,
+  ) -> MaybeBool;
+  fn v8__Object__DefineOwnProperty(
+    object: &Object,
+    context: *const Context,
+    key: *const Name,
+    value: *const Value,
+    attr: PropertyAttribute,
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
 
@@ -118,6 +126,24 @@ impl Object {
     value: Local<Value>,
   ) -> MaybeBool {
     unsafe { v8__Object__CreateDataProperty(self, &*context, &*key, &*value) }
+  }
+
+  /// Implements DefineOwnProperty.
+  ///
+  /// In general, CreateDataProperty will be faster, however, does not allow
+  /// for specifying attributes.
+  ///
+  /// Returns true on success.
+  pub fn define_own_property(
+    &self,
+    context: Local<Context>,
+    key: Local<Name>,
+    value: Local<Value>,
+    attr: PropertyAttribute,
+  ) -> MaybeBool {
+    unsafe {
+      v8__Object__DefineOwnProperty(self, &*context, &*key, &*value, attr)
+    }
   }
 
   pub fn get<'a>(
