@@ -1,11 +1,11 @@
 error[E0597]: `try_catch` does not live long enough
-  --> $DIR/try_catch_lifetimes.rs:10:14
+  --> $DIR/try_catch_lifetimes.rs:11:14
    |
-8  |   let _leaked = {
+9  |   let _leaked = {
    |       ------- borrow later stored here
-9  |     let mut try_catch = v8::TryCatch::new(scope);
-10 |     let tc = try_catch.enter();
+10 |     let mut try_catch = v8::TryCatch::new(scope);
+11 |     let tc = try_catch.enter();
    |              ^^^^^^^^^ borrowed value does not live long enough
 ...
-15 |   };
+16 |   };
    |   - `try_catch` dropped here while still borrowed

@@ -4,17 +4,16 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::mem::take;
 use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use std::ptr::NonNull;
 
 use crate::scope_traits::internal::GetRawIsolate;
 use crate::Context;
 use crate::FunctionCallbackInfo;
+use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
 use crate::PromiseRejectMessage;
 use crate::PropertyCallbackInfo;
-use crate::ToLocal;
 
 // Note: the 's lifetime is there to ensure that after entering a scope once,
 // the same scope object can't ever be entered again.
@@ -24,87 +23,103 @@ pub unsafe trait ScopeDefinition<'s>
 where
   Self: Sized,
 {
-  type Parent;
   type Args;
   unsafe fn enter_scope(buf: *mut Self, args: Self::Args) -> ();
 }
 
 /// A RAII scope wrapper object that will, when the `enter()` method is called,
 /// initialize and activate the guarded object.
-pub struct Scope<'s, S>
+pub struct Scope<'s, S, P = ()>
 where
   S: ScopeDefinition<'s>,
 {
-  state: ScopeState<'s, S>,
+  state: ScopeState<'s, S, P>,
 }
 
-enum ScopeState<'s, S>
+enum ScopeState<'s, S, P>
 where
   S: ScopeDefinition<'s>,
 {
   Empty,
-  New(S::Args),
-  Uninit {
-    data: MaybeUninit<S>,
-    enter: MaybeUninit<Entered<'s, S>>,
+  Allocated {
+    args: S::Args,
+    parent: &'s mut P,
   },
-  Ready {
+  EnteredUninit {
+    data: MaybeUninit<S>,
+    enter: MaybeUninit<Entered<'s, S, P>>,
+  },
+  EnteredReady {
     data: S,
-    enter: Entered<'s, S>,
+    enter: Entered<'s, S, P>,
   },
 }
 
-impl<'s, S> Scope<'s, S>
+fn parent_of_root() -> &'static mut () {
+  unsafe { &mut *NonNull::<()>::dangling().as_ptr() }
+}
+
+impl<'s, S> Scope<'s, S, ()>
+where
+  S: ScopeDefinition<'s>,
+{
+  /// Create a new root Scope object in unentered state.
+  pub(crate) fn new_root(args: S::Args) -> Self {
+    Self::new(args, parent_of_root())
+  }
+}
+
+impl<'s, S, P> Scope<'s, S, P>
 where
   S: ScopeDefinition<'s>,
 {
   /// Create a new Scope object in unentered state.
-  pub(crate) fn new(args: S::Args) -> Self {
+  pub(crate) fn new(args: S::Args, parent: &'s mut P) -> Self {
     Self {
-      state: ScopeState::New(args),
+      state: ScopeState::Allocated { args, parent },
     }
   }
 
   /// Initializes the guarded object and returns a mutable reference to it.
   /// A scope can only be entered once.
-  pub fn enter(&'s mut self) -> &'s mut Entered<'s, S> {
+  pub fn enter(&'s mut self) -> &'s mut Entered<'s, S, P> {
     assert_eq!(size_of::<S>(), size_of::<MaybeUninit<S>>());
 
     use ScopeState::*;
     let Self { state } = self;
 
-    let args = match take(state) {
-      New(f) => f,
+    let (parent, args) = match take(state) {
+      Allocated { parent, args } => (parent, args),
       _ => unreachable!(),
     };
 
-    *state = Uninit {
+    *state = EnteredUninit {
       data: MaybeUninit::uninit(),
       enter: MaybeUninit::uninit(),
     };
     let data_ptr = match state {
-      Uninit { data, .. } => data as *mut _ as *mut S,
+      EnteredUninit { data, .. } => data as *mut _ as *mut S,
       _ => unreachable!(),
     };
 
     unsafe { S::enter_scope(data_ptr, args) };
 
     *state = match take(state) {
-      Uninit { data, .. } => Ready {
+      EnteredUninit { data, .. } => EnteredReady {
         data: unsafe { data.assume_init() },
-        enter: Entered::new(unsafe { &mut *data_ptr }),
+        enter: Entered::new(unsafe { &mut *data_ptr }, parent),
       },
       _ => unreachable!(),
     };
 
     match state {
-      Ready { enter, .. } => enter,
+      EnteredReady { enter, .. } => enter,
       _ => unreachable!(),
     }
   }
 }
 
-impl<'s, S> Default for ScopeState<'s, S>
+impl<'s, S, P> Default for ScopeState<'s, S, P>
 where
   S: ScopeDefinition<'s>,
 {
@@ -114,25 +129,40 @@ where
 }
 
 /// A wrapper around the an instantiated and entered scope object.
-#[repr(transparent)]
-pub struct Entered<'s, S>(*mut S, PhantomData<&'s ()>);
+#[repr(C)]
+pub struct Entered<'s, S, P = ()> {
+  data: *mut S,
+  parent: &'s mut P,
+}
 
-impl<'s, S> Entered<'s, S> {
-  pub(crate) fn new(data: *mut S) -> Self {
-    Self(data, PhantomData)
+impl<'s, S> Entered<'s, S, ()> {
+  pub(crate) fn new_root(data: *mut S) -> Self {
+    Self {
+      data,
+      parent: parent_of_root(),
+    }
   }
 }
 
-impl<'s, S> Deref for Entered<'s, S> {
-  type Target = S;
-  fn deref(&self) -> &S {
-    unsafe { &*self.0 }
+impl<'s, S, P> Entered<'s, S, P> {
+  pub(crate) fn new(data: *mut S, parent: &'s mut P) -> Self {
+    Self { data, parent }
   }
-}
 
-impl<'s, S> DerefMut for Entered<'s, S> {
-  fn deref_mut(&mut self) -> &mut S {
-    unsafe { &mut *self.0 }
+  pub(crate) fn data(&self) -> &S {
+    unsafe { &*self.data }
+  }
+
+  pub(crate) fn data_mut(&mut self) -> &mut S {
+    unsafe { &mut *self.data }
+  }
+
+  pub(crate) fn parent(&self) -> &P {
+    &self.parent
+  }
+
+  pub(crate) fn parent_mut(&mut self) -> &mut P {
+    &mut self.parent
   }
 }
 
@@ -186,7 +216,6 @@ impl<X> CallbackScope<X> {
 }
 
 unsafe impl<'s, X> ScopeDefinition<'s> for CallbackScope<X> {
-  type Parent = ();
   type Args = *mut Isolate;
   unsafe fn enter_scope(ptr: *mut Self, isolate: Self::Args) {
     let data = Self {
@@ -199,7 +228,7 @@ unsafe impl<'s, X> ScopeDefinition<'s> for CallbackScope<X> {
 
 impl<'s, X> From<&'s mut Isolate> for Scope<'s, CallbackScope<X>> {
   fn from(isolate: &'s mut Isolate) -> Self {
-    Scope::new(isolate as *mut Isolate)
+    Scope::new_root(isolate as *mut Isolate)
   }
 }
 
@@ -208,7 +237,7 @@ where
   Local<'s, T>: GetRawIsolate,
 {
   fn from(local: Local<'s, T>) -> Self {
-    Scope::new(local.get_raw_isolate())
+    Scope::new_root(local.get_raw_isolate())
   }
 }
 
@@ -220,64 +249,43 @@ impl<'s, X> From<&'s PromiseRejectMessage<'s>> for Scope<'s, CallbackScope<X>> {
 
 /// Stack-allocated class which sets the execution context for all operations
 /// executed within a local scope.
-pub struct ContextScope<P> {
-  context: ContextContainer,
-  phantom: PhantomData<P>,
+pub struct ContextScope {
+  context: *mut Context,
 }
 
-impl<'s, P> ContextScope<P>
-where
-  P: ToLocal<'s>,
-{
-  pub fn new(
-    _parent: &'s mut P,
+impl<'s> ContextScope {
+  pub fn new<P>(
+    parent: &'s mut P,
     context: Local<'s, Context>,
-  ) -> Scope<'s, Self> {
-    Scope::new(context)
+  ) -> Scope<'s, Self, P>
+  where
+    P: InIsolate,
+  {
+    Scope::new(context, parent)
   }
 
-  pub(crate) fn get_captured_context(&self) -> Local<'s, Context> {
-    unsafe { self.context.to_local() }
+  pub(crate) unsafe fn get_captured_context(&self) -> Local<'s, Context> {
+    Local::from_raw(self.context).unwrap()
   }
 }
 
-unsafe impl<'s, P> ScopeDefinition<'s> for ContextScope<P>
-where
-  P: ToLocal<'s>,
-{
-  type Parent = P;
+unsafe impl<'s> ScopeDefinition<'s> for ContextScope {
   type Args = Local<'s, Context>;
 
   unsafe fn enter_scope(ptr: *mut Self, mut context: Self::Args) {
     context.enter();
-    let data = Self {
-      context: context.into(),
-      phantom: PhantomData,
-    };
-    std::ptr::write(ptr, data);
+    std::ptr::write(
+      ptr,
+      Self {
+        context: &mut *context,
+      },
+    );
   }
 }
 
-// TODO(piscisaureus): It should not be necessary to create an inner struct
-// to appease the drop checker.
-struct ContextContainer(*mut Context);
-
-impl<'s> From<Local<'s, Context>> for ContextContainer {
-  fn from(mut local: Local<Context>) -> Self {
-    let context = &mut *local as *mut Context;
-    Self(context)
-  }
-}
-
-impl ContextContainer {
-  unsafe fn to_local<'s>(&self) -> Local<'s, Context> {
-    Local::from_raw(self.0).unwrap()
-  }
-}
-
-impl Drop for ContextContainer {
+impl Drop for ContextScope {
   fn drop(&mut self) {
-    unsafe { self.to_local() }.exit()
+    unsafe { self.get_captured_context() }.exit()
   }
 }
 

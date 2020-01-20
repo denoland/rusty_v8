@@ -1,17 +1,20 @@
-extern crate rusty_v8 as v8;
+// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+use rusty_v8 as v8;
 
 pub fn main() {
-  let mut isolate: v8::scope::Entered<v8::HandleScope<v8::Locker>> = mock();
+  let mut locker: v8::Locker = mock();
+  let mut root_hs = v8::HandleScope::new(&mut locker);
+  let root_hs = root_hs.enter();
 
   {
-    let mut hs = v8::EscapableHandleScope::new(&mut isolate);
+    let mut hs = v8::EscapableHandleScope::new(root_hs);
     let hs = hs.enter();
-    let _fail = v8::EscapableHandleScope::new(&mut isolate);
+    let _fail = v8::EscapableHandleScope::new(root_hs);
     let _local = v8::Integer::new(hs, 123);
   }
 
   {
-    let mut hs1 = v8::EscapableHandleScope::new(&mut isolate);
+    let mut hs1 = v8::EscapableHandleScope::new(root_hs);
     let hs1 = hs1.enter();
     let _local1 = v8::Integer::new(hs1, 123);
 
@@ -23,13 +26,13 @@ pub fn main() {
   }
 
   let _leak1 = {
-    let mut hs = v8::EscapableHandleScope::new(&mut isolate);
+    let mut hs = v8::EscapableHandleScope::new(root_hs);
     let hs = hs.enter();
     v8::Integer::new(hs, 456)
   };
 
   let _leak = {
-    let mut hs = v8::EscapableHandleScope::new(&mut isolate);
+    let mut hs = v8::EscapableHandleScope::new(root_hs);
     hs.enter()
   };
 }
@@ -37,5 +40,3 @@ pub fn main() {
 fn mock<T>() -> T {
   unimplemented!()
 }
-
-fn access<T>(_value: T) {}

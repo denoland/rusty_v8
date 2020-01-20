@@ -1,7 +1,5 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
-use crate::handle_scope::CxxEscapableHandleScope;
-use crate::handle_scope::CxxHandleScope;
 use crate::scope::Entered;
 use crate::scope::Escapable;
 use crate::CallbackScope;
@@ -24,12 +22,12 @@ pub(crate) mod internal {
   extern "C" {
     fn v8__Context__GetIsolate(self_: &Context) -> *mut Isolate;
     fn v8__EscapableHandleScope__GetIsolate(
-      self_: &CxxEscapableHandleScope,
+      self_: &EscapableHandleScope,
     ) -> *mut Isolate;
     fn v8__FunctionCallbackInfo__GetIsolate(
       self_: &FunctionCallbackInfo,
     ) -> *mut Isolate;
-    fn v8__HandleScope__GetIsolate(self_: &CxxHandleScope) -> *mut Isolate;
+    fn v8__HandleScope__GetIsolate(self_: &HandleScope) -> *mut Isolate;
     fn v8__Message__GetIsolate(self_: &Message) -> *mut Isolate;
     fn v8__Object__GetIsolate(self_: &Object) -> *mut Isolate;
     fn v8__PropertyCallbackInfo__GetIsolate(
@@ -71,7 +69,7 @@ pub(crate) mod internal {
     S: GetRawIsolate,
   {
     fn get_raw_isolate(&self) -> *mut Isolate {
-      (&**self).get_raw_isolate()
+      self.data().get_raw_isolate()
     }
   }
 
@@ -81,12 +79,9 @@ pub(crate) mod internal {
     }
   }
 
-  impl<'s, P> GetRawIsolate for ContextScope<P>
-  where
-    P: ToLocal<'s>,
-  {
+  impl<'s> GetRawIsolate for ContextScope {
     fn get_raw_isolate(&self) -> *mut Isolate {
-      self.get_captured_context().get_raw_isolate()
+      unsafe { self.get_captured_context() }.get_raw_isolate()
     }
   }
 
@@ -102,9 +97,9 @@ pub(crate) mod internal {
     }
   }
 
-  impl<P> GetRawIsolate for EscapableHandleScope<P> {
+  impl GetRawIsolate for EscapableHandleScope {
     fn get_raw_isolate(&self) -> *mut Isolate {
-      unsafe { v8__EscapableHandleScope__GetIsolate(self.inner()) }
+      unsafe { v8__EscapableHandleScope__GetIsolate(self) }
     }
   }
 
@@ -114,9 +109,9 @@ pub(crate) mod internal {
     }
   }
 
-  impl<P> GetRawIsolate for HandleScope<P> {
+  impl GetRawIsolate for HandleScope {
     fn get_raw_isolate(&self) -> *mut Isolate {
-      unsafe { v8__HandleScope__GetIsolate(self.inner()) }
+      unsafe { v8__HandleScope__GetIsolate(self) }
     }
   }
 
@@ -160,25 +155,25 @@ impl InIsolate for Locker {
   }
 }
 
-impl<'s, S> InIsolate for Entered<'s, S>
+impl<'s, S, P> InIsolate for Entered<'s, S, P>
 where
   S: internal::GetRawIsolate,
 {
   fn isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *self.get_raw_isolate() }
+    unsafe { &mut *(self.data().get_raw_isolate()) }
   }
 }
 
-pub trait InContext {}
-impl<'s> InContext for Entered<'s, FunctionCallbackInfo> {}
-impl<'s> InContext for Entered<'s, PropertyCallbackInfo> {}
+pub trait InContext: InIsolate {}
+impl<'s> InContext for Entered<'s, FunctionCallbackInfo, ()> {}
+impl<'s> InContext for Entered<'s, PropertyCallbackInfo, ()> {}
 impl<'s, X> InContext for Entered<'s, CallbackScope<X>> {}
-impl<'s, P> InContext for Entered<'s, ContextScope<P>> {}
-impl<'s, P> InContext for Entered<'s, HandleScope<P>> where P: InContext {}
-impl<'s, P> InContext for Entered<'s, EscapableHandleScope<P>> where P: InContext
+impl<'s, P> InContext for Entered<'s, ContextScope, P> {}
+impl<'s, P> InContext for Entered<'s, HandleScope, P> where P: InContext {}
+impl<'s, P> InContext for Entered<'s, EscapableHandleScope, P> where P: InContext
 {}
 
-/// When scope implements this trait, this means that it Local handles can be
+/// When scope implements this trait, this means that Local handles can be
 /// created inside it.
 pub trait ToLocal<'s>: InIsolate {
   unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<'s, T>> {
@@ -188,10 +183,64 @@ pub trait ToLocal<'s>: InIsolate {
 
 impl<'s> ToLocal<'s> for Entered<'s, FunctionCallbackInfo> {}
 impl<'s> ToLocal<'s> for Entered<'s, PropertyCallbackInfo> {}
-impl<'s, P> ToLocal<'s> for Entered<'s, HandleScope<P>> {}
-impl<'s, P> ToLocal<'s> for Entered<'s, EscapableHandleScope<P>> {}
-impl<'s, P> ToLocal<'s> for Entered<'s, ContextScope<P>> where P: ToLocal<'s> {}
+impl<'s, P> ToLocal<'s> for Entered<'s, HandleScope, P> {}
+impl<'s, P> ToLocal<'s> for Entered<'s, EscapableHandleScope, P> {}
+impl<'s, P> ToLocal<'s> for Entered<'s, ContextScope, P> where P: ToLocal<'s> {}
 
 pub trait ToLocalOrReturnsLocal<'s>: InIsolate {}
 impl<'s, E> ToLocalOrReturnsLocal<'s> for E where E: ToLocal<'s> {}
-impl<'s> ToLocalOrReturnsLocal<'s> for Entered<'s, CallbackScope<Escapable>> {}
+impl<'s, 'p: 's> ToLocalOrReturnsLocal<'p>
+  for Entered<'s, CallbackScope<Escapable>>
+{
+}
+
+pub trait EscapeLocal<'s, 'p: 's>: ToLocal<'s> {
+  fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T>;
+}
+
+impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Entered<'s, EscapableHandleScope, P>
+where
+  P: ToLocalOrReturnsLocal<'p>,
+{
+  fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T> {
+    unsafe { self.data_mut().escape(local) }
+  }
+}
+
+impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Entered<'s, ContextScope, P>
+where
+  P: EscapeLocal<'s, 'p>,
+{
+  fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T> {
+    self.parent_mut().escape(local)
+  }
+}
+
+impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Entered<'s, HandleScope, P>
+where
+  P: EscapeLocal<'s, 'p>,
+{
+  fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T> {
+    self.parent_mut().escape(local)
+  }
+}
+
+// TODO(piscisaureus): move the impls for Entered to a more sensible spot.
+
+impl<'s, S, P> Entered<'s, S, P>
+where
+  Self: InIsolate,
+{
+  pub fn isolate(&mut self) -> &mut Isolate {
+    <Self as InIsolate>::isolate(self)
+  }
+}
+
+impl<'s, 'p: 's, S, P> Entered<'s, S, P>
+where
+  Self: EscapeLocal<'s, 'p>,
+{
+  pub fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T> {
+    <Self as EscapeLocal<'s, 'p>>::escape(self, local)
+  }
+}

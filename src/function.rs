@@ -107,7 +107,6 @@ pub struct FunctionCallbackInfo {
 }
 
 unsafe impl<'s> ScopeDefinition<'s> for FunctionCallbackInfo {
-  type Parent = ();
   type Args = ();
   unsafe fn enter_scope(_: *mut Self, _: Self::Args) {}
 }
@@ -122,7 +121,6 @@ pub struct PropertyCallbackInfo {
 }
 
 unsafe impl<'s> ScopeDefinition<'s> for PropertyCallbackInfo {
-  type Parent = ();
   type Args = ();
   unsafe fn enter_scope(_: *mut Self, _: Self::Args) {}
 }
@@ -235,7 +233,7 @@ where
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
       let scope: FunctionCallbackScope =
-        &mut crate::scope::Entered::new(info as *mut FunctionCallbackInfo);
+        &mut crate::scope::Entered::new_root(info as *mut FunctionCallbackInfo);
       let args = FunctionCallbackArguments::from_function_callback_info(info);
       let rv = ReturnValue::from_function_callback_info(info);
       (F::get())(scope, args, rv);
@@ -262,7 +260,7 @@ where
   fn mapping() -> Self {
     let f = |key: Local<Name>, info: *const PropertyCallbackInfo| {
       let scope: PropertyCallbackScope =
-        &mut crate::scope::Entered::new(info as *mut PropertyCallbackInfo);
+        &mut crate::scope::Entered::new_root(info as *mut PropertyCallbackInfo);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv);
