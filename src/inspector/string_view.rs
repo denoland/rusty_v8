@@ -158,7 +158,14 @@ unsafe impl<'a, T> Sync for CharacterArray<'a, T> where T: Sync {}
 
 impl fmt::Display for CharacterArray<'_, u8> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str(&string::String::from_utf8_lossy(&*self))
+    f.write_str(
+      self
+        .iter()
+        .cloned()
+        .map(char::from)
+        .collect::<string::String>()
+        .as_str(),
+    )
   }
 }
 
@@ -225,4 +232,5 @@ fn string_view_display() {
   let ok: [u16; 2] = [111, 107];
   assert_eq!("ok", format!("{}", StringView::from(&ok[..])));
   assert_eq!("ok", format!("{}", StringView::from(&b"ok"[..])));
+  assert_eq!("ØÞ", format!("{}", StringView::from(&[216u8, 222u8][..])));
 }
