@@ -176,8 +176,7 @@ impl<'s, S, P> Entered<'s, S, P> {
 /// instead.
 ///
 /// A CallbackScope can be created from the following inputs:
-///   - `&mut Isolate`
-/// ` - `Local<Context>`
+///   - `Local<Context>`
 ///   - `Local<Message>`
 ///   - `Local<Object>`
 ///   - `Local<Promise>`

@@ -14,7 +14,6 @@ use crate::Locker;
 use crate::Message;
 use crate::Object;
 use crate::PropertyCallbackInfo;
-use crate::ReturnValue;
 
 pub(crate) mod internal {
   use super::*;
@@ -33,7 +32,6 @@ pub(crate) mod internal {
     fn v8__PropertyCallbackInfo__GetIsolate(
       self_: &PropertyCallbackInfo,
     ) -> *mut Isolate;
-    fn v8__ReturnValue__GetIsolate(self_: &ReturnValue) -> *mut Isolate;
   }
 
   /// Internal trait for retrieving a raw Isolate pointer from various V8
@@ -132,27 +130,13 @@ pub(crate) mod internal {
       unsafe { v8__PropertyCallbackInfo__GetIsolate(self) }
     }
   }
-
-  impl<'a> GetRawIsolate for ReturnValue<'a> {
-    fn get_raw_isolate(&self) -> *mut Isolate {
-      unsafe { v8__ReturnValue__GetIsolate(self) }
-    }
-  }
 }
-
-use internal::GetRawIsolate;
 
 /// Trait for retrieving the current isolate from a scope object.
 pub trait InIsolate {
   // Do not implement this trait on unscoped Isolate references
   // (e.g. OwnedIsolate) or on shared references *e.g. &Isolate).
   fn isolate(&mut self) -> &mut Isolate;
-}
-
-impl InIsolate for Locker {
-  fn isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *self.get_raw_isolate() }
-  }
 }
 
 impl<'s, S, P> InIsolate for Entered<'s, S, P>

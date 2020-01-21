@@ -631,14 +631,12 @@ void v8__Template__Set(v8::Template& self, v8::Local<v8::Name> key,
 }
 
 v8::ObjectTemplate* v8__ObjectTemplate__New(
-    v8::Isolate* isolate,
-    v8::Local<v8::FunctionTemplate> templ) {
+    v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> templ) {
   return local_to_ptr(v8::ObjectTemplate::New(isolate, templ));
 }
 
-v8::Object* v8__ObjectTemplate__NewInstance(
-    v8::ObjectTemplate& self,
-    v8::Local<v8::Context> context) {
+v8::Object* v8__ObjectTemplate__NewInstance(v8::ObjectTemplate& self,
+                                            v8::Local<v8::Context> context) {
   return maybe_local_to_ptr(self.NewInstance(context));
 }
 
@@ -903,8 +901,8 @@ v8::Function* v8__FunctionTemplate__GetFunction(
   return maybe_local_to_ptr(self->GetFunction(context));
 }
 
-void v8__FunctionTemplate__SetClassName(
-    v8::Local<v8::FunctionTemplate> self, v8::Local<v8::String> name) {
+void v8__FunctionTemplate__SetClassName(v8::Local<v8::FunctionTemplate> self,
+                                        v8::Local<v8::String> name) {
   self->SetClassName(name);
 }
 
@@ -940,11 +938,6 @@ void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>& self,
 
 v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
   return local_to_ptr(self.Get());
-}
-
-v8::Isolate* v8__ReturnValue__GetIsolate(
-    const v8::ReturnValue<v8::Value>& self) {
-  return self.GetIsolate();
 }
 
 int v8__StackTrace__GetFrameCount(v8::StackTrace* self) {
