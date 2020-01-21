@@ -40,7 +40,6 @@ use std::string;
 //    TODO: find/open upstream issue to allow #[repr(bool)] support.
 
 #[repr(u8)]
-#[derive(Debug)]
 pub enum StringView<'a> {
   // Do not reorder!
   U16(CharacterArray<'a, u16>),
@@ -196,7 +195,7 @@ impl<'a, T> Deref for CharacterArray<'a, T> {
   }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct StringViewIterator<'a: 'b, 'b> {
   view: &'a StringView<'b>,
   pos: usize,
