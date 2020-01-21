@@ -1,3 +1,4 @@
+use std::fmt;
 use std::iter::ExactSizeIterator;
 use std::iter::IntoIterator;
 use std::marker::PhantomData;
@@ -5,6 +6,7 @@ use std::ops::Deref;
 use std::ptr::null;
 use std::ptr::NonNull;
 use std::slice;
+use std::string;
 
 // class StringView {
 //  public:
@@ -38,7 +40,6 @@ use std::slice;
 //    TODO: find/open upstream issue to allow #[repr(bool)] support.
 
 #[repr(u8)]
-#[derive(Debug)]
 pub enum StringView<'a> {
   // Do not reorder!
   U16(CharacterArray<'a, u16>),
@@ -48,6 +49,15 @@ pub enum StringView<'a> {
 impl StringView<'static> {
   pub fn empty() -> Self {
     Self::U8(CharacterArray::<'static, u8>::empty())
+  }
+}
+
+impl fmt::Display for StringView<'_> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self {
+      Self::U16(v) => v.fmt(f),
+      Self::U8(v) => v.fmt(f),
+    }
   }
 }
 
@@ -146,6 +156,18 @@ where
 unsafe impl<'a, T> Send for CharacterArray<'a, T> where T: Copy {}
 unsafe impl<'a, T> Sync for CharacterArray<'a, T> where T: Sync {}
 
+impl fmt::Display for CharacterArray<'_, u8> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(&string::String::from_utf8_lossy(&*self))
+  }
+}
+
+impl fmt::Display for CharacterArray<'_, u16> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(&string::String::from_utf16_lossy(&*self))
+  }
+}
+
 impl<'a, T> From<&'a [T]> for CharacterArray<'a, T> {
   fn from(v: &'a [T]) -> Self {
     Self {
@@ -173,7 +195,7 @@ impl<'a, T> Deref for CharacterArray<'a, T> {
   }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct StringViewIterator<'a: 'b, 'b> {
   view: &'a StringView<'b>,
   pos: usize,
@@ -196,4 +218,11 @@ impl<'a: 'b, 'b> ExactSizeIterator for StringViewIterator<'a, 'b> {
   fn len(&self) -> usize {
     self.view.len()
   }
+}
+
+#[test]
+fn string_view_display() {
+  let ok: [u16; 2] = [111, 107];
+  assert_eq!("ok", format!("{}", StringView::from(&ok[..])));
+  assert_eq!("ok", format!("{}", StringView::from(&b"ok"[..])));
 }
