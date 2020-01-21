@@ -14,8 +14,9 @@
 //! let isolate = v8::Isolate::new(create_params);
 //!
 //! let mut locker = v8::Locker::new(&isolate);
+//! let scope = locker.enter();
 //!
-//! let mut handle_scope = v8::HandleScope::new(&mut locker);
+//! let mut handle_scope = v8::HandleScope::new(scope);
 //! let scope = handle_scope.enter();
 //!
 //! let context = v8::Context::new(scope);
@@ -51,7 +52,6 @@ mod global;
 mod handle_scope;
 mod isolate;
 mod local;
-mod locker;
 mod module;
 mod number;
 mod object;
@@ -99,7 +99,6 @@ pub use isolate::MessageCallback;
 pub use isolate::OwnedIsolate;
 pub use isolate::PromiseRejectCallback;
 pub use local::Local;
-pub use locker::Locker;
 pub use module::*;
 pub use object::*;
 pub use platform::new_default_platform;
@@ -112,6 +111,7 @@ pub use property_attribute::*;
 pub use scope::CallbackScope;
 pub use scope::ContextScope;
 pub use scope::FunctionCallbackScope;
+pub use scope::Locker;
 pub use scope::PropertyCallbackScope;
 pub use scope::Scope;
 pub use scope_traits::*;

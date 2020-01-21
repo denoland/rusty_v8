@@ -247,6 +247,49 @@ impl<'s, X> From<&'s PromiseRejectMessage<'s>> for Scope<'s, CallbackScope<X>> {
   }
 }
 
+#[repr(C)]
+/// v8::Locker is a scoped lock object. While it's active, i.e. between its
+/// construction and destruction, the current thread is allowed to use the locked
+/// isolate. V8 guarantees that an isolate can be locked by at most one thread at
+/// any time. In other words, the scope of a v8::Locker is a critical section.
+pub struct Locker {
+  has_lock: bool,
+  top_level: bool,
+  isolate: *mut Isolate,
+}
+
+extern "C" {
+  fn v8__Locker__CONSTRUCT(buf: *mut Locker, isolate: *mut Isolate);
+  fn v8__Locker__DESTRUCT(this: &mut Locker);
+}
+
+impl<'s> Locker {
+  // TODO(piscisaureus): We should not be sharing &Isolate references between
+  // threads while at the same time dereferencing to &mut Isolate *within* the
+  // various scopes. Instead, add a separate type (e.g. IsolateHandle).
+  pub fn new(isolate: &Isolate) -> Scope<'s, Self> {
+    Scope::new_root(isolate as *const _ as *mut Isolate)
+  }
+
+  pub(crate) fn get_raw_isolate_(&self) -> *mut Isolate {
+    self.isolate
+  }
+}
+
+unsafe impl<'s> ScopeDefinition<'s> for Locker {
+  type Args = *mut Isolate;
+
+  unsafe fn enter_scope(buf: *mut Self, isolate: *mut Isolate) {
+    v8__Locker__CONSTRUCT(buf, isolate)
+  }
+}
+
+impl Drop for Locker {
+  fn drop(&mut self) {
+    unsafe { v8__Locker__DESTRUCT(self) }
+  }
+}
+
 /// Stack-allocated class which sets the execution context for all operations
 /// executed within a local scope.
 pub struct ContextScope {
