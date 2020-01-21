@@ -561,19 +561,19 @@ v8::Primitive* v8__PrimitiveArray__Get(v8::PrimitiveArray& self,
   return local_to_ptr(self.Get(isolate, index));
 }
 
-v8::BackingStore* v8__ArrayBuffer__NewBackingStore(v8::Isolate* isolate,
-                                                   size_t length) {
+v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_byte_length(
+    v8::Isolate* isolate, size_t byte_length) {
   std::unique_ptr<v8::BackingStore> u =
-      v8::ArrayBuffer::NewBackingStore(isolate, length);
+      v8::ArrayBuffer::NewBackingStore(isolate, byte_length);
   return u.release();
 }
 
-two_pointers_t v8__ArrayBuffer__NewBackingStore_FromRaw(
-    void* data, size_t length, v8::BackingStoreDeleterCallback deleter) {
-  std::unique_ptr<v8::BackingStore> u =
-      v8::ArrayBuffer::NewBackingStore(data, length, deleter, nullptr);
-  const std::shared_ptr<v8::BackingStore> bs = std::move(u);
-  return make_pod<two_pointers_t>(bs);
+v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
+    void* data, size_t byte_length, v8::BackingStoreDeleterCallback deleter,
+    void* deleter_data) {
+  std::unique_ptr<v8::BackingStore> u = v8::ArrayBuffer::NewBackingStore(
+      data, byte_length, deleter, deleter_data);
+  return u.release();
 }
 
 two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
@@ -582,15 +582,20 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(v8::ArrayBuffer& self) {
 
 void* v8__BackingStore__Data(v8::BackingStore& self) { return self.Data(); }
 
-size_t v8__BackingStore__ByteLength(v8::BackingStore& self) {
+size_t v8__BackingStore__ByteLength(const v8::BackingStore& self) {
   return self.ByteLength();
 }
 
-bool v8__BackingStore__IsShared(v8::BackingStore& self) {
+bool v8__BackingStore__IsShared(const v8::BackingStore& self) {
   return self.IsShared();
 }
 
 void v8__BackingStore__DELETE(v8::BackingStore& self) { delete &self; }
+
+two_pointers_t std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(
+    v8::BackingStore* ptr) {
+  return make_pod<two_pointers_t>(std::shared_ptr<v8::BackingStore>(ptr));
+}
 
 v8::BackingStore* std__shared_ptr__v8__BackingStore__get(
     const std::shared_ptr<v8::BackingStore>& ptr) {
@@ -739,12 +744,12 @@ void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator& self) {
   delete &self;
 }
 
-v8::ArrayBuffer* v8__ArrayBuffer__New__byte_length(v8::Isolate* isolate,
-                                                   size_t byte_length) {
+v8::ArrayBuffer* v8__ArrayBuffer__New__with_byte_length(v8::Isolate* isolate,
+                                                        size_t byte_length) {
   return local_to_ptr(v8::ArrayBuffer::New(isolate, byte_length));
 }
 
-v8::ArrayBuffer* v8__ArrayBuffer__New__backing_store(
+v8::ArrayBuffer* v8__ArrayBuffer__New__with_backing_store(
     v8::Isolate* isolate, std::shared_ptr<v8::BackingStore>& backing_store) {
   return local_to_ptr(v8::ArrayBuffer::New(isolate, backing_store));
 }
@@ -1072,9 +1077,14 @@ v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
   return local_to_ptr(self.GetHostDefinedOptions());
 }
 
-v8::SharedArrayBuffer* v8__SharedArrayBuffer__New(v8::Isolate* isolate,
-                                                  size_t byte_length) {
+v8::SharedArrayBuffer* v8__SharedArrayBuffer__New__with_byte_length(
+    v8::Isolate* isolate, size_t byte_length) {
   return local_to_ptr(v8::SharedArrayBuffer::New(isolate, byte_length));
+}
+
+v8::SharedArrayBuffer* v8__SharedArrayBuffer__New__with_backing_store(
+    v8::Isolate* isolate, std::shared_ptr<v8::BackingStore>& backing_store) {
+  return local_to_ptr(v8::SharedArrayBuffer::New(isolate, backing_store));
 }
 
 size_t v8__SharedArrayBuffer__ByteLength(v8::SharedArrayBuffer& self) {
@@ -1086,17 +1096,19 @@ two_pointers_t v8__SharedArrayBuffer__GetBackingStore(
   return make_pod<two_pointers_t>(self.GetBackingStore());
 }
 
-two_pointers_t v8__SharedArrayBuffer__NewBackingStore_FromRaw(
-    void* data, size_t length, v8::BackingStoreDeleterCallback deleter) {
+v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
+    v8::Isolate* isolate, size_t byte_length) {
   std::unique_ptr<v8::BackingStore> u =
-      v8::SharedArrayBuffer::NewBackingStore(data, length, deleter, nullptr);
-  const std::shared_ptr<v8::BackingStore> bs = std::move(u);
-  return make_pod<two_pointers_t>(bs);
+      v8::SharedArrayBuffer::NewBackingStore(isolate, byte_length);
+  return u.release();
 }
 
-v8::SharedArrayBuffer* v8__SharedArrayBuffer__New__backing_store(
-    v8::Isolate* isolate, std::shared_ptr<v8::BackingStore>& backing_store) {
-  return local_to_ptr(v8::SharedArrayBuffer::New(isolate, backing_store));
+v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(
+    void* data, size_t byte_length, v8::BackingStoreDeleterCallback deleter,
+    void* deleter_data) {
+  std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(
+      data, byte_length, deleter, deleter_data);
+  return u.release();
 }
 
 v8::Value* v8__JSON__Parse(v8::Local<v8::Context> context,

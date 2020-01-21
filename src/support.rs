@@ -57,6 +57,15 @@ where
   }
 }
 
+impl<T> From<UniqueRef<T>> for UniquePtr<T>
+where
+  T: Delete,
+{
+  fn from(unique_ref: UniqueRef<T>) -> Self {
+    unsafe { Self::from_raw(unique_ref.into_raw()) }
+  }
+}
+
 impl<T> Deref for UniquePtr<T>
 where
   T: Delete,
@@ -101,6 +110,13 @@ where
     Self(r)
   }
 
+  pub fn make_shared(self) -> SharedRef<T>
+  where
+    T: Shared,
+  {
+    self.into()
+  }
+
   pub unsafe fn from_raw(p: *mut T) -> Self {
     transmute(NonNull::new(p))
   }
@@ -114,9 +130,9 @@ impl<T> Deref for UniqueRef<T>
 where
   T: Delete,
 {
-  type Target = &'static mut T;
+  type Target = T;
   fn deref(&self) -> &Self::Target {
-    &self.0
+    self.0
   }
 }
 
@@ -125,7 +141,7 @@ where
   T: Delete,
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.0
+    self.0
   }
 }
 
@@ -143,8 +159,9 @@ where
 
 pub trait Shared
 where
-  Self: Sized + 'static,
+  Self: Delete + 'static,
 {
+  fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self>;
   fn deref(shared_ptr: *const SharedRef<Self>) -> *mut Self;
   fn reset(shared_ptr: *mut SharedRef<Self>);
   fn use_count(shared_ptr: *const SharedRef<Self>) -> long;
@@ -157,6 +174,8 @@ pub struct SharedRef<T>([*mut Opaque; 2], PhantomData<T>)
 where
   T: Shared;
 
+unsafe impl<T> Send for SharedRef<T> where T: Shared + Send {}
+
 impl<T> SharedRef<T>
 where
   T: Shared,
@@ -166,7 +185,14 @@ where
   }
 }
 
-unsafe impl<T> Send for SharedRef<T> where T: Shared + Send {}
+impl<T> From<UniqueRef<T>> for SharedRef<T>
+where
+  T: Delete + Shared,
+{
+  fn from(unique: UniqueRef<T>) -> Self {
+    <T as Shared>::from_unique(unique)
+  }
+}
 
 impl<T> Deref for SharedRef<T>
 where
