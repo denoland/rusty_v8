@@ -592,6 +592,11 @@ bool v8__BackingStore__IsShared(const v8::BackingStore& self) {
 
 void v8__BackingStore__DELETE(v8::BackingStore& self) { delete &self; }
 
+two_pointers_t std__shared_ptr__v8__BackingStore__COPY(
+    const std::shared_ptr<v8::BackingStore>& ptr) {
+  return make_pod<two_pointers_t>(ptr);
+}
+
 two_pointers_t std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(
     v8::BackingStore* ptr) {
   return make_pod<two_pointers_t>(std::shared_ptr<v8::BackingStore>(ptr));

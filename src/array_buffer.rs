@@ -49,6 +49,9 @@ extern "C" {
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
   fn v8__BackingStore__DELETE(this: &mut BackingStore);
 
+  fn std__shared_ptr__v8__BackingStore__COPY(
+    ptr: *const SharedRef<BackingStore>,
+  ) -> SharedRef<BackingStore>;
   fn std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(
     unique: UniqueRef<BackingStore>,
   ) -> SharedRef<BackingStore>;
@@ -180,6 +183,9 @@ impl Delete for BackingStore {
 }
 
 impl Shared for BackingStore {
+  fn clone(ptr: *const SharedRef<Self>) -> SharedRef<Self> {
+    unsafe { std__shared_ptr__v8__BackingStore__COPY(ptr) }
+  }
   fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self> {
     unsafe {
       std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(unique)

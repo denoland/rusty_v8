@@ -342,11 +342,20 @@ fn array_buffer_with_shared_backing_store() {
 
     let bs4 = ab2.get_backing_store();
     assert_eq!(ab2.byte_length(), bs4.byte_length());
-    assert_eq!(4, v8::SharedRef::use_count(&bs4));
     assert_eq!(4, v8::SharedRef::use_count(&bs3));
+    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+
+    let bs5 = bs4.clone();
+    assert_eq!(5, v8::SharedRef::use_count(&bs3));
+    assert_eq!(5, v8::SharedRef::use_count(&bs4));
+    assert_eq!(5, v8::SharedRef::use_count(&bs5));
 
     drop(bs3);
-    assert_eq!(3, v8::SharedRef::use_count(&bs4));
+    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+
+    drop(bs4);
+    assert_eq!(3, v8::SharedRef::use_count(&bs5));
   }
 }
 

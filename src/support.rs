@@ -161,6 +161,7 @@ pub trait Shared
 where
   Self: Delete + 'static,
 {
+  fn clone(shared_ptr: *const SharedRef<Self>) -> SharedRef<Self>;
   fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self>;
   fn deref(shared_ptr: *const SharedRef<Self>) -> *mut Self;
   fn reset(shared_ptr: *mut SharedRef<Self>);
@@ -182,6 +183,15 @@ where
 {
   pub fn use_count(&self) -> long {
     <T as Shared>::use_count(self)
+  }
+}
+
+impl<T> Clone for SharedRef<T>
+where
+  T: Shared,
+{
+  fn clone(&self) -> Self {
+    <T as Shared>::clone(self)
   }
 }
 
