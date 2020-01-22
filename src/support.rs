@@ -1,3 +1,4 @@
+use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem::replace;
 use std::mem::size_of;
@@ -209,9 +210,9 @@ where
   T: Shared,
 {
   // TODO: Maybe this should deref to UnsafeCell<T>?
-  type Target = T;
-  fn deref(&self) -> &T {
-    unsafe { &*<T as Shared>::deref(self) }
+  type Target = UnsafeCell<T>;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*(<T as Shared>::deref(self) as *const UnsafeCell<T>) }
   }
 }
 
@@ -219,8 +220,8 @@ impl<T> DerefMut for SharedRef<T>
 where
   T: Shared,
 {
-  fn deref_mut(&mut self) -> &mut T {
-    unsafe { &mut *<T as Shared>::deref(self) }
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { &mut *(<T as Shared>::deref(self) as *mut UnsafeCell<T>) }
   }
 }
 
