@@ -63,7 +63,7 @@ bitflags! {
 }
 
 impl String {
-  pub fn new_empty<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
+  pub fn empty<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
     let ptr = unsafe { v8__String__Empty(scope.isolate()) };
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
@@ -76,7 +76,7 @@ impl String {
     new_type: NewStringType,
   ) -> Option<Local<'sc, String>> {
     if buffer.is_empty() {
-      return Some(Self::new_empty(scope));
+      return Some(Self::empty(scope));
     }
     let ptr = unsafe {
       v8__String__NewFromUtf8(

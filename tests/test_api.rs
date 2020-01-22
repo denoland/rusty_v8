@@ -152,7 +152,7 @@ fn test_string() {
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
-    let local = v8::String::new_empty(scope);
+    let local = v8::String::empty(scope);
     assert_eq!(0, local.length());
     assert_eq!(0, local.utf8_length(scope));
     assert_eq!("", local.to_rust_string_lossy(scope));
