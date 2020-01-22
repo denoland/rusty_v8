@@ -114,6 +114,10 @@ v8::Context* v8__Isolate__GetCurrentContext(v8::Isolate* isolate) {
   return local_to_ptr(isolate->GetCurrentContext());
 }
 
+v8::Context* v8__Isolate__GetEnteredOrMicrotaskContext(v8::Isolate* isolate) {
+  return local_to_ptr(isolate->GetEnteredOrMicrotaskContext());
+}
+
 void v8__Isolate__SetData(v8::Isolate* isolate, uint32_t slot, void* data) {
   isolate->SetData(slot, data);
 }
