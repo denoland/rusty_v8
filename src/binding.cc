@@ -612,6 +612,10 @@ long std__shared_ptr__v8__BackingStore__use_count(
   return ptr.use_count();
 }
 
+v8::String* v8__String__Empty(v8::Isolate* isolate) {
+  return local_to_ptr(v8::String::Empty(isolate));
+}
+
 v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate, const char* data,
                                     v8::NewStringType type, int length) {
   return maybe_local_to_ptr(

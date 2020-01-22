@@ -12,6 +12,8 @@ use crate::String;
 use crate::ToLocal;
 
 extern "C" {
+  fn v8__String__Empty(isolate: *mut Isolate) -> *mut String;
+
   fn v8__String__NewFromUtf8(
     isolate: *mut Isolate,
     data: *const char,
@@ -61,11 +63,21 @@ bitflags! {
 }
 
 impl String {
+  pub fn new_empty<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
+    let ptr = unsafe { v8__String__Empty(scope.isolate()) };
+    // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
+    // is no need to box up the result, only to unwrap it again.
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
   pub fn new_from_utf8<'sc>(
     scope: &mut impl ToLocal<'sc>,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'sc, String>> {
+    if buffer.is_empty() {
+      return Some(Self::new_empty(scope));
+    }
     let ptr = unsafe {
       v8__String__NewFromUtf8(
         scope.isolate(),

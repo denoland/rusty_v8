@@ -149,6 +149,23 @@ fn test_string() {
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
   }
+  {
+    let mut hs = v8::HandleScope::new(scope);
+    let scope = hs.enter();
+    let local = v8::String::new_empty(scope);
+    assert_eq!(0, local.length());
+    assert_eq!(0, local.utf8_length(scope));
+    assert_eq!("", local.to_rust_string_lossy(scope));
+  }
+  {
+    let mut hs = v8::HandleScope::new(scope);
+    let scope = hs.enter();
+    let local =
+      v8::String::new_from_utf8(scope, b"", v8::NewStringType::Normal).unwrap();
+    assert_eq!(0, local.length());
+    assert_eq!(0, local.utf8_length(scope));
+    assert_eq!("", local.to_rust_string_lossy(scope));
+  }
 }
 
 #[test]
