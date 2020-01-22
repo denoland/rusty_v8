@@ -209,7 +209,6 @@ impl<T> Deref for SharedRef<T>
 where
   T: Shared,
 {
-  // TODO: Maybe this should deref to UnsafeCell<T>?
   type Target = UnsafeCell<T>;
   fn deref(&self) -> &Self::Target {
     unsafe { &*(<T as Shared>::deref(self) as *const UnsafeCell<T>) }
