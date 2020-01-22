@@ -162,7 +162,6 @@ pub use snapshot::OwnedStartupData;
 pub use snapshot::SnapshotCreator;
 pub use snapshot::StartupData;
 pub use string::NewStringType;
-pub use support::int;
 pub use support::MaybeBool;
 pub use support::SharedRef;
 pub use support::UniquePtr;
