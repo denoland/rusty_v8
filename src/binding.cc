@@ -658,10 +658,9 @@ v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
 
-v8::Object* v8__Object__New2(v8::Isolate* isolate,
-                             v8::Local<v8::Value> prototype_or_null,
-                             v8::Local<v8::Name>* names,
-                             v8::Local<v8::Value>* values, size_t length) {
+v8::Object* v8__Object__New__with_prototype_and_properties(
+    v8::Isolate* isolate, v8::Local<v8::Value> prototype_or_null,
+    v8::Local<v8::Name>* names, v8::Local<v8::Value>* values, size_t length) {
   return local_to_ptr(
       v8::Object::New(isolate, prototype_or_null, names, values, length));
 }

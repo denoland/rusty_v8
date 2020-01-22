@@ -1013,15 +1013,16 @@ fn object() {
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
     let null: v8::Local<v8::Value> = v8::null(scope).into();
-    let s1 = v8::String::new(scope, "a").unwrap();
-    let s2 = v8::String::new(scope, "b").unwrap();
-    let name1 = s1.into();
-    let name2 = s2.into();
-    let names = vec![name1, name2];
+    let n1: v8::Local<v8::Name> = v8::String::new(scope, "a").unwrap().into();
+    let n2: v8::Local<v8::Name> = v8::String::new(scope, "b").unwrap().into();
     let v1: v8::Local<v8::Value> = v8::Number::new(scope, 1.0).into();
     let v2: v8::Local<v8::Value> = v8::Number::new(scope, 2.0).into();
-    let values = vec![v1, v2];
-    let object = v8::Object::new2(scope, null, names, values);
+    let object = v8::Object::with_prototype_and_properties(
+      scope,
+      null,
+      &[n1, n2],
+      &[v1, v2],
+    );
     assert!(!object.is_null_or_undefined());
 
     let object_ = v8::Object::new(scope);
@@ -1088,18 +1089,14 @@ fn create_data_property() {
     let obj = obj.to_object(scope).unwrap();
     let key = v8_str(scope, "foo");
     let value = v8_str(scope, "bar");
-    assert_eq!(
-      obj.create_data_property(context, key.into(), value.into()),
-      v8::MaybeBool::JustTrue
-    );
+    assert!(obj
+      .create_data_property(context, key.into(), value.into())
+      .unwrap());
     let actual = obj.get(scope, context, key.into()).unwrap();
     assert!(value.strict_equals(actual));
 
     let key2 = v8_str(scope, "foo2");
-    assert_eq!(
-      obj.set(context, key2.into(), value.into()),
-      v8::MaybeBool::JustTrue
-    );
+    assert!(obj.set(context, key2.into(), value.into()).unwrap());
     let actual = obj.get(scope, context, key2.into()).unwrap();
     assert!(value.strict_equals(actual));
   }
@@ -1893,12 +1890,10 @@ fn shared_array_buffer() {
     }
 
     let global = context.global(scope);
-    let r = global.create_data_property(
-      context,
-      v8_str(scope, "shared").into(),
-      sab.into(),
-    );
-    assert_eq!(r, v8::MaybeBool::JustTrue);
+    let r = global
+      .create_data_property(context, v8_str(scope, "shared").into(), sab.into())
+      .unwrap();
+    assert!(r);
     let source = v8::String::new(
       scope,
       r"sharedBytes = new Uint8Array(shared);

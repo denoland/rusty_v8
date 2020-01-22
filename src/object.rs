@@ -14,42 +14,41 @@ use crate::Value;
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *mut Object;
-  fn v8__Object__New2(
+  fn v8__Object__New__with_prototype_and_properties(
     isolate: *mut Isolate,
-    prototype_or_null: *mut Value,
-    names: *mut *mut Name,
-    values: *mut *mut Value,
+    prototype_or_null: Local<Value>,
+    names: *mut Local<Name>,
+    values: *mut Local<Value>,
     length: usize,
   ) -> *mut Object;
   fn v8__Object__SetAccessor(
     self_: &Object,
-    context: *const Context,
-    name: *const Name,
+    context: Local<Context>,
+    name: Local<Name>,
     getter: AccessorNameGetterCallback,
   ) -> MaybeBool;
-
   fn v8__Object__Get(
     object: &Object,
-    context: *const Context,
-    key: *const Value,
+    context: Local<Context>,
+    key: Local<Value>,
   ) -> *mut Value;
   fn v8__Object__Set(
     object: &Object,
-    context: *const Context,
-    key: *const Value,
-    value: *const Value,
+    context: Local<Context>,
+    key: Local<Value>,
+    value: Local<Value>,
   ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
     object: &Object,
-    context: *const Context,
-    key: *const Name,
-    value: *const Value,
+    context: Local<Context>,
+    key: Local<Name>,
+    value: Local<Value>,
   ) -> MaybeBool;
   fn v8__Object__DefineOwnProperty(
     object: &Object,
-    context: *const Context,
-    key: *const Name,
-    value: *const Value,
+    context: Local<Context>,
+    key: Local<Name>,
+    value: Local<Value>,
     attr: PropertyAttribute,
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
@@ -70,35 +69,23 @@ impl Object {
   /// a prototype at all). This is similar to Object.create().
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
-  pub fn new2<'sc>(
+  pub fn with_prototype_and_properties<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    mut prototype_or_null: Local<'sc, Value>,
-    names: Vec<Local<'sc, Name>>,
-    values: Vec<Local<'sc, Value>>,
+    prototype_or_null: Local<'sc, Value>,
+    names: &[Local<Name>],
+    values: &[Local<Value>],
   ) -> Local<'sc, Object> {
-    let length = names.len();
-    assert_eq!(length, values.len());
-    let mut names_: Vec<*mut Name> = vec![];
-    for mut name in names {
-      let n = &mut *name;
-      names_.push(n);
-    }
-
-    let mut values_: Vec<*mut Value> = vec![];
-    for mut value in values {
-      let n = &mut *value;
-      values_.push(n);
-    }
-    let ptr = unsafe {
-      v8__Object__New2(
+    assert_eq!(names.len(), values.len());
+    unsafe {
+      let object = v8__Object__New__with_prototype_and_properties(
         scope.isolate(),
-        &mut *prototype_or_null,
-        names_.as_mut_ptr(),
-        values_.as_mut_ptr(),
-        length,
-      )
-    };
-    unsafe { scope.to_local(ptr) }.unwrap()
+        prototype_or_null,
+        names.as_ptr() as *mut Local<Name>,
+        values.as_ptr() as *mut Local<Value>,
+        names.len(),
+      );
+      scope.to_local(object).unwrap()
+    }
   }
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
@@ -108,8 +95,8 @@ impl Object {
     context: Local<Context>,
     key: Local<Value>,
     value: Local<Value>,
-  ) -> MaybeBool {
-    unsafe { v8__Object__Set(self, &*context, &*key, &*value) }
+  ) -> Option<bool> {
+    unsafe { v8__Object__Set(self, context, key, value) }.into()
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
@@ -124,8 +111,8 @@ impl Object {
     context: Local<Context>,
     key: Local<Name>,
     value: Local<Value>,
-  ) -> MaybeBool {
-    unsafe { v8__Object__CreateDataProperty(self, &*context, &*key, &*value) }
+  ) -> Option<bool> {
+    unsafe { v8__Object__CreateDataProperty(self, context, key, value) }.into()
   }
 
   /// Implements DefineOwnProperty.
@@ -140,10 +127,9 @@ impl Object {
     key: Local<Name>,
     value: Local<Value>,
     attr: PropertyAttribute,
-  ) -> MaybeBool {
-    unsafe {
-      v8__Object__DefineOwnProperty(self, &*context, &*key, &*value, attr)
-    }
+  ) -> Option<bool> {
+    unsafe { v8__Object__DefineOwnProperty(self, context, key, value, attr) }
+      .into()
   }
 
   pub fn get<'a>(
@@ -153,7 +139,7 @@ impl Object {
     key: Local<Value>,
   ) -> Option<Local<'a, Value>> {
     unsafe {
-      let ptr = v8__Object__Get(self, &*context, &*key);
+      let ptr = v8__Object__Get(self, context, key);
       scope.to_local(ptr)
     }
   }
@@ -164,10 +150,9 @@ impl Object {
     context: Local<Context>,
     name: Local<Name>,
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
-  ) -> MaybeBool {
-    unsafe {
-      v8__Object__SetAccessor(self, &*context, &*name, getter.map_fn_to())
-    }
+  ) -> Option<bool> {
+    unsafe { v8__Object__SetAccessor(self, context, name, getter.map_fn_to()) }
+      .into()
   }
 
   /// Returns the identity hash for this object. The current implementation

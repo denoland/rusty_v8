@@ -236,7 +236,7 @@ where
 
 #[repr(C)]
 #[derive(Debug, PartialEq)]
-pub enum MaybeBool {
+pub(crate) enum MaybeBool {
   JustFalse = 0,
   JustTrue = 1,
   Nothing = 2,
