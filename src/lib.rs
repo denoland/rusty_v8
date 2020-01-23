@@ -144,6 +144,9 @@ pub use object::*;
 pub use platform::new_default_platform;
 pub use platform::Platform;
 pub use platform::Task;
+// TODO(ry) TaskBase and TaskImpl ideally shouldn't be part of the public API.
+pub use platform::TaskBase;
+pub use platform::TaskImpl;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
