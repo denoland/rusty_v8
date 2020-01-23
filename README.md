@@ -87,3 +87,7 @@ gotten away with a simpler high-level Rust binding to V8 called
 [libdeno](https://github.com/denoland/deno/tree/32937251315493ef2c3b42dd29340e8a34501aa4/core/libdeno).
 But as Deno has matured we've found ourselves continually needing access to an
 increasing amount of V8's API in Rust.
+
+**When building I get unknown argument: '-gno-inline-line-tables'**
+
+Use `export GN_ARGS="no_inline_line_tables=false"` during build.
