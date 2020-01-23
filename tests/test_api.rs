@@ -1913,9 +1913,7 @@ fn shared_array_buffer() {
     }
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let bs = unsafe {
-      v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data)
-    };
+    let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(bs.byte_length(), 10);
     assert_eq!(bs.is_shared(), true);
 
