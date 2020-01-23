@@ -274,8 +274,7 @@ fn array_buffer() {
     assert_eq!(false, bs.is_shared());
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let unique_bs =
-      unsafe { v8::ArrayBuffer::new_backing_store_from_boxed_slice(data) };
+    let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(10, unique_bs.byte_length());
     assert_eq!(false, unique_bs.is_shared());
     assert_eq!(unique_bs[0], 0);
