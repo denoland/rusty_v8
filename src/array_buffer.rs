@@ -267,16 +267,18 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
-  pub unsafe fn new_backing_store_from_boxed_slice(
+  pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
     let byte_length = data.len();
     let data_ptr = Box::into_raw(data) as *mut c_void;
-    UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
-      data_ptr,
-      byte_length,
-      backing_store_deleter_callback,
-      null_mut(),
-    ))
+    unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        backing_store_deleter_callback,
+        null_mut(),
+      ))
+    }
   }
 }
