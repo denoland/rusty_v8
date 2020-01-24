@@ -1,3 +1,4 @@
+use super::{StringView, V8StackTrace};
 use crate::support::int;
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
@@ -19,6 +20,16 @@ extern "C" {
   fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
     this: &mut V8InspectorClient,
     context_group_id: int,
+  ) -> ();
+  fn v8_inspector__V8InspectorClient__consoleAPIMessage(
+    this: &mut V8InspectorClient,
+    context_group_id: int,
+    level: int,
+    message: &StringView,
+    url: &StringView,
+    line_number: u32,
+    column_number: u32,
+    stack_trace: &mut V8StackTrace,
   ) -> ();
 }
 
@@ -47,6 +58,28 @@ pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForD
     .run_if_waiting_for_debugger(context_group_id)
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
+  this: &mut V8InspectorClient,
+  context_group_id: int,
+  level: int,
+  message: &StringView,
+  url: &StringView,
+  line_number: u32,
+  column_number: u32,
+  stack_trace: &mut V8StackTrace,
+) {
+  V8InspectorClientBase::dispatch_mut(this).console_api_message(
+    context_group_id,
+    level,
+    message,
+    url,
+    line_number,
+    column_number,
+    stack_trace,
+  )
+}
+
 #[repr(C)]
 pub struct V8InspectorClient {
   _cxx_vtable: CxxVTable,
@@ -61,14 +94,41 @@ impl V8InspectorClient {
       )
     }
   }
+
   pub fn quit_message_loop_on_pause(&mut self) {
     unsafe { v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self) }
   }
+
   pub fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {
     unsafe {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
         self,
         context_group_id,
+      )
+    }
+  }
+
+  #[allow(clippy::too_many_arguments)]
+  pub fn console_api_message(
+    &mut self,
+    context_group_id: int,
+    level: int,
+    message: &StringView,
+    url: &StringView,
+    line_number: u32,
+    column_number: u32,
+    stack_trace: &mut V8StackTrace,
+  ) {
+    unsafe {
+      v8_inspector__V8InspectorClient__consoleAPIMessage(
+        self,
+        context_group_id,
+        level,
+        message,
+        url,
+        line_number,
+        column_number,
+        stack_trace,
       )
     }
   }
@@ -108,6 +168,19 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
   fn run_message_loop_on_pause(&mut self, context_group_id: int) {}
   fn quit_message_loop_on_pause(&mut self) {}
   fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {}
+
+  #[allow(clippy::too_many_arguments)]
+  fn console_api_message(
+    &mut self,
+    context_group_id: int,
+    level: int,
+    message: &StringView,
+    url: &StringView,
+    line_number: u32,
+    column_number: u32,
+    stack_trace: &mut V8StackTrace,
+  ) {
+  }
 }
 
 pub struct V8InspectorClientBase {
