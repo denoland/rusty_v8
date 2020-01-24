@@ -2351,6 +2351,75 @@ fn inspector_dispatch_protocol_message() {
 }
 
 #[test]
+fn inspector_console_api_message() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  let scope = locker.enter();
+
+  use v8::inspector::*;
+
+  struct Client {
+    base: V8InspectorClientBase,
+    messages: Vec<String>,
+  }
+
+  impl Client {
+    fn new() -> Self {
+      Self {
+        base: V8InspectorClientBase::new::<Self>(),
+        messages: Vec::new(),
+      }
+    }
+  }
+
+  impl V8InspectorClientImpl for Client {
+    fn base(&self) -> &V8InspectorClientBase {
+      &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
+      &mut self.base
+    }
+
+    fn console_api_message(
+      &mut self,
+      _context_group_id: i32,
+      _level: i32,
+      message: &StringView,
+      _url: &StringView,
+      _line_number: u32,
+      _column_number: u32,
+      _stack_trace: &mut V8StackTrace,
+    ) {
+      self.messages.push(message.to_string());
+    }
+  }
+
+  let mut hs = v8::HandleScope::new(scope);
+  let scope = hs.enter();
+  let context = v8::Context::new(scope);
+  let mut cs = v8::ContextScope::new(scope, context);
+  let scope = cs.enter();
+
+  let mut client = Client::new();
+  let mut inspector = V8Inspector::create(&mut isolate, &mut client);
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, &name_view);
+
+  let source = r#"
+    console.log("one");
+    console.error("two");
+    console.trace("three");
+  "#;
+  let _ = eval(scope, context, source).unwrap();
+  assert_eq!(client.messages, vec!["one", "two", "three"]);
+}
+
+#[test]
 fn context_from_object_template() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();

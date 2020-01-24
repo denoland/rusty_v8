@@ -1378,6 +1378,13 @@ void v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
     v8_inspector::V8InspectorClient& self);
 void v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
     v8_inspector::V8InspectorClient& self, int contextGroupId);
+void v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
+    v8_inspector::V8InspectorClient& self, int contextGroupId,
+    v8::Isolate::MessageErrorLevel level,
+    const v8_inspector::StringView& message,
+    const v8_inspector::StringView& url,
+    unsigned lineNumber, unsigned columnNumber,
+    v8_inspector::V8StackTrace* stackTrace);
 }  // extern "C"
 
 struct v8_inspector__V8InspectorClient__BASE
@@ -1394,6 +1401,17 @@ struct v8_inspector__V8InspectorClient__BASE
   void runIfWaitingForDebugger(int contextGroupId) override {
     v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
         *this, contextGroupId);
+  }
+  void consoleAPIMessage(
+      int contextGroupId,
+      v8::Isolate::MessageErrorLevel level,
+      const v8_inspector::StringView& message,
+      const v8_inspector::StringView& url,
+      unsigned lineNumber, unsigned columnNumber,
+      v8_inspector::V8StackTrace* stackTrace) override {
+    v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
+        *this, contextGroupId, level, message, url,
+        lineNumber, columnNumber, stackTrace);
   }
 };
 
@@ -1414,6 +1432,17 @@ void v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
 void v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
     v8_inspector::V8InspectorClient& self, int contextGroupId) {
   self.runIfWaitingForDebugger(contextGroupId);
+}
+
+void v8_inspector__V8InspectorClient__consoleAPIMessage(
+    v8_inspector::V8InspectorClient& self, int contextGroupId,
+    v8::Isolate::MessageErrorLevel level,
+    const v8_inspector::StringView& message,
+    const v8_inspector::StringView& url,
+    unsigned lineNumber, unsigned columnNumber,
+    v8_inspector::V8StackTrace* stackTrace) {
+  self.consoleAPIMessage(contextGroupId, level, message, url,
+                         lineNumber, columnNumber, stackTrace);
 }
 
 void v8_inspector__StringBuffer__DELETE(v8_inspector::StringBuffer& self) {
