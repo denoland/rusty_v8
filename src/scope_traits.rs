@@ -9,6 +9,7 @@ use crate::EscapableHandleScope;
 use crate::FunctionCallbackInfo;
 use crate::HandleScope;
 use crate::Isolate;
+use crate::IsolateScope;
 use crate::Local;
 use crate::Locker;
 use crate::Message;
@@ -74,6 +75,12 @@ pub(crate) mod internal {
   impl<X> GetRawIsolate for CallbackScope<X> {
     fn get_raw_isolate(&self) -> *mut Isolate {
       self.get_raw_isolate_()
+    }
+  }
+
+  impl<'s> GetRawIsolate for IsolateScope {
+    fn get_raw_isolate(&self) -> *mut Isolate {
+      self.isolate
     }
   }
 

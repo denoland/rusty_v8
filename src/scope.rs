@@ -289,6 +289,36 @@ impl Drop for Locker {
   }
 }
 
+/// Stack-allocated class which sets the isolate for all operations
+/// executed within a local scope.
+pub struct IsolateScope {
+  pub(crate) isolate: *mut Isolate,
+}
+
+impl<'s> IsolateScope {
+  pub fn new<P>(
+    parent: &'s mut P,
+    isolate: &'s mut Isolate,
+  ) -> Scope<'s, Self, P> {
+    Scope::new(isolate as *mut Isolate, parent)
+  }
+}
+
+unsafe impl<'s> ScopeDefinition<'s> for IsolateScope {
+  type Args = *mut Isolate;
+
+  unsafe fn enter_scope(ptr: *mut Self, isolate: Self::Args) {
+    (&mut *isolate).enter();
+    std::ptr::write(ptr, Self { isolate });
+  }
+}
+
+impl Drop for IsolateScope {
+  fn drop(&mut self) {
+    unsafe { &mut *self.isolate }.exit();
+  }
+}
+
 /// Stack-allocated class which sets the execution context for all operations
 /// executed within a local scope.
 pub struct ContextScope {

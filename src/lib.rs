@@ -154,6 +154,7 @@ pub use property_attribute::*;
 pub use scope::CallbackScope;
 pub use scope::ContextScope;
 pub use scope::FunctionCallbackScope;
+pub use scope::IsolateScope;
 pub use scope::Locker;
 pub use scope::PropertyCallbackScope;
 pub use scope::Scope;

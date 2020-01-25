@@ -2424,9 +2424,11 @@ fn context_from_object_template() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let isolate = v8::Isolate::new(params);
+  let mut isolate = v8::Isolate::new(params);
   let mut locker = v8::Locker::new(&isolate);
   let scope = locker.enter();
+  let mut is = v8::IsolateScope::new(scope, &mut isolate);
+  let scope = is.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
