@@ -710,6 +710,10 @@ int v8__Object__GetIdentityHash(v8::Object& self) {
   return self.GetIdentityHash();
 }
 
+v8::Context* v8__Object__CreationContext(v8::Object& self) {
+  return local_to_ptr(self.CreationContext());
+}
+
 v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }

@@ -1023,6 +1023,9 @@ fn object() {
       &[v1, v2],
     );
     assert!(!object.is_null_or_undefined());
+    let lhs = object.creation_context(scope).global(scope);
+    let rhs = context.global(scope);
+    assert!(lhs.strict_equals(rhs.into()));
 
     let object_ = v8::Object::new(scope);
     assert!(!object_.is_null_or_undefined());
@@ -1050,6 +1053,9 @@ fn array() {
     let s2 = v8::String::new(scope, "b").unwrap();
     let index2 = v8::Integer::new(scope, 1);
     let array = v8::Array::new(scope, 2);
+    let lhs = array.creation_context(scope).global(scope);
+    let rhs = context.global(scope);
+    assert!(lhs.strict_equals(rhs.into()));
     array.set(context, index1.into(), s1.into());
     array.set(context, index2.into(), s2.into());
 
@@ -1296,6 +1302,9 @@ fn function() {
     let function = fn_template
       .get_function(scope, context)
       .expect("Unable to create function");
+    let lhs = function.creation_context(scope).global(scope);
+    let rhs = context.global(scope);
+    assert!(lhs.strict_equals(rhs.into()));
     function
       .call(scope, context, recv, &[])
       .expect("Function call failed");

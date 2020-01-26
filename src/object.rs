@@ -52,6 +52,7 @@ extern "C" {
     attr: PropertyAttribute,
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
+  fn v8__Object__CreationContext(object: &Object) -> *mut Context;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
 }
@@ -162,6 +163,17 @@ impl Object {
   /// unique.
   pub fn get_identity_hash(&self) -> int {
     unsafe { v8__Object__GetIdentityHash(self) }
+  }
+
+  /// Returns the context in which the object was created.
+  pub fn creation_context<'a>(
+    &self,
+    scope: &mut impl ToLocal<'a>,
+  ) -> Local<'a, Context> {
+    unsafe {
+      let ptr = v8__Object__CreationContext(self);
+      scope.to_local(ptr).unwrap()
+    }
   }
 }
 
