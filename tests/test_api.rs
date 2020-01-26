@@ -118,7 +118,7 @@ fn global_handles() {
     assert_eq!(_g4.get(scope).unwrap().value(), 123);
     assert!(g5.is_empty());
     let num = g6.get(scope).unwrap();
-    g6.reset(scope);
+    drop(g6);
     assert_eq!(num.value(), 100);
   }
   g1.reset(scope);

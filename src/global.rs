@@ -92,11 +92,7 @@ impl<T> Global<T> {
     let other_value = other.read(isolate);
     match (&mut self.value, &other_value) {
       (None, None) => {}
-      (target, None) => unsafe {
-        v8__Global__Reset__0(
-          &mut *(target as *mut Option<NonNull<T>> as *mut *mut Value),
-        )
-      },
+      (_, None) => self.reset0(),
       (target, source) => unsafe {
         v8__Global__Reset__2(
           &mut *(target as *mut Option<NonNull<T>> as *mut *mut Value),
@@ -112,6 +108,15 @@ impl<T> Global<T> {
   /// IsEmpty() will return true after this call.
   pub fn reset(&mut self, scope: &mut impl InIsolate) {
     self.set(scope, None);
+  }
+
+  fn reset0(&mut self) {
+    if let Some(value) = &mut self.value {
+      let ptr = value as *mut NonNull<T> as *mut *mut Value;
+      unsafe {
+        v8__Global__Reset__0(&mut *ptr);
+      }
+    }
   }
 
   fn check_isolate(&self, other: &Isolate) {
@@ -130,9 +135,7 @@ impl<T> Default for Global<T> {
 
 impl<T> Drop for Global<T> {
   fn drop(&mut self) {
-    if !self.is_empty() {
-      panic!("Global handle dropped while holding a value");
-    }
+    self.reset0();
   }
 }
 
