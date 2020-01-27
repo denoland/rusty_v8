@@ -21,21 +21,21 @@ use crate::Value;
 /// between Rust and C++. However end users can implement the callback as
 /// follows; it'll be automatically converted.
 ///
-/// ```rust,ignore
-///   fn my_resolve_callback<'a>(
-///      context: v8::Local<'a, v8::Context>,
-///      specifier: v8::Local<'a, v8::String>,
-///      referrer: v8::Local<'a, v8::Module>,
-///   ) -> Option<v8::Local<'a, v8::Module>> {
-///      // ...
-///      Some(resolved_module)
-///   }
+/// ```ignore
+/// fn my_resolve_callback<'a>(
+///    context: v8::Local<'a, v8::Context>,
+///    specifier: v8::Local<'a, v8::String>,
+///    referrer: v8::Local<'a, v8::Module>,
+/// ) -> Option<v8::Local<'a, v8::Module>> {
+///    // ...
+///    Some(resolved_module)
+/// }
 /// ```
-///
+pub type ResolveCallback<'a> = ResolveCallbackABI<'a>;
 
 // System V AMD64 ABI: Local<Module> returned in a register.
 #[cfg(not(target_os = "windows"))]
-pub type ResolveCallback<'a> = extern "C" fn(
+type ResolveCallbackABI<'a> = extern "C" fn(
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, Module>,
@@ -43,7 +43,7 @@ pub type ResolveCallback<'a> = extern "C" fn(
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveCallback<'a> = extern "C" fn(
+type ResolveCallbackABI<'a> = extern "C" fn(
   *mut *const Module,
   Local<'a, Context>,
   Local<'a, String>,

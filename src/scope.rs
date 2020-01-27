@@ -7,10 +7,12 @@ use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 
 use crate::scope_traits::internal::GetRawIsolate;
+use crate::support::MoveOrClone;
 use crate::Context;
 use crate::FunctionCallbackInfo;
 use crate::InIsolate;
 use crate::Isolate;
+use crate::IsolateHandle;
 use crate::Local;
 use crate::PromiseRejectMessage;
 use crate::PropertyCallbackInfo;
@@ -19,6 +21,7 @@ use crate::PropertyCallbackInfo;
 // the same scope object can't ever be entered again.
 
 /// A trait for defining scoped objects.
+#[doc(hidden)]
 pub unsafe trait ScopeDefinition<'s>
 where
   Self: Sized,
@@ -187,7 +190,9 @@ pub struct CallbackScope<X = Contained> {
   phantom: PhantomData<X>,
 }
 
+#[doc(hidden)]
 pub struct Contained;
+#[doc(hidden)]
 pub struct Escapable;
 
 impl<'s> CallbackScope {
@@ -248,9 +253,10 @@ impl<'s, X> From<&'s PromiseRejectMessage<'s>> for Scope<'s, CallbackScope<X>> {
 
 #[repr(C)]
 /// v8::Locker is a scoped lock object. While it's active, i.e. between its
-/// construction and destruction, the current thread is allowed to use the locked
-/// isolate. V8 guarantees that an isolate can be locked by at most one thread at
-/// any time. In other words, the scope of a v8::Locker is a critical section.
+/// construction and destruction, the current thread is allowed to use the
+/// locked isolate. V8 guarantees that an isolate can be locked by at most one
+/// thread at any time. In other words, the scope of a v8::Locker is a critical
+/// section.
 pub struct Locker {
   has_lock: bool,
   top_level: bool,
@@ -266,11 +272,12 @@ impl<'s> Locker {
   // TODO(piscisaureus): We should not be sharing &Isolate references between
   // threads while at the same time dereferencing to &mut Isolate *within* the
   // various scopes. Instead, add a separate type (e.g. IsolateHandle).
-  pub fn new(isolate: &Isolate) -> Scope<'s, Self> {
-    Scope::new_root(isolate as *const _ as *mut Isolate)
+  pub fn new(isolate: impl MoveOrClone<IsolateHandle>) -> Scope<'s, Self> {
+    let isolate = isolate.move_or_clone().into_raw();
+    Scope::new_root(isolate)
   }
 
-  pub(crate) fn get_raw_isolate_(&self) -> *mut Isolate {
+  pub(crate) fn get_raw_isolate(&self) -> *mut Isolate {
     self.isolate
   }
 }
@@ -285,6 +292,10 @@ unsafe impl<'s> ScopeDefinition<'s> for Locker {
 
 impl Drop for Locker {
   fn drop(&mut self) {
+    // Note: the reconstructed IsolateHandle must live until *after* the Locker
+    // destructor has run. Therefore, it's important to assign the value
+    // returned from `IsolateHandle::from_raw()` to a variable.
+    let _isolate = unsafe { IsolateHandle::from_raw(self.isolate) };
     unsafe { v8__Locker__DESTRUCT(self) }
   }
 }

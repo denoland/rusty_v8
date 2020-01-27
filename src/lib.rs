@@ -2,7 +2,7 @@
 
 //! # Example
 //!
-//! ```rust
+//! ```
 //! use rusty_v8 as v8;
 //!
 //! let platform = v8::new_default_platform();
@@ -69,7 +69,8 @@
 //!   the necessity to import the MapFnTo trait.
 //! - Fully integrate TryCatch blocks into the scope system (currently a
 //!   TryCatch works like a scope internally but it's not integrated).
-//! - Add methods to some on some of the scopes like get_context() for ContextScope.
+//! - Add methods to some on some of the scopes like get_context() for
+//!   ContextScope.
 //! - Rename/reorganize/document.
 
 #![allow(clippy::missing_safety_doc)]
@@ -135,8 +136,8 @@ pub use isolate::CreateParams;
 pub use isolate::HostImportModuleDynamicallyCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::Isolate;
+pub use isolate::IsolateHandle;
 pub use isolate::MessageCallback;
-pub use isolate::OwnedIsolate;
 pub use isolate::PromiseRejectCallback;
 pub use local::Local;
 pub use module::*;
@@ -156,7 +157,6 @@ pub use scope::ContextScope;
 pub use scope::FunctionCallbackScope;
 pub use scope::Locker;
 pub use scope::PropertyCallbackScope;
-pub use scope::Scope;
 pub use scope_traits::*;
 pub use script::{Script, ScriptOrigin};
 pub use script_or_module::ScriptOrModule;
@@ -165,6 +165,7 @@ pub use snapshot::OwnedStartupData;
 pub use snapshot::SnapshotCreator;
 pub use snapshot::StartupData;
 pub use string::NewStringType;
+pub use support::MoveOrClone;
 pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;

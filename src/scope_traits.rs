@@ -85,7 +85,7 @@ pub(crate) mod internal {
 
   impl GetRawIsolate for Locker {
     fn get_raw_isolate(&self) -> *mut Isolate {
-      self.get_raw_isolate_()
+      self.get_raw_isolate()
     }
   }
 
@@ -135,7 +135,7 @@ pub(crate) mod internal {
 /// Trait for retrieving the current isolate from a scope object.
 pub trait InIsolate {
   // Do not implement this trait on unscoped Isolate references
-  // (e.g. OwnedIsolate) or on shared references *e.g. &Isolate).
+  // (e.g. IsolateHandle) or on shared references *e.g. &Isolate).
   fn isolate(&mut self) -> &mut Isolate;
 }
 

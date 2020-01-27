@@ -2,8 +2,9 @@
 use rusty_v8 as v8;
 
 pub fn main() {
-  let mut scope: v8::Scope<v8::HandleScope, v8::Locker> = mock();
-  let scope = scope.enter();
+  let mut locker = v8::Locker::new(mock::<v8::IsolateHandle>());
+  let mut hs = v8::HandleScope::new(locker.enter());
+  let scope = hs.enter();
   let context: v8::Local<v8::Context> = mock();
 
   let _leaked = {

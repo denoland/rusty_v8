@@ -233,6 +233,44 @@ where
   }
 }
 
+/// A trait that allows obtaining an owned value either by moving the value, or,
+/// provided that the value type implements `Clone`, from a shared reference.
+///
+/// Example usage:
+///
+/// ```
+/// # use rusty_v8::MoveOrClone;
+/// # use std::sync::atomic::AtomicUsize;
+/// # use std::sync::Arc;
+/// let value = Arc::new(AtomicUsize::new(123));
+///
+/// do_something(&value); // Passing by reference works.
+/// do_something(value);  // Passing by value works too.
+///
+/// fn do_something(value: impl MoveOrClone<Arc<AtomicUsize>>) {
+///   let owned_value: Arc<AtomicUsize> = value.move_or_clone();
+///   // ... do something useful with it.
+/// }
+/// ```
+pub trait MoveOrClone<T> {
+  fn move_or_clone(self) -> T;
+}
+
+impl<T> MoveOrClone<T> for T {
+  fn move_or_clone(self) -> T {
+    self
+  }
+}
+
+impl<'a, T> MoveOrClone<T> for &'a T
+where
+  T: Clone,
+{
+  fn move_or_clone(self) -> T {
+    self.clone()
+  }
+}
+
 #[repr(C)]
 #[derive(Debug, PartialEq)]
 pub(crate) enum MaybeBool {

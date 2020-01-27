@@ -40,7 +40,7 @@ fn handle_scope_nested() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope0 = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope0);
@@ -59,7 +59,7 @@ fn handle_scope_numbers() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope0 = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope0);
@@ -85,7 +85,7 @@ fn global_handles() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   let mut g1 = v8::Global::<v8::String>::new();
   let mut g2 = v8::Global::<v8::Integer>::new();
@@ -138,7 +138,7 @@ fn test_string() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -175,7 +175,7 @@ fn escapable_handle_scope() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope0 = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope0);
@@ -220,7 +220,7 @@ fn microtasks() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
 
   scope.isolate().run_microtasks();
@@ -257,7 +257,7 @@ fn array_buffer() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -306,7 +306,7 @@ fn array_buffer_with_shared_backing_store() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -390,7 +390,7 @@ fn try_catch() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -449,7 +449,7 @@ fn throw_exception() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -554,9 +554,7 @@ fn add_message_listener() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
-
+  let isolate = v8::Isolate::new(params);
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
   extern "C" fn check_message_0(
@@ -595,10 +593,13 @@ fn add_message_listener() {
     assert_eq!(true, frame.is_user_javascript());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
-  isolate.add_message_listener(check_message_0);
 
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
+  scope
+    .isolate()
+    .set_capture_stack_trace_for_uncaught_exceptions(true, 32);
+  scope.isolate().add_message_listener(check_message_0);
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
@@ -625,7 +626,7 @@ fn set_host_initialize_import_meta_object_callback() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
+  let isolate = v8::Isolate::new(params);
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
@@ -642,10 +643,14 @@ fn set_host_initialize_import_meta_object_callback() {
     let value = v8::String::new(scope, "bar").unwrap();
     meta.create_data_property(context, key.into(), value.into());
   }
-  isolate.set_host_initialize_import_meta_object_callback(callback);
 
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
+  // TODO(piscisaureus): according to v8.h this method can be called on a
+  // non-locked isolate. Seems rather questionable though.
+  scope
+    .isolate()
+    .set_host_initialize_import_meta_object_callback(callback);
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
@@ -654,7 +659,7 @@ fn set_host_initialize_import_meta_object_callback() {
     let scope = cs.enter();
     let source = mock_source(scope, "google.com", "import.meta;");
     let mut module =
-      v8::script_compiler::compile_module(&isolate, source).unwrap();
+      v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
     let result =
       module.instantiate_module(context, unexpected_module_resolve_callback);
     assert!(result.is_some());
@@ -675,7 +680,7 @@ fn script_compile_and_run() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -698,7 +703,7 @@ fn script_origin() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
 
   {
@@ -791,7 +796,7 @@ fn test_primitives() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -826,7 +831,7 @@ fn exception() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   let mut hs = v8::HandleScope::new(scope);
   let scope = hs.enter();
@@ -855,7 +860,7 @@ fn create_message_argument_lifetimes() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   let mut hs = v8::HandleScope::new(scope);
   let scope = hs.enter();
@@ -894,7 +899,7 @@ fn json() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -920,7 +925,7 @@ fn object_template() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -972,7 +977,7 @@ fn object_template_from_function_template() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1003,7 +1008,7 @@ fn object() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1040,7 +1045,7 @@ fn array() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1074,7 +1079,7 @@ fn create_data_property() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1113,7 +1118,7 @@ fn object_set_accessor() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   let mut hs = v8::HandleScope::new(scope);
   let scope = hs.enter();
@@ -1173,7 +1178,7 @@ fn promise_resolved() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1193,8 +1198,8 @@ fn promise_resolved() {
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
-    // Resolve again with different value, since promise is already in `Fulfilled` state
-    // it should be ignored.
+    // Resolve again with different value, since promise is already in
+    // `Fulfilled` state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.resolve(context, value.into());
     let result = promise.result(scope);
@@ -1209,7 +1214,7 @@ fn promise_rejected() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1230,8 +1235,8 @@ fn promise_rejected() {
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
-    // Reject again with different value, since promise is already in `Rejected` state
-    // it should be ignored.
+    // Reject again with different value, since promise is already in `Rejected`
+    // state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.reject(context, value.into());
     let result = promise.result(scope);
@@ -1286,7 +1291,7 @@ fn function() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
 
   {
@@ -1344,10 +1349,12 @@ fn set_promise_reject_callback() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.set_promise_reject_callback(promise_reject_callback);
-  let mut locker = v8::Locker::new(&isolate);
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
+  scope
+    .isolate()
+    .set_promise_reject_callback(promise_reject_callback);
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
@@ -1401,10 +1408,12 @@ fn script_compiler_source() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  isolate.set_promise_reject_callback(promise_reject_callback);
-  let mut locker = v8::Locker::new(&isolate);
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
+  scope
+    .isolate()
+    .set_promise_reject_callback(promise_reject_callback);
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
@@ -1417,7 +1426,7 @@ fn script_compiler_source() {
     let source =
       v8::script_compiler::Source::new(v8_str(scope, source), &script_origin);
 
-    let result = v8::script_compiler::compile_module(&isolate, source);
+    let result = v8::script_compiler::compile_module(scope.isolate(), source);
     assert!(result.is_some());
   }
 }
@@ -1428,7 +1437,7 @@ fn module_instantiation_failures1() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1446,7 +1455,7 @@ fn module_instantiation_failures1() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let mut module =
-      v8::script_compiler::compile_module(&isolate, source).unwrap();
+      v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
 
@@ -1515,7 +1524,7 @@ fn module_evaluation() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1533,7 +1542,7 @@ fn module_evaluation() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let mut module =
-      v8::script_compiler::compile_module(&isolate, source).unwrap();
+      v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
     let result = module.instantiate_module(
@@ -1560,7 +1569,7 @@ fn primitive_array() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1597,7 +1606,7 @@ fn equality() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1620,7 +1629,7 @@ fn array_buffer_view() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1654,8 +1663,8 @@ fn snapshot_creator() {
   // the value 3.
   let startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    let isolate = snapshot_creator.get_isolate();
-    let mut locker = v8::Locker::new(&isolate);
+    let isolate = unsafe { snapshot_creator.get_isolate_handle() };
+    let mut locker = v8::Locker::new(isolate);
     let scope = locker.enter();
     {
       let mut hs = v8::HandleScope::new(scope);
@@ -1684,7 +1693,7 @@ fn snapshot_creator() {
     params.set_array_buffer_allocator(v8::new_default_allocator());
     params.set_snapshot_blob(&startup_data);
     let isolate = v8::Isolate::new(params);
-    let mut locker = v8::Locker::new(&isolate);
+    let mut locker = v8::Locker::new(isolate);
     let scope = locker.enter();
     {
       let mut hs = v8::HandleScope::new(scope);
@@ -1720,8 +1729,8 @@ fn external_references() {
   let startup_data = {
     let mut snapshot_creator =
       v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
-    let isolate = snapshot_creator.get_isolate();
-    let mut locker = v8::Locker::new(&isolate);
+    let mut locker =
+      v8::Locker::new(unsafe { snapshot_creator.get_isolate_handle() });
     let scope = locker.enter();
     {
       let mut hs = v8::HandleScope::new(scope);
@@ -1755,7 +1764,7 @@ fn external_references() {
     params.set_snapshot_blob(&startup_data);
     params.set_external_references(&EXTERNAL_REFERENCES);
     let isolate = v8::Isolate::new(params);
-    let mut locker = v8::Locker::new(&isolate);
+    let mut locker = v8::Locker::new(isolate);
     let scope = locker.enter();
     {
       let mut hs = v8::HandleScope::new(scope);
@@ -1800,7 +1809,7 @@ fn uint8_array() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1833,7 +1842,7 @@ fn dynamic_import() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
+  let isolate = v8::Isolate::new(params);
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
@@ -1851,10 +1860,14 @@ fn dynamic_import() {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     std::ptr::null_mut()
   }
-  isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
+  // TODO(piscisaureus): according to v8.h this method can be called on a
+  // non-locked isolate. Seems rather questionable though.
+  scope
+    .isolate()
+    .set_host_import_module_dynamically_callback(dynamic_import_cb);
   {
     let mut hs = v8::HandleScope::new(scope);
     let scope = hs.enter();
@@ -1880,7 +1893,7 @@ fn shared_array_buffer() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -1951,7 +1964,7 @@ fn value_checker() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -2125,7 +2138,7 @@ fn try_from_local() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);
@@ -2266,8 +2279,8 @@ fn inspector_dispatch_protocol_message() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
 
   use v8::inspector::*;
@@ -2337,10 +2350,12 @@ fn inspector_dispatch_protocol_message() {
   let scope = hs.enter();
   let context = v8::Context::new(scope);
   let mut cs = v8::ContextScope::new(scope, context);
-  let _scope = cs.enter();
+  let scope = cs.enter();
 
   let mut default_client = Client::new();
-  let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
+  // TODO(piscisaureus): V8Inspector::create should probably not require a
+  // locker.
+  let mut inspector = V8Inspector::create(scope.isolate(), &mut default_client);
   let name = b"";
   let name_view = StringView::from(&name[..]);
   inspector.context_created(context, 1, &name_view);
@@ -2364,8 +2379,8 @@ fn inspector_console_api_message() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
 
   use v8::inspector::*;
@@ -2414,7 +2429,9 @@ fn inspector_console_api_message() {
   let scope = cs.enter();
 
   let mut client = Client::new();
-  let mut inspector = V8Inspector::create(&mut isolate, &mut client);
+  // TODO(piscisaureus): V8Inspector::create should probably not require a
+  // locker.
+  let mut inspector = V8Inspector::create(scope.isolate(), &mut client);
   let name = b"";
   let name_view = StringView::from(&name[..]);
   inspector.context_created(context, 1, &name_view);
@@ -2434,7 +2451,7 @@ fn context_from_object_template() {
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
-  let mut locker = v8::Locker::new(&isolate);
+  let mut locker = v8::Locker::new(isolate);
   let scope = locker.enter();
   {
     let mut hs = v8::HandleScope::new(scope);

@@ -136,7 +136,8 @@ impl<'tc> TryCatch<'tc> {
 
   /// Clears any exceptions that may have been caught by this try/catch block.
   /// After this method has been called, HasCaught() will return false. Cancels
-  /// the scheduled exception if it is caught and ReThrow() is not called before.
+  /// the scheduled exception if it is caught and ReThrow() is not called
+  /// before.
   ///
   /// It is not necessary to clear a try/catch block before using it again; if
   /// another exception is thrown the previously caught exception will just be

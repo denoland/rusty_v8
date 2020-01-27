@@ -1,3 +1,10 @@
 # Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+edition = "2018"
 max_width = 80
 tab_spaces = 2
+
+# unstable_features = true
+# format_code_in_doc_comments = true
+# normalize_comments = true
+# normalize_doc_attributes = true
+# wrap_comments = true

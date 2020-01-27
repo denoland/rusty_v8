@@ -17,9 +17,9 @@ use crate::ScriptOrModule;
 use crate::StartupData;
 use crate::String;
 use crate::Value;
+
 use std::ffi::c_void;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use std::mem::forget;
 use std::ptr::NonNull;
 
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
@@ -149,10 +149,12 @@ impl Isolate {
   ///
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
+  pub fn new(params: UniqueRef<CreateParams>) -> IsolateHandle {
     // TODO: support CreateParams.
     crate::V8::assert_initialized();
-    unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) }
+    let self_ptr = unsafe { v8__Isolate__New(params.into_raw()) };
+    let self_nonnull = NonNull::new(self_ptr).unwrap();
+    IsolateHandle::new(self_nonnull)
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -163,19 +165,22 @@ impl Isolate {
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    v8__Isolate__SetData(self, slot, ptr)
+    // Slot 0 is used to store a pointer to IsolateAnnex, so add one.
+    v8__Isolate__SetData(self, slot + 1, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
-    unsafe { v8__Isolate__GetData(self, slot) }
+    // Slot 0 is used to store a pointer to IsolateAnnex, so add one.
+    unsafe { v8__Isolate__GetData(self, slot + 1) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    unsafe { v8__Isolate__GetNumberOfDataSlots(self) }
+    // Slot 0 is used to store a pointer to IsolateAnnex, so subtract one.
+    unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -344,38 +349,107 @@ impl Isolate {
   ) {
     unsafe { v8__Isolate__RequestInterrupt(self, callback, data) }
   }
+}
 
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  pub unsafe fn dispose(&mut self) {
-    v8__Isolate__Dispose(self)
+/// Reference-counted pointer to an Isolate. All methods on this struct are
+/// thread safe (it implements Send and Sync) and it can be cloned.
+#[repr(transparent)]
+pub struct IsolateHandle(NonNull<Isolate>);
+
+unsafe impl Send for IsolateHandle {}
+unsafe impl Sync for IsolateHandle {}
+
+impl IsolateHandle {
+  pub(crate) fn new(isolate: NonNull<Isolate>) -> Self {
+    unsafe { IsolateAnnex::create(isolate) };
+    eprintln!(
+      "New -> {}",
+      unsafe { IsolateAnnex::get(&isolate) }
+        .get_ref_count()
+        .load(Ordering::SeqCst)
+    );
+    Self(isolate)
+  }
+
+  pub(crate) unsafe fn from_raw(self_ptr: *mut Isolate) -> Self {
+    Self(NonNull::new(self_ptr).unwrap())
+  }
+
+  pub(crate) fn into_raw(self) -> *mut Isolate {
+    let self_ptr = self.0.as_ptr();
+    forget(self);
+    self_ptr
+  }
+
+  pub(crate) fn as_ptr(&self) -> *mut Isolate {
+    self.0.as_ptr()
+  }
+
+  /// Forcefully terminate the current thread of JavaScript execution
+  /// in the given isolate.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn terminate_execution(&self) {
+    unsafe { v8__Isolate__TerminateExecution(self.as_ptr()) }
+  }
+
+  /// Resume execution capability in the given isolate, whose execution
+  /// was previously forcefully terminated using TerminateExecution().
+  ///
+  /// When execution is forcefully terminated using TerminateExecution(),
+  /// the isolate can not resume execution until all JavaScript frames
+  /// have propagated the uncatchable exception which is generated.  This
+  /// method allows the program embedding the engine to handle the
+  /// termination event and resume execution capability, even if
+  /// JavaScript frames remain on the stack.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn cancel_terminate_execution(&self) {
+    unsafe { v8__Isolate__CancelTerminateExecution(self.as_ptr()) }
+  }
+
+  /// Request V8 to interrupt long running JavaScript code and invoke
+  /// the given |callback| passing the given |data| to it. After |callback|
+  /// returns control will be returned to the JavaScript code.
+  /// There may be a number of interrupt requests in flight.
+  /// Can be called from another thread without acquiring a |Locker|.
+  /// Registered |callback| must not reenter interrupted Isolate.
+  // Clippy warns that this method is dereferencing a raw pointer, but it is
+  // not: https://github.com/rust-lang/rust-clippy/issues/3045
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  pub fn request_interrupt(
+    &self,
+    callback: InterruptCallback,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RequestInterrupt(self.as_ptr(), callback, data) }
   }
 }
 
-/// Internal method for constructing an OwnedIsolate.
-pub unsafe fn new_owned_isolate(isolate_ptr: *mut Isolate) -> OwnedIsolate {
-  OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
+impl Clone for IsolateHandle {
+  fn clone(&self) -> Self {
+    let prev_ref_count = unsafe { IsolateAnnex::get(&self.0) }
+      .get_ref_count()
+      .fetch_add(1, Ordering::Release);
+    assert!(prev_ref_count > 0);
+    eprintln!("Clone -> {}", prev_ref_count + 1);
+    Self(self.0)
+  }
 }
 
-/// Same as Isolate but gets disposed when it goes out of scope.
-pub struct OwnedIsolate(NonNull<Isolate>);
-
-impl Drop for OwnedIsolate {
+impl Drop for IsolateHandle {
   fn drop(&mut self) {
-    unsafe { self.0.as_mut().dispose() }
-  }
-}
-
-impl Deref for OwnedIsolate {
-  type Target = Isolate;
-  fn deref(&self) -> &Self::Target {
-    unsafe { self.0.as_ref() }
-  }
-}
-
-impl DerefMut for OwnedIsolate {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.0.as_mut() }
+    let prev_ref_count = unsafe { IsolateAnnex::get(&self.0) }
+      .get_ref_count()
+      .fetch_sub(1, Ordering::Acquire);
+    eprintln!("Drop -> {}", prev_ref_count - 1);
+    if prev_ref_count == 1 {
+      unsafe { IsolateAnnex::dispose(self.0) };
+      unsafe { v8__Isolate__Dispose(self.0.as_mut()) };
+      eprintln!("Disposed");
+    }
   }
 }
 
@@ -424,14 +498,14 @@ impl CreateParams {
   /// V8 with external startup data.
   ///
   /// Note:
-  /// - By default the startup data is linked into the V8 library, in which
-  ///   case this function is not meaningful.
-  /// - If this needs to be called, it needs to be called before V8
-  ///   tries to make use of its built-ins.
+  /// - By default the startup data is linked into the V8 library, in which case
+  ///   this function is not meaningful.
+  /// - If this needs to be called, it needs to be called before V8 tries to
+  ///   make use of its built-ins.
   /// - To avoid unnecessary copies of data, V8 will point directly into the
   ///   given data blob, so pretty please keep it around until V8 exit.
-  /// - Compression of the startup blob might be useful, but needs to
-  ///   handled entirely on the embedders' side.
+  /// - Compression of the startup blob might be useful, but needs to handled
+  ///   entirely on the embedders' side.
   /// - The call will abort if the data is invalid.
   pub fn set_snapshot_blob(&mut self, snapshot_blob: &StartupData) {
     unsafe {
@@ -446,5 +520,41 @@ impl CreateParams {
 impl Delete for CreateParams {
   fn delete(&'static mut self) {
     unsafe { v8__Isolate__CreateParams__DELETE(self) }
+  }
+}
+
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+
+/// The purpose of this struct is to store rusty_v8 specific data associated
+/// with an isolate. It currently contains only a reference counter, but it
+/// could be extended with more fields. In particular it seems suitable to
+/// keep track of heap objects that need to live (at least) as long as the
+/// isolate itself, e.g. StartupData.  
+struct IsolateAnnex {
+  ref_count: AtomicUsize,
+}
+
+impl IsolateAnnex {
+  unsafe fn create(isolate: NonNull<Isolate>) {
+    let data = Self {
+      ref_count: AtomicUsize::new(1),
+    };
+    let ptr = Box::into_raw(Box::new(data)) as *mut c_void;
+    v8__Isolate__SetData(isolate.as_ptr(), 0, ptr);
+  }
+
+  unsafe fn dispose(isolate: NonNull<Isolate>) {
+    let ptr = v8__Isolate__GetData(isolate.as_ptr(), 0);
+    Box::from_raw(ptr as *mut Self);
+  }
+
+  unsafe fn get(isolate: &NonNull<Isolate>) -> &Self {
+    let ptr = v8__Isolate__GetData(isolate.as_ptr(), 0) as *mut Self;
+    &*ptr
+  }
+
+  fn get_ref_count(&self) -> &AtomicUsize {
+    &self.ref_count
   }
 }

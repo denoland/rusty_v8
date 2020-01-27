@@ -3,8 +3,8 @@ use crate::support::int;
 use crate::support::intptr_t;
 use crate::Context;
 use crate::Isolate;
+use crate::IsolateHandle;
 use crate::Local;
-use crate::OwnedIsolate;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
@@ -142,14 +142,19 @@ impl SnapshotCreator {
     }
   }
 
-  /// This is marked unsafe because it should be called at most once per snapshot
-  /// creator.
+  /// This is marked unsafe because it should be called at most once per
+  /// snapshot creator.
   // TODO Because the SnapshotCreator creates its own isolate, we need a way to
   // get an owned handle to it. This is a questionable design which ought to be
   // revisited after the libdeno integration is complete.
-  pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
-    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    crate::isolate::new_owned_isolate(isolate_ptr)
+  pub unsafe fn get_isolate_handle(&mut self) -> IsolateHandle {
+    let isolate = v8__SnapshotCreator__GetIsolate(self);
+    let isolate_handle = crate::isolate::IsolateHandle::new(isolate.into());
+    // Deliberately leak an IsolateHandle reference here, otherwise the isolate
+    // will be dropped before the SnapshotCreator is done.
+    // TODO(piscisaureus): fix this.
+    std::mem::forget(isolate_handle.clone());
+    isolate_handle
   }
 
   /// Returns the isolate prepared by the snapshot creator.

@@ -171,8 +171,8 @@ impl_from! { ObjectTemplate for Template }
 /// temporary functions that can be collected using Scripts is
 /// preferred.
 ///
-/// Any modification of a FunctionTemplate after first instantiation will trigger
-/// a crash.
+/// Any modification of a FunctionTemplate after first instantiation will
+/// trigger a crash.
 ///
 /// A FunctionTemplate can have properties, these properties are added to the
 /// function object when it is created.
@@ -187,7 +187,7 @@ impl_from! { ObjectTemplate for Template }
 ///
 /// The following example shows how to use a FunctionTemplate:
 ///
-/// ```ignore
+/// ```c++
 ///    v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(isolate);
 ///    t->Set(isolate, "func_property", v8::Number::New(isolate, 1));
 ///
@@ -213,7 +213,7 @@ impl_from! { ObjectTemplate for Template }
 /// and "instance" for the instance object created above. The function
 /// and the instance will have the following properties:
 ///
-/// ```ignore
+/// ```text
 ///   func_property in function == true;
 ///   function.func_property == 1;
 ///
@@ -229,7 +229,7 @@ impl_from! { ObjectTemplate for Template }
 /// FunctionTemplate::Inherit method. The following graph illustrates
 /// the semantics of inheritance:
 ///
-/// ```ignore
+/// ```text
 ///   FunctionTemplate Parent  -> Parent() . prototype -> { }
 ///     ^                                                  ^
 ///     | Inherit(Parent)                                  | .__proto__
@@ -245,7 +245,7 @@ impl_from! { ObjectTemplate for Template }
 /// Let Parent be the FunctionTemplate initialized in the previous
 /// section and create a Child FunctionTemplate by:
 ///
-/// ```ignore
+/// ```c++
 ///   Local<FunctionTemplate> parent = t;
 ///   Local<FunctionTemplate> child = FunctionTemplate::New();
 ///   child->Inherit(parent);
@@ -257,7 +257,7 @@ impl_from! { ObjectTemplate for Template }
 /// The Child function and Child instance will have the following
 /// properties:
 ///
-/// ```ignore
+/// ```text
 ///   child_func.prototype.__proto__ == function.prototype;
 ///   child_instance.instance_accessor calls 'InstanceAccessorCallback'
 ///   child_instance.instance_property == 3;

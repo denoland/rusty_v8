@@ -2,7 +2,7 @@
 use rusty_v8 as v8;
 
 pub fn main() {
-  let mut locker = v8::Locker::new(mock());
+  let mut locker = v8::Locker::new(mock::<v8::IsolateHandle>());
   let mut root_hs = v8::HandleScope::new(locker.enter());
   let root_hs = root_hs.enter();
 
