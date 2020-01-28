@@ -2441,10 +2441,15 @@ fn inspector_schedule_pause_on_next_statement() {
       call_id: i32,
       message: v8::UniquePtr<StringBuffer>,
     ) {
-      println!("call_id {} message {}", call_id, message.unwrap().string());
+      println!(
+        "send_response call_id {} message {}",
+        call_id,
+        message.unwrap().string()
+      );
       self.send_response_count += 1;
     }
-    fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
+    fn send_notification(&mut self, message: v8::UniquePtr<StringBuffer>) {
+      println!("send_notificatio message {}", message.unwrap().string());
       self.send_notification_count += 1;
     }
     fn flush_protocol_notifications(&mut self) {
@@ -2469,13 +2474,27 @@ fn inspector_schedule_pause_on_next_statement() {
   let name_view = StringView::from(&name[..]);
   inspector.context_created(context, 1, &name_view);
 
-  let reason = b"reason";
+  // In order for schedule_pause_on_next_statement to work, it seems you need
+  // to first enable the debugger.
+  let message = String::from(r#"{"id":1,"method":"Debugger.enable"}"#);
+  let message = &message.into_bytes()[..];
+  let message = StringView::from(message);
+  session.dispatch_protocol_message(&message);
+
+  // The following commented out block seems to act similarly to
+  // schedule_pause_on_next_statement. I'm not sure if they have the exact same
+  // effect tho.
+  //   let message = String::from(r#"{"id":2,"method":"Debugger.pause"}"#);
+  //   let message = &message.into_bytes()[..];
+  //   let message = StringView::from(message);
+  //   session.dispatch_protocol_message(&message);
+  let reason = b"";
   let reason = StringView::from(&reason[..]);
-  let detail = b"detail";
+  let detail = b"";
   let detail = StringView::from(&detail[..]);
   session.schedule_pause_on_next_statement(&reason, &detail);
 
-  assert_eq!(channel.send_response_count, 0);
+  assert_eq!(channel.send_response_count, 1);
   assert_eq!(channel.send_notification_count, 0);
   assert_eq!(channel.flush_protocol_notifications_count, 0);
   assert_eq!(client.count_run_message_loop_on_pause, 0);
@@ -2483,13 +2502,12 @@ fn inspector_schedule_pause_on_next_statement() {
   assert_eq!(client.count_run_if_waiting_for_debugger, 0);
 
   let r = eval(scope, context, "1+2").unwrap();
-  println!("r {}", r.is_number());
-  // XXX Expect pause here... but don't see any sign of it.
+  assert!(r.is_number());
 
-  assert_eq!(channel.send_response_count, 0);
-  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 3);
   assert_eq!(channel.flush_protocol_notifications_count, 0);
-  assert_eq!(client.count_run_message_loop_on_pause, 0);
+  assert_eq!(client.count_run_message_loop_on_pause, 1);
   assert_eq!(client.count_quit_message_loop_on_pause, 0);
   assert_eq!(client.count_run_if_waiting_for_debugger, 0);
 }
