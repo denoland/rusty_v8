@@ -2274,15 +2274,23 @@ fn inspector_dispatch_protocol_message() {
 
   struct Client {
     base: V8InspectorClientBase,
+    count_run_message_loop_on_pause: usize,
+    count_quit_message_loop_on_pause: usize,
+    count_run_if_waiting_for_debugger: usize,
   }
 
   impl Client {
     fn new() -> Self {
       Self {
         base: V8InspectorClientBase::new::<Self>(),
+        count_run_message_loop_on_pause: 0,
+        count_quit_message_loop_on_pause: 0,
+        count_run_if_waiting_for_debugger: 0,
       }
     }
   }
+
+  use std::os::raw::c_int as int;
 
   impl V8InspectorClientImpl for Client {
     fn base(&self) -> &V8InspectorClientBase {
@@ -2290,6 +2298,18 @@ fn inspector_dispatch_protocol_message() {
     }
     fn base_mut(&mut self) -> &mut V8InspectorClientBase {
       &mut self.base
+    }
+
+    fn run_message_loop_on_pause(&mut self, context_group_id: int) {
+      assert_eq!(context_group_id, 1);
+      self.count_run_message_loop_on_pause += 1;
+    }
+    fn quit_message_loop_on_pause(&mut self) {
+      self.count_quit_message_loop_on_pause += 1;
+    }
+    fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {
+      assert_eq!(context_group_id, 1);
+      self.count_run_message_loop_on_pause += 1;
     }
   }
 
@@ -2320,9 +2340,10 @@ fn inspector_dispatch_protocol_message() {
     }
     fn send_response(
       &mut self,
-      _call_id: i32,
-      _message: v8::UniquePtr<StringBuffer>,
+      call_id: i32,
+      message: v8::UniquePtr<StringBuffer>,
     ) {
+      println!("call_id {} message {}", call_id, message.unwrap().string());
       self.send_response_count += 1;
     }
     fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
@@ -2337,10 +2358,10 @@ fn inspector_dispatch_protocol_message() {
   let scope = hs.enter();
   let context = v8::Context::new(scope);
   let mut cs = v8::ContextScope::new(scope, context);
-  let _scope = cs.enter();
+  let scope = cs.enter();
 
-  let mut default_client = Client::new();
-  let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
+  let mut client = Client::new();
+  let mut inspector = V8Inspector::create(&mut isolate, &mut client);
   let name = b"";
   let name_view = StringView::from(&name[..]);
   inspector.context_created(context, 1, &name_view);
@@ -2357,6 +2378,37 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(channel.send_response_count, 1);
   assert_eq!(channel.send_notification_count, 0);
   assert_eq!(channel.flush_protocol_notifications_count, 0);
+  assert_eq!(client.count_run_message_loop_on_pause, 0);
+  assert_eq!(client.count_quit_message_loop_on_pause, 0);
+  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+
+  let reason = b"reason";
+  let reason = StringView::from(&reason[..]);
+  let detail = b"detail";
+  let detail = StringView::from(&detail[..]);
+  session.schedule_pause_on_next_statement(&reason, &detail);
+
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
+  assert_eq!(client.count_run_message_loop_on_pause, 0);
+  assert_eq!(client.count_quit_message_loop_on_pause, 0);
+  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+
+  let _ = eval(scope, context, "debugger").unwrap();
+  let _ = eval(scope, context, "1+2").unwrap();
+  let _ = eval(scope, context, "1+2").unwrap();
+
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
+  assert_eq!(client.count_run_message_loop_on_pause, 0);
+  assert_eq!(client.count_quit_message_loop_on_pause, 0);
+  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+
+  drop(session);
+  drop(inspector);
+  drop(client);
 }
 
 #[test]

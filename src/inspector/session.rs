@@ -12,8 +12,8 @@ extern "C" {
   );
   fn v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     session: *mut V8InspectorSession,
-    break_reason: &mut StringView,
-    break_details: &mut StringView,
+    break_reason: &StringView,
+    break_details: &StringView,
   );
 }
 
@@ -29,8 +29,8 @@ impl V8InspectorSession {
 
   pub fn schedule_pause_on_next_statement(
     &mut self,
-    reason: &mut StringView,
-    detail: &mut StringView,
+    reason: &StringView,
+    detail: &StringView,
   ) {
     unsafe {
       v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(

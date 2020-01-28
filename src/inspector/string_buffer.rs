@@ -3,14 +3,6 @@ use crate::support::CxxVTable;
 use crate::support::Delete;
 use crate::support::UniquePtr;
 
-// class StringBuffer {
-//  public:
-//   virtual ~StringBuffer() = default;
-//   virtual const StringView& string() = 0;
-//   // This method copies contents.
-//   static std::unique_ptr<StringBuffer> create(const StringView&);
-// };
-
 // TODO: in C++, this class is intended to be user-extensible, just like
 // like `Task`, `Client`, `Channel`. In Rust this would ideally also be the
 // case, but currently to obtain a `UniquePtr<StringBuffer>` is by making a
