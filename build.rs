@@ -119,7 +119,8 @@ fn download_gn_ninja_binaries() {
     .unwrap()
     .parent()
     .unwrap();
-  let d = target_dir.join("gn_ninja_binaries").join(platform());
+  let download_dir = target_dir.join("gn_ninja_binaries");
+  let d = download_dir.join("gn_ninja_binaries").join(platform());
   let gn = d.join("gn");
   let ninja = d.join("ninja");
   #[cfg(windows)]
@@ -131,7 +132,7 @@ fn download_gn_ninja_binaries() {
     let status = Command::new("python")
       .arg("./tools/gn_ninja_binaries.py")
       .arg("--dir")
-      .arg(&target_dir)
+      .arg(&download_dir)
       .status()
       .expect("gn_ninja_binaries.py download failed");
     assert!(status.success());
