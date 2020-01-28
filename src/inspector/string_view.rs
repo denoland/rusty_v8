@@ -8,31 +8,6 @@ use std::ptr::NonNull;
 use std::slice;
 use std::string;
 
-// class StringView {
-//  public:
-//   StringView() : m_is8Bit(true), m_length(0), m_characters8(nullptr) {}
-//
-//   StringView(const uint8_t* characters, size_t length)
-//       : m_is8Bit(true), m_length(length), m_characters8(characters) {}
-//
-//   StringView(const uint16_t* characters, size_t length)
-//       : m_is8Bit(false), m_length(length), m_characters16(characters) {}
-//
-//   bool is8Bit() const { return m_is8Bit; }
-//   size_t length() const { return m_length; }
-//
-//   const uint8_t* characters8() const { return m_characters8; }
-//   const uint16_t* characters16() const { return m_characters16; }
-//
-//  private:
-//   bool m_is8Bit;
-//   size_t m_length;
-//   union {
-//     const uint8_t* m_characters8;
-//     const uint16_t* m_characters16;
-//   };
-// };
-
 // Notes:
 //  * This class is ported, not wrapped using bindings.
 //  * Since Rust `repr(bool)` is not allowed, we're assuming that `bool` and
