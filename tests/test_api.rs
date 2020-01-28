@@ -2274,6 +2274,104 @@ fn inspector_dispatch_protocol_message() {
 
   struct Client {
     base: V8InspectorClientBase,
+  }
+
+  impl Client {
+    fn new() -> Self {
+      Self {
+        base: V8InspectorClientBase::new::<Self>(),
+      }
+    }
+  }
+
+  impl V8InspectorClientImpl for Client {
+    fn base(&self) -> &V8InspectorClientBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
+      &mut self.base
+    }
+  }
+
+  struct TestChannel {
+    base: ChannelBase,
+    send_response_count: usize,
+    send_notification_count: usize,
+    flush_protocol_notifications_count: usize,
+  }
+
+  impl TestChannel {
+    pub fn new() -> Self {
+      Self {
+        base: ChannelBase::new::<Self>(),
+        send_response_count: 0,
+        send_notification_count: 0,
+        flush_protocol_notifications_count: 0,
+      }
+    }
+  }
+
+  impl ChannelImpl for TestChannel {
+    fn base(&self) -> &ChannelBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut ChannelBase {
+      &mut self.base
+    }
+    fn send_response(
+      &mut self,
+      _call_id: i32,
+      _message: v8::UniquePtr<StringBuffer>,
+    ) {
+      self.send_response_count += 1;
+    }
+    fn send_notification(&mut self, _message: v8::UniquePtr<StringBuffer>) {
+      self.send_notification_count += 1;
+    }
+    fn flush_protocol_notifications(&mut self) {
+      self.flush_protocol_notifications_count += 1;
+    }
+  }
+
+  let mut hs = v8::HandleScope::new(scope);
+  let scope = hs.enter();
+  let context = v8::Context::new(scope);
+  let mut cs = v8::ContextScope::new(scope, context);
+  let _scope = cs.enter();
+
+  let mut default_client = Client::new();
+  let mut inspector = V8Inspector::create(&mut isolate, &mut default_client);
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, &name_view);
+  let mut channel = TestChannel::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let mut session = inspector.connect(1, &mut channel, &state_view);
+  let message = String::from(
+    r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
+  );
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  session.dispatch_protocol_message(&string_view);
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
+}
+
+#[test]
+fn inspector_schedule_pause_on_next_statement() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  let scope = locker.enter();
+
+  use v8::inspector::*;
+
+  struct Client {
+    base: V8InspectorClientBase,
     count_run_message_loop_on_pause: usize,
     count_quit_message_loop_on_pause: usize,
     count_run_if_waiting_for_debugger: usize,
@@ -2362,25 +2460,14 @@ fn inspector_dispatch_protocol_message() {
 
   let mut client = Client::new();
   let mut inspector = V8Inspector::create(&mut isolate, &mut client);
-  let name = b"";
-  let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, &name_view);
   let mut channel = TestChannel::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
   let mut session = inspector.connect(1, &mut channel, &state_view);
-  let message = String::from(
-    r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
-  );
-  let message = &message.into_bytes()[..];
-  let string_view = StringView::from(message);
-  session.dispatch_protocol_message(&string_view);
-  assert_eq!(channel.send_response_count, 1);
-  assert_eq!(channel.send_notification_count, 0);
-  assert_eq!(channel.flush_protocol_notifications_count, 0);
-  assert_eq!(client.count_run_message_loop_on_pause, 0);
-  assert_eq!(client.count_quit_message_loop_on_pause, 0);
-  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, &name_view);
 
   let reason = b"reason";
   let reason = StringView::from(&reason[..]);
@@ -2388,27 +2475,23 @@ fn inspector_dispatch_protocol_message() {
   let detail = StringView::from(&detail[..]);
   session.schedule_pause_on_next_statement(&reason, &detail);
 
-  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_response_count, 0);
   assert_eq!(channel.send_notification_count, 0);
   assert_eq!(channel.flush_protocol_notifications_count, 0);
   assert_eq!(client.count_run_message_loop_on_pause, 0);
   assert_eq!(client.count_quit_message_loop_on_pause, 0);
   assert_eq!(client.count_run_if_waiting_for_debugger, 0);
 
-  let _ = eval(scope, context, "debugger").unwrap();
-  let _ = eval(scope, context, "1+2").unwrap();
-  let _ = eval(scope, context, "1+2").unwrap();
+  let r = eval(scope, context, "1+2").unwrap();
+  println!("r {}", r.is_number());
+  // XXX Expect pause here... but don't see any sign of it.
 
-  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_response_count, 0);
   assert_eq!(channel.send_notification_count, 0);
   assert_eq!(channel.flush_protocol_notifications_count, 0);
   assert_eq!(client.count_run_message_loop_on_pause, 0);
   assert_eq!(client.count_quit_message_loop_on_pause, 0);
   assert_eq!(client.count_run_if_waiting_for_debugger, 0);
-
-  drop(session);
-  drop(inspector);
-  drop(client);
 }
 
 #[test]
