@@ -2388,24 +2388,25 @@ fn inspector_schedule_pause_on_next_statement() {
     }
   }
 
-  use std::os::raw::c_int as int;
-
   impl V8InspectorClientImpl for Client {
     fn base(&self) -> &V8InspectorClientBase {
       &self.base
     }
+
     fn base_mut(&mut self) -> &mut V8InspectorClientBase {
       &mut self.base
     }
 
-    fn run_message_loop_on_pause(&mut self, context_group_id: int) {
+    fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
       assert_eq!(context_group_id, 1);
       self.count_run_message_loop_on_pause += 1;
     }
+
     fn quit_message_loop_on_pause(&mut self) {
       self.count_quit_message_loop_on_pause += 1;
     }
-    fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {
+
+    fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {
       assert_eq!(context_group_id, 1);
       self.count_run_message_loop_on_pause += 1;
     }

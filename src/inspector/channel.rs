@@ -6,15 +6,6 @@ use crate::support::Opaque;
 use crate::support::RustVTable;
 use crate::support::UniquePtr;
 
-// class Channel {
-//  public:
-//   virtual ~Channel() = default;
-//   virtual void sendResponse(int callId,
-//                             std::unique_ptr<StringBuffer> message) = 0;
-//   virtual void sendNotification(std::unique_ptr<StringBuffer> message) = 0;
-//   virtual void flushProtocolNotifications() = 0;
-// };
-
 extern "C" {
   fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<Channel>,
@@ -66,7 +57,7 @@ pub struct Channel {
 impl Channel {
   pub fn send_response(
     &mut self,
-    call_id: int,
+    call_id: i32,
     message: UniquePtr<StringBuffer>,
   ) {
     unsafe {
@@ -117,7 +108,7 @@ pub trait ChannelImpl: AsChannel {
 
   fn send_response(
     &mut self,
-    call_id: int,
+    call_id: i32,
     message: UniquePtr<StringBuffer>,
   ) -> ();
   fn send_notification(&mut self, message: UniquePtr<StringBuffer>) -> ();
