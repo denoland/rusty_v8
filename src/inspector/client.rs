@@ -86,7 +86,7 @@ pub struct V8InspectorClient {
 }
 
 impl V8InspectorClient {
-  pub fn run_message_loop_on_pause(&mut self, context_group_id: int) {
+  pub fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
     unsafe {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
         self,
@@ -99,7 +99,7 @@ impl V8InspectorClient {
     unsafe { v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self) }
   }
 
-  pub fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {
+  pub fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {
     unsafe {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
         self,
@@ -111,8 +111,8 @@ impl V8InspectorClient {
   #[allow(clippy::too_many_arguments)]
   pub fn console_api_message(
     &mut self,
-    context_group_id: int,
-    level: int,
+    context_group_id: i32,
+    level: i32,
     message: &StringView,
     url: &StringView,
     line_number: u32,
@@ -165,15 +165,15 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
   fn base(&self) -> &V8InspectorClientBase;
   fn base_mut(&mut self) -> &mut V8InspectorClientBase;
 
-  fn run_message_loop_on_pause(&mut self, context_group_id: int) {}
+  fn run_message_loop_on_pause(&mut self, context_group_id: i32) {}
   fn quit_message_loop_on_pause(&mut self) {}
-  fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {}
+  fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {}
 
   #[allow(clippy::too_many_arguments)]
   fn console_api_message(
     &mut self,
-    context_group_id: int,
-    level: int,
+    context_group_id: i32,
+    level: i32,
     message: &StringView,
     url: &StringView,
     line_number: u32,

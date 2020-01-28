@@ -53,7 +53,7 @@ impl V8Inspector {
 
   pub fn connect<T>(
     &mut self,
-    context_group_id: int,
+    context_group_id: i32,
     channel: &mut T,
     state: &StringView,
   ) -> UniqueRef<V8InspectorSession>
@@ -75,7 +75,7 @@ impl V8Inspector {
   pub fn context_created(
     &mut self,
     mut context: Local<Context>,
-    context_group_id: int,
+    context_group_id: i32,
     human_readable_name: &StringView,
   ) {
     unsafe {
