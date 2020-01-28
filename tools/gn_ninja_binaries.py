@@ -87,7 +87,7 @@ def EnsureDirExists(path):
         os.makedirs(path)
 
 
-def DownloadAndUnpack(url, output_dir, path_prefixes=None):
+def DownloadAndUnpack(url, output_dir):
     """Download an archive from url and extract into output_dir. If path_prefixes
      is not None, only extract files whose paths within the archive start with
      any prefix in path_prefixes."""
@@ -96,20 +96,14 @@ def DownloadAndUnpack(url, output_dir, path_prefixes=None):
         f.seek(0)
         EnsureDirExists(output_dir)
         t = tarfile.open(mode='r:gz', fileobj=f)
-        members = None
-        if path_prefixes is not None:
-            members = [
-                m for m in t.getmembers() if any(
-                    m.name.startswith(p) for p in path_prefixes)
-            ]
-        t.extractall(path=output_dir, members=members)
+        t.extractall(path=output_dir)
 
 
 def Update():
     if os.path.exists(DIR):
         RmTree(DIR)
     try:
-        DownloadAndUnpack(URL, DIR, None)
+        DownloadAndUnpack(URL, DIR)
     except URLError:
         print('Failed to download prebuilt ninja/gn binaries %s' % URL)
         print('Exiting.')

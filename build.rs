@@ -108,8 +108,19 @@ fn platform() -> &'static str {
 
 fn download_gn_ninja_binaries() {
   let root = env::current_dir().unwrap();
-  let out_dir = root.join(env::var_os("OUT_DIR").unwrap());
-  let d = out_dir.join("gn_ninja_binaries").join(platform());
+  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
+  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let out_dir_abs = root.join(out_dir);
+  // This would be target/debug or target/release
+  let target_dir = out_dir_abs
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap();
+  let download_dir = target_dir.join("gn_ninja_binaries");
+  let d = download_dir.join("gn_ninja_binaries").join(platform());
   let gn = d.join("gn");
   let ninja = d.join("ninja");
   #[cfg(windows)]
@@ -121,7 +132,7 @@ fn download_gn_ninja_binaries() {
     let status = Command::new("python")
       .arg("./tools/gn_ninja_binaries.py")
       .arg("--dir")
-      .arg(&out_dir)
+      .arg(&download_dir)
       .status()
       .expect("gn_ninja_binaries.py download failed");
     assert!(status.success());
