@@ -2360,6 +2360,159 @@ fn inspector_dispatch_protocol_message() {
 }
 
 #[test]
+fn inspector_schedule_pause_on_next_statement() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let mut locker = v8::Locker::new(&isolate);
+  let scope = locker.enter();
+
+  use v8::inspector::*;
+
+  struct Client {
+    base: V8InspectorClientBase,
+    count_run_message_loop_on_pause: usize,
+    count_quit_message_loop_on_pause: usize,
+    count_run_if_waiting_for_debugger: usize,
+  }
+
+  impl Client {
+    fn new() -> Self {
+      Self {
+        base: V8InspectorClientBase::new::<Self>(),
+        count_run_message_loop_on_pause: 0,
+        count_quit_message_loop_on_pause: 0,
+        count_run_if_waiting_for_debugger: 0,
+      }
+    }
+  }
+
+  use std::os::raw::c_int as int;
+
+  impl V8InspectorClientImpl for Client {
+    fn base(&self) -> &V8InspectorClientBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
+      &mut self.base
+    }
+
+    fn run_message_loop_on_pause(&mut self, context_group_id: int) {
+      assert_eq!(context_group_id, 1);
+      self.count_run_message_loop_on_pause += 1;
+    }
+    fn quit_message_loop_on_pause(&mut self) {
+      self.count_quit_message_loop_on_pause += 1;
+    }
+    fn run_if_waiting_for_debugger(&mut self, context_group_id: int) {
+      assert_eq!(context_group_id, 1);
+      self.count_run_message_loop_on_pause += 1;
+    }
+  }
+
+  struct TestChannel {
+    base: ChannelBase,
+    send_response_count: usize,
+    send_notification_count: usize,
+    flush_protocol_notifications_count: usize,
+  }
+
+  impl TestChannel {
+    pub fn new() -> Self {
+      Self {
+        base: ChannelBase::new::<Self>(),
+        send_response_count: 0,
+        send_notification_count: 0,
+        flush_protocol_notifications_count: 0,
+      }
+    }
+  }
+
+  impl ChannelImpl for TestChannel {
+    fn base(&self) -> &ChannelBase {
+      &self.base
+    }
+    fn base_mut(&mut self) -> &mut ChannelBase {
+      &mut self.base
+    }
+    fn send_response(
+      &mut self,
+      call_id: i32,
+      message: v8::UniquePtr<StringBuffer>,
+    ) {
+      println!(
+        "send_response call_id {} message {}",
+        call_id,
+        message.unwrap().string()
+      );
+      self.send_response_count += 1;
+    }
+    fn send_notification(&mut self, message: v8::UniquePtr<StringBuffer>) {
+      println!("send_notificatio message {}", message.unwrap().string());
+      self.send_notification_count += 1;
+    }
+    fn flush_protocol_notifications(&mut self) {
+      self.flush_protocol_notifications_count += 1;
+    }
+  }
+
+  let mut hs = v8::HandleScope::new(scope);
+  let scope = hs.enter();
+  let context = v8::Context::new(scope);
+  let mut cs = v8::ContextScope::new(scope, context);
+  let scope = cs.enter();
+
+  let mut client = Client::new();
+  let mut inspector = V8Inspector::create(&mut isolate, &mut client);
+  let mut channel = TestChannel::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let mut session = inspector.connect(1, &mut channel, &state_view);
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, &name_view);
+
+  // In order for schedule_pause_on_next_statement to work, it seems you need
+  // to first enable the debugger.
+  let message = String::from(r#"{"id":1,"method":"Debugger.enable"}"#);
+  let message = &message.into_bytes()[..];
+  let message = StringView::from(message);
+  session.dispatch_protocol_message(&message);
+
+  // The following commented out block seems to act similarly to
+  // schedule_pause_on_next_statement. I'm not sure if they have the exact same
+  // effect tho.
+  //   let message = String::from(r#"{"id":2,"method":"Debugger.pause"}"#);
+  //   let message = &message.into_bytes()[..];
+  //   let message = StringView::from(message);
+  //   session.dispatch_protocol_message(&message);
+  let reason = b"";
+  let reason = StringView::from(&reason[..]);
+  let detail = b"";
+  let detail = StringView::from(&detail[..]);
+  session.schedule_pause_on_next_statement(&reason, &detail);
+
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 0);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
+  assert_eq!(client.count_run_message_loop_on_pause, 0);
+  assert_eq!(client.count_quit_message_loop_on_pause, 0);
+  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+
+  let r = eval(scope, context, "1+2").unwrap();
+  assert!(r.is_number());
+
+  assert_eq!(channel.send_response_count, 1);
+  assert_eq!(channel.send_notification_count, 3);
+  assert_eq!(channel.flush_protocol_notifications_count, 0);
+  assert_eq!(client.count_run_message_loop_on_pause, 1);
+  assert_eq!(client.count_quit_message_loop_on_pause, 0);
+  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+}
+
+#[test]
 fn inspector_console_api_message() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();

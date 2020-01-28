@@ -1326,9 +1326,9 @@ void v8_inspector__V8InspectorSession__dispatchProtocolMessage(
 }
 
 void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
-    v8_inspector::V8InspectorSession& self, v8_inspector::StringBuffer& reason,
-    v8_inspector::StringBuffer& detail) {
-  self.schedulePauseOnNextStatement(reason.string(), detail.string());
+    v8_inspector::V8InspectorSession& self, v8_inspector::StringView& reason,
+    v8_inspector::StringView& detail) {
+  self.schedulePauseOnNextStatement(reason, detail);
 }
 }  // extern "C"
 
@@ -1386,9 +1386,8 @@ void v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
     v8_inspector::V8InspectorClient& self, int contextGroupId,
     v8::Isolate::MessageErrorLevel level,
     const v8_inspector::StringView& message,
-    const v8_inspector::StringView& url,
-    unsigned lineNumber, unsigned columnNumber,
-    v8_inspector::V8StackTrace* stackTrace);
+    const v8_inspector::StringView& url, unsigned lineNumber,
+    unsigned columnNumber, v8_inspector::V8StackTrace* stackTrace);
 }  // extern "C"
 
 struct v8_inspector__V8InspectorClient__BASE
@@ -1406,16 +1405,15 @@ struct v8_inspector__V8InspectorClient__BASE
     v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
         *this, contextGroupId);
   }
-  void consoleAPIMessage(
-      int contextGroupId,
-      v8::Isolate::MessageErrorLevel level,
-      const v8_inspector::StringView& message,
-      const v8_inspector::StringView& url,
-      unsigned lineNumber, unsigned columnNumber,
-      v8_inspector::V8StackTrace* stackTrace) override {
+  void consoleAPIMessage(int contextGroupId,
+                         v8::Isolate::MessageErrorLevel level,
+                         const v8_inspector::StringView& message,
+                         const v8_inspector::StringView& url,
+                         unsigned lineNumber, unsigned columnNumber,
+                         v8_inspector::V8StackTrace* stackTrace) override {
     v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
-        *this, contextGroupId, level, message, url,
-        lineNumber, columnNumber, stackTrace);
+        *this, contextGroupId, level, message, url, lineNumber, columnNumber,
+        stackTrace);
   }
 };
 
@@ -1442,11 +1440,10 @@ void v8_inspector__V8InspectorClient__consoleAPIMessage(
     v8_inspector::V8InspectorClient& self, int contextGroupId,
     v8::Isolate::MessageErrorLevel level,
     const v8_inspector::StringView& message,
-    const v8_inspector::StringView& url,
-    unsigned lineNumber, unsigned columnNumber,
-    v8_inspector::V8StackTrace* stackTrace) {
-  self.consoleAPIMessage(contextGroupId, level, message, url,
-                         lineNumber, columnNumber, stackTrace);
+    const v8_inspector::StringView& url, unsigned lineNumber,
+    unsigned columnNumber, v8_inspector::V8StackTrace* stackTrace) {
+  self.consoleAPIMessage(contextGroupId, level, message, url, lineNumber,
+                         columnNumber, stackTrace);
 }
 
 void v8_inspector__StringBuffer__DELETE(v8_inspector::StringBuffer& self) {
