@@ -3,7 +3,7 @@
 
 export COMMITDATE=2020-01-30T00:37:18.000Z
 
-git submodule foreach 'git remote rm upstream; true' && 
+git submodule foreach 'git remote rm upstream; true' &&
 git -C build remote add upstream https://chromium.googlesource.com/chromium/src/build &&
 git -C buildtools remote add upstream https://chromium.googlesource.com/chromium/src/buildtools &&
 git submodule foreach 'git remote add upstream `git remote get-url origin`; true' &&
