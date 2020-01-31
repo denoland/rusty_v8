@@ -466,10 +466,6 @@ bool v8__Value__IsSharedArrayBuffer(const v8::Value& self) {
 
 bool v8__Value__IsProxy(const v8::Value& self) { return self.IsProxy(); }
 
-bool v8__Value__IsWebAssemblyCompiledModule(const v8::Value& self) {
-  return self.IsWebAssemblyCompiledModule();
-}
-
 bool v8__Value__IsModuleNamespaceObject(const v8::Value& self) {
   return self.IsModuleNamespaceObject();
 }
