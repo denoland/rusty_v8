@@ -98,7 +98,7 @@ extern "C" {
     callback: HostImportModuleDynamicallyCallback,
   );
   fn v8__Isolate__RequestInterrupt(
-    isolate: *const Isolate,
+    isolate: *mut Isolate,
     callback: InterruptCallback,
     data: *mut c_void,
   );
@@ -106,9 +106,9 @@ extern "C" {
     isolate: *mut Isolate,
     exception: Local<Value>,
   ) -> *mut Value;
-  fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
-  fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
-  fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
+  fn v8__Isolate__TerminateExecution(isolate: *mut Isolate);
+  fn v8__Isolate__IsExecutionTerminating(isolate: *mut Isolate) -> bool;
+  fn v8__Isolate__CancelTerminateExecution(isolate: *mut Isolate);
   fn v8__Isolate__RunMicrotasks(isolate: *mut Isolate);
   fn v8__Isolate__EnqueueMicrotask(
     isolate: *mut Isolate,
@@ -287,39 +287,14 @@ impl Isolate {
     }
   }
 
-  /// Forcefully terminate the current thread of JavaScript execution
-  /// in the given isolate.
-  ///
-  /// This method can be used by any thread even if that thread has not
-  /// acquired the V8 lock with a Locker object.
-  pub fn terminate_execution(&self) {
-    unsafe { v8__Isolate__TerminateExecution(self) }
-  }
-
   /// Is V8 terminating JavaScript execution.
   ///
   /// Returns true if JavaScript execution is currently terminating
   /// because of a call to TerminateExecution.  In that case there are
   /// still JavaScript frames on the stack and the termination
   /// exception is still active.
-  pub fn is_execution_terminating(&self) -> bool {
+  pub fn is_execution_terminating(&mut self) -> bool {
     unsafe { v8__Isolate__IsExecutionTerminating(self) }
-  }
-
-  /// Resume execution capability in the given isolate, whose execution
-  /// was previously forcefully terminated using TerminateExecution().
-  ///
-  /// When execution is forcefully terminated using TerminateExecution(),
-  /// the isolate can not resume execution until all JavaScript frames
-  /// have propagated the uncatchable exception which is generated.  This
-  /// method allows the program embedding the engine to handle the
-  /// termination event and resume execution capability, even if
-  /// JavaScript frames remain on the stack.
-  ///
-  /// This method can be used by any thread even if that thread has not
-  /// acquired the V8 lock with a Locker object.
-  pub fn cancel_terminate_execution(&self) {
-    unsafe { v8__Isolate__CancelTerminateExecution(self) }
   }
 
   /// Runs the default MicrotaskQueue until it gets empty.
@@ -331,23 +306,6 @@ impl Isolate {
   /// Enqueues the callback to the default MicrotaskQueue
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
     unsafe { v8__Isolate__EnqueueMicrotask(self, microtask) }
-  }
-
-  /// Request V8 to interrupt long running JavaScript code and invoke
-  /// the given |callback| passing the given |data| to it. After |callback|
-  /// returns control will be returned to the JavaScript code.
-  /// There may be a number of interrupt requests in flight.
-  /// Can be called from another thread without acquiring a |Locker|.
-  /// Registered |callback| must not reenter interrupted Isolate.
-  // Clippy warns that this method is dereferencing a raw pointer, but it is
-  // not: https://github.com/rust-lang/rust-clippy/issues/3045
-  #[allow(clippy::not_unsafe_ptr_arg_deref)]
-  pub fn request_interrupt(
-    &self,
-    callback: InterruptCallback,
-    data: *mut c_void,
-  ) {
-    unsafe { v8__Isolate__RequestInterrupt(self, callback, data) }
   }
 }
 
@@ -384,48 +342,6 @@ impl IsolateHandle {
   pub(crate) fn as_ptr(&self) -> *mut Isolate {
     self.0.as_ptr()
   }
-
-  /// Forcefully terminate the current thread of JavaScript execution
-  /// in the given isolate.
-  ///
-  /// This method can be used by any thread even if that thread has not
-  /// acquired the V8 lock with a Locker object.
-  pub fn terminate_execution(&self) {
-    unsafe { v8__Isolate__TerminateExecution(self.as_ptr()) }
-  }
-
-  /// Resume execution capability in the given isolate, whose execution
-  /// was previously forcefully terminated using TerminateExecution().
-  ///
-  /// When execution is forcefully terminated using TerminateExecution(),
-  /// the isolate can not resume execution until all JavaScript frames
-  /// have propagated the uncatchable exception which is generated.  This
-  /// method allows the program embedding the engine to handle the
-  /// termination event and resume execution capability, even if
-  /// JavaScript frames remain on the stack.
-  ///
-  /// This method can be used by any thread even if that thread has not
-  /// acquired the V8 lock with a Locker object.
-  pub fn cancel_terminate_execution(&self) {
-    unsafe { v8__Isolate__CancelTerminateExecution(self.as_ptr()) }
-  }
-
-  /// Request V8 to interrupt long running JavaScript code and invoke
-  /// the given |callback| passing the given |data| to it. After |callback|
-  /// returns control will be returned to the JavaScript code.
-  /// There may be a number of interrupt requests in flight.
-  /// Can be called from another thread without acquiring a |Locker|.
-  /// Registered |callback| must not reenter interrupted Isolate.
-  // Clippy warns that this method is dereferencing a raw pointer, but it is
-  // not: https://github.com/rust-lang/rust-clippy/issues/3045
-  #[allow(clippy::not_unsafe_ptr_arg_deref)]
-  pub fn request_interrupt(
-    &self,
-    callback: InterruptCallback,
-    data: *mut c_void,
-  ) {
-    unsafe { v8__Isolate__RequestInterrupt(self.as_ptr(), callback, data) }
-  }
 }
 
 impl Clone for IsolateHandle {
@@ -451,6 +367,66 @@ impl Drop for IsolateHandle {
       eprintln!("Disposed");
     }
   }
+}
+
+macro_rules! impl_isolate_methods_where_locker_is_optional {
+   { for $type:ident use fn($in_var:ident: $in_ty:ty) { $conversion:expr } }  => {
+    impl $type {
+    fn __as_mut_ptr($in_var: $in_ty) -> *mut Isolate {
+      $conversion
+    }
+
+    /// Forcefully terminate the current thread of JavaScript execution
+  /// in the given isolate.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn terminate_execution(&mut self) {
+    unsafe { v8__Isolate__TerminateExecution(Self::__as_mut_ptr(self)) }
+  }
+
+  /// Resume execution capability in the given isolate, whose execution
+  /// was previously forcefully terminated using TerminateExecution().
+  ///
+  /// When execution is forcefully terminated using TerminateExecution(),
+  /// the isolate can not resume execution until all JavaScript frames
+  /// have propagated the uncatchable exception which is generated.  This
+  /// method allows the program embedding the engine to handle the
+  /// termination event and resume execution capability, even if
+  /// JavaScript frames remain on the stack.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn cancel_terminate_execution(&mut self) {
+    unsafe { v8__Isolate__CancelTerminateExecution(Self::__as_mut_ptr(self)) }
+  }
+
+    /// Request V8 to interrupt long running JavaScript code and invoke
+  /// the given |callback| passing the given |data| to it. After |callback|
+  /// returns control will be returned to the JavaScript code.
+  /// There may be a number of interrupt requests in flight.
+  /// Can be called from another thread without acquiring a |Locker|.
+  /// Registered |callback| must not reenter interrupted Isolate.
+  // Clippy warns that this method is dereferencing a raw pointer, but it is
+  // not: https://github.com/rust-lang/rust-clippy/issues/3045
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  pub fn request_interrupt(
+    &mut self,
+    callback: InterruptCallback,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RequestInterrupt(Self::__as_mut_ptr(self), callback, data) }
+  }
+  }
+  };
+}
+
+impl_isolate_methods_where_locker_is_optional! {
+  for Isolate use fn(isolate: &mut Isolate) { isolate }
+}
+
+impl_isolate_methods_where_locker_is_optional! {
+  for IsolateHandle use fn(handle: &IsolateHandle) { handle.0.as_ptr() }
 }
 
 /// Initial configuration parameters for a new Isolate.
