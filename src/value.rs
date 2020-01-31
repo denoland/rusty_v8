@@ -65,7 +65,6 @@ extern "C" {
   fn v8__Value__IsDataView(this: &Value) -> bool;
   fn v8__Value__IsSharedArrayBuffer(this: &Value) -> bool;
   fn v8__Value__IsProxy(this: &Value) -> bool;
-  fn v8__Value__IsWebAssemblyCompiledModule(this: &Value) -> bool;
   fn v8__Value__IsModuleNamespaceObject(this: &Value) -> bool;
   fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
   fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
@@ -378,10 +377,6 @@ impl Value {
   /// Returns true if this value is a JavaScript Proxy.
   pub fn is_proxy(&self) -> bool {
     unsafe { v8__Value__IsProxy(self) }
-  }
-
-  pub fn is_web_assembly_compiled_module(&self) -> bool {
-    unsafe { v8__Value__IsWebAssemblyCompiledModule(self) }
   }
 
   /// Returns true if the value is a Module Namespace Object.

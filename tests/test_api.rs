@@ -2114,7 +2114,6 @@ fn value_checker() {
 
     // Other checker, Just check if it can be called
     value.is_external();
-    value.is_web_assembly_compiled_module();
     value.is_module_namespace_object();
   }
 }
