@@ -6,18 +6,23 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.kind }} ${{ matrix.os }}
+    name: ${{ matrix.config.os }} ${{ matrix.config.TARGET }}
     if: |
       github.event_name == 'push' ||
       !startsWith(github.event.pull_request.head.label, 'denoland:')
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-16.04
-          - windows-2019
+        config:
+          - os: macOS-latest
+            TARGET: x86_64-apple-darwin
+          - os: ubuntu-16.04
+            TARGET: "x86_64-unknown-linux-gnu"
+          - os: ubuntu-16.04
+            TARGET: aarch64-unknown-linux-gnu
+          - os: windows-2019
+            TARGET: x86_64-pc-windows-msvc
 
     steps:
       - name: Configure git
@@ -39,6 +44,19 @@ jobs:
         with:
           python-version: "2.7.x"
           architecture: x64
+        
+      - name: Install cross compile deps
+        if: matrix.config.TARGET == 'aarch64-unknown-linux-gnu'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          sudo apt-get -yq --no-install-suggests --no-install-recommends install \
+          g++-5-aarch64-linux-gnu gcc-5-aarch64-linux-gnu g++-5-multilib \
+          libc6-arm64-cross
+          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
+          sudo apt -yq install qemu qemu-user binfmt-support qemu-user-binfmt
+          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 /lib/ld-linux-aarch64.so.1
+          echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
+
 
       - name: Install and start sccache
         shell: pwsh
@@ -50,10 +68,10 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
           $version = "0.2.12"
-          $platform =
+          $platform = 
             @{ "macOS"   = "x86_64-apple-darwin"
-               "Linux"   = "x86_64-unknown-linux-musl"
-               "Windows" = "x86_64-pc-windows-msvc"
+               "Linux"   = "x86_64-unknown-linux-musl"	
+               "Windows" = "x86_64-pc-windows-msvc"	
              }.${{ runner.os }}
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/" +
@@ -67,7 +85,7 @@ jobs:
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test
-        run: cargo test -vv --locked --all-targets
+        run: cargo test -vv --locked --all-targets --target ${{ matrix.config.TARGET }}
 
       - name: Clippy
         run: |

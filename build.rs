@@ -83,12 +83,45 @@ fn build_v8() {
     }
   }
 
+  dbg!(env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str());
+
+  match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
+    "aarch64" => {
+      gn_args.push("target_cpu=\"arm64\"".to_string());
+      if need_sysroot_download("arm64") {
+        install_sysroot("arm64");
+      }
+      if need_sysroot_download("amd64") {
+        install_sysroot("amd64");
+      }
+    }
+    "x86_64" => {
+      gn_args.push("use_sysroot=false".to_string());
+    }
+    _ => unimplemented!(),
+  };
+
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
   let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8", None);
+}
+
+fn install_sysroot(arch: &str) {
+  let status = Command::new("python")
+    .arg("./build/linux/sysroot_scripts/install-sysroot.py")
+    .arg(format!("--arch={}", arch))
+    .status()
+    .expect(&format!("sysroot download failed: {}", arch));
+  assert!(status.success());
+}
+
+fn need_sysroot_download(arch: &str) -> bool {
+  let sysroot_path =
+    PathBuf::from(format!("build/linux/debian_sid_{}-sysroot", arch));
+  !sysroot_path.is_dir()
 }
 
 fn platform() -> &'static str {
