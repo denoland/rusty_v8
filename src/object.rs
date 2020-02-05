@@ -55,6 +55,8 @@ extern "C" {
   fn v8__Object__CreationContext(object: &Object) -> *mut Context;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
+
+  fn v8__Object__GetPropertyNames(object: &Object, context: Local<Context>) -> *mut Array;
 }
 
 impl Object {
@@ -175,6 +177,18 @@ impl Object {
       scope.to_local(ptr).unwrap()
     }
   }
+
+  pub fn get_property_names<'a>(
+    &self,
+    scope: &mut impl ToLocal<'a>,
+    context: Local<Context>
+  ) -> Local<'a, Array> {
+    unsafe {
+      let ptr = v8__Object__GetPropertyNames(self, context);
+      scope.to_local(ptr).unwrap()
+    }
+  }
+
 }
 
 impl Array {

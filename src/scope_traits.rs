@@ -13,6 +13,7 @@ use crate::Local;
 use crate::Locker;
 use crate::Message;
 use crate::Object;
+use crate::Array;
 use crate::PropertyCallbackInfo;
 
 pub(crate) mod internal {
@@ -32,6 +33,7 @@ pub(crate) mod internal {
     fn v8__PropertyCallbackInfo__GetIsolate(
       self_: &PropertyCallbackInfo,
     ) -> *mut Isolate;
+    fn v8__Object__GetPropertyNames(object: &Object, context: Local<Context>) -> *mut Array;
   }
 
   /// Internal trait for retrieving a raw Isolate pointer from various V8
