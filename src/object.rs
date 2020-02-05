@@ -53,10 +53,10 @@ extern "C" {
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
   fn v8__Object__CreationContext(object: &Object) -> *mut Context;
+  fn v8__Object__GetPropertyNames(object: &Object, context: Local<Context>) -> *mut Array;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
-
-  fn v8__Object__GetPropertyNames(object: &Object, context: Local<Context>) -> *mut Array;
+  fn v8__Array__Length(this: &Array) -> int;
 }
 
 impl Object {
@@ -201,4 +201,9 @@ impl Array {
     let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
+
+  pub fn length(&self) -> usize {
+    unsafe { v8__Array__Length(self) as usize }
+  }
+
 }

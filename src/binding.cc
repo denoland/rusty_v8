@@ -718,6 +718,11 @@ v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }
 
+int v8__Array__Length(v8::Array& self) {
+  return self.Length();
+}
+
+
 v8::Number* v8__Number__New(v8::Isolate* isolate, double value) {
   return *v8::Number::New(isolate, value);
 }
