@@ -102,12 +102,53 @@ fn build_v8() {
     maybe_install_sysroot("amd64");
   };
 
+  if env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() == "android" {
+    let cpu = match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
+      "aarch64" => "arm64",
+      "x86_64" => "x64",
+      _ => unimplemented!(),
+    };
+
+    gn_args.push("target_os=\"android\"".to_string());
+    gn_args.push(format!("target_cpu=\"{}\"", cpu));
+
+    let chromium_uri = "https://chromium.googlesource.com";
+    maybe_clone_repo(
+      "./third_party/android_ndk",
+      &format!("{}/android_ndk.git", chromium_uri),
+    );
+    maybe_clone_repo(
+      "./third_party/android_platform",
+      &format!(
+        "{}/chromium/src/third_party/android_platform.git",
+        chromium_uri
+      ),
+    );
+    maybe_clone_repo(
+      "./third_party/catapult",
+      &format!("{}/catapult.git", chromium_uri),
+    );
+  }
+
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
   let gn_out = cargo_gn::maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8", None);
+}
+
+fn maybe_clone_repo(dest: &str, repo: &str) {
+  if !Path::new(&dest).exists() {
+    assert!(Command::new("git")
+      .arg("clone")
+      .arg("--depth=1")
+      .arg(repo)
+      .arg(dest)
+      .status()
+      .unwrap()
+      .success());
+  }
 }
 
 fn maybe_install_sysroot(arch: &str) {
@@ -303,7 +344,6 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
       return Some(base_path.to_path_buf());
     }
   }
-
   println!("using Chromiums clang");
   None
 }

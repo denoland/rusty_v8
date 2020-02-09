@@ -1,0 +1,16 @@
+[build.env]
+passthrough = [
+  "RUST_LOG",
+  "RUST_BACKTRACE",
+  "V8_FROM_SOURCE",
+  "CLANG_BASE_PATH",
+  "GN_ARGS",
+  "SCCACHE_CACHE_SIZE",
+  "SCCACHE_IDLE_TIMEOUT"
+]
+
+[target.aarch64-linux-android]
+image = "denoland/rusty_v8:aarch64-linux-android"
+
+[target.x86_64-linux-android]
+image = "denoland/rusty_v8:x86_64-linux-android"
