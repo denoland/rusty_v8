@@ -41,6 +41,9 @@ For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
 install them.
 
+For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
+not supported.
+
 The build depends on several binary tools: `gn`, `ninja` and a recent version
 of `clang` (V8 relies on bleeding edge features). Because these are not
 generally available they are automatically download during the build by default.
