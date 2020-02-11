@@ -61,14 +61,14 @@ impl Context {
   /// and run is compiled and run in this context.  If another context
   /// is already entered, this old context is saved so it can be
   /// restored when the new context is exited.
-  pub(crate) fn enter(&mut self) {
+  pub fn enter(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Enter(self) };
   }
 
   /// Exit this context.  Exiting the current context restores the
   /// context that was in place when entering the current context.
-  pub(crate) fn exit(&mut self) {
+  pub fn exit(&mut self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
   }
