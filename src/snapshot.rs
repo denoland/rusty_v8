@@ -149,11 +149,4 @@ impl SnapshotCreator {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
     crate::isolate::new_owned_isolate(isolate_ptr)
   }
-
-  /// Returns the isolate prepared by the snapshot creator.
-  // TODO(ry) Fix this clippy error - it's an actual problem.
-  #[allow(clippy::mut_from_ref)]
-  pub fn get_isolate(&self) -> &mut Isolate {
-    unsafe { v8__SnapshotCreator__GetIsolate(self) }
-  }
 }
