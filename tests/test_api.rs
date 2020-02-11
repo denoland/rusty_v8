@@ -452,11 +452,46 @@ fn throw_exception() {
 }
 
 #[test]
+fn thread_safe_handle_drop_after_isolate() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let handle = isolate.thread_safe_handle();
+  // We can call it twice.
+  let handle_ = isolate.thread_safe_handle();
+  // Check that handle is Send and Sync.
+  fn f<S: Send + Sync>(_: S) {}
+  f(handle_);
+  // All methods on IsolateHandle should return false after the isolate is
+  // dropped.
+  drop(isolate);
+  assert_eq!(false, handle.terminate_execution());
+  assert_eq!(false, handle.cancel_terminate_execution());
+  assert_eq!(false, handle.is_execution_terminating());
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    data: *mut std::ffi::c_void,
+  ) {
+    assert_eq!(data, std::ptr::null_mut());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+  assert_eq!(
+    false,
+    handle.request_interrupt(callback, std::ptr::null_mut())
+  );
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
+}
+
+// TODO(ry) This test should use threads
+#[test]
 fn terminate_execution() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
+  let handle = isolate.thread_safe_handle();
   // Originally run fine.
   {
     let mut hs = v8::HandleScope::new(&mut isolate);
@@ -469,7 +504,7 @@ fn terminate_execution() {
     assert!(result.same_value(true_val));
   }
   // Terminate.
-  isolate.terminate_execution();
+  handle.terminate_execution();
   // Below run should fail with terminated knowledge.
   {
     let mut hs = v8::HandleScope::new(&mut isolate);
@@ -484,7 +519,7 @@ fn terminate_execution() {
     assert!(tc.has_terminated());
   }
   // Cancel termination.
-  isolate.cancel_terminate_execution();
+  handle.cancel_terminate_execution();
   // Works again.
   {
     let mut hs = v8::HandleScope::new(&mut isolate);
@@ -498,12 +533,14 @@ fn terminate_execution() {
   }
 }
 
+// TODO(ry) This test should use threads
 #[test]
 fn request_interrupt_small_scripts() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
+  let handle = isolate.thread_safe_handle();
   {
     let mut hs = v8::HandleScope::new(&mut isolate);
     let scope = hs.enter();
@@ -519,9 +556,7 @@ fn request_interrupt_small_scripts() {
       assert_eq!(data, std::ptr::null_mut());
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     }
-    scope
-      .isolate()
-      .request_interrupt(callback, std::ptr::null_mut());
+    handle.request_interrupt(callback, std::ptr::null_mut());
     eval(scope, context, "(function(x){return x;})(1);");
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
   }
