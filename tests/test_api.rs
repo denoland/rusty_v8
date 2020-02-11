@@ -459,12 +459,10 @@ fn thread_safe_handle_drop_after_isolate() {
   let mut isolate = v8::Isolate::new(params);
   let handle = isolate.thread_safe_handle();
   // We can call it twice.
-  /* TODO(ry)
   let handle_ = isolate.thread_safe_handle();
   // Check that handle is Send and Sync.
   fn f<S: Send + Sync>(_: S) {}
   f(handle_);
-  */
   // All methods on IsolateHandle should return false after the isolate is
   // dropped.
   drop(isolate);

@@ -163,6 +163,9 @@ impl Isolate {
     CreateParams::new()
   }
 
+  // TODO(ry) The return value here is pretty sloppy:
+  // Arc<Mutex<Option<*mut Isolate>>>. Only the V8 thread ever modifies it,
+  // mutex shouldn't be necessary, nor does it need to be clone-able.
   pub fn thread_safe_handle(&mut self) -> Arc<IsolateHandle> {
     let slot_ptr = self.get_data(0) as *mut IsolateHandle;
     if slot_ptr.is_null() {
@@ -173,7 +176,10 @@ impl Isolate {
       }
       return handle;
     } else {
-      todo!()
+      let handle = unsafe { Arc::from_raw(slot_ptr) };
+      // Call into_raw so again to avoid double free.
+      let _ptr = Arc::into_raw(handle.clone());
+      handle
     }
   }
 
