@@ -174,7 +174,7 @@ impl Isolate {
       unsafe {
         self.set_data(0, handle_ptr as *mut c_void);
       }
-      return handle;
+      handle
     } else {
       let handle = unsafe { Arc::from_raw(slot_ptr) };
       // Call into_raw so again to avoid double free.

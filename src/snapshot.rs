@@ -151,6 +151,8 @@ impl SnapshotCreator {
   }
 
   /// Returns the isolate prepared by the snapshot creator.
+  // TODO(ry) Fix this clippy error - it's an actual problem.
+  #[allow(clippy::mut_from_ref)]
   pub fn get_isolate(&self) -> &mut Isolate {
     unsafe { v8__SnapshotCreator__GetIsolate(self) }
   }
