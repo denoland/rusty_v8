@@ -5,6 +5,7 @@ use crate::support::UnitType;
 use crate::support::{int, Opaque};
 use crate::Context;
 use crate::Function;
+use crate::Isolate;
 use crate::Local;
 use crate::Name;
 use crate::Object;
@@ -12,6 +13,8 @@ use crate::Scope;
 use crate::Value;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__Function__New(
@@ -25,6 +28,10 @@ extern "C" {
     argc: int,
     argv: *const Local<Value>,
   ) -> *mut Value;
+
+  fn v8__PropertyCallbackInfo__GetIsolate(
+    self_: &PropertyCallbackInfo,
+  ) -> *mut Isolate;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -49,6 +56,36 @@ extern "C" {
   fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *mut Value);
   fn v8__ReturnValue__Get(rv: &ReturnValue) -> *mut Value;
 
+}
+
+impl Deref for PropertyCallbackInfo {
+  type Target = Scope;
+  fn deref(&self) -> &Scope {
+    todo!()
+  }
+}
+
+impl DerefMut for PropertyCallbackInfo {
+  fn deref_mut(&mut self) -> &mut Scope {
+    unsafe {
+      &mut *(v8__PropertyCallbackInfo__GetReturnValue(self) as *mut Scope)
+    }
+  }
+}
+
+impl Deref for FunctionCallbackInfo {
+  type Target = Scope;
+  fn deref(&self) -> &Scope {
+    todo!()
+  }
+}
+
+impl DerefMut for FunctionCallbackInfo {
+  fn deref_mut(&mut self) -> &mut Scope {
+    unsafe {
+      &mut *(v8__FunctionCallbackInfo__GetReturnValue(self) as *mut Scope)
+    }
+  }
 }
 
 // Npte: the 'cb lifetime is required because the ReturnValue object must not
@@ -206,22 +243,18 @@ impl<'s> PropertyCallbackArguments<'s> {
   }
 }
 
-pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
+pub type FunctionCallback = extern "C" fn(*mut FunctionCallbackInfo);
 
 impl<F> MapFnFrom<F> for FunctionCallback
 where
   F: UnitType + Fn(&mut Scope, FunctionCallbackArguments, ReturnValue),
 {
   fn mapping() -> Self {
-    let f = |_info: *const FunctionCallbackInfo| {
-      todo!()
-      /*
-      let scope: FunctionCallbackScope =
-        &mut crate::scope::Entered::new_root(info as *mut FunctionCallbackInfo);
+    let f = |info: *mut FunctionCallbackInfo| {
       let args = FunctionCallbackArguments::from_function_callback_info(info);
       let rv = ReturnValue::from_function_callback_info(info);
+      let scope: &mut Scope = unsafe { &mut *info };
       (F::get())(scope, args, rv);
-        */
     };
     f.to_c_fn()
   }

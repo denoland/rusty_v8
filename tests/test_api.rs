@@ -4,7 +4,7 @@
 extern crate lazy_static;
 
 //use std::convert::{Into, TryFrom, TryInto};
-//use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use rusty_v8 as v8;
@@ -185,5 +185,39 @@ fn escapable_handle_scope() {
       nested_str_val
     });
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
+  });
+}
+
+#[test]
+fn microtasks() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  isolate.run_microtasks();
+
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+    let function = v8::Function::new(
+      scope,
+      context,
+      |_: &mut v8::Scope,
+       _: v8::FunctionCallbackArguments,
+       _: v8::ReturnValue| {
+        CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      },
+    )
+    .unwrap();
+    scope.isolate().enqueue_microtask(function);
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
+    scope.isolate().run_microtasks();
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    context.exit();
   });
 }

@@ -4,6 +4,8 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__HandleScope__CONSTRUCT(buf: *mut HandleScope, isolate: *mut Isolate);
@@ -30,9 +32,6 @@ fn v8__FunctionCallbackInfo__GetIsolate(
 ) -> *mut Isolate;
 fn v8__Message__GetIsolate(self_: &Message) -> *mut Isolate;
 fn v8__Object__GetIsolate(self_: &Object) -> *mut Isolate;
-fn v8__PropertyCallbackInfo__GetIsolate(
-  self_: &PropertyCallbackInfo,
-) -> *mut Isolate;
 */
 }
 
@@ -48,9 +47,6 @@ impl Scope {
     crate::Local::<T>::from_raw(ptr)
   }
 }
-
-use std::ops::Deref;
-use std::ops::DerefMut;
 
 impl Deref for Scope {
   type Target = Isolate;

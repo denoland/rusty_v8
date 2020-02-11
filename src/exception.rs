@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
-use crate::handle_scope::Scope;
-use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::Opaque;
 use crate::Context;
+use crate::Isolate;
 use crate::Local;
+use crate::Scope;
 use crate::String;
 use crate::Value;
 
