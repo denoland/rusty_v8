@@ -1,5 +1,4 @@
 use crate::external_references::ExternalReferences;
-use crate::scope::ScopeDefinition;
 use crate::support::int;
 use crate::support::intptr_t;
 use crate::Context;
@@ -114,11 +113,6 @@ impl Drop for SnapshotCreator {
   fn drop(&mut self) {
     unsafe { v8__SnapshotCreator__DESTRUCT(self) };
   }
-}
-
-unsafe impl<'s> ScopeDefinition<'s> for SnapshotCreator {
-  type Args = ();
-  unsafe fn enter_scope(_: *mut Self, _: Self::Args) {}
 }
 
 impl SnapshotCreator {

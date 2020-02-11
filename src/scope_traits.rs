@@ -2,7 +2,6 @@
 
 use crate::scope::Entered;
 use crate::scope::Escapable;
-use crate::snapshot::SnapshotCreator;
 use crate::CallbackScope;
 use crate::Context;
 use crate::ContextScope;
@@ -59,12 +58,6 @@ pub(crate) mod internal {
   impl<'s> GetRawIsolate for Local<'s, Message> {
     fn get_raw_isolate(&self) -> *mut Isolate {
       (&**self).get_raw_isolate()
-    }
-  }
-
-  impl<'s> GetRawIsolate for SnapshotCreator {
-    fn get_raw_isolate(&self) -> *mut Isolate {
-      self.get_isolate()
     }
   }
 
