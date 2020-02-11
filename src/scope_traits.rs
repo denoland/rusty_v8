@@ -10,7 +10,6 @@ use crate::FunctionCallbackInfo;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
-use crate::Locker;
 use crate::Message;
 use crate::Object;
 use crate::PropertyCallbackInfo;
@@ -80,12 +79,6 @@ pub(crate) mod internal {
   impl<'s> GetRawIsolate for ContextScope {
     fn get_raw_isolate(&self) -> *mut Isolate {
       unsafe { self.get_captured_context() }.get_raw_isolate()
-    }
-  }
-
-  impl GetRawIsolate for Locker {
-    fn get_raw_isolate(&self) -> *mut Isolate {
-      self.get_raw_isolate_()
     }
   }
 
