@@ -1443,8 +1443,7 @@ fn compile_specifier_as_module_resolve_callback<'a>(
   let scope = hs.enter();
   let origin = mock_script_origin(scope, "module.js");
   let source = v8::script_compiler::Source::new(specifier, &origin);
-  let module =
-    v8::script_compiler::compile_module(scope.isolate(), source).unwrap();
+  let module = v8::script_compiler::compile_module(scope, source).unwrap();
   Some(scope.escape(module))
 }
 

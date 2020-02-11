@@ -367,12 +367,6 @@ impl InIsolate for OwnedIsolate {
   }
 }
 
-impl InIsolate for Isolate {
-  fn isolate(&mut self) -> &mut Isolate {
-    self
-  }
-}
-
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
     unsafe { self.0.as_mut().dispose() }
