@@ -2,7 +2,7 @@
 use rusty_v8 as v8;
 
 pub fn main() {
-  let mut scope: v8::Scope<v8::HandleScope, v8::Locker> = mock();
+  let mut scope: v8::Scope<v8::HandleScope, v8::Isolate> = mock();
   let scope = scope.enter();
   let context: v8::Local<v8::Context> = mock();
 

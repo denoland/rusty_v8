@@ -17,9 +17,7 @@ extern "C" {
     external_references: *const intptr_t,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: &mut SnapshotCreator);
-  fn v8__SnapshotCreator__GetIsolate(
-    this: &mut SnapshotCreator,
-  ) -> &mut Isolate;
+  fn v8__SnapshotCreator__GetIsolate(this: &SnapshotCreator) -> &mut Isolate;
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
     function_code_handling: FunctionCodeHandling,
@@ -150,10 +148,5 @@ impl SnapshotCreator {
   pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
     crate::isolate::new_owned_isolate(isolate_ptr)
-  }
-
-  /// Returns the isolate prepared by the snapshot creator.
-  pub fn get_isolate(&mut self) -> &Isolate {
-    unsafe { v8__SnapshotCreator__GetIsolate(self) }
   }
 }
