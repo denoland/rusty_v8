@@ -1,4 +1,5 @@
 use crate::external_references::ExternalReferences;
+use crate::scope::ScopeDefinition;
 use crate::support::int;
 use crate::support::intptr_t;
 use crate::Context;
@@ -17,9 +18,7 @@ extern "C" {
     external_references: *const intptr_t,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: &mut SnapshotCreator);
-  fn v8__SnapshotCreator__GetIsolate(
-    this: &mut SnapshotCreator,
-  ) -> &mut Isolate;
+  fn v8__SnapshotCreator__GetIsolate(this: &SnapshotCreator) -> &mut Isolate;
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
     function_code_handling: FunctionCodeHandling,
@@ -117,6 +116,11 @@ impl Drop for SnapshotCreator {
   }
 }
 
+unsafe impl<'s> ScopeDefinition<'s> for SnapshotCreator {
+  type Args = ();
+  unsafe fn enter_scope(_: *mut Self, _: Self::Args) {}
+}
+
 impl SnapshotCreator {
   /// Set the default context to be included in the snapshot blob.
   /// The snapshot will not contain the global proxy, and we expect one or a
@@ -153,7 +157,7 @@ impl SnapshotCreator {
   }
 
   /// Returns the isolate prepared by the snapshot creator.
-  pub fn get_isolate(&mut self) -> &Isolate {
+  pub fn get_isolate(&self) -> &mut Isolate {
     unsafe { v8__SnapshotCreator__GetIsolate(self) }
   }
 }

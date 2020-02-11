@@ -2,6 +2,7 @@
 
 use crate::scope::Entered;
 use crate::scope::Escapable;
+use crate::snapshot::SnapshotCreator;
 use crate::CallbackScope;
 use crate::Context;
 use crate::ContextScope;
@@ -10,7 +11,6 @@ use crate::FunctionCallbackInfo;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
-use crate::Locker;
 use crate::Message;
 use crate::Object;
 use crate::PropertyCallbackInfo;
@@ -62,6 +62,12 @@ pub(crate) mod internal {
     }
   }
 
+  impl<'s> GetRawIsolate for SnapshotCreator {
+    fn get_raw_isolate(&self) -> *mut Isolate {
+      self.get_isolate()
+    }
+  }
+
   impl<'s, S> GetRawIsolate for Entered<'_, S>
   where
     S: GetRawIsolate,
@@ -80,12 +86,6 @@ pub(crate) mod internal {
   impl<'s> GetRawIsolate for ContextScope {
     fn get_raw_isolate(&self) -> *mut Isolate {
       unsafe { self.get_captured_context() }.get_raw_isolate()
-    }
-  }
-
-  impl GetRawIsolate for Locker {
-    fn get_raw_isolate(&self) -> *mut Isolate {
-      self.get_raw_isolate_()
     }
   }
 
