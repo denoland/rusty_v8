@@ -17,7 +17,7 @@ impl Uint8Array {
     mut buf: Local<ArrayBuffer>,
     byte_offset: usize,
     length: usize,
-  ) -> Option<Local<'sc, Uint8Array>> {
+  ) -> Option<Local<Uint8Array>> {
     unsafe {
       Local::from_raw(v8__Uint8Array__New(buf.deref_mut(), byte_offset, length))
     }

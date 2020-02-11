@@ -9,7 +9,7 @@ use crate::Local;
 use crate::Name;
 use crate::Object;
 use crate::PropertyAttribute;
-use crate::ToLocal;
+use crate::Scope;
 use crate::Value;
 
 extern "C" {
@@ -59,7 +59,7 @@ extern "C" {
 
 impl Object {
   /// Creates an empty object.
-  pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Object> {
+  pub fn new<'sc>(scope: &'sc mut Scope) -> Local<Object> {
     let ptr = unsafe { v8__Object__New(scope.isolate()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
@@ -71,11 +71,11 @@ impl Object {
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
   pub fn with_prototype_and_properties<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    prototype_or_null: Local<'sc, Value>,
+    scope: &'sc mut Scope,
+    prototype_or_null: Local<Value>,
     names: &[Local<Name>],
     values: &[Local<Value>],
-  ) -> Local<'sc, Object> {
+  ) -> Local<Object> {
     assert_eq!(names.len(), values.len());
     unsafe {
       let object = v8__Object__New__with_prototype_and_properties(
@@ -135,10 +135,10 @@ impl Object {
 
   pub fn get<'a>(
     &self,
-    scope: &mut impl ToLocal<'a>,
+    scope: &'a mut Scope,
     context: Local<Context>,
     key: Local<Value>,
-  ) -> Option<Local<'a, Value>> {
+  ) -> Option<Local<Value>> {
     unsafe {
       let ptr = v8__Object__Get(self, context, key);
       scope.to_local(ptr)
@@ -150,7 +150,7 @@ impl Object {
     &mut self,
     context: Local<Context>,
     name: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback>,
   ) -> Option<bool> {
     unsafe { v8__Object__SetAccessor(self, context, name, getter.map_fn_to()) }
       .into()
@@ -166,10 +166,7 @@ impl Object {
   }
 
   /// Returns the context in which the object was created.
-  pub fn creation_context<'a>(
-    &self,
-    scope: &mut impl ToLocal<'a>,
-  ) -> Local<'a, Context> {
+  pub fn creation_context<'a>(&self, scope: &'a mut Scope) -> Local<Context> {
     unsafe {
       let ptr = v8__Object__CreationContext(self);
       scope.to_local(ptr).unwrap()
@@ -180,10 +177,7 @@ impl Object {
 impl Array {
   /// Creates a JavaScript array with the given length. If the length
   /// is negative the returned array will have length 0.
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    length: i32,
-  ) -> Local<'sc, Array> {
+  pub fn new<'sc>(scope: &'sc mut Scope, length: i32) -> Local<Array> {
     let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

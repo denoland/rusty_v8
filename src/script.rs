@@ -5,11 +5,10 @@ use std::ptr::null;
 use crate::support::Opaque;
 use crate::Boolean;
 use crate::Context;
-use crate::InContext;
 use crate::Integer;
 use crate::Local;
+use crate::Scope;
 use crate::String;
-use crate::ToLocal;
 use crate::Value;
 
 /// The origin, within a file, of a script.
@@ -46,11 +45,11 @@ pub struct Script(Opaque);
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'sc>(
-    scope: &mut (impl ToLocal<'sc> + InContext),
+    scope: &'sc mut Scope,
     mut context: Local<Context>,
     mut source: Local<String>,
     origin: Option<&ScriptOrigin>,
-  ) -> Option<Local<'sc, Script>> {
+  ) -> Option<Local<Script>> {
     // TODO: use the type system to enforce that a Context has been entered.
     // TODO: `context` and `source` probably shouldn't be mut.
     let ptr = unsafe {
@@ -68,9 +67,9 @@ impl Script {
   /// UnboundScript::BindToCurrentContext()).
   pub fn run<'sc>(
     &mut self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<'sc, Value>> {
+  ) -> Option<Local<Value>> {
     unsafe { scope.to_local(v8__Script__Run(self, &mut *context)) }
   }
 }
@@ -79,15 +78,15 @@ impl Script {
 impl<'sc> ScriptOrigin<'sc> {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
-    mut resource_name: Local<'sc, Value>,
-    mut resource_line_offset: Local<'sc, Integer>,
-    mut resource_column_offset: Local<'sc, Integer>,
-    mut resource_is_shared_cross_origin: Local<'sc, Boolean>,
-    mut script_id: Local<'sc, Integer>,
-    mut source_map_url: Local<'sc, Value>,
-    mut resource_is_opaque: Local<'sc, Boolean>,
-    mut is_wasm: Local<'sc, Boolean>,
-    mut is_module: Local<'sc, Boolean>,
+    mut resource_name: Local<Value>,
+    mut resource_line_offset: Local<Integer>,
+    mut resource_column_offset: Local<Integer>,
+    mut resource_is_shared_cross_origin: Local<Boolean>,
+    mut script_id: Local<Integer>,
+    mut source_map_url: Local<Value>,
+    mut resource_is_opaque: Local<Boolean>,
+    mut is_wasm: Local<Boolean>,
+    mut is_module: Local<Boolean>,
   ) -> Self {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();

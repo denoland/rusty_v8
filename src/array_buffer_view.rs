@@ -20,7 +20,7 @@ extern "C" {
 
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
-  pub fn buffer<'sc>(&self) -> Option<Local<'sc, ArrayBuffer>> {
+  pub fn buffer<'sc>(&self) -> Option<Local<ArrayBuffer>> {
     unsafe { Local::from_raw(v8__ArrayBufferView__Buffer(self)) }
   }
 

@@ -11,8 +11,8 @@ use crate::FunctionCallback;
 use crate::Local;
 use crate::Object;
 use crate::PropertyAttribute;
+use crate::Scope;
 use crate::String;
-use crate::ToLocal;
 use crate::NONE;
 
 extern "C" {
@@ -67,9 +67,9 @@ impl Template {
 impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     callback: impl MapFnTo<FunctionCallback>,
-  ) -> Local<'sc, FunctionTemplate> {
+  ) -> Local<FunctionTemplate> {
     let ptr = unsafe {
       v8__FunctionTemplate__New(scope.isolate(), callback.map_fn_to())
     };
@@ -79,9 +79,9 @@ impl FunctionTemplate {
   /// Returns the unique function instance in the current execution context.
   pub fn get_function<'sc>(
     &mut self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<'sc, Function>> {
+  ) -> Option<Local<Function>> {
     unsafe {
       scope
         .to_local(v8__FunctionTemplate__GetFunction(&mut *self, &mut *context))
@@ -98,7 +98,7 @@ impl FunctionTemplate {
 
 impl ObjectTemplate {
   /// Creates an object template.
-  pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, ObjectTemplate> {
+  pub fn new<'sc>(scope: &'sc mut Scope) -> Local<ObjectTemplate> {
     let ptr =
       unsafe { v8__ObjectTemplate__New(scope.isolate(), std::ptr::null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -106,9 +106,9 @@ impl ObjectTemplate {
 
   /// Creates an object template from a function template.
   pub fn new_from_template<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     templ: Local<FunctionTemplate>,
-  ) -> Local<'sc, ObjectTemplate> {
+  ) -> Local<ObjectTemplate> {
     let ptr = unsafe { v8__ObjectTemplate__New(scope.isolate(), &*templ) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
@@ -116,9 +116,9 @@ impl ObjectTemplate {
   /// Creates a new instance of this object template.
   pub fn new_instance<'a>(
     &self,
-    scope: &mut impl ToLocal<'a>,
+    scope: &'a mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<'a, Object>> {
+  ) -> Option<Local<Object>> {
     let ptr = unsafe { v8__ObjectTemplate__NewInstance(self, &mut *context) };
     unsafe { scope.to_local(ptr) }
   }

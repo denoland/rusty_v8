@@ -4,7 +4,6 @@ use super::session::V8InspectorSession;
 use super::Channel;
 use super::StringView;
 use super::V8InspectorClient;
-use crate::scope_traits::InIsolate;
 use crate::support::int;
 use crate::support::Delete;
 use crate::support::Opaque;
@@ -38,7 +37,7 @@ pub struct V8Inspector(Opaque);
 
 impl V8Inspector {
   pub fn create<T>(
-    isolate: &mut impl InIsolate,
+    isolate: &mut Isolate,
     client: &mut T,
   ) -> UniqueRef<V8Inspector>
   where
@@ -46,7 +45,7 @@ impl V8Inspector {
   {
     unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__create(
-        isolate.isolate(),
+        isolate,
         client.as_client_mut(),
       ))
     }

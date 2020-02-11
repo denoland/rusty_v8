@@ -6,7 +6,7 @@ use crate::Function;
 use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
-use crate::ToLocal;
+use crate::Scope;
 use crate::Value;
 
 extern "C" {
@@ -77,10 +77,7 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'sc>(
-    &mut self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Local<'sc, Value> {
+  pub fn result<'sc>(&mut self, scope: &'sc mut Scope) -> Local<Value> {
     unsafe { scope.to_local(v8__Promise__Result(&mut *self)) }.unwrap()
   }
 
@@ -89,9 +86,9 @@ impl Promise {
   /// See `Self::then2`.
   pub fn catch<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut handler: Local<'sc, Function>,
-  ) -> Option<Local<'sc, Promise>> {
+    mut context: Local<Context>,
+    mut handler: Local<Function>,
+  ) -> Option<Local<Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Catch(
         &mut *self,
@@ -106,9 +103,9 @@ impl Promise {
   /// See `Self::then2`.
   pub fn then<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut handler: Local<'sc, Function>,
-  ) -> Option<Local<'sc, Promise>> {
+    mut context: Local<Context>,
+    mut handler: Local<Function>,
+  ) -> Option<Local<Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Then(
         &mut *self,
@@ -124,10 +121,10 @@ impl Promise {
   /// invoked at the end of turn.
   pub fn then2<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut on_fulfilled: Local<'sc, Function>,
-    mut on_rejected: Local<'sc, Function>,
-  ) -> Option<Local<'sc, Promise>> {
+    mut context: Local<Context>,
+    mut on_fulfilled: Local<Function>,
+    mut on_rejected: Local<Function>,
+  ) -> Option<Local<Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Then2(
         &mut *self,
@@ -142,17 +139,14 @@ impl Promise {
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    mut context: Local<'sc, Context>,
-  ) -> Option<Local<'sc, PromiseResolver>> {
+    scope: &'sc mut Scope,
+    mut context: Local<Context>,
+  ) -> Option<Local<PromiseResolver>> {
     unsafe { scope.to_local(v8__Promise__Resolver__New(&mut *context)) }
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'sc>(
-    &mut self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Local<'sc, Promise> {
+  pub fn get_promise<'sc>(&mut self, scope: &'sc mut Scope) -> Local<Promise> {
     unsafe { scope.to_local(v8__Promise__Resolver__GetPromise(&mut *self)) }
       .unwrap()
   }
@@ -161,8 +155,8 @@ impl PromiseResolver {
   /// Ignored if the promise is no longer pending.
   pub fn resolve<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut value: Local<'sc, Value>,
+    mut context: Local<Context>,
+    mut value: Local<Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Resolve(&mut *self, &mut *context, &mut *value)
@@ -174,8 +168,8 @@ impl PromiseResolver {
   /// Ignored if the promise is no longer pending.
   pub fn reject<'sc>(
     &mut self,
-    mut context: Local<'sc, Context>,
-    mut value: Local<'sc, Value>,
+    mut context: Local<Context>,
+    mut value: Local<Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Reject(&mut *self, &mut *context, &mut *value)
@@ -197,7 +191,7 @@ pub enum PromiseRejectEvent {
 pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 
 impl<'msg> PromiseRejectMessage<'msg> {
-  pub fn get_promise(&self) -> Local<'msg, Promise> {
+  pub fn get_promise(&self) -> Local<Promise> {
     unsafe {
       Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
     }
@@ -207,7 +201,7 @@ impl<'msg> PromiseRejectMessage<'msg> {
     unsafe { v8__PromiseRejectMessage__GetEvent(self) }
   }
 
-  pub fn get_value(&self) -> Local<'msg, Value> {
+  pub fn get_value(&self) -> Local<Value> {
     unsafe {
       Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
     }

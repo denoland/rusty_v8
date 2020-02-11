@@ -5,11 +5,10 @@ use std::mem::take;
 use std::mem::MaybeUninit;
 
 use crate::Context;
-use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
 use crate::Message;
-use crate::ToLocal;
+use crate::Scope;
 use crate::Value;
 
 extern "C" {
@@ -72,7 +71,7 @@ impl<'tc> TryCatch<'tc> {
   /// stack allocated because the memory location itself is compared against
   /// JavaScript try/catch blocks.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(scope: &mut impl InIsolate) -> TryCatchScope<'tc> {
+  pub fn new(scope: &'tc mut Scope) -> TryCatchScope<'tc> {
     TryCatchScope(TryCatchState::New {
       isolate: scope.isolate(),
     })
@@ -111,7 +110,7 @@ impl<'tc> TryCatch<'tc> {
   /// been caught an empty handle is returned.
   ///
   /// The returned handle is valid until this TryCatch block has been destroyed.
-  pub fn exception(&self) -> Option<Local<'tc, Value>> {
+  pub fn exception(&self) -> Option<Local<Value>> {
     unsafe { Local::from_raw(v8__TryCatch__Exception(&self.0)) }
   }
 
@@ -119,9 +118,9 @@ impl<'tc> TryCatch<'tc> {
   /// property is present an empty handle is returned.
   pub fn stack_trace<'sc>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     context: Local<Context>,
-  ) -> Option<Local<'sc, Value>> {
+  ) -> Option<Local<Value>> {
     unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, context)) }
   }
 
@@ -130,7 +129,7 @@ impl<'tc> TryCatch<'tc> {
   ///
   /// The returned handle is valid until this TryCatch block has been
   /// destroyed.
-  pub fn message(&self) -> Option<Local<'tc, Message>> {
+  pub fn message(&self) -> Option<Local<Message>> {
     unsafe { Local::from_raw(v8__TryCatch__Message(&self.0)) }
   }
 
@@ -151,7 +150,7 @@ impl<'tc> TryCatch<'tc> {
   /// it is illegal to execute any JavaScript operations after calling
   /// ReThrow; the caller must return immediately to where the exception
   /// is caught.
-  pub fn rethrow<'a>(&'_ mut self) -> Option<Local<'a, Value>> {
+  pub fn rethrow<'a>(&'_ mut self) -> Option<Local<Value>> {
     unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) }
   }
 

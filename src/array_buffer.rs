@@ -1,11 +1,5 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
-use std::ffi::c_void;
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::ptr::null_mut;
-use std::slice;
-
 use crate::support::long;
 use crate::support::Delete;
 use crate::support::Opaque;
@@ -13,10 +7,14 @@ use crate::support::Shared;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::ArrayBuffer;
-use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
-use crate::ToLocal;
+use crate::Scope;
+use std::ffi::c_void;
+use std::ops::Deref;
+use std::ops::DerefMut;
+use std::ptr::null_mut;
+use std::slice;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
@@ -208,9 +206,9 @@ impl ArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     byte_length: usize,
-  ) -> Local<'sc, ArrayBuffer> {
+  ) -> Local<ArrayBuffer> {
     let isolate = scope.isolate();
     let ptr =
       unsafe { v8__ArrayBuffer__New__with_byte_length(isolate, byte_length) };
@@ -218,9 +216,9 @@ impl ArrayBuffer {
   }
 
   pub fn with_backing_store<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     backing_store: &mut SharedRef<BackingStore>,
-  ) -> Local<'sc, ArrayBuffer> {
+  ) -> Local<ArrayBuffer> {
     let isolate = scope.isolate();
     let ptr = unsafe {
       v8__ArrayBuffer__New__with_backing_store(isolate, &mut *backing_store)
@@ -249,7 +247,7 @@ impl ArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   pub fn new_backing_store(
-    scope: &mut impl InIsolate,
+    scope: &mut Scope,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

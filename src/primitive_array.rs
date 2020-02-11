@@ -4,7 +4,7 @@ use crate::support::Opaque;
 use crate::Isolate;
 use crate::Local;
 use crate::Primitive;
-use crate::ToLocal;
+use crate::Scope;
 
 extern "C" {
   fn v8__PrimitiveArray__New(
@@ -38,9 +38,9 @@ pub struct PrimitiveArray(Opaque);
 
 impl PrimitiveArray {
   pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     length: usize,
-  ) -> Local<'sc, PrimitiveArray> {
+  ) -> Local<PrimitiveArray> {
     let ptr =
       unsafe { v8__PrimitiveArray__New(scope.isolate(), length as int) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -52,9 +52,9 @@ impl PrimitiveArray {
 
   pub fn set<'sc>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     index: usize,
-    item: Local<'_, Primitive>,
+    item: Local<Primitive>,
   ) {
     unsafe {
       v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &item)
@@ -63,9 +63,9 @@ impl PrimitiveArray {
 
   pub fn get<'sc>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     index: usize,
-  ) -> Local<'sc, Primitive> {
+  ) -> Local<Primitive> {
     let ptr =
       unsafe { v8__PrimitiveArray__Get(self, scope.isolate(), index as int) };
     unsafe { scope.to_local(ptr) }.unwrap()

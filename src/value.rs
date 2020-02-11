@@ -6,8 +6,8 @@ use crate::Integer;
 use crate::Local;
 use crate::Number;
 use crate::Object;
+use crate::Scope;
 use crate::String;
-use crate::ToLocal;
 use crate::Uint32;
 use crate::Value;
 
@@ -384,36 +384,30 @@ impl Value {
     unsafe { v8__Value__IsModuleNamespaceObject(self) }
   }
 
-  pub fn strict_equals<'sc>(&self, that: Local<'sc, Value>) -> bool {
+  pub fn strict_equals<'sc>(&self, that: Local<Value>) -> bool {
     unsafe { v8__Value__StrictEquals(self, &that) }
   }
 
-  pub fn same_value<'sc>(&self, that: Local<'sc, Value>) -> bool {
+  pub fn same_value<'sc>(&self, that: Local<Value>) -> bool {
     unsafe { v8__Value__SameValue(self, &that) }
   }
 
   pub fn to_big_int<'sc>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, BigInt>> {
+    scope: &'sc mut Scope,
+  ) -> Option<Local<BigInt>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToBigInt(self, &mut *context)) }
   }
 
-  pub fn to_number<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Number>> {
+  pub fn to_number<'sc>(&self, scope: &'sc mut Scope) -> Option<Local<Number>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToNumber(self, &mut *context)) }
   }
 
-  pub fn to_string<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, String>> {
+  pub fn to_string<'sc>(&self, scope: &'sc mut Scope) -> Option<Local<String>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToString(self, &mut *context)) }
@@ -421,17 +415,14 @@ impl Value {
 
   pub fn to_detail_string<'sc>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, String>> {
+    scope: &'sc mut Scope,
+  ) -> Option<Local<String>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToDetailString(self, &mut *context)) }
   }
 
-  pub fn to_object<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Object>> {
+  pub fn to_object<'sc>(&self, scope: &'sc mut Scope) -> Option<Local<Object>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToObject(self, &mut *context)) }
@@ -439,35 +430,26 @@ impl Value {
 
   pub fn to_integer<'sc>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Integer>> {
+    scope: &'sc mut Scope,
+  ) -> Option<Local<Integer>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToInteger(self, &mut *context)) }
   }
 
-  pub fn to_uint32<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Uint32>> {
+  pub fn to_uint32<'sc>(&self, scope: &'sc mut Scope) -> Option<Local<Uint32>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToUint32(self, &mut *context)) }
   }
 
-  pub fn to_int32<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Int32>> {
+  pub fn to_int32<'sc>(&self, scope: &'sc mut Scope) -> Option<Local<Int32>> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     unsafe { Local::from_raw(v8__Value__ToInt32(self, &mut *context)) }
   }
 
-  pub fn number_value<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<f64> {
+  pub fn number_value<'sc>(&self, scope: &'sc mut Scope) -> Option<f64> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     let mut out = Maybe::<f64>::default();
@@ -475,10 +457,7 @@ impl Value {
     out.into()
   }
 
-  pub fn integer_value<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<i64> {
+  pub fn integer_value<'sc>(&self, scope: &'sc mut Scope) -> Option<i64> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     let mut out = Maybe::<i64>::default();
@@ -486,10 +465,7 @@ impl Value {
     out.into()
   }
 
-  pub fn uint32_value<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<u32> {
+  pub fn uint32_value<'sc>(&self, scope: &'sc mut Scope) -> Option<u32> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     let mut out = Maybe::<u32>::default();
@@ -497,7 +473,7 @@ impl Value {
     out.into()
   }
 
-  pub fn int32_value<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Option<i32> {
+  pub fn int32_value<'sc>(&self, scope: &'sc mut Scope) -> Option<i32> {
     let isolate = scope.isolate();
     let mut context = isolate.get_current_context();
     let mut out = Maybe::<i32>::default();

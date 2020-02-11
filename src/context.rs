@@ -1,10 +1,10 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-use crate::isolate::Isolate;
 use crate::support::Opaque;
+use crate::Isolate;
 use crate::Local;
 use crate::Object;
 use crate::ObjectTemplate;
-use crate::ToLocal;
+use crate::Scope;
 use crate::Value;
 use std::ptr::null;
 
@@ -26,7 +26,7 @@ pub struct Context(Opaque);
 
 impl Context {
   /// Creates a new context.
-  pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Context> {
+  pub fn new<'sc>(scope: &'sc mut Scope) -> Local<Context> {
     // TODO: optional arguments;
     let ptr = unsafe { v8__Context__New(scope.isolate(), null(), null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -35,9 +35,9 @@ impl Context {
   /// Creates a new context using the object template as the template for
   /// the global object.
   pub fn new_from_template<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     templ: Local<ObjectTemplate>,
-  ) -> Local<'sc, Context> {
+  ) -> Local<Context> {
     let ptr = unsafe { v8__Context__New(scope.isolate(), &*templ, null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
@@ -52,10 +52,7 @@ impl Context {
   /// Please note that changes to global proxy object prototype most probably
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
-  pub fn global<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Local<'sc, Object> {
+  pub fn global<'sc>(&self, scope: &'sc mut Scope) -> Local<Object> {
     let context = self as *const _ as *mut Context;
     unsafe { scope.to_local(v8__Context__Global(context)) }.unwrap()
   }

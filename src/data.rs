@@ -25,8 +25,8 @@ macro_rules! impl_deref {
 
 macro_rules! impl_from {
   { $source:ident for $type:ident } => {
-    impl<'sc> From<Local<'sc, $source>> for Local<'sc, $type> {
-      fn from(l: Local<'sc, $source>) -> Self {
+    impl<'sc> From<Local< $source>> for Local<$type> {
+      fn from(l: Local< $source>) -> Self {
         unsafe { transmute(l) }
       }
     }
@@ -35,9 +35,9 @@ macro_rules! impl_from {
 
 macro_rules! impl_try_from {
   { $source:ident for $target:ident if $value:pat => $check:expr } => {
-    impl<'sc> TryFrom<Local<'sc, $source>> for Local<'sc, $target> {
+    impl<'sc> TryFrom<Local< $source>> for Local<$target> {
       type Error = TryFromTypeError;
-      fn try_from(l: Local<'sc, $source>) -> Result<Self, Self::Error> {
+      fn try_from(l: Local< $source>) -> Result<Self, Self::Error> {
         match l {
           $value if $check => Ok(unsafe { transmute(l) }),
           _ => Err(TryFromTypeError::new(stringify!($target)))

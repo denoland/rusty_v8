@@ -2,7 +2,6 @@
 use crate::array_buffer::Allocator;
 use crate::external_references::ExternalReferences;
 use crate::promise::PromiseRejectMessage;
-use crate::scope_traits::InIsolate;
 use crate::support::intptr_t;
 use crate::support::Delete;
 use crate::support::Opaque;
@@ -203,7 +202,7 @@ impl Isolate {
 
   /// Returns the context of the currently running JavaScript, or the context
   /// on the top of the stack if no JavaScript is running.
-  pub fn get_current_context<'sc>(&mut self) -> Local<'sc, Context> {
+  pub fn get_current_context<'sc>(&mut self) -> Local<Context> {
     unsafe { Local::from_raw(v8__Isolate__GetCurrentContext(self)).unwrap() }
   }
 
@@ -211,9 +210,7 @@ impl Isolate {
   /// context of the currently running microtask while processing microtasks.
   /// If a context is entered while executing a microtask, that context is
   /// returned.
-  pub fn get_entered_or_microtask_context<'sc>(
-    &mut self,
-  ) -> Local<'sc, Context> {
+  pub fn get_entered_or_microtask_context<'sc>(&mut self) -> Local<Context> {
     unsafe {
       Local::from_raw(v8__Isolate__GetEnteredOrMicrotaskContext(self)).unwrap()
     }
@@ -282,7 +279,7 @@ impl Isolate {
   pub fn throw_exception<'sc>(
     &mut self,
     exception: Local<Value>,
-  ) -> Local<'sc, Value> {
+  ) -> Local<Value> {
     unsafe {
       let ptr = v8__Isolate__ThrowException(self, exception);
       Local::from_raw(ptr).unwrap()
@@ -436,18 +433,6 @@ pub unsafe fn new_owned_isolate(isolate_ptr: *mut Isolate) -> OwnedIsolate {
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate(NonNull<Isolate>);
-
-impl InIsolate for OwnedIsolate {
-  fn isolate(&mut self) -> &mut Isolate {
-    self.deref_mut()
-  }
-}
-
-impl InIsolate for Isolate {
-  fn isolate(&mut self) -> &mut Isolate {
-    self
-  }
-}
 
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {

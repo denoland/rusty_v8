@@ -5,11 +5,10 @@ use std::slice;
 
 use crate::support::char;
 use crate::support::int;
-use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
+use crate::Scope;
 use crate::String;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__String__Empty(isolate: *mut Isolate) -> *mut String;
@@ -63,7 +62,7 @@ bitflags! {
 }
 
 impl String {
-  pub fn empty<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
+  pub fn empty<'sc>(scope: &'sc mut Scope) -> Local<String> {
     let ptr = unsafe { v8__String__Empty(scope.isolate()) };
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
@@ -71,10 +70,10 @@ impl String {
   }
 
   pub fn new_from_utf8<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     buffer: &[u8],
     new_type: NewStringType,
-  ) -> Option<Local<'sc, String>> {
+  ) -> Option<Local<String>> {
     if buffer.is_empty() {
       return Some(Self::empty(scope));
     }
@@ -96,13 +95,13 @@ impl String {
 
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
-  pub fn utf8_length(&self, scope: &mut impl InIsolate) -> usize {
+  pub fn utf8_length(&self, scope: &mut Scope) -> usize {
     unsafe { v8__String__Utf8Length(self, scope.isolate()) as usize }
   }
 
   pub fn write_utf8(
     &self,
-    scope: &mut impl InIsolate,
+    scope: &mut Scope,
     buffer: &mut [u8],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
@@ -125,18 +124,12 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    value: &str,
-  ) -> Option<Local<'sc, String>> {
+  pub fn new<'sc>(scope: &'sc mut Scope, value: &str) -> Option<Local<String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn to_rust_string_lossy(
-    &self,
-    scope: &mut impl InIsolate,
-  ) -> std::string::String {
+  pub fn to_rust_string_lossy(&self, scope: &mut Scope) -> std::string::String {
     let capacity = self.utf8_length(scope);
     let mut string = std::string::String::with_capacity(capacity);
     let data = string.as_mut_ptr();

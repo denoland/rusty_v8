@@ -5,9 +5,9 @@ use crate::FunctionCallback;
 use crate::MessageCallback;
 
 #[derive(Clone, Copy)]
-pub union ExternalReference<'s> {
+pub union ExternalReference {
   pub function: FunctionCallback,
-  pub getter: AccessorNameGetterCallback<'s>,
+  pub getter: AccessorNameGetterCallback,
   pub message: MessageCallback,
 }
 

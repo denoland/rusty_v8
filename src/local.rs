@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -38,28 +37,28 @@ use std::ptr::NonNull;
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
 #[repr(C)]
-pub struct Local<'sc, T>(NonNull<T>, PhantomData<&'sc ()>);
+pub struct Local<T>(NonNull<T>);
 
-impl<'sc, T> Copy for Local<'sc, T> {}
+impl<T> Copy for Local<T> {}
 
-impl<'sc, T> Clone for Local<'sc, T> {
+impl<T> Clone for Local<T> {
   fn clone(&self) -> Self {
     *self
   }
 }
 
-impl<'sc, T> Local<'sc, T> {
+impl<T> Local<T> {
   /// Create a local handle by downcasting from one of its super types.
   /// This function is unsafe because the cast is unchecked.
-  pub unsafe fn cast<A>(other: Local<'sc, A>) -> Self
+  pub unsafe fn cast<A>(other: Local<A>) -> Self
   where
-    Local<'sc, A>: From<Self>,
+    Local<A>: From<Self>,
   {
     transmute(other)
   }
 
   pub(crate) unsafe fn from_raw(ptr: *mut T) -> Option<Self> {
-    Some(Self(NonNull::new(ptr)?, PhantomData))
+    Some(Self(NonNull::new(ptr)?))
   }
 
   pub(crate) fn as_non_null(self) -> NonNull<T> {
@@ -71,14 +70,14 @@ impl<'sc, T> Local<'sc, T> {
   }
 }
 
-impl<'sc, T> Deref for Local<'sc, T> {
+impl<T> Deref for Local<T> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_ref() }
   }
 }
 
-impl<'sc, T> DerefMut for Local<'sc, T> {
+impl<T> DerefMut for Local<T> {
   fn deref_mut(&mut self) -> &mut T {
     unsafe { self.0.as_mut() }
   }

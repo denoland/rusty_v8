@@ -2,7 +2,7 @@ use crate::isolate::Isolate;
 use crate::Integer;
 use crate::Local;
 use crate::Number;
-use crate::ToLocal;
+use crate::Scope;
 
 extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *mut Number;
@@ -16,10 +16,7 @@ extern "C" {
 }
 
 impl Number {
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    value: f64,
-  ) -> Local<'sc, Number> {
+  pub fn new<'sc>(scope: &'sc mut Scope, value: f64) -> Local<Number> {
     let local = unsafe { v8__Number__New(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }
@@ -30,18 +27,15 @@ impl Number {
 }
 
 impl Integer {
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    value: i32,
-  ) -> Local<'sc, Integer> {
+  pub fn new<'sc>(scope: &'sc mut Scope, value: i32) -> Local<Integer> {
     let local = unsafe { v8__Integer__New(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }
 
   pub fn new_from_unsigned<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+    scope: &'sc mut Scope,
     value: u32,
-  ) -> Local<'sc, Integer> {
+  ) -> Local<Integer> {
     let local = unsafe { v8__Integer__NewFromUnsigned(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }
