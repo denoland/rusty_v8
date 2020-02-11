@@ -120,9 +120,9 @@ impl Drop for HandleScope {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
-  pub fn new<F, T>(scope: &mut Scope, f: F) -> Local<T>
+  pub fn new<F, T>(scope: &mut Scope, f: F) -> Option<Local<T>>
   where
-    F: FnOnce(&mut Scope) -> Local<T>,
+    F: FnOnce(&mut Scope) -> Option<Local<T>>,
   {
     assert_eq!(
       std::mem::size_of::<EscapableHandleScope>(),
@@ -135,7 +135,7 @@ impl EscapableHandleScope {
     let mut hs = unsafe { hs.assume_init() };
     let scope: &mut Scope = &mut hs;
     let retval = f(scope);
-    unsafe { hs.escape(retval) }
+    retval.map(|v| unsafe { hs.escape(v) })
   }
 
   /// Pushes the value into the previous scope and returns a handle to it.

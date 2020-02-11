@@ -162,16 +162,18 @@ fn escapable_handle_scope() {
     // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
     let number = v8::EscapableHandleScope::new(scope1, |escapable_scope| {
-      let number = v8::Number::new(escapable_scope, 78.9);
-      number
+      Some(v8::Number::new(escapable_scope, 78.9))
     });
-    assert_eq!(number.value(), 78.9);
+    assert_eq!(number.unwrap().value(), 78.9);
 
     let string = v8::EscapableHandleScope::new(scope1, |escapable_scope| {
       let string = v8::String::new(escapable_scope, "Hello 🦕 world!").unwrap();
-      string
+      Some(string)
     });
-    assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
+    assert_eq!(
+      "Hello 🦕 world!",
+      string.unwrap().to_rust_string_lossy(scope1)
+    );
 
     let string = v8::EscapableHandleScope::new(scope1, |escapable_scope| {
       let nested_str_val = v8::EscapableHandleScope::new(
@@ -179,11 +181,13 @@ fn escapable_handle_scope() {
         |nested_escapable_scope| {
           let string =
             v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
-          string
+          Some(string)
         },
-      );
-      nested_str_val
-    });
+      )
+      .unwrap();
+      Some(nested_str_val)
+    })
+    .unwrap();
     assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(scope1));
   });
 }
@@ -326,4 +330,20 @@ fn array_buffer_with_shared_backing_store() {
 
     context.exit();
   });
+}
+
+fn v8_str(scope: &mut v8::Scope, s: &str) -> v8::Local<v8::String> {
+  v8::String::new(scope, s).unwrap()
+}
+
+fn eval(
+  scope: &mut v8::Scope,
+  context: v8::Local<v8::Context>,
+  code: &'static str,
+) -> Option<v8::Local<v8::Value>> {
+  v8::EscapableHandleScope::new(scope, |scope| {
+    let source = v8_str(scope, code);
+    let mut script = v8::Script::compile(scope, context, source, None).unwrap();
+    script.run(scope, context)
+  })
 }
