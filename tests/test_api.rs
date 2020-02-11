@@ -347,3 +347,50 @@ fn eval(
     script.run(scope, context)
   })
 }
+
+#[test]
+fn try_catch() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    v8::TryCatch::new(scope, move |scope, tc| {
+      let result = eval(scope, context, "throw new Error('foo')");
+      assert!(result.is_none());
+      assert!(tc.has_caught());
+      assert!(tc.exception().is_some());
+      assert!(tc.stack_trace(scope, context).is_some());
+      assert!(tc.message().is_some());
+      assert_eq!(
+        tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
+        "Uncaught Error: foo"
+      );
+    });
+    v8::TryCatch::new(scope, move |scope, tc| {
+      let result = eval(scope, context, "1 + 1");
+      assert!(result.is_some());
+      assert!(!tc.has_caught());
+      assert!(tc.exception().is_none());
+      assert!(tc.stack_trace(scope, context).is_none());
+      assert!(tc.message().is_none());
+      assert!(tc.rethrow().is_none());
+    });
+    // Rethrow and reset.
+    v8::TryCatch::new(scope, |scope, tc1| {
+      v8::TryCatch::new(scope, |scope, tc2| {
+        eval(scope, context, "throw 'bar'");
+        assert!(tc2.has_caught());
+        assert!(tc2.rethrow().is_some());
+        tc2.reset();
+        assert!(!tc2.has_caught());
+      });
+      assert!(tc1.has_caught());
+    });
+
+    context.exit();
+  });
+}

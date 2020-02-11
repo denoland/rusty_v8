@@ -119,7 +119,7 @@ pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;
 pub use template::*;
-pub use try_catch::{TryCatch, TryCatchScope};
+pub use try_catch::TryCatch;
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;
