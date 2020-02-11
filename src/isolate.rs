@@ -163,24 +163,8 @@ impl Isolate {
     CreateParams::new()
   }
 
-  // TODO(ry) The return value here is pretty sloppy:
-  // Arc<Mutex<Option<*mut Isolate>>>. Only the V8 thread ever modifies it,
-  // mutex shouldn't be necessary, nor does it need to be clone-able.
-  pub fn thread_safe_handle(&mut self) -> Arc<IsolateHandle> {
-    let slot_ptr = self.get_data(0) as *mut IsolateHandle;
-    if slot_ptr.is_null() {
-      let handle = Arc::new(IsolateHandle::new(self));
-      let handle_ptr = Arc::into_raw(handle.clone());
-      unsafe {
-        self.set_data(0, handle_ptr as *mut c_void);
-      }
-      handle
-    } else {
-      let handle = unsafe { Arc::from_raw(slot_ptr) };
-      // Call into_raw so again to avoid double free.
-      let _ptr = Arc::into_raw(handle.clone());
-      handle
-    }
+  pub fn thread_safe_handle(&mut self) -> IsolateHandle {
+    IsolateHandle::new(self)
   }
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
@@ -319,30 +303,46 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
-    let slot_ptr = self.get_data(0) as *const IsolateHandle;
-    if !slot_ptr.is_null() {
-      self.set_data(0, std::ptr::null_mut());
-      let handle = Arc::from_raw(slot_ptr);
-      let some_ptr = handle.0.lock().unwrap().take();
-      assert!(some_ptr.is_some());
-    }
+    IsolateHandle::dispose(self);
     v8__Isolate__Dispose(self)
   }
 }
 
-// Should out live Isolate
-// Should error out (if not panic) if called when Isolate has exited.
-// None indicates that the isolate has exited.
 // TODO(ry) Use AtomicPtr? Use Cell? Only one thread ever modifies it.
-/// Thread safe reference to an Isolate.
-pub struct IsolateHandle(Mutex<Option<*mut Isolate>>);
+/// Thread safe reference to an Isolate. This handle will out-live the Isolate
+/// itself, when that happens all methods on it will return false.
+pub struct IsolateHandle(Arc<Mutex<Option<*mut Isolate>>>);
 
 unsafe impl Send for IsolateHandle {}
 unsafe impl Sync for IsolateHandle {}
 
 impl IsolateHandle {
-  fn new(isolate: *mut Isolate) -> Self {
-    IsolateHandle(Mutex::new(Some(isolate)))
+  fn dispose(isolate: &mut Isolate) {
+    let slot_ptr = isolate.get_data(0) as *const Mutex<Option<*mut Isolate>>;
+    if !slot_ptr.is_null() {
+      unsafe { isolate.set_data(0, std::ptr::null_mut()) };
+      let handle = unsafe { Arc::from_raw(slot_ptr) };
+      let some_ptr = handle.lock().unwrap().take();
+      assert!(some_ptr.is_some());
+    }
+  }
+
+  fn new(isolate: &mut Isolate) -> Self {
+    let slot_ptr = isolate.get_data(0) as *mut Mutex<Option<*mut Isolate>>;
+    if slot_ptr.is_null() {
+      let x: Option<*mut Isolate> = Some(&mut *isolate);
+      let handle = Arc::new(Mutex::new(x));
+      let handle_ptr = Arc::into_raw(handle.clone());
+      unsafe {
+        isolate.set_data(0, handle_ptr as *mut c_void);
+      }
+      IsolateHandle(handle)
+    } else {
+      let handle = unsafe { Arc::from_raw(slot_ptr) };
+      // Call into_raw so again to avoid double free.
+      let _ptr = Arc::into_raw(handle.clone());
+      IsolateHandle(handle)
+    }
   }
 
   /// Forcefully terminate the current thread of JavaScript execution
