@@ -3,8 +3,8 @@
 #[macro_use]
 extern crate lazy_static;
 
-//use std::convert::{Into, TryFrom, TryInto};
-use std::sync::atomic::{AtomicUsize, Ordering};
+// use std::convert::{Into, TryFrom, TryInto};
+// use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use rusty_v8 as v8;
@@ -35,6 +35,32 @@ fn setup() -> SetupGuard {
 }
 
 #[test]
+fn hello_world() {
+  let platform = v8::new_default_platform();
+  v8::V8::initialize_platform(platform);
+  v8::V8::initialize();
+
+  let mut create_params = v8::Isolate::create_params();
+  create_params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(create_params);
+
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
+    println!("javascript code: {}", code.to_rust_string_lossy(scope));
+
+    let mut script = v8::Script::compile(scope, context, code, None).unwrap();
+    let result = script.run(scope, context).unwrap();
+    let result = result.to_string(scope).unwrap();
+    println!("result: {}", result.to_rust_string_lossy(scope));
+
+    context.exit();
+  });
+}
+
+#[test]
 fn handle_scope_nested() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
@@ -48,6 +74,8 @@ fn handle_scope_nested() {
     });
   });
 }
+
+/*
 
 #[test]
 #[allow(clippy::float_cmp)]
@@ -332,15 +360,15 @@ fn array_buffer_with_shared_backing_store() {
   });
 }
 
-fn v8_str(scope: &mut v8::Scope, s: &str) -> v8::Local<v8::String> {
+fn v8_str<'s>(scope: &'s mut v8::Scope, s: &str) -> v8::Local<'s, v8::String> {
   v8::String::new(scope, s).unwrap()
 }
 
-fn eval(
-  scope: &mut v8::Scope,
+fn eval<'s>(
+  scope: &'s mut v8::Scope,
   context: v8::Local<v8::Context>,
   code: &'static str,
-) -> Option<v8::Local<v8::Value>> {
+) -> Option<v8::Local<'s, v8::Value>> {
   v8::EscapableHandleScope::new(scope, |scope| {
     let source = v8_str(scope, code);
     let mut script = v8::Script::compile(scope, context, source, None).unwrap();
@@ -358,50 +386,46 @@ fn try_catch() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    /*
-    TODO(ry)
-        v8::TryCatch::new(scope, |scope, _tc| {
-          let _ = v8::Integer::new(scope, 123);
-        });
-            v8::TryCatch::new(scope, |scope, tc| {
-              let result = eval(scope, context, "throw new Error('foo')");
-              assert!(result.is_none());
-              assert!(tc.has_caught());
-              assert!(tc.exception().is_some());
-              assert!(tc.stack_trace(scope, context).is_some());
-              assert!(tc.message().is_some());
-              assert_eq!(
-                tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
-                "Uncaught Error: foo"
-              );
-            });
-            v8::TryCatch::new(scope, |scope, tc| {
-              let result = eval(scope, context, "1 + 1");
-              assert!(result.is_some());
-              assert!(!tc.has_caught());
-              assert!(tc.exception().is_none());
-              assert!(tc.stack_trace(scope, context).is_none());
-              assert!(tc.message().is_none());
-              assert!(tc.rethrow().is_none());
-            });
-            // Rethrow and reset.
-            v8::TryCatch::new(scope, |scope, tc1| {
-              v8::TryCatch::new(scope, |scope, tc2| {
-                eval(scope, context, "throw 'bar'");
-                assert!(tc2.has_caught());
-                assert!(tc2.rethrow().is_some());
-                tc2.reset();
-                assert!(!tc2.has_caught());
-              });
-              assert!(tc1.has_caught());
-            });
-        */
+    v8::TryCatch::new(scope, |scope, _tc| {
+      let _ = v8::Integer::new(scope, 123);
+    });
+    v8::TryCatch::new(scope, |scope, tc| {
+      let result = eval(scope, context, "throw new Error('foo')");
+      assert!(result.is_none());
+      assert!(tc.has_caught());
+      assert!(tc.exception().is_some());
+      assert!(tc.stack_trace(scope, context).is_some());
+      assert!(tc.message().is_some());
+      assert_eq!(
+        tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
+        "Uncaught Error: foo"
+      );
+    });
+    v8::TryCatch::new(scope, |scope, tc| {
+      let result = eval(scope, context, "1 + 1");
+      assert!(result.is_some());
+      assert!(!tc.has_caught());
+      assert!(tc.exception().is_none());
+      assert!(tc.stack_trace(scope, context).is_none());
+      assert!(tc.message().is_none());
+      assert!(tc.rethrow().is_none());
+    });
+    // Rethrow and reset.
+    v8::TryCatch::new(scope, |scope, tc1| {
+      v8::TryCatch::new(scope, |scope, tc2| {
+        eval(scope, context, "throw 'bar'");
+        assert!(tc2.has_caught());
+        assert!(tc2.rethrow().is_some());
+        tc2.reset();
+        assert!(!tc2.has_caught());
+      });
+      assert!(tc1.has_caught());
+    });
 
     context.exit();
   });
 }
 
-/*
 #[test]
 fn throw_exception() {
     let _setup_guard = setup();

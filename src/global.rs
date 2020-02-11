@@ -50,7 +50,7 @@ impl<T> Global<T> {
   /// Construct a new Global from an existing handle. When the existing handle
   /// is non-empty, a new storage cell is created pointing to the same object,
   /// and no flags are set.
-  pub fn new_from(scope: &'s mut Scope, other: impl AnyHandle<T>) -> Self {
+  pub fn new_from(scope: &mut Scope, other: impl AnyHandle<T>) -> Self {
     let isolate = scope.isolate();
     let other_value = other.read(isolate);
     Self {
@@ -67,7 +67,9 @@ impl<T> Global<T> {
   }
 
   /// Construct a Local<T> from this global handle.
-  pub fn get<'s>(&self, scope: &'s mut Scope) -> Option<Local<'s, T>> {
+  pub fn get<'s>(&self, _scope: &'s mut Scope) -> Option<Local<'s, T>> {
+    todo!()
+    /*
     let isolate = scope.isolate();
     self.check_isolate(isolate);
     self
@@ -75,6 +77,7 @@ impl<T> Global<T> {
       .map(|g| g.as_ptr() as *mut Value)
       .map(|g| unsafe { v8__Local__New(isolate, g) })
       .and_then(|l| unsafe { scope.to_local(l as *mut T) })
+    */
   }
 
   /// If non-empty, destroy the underlying storage cell

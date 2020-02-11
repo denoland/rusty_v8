@@ -247,7 +247,7 @@ pub type FunctionCallback = extern "C" fn(*mut FunctionCallbackInfo);
 
 impl<F> MapFnFrom<F> for FunctionCallback
 where
-  F: UnitType + Fn(&'s mut Scope, FunctionCallbackArguments, ReturnValue),
+  F: UnitType + Fn(&mut Scope, FunctionCallbackArguments, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |info: *mut FunctionCallbackInfo| {
@@ -262,16 +262,16 @@ where
 
 /// AccessorNameGetterCallback is used as callback functions when getting a
 /// particular property. See Object and ObjectTemplate's method SetAccessor.
-pub type AccessorNameGetterCallback =
-  extern "C" fn(Local<Name>, *const PropertyCallbackInfo);
+pub type AccessorNameGetterCallback<'s> =
+  extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for AccessorNameGetterCallback
+impl<F> MapFnFrom<F> for AccessorNameGetterCallback<'_>
 where
   F: UnitType
-    + Fn(&'s mut Scope, Local<Name>, PropertyCallbackArguments, ReturnValue),
+    + Fn(&mut Scope, Local<'_, Name>, PropertyCallbackArguments, ReturnValue),
 {
   fn mapping() -> Self {
-    let f = |_key: Local<Name>, _info: *const PropertyCallbackInfo| {
+    let f = |_key: Local<'_, Name>, _info: *const PropertyCallbackInfo| {
       todo!()
       /*
       let scope: PropertyCallbackScope =

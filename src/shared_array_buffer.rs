@@ -92,7 +92,7 @@ impl SharedArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   pub fn new_backing_store(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

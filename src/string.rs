@@ -95,13 +95,13 @@ impl String {
 
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
-  pub fn utf8_length(&self, scope: &'s mut Scope) -> usize {
+  pub fn utf8_length(&self, scope: &mut Scope) -> usize {
     unsafe { v8__String__Utf8Length(self, scope.isolate()) as usize }
   }
 
   pub fn write_utf8(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     buffer: &mut [u8],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
@@ -124,12 +124,15 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn new<'s>(scope: &'s mut Scope, value: &str) -> Option<Local<'s, String>> {
+  pub fn new<'s>(
+    scope: &'s mut Scope,
+    value: &str,
+  ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn to_rust_string_lossy(&self, scope: &'s mut Scope) -> std::string::String {
+  pub fn to_rust_string_lossy(&self, scope: &mut Scope) -> std::string::String {
     let capacity = self.utf8_length(scope);
     let mut string = std::string::String::with_capacity(capacity);
     let data = string.as_mut_ptr();

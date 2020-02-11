@@ -52,7 +52,7 @@ impl TryCatch {
   /// stack allocated because the memory location itself is compared against
   /// JavaScript try/catch blocks.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new<F>(scope: &'s mut Scope, f: F)
+  pub fn new<'s, F>(scope: &'s mut Scope, f: F)
   where
     F: FnOnce(&'s mut Scope, &mut TryCatch),
   {
@@ -109,11 +109,11 @@ impl TryCatch {
 
   /// Returns the .stack property of the thrown object. If no .stack
   /// property is present an empty handle is returned.
-  pub fn stack_trace(
+  pub fn stack_trace<'s>(
     &self,
     scope: &'s mut Scope,
     context: Local<Context>,
-  ) -> Option<Local<Value>> {
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__TryCatch__StackTrace(self, context)) }
   }
 

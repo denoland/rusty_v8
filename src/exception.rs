@@ -193,7 +193,7 @@ impl Message {
     &self,
     scope: &'s mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<String>> {
+  ) -> Option<Local<'s, String>> {
     unsafe { scope.to_local(v8__Message__GetSourceLine(self, &mut *context)) }
   }
 
@@ -202,7 +202,7 @@ impl Message {
   pub fn get_script_resource_name<'s>(
     &self,
     scope: &'s mut Scope,
-  ) -> Option<Local<Value>> {
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__Message__GetScriptResourceName(self)) }
   }
 
