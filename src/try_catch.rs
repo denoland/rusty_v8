@@ -54,18 +54,20 @@ impl TryCatch {
   #[allow(clippy::new_ret_no_self)]
   pub fn new<F>(scope: &mut Scope, f: F)
   where
-    F: FnOnce(&mut Scope, TryCatch),
+    F: FnOnce(&mut Scope, &mut TryCatch),
   {
-    assert_eq!(
-      std::mem::size_of::<TryCatch>(),
-      std::mem::size_of::<MaybeUninit<TryCatch>>()
-    );
     let mut tc: MaybeUninit<TryCatch> = MaybeUninit::uninit();
+    assert_eq!(std::mem::size_of_val(&tc), std::mem::size_of::<TryCatch>());
+    let isolate = scope.isolate();
+    unsafe { v8__TryCatch__CONSTRUCT(&mut tc, isolate) };
+    let mut tc = unsafe { tc.assume_init() };
+
+    f(scope, &mut tc);
+
     unsafe {
-      v8__TryCatch__CONSTRUCT(&mut tc, scope.isolate());
+      v8__TryCatch__DESTRUCT(&mut tc);
     }
-    let tc_ = unsafe { tc.assume_init() };
-    f(scope, tc_);
+    // drop(tc);
   }
 
   /// Returns true if an exception has been caught by this try/catch block.
@@ -170,6 +172,6 @@ impl TryCatch {
 
 impl Drop for TryCatch {
   fn drop(&mut self) {
-    unsafe { v8__TryCatch__DESTRUCT(self) }
+    // unsafe { v8__TryCatch__DESTRUCT(self) }
   }
 }
