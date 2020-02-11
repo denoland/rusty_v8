@@ -37,10 +37,7 @@ extern "C" {
 pub struct PrimitiveArray(Opaque);
 
 impl PrimitiveArray {
-  pub fn new<'sc>(
-    scope: &'sc mut Scope,
-    length: usize,
-  ) -> Local<PrimitiveArray> {
+  pub fn new<'s>(scope: &'s mut Scope, length: usize) -> Local<PrimitiveArray> {
     let ptr =
       unsafe { v8__PrimitiveArray__New(scope.isolate(), length as int) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -50,22 +47,22 @@ impl PrimitiveArray {
     unsafe { v8__PrimitiveArray__Length(self) as usize }
   }
 
-  pub fn set<'sc>(
+  pub fn set<'s>(
     &self,
-    scope: &'sc mut Scope,
+    scope: &'s mut Scope,
     index: usize,
-    item: Local<Primitive>,
+    item: Local<'s, Primitive>,
   ) {
     unsafe {
       v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &item)
     }
   }
 
-  pub fn get<'sc>(
+  pub fn get<'s>(
     &self,
-    scope: &'sc mut Scope,
+    scope: &'s mut Scope,
     index: usize,
-  ) -> Local<Primitive> {
+  ) -> Local<'s, Primitive> {
     let ptr =
       unsafe { v8__PrimitiveArray__Get(self, scope.isolate(), index as int) };
     unsafe { scope.to_local(ptr) }.unwrap()

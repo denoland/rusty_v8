@@ -23,10 +23,10 @@ use crate::Value;
 ///
 /// ```rust,ignore
 ///   fn my_resolve_callback<'a>(
-///      context: v8::Local< v8::Context>,
-///      specifier: v8::Local< v8::String>,
-///      referrer: v8::Local< v8::Module>,
-///   ) -> Option<v8::Local< v8::Module>> {
+///      context: v8::Local<'a, v8::Context>,
+///      specifier: v8::Local<'a, v8::String>,
+///      referrer: v8::Local<'a, v8::Module>,
+///   ) -> Option<v8::Local<'a, v8::Module>> {
 ///      // ...
 ///      Some(resolved_module)
 ///   }
@@ -35,22 +35,29 @@ use crate::Value;
 
 // System V AMD64 ABI: Local<Module> returned in a register.
 #[cfg(not(target_os = "windows"))]
-pub type ResolveCallback<'a> =
-  extern "C" fn(Local<Context>, Local<String>, Local<Module>) -> *const Module;
+pub type ResolveCallback<'a> = extern "C" fn(
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, Module>,
+) -> *const Module;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
 pub type ResolveCallback<'a> = extern "C" fn(
   *mut *const Module,
-  Local<Context>,
-  Local<String>,
-  Local<Module>,
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, Module>,
 ) -> *mut *const Module;
 
 impl<'a, F> MapFnFrom<F> for ResolveCallback<'a>
 where
   F: UnitType
-    + Fn(Local<Context>, Local<String>, Local<Module>) -> Option<Local<Module>>,
+    + Fn(
+      Local<'a, Context>,
+      Local<'a, String>,
+      Local<'a, Module>,
+    ) -> Option<Local<'a, Module>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -200,11 +207,11 @@ impl Module {
   /// kErrored and propagate the thrown exception (which is then also available
   /// via |GetException|).
   #[must_use]
-  pub fn evaluate<'sc>(
+  pub fn evaluate<'s>(
     &mut self,
-    scope: &'sc mut Scope,
+    scope: &'s mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<Value>> {
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__Module__Evaluate(&mut *self, &mut *context)) }
   }
 }

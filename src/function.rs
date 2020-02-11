@@ -118,7 +118,7 @@ impl<'cb> ReturnValue<'cb> {
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get<'sc>(&mut self, scope: &'sc mut Scope) -> Local<Value> {
+  pub fn get<'s>(&mut self, scope: &'s mut Scope) -> Local<'s, Value> {
     unsafe { scope.to_local(v8__ReturnValue__Get(self)) }.unwrap()
   }
 }
@@ -247,7 +247,7 @@ pub type FunctionCallback = extern "C" fn(*mut FunctionCallbackInfo);
 
 impl<F> MapFnFrom<F> for FunctionCallback
 where
-  F: UnitType + Fn(&mut Scope, FunctionCallbackArguments, ReturnValue),
+  F: UnitType + Fn(&'s mut Scope, FunctionCallbackArguments, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |info: *mut FunctionCallbackInfo| {
@@ -268,7 +268,7 @@ pub type AccessorNameGetterCallback =
 impl<F> MapFnFrom<F> for AccessorNameGetterCallback
 where
   F: UnitType
-    + Fn(&mut Scope, Local<Name>, PropertyCallbackArguments, ReturnValue),
+    + Fn(&'s mut Scope, Local<Name>, PropertyCallbackArguments, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |_key: Local<Name>, _info: *const PropertyCallbackInfo| {
@@ -289,23 +289,23 @@ impl Function {
   // TODO: add remaining arguments from C++
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
-  pub fn new<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new<'s>(
+    scope: &'s mut Scope,
     mut context: Local<Context>,
     callback: impl MapFnTo<FunctionCallback>,
-  ) -> Option<Local<Function>> {
+  ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.to_local(v8__Function__New(&mut *context, callback.map_fn_to()))
     }
   }
 
-  pub fn call<'sc>(
+  pub fn call<'s>(
     &self,
-    scope: &'sc mut Scope,
-    context: Local<Context>,
-    recv: Local<Value>,
-    args: &[Local<Value>],
-  ) -> Option<Local<Value>> {
+    scope: &'s mut Scope,
+    context: Local<'_, Context>,
+    recv: Local<'_, Value>,
+    args: &[Local<'_, Value>],
+  ) -> Option<Local<'s, Value>> {
     let argv = args.as_ptr();
     let argc = int::try_from(args.len()).unwrap();
     unsafe {

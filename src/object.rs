@@ -59,7 +59,7 @@ extern "C" {
 
 impl Object {
   /// Creates an empty object.
-  pub fn new<'sc>(scope: &'sc mut Scope) -> Local<Object> {
+  pub fn new<'s>(scope: &'s mut Scope) -> Local<'s, Object> {
     let ptr = unsafe { v8__Object__New(scope.isolate()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
@@ -70,12 +70,12 @@ impl Object {
   /// a prototype at all). This is similar to Object.create().
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
-  pub fn with_prototype_and_properties<'sc>(
-    scope: &'sc mut Scope,
+  pub fn with_prototype_and_properties<'s>(
+    scope: &'s mut Scope,
     prototype_or_null: Local<Value>,
     names: &[Local<Name>],
     values: &[Local<Value>],
-  ) -> Local<Object> {
+  ) -> Local<'s, Object> {
     assert_eq!(names.len(), values.len());
     unsafe {
       let object = v8__Object__New__with_prototype_and_properties(
@@ -136,9 +136,9 @@ impl Object {
   pub fn get<'a>(
     &self,
     scope: &'a mut Scope,
-    context: Local<Context>,
-    key: Local<Value>,
-  ) -> Option<Local<Value>> {
+    context: Local<'a, Context>,
+    key: Local<'a, Value>,
+  ) -> Option<Local<'a, Value>> {
     unsafe {
       let ptr = v8__Object__Get(self, context, key);
       scope.to_local(ptr)
@@ -166,7 +166,10 @@ impl Object {
   }
 
   /// Returns the context in which the object was created.
-  pub fn creation_context<'a>(&self, scope: &'a mut Scope) -> Local<Context> {
+  pub fn creation_context<'a>(
+    &self,
+    scope: &'a mut Scope,
+  ) -> Local<'a, Context> {
     unsafe {
       let ptr = v8__Object__CreationContext(self);
       scope.to_local(ptr).unwrap()
@@ -177,7 +180,7 @@ impl Object {
 impl Array {
   /// Creates a JavaScript array with the given length. If the length
   /// is negative the returned array will have length 0.
-  pub fn new<'sc>(scope: &'sc mut Scope, length: i32) -> Local<Array> {
+  pub fn new<'s>(scope: &'s mut Scope, length: i32) -> Local<'s, Array> {
     let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

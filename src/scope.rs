@@ -92,7 +92,7 @@ pub struct HandleScope([usize; 3]);
 impl HandleScope {
   pub fn new<F>(isolate: &mut Isolate, f: F)
   where
-    F: FnOnce(&mut Scope),
+    F: FnOnce(&'s mut Scope),
   {
     assert_eq!(
       std::mem::size_of::<HandleScope>(),
@@ -120,9 +120,9 @@ impl Drop for HandleScope {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
-  pub fn new<F, T>(scope: &mut Scope, f: F) -> Option<Local<T>>
+  pub fn new<F, T>(scope: &'s mut Scope, f: F) -> Option<Local<T>>
   where
-    F: FnOnce(&mut Scope) -> Option<Local<T>>,
+    F: FnOnce(&'s mut Scope) -> Option<Local<T>>,
   {
     assert_eq!(
       std::mem::size_of::<EscapableHandleScope>(),

@@ -66,10 +66,10 @@ impl Template {
 
 impl FunctionTemplate {
   /// Creates a function template.
-  pub fn new<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new<'s>(
+    scope: &'s mut Scope,
     callback: impl MapFnTo<FunctionCallback>,
-  ) -> Local<FunctionTemplate> {
+  ) -> Local<'s, FunctionTemplate> {
     let ptr = unsafe {
       v8__FunctionTemplate__New(scope.isolate(), callback.map_fn_to())
     };
@@ -77,11 +77,11 @@ impl FunctionTemplate {
   }
 
   /// Returns the unique function instance in the current execution context.
-  pub fn get_function<'sc>(
+  pub fn get_function<'s>(
     &mut self,
-    scope: &'sc mut Scope,
+    scope: &'s mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<Function>> {
+  ) -> Option<Local<'s, Function>> {
     unsafe {
       scope
         .to_local(v8__FunctionTemplate__GetFunction(&mut *self, &mut *context))
@@ -98,27 +98,27 @@ impl FunctionTemplate {
 
 impl ObjectTemplate {
   /// Creates an object template.
-  pub fn new<'sc>(scope: &'sc mut Scope) -> Local<ObjectTemplate> {
+  pub fn new<'s>(scope: &'s mut Scope) -> Local<'s, ObjectTemplate> {
     let ptr =
       unsafe { v8__ObjectTemplate__New(scope.isolate(), std::ptr::null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Creates an object template from a function template.
-  pub fn new_from_template<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new_from_template<'s>(
+    scope: &'s mut Scope,
     templ: Local<FunctionTemplate>,
-  ) -> Local<ObjectTemplate> {
+  ) -> Local<'s, ObjectTemplate> {
     let ptr = unsafe { v8__ObjectTemplate__New(scope.isolate(), &*templ) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
   /// Creates a new instance of this object template.
-  pub fn new_instance<'a>(
+  pub fn new_instance<'s>(
     &self,
-    scope: &'a mut Scope,
+    scope: &'s mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<Object>> {
+  ) -> Option<Local<'s, Object>> {
     let ptr = unsafe { v8__ObjectTemplate__NewInstance(self, &mut *context) };
     unsafe { scope.to_local(ptr) }
   }

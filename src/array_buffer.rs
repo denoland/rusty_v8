@@ -205,20 +205,20 @@ impl ArrayBuffer {
   /// Allocated memory will be owned by a created ArrayBuffer and
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
-  pub fn new<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new<'s>(
+    scope: &'s mut Scope,
     byte_length: usize,
-  ) -> Local<ArrayBuffer> {
+  ) -> Local<'s, ArrayBuffer> {
     let isolate = scope.isolate();
     let ptr =
       unsafe { v8__ArrayBuffer__New__with_byte_length(isolate, byte_length) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
-  pub fn with_backing_store<'sc>(
-    scope: &'sc mut Scope,
+  pub fn with_backing_store<'s>(
+    scope: &'s mut Scope,
     backing_store: &mut SharedRef<BackingStore>,
-  ) -> Local<ArrayBuffer> {
+  ) -> Local<'s, ArrayBuffer> {
     let isolate = scope.isolate();
     let ptr = unsafe {
       v8__ArrayBuffer__New__with_backing_store(isolate, &mut *backing_store)
@@ -247,7 +247,7 @@ impl ArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   pub fn new_backing_store(
-    scope: &mut Scope,
+    scope: &'s mut Scope,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

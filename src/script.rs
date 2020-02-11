@@ -13,7 +13,7 @@ use crate::Value;
 
 /// The origin, within a file, of a script.
 #[repr(C)]
-pub struct ScriptOrigin<'sc>([usize; 7], PhantomData<&'sc ()>);
+pub struct ScriptOrigin<'s>([usize; 7], PhantomData<&'s ()>);
 
 extern "C" {
   fn v8__Script__Compile(
@@ -44,12 +44,12 @@ pub struct Script(Opaque);
 
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
-  pub fn compile<'sc>(
-    scope: &'sc mut Scope,
+  pub fn compile<'s>(
+    scope: &'s mut Scope,
     mut context: Local<Context>,
     mut source: Local<String>,
     origin: Option<&ScriptOrigin>,
-  ) -> Option<Local<Script>> {
+  ) -> Option<Local<'s, Script>> {
     // TODO: use the type system to enforce that a Context has been entered.
     // TODO: `context` and `source` probably shouldn't be mut.
     let ptr = unsafe {
@@ -65,17 +65,17 @@ impl Script {
   /// Runs the script returning the resulting value. It will be run in the
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
-  pub fn run<'sc>(
+  pub fn run<'s>(
     &mut self,
-    scope: &'sc mut Scope,
+    scope: &'s mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<Value>> {
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__Script__Run(self, &mut *context)) }
   }
 }
 
 /// The origin, within a file, of a script.
-impl<'sc> ScriptOrigin<'sc> {
+impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
     mut resource_name: Local<Value>,

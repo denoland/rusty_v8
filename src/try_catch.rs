@@ -52,9 +52,9 @@ impl TryCatch {
   /// stack allocated because the memory location itself is compared against
   /// JavaScript try/catch blocks.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new<F>(scope: &mut Scope, f: F)
+  pub fn new<F>(scope: &'s mut Scope, f: F)
   where
-    F: FnOnce(&mut Scope, &mut TryCatch),
+    F: FnOnce(&'s mut Scope, &mut TryCatch),
   {
     let mut tc: MaybeUninit<TryCatch> = MaybeUninit::uninit();
     assert_eq!(std::mem::size_of_val(&tc), std::mem::size_of::<TryCatch>());
@@ -111,7 +111,7 @@ impl TryCatch {
   /// property is present an empty handle is returned.
   pub fn stack_trace(
     &self,
-    scope: &mut Scope,
+    scope: &'s mut Scope,
     context: Local<Context>,
   ) -> Option<Local<Value>> {
     unsafe { scope.to_local(v8__TryCatch__StackTrace(self, context)) }

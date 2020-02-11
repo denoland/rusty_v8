@@ -34,10 +34,10 @@ impl Context {
 
   /// Creates a new context using the object template as the template for
   /// the global object.
-  pub fn new_from_template<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new_from_template<'s>(
+    scope: &'s mut Scope,
     templ: Local<ObjectTemplate>,
-  ) -> Local<Context> {
+  ) -> Local<'s, Context> {
     let ptr = unsafe { v8__Context__New(scope.isolate(), &*templ, null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

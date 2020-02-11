@@ -50,7 +50,7 @@ impl<T> Global<T> {
   /// Construct a new Global from an existing handle. When the existing handle
   /// is non-empty, a new storage cell is created pointing to the same object,
   /// and no flags are set.
-  pub fn new_from(scope: &mut Scope, other: impl AnyHandle<T>) -> Self {
+  pub fn new_from(scope: &'s mut Scope, other: impl AnyHandle<T>) -> Self {
     let isolate = scope.isolate();
     let other_value = other.read(isolate);
     Self {
@@ -67,7 +67,7 @@ impl<T> Global<T> {
   }
 
   /// Construct a Local<T> from this global handle.
-  pub fn get<'sc>(&self, scope: &'sc mut Scope) -> Option<Local<T>> {
+  pub fn get<'s>(&self, scope: &'s mut Scope) -> Option<Local<'s, T>> {
     let isolate = scope.isolate();
     self.check_isolate(isolate);
     self
@@ -132,19 +132,19 @@ pub trait AnyHandle<T> {
   fn read(self, isolate: &Isolate) -> Option<NonNull<T>>;
 }
 
-impl<'sc, T> AnyHandle<T> for Local<T> {
+impl<'s, T> AnyHandle<T> for Local<'s, T> {
   fn read(self, _isolate: &Isolate) -> Option<NonNull<T>> {
     Some(self.as_non_null())
   }
 }
 
-impl<'sc, T> AnyHandle<T> for Option<Local<T>> {
+impl<'s, T> AnyHandle<T> for Option<Local<'s, T>> {
   fn read(self, _isolate: &Isolate) -> Option<NonNull<T>> {
     self.map(|local| local.as_non_null())
   }
 }
 
-impl<'sc, T> AnyHandle<T> for &Global<T> {
+impl<'s, T> AnyHandle<T> for &Global<T> {
   fn read(self, isolate: &Isolate) -> Option<NonNull<T>> {
     self.check_isolate(isolate);
     self.value

@@ -45,10 +45,10 @@ impl SharedArrayBuffer {
   /// Allocated memory will be owned by a created SharedArrayBuffer and
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
-  pub fn new<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new<'s>(
+    scope: &'s mut Scope,
     byte_length: usize,
-  ) -> Option<Local<SharedArrayBuffer>> {
+  ) -> Option<Local<'s, SharedArrayBuffer>> {
     unsafe {
       Local::from_raw(v8__SharedArrayBuffer__New__with_byte_length(
         scope.isolate(),
@@ -57,10 +57,10 @@ impl SharedArrayBuffer {
     }
   }
 
-  pub fn with_backing_store<'sc>(
-    scope: &'sc mut Scope,
+  pub fn with_backing_store<'s>(
+    scope: &'s mut Scope,
     backing_store: &mut SharedRef<BackingStore>,
-  ) -> Local<SharedArrayBuffer> {
+  ) -> Local<'s, SharedArrayBuffer> {
     let isolate = scope.isolate();
     let ptr = unsafe {
       v8__SharedArrayBuffer__New__with_backing_store(
@@ -92,7 +92,7 @@ impl SharedArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   pub fn new_backing_store(
-    scope: &mut Scope,
+    scope: &'s mut Scope,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

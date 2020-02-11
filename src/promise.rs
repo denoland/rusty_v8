@@ -77,18 +77,19 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'sc>(&mut self, scope: &'sc mut Scope) -> Local<Value> {
+  pub fn result<'s>(&mut self, scope: &'s mut Scope) -> Local<'s, Value> {
     unsafe { scope.to_local(v8__Promise__Result(&mut *self)) }.unwrap()
   }
 
   /// Register a rejection handler with a promise.
   ///
   /// See `Self::then2`.
-  pub fn catch<'sc>(
+  // TODO(ry) Does this need a scope parameter?
+  pub fn catch<'s>(
     &mut self,
     mut context: Local<Context>,
     mut handler: Local<Function>,
-  ) -> Option<Local<Promise>> {
+  ) -> Option<Local<'s, Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Catch(
         &mut *self,
@@ -101,11 +102,12 @@ impl Promise {
   /// Register a resolution handler with a promise.
   ///
   /// See `Self::then2`.
-  pub fn then<'sc>(
+  // TODO(ry) Does this need a scope parameter?
+  pub fn then<'s>(
     &mut self,
     mut context: Local<Context>,
     mut handler: Local<Function>,
-  ) -> Option<Local<Promise>> {
+  ) -> Option<Local<'s, Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Then(
         &mut *self,
@@ -119,12 +121,12 @@ impl Promise {
   /// The handler is given the respective resolution/rejection value as
   /// an argument. If the promise is already resolved/rejected, the handler is
   /// invoked at the end of turn.
-  pub fn then2<'sc>(
+  pub fn then2<'s>(
     &mut self,
     mut context: Local<Context>,
     mut on_fulfilled: Local<Function>,
     mut on_rejected: Local<Function>,
-  ) -> Option<Local<Promise>> {
+  ) -> Option<Local<'s, Promise>> {
     unsafe {
       Local::from_raw(v8__Promise__Then2(
         &mut *self,
@@ -138,22 +140,25 @@ impl Promise {
 
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
-  pub fn new<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new<'s>(
+    scope: &'s mut Scope,
     mut context: Local<Context>,
-  ) -> Option<Local<PromiseResolver>> {
+  ) -> Option<Local<'s, PromiseResolver>> {
     unsafe { scope.to_local(v8__Promise__Resolver__New(&mut *context)) }
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'sc>(&mut self, scope: &'sc mut Scope) -> Local<Promise> {
+  pub fn get_promise<'s>(
+    &mut self,
+    scope: &'s mut Scope,
+  ) -> Local<'s, Promise> {
     unsafe { scope.to_local(v8__Promise__Resolver__GetPromise(&mut *self)) }
       .unwrap()
   }
 
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn resolve<'sc>(
+  pub fn resolve(
     &mut self,
     mut context: Local<Context>,
     mut value: Local<Value>,
@@ -166,7 +171,7 @@ impl PromiseResolver {
 
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn reject<'sc>(
+  pub fn reject(
     &mut self,
     mut context: Local<Context>,
     mut value: Local<Value>,
