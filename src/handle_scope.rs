@@ -8,6 +8,8 @@ use std::mem::MaybeUninit;
 extern "C" {
   fn v8__HandleScope__CONSTRUCT(buf: *mut HandleScope, isolate: *mut Isolate);
   fn v8__HandleScope__DESTRUCT(this: &mut HandleScope);
+  fn v8__HandleScope__GetIsolate(self_: &HandleScope) -> *mut Isolate;
+
   fn v8__EscapableHandleScope__CONSTRUCT(
     buf: *mut EscapableHandleScope,
     isolate: *mut Isolate,
@@ -17,14 +19,12 @@ extern "C" {
     this: &mut EscapableHandleScope,
     value: *mut Value,
   ) -> *mut Value;
-
-  fn v8__HandleScope__GetIsolate(self_: &HandleScope) -> *mut Isolate;
+  fn v8__EscapableHandleScope__GetIsolate(
+    self_: &EscapableHandleScope,
+  ) -> *mut Isolate;
 
 /*
 fn v8__Context__GetIsolate(self_: &Context) -> *mut Isolate;
-fn v8__EscapableHandleScope__GetIsolate(
-  self_: &EscapableHandleScope,
-) -> *mut Isolate;
 fn v8__FunctionCallbackInfo__GetIsolate(
   self_: &FunctionCallbackInfo,
 ) -> *mut Isolate;
@@ -124,16 +124,45 @@ impl Drop for HandleScope {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
-  pub fn new<F>(_isolate: &mut Isolate, _f: F)
+  pub fn new<F, T>(scope: &mut Scope, f: F) -> Local<T>
   where
-    F: FnOnce(&mut Self),
+    F: FnOnce(&mut Scope) -> Local<T>,
   {
+    assert_eq!(
+      std::mem::size_of::<EscapableHandleScope>(),
+      std::mem::size_of::<MaybeUninit<EscapableHandleScope>>()
+    );
+    let mut hs: MaybeUninit<EscapableHandleScope> = MaybeUninit::uninit();
+    unsafe {
+      v8__EscapableHandleScope__CONSTRUCT(hs.as_mut_ptr(), scope.isolate());
+    }
+    let mut hs = unsafe { hs.assume_init() };
+    let scope: &mut Scope = &mut hs;
+    let retval = f(scope);
+    unsafe { hs.escape(retval) }
+  }
+
+  /// Pushes the value into the previous scope and returns a handle to it.
+  /// Cannot be called twice.
+  unsafe fn escape<T>(&mut self, value: Local<T>) -> Local<T> {
+    Local::from_raw(v8__EscapableHandleScope__Escape(
+      self,
+      value.as_ptr() as *mut Value,
+    ) as *mut T)
+    .unwrap()
+  }
+}
+
+impl Deref for EscapableHandleScope {
+  type Target = Scope;
+  fn deref(&self) -> &Scope {
     todo!()
-    /*
-    EscapableHandleScope hs;
-    unsafe { v8__EscapableHandleScope__CONSTRUCT(&hs, isolate); }
-    f(hs);
-    */
+  }
+}
+
+impl DerefMut for EscapableHandleScope {
+  fn deref_mut(&mut self) -> &mut Scope {
+    unsafe { &mut *(v8__EscapableHandleScope__GetIsolate(self) as *mut Scope) }
   }
 }
 
