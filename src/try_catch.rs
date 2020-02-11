@@ -54,7 +54,7 @@ impl TryCatch {
   #[allow(clippy::new_ret_no_self)]
   pub fn new<F>(scope: &mut Scope, f: F)
   where
-    F: FnOnce(&mut Scope, &mut TryCatch),
+    F: FnOnce(&mut Scope, TryCatch),
   {
     assert_eq!(
       std::mem::size_of::<TryCatch>(),
@@ -64,8 +64,8 @@ impl TryCatch {
     unsafe {
       v8__TryCatch__CONSTRUCT(&mut tc, scope.isolate());
     }
-    let mut tc = unsafe { tc.assume_init() };
-    f(scope, &mut tc);
+    let tc_ = unsafe { tc.assume_init() };
+    f(scope, tc_);
   }
 
   /// Returns true if an exception has been caught by this try/catch block.

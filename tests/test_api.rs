@@ -358,7 +358,7 @@ fn try_catch() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    v8::TryCatch::new(scope, move |scope, tc| {
+    v8::TryCatch::new(scope, |scope, tc| {
       let result = eval(scope, context, "throw new Error('foo')");
       assert!(result.is_none());
       assert!(tc.has_caught());
@@ -370,7 +370,7 @@ fn try_catch() {
         "Uncaught Error: foo"
       );
     });
-    v8::TryCatch::new(scope, move |scope, tc| {
+    v8::TryCatch::new(scope, |scope, mut tc| {
       let result = eval(scope, context, "1 + 1");
       assert!(result.is_some());
       assert!(!tc.has_caught());
@@ -381,7 +381,7 @@ fn try_catch() {
     });
     // Rethrow and reset.
     v8::TryCatch::new(scope, |scope, tc1| {
-      v8::TryCatch::new(scope, |scope, tc2| {
+      v8::TryCatch::new(scope, |scope, mut tc2| {
         eval(scope, context, "throw 'bar'");
         assert!(tc2.has_caught());
         assert!(tc2.rethrow().is_some());
