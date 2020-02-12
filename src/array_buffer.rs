@@ -206,7 +206,7 @@ impl ArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   pub fn new<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     byte_length: usize,
   ) -> Local<'s, ArrayBuffer> {
     let isolate = scope.isolate();
@@ -216,7 +216,7 @@ impl ArrayBuffer {
   }
 
   pub fn with_backing_store<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     backing_store: &mut SharedRef<BackingStore>,
   ) -> Local<'s, ArrayBuffer> {
     let isolate = scope.isolate();

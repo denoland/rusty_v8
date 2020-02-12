@@ -45,7 +45,7 @@ pub struct Script(Opaque);
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
     mut source: Local<String>,
     origin: Option<&ScriptOrigin>,
@@ -67,7 +67,7 @@ impl Script {
   /// UnboundScript::BindToCurrentContext()).
   pub fn run<'s>(
     &mut self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__Script__Run(self, &mut *context)) }

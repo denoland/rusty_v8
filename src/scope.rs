@@ -43,8 +43,11 @@ impl Scope {
     self
   }
 
-  pub unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<T>> {
-    crate::Local::<T>::from_raw(ptr)
+  pub(crate) unsafe fn to_local<'s, T>(
+    &mut self,
+    ptr: *mut T,
+  ) -> Option<Local<'s, T>> {
+    crate::Local::<'s, T>::from_raw(ptr)
   }
 }
 
@@ -90,9 +93,9 @@ impl DerefMut for HandleScope {
 pub struct HandleScope([usize; 3]);
 
 impl HandleScope {
-  pub fn new<F>(isolate: &mut Isolate, f: F)
+  pub fn new<'s, F>(isolate: &mut Isolate, f: F)
   where
-    F: FnOnce(&mut Scope),
+    F: 's + FnOnce(&mut Self),
   {
     assert_eq!(
       std::mem::size_of::<HandleScope>(),
@@ -103,8 +106,7 @@ impl HandleScope {
       v8__HandleScope__CONSTRUCT(hs.as_mut_ptr(), isolate);
     }
     let mut hs = unsafe { hs.assume_init() };
-    let scope: &mut Scope = &mut hs;
-    f(scope);
+    f(&mut hs);
   }
 }
 
@@ -120,12 +122,10 @@ impl Drop for HandleScope {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl EscapableHandleScope {
-  pub fn new<'s, F, T>(_scope: &'s mut Scope, _f: F) -> Option<Local<'s, T>>
+  pub fn new<'s, F, T>(scope: &mut Scope, f: F) -> Option<Local<'s, T>>
   where
-    F: FnOnce(&mut Scope) -> Option<Local<T>>,
+    F: 's + FnOnce(&mut Scope) -> Option<Local<'s, T>>,
   {
-    todo!()
-    /*
     assert_eq!(
       std::mem::size_of::<EscapableHandleScope>(),
       std::mem::size_of::<MaybeUninit<EscapableHandleScope>>()
@@ -138,12 +138,11 @@ impl EscapableHandleScope {
     let scope: &mut Scope = &mut hs;
     let retval = f(scope);
     retval.map(|v| unsafe { hs.escape(v) })
-      */
   }
 
   /// Pushes the value into the previous scope and returns a handle to it.
   /// Cannot be called twice.
-  unsafe fn escape<T>(&mut self, value: Local<T>) -> Local<T> {
+  unsafe fn escape<'s, T>(&mut self, value: Local<T>) -> Local<'s, T> {
     Local::from_raw(v8__EscapableHandleScope__Escape(
       self,
       value.as_ptr() as *mut Value,

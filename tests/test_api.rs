@@ -35,28 +35,15 @@ fn setup() -> SetupGuard {
 }
 
 #[test]
-fn hello_world() {
-  let platform = v8::new_default_platform();
-  v8::V8::initialize_platform(platform);
-  v8::V8::initialize();
-
-  let mut create_params = v8::Isolate::create_params();
-  create_params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(create_params);
-
+fn multiple_scope_borrow() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
   v8::HandleScope::new(&mut isolate, |scope| {
-    let mut context = v8::Context::new(scope);
-    context.enter();
-
-    let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
-    println!("javascript code: {}", code.to_rust_string_lossy(scope));
-
-    let mut script = v8::Script::compile(scope, context, code, None).unwrap();
-    let result = script.run(scope, context).unwrap();
-    let result = result.to_string(scope).unwrap();
-    println!("result: {}", result.to_rust_string_lossy(scope));
-
-    context.exit();
+    let n = v8::Integer::new(scope, 42);
+    let m = v8::Integer::new(scope, 42);
+    assert_eq!(n.value(), m.value());
   });
 }
 
@@ -74,8 +61,6 @@ fn handle_scope_nested() {
     });
   });
 }
-
-/*
 
 #[test]
 #[allow(clippy::float_cmp)]
@@ -220,6 +205,7 @@ fn escapable_handle_scope() {
   });
 }
 
+/*
 #[test]
 fn microtasks() {
   let _setup_guard = setup();

@@ -209,7 +209,7 @@ impl Module {
   #[must_use]
   pub fn evaluate<'s>(
     &mut self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__Module__Evaluate(&mut *self, &mut *context)) }

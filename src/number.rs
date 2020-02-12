@@ -16,7 +16,7 @@ extern "C" {
 }
 
 impl Number {
-  pub fn new<'sc>(scope: &'sc mut Scope, value: f64) -> Local<Number> {
+  pub fn new<'s>(scope: &mut Scope, value: f64) -> Local<'s, Number> {
     let local = unsafe { v8__Number__New(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }
@@ -27,15 +27,15 @@ impl Number {
 }
 
 impl Integer {
-  pub fn new<'sc>(scope: &'sc mut Scope, value: i32) -> Local<Integer> {
+  pub fn new<'s>(scope: &mut Scope, value: i32) -> Local<'s, Integer> {
     let local = unsafe { v8__Integer__New(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }
 
-  pub fn new_from_unsigned<'sc>(
-    scope: &'sc mut Scope,
+  pub fn new_from_unsigned<'s>(
+    scope: &mut Scope,
     value: u32,
-  ) -> Local<Integer> {
+  ) -> Local<'s, Integer> {
     let local = unsafe { v8__Integer__NewFromUnsigned(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }

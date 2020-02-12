@@ -77,7 +77,7 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'s>(&mut self, scope: &'s mut Scope) -> Local<'s, Value> {
+  pub fn result<'s>(&mut self, scope: &mut Scope) -> Local<'s, Value> {
     unsafe { scope.to_local(v8__Promise__Result(&mut *self)) }.unwrap()
   }
 
@@ -141,7 +141,7 @@ impl Promise {
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   pub fn new<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
   ) -> Option<Local<'s, PromiseResolver>> {
     unsafe { scope.to_local(v8__Promise__Resolver__New(&mut *context)) }
@@ -150,7 +150,7 @@ impl PromiseResolver {
   /// Extract the associated promise.
   pub fn get_promise<'s>(
     &mut self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
   ) -> Local<'s, Promise> {
     unsafe { scope.to_local(v8__Promise__Resolver__GetPromise(&mut *self)) }
       .unwrap()

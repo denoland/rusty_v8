@@ -67,7 +67,7 @@ impl Template {
 impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'s, FunctionTemplate> {
     let ptr = unsafe {
@@ -79,7 +79,7 @@ impl FunctionTemplate {
   /// Returns the unique function instance in the current execution context.
   pub fn get_function<'s>(
     &mut self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
@@ -98,7 +98,7 @@ impl FunctionTemplate {
 
 impl ObjectTemplate {
   /// Creates an object template.
-  pub fn new<'s>(scope: &'s mut Scope) -> Local<'s, ObjectTemplate> {
+  pub fn new<'s>(scope: &mut Scope) -> Local<'s, ObjectTemplate> {
     let ptr =
       unsafe { v8__ObjectTemplate__New(scope.isolate(), std::ptr::null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -106,7 +106,7 @@ impl ObjectTemplate {
 
   /// Creates an object template from a function template.
   pub fn new_from_template<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, ObjectTemplate> {
     let ptr = unsafe { v8__ObjectTemplate__New(scope.isolate(), &*templ) };
@@ -116,7 +116,7 @@ impl ObjectTemplate {
   /// Creates a new instance of this object template.
   pub fn new_instance<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
   ) -> Option<Local<'s, Object>> {
     let ptr = unsafe { v8__ObjectTemplate__NewInstance(self, &mut *context) };

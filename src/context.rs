@@ -26,7 +26,7 @@ pub struct Context(Opaque);
 
 impl Context {
   /// Creates a new context.
-  pub fn new<'s>(scope: &'s mut Scope) -> Local<'s, Context> {
+  pub fn new<'s>(scope: &mut Scope) -> Local<'s, Context> {
     // TODO: optional arguments;
     let ptr = unsafe { v8__Context__New(scope.isolate(), null(), null()) };
     unsafe { scope.to_local(ptr) }.unwrap()
@@ -35,7 +35,7 @@ impl Context {
   /// Creates a new context using the object template as the template for
   /// the global object.
   pub fn new_from_template<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     templ: Local<ObjectTemplate>,
   ) -> Local<'s, Context> {
     let ptr = unsafe { v8__Context__New(scope.isolate(), &*templ, null()) };
@@ -52,7 +52,7 @@ impl Context {
   /// Please note that changes to global proxy object prototype most probably
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
-  pub fn global<'s>(&self, scope: &'s mut Scope) -> Local<'s, Object> {
+  pub fn global<'s>(&self, scope: &mut Scope) -> Local<'s, Object> {
     let context = self as *const _ as *mut Context;
     unsafe { scope.to_local(v8__Context__Global(context)) }.unwrap()
   }

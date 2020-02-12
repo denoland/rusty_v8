@@ -62,7 +62,7 @@ bitflags! {
 }
 
 impl String {
-  pub fn empty<'s>(scope: &'s mut Scope) -> Local<'s, String> {
+  pub fn empty<'s>(scope: &mut Scope) -> Local<'s, String> {
     let ptr = unsafe { v8__String__Empty(scope.isolate()) };
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
@@ -70,7 +70,7 @@ impl String {
   }
 
   pub fn new_from_utf8<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
@@ -124,10 +124,7 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn new<'s>(
-    scope: &'s mut Scope,
-    value: &str,
-  ) -> Option<Local<'s, String>> {
+  pub fn new<'s>(scope: &mut Scope, value: &str) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 

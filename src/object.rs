@@ -59,7 +59,7 @@ extern "C" {
 
 impl Object {
   /// Creates an empty object.
-  pub fn new<'s>(scope: &'s mut Scope) -> Local<'s, Object> {
+  pub fn new<'s>(scope: &mut Scope) -> Local<'s, Object> {
     let ptr = unsafe { v8__Object__New(scope.isolate()) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
@@ -71,7 +71,7 @@ impl Object {
   /// All properties will be created as enumerable, configurable
   /// and writable properties.
   pub fn with_prototype_and_properties<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     prototype_or_null: Local<Value>,
     names: &[Local<Name>],
     values: &[Local<Value>],
@@ -180,7 +180,7 @@ impl Object {
 impl Array {
   /// Creates a JavaScript array with the given length. If the length
   /// is negative the returned array will have length 0.
-  pub fn new<'s>(scope: &'s mut Scope, length: i32) -> Local<'s, Array> {
+  pub fn new<'s>(scope: &mut Scope, length: i32) -> Local<'s, Array> {
     let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

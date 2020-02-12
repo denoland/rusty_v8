@@ -67,9 +67,7 @@ impl<T> Global<T> {
   }
 
   /// Construct a Local<T> from this global handle.
-  pub fn get<'s>(&self, _scope: &'s mut Scope) -> Option<Local<'s, T>> {
-    todo!()
-    /*
+  pub fn get<'s>(&self, scope: &mut Scope) -> Option<Local<'s, T>> {
     let isolate = scope.isolate();
     self.check_isolate(isolate);
     self
@@ -77,7 +75,6 @@ impl<T> Global<T> {
       .map(|g| g.as_ptr() as *mut Value)
       .map(|g| unsafe { v8__Local__New(isolate, g) })
       .and_then(|l| unsafe { scope.to_local(l as *mut T) })
-    */
   }
 
   /// If non-empty, destroy the underlying storage cell

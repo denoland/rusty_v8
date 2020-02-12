@@ -118,7 +118,7 @@ impl<'cb> ReturnValue<'cb> {
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get<'s>(&mut self, scope: &'s mut Scope) -> Local<'s, Value> {
+  pub fn get<'s>(&mut self, scope: &mut Scope) -> Local<'s, Value> {
     unsafe { scope.to_local(v8__ReturnValue__Get(self)) }.unwrap()
   }
 }
@@ -290,7 +290,7 @@ impl Function {
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
@@ -301,7 +301,7 @@ impl Function {
 
   pub fn call<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     context: Local<'_, Context>,
     recv: Local<'_, Value>,
     args: &[Local<'_, Value>],

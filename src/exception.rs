@@ -79,7 +79,7 @@ impl StackTrace {
   /// Returns a StackFrame at a particular index.
   pub fn get_frame<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     index: usize,
   ) -> Option<Local<'s, StackFrame>> {
     let isolate = scope.isolate();
@@ -123,7 +123,7 @@ impl StackFrame {
   /// function for this StackFrame.
   pub fn get_script_name<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
   ) -> Option<Local<'s, String>> {
     unsafe { scope.to_local(v8__StackFrame__GetScriptName(self)) }
   }
@@ -134,7 +134,7 @@ impl StackFrame {
   /// deprecated //@ sourceURL=... string.
   pub fn get_script_name_or_source_url<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
   ) -> Option<Local<'s, String>> {
     unsafe { scope.to_local(v8__StackFrame__GetScriptNameOrSourceURL(self)) }
   }
@@ -142,7 +142,7 @@ impl StackFrame {
   /// Returns the name of the function associated with this stack frame.
   pub fn get_function_name<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
   ) -> Option<Local<'s, String>> {
     unsafe { scope.to_local(v8__StackFrame__GetFunctionName(self)) }
   }
@@ -175,7 +175,7 @@ impl StackFrame {
 pub struct Message(Opaque);
 
 impl Message {
-  pub fn get<'s>(&self, scope: &'s mut Scope) -> Local<'s, String> {
+  pub fn get<'s>(&self, scope: &mut Scope) -> Local<'s, String> {
     unsafe { scope.to_local(v8__Message__Get(self)) }.unwrap()
   }
 
@@ -184,14 +184,14 @@ impl Message {
   /// to change this option.
   pub fn get_stack_trace<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
   ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.to_local(v8__Message__GetStackTrace(self)) }
   }
 
   pub fn get_source_line<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     mut context: Local<Context>,
   ) -> Option<Local<'s, String>> {
     unsafe { scope.to_local(v8__Message__GetSourceLine(self, &mut *context)) }
@@ -201,7 +201,7 @@ impl Message {
   /// the error originates.
   pub fn get_script_resource_name<'s>(
     &self,
-    scope: &'s mut Scope,
+    scope: &mut Scope,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.to_local(v8__Message__GetScriptResourceName(self)) }
   }
@@ -268,7 +268,7 @@ pub struct Exception;
 
 impl Exception {
   pub fn error<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     message: Local<String>,
   ) -> Local<'s, Value> {
     let isolate = scope.isolate();
@@ -279,7 +279,7 @@ impl Exception {
   }
 
   pub fn range_error<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     message: Local<String>,
   ) -> Local<'s, Value> {
     let isolate = scope.isolate();
@@ -290,7 +290,7 @@ impl Exception {
   }
 
   pub fn reference_error<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     message: Local<String>,
   ) -> Local<'s, Value> {
     let isolate = scope.isolate();
@@ -301,7 +301,7 @@ impl Exception {
   }
 
   pub fn syntax_error<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     message: Local<String>,
   ) -> Local<'s, Value> {
     let isolate = scope.isolate();
@@ -312,7 +312,7 @@ impl Exception {
   }
 
   pub fn type_error<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     message: Local<String>,
   ) -> Local<'s, Value> {
     let isolate = scope.isolate();
@@ -326,7 +326,7 @@ impl Exception {
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
   pub fn create_message<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     exception: Local<Value>,
   ) -> Local<'s, Message> {
     let isolate = scope.isolate();
@@ -337,7 +337,7 @@ impl Exception {
   /// Returns the original stack trace that was captured at the creation time
   /// of a given exception, or an empty handle if not available.
   pub fn get_stack_trace<'s>(
-    scope: &'s mut Scope,
+    scope: &mut Scope,
     exception: Local<Value>,
   ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.to_local(v8__Exception__GetStackTrace(exception)) }
