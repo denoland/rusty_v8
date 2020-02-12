@@ -63,19 +63,6 @@ fn handle_scope_nested() {
 }
 
 #[test]
-fn box_failure() {
-  let _setup_guard = setup();
-  let mut params = v8::Isolate::create_params();
-  params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-
-  v8::HandleScope::new(&mut isolate, |scope| {
-    let n = Box::new(v8::Integer::new(scope, 42));
-    assert_eq!(n.value(), 42);
-  });
-}
-
-#[test]
 #[allow(clippy::float_cmp)]
 fn handle_scope_numbers() {
   let _setup_guard = setup();
@@ -298,7 +285,6 @@ fn array_buffer() {
   });
 }
 
-/*
 #[test]
 fn array_buffer_with_shared_backing_store() {
   let _setup_guard = setup();
@@ -359,16 +345,16 @@ fn array_buffer_with_shared_backing_store() {
   });
 }
 
-fn v8_str<'s>(scope: &'s mut v8::Scope, s: &str) -> v8::Local<'s, v8::String> {
+fn v8_str<'s>(scope: &mut v8::Scope, s: &str) -> v8::Local<'s, v8::String> {
   v8::String::new(scope, s).unwrap()
 }
 
 fn eval<'s>(
   scope: &'s mut v8::Scope,
-  context: v8::Local<v8::Context>,
+  context: v8::Local<'s, v8::Context>,
   code: &'static str,
 ) -> Option<v8::Local<'s, v8::Value>> {
-  v8::EscapableHandleScope::new(scope, |scope| {
+  v8::EscapableHandleScope::new(scope, move |scope| {
     let source = v8_str(scope, code);
     let mut script = v8::Script::compile(scope, context, source, None).unwrap();
     script.run(scope, context)
@@ -425,6 +411,7 @@ fn try_catch() {
   });
 }
 
+/*
 #[test]
 fn throw_exception() {
     let _setup_guard = setup();
