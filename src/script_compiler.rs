@@ -1,6 +1,5 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 //! For compiling scripts.
-use crate::InIsolate;
 use crate::Isolate;
 use crate::Local;
 use crate::Module;

@@ -8,7 +8,6 @@ use crate::support::Opaque;
 use crate::support::UniqueRef;
 use crate::Context;
 use crate::Function;
-use crate::InIsolate;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -434,18 +433,6 @@ pub unsafe fn new_owned_isolate(isolate_ptr: *mut Isolate) -> OwnedIsolate {
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate(NonNull<Isolate>);
-
-impl InIsolate for OwnedIsolate {
-  fn isolate(&mut self) -> &mut Isolate {
-    self.deref_mut()
-  }
-}
-
-impl Drop for OwnedIsolate {
-  fn drop(&mut self) {
-    unsafe { self.0.as_mut().dispose() }
-  }
-}
 
 impl Deref for OwnedIsolate {
   type Target = Isolate;

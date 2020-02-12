@@ -4,7 +4,6 @@ use super::session::V8InspectorSession;
 use super::Channel;
 use super::StringView;
 use super::V8InspectorClient;
-use crate::scope_traits::InIsolate;
 use crate::support::int;
 use crate::support::Delete;
 use crate::support::Opaque;
@@ -12,6 +11,7 @@ use crate::support::UniqueRef;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use crate::Scope;
 
 extern "C" {
   fn v8_inspector__V8Inspector__DELETE(this: &'static mut V8Inspector);
@@ -37,16 +37,13 @@ extern "C" {
 pub struct V8Inspector(Opaque);
 
 impl V8Inspector {
-  pub fn create<T>(
-    isolate: &mut impl InIsolate,
-    client: &mut T,
-  ) -> UniqueRef<V8Inspector>
+  pub fn create<T>(scope: &mut Scope, client: &mut T) -> UniqueRef<V8Inspector>
   where
     T: AsV8InspectorClient,
   {
     unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__create(
-        isolate.isolate(),
+        scope.isolate(),
         client.as_client_mut(),
       ))
     }

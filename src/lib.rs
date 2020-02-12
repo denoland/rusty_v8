@@ -67,21 +67,15 @@ pub use object::*;
 pub use platform::new_default_platform;
 pub use platform::Platform;
 pub use platform::Task;
-pub use scope::ContextScope;
-pub use scope::EscapableHandleScope;
-pub use scope::HandleScope;
-pub use scope::Scope;
-// TODO(ry) TaskBase and TaskImpl ideally shouldn't be part of the public API.
 pub use platform::TaskBase;
 pub use platform::TaskImpl;
 pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
 pub use property_attribute::*;
-pub use scope::CallbackScope;
 pub use scope::ContextScope;
-pub use scope::FunctionCallbackScope;
-pub use scope::PropertyCallbackScope;
+pub use scope::EscapableHandleScope;
+pub use scope::HandleScope;
 pub use scope::Scope;
 pub use script::{Script, ScriptOrigin};
 pub use script_or_module::ScriptOrModule;
@@ -95,17 +89,6 @@ pub use support::UniquePtr;
 pub use support::UniqueRef;
 pub use template::*;
 pub use try_catch::TryCatch;
-
-/// Creates a new try/catch block. Note that all TryCatch blocks should be
-/// stack allocated because the memory location itself is compared against
-/// JavaScript try/catch blocks.
-#[macro_export]
-macro_rules! try_catch {
-  ($var1:ident, $scope:expr) => {
-    let mut try_catch__ = rusty_v8::TryCatch::new($scope);
-    let $var1 = try_catch__.enter();
-  };
-}
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;
