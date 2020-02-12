@@ -27,7 +27,10 @@ impl Number {
 }
 
 impl Integer {
-  pub fn new<'s>(scope: &mut Scope, value: i32) -> Local<'s, Integer> {
+  pub fn new<'s, 't: 's>(
+    scope: &'s mut Scope,
+    value: i32,
+  ) -> Local<'t, Integer> {
     let local = unsafe { v8__Integer__New(scope.isolate(), value) };
     unsafe { scope.to_local(local) }.unwrap()
   }

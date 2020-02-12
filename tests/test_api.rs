@@ -4,7 +4,7 @@
 extern crate lazy_static;
 
 // use std::convert::{Into, TryFrom, TryInto};
-// use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use rusty_v8 as v8;
@@ -59,6 +59,19 @@ fn handle_scope_nested() {
       let n = v8::Integer::new(scope2, 42);
       assert_eq!(n.value(), 42);
     });
+  });
+}
+
+#[test]
+fn box_failure() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let n = Box::new(v8::Integer::new(scope, 42));
+    assert_eq!(n.value(), 42);
   });
 }
 
@@ -205,7 +218,6 @@ fn escapable_handle_scope() {
   });
 }
 
-/*
 #[test]
 fn microtasks() {
   let _setup_guard = setup();
@@ -286,6 +298,7 @@ fn array_buffer() {
   });
 }
 
+/*
 #[test]
 fn array_buffer_with_shared_backing_store() {
   let _setup_guard = setup();
