@@ -115,13 +115,12 @@ impl<T> Global<T> {
     self.set(scope, None);
   }
 
-  fn check_isolate(&self, isolate: &Isolate) {
+  fn check_isolate(&self, isolate: &mut Isolate) {
     match self.value {
       None => assert!(self.isolate_handle.is_none()),
-      Some(_) => assert!(
-        unsafe { self.isolate_handle.as_ref().unwrap().get_isolate_ptr() }
-          as *const _
-          == isolate
+      Some(_) => assert_eq!(
+        unsafe { self.isolate_handle.as_ref().unwrap().get_isolate_ptr() },
+        isolate as *mut _
       ),
     }
   }
@@ -160,23 +159,23 @@ impl<T> Drop for Global<T> {
 }
 
 pub trait AnyHandle<T> {
-  fn read(self, isolate: &Isolate) -> Option<NonNull<T>>;
+  fn read(self, isolate: &mut Isolate) -> Option<NonNull<T>>;
 }
 
 impl<'sc, T> AnyHandle<T> for Local<'sc, T> {
-  fn read(self, _isolate: &Isolate) -> Option<NonNull<T>> {
+  fn read(self, _isolate: &mut Isolate) -> Option<NonNull<T>> {
     Some(self.as_non_null())
   }
 }
 
 impl<'sc, T> AnyHandle<T> for Option<Local<'sc, T>> {
-  fn read(self, _isolate: &Isolate) -> Option<NonNull<T>> {
+  fn read(self, _isolate: &mut Isolate) -> Option<NonNull<T>> {
     self.map(|local| local.as_non_null())
   }
 }
 
 impl<'sc, T> AnyHandle<T> for &Global<T> {
-  fn read(self, isolate: &Isolate) -> Option<NonNull<T>> {
+  fn read(self, isolate: &mut Isolate) -> Option<NonNull<T>> {
     self.check_isolate(isolate);
     self.value
   }
