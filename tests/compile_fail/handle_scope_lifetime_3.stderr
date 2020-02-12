@@ -1,11 +1,11 @@
 error[E0597]: `hs2` does not live long enough
-  --> $DIR/handle_scope_escape_lifetime.rs:11:15
+  --> $DIR/handle_scope_lifetime_3.rs:11:15
    |
 9  |   let _local = {
    |       ------ borrow later stored here
-10 |     let mut hs2 = v8::HandleScope::new(hs1);
+10 |     let mut hs2 = v8::EscapableHandleScope::new(hs1);
 11 |     let hs2 = hs2.enter();
    |               ^^^ borrowed value does not live long enough
-...
-18 |   };
+12 |     v8::Integer::new(hs2, 456)
+13 |   };
    |   - `hs2` dropped here while still borrowed

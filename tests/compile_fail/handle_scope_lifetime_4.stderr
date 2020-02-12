@@ -1,0 +1,10 @@
+error[E0597]: `hs2` does not live long enough
+  --> $DIR/handle_scope_lifetime_4.rs:11:5
+   |
+11 |     hs2.enter()
+   |     ^^^--------
+   |     |
+   |     borrowed value does not live long enough
+   |     borrow later used here
+12 |   };
+   |   - `hs2` dropped here while still borrowed
