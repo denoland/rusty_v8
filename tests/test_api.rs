@@ -342,7 +342,7 @@ fn v8_str<'s>(scope: &mut v8::Scope, s: &str) -> v8::Local<'s, v8::String> {
 }
 
 fn eval<'s>(
-  scope: &'s mut v8::Scope,
+  scope: &mut v8::Scope,
   context: v8::Local<'s, v8::Context>,
   code: &'static str,
 ) -> Option<v8::Local<'s, v8::Value>> {
@@ -436,113 +436,109 @@ fn throw_exception() {
   })
 }
 
-/*
-
 #[test]
 fn thread_safe_handle_drop_after_isolate() {
-    let _setup_guard = setup();
-    let mut params = v8::Isolate::create_params();
-    params.set_array_buffer_allocator(v8::new_default_allocator());
-    let mut isolate = v8::Isolate::new(params);
-    let handle = isolate.thread_safe_handle();
-    // We can call it twice.
-    let handle_ = isolate.thread_safe_handle();
-    // Check that handle is Send and Sync.
-    fn f<S: Send + Sync>(_: S) {}
-    f(handle_);
-    // All methods on IsolateHandle should return false after the isolate is
-    // dropped.
-    drop(isolate);
-    assert_eq!(false, handle.terminate_execution());
-    assert_eq!(false, handle.cancel_terminate_execution());
-    assert_eq!(false, handle.is_execution_terminating());
-    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-    extern "C" fn callback(_isolate: &mut v8::Isolate, data: *mut std::ffi::c_void) {
-        assert_eq!(data, std::ptr::null_mut());
-        CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    }
-    assert_eq!(
-        false,
-        handle.request_interrupt(callback, std::ptr::null_mut())
-    );
-    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let handle = isolate.thread_safe_handle();
+  // We can call it twice.
+  let handle_ = isolate.thread_safe_handle();
+  // Check that handle is Send and Sync.
+  fn f<S: Send + Sync>(_: S) {}
+  f(handle_);
+  // All methods on IsolateHandle should return false after the isolate is
+  // dropped.
+  drop(isolate);
+  assert_eq!(false, handle.terminate_execution());
+  assert_eq!(false, handle.cancel_terminate_execution());
+  assert_eq!(false, handle.is_execution_terminating());
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    data: *mut std::ffi::c_void,
+  ) {
+    assert_eq!(data, std::ptr::null_mut());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+  assert_eq!(
+    false,
+    handle.request_interrupt(callback, std::ptr::null_mut())
+  );
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
 // TODO(ry) This test should use threads
 #[test]
 fn terminate_execution() {
-    let _setup_guard = setup();
-    let mut params = v8::Isolate::create_params();
-    params.set_array_buffer_allocator(v8::new_default_allocator());
-    let mut isolate = v8::Isolate::new(params);
-    let handle = isolate.thread_safe_handle();
-    // Originally run fine.
-    {
-        let mut hs = v8::HandleScope::new(&mut isolate);
-        let scope = hs.enter();
-        let context = v8::Context::new(scope);
-        let mut cs = v8::ContextScope::new(scope, context);
-        let scope = cs.enter();
-        let result = eval(scope, context, "true").unwrap();
-        let true_val = v8::Boolean::new(scope, true).into();
-        assert!(result.same_value(true_val));
-    }
-    // Terminate.
-    handle.terminate_execution();
-    // Below run should fail with terminated knowledge.
-    {
-        let mut hs = v8::HandleScope::new(&mut isolate);
-        let scope = hs.enter();
-        let context = v8::Context::new(scope);
-        let mut cs = v8::ContextScope::new(scope, context);
-        let scope = cs.enter();
-        let mut try_catch = v8::TryCatch::new(scope);
-        let tc = try_catch.enter();
-        let _ = eval(scope, context, "true");
-        assert!(tc.has_caught());
-        assert!(tc.has_terminated());
-    }
-    // Cancel termination.
-    handle.cancel_terminate_execution();
-    // Works again.
-    {
-        let mut hs = v8::HandleScope::new(&mut isolate);
-        let scope = hs.enter();
-        let context = v8::Context::new(scope);
-        let mut cs = v8::ContextScope::new(scope, context);
-        let scope = cs.enter();
-        let result = eval(scope, context, "true").unwrap();
-        let true_val = v8::Boolean::new(scope, true).into();
-        assert!(result.same_value(true_val));
-    }
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let handle = isolate.thread_safe_handle();
+  // Originally run fine.
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let context = v8::Context::new(scope);
+    v8::ContextScope::new(context, |scope| {
+      let result = eval(scope, context, "true").unwrap();
+      let true_val = v8::Boolean::new(scope, true).into();
+      assert!(result.same_value(true_val));
+    });
+  });
+  // Terminate.
+  handle.terminate_execution();
+  // Below run should fail with terminated knowledge.
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let context = v8::Context::new(scope);
+    v8::ContextScope::new(context, |scope| {
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
+      let _ = eval(scope, context, "true");
+      assert!(tc.has_caught());
+      assert!(tc.has_terminated());
+    });
+  });
+  // Cancel termination.
+  handle.cancel_terminate_execution();
+  // Works again.
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let context = v8::Context::new(scope);
+    v8::ContextScope::new(context, |scope| {
+      let result = eval(scope, context, "true").unwrap();
+      let true_val = v8::Boolean::new(scope, true).into();
+      assert!(result.same_value(true_val));
+    });
+  });
 }
 
 // TODO(ry) This test should use threads
 #[test]
 fn request_interrupt_small_scripts() {
-    let _setup_guard = setup();
-    let mut params = v8::Isolate::create_params();
-    params.set_array_buffer_allocator(v8::new_default_allocator());
-    let mut isolate = v8::Isolate::new(params);
-    let handle = isolate.thread_safe_handle();
-    {
-        let mut hs = v8::HandleScope::new(&mut isolate);
-        let scope = hs.enter();
-        let context = v8::Context::new(scope);
-        let mut cs = v8::ContextScope::new(scope, context);
-        let scope = cs.enter();
-
-        static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-        extern "C" fn callback(_isolate: &mut v8::Isolate, data: *mut std::ffi::c_void) {
-            assert_eq!(data, std::ptr::null_mut());
-            CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-        }
-        handle.request_interrupt(callback, std::ptr::null_mut());
-        eval(scope, context, "(function(x){return x;})(1);");
-        assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
-    }
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let handle = isolate.thread_safe_handle();
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    data: *mut std::ffi::c_void,
+  ) {
+    assert_eq!(data, std::ptr::null_mut());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let context = v8::Context::new(scope);
+    v8::ContextScope::new(context, |scope| {
+      handle.request_interrupt(callback, std::ptr::null_mut());
+      eval(scope, context, "(function(x){return x;})(1);");
+    })
+  });
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 }
 
+/*
 #[test]
 fn add_message_listener() {
     let _setup_guard = setup();
