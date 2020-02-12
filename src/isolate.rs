@@ -18,10 +18,15 @@ use crate::ScriptOrModule;
 use crate::StartupData;
 use crate::String;
 use crate::Value;
+
 use std::ffi::c_void;
+use std::mem::replace;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::null_mut;
 use std::ptr::NonNull;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
@@ -161,22 +166,26 @@ impl Isolate {
     CreateParams::new()
   }
 
+  pub fn thread_safe_handle(&mut self) -> IsolateHandle {
+    IsolateHandle::new(self)
+  }
+
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    v8__Isolate__SetData(self, slot, ptr)
+    v8__Isolate__SetData(self, slot + 1, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
-    unsafe { v8__Isolate__GetData(self, slot) }
+    unsafe { v8__Isolate__GetData(self, slot + 1) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    unsafe { v8__Isolate__GetNumberOfDataSlots(self) }
+    unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -283,23 +292,97 @@ impl Isolate {
     }
   }
 
+  /// Runs the default MicrotaskQueue until it gets empty.
+  /// Any exceptions thrown by microtask callbacks are swallowed.
+  pub fn run_microtasks(&mut self) {
+    unsafe { v8__Isolate__RunMicrotasks(self) }
+  }
+
+  /// Enqueues the callback to the default MicrotaskQueue
+  pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
+    unsafe { v8__Isolate__EnqueueMicrotask(self, microtask) }
+  }
+
+  /// Disposes the isolate.  The isolate must not be entered by any
+  /// thread to be disposable.
+  unsafe fn dispose(&mut self) {
+    IsolateHandle::dispose(self);
+    v8__Isolate__Dispose(self)
+  }
+}
+
+pub(crate) struct IsolateAnnex {
+  isolate: *mut Isolate,
+  mutex: Mutex<()>,
+}
+
+impl IsolateAnnex {
+  fn new(isolate: &mut Isolate) -> Self {
+    Self {
+      isolate,
+      mutex: Mutex::new(()),
+    }
+  }
+}
+
+#[derive(Clone)]
+pub struct IsolateHandle(Arc<IsolateAnnex>);
+
+unsafe impl Send for IsolateHandle {}
+unsafe impl Sync for IsolateHandle {}
+
+impl IsolateHandle {
+  // This function is marked unsafe because it must be called only with either
+  // IsolateAnnex::mutex locked, or from the main thread associated with the V8
+  // isolate.
+  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut Isolate {
+    self.0.isolate
+  }
+
+  fn dispose(isolate: &mut Isolate) {
+    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    if !annex_ptr.is_null() {
+      unsafe {
+        isolate.set_data(0, null_mut());
+        let _lock = (*annex_ptr).mutex.lock().unwrap();
+        let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
+        assert_eq!(isolate as *mut _, isolate_ptr);
+        Arc::from_raw(annex_ptr);
+      };
+    }
+  }
+
+  pub(crate) fn new(isolate: &mut Isolate) -> Self {
+    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    if annex_ptr.is_null() {
+      let annex_arc = Arc::new(IsolateAnnex::new(isolate));
+      let annex_ptr = Arc::into_raw(annex_arc.clone());
+      unsafe {
+        isolate.set_data(0, annex_ptr as *mut c_void);
+      }
+      IsolateHandle(annex_arc)
+    } else {
+      let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
+      Arc::into_raw(annex_arc.clone());
+      IsolateHandle(annex_arc)
+    }
+  }
+
   /// Forcefully terminate the current thread of JavaScript execution
   /// in the given isolate.
   ///
   /// This method can be used by any thread even if that thread has not
   /// acquired the V8 lock with a Locker object.
-  pub fn terminate_execution(&self) {
-    unsafe { v8__Isolate__TerminateExecution(self) }
-  }
-
-  /// Is V8 terminating JavaScript execution.
   ///
-  /// Returns true if JavaScript execution is currently terminating
-  /// because of a call to TerminateExecution.  In that case there are
-  /// still JavaScript frames on the stack and the termination
-  /// exception is still active.
-  pub fn is_execution_terminating(&self) -> bool {
-    unsafe { v8__Isolate__IsExecutionTerminating(self) }
+  /// Returns false if Isolate was already destroyed.
+  pub fn terminate_execution(&self) -> bool {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
+      false
+    } else {
+      unsafe { v8__Isolate__TerminateExecution(self.0.isolate) };
+      true
+    }
   }
 
   /// Resume execution capability in the given isolate, whose execution
@@ -314,19 +397,33 @@ impl Isolate {
   ///
   /// This method can be used by any thread even if that thread has not
   /// acquired the V8 lock with a Locker object.
-  pub fn cancel_terminate_execution(&self) {
-    unsafe { v8__Isolate__CancelTerminateExecution(self) }
+  ///
+  /// Returns false if Isolate was already destroyed.
+  pub fn cancel_terminate_execution(&self) -> bool {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
+      false
+    } else {
+      unsafe { v8__Isolate__CancelTerminateExecution(self.0.isolate) };
+      true
+    }
   }
 
-  /// Runs the default MicrotaskQueue until it gets empty.
-  /// Any exceptions thrown by microtask callbacks are swallowed.
-  pub fn run_microtasks(&mut self) {
-    unsafe { v8__Isolate__RunMicrotasks(self) }
-  }
-
-  /// Enqueues the callback to the default MicrotaskQueue
-  pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
-    unsafe { v8__Isolate__EnqueueMicrotask(self, microtask) }
+  /// Is V8 terminating JavaScript execution.
+  ///
+  /// Returns true if JavaScript execution is currently terminating
+  /// because of a call to TerminateExecution.  In that case there are
+  /// still JavaScript frames on the stack and the termination
+  /// exception is still active.
+  ///
+  /// Returns false if Isolate was already destroyed.
+  pub fn is_execution_terminating(&self) -> bool {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
+      false
+    } else {
+      unsafe { v8__Isolate__IsExecutionTerminating(self.0.isolate) }
+    }
   }
 
   /// Request V8 to interrupt long running JavaScript code and invoke
@@ -335,6 +432,8 @@ impl Isolate {
   /// There may be a number of interrupt requests in flight.
   /// Can be called from another thread without acquiring a |Locker|.
   /// Registered |callback| must not reenter interrupted Isolate.
+  ///
+  /// Returns false if Isolate was already destroyed.
   // Clippy warns that this method is dereferencing a raw pointer, but it is
   // not: https://github.com/rust-lang/rust-clippy/issues/3045
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -342,19 +441,21 @@ impl Isolate {
     &self,
     callback: InterruptCallback,
     data: *mut c_void,
-  ) {
-    unsafe { v8__Isolate__RequestInterrupt(self, callback, data) }
-  }
-
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  pub unsafe fn dispose(&mut self) {
-    v8__Isolate__Dispose(self)
+  ) -> bool {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
+      false
+    } else {
+      unsafe { v8__Isolate__RequestInterrupt(self.0.isolate, callback, data) };
+      true
+    }
   }
 }
 
 /// Internal method for constructing an OwnedIsolate.
-pub unsafe fn new_owned_isolate(isolate_ptr: *mut Isolate) -> OwnedIsolate {
+pub(crate) unsafe fn new_owned_isolate(
+  isolate_ptr: *mut Isolate,
+) -> OwnedIsolate {
   OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
 }
 
