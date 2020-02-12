@@ -1,5 +1,5 @@
 error[E0597]: `hs` does not live long enough
-  --> $DIR/boxed_lifetimes.rs:11:14
+  --> $DIR/boxed_local.rs:11:14
    |
 9  |   let _boxed = {
    |       ------ borrow later stored here
