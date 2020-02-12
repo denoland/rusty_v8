@@ -18,9 +18,12 @@ use crate::ScriptOrModule;
 use crate::StartupData;
 use crate::String;
 use crate::Value;
+
 use std::ffi::c_void;
+use std::mem::replace;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -308,40 +311,60 @@ impl Isolate {
   }
 }
 
-// TODO(ry) Use AtomicPtr? Use Cell? Only one thread ever modifies it.
-/// Thread safe reference to an Isolate. This handle will out-live the Isolate
-/// itself, when that happens all methods on it will return false.
-pub struct IsolateHandle(Arc<Mutex<Option<*mut Isolate>>>);
+pub(crate) struct IsolateAnnex {
+  isolate: *mut Isolate,
+  mutex: Mutex<()>,
+}
+
+impl IsolateAnnex {
+  fn new(isolate: &mut Isolate) -> Self {
+    Self {
+      isolate,
+      mutex: Mutex::new(()),
+    }
+  }
+}
+
+#[derive(Clone)]
+pub struct IsolateHandle(Arc<IsolateAnnex>);
 
 unsafe impl Send for IsolateHandle {}
 unsafe impl Sync for IsolateHandle {}
 
 impl IsolateHandle {
+  // This function is marked unsafe because it must be called only with either
+  // IsolateAnnex::mutex locked, or from the main thread associated with the V8
+  // isolate.
+  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut Isolate {
+    self.0.isolate
+  }
+
   fn dispose(isolate: &mut Isolate) {
-    let slot_ptr = isolate.get_data(0) as *const Mutex<Option<*mut Isolate>>;
-    if !slot_ptr.is_null() {
-      unsafe { isolate.set_data(0, std::ptr::null_mut()) };
-      let handle = unsafe { Arc::from_raw(slot_ptr) };
-      let some_ptr = handle.lock().unwrap().take();
-      assert!(some_ptr.is_some());
+    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    if !annex_ptr.is_null() {
+      unsafe {
+        isolate.set_data(0, null_mut());
+        let _lock = (*annex_ptr).mutex.lock().unwrap();
+        let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
+        assert_eq!(isolate as *mut _, isolate_ptr);
+        Arc::from_raw(annex_ptr);
+      };
     }
   }
 
-  fn new(isolate: &mut Isolate) -> Self {
-    let slot_ptr = isolate.get_data(0) as *mut Mutex<Option<*mut Isolate>>;
-    if slot_ptr.is_null() {
-      let x: Option<*mut Isolate> = Some(&mut *isolate);
-      let handle = Arc::new(Mutex::new(x));
-      let handle_ptr = Arc::into_raw(handle.clone());
+  pub(crate) fn new(isolate: &mut Isolate) -> Self {
+    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    if annex_ptr.is_null() {
+      let annex_arc = Arc::new(IsolateAnnex::new(isolate));
+      let annex_ptr = Arc::into_raw(annex_arc.clone());
       unsafe {
-        isolate.set_data(0, handle_ptr as *mut c_void);
+        isolate.set_data(0, annex_ptr as *mut c_void);
       }
-      IsolateHandle(handle)
+      IsolateHandle(annex_arc)
     } else {
-      let handle = unsafe { Arc::from_raw(slot_ptr) };
-      // Call into_raw so again to avoid double free.
-      let _ptr = Arc::into_raw(handle.clone());
-      IsolateHandle(handle)
+      let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
+      Arc::into_raw(annex_arc.clone());
+      IsolateHandle(annex_arc)
     }
   }
 
@@ -353,12 +376,12 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn terminate_execution(&self) -> bool {
-    let g = self.0.lock().unwrap();
-    if let Some(ptr) = *g {
-      unsafe { v8__Isolate__TerminateExecution(ptr) };
-      true
-    } else {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
       false
+    } else {
+      unsafe { v8__Isolate__TerminateExecution(self.0.isolate) };
+      true
     }
   }
 
@@ -377,12 +400,12 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn cancel_terminate_execution(&self) -> bool {
-    let g = self.0.lock().unwrap();
-    if let Some(ptr) = *g {
-      unsafe { v8__Isolate__CancelTerminateExecution(ptr) };
-      true
-    } else {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
       false
+    } else {
+      unsafe { v8__Isolate__CancelTerminateExecution(self.0.isolate) };
+      true
     }
   }
 
@@ -395,11 +418,11 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn is_execution_terminating(&self) -> bool {
-    let g = self.0.lock().unwrap();
-    if let Some(ptr) = *g {
-      unsafe { v8__Isolate__IsExecutionTerminating(ptr) }
-    } else {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
       false
+    } else {
+      unsafe { v8__Isolate__IsExecutionTerminating(self.0.isolate) }
     }
   }
 
@@ -419,18 +442,20 @@ impl IsolateHandle {
     callback: InterruptCallback,
     data: *mut c_void,
   ) -> bool {
-    let g = self.0.lock().unwrap();
-    if let Some(ptr) = *g {
-      unsafe { v8__Isolate__RequestInterrupt(ptr, callback, data) };
-      true
-    } else {
+    let _lock = self.0.mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
       false
+    } else {
+      unsafe { v8__Isolate__RequestInterrupt(self.0.isolate, callback, data) };
+      true
     }
   }
 }
 
 /// Internal method for constructing an OwnedIsolate.
-pub unsafe fn new_owned_isolate(isolate_ptr: *mut Isolate) -> OwnedIsolate {
+pub(crate) unsafe fn new_owned_isolate(
+  isolate_ptr: *mut Isolate,
+) -> OwnedIsolate {
   OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
 }
 

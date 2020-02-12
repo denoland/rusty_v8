@@ -127,6 +127,28 @@ fn global_handles() {
 }
 
 #[test]
+fn global_handle_drop() {
+  let _setup_guard = setup();
+
+  // Global 'g1' will be dropped _after_ the Isolate has been disposed.
+  let mut g1 = v8::Global::<v8::String>::new();
+
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  let mut hs = v8::HandleScope::new(&mut isolate);
+  let scope = hs.enter();
+
+  let l1 = v8::String::new(scope, "foo").unwrap();
+  g1.set(scope, l1);
+
+  // Global 'g2' will be dropped _before_ the Isolate has been disposed.
+  let l2 = v8::String::new(scope, "bar").unwrap();
+  let _g2 = v8::Global::new_from(scope, l2);
+}
+
+#[test]
 fn test_string() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();

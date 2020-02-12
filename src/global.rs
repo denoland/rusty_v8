@@ -3,6 +3,7 @@ use std::ptr::NonNull;
 
 use crate::InIsolate;
 use crate::Isolate;
+use crate::IsolateHandle;
 use crate::Local;
 use crate::ToLocal;
 use crate::Value;
@@ -34,7 +35,7 @@ extern "C" {
 #[repr(C)]
 pub struct Global<T> {
   value: Option<NonNull<T>>,
-  isolate: Option<NonNull<Isolate>>,
+  isolate_handle: Option<IsolateHandle>,
 }
 
 unsafe impl<T> Send for Global<T> {}
@@ -44,7 +45,7 @@ impl<T> Global<T> {
   pub fn new() -> Self {
     Self {
       value: None,
-      isolate: None,
+      isolate_handle: None,
     }
   }
 
@@ -60,7 +61,7 @@ impl<T> Global<T> {
     Self {
       value: other_value
         .map(|v| unsafe { transmute(v8__Global__New(isolate, transmute(v))) }),
-      isolate: other_value.map(|_| isolate.into()),
+      isolate_handle: other_value.map(|_| IsolateHandle::new(isolate)),
     }
   }
 
@@ -105,7 +106,7 @@ impl<T> Global<T> {
         )
       },
     }
-    self.isolate = other_value.map(|_| isolate.into());
+    self.isolate_handle = other_value.map(|_| IsolateHandle::new(isolate));
   }
 
   /// If non-empty, destroy the underlying storage cell
@@ -114,10 +115,14 @@ impl<T> Global<T> {
     self.set(scope, None);
   }
 
-  fn check_isolate(&self, other: &Isolate) {
+  fn check_isolate(&self, isolate: &Isolate) {
     match self.value {
-      None => assert_eq!(self.isolate, None),
-      Some(_) => assert_eq!(self.isolate.unwrap(), other.into()),
+      None => assert!(self.isolate_handle.is_none()),
+      Some(_) => assert!(
+        unsafe { self.isolate_handle.as_ref().unwrap().get_isolate_ptr() }
+          as *const _
+          == isolate
+      ),
     }
   }
 }
@@ -130,8 +135,26 @@ impl<T> Default for Global<T> {
 
 impl<T> Drop for Global<T> {
   fn drop(&mut self) {
-    if !self.is_empty() {
-      panic!("Global handle dropped while holding a value");
+    match &mut self.value {
+      None => {
+        // This global handle is empty.
+        assert!(self.isolate_handle.is_none())
+      }
+      Some(_)
+        if unsafe {
+          self.isolate_handle.as_ref().unwrap().get_isolate_ptr()
+        }
+        .is_null() =>
+      {
+        // This global handle is associated with an Isolate that has already
+        // been disposed.
+      }
+      addr @ Some(_) => unsafe {
+        // Destroy the storage cell that contains the contents of this Global.
+        v8__Global__Reset__0(
+          &mut *(addr as *mut Option<NonNull<T>> as *mut *mut Value),
+        )
+      },
     }
   }
 }
