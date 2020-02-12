@@ -8,6 +8,7 @@ fn ui() {
   env::set_var("DENO_TRYBUILD", "1");
 
   let t = trybuild::TestCases::new();
+  t.compile_fail("tests/compile_fail/boxed_local.rs");
   t.compile_fail("tests/compile_fail/handle_scope_escape_lifetime.rs");
   t.compile_fail("tests/compile_fail/handle_scope_lifetimes.rs");
   t.compile_fail("tests/compile_fail/try_catch_lifetimes.rs");

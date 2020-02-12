@@ -1,0 +1,11 @@
+error[E0597]: `hs` does not live long enough
+  --> $DIR/boxed_local.rs:11:14
+   |
+9  |   let _boxed = {
+   |       ------ borrow later stored here
+10 |     let mut hs = v8::HandleScope::new(root_hs);
+11 |     let hs = hs.enter();
+   |              ^^ borrowed value does not live long enough
+12 |     Box::new(v8::Integer::new(hs, 123))
+13 |   };
+   |   - `hs` dropped here while still borrowed
