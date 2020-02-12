@@ -141,9 +141,13 @@ impl<T> Drop for Global<T> {
       }
       Some(_)
         if unsafe {
-          self.isolate_handle.as_ref().unwrap().get_isolate_ptr()
-        }
-        .is_null() =>
+          self
+            .isolate_handle
+            .as_ref()
+            .unwrap()
+            .get_isolate_ptr()
+            .is_null()
+        } =>
       {
         // This global handle is associated with an Isolate that has already
         // been disposed.
