@@ -424,32 +424,31 @@ fn try_catch() {
   });
 }
 
-/*
 #[test]
 fn throw_exception() {
-    let _setup_guard = setup();
-    let mut params = v8::Isolate::create_params();
-    params.set_array_buffer_allocator(v8::new_default_allocator());
-    let mut isolate = v8::Isolate::new(params);
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  v8::HandleScope::new(&mut isolate, |scope| {
+    let mut context = v8::Context::new(scope);
+    context.enter();
     {
-        let mut hs = v8::HandleScope::new(&mut isolate);
-        let scope = hs.enter();
-        let context = v8::Context::new(scope);
-        let mut cs = v8::ContextScope::new(scope, context);
-        let scope = cs.enter();
-        {
-            let mut try_catch = v8::TryCatch::new(scope);
-            let tc = try_catch.enter();
-            let exception = v8_str(scope, "boom");
-            scope.isolate().throw_exception(exception.into());
-            assert!(tc.has_caught());
-            assert!(tc
-                .exception()
-                .unwrap()
-                .strict_equals(v8_str(scope, "boom").into()));
-        };
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
+      let exception = v8_str(scope, "boom");
+      scope.isolate().throw_exception(exception.into());
+      assert!(tc.has_caught());
+      assert!(tc
+        .exception()
+        .unwrap()
+        .strict_equals(v8_str(scope, "boom").into()));
     }
+    context.exit();
+  })
 }
+
+/*
 
 #[test]
 fn thread_safe_handle_drop_after_isolate() {
