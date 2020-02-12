@@ -34,7 +34,7 @@ mod snapshot;
 mod string;
 mod support;
 mod template;
-mod try_catch;
+pub mod try_catch;
 mod uint8_array;
 mod value;
 
@@ -89,6 +89,17 @@ pub use support::UniquePtr;
 pub use support::UniqueRef;
 pub use template::*;
 pub use try_catch::TryCatch;
+
+/// Creates a new try/catch block. Note that all TryCatch blocks should be
+/// stack allocated because the memory location itself is compared against
+/// JavaScript try/catch blocks.
+#[macro_export]
+macro_rules! try_catch {
+  ($var1:ident, $scope:expr) => {
+    let mut try_catch__ = rusty_v8::TryCatch::new($scope);
+    let $var1 = try_catch__.enter();
+  };
+}
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;

@@ -357,6 +357,7 @@ fn eval<'s>(
   v8::EscapableHandleScope::new(scope, move |scope| {
     let source = v8_str(scope, code);
     let mut script = v8::Script::compile(scope, context, source, None).unwrap();
+    println!("eval");
     script.run(scope, context)
   })
 }
@@ -371,10 +372,15 @@ fn try_catch() {
     let mut context = v8::Context::new(scope);
     context.enter();
 
-    v8::TryCatch::new(scope, |scope, _tc| {
+    {
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
       let _ = v8::Integer::new(scope, 123);
-    });
-    v8::TryCatch::new(scope, |scope, tc| {
+      assert!(!tc.has_caught());
+    }
+    {
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
       let result = eval(scope, context, "throw new Error('foo')");
       assert!(result.is_none());
       assert!(tc.has_caught());
@@ -385,8 +391,10 @@ fn try_catch() {
         tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
         "Uncaught Error: foo"
       );
-    });
-    v8::TryCatch::new(scope, |scope, tc| {
+    }
+    {
+      let mut try_catch = v8::TryCatch::new(scope);
+      let tc = try_catch.enter();
       let result = eval(scope, context, "1 + 1");
       assert!(result.is_some());
       assert!(!tc.has_caught());
@@ -394,18 +402,23 @@ fn try_catch() {
       assert!(tc.stack_trace(scope, context).is_none());
       assert!(tc.message().is_none());
       assert!(tc.rethrow().is_none());
-    });
+    }
     // Rethrow and reset.
-    v8::TryCatch::new(scope, |scope, tc1| {
-      v8::TryCatch::new(scope, |scope, tc2| {
+    {
+      // Rethrow and reset.
+      let mut try_catch_1 = v8::TryCatch::new(scope);
+      let tc1 = try_catch_1.enter();
+      {
+        let mut try_catch_2 = v8::TryCatch::new(scope);
+        let tc2 = try_catch_2.enter();
         eval(scope, context, "throw 'bar'");
         assert!(tc2.has_caught());
         assert!(tc2.rethrow().is_some());
         tc2.reset();
         assert!(!tc2.has_caught());
-      });
+      }
       assert!(tc1.has_caught());
-    });
+    };
 
     context.exit();
   });

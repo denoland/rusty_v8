@@ -1,3 +1,7 @@
+use std::marker::PhantomData;
+use std::mem::size_of;
+use std::mem::size_of_val;
+use std::mem::take;
 use std::mem::MaybeUninit;
 
 use crate::Context;
@@ -8,71 +12,74 @@ use crate::Scope;
 use crate::Value;
 
 extern "C" {
-  // Note: the C++ TryCatch object *must* live on the stack, and it must
+  // Note: the C++ CxxTryCatch object *must* live on the stack, and it must
   // not move after it is constructed.
   fn v8__TryCatch__CONSTRUCT(
-    buf: &mut MaybeUninit<TryCatch>,
+    buf: &mut MaybeUninit<CxxTryCatch>,
     isolate: *mut Isolate,
   );
 
-  fn v8__TryCatch__DESTRUCT(this: &mut TryCatch);
+  fn v8__TryCatch__DESTRUCT(this: &mut CxxTryCatch);
 
-  fn v8__TryCatch__HasCaught(this: &TryCatch) -> bool;
+  fn v8__TryCatch__HasCaught(this: &CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__CanContinue(this: &TryCatch) -> bool;
+  fn v8__TryCatch__CanContinue(this: &CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__HasTerminated(this: &TryCatch) -> bool;
+  fn v8__TryCatch__HasTerminated(this: &CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__Exception(this: &TryCatch) -> *mut Value;
+  fn v8__TryCatch__Exception(this: &CxxTryCatch) -> *mut Value;
 
   fn v8__TryCatch__StackTrace(
-    this: &TryCatch,
+    this: &CxxTryCatch,
     context: Local<Context>,
   ) -> *mut Value;
 
-  fn v8__TryCatch__Message(this: &TryCatch) -> *mut Message;
+  fn v8__TryCatch__Message(this: &CxxTryCatch) -> *mut Message;
 
-  fn v8__TryCatch__Reset(this: &mut TryCatch);
+  fn v8__TryCatch__Reset(this: &mut CxxTryCatch);
 
-  fn v8__TryCatch__ReThrow(this: &mut TryCatch) -> *mut Value;
+  fn v8__TryCatch__ReThrow(this: &mut CxxTryCatch) -> *mut Value;
 
-  fn v8__TryCatch__IsVerbose(this: &TryCatch) -> bool;
+  fn v8__TryCatch__IsVerbose(this: &CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__SetVerbose(this: &mut TryCatch, value: bool);
+  fn v8__TryCatch__SetVerbose(this: &mut CxxTryCatch, value: bool);
 
-  fn v8__TryCatch__SetCaptureMessage(this: &mut TryCatch, value: bool);
+  fn v8__TryCatch__SetCaptureMessage(this: &mut CxxTryCatch, value: bool);
 }
 
-/// An external exception handler.
-#[repr(C)]
-pub struct TryCatch([usize; 6]);
+// Note: the 'tc lifetime is there to ensure that after entering a TryCatchScope
+// once, the same TryCatch object can't be entered again.
 
-impl TryCatch {
+/// An external exception handler.
+#[repr(transparent)]
+pub struct TryCatch<'tc>(CxxTryCatch, PhantomData<&'tc ()>);
+
+#[repr(C)]
+struct CxxTryCatch([usize; 6]);
+
+/// A scope object that will, when entered, active the embedded TryCatch block.
+pub struct TryCatchScope<'tc>(TryCatchState<'tc>);
+
+enum TryCatchState<'tc> {
+  New { isolate: *mut Isolate },
+  Uninit(MaybeUninit<TryCatch<'tc>>),
+  Entered(TryCatch<'tc>),
+}
+
+impl<'tc> TryCatch<'tc> {
   /// Creates a new try/catch block. Note that all TryCatch blocks should be
   /// stack allocated because the memory location itself is compared against
   /// JavaScript try/catch blocks.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new<'s, F>(scope: &mut Scope, f: F)
-  where
-    F: FnOnce(&mut Scope, &mut TryCatch),
-  {
-    let mut tc: MaybeUninit<TryCatch> = MaybeUninit::uninit();
-    assert_eq!(std::mem::size_of_val(&tc), std::mem::size_of::<TryCatch>());
-    let isolate = scope.isolate();
-    unsafe { v8__TryCatch__CONSTRUCT(&mut tc, isolate) };
-    let mut tc = unsafe { tc.assume_init() };
-
-    f(scope, &mut tc);
-
-    unsafe {
-      v8__TryCatch__DESTRUCT(&mut tc);
-    }
-    // drop(tc);
+  pub fn new(scope: &mut Scope) -> TryCatchScope<'tc> {
+    TryCatchScope(TryCatchState::New {
+      isolate: scope.isolate(),
+    })
   }
 
   /// Returns true if an exception has been caught by this try/catch block.
   pub fn has_caught(&self) -> bool {
-    unsafe { v8__TryCatch__HasCaught(self) }
+    unsafe { v8__TryCatch__HasCaught(&self.0) }
   }
 
   /// For certain types of exceptions, it makes no sense to continue execution.
@@ -82,7 +89,7 @@ impl TryCatch {
   /// HasTerminated returns true, it is possible to call
   /// CancelTerminateExecution in order to continue calling into the engine.
   pub fn can_continue(&self) -> bool {
-    unsafe { v8__TryCatch__CanContinue(self) }
+    unsafe { v8__TryCatch__CanContinue(&self.0) }
   }
 
   /// Returns true if an exception has been caught due to script execution
@@ -96,15 +103,15 @@ impl TryCatch {
   /// indicating that it is possible to call CancelTerminateExecution in order
   /// to continue calling into the engine.
   pub fn has_terminated(&self) -> bool {
-    unsafe { v8__TryCatch__HasTerminated(self) }
+    unsafe { v8__TryCatch__HasTerminated(&self.0) }
   }
 
   /// Returns the exception caught by this try/catch block. If no exception has
   /// been caught an empty handle is returned.
   ///
   /// The returned handle is valid until this TryCatch block has been destroyed.
-  pub fn exception(&self) -> Option<Local<Value>> {
-    unsafe { Local::from_raw(v8__TryCatch__Exception(self)) }
+  pub fn exception(&self) -> Option<Local<'tc, Value>> {
+    unsafe { Local::from_raw(v8__TryCatch__Exception(&self.0)) }
   }
 
   /// Returns the .stack property of the thrown object. If no .stack
@@ -114,7 +121,7 @@ impl TryCatch {
     scope: &mut Scope,
     context: Local<Context>,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.to_local(v8__TryCatch__StackTrace(self, context)) }
+    unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, context)) }
   }
 
   /// Returns the message associated with this exception. If there is
@@ -122,8 +129,8 @@ impl TryCatch {
   ///
   /// The returned handle is valid until this TryCatch block has been
   /// destroyed.
-  pub fn message(&self) -> Option<Local<Message>> {
-    unsafe { Local::from_raw(v8__TryCatch__Message(self)) }
+  pub fn message(&self) -> Option<Local<'tc, Message>> {
+    unsafe { Local::from_raw(v8__TryCatch__Message(&self.0)) }
   }
 
   /// Clears any exceptions that may have been caught by this try/catch block.
@@ -135,7 +142,7 @@ impl TryCatch {
   /// overwritten. However, it is often a good idea since it makes it easier
   /// to determine which operation threw a given exception.
   pub fn reset(&mut self) {
-    unsafe { v8__TryCatch__Reset(self) };
+    unsafe { v8__TryCatch__Reset(&mut self.0) };
   }
 
   /// Throws the exception caught by this TryCatch in a way that avoids
@@ -143,13 +150,13 @@ impl TryCatch {
   /// it is illegal to execute any JavaScript operations after calling
   /// ReThrow; the caller must return immediately to where the exception
   /// is caught.
-  pub fn rethrow(&mut self) -> Option<Local<Value>> {
-    unsafe { Local::from_raw(v8__TryCatch__ReThrow(self)) }
+  pub fn rethrow<'a>(&'_ mut self) -> Option<Local<'a, Value>> {
+    unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) }
   }
 
   /// Returns true if verbosity is enabled.
   pub fn is_verbose(&self) -> bool {
-    unsafe { v8__TryCatch__IsVerbose(self) }
+    unsafe { v8__TryCatch__IsVerbose(&self.0) }
   }
 
   /// Set verbosity of the external exception handler.
@@ -159,19 +166,64 @@ impl TryCatch {
   /// external exception handler to have exceptions caught by the
   /// handler reported as if they were not caught.
   pub fn set_verbose(&mut self, value: bool) {
-    unsafe { v8__TryCatch__SetVerbose(self, value) };
+    unsafe { v8__TryCatch__SetVerbose(&mut self.0, value) };
   }
 
   /// Set whether or not this TryCatch should capture a Message object
   /// which holds source information about where the exception
   /// occurred. True by default.
   pub fn set_capture_message(&mut self, value: bool) {
-    unsafe { v8__TryCatch__SetCaptureMessage(self, value) };
+    unsafe { v8__TryCatch__SetCaptureMessage(&mut self.0, value) };
+  }
+
+  fn construct(buf: &mut MaybeUninit<TryCatch>, isolate: *mut Isolate) {
+    unsafe {
+      assert_eq!(size_of_val(buf), size_of::<CxxTryCatch>());
+      let buf = &mut *(buf as *mut _ as *mut MaybeUninit<CxxTryCatch>);
+      v8__TryCatch__CONSTRUCT(buf, isolate);
+    }
   }
 }
 
-impl Drop for TryCatch {
+impl Drop for CxxTryCatch {
   fn drop(&mut self) {
-    // unsafe { v8__TryCatch__DESTRUCT(self) }
+    unsafe { v8__TryCatch__DESTRUCT(self) }
+  }
+}
+
+impl<'tc> TryCatchScope<'tc> {
+  /// Enters the TryCatch block. Exceptions are caught as long as the returned
+  /// TryCatch object remains in scope.
+  pub fn enter(&'tc mut self) -> &'tc mut TryCatch {
+    use TryCatchState::*;
+    let state = &mut self.0;
+
+    let isolate = match take(state) {
+      New { isolate } => isolate,
+      _ => unreachable!(),
+    };
+
+    let buf = match state {
+      Uninit(b) => b,
+      _ => unreachable!(),
+    };
+
+    TryCatch::construct(buf, isolate);
+
+    *state = match take(state) {
+      Uninit(b) => Entered(unsafe { b.assume_init() }),
+      _ => unreachable!(),
+    };
+
+    match state {
+      Entered(v) => v,
+      _ => unreachable!(),
+    }
+  }
+}
+
+impl<'tc> Default for TryCatchState<'tc> {
+  fn default() -> Self {
+    Self::Uninit(MaybeUninit::uninit())
   }
 }

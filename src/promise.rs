@@ -148,10 +148,7 @@ impl PromiseResolver {
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'s>(
-    &mut self,
-    scope: &mut Scope,
-  ) -> Local<'s, Promise> {
+  pub fn get_promise<'s>(&mut self, scope: &mut Scope) -> Local<'s, Promise> {
     unsafe { scope.to_local(v8__Promise__Resolver__GetPromise(&mut *self)) }
       .unwrap()
   }
