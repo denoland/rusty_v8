@@ -38,8 +38,6 @@ pub struct Global<T> {
   isolate_handle: Option<IsolateHandle>,
 }
 
-unsafe impl<T> Send for Global<T> {}
-
 impl<T> Global<T> {
   /// Construct a Global with no storage cell.
   pub fn new() -> Self {
