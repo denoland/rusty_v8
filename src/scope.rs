@@ -25,8 +25,8 @@ extern "C" {
     self_: &EscapableHandleScope,
   ) -> *mut Isolate;
 
+  fn v8__Context__GetIsolate(self_: &Context) -> *mut Isolate;
 /*
-fn v8__Context__GetIsolate(self_: &Context) -> *mut Isolate;
 fn v8__FunctionCallbackInfo__GetIsolate(
   self_: &FunctionCallbackInfo,
 ) -> *mut Isolate;
@@ -167,5 +167,34 @@ impl DerefMut for EscapableHandleScope {
 impl Drop for EscapableHandleScope {
   fn drop(&mut self) {
     unsafe { v8__EscapableHandleScope__DESTRUCT(self) }
+  }
+}
+
+/// Stack-allocated class which sets the execution context for all operations
+/// executed within a local scope.
+pub struct ContextScope();
+
+use crate::Context;
+impl ContextScope {
+  pub fn new<F>(mut context: Local<Context>, f: F)
+  where
+    F: FnOnce(&mut Context),
+  {
+    context.enter();
+    f(&mut context);
+    context.exit();
+  }
+}
+
+impl Deref for Context {
+  type Target = Scope;
+  fn deref(&self) -> &Scope {
+    todo!()
+  }
+}
+
+impl DerefMut for Context {
+  fn deref_mut(&mut self) -> &mut Scope {
+    unsafe { &mut *(v8__Context__GetIsolate(self) as *mut Scope) }
   }
 }

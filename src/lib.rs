@@ -67,6 +67,7 @@ pub use object::*;
 pub use platform::new_default_platform;
 pub use platform::Platform;
 pub use platform::Task;
+pub use scope::ContextScope;
 pub use scope::EscapableHandleScope;
 pub use scope::HandleScope;
 pub use scope::Scope;
