@@ -1,36 +1,30 @@
+//! This shows a pattern for adding state to an Isolate. The pattern is used
+//! extensively in Deno.
+
 use rusty_v8 as v8;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-struct IsolateWithStateInner<S> {
-  isolate: Option<v8::OwnedIsolate>,
-  state: S,
-}
-
-struct IsolateWithState<S>(Box<IsolateWithStateInner<S>>);
+struct IsolateWithState<S>(v8::OwnedIsolate, PhantomData<S>);
 
 impl<S> IsolateWithState<S> {
   fn new(mut isolate: v8::OwnedIsolate, state: S) -> IsolateWithState<S> {
     assert!(isolate.get_data(0).is_null());
-
-    let mut boxed = Box::new(IsolateWithStateInner {
-      isolate: None,
-      state,
-    });
-
+    let boxed = Box::new(state);
     let ptr = Box::into_raw(boxed);
     unsafe { isolate.set_data(0, ptr as *mut _) };
-    boxed = unsafe { Box::from_raw(ptr) };
-    boxed.isolate = Some(isolate);
-    IsolateWithState(boxed)
+    IsolateWithState(isolate, PhantomData)
   }
 
   fn state(&mut self) -> &mut S {
-    &mut self.0.state
+    let ptr = self.0.get_data(0) as *mut S;
+    unsafe { &mut *ptr }
   }
 
   fn from(isolate: &v8::Isolate) -> &mut S {
-    unsafe { &mut *(isolate.get_data(0) as *mut S) }
+    let ptr = isolate.get_data(0) as *mut S;
+    unsafe { &mut *ptr }
   }
 }
 
@@ -38,19 +32,19 @@ impl<S> Deref for IsolateWithState<S> {
   type Target = v8::OwnedIsolate;
 
   fn deref(&self) -> &Self::Target {
-    self.0.isolate.as_ref().unwrap()
+    &self.0
   }
 }
 
 impl<S> DerefMut for IsolateWithState<S> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    self.0.isolate.as_mut().unwrap()
+    &mut self.0
   }
 }
 
 struct State {
   pub a: bool,
-  pub context: v8::Global<v8::Context>,
+  // pub context: v8::Global<v8::Context>,
 }
 
 #[test]
@@ -60,7 +54,7 @@ fn isolate_with_state() {
 
   let state = State {
     a: false,
-    context: v8::Global::new(),
+    // context: v8::Global::new(),
   };
 
   let mut params = v8::Isolate::create_params();
@@ -75,8 +69,11 @@ fn isolate_with_state() {
     _args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
   ) {
+    println!("change_state 0");
     let state = IsolateWithState::<State>::from(scope.isolate());
+    println!("change_state 1");
     state.a = true;
+    println!("change_state 2");
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
 
@@ -88,8 +85,8 @@ fn isolate_with_state() {
     let scope = cs.enter();
     let global = context.global(scope);
 
-    let state = IsolateWithState::<State>::from(scope.isolate());
-    state.context.set(scope, context);
+    // let state = IsolateWithState::<State>::from(scope.isolate());
+    // state.context.set(scope, context);
 
     let mut change_state_tmpl = v8::FunctionTemplate::new(scope, change_state);
     let change_state_val =

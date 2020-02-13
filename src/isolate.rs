@@ -154,7 +154,11 @@ impl Isolate {
   pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
     // TODO: support CreateParams.
     crate::V8::assert_initialized();
-    unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) }
+
+    let mut isolate =
+      unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) };
+    unsafe { isolate.set_annex(std::ptr::null_mut()) };
+    isolate
   }
 
   /// Initial configuration parameters for a new Isolate.
