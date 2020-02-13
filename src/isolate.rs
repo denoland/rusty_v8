@@ -284,7 +284,7 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
-    IsolateHandle::dispose(self);
+    IsolateHandle::dispose_isolate(self);
     v8__Isolate__Dispose(self)
   }
 }
@@ -317,19 +317,6 @@ impl IsolateHandle {
     self.0.isolate
   }
 
-  fn dispose(isolate: &mut Isolate) {
-    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
-    if !annex_ptr.is_null() {
-      unsafe {
-        isolate.set_data(0, null_mut());
-        let _lock = (*annex_ptr).mutex.lock().unwrap();
-        let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
-        assert_eq!(isolate as *mut _, isolate_ptr);
-        Arc::from_raw(annex_ptr);
-      };
-    }
-  }
-
   pub(crate) fn new(isolate: &mut Isolate) -> Self {
     let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
     if annex_ptr.is_null() {
@@ -343,6 +330,21 @@ impl IsolateHandle {
       let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
       Arc::into_raw(annex_arc.clone());
       IsolateHandle(annex_arc)
+    }
+  }
+
+  fn dispose_isolate(isolate: &mut Isolate) {
+    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    if !annex_ptr.is_null() {
+      unsafe {
+        {
+          let _lock = (*annex_ptr).mutex.lock().unwrap();
+          isolate.set_data(0, null_mut());
+          let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
+          assert_eq!(isolate as *mut _, isolate_ptr);
+        }
+        Arc::from_raw(annex_ptr);
+      };
     }
   }
 
