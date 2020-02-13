@@ -406,7 +406,7 @@ fn v8_str<'sc>(
 fn eval<'sc>(
   scope: &mut impl v8::ToLocal<'sc>,
   context: v8::Local<v8::Context>,
-  code: &'static str,
+  code: &str,
 ) -> Option<v8::Local<'sc, v8::Value>> {
   let mut hs = v8::EscapableHandleScope::new(scope);
   let scope = hs.enter();
@@ -2540,5 +2540,23 @@ fn context_from_object_template() {
     let actual = eval(scope, context, "f()").unwrap();
     let expected = v8::Integer::new(scope, 42);
     assert!(expected.strict_equals(actual));
+  }
+}
+
+#[test]
+fn get_and_set_data() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  let nslots = isolate.get_number_of_data_slots();
+  assert!(nslots > 0);
+  for slot in 0..nslots {
+    let b = Box::new(123 as i32);
+    let ptr = Box::into_raw(b);
+    unsafe { isolate.set_data(slot, ptr as *mut std::ffi::c_void) };
+    let ptr = isolate.get_data(slot) as *mut i32;
+    let b = unsafe { Box::from_raw(ptr) };
+    assert_eq!(*b, 123);
   }
 }
