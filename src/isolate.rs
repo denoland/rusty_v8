@@ -78,10 +78,6 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
-  fn v8__Isolate__GetCurrentContext(this: *mut Isolate) -> *mut Context;
-  fn v8__Isolate__GetEnteredOrMicrotaskContext(
-    this: *mut Isolate,
-  ) -> *mut Context;
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     this: *mut Isolate,
     caputre: bool,
@@ -202,24 +198,6 @@ impl Isolate {
   /// Requires: self == Isolate::GetCurrent().
   pub(crate) fn exit(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
-  }
-
-  /// Returns the context of the currently running JavaScript, or the context
-  /// on the top of the stack if no JavaScript is running.
-  pub fn get_current_context<'sc>(&mut self) -> Local<'sc, Context> {
-    unsafe { Local::from_raw(v8__Isolate__GetCurrentContext(self)).unwrap() }
-  }
-
-  /// Returns either the last context entered through V8's C++ API, or the
-  /// context of the currently running microtask while processing microtasks.
-  /// If a context is entered while executing a microtask, that context is
-  /// returned.
-  pub fn get_entered_or_microtask_context<'sc>(
-    &mut self,
-  ) -> Local<'sc, Context> {
-    unsafe {
-      Local::from_raw(v8__Isolate__GetEnteredOrMicrotaskContext(self)).unwrap()
-    }
   }
 
   /// Tells V8 to capture current stack trace when uncaught exception occurs

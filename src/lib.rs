@@ -47,17 +47,14 @@
 //! InIsolate which gives access to &mut Isolate is implemented for all scopes,
 //! ToLocal (I might rename that) is implemented for all Scopes in which new
 //! Local handles can be created and it sets the appropriate lifetime on them.
-//! InContext means that a context has been entered (I'll make sure they have a
-//! get_context() method), etc.
 //!
 //! Furthermore, many callbacks will receive receive an appropriate Scope object
 //! as their first argument, which 'encodes' the the state the isolate is in
 //! when the callback is called. E.g. a FunctionCallbackScope implements
-//! InIsolate + InContext + (there is an active context) and ToLocal (it acts as
-//! a handlescope). HostImportModuleDynamicallyScope would also implement
-//! InIsolate + InContext plus EscapeLocal (it doesn't act like a HandleScope,
-//! but it lets you safely escape one MaybeLocal which is returned to the
-//! caller.
+//! InIsolate + and ToLocal (it acts as a HandleScope).
+//! HostImportModuleDynamicallyScope would also implement InIsolate plus
+//! EscapeLocal (it doesn't act like a HandleScope, but it lets you safely
+//! escape one MaybeLocal which is returned to the caller).
 //!
 //! In a nutshell, that's it.
 //!

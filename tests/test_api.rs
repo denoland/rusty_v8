@@ -227,6 +227,32 @@ fn escapable_handle_scope() {
 }
 
 #[test]
+fn context_scope() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  let mut hs = v8::HandleScope::new(&mut isolate);
+  let scope = hs.enter();
+
+  assert!(scope.get_current_context().is_none());
+  assert!(scope.get_entered_or_microtask_context().is_none());
+
+  {
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    scope.get_current_context().unwrap();
+    scope.get_entered_or_microtask_context().unwrap();
+  }
+
+  assert!(scope.get_current_context().is_none());
+  assert!(scope.get_entered_or_microtask_context().is_none());
+}
+
+#[test]
 fn microtasks() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
@@ -378,7 +404,7 @@ fn v8_str<'sc>(
 }
 
 fn eval<'sc>(
-  scope: &mut (impl v8::ToLocal<'sc> + v8::InContext),
+  scope: &mut impl v8::ToLocal<'sc>,
   context: v8::Local<v8::Context>,
   code: &'static str,
 ) -> Option<v8::Local<'sc, v8::Value>> {
@@ -601,7 +627,7 @@ fn add_message_listener() {
     let mut sc = v8::CallbackScope::new(message);
     let mut sc = v8::HandleScope::new(sc.enter());
     let scope = sc.enter();
-    let context = scope.isolate().get_current_context();
+    let context = scope.get_current_context().unwrap();
     let message_str = message.get(scope);
     assert_eq!(message_str.to_rust_string_lossy(scope), "Uncaught foo");
     assert_eq!(Some(1), message.get_line_number(context));
@@ -1135,7 +1161,7 @@ fn object_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue| {
-      let context = scope.isolate().get_current_context();
+      let context = scope.get_current_context().unwrap();
       let this = args.this();
 
       let expected_key = v8::String::new(scope, "getter_key").unwrap();

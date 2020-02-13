@@ -14,5 +14,5 @@ error[E0277]: the trait bound `rusty_v8::scope::Entered<'_, rusty_v8::scope::Cal
              <rusty_v8::scope::Entered<'s, rusty_v8::function::PropertyCallbackInfo> as rusty_v8::scope_traits::ToLocal<'s>>
              <rusty_v8::scope::Entered<'s, rusty_v8::handle_scope::EscapableHandleScope, P> as rusty_v8::scope_traits::ToLocal<'s>>
              <rusty_v8::scope::Entered<'s, rusty_v8::handle_scope::HandleScope, P> as rusty_v8::scope_traits::ToLocal<'s>>
-             <rusty_v8::scope::Entered<'s, rusty_v8::scope::ContextScope, P> as rusty_v8::scope_traits::ToLocal<'s>>
+             <rusty_v8::scope::Entered<'s, rusty_v8::scope::ContextScope, P> as rusty_v8::scope_traits::ToLocal<'p>>
    = note: required because of the requirements on the impl of `rusty_v8::scope_traits::ToLocalOrReturnsLocal<'_>` for `rusty_v8::scope::Entered<'_, rusty_v8::scope::CallbackScope>`

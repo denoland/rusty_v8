@@ -141,20 +141,28 @@ where
   }
 }
 
-pub trait InContext: InIsolate {}
-impl<'s> InContext for Entered<'s, FunctionCallbackInfo, ()> {}
-impl<'s> InContext for Entered<'s, PropertyCallbackInfo, ()> {}
-impl<'s, X> InContext for Entered<'s, CallbackScope<X>> {}
-impl<'s, P> InContext for Entered<'s, ContextScope, P> {}
-impl<'s, P> InContext for Entered<'s, HandleScope, P> where P: InContext {}
-impl<'s, P> InContext for Entered<'s, EscapableHandleScope, P> where P: InContext
-{}
+extern "C" {
+  fn v8__Isolate__GetCurrentContext(this: *mut Isolate) -> *mut Context;
+  fn v8__Isolate__GetEnteredOrMicrotaskContext(
+    this: *mut Isolate,
+  ) -> *mut Context;
+}
 
 /// When scope implements this trait, this means that Local handles can be
 /// created inside it.
 pub trait ToLocal<'s>: InIsolate {
   unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<'s, T>> {
-    crate::Local::<'s, T>::from_raw(ptr)
+    Local::from_raw(ptr)
+  }
+
+  fn get_current_context(&mut self) -> Option<Local<'s, Context>> {
+    unsafe { Local::from_raw(v8__Isolate__GetCurrentContext(self.isolate())) }
+  }
+
+  fn get_entered_or_microtask_context(&mut self) -> Option<Local<'s, Context>> {
+    unsafe {
+      Local::from_raw(v8__Isolate__GetEnteredOrMicrotaskContext(self.isolate()))
+    }
   }
 }
 
@@ -162,7 +170,10 @@ impl<'s> ToLocal<'s> for Entered<'s, FunctionCallbackInfo> {}
 impl<'s> ToLocal<'s> for Entered<'s, PropertyCallbackInfo> {}
 impl<'s, P> ToLocal<'s> for Entered<'s, HandleScope, P> {}
 impl<'s, P> ToLocal<'s> for Entered<'s, EscapableHandleScope, P> {}
-impl<'s, P> ToLocal<'s> for Entered<'s, ContextScope, P> where P: ToLocal<'s> {}
+impl<'s, 'p: 's, P> ToLocal<'p> for Entered<'s, ContextScope, P> where
+  P: ToLocal<'p>
+{
+}
 
 pub trait ToLocalOrReturnsLocal<'s>: InIsolate {}
 impl<'s, E> ToLocalOrReturnsLocal<'s> for E where E: ToLocal<'s> {}
@@ -215,8 +226,31 @@ where
 
 impl<'s, 'p: 's, S, P> Entered<'s, S, P>
 where
+  Self: ToLocal<'p>,
+{
+  /// Returns the context of the currently running JavaScript, or the context
+  /// on the top of the stack if no JavaScript is running.
+  pub fn get_current_context(&mut self) -> Option<Local<'p, Context>> {
+    <Self as ToLocal<'p>>::get_current_context(self)
+  }
+
+  /// Returns either the last context entered through V8's C++ API, or the
+  /// context of the currently running microtask while processing microtasks.
+  /// If a context is entered while executing a microtask, that context is
+  /// returned.
+  pub fn get_entered_or_microtask_context(
+    &mut self,
+  ) -> Option<Local<'p, Context>> {
+    <Self as ToLocal<'p>>::get_entered_or_microtask_context(self)
+  }
+}
+
+impl<'s, 'p: 's, S, P> Entered<'s, S, P>
+where
   Self: EscapeLocal<'s, 'p>,
 {
+  /// Pushes the value into the previous scope and returns a handle to it.
+  /// Cannot be called twice.
   pub fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T> {
     <Self as EscapeLocal<'s, 'p>>::escape(self, local)
   }
