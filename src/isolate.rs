@@ -166,6 +166,14 @@ impl Isolate {
     IsolateHandle::new(self)
   }
 
+  unsafe fn set_annex(&mut self, ptr: *mut IsolateAnnex) {
+    v8__Isolate__SetData(self, 0, ptr as *mut c_void)
+  }
+
+  fn get_annex(&self) -> *mut IsolateAnnex {
+    unsafe { v8__Isolate__GetData(self, 0) as *mut _ }
+  }
+
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
@@ -318,12 +326,12 @@ impl IsolateHandle {
   }
 
   pub(crate) fn new(isolate: &mut Isolate) -> Self {
-    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    let annex_ptr = isolate.get_annex();
     if annex_ptr.is_null() {
       let annex_arc = Arc::new(IsolateAnnex::new(isolate));
       let annex_ptr = Arc::into_raw(annex_arc.clone());
       unsafe {
-        isolate.set_data(0, annex_ptr as *mut c_void);
+        isolate.set_annex(annex_ptr as *mut IsolateAnnex);
       }
       IsolateHandle(annex_arc)
     } else {
@@ -334,7 +342,7 @@ impl IsolateHandle {
   }
 
   fn dispose_isolate(isolate: &mut Isolate) {
-    let annex_ptr = isolate.get_data(0) as *mut IsolateAnnex;
+    let annex_ptr = isolate.get_annex();
     if !annex_ptr.is_null() {
       unsafe {
         {
