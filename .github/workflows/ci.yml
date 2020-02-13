@@ -6,18 +6,23 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.kind }} ${{ matrix.os }}
+    name: ${{ matrix.config.os }} ${{ matrix.config.target }}
     if: |
       github.event_name == 'push' ||
       !startsWith(github.event.pull_request.head.label, 'denoland:')
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-16.04
-          - windows-2019
+        config:
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-16.04
+            target: "x86_64-unknown-linux-gnu"
+          - os: ubuntu-16.04
+            target: aarch64-unknown-linux-gnu
+          - os: windows-2019
+            target: x86_64-pc-windows-msvc
 
     steps:
       - name: Configure git
@@ -34,11 +39,30 @@ jobs:
         with:
           rust-version: "1.41.0"
 
+      - name: Install rust tools
+        run: rustup component add clippy rustfmt
+
       - name: Install python
         uses: actions/setup-python@v1
         with:
           python-version: "2.7.x"
           architecture: x64
+
+      - name: Install cross compilation toolchain
+        if: matrix.config.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+
+          sudo apt install -yq --no-install-suggests --no-install-recommends \
+            binfmt-support g++-5-aarch64-linux-gnu g++-5-multilib \
+            gcc-5-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
+            qemu-user-binfmt
+
+          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
+                     /lib/ld-linux-aarch64.so.1
+
+          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
+          echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
 
       - name: Install and start sccache
         shell: pwsh
@@ -67,17 +91,15 @@ jobs:
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test
-        run: cargo test -vv --locked --all-targets
+        run: cargo test -vv --all-targets --locked
+          --target ${{ matrix.config.target }}
 
       - name: Clippy
-        run: |
-          rustup component add clippy
-          cargo clippy --all-targets --locked -- -D clippy::all
+        run: cargo clippy --all-targets --locked
+          --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt
-        run: |
-          rustup component add rustfmt
-          cargo fmt -- --check
+        run: cargo fmt -- --check
 
       # TODO: add clang-format and maybe cpplint.
 
