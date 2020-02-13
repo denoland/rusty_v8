@@ -478,57 +478,68 @@ bool v8__Value__SameValue(const v8::Value& self, v8::Value* that) {
   return self.SameValue(ptr_to_local(that));
 }
 
-v8::Uint32* v8__Value__ToUint32(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToUint32(ptr_to_local(context)));
+v8::Uint32* v8__Value__ToUint32(const v8::Value& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToUint32(context));
 }
 
-v8::Int32* v8__Value__ToInt32(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToInt32(ptr_to_local(context)));
+v8::Int32* v8__Value__ToInt32(const v8::Value& self,
+                              v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToInt32(context));
 }
 
-v8::Integer* v8__Value__ToInteger(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToInteger(ptr_to_local(context)));
+v8::Integer* v8__Value__ToInteger(const v8::Value& self,
+                                  v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToInteger(context));
 }
 
-v8::BigInt* v8__Value__ToBigInt(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToBigInt(ptr_to_local(context)));
+v8::BigInt* v8__Value__ToBigInt(const v8::Value& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToBigInt(context));
 }
 
-v8::String* v8__Value__ToString(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToString(ptr_to_local(context)));
+v8::String* v8__Value__ToString(const v8::Value& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToString(context));
 }
 
 v8::String* v8__Value__ToDetailString(const v8::Value& self,
-                                      v8::Context* context) {
-  return maybe_local_to_ptr(self.ToDetailString(ptr_to_local(context)));
+                                      v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToDetailString(context));
 }
 
-v8::Number* v8__Value__ToNumber(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToNumber(ptr_to_local(context)));
+v8::Number* v8__Value__ToNumber(const v8::Value& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToNumber(context));
 }
 
-v8::Object* v8__Value__ToObject(const v8::Value& self, v8::Context* context) {
-  return maybe_local_to_ptr(self.ToObject(ptr_to_local(context)));
+v8::Object* v8__Value__ToObject(const v8::Value& self,
+                                v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self.ToObject(context));
 }
 
-void v8__Value__NumberValue(const v8::Value& self, v8::Context* context,
+void v8__Value__NumberValue(const v8::Value& self,
+                            v8::Local<v8::Context> context,
                             v8::Maybe<double>* out) {
-  *out = self.NumberValue(ptr_to_local(context));
+  *out = self.NumberValue(context);
 }
 
-void v8__Value__IntegerValue(const v8::Value& self, v8::Context* context,
+void v8__Value__IntegerValue(const v8::Value& self,
+                             v8::Local<v8::Context> context,
                              v8::Maybe<int64_t>* out) {
-  *out = self.IntegerValue(ptr_to_local(context));
+  *out = self.IntegerValue(context);
 }
 
-void v8__Value__Uint32Value(const v8::Value& self, v8::Context* context,
+void v8__Value__Uint32Value(const v8::Value& self,
+                            v8::Local<v8::Context> context,
                             v8::Maybe<uint32_t>* out) {
-  *out = self.Uint32Value(ptr_to_local(context));
+  *out = self.Uint32Value(context);
 }
 
-void v8__Value__Int32Value(const v8::Value& self, v8::Context* context,
+void v8__Value__Int32Value(const v8::Value& self,
+                           v8::Local<v8::Context> context,
                            v8::Maybe<int32_t>* out) {
-  *out = self.Int32Value(ptr_to_local(context));
+  *out = self.Int32Value(context);
 }
 
 v8::Primitive* v8__Null(v8::Isolate* isolate) {
