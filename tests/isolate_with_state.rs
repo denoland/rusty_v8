@@ -5,10 +5,9 @@ use rusty_v8 as v8;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct State1 {
-  pub a: bool,
+  pub count: usize,
   pub context: v8::Global<v8::Context>,
 }
 
@@ -23,13 +22,71 @@ impl Isolate1 {
     Isolate1(isolate, PhantomData)
   }
 
+  fn from(isolate: &mut v8::Isolate) -> Rc<State1> {
+    let ptr = isolate.get_data(0) as *const State1;
+    let rc_state = unsafe { Rc::from_raw(ptr) };
+    rc_state
+  }
+
   fn state(&mut self) -> Rc<State1> {
     Self::from(&mut self.0)
   }
 
-  fn from(isolate: &mut v8::Isolate) -> Rc<State1> {
-    let ptr = isolate.get_data(0) as *const State1;
-    unsafe { Rc::from_raw(ptr) }
+  fn mod_state<'sc, F, S, R>(scope: &mut S, f: F) -> R
+  where
+    S: v8::InIsolate + v8::ToLocal<'sc>,
+    F: FnOnce(&mut S, &mut State1) -> R,
+  {
+    let mut rc_state = Self::from(scope.isolate());
+    let state = Rc::get_mut(&mut rc_state).unwrap();
+    let r = f(scope, state);
+    let _ptr = Rc::into_raw(rc_state);
+    r
+  }
+
+  pub fn setup(&mut self) {
+    let mut hs = v8::HandleScope::new(&mut self.0);
+    let scope = hs.enter();
+    let mut context = v8::Context::new(scope);
+    context.enter();
+
+    let global = context.global(scope);
+
+    Self::mod_state(scope, |scope, state| {
+      println!("1 Rc::get_mut");
+      state.context.set(scope, context);
+    });
+
+    let mut change_state_tmpl =
+      v8::FunctionTemplate::new(scope, Self::change_state);
+    let change_state_val =
+      change_state_tmpl.get_function(scope, context).unwrap();
+    global.set(
+      context,
+      v8::String::new(scope, "change_state").unwrap().into(),
+      change_state_val.into(),
+    );
+  }
+
+  pub fn exec(&mut self, src: &str) {
+    let mut hs = v8::HandleScope::new(&mut self.0);
+    let scope = hs.enter();
+
+    let context = scope.get_current_context().unwrap();
+    let source = v8::String::new(scope, src).unwrap();
+    let mut script = v8::Script::compile(scope, context, source, None).unwrap();
+    script.run(scope, context);
+  }
+
+  fn change_state(
+    scope: v8::FunctionCallbackScope,
+    _args: v8::FunctionCallbackArguments,
+    _rv: v8::ReturnValue,
+  ) {
+    Self::mod_state(scope, |scope, state| {
+      println!("3 Rc::get_mut change_state");
+      state.count += 1;
+    });
   }
 }
 
@@ -53,7 +110,7 @@ fn isolate_with_state() {
   v8::V8::initialize();
 
   let state = State1 {
-    a: false,
+    count: 0,
     context: v8::Global::new(),
   };
 
@@ -63,45 +120,9 @@ fn isolate_with_state() {
 
   let mut isolate_with_state = Isolate1::new(isolate, state);
 
-  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-  fn change_state(
-    scope: v8::FunctionCallbackScope,
-    _args: v8::FunctionCallbackArguments,
-    _rv: v8::ReturnValue,
-  ) {
-    let mut state_rc = Isolate1::from(scope.isolate());
-    let mut state = Rc::get_mut(&mut state_rc).unwrap();
-    state.a = true;
-    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-  }
+  isolate_with_state.setup();
+  isolate_with_state.exec("change_state()");
 
-  {
-    let mut hs = v8::HandleScope::new(isolate_with_state.deref_mut());
-    let scope = hs.enter();
-    let context = v8::Context::new(scope);
-    let mut cs = v8::ContextScope::new(scope, context);
-    let scope = cs.enter();
-    let global = context.global(scope);
-
-    let mut state_rc = Isolate1::from(scope.isolate());
-    // let mut state_rc = isolate_with_state.state();
-    let state = Rc::get_mut(&mut state_rc).unwrap();
-    state.context.set(scope, context);
-
-    let mut change_state_tmpl = v8::FunctionTemplate::new(scope, change_state);
-    let change_state_val =
-      change_state_tmpl.get_function(scope, context).unwrap();
-    global.set(
-      context,
-      v8::String::new(scope, "change_state").unwrap().into(),
-      change_state_val.into(),
-    );
-
-    let source = v8::String::new(scope, "change_state()").unwrap();
-    let mut script = v8::Script::compile(scope, context, source, None).unwrap();
-    script.run(scope, context);
-  }
   let state = isolate_with_state.state();
-  assert!(state.a);
-  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+  assert_eq!(state.count, 1);
 }
