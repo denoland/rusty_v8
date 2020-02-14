@@ -71,6 +71,7 @@ extern "C" {
     elements: *const Local<Value>,
     length: usize,
   ) -> *mut Array;
+  fn v8__Array__Length(array: &Array) -> u32;
 }
 
 impl Object {
@@ -243,5 +244,9 @@ impl Array {
       )
     };
     unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  pub fn length(&self) -> u32 {
+    unsafe { v8__Array__Length(self) }
   }
 }

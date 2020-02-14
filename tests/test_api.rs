@@ -1088,6 +1088,7 @@ fn array() {
     let s1 = v8::String::new(scope, "a").unwrap();
     let s2 = v8::String::new(scope, "b").unwrap();
     let array = v8::Array::new(scope, 2);
+    assert_eq!(array.length(), 2);
     let lhs = array.creation_context(scope).global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
@@ -1101,8 +1102,12 @@ fn array() {
     assert!(maybe_v2.is_some());
     assert!(maybe_v2.unwrap().same_value(s2.into()));
 
-    let _ = v8::Array::new_with_elements(scope, &[]);
+    let array = v8::Array::new_with_elements(scope, &[]);
+    assert_eq!(array.length(), 0);
+
     let array = v8::Array::new_with_elements(scope, &[s1.into(), s2.into()]);
+    assert_eq!(array.length(), 2);
+
     let maybe_v1 = array.get_index(scope, context, 0);
     assert!(maybe_v1.is_some());
     assert!(maybe_v1.unwrap().same_value(s1.into()));
