@@ -73,8 +73,8 @@ pub type InterruptCallback =
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
-  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
-  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
+  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *const c_void);
+  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *const c_void;
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
@@ -180,13 +180,13 @@ impl Isolate {
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
-  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
+  pub unsafe fn set_data(&mut self, slot: u32, ptr: *const c_void) {
     v8__Isolate__SetData(self, slot + 1, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
-  pub fn get_data(&self, slot: u32) -> *mut c_void {
+  pub fn get_data(&self, slot: u32) -> *const c_void {
     unsafe { v8__Isolate__GetData(self, slot + 1) }
   }
 

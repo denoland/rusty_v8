@@ -4,6 +4,7 @@
 use rusty_v8 as v8;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct IsolateWithState<S>(v8::OwnedIsolate, PhantomData<S>);
@@ -11,20 +12,19 @@ struct IsolateWithState<S>(v8::OwnedIsolate, PhantomData<S>);
 impl<S> IsolateWithState<S> {
   fn new(mut isolate: v8::OwnedIsolate, state: S) -> IsolateWithState<S> {
     assert!(isolate.get_data(0).is_null());
-    let boxed = Box::new(state);
-    let ptr = Box::into_raw(boxed);
+    let rc_state = Rc::new(state);
+    let ptr = Rc::into_raw(rc_state);
     unsafe { isolate.set_data(0, ptr as *mut _) };
     IsolateWithState(isolate, PhantomData)
   }
 
-  fn state(&mut self) -> &mut S {
-    let ptr = self.0.get_data(0) as *mut S;
-    unsafe { &mut *ptr }
+  fn state(&mut self) -> Rc<S> {
+    Self::from(&mut self.0)
   }
 
-  fn from(isolate: &v8::Isolate) -> &mut S {
-    let ptr = isolate.get_data(0) as *mut S;
-    unsafe { &mut *ptr }
+  fn from(isolate: &mut v8::Isolate) -> Rc<S> {
+    let ptr = isolate.get_data(0) as *const S;
+    unsafe { Rc::from_raw(ptr) }
   }
 }
 
@@ -44,7 +44,7 @@ impl<S> DerefMut for IsolateWithState<S> {
 
 struct State {
   pub a: bool,
-  // pub context: v8::Global<v8::Context>,
+  pub context: v8::Global<v8::Context>,
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn isolate_with_state() {
 
   let state = State {
     a: false,
-    // context: v8::Global::new(),
+    context: v8::Global::new(),
   };
 
   let mut params = v8::Isolate::create_params();
@@ -69,11 +69,9 @@ fn isolate_with_state() {
     _args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
   ) {
-    println!("change_state 0");
-    let state = IsolateWithState::<State>::from(scope.isolate());
-    println!("change_state 1");
+    let mut state = IsolateWithState::<State>::from(scope.isolate());
+    let mut state = Rc::get_mut(&mut state).unwrap();
     state.a = true;
-    println!("change_state 2");
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
 
@@ -85,8 +83,9 @@ fn isolate_with_state() {
     let scope = cs.enter();
     let global = context.global(scope);
 
-    // let state = IsolateWithState::<State>::from(scope.isolate());
-    // state.context.set(scope, context);
+    let mut state = IsolateWithState::<State>::from(scope.isolate());
+    let state = Rc::get_mut(&mut state).unwrap();
+    state.context.set(scope, context);
 
     let mut change_state_tmpl = v8::FunctionTemplate::new(scope, change_state);
     let change_state_val =
