@@ -1102,6 +1102,15 @@ fn array() {
     let maybe_v2 = array.get(scope, context, index2.into());
     assert!(maybe_v2.is_some());
     assert!(maybe_v2.unwrap().same_value(s2.into()));
+
+    let _ = v8::Array::new_with_elements(scope, &[]);
+    let array = v8::Array::new_with_elements(scope, &[s1.into(), s2.into()]);
+    let maybe_v1 = array.get(scope, context, index1.into());
+    assert!(maybe_v1.is_some());
+    assert!(maybe_v1.unwrap().same_value(s1.into()));
+    let maybe_v2 = array.get(scope, context, index2.into());
+    assert!(maybe_v2.is_some());
+    assert!(maybe_v2.unwrap().same_value(s2.into()));
   }
 }
 
