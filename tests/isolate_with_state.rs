@@ -8,13 +8,17 @@ use std::rc::Rc;
 
 struct State1 {
   pub count: usize,
-  pub context: v8::Global<v8::Context>,
+  pub js_count: v8::Global<v8::Integer>,
 }
 
 struct Isolate1(v8::OwnedIsolate, PhantomData<State1>);
 
 impl Isolate1 {
-  fn new(mut isolate: v8::OwnedIsolate, state: State1) -> Isolate1 {
+  fn new(state: State1) -> Isolate1 {
+    let mut params = v8::Isolate::create_params();
+    params.set_array_buffer_allocator(v8::new_default_allocator());
+    let mut isolate = v8::Isolate::new(params);
+
     assert!(isolate.get_data(0).is_null());
     let rc_state = Rc::new(state);
     let ptr = Rc::into_raw(rc_state);
@@ -53,8 +57,10 @@ impl Isolate1 {
     let global = context.global(scope);
 
     Self::mod_state(scope, |scope, state| {
-      println!("1 Rc::get_mut");
-      state.context.set(scope, context);
+      let mut hs = v8::HandleScope::new(scope);
+      let scope = hs.enter();
+      let js_count = v8::Integer::new(scope, 0);
+      state.js_count.set(scope, js_count);
     });
 
     let mut change_state_tmpl =
@@ -84,8 +90,11 @@ impl Isolate1 {
     _rv: v8::ReturnValue,
   ) {
     Self::mod_state(scope, |scope, state| {
-      println!("3 Rc::get_mut change_state");
       state.count += 1;
+      let js_count = state.js_count.get(scope).unwrap();
+      let js_count_value = js_count.value() as i32;
+      let js_count_next = v8::Integer::new(scope, js_count_value + 1);
+      state.js_count.set(scope, js_count_next);
     });
   }
 }
@@ -111,18 +120,19 @@ fn isolate_with_state() {
 
   let state = State1 {
     count: 0,
-    context: v8::Global::new(),
+    js_count: v8::Global::new(),
   };
 
-  let mut params = v8::Isolate::create_params();
-  params.set_array_buffer_allocator(v8::new_default_allocator());
-  let isolate = v8::Isolate::new(params);
-
-  let mut isolate_with_state = Isolate1::new(isolate, state);
+  let mut isolate_with_state = Isolate1::new(state);
 
   isolate_with_state.setup();
   isolate_with_state.exec("change_state()");
 
   let state = isolate_with_state.state();
   assert_eq!(state.count, 1);
+
+  let mut hs = v8::HandleScope::new(isolate_with_state.deref_mut());
+  let scope = hs.enter();
+  let js_count = state.js_count.get(scope).unwrap();
+  assert_eq!(1, js_count.value());
 }
