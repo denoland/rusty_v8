@@ -32,10 +32,21 @@ extern "C" {
     context: Local<Context>,
     key: Local<Value>,
   ) -> *mut Value;
+  fn v8__Object__GetIndex(
+    object: &Object,
+    context: Local<Context>,
+    index: u32,
+  ) -> *mut Value;
   fn v8__Object__Set(
     object: &Object,
     context: Local<Context>,
     key: Local<Value>,
+    value: Local<Value>,
+  ) -> MaybeBool;
+  fn v8__Object__SetIndex(
+    object: &Object,
+    context: Local<Context>,
+    index: u32,
     value: Local<Value>,
   ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
@@ -105,6 +116,17 @@ impl Object {
     unsafe { v8__Object__Set(self, context, key, value) }.into()
   }
 
+  /// Set only return Just(true) or Empty(), so if it should never fail, use
+  /// result.Check().
+  pub fn set_index(
+    &self,
+    context: Local<Context>,
+    index: u32,
+    value: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Object__SetIndex(self, context, index, value) }.into()
+  }
+
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
   ///
   /// Defines a configurable, writable, enumerable property with the given value
@@ -146,6 +168,18 @@ impl Object {
   ) -> Option<Local<'a, Value>> {
     unsafe {
       let ptr = v8__Object__Get(self, context, key);
+      scope.to_local(ptr)
+    }
+  }
+
+  pub fn get_index<'a>(
+    &self,
+    scope: &mut impl ToLocal<'a>,
+    context: Local<Context>,
+    index: u32,
+  ) -> Option<Local<'a, Value>> {
+    unsafe {
+      let ptr = v8__Object__GetIndex(self, context, index);
       scope.to_local(ptr)
     }
   }

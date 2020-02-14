@@ -1086,29 +1086,27 @@ fn array() {
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
     let s1 = v8::String::new(scope, "a").unwrap();
-    let index1 = v8::Integer::new(scope, 0);
     let s2 = v8::String::new(scope, "b").unwrap();
-    let index2 = v8::Integer::new(scope, 1);
     let array = v8::Array::new(scope, 2);
     let lhs = array.creation_context(scope).global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
-    array.set(context, index1.into(), s1.into());
-    array.set(context, index2.into(), s2.into());
+    array.set_index(context, 0, s1.into());
+    array.set_index(context, 1, s2.into());
 
-    let maybe_v1 = array.get(scope, context, index1.into());
+    let maybe_v1 = array.get_index(scope, context, 0);
     assert!(maybe_v1.is_some());
     assert!(maybe_v1.unwrap().same_value(s1.into()));
-    let maybe_v2 = array.get(scope, context, index2.into());
+    let maybe_v2 = array.get_index(scope, context, 1);
     assert!(maybe_v2.is_some());
     assert!(maybe_v2.unwrap().same_value(s2.into()));
 
     let _ = v8::Array::new_with_elements(scope, &[]);
     let array = v8::Array::new_with_elements(scope, &[s1.into(), s2.into()]);
-    let maybe_v1 = array.get(scope, context, index1.into());
+    let maybe_v1 = array.get_index(scope, context, 0);
     assert!(maybe_v1.is_some());
     assert!(maybe_v1.unwrap().same_value(s1.into()));
-    let maybe_v2 = array.get(scope, context, index2.into());
+    let maybe_v2 = array.get_index(scope, context, 1);
     assert!(maybe_v2.is_some());
     assert!(maybe_v2.unwrap().same_value(s2.into()));
   }

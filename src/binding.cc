@@ -681,10 +681,21 @@ v8::Value* v8__Object__Get(v8::Object& self, v8::Local<v8::Context> context,
   return maybe_local_to_ptr(self.Get(context, key));
 }
 
+v8::Value* v8__Object__GetIndex(v8::Object& self,
+                                v8::Local<v8::Context> context,
+                                uint32_t index) {
+  return maybe_local_to_ptr(self.Get(context, index));
+}
+
 MaybeBool v8__Object__Set(v8::Object& self, v8::Local<v8::Context> context,
                           v8::Local<v8::Value> key,
                           v8::Local<v8::Value> value) {
   return maybe_to_maybe_bool(self.Set(context, key, value));
+}
+
+MaybeBool v8__Object__SetIndex(v8::Object& self, v8::Local<v8::Context> context,
+                               uint32_t index, v8::Local<v8::Value> value) {
+  return maybe_to_maybe_bool(self.Set(context, index, value));
 }
 
 MaybeBool v8__Object__CreateDataProperty(v8::Object& self,
