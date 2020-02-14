@@ -7,28 +7,33 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-struct IsolateWithState<S>(v8::OwnedIsolate, PhantomData<S>);
+struct State1 {
+  pub a: bool,
+  pub context: v8::Global<v8::Context>,
+}
 
-impl<S> IsolateWithState<S> {
-  fn new(mut isolate: v8::OwnedIsolate, state: S) -> IsolateWithState<S> {
+struct Isolate1(v8::OwnedIsolate, PhantomData<State1>);
+
+impl Isolate1 {
+  fn new(mut isolate: v8::OwnedIsolate, state: State1) -> Isolate1 {
     assert!(isolate.get_data(0).is_null());
     let rc_state = Rc::new(state);
     let ptr = Rc::into_raw(rc_state);
     unsafe { isolate.set_data(0, ptr as *mut _) };
-    IsolateWithState(isolate, PhantomData)
+    Isolate1(isolate, PhantomData)
   }
 
-  fn state(&mut self) -> Rc<S> {
+  fn state(&mut self) -> Rc<State1> {
     Self::from(&mut self.0)
   }
 
-  fn from(isolate: &mut v8::Isolate) -> Rc<S> {
-    let ptr = isolate.get_data(0) as *const S;
+  fn from(isolate: &mut v8::Isolate) -> Rc<State1> {
+    let ptr = isolate.get_data(0) as *const State1;
     unsafe { Rc::from_raw(ptr) }
   }
 }
 
-impl<S> Deref for IsolateWithState<S> {
+impl Deref for Isolate1 {
   type Target = v8::OwnedIsolate;
 
   fn deref(&self) -> &Self::Target {
@@ -36,15 +41,10 @@ impl<S> Deref for IsolateWithState<S> {
   }
 }
 
-impl<S> DerefMut for IsolateWithState<S> {
+impl DerefMut for Isolate1 {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.0
   }
-}
-
-struct State {
-  pub a: bool,
-  pub context: v8::Global<v8::Context>,
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn isolate_with_state() {
   v8::V8::initialize_platform(v8::new_default_platform());
   v8::V8::initialize();
 
-  let state = State {
+  let state = State1 {
     a: false,
     context: v8::Global::new(),
   };
@@ -61,7 +61,7 @@ fn isolate_with_state() {
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let isolate = v8::Isolate::new(params);
 
-  let mut isolate_with_state = IsolateWithState::new(isolate, state);
+  let mut isolate_with_state = Isolate1::new(isolate, state);
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
   fn change_state(
@@ -69,8 +69,8 @@ fn isolate_with_state() {
     _args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
   ) {
-    let mut state = IsolateWithState::<State>::from(scope.isolate());
-    let mut state = Rc::get_mut(&mut state).unwrap();
+    let mut state_rc = Isolate1::from(scope.isolate());
+    let mut state = Rc::get_mut(&mut state_rc).unwrap();
     state.a = true;
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
@@ -83,8 +83,9 @@ fn isolate_with_state() {
     let scope = cs.enter();
     let global = context.global(scope);
 
-    let mut state = IsolateWithState::<State>::from(scope.isolate());
-    let state = Rc::get_mut(&mut state).unwrap();
+    let mut state_rc = Isolate1::from(scope.isolate());
+    // let mut state_rc = isolate_with_state.state();
+    let state = Rc::get_mut(&mut state_rc).unwrap();
     state.context.set(scope, context);
 
     let mut change_state_tmpl = v8::FunctionTemplate::new(scope, change_state);
