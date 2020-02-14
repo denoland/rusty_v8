@@ -32,10 +32,21 @@ extern "C" {
     context: Local<Context>,
     key: Local<Value>,
   ) -> *mut Value;
+  fn v8__Object__GetIndex(
+    object: &Object,
+    context: Local<Context>,
+    index: u32,
+  ) -> *mut Value;
   fn v8__Object__Set(
     object: &Object,
     context: Local<Context>,
     key: Local<Value>,
+    value: Local<Value>,
+  ) -> MaybeBool;
+  fn v8__Object__SetIndex(
+    object: &Object,
+    context: Local<Context>,
+    index: u32,
     value: Local<Value>,
   ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
@@ -55,6 +66,12 @@ extern "C" {
   fn v8__Object__CreationContext(object: &Object) -> *mut Context;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
+  fn v8__Array__New_with_elements(
+    isolate: *mut Isolate,
+    elements: *const Local<Value>,
+    length: usize,
+  ) -> *mut Array;
+  fn v8__Array__Length(array: &Array) -> u32;
 }
 
 impl Object {
@@ -98,6 +115,17 @@ impl Object {
     value: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Set(self, context, key, value) }.into()
+  }
+
+  /// Set only return Just(true) or Empty(), so if it should never fail, use
+  /// result.Check().
+  pub fn set_index(
+    &self,
+    context: Local<Context>,
+    index: u32,
+    value: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Object__SetIndex(self, context, index, value) }.into()
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
@@ -145,6 +173,18 @@ impl Object {
     }
   }
 
+  pub fn get_index<'a>(
+    &self,
+    scope: &mut impl ToLocal<'a>,
+    context: Local<Context>,
+    index: u32,
+  ) -> Option<Local<'a, Value>> {
+    unsafe {
+      let ptr = v8__Object__GetIndex(self, context, index);
+      scope.to_local(ptr)
+    }
+  }
+
   /// Note: SideEffectType affects the getter only, not the setter.
   pub fn set_accessor(
     &mut self,
@@ -186,5 +226,27 @@ impl Array {
   ) -> Local<'sc, Array> {
     let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
     unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  /// Creates a JavaScript array out of a Local<Value> array with a known length.
+  pub fn new_with_elements<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    elements: &[Local<Value>],
+  ) -> Local<'sc, Array> {
+    if elements.is_empty() {
+      return Self::new(scope, 0);
+    }
+    let ptr = unsafe {
+      v8__Array__New_with_elements(
+        scope.isolate(),
+        &elements[0],
+        elements.len(),
+      )
+    };
+    unsafe { scope.to_local(ptr) }.unwrap()
+  }
+
+  pub fn length(&self) -> u32 {
+    unsafe { v8__Array__Length(self) }
   }
 }
