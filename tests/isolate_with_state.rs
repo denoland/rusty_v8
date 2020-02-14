@@ -14,10 +14,15 @@ struct State1 {
 struct Isolate1(v8::OwnedIsolate, PhantomData<State1>);
 
 impl Isolate1 {
-  fn new(state: State1) -> Isolate1 {
+  fn new() -> Isolate1 {
     let mut params = v8::Isolate::create_params();
     params.set_array_buffer_allocator(v8::new_default_allocator());
     let mut isolate = v8::Isolate::new(params);
+
+    let state = State1 {
+      count: 0,
+      js_count: v8::Global::new(),
+    };
 
     assert!(isolate.get_data(0).is_null());
     let rc_state = Rc::new(state);
@@ -26,25 +31,17 @@ impl Isolate1 {
     Isolate1(isolate, PhantomData)
   }
 
-  fn from(isolate: &mut v8::Isolate) -> Rc<State1> {
-    let ptr = isolate.get_data(0) as *const State1;
-    let rc_state = unsafe { Rc::from_raw(ptr) };
-    rc_state
-  }
-
-  fn state(&mut self) -> Rc<State1> {
-    Self::from(&mut self.0)
-  }
-
-  fn mod_state<'sc, F, S, R>(scope: &mut S, f: F) -> R
+  fn mod_state<'s, S, R, F>(scope: &mut S, f: F) -> R
   where
-    S: v8::InIsolate + v8::ToLocal<'sc>,
+    S: v8::ToLocal<'s>,
     F: FnOnce(&mut S, &mut State1) -> R,
   {
-    let mut rc_state = Self::from(scope.isolate());
+    let ptr = scope.isolate().get_data(0) as *const State1;
+    let mut rc_state = unsafe { Rc::from_raw(ptr) };
     let state = Rc::get_mut(&mut rc_state).unwrap();
     let r = f(scope, state);
-    let _ptr = Rc::into_raw(rc_state);
+    let ptr = Rc::into_raw(rc_state);
+    unsafe { scope.isolate().set_data(0, ptr as *mut _) };
     r
   }
 
@@ -57,8 +54,6 @@ impl Isolate1 {
     let global = context.global(scope);
 
     Self::mod_state(scope, |scope, state| {
-      let mut hs = v8::HandleScope::new(scope);
-      let scope = hs.enter();
       let js_count = v8::Integer::new(scope, 0);
       state.js_count.set(scope, js_count);
     });
@@ -97,6 +92,22 @@ impl Isolate1 {
       state.js_count.set(scope, js_count_next);
     });
   }
+
+  fn count(&mut self) -> usize {
+    // TODO(ry) this is awful - but we're being forced into it.
+    let mut hs = v8::HandleScope::new(self.deref_mut());
+    let scope = hs.enter();
+    Self::mod_state(scope, |_scope, state| state.count)
+  }
+
+  fn js_count(&mut self) -> i64 {
+    let mut hs = v8::HandleScope::new(self.deref_mut());
+    let scope = hs.enter();
+    Self::mod_state(scope, |scope, state| {
+      let js_count = state.js_count.get(scope).unwrap();
+      js_count.value()
+    })
+  }
 }
 
 impl Deref for Isolate1 {
@@ -118,21 +129,15 @@ fn isolate_with_state() {
   v8::V8::initialize_platform(v8::new_default_platform());
   v8::V8::initialize();
 
-  let state = State1 {
-    count: 0,
-    js_count: v8::Global::new(),
-  };
-
-  let mut isolate_with_state = Isolate1::new(state);
+  let mut isolate_with_state = Isolate1::new();
 
   isolate_with_state.setup();
+  assert_eq!(0, isolate_with_state.js_count());
+  assert_eq!(0, isolate_with_state.count());
   isolate_with_state.exec("change_state()");
-
-  let state = isolate_with_state.state();
-  assert_eq!(state.count, 1);
-
-  let mut hs = v8::HandleScope::new(isolate_with_state.deref_mut());
-  let scope = hs.enter();
-  let js_count = state.js_count.get(scope).unwrap();
-  assert_eq!(1, js_count.value());
+  assert_eq!(1, isolate_with_state.js_count());
+  assert_eq!(1, isolate_with_state.count());
+  isolate_with_state.exec("change_state()");
+  assert_eq!(2, isolate_with_state.js_count());
+  assert_eq!(2, isolate_with_state.count());
 }
