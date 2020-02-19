@@ -247,12 +247,11 @@ impl Isolate {
 
     let type_id = TypeId::of::<S>();
     let state = states.get(&type_id).unwrap();
-    // TODO how to change Rc<RefCell<(dyn Any + 'static)>> into Rc<RefCell<S>>
-    // without transmute?
+    // TODO(ry) how to change Rc<RefCell<(dyn Any + 'static)>> into
+    // Rc<RefCell<S>> without transmute?
+    #[allow(clippy::transmute_ptr_to_ptr)]
     let state = unsafe { std::mem::transmute::<_, &Rc<RefCell<S>>>(state) };
-
     let _ptr = Box::into_raw(states); // because isolate slot 0 still has ptr.
-
     state.clone()
   }
 
