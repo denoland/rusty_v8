@@ -73,8 +73,8 @@ pub type InterruptCallback =
 extern "C" {
   fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
-  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *const c_void);
-  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *const c_void;
+  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
+  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
@@ -154,11 +154,7 @@ impl Isolate {
   pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
     // TODO: support CreateParams.
     crate::V8::assert_initialized();
-
-    let mut isolate =
-      unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) };
-    unsafe { isolate.set_annex(std::ptr::null_mut()) };
-    isolate
+    unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) }
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -180,13 +176,13 @@ impl Isolate {
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
-  pub unsafe fn set_data(&mut self, slot: u32, ptr: *const c_void) {
+  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
     v8__Isolate__SetData(self, slot + 1, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
-  pub fn get_data(&self, slot: u32) -> *const c_void {
+  pub fn get_data(&self, slot: u32) -> *mut c_void {
     unsafe { v8__Isolate__GetData(self, slot + 1) }
   }
 
@@ -194,6 +190,10 @@ impl Isolate {
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
   pub fn get_number_of_data_slots(&self) -> u32 {
     unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
+  }
+
+  fn embed<S>(&self, s: S) -> Rc<S> {
+    todo!()
   }
 
   /// Sets this isolate as the entered one for the current thread.
