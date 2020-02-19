@@ -142,6 +142,12 @@ extern "C" {
   );
 }
 
+enum EmbedderSlots {
+  AnnexSlot = 0,
+  StatesSlot,
+  NumSlots,
+}
+
 #[repr(C)]
 /// Isolate represents an isolated instance of the V8 engine.  V8 isolates have
 /// completely separate states.  Objects from one isolate must not be used in
@@ -176,17 +182,17 @@ impl Isolate {
   }
 
   unsafe fn set_annex(&mut self, ptr: *mut IsolateAnnex) {
-    self.set_data_int(0, ptr as *mut c_void);
+    self.set_data_int(EmbedderSlots::AnnexSlot as _, ptr as *mut c_void);
   }
 
   fn get_annex(&self) -> *mut IsolateAnnex {
-    self.get_data_int(0) as *mut _
+    self.get_data_int(EmbedderSlots::AnnexSlot as _) as *mut _
   }
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    self.set_data_int(slot + 2, ptr)
+    self.set_data_int(slot + EmbedderSlots::NumSlots as u32, ptr)
   }
 
   unsafe fn set_data_int(&mut self, slot: u32, ptr: *mut c_void) {
@@ -196,7 +202,7 @@ impl Isolate {
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
-    self.get_data_int(slot + 2)
+    self.get_data_int(slot + EmbedderSlots::NumSlots as u32)
   }
 
   fn get_data_int(&self, slot: u32) -> *mut c_void {
@@ -206,19 +212,24 @@ impl Isolate {
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 2 }
+    unsafe {
+      v8__Isolate__GetNumberOfDataSlots(self) - EmbedderSlots::NumSlots as u32
+    }
   }
 
   pub fn state_add<S>(&mut self, state: S)
   where
     S: 'static + Sized,
   {
-    let mut ptr = self.get_data_int(1) as *mut States;
+    let mut ptr =
+      self.get_data_int(EmbedderSlots::StatesSlot as _) as *mut States;
     if ptr.is_null() {
       assert!(ptr.is_null());
       let states = Box::new(HashMap::new());
       ptr = Box::into_raw(states);
-      unsafe { self.set_data_int(1, ptr as *mut _) };
+      unsafe {
+        self.set_data_int(EmbedderSlots::StatesSlot as _, ptr as *mut _)
+      };
     }
 
     let mut states = unsafe { Box::from_raw(ptr) };
@@ -234,7 +245,7 @@ impl Isolate {
   where
     S: 'static + Sized,
   {
-    let ptr = self.get_data_int(1) as *mut States;
+    let ptr = self.get_data_int(EmbedderSlots::StatesSlot as _) as *mut States;
     let states = unsafe { Box::from_raw(ptr) };
 
     let type_id = TypeId::of::<S>();
@@ -348,10 +359,10 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
-    let ptr = self.get_data_int(1) as *mut States;
+    let ptr = self.get_data_int(EmbedderSlots::StatesSlot as _) as *mut States;
     if !ptr.is_null() {
       let states = Box::from_raw(ptr);
-      self.set_data_int(1, std::ptr::null_mut());
+      self.set_data_int(EmbedderSlots::StatesSlot as _, std::ptr::null_mut());
       drop(states);
     }
 
@@ -410,7 +421,7 @@ impl IsolateHandle {
       unsafe {
         {
           let _lock = (*annex_ptr).mutex.lock().unwrap();
-          isolate.set_data(0, null_mut());
+          isolate.set_data(EmbedderSlots::AnnexSlot as _, null_mut());
           let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
           assert_eq!(isolate as *mut _, isolate_ptr);
         }
