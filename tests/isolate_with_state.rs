@@ -5,62 +5,6 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 use rusty_v8 as v8;
 
-// These methods could be added to v8::Isolate itself, but because it does not
-// exist in the C++ API, I think it's better to have as a separate utility.
-mod isolate_state {
-  use super::v8;
-  use std::any::Any;
-  use std::any::TypeId;
-  use std::cell::RefCell;
-  use std::collections::HashMap;
-  use std::rc::Rc;
-
-  // Because there are only 3 embedder slots, we use this store multiple states.
-  // We have many different types of states in Deno due to the core/cli split.
-  type States = HashMap<TypeId, Rc<RefCell<dyn Any>>>;
-
-  pub fn add<S>(isolate: &mut v8::Isolate, state: S)
-  where
-    S: 'static + Sized,
-  {
-    let mut ptr = isolate.get_data(0) as *mut States;
-    if ptr.is_null() {
-      assert!(ptr.is_null());
-      let states = Box::new(HashMap::new());
-      ptr = Box::into_raw(states);
-      unsafe { isolate.set_data(0, ptr as *mut _) };
-    }
-
-    let mut states = unsafe { Box::from_raw(ptr) };
-    let type_id = TypeId::of::<S>();
-    let existing = states.insert(type_id, Rc::new(RefCell::new(state)));
-    assert!(existing.is_none());
-
-    // ptr is still stored in Isolate's embedder slot.
-    let _ptr = Box::into_raw(states);
-  }
-
-  pub fn get<S>(isolate: &v8::Isolate) -> Rc<RefCell<S>>
-  where
-    S: 'static + Sized,
-  {
-    let ptr = isolate.get_data(0) as *mut States;
-    let states = unsafe { Box::from_raw(ptr) };
-
-    let type_id = TypeId::of::<S>();
-    let state = states.get(&type_id).unwrap();
-    // TODO how to change Rc<RefCell<(dyn Any + 'static)>> into Rc<RefCell<S>>
-    // without transmute?
-    let state = unsafe { std::mem::transmute::<_, &Rc<RefCell<S>>>(state) };
-
-    let _ptr = Box::into_raw(states); // because isolate slot 0 still has ptr.
-
-    state.clone()
-  }
-
-  // TODO(ry) WARNING the States hashmap is never cleaned up!
-}
-
 struct State1 {
   pub magic_number: usize,
   pub count: usize,
@@ -81,7 +25,7 @@ impl Isolate1 {
       js_count: v8::Global::new(),
     };
 
-    isolate_state::add(&mut isolate, state);
+    isolate.state_add(state);
 
     Isolate1(isolate)
   }
@@ -96,7 +40,7 @@ impl Isolate1 {
 
     {
       let js_count = v8::Integer::new(scope, 0);
-      let state = isolate_state::get::<State1>(scope.isolate());
+      let state = scope.isolate().state_get::<State1>();
       assert_eq!(state.borrow().magic_number, 0xCAFEBABE);
       state.borrow_mut().js_count.set(scope, js_count);
     }
@@ -126,7 +70,7 @@ impl Isolate1 {
     _args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
   ) {
-    let state = isolate_state::get::<State1>(scope.isolate());
+    let state = scope.isolate().state_get::<State1>();
     let mut state = state.borrow_mut();
     assert_eq!(state.magic_number, 0xCAFEBABE);
     state.count += 1;
@@ -138,7 +82,7 @@ impl Isolate1 {
   }
 
   fn count(&self) -> usize {
-    let state = isolate_state::get::<State1>(&self.0);
+    let state = self.0.state_get::<State1>();
     let state = state.borrow();
     assert_eq!(state.magic_number, 0xCAFEBABE);
     state.count
@@ -148,7 +92,7 @@ impl Isolate1 {
     let mut hs = v8::HandleScope::new(&mut self.0);
     let scope = hs.enter();
 
-    let state = isolate_state::get::<State1>(scope.isolate());
+    let state = scope.isolate().state_get::<State1>();
     let state = state.borrow_mut();
     let js_count = state.js_count.get(scope).unwrap();
 
@@ -200,7 +144,7 @@ impl Isolate2 {
       count2: 0,
       js_count2: v8::Global::new(),
     };
-    isolate_state::add(&mut isolate1, state2);
+    isolate1.state_add(state2);
     Isolate2(isolate1)
   }
 }
@@ -215,10 +159,10 @@ fn isolate_with_state2() {
   isolate2.setup();
   assert_eq!(0, isolate2.count2());
   assert_eq!(0, isolate2.js_count2());
-  isolate1.exec("change_state()");
+  isolate2.exec("change_state2()");
   assert_eq!(1, isolate2.count2());
   assert_eq!(1, isolate2.js_count2());
-  isolate1.exec("change_state()");
+  isolate2.exec("change_state2()");
   assert_eq!(2, isolate2.count2());
   assert_eq!(2, isolate2.js_count2());
   */

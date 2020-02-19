@@ -19,14 +19,23 @@ use crate::StartupData;
 use crate::String;
 use crate::Value;
 
+use std::any::Any;
+use std::any::TypeId;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem::replace;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
+
+/// Because there are only 3 embedder slots, we use this store multiple states.
+/// We have many different types of states in Deno due to the core/cli split.
+type States = HashMap<TypeId, Rc<RefCell<dyn Any>>>;
 
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
@@ -167,33 +176,76 @@ impl Isolate {
   }
 
   unsafe fn set_annex(&mut self, ptr: *mut IsolateAnnex) {
-    v8__Isolate__SetData(self, 0, ptr as *mut c_void)
+    self.set_data_int(0, ptr as *mut c_void);
   }
 
   fn get_annex(&self) -> *mut IsolateAnnex {
-    unsafe { v8__Isolate__GetData(self, 0) as *mut _ }
+    self.get_data_int(0) as *mut _
   }
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    v8__Isolate__SetData(self, slot + 1, ptr)
+    self.set_data_int(slot + 2, ptr)
+  }
+
+  unsafe fn set_data_int(&mut self, slot: u32, ptr: *mut c_void) {
+    v8__Isolate__SetData(self, slot, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
-    unsafe { v8__Isolate__GetData(self, slot + 1) }
+    self.get_data_int(slot + 2)
+  }
+
+  fn get_data_int(&self, slot: u32) -> *mut c_void {
+    unsafe { v8__Isolate__GetData(self, slot) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
+    unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 2 }
   }
 
-  fn embed<S>(&self, s: S) -> Rc<S> {
-    todo!()
+  pub fn state_add<S>(&mut self, state: S)
+  where
+    S: 'static + Sized,
+  {
+    let mut ptr = self.get_data_int(1) as *mut States;
+    if ptr.is_null() {
+      assert!(ptr.is_null());
+      let states = Box::new(HashMap::new());
+      ptr = Box::into_raw(states);
+      unsafe { self.set_data_int(1, ptr as *mut _) };
+    }
+
+    let mut states = unsafe { Box::from_raw(ptr) };
+    let type_id = TypeId::of::<S>();
+    let existing = states.insert(type_id, Rc::new(RefCell::new(state)));
+    assert!(existing.is_none());
+
+    // ptr is still stored in Isolate's embedder slot.
+    let _ptr = Box::into_raw(states);
+  }
+
+  pub fn state_get<S>(&self) -> Rc<RefCell<S>>
+  where
+    S: 'static + Sized,
+  {
+    let ptr = self.get_data_int(1) as *mut States;
+    let states = unsafe { Box::from_raw(ptr) };
+
+    let type_id = TypeId::of::<S>();
+    let state = states.get(&type_id).unwrap();
+    // TODO how to change Rc<RefCell<(dyn Any + 'static)>> into Rc<RefCell<S>>
+    // without transmute?
+    let state = unsafe { std::mem::transmute::<_, &Rc<RefCell<S>>>(state) };
+
+    let _ptr = Box::into_raw(states); // because isolate slot 0 still has ptr.
+
+    state.clone()
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -296,6 +348,13 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
+    let ptr = self.get_data_int(1) as *mut States;
+    if !ptr.is_null() {
+      let states = Box::from_raw(ptr);
+      self.set_data_int(1, std::ptr::null_mut());
+      drop(states);
+    }
+
     IsolateHandle::dispose_isolate(self);
     v8__Isolate__Dispose(self)
   }
