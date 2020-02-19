@@ -61,7 +61,7 @@ impl Isolate1 {
     let mut isolate = v8::Isolate::new(params);
 
     let state = State1 {
-      magic_number: 0xCAFEBABE,
+      magic_number: 0xCAFE_BABE,
       count: 0,
       js_count: v8::Global::new(),
     };
@@ -82,7 +82,7 @@ impl Isolate1 {
     {
       let js_count = v8::Integer::new(scope, 0);
       let state = scope.isolate().state_get::<State1>();
-      assert_eq!(state.borrow().magic_number, 0xCAFEBABE);
+      assert_eq!(state.borrow().magic_number, 0xCAFE_BABE);
       state.borrow_mut().js_count.set(scope, js_count);
     }
 
@@ -113,7 +113,7 @@ impl Isolate1 {
   ) {
     let state = scope.isolate().state_get::<State1>();
     let mut state = state.borrow_mut();
-    assert_eq!(state.magic_number, 0xCAFEBABE);
+    assert_eq!(state.magic_number, 0xCAFE_BABE);
     state.count += 1;
 
     let js_count = state.js_count.get(scope).unwrap();
@@ -125,7 +125,7 @@ impl Isolate1 {
   fn count(&self) -> usize {
     let state = self.0.state_get::<State1>();
     let state = state.borrow();
-    assert_eq!(state.magic_number, 0xCAFEBABE);
+    assert_eq!(state.magic_number, 0xCAFE_BABE);
     state.count
   }
 
@@ -175,7 +175,7 @@ impl Isolate2 {
     let state2 = State2 {
       count2: 0,
       js_count2: v8::Global::new(),
-      magic_number: 0xDEADBEEF,
+      magic_number: 0xDEAD_BEEF,
     };
     isolate1.state_add(state2);
     Isolate2(isolate1)
@@ -193,7 +193,7 @@ impl Isolate2 {
     {
       let js_count2 = v8::Integer::new(scope, 0);
       let state = scope.isolate().state_get::<State2>();
-      assert_eq!(state.borrow().magic_number, 0xDEADBEEF);
+      assert_eq!(state.borrow().magic_number, 0xDEAD_BEEF);
       state.borrow_mut().js_count2.set(scope, js_count2);
     }
 
@@ -219,7 +219,7 @@ impl Isolate2 {
   ) {
     let state = scope.isolate().state_get::<State2>();
     let mut state = state.borrow_mut();
-    assert_eq!(state.magic_number, 0xDEADBEEF);
+    assert_eq!(state.magic_number, 0xDEAD_BEEF);
     state.count2 += 1;
 
     let js_count2 = state.js_count2.get(scope).unwrap();
@@ -231,7 +231,7 @@ impl Isolate2 {
   fn count2(&self) -> usize {
     let state = self.0.state_get::<State2>();
     let state = state.borrow();
-    assert_eq!(state.magic_number, 0xDEADBEEF);
+    assert_eq!(state.magic_number, 0xDEAD_BEEF);
     state.count2
   }
 
@@ -241,7 +241,7 @@ impl Isolate2 {
 
     let state = scope.isolate().state_get::<State2>();
     let state = state.borrow_mut();
-    assert_eq!(state.magic_number, 0xDEADBEEF);
+    assert_eq!(state.magic_number, 0xDEAD_BEEF);
     let js_count2 = state.js_count2.get(scope).unwrap();
 
     js_count2.value()
