@@ -235,7 +235,8 @@ impl Isolate {
     assert!(existing.is_none());
 
     // ptr is still stored in Isolate's embedder slot.
-    let _ptr = Box::into_raw(states);
+    let ptr2 = Box::into_raw(states);
+    assert_eq!(ptr, ptr2);
   }
 
   pub fn state_get<S>(&self) -> Rc<RefCell<S>>
@@ -251,7 +252,8 @@ impl Isolate {
     // Rc<RefCell<S>> without transmute?
     #[allow(clippy::transmute_ptr_to_ptr)]
     let state = unsafe { std::mem::transmute::<_, &Rc<RefCell<S>>>(state) };
-    let _ptr = Box::into_raw(states); // because isolate slot 0 still has ptr.
+    let ptr2 = Box::into_raw(states); // because isolate slot still has ptr.
+    assert_eq!(ptr, ptr2);
     state.clone()
   }
 
@@ -355,6 +357,10 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
+    IsolateHandle::dispose_isolate(self);
+
+    // No test case in rusty_v8 show this, but there have been situations in
+    // deno where dropping Annex before the states causes a segfault.
     let ptr = self.get_data_int(InternalSlots::States as _) as *mut States;
     if !ptr.is_null() {
       let states = Box::from_raw(ptr);
@@ -362,7 +368,6 @@ impl Isolate {
       drop(states);
     }
 
-    IsolateHandle::dispose_isolate(self);
     v8__Isolate__Dispose(self)
   }
 }
@@ -519,6 +524,9 @@ pub(crate) unsafe fn new_owned_isolate(
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate(NonNull<Isolate>);
+
+// TODO(ry) unsafe impl Send for OwnedIsolate {}
+// TODO(ry) impl !Sync for OwnedIsolate {}
 
 impl InIsolate for OwnedIsolate {
   fn isolate(&mut self) -> &mut Isolate {
