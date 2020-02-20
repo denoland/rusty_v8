@@ -4,9 +4,9 @@ error[E0277]: the trait bound `rusty_v8::scope::Entered<'_, rusty_v8::scope::Cal
 7  |   let _hs = v8::EscapableHandleScope::new(cs.enter());
    |                                           ^^^^^^^^^^ the trait `rusty_v8::scope_traits::ToLocal<'_>` is not implemented for `rusty_v8::scope::Entered<'_, rusty_v8::scope::CallbackScope>`
    | 
-  ::: $WORKSPACE/src/handle_scope.rs:71:8
+  ::: $WORKSPACE/src/handle_scope.rs:76:8
    |
-71 |     P: ToLocalOrReturnsLocal<'p>,
+76 |     P: ToLocalOrReturnsLocal<'p>,
    |        ------------------------- required by this bound in `rusty_v8::handle_scope::EscapableHandleScope::new`
    |
    = help: the following implementations were found:
