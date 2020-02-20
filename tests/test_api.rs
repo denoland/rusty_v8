@@ -532,53 +532,53 @@ fn thread_safe_handle_drop_after_isolate() {
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
-// TODO(ry) This test should use threads
 #[test]
 fn terminate_execution() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
   params.set_array_buffer_allocator(v8::new_default_allocator());
   let mut isolate = v8::Isolate::new(params);
+  let (tx, rx) = std::sync::mpsc::channel::<bool>();
+  let tx_clone = tx.clone();
   let handle = isolate.thread_safe_handle();
-  // Originally run fine.
-  {
+  let t1 = std::thread::spawn(move || {
+    // allow deno to boot and run
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    handle.terminate_execution();
+    // allow shutdown
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    // unless reported otherwise the test should fail after this point
+    tx_clone.send(false).ok();
+  });
+  let t2 = std::thread::spawn(move || {
+    // Because isolate is being moved between theads, we must call enter on
+    // it.
+    isolate.enter();
+
     let mut hs = v8::HandleScope::new(&mut isolate);
     let scope = hs.enter();
     let context = v8::Context::new(scope);
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
-    let result = eval(scope, context, "true").unwrap();
-    let true_val = v8::Boolean::new(scope, true).into();
-    assert!(result.same_value(true_val));
-  }
-  // Terminate.
-  handle.terminate_execution();
-  // Below run should fail with terminated knowledge.
-  {
-    let mut hs = v8::HandleScope::new(&mut isolate);
-    let scope = hs.enter();
-    let context = v8::Context::new(scope);
-    let mut cs = v8::ContextScope::new(scope, context);
-    let scope = cs.enter();
-    let mut try_catch = v8::TryCatch::new(scope);
-    let tc = try_catch.enter();
-    let _ = eval(scope, context, "true");
-    assert!(tc.has_caught());
-    assert!(tc.has_terminated());
-  }
-  // Cancel termination.
-  handle.cancel_terminate_execution();
-  // Works again.
-  {
-    let mut hs = v8::HandleScope::new(&mut isolate);
-    let scope = hs.enter();
-    let context = v8::Context::new(scope);
-    let mut cs = v8::ContextScope::new(scope, context);
-    let scope = cs.enter();
-    let result = eval(scope, context, "true").unwrap();
-    let true_val = v8::Boolean::new(scope, true).into();
-    assert!(result.same_value(true_val));
-  }
+
+    // Rn an infinite loop, which should be terminated.
+    let result = eval(scope, context, "for(;;) {}");
+    assert!(result.is_none());
+    // TODO assert_eq!(e.to_string(), "Uncaught Error: execution terminated")
+
+    // terminate_execution() worked.
+    tx.send(true).ok();
+
+    // Make sure the isolate unusable again.
+    eval(scope, context, "1+1").expect("execution should be possible again");
+
+    // Must manually exit otherwise V8 will segfault with:
+    // Disposing the isolate that is entered by a thread.
+    isolate.exit();
+  });
+  rx.recv().expect("execution should be terminated");
+  t1.join().unwrap();
+  t2.join().unwrap();
 }
 
 // TODO(ry) This test should use threads

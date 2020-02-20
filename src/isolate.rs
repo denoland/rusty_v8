@@ -258,7 +258,7 @@ impl Isolate {
   /// Sets this isolate as the entered one for the current thread.
   /// Saves the previously entered one (if any), so that it can be
   /// restored when exiting.  Re-entering an isolate is allowed.
-  pub(crate) fn enter(&mut self) {
+  pub fn enter(&mut self) {
     unsafe { v8__Isolate__Enter(self) }
   }
 
@@ -267,7 +267,7 @@ impl Isolate {
   /// entered more than once.
   ///
   /// Requires: self == Isolate::GetCurrent().
-  pub(crate) fn exit(&mut self) {
+  pub fn exit(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
   }
 
@@ -519,6 +519,9 @@ pub(crate) unsafe fn new_owned_isolate(
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate(NonNull<Isolate>);
+
+unsafe impl Send for OwnedIsolate {}
+// TODO(ry) impl !Sync for OwnedIsolate {}
 
 impl InIsolate for OwnedIsolate {
   fn isolate(&mut self) -> &mut Isolate {
