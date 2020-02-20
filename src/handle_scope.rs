@@ -46,8 +46,8 @@ impl<'s> HandleScope {
     Scope::new(isolate, parent)
   }
 
-  // TODO(ry) This is a hack so we can upgrade Deno.
-  pub fn new2(isolate: &Isolate) -> Scope<'s, Self> {
+  // TODO(ry) Remove this. This is a hack so we can upgrade Deno.
+  pub unsafe fn new2(isolate: &Isolate) -> Scope<'s, Self> {
     Scope::new_root(isolate as *const _ as *mut Isolate)
   }
 }
