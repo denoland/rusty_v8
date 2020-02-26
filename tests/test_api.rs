@@ -51,18 +51,6 @@ fn handle_scope_nested() {
 }
 
 #[test]
-fn handle_scope_hack() {
-  let _setup_guard = setup();
-  let mut params = v8::Isolate::create_params();
-  params.set_array_buffer_allocator(v8::new_default_allocator());
-  let isolate = v8::Isolate::new(params);
-  let mut hs = unsafe { v8::HandleScope::new2(&isolate) };
-  let scope1 = hs.enter();
-  let l1 = v8::Integer::new(scope1, -123);
-  assert_eq!(v8::Integer::value(&l1), -123);
-}
-
-#[test]
 #[allow(clippy::float_cmp)]
 fn handle_scope_numbers() {
   let _setup_guard = setup();
