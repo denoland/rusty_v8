@@ -39,6 +39,10 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
 // data). There are some situations in the V8 API where functions return non-POD
 // data. We use this class to carefully adjust the return values, so they can be
 // passed into Rust.
+//
+// The destructor of V is never called.
+//
+// P is not allowed to have a destructor.
 template <class P>
 struct make_pod {
   // TODO(ry) Unused by necessary constructor?
