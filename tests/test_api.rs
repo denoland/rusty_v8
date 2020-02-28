@@ -335,6 +335,28 @@ fn array_buffer() {
 }
 
 #[test]
+fn backing_store_segfault() {
+  let shared_bs = {
+    let _setup_guard = setup();
+    let mut params = v8::Isolate::create_params();
+    params.set_array_buffer_allocator(v8::new_default_allocator());
+    let mut isolate = v8::Isolate::new(params);
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let ab = v8::ArrayBuffer::new(scope, 10);
+    ab.get_backing_store()
+  };
+
+  assert_eq!(1, v8::SharedRef::use_count(&shared_bs));
+  let bs = unsafe { &mut *shared_bs.get() };
+  assert_eq!(bs.len(), 10);
+}
+
+#[test]
 fn array_buffer_with_shared_backing_store() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
