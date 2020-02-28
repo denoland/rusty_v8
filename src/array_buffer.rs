@@ -125,14 +125,11 @@ impl Shared for Allocator {
 }
 
 /// malloc/free based convenience allocator.
-///
-/// Caller takes ownership, i.e. the returned object needs to be freed using
-/// |delete allocator| once it is no longer in use.
 pub fn new_default_allocator() -> SharedRef<Allocator> {
-  let uniq = unsafe {
+  unsafe {
     UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
-  };
-  uniq.make_shared()
+  }
+  .make_shared()
 }
 
 #[test]
