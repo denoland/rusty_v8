@@ -336,10 +336,11 @@ fn array_buffer() {
 
 #[test]
 fn backing_store_segfault() {
+  let allocator = v8::new_default_allocator();
   let shared_bs = {
     let _setup_guard = setup();
     let mut params = v8::Isolate::create_params();
-    params.set_array_buffer_allocator(v8::new_default_allocator());
+    params.set_array_buffer_allocator(allocator);
     let mut isolate = v8::Isolate::new(params);
     let mut hs = v8::HandleScope::new(&mut isolate);
     let scope = hs.enter();

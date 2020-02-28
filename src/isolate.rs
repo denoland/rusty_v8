@@ -5,6 +5,7 @@ use crate::promise::PromiseRejectMessage;
 use crate::support::intptr_t;
 use crate::support::Delete;
 use crate::support::Opaque;
+use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::Context;
 use crate::Function;
@@ -121,7 +122,7 @@ extern "C" {
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
   fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
     this: &mut CreateParams,
-    value: *mut Allocator,
+    allocator: &SharedRef<Allocator>,
   );
   fn v8__Isolate__CreateParams__SET__external_references(
     this: &mut CreateParams,
@@ -497,12 +498,9 @@ impl CreateParams {
   /// |BackingStore| allocated using this allocator hold a std::shared_ptr
   /// to the allocator, in order to facilitate lifetime
   /// management for the allocator instance.
-  pub fn set_array_buffer_allocator(&mut self, value: UniqueRef<Allocator>) {
+  pub fn set_array_buffer_allocator(&mut self, value: SharedRef<Allocator>) {
     unsafe {
-      v8__Isolate__CreateParams__SET__array_buffer_allocator(
-        self,
-        value.into_raw(),
-      )
+      v8__Isolate__CreateParams__SET__array_buffer_allocator(self, &value)
     };
   }
 
