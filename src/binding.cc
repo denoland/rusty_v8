@@ -10,6 +10,10 @@
 
 using namespace support;
 
+static_assert(sizeof(two_pointers_t) ==
+                  sizeof(std::shared_ptr<v8::BackingStore>),
+              "two_pointers_t size mismatch");
+
 static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
               "ScriptOrigin size mismatch");
 
