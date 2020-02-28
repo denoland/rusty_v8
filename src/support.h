@@ -45,7 +45,8 @@ struct make_pod {
  private:
   P pod_;
 
-  // union is used to avoid calling the destructor of V.
+  // helper exists to avoid calling the destructor.
+  // Using union is a C++ to do this.
   template <class V>
   union helper {
     static_assert(std::is_pod<P>::value, "type P must a pod type");
