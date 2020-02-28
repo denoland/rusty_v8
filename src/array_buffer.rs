@@ -65,17 +65,19 @@ extern "C" {
     ptr: *const SharedRef<BackingStore>,
   ) -> long;
 
-  fn std__shared_ptr__v8__Allocator__COPY(
+  fn std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(
     ptr: *const SharedRef<Allocator>,
   ) -> SharedRef<Allocator>;
-  fn std__shared_ptr__v8__Allocator__CONVERT__std__unique_ptr(
+  fn std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
     unique: UniqueRef<Allocator>,
   ) -> SharedRef<Allocator>;
-  fn std__shared_ptr__v8__Allocator__get(
+  fn std__shared_ptr__v8__ArrayBuffer__Allocator__get(
     ptr: *const SharedRef<Allocator>,
   ) -> *mut Allocator;
-  fn std__shared_ptr__v8__Allocator__reset(ptr: *mut SharedRef<Allocator>);
-  fn std__shared_ptr__v8__Allocator__use_count(
+  fn std__shared_ptr__v8__ArrayBuffer__Allocator__reset(
+    ptr: *mut SharedRef<Allocator>,
+  );
+  fn std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
     ptr: *const SharedRef<Allocator>,
   ) -> long;
 }
@@ -102,19 +104,23 @@ pub struct Allocator(Opaque);
 
 impl Shared for Allocator {
   fn clone(ptr: *const SharedRef<Self>) -> SharedRef<Self> {
-    unsafe { std__shared_ptr__v8__Allocator__COPY(ptr) }
+    unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(ptr) }
   }
   fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self> {
-    unsafe { std__shared_ptr__v8__Allocator__CONVERT__std__unique_ptr(unique) }
+    unsafe {
+      std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
+        unique,
+      )
+    }
   }
   fn deref(ptr: *const SharedRef<Self>) -> *mut Self {
-    unsafe { std__shared_ptr__v8__Allocator__get(ptr) }
+    unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__get(ptr) }
   }
   fn reset(ptr: *mut SharedRef<Self>) {
-    unsafe { std__shared_ptr__v8__Allocator__reset(ptr) }
+    unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__reset(ptr) }
   }
   fn use_count(ptr: *const SharedRef<Self>) -> long {
-    unsafe { std__shared_ptr__v8__Allocator__use_count(ptr) }
+    unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(ptr) }
   }
 }
 

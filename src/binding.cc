@@ -10,10 +10,6 @@
 
 using namespace support;
 
-static_assert(sizeof(two_pointers_t) ==
-                  sizeof(std::shared_ptr<v8::BackingStore>),
-              "two_pointers_t size mismatch");
-
 static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
               "ScriptOrigin size mismatch");
 
@@ -629,28 +625,29 @@ long std__shared_ptr__v8__BackingStore__use_count(
   return ptr.use_count();
 }
 
-two_pointers_t std__shared_ptr__v8__Allocator__COPY(
+two_pointers_t std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(
     const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
   return make_pod<two_pointers_t>(ptr);
 }
 
-two_pointers_t std__shared_ptr__v8__Allocator__CONVERT__std__unique_ptr(
+two_pointers_t
+std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
     v8::ArrayBuffer::Allocator* ptr) {
   return make_pod<two_pointers_t>(
       std::shared_ptr<v8::ArrayBuffer::Allocator>(ptr));
 }
 
-v8::ArrayBuffer::Allocator* std__shared_ptr__v8__Allocator__get(
+v8::ArrayBuffer::Allocator* std__shared_ptr__v8__ArrayBuffer__Allocator__get(
     const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
   return ptr.get();
 }
 
-void std__shared_ptr__v8__Allocator__reset(
+void std__shared_ptr__v8__ArrayBuffer__Allocator__reset(
     std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
   ptr.reset();
 }
 
-long std__shared_ptr__v8__Allocator__use_count(
+long std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
     const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
   return ptr.use_count();
 }

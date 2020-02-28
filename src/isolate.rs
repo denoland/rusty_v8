@@ -494,10 +494,9 @@ impl CreateParams {
   /// The ArrayBuffer::Allocator to use for allocating and freeing the backing
   /// store of ArrayBuffers.
   ///
-  /// If the shared_ptr version is used, the Isolate instance and every
-  /// |BackingStore| allocated using this allocator hold a std::shared_ptr
-  /// to the allocator, in order to facilitate lifetime
-  /// management for the allocator instance.
+  /// The Isolate instance and every |BackingStore| allocated using this
+  /// allocator hold a SharedRef to the allocator, in order to facilitate
+  /// lifetime management for the allocator instance.
   pub fn set_array_buffer_allocator(&mut self, value: SharedRef<Allocator>) {
     unsafe {
       v8__Isolate__CreateParams__SET__array_buffer_allocator(self, &value)
