@@ -58,9 +58,9 @@ struct make_pod {
   template <class V>
   union helper {
     static_assert(std::is_pod<P>::value, "type P must a pod type");
-    static_assert(sizeof(V) <= sizeof(P),
+    static_assert(sizeof(V) == sizeof(P),
                   "type P must be at least as big as type V");
-    static_assert(alignof(V) <= alignof(P),
+    static_assert(alignof(V) == alignof(P),
                   "alignment of type P must be compatible with that of type V");
 
     inline helper(const V& value) : value_(value) {}
@@ -75,7 +75,6 @@ struct make_pod {
 
    private:
     V value_;
-    char padding_[sizeof(P)];
   };
 };
 
