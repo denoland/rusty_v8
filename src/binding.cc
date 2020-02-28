@@ -100,11 +100,7 @@ v8::Isolate* v8__Isolate__New(v8::Isolate::CreateParams& params) {
   return isolate;
 }
 
-void v8__Isolate__Dispose(v8::Isolate* isolate) {
-  auto allocator = isolate->GetArrayBufferAllocator();
-  isolate->Dispose();
-  delete allocator;
-}
+void v8__Isolate__Dispose(v8::Isolate* isolate) { isolate->Dispose(); }
 
 void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
@@ -196,15 +192,16 @@ v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
 // This function is only called if the Isolate::CreateParams object is *not*
 // consumed by Isolate::New().
 void v8__Isolate__CreateParams__DELETE(v8::Isolate::CreateParams& self) {
-  delete self.array_buffer_allocator;
+  assert(self.array_buffer_allocator ==
+         nullptr);  // We only used the shared version.
   delete &self;
 }
 
 // This function takes ownership of the ArrayBuffer::Allocator.
 void v8__Isolate__CreateParams__SET__array_buffer_allocator(
-    v8::Isolate::CreateParams& self, v8::ArrayBuffer::Allocator* value) {
-  delete self.array_buffer_allocator;
-  self.array_buffer_allocator = value;
+    v8::Isolate::CreateParams& self,
+    std::shared_ptr<v8::ArrayBuffer::Allocator>& allocator) {
+  self.array_buffer_allocator_shared = allocator;
 }
 
 // external_references should probably have static lifetime.
@@ -628,6 +625,33 @@ long std__shared_ptr__v8__BackingStore__use_count(
   return ptr.use_count();
 }
 
+two_pointers_t std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(
+    const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
+  return make_pod<two_pointers_t>(ptr);
+}
+
+two_pointers_t
+std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
+    v8::ArrayBuffer::Allocator* ptr) {
+  return make_pod<two_pointers_t>(
+      std::shared_ptr<v8::ArrayBuffer::Allocator>(ptr));
+}
+
+v8::ArrayBuffer::Allocator* std__shared_ptr__v8__ArrayBuffer__Allocator__get(
+    const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
+  return ptr.get();
+}
+
+void std__shared_ptr__v8__ArrayBuffer__Allocator__reset(
+    std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
+  ptr.reset();
+}
+
+long std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
+    const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
+  return ptr.use_count();
+}
+
 v8::String* v8__String__Empty(v8::Isolate* isolate) {
   return local_to_ptr(v8::String::Empty(isolate));
 }
@@ -742,9 +766,7 @@ v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
   return local_to_ptr(v8::Array::New(isolate, elements, length));
 }
 
-uint32_t v8__Array__Length(const v8::Array& self) {
-  return self.Length();
-}
+uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
 v8::Number* v8__Number__New(v8::Isolate* isolate, double value) {
   return *v8::Number::New(isolate, value);
