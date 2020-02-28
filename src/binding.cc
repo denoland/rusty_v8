@@ -10,6 +10,10 @@
 
 using namespace support;
 
+static_assert(sizeof(two_pointers_t) ==
+                  sizeof(std::shared_ptr<v8::BackingStore>),
+              "two_pointers_t size mismatch");
+
 static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
               "ScriptOrigin size mismatch");
 
@@ -742,9 +746,7 @@ v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
   return local_to_ptr(v8::Array::New(isolate, elements, length));
 }
 
-uint32_t v8__Array__Length(const v8::Array& self) {
-  return self.Length();
-}
+uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
 v8::Number* v8__Number__New(v8::Isolate* isolate, double value) {
   return *v8::Number::New(isolate, value);

@@ -346,14 +346,11 @@ fn backing_store_segfault() {
     let context = v8::Context::new(scope);
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
-
     let ab = v8::ArrayBuffer::new(scope, 10);
     ab.get_backing_store()
   };
-
   assert_eq!(1, v8::SharedRef::use_count(&shared_bs));
-  let bs = unsafe { &mut *shared_bs.get() };
-  assert_eq!(bs.len(), 10);
+  drop(shared_bs); // Error occurred here.
 }
 
 #[test]
