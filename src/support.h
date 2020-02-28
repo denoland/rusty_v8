@@ -38,7 +38,7 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
 template <class P>
 struct make_pod {
   template <class V>
-  inline make_pod(V&& value) : pod_(helper<V>(value)) {}
+  inline make_pod(V&& value) : pod_(helper<V>(std::move(value))) {}
   template <class V>
   inline make_pod(const V& value) : pod_(helper<V>(value)) {}
   inline operator P() { return pod_; }
@@ -54,7 +54,7 @@ struct make_pod {
     static_assert(alignof(V) <= alignof(P),
                   "alignment of type P must be compatible with that of type V");
 
-    inline helper(V&& value) : value_(value), padding_() {}
+    inline helper(V&& value) : value_(std::move(value)), padding_() {}
     inline helper(const V& value) : value_(value), padding_() {}
     inline ~helper() {}
 
@@ -111,21 +111,13 @@ inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
 }
 
 template <class T>
-inline static T* global_to_ptr(v8::Global<T>& global) {
-  static_assert(sizeof(v8::Global<T>) == sizeof(T*), "");
-  T* ptr = nullptr;
-  std::swap(ptr, reinterpret_cast<T*&>(global));
-  return ptr;
-}
-
-template <class T>
 inline static v8::Global<T> ptr_to_global(T* ptr) {
   v8::Global<T> global;
   std::swap(ptr, *reinterpret_cast<T**>(&global));
   return global;
 }
 
-// Because, for some reason, Clang complains that `std::aray<void*, 2` is an
+// Because, for some reason, Clang complains that `std::array<void*, 2>` is an
 // incomplete type, incompatible with C linkage.
 struct two_pointers_t {
   void* a;

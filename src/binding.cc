@@ -258,21 +258,23 @@ v8::Value* v8__Local__New(v8::Isolate* isolate, v8::Value* other) {
 }
 
 v8::Value* v8__Global__New(v8::Isolate* isolate, v8::Value* other) {
+  // We have to use `std::move()` here because v8 disables the copy constructor
+  // for class `v8::Global`.
   auto global = v8::Global<v8::Value>(isolate, ptr_to_local(other));
-  return global_to_ptr(global);
+  return make_pod<v8::Value*>(std::move(global));
 }
 
 void v8__Global__Reset__0(v8::Value*& self) {
   auto global = ptr_to_global(self);
   global.Reset();
-  self = global_to_ptr(global);
+  self = make_pod<v8::Value*>(std::move(global));
 }
 
 void v8__Global__Reset__2(v8::Value*& self, v8::Isolate* isolate,
                           v8::Value* const& other) {
   auto global = ptr_to_global(self);
   global.Reset(isolate, ptr_to_local(other));
-  self = global_to_ptr(global);
+  self = make_pod<v8::Value*>(std::move(global));
 }
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
