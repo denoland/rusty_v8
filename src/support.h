@@ -45,10 +45,6 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
 // P is not allowed to have a destructor.
 template <class P>
 struct make_pod {
-  // TODO(ry) Unused by necessary constructor?
-  template <class V>
-  inline make_pod(V&& value) : pod_(helper<V>(value)) {}
-
   template <class V>
   inline make_pod(const V& value) : pod_(helper<V>(value)) {}
 
