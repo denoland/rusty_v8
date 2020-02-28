@@ -35,35 +35,27 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
       construct_in_place_helper<T, Args...>(buf, std::forward<Args>(args)...);
 }
 
-// Rust's FFI only supports returning normal C data structures (AKA plain old
-// data). There are some situations in the V8 API where functions return non-POD
-// data. We use this class to carefully adjust the return values, so they can be
-// passed into Rust.
-//
-// The destructor of V is never called.
-//
-// P is not allowed to have a destructor.
 template <class P>
 struct make_pod {
   template <class V>
+  inline make_pod(V&& value) : pod_(helper<V>(value)) {}
+  template <class V>
   inline make_pod(const V& value) : pod_(helper<V>(value)) {}
-
   inline operator P() { return pod_; }
 
  private:
   P pod_;
 
-  // helper exists to avoid calling the destructor.
-  // Using union is a C++ trick to acheive this.
   template <class V>
   union helper {
     static_assert(std::is_pod<P>::value, "type P must a pod type");
-    static_assert(sizeof(V) == sizeof(P),
+    static_assert(sizeof(V) <= sizeof(P),
                   "type P must be at least as big as type V");
-    static_assert(alignof(V) == alignof(P),
+    static_assert(alignof(V) <= alignof(P),
                   "alignment of type P must be compatible with that of type V");
 
-    inline helper(const V& value) : value_(value) {}
+    inline helper(V&& value) : value_(value), padding_() {}
+    inline helper(const V& value) : value_(value), padding_() {}
     inline ~helper() {}
 
     inline operator P() {
@@ -74,7 +66,10 @@ struct make_pod {
     }
 
    private:
-    V value_;
+    struct {
+      V value_;
+      char padding_[sizeof(P) - sizeof(V)];
+    };
   };
 };
 
