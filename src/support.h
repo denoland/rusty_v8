@@ -35,8 +35,16 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
       construct_in_place_helper<T, Args...>(buf, std::forward<Args>(args)...);
 }
 
+// Rust's FFI only supports returning normal C data structures (AKA plain old
+// data). There are some situations in the V8 API where functions return non-POD
+// data. We use this class to carefully adjust the return values, so they can be
+// passed into Rust.
 template <class P>
 struct make_pod {
+  // TODO(ry) Unused by necessary constructor?
+  template <class V>
+  inline make_pod(V&& value) : pod_(helper<V>(value)) {}
+
   template <class V>
   inline make_pod(const V& value) : pod_(helper<V>(value)) {}
 
@@ -46,7 +54,7 @@ struct make_pod {
   P pod_;
 
   // helper exists to avoid calling the destructor.
-  // Using union is a C++ to do this.
+  // Using union is a C++ trick to acheive this.
   template <class V>
   union helper {
     static_assert(std::is_pod<P>::value, "type P must a pod type");
