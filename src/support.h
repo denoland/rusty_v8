@@ -38,14 +38,14 @@ void construct_in_place(uninit_t<T>& buf, Args... args) {
 template <class P>
 struct make_pod {
   template <class V>
-  inline make_pod(V&& value) : pod_(helper<V>(value)) {}
-  template <class V>
   inline make_pod(const V& value) : pod_(helper<V>(value)) {}
+
   inline operator P() { return pod_; }
 
  private:
   P pod_;
 
+  // union is used to avoid calling the destructor of V.
   template <class V>
   union helper {
     static_assert(std::is_pod<P>::value, "type P must a pod type");
@@ -54,8 +54,7 @@ struct make_pod {
     static_assert(alignof(V) <= alignof(P),
                   "alignment of type P must be compatible with that of type V");
 
-    inline helper(V&& value) : value_(value), padding_() {}
-    inline helper(const V& value) : value_(value), padding_() {}
+    inline helper(const V& value) : value_(value) {}
     inline ~helper() {}
 
     inline operator P() {
@@ -66,10 +65,8 @@ struct make_pod {
     }
 
    private:
-    struct {
-      V value_;
-      char padding_[sizeof(P) - sizeof(V)];
-    };
+    V value_;
+    char padding_[sizeof(P)];
   };
 };
 
