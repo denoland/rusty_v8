@@ -336,20 +336,28 @@ fn array_buffer() {
 
 #[test]
 fn backing_store_segfault() {
+  let _setup_guard = setup();
+  let array_buffer_allocator = v8::new_default_allocator();
   let shared_bs = {
-    let _setup_guard = setup();
+    assert_eq!(1, v8::SharedRef::use_count(&array_buffer_allocator));
     let mut params = v8::Isolate::create_params();
-    params.set_array_buffer_allocator(v8::new_default_allocator());
+    params.set_array_buffer_allocator(array_buffer_allocator.clone());
+    assert_eq!(2, v8::SharedRef::use_count(&array_buffer_allocator));
     let mut isolate = v8::Isolate::new(params);
+    assert_eq!(2, v8::SharedRef::use_count(&array_buffer_allocator));
     let mut hs = v8::HandleScope::new(&mut isolate);
     let scope = hs.enter();
     let context = v8::Context::new(scope);
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
     let ab = v8::ArrayBuffer::new(scope, 10);
-    ab.get_backing_store()
+    let shared_bs = ab.get_backing_store();
+    assert_eq!(3, v8::SharedRef::use_count(&array_buffer_allocator));
+    shared_bs
   };
   assert_eq!(1, v8::SharedRef::use_count(&shared_bs));
+  assert_eq!(2, v8::SharedRef::use_count(&array_buffer_allocator));
+  drop(array_buffer_allocator);
   drop(shared_bs); // Error occurred here.
 }
 
