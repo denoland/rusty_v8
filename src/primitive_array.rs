@@ -1,9 +1,9 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 use crate::support::int;
-use crate::support::Opaque;
 use crate::Isolate;
 use crate::Local;
 use crate::Primitive;
+use crate::PrimitiveArray;
 use crate::ToLocal;
 
 extern "C" {
@@ -27,14 +27,6 @@ extern "C" {
     index: int,
   ) -> *mut Primitive;
 }
-
-/// An array to hold Primitive values. This is used by the embedder to pass host
-/// defined options to the ScriptOptions during compilation.
-///
-/// This is passed back to the embedder as part of
-/// HostImportModuleDynamicallyCallback for module loading.
-#[repr(C)]
-pub struct PrimitiveArray(Opaque);
 
 impl PrimitiveArray {
   pub fn new<'sc>(

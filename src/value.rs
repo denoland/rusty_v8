@@ -65,6 +65,7 @@ extern "C" {
   fn v8__Value__IsDataView(this: &Value) -> bool;
   fn v8__Value__IsSharedArrayBuffer(this: &Value) -> bool;
   fn v8__Value__IsProxy(this: &Value) -> bool;
+  fn v8__Value__IsWasmModuleObject(this: &Value) -> bool;
   fn v8__Value__IsModuleNamespaceObject(this: &Value) -> bool;
   fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
   fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
@@ -380,6 +381,11 @@ impl Value {
   /// Returns true if this value is a JavaScript Proxy.
   pub fn is_proxy(&self) -> bool {
     unsafe { v8__Value__IsProxy(self) }
+  }
+
+  /// Returns true if this value is a WasmModuleObject.
+  pub fn is_wasm_module_object(&self) -> bool {
+    unsafe { v8__Value__IsWasmModuleObject(self) }
   }
 
   /// Returns true if the value is a Module Namespace Object.

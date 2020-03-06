@@ -116,7 +116,6 @@ pub mod script_compiler;
 pub mod V8;
 
 pub use array_buffer::*;
-pub use context::Context;
 pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReference;
@@ -142,7 +141,6 @@ pub use platform::Task;
 // TODO(ry) TaskBase and TaskImpl ideally shouldn't be part of the public API.
 pub use platform::TaskBase;
 pub use platform::TaskImpl;
-pub use primitive_array::PrimitiveArray;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
 pub use property_attribute::*;
@@ -152,8 +150,7 @@ pub use scope::FunctionCallbackScope;
 pub use scope::PropertyCallbackScope;
 pub use scope::Scope;
 pub use scope_traits::*;
-pub use script::{Script, ScriptOrigin};
-pub use script_or_module::ScriptOrModule;
+pub use script::ScriptOrigin;
 pub use snapshot::FunctionCodeHandling;
 pub use snapshot::OwnedStartupData;
 pub use snapshot::SnapshotCreator;

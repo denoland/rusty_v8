@@ -66,6 +66,11 @@ impl Display for TryFromTypeError {
 
 impl Error for TryFromTypeError {}
 
+/// A sandboxed execution context with its own set of built-in objects
+/// and functions.
+#[repr(C)]
+pub struct Context(Opaque);
+
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
 pub struct Data(Opaque);
@@ -652,7 +657,6 @@ impl_try_from! { Value for Set if v => v.is_set() }
 impl_try_from! { Object for Set if v => v.is_set() }
 
 /// An instance of the built-in SharedArrayBuffer constructor.
-/// This API is experimental and may change significantly.
 #[repr(C)]
 pub struct SharedArrayBuffer(Opaque);
 
@@ -680,6 +684,8 @@ impl_try_from! { Object for SymbolObject if v => v.is_symbol_object() }
 pub struct WasmModuleObject(Opaque);
 
 impl_deref! { Object for WasmModuleObject }
+impl_try_from! { Value for WasmModuleObject if v => v.is_wasm_module_object() }
+impl_try_from! { Object for WasmModuleObject if v => v.is_wasm_module_object() }
 
 /// The superclass of primitive values. See ECMA-262 4.3.2.
 #[repr(C)]
@@ -783,3 +789,41 @@ impl_try_from! { Value for Uint32 if v => v.is_uint32() }
 impl_try_from! { Primitive for Uint32 if v => v.is_uint32() }
 impl_try_from! { Number for Uint32 if v => v.is_uint32() }
 impl_try_from! { Integer for Uint32 if v => v.is_uint32() }
+
+/// An error message.
+#[repr(C)]
+pub struct Message(Opaque);
+
+/// An array to hold Primitive values. This is used by the embedder to
+/// pass host defined options to the ScriptOptions during compilation.
+///
+/// This is passed back to the embedder as part of
+/// HostImportModuleDynamicallyCallback for module loading.
+#[repr(C)]
+pub struct PrimitiveArray(Opaque);
+
+/// A compiled JavaScript script, tied to a Context which was active when the
+/// script was compiled.
+#[repr(C)]
+pub struct Script(Opaque);
+
+/// A container type that holds relevant metadata for module loading.
+///
+/// This is passed back to the embedder as part of
+/// HostImportModuleDynamicallyCallback for module loading.
+#[repr(C)]
+pub struct ScriptOrModule(Opaque);
+
+/// A single JavaScript stack frame.
+#[repr(C)]
+pub struct StackFrame(Opaque);
+
+/// Representation of a JavaScript stack trace. The information collected is a
+/// snapshot of the execution stack and the information remains valid after
+/// execution continues.
+#[repr(C)]
+pub struct StackTrace(Opaque);
+
+/// A compiled JavaScript script, not yet tied to a Context.
+#[repr(C)]
+pub struct UnboundScript(Opaque);

@@ -1,6 +1,6 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 use crate::isolate::Isolate;
-use crate::support::Opaque;
+use crate::Context;
 use crate::Local;
 use crate::Object;
 use crate::ObjectTemplate;
@@ -18,11 +18,6 @@ extern "C" {
   fn v8__Context__Exit(this: &mut Context);
   fn v8__Context__Global(this: *mut Context) -> *mut Object;
 }
-
-/// A sandboxed execution context with its own set of built-in objects and
-/// functions.
-#[repr(C)]
-pub struct Context(Opaque);
 
 impl Context {
   /// Creates a new context.

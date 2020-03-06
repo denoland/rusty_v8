@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
-use crate::support::Opaque;
 use crate::Boolean;
 use crate::Context;
 use crate::Integer;
 use crate::Local;
+use crate::Script;
 use crate::String;
 use crate::ToLocal;
 use crate::Value;
@@ -36,11 +36,6 @@ extern "C" {
     is_module: *mut Boolean,
   );
 }
-
-/// A compiled JavaScript script, tied to a Context which was active when the
-/// script was compiled.
-#[repr(C)]
-pub struct Script(Opaque);
 
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().

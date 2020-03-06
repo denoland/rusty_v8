@@ -1,7 +1,7 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-use crate::support::Opaque;
 use crate::Local;
 use crate::PrimitiveArray;
+use crate::ScriptOrModule;
 use crate::Value;
 
 extern "C" {
@@ -11,13 +11,6 @@ extern "C" {
     this: &ScriptOrModule,
   ) -> *mut PrimitiveArray;
 }
-
-/// A container type that holds relevant metadata for module loading.
-///
-/// This is passed back to the embedder as part of
-/// HostImportModuleDynamicallyCallback for module loading.
-#[repr(C)]
-pub struct ScriptOrModule(Opaque);
 
 impl ScriptOrModule {
   /// The name that was passed by the embedder as ResourceName to the

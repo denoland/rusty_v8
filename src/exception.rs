@@ -2,9 +2,11 @@
 
 use crate::isolate::Isolate;
 use crate::support::int;
-use crate::support::Opaque;
 use crate::Context;
 use crate::Local;
+use crate::Message;
+use crate::StackFrame;
+use crate::StackTrace;
 use crate::String;
 use crate::ToLocal;
 use crate::Value;
@@ -64,12 +66,6 @@ extern "C" {
   fn v8__Exception__GetStackTrace(exception: Local<Value>) -> *mut StackTrace;
 }
 
-/// Representation of a JavaScript stack trace. The information collected is a
-/// snapshot of the execution stack and the information remains valid after
-/// execution continues.
-#[repr(C)]
-pub struct StackTrace(Opaque);
-
 impl StackTrace {
   /// Returns the number of StackFrames.
   pub fn get_frame_count(&self) -> usize {
@@ -88,10 +84,6 @@ impl StackTrace {
     }
   }
 }
-
-/// A single JavaScript stack frame.
-#[repr(C)]
-pub struct StackFrame(Opaque);
 
 impl StackFrame {
   /// Returns the number, 1-based, of the line for the associate function call.
@@ -169,10 +161,6 @@ impl StackFrame {
     unsafe { v8__StackFrame__IsUserJavaScript(self) }
   }
 }
-
-/// An error message.
-#[repr(C)]
-pub struct Message(Opaque);
 
 impl Message {
   pub fn get<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
