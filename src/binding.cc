@@ -261,6 +261,10 @@ v8::Value* v8__Local__New(v8::Isolate* isolate, v8::Value* other) {
   return local_to_ptr(v8::Local<v8::Value>::New(isolate, ptr_to_local(other)));
 }
 
+bool v8__Local__EQ(v8::Local<void> self, v8::Local<void> other) {
+  return self == other;
+}
+
 v8::Value* v8__Global__New(v8::Isolate* isolate, v8::Value* other) {
   // We have to use `std::move()` here because v8 disables the copy constructor
   // for class `v8::Global`.

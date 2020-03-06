@@ -244,8 +244,8 @@ fn context_scope() {
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
 
-    scope.get_current_context().unwrap();
-    scope.get_entered_or_microtask_context().unwrap();
+    assert!(scope.get_current_context().unwrap() == context);
+    assert!(scope.get_entered_or_microtask_context().unwrap() == context);
   }
 
   assert!(scope.get_current_context().is_none());
@@ -1980,6 +1980,7 @@ fn shared_array_buffer() {
 
 #[test]
 #[allow(clippy::cognitive_complexity)]
+#[allow(clippy::eq_op)]
 fn value_checker() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
@@ -1995,41 +1996,88 @@ fn value_checker() {
     let value = eval(scope, context, "undefined").unwrap();
     assert!(value.is_undefined());
     assert!(value.is_null_or_undefined());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Primitive>::try_from(value).unwrap());
+    assert!(value == v8::undefined(scope));
+    assert!(value != v8::null(scope));
+    assert!(value != v8::Boolean::new(scope, false));
+    assert!(value != v8::Integer::new(scope, 0));
 
     let value = eval(scope, context, "null").unwrap();
     assert!(value.is_null());
     assert!(value.is_null_or_undefined());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Primitive>::try_from(value).unwrap());
+    assert!(value == v8::null(scope));
+    assert!(value != v8::undefined(scope));
+    assert!(value != v8::Boolean::new(scope, false));
+    assert!(value != v8::Integer::new(scope, 0));
 
     let value = eval(scope, context, "true").unwrap();
     assert!(value.is_boolean());
     assert!(value.is_true());
     assert!(!value.is_false());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Boolean>::try_from(value).unwrap());
+    assert!(value == v8::Boolean::new(scope, true));
+    assert!(value != v8::Boolean::new(scope, false));
 
     let value = eval(scope, context, "false").unwrap();
     assert!(value.is_boolean());
     assert!(!value.is_true());
     assert!(value.is_false());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Boolean>::try_from(value).unwrap());
+    assert!(value == v8::Boolean::new(scope, false));
+    assert!(value != v8::Boolean::new(scope, true));
+    assert!(value != v8::null(scope));
+    assert!(value != v8::undefined(scope));
+    assert!(value != v8::Integer::new(scope, 0));
 
     let value = eval(scope, context, "'name'").unwrap();
     assert!(value.is_name());
     assert!(value.is_string());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::String>::try_from(value).unwrap());
+    assert!(value == v8::String::new(scope, "name").unwrap());
+    assert!(value != v8::String::new(scope, "name\0").unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "Symbol()").unwrap();
     assert!(value.is_name());
     assert!(value.is_symbol());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Symbol>::try_from(value).unwrap());
+    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value != eval(scope, context, "Symbol()").unwrap());
 
     let value = eval(scope, context, "() => 0").unwrap();
     assert!(value.is_function());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Function>::try_from(value).unwrap());
+    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value != eval(scope, context, "() => 0").unwrap());
 
     let value = eval(scope, context, "async () => 0").unwrap();
     assert!(value.is_async_function());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Function>::try_from(value).unwrap());
+    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "[]").unwrap();
     assert!(value.is_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Array>::try_from(value).unwrap());
+    assert!(value != v8::Array::new(scope, 0));
 
-    let value = eval(scope, context, "BigInt('9007199254740995')").unwrap();
+    let value = eval(scope, context, "9007199254740995n").unwrap();
     assert!(value.is_big_int());
     assert!(value.to_big_int(scope).is_some());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::BigInt>::try_from(value).unwrap());
+    assert!(value == eval(scope, context, "1801439850948199n * 5n").unwrap());
+    assert!(value != eval(scope, context, "1801439850948199 * 5").unwrap());
     let detail_string = value.to_detail_string(scope).unwrap();
     let detail_string = detail_string.to_rust_string_lossy(scope);
     assert_eq!("9007199254740995", detail_string);
@@ -2038,6 +2086,12 @@ fn value_checker() {
     assert!(value.is_number());
     assert!(value.is_int32());
     assert!(value.is_uint32());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Number>::try_from(value).unwrap());
+    assert!(value == v8::Integer::new(scope, 123));
+    assert!(value == v8::Number::new(scope, 123f64));
+    assert!(value == value.to_int32(scope).unwrap());
+    assert!(value != value.to_string(scope).unwrap());
     assert_eq!(123, value.to_uint32(scope).unwrap().value());
     assert_eq!(123, value.to_int32(scope).unwrap().value());
     assert_eq!(123, value.to_integer(scope).unwrap().value());
@@ -2046,107 +2100,218 @@ fn value_checker() {
     assert_eq!(123, value.int32_value(scope).unwrap());
 
     let value = eval(scope, context, "12.3").unwrap();
+    assert!(value.is_number());
+    assert!(!value.is_int32());
+    assert!(!value.is_uint32());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Number>::try_from(value).unwrap());
+    assert!(value == v8::Number::new(scope, 12.3f64));
+    assert!(value != value.to_integer(scope).unwrap());
     assert!(12.3 - value.number_value(scope).unwrap() < 0.00001);
 
     let value = eval(scope, context, "-123").unwrap();
     assert!(value.is_number());
+    assert!(value.is_int32());
     assert!(!value.is_uint32());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Int32>::try_from(value).unwrap());
+    assert!(value == v8::Integer::new(scope, -123));
+    assert!(value == v8::Number::new(scope, -123f64));
+    assert!(value != v8::String::new(scope, "-123").unwrap());
+    assert!(
+      value
+        == v8::Integer::new_from_unsigned(scope, -123i32 as u32)
+          .to_int32(scope)
+          .unwrap()
+    );
+    // The following test does not pass. This appears to be a V8 bug.
+    // assert!(value != value.to_uint32(scope).unwrap());
+
+    let value = eval(scope, context, "NaN").unwrap();
+    assert!(value.is_number());
+    assert!(!value.is_int32());
+    assert!(!value.is_uint32());
+    assert!(value != value);
+    assert!(
+      value.to_string(scope).unwrap() == v8::String::new(scope, "NaN").unwrap()
+    );
+
+    let value = eval(scope, context, "({})").unwrap();
+    assert!(value.is_object());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Date()").unwrap();
     assert!(value.is_date());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Date>::try_from(value).unwrap());
+    assert!(value != eval(scope, context, "new Date()").unwrap());
 
     let value =
       eval(scope, context, "(function(){return arguments})()").unwrap();
     assert!(value.is_arguments_object());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Promise(function(){})").unwrap();
     assert!(value.is_promise());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Promise>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Map()").unwrap();
     assert!(value.is_map());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Map>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Set").unwrap();
     assert!(value.is_set());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Set>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Map().entries()").unwrap();
     assert!(value.is_map_iterator());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Set().entries()").unwrap();
     assert!(value.is_set_iterator());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new WeakMap()").unwrap();
     assert!(value.is_weak_map());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new WeakSet()").unwrap();
     assert!(value.is_weak_set());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new ArrayBuffer(8)").unwrap();
     assert!(value.is_array_buffer());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::ArrayBuffer>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Uint8Array([])").unwrap();
     assert!(value.is_uint8_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Uint8Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Uint8ClampedArray([])").unwrap();
     assert!(value.is_uint8_clamped_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(
+      value == v8::Local::<v8::Uint8ClampedArray>::try_from(value).unwrap()
+    );
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Int8Array([])").unwrap();
     assert!(value.is_int8_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Int8Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Uint16Array([])").unwrap();
     assert!(value.is_uint16_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Uint16Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Int16Array([])").unwrap();
     assert!(value.is_int16_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Int16Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Uint32Array([])").unwrap();
     assert!(value.is_uint32_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Uint32Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Int32Array([])").unwrap();
     assert!(value.is_int32_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Int32Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Float32Array([])").unwrap();
     assert!(value.is_float32_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Float32Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Float64Array([])").unwrap();
     assert!(value.is_float64_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Float64Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new BigInt64Array([])").unwrap();
     assert!(value.is_big_int64_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::BigInt64Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new BigUint64Array([])").unwrap();
     assert!(value.is_big_uint64_array());
     assert!(value.is_array_buffer_view());
     assert!(value.is_typed_array());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::BigUint64Array>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new SharedArrayBuffer(64)").unwrap();
     assert!(value.is_shared_array_buffer());
+    assert!(value == value);
+    assert!(
+      value == v8::Local::<v8::SharedArrayBuffer>::try_from(value).unwrap()
+    );
+    assert!(value != v8::Object::new(scope));
 
     let value = eval(scope, context, "new Proxy({},{})").unwrap();
     assert!(value.is_proxy());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Proxy>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
 
     // Other checker, Just check if it can be called
     value.is_external();
     value.is_module_namespace_object();
+    value.is_wasm_module_object();
   }
 }
 
