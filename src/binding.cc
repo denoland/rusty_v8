@@ -6,6 +6,7 @@
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-inspector.h"
 #include "v8/include/v8-platform.h"
+#include "v8/include/v8-profiler.h"
 #include "v8/include/v8.h"
 
 using namespace support;
@@ -1570,6 +1571,40 @@ MaybeBool v8__Module__InstantiateModule(v8::Module& self,
 v8::Value* v8__Module__Evaluate(v8::Module& self,
                                 v8::Local<v8::Context> context) {
   return maybe_local_to_ptr(self.Evaluate(context));
+}
+
+using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);
+
+void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
+                                        HeapSnapshotCallback callback,
+                                        void* arg) {
+  struct OutputStream : public v8::OutputStream {
+    OutputStream(HeapSnapshotCallback callback, void* arg)
+        : callback_(callback), arg_(arg) {}
+    void EndOfStream() override {
+      static_cast<void>(callback_(arg_, nullptr, 0));
+    }
+    v8::OutputStream::WriteResult WriteAsciiChunk(char* data,
+                                                  int size) override {
+      assert(size >= 0);  // Can never be < 0 barring bugs in V8.
+      if (callback_(arg_, data, static_cast<size_t>(size)))
+        return v8::OutputStream::kContinue;
+      return v8::OutputStream::kAbort;
+    }
+    HeapSnapshotCallback const callback_;
+    void* const arg_;
+  };
+
+  const v8::HeapSnapshot* snapshot =
+      isolate->GetHeapProfiler()->TakeHeapSnapshot();
+  if (snapshot == nullptr) return;  // Snapshotting failed, probably OOM.
+  OutputStream stream(callback, arg);
+  snapshot->Serialize(&stream);
+  // We don't want to call HeapProfiler::DeleteAllHeapSnapshots() because that
+  // invalidates snapshots we don't own. The const_cast hack has been in use
+  // in node-heapdump for the last 8 years and I think there is a pretty
+  // good chance it'll keep working for 8 more.
+  const_cast<v8::HeapSnapshot*>(snapshot)->Delete();
 }
 
 }  // extern "C"

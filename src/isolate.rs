@@ -132,6 +132,11 @@ extern "C" {
     this: &mut CreateParams,
     snapshot_blob: *mut StartupData,
   );
+  fn v8__HeapProfiler__TakeHeapSnapshot(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
+    arg: *mut c_void,
+  );
 }
 
 #[repr(C)]
@@ -298,6 +303,34 @@ impl Isolate {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
     v8__Isolate__Dispose(self)
+  }
+
+  /// Take a heap snapshot. The callback is invoked one or more times
+  /// with byte slices containing the snapshot serialized as JSON.
+  /// It's the callback's responsibility to reassemble them into
+  /// a single document, e.g., by writing them to a file.
+  /// Note that Chrome DevTools refuses to load snapshots without
+  /// a .heapsnapshot suffix.
+  pub fn take_heap_snapshot<F>(&mut self, mut callback: F)
+  where
+    F: FnMut(&[u8]) -> bool,
+  {
+    extern "C" fn trampoline<F>(
+      arg: *mut c_void,
+      data: *const u8,
+      size: usize,
+    ) -> bool
+    where
+      F: FnMut(&[u8]) -> bool,
+    {
+      let p = arg as *mut F;
+      let callback = unsafe { &mut *p };
+      let slice = unsafe { std::slice::from_raw_parts(data, size) };
+      callback(slice)
+    }
+
+    let arg = &mut callback as *mut F as *mut c_void;
+    unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
   }
 }
 
