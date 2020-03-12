@@ -108,7 +108,7 @@ fn maybe_install_sysroot(arch: &str) {
       .arg("./build/linux/sysroot_scripts/install-sysroot.py")
       .arg(format!("--arch={}", arch))
       .status()
-      .expect(&format!("sysroot download failed: {}", arch));
+      .unwrap_or_else(|_| panic!("sysroot download failed: {}", arch));
     assert!(status.success());
   }
 }
