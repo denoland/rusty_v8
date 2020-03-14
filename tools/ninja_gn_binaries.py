@@ -4,14 +4,9 @@
 # found in the LICENSE file.
 """This script is used to download prebuilt gn/ninja binaries."""
 
-# TODO: Running stand-alone won't work on Windows due to the dia dll copying.
-
-from __future__ import division
 from __future__ import print_function
 import argparse
 import os
-import shutil
-import stat
 import sys
 import tarfile
 import tempfile
@@ -23,21 +18,8 @@ except ImportError:  # For Py3 compatibility
     from urllib.error import HTTPError, URLError
     from urllib.request import urlopen
 
-URL = "https://s3.amazonaws.com/deno.land/gn_ninja_binaries.tar.gz"
+URL = "https://github.com/denoland/ninja_gn_binaries/archive/20191129.tar.gz"
 DIR = None
-
-
-def RmTree(dir):
-    """Delete dir."""
-
-    def ChmodAndRetry(func, path, _):
-        # Subversion can leave read-only files around.
-        if not os.access(path, os.W_OK):
-            os.chmod(path, stat.S_IWUSR)
-            return func(path)
-        raise
-
-    shutil.rmtree(dir, onerror=ChmodAndRetry)
 
 
 def DownloadUrl(url, output_file):
@@ -49,25 +31,18 @@ def DownloadUrl(url, output_file):
 
     while True:
         try:
-            sys.stdout.write('Downloading %s ' % url)
+            sys.stdout.write('Downloading %s...' % url)
             sys.stdout.flush()
             response = urlopen(url)
-            total_size = int(response.info().get('Content-Length').strip())
             bytes_done = 0
-            dots_printed = 0
             while True:
                 chunk = response.read(CHUNK_SIZE)
                 if not chunk:
                     break
                 output_file.write(chunk)
                 bytes_done += len(chunk)
-                num_dots = TOTAL_DOTS * bytes_done // total_size
-                sys.stdout.write('.' * (num_dots - dots_printed))
-                sys.stdout.flush()
-                dots_printed = num_dots
-            if bytes_done != total_size:
-                raise URLError(
-                    "only got %d of %d bytes" % (bytes_done, total_size))
+            if bytes_done == 0:
+                raise URLError("empty response")
             print(' Done.')
             return
         except URLError as e:
@@ -88,9 +63,7 @@ def EnsureDirExists(path):
 
 
 def DownloadAndUnpack(url, output_dir):
-    """Download an archive from url and extract into output_dir. If path_prefixes
-     is not None, only extract files whose paths within the archive start with
-     any prefix in path_prefixes."""
+    """Download an archive from url and extract into output_dir."""
     with tempfile.TemporaryFile() as f:
         DownloadUrl(url, f)
         f.seek(0)
@@ -100,13 +73,10 @@ def DownloadAndUnpack(url, output_dir):
 
 
 def Update():
-    if os.path.exists(DIR):
-        RmTree(DIR)
     try:
         DownloadAndUnpack(URL, DIR)
     except URLError:
-        print('Failed to download prebuilt ninja/gn binaries %s' % URL)
-        print('Exiting.')
+        print('Failed to download ninja/gn binaries.')
         sys.exit(1)
 
     return 0

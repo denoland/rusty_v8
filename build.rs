@@ -47,7 +47,7 @@ fn build_v8() {
   }
 
   if need_gn_ninja_download() {
-    download_gn_ninja_binaries();
+    download_ninja_gn_binaries();
   }
 
   // On windows, rustc cannot link with a V8 debug build.
@@ -128,7 +128,7 @@ fn platform() -> &'static str {
   }
 }
 
-fn download_gn_ninja_binaries() {
+fn download_ninja_gn_binaries() {
   let root = env::current_dir().unwrap();
   // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
   let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -141,10 +141,11 @@ fn download_gn_ninja_binaries() {
     .unwrap()
     .parent()
     .unwrap();
-  let download_dir = target_dir.join("gn_ninja_binaries");
-  let d = download_dir.join("gn_ninja_binaries").join(platform());
-  let gn = d.join("gn");
-  let ninja = d.join("ninja");
+  let bin_dir = target_dir
+    .join("ninja_gn_binaries-20191129")
+    .join(platform());
+  let gn = bin_dir.join("gn");
+  let ninja = bin_dir.join("ninja");
   #[cfg(windows)]
   let gn = gn.with_extension("exe");
   #[cfg(windows)]
@@ -152,11 +153,11 @@ fn download_gn_ninja_binaries() {
 
   if !gn.exists() || !ninja.exists() {
     let status = Command::new("python")
-      .arg("./tools/gn_ninja_binaries.py")
+      .arg("./tools/ninja_gn_binaries.py")
       .arg("--dir")
-      .arg(&download_dir)
+      .arg(&target_dir)
       .status()
-      .expect("gn_ninja_binaries.py download failed");
+      .expect("ninja_gn_binaries.py download failed");
     assert!(status.success());
   }
   assert!(gn.exists());
