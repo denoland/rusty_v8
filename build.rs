@@ -142,7 +142,7 @@ fn download_ninja_gn_binaries() {
     .parent()
     .unwrap();
   let bin_dir = target_dir
-    .join("ninja_gn_binaries-20191129")
+    .join("ninja_gn_binaries-20200313")
     .join(platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");

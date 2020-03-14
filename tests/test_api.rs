@@ -2639,7 +2639,7 @@ fn inspector_schedule_pause_on_next_statement() {
 
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 3);
-  assert_eq!(channel.count_flush_protocol_notifications, 0);
+  assert_eq!(channel.count_flush_protocol_notifications, 1);
   assert_eq!(client.count_run_message_loop_on_pause, 1);
   assert_eq!(client.count_quit_message_loop_on_pause, 0);
   assert_eq!(client.count_run_if_waiting_for_debugger, 0);
