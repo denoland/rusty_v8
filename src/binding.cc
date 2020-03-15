@@ -970,6 +970,12 @@ v8::Function* v8__Function__New(v8::Local<v8::Context> context,
   return maybe_local_to_ptr(v8::Function::New(context, callback));
 }
 
+v8::Function* v8__Function__NewWithData(v8::Local<v8::Context> context,
+                                v8::FunctionCallback callback,
+                                v8::Local<v8::Value> data) {
+  return maybe_local_to_ptr(v8::Function::New(context, callback, data));
+}
+
 v8::Value* v8__Function__Call(v8::Function* self,
                               v8::Local<v8::Context> context,
                               v8::Local<v8::Value> recv, int argc,
@@ -1015,6 +1021,11 @@ int v8__FunctionCallbackInfo__Length(
 v8::Value* v8__FunctionCallbackInfo__GetArgument(
     const v8::FunctionCallbackInfo<v8::Value>& self, int i) {
   return local_to_ptr(self[i]);
+}
+
+v8::Value* v8__FunctionCallbackInfo__Data(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Data());
 }
 
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>& self,

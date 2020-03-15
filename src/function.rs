@@ -22,6 +22,11 @@ extern "C" {
     context: *mut Context,
     callback: FunctionCallback,
   ) -> *mut Function;
+  fn v8__Function__NewWithData(
+    context: *mut Context,
+    callback: FunctionCallback,
+    data: Local<Value>,
+  ) -> *mut Function;
   fn v8__Function__Call(
     function: *const Function,
     context: Local<Context>,
@@ -41,6 +46,9 @@ extern "C" {
   fn v8__FunctionCallbackInfo__GetArgument(
     info: *const FunctionCallbackInfo,
     i: int,
+  ) -> *mut Value;
+  fn v8__FunctionCallbackInfo__Data(
+    info: *const FunctionCallbackInfo,
   ) -> *mut Value;
 
   fn v8__PropertyCallbackInfo__GetReturnValue(
@@ -143,6 +151,11 @@ impl<'s> FunctionCallbackArguments<'s> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
     }
+  }
+
+  /// Returns the data argument specified when creating the callback.
+  pub fn data(&self) -> Option<Local<Value>> {
+    unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
   }
 
   /// The number of available arguments.
@@ -280,6 +293,23 @@ impl Function {
   ) -> Option<Local<'sc, Function>> {
     unsafe {
       scope.to_local(v8__Function__New(&mut *context, callback.map_fn_to()))
+    }
+  }
+
+  /// Create a function in the current execution context
+  /// for a given FunctionCallback and associated data.
+  pub fn new_with_data<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    mut context: Local<Context>,
+    data: Local<Value>,
+    callback: impl MapFnTo<FunctionCallback>,
+  ) -> Option<Local<'sc, Function>> {
+    unsafe {
+      scope.to_local(v8__Function__NewWithData(
+        &mut *context,
+        callback.map_fn_to(),
+        data,
+      ))
     }
   }
 

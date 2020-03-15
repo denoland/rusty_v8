@@ -1336,6 +1336,17 @@ fn fortytwo_callback(
   rv.set(v8::Integer::new(scope, 42).into());
 }
 
+fn data_is_true_callback(
+  _scope: v8::FunctionCallbackScope,
+  args: v8::FunctionCallbackArguments,
+  _rv: v8::ReturnValue,
+) {
+  let data = args.data();
+  assert!(data.is_some());
+  let data = data.unwrap();
+  assert!(data.is_true());
+}
+
 #[test]
 fn function() {
   let _setup_guard = setup();
@@ -1373,6 +1384,18 @@ fn function() {
     let value_str = value.to_string(scope).unwrap();
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "Hello callback!".to_string());
+    // create a function with associated data
+    let true_data = v8::Boolean::new(scope, true);
+    let function = v8::Function::new_with_data(
+      scope,
+      context,
+      true_data.into(),
+      data_is_true_callback,
+    )
+    .expect("Unable to create function with data");
+    function
+      .call(scope, context, recv, &[])
+      .expect("Function call failed");
   }
 }
 
