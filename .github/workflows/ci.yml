@@ -107,7 +107,7 @@ jobs:
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test (debug)
-				if: matrix.config.is_debug == true
+				if: ${{ matrix.config.is_debug }} == true
         run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
 
       - name: Clippy (debug)
