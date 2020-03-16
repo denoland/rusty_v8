@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.config.os }} ${{ matrix.config.target }}
+    name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
     if: |
       github.event_name == 'push' ||
       !startsWith(github.event.pull_request.head.label, 'denoland:')
@@ -17,12 +17,24 @@ jobs:
         config:
           - os: macOS-latest
             target: x86_64-apple-darwin
+            variant: "debug"
+
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+            variant: "release"
+
           - os: ubuntu-16.04
             target: "x86_64-unknown-linux-gnu"
-#          - os: ubuntu-16.04
-#            target: aarch64-unknown-linux-gnu
+            variant: "debug"
+
+          - os: ubuntu-16.04
+            target: "x86_64-unknown-linux-gnu"
+            variant: "release"
+
           - os: windows-2019
             target: x86_64-pc-windows-msvc
+            variant: "release"
+            # Note we do not support windows debug builds.
 
     steps:
       - name: Configure git
@@ -47,24 +59,6 @@ jobs:
         with:
           python-version: "2.7.x"
           architecture: x64
-
-# TODO(ry) Reenable arm build
-# https://github.com/denoland/rusty_v8/runs/456845868
-#      - name: Install cross compilation toolchain
-#        if: matrix.config.target == 'aarch64-unknown-linux-gnu'
-#        run: |
-#          rustup target add aarch64-unknown-linux-gnu
-#
-#          sudo apt install -yq --no-install-suggests --no-install-recommends \
-#            binfmt-support g++-5-aarch64-linux-gnu g++-5-multilib \
-#            gcc-5-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
-#            qemu-user-binfmt
-#
-#          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
-#                     /lib/ld-linux-aarch64.so.1
-#
-#          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
-#          echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
 
       - name: Install and start sccache
         shell: pwsh
@@ -92,16 +86,44 @@ jobs:
           echo "::add-path::$(pwd)/$basename"
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
-      - name: Test
-        run: cargo test -vv --all-targets --locked
-          --target ${{ matrix.config.target }}
+      - name: Test debug
+        if: matrix.config.variant == 'debug'
+        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
 
-      - name: Clippy
-        run: cargo clippy --all-targets --locked
-          --target ${{ matrix.config.target }} -- -D clippy::all
+      - name: Clippy debug
+        if: matrix.config.variant == 'debug'
+        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} -- -D clippy::all
+
+      - name: Test release
+        if: matrix.config.variant == 'release'
+        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} --release
+
+      - name: Clippy release
+        if: matrix.config.variant == 'release'
+        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} --release -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
+
+      - name: Prepare Binary Publish - unix
+        if: runner.os != 'Windows'
+        run: |
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
+
+      - name: Prepare Binary Publish - windows
+        if: runner.os == 'Windows'
+        run: |
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/rusty_v8.lib target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
+
+      - name: Binary Publish
+        uses: softprops/action-gh-release@v1
+        if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
+            target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
 
       # TODO: add clang-format and maybe cpplint.
 
@@ -118,6 +140,7 @@ jobs:
           startsWith(github.ref, 'refs/tags/') &&
           github.repository == 'denoland/rusty_v8' &&
           startsWith(matrix.config.target , 'x86_64') &&
+          matrix.config.variant == 'debug' &&
           runner.os == 'Linux'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
