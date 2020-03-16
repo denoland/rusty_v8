@@ -109,23 +109,38 @@ jobs:
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test debug
-        if: matrix.variant == 'debug'
+        if: matrix.config.variant == 'debug'
         run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
 
       - name: Clippy debug
-        if: matrix.variant == 'debug'
+        if: matrix.config.variant == 'debug'
         run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Test release
-        if: matrix.variant == 'release'
+        if: matrix.config.variant == 'release'
         run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} --release
 
       - name: Clippy release
-        if: matrix.variant == 'release'
+        if: matrix.config.variant == 'release'
         run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} --release -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
+
+      - name: Prepare Binary Publish (unix)
+        if: !startsWith(matrix.os, 'win')
+        run: cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
+
+      - name: Binary Publish
+        uses: softprops/action-gh-release@v1
+        if: github.repository == 'denoland/rusty_v8' # && startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            target/librusty_v8_release_${{matrix.target}}.a
+            target/librusty_v8_debug_${{matrix.target}}.a
+          draft: true
 
       # TODO: add clang-format and maybe cpplint.
 
