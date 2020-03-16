@@ -129,11 +129,11 @@ jobs:
 
 
       - name: Prepare Binary Publish (unix debug)
-        if: matrix.variant == 'debug' && !startsWith(matrix.os, "win")
+        if: matrix.variant == 'debug' && !startsWith(matrix.os, 'win')
         run: cp target/debug/gn_out/obj/librusty_v8.a target/librusty_v8_debug_${{matrix.target}}.a
 
       - name: Prepare Binary Publish (unix release)
-        if: matrix.variant == 'release' && !startsWith(matrix.os, "win")
+        if: matrix.variant == 'release' && !startsWith(matrix.os, 'win')
         run: cp target/debug/gn_out/obj/librusty_v8.a target/librusty_v8_release_${{matrix.target}}.a
 
       - name: Binary Publish
