@@ -106,12 +106,12 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Prepare Binary Publish - unix
-        if: runner.os != "Windows"
+        if: runner.os != 'Windows'
         run: |
           cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
 
       - name: Prepare Binary Publish - windows
-        if: runner.os == "Windows"
+        if: runner.os == 'Windows'
         run: |
           cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/rusty_v8.lib target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
 
