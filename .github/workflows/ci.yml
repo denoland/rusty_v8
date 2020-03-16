@@ -107,26 +107,20 @@ jobs:
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test (debug)
-				if: matrix.config.is_debug
-        run: cargo test -vv --all-targets --locked
-          --target ${{ matrix.config.target }}
+				if: matrix.config.is_debug == true
+        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
 
       - name: Clippy (debug)
-				if: matrix.config.is_debug
-        run: cargo clippy --all-targets --locked
-          --target ${{ matrix.config.target }}
-           -- -D clippy::all
+				if: matrix.config.is_debug == true
+        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Test (release)
-				if: !matrix.config.is_debug
-        run: cargo test -vv --all-targets --locked
-          --target ${{ matrix.config.target }}
+				if: matrix.config.is_debug == false
+        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} --release
 
       - name: Clippy (release)
-				if: !matrix.config.is_debug
-        run: cargo clippy --all-targets --locked
-          --target ${{ matrix.config.target }}
-           -- -D clippy::all
+				if: matrix.config.is_debug == false
+        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} --release -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
