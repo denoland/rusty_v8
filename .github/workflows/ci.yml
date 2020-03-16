@@ -109,12 +109,12 @@ jobs:
       - name: Test
         run: cargo test -vv --all-targets --locked
           --target ${{ matrix.config.target }}
-          ${{ matrix.config.is_debug ? "--release" : "" }}
+          ${{ matrix.config.is_debug ? '--release' : '' }}
 
       - name: Clippy
         run: cargo clippy --all-targets --locked
           --target ${{ matrix.config.target }}
-          ${{ matrix.config.is_debug ? "--release" : "" }}
+          ${{ matrix.config.is_debug ? '--release' : '' }}
            -- -D clippy::all
 
       - name: Rustfmt
