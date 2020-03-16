@@ -17,23 +17,23 @@ jobs:
         config:
           - os: macOS-latest
             target: x86_64-apple-darwin
-            variant: debug
+            is_debug: true
 
           - os: macOS-latest
             target: x86_64-apple-darwin
-            variant: release
+            is_debug: false
 
           - os: ubuntu-16.04
             target: "x86_64-unknown-linux-gnu"
-            variant: debug
+            is_debug: true
 
           - os: ubuntu-16.04
             target: "x86_64-unknown-linux-gnu"
-            variant: release
+            is_debug: false
 
           - os: windows-2019
             target: x86_64-pc-windows-msvc
-            variant: debug
+            is_debug: false
 
 #          - os: ubuntu-16.04
 #            target: aarch64-unknown-linux-gnu
@@ -109,12 +109,12 @@ jobs:
       - name: Test
         run: cargo test -vv --all-targets --locked
           --target ${{ matrix.config.target }}
-          ${{ matrix.config.variant == 'release' ? "--release" : "" }}
+          ${{ matrix.config.is_debug ? "--release" : "" }}
 
       - name: Clippy
         run: cargo clippy --all-targets --locked
           --target ${{ matrix.config.target }}
-          ${{ matrix.config.variant == 'release' ? "--release" : "" }}
+          ${{ matrix.config.is_debug ? "--release" : "" }}
            -- -D clippy::all
 
       - name: Rustfmt
