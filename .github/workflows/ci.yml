@@ -108,10 +108,13 @@ jobs:
       - name: Prepare Binary Publish - unix
         if: startsWith(matrix.os, 'win') == false
         run: |
-          ls .
           ls target/
-          ls target/${{ matrix.config.variant }}/gn_out/obj/
-          cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
+          echo FOO
+          ls target/${{ matrix.config.target }}
+          echo FOO
+          ls target/${{ matrix.config.target }}/gn_out/obj/
+          echo FOO
+          cp target/${{ matrix.config.target }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
 
       - name: Binary Publish
         uses: softprops/action-gh-release@v1
