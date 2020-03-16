@@ -17,26 +17,28 @@ jobs:
         config:
           - os: macOS-latest
             target: x86_64-apple-darwin
-            is_debug: true
+            variant: "debug"
 
           - os: macOS-latest
             target: x86_64-apple-darwin
-            is_debug: false
+            variant: "release"
 
           - os: ubuntu-16.04
             target: "x86_64-unknown-linux-gnu"
-            is_debug: true
+            variant: "debug"
 
           - os: ubuntu-16.04
             target: "x86_64-unknown-linux-gnu"
-            is_debug: false
+            variant: "release"
 
           - os: windows-2019
             target: x86_64-pc-windows-msvc
-            is_debug: false
+            variant: "release"
+            # Note we do not support windows debug builds.
 
-#          - os: ubuntu-16.04
-#            target: aarch64-unknown-linux-gnu
+        # TODO(ry) Reenable arm builds.
+        # - os: ubuntu-16.04
+        #   target: aarch64-unknown-linux-gnu
 
     steps:
       - name: Configure git
@@ -107,19 +109,19 @@ jobs:
           echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test (debug)
-				if: ${{ matrix.config.is_debug }} == true
+				if: matrix.config.variant == "debug"
         run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
 
       - name: Clippy (debug)
-				if: matrix.config.is_debug == true
+				if: matrix.config.variant == "debug"
         run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Test (release)
-				if: matrix.config.is_debug == false
+				if: matrix.config.variant == "release"
         run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} --release
 
       - name: Clippy (release)
-				if: matrix.config.is_debug == false
+				if: matrix.config.variant == "release"
         run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} --release -- -D clippy::all
 
       - name: Rustfmt
