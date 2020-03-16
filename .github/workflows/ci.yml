@@ -17,12 +17,26 @@ jobs:
         config:
           - os: macOS-latest
             target: x86_64-apple-darwin
+            variant: debug
+
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+            variant: release
+
           - os: ubuntu-16.04
             target: "x86_64-unknown-linux-gnu"
-#          - os: ubuntu-16.04
-#            target: aarch64-unknown-linux-gnu
+            variant: debug
+
+          - os: ubuntu-16.04
+            target: "x86_64-unknown-linux-gnu"
+            variant: release
+
           - os: windows-2019
             target: x86_64-pc-windows-msvc
+            variant: debug
+
+#          - os: ubuntu-16.04
+#            target: aarch64-unknown-linux-gnu
 
     steps:
       - name: Configure git
@@ -95,10 +109,13 @@ jobs:
       - name: Test
         run: cargo test -vv --all-targets --locked
           --target ${{ matrix.config.target }}
+          ${{ matrix.config.variant == 'release' ? "--release" : "" }}
 
       - name: Clippy
         run: cargo clippy --all-targets --locked
-          --target ${{ matrix.config.target }} -- -D clippy::all
+          --target ${{ matrix.config.target }}
+          ${{ matrix.config.variant == 'release' ? "--release" : "" }}
+           -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
