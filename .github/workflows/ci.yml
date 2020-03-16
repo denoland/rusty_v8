@@ -112,9 +112,9 @@ jobs:
           echo FOO
           ls target/${{ matrix.config.target }}
           echo FOO
-          ls target/${{ matrix.config.target }}/gn_out/obj/
+          ls target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/
           echo FOO
-          cp target/${{ matrix.config.target }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
 
       - name: Binary Publish
         uses: softprops/action-gh-release@v1
