@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.config.os }} ${{ matrix.config.target }} ${{ matrix.config.variant }}
+    name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
     if: |
       github.event_name == 'push' ||
       !startsWith(github.event.pull_request.head.label, 'denoland:')
@@ -129,7 +129,9 @@ jobs:
 
       - name: Prepare Binary Publish - unix
         if: startsWith(matrix.os, 'win') == false
-        run: cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
+        run: |
+          ls target/${{ matrix.config.variant }}/gn_out/obj/
+          cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
 
       - name: Binary Publish
         uses: softprops/action-gh-release@v1
