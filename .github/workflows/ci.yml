@@ -19,22 +19,22 @@ jobs:
             target: "x86_64-unknown-linux-gnu"
             variant: "debug"
 
-          # - os: macOS-latest
-          #   target: x86_64-apple-darwin
-          #   variant: "debug"
+          - os: ubuntu-16.04
+            target: "x86_64-unknown-linux-gnu"
+            variant: "release"
 
-          # - os: macOS-latest
-          #   target: x86_64-apple-darwin
-          #   variant: "release"
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+            variant: "debug"
 
-          # - os: ubuntu-16.04
-          #   target: "x86_64-unknown-linux-gnu"
-          #   variant: "release"
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+            variant: "release"
 
-          # - os: windows-2019
-          #   target: x86_64-pc-windows-msvc
-          #   variant: "release"
-          #   # Note we do not support windows debug builds.
+          - os: windows-2019
+            target: x86_64-pc-windows-msvc
+            variant: "release"
+            # Note we do not support windows debug builds.
 
     steps:
       - name: Configure git
@@ -108,23 +108,22 @@ jobs:
       - name: Prepare Binary Publish - unix
         if: startsWith(matrix.os, 'win') == false
         run: |
-          ls target/
-          echo FOO
-          ls target/${{ matrix.config.target }}
-          echo FOO
-          ls target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/
-          echo FOO
           cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
+
+      - name: Prepare Binary Publish - windows
+        if: startsWith(matrix.os, 'win')
+        run: |
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/rusty_v8.lib target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
 
       - name: Binary Publish
         uses: softprops/action-gh-release@v1
-        if: github.repository == 'denoland/rusty_v8' # && startsWith(github.ref, 'refs/tags/')
+        if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            target/librusty_v8_release_${{matrix.target}}.a
-            target/librusty_v8_debug_${{matrix.target}}.a
+          	target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
+						target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
           draft: true
 
       # TODO: add clang-format and maybe cpplint.
