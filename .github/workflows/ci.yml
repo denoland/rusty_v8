@@ -127,8 +127,8 @@ jobs:
       - name: Rustfmt
         run: cargo fmt -- --check
 
-      - name: Prepare Binary Publish (unix)
-        if: !startsWith(matrix.os, 'win')
+      - name: Prepare Binary Publish - unix
+        if: startsWith(matrix.os, 'win') == false
         run: cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.variant }}_${{ matrix.config.target }}.a
 
       - name: Binary Publish
