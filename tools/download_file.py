@@ -7,15 +7,12 @@ from __future__ import print_function
 import argparse
 import os
 import sys
-import time
 
 try:
     from urllib2 import HTTPError, URLError, urlopen
 except ImportError:  # For Py3 compatibility
     from urllib.error import HTTPError, URLError
     from urllib.request import urlopen
-
-SECONDS_PER_PROGRESS = 5
 
 def DownloadUrl(url, output_file):
     """Download url into output_file."""
@@ -27,21 +24,13 @@ def DownloadUrl(url, output_file):
     while True:
         try:
             response = urlopen(url)
-            content_length = int(response.headers['content-length'])
             bytes_done = 0
-            start_time = time.time()
-            seconds_passed = 0
             while True:
                 chunk = response.read(CHUNK_SIZE)
                 if not chunk:
                     break
                 output_file.write(chunk)
                 bytes_done += len(chunk)
-                # progress
-                if time.time() - start_time > seconds_passed:
-                    seconds_passed += SECONDS_PER_PROGRESS
-                    complete = float(bytes_done) / content_length
-                    print("Downloaded %.1f%%" % (complete * 100))
             if bytes_done == 0:
                 raise URLError("empty response")
             print('Done.')
