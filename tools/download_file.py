@@ -23,6 +23,8 @@ def DownloadUrl(url, output_file):
 
     while True:
         try:
+            sys.stdout.write('Downloading %s...' % url)
+            sys.stdout.flush()
             response = urlopen(url)
             bytes_done = 0
             while True:
@@ -33,7 +35,7 @@ def DownloadUrl(url, output_file):
                 bytes_done += len(chunk)
             if bytes_done == 0:
                 raise URLError("empty response")
-            print('Done.')
+            print(' Done.')
             return
         except URLError as e:
             sys.stdout.write('\n')
