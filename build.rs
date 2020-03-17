@@ -181,7 +181,8 @@ fn static_lib_url() -> (String, String) {
   let base = "https://github.com/denoland/rusty_v8/releases/download/v0.3.6/";
   #[cfg(windows)]
   {
-    let url = format!("{}/rusty_v8_{}_{}.lib", base, profile, target);
+    // Note we always use the release build in window.
+    let url = format!("{}/rusty_v8_release_{}.lib", base, target);
     let static_lib_name = "rusty_v8.lib".to_string();
     (url, static_lib_name)
   }
