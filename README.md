@@ -29,7 +29,7 @@ V8 Version: 8.2.308, 2020-03-12
    Due to the complexity and size of V8's build, this is nontrivial. For example
    the crate size must be kept under 10 MiB in order to publish.
 
-## Build
+## Build V8 from Source
 
 Use `cargo build -vv` to build the crate.
 
@@ -55,6 +55,20 @@ You could also pass in additional arguments to `gn` by setting the `$GN_ARGS`
 environmental variable.
 
 Env vars used in build.rs: `SCCACHE`, `GN`, `NINJA`, `CLANG_BASE_PATH`, `GN_ARGS`
+
+## Binary Build
+
+V8 is very large and take a long time to compile. Many users may prefer to use
+a prebuilt version of V8. We publish static libs for every version of rusty v8
+on [Github](https://github.com/denoland/rusty_v8/releases).
+
+To use these prebuilt binaries use the `binary` feature:
+
+```
+cargo build --feature="binary"
+```
+
+This will cause rusty v8 to download the binaries during the build process.
 
 ## FAQ
 
