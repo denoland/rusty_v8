@@ -14,6 +14,9 @@ fn main() {
   // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
   let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
 
+  #[cfg(feature = "binary")]
+  download_static_lib_binaries();
+
   // Don't build V8 if the rust language server (RLS) is running.
   let is_rls = env::var_os("CARGO")
     .map(PathBuf::from)
@@ -164,6 +167,82 @@ fn download_ninja_gn_binaries() {
   assert!(ninja.exists());
   env::set_var("GN", gn);
   env::set_var("NINJA", ninja);
+}
+
+pub fn is_debug() -> bool {
+  let m = std::env::var("PROFILE").unwrap();
+  if m == "release" {
+    false
+  } else if m == "debug" {
+    true
+  } else {
+    panic!("unhandled PROFILE value {}", m)
+  }
+}
+
+#[cfg(feature = "binary")]
+fn static_lib_url() -> (String, String) {
+  let target = std::env::var("TARGET").unwrap();
+  let profile = std::env::var("PROFILE").unwrap();
+  assert!(profile == "release" || profile == "debug");
+  let base = "https://github.com/denoland/rusty_v8/releases/download/v0.3.6/";
+  #[cfg(windows)]
+  {
+    let url = format!("{}/rusty_v8_{}_{}.lib", base, profile, target);
+    let static_lib_name = "rusty_v8.lib".to_string();
+    (url, static_lib_name)
+  }
+  #[cfg(not(windows))]
+  {
+    let url = format!("{}/librusty_v8_{}_{}.a", base, profile, target);
+    let static_lib_name = "librusty_v8.a".to_string();
+    (url, static_lib_name)
+  }
+}
+
+#[cfg(feature = "binary")]
+fn download_static_lib_binaries() {
+  let (url, static_lib_name) = static_lib_url();
+  println!("static lib URL: {}", url);
+
+  let root = env::current_dir().unwrap();
+
+  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
+  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let out_dir_abs = root.join(out_dir);
+
+  // This would be target/debug or target/release
+  let target_dir = out_dir_abs
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap();
+  let obj_dir = target_dir.join("gn_out").join("obj");
+  std::fs::create_dir_all(&obj_dir).unwrap();
+
+  let filename = obj_dir.join(static_lib_name);
+
+  if filename.exists() {
+    println!("static lib already exists {}", filename.display());
+    println!("To re-download this file, it must be manually deleted.");
+  } else {
+    // Using python to do the HTTP download because it's already a dependency
+    // and so we don't have to add a Rust HTTP client dependency.
+    println!("Downloading {}", url);
+    let status = Command::new("python")
+      .arg("./tools/download_file.py")
+      .arg("--url")
+      .arg(url)
+      .arg("--filename")
+      .arg(&filename)
+      .status()
+      .unwrap();
+    assert!(status.success());
+    assert!(filename.exists());
+  }
+  exit(0);
 }
 
 fn print_link_flags() {
