@@ -49,7 +49,7 @@ def DownloadUrl(url, output_file):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Download librusty_v8.a')
+    parser = argparse.ArgumentParser(description='Download a file')
     parser.add_argument('--filename', help='where to put binary')
     parser.add_argument('--url', help='what url to download')
     args = parser.parse_args()
