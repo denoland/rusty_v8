@@ -7,11 +7,6 @@ use std::process::exit;
 use std::process::Command;
 use which::which;
 
-#[cfg(feature = "binary")]
-const BINARY_BUILD: bool = true;
-#[cfg(not(feature = "binary"))]
-const BINARY_BUILD: bool = false;
-
 fn main() {
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
@@ -28,7 +23,7 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if BINARY_BUILD {
+  if cfg!(feature = "binary") {
     download_static_lib_binaries();
   } else if !(is_trybuild || is_cargo_doc | is_rls) {
     build_v8()
@@ -175,10 +170,8 @@ fn download_ninja_gn_binaries() {
 }
 
 fn static_lib_url() -> (String, String) {
-  let target = std::env::var("TARGET").unwrap();
-  let profile = std::env::var("PROFILE").unwrap();
-  assert!(profile == "release" || profile == "debug");
   let base = "https://github.com/denoland/rusty_v8/releases/download/v0.3.6/";
+  let target = std::env::var("TARGET").unwrap();
   #[cfg(windows)]
   {
     // Note we always use the release build in window.
@@ -188,6 +181,8 @@ fn static_lib_url() -> (String, String) {
   }
   #[cfg(not(windows))]
   {
+    let profile = std::env::var("PROFILE").unwrap();
+    assert!(profile == "release" || profile == "debug");
     let url = format!("{}/librusty_v8_{}_{}.a", base, profile, target);
     let static_lib_name = "librusty_v8.a".to_string();
     (url, static_lib_name)
