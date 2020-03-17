@@ -65,7 +65,7 @@ on [Github](https://github.com/denoland/rusty_v8/releases).
 To use these prebuilt binaries use the `binary` feature:
 
 ```
-cargo build --feature="binary"
+cargo build --features="binary"
 ```
 
 This will cause rusty v8 to download the binaries during the build process.
