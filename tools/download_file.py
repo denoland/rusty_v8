@@ -53,7 +53,7 @@ def main():
     args = parser.parse_args()
     print("url", args.url)
     print("filename", args.filename)
-    with open(args.filename, "w") as f:
+    with open(args.filename, "wb") as f:
         DownloadUrl(args.url, f)
     return 0
 
