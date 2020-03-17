@@ -23,9 +23,12 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if !(is_trybuild || is_cargo_doc | is_rls) {
+  if cfg!(feature = "binary") {
+    download_static_lib_binaries();
+  } else if !(is_trybuild || is_cargo_doc | is_rls) {
     build_v8()
   }
+
   if !(is_cargo_doc || is_rls) {
     print_link_flags()
   }
@@ -164,6 +167,70 @@ fn download_ninja_gn_binaries() {
   assert!(ninja.exists());
   env::set_var("GN", gn);
   env::set_var("NINJA", ninja);
+}
+
+fn static_lib_url() -> (String, String) {
+  let base = "https://github.com/denoland/rusty_v8/releases/download";
+  let version = env::var("CARGO_PKG_VERSION").unwrap();
+  let target = env::var("TARGET").unwrap();
+  if cfg!(target_os = "windows") {
+    // Note: we always use the release build on windows.
+    let url = format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target);
+    let static_lib_name = "rusty_v8.lib".to_string();
+    (url, static_lib_name)
+  } else {
+    let profile = env::var("PROFILE").unwrap();
+    assert!(profile == "release" || profile == "debug");
+    let url =
+      format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target);
+    let static_lib_name = "librusty_v8.a".to_string();
+    (url, static_lib_name)
+  }
+}
+
+fn download_static_lib_binaries() {
+  let (url, static_lib_name) = static_lib_url();
+  println!("static lib URL: {}", url);
+
+  let root = env::current_dir().unwrap();
+
+  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
+  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let out_dir_abs = root.join(out_dir);
+
+  // This would be target/debug or target/release
+  let target_dir = out_dir_abs
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap();
+  let obj_dir = target_dir.join("gn_out").join("obj");
+  std::fs::create_dir_all(&obj_dir).unwrap();
+
+  println!("cargo:rustc-link-search={}", obj_dir.display());
+
+  let filename = obj_dir.join(static_lib_name);
+
+  if filename.exists() {
+    println!("static lib already exists {}", filename.display());
+    println!("To re-download this file, it must be manually deleted.");
+  } else {
+    // Using python to do the HTTP download because it's already a dependency
+    // and so we don't have to add a Rust HTTP client dependency.
+    println!("Downloading {}", url);
+    let status = Command::new("python")
+      .arg("./tools/download_file.py")
+      .arg("--url")
+      .arg(url)
+      .arg("--filename")
+      .arg(&filename)
+      .status()
+      .unwrap();
+    assert!(status.success());
+    assert!(filename.exists());
+  }
 }
 
 fn print_link_flags() {
