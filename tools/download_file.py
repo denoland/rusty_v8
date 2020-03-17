@@ -45,6 +45,7 @@ def DownloadUrl(url, output_file):
             num_retries -= 1
             print('Retrying in %d s ...' % retry_wait_s)
             sys.stdout.flush()
+            time.sleep(retry_wait_s)
             retry_wait_s *= 2
 
 
