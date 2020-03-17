@@ -174,7 +174,7 @@ fn static_lib_url() -> (String, String) {
   let target = std::env::var("TARGET").unwrap();
   #[cfg(windows)]
   {
-    // Note we always use the release build in window.
+    // Note: we always use the release build on windows.
     let url = format!("{}/rusty_v8_release_{}.lib", base, target);
     let static_lib_name = "rusty_v8.lib".to_string();
     (url, static_lib_name)
