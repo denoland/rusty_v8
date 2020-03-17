@@ -53,8 +53,6 @@ def main():
     parser.add_argument('--filename', help='where to put the file')
     parser.add_argument('--url', help='what url to download')
     args = parser.parse_args()
-    print("url", args.url)
-    print("filename", args.filename)
     with open(args.filename, "wb") as f:
         DownloadUrl(args.url, f)
     return 0
