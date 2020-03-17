@@ -7,15 +7,17 @@ use std::process::exit;
 use std::process::Command;
 use which::which;
 
+#[cfg(feature = "binary")]
+const BINARY_BUILD: bool = true;
+#[cfg(not(feature = "binary"))]
+const BINARY_BUILD: bool = false;
+
 fn main() {
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
   // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
   let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
-
-  #[cfg(feature = "binary")]
-  download_static_lib_binaries();
 
   // Don't build V8 if the rust language server (RLS) is running.
   let is_rls = env::var_os("CARGO")
@@ -26,9 +28,12 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if !(is_trybuild || is_cargo_doc | is_rls) {
+  if BINARY_BUILD {
+    download_static_lib_binaries();
+  } else if !(is_trybuild || is_cargo_doc | is_rls) {
     build_v8()
   }
+
   if !(is_cargo_doc || is_rls) {
     print_link_flags()
   }
@@ -169,18 +174,6 @@ fn download_ninja_gn_binaries() {
   env::set_var("NINJA", ninja);
 }
 
-pub fn is_debug() -> bool {
-  let m = std::env::var("PROFILE").unwrap();
-  if m == "release" {
-    false
-  } else if m == "debug" {
-    true
-  } else {
-    panic!("unhandled PROFILE value {}", m)
-  }
-}
-
-#[cfg(feature = "binary")]
 fn static_lib_url() -> (String, String) {
   let target = std::env::var("TARGET").unwrap();
   let profile = std::env::var("PROFILE").unwrap();
@@ -200,7 +193,6 @@ fn static_lib_url() -> (String, String) {
   }
 }
 
-#[cfg(feature = "binary")]
 fn download_static_lib_binaries() {
   let (url, static_lib_name) = static_lib_url();
   println!("static lib URL: {}", url);
@@ -222,6 +214,8 @@ fn download_static_lib_binaries() {
   let obj_dir = target_dir.join("gn_out").join("obj");
   std::fs::create_dir_all(&obj_dir).unwrap();
 
+  println!("cargo:rustc-link-search={}", obj_dir.display());
+
   let filename = obj_dir.join(static_lib_name);
 
   if filename.exists() {
@@ -242,7 +236,6 @@ fn download_static_lib_binaries() {
     assert!(status.success());
     assert!(filename.exists());
   }
-  exit(0);
 }
 
 fn print_link_flags() {
