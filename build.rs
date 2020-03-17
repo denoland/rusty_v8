@@ -170,20 +170,19 @@ fn download_ninja_gn_binaries() {
 }
 
 fn static_lib_url() -> (String, String) {
-  let base = "https://github.com/denoland/rusty_v8/releases/download/v0.3.6/";
-  let target = std::env::var("TARGET").unwrap();
-  #[cfg(windows)]
-  {
+  let base = "https://github.com/denoland/rusty_v8/releases/download";
+  let version = env::var("CARGO_PKG_VERSION").unwrap();
+  let target = env::var("TARGET").unwrap();
+  if cfg!(target_os = "windows") {
     // Note: we always use the release build on windows.
-    let url = format!("{}/rusty_v8_release_{}.lib", base, target);
+    let url = format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target);
     let static_lib_name = "rusty_v8.lib".to_string();
     (url, static_lib_name)
-  }
-  #[cfg(not(windows))]
-  {
-    let profile = std::env::var("PROFILE").unwrap();
+  } else {
+    let profile = env::var("PROFILE").unwrap();
     assert!(profile == "release" || profile == "debug");
-    let url = format!("{}/librusty_v8_{}_{}.a", base, profile, target);
+    let url =
+      format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target);
     let static_lib_name = "librusty_v8.a".to_string();
     (url, static_lib_name)
   }
