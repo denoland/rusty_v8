@@ -17,7 +17,6 @@ except ImportError:  # For Py3 compatibility
 def DownloadUrl(url, output_file):
     """Download url into output_file."""
     CHUNK_SIZE = 4096
-    TOTAL_DOTS = 10
     num_retries = 3
     retry_wait_s = 5  # Doubled at each retry.
 
