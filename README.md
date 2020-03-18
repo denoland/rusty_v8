@@ -62,13 +62,14 @@ V8 is very large and take a long time to compile. Many users may prefer to use
 a prebuilt version of V8. We publish static libs for every version of rusty v8
 on [Github](https://github.com/denoland/rusty_v8/releases).
 
-To use these prebuilt binaries use the `binary` feature:
+To use these prebuilt binaries use the `V8_BINARY=1` environmental variable:
 
 ```
-cargo build --features="binary"
+V8_BINARY=1 cargo build
 ```
 
-This will cause rusty v8 to download the binaries during the build process.
+This will cause rusty v8 to download the static lib binary during the build
+process.
 
 ## FAQ
 

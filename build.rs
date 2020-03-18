@@ -23,7 +23,7 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if cfg!(feature = "binary") {
+  if env::var_os("V8_BINARY").is_some() {
     download_static_lib_binaries();
   } else if !(is_trybuild || is_cargo_doc | is_rls) {
     build_v8()
