@@ -32,5 +32,5 @@ default_args = {
   v8_use_external_startup_data = false
   v8_use_snapshot = true
   is_component_build = false
-  symbol_level = 0
+  symbol_level = 1
 }
