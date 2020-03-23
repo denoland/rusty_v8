@@ -37,6 +37,7 @@ extern "C" {
     context: Local<Context>,
     index: u32,
   ) -> *mut Value;
+  fn v8__Object__GetPrototype(object: &Object) -> *mut Value;
   fn v8__Object__Set(
     object: &Object,
     context: Local<Context>,
@@ -48,6 +49,11 @@ extern "C" {
     context: Local<Context>,
     index: u32,
     value: Local<Value>,
+  ) -> MaybeBool;
+  fn v8__Object__SetPrototype(
+    object: &Object,
+    context: Local<Context>,
+    prototype: Local<Value>,
   ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
     object: &Object,
@@ -128,6 +134,16 @@ impl Object {
     unsafe { v8__Object__SetIndex(self, context, index, value) }.into()
   }
 
+  /// Set the prototype object. This does not skip objects marked to be
+  /// skipped by proto and it does not consult the security handler.
+  pub fn set_prototype(
+    &self,
+    context: Local<Context>,
+    prototype: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Object__SetPrototype(self, context, prototype) }.into()
+  }
+
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
   ///
   /// Defines a configurable, writable, enumerable property with the given value
@@ -181,6 +197,18 @@ impl Object {
   ) -> Option<Local<'a, Value>> {
     unsafe {
       let ptr = v8__Object__GetIndex(self, context, index);
+      scope.to_local(ptr)
+    }
+  }
+
+  /// Get the prototype object. This does not skip objects marked to be
+  /// skipped by proto and it does not consult the security handler.
+  pub fn get_prototype<'a>(
+    &self,
+    scope: &mut impl ToLocal<'a>,
+  ) -> Option<Local<'a, Value>> {
+    unsafe {
+      let ptr = v8__Object__GetPrototype(self);
       scope.to_local(ptr)
     }
   }
