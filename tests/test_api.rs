@@ -2805,3 +2805,32 @@ fn take_heap_snapshot() {
     assert!(s.find(r#""Eyecatcher""#).is_some());
   }
 }
+
+#[test]
+fn test_prototype_api() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let obj = v8::Object::new(scope);
+    let proto_obj = v8::Object::new(scope);
+    let key_local: v8::Local<v8::Value> =
+      v8::String::new(scope, "test_proto_key").unwrap().into();
+    let value_local: v8::Local<v8::Value> =
+      v8::String::new(scope, "test_proto_value").unwrap().into();
+    proto_obj.set(context, key_local, value_local);
+    obj.set_prototype(context, proto_obj.into());
+
+    let sub_gotten = obj.get(scope, context, key_local).unwrap();
+    assert!(sub_gotten.is_string());
+    let sub_gotten = sub_gotten.to_string(scope).unwrap();
+    assert_eq!(sub_gotten.to_rust_string_lossy(scope), "test_proto_value");
+  }
+}
