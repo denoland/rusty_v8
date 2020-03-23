@@ -2828,9 +2828,38 @@ fn test_prototype_api() {
     proto_obj.set(context, key_local, value_local);
     obj.set_prototype(context, proto_obj.into());
 
+    assert!(obj
+      .get_prototype(scope)
+      .unwrap()
+      .same_value(proto_obj.into()));
+
     let sub_gotten = obj.get(scope, context, key_local).unwrap();
     assert!(sub_gotten.is_string());
     let sub_gotten = sub_gotten.to_string(scope).unwrap();
     assert_eq!(sub_gotten.to_rust_string_lossy(scope), "test_proto_value");
+  }
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let obj = v8::Object::new(scope);
+    obj.set_prototype(context, v8::null(scope).into());
+
+    assert!(obj.get_prototype(scope).unwrap().is_null());
+  }
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let val = eval(scope, context, "({ __proto__: null })").unwrap();
+    let obj = val.to_object(scope).unwrap();
+
+    assert!(obj.get_prototype(scope).unwrap().is_null());
   }
 }
