@@ -31,7 +31,7 @@ V8 Version: 8.2.308, 2020-03-12
 
 ## Binary Build
 
-V8 is very large and take a long time to compile. Many users will prefer to use
+V8 is very large and takes a long time to compile. Many users will prefer to use
 a prebuilt version of V8. We publish static libs for every version of rusty v8
 on [Github](https://github.com/denoland/rusty_v8/releases).
 
