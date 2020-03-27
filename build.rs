@@ -23,10 +23,10 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if env::var_os("V8_BINARY").is_some() {
-    download_static_lib_binaries();
-  } else if !(is_trybuild || is_cargo_doc | is_rls) {
+  if env::var_os("V8_FROM_SOURCE").is_some() {
     build_v8()
+  } else if !(is_trybuild || is_cargo_doc | is_rls) {
+    download_static_lib_binaries();
   }
 
   if !(is_cargo_doc || is_rls) {

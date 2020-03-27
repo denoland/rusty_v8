@@ -29,12 +29,26 @@ V8 Version: 8.2.308, 2020-03-12
    Due to the complexity and size of V8's build, this is nontrivial. For example
    the crate size must be kept under 10 MiB in order to publish.
 
+## Binary Build
+
+V8 is very large and takes a long time to compile. Many users will prefer to use
+a prebuilt version of V8. We publish static libs for every version of rusty v8
+on [Github](https://github.com/denoland/rusty_v8/releases).
+
+Binaries builds are turned on by default: `cargo build` will initiate a download
+from github to get the static lib. To disable this build using the
+`V8_FROM_SOURCE` environmental variable.
+
+When making changes to rusty_v8 itself, it should be tested by build from
+source. The CI always builds from source.
+
 ## Build V8 from Source
 
-Use `cargo build -vv` to build the crate.
+Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
+source.
 
-Depends on Python 2.7, not Python 3. [Do not open issues with us regarding
-Python 3; it's something that must be fixed in
+The build scripts on Python 2.7, not Python 3. [Do not open issues with us
+regarding Python 3; it is a non-trivial problem that must be fixed in
 Chromium.](https://bugs.chromium.org/p/chromium/issues/detail?id=942720).
 
 For linux builds: glib-2.0 development files need to be installed such that
@@ -54,22 +68,8 @@ providing a `$CLANG_BASE_PATH` environmental variable pointing to a recent
 You could also pass in additional arguments to `gn` by setting the `$GN_ARGS`
 environmental variable.
 
-Env vars used in build.rs: `SCCACHE`, `GN`, `NINJA`, `CLANG_BASE_PATH`, `GN_ARGS`
-
-## Binary Build
-
-V8 is very large and take a long time to compile. Many users may prefer to use
-a prebuilt version of V8. We publish static libs for every version of rusty v8
-on [Github](https://github.com/denoland/rusty_v8/releases).
-
-To use these prebuilt binaries use the `V8_BINARY=1` environmental variable:
-
-```
-V8_BINARY=1 cargo build
-```
-
-This will cause rusty v8 to download the static lib binary during the build
-process.
+Env vars used in when building from source: `SCCACHE`, `GN`, `NINJA`,
+`CLANG_BASE_PATH`, `GN_ARGS`
 
 ## FAQ
 
@@ -93,7 +93,7 @@ GN/Ninja.
 generation of this binding code?**
 
 In the limit we would like to auto-generate bindings. We have actually started
-down this route several times, however due to many excentric features of the V8
+down this route several times, however due to many eccentric features of the V8
 API, this has not proven successful. Therefore we are proceeding in a
 brute-force fashion for now, focusing on solving our stated goals first. We hope
 to auto-generate bindings in the future.

@@ -36,6 +36,9 @@ jobs:
             variant: "release"
             # Note we do not support windows debug builds.
 
+    env:
+      V8_FROM_SOURCE: true
+
     steps:
       - name: Configure git
         run: git config --global core.symlinks true
