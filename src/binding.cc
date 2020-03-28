@@ -190,6 +190,10 @@ void v8__Isolate__CancelTerminateExecution(v8::Isolate* isolate) {
   isolate->CancelTerminateExecution();
 }
 
+void v8__Isolate__RequestGarbageCollectionForTesting(v8::Isolate* isolate, int type) {
+  isolate->RequestGarbageCollectionForTesting((v8::Isolate::GarbageCollectionType) type);
+}
+
 v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
   return new v8::Isolate::CreateParams();
 }
@@ -271,6 +275,37 @@ v8::Value* v8__Global__New(v8::Isolate* isolate, v8::Value* other) {
   // for class `v8::Global`.
   auto global = v8::Global<v8::Value>(isolate, ptr_to_local(other));
   return make_pod<v8::Value*>(std::move(global));
+}
+
+struct v8__Global__Callback__Data {
+  void (*callback)(void*, v8::Isolate*);
+  void* parameter;
+};
+
+void v8__Global__Callback(const v8::WeakCallbackInfo<struct v8__Global__Callback__Data> &data) {
+  auto parameter = data.GetParameter();
+  (parameter->callback)(parameter->parameter, data.GetIsolate());
+  delete parameter;
+}
+
+void v8__Global__SetWeak(v8::Value*& self, void* parameter, void (*callback)(void*, v8::Isolate*)) {
+  auto global = ptr_to_global(self);
+  auto callback_data = new v8__Global__Callback__Data { callback, parameter };
+  global.SetWeak(callback_data, v8__Global__Callback, v8::WeakCallbackType::kParameter);
+  self = make_pod<v8::Value*>(std::move(global));
+}
+
+bool v8__Global__IsWeak(v8::Value*& self) {
+  auto global = ptr_to_global(self);
+  bool is_weak = global.IsWeak();
+  self = make_pod<v8::Value*>(std::move(global));
+  return is_weak;
+}
+
+void v8__Global__ClearWeak(v8::Value*& self) {
+  auto global = ptr_to_global(self);
+  global.ClearWeak();
+  self = make_pod<v8::Value*>(std::move(global));
 }
 
 void v8__Global__Reset__0(v8::Value*& self) {
@@ -704,6 +739,14 @@ v8::Object* v8__ObjectTemplate__NewInstance(v8::ObjectTemplate& self,
   return maybe_local_to_ptr(self.NewInstance(context));
 }
 
+int v8__ObjectTemplate__InternalFieldCount(v8::ObjectTemplate& self) {
+  return self.InternalFieldCount();
+}
+
+void v8__ObjectTemplate__SetInternalFieldCount(v8::ObjectTemplate& self, int value) {
+  self.SetInternalFieldCount(value);
+}
+
 v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
@@ -779,6 +822,26 @@ int v8__Object__GetIdentityHash(v8::Object& self) {
 
 v8::Context* v8__Object__CreationContext(v8::Object& self) {
   return local_to_ptr(self.CreationContext());
+}
+
+void v8__Object__SetAlignedPointerInInternalField(v8::Object& self, int index, void* value) {
+  self.SetAlignedPointerInInternalField(index, value);
+}
+
+void* v8__Object__GetAlignedPointerInInternalField(v8::Object& self, int index) {
+  return self.GetAlignedPointerFromInternalField(index);
+}
+
+void v8__Object__SetInternalField(v8::Object& self, int index, v8::Local<v8::Value> value) {
+  self.SetInternalField(index, value);
+}
+
+v8::Value* v8__Object__GetInternalField(v8::Object& self, int index) {
+  return local_to_ptr(self.GetInternalField(index));
+}
+
+int v8__Object__InternalFieldCount(v8::Object& self) {
+  return self.InternalFieldCount();
 }
 
 v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {

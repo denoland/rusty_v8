@@ -661,7 +661,6 @@ fn add_message_listener() {
     let frame = stack_trace.get_frame(scope, 0).unwrap();
     assert_eq!(1, frame.get_line_number());
     assert_eq!(1, frame.get_column());
-    assert_eq!(3, frame.get_script_id());
     assert!(frame.get_script_name(scope).is_none());
     assert!(frame.get_script_name_or_source_url(scope).is_none());
     assert!(frame.get_function_name(scope).is_none());
@@ -2926,5 +2925,100 @@ fn test_map_api() {
       map_array.get_index(scope, context, 3).unwrap()
         == v8::Number::new(scope, 8f64)
     );
+  }
+}
+
+fn test_object_internal_fields() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let mut template = v8::ObjectTemplate::new(scope);
+    template.set_internal_field_count(1);
+    assert_eq!(template.internal_field_count(), 1);
+
+    let mut obj = template.new_instance(scope, context).unwrap();
+    assert_eq!(obj.internal_field_count(), 1);
+
+    let mut internal_field_value = vec![1, 2, 3];
+    unsafe {
+      obj.set_internal_field_ptr(0, &mut internal_field_value as *mut Vec<i32>)
+    };
+    assert_eq!(obj.internal_field_count(), 1);
+
+    let internal_field_value_gotten =
+      unsafe { obj.get_internal_field_ptr::<Vec<i32>>(0).as_mut().unwrap() };
+    assert!(std::ptr::eq(
+      &internal_field_value,
+      internal_field_value_gotten
+    ));
+  }
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let mut template = v8::ObjectTemplate::new(scope);
+    template.set_internal_field_count(1);
+    assert_eq!(template.internal_field_count(), 1);
+
+    let mut obj = template.new_instance(scope, context).unwrap();
+    assert_eq!(obj.internal_field_count(), 1);
+
+    let internal_field_value: v8::Local<v8::Value> =
+      v8::Object::new(scope).into();
+    unsafe { obj.set_internal_field(0, internal_field_value) };
+    assert_eq!(obj.internal_field_count(), 1);
+
+    let internal_field_value_gotten = unsafe { obj.get_internal_field(0) };
+    assert!(internal_field_value == internal_field_value_gotten);
+    assert!(internal_field_value.same_value(internal_field_value_gotten));
+  }
+}
+
+#[test]
+fn test_global_weak() {
+  let _setup_guard = setup();
+  v8::V8::set_flags_from_command_line(vec![
+    "".to_string(),
+    "--expose_gc".to_string(),
+  ]);
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  {
+    let mut global_obj = v8::Global::new();
+    {
+      let mut hs = v8::HandleScope::new(&mut isolate);
+      let scope = hs.enter();
+      let context = v8::Context::new(scope);
+      let mut cs = v8::ContextScope::new(scope, context);
+      let scope = cs.enter();
+
+      let obj = v8::Object::new(scope);
+
+      global_obj.set(scope, obj);
+      assert_eq!(global_obj.is_weak(), false);
+      assert_eq!(global_obj.is_empty(), false);
+      assert!(global_obj.get(scope).unwrap().same_value(obj.into()));
+
+      global_obj.set_weak();
+      assert_eq!(global_obj.is_weak(), true);
+    }
+
+    assert_eq!(global_obj.is_empty(), false);
+    isolate.request_garbage_collection_for_testing(
+      v8::GarbageCollectionType::kFullGarbageCollection,
+    );
+    assert_eq!(global_obj.is_empty(), true);
   }
 }

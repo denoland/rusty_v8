@@ -117,6 +117,10 @@ extern "C" {
     isolate: *mut Isolate,
     microtask: Local<Function>,
   );
+  fn v8__Isolate__RequestGarbageCollectionForTesting(
+    isolate: *mut Isolate,
+    gc_type: GarbageCollectionType,
+  );
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
   fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
@@ -137,6 +141,13 @@ extern "C" {
     callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
     arg: *mut c_void,
   );
+}
+
+#[allow(non_camel_case_types)]
+#[repr(i32)]
+pub enum GarbageCollectionType {
+  kFullGarbageCollection,
+  kMinorGarbageCollection,
 }
 
 #[repr(C)]
@@ -331,6 +342,20 @@ impl Isolate {
 
     let arg = &mut callback as *mut F as *mut c_void;
     unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
+  }
+
+  /// Request garbage collection in this Isolate. It is only valid to call this
+  /// function if –expose_gc was specified.
+  /// This should only be used for testing purposes and not to enforce a
+  /// garbage collection schedule. It has strong negative impact on the garbage
+  /// collection performance. Use IdleNotificationDeadline() or
+  /// LowMemoryNotification() instead to influence the
+  /// garbage collection schedule.
+  pub fn request_garbage_collection_for_testing(
+    &mut self,
+    gc_type: GarbageCollectionType,
+  ) {
+    unsafe { v8__Isolate__RequestGarbageCollectionForTesting(self, gc_type) };
   }
 }
 

@@ -4,6 +4,7 @@ use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::isolate::Isolate;
+use crate::support::int;
 use crate::support::MapFnTo;
 use crate::Context;
 use crate::Function;
@@ -14,6 +15,7 @@ use crate::PropertyAttribute;
 use crate::String;
 use crate::ToLocal;
 use crate::NONE;
+use std::ptr::NonNull;
 
 extern "C" {
   fn v8__Template__Set(
@@ -44,6 +46,13 @@ extern "C" {
     self_: &ObjectTemplate,
     context: *mut Context,
   ) -> *mut Object;
+  fn v8__ObjectTemplate__InternalFieldCount(
+    template: NonNull<ObjectTemplate>,
+  ) -> int;
+  fn v8__ObjectTemplate__SetInternalFieldCount(
+    template: NonNull<ObjectTemplate>,
+    value: int,
+  );
 }
 
 impl Template {
@@ -121,5 +130,19 @@ impl ObjectTemplate {
   ) -> Option<Local<'a, Object>> {
     let ptr = unsafe { v8__ObjectTemplate__NewInstance(self, &mut *context) };
     unsafe { scope.to_local(ptr) }
+  }
+
+  /// Gets the number of internal fields for objects generated from this
+  /// template.
+  pub fn internal_field_count(&self) -> i32 {
+    unsafe { v8__ObjectTemplate__InternalFieldCount(NonNull::from(self)) }
+  }
+
+  /// Sets the number of internal fields for objects generated from this
+  /// template.
+  pub fn set_internal_field_count(&mut self, value: i32) {
+    unsafe {
+      v8__ObjectTemplate__SetInternalFieldCount(NonNull::from(self), value)
+    };
   }
 }
