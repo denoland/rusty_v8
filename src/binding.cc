@@ -1303,6 +1303,29 @@ v8::Object* v8__PropertyCallbackInfo__This(
   return local_to_ptr(self.This());
 }
 
+v8::Proxy* v8__Proxy__New(v8::Local<v8::Context> context, 
+                          v8::Local<v8::Object> target,
+                          v8::Local<v8::Object> handler) {
+  return maybe_local_to_ptr(v8::Proxy::New(context, target, handler));
+}
+
+v8::Value* v8__Proxy__GetHandler(v8::Proxy* self){
+    return local_to_ptr(self->GetHandler());
+}
+
+v8::Value* v8__Proxy__GetTarget(v8::Proxy* self){
+    return local_to_ptr(self->GetTarget());
+}
+
+bool v8__Proxy__IsRevoked(v8::Proxy* self) {
+  return self->IsRevoked();
+}
+
+void v8__Proxy__Revoke(v8::Proxy* self) {
+  self->Revoke();
+}
+
+
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>& buf,
                                     const intptr_t* external_references) {
   construct_in_place<v8::SnapshotCreator>(buf, external_references);
