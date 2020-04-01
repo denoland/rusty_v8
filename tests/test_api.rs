@@ -1295,6 +1295,30 @@ fn promise_rejected() {
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
   }
 }
+#[test]
+fn proxy() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+    let target = v8::Object::new(scope);
+    let handler = v8::Object::new(scope);
+    let maybe_proxy = v8::Proxy::new(scope, context, target, handler);
+    assert!(maybe_proxy.is_some());
+    let mut proxy = maybe_proxy.unwrap();
+    assert!(target == proxy.get_target(scope));
+    assert!(handler == proxy.get_handler(scope));
+    assert!(!proxy.is_revoked());
+    proxy.revoke();
+    assert!(proxy.is_revoked());
+  }
+}
 
 fn fn_callback(
   scope: v8::FunctionCallbackScope,
