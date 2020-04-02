@@ -286,6 +286,8 @@ impl Map {
   pub fn size(&self) -> usize {
     unsafe { v8__Map__Size(self) }
   }
+  /// Returns an array of length size() * 2, where index N is the Nth key and
+  /// index N + 1 is the Nth value.
   pub fn as_array<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
