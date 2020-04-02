@@ -1295,7 +1295,6 @@ fn promise_rejected() {
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
   }
 }
-
 #[test]
 fn proxy() {
   let _setup_guard = setup();
@@ -2210,32 +2209,11 @@ fn value_checker() {
     assert!(value == v8::Local::<v8::Promise>::try_from(value).unwrap());
     assert!(value != v8::Object::new(scope));
 
-    let value = eval(scope, context, "new Map([['r','s'],['v',8]])").unwrap();
+    let value = eval(scope, context, "new Map()").unwrap();
     assert!(value.is_map());
     assert!(value == value);
     assert!(value == v8::Local::<v8::Map>::try_from(value).unwrap());
     assert!(value != v8::Object::new(scope));
-    assert_eq!(v8::Local::<v8::Map>::try_from(value).unwrap().size(), 2);
-    let map = v8::Local::<v8::Map>::try_from(value).unwrap();
-    assert_eq!(map.size(), 2);
-    let map_array = map.as_array(scope);
-    assert_eq!(map_array.length(), 4);
-    assert!(
-      map_array.get_index(scope, context, 0).unwrap()
-        == v8::String::new(scope, "r").unwrap()
-    );
-    assert!(
-      map_array.get_index(scope, context, 1).unwrap()
-        == v8::String::new(scope, "s").unwrap()
-    );
-    assert!(
-      map_array.get_index(scope, context, 2).unwrap()
-        == v8::String::new(scope, "v").unwrap()
-    );
-    assert!(
-      map_array.get_index(scope, context, 3).unwrap()
-        == v8::Number::new(scope, 8f64)
-    );
 
     let value = eval(scope, context, "new Set").unwrap();
     assert!(value.is_set());
@@ -2907,5 +2885,47 @@ fn test_prototype_api() {
     let obj = val.to_object(scope).unwrap();
 
     assert!(obj.get_prototype(scope).unwrap().is_null());
+  }
+}
+
+#[test]
+fn test_map_api() {
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let value = eval(scope, context, "new Map([['r','s'],['v',8]])").unwrap();
+    assert!(value.is_map());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Map>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
+    assert_eq!(v8::Local::<v8::Map>::try_from(value).unwrap().size(), 2);
+    let map = v8::Local::<v8::Map>::try_from(value).unwrap();
+    assert_eq!(map.size(), 2);
+    let map_array = map.as_array(scope);
+    assert_eq!(map_array.length(), 4);
+    assert!(
+      map_array.get_index(scope, context, 0).unwrap()
+        == v8::String::new(scope, "r").unwrap()
+    );
+    assert!(
+      map_array.get_index(scope, context, 1).unwrap()
+        == v8::String::new(scope, "s").unwrap()
+    );
+    assert!(
+      map_array.get_index(scope, context, 2).unwrap()
+        == v8::String::new(scope, "v").unwrap()
+    );
+    assert!(
+      map_array.get_index(scope, context, 3).unwrap()
+        == v8::Number::new(scope, 8f64)
+    );
   }
 }
