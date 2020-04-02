@@ -6,6 +6,7 @@ use crate::AccessorNameGetterCallback;
 use crate::Array;
 use crate::Context;
 use crate::Local;
+use crate::Map;
 use crate::Name;
 use crate::Object;
 use crate::PropertyAttribute;
@@ -78,6 +79,8 @@ extern "C" {
     length: usize,
   ) -> *mut Array;
   fn v8__Array__Length(array: &Array) -> u32;
+  fn v8__Map__Size(map: &Map) -> usize;
+  fn v8__Map__As__Array(map: &Map) -> *mut Array;
 }
 
 impl Object {
@@ -276,5 +279,18 @@ impl Array {
 
   pub fn length(&self) -> u32 {
     unsafe { v8__Array__Length(self) }
+  }
+}
+
+impl Map {
+  pub fn size(&self) -> usize {
+    unsafe { v8__Map__Size(self) }
+  }
+  pub fn as_array<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Local<'sc, Array> {
+    let ptr = unsafe { v8__Map__As__Array(self) };
+    unsafe { scope.to_local(ptr) }.unwrap()
   }
 }
