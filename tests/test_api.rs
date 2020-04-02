@@ -2903,7 +2903,6 @@ fn test_map_api() {
 
     let value = eval(scope, context, "new Map([['r','s'],['v',8]])").unwrap();
     assert!(value.is_map());
-    assert!(value == value);
     assert!(value == v8::Local::<v8::Map>::try_from(value).unwrap());
     assert!(value != v8::Object::new(scope));
     assert_eq!(v8::Local::<v8::Map>::try_from(value).unwrap().size(), 2);
