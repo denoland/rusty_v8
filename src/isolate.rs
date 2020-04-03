@@ -383,11 +383,11 @@ impl IsolateHandle {
   // This function is marked unsafe because it must be called only with either
   // IsolateAnnex::mutex locked, or from the main thread associated with the V8
   // isolate.
-  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub unsafe fn get_isolate_ptr(&self) -> *mut Isolate {
     self.0.isolate
   }
 
-  pub(crate) fn new(isolate: &mut Isolate) -> Self {
+  pub fn new(isolate: &mut Isolate) -> Self {
     let annex_ptr = isolate.get_annex();
     if annex_ptr.is_null() {
       let annex_arc = Arc::new(IsolateAnnex::new(isolate));
