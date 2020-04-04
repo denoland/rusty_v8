@@ -98,9 +98,6 @@ jobs:
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/" +
                  "$version/$basename.tar.gz"
-                 
-          echo "pwd: $(pwd)"
-          echo "real: $(realpath .)"
 
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
@@ -108,6 +105,11 @@ jobs:
 
           echo "::add-path::$(pwd)/$basename"
           echo "::set-env name=RUSTC_WRAPPER::sccache"
+
+      - name: Debug
+        run: |
+          which sccache
+          echo $PATH
 
       - name: Test debug
         if: matrix.config.variant == 'debug'
