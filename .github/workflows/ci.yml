@@ -37,8 +37,10 @@ jobs:
             # Note we do not support windows debug builds.
 
     env:
+      CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
+      LIB_NAME_OUTPUT: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8.${{ runner.os == 'Windows' && 'lib' || 'a' }}
+      LIB_NAME_RELEASE: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ runner.os == 'Windows' && 'lib' || 'a' }}
       V8_FROM_SOURCE: true
-      FOO: ${{ matrix.config.variant == 'release' && '--release' || '' }}
 
     steps:
       - name: Configure git
@@ -73,7 +75,9 @@ jobs:
         run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
 
       - name: Lala
-        run: echo ${{ env.FOO }}
+        run: |
+          echo ${{ env.LIB_NAME_OUTPUT }}
+          echo ${{ env.LIB_NAME_RELEASE }}
 
       - name: Cache
         uses: actions/cache@master
@@ -116,21 +120,13 @@ jobs:
 
           echo "::add-path::$(pwd)/$basename"
 
-      - name: Test debug
-        if: matrix.config.variant == 'debug'
-        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
-
-      - name: Clippy debug
-        if: matrix.config.variant == 'debug'
-        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} -- -D clippy::all
-
-      - name: Test release
+      - name: Test
         if: matrix.config.variant == 'release'
-        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} --release
+        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }}
 
-      - name: Clippy release
+      - name: Clippy
         if: matrix.config.variant == 'release'
-        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} --release -- -D clippy::all
+        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
@@ -138,7 +134,7 @@ jobs:
       - name: Prepare Binary Publish - unix
         if: runner.os != 'Windows'
         run: |
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/${{ env.LIB_PREFIX }}rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXTENSION }}
 
       - name: Prepare Binary Publish - windows
         if: runner.os == 'Windows'
