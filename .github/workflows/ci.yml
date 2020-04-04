@@ -38,9 +38,11 @@ jobs:
 
     env:
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
-      LIB_NAME_OUTPUT: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8.${{ runner.os == 'Windows' && 'lib' || 'a' }}
-      LIB_NAME_RELEASE: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ runner.os == 'Windows' && 'lib' || 'a' }}
+      #LIB_NAME_OUTPUT: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8.${{ runner.os == 'Windows' && 'lib' || 'a' }}
+      #LIB_NAME_RELEASE: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ runner.os == 'Windows' && 'lib' || 'a' }}
       V8_FROM_SOURCE: true
+      LIB_NAME_OUTPUT: ${{ runner.os == 'Windows' }}
+      LIB_NAME_RELEASE: ${{ runner.os == 'Windows' }}
 
     steps:
       - name: Configure git
