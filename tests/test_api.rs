@@ -2944,8 +2944,16 @@ fn test_object_properties() {
 
     let obj = v8::Object::new(scope);
     let proto_obj = v8::Object::new(scope);
-    obj.set(context, v8::String::new(scope, "test").unwrap().into(), v8::null(scope).into());
-    proto_obj.set(context, v8::String::new(scope, "proto_test").unwrap().into(), v8::null(scope).into());
+    obj.set(
+      context,
+      v8::String::new(scope, "test").unwrap().into(),
+      v8::null(scope).into(),
+    );
+    proto_obj.set(
+      context,
+      v8::String::new(scope, "proto_test").unwrap().into(),
+      v8::null(scope).into(),
+    );
     obj.set_prototype(context, proto_obj.into());
 
     let own_props = obj.get_own_property_names(scope, context).unwrap();
@@ -2959,5 +2967,35 @@ fn test_object_properties() {
     assert_eq!(all_props.len(), 2);
     assert_eq!(all_props.get(0).unwrap(), "proto_test");
     assert_eq!(all_props.get(1).unwrap(), "test");
+  }
+  {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let scope = hs.enter();
+    let context = v8::Context::new(scope);
+    let mut cs = v8::ContextScope::new(scope, context);
+    let scope = cs.enter();
+
+    let obj = v8::Object::new(scope);
+    obj.set(
+      context,
+      v8::String::new(scope, "test").unwrap().into(),
+      v8::null(scope).into(),
+    );
+    let global = context.global(scope);
+    global.set(
+      context,
+      v8::String::new(scope, "test_data").unwrap().into(),
+      obj.into(),
+    );
+    eval(
+      scope,
+      context,
+      "test_data[Symbol('test_symbol')] = 'should not exist'",
+    )
+    .unwrap();
+
+    let own_props = obj.get_own_property_names(scope, context).unwrap();
+    assert_eq!(own_props.len(), 1);
+    assert_eq!(own_props.get(0).unwrap(), "test");
   }
 }

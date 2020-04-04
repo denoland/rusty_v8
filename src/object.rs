@@ -72,8 +72,14 @@ extern "C" {
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
   fn v8__Object__CreationContext(object: &Object) -> *mut Context;
-  fn v8__Object__GetOwnPropertyNames(object: &Object, context: Local<Context>) -> *mut Value;
-  fn v8__Object__GetPropertyNames(object: &Object, context: Local<Context>) -> *mut Value;
+  fn v8__Object__GetOwnPropertyNames(
+    object: &Object,
+    context: Local<Context>,
+  ) -> *mut Value;
+  fn v8__Object__GetPropertyNames(
+    object: &Object,
+    context: Local<Context>,
+  ) -> *mut Value;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
   fn v8__Array__New_with_elements(
@@ -250,8 +256,14 @@ impl Object {
     }
   }
 
-  fn resolve_js_array<'sc>(&self, scope: &mut impl ToLocal<'sc>, context: Local<Context>, raw_name_ptr: *mut Value) -> Option<Vec<String>> {
-    let raw_names: Local<Array> = unsafe { scope.to_local(raw_name_ptr) }?.try_into().ok()?;
+  fn resolve_js_array<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+    raw_name_ptr: *mut Value,
+  ) -> Option<Vec<String>> {
+    let raw_names: Local<Array> =
+      unsafe { scope.to_local(raw_name_ptr) }?.try_into().ok()?;
     let mut names: Vec<String> = vec![];
     for i in 0..raw_names.length() {
       let local = raw_names.get_index(scope, context, i)?;
@@ -261,12 +273,21 @@ impl Object {
     Some(names)
   }
 
-  pub fn get_own_property_names<'sc>(&self, scope: &mut impl ToLocal<'sc>, context: Local<Context>) -> Option<Vec<String>> {
-    let raw_name_ptr = unsafe { v8__Object__GetOwnPropertyNames(self, context) };
+  pub fn get_own_property_names<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+  ) -> Option<Vec<String>> {
+    let raw_name_ptr =
+      unsafe { v8__Object__GetOwnPropertyNames(self, context) };
     self.resolve_js_array(scope, context, raw_name_ptr)
   }
 
-  pub fn get_property_names<'sc>(&self, scope: &mut impl ToLocal<'sc>, context: Local<Context>) -> Option<Vec<String>> {
+  pub fn get_property_names<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+  ) -> Option<Vec<String>> {
     let raw_name_ptr = unsafe { v8__Object__GetPropertyNames(self, context) };
     self.resolve_js_array(scope, context, raw_name_ptr)
   }
