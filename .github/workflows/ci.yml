@@ -75,15 +75,15 @@ jobs:
         uses: actions/cache@master
         with:
           # Note: rusty_v8 targets always get get rebuilt, and their outputs
-          # ('librusty_v8.rlib' etc.) can be quite big, so we cache only those
-          # subdirectories of target/{debug|release} that contain the build
-          # output for crates that come from the registry.
+          # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
+          # quite big, so we cache only those subdirectories of
+          # target/{debug|release} that contain the build output for crates that
+          # come from the registry.
           path: |-
             .cargo_home
             target/*/.*
             target/*/build
             target/*/deps
-            target/*/gn_out
           key:
             ${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ hashFiles('Cargo.lock') }}
 
@@ -111,7 +111,6 @@ jobs:
           . $basename/sccache --start-server
 
           echo "::add-path::$(pwd)/$basename"
-          echo "::set-env name=RUSTC_WRAPPER::sccache"
 
       - name: Test debug
         if: matrix.config.variant == 'debug'
