@@ -71,6 +71,9 @@ jobs:
         # the workspace dir to be saved/restored incorrectly.
         run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
 
+      - name: Lala
+        run: echo ${{ matrix.config.variant == 'release' && '--release' || '' }}
+
       - name: Cache
         uses: actions/cache@master
         with:
@@ -92,7 +95,7 @@ jobs:
         shell: pwsh
         env:
           SCCACHE_DIR: ${{ github.workspace	}}/target/sccache
-          SCCACHE_CACHE_SIZE: 1G
+          SCCACHE_CACHE_SIZE: 128M
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
           $version = "0.2.12"
