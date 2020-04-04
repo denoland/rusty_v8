@@ -38,11 +38,9 @@ jobs:
 
     env:
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
-      #LIB_NAME_OUTPUT: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8.${{ runner.os == 'Windows' && 'lib' || 'a' }}
-      #LIB_NAME_RELEASE: ${{ runner.os == 'Windows' && '' || 'lib' }}rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ runner.os == 'Windows' && 'lib' || 'a' }}
       V8_FROM_SOURCE: true
-      LIB_NAME_OUTPUT: ${{ runner.os == 'Windows' }}
-      LIB_NAME_RELEASE: ${{ runner.os == 'Windows' }}
+      LIB_BASE: ${{ matrix.config.os.startsWith('windows') && '' || 'lib' }}rusty_v8
+      LIB_EXT: ${{ matrix.config.os.startsWith('windows') && 'lib' || 'a' }}
 
     steps:
       - name: Configure git
@@ -78,8 +76,8 @@ jobs:
 
       - name: Lala
         run: |
-          echo ${{ env.LIB_NAME_OUTPUT }}
-          echo ${{ env.LIB_NAME_RELEASE }}
+          echo ${{ env.LIB_BASE }}.${{ env.LIB_EXT }}
+          echo ${{ env.LIB_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
 
       - name: Cache
         uses: actions/cache@master
