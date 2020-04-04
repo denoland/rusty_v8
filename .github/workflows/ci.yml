@@ -72,7 +72,9 @@ jobs:
         run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
 
       - name: Lala
-        run: echo ${{ matrix.config.variant == 'release' && '--release' || '' }}
+        env:
+          FOO: echo ${{ matrix.config.variant == 'release' && '--release' || '' }}
+        run: echo ${{ env.FOO }}
 
       - name: Cache
         uses: actions/cache@master
