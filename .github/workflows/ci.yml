@@ -39,8 +39,8 @@ jobs:
     env:
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
       V8_FROM_SOURCE: true
-      LIB_BASE: "${{ matrix.config.os.startsWith('windows') && '' || 'lib' }}rusty_v8"
-      LIB_EXT: "${{ matrix.config.os.startsWith('windows') && 'lib' || 'a' }}"
+      LIB_BASE: ${{ startsWith(matrix.config.os.startsWith, 'windows') && '' || 'lib' }}rusty_v8
+      LIB_EXT: ${{ startsWith(matrix.config.os.startsWith, 'windows') && 'lib' || 'a' }}
 
     steps:
       - name: Configure git
