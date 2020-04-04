@@ -38,6 +38,7 @@ jobs:
 
     env:
       V8_FROM_SOURCE: true
+      FOO: echo ${{ matrix.config.variant == 'release' && '--release' || '' }}
 
     steps:
       - name: Configure git
@@ -72,8 +73,6 @@ jobs:
         run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
 
       - name: Lala
-        env:
-          FOO: echo ${{ matrix.config.variant == 'release' && '--release' || '' }}
         run: echo ${{ env.FOO }}
 
       - name: Cache
