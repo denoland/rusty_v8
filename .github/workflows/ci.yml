@@ -38,7 +38,7 @@ jobs:
 
     env:
       V8_FROM_SOURCE: true
-      FOO: echo ${{ matrix.config.variant == 'release' && '--release' || '' }}
+      FOO: ${{ matrix.config.variant == 'release' && '--release' || '' }}
 
     steps:
       - name: Configure git
