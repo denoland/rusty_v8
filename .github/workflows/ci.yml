@@ -65,11 +65,11 @@ jobs:
 
       - name: Configure cargo data directory
         # After this point, all cargo registry and crate data is stored in
-        # $GITHUB_WORKSPACE/.cargo_home. This allows us to cache only the files
+        # $GITHUB_WORKSPACE/target/cargo. This allows us to cache only the files
         # that are needed during the build process. Additionally, this works
         # around a bug in the 'cache' action that causes directories outside of
         # the workspace dir to be saved/restored incorrectly.
-        run: echo "::set-env name=CARGO_HOME::$(pwd)/.cargo_home"
+        run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
 
       - name: Cache
         uses: actions/cache@master
@@ -80,7 +80,8 @@ jobs:
           # target/{debug|release} that contain the build output for crates that
           # come from the registry.
           path: |-
-            .cargo_home
+            target/cargo
+            target/sccache
             target/*/.*
             target/*/build
             target/*/deps
@@ -90,9 +91,8 @@ jobs:
       - name: Install and start sccache
         shell: pwsh
         env:
-          AWS_ACCESS_KEY_ID: AKIA6QEJVNZDGHRMR2KF
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          SCCACHE_BUCKET: deno-sccache
+          SCCACHE_DIR: ${{ github.workspace	}}/target/sccache
+          SCCACHE_CACHE_SIZE: 1G
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
           $version = "0.2.12"
