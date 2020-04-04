@@ -273,6 +273,9 @@ impl Object {
     Some(names)
   }
 
+  /// This function has the same functionality as GetPropertyNames
+  /// but the returned array doesn't contain the names of
+  /// properties from prototype objects.
   pub fn get_own_property_names<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
@@ -283,6 +286,10 @@ impl Object {
     self.resolve_js_array(scope, context, raw_name_ptr)
   }
 
+  /// Returns an array containing the names of the enumerable properties of
+  /// this object, including properties from prototype objects.
+  /// The array returned by this method contains the same values as would be
+  /// enumerated by a for-in statement over this object.
   pub fn get_property_names<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
