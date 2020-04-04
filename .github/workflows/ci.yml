@@ -98,6 +98,9 @@ jobs:
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/" +
                  "$version/$basename.tar.gz"
+                 
+          echo "pwd: $(pwd)"
+          echo "real: $(realpath .)"
 
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
