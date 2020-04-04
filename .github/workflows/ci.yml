@@ -63,26 +63,32 @@ jobs:
           python-version: "2.7.x"
           architecture: x64
 
-      # Cache https://github.com/actions/cache/blob/master/examples.md#rust---cargo
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Configure cargo data directory
+        # After this point, all cargo registry and crate data is stored in
+        # $GITHUB_WORKSPACE/.cargo_home. This allows us to cache only the files
+        # that are needed during the build process. Additionally, this works
+        # around a bug in the 'cache' action that causes directories outside of
+        # the workspace dir to be saved/restored incorrectly.
+        run: echo "::set-env name=CARGO_HOME::$(pwd)/.cargo_home"
+
+      - name: Cache
+        uses: actions/cache@master
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          # Note: rusty_v8 targets always get get rebuilt, and their outputs
+          # ('librusty_v8.rlib' etc.) can be quite big, so we cache only those
+          # subdirectories of target/{debug|release} that contain the build
+          # output for crates that come from the registry.
+          path: |-
+            .cargo_home
+            target/*/.*
+            target/*/build
+            target/*/deps
+            target/*/gn_out
+          key:
+            ${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Install and start sccache
         shell: pwsh
-        working-directory: ${{ runner.temp }}
         env:
           AWS_ACCESS_KEY_ID: AKIA6QEJVNZDGHRMR2KF
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -99,17 +105,13 @@ jobs:
           $url = "https://github.com/mozilla/sccache/releases/download/" +
                  "$version/$basename.tar.gz"
 
+          cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
           . $basename/sccache --start-server
 
           echo "::add-path::$(pwd)/$basename"
           echo "::set-env name=RUSTC_WRAPPER::sccache"
-
-      - name: Debug
-        run: |
-          which sccache
-          echo $PATH
 
       - name: Test debug
         if: matrix.config.variant == 'debug'
