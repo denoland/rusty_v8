@@ -116,16 +116,20 @@ jobs:
           echo "::add-path::$(pwd)/$basename"
 
       - name: Test
-        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }}
+        run: cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          --target ${{ matrix.config.target }}
 
       - name: Clippy
-        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} -- -D clippy::all
+        run: cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
 
       - name: Prepare binary publish
-        run: cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME_BASE }}.${{ env.LIB_NAME_EXT }} target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
+        run: cp
+          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME_BASE }}.${{ env.LIB_NAME_EXT }}
+          target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
 
       - name: Binary publish
         uses: softprops/action-gh-release@v1
