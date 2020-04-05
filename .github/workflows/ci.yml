@@ -37,10 +37,10 @@ jobs:
             # Note we do not support windows debug builds.
 
     env:
+      V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
-      V8_FROM_SOURCE: true
 
     steps:
       - name: Configure git
