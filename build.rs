@@ -88,14 +88,11 @@ fn build_v8() {
     }
   }
 
-  match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
-    "aarch64" => {
-      gn_args.push("target_cpu=\"arm64\"".to_string());
-      maybe_install_sysroot("arm64");
-      maybe_install_sysroot("amd64");
-    }
-    "x86_64" => gn_args.push("use_sysroot=false".to_string()),
-    _ => unimplemented!(),
+  if env::var("TARGET").unwrap() == "aarch64-unknown-linux-gnu" {
+    gn_args.push("target_cpu=arm64".to_string());
+    gn_args.push("use_sysroot=true".to_string());
+    maybe_install_sysroot("arm64");
+    maybe_install_sysroot("amd64");
   };
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
