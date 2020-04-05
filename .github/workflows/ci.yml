@@ -128,9 +128,7 @@ jobs:
 
       - name: Prepare binary publish
         if: runner.os != 'Windows'
-        run: cp
-          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ LIB_NAME_BASE }}.${{ LIB_NAME_EXT }}
-          target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
+        run: cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ LIB_NAME_BASE }}.${{ LIB_NAME_EXT }} target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
 
       - name: Binary publish
         uses: softprops/action-gh-release@v1
