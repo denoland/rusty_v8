@@ -38,8 +38,8 @@ jobs:
 
     env:
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
-      LIB_NAME_BASE: ${{ startsWith(matrix.config.os.startsWith, 'windows') && '' || 'lib' }}rusty_v8
-      LIB_NAME_EXT: ${{ startsWith(matrix.config.os.startsWith, 'windows') && 'lib' || 'a' }}
+      LIB_NAME_BASE: ${{ startsWith(matrix.config.os, 'windows') && '' || 'lib' }}rusty_v8
+      LIB_NAME_EXT: ${{ startsWith(matrix.config.os, 'windows') && 'lib' || 'a' }}
       V8_FROM_SOURCE: true
 
     steps:
