@@ -116,18 +116,15 @@ jobs:
           echo "::add-path::$(pwd)/$basename"
 
       - name: Test
-        if: matrix.config.variant == 'release'
         run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }}
 
       - name: Clippy
-        if: matrix.config.variant == 'release'
         run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
 
       - name: Prepare binary publish
-        if: runner.os != 'Windows'
         run: cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME_BASE }}.${{ env.LIB_NAME_EXT }} target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
 
       - name: Binary publish
