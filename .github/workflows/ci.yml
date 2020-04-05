@@ -38,9 +38,9 @@ jobs:
 
     env:
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
+      LIB_NAME_BASE: ${{ startsWith(matrix.config.os.startsWith, 'windows') && '' || 'lib' }}rusty_v8
+      LIB_NAME_EXT: ${{ startsWith(matrix.config.os.startsWith, 'windows') && 'lib' || 'a' }}
       V8_FROM_SOURCE: true
-      LIB_BASE: ${{ startsWith(matrix.config.os.startsWith, 'windows') && '' || 'lib' }}rusty_v8
-      LIB_EXT: ${{ startsWith(matrix.config.os.startsWith, 'windows') && 'lib' || 'a' }}
 
     steps:
       - name: Configure git
@@ -73,11 +73,6 @@ jobs:
         # around a bug in the 'cache' action that causes directories outside of
         # the workspace dir to be saved/restored incorrectly.
         run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
-
-      - name: Lala
-        run: |
-          echo ${{ env.LIB_BASE }}.${{ env.LIB_EXT }}
-          echo ${{ env.LIB_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
 
       - name: Cache
         uses: actions/cache@master
@@ -131,25 +126,19 @@ jobs:
       - name: Rustfmt
         run: cargo fmt -- --check
 
-      - name: Prepare Binary Publish - unix
+      - name: Prepare binary publish
         if: runner.os != 'Windows'
-        run: |
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/${{ env.LIB_PREFIX }}rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXTENSION }}
+        run: cp
+          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ LIB_NAME_BASE }}.${{ LIB_NAME_EXT }}
+          target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
 
-      - name: Prepare Binary Publish - windows
-        if: runner.os == 'Windows'
-        run: |
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/rusty_v8.lib target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
-
-      - name: Binary Publish
+      - name: Binary publish
         uses: softprops/action-gh-release@v1
         if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
-            target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
+          files: target/${{ env.LIB_NAME_BASE }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_NAME_EXT }}
 
       # TODO: add clang-format and maybe cpplint.
 
