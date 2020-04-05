@@ -33,8 +33,15 @@ jobs:
 
           - os: windows-2019
             target: x86_64-pc-windows-msvc
+            variant: release # Note: we do not support windows debug builds.
+
+          - os: ubuntu-16.04
+            target: aarch64-unknown-linux-gnu
+            variant: debug
+
+          - os: ubuntu-16.04
+            target: aarch64-unknown-linux-gnu
             variant: release
-            # Note we do not support windows debug builds.
 
     env:
       V8_FROM_SOURCE: true
@@ -65,6 +72,23 @@ jobs:
         with:
           python-version: 2.7.x
           architecture: x64
+
+      - name: Install cross compilation toolchain
+        if: matrix.config.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+
+          sudo apt update
+          sudo apt install -yq --no-install-suggests --no-install-recommends \
+            binfmt-support g++-5-aarch64-linux-gnu g++-5-multilib \
+            gcc-5-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
+            qemu-user-binfmt
+
+          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
+                     /lib/ld-linux-aarch64.so.1
+
+          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
+          echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
 
       - name: Configure cargo data directory
         # After this point, all cargo registry and crate data is stored in
