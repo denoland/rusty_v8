@@ -1,7 +1,6 @@
 **/*.rs.bk
 **/*.orig
 
-/.cargo_home/
-/.idea/
 /.vscode/
+/.idea/
 /target/
