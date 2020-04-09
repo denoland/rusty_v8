@@ -176,8 +176,7 @@ jobs:
 
       - name: Binary publish
         uses: softprops/action-gh-release@v1
-        if: matrix.config.variant != 'asan'
-        if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
+        if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/') && matrix.config.variant != 'asan'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
