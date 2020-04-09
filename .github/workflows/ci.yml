@@ -32,8 +32,8 @@ jobs:
             variant: release
 
           - os: ubuntu-16.04
-            target: "x86_64-unknown-linux-gnu"
-            variant: "asan"
+            target: x86_64-unknown-linux-gnu
+            variant: asan
 
           - os: windows-2019
             target: x86_64-pc-windows-msvc
@@ -76,6 +76,7 @@ jobs:
           rust-version: "nightly"
 
       - name: Install rust tools
+        if: matrix.config.variant != 'asan'
         run: rustup component add clippy rustfmt
 
       - name: Install python
@@ -163,10 +164,12 @@ jobs:
         run: cargo test -vv --target x86_64-unknown-linux-gnu
 
       - name: Clippy
+        if: matrix.config.variant != 'asan'
         run: cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt
+        if: matrix.config.variant != 'asan'
         run: cargo fmt -- --check
 
       - name: Prepare binary publish
