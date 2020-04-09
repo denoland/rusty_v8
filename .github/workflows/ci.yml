@@ -31,6 +31,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             variant: release
 
+          - os: ubuntu-16.04
+            target: "x86_64-unknown-linux-gnu"
+            variant: "asan"
+
           - os: windows-2019
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -60,9 +64,16 @@ jobs:
           submodules: recursive
 
       - name: Install rust
+        if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         uses: hecrj/setup-rust-action@v1
         with:
           rust-version: 1.42.0
+
+      - name: Install rust
+        if: matrix.config.variant == 'asan'
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: "nightly"
 
       - name: Install rust tools
         run: rustup component add clippy rustfmt
@@ -140,8 +151,16 @@ jobs:
           echo "::add-path::$(pwd)/$basename"
 
       - name: Test
+        if: matrix.config.variant != 'asan'
         run: cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }}
+
+
+      - name: ASAN
+        if: matrix.config.variant == 'asan'
+        env:
+          RUSTFLAGS: "-Z sanitizer=address"
+        run: cargo test -vv --target x86_64-unknown-linux-gnu
 
       - name: Clippy
         run: cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
@@ -157,6 +176,7 @@ jobs:
 
       - name: Binary publish
         uses: softprops/action-gh-release@v1
+        if: matrix.config.variant != 'asan'
         if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
