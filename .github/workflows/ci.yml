@@ -110,6 +110,12 @@ jobs:
           echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
           echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
 
+      - name: Install valgrind
+        if: matrix.config.kind == 'asan'
+        run: |
+          sudo apt update
+          sudo apt install -yq valgrind
+
       - name: Configure cargo data directory
         # After this point, all cargo registry and crate data is stored in
         # $GITHUB_WORKSPACE/target/cargo. This allows us to cache only the files
@@ -167,9 +173,9 @@ jobs:
 
       - name: ASAN
         if: matrix.config.kind == 'asan'
-        env:
-          RUSTFLAGS: "-Z sanitizer=address"
-        run: cargo test -vv --target x86_64-unknown-linux-gnu
+        run: |
+          cargo build --all-targets
+          valgrind -v --tool=memcheck --leak-check=full cargo test
 
       - name: Clippy
         if: matrix.config.kind != 'asan'
