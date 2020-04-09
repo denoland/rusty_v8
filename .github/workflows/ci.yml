@@ -72,16 +72,9 @@ jobs:
           submodules: recursive
 
       - name: Install rust
-        if: matrix.config.kind != 'asan'
         uses: hecrj/setup-rust-action@v1
         with:
           rust-version: 1.42.0
-
-      - name: Install rust
-        if: matrix.config.kind == 'asan'
-        uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: "nightly"
 
       - name: Install rust tools
         if: matrix.config.kind != 'asan'
