@@ -12,6 +12,8 @@ use crate::Object;
 use crate::PropertyAttribute;
 use crate::ToLocal;
 use crate::Value;
+use std::ffi::c_void;
+use std::ptr::NonNull;
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *mut Object;
@@ -71,6 +73,25 @@ extern "C" {
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(object: &Object) -> int;
   fn v8__Object__CreationContext(object: &Object) -> *mut Context;
+  fn v8__Object__SetAlignedPointerInInternalField(
+    object: &Object,
+    index: int,
+    value: *mut c_void,
+  );
+  fn v8__Object__GetAlignedPointerInInternalField(
+    object: &Object,
+    index: int,
+  ) -> *mut c_void;
+  fn v8__Object__SetInternalField(
+    object: &Object,
+    index: int,
+    value: Local<Value>,
+  );
+  fn v8__Object__GetInternalField(
+    object: &Object,
+    index: int,
+  ) -> NonNull<Value>;
+  fn v8__Object__InternalFieldCount(object: &Object) -> int;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
   fn v8__Array__New_with_elements(
@@ -245,6 +266,50 @@ impl Object {
       let ptr = v8__Object__CreationContext(self);
       scope.to_local(ptr).unwrap()
     }
+  }
+
+  /// Sets a 2-byte-aligned native pointer in an internal field.
+  /// To retrieve such a field, GetAlignedPointerFromInternalField must be used,
+  /// everything else leads to undefined behavior.
+  /// Aliased from: `SetAlignedPointerInInternalField`
+  pub unsafe fn set_internal_field_ptr<T>(
+    &mut self,
+    index: i32,
+    value: *mut T,
+  ) {
+    assert!(index >= 0 && index < self.internal_field_count());
+    v8__Object__SetAlignedPointerInInternalField(
+      self,
+      index,
+      value as *mut c_void,
+    );
+  }
+
+  /// Gets a 2-byte-aligned native pointer from an internal field.
+  /// This field must have been set by SetAlignedPointerInInternalField,
+  /// everything else leads to undefined behavior.
+  /// Aliased from: `GetAlignedPointerFromInternalField`
+  pub unsafe fn get_internal_field_ptr<T>(&self, index: i32) -> *mut T {
+    assert!(index >= 0 && index < self.internal_field_count());
+    v8__Object__GetAlignedPointerInInternalField(self, index) as *mut T
+  }
+
+  /// Sets the value in an internal field.
+  pub unsafe fn set_internal_field(&mut self, index: i32, value: Local<Value>) {
+    assert!(index >= 0 && index < self.internal_field_count());
+    v8__Object__SetInternalField(self, index, value);
+  }
+
+  /// Gets the value from an internal field.
+  pub unsafe fn get_internal_field(&self, index: i32) -> Local<Value> {
+    assert!(index >= 0 && index < self.internal_field_count());
+    let ptr = v8__Object__GetInternalField(self, index);
+    Local::from_raw(ptr.as_ptr()).unwrap()
+  }
+
+  /// Gets the number of internal fields for this Object.
+  pub fn internal_field_count(&self) -> i32 {
+    unsafe { v8__Object__InternalFieldCount(self) }
   }
 }
 
