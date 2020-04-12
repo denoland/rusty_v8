@@ -2,9 +2,7 @@
 import("//v8/gni/v8.gni")
 
 v8_static_library("rusty_v8") {
-  sources = [
-    "src/binding.cc",
-  ]
+  sources = [ "src/binding.cc" ]
   deps = [
     ":v8",
     "//build/config:shared_library_deps",
