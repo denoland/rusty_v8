@@ -4,6 +4,7 @@
 extern crate lazy_static;
 
 use std::convert::{Into, TryFrom, TryInto};
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
@@ -285,6 +286,89 @@ fn microtasks() {
     scope.isolate().run_microtasks();
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
   }
+}
+
+#[test]
+fn get_isolate_from_handle() {
+  extern "C" {
+    fn v8__internal__GetIsolateFromHeapObject(
+      handle: *const v8::Data,
+    ) -> *mut v8::Isolate;
+  }
+
+  fn check_handle_helper(
+    isolate_ptr: NonNull<v8::Isolate>,
+    expect_some: Option<bool>,
+    local: v8::Local<v8::Data>,
+  ) {
+    let maybe_ptr = unsafe { v8__internal__GetIsolateFromHeapObject(&*local) };
+    let maybe_ptr = NonNull::new(maybe_ptr);
+    if let Some(ptr) = maybe_ptr {
+      assert_eq!(ptr, isolate_ptr);
+    }
+    if let Some(expected_some) = expect_some {
+      assert_eq!(maybe_ptr.is_some(), expected_some);
+    }
+  };
+
+  fn check_handle<'s, S, F, D>(scope: &mut S, expect_some: Option<bool>, f: F)
+  where
+    S: v8::ToLocal<'s>,
+    F: Fn(&mut S) -> D,
+    D: Into<v8::Local<'s, v8::Data>>,
+  {
+    let isolate_ptr = NonNull::from(scope.isolate());
+    let local = f(scope).into();
+
+    // Check that we can get the isolate from a Local.
+    check_handle_helper(isolate_ptr, expect_some, local);
+
+    // Check that we can still get it after converting it to a Global and back.
+    let global = v8::Global::new_from(scope, local);
+    let local = global.get(scope).unwrap();
+    check_handle_helper(isolate_ptr, expect_some, local);
+  };
+
+  fn check_eval<'s, S>(scope: &mut S, expect_some: Option<bool>, code: &str)
+  where
+    S: v8::ToLocal<'s>,
+  {
+    let context = scope.get_current_context().unwrap();
+    check_handle(scope, expect_some, |scope| {
+      eval(scope, context, code).unwrap()
+    });
+  }
+
+  let _setup_guard = setup();
+  let mut params = v8::Isolate::create_params();
+  params.set_array_buffer_allocator(v8::new_default_allocator());
+  let mut isolate = v8::Isolate::new(params);
+
+  let mut hs = v8::HandleScope::new(&mut isolate);
+  let scope = hs.enter();
+  let context = v8::Context::new(scope);
+  let mut cs = v8::ContextScope::new(scope, context);
+  let s = cs.enter();
+
+  check_handle(s, None, |s| v8::null(s));
+  check_handle(s, None, |s| v8::undefined(s));
+  check_handle(s, None, |s| v8::Boolean::new(s, true));
+  check_handle(s, None, |s| v8::Boolean::new(s, false));
+  check_handle(s, None, |s| v8::String::new(s, "").unwrap());
+  check_eval(s, None, "''");
+  check_handle(s, Some(true), |s| v8::String::new(s, "Words").unwrap());
+  check_eval(s, Some(true), "'Hello'");
+  check_eval(s, Some(true), "Symbol()");
+  check_handle(s, Some(true), |s| v8::Object::new(s));
+  check_eval(s, Some(true), "this");
+  check_handle(s, Some(true), |s| s.get_current_context().unwrap());
+  check_eval(s, Some(true), "({ foo: 'bar' })");
+  check_eval(s, Some(true), "() => {}");
+  check_handle(s, Some(true), |s| v8::Number::new(s, 4.2f64));
+  check_handle(s, Some(true), |s| v8::Number::new(s, -0f64));
+  check_handle(s, Some(false), |s| v8::Integer::new(s, 0));
+  check_eval(s, Some(true), "3.3");
+  check_eval(s, Some(false), "3.3 / 3.3");
 }
 
 #[test]

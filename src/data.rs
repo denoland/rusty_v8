@@ -99,6 +99,7 @@ impl Error for TryFromTypeError {}
 #[repr(C)]
 pub struct Context(Opaque);
 
+impl_deref! { Data for Context }
 impl_eq! { for Context }
 impl_partial_eq! { Context for Context use identity }
 
@@ -107,6 +108,7 @@ impl_partial_eq! { Context for Context use identity }
 pub struct Data(Opaque);
 
 impl_from! { AccessorSignature for Data }
+impl_from! { Context for Data }
 impl_from! { Module for Data }
 impl_from! { Private for Data }
 impl_from! { Signature for Data }

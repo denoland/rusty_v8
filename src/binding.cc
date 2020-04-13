@@ -8,6 +8,9 @@
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8-profiler.h"
 #include "v8/include/v8.h"
+#include "v8/src/execution/isolate-utils-inl.h"
+#include "v8/src/execution/isolate-utils.h"
+#include "v8/src/objects/maybe-object.h"
 
 using namespace support;
 
@@ -1650,6 +1653,30 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
   // in node-heapdump for the last 8 years and I think there is a pretty
   // good chance it'll keep working for 8 more.
   const_cast<v8::HeapSnapshot*>(snapshot)->Delete();
+}
+
+// This is necessary for v8__internal__GetIsolateFromHeapObject() to be
+// reliable enough for our purposes.
+#if !(defined V8_SHARED_RO_HEAP or defined V8_COMPRESS_POINTERS)
+#error V8 must be built with either the 'v8_enable_pointer_compression' or \
+'v8_enable_shared_ro_heap' feature enabled.
+#endif
+
+v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data* location) {
+  if (location == nullptr) {
+    return nullptr;
+  }
+  auto address = *reinterpret_cast<const v8::internal::Address*>(location);
+  auto maybe_object = v8::internal::MaybeObject(address);
+  if (maybe_object.IsSmi() || maybe_object.IsCleared()) {
+    return nullptr;
+  }
+  auto heap_object = maybe_object.GetHeapObject();
+  v8::internal::Isolate* isolate;
+  if (!v8::internal::GetIsolateFromHeapObject(heap_object, &isolate)) {
+    return nullptr;
+  }
+  return reinterpret_cast<v8::Isolate*>(isolate);
 }
 
 }  // extern "C"

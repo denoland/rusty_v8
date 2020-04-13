@@ -24,6 +24,13 @@ config("rusty_v8_config") {
   configs = [ "//v8:external_config" ]
   cflags = []
 
+  # We need these directories in the search path to be able to include some
+  # internal V8 headers.
+  include_dirs = [
+    "v8",
+    "$target_gen_dir/v8",
+  ]
+
   if (is_debug) {
     defines = [ "DEBUG" ]
   }
