@@ -17,33 +17,33 @@ use crate::NONE;
 
 extern "C" {
   fn v8__Template__Set(
-    self_: &Template,
+    this: *const Template,
     key: *const Name,
     value: *const Data,
     attr: PropertyAttribute,
   );
 
   fn v8__FunctionTemplate__New(
-    isolate: &Isolate,
+    isolate: *mut Isolate,
     callback: FunctionCallback,
-  ) -> *mut FunctionTemplate;
+  ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
-    fn_template: *mut FunctionTemplate,
-    context: *mut Context,
-  ) -> *mut Function;
+    this: *const FunctionTemplate,
+    context: *const Context,
+  ) -> *const Function;
   fn v8__FunctionTemplate__SetClassName(
-    fn_template: *mut FunctionTemplate,
-    name: Local<String>,
-  ) -> *mut Function;
+    this: *const FunctionTemplate,
+    name: *const String,
+  );
 
   fn v8__ObjectTemplate__New(
     isolate: *mut Isolate,
     templ: *const FunctionTemplate,
-  ) -> *mut ObjectTemplate;
+  ) -> *const ObjectTemplate;
   fn v8__ObjectTemplate__NewInstance(
-    self_: &ObjectTemplate,
-    context: *mut Context,
-  ) -> *mut Object;
+    this: *const ObjectTemplate,
+    context: *const Context,
+  ) -> *const Object;
 }
 
 impl Template {
@@ -80,11 +80,10 @@ impl FunctionTemplate {
   pub fn get_function<'sc>(
     &mut self,
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
+    context: Local<Context>,
   ) -> Option<Local<'sc, Function>> {
     unsafe {
-      scope
-        .to_local(v8__FunctionTemplate__GetFunction(&mut *self, &mut *context))
+      scope.to_local(v8__FunctionTemplate__GetFunction(&*self, &*context))
     }
   }
 
@@ -92,7 +91,7 @@ impl FunctionTemplate {
   /// printing objects created with the function created from the
   /// FunctionTemplate as its constructor.
   pub fn set_class_name(&mut self, name: Local<String>) {
-    unsafe { v8__FunctionTemplate__SetClassName(&mut *self, name) };
+    unsafe { v8__FunctionTemplate__SetClassName(&*self, &*name) };
   }
 }
 
@@ -117,9 +116,9 @@ impl ObjectTemplate {
   pub fn new_instance<'a>(
     &self,
     scope: &mut impl ToLocal<'a>,
-    mut context: Local<Context>,
+    context: Local<Context>,
   ) -> Option<Local<'a, Object>> {
-    let ptr = unsafe { v8__ObjectTemplate__NewInstance(self, &mut *context) };
+    let ptr = unsafe { v8__ObjectTemplate__NewInstance(self, &*context) };
     unsafe { scope.to_local(ptr) }
   }
 }

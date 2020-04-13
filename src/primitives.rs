@@ -5,10 +5,10 @@ use crate::Primitive;
 use crate::ToLocal;
 
 extern "C" {
-  fn v8__Null(isolate: *mut Isolate) -> *mut Primitive;
-  fn v8__Undefined(isolate: *mut Isolate) -> *mut Primitive;
+  fn v8__Null(isolate: *mut Isolate) -> *const Primitive;
+  fn v8__Undefined(isolate: *mut Isolate) -> *const Primitive;
 
-  fn v8__Boolean__New(isolate: *mut Isolate, value: bool) -> *mut Boolean;
+  fn v8__Boolean__New(isolate: *mut Isolate, value: bool) -> *const Boolean;
 }
 
 pub fn null<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Primitive> {

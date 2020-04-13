@@ -7,31 +7,29 @@ use crate::Value;
 
 extern "C" {
   fn v8__JSON__Parse(
-    context: *mut Context,
-    json_string: *mut String,
-  ) -> *mut Value;
+    context: *const Context,
+    json_string: *const String,
+  ) -> *const Value;
   fn v8__JSON__Stringify(
-    context: *mut Context,
-    json_object: *mut Value,
-  ) -> *mut String;
+    context: *const Context,
+    json_object: *const Value,
+  ) -> *const String;
 }
 
 /// Tries to parse the string `json_string` and returns it as value if
 /// successful.
 pub fn parse<'sc>(
-  mut context: Local<'sc, Context>,
-  mut json_string: Local<'sc, String>,
+  context: Local<'sc, Context>,
+  json_string: Local<'sc, String>,
 ) -> Option<Local<'sc, Value>> {
-  unsafe { Local::from_raw(v8__JSON__Parse(&mut *context, &mut *json_string)) }
+  unsafe { Local::from_raw(v8__JSON__Parse(&*context, &*json_string)) }
 }
 
 /// Tries to stringify the JSON-serializable object `json_object` and returns
 /// it as string if successful.
 pub fn stringify<'sc>(
-  mut context: Local<'sc, Context>,
-  mut json_object: Local<'sc, Value>,
+  context: Local<'sc, Context>,
+  json_object: Local<'sc, Value>,
 ) -> Option<Local<'sc, String>> {
-  unsafe {
-    Local::from_raw(v8__JSON__Stringify(&mut *context, &mut *json_object))
-  }
+  unsafe { Local::from_raw(v8__JSON__Stringify(&*context, &*json_object)) }
 }

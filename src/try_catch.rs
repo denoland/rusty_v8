@@ -16,36 +16,36 @@ extern "C" {
   // Note: the C++ CxxTryCatch object *must* live on the stack, and it must
   // not move after it is constructed.
   fn v8__TryCatch__CONSTRUCT(
-    buf: &mut MaybeUninit<CxxTryCatch>,
+    buf: *mut MaybeUninit<CxxTryCatch>,
     isolate: *mut Isolate,
   );
 
-  fn v8__TryCatch__DESTRUCT(this: &mut CxxTryCatch);
+  fn v8__TryCatch__DESTRUCT(this: *mut CxxTryCatch);
 
-  fn v8__TryCatch__HasCaught(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__HasCaught(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__CanContinue(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__CanContinue(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__HasTerminated(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__HasTerminated(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__Exception(this: &CxxTryCatch) -> *mut Value;
+  fn v8__TryCatch__Exception(this: *const CxxTryCatch) -> *const Value;
 
   fn v8__TryCatch__StackTrace(
-    this: &CxxTryCatch,
-    context: Local<Context>,
-  ) -> *mut Value;
+    this: *const CxxTryCatch,
+    context: *const Context,
+  ) -> *const Value;
 
-  fn v8__TryCatch__Message(this: &CxxTryCatch) -> *mut Message;
+  fn v8__TryCatch__Message(this: *const CxxTryCatch) -> *const Message;
 
-  fn v8__TryCatch__Reset(this: &mut CxxTryCatch);
+  fn v8__TryCatch__Reset(this: *mut CxxTryCatch);
 
-  fn v8__TryCatch__ReThrow(this: &mut CxxTryCatch) -> *mut Value;
+  fn v8__TryCatch__ReThrow(this: *mut CxxTryCatch) -> *const Value;
 
-  fn v8__TryCatch__IsVerbose(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__IsVerbose(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__SetVerbose(this: &mut CxxTryCatch, value: bool);
+  fn v8__TryCatch__SetVerbose(this: *mut CxxTryCatch, value: bool);
 
-  fn v8__TryCatch__SetCaptureMessage(this: &mut CxxTryCatch, value: bool);
+  fn v8__TryCatch__SetCaptureMessage(this: *mut CxxTryCatch, value: bool);
 }
 
 // Note: the 'tc lifetime is there to ensure that after entering a TryCatchScope
@@ -122,7 +122,7 @@ impl<'tc> TryCatch<'tc> {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, context)) }
+    unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, &*context)) }
   }
 
   /// Returns the message associated with this exception. If there is

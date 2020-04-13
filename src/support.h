@@ -22,7 +22,7 @@ using uninit_t = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
 template <class T, class... Args>
 class construct_in_place_helper {
  public:
-  construct_in_place_helper(uninit_t<T>& buf, Args... args)
+  construct_in_place_helper(uninit_t<T>* buf, Args... args)
       : inner_(std::forward<Args>(args)...) {}
 
  private:
@@ -30,8 +30,8 @@ class construct_in_place_helper {
 };
 
 template <class T, class... Args>
-void construct_in_place(uninit_t<T>& buf, Args... args) {
-  new (&buf)
+void construct_in_place(uninit_t<T>* buf, Args... args) {
+  new (buf)
       construct_in_place_helper<T, Args...>(buf, std::forward<Args>(args)...);
 }
 
@@ -97,11 +97,20 @@ inline static T* local_to_ptr(v8::Local<T> local) {
 }
 
 template <class T>
-inline static v8::Local<T> ptr_to_local(T* ptr) {
+inline static const v8::Local<T> ptr_to_local(const T* ptr) {
   static_assert(sizeof(v8::Local<T>) == sizeof(T*), "");
-  auto local = *reinterpret_cast<v8::Local<T>*>(&ptr);
+  auto local = *reinterpret_cast<const v8::Local<T>*>(&ptr);
   assert(*local == ptr);
   return local;
+}
+
+template <class T>
+inline static v8::Local<T>* const_ptr_array_to_local_array(
+    const T* const ptr_array[]) {
+  static_assert(sizeof(v8::Local<T>[42]) == sizeof(T* [42]), "");
+  auto mut_ptr_array = const_cast<T**>(ptr_array);
+  auto mut_local_array = reinterpret_cast<v8::Local<T>*>(mut_ptr_array);
+  return mut_local_array;
 }
 
 template <class T>
@@ -110,15 +119,15 @@ inline static T* maybe_local_to_ptr(v8::MaybeLocal<T> local) {
 }
 
 template <class T>
-inline static v8::MaybeLocal<T> ptr_to_maybe_local(T* ptr) {
+inline static const v8::MaybeLocal<T> ptr_to_maybe_local(const T* ptr) {
   static_assert(sizeof(v8::MaybeLocal<T>) == sizeof(T*), "");
-  return *reinterpret_cast<v8::MaybeLocal<T>*>(&ptr);
+  return *reinterpret_cast<const v8::MaybeLocal<T>*>(&ptr);
 }
 
 template <class T>
-inline static v8::Global<T> ptr_to_global(T* ptr) {
+inline static v8::Global<T> ptr_to_global(const T* ptr) {
   v8::Global<T> global;
-  std::swap(ptr, *reinterpret_cast<T**>(&global));
+  std::swap(ptr, *reinterpret_cast<const T**>(&global));
   return global;
 }
 

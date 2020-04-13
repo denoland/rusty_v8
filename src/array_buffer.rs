@@ -20,18 +20,18 @@ use crate::ToLocal;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
-  fn v8__ArrayBuffer__Allocator__DELETE(this: &'static mut Allocator);
+  fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
     isolate: *mut Isolate,
     byte_length: usize,
-  ) -> *mut ArrayBuffer;
+  ) -> *const ArrayBuffer;
   fn v8__ArrayBuffer__New__with_backing_store(
     isolate: *mut Isolate,
-    backing_store: *mut SharedRef<BackingStore>,
-  ) -> *mut ArrayBuffer;
-  fn v8__ArrayBuffer__ByteLength(self_: *const ArrayBuffer) -> usize;
+    backing_store: *const SharedRef<BackingStore>,
+  ) -> *const ArrayBuffer;
+  fn v8__ArrayBuffer__ByteLength(this: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
-    self_: *const ArrayBuffer,
+    this: *const ArrayBuffer,
   ) -> SharedRef<BackingStore>;
   fn v8__ArrayBuffer__NewBackingStore__with_byte_length(
     isolate: *mut Isolate,
@@ -44,10 +44,10 @@ extern "C" {
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 
-  fn v8__BackingStore__Data(this: *mut BackingStore) -> *mut c_void;
+  fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
-  fn v8__BackingStore__DELETE(this: &mut BackingStore);
+  fn v8__BackingStore__DELETE(this: *mut BackingStore);
 
   fn std__shared_ptr__v8__BackingStore__COPY(
     ptr: *const SharedRef<BackingStore>,
@@ -255,11 +255,11 @@ impl ArrayBuffer {
 
   pub fn with_backing_store<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    backing_store: &mut SharedRef<BackingStore>,
+    backing_store: &SharedRef<BackingStore>,
   ) -> Local<'sc, ArrayBuffer> {
     let isolate = scope.isolate();
     let ptr = unsafe {
-      v8__ArrayBuffer__New__with_backing_store(isolate, &mut *backing_store)
+      v8__ArrayBuffer__New__with_backing_store(isolate, backing_store)
     };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

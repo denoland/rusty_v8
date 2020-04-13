@@ -6,10 +6,10 @@ use crate::Uint8Array;
 
 extern "C" {
   fn v8__Uint8Array__New(
-    buf: *mut ArrayBuffer,
+    buf_ptr: *const ArrayBuffer,
     byte_offset: usize,
     length: usize,
-  ) -> *mut Uint8Array;
+  ) -> *const Uint8Array;
 }
 
 impl Uint8Array {

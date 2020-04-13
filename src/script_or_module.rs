@@ -5,11 +5,13 @@ use crate::ScriptOrModule;
 use crate::Value;
 
 extern "C" {
-  fn v8__ScriptOrModule__GetResourceName(this: &ScriptOrModule) -> *mut Value;
+  fn v8__ScriptOrModule__GetResourceName(
+    this: *const ScriptOrModule,
+  ) -> *const Value;
 
   fn v8__ScriptOrModule__GetHostDefinedOptions(
-    this: &ScriptOrModule,
-  ) -> *mut PrimitiveArray;
+    this: *const ScriptOrModule,
+  ) -> *const PrimitiveArray;
 }
 
 impl ScriptOrModule {

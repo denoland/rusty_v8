@@ -3,7 +3,6 @@
 use std::convert::From;
 use std::convert::TryFrom;
 use std::error::Error;
-use std::ffi::c_void;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -72,7 +71,7 @@ macro_rules! impl_partial_eq {
 }
 
 extern "C" {
-  fn v8__Local__EQ(this: Local<c_void>, other: Local<c_void>) -> bool;
+  fn v8__Local__EQ(this: *const Data, other: *const Data) -> bool;
 }
 
 #[derive(Clone, Copy, Debug)]

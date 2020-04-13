@@ -15,9 +15,9 @@ use crate::support::UniquePtr;
 // };
 
 extern "C" {
-  fn v8__Task__BASE__CONSTRUCT(buf: &mut std::mem::MaybeUninit<Task>) -> ();
-  fn v8__Task__DELETE(this: &'static mut Task) -> ();
-  fn v8__Task__Run(this: &mut Task) -> ();
+  fn v8__Task__BASE__CONSTRUCT(buf: *mut std::mem::MaybeUninit<Task>) -> ();
+  fn v8__Task__DELETE(this: *mut Task) -> ();
+  fn v8__Task__Run(this: *mut Task) -> ();
 }
 
 #[no_mangle]

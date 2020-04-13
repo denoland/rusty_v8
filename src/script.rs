@@ -17,23 +17,26 @@ pub struct ScriptOrigin<'sc>([usize; 7], PhantomData<&'sc ()>);
 
 extern "C" {
   fn v8__Script__Compile(
-    context: *mut Context,
-    source: *mut String,
+    context: *const Context,
+    source: *const String,
     origin: *const ScriptOrigin,
-  ) -> *mut Script;
-  fn v8__Script__Run(this: &mut Script, context: *mut Context) -> *mut Value;
+  ) -> *const Script;
+  fn v8__Script__Run(
+    script: *const Script,
+    context: *const Context,
+  ) -> *const Value;
 
   fn v8__ScriptOrigin__CONSTRUCT(
-    buf: &mut MaybeUninit<ScriptOrigin>,
-    resource_name: *mut Value,
-    resource_line_offset: *mut Integer,
-    resource_column_offset: *mut Integer,
-    resource_is_shared_cross_origin: *mut Boolean,
-    script_id: *mut Integer,
-    source_map_url: *mut Value,
-    resource_is_opaque: *mut Boolean,
-    is_wasm: *mut Boolean,
-    is_module: *mut Boolean,
+    buf: *mut MaybeUninit<ScriptOrigin>,
+    resource_name: *const Value,
+    resource_line_offset: *const Integer,
+    resource_column_offset: *const Integer,
+    resource_is_shared_cross_origin: *const Boolean,
+    script_id: *const Integer,
+    source_map_url: *const Value,
+    resource_is_opaque: *const Boolean,
+    is_wasm: *const Boolean,
+    is_module: *const Boolean,
   );
 }
 
@@ -41,16 +44,14 @@ impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
-    mut source: Local<String>,
+    context: Local<Context>,
+    source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'sc, Script>> {
-    // TODO: use the type system to enforce that a Context has been entered.
-    // TODO: `context` and `source` probably shouldn't be mut.
     let ptr = unsafe {
       v8__Script__Compile(
-        &mut *context,
-        &mut *source,
+        &*context,
+        &*source,
         origin.map(|r| r as *const _).unwrap_or(null()),
       )
     };
@@ -63,9 +64,9 @@ impl Script {
   pub fn run<'sc>(
     &mut self,
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
+    context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__Script__Run(self, &mut *context)) }
+    unsafe { scope.to_local(v8__Script__Run(self, &*context)) }
   }
 }
 
@@ -73,29 +74,29 @@ impl Script {
 impl<'sc> ScriptOrigin<'sc> {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
-    mut resource_name: Local<'sc, Value>,
-    mut resource_line_offset: Local<'sc, Integer>,
-    mut resource_column_offset: Local<'sc, Integer>,
-    mut resource_is_shared_cross_origin: Local<'sc, Boolean>,
-    mut script_id: Local<'sc, Integer>,
-    mut source_map_url: Local<'sc, Value>,
-    mut resource_is_opaque: Local<'sc, Boolean>,
-    mut is_wasm: Local<'sc, Boolean>,
-    mut is_module: Local<'sc, Boolean>,
+    resource_name: Local<'sc, Value>,
+    resource_line_offset: Local<'sc, Integer>,
+    resource_column_offset: Local<'sc, Integer>,
+    resource_is_shared_cross_origin: Local<'sc, Boolean>,
+    script_id: Local<'sc, Integer>,
+    source_map_url: Local<'sc, Value>,
+    resource_is_opaque: Local<'sc, Boolean>,
+    is_wasm: Local<'sc, Boolean>,
+    is_module: Local<'sc, Boolean>,
   ) -> Self {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
       v8__ScriptOrigin__CONSTRUCT(
         &mut buf,
-        &mut *resource_name,
-        &mut *resource_line_offset,
-        &mut *resource_column_offset,
-        &mut *resource_is_shared_cross_origin,
-        &mut *script_id,
-        &mut *source_map_url,
-        &mut *resource_is_opaque,
-        &mut *is_wasm,
-        &mut *is_module,
+        &*resource_name,
+        &*resource_line_offset,
+        &*resource_column_offset,
+        &*resource_is_shared_cross_origin,
+        &*script_id,
+        &*source_map_url,
+        &*resource_is_opaque,
+        &*is_wasm,
+        &*is_module,
       );
       buf.assume_init()
     }

@@ -1,24 +1,24 @@
 use std::mem::transmute;
 use std::ptr::NonNull;
 
+use crate::Data;
 use crate::InIsolate;
 use crate::Isolate;
 use crate::IsolateHandle;
 use crate::Local;
 use crate::ToLocal;
-use crate::Value;
 
 extern "C" {
-  fn v8__Local__New(isolate: *mut Isolate, other: *mut Value) -> *mut Value;
+  fn v8__Local__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
 
-  fn v8__Global__New(isolate: *mut Isolate, other: *mut Value) -> *mut Value;
+  fn v8__Global__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
 
-  fn v8__Global__Reset__0(this: &mut *mut Value);
+  fn v8__Global__Reset__0(this: *mut *const Data);
 
   fn v8__Global__Reset__2(
-    this: &mut *mut Value,
+    this: *mut *const Data,
     isolate: *mut Isolate,
-    other: &*mut Value,
+    other: *const *const Data,
   );
 }
 
@@ -78,9 +78,9 @@ impl<T> Global<T> {
     self.check_isolate(isolate);
     self
       .value
-      .map(|g| g.as_ptr() as *mut Value)
+      .map(|g| g.as_ptr() as *const Data)
       .map(|g| unsafe { v8__Local__New(isolate, g) })
-      .and_then(|l| unsafe { scope.to_local(l as *mut T) })
+      .and_then(|l| unsafe { scope.to_local(l as *const T) })
   }
 
   /// If non-empty, destroy the underlying storage cell
@@ -93,14 +93,14 @@ impl<T> Global<T> {
       (None, None) => {}
       (target, None) => unsafe {
         v8__Global__Reset__0(
-          &mut *(target as *mut Option<NonNull<T>> as *mut *mut Value),
+          &mut *(target as *mut Option<NonNull<T>> as *mut *const Data),
         )
       },
       (target, source) => unsafe {
         v8__Global__Reset__2(
-          &mut *(target as *mut Option<NonNull<T>> as *mut *mut Value),
+          &mut *(target as *mut Option<NonNull<T>> as *mut *const Data),
           isolate,
-          &*(source as *const Option<NonNull<T>> as *const *mut Value),
+          &*(source as *const Option<NonNull<T>> as *const *const Data),
         )
       },
     }
@@ -153,7 +153,7 @@ impl<T> Drop for Global<T> {
       addr @ Some(_) => unsafe {
         // Destroy the storage cell that contains the contents of this Global.
         v8__Global__Reset__0(
-          &mut *(addr as *mut Option<NonNull<T>> as *mut *mut Value),
+          &mut *(addr as *mut Option<NonNull<T>> as *mut *const Data),
         )
       },
     }

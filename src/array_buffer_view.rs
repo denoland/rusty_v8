@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::ffi::c_void;
 
 use crate::support::int;
 use crate::ArrayBuffer;
@@ -8,12 +9,12 @@ use crate::Local;
 extern "C" {
   fn v8__ArrayBufferView__Buffer(
     this: *const ArrayBufferView,
-  ) -> *mut ArrayBuffer;
+  ) -> *const ArrayBuffer;
   fn v8__ArrayBufferView__ByteLength(this: *const ArrayBufferView) -> usize;
   fn v8__ArrayBufferView__ByteOffset(this: *const ArrayBufferView) -> usize;
   fn v8__ArrayBufferView__CopyContents(
     this: *const ArrayBufferView,
-    dest: *mut u8,
+    dest: *mut c_void,
     byte_length: int,
   ) -> usize;
 }
@@ -42,7 +43,7 @@ impl ArrayBufferView {
     unsafe {
       v8__ArrayBufferView__CopyContents(
         self,
-        dest.as_mut_ptr(),
+        dest.as_mut_ptr() as *mut c_void,
         dest.len().try_into().unwrap(),
       )
     }

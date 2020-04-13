@@ -102,10 +102,10 @@ extern "C" {
     state: *const StringView,
   ) -> *mut V8InspectorSession;
   fn v8_inspector__V8Inspector__contextCreated(
-    inspector: *mut V8Inspector,
-    context: *mut Context,
-    context_group_id: int,
-    human_readable_name: *const StringView,
+    this: *mut V8Inspector,
+    context: *const Context,
+    contextGroupId: int,
+    humanReadableName: *const StringView,
   );
 }
 
@@ -878,14 +878,14 @@ impl V8Inspector {
   /// work to bind the V8ContextInfo, which is not used elsewhere.
   pub fn context_created(
     &mut self,
-    mut context: Local<Context>,
+    context: Local<Context>,
     context_group_id: i32,
     human_readable_name: &StringView,
   ) {
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
         self,
-        &mut *context,
+        &*context,
         context_group_id,
         human_readable_name,
       )

@@ -12,7 +12,7 @@ use crate::support::UniquePtr;
 extern "C" {
   fn v8__V8__SetFlagsFromCommandLine(argc: *mut c_int, argv: *mut *mut c_char);
   fn v8__V8__GetVersion() -> *const c_char;
-  fn v8__V8__InitializePlatform(platform: &'static mut Platform);
+  fn v8__V8__InitializePlatform(platform: *mut Platform);
   fn v8__V8__Initialize();
   fn v8__V8__Dispose() -> bool;
   fn v8__V8__ShutdownPlatform() -> ();

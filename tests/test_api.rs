@@ -292,7 +292,7 @@ fn microtasks() {
 fn get_isolate_from_handle() {
   extern "C" {
     fn v8__internal__GetIsolateFromHeapObject(
-      handle: *const v8::Data,
+      location: *const v8::Data,
     ) -> *mut v8::Isolate;
   }
 
@@ -398,7 +398,7 @@ fn array_buffer() {
     assert_eq!(unique_bs[0], 0);
     assert_eq!(unique_bs[9], 9);
 
-    let mut shared_bs_1 = unique_bs.make_shared();
+    let shared_bs_1 = unique_bs.make_shared();
     {
       let bs = unsafe { &mut *shared_bs_1.get() };
       assert_eq!(10, bs.byte_length());
@@ -407,7 +407,7 @@ fn array_buffer() {
       assert_eq!(bs[9], 9);
     }
 
-    let ab = v8::ArrayBuffer::with_backing_store(scope, &mut shared_bs_1);
+    let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
     let shared_bs_2 = ab.get_backing_store();
     {
       let bs = unsafe { &mut *shared_bs_2.get() };
@@ -471,7 +471,7 @@ fn array_buffer_with_shared_backing_store() {
     assert_eq!(3, v8::SharedRef::use_count(&bs1));
     assert_eq!(3, v8::SharedRef::use_count(&bs2));
 
-    let mut bs3 = ab1.get_backing_store();
+    let bs3 = ab1.get_backing_store();
     assert_eq!(ab1.byte_length(), unsafe { (*bs3.get()).byte_length() });
     assert_eq!(4, v8::SharedRef::use_count(&bs1));
     assert_eq!(4, v8::SharedRef::use_count(&bs2));
@@ -484,7 +484,7 @@ fn array_buffer_with_shared_backing_store() {
     drop(bs1);
     assert_eq!(2, v8::SharedRef::use_count(&bs3));
 
-    let ab2 = v8::ArrayBuffer::with_backing_store(scope, &mut bs3);
+    let ab2 = v8::ArrayBuffer::with_backing_store(scope, &bs3);
     assert_eq!(ab1.byte_length(), ab2.byte_length());
     assert_eq!(3, v8::SharedRef::use_count(&bs3));
 
@@ -1325,8 +1325,8 @@ fn promise_resolved() {
     let scope = cs.enter();
     let maybe_resolver = v8::PromiseResolver::new(scope, context);
     assert!(maybe_resolver.is_some());
-    let mut resolver = maybe_resolver.unwrap();
-    let mut promise = resolver.get_promise(scope);
+    let resolver = maybe_resolver.unwrap();
+    let promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let value = v8::String::new(scope, "test").unwrap();
@@ -1359,8 +1359,8 @@ fn promise_rejected() {
     let scope = cs.enter();
     let maybe_resolver = v8::PromiseResolver::new(scope, context);
     assert!(maybe_resolver.is_some());
-    let mut resolver = maybe_resolver.unwrap();
-    let mut promise = resolver.get_promise(scope);
+    let resolver = maybe_resolver.unwrap();
+    let promise = resolver.get_promise(scope);
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let value = v8::String::new(scope, "test").unwrap();
@@ -1512,7 +1512,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let scope = scope.enter();
   let event = msg.get_event();
   assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
-  let mut promise = msg.get_promise();
+  let promise = msg.get_promise();
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
   let value = msg.get_value();
   {
@@ -1537,7 +1537,7 @@ fn set_promise_reject_callback() {
     let context = v8::Context::new(scope);
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
-    let mut resolver = v8::PromiseResolver::new(scope, context).unwrap();
+    let resolver = v8::PromiseResolver::new(scope, context).unwrap();
     let value = v8::String::new(scope, "promise rejected").unwrap();
     resolver.reject(context, value.into());
   }
@@ -2091,14 +2091,14 @@ fn shared_array_buffer() {
     assert_eq!(bs.byte_length(), 10);
     assert_eq!(bs.is_shared(), true);
 
-    let mut shared_bs_2 = bs.make_shared();
+    let shared_bs_2 = bs.make_shared();
     {
       let bs = unsafe { &*shared_bs_2.get() };
       assert_eq!(bs.byte_length(), 10);
       assert_eq!(bs.is_shared(), true);
     }
 
-    let ab = v8::SharedArrayBuffer::with_backing_store(scope, &mut shared_bs_2);
+    let ab = v8::SharedArrayBuffer::with_backing_store(scope, &shared_bs_2);
     let shared_bs_3 = ab.get_backing_store();
     {
       let bs = unsafe { &*shared_bs_3.get() };

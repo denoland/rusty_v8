@@ -11,7 +11,7 @@ extern "C" {
   // TODO: move this to libplatform.rs?
   fn v8__platform__NewDefaultPlatform() -> *mut Platform;
 
-  fn v8__Platform__DELETE(this: &'static mut Platform) -> ();
+  fn v8__Platform__DELETE(this: *mut Platform) -> ();
 }
 
 pub fn new_default_platform() -> UniquePtr<Platform> {

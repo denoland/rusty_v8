@@ -84,27 +84,28 @@ where
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
-  fn v8__Module__GetException(this: *const Module) -> *mut Value;
+  fn v8__Module__GetException(this: *const Module) -> *const Value;
   fn v8__Module__GetModuleRequestsLength(this: *const Module) -> int;
-  fn v8__Module__GetModuleRequest(this: *const Module, i: int) -> *mut String;
+  fn v8__Module__GetModuleRequest(this: *const Module, i: int)
+    -> *const String;
   fn v8__Module__GetModuleRequestLocation(
     this: *const Module,
     i: usize,
-    out: &mut MaybeUninit<Location>,
+    out: *mut MaybeUninit<Location>,
   ) -> Location;
-  fn v8__Module__GetModuleNamespace(this: *mut Module) -> *mut Value;
+  fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__InstantiateModule(
-    this: *mut Module,
-    context: Local<Context>,
-    callback: ResolveCallback,
+    this: *const Module,
+    context: *const Context,
+    cb: ResolveCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
-    this: *mut Module,
-    context: *mut Context,
-  ) -> *mut Value;
-  fn v8__Location__GetLineNumber(this: &Location) -> int;
-  fn v8__Location__GetColumnNumber(this: &Location) -> int;
+    this: *const Module,
+    context: *const Context,
+  ) -> *const Value;
+  fn v8__Location__GetLineNumber(this: *const Location) -> int;
+  fn v8__Location__GetColumnNumber(this: *const Location) -> int;
 }
 
 #[repr(C)]
@@ -195,7 +196,7 @@ impl Module {
     callback: impl MapFnTo<ResolveCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Module__InstantiateModule(self, context, callback.map_fn_to())
+      v8__Module__InstantiateModule(self, &*context, callback.map_fn_to())
     }
     .into()
   }
@@ -208,10 +209,10 @@ impl Module {
   /// via |GetException|).
   #[must_use]
   pub fn evaluate<'sc>(
-    &mut self,
+    &self,
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
+    context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__Module__Evaluate(&mut *self, &mut *context)) }
+    unsafe { scope.to_local(v8__Module__Evaluate(&*self, &*context)) }
   }
 }

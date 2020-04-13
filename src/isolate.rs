@@ -85,7 +85,7 @@ extern "C" {
     frame_limit: i32,
   );
   fn v8__Isolate__AddMessageListener(
-    this: &mut Isolate,
+    isolate: *mut Isolate,
     callback: MessageCallback,
   ) -> bool;
   fn v8__Isolate__SetPromiseRejectCallback(
@@ -107,29 +107,29 @@ extern "C" {
   );
   fn v8__Isolate__ThrowException(
     isolate: *mut Isolate,
-    exception: Local<Value>,
-  ) -> *mut Value;
+    exception: *const Value,
+  ) -> *const Value;
   fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__RunMicrotasks(isolate: *mut Isolate);
   fn v8__Isolate__EnqueueMicrotask(
     isolate: *mut Isolate,
-    microtask: Local<Function>,
+    function: *const Function,
   );
 
   fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
-  fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
+  fn v8__Isolate__CreateParams__DELETE(this: *mut CreateParams);
   fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
-    this: &mut CreateParams,
-    allocator: &SharedRef<Allocator>,
+    this: *mut CreateParams,
+    allocator: *const SharedRef<Allocator>,
   );
   fn v8__Isolate__CreateParams__SET__external_references(
-    this: &mut CreateParams,
+    this: *mut CreateParams,
     value: *const intptr_t,
   );
   fn v8__Isolate__CreateParams__SET__snapshot_blob(
-    this: &mut CreateParams,
+    this: *mut CreateParams,
     snapshot_blob: *mut StartupData,
   );
   fn v8__HeapProfiler__TakeHeapSnapshot(
@@ -279,7 +279,7 @@ impl Isolate {
     exception: Local<Value>,
   ) -> Local<'sc, Value> {
     unsafe {
-      let ptr = v8__Isolate__ThrowException(self, exception);
+      let ptr = v8__Isolate__ThrowException(self, &*exception);
       Local::from_raw(ptr).unwrap()
     }
   }
@@ -292,7 +292,7 @@ impl Isolate {
 
   /// Enqueues the callback to the default MicrotaskQueue
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
-    unsafe { v8__Isolate__EnqueueMicrotask(self, microtask) }
+    unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any

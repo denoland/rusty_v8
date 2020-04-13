@@ -12,58 +12,58 @@ use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
-  fn v8__Message__Get(message: *const Message) -> *mut String;
+  fn v8__Message__Get(this: *const Message) -> *const String;
   fn v8__Message__GetSourceLine(
-    message: &Message,
-    context: *mut Context,
-  ) -> *mut String;
-  fn v8__Message__GetScriptResourceName(message: &Message) -> *mut Value;
+    this: *const Message,
+    context: *const Context,
+  ) -> *const String;
+  fn v8__Message__GetScriptResourceName(this: *const Message) -> *const Value;
   fn v8__Message__GetLineNumber(
-    message: &Message,
-    context: *mut Context,
+    this: *const Message,
+    context: *const Context,
   ) -> int;
-  fn v8__Message__GetStartPosition(message: &Message) -> int;
-  fn v8__Message__GetEndPosition(message: &Message) -> int;
-  fn v8__Message__GetWasmFunctionIndex(message: &Message) -> int;
-  fn v8__Message__ErrorLevel(message: &Message) -> int;
-  fn v8__Message__GetStartColumn(message: &Message) -> int;
-  fn v8__Message__GetEndColumn(message: &Message) -> int;
-  fn v8__Message__IsSharedCrossOrigin(message: &Message) -> bool;
-  fn v8__Message__IsOpaque(message: &Message) -> bool;
-  fn v8__Message__GetStackTrace(message: &Message) -> *mut StackTrace;
+  fn v8__Message__GetStartPosition(this: *const Message) -> int;
+  fn v8__Message__GetEndPosition(this: *const Message) -> int;
+  fn v8__Message__GetWasmFunctionIndex(this: *const Message) -> int;
+  fn v8__Message__ErrorLevel(this: *const Message) -> int;
+  fn v8__Message__GetStartColumn(this: *const Message) -> int;
+  fn v8__Message__GetEndColumn(this: *const Message) -> int;
+  fn v8__Message__IsSharedCrossOrigin(this: *const Message) -> bool;
+  fn v8__Message__IsOpaque(this: *const Message) -> bool;
+  fn v8__Message__GetStackTrace(this: *const Message) -> *const StackTrace;
 
-  fn v8__StackTrace__GetFrameCount(self_: &StackTrace) -> int;
+  fn v8__StackTrace__GetFrameCount(this: *const StackTrace) -> int;
   fn v8__StackTrace__GetFrame(
-    self_: &StackTrace,
+    this: *const StackTrace,
     isolate: *mut Isolate,
     index: u32,
-  ) -> *mut StackFrame;
+  ) -> *const StackFrame;
 
-  fn v8__StackFrame__GetLineNumber(self_: &StackFrame) -> int;
-  fn v8__StackFrame__GetColumn(self_: &StackFrame) -> int;
-  fn v8__StackFrame__GetScriptId(self_: &StackFrame) -> int;
-  fn v8__StackFrame__GetScriptName(self_: &StackFrame) -> *mut String;
+  fn v8__StackFrame__GetLineNumber(this: *const StackFrame) -> int;
+  fn v8__StackFrame__GetColumn(this: *const StackFrame) -> int;
+  fn v8__StackFrame__GetScriptId(this: *const StackFrame) -> int;
+  fn v8__StackFrame__GetScriptName(this: *const StackFrame) -> *const String;
   fn v8__StackFrame__GetScriptNameOrSourceURL(
-    self_: &StackFrame,
-  ) -> *mut String;
-  fn v8__StackFrame__GetFunctionName(self_: &StackFrame) -> *mut String;
-  fn v8__StackFrame__IsEval(self_: &StackFrame) -> bool;
-  fn v8__StackFrame__IsConstructor(self_: &StackFrame) -> bool;
-  fn v8__StackFrame__IsWasm(self_: &StackFrame) -> bool;
-  fn v8__StackFrame__IsUserJavaScript(self_: &StackFrame) -> bool;
+    this: *const StackFrame,
+  ) -> *const String;
+  fn v8__StackFrame__GetFunctionName(this: *const StackFrame) -> *const String;
+  fn v8__StackFrame__IsEval(this: *const StackFrame) -> bool;
+  fn v8__StackFrame__IsConstructor(this: *const StackFrame) -> bool;
+  fn v8__StackFrame__IsWasm(this: *const StackFrame) -> bool;
+  fn v8__StackFrame__IsUserJavaScript(this: *const StackFrame) -> bool;
 
-  fn v8__Exception__Error(message: Local<String>) -> *mut Value;
-  fn v8__Exception__RangeError(message: Local<String>) -> *mut Value;
-  fn v8__Exception__ReferenceError(message: Local<String>) -> *mut Value;
-  fn v8__Exception__SyntaxError(message: Local<String>) -> *mut Value;
-  fn v8__Exception__TypeError(message: Local<String>) -> *mut Value;
+  fn v8__Exception__Error(message: *const String) -> *const Value;
+  fn v8__Exception__RangeError(message: *const String) -> *const Value;
+  fn v8__Exception__ReferenceError(message: *const String) -> *const Value;
+  fn v8__Exception__SyntaxError(message: *const String) -> *const Value;
+  fn v8__Exception__TypeError(message: *const String) -> *const Value;
 
   fn v8__Exception__CreateMessage(
-    isolate: &Isolate,
-    exception: Local<Value>,
-  ) -> *mut Message;
-
-  fn v8__Exception__GetStackTrace(exception: Local<Value>) -> *mut StackTrace;
+    isolate: *mut Isolate,
+    exception: *const Value,
+  ) -> *const Message;
+  fn v8__Exception__GetStackTrace(exception: *const Value)
+    -> *const StackTrace;
 }
 
 impl StackTrace {
@@ -180,9 +180,9 @@ impl Message {
   pub fn get_source_line<'s>(
     &self,
     scope: &mut impl ToLocal<'s>,
-    mut context: Local<Context>,
+    context: Local<Context>,
   ) -> Option<Local<'s, String>> {
-    unsafe { scope.to_local(v8__Message__GetSourceLine(self, &mut *context)) }
+    unsafe { scope.to_local(v8__Message__GetSourceLine(self, &*context)) }
   }
 
   /// Returns the resource name for the script from where the function causing
@@ -195,8 +195,8 @@ impl Message {
   }
 
   /// Returns the number, 1-based, of the line where the error occurred.
-  pub fn get_line_number(&self, mut context: Local<Context>) -> Option<usize> {
-    let i = unsafe { v8__Message__GetLineNumber(self, &mut *context) };
+  pub fn get_line_number(&self, context: Local<Context>) -> Option<usize> {
+    let i = unsafe { v8__Message__GetLineNumber(self, &*context) };
     if i < 0 {
       None
     } else {
@@ -261,7 +261,7 @@ impl Exception {
   ) -> Local<'sc, Value> {
     let isolate = scope.isolate();
     isolate.enter();
-    let e = unsafe { v8__Exception__Error(message) };
+    let e = unsafe { v8__Exception__Error(&*message) };
     isolate.exit();
     unsafe { scope.to_local(e) }.unwrap()
   }
@@ -272,7 +272,7 @@ impl Exception {
   ) -> Local<'sc, Value> {
     let isolate = scope.isolate();
     isolate.enter();
-    let e = unsafe { v8__Exception__RangeError(message) };
+    let e = unsafe { v8__Exception__RangeError(&*message) };
     isolate.exit();
     unsafe { scope.to_local(e) }.unwrap()
   }
@@ -283,7 +283,7 @@ impl Exception {
   ) -> Local<'sc, Value> {
     let isolate = scope.isolate();
     isolate.enter();
-    let e = unsafe { v8__Exception__ReferenceError(message) };
+    let e = unsafe { v8__Exception__ReferenceError(&*message) };
     isolate.exit();
     unsafe { scope.to_local(e) }.unwrap()
   }
@@ -294,7 +294,7 @@ impl Exception {
   ) -> Local<'sc, Value> {
     let isolate = scope.isolate();
     isolate.enter();
-    let e = unsafe { v8__Exception__SyntaxError(message) };
+    let e = unsafe { v8__Exception__SyntaxError(&*message) };
     isolate.exit();
     unsafe { scope.to_local(e) }.unwrap()
   }
@@ -305,7 +305,7 @@ impl Exception {
   ) -> Local<'sc, Value> {
     let isolate = scope.isolate();
     isolate.enter();
-    let e = unsafe { v8__Exception__TypeError(message) };
+    let e = unsafe { v8__Exception__TypeError(&*message) };
     isolate.exit();
     unsafe { scope.to_local(e) }.unwrap()
   }
@@ -318,7 +318,7 @@ impl Exception {
     exception: Local<Value>,
   ) -> Local<'sc, Message> {
     let isolate = scope.isolate();
-    let ptr = unsafe { v8__Exception__CreateMessage(isolate, exception) };
+    let ptr = unsafe { v8__Exception__CreateMessage(isolate, &*exception) };
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
@@ -328,6 +328,6 @@ impl Exception {
     scope: &mut impl ToLocal<'sc>,
     exception: Local<Value>,
   ) -> Option<Local<'sc, StackTrace>> {
-    unsafe { scope.to_local(v8__Exception__GetStackTrace(exception)) }
+    unsafe { scope.to_local(v8__Exception__GetStackTrace(&*exception)) }
   }
 }

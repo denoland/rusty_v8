@@ -10,18 +10,18 @@ use std::mem::MaybeUninit;
 
 extern "C" {
   fn v8__ScriptCompiler__Source__CONSTRUCT(
-    buf: &mut MaybeUninit<Source>,
-    source_string: &String,
-    origin: &ScriptOrigin,
+    buf: *mut MaybeUninit<Source>,
+    source_string: *const String,
+    origin: *const ScriptOrigin,
   );
-  fn v8__ScriptCompiler__Source__DESTRUCT(this: &mut Source);
+  fn v8__ScriptCompiler__Source__DESTRUCT(this: *mut Source);
 
   fn v8__ScriptCompiler__CompileModule(
-    isoate: &Isolate,
-    source: &Source,
+    isolate: *mut Isolate,
+    source: *mut Source,
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
-  ) -> *mut Module;
+  ) -> *const Module;
 }
 
 #[repr(C)]
@@ -33,7 +33,7 @@ impl Source {
   pub fn new(source_string: Local<String>, origin: &ScriptOrigin) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
-      v8__ScriptCompiler__Source__CONSTRUCT(&mut buf, &source_string, origin);
+      v8__ScriptCompiler__Source__CONSTRUCT(&mut buf, &*source_string, origin);
       buf.assume_init()
     }
   }
@@ -92,14 +92,14 @@ pub fn compile_module<'a>(
 /// Same as compile_module with more options.
 pub fn compile_module2<'a>(
   scope: &mut impl InIsolate,
-  source: Source,
+  mut source: Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'a, Module>> {
   unsafe {
     Local::from_raw(v8__ScriptCompiler__CompileModule(
       scope.isolate(),
-      &source,
+      &mut source,
       options,
       no_cache_reason,
     ))

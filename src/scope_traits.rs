@@ -18,18 +18,18 @@ pub(crate) mod internal {
   use super::*;
 
   extern "C" {
-    fn v8__Context__GetIsolate(self_: &Context) -> *mut Isolate;
+    fn v8__Context__GetIsolate(this: *const Context) -> *mut Isolate;
     fn v8__EscapableHandleScope__GetIsolate(
-      self_: &EscapableHandleScope,
+      this: &EscapableHandleScope,
     ) -> *mut Isolate;
     fn v8__FunctionCallbackInfo__GetIsolate(
-      self_: &FunctionCallbackInfo,
+      this: &FunctionCallbackInfo,
     ) -> *mut Isolate;
-    fn v8__HandleScope__GetIsolate(self_: &HandleScope) -> *mut Isolate;
-    fn v8__Message__GetIsolate(self_: &Message) -> *mut Isolate;
-    fn v8__Object__GetIsolate(self_: &Object) -> *mut Isolate;
+    fn v8__HandleScope__GetIsolate(this: &HandleScope) -> *mut Isolate;
+    fn v8__Message__GetIsolate(this: *const Message) -> *mut Isolate;
+    fn v8__Object__GetIsolate(this: *const Object) -> *mut Isolate;
     fn v8__PropertyCallbackInfo__GetIsolate(
-      self_: &PropertyCallbackInfo,
+      this: &PropertyCallbackInfo,
     ) -> *mut Isolate;
   }
 
@@ -142,16 +142,16 @@ where
 }
 
 extern "C" {
-  fn v8__Isolate__GetCurrentContext(this: *mut Isolate) -> *mut Context;
+  fn v8__Isolate__GetCurrentContext(isolate: *mut Isolate) -> *const Context;
   fn v8__Isolate__GetEnteredOrMicrotaskContext(
-    this: *mut Isolate,
-  ) -> *mut Context;
+    isolate: *mut Isolate,
+  ) -> *const Context;
 }
 
 /// When scope implements this trait, this means that Local handles can be
 /// created inside it.
 pub trait ToLocal<'s>: InIsolate {
-  unsafe fn to_local<T>(&mut self, ptr: *mut T) -> Option<Local<'s, T>> {
+  unsafe fn to_local<T>(&mut self, ptr: *const T) -> Option<Local<'s, T>> {
     Local::from_raw(ptr)
   }
 

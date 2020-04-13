@@ -10,13 +10,13 @@ use std::ptr::null;
 
 extern "C" {
   fn v8__Context__New(
-    isolate: &Isolate,
+    isolate: *mut Isolate,
     templ: *const ObjectTemplate,
-    data: *const Value,
-  ) -> *mut Context;
-  fn v8__Context__Enter(this: &mut Context);
-  fn v8__Context__Exit(this: &mut Context);
-  fn v8__Context__Global(this: *mut Context) -> *mut Object;
+    global_object: *const Value,
+  ) -> *const Context;
+  fn v8__Context__Enter(this: *const Context);
+  fn v8__Context__Exit(this: *const Context);
+  fn v8__Context__Global(this: *const Context) -> *const Object;
 }
 
 impl Context {
@@ -51,22 +51,21 @@ impl Context {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Object> {
-    let context = self as *const _ as *mut Context;
-    unsafe { scope.to_local(v8__Context__Global(context)) }.unwrap()
+    unsafe { scope.to_local(v8__Context__Global(self)) }.unwrap()
   }
 
   /// Enter this context.  After entering a context, all code compiled
   /// and run is compiled and run in this context.  If another context
   /// is already entered, this old context is saved so it can be
   /// restored when the new context is exited.
-  pub(crate) fn enter(&mut self) {
+  pub(crate) fn enter(&self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Enter(self) };
   }
 
   /// Exit this context.  Exiting the current context restores the
   /// context that was in place when entering the current context.
-  pub(crate) fn exit(&mut self) {
+  pub(crate) fn exit(&self) {
     // TODO: enter/exit should be controlled by a scope.
     unsafe { v8__Context__Exit(self) };
   }

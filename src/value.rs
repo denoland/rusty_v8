@@ -12,97 +12,115 @@ use crate::Uint32;
 use crate::Value;
 
 extern "C" {
-  fn v8__Value__IsUndefined(this: &Value) -> bool;
-  fn v8__Value__IsNull(this: &Value) -> bool;
-  fn v8__Value__IsNullOrUndefined(this: &Value) -> bool;
-  fn v8__Value__IsTrue(this: &Value) -> bool;
-  fn v8__Value__IsFalse(this: &Value) -> bool;
-  fn v8__Value__IsName(this: &Value) -> bool;
-  fn v8__Value__IsString(this: &Value) -> bool;
-  fn v8__Value__IsSymbol(this: &Value) -> bool;
-  fn v8__Value__IsFunction(this: &Value) -> bool;
-  fn v8__Value__IsArray(this: &Value) -> bool;
-  fn v8__Value__IsObject(this: &Value) -> bool;
-  fn v8__Value__IsBigInt(this: &Value) -> bool;
-  fn v8__Value__IsBoolean(this: &Value) -> bool;
-  fn v8__Value__IsNumber(this: &Value) -> bool;
-  fn v8__Value__IsExternal(this: &Value) -> bool;
-  fn v8__Value__IsInt32(this: &Value) -> bool;
-  fn v8__Value__IsUint32(this: &Value) -> bool;
-  fn v8__Value__IsDate(this: &Value) -> bool;
-  fn v8__Value__IsArgumentsObject(this: &Value) -> bool;
-  fn v8__Value__IsBigIntObject(this: &Value) -> bool;
-  fn v8__Value__IsBooleanObject(this: &Value) -> bool;
-  fn v8__Value__IsNumberObject(this: &Value) -> bool;
-  fn v8__Value__IsStringObject(this: &Value) -> bool;
-  fn v8__Value__IsSymbolObject(this: &Value) -> bool;
-  fn v8__Value__IsNativeError(this: &Value) -> bool;
-  fn v8__Value__IsRegExp(this: &Value) -> bool;
-  fn v8__Value__IsAsyncFunction(this: &Value) -> bool;
-  fn v8__Value__IsGeneratorFunction(this: &Value) -> bool;
-  fn v8__Value__IsGeneratorObject(this: &Value) -> bool;
-  fn v8__Value__IsPromise(this: &Value) -> bool;
-  fn v8__Value__IsMap(this: &Value) -> bool;
-  fn v8__Value__IsSet(this: &Value) -> bool;
-  fn v8__Value__IsMapIterator(this: &Value) -> bool;
-  fn v8__Value__IsSetIterator(this: &Value) -> bool;
-  fn v8__Value__IsWeakMap(this: &Value) -> bool;
-  fn v8__Value__IsWeakSet(this: &Value) -> bool;
-  fn v8__Value__IsArrayBuffer(this: &Value) -> bool;
-  fn v8__Value__IsArrayBufferView(this: &Value) -> bool;
-  fn v8__Value__IsTypedArray(this: &Value) -> bool;
-  fn v8__Value__IsUint8Array(this: &Value) -> bool;
-  fn v8__Value__IsUint8ClampedArray(this: &Value) -> bool;
-  fn v8__Value__IsInt8Array(this: &Value) -> bool;
-  fn v8__Value__IsUint16Array(this: &Value) -> bool;
-  fn v8__Value__IsInt16Array(this: &Value) -> bool;
-  fn v8__Value__IsUint32Array(this: &Value) -> bool;
-  fn v8__Value__IsInt32Array(this: &Value) -> bool;
-  fn v8__Value__IsFloat32Array(this: &Value) -> bool;
-  fn v8__Value__IsFloat64Array(this: &Value) -> bool;
-  fn v8__Value__IsBigInt64Array(this: &Value) -> bool;
-  fn v8__Value__IsBigUint64Array(this: &Value) -> bool;
-  fn v8__Value__IsDataView(this: &Value) -> bool;
-  fn v8__Value__IsSharedArrayBuffer(this: &Value) -> bool;
-  fn v8__Value__IsProxy(this: &Value) -> bool;
-  fn v8__Value__IsWasmModuleObject(this: &Value) -> bool;
-  fn v8__Value__IsModuleNamespaceObject(this: &Value) -> bool;
-  fn v8__Value__StrictEquals(this: &Value, that: &Value) -> bool;
-  fn v8__Value__SameValue(this: &Value, that: &Value) -> bool;
+  fn v8__Value__IsUndefined(this: *const Value) -> bool;
+  fn v8__Value__IsNull(this: *const Value) -> bool;
+  fn v8__Value__IsNullOrUndefined(this: *const Value) -> bool;
+  fn v8__Value__IsTrue(this: *const Value) -> bool;
+  fn v8__Value__IsFalse(this: *const Value) -> bool;
+  fn v8__Value__IsName(this: *const Value) -> bool;
+  fn v8__Value__IsString(this: *const Value) -> bool;
+  fn v8__Value__IsSymbol(this: *const Value) -> bool;
+  fn v8__Value__IsFunction(this: *const Value) -> bool;
+  fn v8__Value__IsArray(this: *const Value) -> bool;
+  fn v8__Value__IsObject(this: *const Value) -> bool;
+  fn v8__Value__IsBigInt(this: *const Value) -> bool;
+  fn v8__Value__IsBoolean(this: *const Value) -> bool;
+  fn v8__Value__IsNumber(this: *const Value) -> bool;
+  fn v8__Value__IsExternal(this: *const Value) -> bool;
+  fn v8__Value__IsInt32(this: *const Value) -> bool;
+  fn v8__Value__IsUint32(this: *const Value) -> bool;
+  fn v8__Value__IsDate(this: *const Value) -> bool;
+  fn v8__Value__IsArgumentsObject(this: *const Value) -> bool;
+  fn v8__Value__IsBigIntObject(this: *const Value) -> bool;
+  fn v8__Value__IsBooleanObject(this: *const Value) -> bool;
+  fn v8__Value__IsNumberObject(this: *const Value) -> bool;
+  fn v8__Value__IsStringObject(this: *const Value) -> bool;
+  fn v8__Value__IsSymbolObject(this: *const Value) -> bool;
+  fn v8__Value__IsNativeError(this: *const Value) -> bool;
+  fn v8__Value__IsRegExp(this: *const Value) -> bool;
+  fn v8__Value__IsAsyncFunction(this: *const Value) -> bool;
+  fn v8__Value__IsGeneratorFunction(this: *const Value) -> bool;
+  fn v8__Value__IsGeneratorObject(this: *const Value) -> bool;
+  fn v8__Value__IsPromise(this: *const Value) -> bool;
+  fn v8__Value__IsMap(this: *const Value) -> bool;
+  fn v8__Value__IsSet(this: *const Value) -> bool;
+  fn v8__Value__IsMapIterator(this: *const Value) -> bool;
+  fn v8__Value__IsSetIterator(this: *const Value) -> bool;
+  fn v8__Value__IsWeakMap(this: *const Value) -> bool;
+  fn v8__Value__IsWeakSet(this: *const Value) -> bool;
+  fn v8__Value__IsArrayBuffer(this: *const Value) -> bool;
+  fn v8__Value__IsArrayBufferView(this: *const Value) -> bool;
+  fn v8__Value__IsTypedArray(this: *const Value) -> bool;
+  fn v8__Value__IsUint8Array(this: *const Value) -> bool;
+  fn v8__Value__IsUint8ClampedArray(this: *const Value) -> bool;
+  fn v8__Value__IsInt8Array(this: *const Value) -> bool;
+  fn v8__Value__IsUint16Array(this: *const Value) -> bool;
+  fn v8__Value__IsInt16Array(this: *const Value) -> bool;
+  fn v8__Value__IsUint32Array(this: *const Value) -> bool;
+  fn v8__Value__IsInt32Array(this: *const Value) -> bool;
+  fn v8__Value__IsFloat32Array(this: *const Value) -> bool;
+  fn v8__Value__IsFloat64Array(this: *const Value) -> bool;
+  fn v8__Value__IsBigInt64Array(this: *const Value) -> bool;
+  fn v8__Value__IsBigUint64Array(this: *const Value) -> bool;
+  fn v8__Value__IsDataView(this: *const Value) -> bool;
+  fn v8__Value__IsSharedArrayBuffer(this: *const Value) -> bool;
+  fn v8__Value__IsProxy(this: *const Value) -> bool;
+  fn v8__Value__IsWasmModuleObject(this: *const Value) -> bool;
+  fn v8__Value__IsModuleNamespaceObject(this: *const Value) -> bool;
+  fn v8__Value__StrictEquals(this: *const Value, that: *const Value) -> bool;
+  fn v8__Value__SameValue(this: *const Value, that: *const Value) -> bool;
 
-  fn v8__Value__ToBigInt(this: &Value, context: Local<Context>) -> *mut BigInt;
-  fn v8__Value__ToNumber(this: &Value, context: Local<Context>) -> *mut Number;
-  fn v8__Value__ToString(this: &Value, context: Local<Context>) -> *mut String;
+  fn v8__Value__ToBigInt(
+    this: *const Value,
+    context: *const Context,
+  ) -> *const BigInt;
+  fn v8__Value__ToNumber(
+    this: *const Value,
+    context: *const Context,
+  ) -> *const Number;
+  fn v8__Value__ToString(
+    this: *const Value,
+    context: *const Context,
+  ) -> *const String;
   fn v8__Value__ToDetailString(
-    this: &Value,
-    context: Local<Context>,
-  ) -> *mut String;
-  fn v8__Value__ToObject(this: &Value, context: Local<Context>) -> *mut Object;
+    this: *const Value,
+    context: *const Context,
+  ) -> *const String;
+  fn v8__Value__ToObject(
+    this: *const Value,
+    context: *const Context,
+  ) -> *const Object;
   fn v8__Value__ToInteger(
-    this: &Value,
-    context: Local<Context>,
-  ) -> *mut Integer;
-  fn v8__Value__ToUint32(this: &Value, context: Local<Context>) -> *mut Uint32;
-  fn v8__Value__ToInt32(this: &Value, context: Local<Context>) -> *mut Int32;
+    this: *const Value,
+    context: *const Context,
+  ) -> *const Integer;
+  fn v8__Value__ToUint32(
+    this: *const Value,
+    context: *const Context,
+  ) -> *const Uint32;
+  fn v8__Value__ToInt32(
+    this: *const Value,
+    context: *const Context,
+  ) -> *const Int32;
 
   fn v8__Value__NumberValue(
-    this: &Value,
-    context: Local<Context>,
+    this: *const Value,
+    context: *const Context,
     out: *mut Maybe<f64>,
   );
   fn v8__Value__IntegerValue(
-    this: &Value,
-    context: Local<Context>,
+    this: *const Value,
+    context: *const Context,
     out: *mut Maybe<i64>,
   );
   fn v8__Value__Uint32Value(
-    this: &Value,
-    context: Local<Context>,
+    this: *const Value,
+    context: *const Context,
     out: *mut Maybe<u32>,
   );
   fn v8__Value__Int32Value(
-    this: &Value,
-    context: Local<Context>,
+    this: *const Value,
+    context: *const Context,
     out: *mut Maybe<i32>,
   );
 }
@@ -394,11 +412,11 @@ impl Value {
   }
 
   pub fn strict_equals<'sc>(&self, that: Local<'sc, Value>) -> bool {
-    unsafe { v8__Value__StrictEquals(self, &that) }
+    unsafe { v8__Value__StrictEquals(self, &*that) }
   }
 
   pub fn same_value<'sc>(&self, that: Local<'sc, Value>) -> bool {
-    unsafe { v8__Value__SameValue(self, &that) }
+    unsafe { v8__Value__SameValue(self, &*that) }
   }
 
   pub fn to_big_int<'sc>(
@@ -406,7 +424,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, BigInt>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToBigInt(self, context))
+      Local::from_raw(v8__Value__ToBigInt(self, &*context))
     })
   }
 
@@ -415,7 +433,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Number>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToNumber(self, context))
+      Local::from_raw(v8__Value__ToNumber(self, &*context))
     })
   }
 
@@ -424,7 +442,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToString(self, context))
+      Local::from_raw(v8__Value__ToString(self, &*context))
     })
   }
 
@@ -433,7 +451,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToDetailString(self, context))
+      Local::from_raw(v8__Value__ToDetailString(self, &*context))
     })
   }
 
@@ -442,7 +460,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Object>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToObject(self, context))
+      Local::from_raw(v8__Value__ToObject(self, &*context))
     })
   }
 
@@ -451,7 +469,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Integer>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToInteger(self, context))
+      Local::from_raw(v8__Value__ToInteger(self, &*context))
     })
   }
 
@@ -460,7 +478,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Uint32>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToUint32(self, context))
+      Local::from_raw(v8__Value__ToUint32(self, &*context))
     })
   }
 
@@ -469,7 +487,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Int32>> {
     scope.get_current_context().and_then(|context| unsafe {
-      Local::from_raw(v8__Value__ToInt32(self, context))
+      Local::from_raw(v8__Value__ToInt32(self, &*context))
     })
   }
 
@@ -479,7 +497,7 @@ impl Value {
   ) -> Option<f64> {
     scope.get_current_context().and_then(|context| unsafe {
       let mut out = Maybe::<f64>::default();
-      v8__Value__NumberValue(self, context, &mut out);
+      v8__Value__NumberValue(self, &*context, &mut out);
       out.into()
     })
   }
@@ -490,7 +508,7 @@ impl Value {
   ) -> Option<i64> {
     scope.get_current_context().and_then(|context| unsafe {
       let mut out = Maybe::<i64>::default();
-      v8__Value__IntegerValue(self, context, &mut out);
+      v8__Value__IntegerValue(self, &*context, &mut out);
       out.into()
     })
   }
@@ -501,7 +519,7 @@ impl Value {
   ) -> Option<u32> {
     scope.get_current_context().and_then(|context| unsafe {
       let mut out = Maybe::<u32>::default();
-      v8__Value__Uint32Value(self, context, &mut out);
+      v8__Value__Uint32Value(self, &*context, &mut out);
       out.into()
     })
   }
@@ -509,7 +527,7 @@ impl Value {
   pub fn int32_value<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Option<i32> {
     scope.get_current_context().and_then(|context| unsafe {
       let mut out = Maybe::<i32>::default();
-      v8__Value__Int32Value(self, context, &mut out);
+      v8__Value__Int32Value(self, &*context, &mut out);
       out.into()
     })
   }
