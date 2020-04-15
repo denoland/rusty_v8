@@ -296,11 +296,12 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 ///    proto_t->Set(isolate, "proto_const", v8::Number::New(isolate, 2));
 ///
 ///    v8::Local<v8::ObjectTemplate> instance_t = t->InstanceTemplate();
-///    instance_t->SetAccessor(String::NewFromUtf8(isolate, "instance_accessor"),
-///                            InstanceAccessorCallback);
+///    instance_t->SetAccessor(
+///        String::NewFromUtf8Literal(isolate, "instance_accessor"),
+///        InstanceAccessorCallback);
 ///    instance_t->SetHandler(
 ///        NamedPropertyHandlerConfiguration(PropertyHandlerCallback));
-///    instance_t->Set(String::NewFromUtf8(isolate, "instance_property"),
+///    instance_t->Set(String::NewFromUtf8Literal(isolate, "instance_property"),
 ///                    Number::New(isolate, 3));
 ///
 ///    v8::Local<v8::Function> function = t->GetFunction();
@@ -360,6 +361,12 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 ///   child_instance.instance_accessor calls 'InstanceAccessorCallback'
 ///   child_instance.instance_property == 3;
 /// ```
+///
+/// The additional 'c_function' parameter refers to a fast API call, which
+/// must not trigger GC or JavaScript execution, or call into V8 in other
+/// ways. For more information how to define them, see
+/// include/v8-fast-api-calls.h. Please note that this feature is still
+/// experimental.
 #[repr(C)]
 pub struct FunctionTemplate(Opaque);
 
@@ -918,9 +925,10 @@ impl_partial_eq! { Value for Date use identity }
 impl_partial_eq! { Object for Date use identity }
 impl_partial_eq! { Date for Date use identity }
 
-/// An instance of the built-in FinalizationGroup constructor.
+/// An instance of the built-in FinalizationRegistry constructor.
 ///
-/// This API is experimental and may change significantly.
+/// The C++ name is FinalizationGroup for backwards compatibility. This API is
+/// experimental and deprecated.
 #[repr(C)]
 pub struct FinalizationGroup(Opaque);
 
