@@ -266,10 +266,6 @@ const v8::Data* v8__Local__New(v8::Isolate* isolate, const v8::Data& other) {
   return local_to_ptr(v8::Local<v8::Data>::New(isolate, ptr_to_local(&other)));
 }
 
-bool v8__Local__EQ(const v8::Data& self, const v8::Data& other) {
-  return ptr_to_local(&self) == ptr_to_local(&other);
-}
-
 const v8::Data* v8__Global__New(v8::Isolate* isolate, const v8::Data& other) {
   // We have to use `std::move()` here because v8 disables the copy constructor
   // for class `v8::Global`.
@@ -312,6 +308,10 @@ const v8::Module* v8__ScriptCompiler__CompileModule(
   } else {
     return local_to_ptr(maybe_local.ToLocalChecked());
   }
+}
+
+bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
+  return ptr_to_local(&self) == ptr_to_local(&other);
 }
 
 bool v8__Value__IsUndefined(const v8::Value& self) {
