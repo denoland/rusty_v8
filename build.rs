@@ -1,5 +1,4 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
-use cargo_gn;
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;

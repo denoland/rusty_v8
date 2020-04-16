@@ -28,36 +28,36 @@ use crate::Local;
 extern "C" {
   fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<Channel>,
-  ) -> ();
+  );
 
   fn v8_inspector__V8Inspector__Channel__sendResponse(
     this: &mut Channel,
     call_id: int,
     message: UniquePtr<StringBuffer>,
-  ) -> ();
+  );
   fn v8_inspector__V8Inspector__Channel__sendNotification(
     this: &mut Channel,
     message: UniquePtr<StringBuffer>,
-  ) -> ();
+  );
   fn v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
     this: &mut Channel,
-  ) -> ();
+  );
 
   fn v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<V8InspectorClient>,
-  ) -> ();
+  );
 
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut V8InspectorClient,
     context_group_id: int,
-  ) -> ();
+  );
   fn v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
     this: &mut V8InspectorClient,
-  ) -> ();
+  );
   fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
     this: &mut V8InspectorClient,
     context_group_id: int,
-  ) -> ();
+  );
   fn v8_inspector__V8InspectorClient__consoleAPIMessage(
     this: &mut V8InspectorClient,
     context_group_id: int,
@@ -67,7 +67,7 @@ extern "C" {
     line_number: u32,
     column_number: u32,
     stack_trace: &mut V8StackTrace,
-  ) -> ();
+  );
 
   fn v8_inspector__V8InspectorSession__DELETE(this: &mut V8InspectorSession);
   fn v8_inspector__V8InspectorSession__dispatchProtocolMessage(
@@ -80,7 +80,7 @@ extern "C" {
     break_details: &StringView,
   );
 
-  fn v8_inspector__StringBuffer__DELETE(this: &mut StringBuffer) -> ();
+  fn v8_inspector__StringBuffer__DELETE(this: &mut StringBuffer);
   fn v8_inspector__StringBuffer__string(this: &mut StringBuffer)
     -> &StringView;
   fn v8_inspector__StringBuffer__create(
@@ -234,13 +234,9 @@ pub trait ChannelImpl: AsChannel {
   fn base(&self) -> &ChannelBase;
   fn base_mut(&mut self) -> &mut ChannelBase;
 
-  fn send_response(
-    &mut self,
-    call_id: i32,
-    message: UniquePtr<StringBuffer>,
-  ) -> ();
-  fn send_notification(&mut self, message: UniquePtr<StringBuffer>) -> ();
-  fn flush_protocol_notifications(&mut self) -> ();
+  fn send_response(&mut self, call_id: i32, message: UniquePtr<StringBuffer>);
+  fn send_notification(&mut self, message: UniquePtr<StringBuffer>);
+  fn flush_protocol_notifications(&mut self);
 }
 
 pub struct ChannelBase {

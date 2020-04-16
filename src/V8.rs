@@ -15,7 +15,7 @@ extern "C" {
   fn v8__V8__InitializePlatform(platform: *mut Platform);
   fn v8__V8__Initialize();
   fn v8__V8__Dispose() -> bool;
-  fn v8__V8__ShutdownPlatform() -> ();
+  fn v8__V8__ShutdownPlatform();
 }
 
 #[derive(Debug, Eq, PartialEq)]

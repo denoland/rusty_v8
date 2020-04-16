@@ -15,9 +15,9 @@ use crate::support::UniqueRef;
 // };
 
 extern "C" {
-  fn v8__Task__BASE__CONSTRUCT(buf: *mut std::mem::MaybeUninit<Task>) -> ();
-  fn v8__Task__DELETE(this: *mut Task) -> ();
-  fn v8__Task__Run(this: *mut Task) -> ();
+  fn v8__Task__BASE__CONSTRUCT(buf: *mut std::mem::MaybeUninit<Task>);
+  fn v8__Task__DELETE(this: *mut Task);
+  fn v8__Task__Run(this: *mut Task);
 }
 
 #[no_mangle]
@@ -86,7 +86,7 @@ where
 pub trait TaskImpl: AsTask {
   fn base(&self) -> &TaskBase;
   fn base_mut(&mut self) -> &mut TaskBase;
-  fn run(&mut self) -> ();
+  fn run(&mut self);
 }
 
 pub struct TaskBase {

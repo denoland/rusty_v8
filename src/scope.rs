@@ -24,7 +24,7 @@ where
   Self: Sized,
 {
   type Args;
-  unsafe fn enter_scope(buf: *mut Self, args: Self::Args) -> ();
+  unsafe fn enter_scope(buf: *mut Self, args: Self::Args);
 }
 
 /// A RAII scope wrapper object that will, when the `enter()` method is called,
