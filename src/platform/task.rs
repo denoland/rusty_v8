@@ -42,7 +42,7 @@ impl Task {
 }
 
 impl Delete for Task {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8__Task__DELETE(self) }
   }
 }

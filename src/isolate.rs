@@ -576,7 +576,7 @@ impl CreateParams {
 }
 
 impl Delete for CreateParams {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8__Isolate__CreateParams__DELETE(self) }
   }
 }

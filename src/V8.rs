@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::vec::Vec;
 
 use crate::platform::Platform;
-use crate::support::UniquePtr;
+use crate::support::UniqueRef;
 
 extern "C" {
   fn v8__V8__SetFlagsFromCommandLine(argc: *mut c_int, argv: *mut *mut c_char);
@@ -91,10 +91,10 @@ pub fn get_version() -> &'static str {
 // V8::ShutdownPlatform is called.
 /// Sets the v8::Platform to use. This should be invoked before V8 is
 /// initialized.
-pub fn initialize_platform(platform: UniquePtr<Platform>) {
+pub fn initialize_platform(platform: UniqueRef<Platform>) {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   assert_eq!(*global_state_guard, Uninitialized);
-  unsafe { v8__V8__InitializePlatform(&mut *platform.into_raw()) };
+  unsafe { v8__V8__InitializePlatform(platform.into_raw()) };
   *global_state_guard = PlatformInitialized;
 }
 

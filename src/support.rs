@@ -1,10 +1,11 @@
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
-use std::mem::replace;
+use std::mem::forget;
 use std::mem::size_of;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::null_mut;
 use std::ptr::NonNull;
 
 // TODO use libc::intptr_t when stable.
@@ -20,14 +21,14 @@ pub type Opaque = [u8; 0];
 
 pub trait Delete
 where
-  Self: Sized + 'static,
+  Self: Sized,
 {
-  fn delete(&'static mut self) -> ();
+  fn delete(&mut self) -> ();
 }
 
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
-pub struct UniquePtr<T>(Option<&'static mut T>)
+pub struct UniquePtr<T>(Option<UniqueRef<T>>)
 where
   T: Delete;
 
@@ -39,22 +40,25 @@ where
     Self(None)
   }
 
-  pub fn new(r: &'static mut T) -> Self {
-    Self(Some(r))
-  }
-
-  pub unsafe fn from_raw(p: *mut T) -> Self {
-    transmute(p)
+  pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    Self(UniqueRef::try_from_raw(ptr))
   }
 
   pub fn into_raw(self) -> *mut T {
-    unsafe { transmute(self) }
+    self
+      .0
+      .map(|unique_ref| unique_ref.into_raw())
+      .unwrap_or_else(null_mut)
   }
 
   pub fn unwrap(self) -> UniqueRef<T> {
-    let p = self.into_raw();
-    assert!(!p.is_null());
-    unsafe { UniqueRef::from_raw(p) }
+    self.0.unwrap()
+  }
+
+  unsafe fn _static_assert_has_pointer_repr() {
+    let dummy: fn() -> Self = || unimplemented!();
+    let _ptr: *mut T = transmute(dummy());
+    let _ref: &mut T = transmute(dummy());
   }
 }
 
@@ -63,7 +67,7 @@ where
   T: Delete,
 {
   fn from(unique_ref: UniqueRef<T>) -> Self {
-    unsafe { Self::from_raw(unique_ref.into_raw()) }
+    Self(Some(unique_ref))
   }
 }
 
@@ -71,7 +75,7 @@ impl<T> Deref for UniquePtr<T>
 where
   T: Delete,
 {
-  type Target = Option<&'static mut T>;
+  type Target = Option<UniqueRef<T>>;
   fn deref(&self) -> &Self::Target {
     &self.0
   }
@@ -86,20 +90,9 @@ where
   }
 }
 
-impl<T> Drop for UniquePtr<T>
-where
-  T: Delete,
-{
-  fn drop(&mut self) {
-    if let Some(v) = self.0.take() {
-      Delete::delete(v)
-    }
-  }
-}
-
 /// Pointer to object allocated on the C++ heap. The pointer may not be null.
 #[repr(transparent)]
-pub struct UniqueRef<T>(&'static mut T)
+pub struct UniqueRef<T>(NonNull<T>)
 where
   T: Delete;
 
@@ -107,10 +100,6 @@ impl<T> UniqueRef<T>
 where
   T: Delete,
 {
-  pub fn new(r: &'static mut T) -> Self {
-    Self(r)
-  }
-
   pub fn make_shared(self) -> SharedRef<T>
   where
     T: Shared,
@@ -118,12 +107,24 @@ where
     self.into()
   }
 
-  pub unsafe fn from_raw(p: *mut T) -> Self {
-    transmute(NonNull::new(p))
+  pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    Self::try_from_raw(ptr).unwrap()
   }
 
   pub fn into_raw(self) -> *mut T {
-    unsafe { transmute(self) }
+    let ptr = self.0.as_ptr();
+    forget(self);
+    ptr
+  }
+
+  unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
+    NonNull::new(ptr).map(Self)
+  }
+
+  unsafe fn _static_assert_has_pointer_repr() {
+    let dummy: fn() -> Self = || unimplemented!();
+    let _ptr: *mut T = transmute(dummy());
+    let _ref: &mut T = transmute(dummy());
   }
 }
 
@@ -133,7 +134,7 @@ where
 {
   type Target = T;
   fn deref(&self) -> &Self::Target {
-    self.0
+    unsafe { self.0.as_ref() }
   }
 }
 
@@ -142,7 +143,7 @@ where
   T: Delete,
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    self.0
+    unsafe { self.0.as_mut() }
   }
 }
 
@@ -151,10 +152,7 @@ where
   T: Delete,
 {
   fn drop(&mut self) {
-    let inner = replace(&mut self.0, unsafe {
-      transmute(NonNull::<&'static mut T>::dangling())
-    });
-    Delete::delete(inner)
+    Delete::delete(&mut **self)
   }
 }
 

@@ -23,7 +23,7 @@ pub fn new_default_platform() -> UniquePtr<Platform> {
 pub struct Platform(Opaque);
 
 impl Delete for Platform {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8__Platform__DELETE(self) }
   }
 }

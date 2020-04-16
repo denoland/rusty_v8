@@ -70,9 +70,7 @@ extern "C" {
     stack_trace: &mut V8StackTrace,
   ) -> ();
 
-  fn v8_inspector__V8InspectorSession__DELETE(
-    this: &'static mut V8InspectorSession,
-  );
+  fn v8_inspector__V8InspectorSession__DELETE(this: &mut V8InspectorSession);
   fn v8_inspector__V8InspectorSession__dispatchProtocolMessage(
     session: *mut V8InspectorSession,
     message: &StringView,
@@ -83,14 +81,14 @@ extern "C" {
     break_details: &StringView,
   );
 
-  fn v8_inspector__StringBuffer__DELETE(this: &'static mut StringBuffer) -> ();
+  fn v8_inspector__StringBuffer__DELETE(this: &mut StringBuffer) -> ();
   fn v8_inspector__StringBuffer__string(this: &mut StringBuffer)
     -> &StringView;
   fn v8_inspector__StringBuffer__create(
     source: &StringView,
   ) -> UniquePtr<StringBuffer>;
 
-  fn v8_inspector__V8Inspector__DELETE(this: &'static mut V8Inspector);
+  fn v8_inspector__V8Inspector__DELETE(this: &mut V8Inspector);
   fn v8_inspector__V8Inspector__create(
     isolate: *mut Isolate,
     client: *mut V8InspectorClient,
@@ -586,7 +584,7 @@ impl V8InspectorSession {
 }
 
 impl Delete for V8InspectorSession {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8_inspector__V8InspectorSession__DELETE(self) };
   }
 }
@@ -618,7 +616,7 @@ impl StringBuffer {
 }
 
 impl Delete for StringBuffer {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8_inspector__StringBuffer__DELETE(self) }
   }
 }
@@ -894,7 +892,7 @@ impl V8Inspector {
 }
 
 impl Delete for V8Inspector {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8_inspector__V8Inspector__DELETE(self) };
   }
 }

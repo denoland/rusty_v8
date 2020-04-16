@@ -138,7 +138,7 @@ fn test_default_allocator() {
 }
 
 impl Delete for Allocator {
-  fn delete(&'static mut self) {
+  fn delete(&mut self) {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
 }
