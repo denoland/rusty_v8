@@ -208,21 +208,21 @@ mod tests {
   }
 
   #[test]
-  fn test_task_1() {
-    let mut task = TestTask::new();
-    task.run();
-    drop(task);
-    assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
-    assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
-  }
-
-  #[test]
-  fn test_task_2() {
-    let mut task = Box::new(TestTask::new()).into_unique_ref();
-    task.run();
-    task.run();
-    drop(task);
-    assert_eq!(RUN_COUNT.swap(0, SeqCst), 2);
-    assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
+  fn test_task() {
+    {
+      let mut task = TestTask::new();
+      task.run();
+      drop(task);
+      assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
+      assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
+    }
+    {
+      let mut task = Box::new(TestTask::new()).into_unique_ref();
+      task.run();
+      task.run();
+      drop(task);
+      assert_eq!(RUN_COUNT.swap(0, SeqCst), 2);
+      assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
+    }
   }
 }
