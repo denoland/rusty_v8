@@ -2,7 +2,6 @@ pub mod task;
 
 pub use task::{Task, TaskBase, TaskImpl};
 
-use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniquePtr;
 use crate::Isolate;
@@ -22,8 +21,8 @@ pub fn new_default_platform() -> UniquePtr<Platform> {
 #[repr(C)]
 pub struct Platform(Opaque);
 
-impl Delete for Platform {
-  fn delete(&mut self) {
+impl Drop for Platform {
+  fn drop(&mut self) {
     unsafe { v8__Platform__DELETE(self) }
   }
 }

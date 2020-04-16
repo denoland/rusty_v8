@@ -1,10 +1,12 @@
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
+use std::mem::align_of;
 use std::mem::forget;
+use std::mem::needs_drop;
 use std::mem::size_of;
-use std::mem::transmute;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::drop_in_place;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
 
@@ -19,28 +21,18 @@ pub use std::os::raw::c_long as long;
 
 pub type Opaque = [u8; 0];
 
-pub trait Delete
-where
-  Self: Sized,
-{
-  fn delete(&mut self) -> ();
-}
-
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
-pub struct UniquePtr<T>(Option<UniqueRef<T>>)
-where
-  T: Delete;
+pub struct UniquePtr<T>(Option<UniqueRef<T>>);
 
-impl<T> UniquePtr<T>
-where
-  T: Delete,
-{
+impl<T> UniquePtr<T> {
   pub fn null() -> Self {
+    assert_unique_type_compatible::<Self, T>();
     Self(None)
   }
 
   pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    assert_unique_type_compatible::<Self, T>();
     Self(UniqueRef::try_from_raw(ptr))
   }
 
@@ -54,37 +46,22 @@ where
   pub fn unwrap(self) -> UniqueRef<T> {
     self.0.unwrap()
   }
-
-  unsafe fn _static_assert_has_pointer_repr() {
-    let dummy: fn() -> Self = || unimplemented!();
-    let _ptr: *mut T = transmute(dummy());
-    let _ref: &mut T = transmute(dummy());
-  }
 }
 
-impl<T> From<UniqueRef<T>> for UniquePtr<T>
-where
-  T: Delete,
-{
+impl<T> From<UniqueRef<T>> for UniquePtr<T> {
   fn from(unique_ref: UniqueRef<T>) -> Self {
     Self(Some(unique_ref))
   }
 }
 
-impl<T> Deref for UniquePtr<T>
-where
-  T: Delete,
-{
+impl<T> Deref for UniquePtr<T> {
   type Target = Option<UniqueRef<T>>;
   fn deref(&self) -> &Self::Target {
     &self.0
   }
 }
 
-impl<T> DerefMut for UniquePtr<T>
-where
-  T: Delete,
-{
+impl<T> DerefMut for UniquePtr<T> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.0
   }
@@ -92,19 +69,12 @@ where
 
 /// Pointer to object allocated on the C++ heap. The pointer may not be null.
 #[repr(transparent)]
-pub struct UniqueRef<T>(NonNull<T>)
-where
-  T: Delete;
+pub struct UniqueRef<T>(NonNull<T>);
 
-impl<T> UniqueRef<T>
-where
-  T: Delete,
-{
-  pub fn make_shared(self) -> SharedRef<T>
-  where
-    T: Shared,
-  {
-    self.into()
+impl<T> UniqueRef<T> {
+  unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
+    assert_unique_type_compatible::<Self, T>();
+    NonNull::new(ptr).map(Self)
   }
 
   pub unsafe fn from_raw(ptr: *mut T) -> Self {
@@ -117,48 +87,47 @@ where
     ptr
   }
 
-  unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
-    NonNull::new(ptr).map(Self)
-  }
-
-  unsafe fn _static_assert_has_pointer_repr() {
-    let dummy: fn() -> Self = || unimplemented!();
-    let _ptr: *mut T = transmute(dummy());
-    let _ref: &mut T = transmute(dummy());
+  pub fn make_shared(self) -> SharedRef<T>
+  where
+    T: Shared,
+  {
+    self.into()
   }
 }
 
-impl<T> Deref for UniqueRef<T>
-where
-  T: Delete,
-{
+impl<T> Deref for UniqueRef<T> {
   type Target = T;
   fn deref(&self) -> &Self::Target {
     unsafe { self.0.as_ref() }
   }
 }
 
-impl<T> DerefMut for UniqueRef<T>
-where
-  T: Delete,
-{
+impl<T> DerefMut for UniqueRef<T> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { self.0.as_mut() }
   }
 }
 
-impl<T> Drop for UniqueRef<T>
-where
-  T: Delete,
-{
+impl<T> Drop for UniqueRef<T> {
   fn drop(&mut self) {
-    Delete::delete(&mut **self)
+    unsafe { drop_in_place(self.0.as_ptr()) }
   }
+}
+
+fn assert_unique_type_compatible<U, T>() {
+  // Assert that `U` (a `UniqueRef` or `UniquePtr`) has the same memory layout
+  // as a pointer to `T`.
+  assert_eq!(size_of::<U>(), size_of::<*mut T>());
+  assert_eq!(align_of::<U>(), align_of::<*mut T>());
+
+  // Assert that `T` (probably) implements `Drop`. If it doesn't, a regular
+  // reference should be used instead of UniquePtr/UniqueRef.
+  assert!(needs_drop::<T>());
 }
 
 pub trait Shared
 where
-  Self: Delete + 'static,
+  Self: Sized,
 {
   fn clone(shared_ptr: *const SharedRef<Self>) -> SharedRef<Self>;
   fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self>;
@@ -196,7 +165,7 @@ where
 
 impl<T> From<UniqueRef<T>> for SharedRef<T>
 where
-  T: Delete + Shared,
+  T: Shared,
 {
   fn from(unique: UniqueRef<T>) -> Self {
     <T as Shared>::from_unique(unique)

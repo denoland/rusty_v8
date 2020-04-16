@@ -3,7 +3,6 @@ use crate::array_buffer::Allocator;
 use crate::external_references::ExternalReferences;
 use crate::promise::PromiseRejectMessage;
 use crate::support::intptr_t;
-use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
@@ -575,8 +574,8 @@ impl CreateParams {
   }
 }
 
-impl Delete for CreateParams {
-  fn delete(&mut self) {
+impl Drop for CreateParams {
+  fn drop(&mut self) {
     unsafe { v8__Isolate__CreateParams__DELETE(self) }
   }
 }

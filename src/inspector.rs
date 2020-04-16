@@ -16,7 +16,6 @@
 use crate::scope_traits::InIsolate;
 use crate::support::int;
 use crate::support::CxxVTable;
-use crate::support::Delete;
 use crate::support::FieldOffset;
 use crate::support::Opaque;
 use crate::support::RustVTable;
@@ -583,8 +582,8 @@ impl V8InspectorSession {
   }
 }
 
-impl Delete for V8InspectorSession {
-  fn delete(&mut self) {
+impl Drop for V8InspectorSession {
+  fn drop(&mut self) {
     unsafe { v8_inspector__V8InspectorSession__DELETE(self) };
   }
 }
@@ -615,8 +614,8 @@ impl StringBuffer {
   }
 }
 
-impl Delete for StringBuffer {
-  fn delete(&mut self) {
+impl Drop for StringBuffer {
+  fn drop(&mut self) {
     unsafe { v8_inspector__StringBuffer__DELETE(self) }
   }
 }
@@ -891,8 +890,8 @@ impl V8Inspector {
   }
 }
 
-impl Delete for V8Inspector {
-  fn delete(&mut self) {
+impl Drop for V8Inspector {
+  fn drop(&mut self) {
     unsafe { v8_inspector__V8Inspector__DELETE(self) };
   }
 }

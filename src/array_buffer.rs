@@ -7,7 +7,6 @@ use std::ptr::null_mut;
 use std::slice;
 
 use crate::support::long;
-use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::Shared;
 use crate::support::SharedRef;
@@ -137,8 +136,8 @@ fn test_default_allocator() {
   new_default_allocator();
 }
 
-impl Delete for Allocator {
-  fn delete(&mut self) {
+impl Drop for Allocator {
+  fn drop(&mut self) {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
 }
@@ -212,8 +211,8 @@ impl DerefMut for BackingStore {
   }
 }
 
-impl Delete for BackingStore {
-  fn delete(&mut self) {
+impl Drop for BackingStore {
+  fn drop(&mut self) {
     unsafe { v8__BackingStore__DELETE(self) };
   }
 }
