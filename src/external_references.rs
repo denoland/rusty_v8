@@ -12,23 +12,35 @@ pub union ExternalReference<'s> {
 }
 
 pub struct ExternalReferences {
-  null_terminated: Vec<*const std::ffi::c_void>,
+  null_terminated: Vec<intptr_t>,
 }
 
 unsafe impl Sync for ExternalReferences {}
 
 impl ExternalReferences {
   pub fn new(refs: &[ExternalReference]) -> Self {
-    let mut null_terminated = Vec::with_capacity(refs.len() + 1);
-    for r in refs {
-      let ptr = unsafe { std::mem::transmute(*r) };
-      null_terminated.push(ptr);
-    }
-    null_terminated.push(std::ptr::null());
+    let null_terminated = refs
+      .iter()
+      .map(|&r| unsafe { std::mem::transmute(r) })
+      .chain(std::iter::once(0)) // Add null terminator.
+      .collect::<Vec<intptr_t>>();
     Self { null_terminated }
   }
 
   pub fn as_ptr(&self) -> *const intptr_t {
-    self.null_terminated.as_ptr() as *const intptr_t
+    self.null_terminated.as_ptr()
+  }
+}
+
+impl std::ops::Deref for ExternalReferences {
+  type Target = [intptr_t];
+  fn deref(&self) -> &Self::Target {
+    &*self.null_terminated
+  }
+}
+
+impl std::borrow::Borrow<[intptr_t]> for ExternalReferences {
+  fn borrow(&self) -> &[intptr_t] {
+    &**self
   }
 }

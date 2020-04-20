@@ -100,12 +100,8 @@ bool v8__V8__Dispose() { return v8::V8::Dispose(); }
 
 void v8__V8__ShutdownPlatform() { v8::V8::ShutdownPlatform(); }
 
-// This function consumes the Isolate::CreateParams object. The Isolate takes
-// ownership of the ArrayBuffer::Allocator referenced by the params object.
-v8::Isolate* v8__Isolate__New(v8::Isolate::CreateParams* params) {
-  auto isolate = v8::Isolate::New(*params);
-  delete params;
-  return isolate;
+v8::Isolate* v8__Isolate__New(const v8::Isolate::CreateParams& params) {
+  return v8::Isolate::New(params);
 }
 
 void v8__Isolate__Dispose(v8::Isolate* isolate) { isolate->Dispose(); }
@@ -194,36 +190,13 @@ void v8__Isolate__CancelTerminateExecution(v8::Isolate* isolate) {
   isolate->CancelTerminateExecution();
 }
 
-v8::Isolate::CreateParams* v8__Isolate__CreateParams__NEW() {
-  return new v8::Isolate::CreateParams();
+void v8__Isolate__CreateParams__CONSTRUCT(
+    uninit_t<v8::Isolate::CreateParams>* buf) {
+  construct_in_place<v8::Isolate::CreateParams>(buf);
 }
 
-// This function is only called if the Isolate::CreateParams object is *not*
-// consumed by Isolate::New().
-void v8__Isolate__CreateParams__DELETE(v8::Isolate::CreateParams* self) {
-  assert(self->array_buffer_allocator ==
-         nullptr);  // We only used the shared version.
-  delete self;
-}
-
-// This function takes ownership of the ArrayBuffer::Allocator.
-void v8__Isolate__CreateParams__SET__array_buffer_allocator(
-    v8::Isolate::CreateParams* self,
-    const std::shared_ptr<v8::ArrayBuffer::Allocator>& allocator) {
-  self->array_buffer_allocator_shared = allocator;
-}
-
-// external_references should probably have static lifetime.
-void v8__Isolate__CreateParams__SET__external_references(
-    v8::Isolate::CreateParams* self, const intptr_t* external_references) {
-  assert(self->external_references == nullptr);
-  self->external_references = external_references;
-}
-
-// This function does not take ownership of the StartupData.
-void v8__Isolate__CreateParams__SET__snapshot_blob(
-    v8::Isolate::CreateParams* self, v8::StartupData* snapshot_blob) {
-  self->snapshot_blob = snapshot_blob;
+size_t v8__Isolate__CreateParams__SIZEOF() {
+  return sizeof(v8::Isolate::CreateParams);
 }
 
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,

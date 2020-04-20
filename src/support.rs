@@ -1,5 +1,7 @@
+use std::any::Any;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
+use std::convert::identity;
 use std::convert::AsMut;
 use std::convert::AsRef;
 use std::marker::PhantomData;
@@ -8,11 +10,14 @@ use std::mem::forget;
 use std::mem::needs_drop;
 use std::mem::size_of;
 use std::mem::take;
+use std::mem::transmute_copy;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::drop_in_place;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
+use std::rc::Rc;
+use std::sync::Arc;
 
 // TODO use libc::intptr_t when stable.
 // https://doc.rust-lang.org/1.7.0/libc/type.intptr_t.html
@@ -286,6 +291,98 @@ impl<T: Shared> AsRef<T> for SharedRef<T> {
   }
 }
 
+impl<T: Shared> Borrow<T> for SharedRef<T> {
+  fn borrow(&self) -> &T {
+    &**self
+  }
+}
+
+/// A trait for values with static lifetimes that are allocated at a fixed
+/// address in memory. Practically speaking, that means they're either a
+/// `&'static` reference, or they're heap-allocated in a `Arc`, `Box`, `Rc`,
+/// `UniqueRef`, `SharedRef` or `Vec`.
+pub trait Allocated<T: ?Sized>:
+  Deref<Target = T> + Borrow<T> + 'static
+{
+}
+impl<A, T: ?Sized> Allocated<T> for A where
+  A: Deref<Target = T> + Borrow<T> + 'static
+{
+}
+
+pub(crate) enum Allocation<T: ?Sized + 'static> {
+  Static(&'static T),
+  Arc(Arc<T>),
+  Box(Box<T>),
+  Rc(Rc<T>),
+  UniqueRef(UniqueRef<T>),
+  Other(Box<dyn Borrow<T> + 'static>),
+  // Note: it would be nice to add `SharedRef` to this list, but it requires the
+  // `T: Shared` bound, and it's unfortunately not possible to set bounds on
+  // individual enum variants.
+}
+
+impl<T: ?Sized + 'static> Allocation<T> {
+  unsafe fn transmute_wrap<Abstract, Concrete>(
+    value: Abstract,
+    wrap: fn(Concrete) -> Self,
+  ) -> Self {
+    assert_eq!(size_of::<Abstract>(), size_of::<Concrete>());
+    let wrapped = wrap(transmute_copy(&value));
+    forget(value);
+    wrapped
+  }
+
+  fn try_wrap<Abstract: 'static, Concrete: 'static>(
+    value: Abstract,
+    wrap: fn(Concrete) -> Self,
+  ) -> Result<Self, Abstract> {
+    if Any::is::<Concrete>(&value) {
+      Ok(unsafe { Self::transmute_wrap(value, wrap) })
+    } else {
+      Err(value)
+    }
+  }
+
+  pub fn of<Abstract: Deref<Target = T> + Borrow<T> + 'static>(
+    a: Abstract,
+  ) -> Self {
+    Self::try_wrap(a, identity)
+      .or_else(|a| Self::try_wrap(a, Self::Static))
+      .or_else(|a| Self::try_wrap(a, Self::Arc))
+      .or_else(|a| Self::try_wrap(a, Self::Box))
+      .or_else(|a| Self::try_wrap(a, Self::Rc))
+      .or_else(|a| Self::try_wrap(a, Self::UniqueRef))
+      .unwrap_or_else(|a| Self::Other(Box::from(a)))
+  }
+}
+
+impl<T: ?Sized> Deref for Allocation<T> {
+  type Target = T;
+  fn deref(&self) -> &Self::Target {
+    match self {
+      Self::Static(v) => v.borrow(),
+      Self::Arc(v) => v.borrow(),
+      Self::Box(v) => v.borrow(),
+      Self::Rc(v) => v.borrow(),
+      Self::UniqueRef(v) => v.borrow(),
+      Self::Other(v) => (&**v).borrow(),
+    }
+  }
+}
+
+impl<T: ?Sized> AsRef<T> for Allocation<T> {
+  fn as_ref(&self) -> &T {
+    &**self
+  }
+}
+
+impl<T: ?Sized> Borrow<T> for Allocation<T> {
+  fn borrow(&self) -> &T {
+    &**self
+  }
+}
+
 #[repr(C)]
 #[derive(Debug, PartialEq)]
 pub(crate) enum MaybeBool {
@@ -522,5 +619,99 @@ where
   #[inline(always)]
   fn mapping() -> T {
     T::c_fn_from(F::get())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::sync::atomic::AtomicBool;
+  use std::sync::atomic::Ordering;
+
+  static TEST_OBJ_DROPPED: AtomicBool = AtomicBool::new(false);
+  struct TestObj {
+    pub id: u32,
+  }
+  impl Drop for TestObj {
+    fn drop(&mut self) {
+      assert!(!TEST_OBJ_DROPPED.swap(true, Ordering::SeqCst));
+    }
+  }
+
+  struct TestObjRef(TestObj);
+  impl Deref for TestObjRef {
+    type Target = TestObj;
+    fn deref(&self) -> &TestObj {
+      &self.0
+    }
+  }
+  impl Borrow<TestObj> for TestObjRef {
+    fn borrow(&self) -> &TestObj {
+      &**self
+    }
+  }
+
+  #[test]
+  fn allocation() {
+    // Static.
+    static STATIC_OBJ: TestObj = TestObj { id: 1 };
+    let owner = Allocation::of(&STATIC_OBJ);
+    match owner {
+      Allocation::Static(_) => assert_eq!(owner.id, 1),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(!TEST_OBJ_DROPPED.load(Ordering::SeqCst));
+
+    // Arc.
+    let owner = Allocation::of(Arc::new(TestObj { id: 2 }));
+    match owner {
+      Allocation::Arc(_) => assert_eq!(owner.id, 2),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Box.
+    let owner = Allocation::of(Box::new(TestObj { id: 3 }));
+    match owner {
+      Allocation::Box(_) => assert_eq!(owner.id, 3),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Rc.
+    let owner = Allocation::of(Rc::new(TestObj { id: 4 }));
+    match owner {
+      Allocation::Rc(_) => assert_eq!(owner.id, 4),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Other.
+    let owner = Allocation::of(TestObjRef(TestObj { id: 5 }));
+    match owner {
+      Allocation::Other(_) => assert_eq!(owner.id, 5),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Contents of Vec should not be moved.
+    let vec = vec![1u8, 2, 3, 5, 8, 13, 21];
+    let vec_element_ptrs =
+      vec.iter().map(|i| i as *const u8).collect::<Vec<_>>();
+    let owner = Allocation::of(vec);
+    match owner {
+      Allocation::Other(_) => {}
+      _ => panic!(),
+    }
+    owner
+      .iter()
+      .map(|i| i as *const u8)
+      .zip(vec_element_ptrs)
+      .for_each(|(p1, p2)| assert_eq!(p1, p2));
   }
 }

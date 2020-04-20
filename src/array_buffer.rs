@@ -126,10 +126,9 @@ impl Shared for Allocator {
 }
 
 /// malloc/free based convenience allocator.
-pub fn new_default_allocator() -> SharedRef<Allocator> {
+pub fn new_default_allocator() -> UniqueRef<Allocator> {
   unsafe {
     UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
-      .make_shared()
   }
 }
 

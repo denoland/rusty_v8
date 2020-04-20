@@ -1,11 +1,8 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-use crate::array_buffer::Allocator;
-use crate::external_references::ExternalReferences;
+use crate::isolate_create_params::raw;
+use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
-use crate::support::intptr_t;
 use crate::support::Opaque;
-use crate::support::SharedRef;
-use crate::support::UniqueRef;
 use crate::Context;
 use crate::Function;
 use crate::InIsolate;
@@ -15,10 +12,10 @@ use crate::Module;
 use crate::Object;
 use crate::Promise;
 use crate::ScriptOrModule;
-use crate::StartupData;
 use crate::String;
 use crate::Value;
 
+use std::any::Any;
 use std::ffi::c_void;
 use std::mem::replace;
 use std::ops::Deref;
@@ -71,7 +68,7 @@ pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
 extern "C" {
-  fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
+  fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
   fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
   fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
@@ -117,20 +114,6 @@ extern "C" {
     function: *const Function,
   );
 
-  fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
-  fn v8__Isolate__CreateParams__DELETE(this: *mut CreateParams);
-  fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
-    this: *mut CreateParams,
-    allocator: *const SharedRef<Allocator>,
-  );
-  fn v8__Isolate__CreateParams__SET__external_references(
-    this: *mut CreateParams,
-    value: *const intptr_t,
-  );
-  fn v8__Isolate__CreateParams__SET__snapshot_blob(
-    this: *mut CreateParams,
-    snapshot_blob: *mut StartupData,
-  );
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
     callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
@@ -156,15 +139,16 @@ impl Isolate {
   ///
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
-    // TODO: support CreateParams.
+  pub fn new(params: CreateParams) -> OwnedIsolate {
     crate::V8::assert_initialized();
-    unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) }
+    let (raw_create_params, create_param_allocations) = params.finalize();
+    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
+    OwnedIsolate::new(cxx_isolate, create_param_allocations)
   }
 
   /// Initial configuration parameters for a new Isolate.
-  pub fn create_params() -> UniqueRef<CreateParams> {
-    CreateParams::new()
+  pub fn create_params() -> CreateParams {
+    CreateParams::default()
   }
 
   pub fn thread_safe_handle(&mut self) -> IsolateHandle {
@@ -476,18 +460,24 @@ impl IsolateHandle {
   }
 }
 
-/// Internal method for constructing an OwnedIsolate.
-pub(crate) unsafe fn new_owned_isolate(
-  isolate_ptr: *mut Isolate,
-) -> OwnedIsolate {
-  OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
+/// Same as Isolate but gets disposed when it goes out of scope.
+pub struct OwnedIsolate {
+  cxx_isolate: NonNull<Isolate>,
+  create_param_allocations: Box<dyn Any>,
 }
 
-/// Same as Isolate but gets disposed when it goes out of scope.
-pub struct OwnedIsolate(NonNull<Isolate>);
-
-// TODO(ry) unsafe impl Send for OwnedIsolate {}
-// TODO(ry) impl !Sync for OwnedIsolate {}
+impl OwnedIsolate {
+  pub(crate) fn new(
+    cxx_isolate: *mut Isolate,
+    create_param_allocations: Box<dyn Any>,
+  ) -> Self {
+    let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
+    Self {
+      cxx_isolate,
+      create_param_allocations,
+    }
+  }
+}
 
 impl InIsolate for OwnedIsolate {
   fn isolate(&mut self) -> &mut Isolate {
@@ -497,85 +487,19 @@ impl InIsolate for OwnedIsolate {
 
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
-    unsafe { self.0.as_mut().dispose() }
+    unsafe { self.cxx_isolate.as_mut().dispose() }
   }
 }
 
 impl Deref for OwnedIsolate {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe { self.0.as_ref() }
+    unsafe { self.cxx_isolate.as_ref() }
   }
 }
 
 impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.0.as_mut() }
-  }
-}
-
-/// Initial configuration parameters for a new Isolate.
-#[repr(C)]
-pub struct CreateParams(Opaque);
-
-impl CreateParams {
-  pub fn new() -> UniqueRef<CreateParams> {
-    unsafe { UniqueRef::from_raw(v8__Isolate__CreateParams__NEW()) }
-  }
-
-  /// The ArrayBuffer::Allocator to use for allocating and freeing the backing
-  /// store of ArrayBuffers.
-  ///
-  /// The Isolate instance and every |BackingStore| allocated using this
-  /// allocator hold a SharedRef to the allocator, in order to facilitate
-  /// lifetime management for the allocator instance.
-  pub fn set_array_buffer_allocator(&mut self, value: SharedRef<Allocator>) {
-    unsafe {
-      v8__Isolate__CreateParams__SET__array_buffer_allocator(self, &value)
-    };
-  }
-
-  /// Specifies an optional nullptr-terminated array of raw addresses in the
-  /// embedder that V8 can match against during serialization and use for
-  /// deserialization. This array and its content must stay valid for the
-  /// entire lifetime of the isolate.
-  pub fn set_external_references(
-    &mut self,
-    external_references: &'static ExternalReferences,
-  ) {
-    unsafe {
-      v8__Isolate__CreateParams__SET__external_references(
-        self,
-        external_references.as_ptr(),
-      )
-    };
-  }
-
-  /// Hand startup data to V8, in case the embedder has chosen to build
-  /// V8 with external startup data.
-  ///
-  /// Note:
-  /// - By default the startup data is linked into the V8 library, in which
-  ///   case this function is not meaningful.
-  /// - If this needs to be called, it needs to be called before V8
-  ///   tries to make use of its built-ins.
-  /// - To avoid unnecessary copies of data, V8 will point directly into the
-  ///   given data blob, so pretty please keep it around until V8 exit.
-  /// - Compression of the startup blob might be useful, but needs to
-  ///   handled entirely on the embedders' side.
-  /// - The call will abort if the data is invalid.
-  pub fn set_snapshot_blob(&mut self, snapshot_blob: &StartupData) {
-    unsafe {
-      v8__Isolate__CreateParams__SET__snapshot_blob(
-        self,
-        snapshot_blob as *const _ as *mut StartupData,
-      )
-    };
-  }
-}
-
-impl Drop for CreateParams {
-  fn drop(&mut self) {
-    unsafe { v8__Isolate__CreateParams__DELETE(self) }
+    unsafe { self.cxx_isolate.as_mut() }
   }
 }
