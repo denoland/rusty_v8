@@ -395,26 +395,20 @@ fn array_buffer() {
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(10, unique_bs.byte_length());
     assert_eq!(false, unique_bs.is_shared());
-    assert_eq!(unique_bs[0], 0);
-    assert_eq!(unique_bs[9], 9);
+    assert_eq!(unique_bs[0].get(), 0);
+    assert_eq!(unique_bs[9].get(), 9);
 
     let shared_bs_1 = unique_bs.make_shared();
-    {
-      let bs = unsafe { &mut *shared_bs_1.get() };
-      assert_eq!(10, bs.byte_length());
-      assert_eq!(false, bs.is_shared());
-      assert_eq!(bs[0], 0);
-      assert_eq!(bs[9], 9);
-    }
+    assert_eq!(10, shared_bs_1.byte_length());
+    assert_eq!(false, shared_bs_1.is_shared());
+    assert_eq!(shared_bs_1[0].get(), 0);
+    assert_eq!(shared_bs_1[9].get(), 9);
 
     let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
     let shared_bs_2 = ab.get_backing_store();
-    {
-      let bs = unsafe { &mut *shared_bs_2.get() };
-      assert_eq!(10, ab.byte_length());
-      assert_eq!(bs[0], 0);
-      assert_eq!(bs[9], 9);
-    }
+    assert_eq!(10, shared_bs_2.byte_length());
+    assert_eq!(shared_bs_2[0].get(), 0);
+    assert_eq!(shared_bs_2[9].get(), 9);
   }
 }
 
@@ -446,6 +440,25 @@ fn backing_store_segfault() {
 }
 
 #[test]
+fn shared_array_buffer_allocator() {
+  let alloc1 = v8::new_default_allocator();
+  assert_eq!(1, v8::SharedRef::use_count(&alloc1));
+
+  let alloc2 = alloc1.clone();
+  assert_eq!(2, v8::SharedRef::use_count(&alloc1));
+  assert_eq!(2, v8::SharedRef::use_count(&alloc2));
+
+  let mut alloc2 = v8::SharedPtr::from(alloc2);
+  assert_eq!(2, v8::SharedRef::use_count(&alloc1));
+  assert_eq!(2, v8::SharedPtr::use_count(&alloc2));
+
+  drop(alloc1);
+  assert_eq!(1, v8::SharedPtr::use_count(&alloc2));
+
+  alloc2.take();
+  assert_eq!(0, v8::SharedPtr::use_count(&alloc2));
+}
+#[test]
 fn array_buffer_with_shared_backing_store() {
   let _setup_guard = setup();
   let mut params = v8::Isolate::create_params();
@@ -463,16 +476,16 @@ fn array_buffer_with_shared_backing_store() {
     assert_eq!(42, ab1.byte_length());
 
     let bs1 = ab1.get_backing_store();
-    assert_eq!(ab1.byte_length(), unsafe { (*bs1.get()).byte_length() });
+    assert_eq!(ab1.byte_length(), bs1.byte_length());
     assert_eq!(2, v8::SharedRef::use_count(&bs1));
 
     let bs2 = ab1.get_backing_store();
-    assert_eq!(ab1.byte_length(), unsafe { (*bs2.get()).byte_length() });
+    assert_eq!(ab1.byte_length(), bs2.byte_length());
     assert_eq!(3, v8::SharedRef::use_count(&bs1));
     assert_eq!(3, v8::SharedRef::use_count(&bs2));
 
     let bs3 = ab1.get_backing_store();
-    assert_eq!(ab1.byte_length(), unsafe { (*bs3.get()).byte_length() });
+    assert_eq!(ab1.byte_length(), bs3.byte_length());
     assert_eq!(4, v8::SharedRef::use_count(&bs1));
     assert_eq!(4, v8::SharedRef::use_count(&bs2));
     assert_eq!(4, v8::SharedRef::use_count(&bs3));
@@ -489,7 +502,7 @@ fn array_buffer_with_shared_backing_store() {
     assert_eq!(3, v8::SharedRef::use_count(&bs3));
 
     let bs4 = ab2.get_backing_store();
-    assert_eq!(ab1.byte_length(), unsafe { (*bs4.get()).byte_length() });
+    assert_eq!(ab1.byte_length(), bs4.byte_length());
     assert_eq!(4, v8::SharedRef::use_count(&bs3));
     assert_eq!(4, v8::SharedRef::use_count(&bs4));
 
@@ -2056,11 +2069,8 @@ fn shared_array_buffer() {
 
     let sab = v8::SharedArrayBuffer::new(scope, 16).unwrap();
     let shared_bs_1 = sab.get_backing_store();
-    {
-      let bs = unsafe { &mut *shared_bs_1.get() };
-      bs[5] = 12;
-      bs[12] = 52;
-    }
+    shared_bs_1[5].set(12);
+    shared_bs_1[12].set(52);
 
     let global = context.global(scope);
     let r = global
@@ -2080,11 +2090,8 @@ fn shared_array_buffer() {
     let result: v8::Local<v8::Integer> =
       script.run(scope, context).unwrap().try_into().unwrap();
     assert_eq!(result.value(), 64);
-    {
-      let bs = unsafe { &*shared_bs_1.get() };
-      assert_eq!(bs[2], 16);
-      assert_eq!(bs[14], 62);
-    }
+    assert_eq!(shared_bs_1[2].get(), 16);
+    assert_eq!(shared_bs_1[14].get(), 62);
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data);
@@ -2092,20 +2099,14 @@ fn shared_array_buffer() {
     assert_eq!(bs.is_shared(), true);
 
     let shared_bs_2 = bs.make_shared();
-    {
-      let bs = unsafe { &*shared_bs_2.get() };
-      assert_eq!(bs.byte_length(), 10);
-      assert_eq!(bs.is_shared(), true);
-    }
+    assert_eq!(shared_bs_2.byte_length(), 10);
+    assert_eq!(shared_bs_2.is_shared(), true);
 
     let ab = v8::SharedArrayBuffer::with_backing_store(scope, &shared_bs_2);
     let shared_bs_3 = ab.get_backing_store();
-    {
-      let bs = unsafe { &*shared_bs_3.get() };
-      assert_eq!(bs.byte_length(), 10);
-      assert_eq!(bs[0], 0);
-      assert_eq!(bs[9], 9);
-    }
+    assert_eq!(shared_bs_3.byte_length(), 10);
+    assert_eq!(shared_bs_3[0].get(), 0);
+    assert_eq!(shared_bs_3[9].get(), 9);
   }
 }
 

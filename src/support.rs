@@ -1,9 +1,13 @@
-use std::cell::UnsafeCell;
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
+use std::convert::AsMut;
+use std::convert::AsRef;
 use std::marker::PhantomData;
 use std::mem::align_of;
 use std::mem::forget;
 use std::mem::needs_drop;
 use std::mem::size_of;
+use std::mem::take;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::drop_in_place;
@@ -23,16 +27,33 @@ pub type Opaque = [u8; 0];
 
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
-pub struct UniquePtr<T>(Option<UniqueRef<T>>);
+pub struct UniquePtr<T: ?Sized>(Option<UniqueRef<T>>);
 
-impl<T> UniquePtr<T> {
-  pub fn null() -> Self {
-    assert_unique_type_compatible::<Self, T>();
-    Self(None)
+impl<T: ?Sized> UniquePtr<T> {
+  pub fn is_null(&self) -> bool {
+    self.0.is_none()
   }
 
+  pub fn as_ref(&self) -> Option<&UniqueRef<T>> {
+    self.0.as_ref()
+  }
+
+  pub fn as_mut(&mut self) -> Option<&mut UniqueRef<T>> {
+    self.0.as_mut()
+  }
+
+  pub fn take(&mut self) -> Option<UniqueRef<T>> {
+    take(&mut self.0)
+  }
+
+  pub fn unwrap(self) -> UniqueRef<T> {
+    self.0.unwrap()
+  }
+}
+
+impl<T> UniquePtr<T> {
   pub unsafe fn from_raw(ptr: *mut T) -> Self {
-    assert_unique_type_compatible::<Self, T>();
+    assert_unique_ptr_layout_compatible::<Self, T>();
     Self(UniqueRef::try_from_raw(ptr))
   }
 
@@ -42,42 +63,40 @@ impl<T> UniquePtr<T> {
       .map(|unique_ref| unique_ref.into_raw())
       .unwrap_or_else(null_mut)
   }
+}
 
-  pub fn unwrap(self) -> UniqueRef<T> {
-    self.0.unwrap()
+impl<T: Shared> UniquePtr<T> {
+  pub fn make_shared(self) -> SharedPtr<T> {
+    self.into()
+  }
+}
+
+impl<T> Default for UniquePtr<T> {
+  fn default() -> Self {
+    assert_unique_ptr_layout_compatible::<Self, T>();
+    Self(None)
   }
 }
 
 impl<T> From<UniqueRef<T>> for UniquePtr<T> {
   fn from(unique_ref: UniqueRef<T>) -> Self {
+    assert_unique_ptr_layout_compatible::<Self, T>();
     Self(Some(unique_ref))
-  }
-}
-
-impl<T> Deref for UniquePtr<T> {
-  type Target = Option<UniqueRef<T>>;
-  fn deref(&self) -> &Self::Target {
-    &self.0
-  }
-}
-
-impl<T> DerefMut for UniquePtr<T> {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.0
   }
 }
 
 /// Pointer to object allocated on the C++ heap. The pointer may not be null.
 #[repr(transparent)]
-pub struct UniqueRef<T>(NonNull<T>);
+pub struct UniqueRef<T: ?Sized>(NonNull<T>);
 
 impl<T> UniqueRef<T> {
   unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
-    assert_unique_type_compatible::<Self, T>();
+    assert_unique_ptr_layout_compatible::<Self, T>();
     NonNull::new(ptr).map(Self)
   }
 
   pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    assert_unique_ptr_layout_compatible::<Self, T>();
     Self::try_from_raw(ptr).unwrap()
   }
 
@@ -86,37 +105,60 @@ impl<T> UniqueRef<T> {
     forget(self);
     ptr
   }
+}
 
-  pub fn make_shared(self) -> SharedRef<T>
-  where
-    T: Shared,
-  {
+impl<T: Shared> UniqueRef<T> {
+  pub fn make_shared(self) -> SharedRef<T> {
     self.into()
   }
 }
 
-impl<T> Deref for UniqueRef<T> {
+impl<T: ?Sized> Drop for UniqueRef<T> {
+  fn drop(&mut self) {
+    unsafe { drop_in_place(self.0.as_ptr()) }
+  }
+}
+
+impl<T: ?Sized> Deref for UniqueRef<T> {
   type Target = T;
   fn deref(&self) -> &Self::Target {
     unsafe { self.0.as_ref() }
   }
 }
 
-impl<T> DerefMut for UniqueRef<T> {
+impl<T: ?Sized> DerefMut for UniqueRef<T> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { self.0.as_mut() }
   }
 }
 
-impl<T> Drop for UniqueRef<T> {
-  fn drop(&mut self) {
-    unsafe { drop_in_place(self.0.as_ptr()) }
+impl<T: ?Sized> AsRef<T> for UniqueRef<T> {
+  fn as_ref(&self) -> &T {
+    &**self
   }
 }
 
-fn assert_unique_type_compatible<U, T>() {
+impl<T: ?Sized> AsMut<T> for UniqueRef<T> {
+  fn as_mut(&mut self) -> &mut T {
+    &mut **self
+  }
+}
+
+impl<T: ?Sized> Borrow<T> for UniqueRef<T> {
+  fn borrow(&self) -> &T {
+    &**self
+  }
+}
+
+impl<T: ?Sized> BorrowMut<T> for UniqueRef<T> {
+  fn borrow_mut(&mut self) -> &mut T {
+    &mut **self
+  }
+}
+
+fn assert_unique_ptr_layout_compatible<U, T>() {
   // Assert that `U` (a `UniqueRef` or `UniquePtr`) has the same memory layout
-  // as a pointer to `T`.
+  // as a raw C pointer.
   assert_eq!(size_of::<U>(), size_of::<*mut T>());
   assert_eq!(align_of::<U>(), align_of::<*mut T>());
 
@@ -129,74 +171,118 @@ pub trait Shared
 where
   Self: Sized,
 {
-  fn clone(shared_ptr: *const SharedRef<Self>) -> SharedRef<Self>;
-  fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self>;
-  fn deref(shared_ptr: *const SharedRef<Self>) -> *mut Self;
-  fn reset(shared_ptr: *mut SharedRef<Self>);
-  fn use_count(shared_ptr: *const SharedRef<Self>) -> long;
+  fn clone(shared_ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self>;
+  fn from_unique_ptr(shared_ptr: UniquePtr<Self>) -> SharedPtrBase<Self>;
+  fn get(shared_ptr: &SharedPtrBase<Self>) -> *mut Self;
+  fn reset(shared_ptr: &mut SharedPtrBase<Self>);
+  fn use_count(shared_ptr: &SharedPtrBase<Self>) -> long;
+}
+
+/// Private base type which is shared by the `SharedPtr` and `SharedRef`
+/// implementations.
+#[repr(C)]
+pub struct SharedPtrBase<T: Shared>([usize; 2], PhantomData<T>);
+
+unsafe impl<T: Shared + Sync> Send for SharedPtrBase<T> {}
+unsafe impl<T: Shared + Sync> Sync for SharedPtrBase<T> {}
+
+impl<T: Shared> Default for SharedPtrBase<T> {
+  fn default() -> Self {
+    Self([0usize; 2], PhantomData)
+  }
+}
+
+impl<T: Shared> Drop for SharedPtrBase<T> {
+  fn drop(&mut self) {
+    <T as Shared>::reset(self);
+  }
+}
+
+/// Wrapper around a C++ shared_ptr. A shared_ptr may be be null.
+#[repr(C)]
+#[derive(Default)]
+pub struct SharedPtr<T: Shared>(SharedPtrBase<T>);
+
+impl<T: Shared> SharedPtr<T> {
+  pub fn is_null(&self) -> bool {
+    <T as Shared>::get(&self.0).is_null()
+  }
+
+  pub fn use_count(&self) -> long {
+    <T as Shared>::use_count(&self.0)
+  }
+
+  pub fn take(&mut self) -> Option<SharedRef<T>> {
+    if self.is_null() {
+      None
+    } else {
+      let base = take(&mut self.0);
+      Some(SharedRef(base))
+    }
+  }
+
+  pub fn unwrap(self) -> SharedRef<T> {
+    assert!(!self.is_null());
+    SharedRef(self.0)
+  }
+}
+
+impl<T: Shared> Clone for SharedPtr<T> {
+  fn clone(&self) -> Self {
+    Self(<T as Shared>::clone(&self.0))
+  }
+}
+
+impl<T, U> From<U> for SharedPtr<T>
+where
+  T: Shared,
+  U: Into<UniquePtr<T>>,
+{
+  fn from(unique_ptr: U) -> Self {
+    let unique_ptr = unique_ptr.into();
+    Self(<T as Shared>::from_unique_ptr(unique_ptr))
+  }
+}
+
+impl<T: Shared> From<SharedRef<T>> for SharedPtr<T> {
+  fn from(mut shared_ref: SharedRef<T>) -> Self {
+    Self(take(&mut shared_ref.0))
+  }
 }
 
 /// Wrapper around a C++ shared_ptr. The shared_ptr is assumed to contain a
-/// value and not be null.
+/// value and may not be null.
 #[repr(C)]
-pub struct SharedRef<T>([*mut Opaque; 2], PhantomData<T>)
-where
-  T: Shared;
+pub struct SharedRef<T: Shared>(SharedPtrBase<T>);
 
-unsafe impl<T> Send for SharedRef<T> where T: Shared + Send {}
-
-impl<T> SharedRef<T>
-where
-  T: Shared,
-{
+impl<T: Shared> SharedRef<T> {
   pub fn use_count(&self) -> long {
-    <T as Shared>::use_count(self)
+    <T as Shared>::use_count(&self.0)
   }
 }
 
-impl<T> Clone for SharedRef<T>
-where
-  T: Shared,
-{
+impl<T: Shared> Clone for SharedRef<T> {
   fn clone(&self) -> Self {
-    <T as Shared>::clone(self)
+    Self(<T as Shared>::clone(&self.0))
   }
 }
 
-impl<T> From<UniqueRef<T>> for SharedRef<T>
-where
-  T: Shared,
-{
-  fn from(unique: UniqueRef<T>) -> Self {
-    <T as Shared>::from_unique(unique)
+impl<T: Shared> From<UniqueRef<T>> for SharedRef<T> {
+  fn from(unique_ref: UniqueRef<T>) -> Self {
+    SharedPtr::from(unique_ref).unwrap()
   }
 }
 
-impl<T> Deref for SharedRef<T>
-where
-  T: Shared,
-{
-  type Target = UnsafeCell<T>;
+impl<T: Shared> Deref for SharedRef<T> {
+  type Target = T;
   fn deref(&self) -> &Self::Target {
-    unsafe { &*(<T as Shared>::deref(self) as *const UnsafeCell<T>) }
+    unsafe { &*(<T as Shared>::get(&self.0)) }
   }
 }
 
-impl<T> DerefMut for SharedRef<T>
-where
-  T: Shared,
-{
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { &mut *(<T as Shared>::deref(self) as *mut UnsafeCell<T>) }
-  }
-}
-
-impl<T> Drop for SharedRef<T>
-where
-  T: Shared,
-{
-  fn drop(&mut self) {
-    <T as Shared>::reset(self);
+impl<T: Shared> AsRef<T> for SharedRef<T> {
+  fn as_ref(&self) -> &T {
+    &**self
   }
 }
 

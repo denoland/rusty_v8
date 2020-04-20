@@ -625,8 +625,9 @@ two_pointers_t std__shared_ptr__v8__BackingStore__COPY(
 }
 
 two_pointers_t std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(
-    v8::BackingStore* ptr) {
-  return make_pod<two_pointers_t>(std::shared_ptr<v8::BackingStore>(ptr));
+    v8::BackingStore* unique_ptr) {
+  return make_pod<two_pointers_t>(
+      std::shared_ptr<v8::BackingStore>(unique_ptr));
 }
 
 v8::BackingStore* std__shared_ptr__v8__BackingStore__get(
@@ -651,9 +652,9 @@ two_pointers_t std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(
 
 two_pointers_t
 std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
-    v8::ArrayBuffer::Allocator* ptr) {
+    v8::ArrayBuffer::Allocator* unique_ptr) {
   return make_pod<two_pointers_t>(
-      std::shared_ptr<v8::ArrayBuffer::Allocator>(ptr));
+      std::shared_ptr<v8::ArrayBuffer::Allocator>(unique_ptr));
 }
 
 v8::ArrayBuffer::Allocator* std__shared_ptr__v8__ArrayBuffer__Allocator__get(
