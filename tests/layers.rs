@@ -3,23 +3,32 @@
 
 use rusty_v8 as v8;
 use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 static START: std::sync::Once = std::sync::Once::new();
 
 struct Layer1(v8::OwnedIsolate);
 
 struct Layer1State {
-  i: usize,
+  drop_count: Rc<AtomicUsize>,
+}
+
+impl Drop for Layer1State {
+  fn drop(&mut self) {
+    self.drop_count.fetch_add(1, Ordering::SeqCst);
+  }
 }
 
 impl Layer1 {
-  fn new() -> Layer1 {
+  fn new(drop_count: Rc<AtomicUsize>) -> Layer1 {
     START.call_once(|| {
       v8::V8::initialize_platform(v8::new_default_platform().unwrap());
       v8::V8::initialize();
     });
     let mut isolate = v8::Isolate::new(Default::default());
-    let state = Layer1State { i: 0 };
+    let state = Layer1State { drop_count };
     isolate.set_data_2(state);
     Layer1(isolate)
   }
@@ -48,7 +57,12 @@ impl Deref for Layer1 {
 
 #[test]
 fn layer1_test() {
-  let mut l = Layer1::new();
+  let drop_count = Rc::new(AtomicUsize::new(0));
+
+  let mut l = Layer1::new(drop_count.clone());
   assert!(l.execute("1 + 1"));
   assert!(!l.execute("throw 'foo'"));
+  drop(l);
+
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
 }
