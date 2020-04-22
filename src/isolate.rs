@@ -211,7 +211,7 @@ impl Isolate {
     Some(ref_mut)
   }
 
-  fn set_data_2<T: 'static>(&mut self, value: T) -> bool {
+  pub fn set_data_2<T: 'static>(&mut self, value: T) -> bool {
     self
       .get_annex_mut()
       .slots
