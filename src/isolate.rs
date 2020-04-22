@@ -317,20 +317,15 @@ impl Isolate {
   }
 }
 
-pub(crate) struct IsolateAnnex {
+struct IsolateAnnex {
   isolate: *mut Isolate,
   mutex: Mutex<()>,
 }
 
-impl IsolateAnnex {
-  fn new(isolate: &mut Isolate) -> Self {
-    Self {
-      isolate,
-      mutex: Mutex::new(()),
-    }
-  }
-}
-
+/// IsolateHandle is a thread-safe reference to an Isolate. It's primarily used
+/// to terminate execution from another thread.
+///
+/// IsolateHandle is Clone, Send, and Sync.
 #[derive(Clone)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
 
@@ -348,7 +343,10 @@ impl IsolateHandle {
   fn new(isolate: &mut Isolate) -> Self {
     let annex_ptr = isolate.get_annex();
     if annex_ptr.is_null() {
-      let annex_arc = Arc::new(IsolateAnnex::new(isolate));
+      let annex_arc = Arc::new(IsolateAnnex {
+        isolate,
+        mutex: Mutex::new(),
+      });
       let annex_ptr = Arc::into_raw(annex_arc.clone());
       unsafe {
         isolate.set_annex(annex_ptr as *mut IsolateAnnex);
