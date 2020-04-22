@@ -345,7 +345,7 @@ impl IsolateHandle {
     self.0.isolate
   }
 
-  pub(crate) fn new(isolate: &mut Isolate) -> Self {
+  fn new(isolate: &mut Isolate) -> Self {
     let annex_ptr = isolate.get_annex();
     if annex_ptr.is_null() {
       let annex_arc = Arc::new(IsolateAnnex::new(isolate));
