@@ -145,9 +145,8 @@ impl Isolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    let mut owned_isolate =
-      OwnedIsolate::new(cxx_isolate, create_param_allocations);
-    owned_isolate.create_annex();
+    let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
+    owned_isolate.create_annex(create_param_allocations);
     owned_isolate
   }
 
@@ -160,8 +159,8 @@ impl Isolate {
     IsolateHandle::new(self)
   }
 
-  fn create_annex(&mut self) {
-    let annex_arc = Arc::new(IsolateAnnex::new(self));
+  fn create_annex(&mut self, create_param_allocations: Box<dyn Any>) {
+    let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
     let annex_ptr = Arc::into_raw(annex_arc);
     unsafe { v8__Isolate__SetData(self, 0, annex_ptr as *mut c_void) }
   }
@@ -362,7 +361,8 @@ impl Isolate {
       annex.isolate = null_mut();
     }
 
-    // Clear slots.
+    // Clear slots and drop owned objects that were taken out of `CreateParams`.
+    annex.create_param_allocations = Box::new(());
     annex.slots.clear();
 
     // Subtract one from the Arc<IsolateAnnex> reference count.
@@ -404,6 +404,7 @@ impl Isolate {
 }
 
 pub(crate) struct IsolateAnnex {
+  create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate is
@@ -417,8 +418,12 @@ pub(crate) struct IsolateAnnex {
 }
 
 impl IsolateAnnex {
-  fn new(isolate: &mut Isolate) -> Self {
+  fn new(
+    isolate: &mut Isolate,
+    create_param_allocations: Box<dyn Any>,
+  ) -> Self {
     Self {
+      create_param_allocations,
       slots: HashMap::new(),
       isolate,
       isolate_mutex: Mutex::new(()),
@@ -531,19 +536,12 @@ impl IsolateHandle {
 /// Same as Isolate but gets disposed when it goes out of scope.
 pub struct OwnedIsolate {
   cxx_isolate: NonNull<Isolate>,
-  create_param_allocations: Box<dyn Any>,
 }
 
 impl OwnedIsolate {
-  pub(crate) fn new(
-    cxx_isolate: *mut Isolate,
-    create_param_allocations: Box<dyn Any>,
-  ) -> Self {
+  pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
-    Self {
-      cxx_isolate,
-      create_param_allocations,
-    }
+    Self { cxx_isolate }
   }
 }
 

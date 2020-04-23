@@ -133,6 +133,6 @@ impl SnapshotCreator {
   // revisited after the libdeno integration is complete.
   pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    OwnedIsolate::new(isolate_ptr, Box::new(()))
+    OwnedIsolate::new(isolate_ptr)
   }
 }
