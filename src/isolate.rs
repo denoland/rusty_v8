@@ -205,7 +205,7 @@ impl Isolate {
   ///
   /// Warning: will be renamed to get_data_mut() after original unsafe version
   /// is removed.
-  pub fn get_slot_mut<'a, T: 'static>(&'a self) -> Option<RefMut<'a, T>> {
+  pub fn get_slot_mut<T: 'static>(&self) -> Option<RefMut<T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let ref_mut = cell.try_borrow_mut().ok()?;
     let ref_mut = RefMut::map(ref_mut, |box_any| {
@@ -219,7 +219,7 @@ impl Isolate {
   ///
   /// Warning: will be renamed to get_data() after original unsafe version is
   /// removed.
-  pub fn get_slot<'a, T: 'static>(&'a self) -> Option<Ref<'a, T>> {
+  pub fn get_slot<T: 'static>(&self) -> Option<Ref<T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let r = cell.try_borrow().ok()?;
     Some(Ref::map(r, |box_any| {
