@@ -17,7 +17,7 @@ use crate::Value;
 
 use std::any::Any;
 use std::any::TypeId;
-use std::cell::{RefCell, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ops::Deref;
@@ -201,7 +201,7 @@ impl Isolate {
     unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
   }
 
-  pub fn get_data_2_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+  pub fn get_data_2_mut<'a, T: 'static>(&'a self) -> Option<RefMut<'a, T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let ref_mut = cell.try_borrow_mut().ok()?;
     let ref_mut = RefMut::map(ref_mut, |box_any| {
@@ -209,6 +209,15 @@ impl Isolate {
       Any::downcast_mut::<T>(mut_any).unwrap()
     });
     Some(ref_mut)
+  }
+
+  pub fn get_data_2<'a, T: 'static>(&'a self) -> Option<Ref<'a, T>> {
+    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
+    let r = cell.try_borrow().ok()?;
+    Some(Ref::map(r, |box_any| {
+      let a = &**box_any;
+      Any::downcast_ref::<T>(a).unwrap()
+    }))
   }
 
   pub fn set_data_2<T: 'static>(&mut self, value: T) -> bool {
@@ -319,22 +328,7 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
-    let annex = self.get_annex_mut();
-
-    // Set the `isolate` pointer inside the annex struct to null, so any
-    // IsolateHandle that outlives the isolate will know that it can't call
-    // methods on the isolate.
-    {
-      let _lock = annex.mutex.lock().unwrap();
-      annex.isolate = null_mut();
-    }
-
-    // Clear slots.
-    annex.slots.clear();
-
-    // Subtract one from the Arc<IsolateAnnex> reference count.
-    Arc::from_raw(annex);
-    self.set_data(0, null_mut());
+    IsolateHandle::dispose_isolate(self);
 
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
@@ -402,6 +396,16 @@ impl IsolateHandle {
 
   pub(crate) fn new(isolate: &mut Isolate) -> Self {
     Self(isolate.get_annex_arc())
+  }
+
+  fn dispose_isolate(isolate: &mut Isolate) {
+    let annex = isolate.get_annex_mut();
+    {
+      let _lock = annex.mutex.lock().unwrap();
+      annex.isolate = null_mut();
+    }
+    unsafe { Arc::from_raw(annex) };
+    unsafe { isolate.set_data(0, null_mut()) };
   }
 
   /// Forcefully terminate the current thread of JavaScript execution

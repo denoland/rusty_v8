@@ -13,6 +13,7 @@ struct Layer1(v8::OwnedIsolate);
 
 struct Layer1State {
   drop_count: Rc<AtomicUsize>,
+  i: usize,
 }
 
 impl Drop for Layer1State {
@@ -28,7 +29,7 @@ impl Layer1 {
       v8::V8::initialize();
     });
     let mut isolate = v8::Isolate::new(Default::default());
-    let state = Layer1State { drop_count };
+    let state = Layer1State { drop_count, i: 0 };
     isolate.set_data_2(state);
     Layer1(isolate)
   }
@@ -44,6 +45,16 @@ impl Layer1 {
     let mut script = v8::Script::compile(scope, context, source, None).unwrap();
     let r = script.run(scope, context);
     r.is_some()
+  }
+
+  fn get_i(&self) -> usize {
+    let s = self.0.get_data_2::<Layer1State>().unwrap();
+    s.i
+  }
+
+  fn set_i(&self, i: usize) {
+    let mut s = self.0.get_data_2_mut::<Layer1State>().unwrap();
+    s.i = i;
   }
 }
 
@@ -62,7 +73,10 @@ fn layer1_test() {
   let mut l = Layer1::new(drop_count.clone());
   assert!(l.execute("1 + 1"));
   assert!(!l.execute("throw 'foo'"));
+  assert_eq!(0, l.get_i());
+  l.set_i(123);
+  assert_eq!(123, l.get_i());
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
   drop(l);
-
   assert_eq!(drop_count.load(Ordering::SeqCst), 1);
 }
