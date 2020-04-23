@@ -3,6 +3,7 @@
 
 use rusty_v8 as v8;
 use std::ops::Deref;
+use std::ops::DerefMut;
 use std::rc::Rc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -66,6 +67,12 @@ impl Deref for Layer1 {
   }
 }
 
+impl DerefMut for Layer1 {
+  fn deref_mut(&mut self) -> &mut v8::Isolate {
+    &mut self.0
+  }
+}
+
 #[test]
 fn layer1_test() {
   let drop_count = Rc::new(AtomicUsize::new(0));
@@ -77,6 +84,10 @@ fn layer1_test() {
   l.set_i(123);
   assert_eq!(123, l.get_i());
   assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+
+  // Check that we can deref Layer1 by running a random v8::Isolate method
+  l.run_microtasks();
+
   drop(l);
   assert_eq!(drop_count.load(Ordering::SeqCst), 1);
 }
