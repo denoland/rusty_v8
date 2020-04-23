@@ -128,6 +128,9 @@ impl DerefMut for EsIsolate {
 fn slots_layer1() {
   let drop_count = Rc::new(AtomicUsize::new(0));
   let mut core_isolate = CoreIsolate::new(drop_count.clone());
+  // The existence of a IsolateHandle that outlives the isolate should not
+  // inhibit dropping of slot contents.
+  let isolate_handle = core_isolate.thread_safe_handle();
   assert!(core_isolate.execute("1 + 1"));
   assert!(!core_isolate.execute("throw 'foo'"));
   assert_eq!(0, core_isolate.get_i());
@@ -138,6 +141,7 @@ fn slots_layer1() {
   core_isolate.run_microtasks();
   drop(core_isolate);
   assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+  drop(isolate_handle);
 }
 
 #[test]
