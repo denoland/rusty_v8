@@ -1,5 +1,4 @@
 use std::env;
-use trybuild;
 
 #[test]
 fn ui() {
