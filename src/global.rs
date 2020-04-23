@@ -59,7 +59,7 @@ impl<T> Global<T> {
     Self {
       value: other_value
         .map(|v| unsafe { transmute(v8__Global__New(isolate, transmute(v))) }),
-      isolate_handle: other_value.map(|_| IsolateHandle::new(isolate)),
+      isolate_handle: other_value.map(|_| isolate.thread_safe_handle()),
     }
   }
 
@@ -104,7 +104,7 @@ impl<T> Global<T> {
         )
       },
     }
-    self.isolate_handle = other_value.map(|_| IsolateHandle::new(isolate));
+    self.isolate_handle = other_value.map(|_| isolate.thread_safe_handle());
   }
 
   /// If non-empty, destroy the underlying storage cell

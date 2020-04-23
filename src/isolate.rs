@@ -426,6 +426,12 @@ impl IsolateAnnex {
   }
 }
 
+/// IsolateHandle is a thread-safe reference to an Isolate. It's main use is to
+/// terminate execution of a running isolate from another thread.
+///
+/// It is created with Isolate::thread_safe_handle().
+///
+/// IsolateHandle is Cloneable, Send, and Sync.
 #[derive(Clone)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
 
@@ -440,7 +446,7 @@ impl IsolateHandle {
     self.0.isolate
   }
 
-  pub(crate) fn new(isolate: &mut Isolate) -> Self {
+  fn new(isolate: &mut Isolate) -> Self {
     Self(isolate.get_annex_arc())
   }
 
