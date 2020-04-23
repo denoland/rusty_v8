@@ -16,8 +16,10 @@ use crate::String;
 use crate::Value;
 
 use std::any::Any;
+use std::any::TypeId;
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::ffi::c_void;
-use std::mem::replace;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::null_mut;
@@ -143,7 +145,10 @@ impl Isolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    OwnedIsolate::new(cxx_isolate, create_param_allocations)
+    let mut owned_isolate =
+      OwnedIsolate::new(cxx_isolate, create_param_allocations);
+    owned_isolate.create_annex();
+    owned_isolate
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -155,12 +160,27 @@ impl Isolate {
     IsolateHandle::new(self)
   }
 
-  unsafe fn set_annex(&mut self, ptr: *mut IsolateAnnex) {
-    v8__Isolate__SetData(self, 0, ptr as *mut c_void)
+  fn create_annex(&mut self) {
+    let annex_arc = Arc::new(IsolateAnnex::new(self));
+    let annex_ptr = Arc::into_raw(annex_arc);
+    unsafe { v8__Isolate__SetData(self, 0, annex_ptr as *mut c_void) }
   }
 
-  fn get_annex(&self) -> *mut IsolateAnnex {
-    unsafe { v8__Isolate__GetData(self, 0) as *mut _ }
+  fn get_annex(&self) -> &IsolateAnnex {
+    unsafe {
+      &*(v8__Isolate__GetData(self, 0) as *const _ as *const IsolateAnnex)
+    }
+  }
+
+  fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
+    unsafe { &mut *(v8__Isolate__GetData(self, 0) as *mut IsolateAnnex) }
+  }
+
+  fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
+    let annex_ptr = self.get_annex();
+    let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
+    Arc::into_raw(annex_arc.clone());
+    annex_arc
   }
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
@@ -179,6 +199,57 @@ impl Isolate {
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
   pub fn get_number_of_data_slots(&self) -> u32 {
     unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
+  }
+
+  /// Safe alternative to Isolate::get_data
+  ///
+  /// Warning: will be renamed to get_data_mut() after original unsafe version
+  /// is removed.
+  pub fn get_slot_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
+    let ref_mut = cell.try_borrow_mut().ok()?;
+    let ref_mut = RefMut::map(ref_mut, |box_any| {
+      let mut_any = &mut **box_any;
+      Any::downcast_mut::<T>(mut_any).unwrap()
+    });
+    Some(ref_mut)
+  }
+
+  /// Safe alternative to Isolate::get_data
+  ///
+  /// Warning: will be renamed to get_data() after original unsafe version is
+  /// removed.
+  pub fn get_slot<T: 'static>(&self) -> Option<Ref<T>> {
+    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
+    let r = cell.try_borrow().ok()?;
+    Some(Ref::map(r, |box_any| {
+      let a = &**box_any;
+      Any::downcast_ref::<T>(a).unwrap()
+    }))
+  }
+
+  /// Safe alternative to Isolate::set_data
+  ///
+  /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
+  /// with an Isolate.
+  ///
+  /// This method gives ownership of value to the Isolate. Exactly one object of
+  /// each type can be associated with an Isolate. If called more than once with
+  /// an object of the same type, the earlier version will be dropped and
+  /// replaced.
+  ///
+  /// Returns true if value was set without replacing an existing value.
+  ///
+  /// The value will be dropped when the isolate is dropped.
+  ///
+  /// Warning: will be renamed to set_data() after original unsafe version is
+  /// removed.
+  pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
+    self
+      .get_annex_mut()
+      .slots
+      .insert(Any::type_id(&value), RefCell::new(Box::new(value)))
+      .is_none()
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -320,6 +391,7 @@ impl Isolate {
 pub(crate) struct IsolateAnnex {
   isolate: *mut Isolate,
   mutex: Mutex<()>,
+  slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
 }
 
 impl IsolateAnnex {
@@ -327,6 +399,7 @@ impl IsolateAnnex {
     Self {
       isolate,
       mutex: Mutex::new(()),
+      slots: HashMap::new(),
     }
   }
 }
@@ -346,34 +419,17 @@ impl IsolateHandle {
   }
 
   pub(crate) fn new(isolate: &mut Isolate) -> Self {
-    let annex_ptr = isolate.get_annex();
-    if annex_ptr.is_null() {
-      let annex_arc = Arc::new(IsolateAnnex::new(isolate));
-      let annex_ptr = Arc::into_raw(annex_arc.clone());
-      unsafe {
-        isolate.set_annex(annex_ptr as *mut IsolateAnnex);
-      }
-      IsolateHandle(annex_arc)
-    } else {
-      let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
-      Arc::into_raw(annex_arc.clone());
-      IsolateHandle(annex_arc)
-    }
+    Self(isolate.get_annex_arc())
   }
 
   fn dispose_isolate(isolate: &mut Isolate) {
-    let annex_ptr = isolate.get_annex();
-    if !annex_ptr.is_null() {
-      unsafe {
-        {
-          let _lock = (*annex_ptr).mutex.lock().unwrap();
-          isolate.set_data(0, null_mut());
-          let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
-          assert_eq!(isolate as *mut _, isolate_ptr);
-        }
-        Arc::from_raw(annex_ptr);
-      };
+    let annex = isolate.get_annex_mut();
+    {
+      let _lock = annex.mutex.lock().unwrap();
+      annex.isolate = null_mut();
     }
+    unsafe { Arc::from_raw(annex) };
+    unsafe { isolate.set_data(0, null_mut()) };
   }
 
   /// Forcefully terminate the current thread of JavaScript execution
