@@ -389,17 +389,24 @@ impl Isolate {
 }
 
 pub(crate) struct IsolateAnnex {
-  isolate: *mut Isolate,
-  mutex: Mutex<()>,
   slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+  // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
+  // (which may outlive the isolate itself) can determine whether the isolate is
+  // still alive, and if so, get a reference to it. Safety rules:
+  // - The 'main thread' must lock the mutex and reset `isolate` to null just
+  //   before the isolate is disposed.
+  // - Any other thread must lock the mutex while it's reading/using the
+  //   `isolate` pointer.
+  isolate: *mut Isolate,
+  isolate_mutex: Mutex<()>,
 }
 
 impl IsolateAnnex {
   fn new(isolate: &mut Isolate) -> Self {
     Self {
-      isolate,
-      mutex: Mutex::new(()),
       slots: HashMap::new(),
+      isolate,
+      isolate_mutex: Mutex::new(()),
     }
   }
 }
@@ -425,7 +432,7 @@ impl IsolateHandle {
   fn dispose_isolate(isolate: &mut Isolate) {
     let annex = isolate.get_annex_mut();
     {
-      let _lock = annex.mutex.lock().unwrap();
+      let _lock = annex.isolate_mutex.lock().unwrap();
       annex.isolate = null_mut();
     }
     unsafe { Arc::from_raw(annex) };
@@ -440,7 +447,7 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn terminate_execution(&self) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -464,7 +471,7 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn cancel_terminate_execution(&self) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -482,7 +489,7 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn is_execution_terminating(&self) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -506,7 +513,7 @@ impl IsolateHandle {
     callback: InterruptCallback,
     data: *mut c_void,
   ) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
