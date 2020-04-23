@@ -201,7 +201,11 @@ impl Isolate {
     unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
   }
 
-  pub fn get_data_2_mut<'a, T: 'static>(&'a self) -> Option<RefMut<'a, T>> {
+  /// Safe alternative to Isolate::get_data
+  ///
+  /// Warning: will be renamed to get_data_mut() after original unsafe version
+  /// is removed.
+  pub fn get_slot_mut<'a, T: 'static>(&'a self) -> Option<RefMut<'a, T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let ref_mut = cell.try_borrow_mut().ok()?;
     let ref_mut = RefMut::map(ref_mut, |box_any| {
@@ -211,7 +215,11 @@ impl Isolate {
     Some(ref_mut)
   }
 
-  pub fn get_data_2<'a, T: 'static>(&'a self) -> Option<Ref<'a, T>> {
+  /// Safe alternative to Isolate::get_data
+  ///
+  /// Warning: will be renamed to get_data() after original unsafe version is
+  /// removed.
+  pub fn get_slot<'a, T: 'static>(&'a self) -> Option<Ref<'a, T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let r = cell.try_borrow().ok()?;
     Some(Ref::map(r, |box_any| {
@@ -220,7 +228,23 @@ impl Isolate {
     }))
   }
 
-  pub fn set_data_2<T: 'static>(&mut self, value: T) -> bool {
+  /// Safe alternative to Isolate::set_data
+  ///
+  /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
+  /// with an Isolate.
+  ///
+  /// This method gives ownership of value to the Isolate. Exactly one object of
+  /// each type can be associated with an Isolate. If called more than once with
+  /// an object of the same type, the earlier version will be dropped and
+  /// replaced.
+  ///
+  /// Returns true if value was set without replacing an existing value.
+  ///
+  /// The value will be dropped when the isolate is dropped.
+  ///
+  /// Warning: will be renamed to set_data() after original unsafe version is
+  /// removed.
+  pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
     self
       .get_annex_mut()
       .slots
