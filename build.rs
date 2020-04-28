@@ -3,7 +3,7 @@ use std::env;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
-use std::process::Command;
+use std::process::{Command, Output};
 use which::which;
 
 fn main() {
@@ -102,10 +102,30 @@ fn build_v8() {
   cargo_gn::build("rusty_v8", None);
 }
 
+fn get_python_executable() -> &'static str {
+  fn is_python2(cmd: &str) -> bool {
+    Command::new(cmd)
+        .arg("-V")
+        .output()
+        .map(|Output { status: _, stdout, stderr }| (String::from_utf8(stdout).unwrap(), String::from_utf8(stderr).unwrap()))
+        .map(|(stdout, stderr)| if stdout != "" { stdout } else { stderr })
+        .map(|output| output.starts_with("Python 2"))
+        .unwrap_or_default()
+  }
+
+  if is_python2("python") {
+    "python"
+  } else if is_python2("python2") {
+    "python2"
+  } else {
+    panic!("Can't find the executable for Python 2")
+  }
+}
+
 fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{}-sysroot", arch);
   if !PathBuf::from(sysroot_path).is_dir() {
-    let status = Command::new("python")
+    let status = Command::new(get_python_executable())
       .arg("./build/linux/sysroot_scripts/install-sysroot.py")
       .arg(format!("--arch={}", arch))
       .status()
@@ -153,7 +173,7 @@ fn download_ninja_gn_binaries() {
   let ninja = ninja.with_extension("exe");
 
   if !gn.exists() || !ninja.exists() {
-    let status = Command::new("python")
+    let status = Command::new(get_python_executable())
       .arg("./tools/ninja_gn_binaries.py")
       .arg("--dir")
       .arg(&target_dir)
@@ -218,7 +238,7 @@ fn download_static_lib_binaries() {
     // Using python to do the HTTP download because it's already a dependency
     // and so we don't have to add a Rust HTTP client dependency.
     println!("Downloading {}", url);
-    let status = Command::new("python")
+    let status = Command::new(get_python_executable())
       .arg("./tools/download_file.py")
       .arg("--url")
       .arg(url)
@@ -291,7 +311,7 @@ fn clang_download() -> PathBuf {
     .unwrap()
     .join("clang");
   println!("clang_base_path {}", clang_base_path.display());
-  let status = Command::new("python")
+  let status = Command::new(get_python_executable())
     .arg("./tools/clang/scripts/update.py")
     .arg("--output-dir")
     .arg(&clang_base_path)
