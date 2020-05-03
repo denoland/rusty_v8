@@ -34,4 +34,7 @@ default_args = {
   v8_use_snapshot = true
   is_component_build = false
   symbol_level = 1
+
+  enable_stripping = true
+  exclude_unwind_tables = true
 }
