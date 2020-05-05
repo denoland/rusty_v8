@@ -16,7 +16,7 @@ using namespace support;
 
 static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
-              "two_pointers_t size mismatch");
+              "std::shared_ptr<v8::BackingStore> size mismatch");
 
 static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
               "ScriptOrigin size mismatch");
@@ -52,6 +52,9 @@ static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
 
 static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
               "SnapshotCreator size mismatch");
+
+static_assert(sizeof(three_pointers_t) == sizeof(v8_inspector::StringView),
+              "StringView size mismatch");
 
 enum InternalSlots {
   kSlotDynamicImport = 0,
@@ -1450,7 +1453,7 @@ v8_inspector::V8Inspector* v8_inspector__V8Inspector__create(
 v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
     v8_inspector::V8Inspector* self, int context_group_id,
     v8_inspector::V8Inspector::Channel* channel,
-    const v8_inspector::StringView& state) {
+    v8_inspector::StringView state) {
   std::unique_ptr<v8_inspector::V8InspectorSession> u =
       self->connect(context_group_id, channel, state);
   return u.release();
@@ -1458,7 +1461,7 @@ v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
 
 void v8_inspector__V8Inspector__contextCreated(
     v8_inspector::V8Inspector* self, const v8::Context& context,
-    int contextGroupId, const v8_inspector::StringView& humanReadableName) {
+    int contextGroupId, v8_inspector::StringView humanReadableName) {
   self->contextCreated(v8_inspector::V8ContextInfo(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
@@ -1469,15 +1472,13 @@ void v8_inspector__V8InspectorSession__DELETE(
 }
 
 void v8_inspector__V8InspectorSession__dispatchProtocolMessage(
-    v8_inspector::V8InspectorSession* self,
-    const v8_inspector::StringView& message) {
+    v8_inspector::V8InspectorSession* self, v8_inspector::StringView message) {
   self->dispatchProtocolMessage(message);
 }
 
 void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
-    v8_inspector::V8InspectorSession* self,
-    const v8_inspector::StringView& reason,
-    const v8_inspector::StringView& detail) {
+    v8_inspector::V8InspectorSession* self, v8_inspector::StringView reason,
+    v8_inspector::StringView detail) {
   self->schedulePauseOnNextStatement(reason, detail);
 }
 }  // extern "C"
@@ -1600,13 +1601,13 @@ void v8_inspector__StringBuffer__DELETE(v8_inspector::StringBuffer* self) {
   delete self;
 }
 
-const v8_inspector::StringView* v8_inspector__StringBuffer__string(
-    v8_inspector::StringBuffer* self) {
-  return &self->string();
+three_pointers_t v8_inspector__StringBuffer__string(
+    const v8_inspector::StringBuffer& self) {
+  return make_pod<three_pointers_t>(self.string());
 }
 
 v8_inspector::StringBuffer* v8_inspector__StringBuffer__create(
-    const v8_inspector::StringView& source) {
+    v8_inspector::StringView source) {
   return v8_inspector::StringBuffer::create(source).release();
 }
 

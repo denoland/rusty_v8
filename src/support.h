@@ -138,6 +138,12 @@ struct two_pointers_t {
   void* b;
 };
 
+struct three_pointers_t {
+  void* a;
+  void* b;
+  void* c;
+};
+
 }  // namespace support
 
 #endif  // SUPPORT_H_

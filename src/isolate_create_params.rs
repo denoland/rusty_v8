@@ -101,6 +101,19 @@ impl CreateParams {
     self
   }
 
+  /// The following parameters describe the offsets for addressing type info
+  /// for wrapped API objects and are used by the fast C API
+  /// (for details see v8-fast-api-calls.h).
+  pub fn embedder_wrapper_type_info_offsets(
+    mut self,
+    embedder_wrapper_type_index: int,
+    embedder_wrapper_object_index: int,
+  ) -> Self {
+    self.raw.embedder_wrapper_type_index = embedder_wrapper_type_index;
+    self.raw.embedder_wrapper_object_index = embedder_wrapper_object_index;
+    self
+  }
+
   fn set_fallback_defaults(mut self) -> Self {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
@@ -142,6 +155,8 @@ pub(crate) mod raw {
     pub external_references: *const intptr_t,
     pub allow_atomics_wait: bool,
     pub only_terminate_in_safe_scope: bool,
+    pub embedder_wrapper_type_index: int,
+    pub embedder_wrapper_object_index: int,
   }
 
   extern "C" {

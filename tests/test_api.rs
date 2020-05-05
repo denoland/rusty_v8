@@ -890,7 +890,7 @@ fn inspector_string_view() {
 
   assert_eq!(chars.len(), view.into_iter().len());
   assert_eq!(chars.len(), view.len());
-  for (c1, c2) in chars.iter().copied().map(u16::from).zip(&view) {
+  for (c1, c2) in chars.iter().copied().map(u16::from).zip(view) {
     assert_eq!(c1, c2);
   }
 }
@@ -900,7 +900,7 @@ fn inspector_string_buffer() {
   let chars = b"Hello Venus!";
   let mut buf = {
     let src_view = v8::inspector::StringView::from(&chars[..]);
-    v8::inspector::StringBuffer::create(&src_view)
+    v8::inspector::StringBuffer::create(src_view)
   };
   let view = buf.as_mut().unwrap().string();
 
@@ -2595,17 +2595,17 @@ fn inspector_dispatch_protocol_message() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, &name_view);
+  inspector.context_created(context, 1, name_view);
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(1, &mut channel, &state_view);
+  let mut session = inspector.connect(1, &mut channel, state_view);
   let message = String::from(
     r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
   );
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  session.dispatch_protocol_message(&string_view);
+  session.dispatch_protocol_message(string_view);
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 0);
   assert_eq!(channel.count_flush_protocol_notifications, 0);
@@ -2629,18 +2629,18 @@ fn inspector_schedule_pause_on_next_statement() {
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(1, &mut channel, &state_view);
+  let mut session = inspector.connect(1, &mut channel, state_view);
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, &name_view);
+  inspector.context_created(context, 1, name_view);
 
   // In order for schedule_pause_on_next_statement to work, it seems you need
   // to first enable the debugger.
   let message = String::from(r#"{"id":1,"method":"Debugger.enable"}"#);
   let message = &message.into_bytes()[..];
   let message = StringView::from(message);
-  session.dispatch_protocol_message(&message);
+  session.dispatch_protocol_message(message);
 
   // The following commented out block seems to act similarly to
   // schedule_pause_on_next_statement. I'm not sure if they have the exact same
@@ -2653,7 +2653,7 @@ fn inspector_schedule_pause_on_next_statement() {
   let reason = StringView::from(&reason[..]);
   let detail = b"";
   let detail = StringView::from(&detail[..]);
-  session.schedule_pause_on_next_statement(&reason, &detail);
+  session.schedule_pause_on_next_statement(reason, detail);
 
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 0);
@@ -2728,7 +2728,7 @@ fn inspector_console_api_message() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, &name_view);
+  inspector.context_created(context, 1, name_view);
 
   let source = r#"
     console.log("one");
