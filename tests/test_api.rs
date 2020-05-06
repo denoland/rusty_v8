@@ -1761,6 +1761,9 @@ fn snapshot_creator() {
       // the scope type system.
       let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
 
+      // Check that the SnapshotCreator isolate has been set up correctly.
+      let _ = isolate.thread_safe_handle();
+
       let mut hs = v8::HandleScope::new(&mut isolate);
       let scope = hs.enter();
 

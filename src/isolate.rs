@@ -159,10 +159,14 @@ impl Isolate {
     IsolateHandle::new(self)
   }
 
-  fn create_annex(&mut self, create_param_allocations: Box<dyn Any>) {
+  pub(crate) fn create_annex(
+    &mut self,
+    create_param_allocations: Box<dyn Any>,
+  ) {
     let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
     let annex_ptr = Arc::into_raw(annex_arc);
-    unsafe { v8__Isolate__SetData(self, 0, annex_ptr as *mut c_void) }
+    unsafe { assert!(v8__Isolate__GetData(self, 0).is_null()) };
+    unsafe { v8__Isolate__SetData(self, 0, annex_ptr as *mut c_void) };
   }
 
   fn get_annex(&self) -> &IsolateAnnex {
