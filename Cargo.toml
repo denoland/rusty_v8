@@ -11,6 +11,7 @@ repository = "https://github.com/denoland/rusty_v8"
 exclude = [
  # To keep the package under the 10mb limit imposed by crates.io we exclude
  # a lot of files that are not needed for the build.
+ ".*",
  "*.md",
  "*.settings",
  "*.txt",
@@ -37,6 +38,7 @@ exclude = [
  "v8/test/",
  "v8/tools/",
  # These files are required for the build.
+ "!.gn",
  "!BUILD.gn",
  "!tools/clang/scripts/update.py",
  "!v8/test/torque/test-torque.tq",
