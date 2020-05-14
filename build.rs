@@ -186,6 +186,39 @@ fn static_lib_url() -> (String, String) {
   }
 }
 
+fn download_file(url: String, filename: PathBuf) {
+  // Try downloading with python first. Python is a V8 build dependency,
+  // so this saves us from adding a Rust HTTP client dependency.
+  println!("Downloading {}", url);
+  let status = Command::new("python")
+    .arg("./tools/download_file.py")
+    .arg("--url")
+    .arg(&url)
+    .arg("--filename")
+    .arg(&filename)
+    .status();
+
+  // Python is only a required dependency for `V8_FROM_SOURCE` builds.
+  // If python is not available, try falling back to curl.
+  let status = match status {
+    Ok(status) if status.success() => status,
+    _ => {
+      println!("Python downloader failed, trying with curl.");
+      Command::new("curl")
+        .arg("-L")
+        .arg("-s")
+        .arg("-o")
+        .arg(&filename)
+        .arg(&url)
+        .status()
+        .unwrap()
+    }
+  };
+
+  assert!(status.success());
+  assert!(filename.exists());
+}
+
 fn download_static_lib_binaries() {
   let (url, static_lib_name) = static_lib_url();
   println!("static lib URL: {}", url);
@@ -215,19 +248,7 @@ fn download_static_lib_binaries() {
     println!("static lib already exists {}", filename.display());
     println!("To re-download this file, it must be manually deleted.");
   } else {
-    // Using python to do the HTTP download because it's already a dependency
-    // and so we don't have to add a Rust HTTP client dependency.
-    println!("Downloading {}", url);
-    let status = Command::new("python")
-      .arg("./tools/download_file.py")
-      .arg("--url")
-      .arg(url)
-      .arg("--filename")
-      .arg(&filename)
-      .status()
-      .unwrap();
-    assert!(status.success());
-    assert!(filename.exists());
+    download_file(url, filename);
   }
 }
 
