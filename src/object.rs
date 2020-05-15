@@ -91,7 +91,7 @@ impl Object {
   }
 
   /// Creates a JavaScript object with the given properties, and
-  /// a the given prototype_or_null (which can be any JavaScript
+  /// the given prototype_or_null (which can be any JavaScript
   /// value, and if it's null, the newly created object won't have
   /// a prototype at all). This is similar to Object.create().
   /// All properties will be created as enumerable, configurable
