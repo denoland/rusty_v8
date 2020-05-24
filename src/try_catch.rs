@@ -110,9 +110,28 @@ impl<'tc> TryCatch<'tc> {
   /// Returns the exception caught by this try/catch block. If no exception has
   /// been caught an empty handle is returned.
   ///
-  /// The returned handle is valid until this TryCatch block has been destroyed.
-  pub fn exception(&self) -> Option<Local<'tc, Value>> {
-    unsafe { Local::from_raw(v8__TryCatch__Exception(&self.0)) }
+  /// Note: v8.h states that "the returned handle is valid until this TryCatch
+  /// block has been destroyed". This is incorrect; the return value lives
+  /// no longer and no shorter than the active HandleScope at the time this
+  /// method is called. An issue has been opened about this in the V8 bug
+  /// tracker: https://bugs.chromium.org/p/v8/issues/detail?id=10537.
+  pub fn exception<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Value>> {
+    unsafe { scope.to_local(v8__TryCatch__Exception(&self.0)) }
+  }
+
+  /// Returns the message associated with this exception. If there is
+  /// no message associated an empty handle is returned.
+  ///
+  /// Note: the remark about the lifetime for the `exception()` return value
+  /// applies here too.
+  pub fn message<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Message>> {
+    unsafe { scope.to_local(v8__TryCatch__Message(&self.0)) }
   }
 
   /// Returns the .stack property of the thrown object. If no .stack
@@ -123,15 +142,6 @@ impl<'tc> TryCatch<'tc> {
     context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
     unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, &*context)) }
-  }
-
-  /// Returns the message associated with this exception. If there is
-  /// no message associated an empty handle is returned.
-  ///
-  /// The returned handle is valid until this TryCatch block has been
-  /// destroyed.
-  pub fn message(&self) -> Option<Local<'tc, Message>> {
-    unsafe { Local::from_raw(v8__TryCatch__Message(&self.0)) }
   }
 
   /// Clears any exceptions that may have been caught by this try/catch block.

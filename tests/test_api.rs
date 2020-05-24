@@ -536,11 +536,14 @@ fn try_catch() {
       let result = eval(scope, context, "throw new Error('foo')");
       assert!(result.is_none());
       assert!(tc.has_caught());
-      assert!(tc.exception().is_some());
+      assert!(tc.exception(scope).is_some());
       assert!(tc.stack_trace(scope, context).is_some());
-      assert!(tc.message().is_some());
+      assert!(tc.message(scope).is_some());
       assert_eq!(
-        tc.message().unwrap().get(scope).to_rust_string_lossy(scope),
+        tc.message(scope)
+          .unwrap()
+          .get(scope)
+          .to_rust_string_lossy(scope),
         "Uncaught Error: foo"
       );
     };
@@ -551,9 +554,9 @@ fn try_catch() {
       let result = eval(scope, context, "1 + 1");
       assert!(result.is_some());
       assert!(!tc.has_caught());
-      assert!(tc.exception().is_none());
+      assert!(tc.exception(scope).is_none());
       assert!(tc.stack_trace(scope, context).is_none());
-      assert!(tc.message().is_none());
+      assert!(tc.message(scope).is_none());
       assert!(tc.rethrow().is_none());
     };
     {
@@ -575,6 +578,41 @@ fn try_catch() {
 }
 
 #[test]
+fn try_catch_caught_lifetime() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut hs = v8::HandleScope::new(&mut isolate);
+  let scope = hs.enter();
+  let context = v8::Context::new(scope);
+  let mut cs = v8::ContextScope::new(scope, context);
+  let scope = cs.enter();
+  let (caught_exc, caught_msg) = {
+    let mut try_catch = v8::TryCatch::new(scope);
+    let try_catch = try_catch.enter();
+    // Throw exception.
+    let msg = v8::String::new(scope, "DANG!").unwrap();
+    let exc = v8::Exception::type_error(scope, msg);
+    scope.isolate().throw_exception(exc);
+    // Catch exception.
+    let caught_exc = try_catch.exception(scope).unwrap();
+    let caught_msg = try_catch.message(scope).unwrap();
+    // Move `caught_exc` and `caught_msg` out of the extent of the TryCatch,
+    // but still within the extent of the enclosing HandleScope.
+    (caught_exc, caught_msg)
+  };
+  // This should not crash.
+  assert!(caught_exc
+    .to_string(scope)
+    .unwrap()
+    .to_rust_string_lossy(scope)
+    .contains("DANG"));
+  assert!(caught_msg
+    .get(scope)
+    .to_rust_string_lossy(scope)
+    .contains("DANG"));
+}
+
+#[test]
 fn throw_exception() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new(Default::default());
@@ -591,7 +629,7 @@ fn throw_exception() {
       scope.isolate().throw_exception(exception.into());
       assert!(tc.has_caught());
       assert!(tc
-        .exception()
+        .exception(scope)
         .unwrap()
         .strict_equals(v8_str(scope, "boom").into()));
     };
@@ -1605,7 +1643,7 @@ fn module_instantiation_failures1() {
       assert!(result.is_none());
       assert!(tc.has_caught());
       assert!(tc
-        .exception()
+        .exception(scope)
         .unwrap()
         .strict_equals(v8_str(scope, "boom").into()));
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());

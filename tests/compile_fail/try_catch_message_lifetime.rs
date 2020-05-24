@@ -3,13 +3,13 @@ use rusty_v8 as v8;
 
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
-  let mut hs = v8::HandleScope::new(&mut isolate);
-  let hs = hs.enter();
+  let mut try_catch = v8::TryCatch::new(&mut isolate);
+  let try_catch = try_catch.enter();
 
-  let _message = {
-    let mut try_catch = v8::TryCatch::new(hs);
-    let tc = try_catch.enter();
-    tc.message().unwrap()
+  let _exception = {
+    let mut hs = v8::HandleScope::new(&mut isolate);
+    let hs = hs.enter();
+    try_catch.message(hs).unwrap()
   };
 }
 
