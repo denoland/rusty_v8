@@ -121,6 +121,8 @@ extern "C" {
     callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
     arg: *mut c_void,
   );
+  fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
+  fn v8__Isolate__GetHeapStatistics(isolate: *mut Isolate, stats:*mut HeapStatistics);
 }
 
 #[repr(C)]
@@ -345,6 +347,17 @@ impl Isolate {
   /// Any exceptions thrown by microtask callbacks are swallowed.
   pub fn run_microtasks(&mut self) {
     unsafe { v8__Isolate__RunMicrotasks(self) }
+  }
+
+  /// Optional notification that the system is running low on memory. 
+  /// V8 uses these notifications to attempt to free memory.
+  pub fn low_memory_notification(&mut self) {
+    unsafe { v8__Isolate__LowMemoryNotification(self) }
+  }
+
+  /// Get statistics about the heap memory usage. 
+  pub fn get_heap_statistics(&mut self,  stats:&mut HeapStatistics)  {
+    unsafe { v8__Isolate__GetHeapStatistics(self, stats) }
   }
 
   /// Enqueues the callback to the default MicrotaskQueue
@@ -577,5 +590,114 @@ impl Deref for OwnedIsolate {
 impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { self.cxx_isolate.as_mut() }
+  }
+}
+
+#[repr(C)]
+/// Instances of this struct can be passed to isolate.get_heap_statistics to get heap statistics from V8. 
+pub struct HeapStatistics{
+  total_heap_size_:usize,
+  total_heap_size_executable_:usize,
+  total_physical_size_:usize,
+  total_available_size_:usize,
+  total_global_handles_size_:usize,
+  used_global_handles_size_:usize,
+  used_heap_size_:usize,
+  heap_size_limit_:usize,
+  malloced_memory_:usize,
+  external_memory_:usize,
+  peak_malloced_memory_:usize,
+  number_of_native_contexts_:usize,
+  number_of_detached_contexts_:usize,
+  does_zap_garbage_:usize,
+}
+
+impl HeapStatistics {
+  
+  // Number of bytes V8 has allocated for the heap. This can grow if usedHeap needs more.
+  pub fn total_heap_size(&self) -> usize {
+    self.total_heap_size_
+  }
+
+  // Number of bytes for compiled bytecode and JITed code
+  pub fn total_heap_size_executable(&self) -> usize {
+    self.total_heap_size_executable_
+  }
+
+  // Committed size
+  pub fn total_physical_size(&self) -> usize {
+    self.total_physical_size_
+  }
+
+  //Available heap size
+  pub fn total_available_size(&self) -> usize {
+    self.total_available_size_
+  }
+
+  pub fn total_global_handles_size(&self) -> usize {
+    self.total_global_handles_size_
+  }
+
+  pub fn used_global_handles_size(&self) -> usize {
+    self.used_global_handles_size_
+  }
+
+  // Number of bytes in used by application data
+  pub fn used_heap_size(&self) -> usize {
+    self.used_heap_size_
+  }
+
+  //The absolute limit the heap cannot exceed (default limit or --max_old_space_size)
+  pub fn heap_size_limit(&self) -> usize {
+    self.heap_size_limit_
+  }
+
+  // Current amount of memory, obtained via malloc
+  pub fn malloced_memory(&self) -> usize {
+    self.malloced_memory_
+  }
+
+  pub fn external_memory(&self) -> usize {
+    self.external_memory_
+  }
+
+  // Peak amount of memory, obtained via malloc
+  pub fn peak_malloced_memory(&self) -> usize {
+    self.peak_malloced_memory_
+  }
+
+  pub fn number_of_native_contexts(&self) -> usize {
+    self.number_of_native_contexts_
+  }
+
+  pub fn number_of_detached_contexts(&self) -> usize {
+    self.number_of_detached_contexts_
+  }
+
+  // Is a 0/1 boolean, which signifies whether the --zap_code_space option is enabled or not.
+  pub fn does_zap_garbage(&self) -> usize {
+    self.does_zap_garbage_
+  }
+
+}
+
+impl Default for HeapStatistics {
+  fn default () -> HeapStatistics {
+    HeapStatistics {
+      total_heap_size_:0,
+      total_heap_size_executable_:0,
+      total_physical_size_:0,
+      total_available_size_:0,
+      total_global_handles_size_:0,
+      used_global_handles_size_:0,
+      used_heap_size_:0,
+      heap_size_limit_:0,
+      malloced_memory_:0,
+      external_memory_:0,
+      peak_malloced_memory_:0,
+      number_of_native_contexts_:0,
+      number_of_detached_contexts_:0,
+      does_zap_garbage_:0,
+    }
   }
 }

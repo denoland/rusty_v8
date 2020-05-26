@@ -128,6 +128,7 @@ pub use isolate::HostImportModuleDynamicallyCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
+pub use isolate::HeapStatistics;
 pub use isolate::MessageCallback;
 pub use isolate::OwnedIsolate;
 pub use isolate::PromiseRejectCallback;

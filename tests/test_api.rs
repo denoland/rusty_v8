@@ -2938,3 +2938,37 @@ fn test_map_api() {
     );
   }
 }
+
+#[test]
+fn get_heap_statistics() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+    
+  let mut stats = v8::HeapStatistics::default();
+  isolate.get_heap_statistics(&mut stats);
+
+  assert!((stats.total_heap_size() >= std::usize::MIN));
+  assert!((stats.total_heap_size_executable() >= std::usize::MIN));
+  assert!((stats.total_physical_size() >= std::usize::MIN));
+  assert!((stats.total_available_size() >= std::usize::MIN));
+  assert!((stats.total_global_handles_size() >= std::usize::MIN));
+  assert!((stats.used_global_handles_size() >= std::usize::MIN));
+  assert!((stats.used_heap_size() >= std::usize::MIN));
+  assert!((stats.heap_size_limit() >= std::usize::MIN));
+  assert!((stats.malloced_memory() >= std::usize::MIN));
+  assert!((stats.external_memory() >= std::usize::MIN));
+  assert!((stats.peak_malloced_memory() >= std::usize::MIN));
+  assert!((stats.number_of_native_contexts() >= std::usize::MIN));
+  assert!((stats.does_zap_garbage() == 0 || stats.does_zap_garbage() == 1));
+
+}
+
+#[test]
+fn low_memory_notification() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  
+  isolate.low_memory_notification();
+
+  assert!(false);
+}

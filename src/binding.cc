@@ -138,6 +138,14 @@ void v8__Isolate__RunMicrotasks(v8::Isolate* isolate) {
   isolate->RunMicrotasks();
 }
 
+void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
+  return isolate->LowMemoryNotification();
+}
+
+void v8__Isolate__GetHeapStatistics(v8::Isolate* isolate, v8::HeapStatistics* stats) {
+  isolate->GetHeapStatistics(stats);
+}
+
 void v8__Isolate__EnqueueMicrotask(v8::Isolate* isolate,
                                    const v8::Function& function) {
   isolate->EnqueueMicrotask(ptr_to_local(&function));
