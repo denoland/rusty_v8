@@ -2801,22 +2801,6 @@ fn context_from_object_template() {
 }
 
 #[test]
-fn get_and_set_data() {
-  let _setup_guard = setup();
-  let mut isolate = v8::Isolate::new(Default::default());
-  let nslots = isolate.get_number_of_data_slots();
-  assert!(nslots > 0);
-  for slot in 0..nslots {
-    let b = Box::new(123 as i32);
-    let ptr = Box::into_raw(b);
-    unsafe { isolate.set_data(slot, ptr as *mut std::ffi::c_void) };
-    let ptr = isolate.get_data(slot) as *mut i32;
-    let b = unsafe { Box::from_raw(ptr) };
-    assert_eq!(*b, 123);
-  }
-}
-
-#[test]
 fn take_heap_snapshot() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new(Default::default());
