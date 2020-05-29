@@ -188,26 +188,23 @@ impl Isolate {
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
-  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
+  unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
     v8__Isolate__SetData(self, slot + 1, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
-  pub fn get_data(&self, slot: u32) -> *mut c_void {
+  fn get_data(&self, slot: u32) -> *mut c_void {
     unsafe { v8__Isolate__GetData(self, slot + 1) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
-  pub fn get_number_of_data_slots(&self) -> u32 {
+  fn get_number_of_data_slots(&self) -> u32 {
     unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
   }
 
-  /// Safe alternative to Isolate::get_data
-  ///
-  /// Warning: will be renamed to get_data_mut() after original unsafe version
-  /// is removed.
+  /// Get mutable reference to embedder data.
   pub fn get_slot_mut<T: 'static>(&self) -> Option<RefMut<T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let ref_mut = cell.try_borrow_mut().ok()?;
@@ -218,10 +215,7 @@ impl Isolate {
     Some(ref_mut)
   }
 
-  /// Safe alternative to Isolate::get_data
-  ///
-  /// Warning: will be renamed to get_data() after original unsafe version is
-  /// removed.
+  /// Get reference to embedder data.
   pub fn get_slot<T: 'static>(&self) -> Option<Ref<T>> {
     let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
     let r = cell.try_borrow().ok()?;
@@ -231,8 +225,6 @@ impl Isolate {
     }))
   }
 
-  /// Safe alternative to Isolate::set_data
-  ///
   /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
   /// with an Isolate.
   ///
@@ -244,9 +236,6 @@ impl Isolate {
   /// Returns true if value was set without replacing an existing value.
   ///
   /// The value will be dropped when the isolate is dropped.
-  ///
-  /// Warning: will be renamed to set_data() after original unsafe version is
-  /// removed.
   pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
     self
       .get_annex_mut()
