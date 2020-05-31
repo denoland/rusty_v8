@@ -80,7 +80,8 @@ impl StackTrace {
   ) -> Option<Local<'sc, StackFrame>> {
     let isolate = scope.isolate();
     unsafe {
-      Local::from_raw(v8__StackTrace__GetFrame(self, isolate, index as u32))
+      let ptr = v8__StackTrace__GetFrame(self, isolate, index as u32);
+      scope.to_local(ptr)
     }
   }
 }

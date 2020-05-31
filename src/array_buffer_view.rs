@@ -5,6 +5,7 @@ use crate::support::int;
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
 use crate::Local;
+use crate::ToLocal;
 
 extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -21,8 +22,11 @@ extern "C" {
 
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
-  pub fn buffer<'sc>(&self) -> Option<Local<'sc, ArrayBuffer>> {
-    unsafe { Local::from_raw(v8__ArrayBufferView__Buffer(self)) }
+  pub fn buffer<'sc>(
+    &self,
+    scope: &'_ mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, ArrayBuffer>> {
+    unsafe { scope.to_local(v8__ArrayBufferView__Buffer(self)) }
   }
 
   /// Size of a view in bytes.
