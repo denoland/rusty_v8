@@ -72,6 +72,27 @@ fn handle_scope_numbers() {
   }
 }
 
+// TODO: the type checker is kumbaya with this but in reality the
+// `Local<Integer>` created at the end of the test is created in HandleScope
+// `hs2` and not in `hs1` as specified. When this local is accessed, which is
+// after `hs2` is destroyed, a crash happens.
+// #[test]
+// fn handle_scope_early_drop() {
+//   let _setup_guard = setup();
+//
+//   let mut isolate = v8::Isolate::new(Default::default());
+//   let mut hs1 = v8::HandleScope::new(&mut isolate);
+//   let hs1 = hs1.enter();
+//
+//   let local = {
+//     let mut hs2 = v8::HandleScope::new(hs1);
+//     let _hs2 = hs2.enter();
+//
+//     v8::Integer::new(hs1, 123)
+//   };
+//   assert_eq!(local.value(), 123);
+// }
+
 #[test]
 fn global_handles() {
   let _setup_guard = setup();
@@ -1780,7 +1801,7 @@ fn array_buffer_view() {
     let copy_bytes = result.copy_contents(&mut dest);
     assert_eq!(copy_bytes, 4);
     assert_eq!(dest, [23, 23, 23, 23]);
-    let maybe_ab = result.buffer();
+    let maybe_ab = result.buffer(scope);
     assert!(maybe_ab.is_some());
     let ab = maybe_ab.unwrap();
     assert_eq!(ab.byte_length(), 4);
@@ -1951,7 +1972,7 @@ fn uint8_array() {
     let copy_bytes = result.copy_contents(&mut dest);
     assert_eq!(copy_bytes, 4);
     assert_eq!(dest, [23, 23, 23, 23]);
-    let maybe_ab = result.buffer();
+    let maybe_ab = result.buffer(scope);
     assert!(maybe_ab.is_some());
     let ab = maybe_ab.unwrap();
     let uint8_array = v8::Uint8Array::new(ab, 0, 0);
