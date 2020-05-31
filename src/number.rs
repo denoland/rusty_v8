@@ -20,8 +20,8 @@ impl Number {
     scope: &mut impl ToLocal<'sc>,
     value: f64,
   ) -> Local<'sc, Number> {
-    let local = unsafe { v8__Number__New(scope.isolate(), value) };
-    unsafe { scope.to_local(local) }.unwrap()
+    unsafe { scope.cast_local(|scope| v8__Number__New(scope.isolate(), value)) }
+      .unwrap()
   }
 
   pub fn value(&self) -> f64 {
@@ -34,16 +34,22 @@ impl Integer {
     scope: &mut impl ToLocal<'sc>,
     value: i32,
   ) -> Local<'sc, Integer> {
-    let local = unsafe { v8__Integer__New(scope.isolate(), value) };
-    unsafe { scope.to_local(local) }.unwrap()
+    unsafe {
+      scope.cast_local(|scope| v8__Integer__New(scope.isolate(), value))
+    }
+    .unwrap()
   }
 
   pub fn new_from_unsigned<'sc>(
     scope: &mut impl ToLocal<'sc>,
     value: u32,
   ) -> Local<'sc, Integer> {
-    let local = unsafe { v8__Integer__NewFromUnsigned(scope.isolate(), value) };
-    unsafe { scope.to_local(local) }.unwrap()
+    unsafe {
+      scope.cast_local(|scope| {
+        v8__Integer__NewFromUnsigned(scope.isolate(), value)
+      })
+    }
+    .unwrap()
   }
 
   pub fn value(&self) -> i64 {

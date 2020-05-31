@@ -26,7 +26,7 @@ impl ArrayBufferView {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, ArrayBuffer>> {
-    unsafe { scope.to_local(v8__ArrayBufferView__Buffer(self)) }
+    unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }
 
   /// Size of a view in bytes.

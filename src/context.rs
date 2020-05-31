@@ -23,8 +23,11 @@ impl Context {
   /// Creates a new context.
   pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Context> {
     // TODO: optional arguments;
-    let ptr = unsafe { v8__Context__New(scope.isolate(), null(), null()) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope
+        .cast_local(|scope| v8__Context__New(scope.isolate(), null(), null()))
+    }
+    .unwrap()
   }
 
   /// Creates a new context using the object template as the template for
@@ -33,8 +36,11 @@ impl Context {
     scope: &mut impl ToLocal<'sc>,
     templ: Local<ObjectTemplate>,
   ) -> Local<'sc, Context> {
-    let ptr = unsafe { v8__Context__New(scope.isolate(), &*templ, null()) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope
+        .cast_local(|scope| v8__Context__New(scope.isolate(), &*templ, null()))
+    }
+    .unwrap()
   }
 
   /// Returns the global proxy object.
@@ -51,7 +57,7 @@ impl Context {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Object> {
-    unsafe { scope.to_local(v8__Context__Global(self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
   /// Enter this context.  After entering a context, all code compiled

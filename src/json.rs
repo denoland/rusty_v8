@@ -24,7 +24,7 @@ pub fn parse<'sc>(
   context: Local<'_, Context>,
   json_string: Local<'_, String>,
 ) -> Option<Local<'sc, Value>> {
-  unsafe { scope.to_local(v8__JSON__Parse(&*context, &*json_string)) }
+  unsafe { scope.cast_local(|_| v8__JSON__Parse(&*context, &*json_string)) }
 }
 
 /// Tries to stringify the JSON-serializable object `json_object` and returns
@@ -34,5 +34,5 @@ pub fn stringify<'sc>(
   context: Local<'sc, Context>,
   json_object: Local<'sc, Value>,
 ) -> Option<Local<'sc, String>> {
-  unsafe { scope.to_local(v8__JSON__Stringify(&*context, &*json_object)) }
+  unsafe { scope.cast_local(|_| v8__JSON__Stringify(&*context, &*json_object)) }
 }

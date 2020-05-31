@@ -96,7 +96,7 @@ impl<'cb> ReturnValue<'cb> {
     &mut self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { scope.to_local(v8__ReturnValue__Get(self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__ReturnValue__Get(self)) }.unwrap()
   }
 }
 
@@ -291,7 +291,7 @@ impl Function {
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'sc, Function>> {
     unsafe {
-      scope.to_local(v8__Function__New(&*context, callback.map_fn_to()))
+      scope.cast_local(|_| v8__Function__New(&*context, callback.map_fn_to()))
     }
   }
 
@@ -304,11 +304,9 @@ impl Function {
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'sc, Function>> {
     unsafe {
-      scope.to_local(v8__Function__NewWithData(
-        &*context,
-        callback.map_fn_to(),
-        &*data,
-      ))
+      scope.cast_local(|_| {
+        v8__Function__NewWithData(&*context, callback.map_fn_to(), &*data)
+      })
     }
   }
 
@@ -323,7 +321,8 @@ impl Function {
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
     unsafe {
-      scope.to_local(v8__Function__Call(self, &*context, &*recv, argc, argv))
+      scope
+        .cast_local(|_| v8__Function__Call(self, &*context, &*recv, argc, argv))
     }
   }
 }

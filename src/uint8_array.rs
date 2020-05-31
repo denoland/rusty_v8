@@ -19,6 +19,8 @@ impl Uint8Array {
     byte_offset: usize,
     length: usize,
   ) -> Option<Local<'sc, Uint8Array>> {
-    unsafe { scope.to_local(v8__Uint8Array__New(&*buf, byte_offset, length)) }
+    unsafe {
+      scope.cast_local(|_| v8__Uint8Array__New(&*buf, byte_offset, length))
+    }
   }
 }

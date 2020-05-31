@@ -226,6 +226,6 @@ impl Module {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__Module__Evaluate(&*self, &*context)) }
+    unsafe { scope.cast_local(|_| v8__Module__Evaluate(&*self, &*context)) }
   }
 }

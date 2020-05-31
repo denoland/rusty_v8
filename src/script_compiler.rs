@@ -97,12 +97,13 @@ pub fn compile_module2<'sc>(
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'sc, Module>> {
   unsafe {
-    let ptr = v8__ScriptCompiler__CompileModule(
-      scope.isolate(),
-      &mut source,
-      options,
-      no_cache_reason,
-    );
-    scope.to_local(ptr)
+    scope.cast_local(|scope| {
+      v8__ScriptCompiler__CompileModule(
+        scope.isolate(),
+        &mut source,
+        options,
+        no_cache_reason,
+      )
+    })
   }
 }

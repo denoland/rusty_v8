@@ -25,8 +25,7 @@ impl Proxy {
     handler: Local<Object>,
   ) -> Option<Local<'sc, Proxy>> {
     unsafe {
-      let ptr = v8__Proxy__New(&*context, &*target, &*handler);
-      scope.to_local(ptr)
+      scope.cast_local(|_| v8__Proxy__New(&*context, &*target, &*handler))
     }
   }
 
@@ -34,14 +33,14 @@ impl Proxy {
     &mut self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { scope.to_local(v8__Proxy__GetHandler(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(&*self)) }.unwrap()
   }
 
   pub fn get_target<'sc>(
     &mut self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { scope.to_local(v8__Proxy__GetTarget(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(&*self)) }.unwrap()
   }
 
   pub fn is_revoked(&mut self) -> bool {

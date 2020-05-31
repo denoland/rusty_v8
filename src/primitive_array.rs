@@ -33,9 +33,12 @@ impl PrimitiveArray {
     scope: &mut impl ToLocal<'sc>,
     length: usize,
   ) -> Local<'sc, PrimitiveArray> {
-    let ptr =
-      unsafe { v8__PrimitiveArray__New(scope.isolate(), length as int) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.cast_local(|scope| {
+        v8__PrimitiveArray__New(scope.isolate(), length as int)
+      })
+    }
+    .unwrap()
   }
 
   pub fn length(&self) -> usize {
@@ -58,8 +61,11 @@ impl PrimitiveArray {
     scope: &mut impl ToLocal<'sc>,
     index: usize,
   ) -> Local<'sc, Primitive> {
-    let ptr =
-      unsafe { v8__PrimitiveArray__Get(self, scope.isolate(), index as int) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.cast_local(|scope| {
+        v8__PrimitiveArray__Get(self, scope.isolate(), index as int)
+      })
+    }
+    .unwrap()
   }
 }

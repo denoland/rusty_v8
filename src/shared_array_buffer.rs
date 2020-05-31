@@ -50,11 +50,12 @@ impl SharedArrayBuffer {
     byte_length: usize,
   ) -> Option<Local<'sc, SharedArrayBuffer>> {
     unsafe {
-      let ptr = v8__SharedArrayBuffer__New__with_byte_length(
-        scope.isolate(),
-        byte_length,
-      );
-      scope.to_local(ptr)
+      scope.cast_local(|scope| {
+        v8__SharedArrayBuffer__New__with_byte_length(
+          scope.isolate(),
+          byte_length,
+        )
+      })
     }
   }
 
@@ -62,11 +63,15 @@ impl SharedArrayBuffer {
     scope: &mut impl ToLocal<'sc>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'sc, SharedArrayBuffer> {
-    let isolate = scope.isolate();
-    let ptr = unsafe {
-      v8__SharedArrayBuffer__New__with_backing_store(isolate, backing_store)
-    };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.cast_local(|scope| {
+        v8__SharedArrayBuffer__New__with_backing_store(
+          scope.isolate(),
+          backing_store,
+        )
+      })
+    }
+    .unwrap()
   }
 
   /// Data length in bytes.

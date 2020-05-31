@@ -94,8 +94,8 @@ extern "C" {
 impl Object {
   /// Creates an empty object.
   pub fn new<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Object> {
-    let ptr = unsafe { v8__Object__New(scope.isolate()) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe { scope.cast_local(|scope| v8__Object__New(scope.isolate())) }
+      .unwrap()
   }
 
   /// Creates a JavaScript object with the given properties, and the given
@@ -113,15 +113,17 @@ impl Object {
     let names = Local::slice_into_raw(names);
     let values = Local::slice_into_raw(values);
     unsafe {
-      let object = v8__Object__New__with_prototype_and_properties(
-        scope.isolate(),
-        &*prototype_or_null,
-        names.as_ptr(),
-        values.as_ptr(),
-        names.len(),
-      );
-      scope.to_local(object).unwrap()
+      scope.cast_local(|scope| {
+        v8__Object__New__with_prototype_and_properties(
+          scope.isolate(),
+          &*prototype_or_null,
+          names.as_ptr(),
+          values.as_ptr(),
+          names.len(),
+        )
+      })
     }
+    .unwrap()
   }
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
@@ -198,10 +200,7 @@ impl Object {
     context: Local<Context>,
     key: Local<Value>,
   ) -> Option<Local<'a, Value>> {
-    unsafe {
-      let ptr = v8__Object__Get(self, &*context, &*key);
-      scope.to_local(ptr)
-    }
+    unsafe { scope.cast_local(|_| v8__Object__Get(self, &*context, &*key)) }
   }
 
   pub fn get_index<'a>(
@@ -211,8 +210,7 @@ impl Object {
     index: u32,
   ) -> Option<Local<'a, Value>> {
     unsafe {
-      let ptr = v8__Object__GetIndex(self, &*context, index);
-      scope.to_local(ptr)
+      scope.cast_local(|_| v8__Object__GetIndex(self, &*context, index))
     }
   }
 
@@ -222,10 +220,7 @@ impl Object {
     &self,
     scope: &mut impl ToLocal<'a>,
   ) -> Option<Local<'a, Value>> {
-    unsafe {
-      let ptr = v8__Object__GetPrototype(self);
-      scope.to_local(ptr)
-    }
+    unsafe { scope.cast_local(|_| v8__Object__GetPrototype(self)) }
   }
 
   /// Note: SideEffectType affects the getter only, not the setter.
@@ -255,10 +250,7 @@ impl Object {
     &self,
     scope: &mut impl ToLocal<'a>,
   ) -> Local<'a, Context> {
-    unsafe {
-      let ptr = v8__Object__CreationContext(self);
-      scope.to_local(ptr).unwrap()
-    }
+    unsafe { scope.cast_local(|_| v8__Object__CreationContext(self)) }.unwrap()
   }
 
   /// This function has the same functionality as GetPropertyNames but the
@@ -269,7 +261,9 @@ impl Object {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Array>> {
-    unsafe { scope.to_local(v8__Object__GetOwnPropertyNames(self, &*context)) }
+    unsafe {
+      scope.cast_local(|_| v8__Object__GetOwnPropertyNames(self, &*context))
+    }
   }
 
   /// Returns an array containing the names of the filtered properties of this
@@ -281,7 +275,9 @@ impl Object {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Array>> {
-    unsafe { scope.to_local(v8__Object__GetPropertyNames(self, &*context)) }
+    unsafe {
+      scope.cast_local(|_| v8__Object__GetPropertyNames(self, &*context))
+    }
   }
 }
 
@@ -292,8 +288,8 @@ impl Array {
     scope: &mut impl ToLocal<'sc>,
     length: i32,
   ) -> Local<'sc, Array> {
-    let ptr = unsafe { v8__Array__New(scope.isolate(), length) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe { scope.cast_local(|scope| v8__Array__New(scope.isolate(), length)) }
+      .unwrap()
   }
 
   /// Creates a JavaScript array out of a Local<Value> array with a known
@@ -306,14 +302,16 @@ impl Array {
       return Self::new(scope, 0);
     }
     let elements = Local::slice_into_raw(elements);
-    let ptr = unsafe {
-      v8__Array__New_with_elements(
-        scope.isolate(),
-        elements.as_ptr(),
-        elements.len(),
-      )
-    };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.cast_local(|scope| {
+        v8__Array__New_with_elements(
+          scope.isolate(),
+          elements.as_ptr(),
+          elements.len(),
+        )
+      })
+    }
+    .unwrap()
   }
 
   pub fn length(&self) -> u32 {
@@ -331,7 +329,6 @@ impl Map {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Array> {
-    let ptr = unsafe { v8__Map__As__Array(self) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Map__As__Array(self)) }.unwrap()
   }
 }
