@@ -12,7 +12,6 @@ use crate::Object;
 use crate::PropertyAttribute;
 use crate::ToLocal;
 use crate::Value;
-use std::convert::TryInto;
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *const Object;
@@ -73,13 +72,13 @@ extern "C" {
   fn v8__Object__GetIdentityHash(this: *const Object) -> int;
   fn v8__Object__CreationContext(this: *const Object) -> *const Context;
   fn v8__Object__GetOwnPropertyNames(
-    object: &Object,
-    context: Local<Context>,
-  ) -> *mut Value;
+    this: *const Object,
+    context: *const Context,
+  ) -> *const Array;
   fn v8__Object__GetPropertyNames(
-    object: &Object,
-    context: Local<Context>,
-  ) -> *mut Value;
+    this: *const Object,
+    context: *const Context,
+  ) -> *const Array;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -263,47 +262,27 @@ impl Object {
     }
   }
 
-  fn resolve_js_array<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-    context: Local<Context>,
-    raw_name_ptr: *mut Value,
-  ) -> Option<Vec<String>> {
-    let raw_names: Local<Array> =
-      unsafe { scope.to_local(raw_name_ptr) }?.try_into().ok()?;
-    let mut names: Vec<String> = vec![];
-    for i in 0..raw_names.length() {
-      let local = raw_names.get_index(scope, context, i)?;
-      let local: Local<crate::String> = local.try_into().ok()?;
-      names.push(local.to_rust_string_lossy(scope));
-    }
-    Some(names)
-  }
-
-  /// This function has the same functionality as GetPropertyNames
-  /// but the returned array doesn't contain the names of
-  /// properties from prototype objects.
+  /// This function has the same functionality as GetPropertyNames but the
+  /// returned array doesn't contain the names of properties from prototype
+  /// objects.
   pub fn get_own_property_names<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
-  ) -> Option<Vec<String>> {
-    let raw_name_ptr =
-      unsafe { v8__Object__GetOwnPropertyNames(self, context) };
-    self.resolve_js_array(scope, context, raw_name_ptr)
+  ) -> Option<Local<'sc, Array>> {
+    unsafe { scope.to_local(v8__Object__GetOwnPropertyNames(self, &*context)) }
   }
 
-  /// Returns an array containing the names of the enumerable properties of
-  /// this object, including properties from prototype objects.
-  /// The array returned by this method contains the same values as would be
-  /// enumerated by a for-in statement over this object.
+  /// Returns an array containing the names of the filtered properties of this
+  /// object, including properties from prototype objects. The array returned by
+  /// this method contains the same values as would be enumerated by a for-in
+  /// statement over this object.
   pub fn get_property_names<'sc>(
     &self,
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
-  ) -> Option<Vec<String>> {
-    let raw_name_ptr = unsafe { v8__Object__GetPropertyNames(self, context) };
-    self.resolve_js_array(scope, context, raw_name_ptr)
+  ) -> Option<Local<'sc, Array>> {
+    unsafe { scope.to_local(v8__Object__GetPropertyNames(self, &*context)) }
   }
 }
 

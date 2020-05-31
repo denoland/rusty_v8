@@ -2943,72 +2943,69 @@ fn test_map_api() {
 }
 
 #[test]
-fn test_object_properties() {
+fn test_get_object_property_names() {
   let _setup_guard = setup();
-  let mut params = v8::Isolate::create_params();
-  params.set_array_buffer_allocator(v8::new_default_allocator());
-  let mut isolate = v8::Isolate::new(params);
-  {
-    let mut hs = v8::HandleScope::new(&mut isolate);
-    let scope = hs.enter();
-    let context = v8::Context::new(scope);
-    let mut cs = v8::ContextScope::new(scope, context);
-    let scope = cs.enter();
+  let mut isolate = v8::Isolate::new(Default::default());
 
+  let mut hs = v8::HandleScope::new(&mut isolate);
+  let scope = hs.enter();
+
+  let context = v8::Context::new(scope);
+  let mut cs = v8::ContextScope::new(scope, context);
+  let scope = cs.enter();
+
+  let js_test_str: v8::Local<v8::Value> =
+    v8::String::new(scope, "test").unwrap().into();
+  let js_proto_test_str: v8::Local<v8::Value> =
+    v8::String::new(scope, "proto_test").unwrap().into();
+  let js_test_symbol: v8::Local<v8::Value> =
+    eval(scope, context, "Symbol('test_symbol')")
+      .unwrap()
+      .try_into()
+      .unwrap();
+  let js_null: v8::Local<v8::Value> = v8::null(scope).into();
+  let js_sort_fn: v8::Local<v8::Function> =
+    eval(scope, context, "Array.prototype.sort")
+      .unwrap()
+      .try_into()
+      .unwrap();
+
+  {
     let obj = v8::Object::new(scope);
+    obj.set(context, js_test_str, js_null);
+
     let proto_obj = v8::Object::new(scope);
-    obj.set(
-      context,
-      v8::String::new(scope, "test").unwrap().into(),
-      v8::null(scope).into(),
-    );
-    proto_obj.set(
-      context,
-      v8::String::new(scope, "proto_test").unwrap().into(),
-      v8::null(scope).into(),
-    );
+    proto_obj.set(context, js_proto_test_str, js_null);
     obj.set_prototype(context, proto_obj.into());
 
     let own_props = obj.get_own_property_names(scope, context).unwrap();
-    assert_eq!(own_props.len(), 1);
-    assert_eq!(own_props.get(0).unwrap(), "test");
-    let proto_props = proto_obj.get_own_property_names(scope, context).unwrap();
-    assert_eq!(proto_props.len(), 1);
-    assert_eq!(proto_props.get(0).unwrap(), "proto_test");
-    let mut all_props = obj.get_property_names(scope, context).unwrap();
-    all_props.sort();
-    assert_eq!(all_props.len(), 2);
-    assert_eq!(all_props.get(0).unwrap(), "proto_test");
-    assert_eq!(all_props.get(1).unwrap(), "test");
-  }
-  {
-    let mut hs = v8::HandleScope::new(&mut isolate);
-    let scope = hs.enter();
-    let context = v8::Context::new(scope);
-    let mut cs = v8::ContextScope::new(scope, context);
-    let scope = cs.enter();
+    assert_eq!(own_props.length(), 1);
+    assert!(own_props.get_index(scope, context, 0).unwrap() == js_test_str);
 
+    let proto_props = proto_obj.get_own_property_names(scope, context).unwrap();
+    assert_eq!(proto_props.length(), 1);
+    assert!(
+      proto_props.get_index(scope, context, 0).unwrap() == js_proto_test_str
+    );
+
+    let all_props = obj.get_property_names(scope, context).unwrap();
+    js_sort_fn
+      .call(scope, context, all_props.into(), &[])
+      .unwrap();
+    assert_eq!(all_props.length(), 2);
+    assert!(
+      all_props.get_index(scope, context, 0).unwrap() == js_proto_test_str
+    );
+    assert!(all_props.get_index(scope, context, 1).unwrap() == js_test_str);
+  }
+
+  {
     let obj = v8::Object::new(scope);
-    obj.set(
-      context,
-      v8::String::new(scope, "test").unwrap().into(),
-      v8::null(scope).into(),
-    );
-    let global = context.global(scope);
-    global.set(
-      context,
-      v8::String::new(scope, "test_data").unwrap().into(),
-      obj.into(),
-    );
-    eval(
-      scope,
-      context,
-      "test_data[Symbol('test_symbol')] = 'should not exist'",
-    )
-    .unwrap();
+    obj.set(context, js_test_str, js_null);
+    obj.set(context, js_test_symbol, js_null);
 
     let own_props = obj.get_own_property_names(scope, context).unwrap();
-    assert_eq!(own_props.len(), 1);
-    assert_eq!(own_props.get(0).unwrap(), "test");
+    assert_eq!(own_props.length(), 1);
+    assert!(own_props.get_index(scope, context, 0).unwrap() == js_test_str);
   }
 }

@@ -777,12 +777,16 @@ const v8::Context* v8__Object__CreationContext(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->CreationContext());
 }
 
-v8::Value* v8__Object__GetOwnPropertyNames(v8::Object& self, v8::Local<v8::Context> context) {
-  return maybe_local_to_ptr(self.GetOwnPropertyNames(context));
+const v8::Array* v8__Object__GetOwnPropertyNames(const v8::Object* self,
+                                                 const v8::Context* context) {
+  return maybe_local_to_ptr(
+      ptr_to_local(self)->GetOwnPropertyNames(ptr_to_local(context)));
 }
 
-v8::Value* v8__Object__GetPropertyNames(v8::Object& self, v8::Local<v8::Context> context) {
-  return maybe_local_to_ptr(self.GetPropertyNames(context));
+const v8::Array* v8__Object__GetPropertyNames(const v8::Object* self,
+                                              const v8::Context* context) {
+  return maybe_local_to_ptr(
+      ptr_to_local(self)->GetPropertyNames(ptr_to_local(context)));
 }
 
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
