@@ -260,55 +260,47 @@ impl Exception {
     scope: &mut impl ToLocal<'sc>,
     message: Local<String>,
   ) -> Local<'sc, Value> {
-    let isolate = scope.isolate();
-    isolate.enter();
-    let e = unsafe { v8__Exception__Error(&*message) };
-    isolate.exit();
-    unsafe { scope.to_local(e) }.unwrap()
+    Self::new_error_with(scope, message, v8__Exception__Error)
   }
 
   pub fn range_error<'sc>(
     scope: &mut impl ToLocal<'sc>,
     message: Local<String>,
   ) -> Local<'sc, Value> {
-    let isolate = scope.isolate();
-    isolate.enter();
-    let e = unsafe { v8__Exception__RangeError(&*message) };
-    isolate.exit();
-    unsafe { scope.to_local(e) }.unwrap()
+    Self::new_error_with(scope, message, v8__Exception__RangeError)
   }
 
   pub fn reference_error<'sc>(
     scope: &mut impl ToLocal<'sc>,
     message: Local<String>,
   ) -> Local<'sc, Value> {
-    let isolate = scope.isolate();
-    isolate.enter();
-    let e = unsafe { v8__Exception__ReferenceError(&*message) };
-    isolate.exit();
-    unsafe { scope.to_local(e) }.unwrap()
+    Self::new_error_with(scope, message, v8__Exception__ReferenceError)
   }
 
   pub fn syntax_error<'sc>(
     scope: &mut impl ToLocal<'sc>,
     message: Local<String>,
   ) -> Local<'sc, Value> {
-    let isolate = scope.isolate();
-    isolate.enter();
-    let e = unsafe { v8__Exception__SyntaxError(&*message) };
-    isolate.exit();
-    unsafe { scope.to_local(e) }.unwrap()
+    Self::new_error_with(scope, message, v8__Exception__SyntaxError)
   }
 
   pub fn type_error<'sc>(
     scope: &mut impl ToLocal<'sc>,
     message: Local<String>,
   ) -> Local<'sc, Value> {
-    let isolate = scope.isolate();
-    isolate.enter();
-    let e = unsafe { v8__Exception__TypeError(&*message) };
-    isolate.exit();
-    unsafe { scope.to_local(e) }.unwrap()
+    Self::new_error_with(scope, message, v8__Exception__TypeError)
+  }
+
+  /// Internal helper to make the above error constructors less repetitive.
+  fn new_error_with<'sc>(
+    scope: &mut impl ToLocal<'sc>,
+    message: Local<String>,
+    contructor: unsafe extern "C" fn(*const String) -> *const Value,
+  ) -> Local<'sc, Value> {
+    scope.isolate().enter();
+    let error = unsafe { scope.to_local((contructor)(&*message)) }.unwrap();
+    scope.isolate().exit();
+    error
   }
 
   /// Creates an error message for the given exception.
