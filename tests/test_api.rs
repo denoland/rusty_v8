@@ -2943,7 +2943,7 @@ fn test_map_api() {
 }
 
 #[test]
-fn test_get_object_property_names() {
+fn test_object_get_property_names() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new(Default::default());
 
