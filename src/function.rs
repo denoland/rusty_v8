@@ -146,14 +146,14 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 
   /// Returns the receiver. This corresponds to the "this" value.
-  pub fn this(&self) -> Local<Object> {
+  pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
     }
   }
 
   /// Returns the data argument specified when creating the callback.
-  pub fn data(&self) -> Option<Local<Value>> {
+  pub fn data(&self) -> Option<Local<'s, Value>> {
     unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
   }
 
@@ -168,7 +168,7 @@ impl<'s> FunctionCallbackArguments<'s> {
 
   /// Accessor for the available arguments. Returns `undefined` if the index is
   /// out of bounds.
-  pub fn get(&self, i: int) -> Local<Value> {
+  pub fn get(&self, i: int) -> Local<'s, Value> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self.info, i))
         .unwrap()
@@ -228,7 +228,7 @@ impl<'s> PropertyCallbackArguments<'s> {
   ///
   ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
   /// ```
-  pub fn this(&self) -> Local<Object> {
+  pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
     }
