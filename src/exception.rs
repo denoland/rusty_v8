@@ -78,10 +78,10 @@ impl StackTrace {
     scope: &mut impl ToLocal<'sc>,
     index: usize,
   ) -> Option<Local<'sc, StackFrame>> {
-    let isolate = scope.isolate();
     unsafe {
-      let ptr = v8__StackTrace__GetFrame(self, isolate, index as u32);
-      scope.to_local(ptr)
+      scope.to_local(|scope| {
+        v8__StackTrace__GetFrame(self, scope.isolate(), index as u32)
+      })
     }
   }
 }
@@ -118,7 +118,7 @@ impl StackFrame {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
-    unsafe { scope.to_local(v8__StackFrame__GetScriptName(self)) }
+    unsafe { scope.to_local(|_| v8__StackFrame__GetScriptName(self)) }
   }
 
   /// Returns the name of the resource that contains the script for the
@@ -129,7 +129,9 @@ impl StackFrame {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
-    unsafe { scope.to_local(v8__StackFrame__GetScriptNameOrSourceURL(self)) }
+    unsafe {
+      scope.to_local(|_| v8__StackFrame__GetScriptNameOrSourceURL(self))
+    }
   }
 
   /// Returns the name of the function associated with this stack frame.
@@ -137,7 +139,7 @@ impl StackFrame {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
-    unsafe { scope.to_local(v8__StackFrame__GetFunctionName(self)) }
+    unsafe { scope.to_local(|_| v8__StackFrame__GetFunctionName(self)) }
   }
 
   /// Returns whether or not the associated function is compiled via a call to
@@ -165,7 +167,7 @@ impl StackFrame {
 
 impl Message {
   pub fn get<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
-    unsafe { scope.to_local(v8__Message__Get(self)) }.unwrap()
+    unsafe { scope.to_local(|_| v8__Message__Get(self)) }.unwrap()
   }
 
   /// Exception stack trace. By default stack traces are not captured for
@@ -175,7 +177,7 @@ impl Message {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, StackTrace>> {
-    unsafe { scope.to_local(v8__Message__GetStackTrace(self)) }
+    unsafe { scope.to_local(|_| v8__Message__GetStackTrace(self)) }
   }
 
   pub fn get_source_line<'s>(
@@ -183,7 +185,7 @@ impl Message {
     scope: &mut impl ToLocal<'s>,
     context: Local<Context>,
   ) -> Option<Local<'s, String>> {
-    unsafe { scope.to_local(v8__Message__GetSourceLine(self, &*context)) }
+    unsafe { scope.to_local(|_| v8__Message__GetSourceLine(self, &*context)) }
   }
 
   /// Returns the resource name for the script from where the function causing
@@ -192,7 +194,7 @@ impl Message {
     &self,
     scope: &mut impl ToLocal<'s>,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.to_local(v8__Message__GetScriptResourceName(self)) }
+    unsafe { scope.to_local(|_| v8__Message__GetScriptResourceName(self)) }
   }
 
   /// Returns the number, 1-based, of the line where the error occurred.
@@ -298,7 +300,7 @@ impl Exception {
     contructor: unsafe extern "C" fn(*const String) -> *const Value,
   ) -> Local<'sc, Value> {
     scope.isolate().enter();
-    let error = unsafe { scope.to_local((contructor)(&*message)) }.unwrap();
+    let error = unsafe { scope.to_local(|_| (contructor)(&*message)) }.unwrap();
     scope.isolate().exit();
     error
   }
@@ -310,9 +312,12 @@ impl Exception {
     scope: &mut impl ToLocal<'sc>,
     exception: Local<Value>,
   ) -> Local<'sc, Message> {
-    let isolate = scope.isolate();
-    let ptr = unsafe { v8__Exception__CreateMessage(isolate, &*exception) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.to_local(|scope| {
+        v8__Exception__CreateMessage(scope.isolate(), &*exception)
+      })
+    }
+    .unwrap()
   }
 
   /// Returns the original stack trace that was captured at the creation time
@@ -321,6 +326,6 @@ impl Exception {
     scope: &mut impl ToLocal<'sc>,
     exception: Local<Value>,
   ) -> Option<Local<'sc, StackTrace>> {
-    unsafe { scope.to_local(v8__Exception__GetStackTrace(&*exception)) }
+    unsafe { scope.to_local(|_| v8__Exception__GetStackTrace(&*exception)) }
   }
 }

@@ -151,21 +151,24 @@ extern "C" {
 /// When scope implements this trait, this means that Local handles can be
 /// created inside it.
 pub trait ToLocal<'s>: InIsolate {
-  unsafe fn to_local<T>(&mut self, ptr: *const T) -> Option<Local<'s, T>> {
-    Local::from_raw(ptr)
+  unsafe fn to_local<T, F: FnOnce(&mut Self) -> *const T>(
+    &mut self,
+    f: F,
+  ) -> Option<Local<'s, T>> {
+    Local::from_raw(f(self))
   }
 
   fn get_current_context(&mut self) -> Option<Local<'s, Context>> {
     unsafe {
-      let ptr = v8__Isolate__GetCurrentContext(self.isolate());
-      self.to_local(ptr)
+      self.to_local(|scope| v8__Isolate__GetCurrentContext(scope.isolate()))
     }
   }
 
   fn get_entered_or_microtask_context(&mut self) -> Option<Local<'s, Context>> {
     unsafe {
-      let ptr = v8__Isolate__GetEnteredOrMicrotaskContext(self.isolate());
-      self.to_local(ptr)
+      self.to_local(|scope| {
+        v8__Isolate__GetEnteredOrMicrotaskContext(scope.isolate())
+      })
     }
   }
 }

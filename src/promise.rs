@@ -83,7 +83,7 @@ impl Promise {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { scope.to_local(v8__Promise__Result(&*self)) }.unwrap()
+    unsafe { scope.to_local(|_| v8__Promise__Result(&*self)) }.unwrap()
   }
 
   /// Register a rejection handler with a promise.
@@ -95,7 +95,9 @@ impl Promise {
     context: Local<Context>,
     handler: Local<Function>,
   ) -> Option<Local<'sc, Promise>> {
-    unsafe { scope.to_local(v8__Promise__Catch(&*self, &*context, &*handler)) }
+    unsafe {
+      scope.to_local(|_| v8__Promise__Catch(&*self, &*context, &*handler))
+    }
   }
 
   /// Register a resolution handler with a promise.
@@ -107,7 +109,9 @@ impl Promise {
     context: Local<Context>,
     handler: Local<Function>,
   ) -> Option<Local<'sc, Promise>> {
-    unsafe { scope.to_local(v8__Promise__Then(&*self, &*context, &*handler)) }
+    unsafe {
+      scope.to_local(|_| v8__Promise__Then(&*self, &*context, &*handler))
+    }
   }
 
   /// Register a resolution/rejection handler with a promise.
@@ -122,12 +126,9 @@ impl Promise {
     on_rejected: Local<Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      scope.to_local(v8__Promise__Then2(
-        &*self,
-        &*context,
-        &*on_fulfilled,
-        &*on_rejected,
-      ))
+      scope.to_local(|_| {
+        v8__Promise__Then2(&*self, &*context, &*on_fulfilled, &*on_rejected)
+      })
     }
   }
 }
@@ -138,7 +139,7 @@ impl PromiseResolver {
     scope: &mut impl ToLocal<'sc>,
     context: Local<'sc, Context>,
   ) -> Option<Local<'sc, PromiseResolver>> {
-    unsafe { scope.to_local(v8__Promise__Resolver__New(&*context)) }
+    unsafe { scope.to_local(|_| v8__Promise__Resolver__New(&*context)) }
   }
 
   /// Extract the associated promise.
@@ -146,7 +147,7 @@ impl PromiseResolver {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Promise> {
-    unsafe { scope.to_local(v8__Promise__Resolver__GetPromise(&*self)) }
+    unsafe { scope.to_local(|_| v8__Promise__Resolver__GetPromise(&*self)) }
       .unwrap()
   }
 

@@ -48,14 +48,15 @@ impl Script {
     source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'sc, Script>> {
-    let ptr = unsafe {
-      v8__Script__Compile(
-        &*context,
-        &*source,
-        origin.map(|r| r as *const _).unwrap_or(null()),
-      )
-    };
-    unsafe { scope.to_local(ptr) }
+    unsafe {
+      scope.to_local(|_| {
+        v8__Script__Compile(
+          &*context,
+          &*source,
+          origin.map(|r| r as *const _).unwrap_or(null()),
+        )
+      })
+    }
   }
 
   /// Runs the script returning the resulting value. It will be run in the
@@ -66,7 +67,7 @@ impl Script {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__Script__Run(self, &*context)) }
+    unsafe { scope.to_local(|_| v8__Script__Run(self, &*context)) }
   }
 }
 

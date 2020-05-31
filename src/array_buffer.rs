@@ -240,21 +240,24 @@ impl ArrayBuffer {
     scope: &mut impl ToLocal<'sc>,
     byte_length: usize,
   ) -> Local<'sc, ArrayBuffer> {
-    let isolate = scope.isolate();
-    let ptr =
-      unsafe { v8__ArrayBuffer__New__with_byte_length(isolate, byte_length) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.to_local(|scope| {
+        v8__ArrayBuffer__New__with_byte_length(scope.isolate(), byte_length)
+      })
+    }
+    .unwrap()
   }
 
   pub fn with_backing_store<'sc>(
     scope: &mut impl ToLocal<'sc>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'sc, ArrayBuffer> {
-    let isolate = scope.isolate();
-    let ptr = unsafe {
-      v8__ArrayBuffer__New__with_backing_store(isolate, backing_store)
-    };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe {
+      scope.to_local(|scope| {
+        v8__ArrayBuffer__New__with_backing_store(scope.isolate(), backing_store)
+      })
+    }
+    .unwrap()
   }
 
   /// Data length in bytes.

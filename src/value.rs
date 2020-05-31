@@ -424,7 +424,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, BigInt>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToBigInt(self, &*context))
+      scope.to_local(|_| v8__Value__ToBigInt(self, &*context))
     })
   }
 
@@ -433,7 +433,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Number>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToNumber(self, &*context))
+      scope.to_local(|_| v8__Value__ToNumber(self, &*context))
     })
   }
 
@@ -442,7 +442,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToString(self, &*context))
+      scope.to_local(|_| v8__Value__ToString(self, &*context))
     })
   }
 
@@ -451,7 +451,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, String>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToDetailString(self, &*context))
+      scope.to_local(|_| v8__Value__ToDetailString(self, &*context))
     })
   }
 
@@ -460,7 +460,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Object>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToObject(self, &*context))
+      scope.to_local(|_| v8__Value__ToObject(self, &*context))
     })
   }
 
@@ -469,7 +469,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Integer>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToInteger(self, &*context))
+      scope.to_local(|_| v8__Value__ToInteger(self, &*context))
     })
   }
 
@@ -478,7 +478,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Uint32>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToUint32(self, &*context))
+      scope.to_local(|_| v8__Value__ToUint32(self, &*context))
     })
   }
 
@@ -487,7 +487,7 @@ impl Value {
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Int32>> {
     scope.get_current_context().and_then(|context| unsafe {
-      scope.to_local(v8__Value__ToInt32(self, &*context))
+      scope.to_local(|_| v8__Value__ToInt32(self, &*context))
     })
   }
 

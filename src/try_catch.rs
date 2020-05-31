@@ -119,7 +119,7 @@ impl<'tc> TryCatch<'tc> {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__TryCatch__Exception(&self.0)) }
+    unsafe { scope.to_local(|_| v8__TryCatch__Exception(&self.0)) }
   }
 
   /// Returns the message associated with this exception. If there is
@@ -131,7 +131,7 @@ impl<'tc> TryCatch<'tc> {
     &self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, Message>> {
-    unsafe { scope.to_local(v8__TryCatch__Message(&self.0)) }
+    unsafe { scope.to_local(|_| v8__TryCatch__Message(&self.0)) }
   }
 
   /// Returns the .stack property of the thrown object. If no .stack
@@ -141,7 +141,7 @@ impl<'tc> TryCatch<'tc> {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, &*context)) }
+    unsafe { scope.to_local(|_| v8__TryCatch__StackTrace(&self.0, &*context)) }
   }
 
   /// Clears any exceptions that may have been caught by this try/catch block.

@@ -12,13 +12,11 @@ extern "C" {
 }
 
 pub fn null<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Primitive> {
-  let ptr = unsafe { v8__Null(scope.isolate()) };
-  unsafe { scope.to_local(ptr) }.unwrap()
+  unsafe { scope.to_local(|scope| v8__Null(scope.isolate())) }.unwrap()
 }
 
 pub fn undefined<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, Primitive> {
-  let ptr = unsafe { v8__Undefined(scope.isolate()) };
-  unsafe { scope.to_local(ptr) }.unwrap()
+  unsafe { scope.to_local(|scope| v8__Undefined(scope.isolate())) }.unwrap()
 }
 
 impl Boolean {
@@ -26,7 +24,7 @@ impl Boolean {
     scope: &mut impl ToLocal<'sc>,
     value: bool,
   ) -> Local<'sc, Boolean> {
-    let ptr = unsafe { v8__Boolean__New(scope.isolate(), value) };
-    unsafe { scope.to_local(ptr) }.unwrap()
+    unsafe { scope.to_local(|scope| v8__Boolean__New(scope.isolate(), value)) }
+      .unwrap()
   }
 }
