@@ -98,12 +98,11 @@ impl Object {
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
-  /// Creates a JavaScript object with the given properties, and
-  /// a the given prototype_or_null (which can be any JavaScript
-  /// value, and if it's null, the newly created object won't have
-  /// a prototype at all). This is similar to Object.create().
-  /// All properties will be created as enumerable, configurable
-  /// and writable properties.
+  /// Creates a JavaScript object with the given properties, and the given
+  /// prototype_or_null (which can be any JavaScript value, and if it's null,
+  /// the newly created object won't have a prototype at all). This is similar
+  /// to Object.create(). All properties will be created as enumerable,
+  /// configurable and writable properties.
   pub fn with_prototype_and_properties<'sc>(
     scope: &mut impl ToLocal<'sc>,
     prototype_or_null: Local<'sc, Value>,
