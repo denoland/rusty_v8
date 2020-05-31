@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
@@ -90,7 +91,7 @@ extern "C" {
     -> *const String;
   fn v8__Module__GetModuleRequestLocation(
     this: *const Module,
-    i: usize,
+    i: int,
     out: *mut MaybeUninit<Location>,
   ) -> Location;
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
@@ -151,15 +152,18 @@ impl Module {
 
   /// Returns the number of modules requested by this module.
   pub fn get_module_requests_length(&self) -> usize {
-    unsafe { v8__Module__GetModuleRequestsLength(self) as usize }
+    unsafe { v8__Module__GetModuleRequestsLength(self) }
+      .try_into()
+      .unwrap()
   }
 
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
   pub fn get_module_request(&self, i: usize) -> Local<String> {
     unsafe {
-      Local::from_raw(v8__Module__GetModuleRequest(self, i as int)).unwrap()
+      Local::from_raw(v8__Module__GetModuleRequest(self, i.try_into().unwrap()))
     }
+    .unwrap()
   }
 
   /// Returns the source location (line number and column number) of the ith
@@ -167,7 +171,11 @@ impl Module {
   pub fn get_module_request_location(&self, i: usize) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
-      v8__Module__GetModuleRequestLocation(self, i, &mut out);
+      v8__Module__GetModuleRequestLocation(
+        self,
+        i.try_into().unwrap(),
+        &mut out,
+      );
       out.assume_init()
     }
   }
@@ -180,7 +188,7 @@ impl Module {
   /// Returns the namespace object of this module.
   ///
   /// The module's status must be at least kInstantiated.
-  pub fn get_module_namespace(&mut self) -> Local<Value> {
+  pub fn get_module_namespace(&self) -> Local<Value> {
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
   }
 
