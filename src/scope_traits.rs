@@ -156,12 +156,16 @@ pub trait ToLocal<'s>: InIsolate {
   }
 
   fn get_current_context(&mut self) -> Option<Local<'s, Context>> {
-    unsafe { Local::from_raw(v8__Isolate__GetCurrentContext(self.isolate())) }
+    unsafe {
+      let ptr = v8__Isolate__GetCurrentContext(self.isolate());
+      self.to_local(ptr)
+    }
   }
 
   fn get_entered_or_microtask_context(&mut self) -> Option<Local<'s, Context>> {
     unsafe {
-      Local::from_raw(v8__Isolate__GetEnteredOrMicrotaskContext(self.isolate()))
+      let ptr = v8__Isolate__GetEnteredOrMicrotaskContext(self.isolate());
+      self.to_local(ptr)
     }
   }
 }

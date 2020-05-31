@@ -50,10 +50,11 @@ impl SharedArrayBuffer {
     byte_length: usize,
   ) -> Option<Local<'sc, SharedArrayBuffer>> {
     unsafe {
-      Local::from_raw(v8__SharedArrayBuffer__New__with_byte_length(
+      let ptr = v8__SharedArrayBuffer__New__with_byte_length(
         scope.isolate(),
         byte_length,
-      ))
+      );
+      scope.to_local(ptr)
     }
   }
 

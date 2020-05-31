@@ -24,7 +24,7 @@ impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
   pub fn buffer<'sc>(
     &self,
-    scope: &'_ mut impl ToLocal<'sc>,
+    scope: &mut impl ToLocal<'sc>,
   ) -> Option<Local<'sc, ArrayBuffer>> {
     unsafe { scope.to_local(v8__ArrayBufferView__Buffer(self)) }
   }

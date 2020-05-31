@@ -1,12 +1,12 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-//! For compiling scripts.
-use crate::InIsolate;
+use std::mem::MaybeUninit;
+
 use crate::Isolate;
 use crate::Local;
 use crate::Module;
 use crate::ScriptOrigin;
 use crate::String;
-use std::mem::MaybeUninit;
+use crate::ToLocal;
 
 extern "C" {
   fn v8__ScriptCompiler__Source__CONSTRUCT(
@@ -77,10 +77,10 @@ pub enum NoCacheReason {
 ///
 /// Corresponds to the ParseModule abstract operation in the ECMAScript
 /// specification.
-pub fn compile_module<'a>(
-  scope: &mut impl InIsolate,
+pub fn compile_module<'sc>(
+  scope: &mut impl ToLocal<'sc>,
   source: Source,
-) -> Option<Local<'a, Module>> {
+) -> Option<Local<'sc, Module>> {
   compile_module2(
     scope,
     source,
@@ -90,18 +90,19 @@ pub fn compile_module<'a>(
 }
 
 /// Same as compile_module with more options.
-pub fn compile_module2<'a>(
-  scope: &mut impl InIsolate,
+pub fn compile_module2<'sc>(
+  scope: &mut impl ToLocal<'sc>,
   mut source: Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
-) -> Option<Local<'a, Module>> {
+) -> Option<Local<'sc, Module>> {
   unsafe {
-    Local::from_raw(v8__ScriptCompiler__CompileModule(
+    let ptr = v8__ScriptCompiler__CompileModule(
       scope.isolate(),
       &mut source,
       options,
       no_cache_reason,
-    ))
+    );
+    scope.to_local(ptr)
   }
 }

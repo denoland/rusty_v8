@@ -32,7 +32,6 @@ use crate::Value;
 ///      Some(resolved_module)
 ///   }
 /// ```
-///
 
 // System V AMD64 ABI: Local<Module> returned in a register.
 #[cfg(not(target_os = "windows"))]
@@ -147,7 +146,9 @@ impl Module {
 
   /// For a module in kErrored status, this returns the corresponding exception.
   pub fn get_exception(&self) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Module__GetException(self)).unwrap() }
+    // Note: the returned value is not actually stored in a HandleScope,
+    // therefore we don't need a scope object here.
+    unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
   }
 
   /// Returns the number of modules requested by this module.
@@ -160,6 +161,8 @@ impl Module {
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
   pub fn get_module_request(&self, i: usize) -> Local<String> {
+    // Note: the returned value is not actually stored in a HandleScope,
+    // therefore we don't need a scope object here.
     unsafe {
       Local::from_raw(v8__Module__GetModuleRequest(self, i.try_into().unwrap()))
     }
@@ -189,6 +192,8 @@ impl Module {
   ///
   /// The module's status must be at least kInstantiated.
   pub fn get_module_namespace(&self) -> Local<Value> {
+    // Note: the returned value is not actually stored in a HandleScope,
+    // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
   }
 

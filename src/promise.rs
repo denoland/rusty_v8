@@ -91,10 +91,11 @@ impl Promise {
   /// See `Self::then2`.
   pub fn catch<'sc>(
     &self,
-    context: Local<'sc, Context>,
-    handler: Local<'sc, Function>,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+    handler: Local<Function>,
   ) -> Option<Local<'sc, Promise>> {
-    unsafe { Local::from_raw(v8__Promise__Catch(&*self, &*context, &*handler)) }
+    unsafe { scope.to_local(v8__Promise__Catch(&*self, &*context, &*handler)) }
   }
 
   /// Register a resolution handler with a promise.
@@ -102,10 +103,11 @@ impl Promise {
   /// See `Self::then2`.
   pub fn then<'sc>(
     &self,
-    context: Local<'sc, Context>,
-    handler: Local<'sc, Function>,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+    handler: Local<Function>,
   ) -> Option<Local<'sc, Promise>> {
-    unsafe { Local::from_raw(v8__Promise__Then(&*self, &*context, &*handler)) }
+    unsafe { scope.to_local(v8__Promise__Then(&*self, &*context, &*handler)) }
   }
 
   /// Register a resolution/rejection handler with a promise.
@@ -114,12 +116,13 @@ impl Promise {
   /// invoked at the end of turn.
   pub fn then2<'sc>(
     &self,
-    context: Local<'sc, Context>,
-    on_fulfilled: Local<'sc, Function>,
-    on_rejected: Local<'sc, Function>,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+    on_fulfilled: Local<Function>,
+    on_rejected: Local<Function>,
   ) -> Option<Local<'sc, Promise>> {
     unsafe {
-      Local::from_raw(v8__Promise__Then2(
+      scope.to_local(v8__Promise__Then2(
         &*self,
         &*context,
         &*on_fulfilled,
@@ -182,9 +185,8 @@ pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 
 impl<'msg> PromiseRejectMessage<'msg> {
   pub fn get_promise(&self) -> Local<'msg, Promise> {
-    unsafe {
-      Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)).unwrap()
-    }
+    unsafe { Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)) }
+      .unwrap()
   }
 
   pub fn get_event(&self) -> PromiseRejectEvent {
@@ -192,8 +194,7 @@ impl<'msg> PromiseRejectMessage<'msg> {
   }
 
   pub fn get_value(&self) -> Local<'msg, Value> {
-    unsafe {
-      Local::from_raw(v8__PromiseRejectMessage__GetValue(self)).unwrap()
-    }
+    unsafe { Local::from_raw(v8__PromiseRejectMessage__GetValue(self)) }
+      .unwrap()
   }
 }

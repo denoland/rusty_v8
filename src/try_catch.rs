@@ -161,8 +161,15 @@ impl<'tc> TryCatch<'tc> {
   /// it is illegal to execute any JavaScript operations after calling
   /// ReThrow; the caller must return immediately to where the exception
   /// is caught.
-  pub fn rethrow<'a>(&'_ mut self) -> Option<Local<'a, Value>> {
-    unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) }
+  ///
+  /// This function returns the `undefined` value when successful, or `None` if
+  /// no exception was caught and therefore there was nothing to rethrow.
+  pub fn rethrow(&mut self) -> Option<Local<'_, Value>> {
+    let result = unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) };
+    if let Some(value) = result {
+      debug_assert!(value.is_undefined())
+    }
+    result
   }
 
   /// Returns true if verbosity is enabled.

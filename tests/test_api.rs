@@ -1070,10 +1070,10 @@ fn json() {
     let mut cs = v8::ContextScope::new(scope, context);
     let scope = cs.enter();
     let json_string = v8_str(scope, "{\"a\": 1, \"b\": 2}");
-    let maybe_value = v8::json::parse(context, json_string);
+    let maybe_value = v8::json::parse(scope, context, json_string);
     assert!(maybe_value.is_some());
     let value = maybe_value.unwrap();
-    let maybe_stringified = v8::json::stringify(context, value);
+    let maybe_stringified = v8::json::stringify(scope, context, value);
     assert!(maybe_stringified.is_some());
     let stringified = maybe_stringified.unwrap();
     let rust_str = stringified.to_rust_string_lossy(scope);
@@ -1973,7 +1973,7 @@ fn uint8_array() {
     let maybe_ab = result.buffer(scope);
     assert!(maybe_ab.is_some());
     let ab = maybe_ab.unwrap();
-    let uint8_array = v8::Uint8Array::new(ab, 0, 0);
+    let uint8_array = v8::Uint8Array::new(scope, ab, 0, 0);
     assert!(uint8_array.is_some());
   }
 }

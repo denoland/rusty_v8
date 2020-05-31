@@ -320,14 +320,18 @@ impl Isolate {
   /// exception has been scheduled it is illegal to invoke any JavaScript
   /// operation; the caller must return immediately and only after the exception
   /// has been handled does it become legal to invoke JavaScript operations.
-  pub fn throw_exception<'sc>(
+  ///
+  /// This function always returns the `undefined` value.
+  pub fn throw_exception(
     &mut self,
     exception: Local<Value>,
-  ) -> Local<'sc, Value> {
-    unsafe {
-      let ptr = v8__Isolate__ThrowException(self, &*exception);
-      Local::from_raw(ptr).unwrap()
+  ) -> Local<'_, Value> {
+    let result = unsafe {
+      Local::from_raw(v8__Isolate__ThrowException(self, &*exception))
     }
+    .unwrap();
+    debug_assert!(result.is_undefined());
+    result
   }
 
   /// Runs the default MicrotaskQueue until it gets empty.
