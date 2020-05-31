@@ -71,6 +71,14 @@ extern "C" {
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(this: *const Object) -> int;
   fn v8__Object__CreationContext(this: *const Object) -> *const Context;
+  fn v8__Object__GetOwnPropertyNames(
+    this: *const Object,
+    context: *const Context,
+  ) -> *const Array;
+  fn v8__Object__GetPropertyNames(
+    this: *const Object,
+    context: *const Context,
+  ) -> *const Array;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -252,6 +260,29 @@ impl Object {
       let ptr = v8__Object__CreationContext(self);
       scope.to_local(ptr).unwrap()
     }
+  }
+
+  /// This function has the same functionality as GetPropertyNames but the
+  /// returned array doesn't contain the names of properties from prototype
+  /// objects.
+  pub fn get_own_property_names<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+  ) -> Option<Local<'sc, Array>> {
+    unsafe { scope.to_local(v8__Object__GetOwnPropertyNames(self, &*context)) }
+  }
+
+  /// Returns an array containing the names of the filtered properties of this
+  /// object, including properties from prototype objects. The array returned by
+  /// this method contains the same values as would be enumerated by a for-in
+  /// statement over this object.
+  pub fn get_property_names<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+    context: Local<Context>,
+  ) -> Option<Local<'sc, Array>> {
+    unsafe { scope.to_local(v8__Object__GetPropertyNames(self, &*context)) }
   }
 }
 
