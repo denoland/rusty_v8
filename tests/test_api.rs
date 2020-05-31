@@ -76,22 +76,20 @@ fn handle_scope_numbers() {
 // `Local<Integer>` created at the end of the test is created in HandleScope
 // `hs2` and not in `hs1` as specified. When this local is accessed, which is
 // after `hs2` is destroyed, a crash happens.
-// #[test]
-// fn handle_scope_early_drop() {
-//   let _setup_guard = setup();
-//
-//   let mut isolate = v8::Isolate::new(Default::default());
-//   let mut hs1 = v8::HandleScope::new(&mut isolate);
-//   let hs1 = hs1.enter();
-//
-//   let local = {
-//     let mut hs2 = v8::HandleScope::new(hs1);
-//     let _hs2 = hs2.enter();
-//
-//     v8::Integer::new(hs1, 123)
-//   };
-//   assert_eq!(local.value(), 123);
-// }
+#[test]
+#[ignore]
+fn handle_scope_early_drop() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut hs1 = v8::HandleScope::new(&mut isolate);
+  let hs1 = hs1.enter();
+  let local = {
+    let mut hs2 = v8::HandleScope::new(hs1);
+    let _hs2 = hs2.enter();
+    v8::Integer::new(hs1, 123)
+  };
+  assert_eq!(local.value(), 123);
+}
 
 #[test]
 fn global_handles() {
