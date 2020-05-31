@@ -1,6 +1,6 @@
 [package]
 name = "rusty_v8"
-version = "0.3.10"
+version = "0.4.2"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -11,6 +11,7 @@ repository = "https://github.com/denoland/rusty_v8"
 exclude = [
  # To keep the package under the 10mb limit imposed by crates.io we exclude
  # a lot of files that are not needed for the build.
+ ".*",
  "*.md",
  "*.settings",
  "*.txt",
@@ -37,6 +38,7 @@ exclude = [
  "v8/test/",
  "v8/tools/",
  # These files are required for the build.
+ "!.gn",
  "!BUILD.gn",
  "!tools/clang/scripts/update.py",
  "!v8/test/torque/test-torque.tq",
@@ -49,7 +51,7 @@ exclude = [
 
 [dependencies]
 lazy_static = "1.4.0"
-libc = "0.2.68"
+libc = "0.2.69"
 bitflags = "1.2.1"
 
 [build-dependencies]
@@ -57,4 +59,4 @@ cargo_gn = "0.0.15"
 which = "3.1.1"
 
 [dev-dependencies]
-trybuild = "1.0.24"
+trybuild = "1.0.26"

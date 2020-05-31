@@ -10,22 +10,22 @@ extern "C" {
   fn v8__PrimitiveArray__New(
     isolate: *mut Isolate,
     length: int,
-  ) -> *mut PrimitiveArray;
+  ) -> *const PrimitiveArray;
 
-  fn v8__PrimitiveArray__Length(this: &PrimitiveArray) -> int;
+  fn v8__PrimitiveArray__Length(this: *const PrimitiveArray) -> int;
 
   fn v8__PrimitiveArray__Set(
-    this: &PrimitiveArray,
+    this: *const PrimitiveArray,
     isolate: *mut Isolate,
     index: int,
-    item: &Primitive,
+    item: *const Primitive,
   );
 
   fn v8__PrimitiveArray__Get(
-    this: &PrimitiveArray,
+    this: *const PrimitiveArray,
     isolate: *mut Isolate,
     index: int,
-  ) -> *mut Primitive;
+  ) -> *const Primitive;
 }
 
 impl PrimitiveArray {
@@ -49,7 +49,7 @@ impl PrimitiveArray {
     item: Local<'_, Primitive>,
   ) {
     unsafe {
-      v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &item)
+      v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &*item)
     }
   }
 

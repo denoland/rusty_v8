@@ -15,63 +15,63 @@ use crate::Value;
 use std::convert::TryInto;
 
 extern "C" {
-  fn v8__Object__New(isolate: *mut Isolate) -> *mut Object;
+  fn v8__Object__New(isolate: *mut Isolate) -> *const Object;
   fn v8__Object__New__with_prototype_and_properties(
     isolate: *mut Isolate,
-    prototype_or_null: Local<Value>,
-    names: *mut Local<Name>,
-    values: *mut Local<Value>,
+    prototype_or_null: *const Value,
+    names: *const *const Name,
+    values: *const *const Value,
     length: usize,
-  ) -> *mut Object;
+  ) -> *const Object;
   fn v8__Object__SetAccessor(
-    self_: &Object,
-    context: Local<Context>,
-    name: Local<Name>,
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
     getter: AccessorNameGetterCallback,
   ) -> MaybeBool;
   fn v8__Object__Get(
-    object: &Object,
-    context: Local<Context>,
-    key: Local<Value>,
-  ) -> *mut Value;
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+  ) -> *const Value;
   fn v8__Object__GetIndex(
-    object: &Object,
-    context: Local<Context>,
+    this: *const Object,
+    context: *const Context,
     index: u32,
-  ) -> *mut Value;
-  fn v8__Object__GetPrototype(object: &Object) -> *mut Value;
+  ) -> *const Value;
+  fn v8__Object__GetPrototype(this: *const Object) -> *const Value;
   fn v8__Object__Set(
-    object: &Object,
-    context: Local<Context>,
-    key: Local<Value>,
-    value: Local<Value>,
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+    value: *const Value,
   ) -> MaybeBool;
   fn v8__Object__SetIndex(
-    object: &Object,
-    context: Local<Context>,
+    this: *const Object,
+    context: *const Context,
     index: u32,
-    value: Local<Value>,
+    value: *const Value,
   ) -> MaybeBool;
   fn v8__Object__SetPrototype(
-    object: &Object,
-    context: Local<Context>,
-    prototype: Local<Value>,
+    this: *const Object,
+    context: *const Context,
+    prototype: *const Value,
   ) -> MaybeBool;
   fn v8__Object__CreateDataProperty(
-    object: &Object,
-    context: Local<Context>,
-    key: Local<Name>,
-    value: Local<Value>,
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    value: *const Value,
   ) -> MaybeBool;
   fn v8__Object__DefineOwnProperty(
-    object: &Object,
-    context: Local<Context>,
-    key: Local<Name>,
-    value: Local<Value>,
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    value: *const Value,
     attr: PropertyAttribute,
   ) -> MaybeBool;
-  fn v8__Object__GetIdentityHash(object: &Object) -> int;
-  fn v8__Object__CreationContext(object: &Object) -> *mut Context;
+  fn v8__Object__GetIdentityHash(this: *const Object) -> int;
+  fn v8__Object__CreationContext(this: *const Object) -> *const Context;
   fn v8__Object__GetOwnPropertyNames(
     object: &Object,
     context: Local<Context>,
@@ -81,15 +81,15 @@ extern "C" {
     context: Local<Context>,
   ) -> *mut Value;
 
-  fn v8__Array__New(isolate: *mut Isolate, length: int) -> *mut Array;
+  fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
     isolate: *mut Isolate,
-    elements: *const Local<Value>,
+    elements: *const *const Value,
     length: usize,
-  ) -> *mut Array;
-  fn v8__Array__Length(array: &Array) -> u32;
-  fn v8__Map__Size(map: &Map) -> usize;
-  fn v8__Map__As__Array(map: &Map) -> *mut Array;
+  ) -> *const Array;
+  fn v8__Array__Length(array: *const Array) -> u32;
+  fn v8__Map__Size(map: *const Map) -> usize;
+  fn v8__Map__As__Array(this: *const Map) -> *const Array;
 }
 
 impl Object {
@@ -112,12 +112,14 @@ impl Object {
     values: &[Local<Value>],
   ) -> Local<'sc, Object> {
     assert_eq!(names.len(), values.len());
+    let names = Local::slice_into_raw(names);
+    let values = Local::slice_into_raw(values);
     unsafe {
       let object = v8__Object__New__with_prototype_and_properties(
         scope.isolate(),
-        prototype_or_null,
-        names.as_ptr() as *mut Local<Name>,
-        values.as_ptr() as *mut Local<Value>,
+        &*prototype_or_null,
+        names.as_ptr(),
+        values.as_ptr(),
         names.len(),
       );
       scope.to_local(object).unwrap()
@@ -132,7 +134,7 @@ impl Object {
     key: Local<Value>,
     value: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__Set(self, context, key, value) }.into()
+    unsafe { v8__Object__Set(self, &*context, &*key, &*value) }.into()
   }
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
@@ -143,7 +145,7 @@ impl Object {
     index: u32,
     value: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__SetIndex(self, context, index, value) }.into()
+    unsafe { v8__Object__SetIndex(self, &*context, index, &*value) }.into()
   }
 
   /// Set the prototype object. This does not skip objects marked to be
@@ -153,7 +155,7 @@ impl Object {
     context: Local<Context>,
     prototype: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__SetPrototype(self, context, prototype) }.into()
+    unsafe { v8__Object__SetPrototype(self, &*context, &*prototype) }.into()
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
@@ -169,7 +171,8 @@ impl Object {
     key: Local<Name>,
     value: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__CreateDataProperty(self, context, key, value) }.into()
+    unsafe { v8__Object__CreateDataProperty(self, &*context, &*key, &*value) }
+      .into()
   }
 
   /// Implements DefineOwnProperty.
@@ -185,8 +188,10 @@ impl Object {
     value: Local<Value>,
     attr: PropertyAttribute,
   ) -> Option<bool> {
-    unsafe { v8__Object__DefineOwnProperty(self, context, key, value, attr) }
-      .into()
+    unsafe {
+      v8__Object__DefineOwnProperty(self, &*context, &*key, &*value, attr)
+    }
+    .into()
   }
 
   pub fn get<'a>(
@@ -196,7 +201,7 @@ impl Object {
     key: Local<Value>,
   ) -> Option<Local<'a, Value>> {
     unsafe {
-      let ptr = v8__Object__Get(self, context, key);
+      let ptr = v8__Object__Get(self, &*context, &*key);
       scope.to_local(ptr)
     }
   }
@@ -208,7 +213,7 @@ impl Object {
     index: u32,
   ) -> Option<Local<'a, Value>> {
     unsafe {
-      let ptr = v8__Object__GetIndex(self, context, index);
+      let ptr = v8__Object__GetIndex(self, &*context, index);
       scope.to_local(ptr)
     }
   }
@@ -232,8 +237,10 @@ impl Object {
     name: Local<Name>,
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
   ) -> Option<bool> {
-    unsafe { v8__Object__SetAccessor(self, context, name, getter.map_fn_to()) }
-      .into()
+    unsafe {
+      v8__Object__SetAccessor(self, &*context, &*name, getter.map_fn_to())
+    }
+    .into()
   }
 
   /// Returns the identity hash for this object. The current implementation
@@ -319,10 +326,11 @@ impl Array {
     if elements.is_empty() {
       return Self::new(scope, 0);
     }
+    let elements = Local::slice_into_raw(elements);
     let ptr = unsafe {
       v8__Array__New_with_elements(
         scope.isolate(),
-        &elements[0],
+        elements.as_ptr(),
         elements.len(),
       )
     };

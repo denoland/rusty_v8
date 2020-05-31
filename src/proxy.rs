@@ -7,25 +7,25 @@ use crate::Value;
 
 extern "C" {
   fn v8__Proxy__New(
-    context: *mut Context,
-    target: *mut Object,
-    handler: *mut Object,
-  ) -> *mut Proxy;
-  fn v8__Proxy__GetHandler(proxy: *mut Proxy) -> *mut Value;
-  fn v8__Proxy__GetTarget(proxy: *mut Proxy) -> *mut Value;
-  fn v8__Proxy__IsRevoked(proxy: *mut Proxy) -> bool;
-  fn v8__Proxy__Revoke(proxy: *mut Proxy);
+    context: *const Context,
+    target: *const Object,
+    handler: *const Object,
+  ) -> *const Proxy;
+  fn v8__Proxy__GetHandler(this: *const Proxy) -> *const Value;
+  fn v8__Proxy__GetTarget(this: *const Proxy) -> *const Value;
+  fn v8__Proxy__IsRevoked(this: *const Proxy) -> bool;
+  fn v8__Proxy__Revoke(this: *const Proxy);
 }
 
 impl Proxy {
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
-    mut target: Local<Object>,
-    mut handler: Local<Object>,
+    context: Local<Context>,
+    target: Local<Object>,
+    handler: Local<Object>,
   ) -> Option<Local<'sc, Proxy>> {
     unsafe {
-      let ptr = v8__Proxy__New(&mut *context, &mut *target, &mut *handler);
+      let ptr = v8__Proxy__New(&*context, &*target, &*handler);
       scope.to_local(ptr)
     }
   }
@@ -34,14 +34,14 @@ impl Proxy {
     &mut self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { scope.to_local(v8__Proxy__GetHandler(&mut *self)) }.unwrap()
+    unsafe { scope.to_local(v8__Proxy__GetHandler(&*self)) }.unwrap()
   }
 
   pub fn get_target<'sc>(
     &mut self,
     scope: &mut impl ToLocal<'sc>,
   ) -> Local<'sc, Value> {
-    unsafe { scope.to_local(v8__Proxy__GetTarget(&mut *self)) }.unwrap()
+    unsafe { scope.to_local(v8__Proxy__GetTarget(&*self)) }.unwrap()
   }
 
   pub fn is_revoked(&mut self) -> bool {

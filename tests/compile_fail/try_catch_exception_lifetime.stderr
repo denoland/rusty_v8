@@ -1,11 +1,11 @@
-error[E0597]: `try_catch` does not live long enough
+error[E0597]: `hs` does not live long enough
   --> $DIR/try_catch_exception_lifetime.rs:11:14
    |
 9  |   let _exception = {
    |       ---------- borrow later stored here
-10 |     let mut try_catch = v8::TryCatch::new(hs);
-11 |     let tc = try_catch.enter();
-   |              ^^^^^^^^^ borrowed value does not live long enough
-12 |     tc.exception().unwrap()
+10 |     let mut hs = v8::HandleScope::new(&mut isolate);
+11 |     let hs = hs.enter();
+   |              ^^ borrowed value does not live long enough
+12 |     try_catch.exception(hs).unwrap()
 13 |   };
-   |   - `try_catch` dropped here while still borrowed
+   |   - `hs` dropped here while still borrowed

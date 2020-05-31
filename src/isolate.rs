@@ -1,12 +1,8 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-use crate::array_buffer::Allocator;
-use crate::external_references::ExternalReferences;
+use crate::isolate_create_params::raw;
+use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
-use crate::support::intptr_t;
-use crate::support::Delete;
 use crate::support::Opaque;
-use crate::support::SharedRef;
-use crate::support::UniqueRef;
 use crate::Context;
 use crate::Function;
 use crate::InIsolate;
@@ -16,12 +12,14 @@ use crate::Module;
 use crate::Object;
 use crate::Promise;
 use crate::ScriptOrModule;
-use crate::StartupData;
 use crate::String;
 use crate::Value;
 
+use std::any::Any;
+use std::any::TypeId;
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::ffi::c_void;
-use std::mem::replace;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::null_mut;
@@ -72,7 +70,7 @@ pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
 extern "C" {
-  fn v8__Isolate__New(params: *mut CreateParams) -> *mut Isolate;
+  fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
   fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
   fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
@@ -85,7 +83,7 @@ extern "C" {
     frame_limit: i32,
   );
   fn v8__Isolate__AddMessageListener(
-    this: &mut Isolate,
+    isolate: *mut Isolate,
     callback: MessageCallback,
   ) -> bool;
   fn v8__Isolate__SetPromiseRejectCallback(
@@ -107,31 +105,17 @@ extern "C" {
   );
   fn v8__Isolate__ThrowException(
     isolate: *mut Isolate,
-    exception: Local<Value>,
-  ) -> *mut Value;
+    exception: *const Value,
+  ) -> *const Value;
   fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__RunMicrotasks(isolate: *mut Isolate);
   fn v8__Isolate__EnqueueMicrotask(
     isolate: *mut Isolate,
-    microtask: Local<Function>,
+    function: *const Function,
   );
 
-  fn v8__Isolate__CreateParams__NEW() -> *mut CreateParams;
-  fn v8__Isolate__CreateParams__DELETE(this: &mut CreateParams);
-  fn v8__Isolate__CreateParams__SET__array_buffer_allocator(
-    this: &mut CreateParams,
-    allocator: &SharedRef<Allocator>,
-  );
-  fn v8__Isolate__CreateParams__SET__external_references(
-    this: &mut CreateParams,
-    value: *const intptr_t,
-  );
-  fn v8__Isolate__CreateParams__SET__snapshot_blob(
-    this: &mut CreateParams,
-    snapshot_blob: *mut StartupData,
-  );
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
     callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
@@ -157,45 +141,107 @@ impl Isolate {
   ///
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(params: UniqueRef<CreateParams>) -> OwnedIsolate {
-    // TODO: support CreateParams.
+  pub fn new(params: CreateParams) -> OwnedIsolate {
     crate::V8::assert_initialized();
-    unsafe { new_owned_isolate(v8__Isolate__New(params.into_raw())) }
+    let (raw_create_params, create_param_allocations) = params.finalize();
+    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
+    let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
+    owned_isolate.create_annex(create_param_allocations);
+    owned_isolate
   }
 
   /// Initial configuration parameters for a new Isolate.
-  pub fn create_params() -> UniqueRef<CreateParams> {
-    CreateParams::new()
+  pub fn create_params() -> CreateParams {
+    CreateParams::default()
   }
 
   pub fn thread_safe_handle(&mut self) -> IsolateHandle {
     IsolateHandle::new(self)
   }
 
-  unsafe fn set_annex(&mut self, ptr: *mut IsolateAnnex) {
-    v8__Isolate__SetData(self, 0, ptr as *mut c_void)
+  pub(crate) fn create_annex(
+    &mut self,
+    create_param_allocations: Box<dyn Any>,
+  ) {
+    let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
+    let annex_ptr = Arc::into_raw(annex_arc);
+    unsafe { assert!(v8__Isolate__GetData(self, 0).is_null()) };
+    unsafe { v8__Isolate__SetData(self, 0, annex_ptr as *mut c_void) };
   }
 
-  fn get_annex(&self) -> *mut IsolateAnnex {
-    unsafe { v8__Isolate__GetData(self, 0) as *mut _ }
+  fn get_annex(&self) -> &IsolateAnnex {
+    unsafe {
+      &*(v8__Isolate__GetData(self, 0) as *const _ as *const IsolateAnnex)
+    }
+  }
+
+  fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
+    unsafe { &mut *(v8__Isolate__GetData(self, 0) as *mut IsolateAnnex) }
+  }
+
+  fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
+    let annex_ptr = self.get_annex();
+    let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
+    Arc::into_raw(annex_arc.clone());
+    annex_arc
   }
 
   /// Associate embedder-specific data with the isolate. |slot| has to be
   /// between 0 and GetNumberOfDataSlots() - 1.
-  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
+  unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
     v8__Isolate__SetData(self, slot + 1, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given |slot|.
-  pub fn get_data(&self, slot: u32) -> *mut c_void {
+  fn get_data(&self, slot: u32) -> *mut c_void {
     unsafe { v8__Isolate__GetData(self, slot + 1) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - GetNumberOfDataSlots() - 1.
-  pub fn get_number_of_data_slots(&self) -> u32 {
+  fn get_number_of_data_slots(&self) -> u32 {
     unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
+  }
+
+  /// Get mutable reference to embedder data.
+  pub fn get_slot_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
+    let ref_mut = cell.try_borrow_mut().ok()?;
+    let ref_mut = RefMut::map(ref_mut, |box_any| {
+      let mut_any = &mut **box_any;
+      Any::downcast_mut::<T>(mut_any).unwrap()
+    });
+    Some(ref_mut)
+  }
+
+  /// Get reference to embedder data.
+  pub fn get_slot<T: 'static>(&self) -> Option<Ref<T>> {
+    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
+    let r = cell.try_borrow().ok()?;
+    Some(Ref::map(r, |box_any| {
+      let a = &**box_any;
+      Any::downcast_ref::<T>(a).unwrap()
+    }))
+  }
+
+  /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
+  /// with an Isolate.
+  ///
+  /// This method gives ownership of value to the Isolate. Exactly one object of
+  /// each type can be associated with an Isolate. If called more than once with
+  /// an object of the same type, the earlier version will be dropped and
+  /// replaced.
+  ///
+  /// Returns true if value was set without replacing an existing value.
+  ///
+  /// The value will be dropped when the isolate is dropped.
+  pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
+    self
+      .get_annex_mut()
+      .slots
+      .insert(Any::type_id(&value), RefCell::new(Box::new(value)))
+      .is_none()
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -274,14 +320,18 @@ impl Isolate {
   /// exception has been scheduled it is illegal to invoke any JavaScript
   /// operation; the caller must return immediately and only after the exception
   /// has been handled does it become legal to invoke JavaScript operations.
-  pub fn throw_exception<'sc>(
+  ///
+  /// This function always returns the `undefined` value.
+  pub fn throw_exception(
     &mut self,
     exception: Local<Value>,
-  ) -> Local<'sc, Value> {
-    unsafe {
-      let ptr = v8__Isolate__ThrowException(self, exception);
-      Local::from_raw(ptr).unwrap()
+  ) -> Local<'_, Value> {
+    let result = unsafe {
+      Local::from_raw(v8__Isolate__ThrowException(self, &*exception))
     }
+    .unwrap();
+    debug_assert!(result.is_undefined());
+    result
   }
 
   /// Runs the default MicrotaskQueue until it gets empty.
@@ -292,13 +342,29 @@ impl Isolate {
 
   /// Enqueues the callback to the default MicrotaskQueue
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
-    unsafe { v8__Isolate__EnqueueMicrotask(self, microtask) }
+    unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
-    IsolateHandle::dispose_isolate(self);
+    let annex = self.get_annex_mut();
+
+    // Set the `isolate` pointer inside the annex struct to null, so any
+    // IsolateHandle that outlives the isolate will know that it can't call
+    // methods on the isolate.
+    {
+      let _lock = annex.isolate_mutex.lock().unwrap();
+      annex.isolate = null_mut();
+    }
+
+    // Clear slots and drop owned objects that were taken out of `CreateParams`.
+    annex.create_param_allocations = Box::new(());
+    annex.slots.clear();
+
+    // Subtract one from the Arc<IsolateAnnex> reference count.
+    Arc::from_raw(annex);
+    self.set_data(0, null_mut());
 
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
@@ -335,19 +401,39 @@ impl Isolate {
 }
 
 pub(crate) struct IsolateAnnex {
+  create_param_allocations: Box<dyn Any>,
+  slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+  // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
+  // (which may outlive the isolate itself) can determine whether the isolate is
+  // still alive, and if so, get a reference to it. Safety rules:
+  // - The 'main thread' must lock the mutex and reset `isolate` to null just
+  //   before the isolate is disposed.
+  // - Any other thread must lock the mutex while it's reading/using the
+  //   `isolate` pointer.
   isolate: *mut Isolate,
-  mutex: Mutex<()>,
+  isolate_mutex: Mutex<()>,
 }
 
 impl IsolateAnnex {
-  fn new(isolate: &mut Isolate) -> Self {
+  fn new(
+    isolate: &mut Isolate,
+    create_param_allocations: Box<dyn Any>,
+  ) -> Self {
     Self {
+      create_param_allocations,
+      slots: HashMap::new(),
       isolate,
-      mutex: Mutex::new(()),
+      isolate_mutex: Mutex::new(()),
     }
   }
 }
 
+/// IsolateHandle is a thread-safe reference to an Isolate. It's main use is to
+/// terminate execution of a running isolate from another thread.
+///
+/// It is created with Isolate::thread_safe_handle().
+///
+/// IsolateHandle is Cloneable, Send, and Sync.
 #[derive(Clone)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
 
@@ -362,35 +448,8 @@ impl IsolateHandle {
     self.0.isolate
   }
 
-  pub(crate) fn new(isolate: &mut Isolate) -> Self {
-    let annex_ptr = isolate.get_annex();
-    if annex_ptr.is_null() {
-      let annex_arc = Arc::new(IsolateAnnex::new(isolate));
-      let annex_ptr = Arc::into_raw(annex_arc.clone());
-      unsafe {
-        isolate.set_annex(annex_ptr as *mut IsolateAnnex);
-      }
-      IsolateHandle(annex_arc)
-    } else {
-      let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
-      Arc::into_raw(annex_arc.clone());
-      IsolateHandle(annex_arc)
-    }
-  }
-
-  fn dispose_isolate(isolate: &mut Isolate) {
-    let annex_ptr = isolate.get_annex();
-    if !annex_ptr.is_null() {
-      unsafe {
-        {
-          let _lock = (*annex_ptr).mutex.lock().unwrap();
-          isolate.set_data(0, null_mut());
-          let isolate_ptr = replace(&mut (*annex_ptr).isolate, null_mut());
-          assert_eq!(isolate as *mut _, isolate_ptr);
-        }
-        Arc::from_raw(annex_ptr);
-      };
-    }
+  fn new(isolate: &mut Isolate) -> Self {
+    Self(isolate.get_annex_arc())
   }
 
   /// Forcefully terminate the current thread of JavaScript execution
@@ -401,7 +460,7 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn terminate_execution(&self) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -425,7 +484,7 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn cancel_terminate_execution(&self) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -443,7 +502,7 @@ impl IsolateHandle {
   ///
   /// Returns false if Isolate was already destroyed.
   pub fn is_execution_terminating(&self) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -467,7 +526,7 @@ impl IsolateHandle {
     callback: InterruptCallback,
     data: *mut c_void,
   ) -> bool {
-    let _lock = self.0.mutex.lock().unwrap();
+    let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
@@ -477,18 +536,17 @@ impl IsolateHandle {
   }
 }
 
-/// Internal method for constructing an OwnedIsolate.
-pub(crate) unsafe fn new_owned_isolate(
-  isolate_ptr: *mut Isolate,
-) -> OwnedIsolate {
-  OwnedIsolate(NonNull::new(isolate_ptr).unwrap())
+/// Same as Isolate but gets disposed when it goes out of scope.
+pub struct OwnedIsolate {
+  cxx_isolate: NonNull<Isolate>,
 }
 
-/// Same as Isolate but gets disposed when it goes out of scope.
-pub struct OwnedIsolate(NonNull<Isolate>);
-
-// TODO(ry) unsafe impl Send for OwnedIsolate {}
-// TODO(ry) impl !Sync for OwnedIsolate {}
+impl OwnedIsolate {
+  pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
+    let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
+    Self { cxx_isolate }
+  }
+}
 
 impl InIsolate for OwnedIsolate {
   fn isolate(&mut self) -> &mut Isolate {
@@ -498,85 +556,19 @@ impl InIsolate for OwnedIsolate {
 
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
-    unsafe { self.0.as_mut().dispose() }
+    unsafe { self.cxx_isolate.as_mut().dispose() }
   }
 }
 
 impl Deref for OwnedIsolate {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe { self.0.as_ref() }
+    unsafe { self.cxx_isolate.as_ref() }
   }
 }
 
 impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.0.as_mut() }
-  }
-}
-
-/// Initial configuration parameters for a new Isolate.
-#[repr(C)]
-pub struct CreateParams(Opaque);
-
-impl CreateParams {
-  pub fn new() -> UniqueRef<CreateParams> {
-    unsafe { UniqueRef::from_raw(v8__Isolate__CreateParams__NEW()) }
-  }
-
-  /// The ArrayBuffer::Allocator to use for allocating and freeing the backing
-  /// store of ArrayBuffers.
-  ///
-  /// The Isolate instance and every |BackingStore| allocated using this
-  /// allocator hold a SharedRef to the allocator, in order to facilitate
-  /// lifetime management for the allocator instance.
-  pub fn set_array_buffer_allocator(&mut self, value: SharedRef<Allocator>) {
-    unsafe {
-      v8__Isolate__CreateParams__SET__array_buffer_allocator(self, &value)
-    };
-  }
-
-  /// Specifies an optional nullptr-terminated array of raw addresses in the
-  /// embedder that V8 can match against during serialization and use for
-  /// deserialization. This array and its content must stay valid for the
-  /// entire lifetime of the isolate.
-  pub fn set_external_references(
-    &mut self,
-    external_references: &'static ExternalReferences,
-  ) {
-    unsafe {
-      v8__Isolate__CreateParams__SET__external_references(
-        self,
-        external_references.as_ptr(),
-      )
-    };
-  }
-
-  /// Hand startup data to V8, in case the embedder has chosen to build
-  /// V8 with external startup data.
-  ///
-  /// Note:
-  /// - By default the startup data is linked into the V8 library, in which
-  ///   case this function is not meaningful.
-  /// - If this needs to be called, it needs to be called before V8
-  ///   tries to make use of its built-ins.
-  /// - To avoid unnecessary copies of data, V8 will point directly into the
-  ///   given data blob, so pretty please keep it around until V8 exit.
-  /// - Compression of the startup blob might be useful, but needs to
-  ///   handled entirely on the embedders' side.
-  /// - The call will abort if the data is invalid.
-  pub fn set_snapshot_blob(&mut self, snapshot_blob: &StartupData) {
-    unsafe {
-      v8__Isolate__CreateParams__SET__snapshot_blob(
-        self,
-        snapshot_blob as *const _ as *mut StartupData,
-      )
-    };
-  }
-}
-
-impl Delete for CreateParams {
-  fn delete(&'static mut self) {
-    unsafe { v8__Isolate__CreateParams__DELETE(self) }
+    unsafe { self.cxx_isolate.as_mut() }
   }
 }

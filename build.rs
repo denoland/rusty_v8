@@ -1,5 +1,4 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
-use cargo_gn;
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
@@ -23,10 +22,12 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if env::var_os("V8_FROM_SOURCE").is_some() {
-    build_v8()
-  } else if !(is_trybuild || is_cargo_doc | is_rls) {
-    download_static_lib_binaries();
+  if !(is_trybuild || is_cargo_doc | is_rls) {
+    if env::var_os("V8_FROM_SOURCE").is_some() {
+      build_v8()
+    } else {
+      download_static_lib_binaries();
+    }
   }
 
   if !(is_cargo_doc || is_rls) {
@@ -86,14 +87,11 @@ fn build_v8() {
     }
   }
 
-  match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
-    "aarch64" => {
-      gn_args.push("target_cpu=\"arm64\"".to_string());
-      maybe_install_sysroot("arm64");
-      maybe_install_sysroot("amd64");
-    }
-    "x86_64" => gn_args.push("use_sysroot=false".to_string()),
-    _ => unimplemented!(),
+  if env::var("TARGET").unwrap() == "aarch64-unknown-linux-gnu" {
+    gn_args.push(r#"target_cpu="arm64""#.to_string());
+    gn_args.push("use_sysroot=true".to_string());
+    maybe_install_sysroot("arm64");
+    maybe_install_sysroot("amd64");
   };
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -133,8 +131,9 @@ fn platform() -> &'static str {
 
 fn download_ninja_gn_binaries() {
   let root = env::current_dir().unwrap();
-  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
-  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let out_dir = env::var_os("OUT_DIR").expect(
+    "The 'OUT_DIR' environment is not set (it should be something like 'target/debug/rusty_v8-{hash}').",
+  );
   let out_dir_abs = root.join(out_dir);
   // This would be target/debug or target/release
   let target_dir = out_dir_abs
@@ -145,7 +144,7 @@ fn download_ninja_gn_binaries() {
     .parent()
     .unwrap();
   let bin_dir = target_dir
-    .join("ninja_gn_binaries-20200313")
+    .join("ninja_gn_binaries-20200506")
     .join(platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");
@@ -188,6 +187,39 @@ fn static_lib_url() -> (String, String) {
   }
 }
 
+fn download_file(url: String, filename: PathBuf) {
+  // Try downloading with python first. Python is a V8 build dependency,
+  // so this saves us from adding a Rust HTTP client dependency.
+  println!("Downloading {}", url);
+  let status = Command::new("python")
+    .arg("./tools/download_file.py")
+    .arg("--url")
+    .arg(&url)
+    .arg("--filename")
+    .arg(&filename)
+    .status();
+
+  // Python is only a required dependency for `V8_FROM_SOURCE` builds.
+  // If python is not available, try falling back to curl.
+  let status = match status {
+    Ok(status) if status.success() => status,
+    _ => {
+      println!("Python downloader failed, trying with curl.");
+      Command::new("curl")
+        .arg("-L")
+        .arg("-s")
+        .arg("-o")
+        .arg(&filename)
+        .arg(&url)
+        .status()
+        .unwrap()
+    }
+  };
+
+  assert!(status.success());
+  assert!(filename.exists());
+}
+
 fn download_static_lib_binaries() {
   let (url, static_lib_name) = static_lib_url();
   println!("static lib URL: {}", url);
@@ -217,19 +249,7 @@ fn download_static_lib_binaries() {
     println!("static lib already exists {}", filename.display());
     println!("To re-download this file, it must be manually deleted.");
   } else {
-    // Using python to do the HTTP download because it's already a dependency
-    // and so we don't have to add a Rust HTTP client dependency.
-    println!("Downloading {}", url);
-    let status = Command::new("python")
-      .arg("./tools/download_file.py")
-      .arg("--url")
-      .arg(url)
-      .arg("--filename")
-      .arg(&filename)
-      .status()
-      .unwrap();
-    assert!(status.success());
-    assert!(filename.exists());
+    download_file(url, filename);
   }
 }
 

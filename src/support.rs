@@ -1,11 +1,23 @@
-use std::cell::UnsafeCell;
+use std::any::Any;
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
+use std::convert::identity;
+use std::convert::AsMut;
+use std::convert::AsRef;
 use std::marker::PhantomData;
-use std::mem::replace;
+use std::mem::align_of;
+use std::mem::forget;
+use std::mem::needs_drop;
 use std::mem::size_of;
-use std::mem::transmute;
+use std::mem::take;
+use std::mem::transmute_copy;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::drop_in_place;
+use std::ptr::null_mut;
 use std::ptr::NonNull;
+use std::rc::Rc;
+use std::sync::Arc;
 
 // TODO use libc::intptr_t when stable.
 // https://doc.rust-lang.org/1.7.0/libc/type.intptr_t.html
@@ -18,218 +30,356 @@ pub use std::os::raw::c_long as long;
 
 pub type Opaque = [u8; 0];
 
-pub trait Delete
-where
-  Self: Sized + 'static,
-{
-  fn delete(&'static mut self) -> ();
-}
-
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
-pub struct UniquePtr<T>(Option<&'static mut T>)
-where
-  T: Delete;
+pub struct UniquePtr<T: ?Sized>(Option<UniqueRef<T>>);
 
-impl<T> UniquePtr<T>
-where
-  T: Delete,
-{
-  pub fn null() -> Self {
-    Self(None)
+impl<T: ?Sized> UniquePtr<T> {
+  pub fn is_null(&self) -> bool {
+    self.0.is_none()
   }
 
-  pub fn new(r: &'static mut T) -> Self {
-    Self(Some(r))
+  pub fn as_ref(&self) -> Option<&UniqueRef<T>> {
+    self.0.as_ref()
   }
 
-  pub unsafe fn from_raw(p: *mut T) -> Self {
-    transmute(p)
+  pub fn as_mut(&mut self) -> Option<&mut UniqueRef<T>> {
+    self.0.as_mut()
   }
 
-  pub fn into_raw(self) -> *mut T {
-    unsafe { transmute(self) }
+  pub fn take(&mut self) -> Option<UniqueRef<T>> {
+    take(&mut self.0)
   }
 
   pub fn unwrap(self) -> UniqueRef<T> {
-    let p = self.into_raw();
-    assert!(!p.is_null());
-    unsafe { UniqueRef::from_raw(p) }
+    self.0.unwrap()
   }
 }
 
-impl<T> From<UniqueRef<T>> for UniquePtr<T>
-where
-  T: Delete,
-{
+impl<T> UniquePtr<T> {
+  pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    assert_unique_ptr_layout_compatible::<Self, T>();
+    Self(UniqueRef::try_from_raw(ptr))
+  }
+
+  pub fn into_raw(self) -> *mut T {
+    self
+      .0
+      .map(|unique_ref| unique_ref.into_raw())
+      .unwrap_or_else(null_mut)
+  }
+}
+
+impl<T: Shared> UniquePtr<T> {
+  pub fn make_shared(self) -> SharedPtr<T> {
+    self.into()
+  }
+}
+
+impl<T> Default for UniquePtr<T> {
+  fn default() -> Self {
+    assert_unique_ptr_layout_compatible::<Self, T>();
+    Self(None)
+  }
+}
+
+impl<T> From<UniqueRef<T>> for UniquePtr<T> {
   fn from(unique_ref: UniqueRef<T>) -> Self {
-    unsafe { Self::from_raw(unique_ref.into_raw()) }
-  }
-}
-
-impl<T> Deref for UniquePtr<T>
-where
-  T: Delete,
-{
-  type Target = Option<&'static mut T>;
-  fn deref(&self) -> &Self::Target {
-    &self.0
-  }
-}
-
-impl<T> DerefMut for UniquePtr<T>
-where
-  T: Delete,
-{
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.0
-  }
-}
-
-impl<T> Drop for UniquePtr<T>
-where
-  T: Delete,
-{
-  fn drop(&mut self) {
-    if let Some(v) = self.0.take() {
-      Delete::delete(v)
-    }
+    assert_unique_ptr_layout_compatible::<Self, T>();
+    Self(Some(unique_ref))
   }
 }
 
 /// Pointer to object allocated on the C++ heap. The pointer may not be null.
 #[repr(transparent)]
-pub struct UniqueRef<T>(&'static mut T)
-where
-  T: Delete;
+pub struct UniqueRef<T: ?Sized>(NonNull<T>);
 
-impl<T> UniqueRef<T>
-where
-  T: Delete,
-{
-  pub fn new(r: &'static mut T) -> Self {
-    Self(r)
+impl<T> UniqueRef<T> {
+  unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
+    assert_unique_ptr_layout_compatible::<Self, T>();
+    NonNull::new(ptr).map(Self)
   }
 
-  pub fn make_shared(self) -> SharedRef<T>
-  where
-    T: Shared,
-  {
-    self.into()
-  }
-
-  pub unsafe fn from_raw(p: *mut T) -> Self {
-    transmute(NonNull::new(p))
+  pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    assert_unique_ptr_layout_compatible::<Self, T>();
+    Self::try_from_raw(ptr).unwrap()
   }
 
   pub fn into_raw(self) -> *mut T {
-    unsafe { transmute(self) }
+    let ptr = self.0.as_ptr();
+    forget(self);
+    ptr
   }
 }
 
-impl<T> Deref for UniqueRef<T>
-where
-  T: Delete,
-{
+impl<T: Shared> UniqueRef<T> {
+  pub fn make_shared(self) -> SharedRef<T> {
+    self.into()
+  }
+}
+
+impl<T: ?Sized> Drop for UniqueRef<T> {
+  fn drop(&mut self) {
+    unsafe { drop_in_place(self.0.as_ptr()) }
+  }
+}
+
+impl<T: ?Sized> Deref for UniqueRef<T> {
   type Target = T;
   fn deref(&self) -> &Self::Target {
-    self.0
+    unsafe { self.0.as_ref() }
   }
 }
 
-impl<T> DerefMut for UniqueRef<T>
-where
-  T: Delete,
-{
+impl<T: ?Sized> DerefMut for UniqueRef<T> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    self.0
+    unsafe { self.0.as_mut() }
   }
 }
 
-impl<T> Drop for UniqueRef<T>
-where
-  T: Delete,
-{
-  fn drop(&mut self) {
-    let inner = replace(&mut self.0, unsafe {
-      transmute(NonNull::<&'static mut T>::dangling())
-    });
-    Delete::delete(inner)
+impl<T: ?Sized> AsRef<T> for UniqueRef<T> {
+  fn as_ref(&self) -> &T {
+    &**self
   }
+}
+
+impl<T: ?Sized> AsMut<T> for UniqueRef<T> {
+  fn as_mut(&mut self) -> &mut T {
+    &mut **self
+  }
+}
+
+impl<T: ?Sized> Borrow<T> for UniqueRef<T> {
+  fn borrow(&self) -> &T {
+    &**self
+  }
+}
+
+impl<T: ?Sized> BorrowMut<T> for UniqueRef<T> {
+  fn borrow_mut(&mut self) -> &mut T {
+    &mut **self
+  }
+}
+
+fn assert_unique_ptr_layout_compatible<U, T>() {
+  // Assert that `U` (a `UniqueRef` or `UniquePtr`) has the same memory layout
+  // as a raw C pointer.
+  assert_eq!(size_of::<U>(), size_of::<*mut T>());
+  assert_eq!(align_of::<U>(), align_of::<*mut T>());
+
+  // Assert that `T` (probably) implements `Drop`. If it doesn't, a regular
+  // reference should be used instead of UniquePtr/UniqueRef.
+  assert!(needs_drop::<T>());
 }
 
 pub trait Shared
 where
-  Self: Delete + 'static,
+  Self: Sized,
 {
-  fn clone(shared_ptr: *const SharedRef<Self>) -> SharedRef<Self>;
-  fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self>;
-  fn deref(shared_ptr: *const SharedRef<Self>) -> *mut Self;
-  fn reset(shared_ptr: *mut SharedRef<Self>);
-  fn use_count(shared_ptr: *const SharedRef<Self>) -> long;
+  fn clone(shared_ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self>;
+  fn from_unique_ptr(shared_ptr: UniquePtr<Self>) -> SharedPtrBase<Self>;
+  fn get(shared_ptr: &SharedPtrBase<Self>) -> *mut Self;
+  fn reset(shared_ptr: &mut SharedPtrBase<Self>);
+  fn use_count(shared_ptr: &SharedPtrBase<Self>) -> long;
+}
+
+/// Private base type which is shared by the `SharedPtr` and `SharedRef`
+/// implementations.
+#[repr(C)]
+pub struct SharedPtrBase<T: Shared>([usize; 2], PhantomData<T>);
+
+unsafe impl<T: Shared + Sync> Send for SharedPtrBase<T> {}
+unsafe impl<T: Shared + Sync> Sync for SharedPtrBase<T> {}
+
+impl<T: Shared> Default for SharedPtrBase<T> {
+  fn default() -> Self {
+    Self([0usize; 2], PhantomData)
+  }
+}
+
+impl<T: Shared> Drop for SharedPtrBase<T> {
+  fn drop(&mut self) {
+    <T as Shared>::reset(self);
+  }
+}
+
+/// Wrapper around a C++ shared_ptr. A shared_ptr may be be null.
+#[repr(C)]
+#[derive(Default)]
+pub struct SharedPtr<T: Shared>(SharedPtrBase<T>);
+
+impl<T: Shared> SharedPtr<T> {
+  pub fn is_null(&self) -> bool {
+    <T as Shared>::get(&self.0).is_null()
+  }
+
+  pub fn use_count(&self) -> long {
+    <T as Shared>::use_count(&self.0)
+  }
+
+  pub fn take(&mut self) -> Option<SharedRef<T>> {
+    if self.is_null() {
+      None
+    } else {
+      let base = take(&mut self.0);
+      Some(SharedRef(base))
+    }
+  }
+
+  pub fn unwrap(self) -> SharedRef<T> {
+    assert!(!self.is_null());
+    SharedRef(self.0)
+  }
+}
+
+impl<T: Shared> Clone for SharedPtr<T> {
+  fn clone(&self) -> Self {
+    Self(<T as Shared>::clone(&self.0))
+  }
+}
+
+impl<T, U> From<U> for SharedPtr<T>
+where
+  T: Shared,
+  U: Into<UniquePtr<T>>,
+{
+  fn from(unique_ptr: U) -> Self {
+    let unique_ptr = unique_ptr.into();
+    Self(<T as Shared>::from_unique_ptr(unique_ptr))
+  }
+}
+
+impl<T: Shared> From<SharedRef<T>> for SharedPtr<T> {
+  fn from(mut shared_ref: SharedRef<T>) -> Self {
+    Self(take(&mut shared_ref.0))
+  }
 }
 
 /// Wrapper around a C++ shared_ptr. The shared_ptr is assumed to contain a
-/// value and not be null.
+/// value and may not be null.
 #[repr(C)]
-pub struct SharedRef<T>([*mut Opaque; 2], PhantomData<T>)
-where
-  T: Shared;
+pub struct SharedRef<T: Shared>(SharedPtrBase<T>);
 
-unsafe impl<T> Send for SharedRef<T> where T: Shared + Send {}
-
-impl<T> SharedRef<T>
-where
-  T: Shared,
-{
+impl<T: Shared> SharedRef<T> {
   pub fn use_count(&self) -> long {
-    <T as Shared>::use_count(self)
+    <T as Shared>::use_count(&self.0)
   }
 }
 
-impl<T> Clone for SharedRef<T>
-where
-  T: Shared,
-{
+impl<T: Shared> Clone for SharedRef<T> {
   fn clone(&self) -> Self {
-    <T as Shared>::clone(self)
+    Self(<T as Shared>::clone(&self.0))
   }
 }
 
-impl<T> From<UniqueRef<T>> for SharedRef<T>
-where
-  T: Delete + Shared,
-{
-  fn from(unique: UniqueRef<T>) -> Self {
-    <T as Shared>::from_unique(unique)
+impl<T: Shared> From<UniqueRef<T>> for SharedRef<T> {
+  fn from(unique_ref: UniqueRef<T>) -> Self {
+    SharedPtr::from(unique_ref).unwrap()
   }
 }
 
-impl<T> Deref for SharedRef<T>
-where
-  T: Shared,
-{
-  type Target = UnsafeCell<T>;
+impl<T: Shared> Deref for SharedRef<T> {
+  type Target = T;
   fn deref(&self) -> &Self::Target {
-    unsafe { &*(<T as Shared>::deref(self) as *const UnsafeCell<T>) }
+    unsafe { &*(<T as Shared>::get(&self.0)) }
   }
 }
 
-impl<T> DerefMut for SharedRef<T>
-where
-  T: Shared,
-{
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { &mut *(<T as Shared>::deref(self) as *mut UnsafeCell<T>) }
+impl<T: Shared> AsRef<T> for SharedRef<T> {
+  fn as_ref(&self) -> &T {
+    &**self
   }
 }
 
-impl<T> Drop for SharedRef<T>
-where
-  T: Shared,
+impl<T: Shared> Borrow<T> for SharedRef<T> {
+  fn borrow(&self) -> &T {
+    &**self
+  }
+}
+
+/// A trait for values with static lifetimes that are allocated at a fixed
+/// address in memory. Practically speaking, that means they're either a
+/// `&'static` reference, or they're heap-allocated in a `Arc`, `Box`, `Rc`,
+/// `UniqueRef`, `SharedRef` or `Vec`.
+pub trait Allocated<T: ?Sized>:
+  Deref<Target = T> + Borrow<T> + 'static
 {
-  fn drop(&mut self) {
-    <T as Shared>::reset(self);
+}
+impl<A, T: ?Sized> Allocated<T> for A where
+  A: Deref<Target = T> + Borrow<T> + 'static
+{
+}
+
+pub(crate) enum Allocation<T: ?Sized + 'static> {
+  Static(&'static T),
+  Arc(Arc<T>),
+  Box(Box<T>),
+  Rc(Rc<T>),
+  UniqueRef(UniqueRef<T>),
+  Other(Box<dyn Borrow<T> + 'static>),
+  // Note: it would be nice to add `SharedRef` to this list, but it requires the
+  // `T: Shared` bound, and it's unfortunately not possible to set bounds on
+  // individual enum variants.
+}
+
+impl<T: ?Sized + 'static> Allocation<T> {
+  unsafe fn transmute_wrap<Abstract, Concrete>(
+    value: Abstract,
+    wrap: fn(Concrete) -> Self,
+  ) -> Self {
+    assert_eq!(size_of::<Abstract>(), size_of::<Concrete>());
+    let wrapped = wrap(transmute_copy(&value));
+    forget(value);
+    wrapped
+  }
+
+  fn try_wrap<Abstract: 'static, Concrete: 'static>(
+    value: Abstract,
+    wrap: fn(Concrete) -> Self,
+  ) -> Result<Self, Abstract> {
+    if Any::is::<Concrete>(&value) {
+      Ok(unsafe { Self::transmute_wrap(value, wrap) })
+    } else {
+      Err(value)
+    }
+  }
+
+  pub fn of<Abstract: Deref<Target = T> + Borrow<T> + 'static>(
+    a: Abstract,
+  ) -> Self {
+    Self::try_wrap(a, identity)
+      .or_else(|a| Self::try_wrap(a, Self::Static))
+      .or_else(|a| Self::try_wrap(a, Self::Arc))
+      .or_else(|a| Self::try_wrap(a, Self::Box))
+      .or_else(|a| Self::try_wrap(a, Self::Rc))
+      .or_else(|a| Self::try_wrap(a, Self::UniqueRef))
+      .unwrap_or_else(|a| Self::Other(Box::from(a)))
+  }
+}
+
+impl<T: ?Sized> Deref for Allocation<T> {
+  type Target = T;
+  fn deref(&self) -> &Self::Target {
+    match self {
+      Self::Static(v) => v.borrow(),
+      Self::Arc(v) => v.borrow(),
+      Self::Box(v) => v.borrow(),
+      Self::Rc(v) => v.borrow(),
+      Self::UniqueRef(v) => v.borrow(),
+      Self::Other(v) => (&**v).borrow(),
+    }
+  }
+}
+
+impl<T: ?Sized> AsRef<T> for Allocation<T> {
+  fn as_ref(&self) -> &T {
+    &**self
+  }
+}
+
+impl<T: ?Sized> Borrow<T> for Allocation<T> {
+  fn borrow(&self) -> &T {
+    &**self
   }
 }
 
@@ -469,5 +619,99 @@ where
   #[inline(always)]
   fn mapping() -> T {
     T::c_fn_from(F::get())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::sync::atomic::AtomicBool;
+  use std::sync::atomic::Ordering;
+
+  static TEST_OBJ_DROPPED: AtomicBool = AtomicBool::new(false);
+  struct TestObj {
+    pub id: u32,
+  }
+  impl Drop for TestObj {
+    fn drop(&mut self) {
+      assert!(!TEST_OBJ_DROPPED.swap(true, Ordering::SeqCst));
+    }
+  }
+
+  struct TestObjRef(TestObj);
+  impl Deref for TestObjRef {
+    type Target = TestObj;
+    fn deref(&self) -> &TestObj {
+      &self.0
+    }
+  }
+  impl Borrow<TestObj> for TestObjRef {
+    fn borrow(&self) -> &TestObj {
+      &**self
+    }
+  }
+
+  #[test]
+  fn allocation() {
+    // Static.
+    static STATIC_OBJ: TestObj = TestObj { id: 1 };
+    let owner = Allocation::of(&STATIC_OBJ);
+    match owner {
+      Allocation::Static(_) => assert_eq!(owner.id, 1),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(!TEST_OBJ_DROPPED.load(Ordering::SeqCst));
+
+    // Arc.
+    let owner = Allocation::of(Arc::new(TestObj { id: 2 }));
+    match owner {
+      Allocation::Arc(_) => assert_eq!(owner.id, 2),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Box.
+    let owner = Allocation::of(Box::new(TestObj { id: 3 }));
+    match owner {
+      Allocation::Box(_) => assert_eq!(owner.id, 3),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Rc.
+    let owner = Allocation::of(Rc::new(TestObj { id: 4 }));
+    match owner {
+      Allocation::Rc(_) => assert_eq!(owner.id, 4),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Other.
+    let owner = Allocation::of(TestObjRef(TestObj { id: 5 }));
+    match owner {
+      Allocation::Other(_) => assert_eq!(owner.id, 5),
+      _ => panic!(),
+    }
+    drop(owner);
+    assert!(TEST_OBJ_DROPPED.swap(false, Ordering::SeqCst));
+
+    // Contents of Vec should not be moved.
+    let vec = vec![1u8, 2, 3, 5, 8, 13, 21];
+    let vec_element_ptrs =
+      vec.iter().map(|i| i as *const u8).collect::<Vec<_>>();
+    let owner = Allocation::of(vec);
+    match owner {
+      Allocation::Other(_) => {}
+      _ => panic!(),
+    }
+    owner
+      .iter()
+      .map(|i| i as *const u8)
+      .zip(vec_element_ptrs)
+      .for_each(|(p1, p2)| assert_eq!(p1, p2));
   }
 }

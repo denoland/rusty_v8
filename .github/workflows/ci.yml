@@ -13,31 +13,49 @@ jobs:
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
+      # Always run master branch builds to completion. This allows the cache to
+      # stay mostly up-to-date in situations where a single job fails due to
+      # e.g. a flaky test.
+      # Don't fast-fail on tag build because publishing binaries shouldn't be
+      # prevented if 'cargo publish' fails (which can be a false negative).
+      fail-fast:
+        ${{ github.event_name == 'pull_request' || (github.ref !=
+        'refs/heads/master' && !startsWith(github.ref, 'refs/tags/')) }}
       matrix:
         config:
           - os: macOS-latest
             target: x86_64-apple-darwin
-            variant: "debug"
+            variant: debug
 
           - os: macOS-latest
             target: x86_64-apple-darwin
-            variant: "release"
+            variant: release
 
           - os: ubuntu-16.04
-            target: "x86_64-unknown-linux-gnu"
-            variant: "debug"
+            target: x86_64-unknown-linux-gnu
+            variant: debug
 
           - os: ubuntu-16.04
-            target: "x86_64-unknown-linux-gnu"
-            variant: "release"
+            target: x86_64-unknown-linux-gnu
+            variant: release
 
           - os: windows-2019
             target: x86_64-pc-windows-msvc
-            variant: "release"
-            # Note we do not support windows debug builds.
+            variant: release # Note: we do not support windows debug builds.
+
+          - os: ubuntu-16.04
+            target: aarch64-unknown-linux-gnu
+            variant: debug
+
+          - os: ubuntu-16.04
+            target: aarch64-unknown-linux-gnu
+            variant: release
 
     env:
       V8_FROM_SOURCE: true
+      CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
+      LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
+      LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
 
     steps:
       - name: Configure git
@@ -47,12 +65,12 @@ jobs:
         uses: actions/checkout@v1
         with:
           fetch-depth: 10
-          submodules: "recursive"
+          submodules: recursive
 
       - name: Install rust
         uses: hecrj/setup-rust-action@v1
         with:
-          rust-version: "1.42.0"
+          rust-version: 1.43.0
 
       - name: Install rust tools
         run: rustup component add clippy rustfmt
@@ -60,33 +78,57 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v1
         with:
-          python-version: "2.7.x"
+          python-version: 2.7.x
           architecture: x64
 
-      # Cache https://github.com/actions/cache/blob/master/examples.md#rust---cargo
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Install cross compilation toolchain
+        if: matrix.config.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+
+          sudo apt update
+          sudo apt install -yq --no-install-suggests --no-install-recommends \
+            binfmt-support g++-5-aarch64-linux-gnu g++-5-multilib \
+            gcc-5-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
+            qemu-user-binfmt
+
+          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
+                     /lib/ld-linux-aarch64.so.1
+
+          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
+          echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
+
+      - name: Configure cargo data directory
+        # After this point, all cargo registry and crate data is stored in
+        # $GITHUB_WORKSPACE/target/cargo. This allows us to cache only the files
+        # that are needed during the build process. Additionally, this works
+        # around a bug in the 'cache' action that causes directories outside of
+        # the workspace dir to be saved/restored incorrectly.
+        run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
+
+      - name: Cache
+        uses: denoland/github-actions-cache@stable-prerelease
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          # Note: rusty_v8 targets always get get rebuilt, and their outputs
+          # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
+          # quite big, so we cache only those subdirectories of
+          # target/{debug|release} that contain the build output for crates that
+          # come from the registry. By additionally saving the sccache cache
+          # directory it's still possible to build v8 fast.
+          path: |-
+            target/cargo
+            target/sccache
+            target/*/.*
+            target/*/build
+            target/*/deps
+          key: ${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
       - name: Install and start sccache
         shell: pwsh
-        working-directory: ${{ runner.temp }}
         env:
-          AWS_ACCESS_KEY_ID: AKIA6QEJVNZDGHRMR2KF
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          SCCACHE_BUCKET: deno-sccache
+          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+          SCCACHE_CACHE_SIZE: 128M
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
           $version = "0.2.12"
@@ -99,51 +141,36 @@ jobs:
           $url = "https://github.com/mozilla/sccache/releases/download/" +
                  "$version/$basename.tar.gz"
 
+          cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
           . $basename/sccache --start-server
 
           echo "::add-path::$(pwd)/$basename"
-          echo "::set-env name=RUSTC_WRAPPER::sccache"
 
-      - name: Test debug
-        if: matrix.config.variant == 'debug'
-        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }}
+      - name: Test
+        run: cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          --target ${{ matrix.config.target }}
 
-      - name: Clippy debug
-        if: matrix.config.variant == 'debug'
-        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} -- -D clippy::all
-
-      - name: Test release
-        if: matrix.config.variant == 'release'
-        run: cargo test -vv --all-targets --locked --target ${{ matrix.config.target }} --release
-
-      - name: Clippy release
-        if: matrix.config.variant == 'release'
-        run: cargo clippy --all-targets --locked --target ${{ matrix.config.target }} --release -- -D clippy::all
+      - name: Clippy
+        run: cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt
         run: cargo fmt -- --check
 
-      - name: Prepare Binary Publish - unix
-        if: runner.os != 'Windows'
-        run: |
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
+      - name: Prepare binary publish
+        run: cp
+          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }}
+          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
 
-      - name: Prepare Binary Publish - windows
-        if: runner.os == 'Windows'
-        run: |
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/rusty_v8.lib target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
-
-      - name: Binary Publish
+      - name: Binary publish
         uses: softprops/action-gh-release@v1
         if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            target/librusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.a
-            target/rusty_v8_${{ matrix.config.variant }}_${{ matrix.config.target }}.lib
+          files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
 
       # TODO: add clang-format and maybe cpplint.
 
@@ -156,7 +183,7 @@ jobs:
 
       - name: Publish
         # Only publish on x64 linux when there's a git tag:
-        if: >
+        if: >-
           startsWith(github.ref, 'refs/tags/') &&
           github.repository == 'denoland/rusty_v8' &&
           startsWith(matrix.config.target , 'x86_64') &&

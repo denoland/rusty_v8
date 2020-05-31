@@ -16,36 +16,36 @@ extern "C" {
   // Note: the C++ CxxTryCatch object *must* live on the stack, and it must
   // not move after it is constructed.
   fn v8__TryCatch__CONSTRUCT(
-    buf: &mut MaybeUninit<CxxTryCatch>,
+    buf: *mut MaybeUninit<CxxTryCatch>,
     isolate: *mut Isolate,
   );
 
-  fn v8__TryCatch__DESTRUCT(this: &mut CxxTryCatch);
+  fn v8__TryCatch__DESTRUCT(this: *mut CxxTryCatch);
 
-  fn v8__TryCatch__HasCaught(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__HasCaught(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__CanContinue(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__CanContinue(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__HasTerminated(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__HasTerminated(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__Exception(this: &CxxTryCatch) -> *mut Value;
+  fn v8__TryCatch__Exception(this: *const CxxTryCatch) -> *const Value;
 
   fn v8__TryCatch__StackTrace(
-    this: &CxxTryCatch,
-    context: Local<Context>,
-  ) -> *mut Value;
+    this: *const CxxTryCatch,
+    context: *const Context,
+  ) -> *const Value;
 
-  fn v8__TryCatch__Message(this: &CxxTryCatch) -> *mut Message;
+  fn v8__TryCatch__Message(this: *const CxxTryCatch) -> *const Message;
 
-  fn v8__TryCatch__Reset(this: &mut CxxTryCatch);
+  fn v8__TryCatch__Reset(this: *mut CxxTryCatch);
 
-  fn v8__TryCatch__ReThrow(this: &mut CxxTryCatch) -> *mut Value;
+  fn v8__TryCatch__ReThrow(this: *mut CxxTryCatch) -> *const Value;
 
-  fn v8__TryCatch__IsVerbose(this: &CxxTryCatch) -> bool;
+  fn v8__TryCatch__IsVerbose(this: *const CxxTryCatch) -> bool;
 
-  fn v8__TryCatch__SetVerbose(this: &mut CxxTryCatch, value: bool);
+  fn v8__TryCatch__SetVerbose(this: *mut CxxTryCatch, value: bool);
 
-  fn v8__TryCatch__SetCaptureMessage(this: &mut CxxTryCatch, value: bool);
+  fn v8__TryCatch__SetCaptureMessage(this: *mut CxxTryCatch, value: bool);
 }
 
 // Note: the 'tc lifetime is there to ensure that after entering a TryCatchScope
@@ -110,9 +110,28 @@ impl<'tc> TryCatch<'tc> {
   /// Returns the exception caught by this try/catch block. If no exception has
   /// been caught an empty handle is returned.
   ///
-  /// The returned handle is valid until this TryCatch block has been destroyed.
-  pub fn exception(&self) -> Option<Local<'tc, Value>> {
-    unsafe { Local::from_raw(v8__TryCatch__Exception(&self.0)) }
+  /// Note: v8.h states that "the returned handle is valid until this TryCatch
+  /// block has been destroyed". This is incorrect; the return value lives
+  /// no longer and no shorter than the active HandleScope at the time this
+  /// method is called. An issue has been opened about this in the V8 bug
+  /// tracker: https://bugs.chromium.org/p/v8/issues/detail?id=10537.
+  pub fn exception<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Value>> {
+    unsafe { scope.to_local(v8__TryCatch__Exception(&self.0)) }
+  }
+
+  /// Returns the message associated with this exception. If there is
+  /// no message associated an empty handle is returned.
+  ///
+  /// Note: the remark about the lifetime for the `exception()` return value
+  /// applies here too.
+  pub fn message<'sc>(
+    &self,
+    scope: &mut impl ToLocal<'sc>,
+  ) -> Option<Local<'sc, Message>> {
+    unsafe { scope.to_local(v8__TryCatch__Message(&self.0)) }
   }
 
   /// Returns the .stack property of the thrown object. If no .stack
@@ -122,16 +141,7 @@ impl<'tc> TryCatch<'tc> {
     scope: &mut impl ToLocal<'sc>,
     context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, context)) }
-  }
-
-  /// Returns the message associated with this exception. If there is
-  /// no message associated an empty handle is returned.
-  ///
-  /// The returned handle is valid until this TryCatch block has been
-  /// destroyed.
-  pub fn message(&self) -> Option<Local<'tc, Message>> {
-    unsafe { Local::from_raw(v8__TryCatch__Message(&self.0)) }
+    unsafe { scope.to_local(v8__TryCatch__StackTrace(&self.0, &*context)) }
   }
 
   /// Clears any exceptions that may have been caught by this try/catch block.
@@ -151,8 +161,15 @@ impl<'tc> TryCatch<'tc> {
   /// it is illegal to execute any JavaScript operations after calling
   /// ReThrow; the caller must return immediately to where the exception
   /// is caught.
-  pub fn rethrow<'a>(&'_ mut self) -> Option<Local<'a, Value>> {
-    unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) }
+  ///
+  /// This function returns the `undefined` value when successful, or `None` if
+  /// no exception was caught and therefore there was nothing to rethrow.
+  pub fn rethrow(&mut self) -> Option<Local<'_, Value>> {
+    let result = unsafe { Local::from_raw(v8__TryCatch__ReThrow(&mut self.0)) };
+    if let Some(value) = result {
+      debug_assert!(value.is_undefined())
+    }
+    result
   }
 
   /// Returns true if verbosity is enabled.

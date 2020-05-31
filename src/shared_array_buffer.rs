@@ -18,16 +18,15 @@ extern "C" {
   fn v8__SharedArrayBuffer__New__with_byte_length(
     isolate: *mut Isolate,
     byte_length: usize,
-  ) -> *mut SharedArrayBuffer;
+  ) -> *const SharedArrayBuffer;
   fn v8__SharedArrayBuffer__New__with_backing_store(
     isolate: *mut Isolate,
-    backing_store: *mut SharedRef<BackingStore>,
-  ) -> *mut SharedArrayBuffer;
-  fn v8__SharedArrayBuffer__ByteLength(
-    self_: *const SharedArrayBuffer,
-  ) -> usize;
+    backing_store: *const SharedRef<BackingStore>,
+  ) -> *const SharedArrayBuffer;
+  fn v8__SharedArrayBuffer__ByteLength(this: *const SharedArrayBuffer)
+    -> usize;
   fn v8__SharedArrayBuffer__GetBackingStore(
-    self_: *const SharedArrayBuffer,
+    this: *const SharedArrayBuffer,
   ) -> SharedRef<BackingStore>;
   fn v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
     isolate: *mut Isolate,
@@ -51,23 +50,21 @@ impl SharedArrayBuffer {
     byte_length: usize,
   ) -> Option<Local<'sc, SharedArrayBuffer>> {
     unsafe {
-      Local::from_raw(v8__SharedArrayBuffer__New__with_byte_length(
+      let ptr = v8__SharedArrayBuffer__New__with_byte_length(
         scope.isolate(),
         byte_length,
-      ))
+      );
+      scope.to_local(ptr)
     }
   }
 
   pub fn with_backing_store<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    backing_store: &mut SharedRef<BackingStore>,
+    backing_store: &SharedRef<BackingStore>,
   ) -> Local<'sc, SharedArrayBuffer> {
     let isolate = scope.isolate();
     let ptr = unsafe {
-      v8__SharedArrayBuffer__New__with_backing_store(
-        isolate,
-        &mut *backing_store,
-      )
+      v8__SharedArrayBuffer__New__with_backing_store(isolate, backing_store)
     };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

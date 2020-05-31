@@ -4,22 +4,22 @@ use crate::isolate::Isolate;
 use crate::scope::Scope;
 use crate::scope::ScopeDefinition;
 use crate::scope_traits::ToLocalOrReturnsLocal;
+use crate::Data;
 use crate::InIsolate;
 use crate::Local;
-use crate::Value;
 
 extern "C" {
   fn v8__HandleScope__CONSTRUCT(buf: *mut HandleScope, isolate: *mut Isolate);
-  fn v8__HandleScope__DESTRUCT(this: &mut HandleScope);
+  fn v8__HandleScope__DESTRUCT(this: *mut HandleScope);
   fn v8__EscapableHandleScope__CONSTRUCT(
     buf: *mut EscapableHandleScope,
     isolate: *mut Isolate,
   );
-  fn v8__EscapableHandleScope__DESTRUCT(this: &mut EscapableHandleScope);
+  fn v8__EscapableHandleScope__DESTRUCT(this: *mut EscapableHandleScope);
   fn v8__EscapableHandleScope__Escape(
-    this: &mut EscapableHandleScope,
-    value: *mut Value,
-  ) -> *mut Value;
+    this: *mut EscapableHandleScope,
+    value: *const Data,
+  ) -> *const Data;
 }
 
 /// A stack-allocated class that governs a number of local handles.
@@ -82,8 +82,8 @@ impl<'s> EscapableHandleScope {
   ) -> Local<'p, T> {
     Local::from_raw(v8__EscapableHandleScope__Escape(
       self,
-      value.as_ptr() as *mut Value,
-    ) as *mut T)
+      value.as_ptr() as *const Data,
+    ) as *const T)
     .unwrap()
   }
 }

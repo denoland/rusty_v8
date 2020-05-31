@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
@@ -31,7 +32,6 @@ use crate::Value;
 ///      Some(resolved_module)
 ///   }
 /// ```
-///
 
 // System V AMD64 ABI: Local<Module> returned in a register.
 #[cfg(not(target_os = "windows"))]
@@ -84,27 +84,28 @@ where
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
-  fn v8__Module__GetException(this: *const Module) -> *mut Value;
+  fn v8__Module__GetException(this: *const Module) -> *const Value;
   fn v8__Module__GetModuleRequestsLength(this: *const Module) -> int;
-  fn v8__Module__GetModuleRequest(this: *const Module, i: int) -> *mut String;
+  fn v8__Module__GetModuleRequest(this: *const Module, i: int)
+    -> *const String;
   fn v8__Module__GetModuleRequestLocation(
     this: *const Module,
-    i: usize,
-    out: &mut MaybeUninit<Location>,
+    i: int,
+    out: *mut MaybeUninit<Location>,
   ) -> Location;
-  fn v8__Module__GetModuleNamespace(this: *mut Module) -> *mut Value;
+  fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__InstantiateModule(
-    this: *mut Module,
-    context: Local<Context>,
-    callback: ResolveCallback,
+    this: *const Module,
+    context: *const Context,
+    cb: ResolveCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
-    this: *mut Module,
-    context: *mut Context,
-  ) -> *mut Value;
-  fn v8__Location__GetLineNumber(this: &Location) -> int;
-  fn v8__Location__GetColumnNumber(this: &Location) -> int;
+    this: *const Module,
+    context: *const Context,
+  ) -> *const Value;
+  fn v8__Location__GetLineNumber(this: *const Location) -> int;
+  fn v8__Location__GetColumnNumber(this: *const Location) -> int;
 }
 
 #[repr(C)]
@@ -145,20 +146,27 @@ impl Module {
 
   /// For a module in kErrored status, this returns the corresponding exception.
   pub fn get_exception(&self) -> Local<Value> {
-    unsafe { Local::from_raw(v8__Module__GetException(self)).unwrap() }
+    // Note: the returned value is not actually stored in a HandleScope,
+    // therefore we don't need a scope object here.
+    unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
   }
 
   /// Returns the number of modules requested by this module.
   pub fn get_module_requests_length(&self) -> usize {
-    unsafe { v8__Module__GetModuleRequestsLength(self) as usize }
+    unsafe { v8__Module__GetModuleRequestsLength(self) }
+      .try_into()
+      .unwrap()
   }
 
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
   pub fn get_module_request(&self, i: usize) -> Local<String> {
+    // Note: the returned value is not actually stored in a HandleScope,
+    // therefore we don't need a scope object here.
     unsafe {
-      Local::from_raw(v8__Module__GetModuleRequest(self, i as int)).unwrap()
+      Local::from_raw(v8__Module__GetModuleRequest(self, i.try_into().unwrap()))
     }
+    .unwrap()
   }
 
   /// Returns the source location (line number and column number) of the ith
@@ -166,7 +174,11 @@ impl Module {
   pub fn get_module_request_location(&self, i: usize) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
-      v8__Module__GetModuleRequestLocation(self, i, &mut out);
+      v8__Module__GetModuleRequestLocation(
+        self,
+        i.try_into().unwrap(),
+        &mut out,
+      );
       out.assume_init()
     }
   }
@@ -179,7 +191,9 @@ impl Module {
   /// Returns the namespace object of this module.
   ///
   /// The module's status must be at least kInstantiated.
-  pub fn get_module_namespace(&mut self) -> Local<Value> {
+  pub fn get_module_namespace(&self) -> Local<Value> {
+    // Note: the returned value is not actually stored in a HandleScope,
+    // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
   }
 
@@ -195,7 +209,7 @@ impl Module {
     callback: impl MapFnTo<ResolveCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Module__InstantiateModule(self, context, callback.map_fn_to())
+      v8__Module__InstantiateModule(self, &*context, callback.map_fn_to())
     }
     .into()
   }
@@ -208,10 +222,10 @@ impl Module {
   /// via |GetException|).
   #[must_use]
   pub fn evaluate<'sc>(
-    &mut self,
+    &self,
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
+    context: Local<Context>,
   ) -> Option<Local<'sc, Value>> {
-    unsafe { scope.to_local(v8__Module__Evaluate(&mut *self, &mut *context)) }
+    unsafe { scope.to_local(v8__Module__Evaluate(&*self, &*context)) }
   }
 }

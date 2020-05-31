@@ -1,16 +1,17 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
+use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use std::ptr::null_mut;
 use std::slice;
 
 use crate::support::long;
-use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::Shared;
+use crate::support::SharedPtrBase;
 use crate::support::SharedRef;
+use crate::support::UniquePtr;
 use crate::support::UniqueRef;
 use crate::ArrayBuffer;
 use crate::InIsolate;
@@ -20,18 +21,18 @@ use crate::ToLocal;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
-  fn v8__ArrayBuffer__Allocator__DELETE(this: &'static mut Allocator);
+  fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
     isolate: *mut Isolate,
     byte_length: usize,
-  ) -> *mut ArrayBuffer;
+  ) -> *const ArrayBuffer;
   fn v8__ArrayBuffer__New__with_backing_store(
     isolate: *mut Isolate,
-    backing_store: *mut SharedRef<BackingStore>,
-  ) -> *mut ArrayBuffer;
-  fn v8__ArrayBuffer__ByteLength(self_: *const ArrayBuffer) -> usize;
+    backing_store: *const SharedRef<BackingStore>,
+  ) -> *const ArrayBuffer;
+  fn v8__ArrayBuffer__ByteLength(this: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
-    self_: *const ArrayBuffer,
+    this: *const ArrayBuffer,
   ) -> SharedRef<BackingStore>;
   fn v8__ArrayBuffer__NewBackingStore__with_byte_length(
     isolate: *mut Isolate,
@@ -44,41 +45,41 @@ extern "C" {
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 
-  fn v8__BackingStore__Data(this: *mut BackingStore) -> *mut c_void;
+  fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
-  fn v8__BackingStore__DELETE(this: &mut BackingStore);
+  fn v8__BackingStore__DELETE(this: *mut BackingStore);
 
   fn std__shared_ptr__v8__BackingStore__COPY(
-    ptr: *const SharedRef<BackingStore>,
-  ) -> SharedRef<BackingStore>;
+    ptr: *const SharedPtrBase<BackingStore>,
+  ) -> SharedPtrBase<BackingStore>;
   fn std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(
-    unique: UniqueRef<BackingStore>,
-  ) -> SharedRef<BackingStore>;
+    unique_ptr: UniquePtr<BackingStore>,
+  ) -> SharedPtrBase<BackingStore>;
   fn std__shared_ptr__v8__BackingStore__get(
-    ptr: *const SharedRef<BackingStore>,
+    ptr: *const SharedPtrBase<BackingStore>,
   ) -> *mut BackingStore;
   fn std__shared_ptr__v8__BackingStore__reset(
-    ptr: *mut SharedRef<BackingStore>,
+    ptr: *mut SharedPtrBase<BackingStore>,
   );
   fn std__shared_ptr__v8__BackingStore__use_count(
-    ptr: *const SharedRef<BackingStore>,
+    ptr: *const SharedPtrBase<BackingStore>,
   ) -> long;
 
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(
-    ptr: *const SharedRef<Allocator>,
-  ) -> SharedRef<Allocator>;
+    ptr: *const SharedPtrBase<Allocator>,
+  ) -> SharedPtrBase<Allocator>;
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
-    unique: UniqueRef<Allocator>,
-  ) -> SharedRef<Allocator>;
+    unique_ptr: UniquePtr<Allocator>,
+  ) -> SharedPtrBase<Allocator>;
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__get(
-    ptr: *const SharedRef<Allocator>,
+    ptr: *const SharedPtrBase<Allocator>,
   ) -> *mut Allocator;
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__reset(
-    ptr: *mut SharedRef<Allocator>,
+    ptr: *mut SharedPtrBase<Allocator>,
   );
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
-    ptr: *const SharedRef<Allocator>,
+    ptr: *const SharedPtrBase<Allocator>,
   ) -> long;
 }
 
@@ -103,33 +104,32 @@ extern "C" {
 pub struct Allocator(Opaque);
 
 impl Shared for Allocator {
-  fn clone(ptr: *const SharedRef<Self>) -> SharedRef<Self> {
+  fn clone(ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
     unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(ptr) }
   }
-  fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self> {
+  fn from_unique_ptr(unique_ptr: UniquePtr<Self>) -> SharedPtrBase<Self> {
     unsafe {
       std__shared_ptr__v8__ArrayBuffer__Allocator__CONVERT__std__unique_ptr(
-        unique,
+        unique_ptr,
       )
     }
   }
-  fn deref(ptr: *const SharedRef<Self>) -> *mut Self {
+  fn get(ptr: &SharedPtrBase<Self>) -> *mut Self {
     unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__get(ptr) }
   }
-  fn reset(ptr: *mut SharedRef<Self>) {
+  fn reset(ptr: &mut SharedPtrBase<Self>) {
     unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__reset(ptr) }
   }
-  fn use_count(ptr: *const SharedRef<Self>) -> long {
+  fn use_count(ptr: &SharedPtrBase<Self>) -> long {
     unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(ptr) }
   }
 }
 
 /// malloc/free based convenience allocator.
-pub fn new_default_allocator() -> SharedRef<Allocator> {
+pub fn new_default_allocator() -> UniqueRef<Allocator> {
   unsafe {
     UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
   }
-  .make_shared()
 }
 
 #[test]
@@ -137,8 +137,8 @@ fn test_default_allocator() {
   new_default_allocator();
 }
 
-impl Delete for Allocator {
-  fn delete(&'static mut self) {
+impl Drop for Allocator {
+  fn drop(&mut self) {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
 }
@@ -195,45 +195,38 @@ impl BackingStore {
 }
 
 impl Deref for BackingStore {
-  type Target = [u8];
+  type Target = [Cell<u8>];
 
   /// Returns a [u8] slice refencing the data in the backing store.
-  fn deref(&self) -> &[u8] {
-    unsafe { slice::from_raw_parts(self.data() as *mut u8, self.byte_length()) }
+  fn deref(&self) -> &Self::Target {
+    let data = self.data() as *mut Cell<u8>;
+    let len = self.byte_length();
+    unsafe { slice::from_raw_parts(data, len) }
   }
 }
 
-impl DerefMut for BackingStore {
-  /// Returns a mutable [u8] slice refencing the data in the backing store.
-  fn deref_mut(&mut self) -> &mut [u8] {
-    unsafe {
-      slice::from_raw_parts_mut(self.data() as *mut u8, self.byte_length())
-    }
-  }
-}
-
-impl Delete for BackingStore {
-  fn delete(&mut self) {
+impl Drop for BackingStore {
+  fn drop(&mut self) {
     unsafe { v8__BackingStore__DELETE(self) };
   }
 }
 
 impl Shared for BackingStore {
-  fn clone(ptr: *const SharedRef<Self>) -> SharedRef<Self> {
+  fn clone(ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
     unsafe { std__shared_ptr__v8__BackingStore__COPY(ptr) }
   }
-  fn from_unique(unique: UniqueRef<Self>) -> SharedRef<Self> {
+  fn from_unique_ptr(unique_ptr: UniquePtr<Self>) -> SharedPtrBase<Self> {
     unsafe {
-      std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(unique)
+      std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(unique_ptr)
     }
   }
-  fn deref(ptr: *const SharedRef<Self>) -> *mut Self {
+  fn get(ptr: &SharedPtrBase<Self>) -> *mut Self {
     unsafe { std__shared_ptr__v8__BackingStore__get(ptr) }
   }
-  fn reset(ptr: *mut SharedRef<Self>) {
+  fn reset(ptr: &mut SharedPtrBase<Self>) {
     unsafe { std__shared_ptr__v8__BackingStore__reset(ptr) }
   }
-  fn use_count(ptr: *const SharedRef<Self>) -> long {
+  fn use_count(ptr: &SharedPtrBase<Self>) -> long {
     unsafe { std__shared_ptr__v8__BackingStore__use_count(ptr) }
   }
 }
@@ -255,11 +248,11 @@ impl ArrayBuffer {
 
   pub fn with_backing_store<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    backing_store: &mut SharedRef<BackingStore>,
+    backing_store: &SharedRef<BackingStore>,
   ) -> Local<'sc, ArrayBuffer> {
     let isolate = scope.isolate();
     let ptr = unsafe {
-      v8__ArrayBuffer__New__with_backing_store(isolate, &mut *backing_store)
+      v8__ArrayBuffer__New__with_backing_store(isolate, backing_store)
     };
     unsafe { scope.to_local(ptr) }.unwrap()
   }

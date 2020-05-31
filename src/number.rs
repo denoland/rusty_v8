@@ -5,13 +5,13 @@ use crate::Number;
 use crate::ToLocal;
 
 extern "C" {
-  fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *mut Number;
-  fn v8__Number__Value(this: &Number) -> f64;
-  fn v8__Integer__New(isolate: *mut Isolate, value: i32) -> *mut Integer;
+  fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *const Number;
+  fn v8__Number__Value(this: *const Number) -> f64;
+  fn v8__Integer__New(isolate: *mut Isolate, value: i32) -> *const Integer;
   fn v8__Integer__NewFromUnsigned(
     isolate: *mut Isolate,
     value: u32,
-  ) -> *mut Integer;
+  ) -> *const Integer;
   fn v8__Integer__Value(this: *const Integer) -> i64;
 }
 

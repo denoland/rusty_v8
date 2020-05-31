@@ -12,21 +12,21 @@ use crate::String;
 use crate::ToLocal;
 
 extern "C" {
-  fn v8__String__Empty(isolate: *mut Isolate) -> *mut String;
+  fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
 
   fn v8__String__NewFromUtf8(
     isolate: *mut Isolate,
     data: *const char,
     new_type: NewStringType,
     length: int,
-  ) -> *mut String;
+  ) -> *const String;
 
-  fn v8__String__Length(this: &String) -> int;
+  fn v8__String__Length(this: *const String) -> int;
 
-  fn v8__String__Utf8Length(this: &String, isolate: *mut Isolate) -> int;
+  fn v8__String__Utf8Length(this: *const String, isolate: *mut Isolate) -> int;
 
   fn v8__String__WriteUtf8(
-    this: &String,
+    this: *const String,
     isolate: *mut Isolate,
     buffer: *mut char,
     length: int,

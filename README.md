@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 8.2.308, 2020-03-12
+V8 Version: 8.4.300, 2020-05-05
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=master)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/rusty_v8.svg)](https://crates.io/crates/rusty_v8)
@@ -10,7 +10,7 @@ V8 Version: 8.2.308, 2020-03-12
 
 1. Provide high quality Rust bindings to [V8's C++
    API](https://cs.chromium.org/chromium/src/v8/include/v8.h). The API should
-   match the original API as closely as possible
+   match the original API as closely as possible.
 
 2. Do not introduce additional call overhead. (For example, previous attempts at
    Rust V8 bindings forced the use of Persistent handles.)
@@ -60,7 +60,7 @@ not supported.
 
 The build depends on several binary tools: `gn`, `ninja` and a recent version
 of `clang` (V8 relies on bleeding edge features). Because these are not
-generally available they are automatically download during the build by default.
+generally available they are automatically downloaded during the build by default.
 It should be possible to opt out of the gn and ninja download by specifying the
 `$GN` and `$NINJA` environmental variables. The clang download can be skipped by
 providing a `$CLANG_BASE_PATH` environmental variable pointing to a recent

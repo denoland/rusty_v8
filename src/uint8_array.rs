@@ -1,25 +1,24 @@
-use std::ops::DerefMut;
-
+// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 use crate::ArrayBuffer;
 use crate::Local;
+use crate::ToLocal;
 use crate::Uint8Array;
 
 extern "C" {
   fn v8__Uint8Array__New(
-    buf: *mut ArrayBuffer,
+    buf_ptr: *const ArrayBuffer,
     byte_offset: usize,
     length: usize,
-  ) -> *mut Uint8Array;
+  ) -> *const Uint8Array;
 }
 
 impl Uint8Array {
   pub fn new<'sc>(
-    mut buf: Local<ArrayBuffer>,
+    scope: &mut impl ToLocal<'sc>,
+    buf: Local<ArrayBuffer>,
     byte_offset: usize,
     length: usize,
   ) -> Option<Local<'sc, Uint8Array>> {
-    unsafe {
-      Local::from_raw(v8__Uint8Array__New(buf.deref_mut(), byte_offset, length))
-    }
+    unsafe { scope.to_local(v8__Uint8Array__New(&*buf, byte_offset, length)) }
   }
 }

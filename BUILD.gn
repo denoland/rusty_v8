@@ -2,9 +2,7 @@
 import("//v8/gni/v8.gni")
 
 v8_static_library("rusty_v8") {
-  sources = [
-    "src/binding.cc",
-  ]
+  sources = [ "src/binding.cc" ]
   deps = [
     ":v8",
     "//build/config:shared_library_deps",
@@ -25,6 +23,13 @@ v8_source_set("v8") {
 config("rusty_v8_config") {
   configs = [ "//v8:external_config" ]
   cflags = []
+
+  # We need these directories in the search path to be able to include some
+  # internal V8 headers.
+  include_dirs = [
+    "v8",
+    "$target_gen_dir/v8",
+  ]
 
   if (is_debug) {
     defines = [ "DEBUG" ]

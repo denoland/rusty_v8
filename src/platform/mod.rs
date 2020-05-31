@@ -2,7 +2,6 @@ pub mod task;
 
 pub use task::{Task, TaskBase, TaskImpl};
 
-use crate::support::Delete;
 use crate::support::Opaque;
 use crate::support::UniquePtr;
 use crate::Isolate;
@@ -11,7 +10,7 @@ extern "C" {
   // TODO: move this to libplatform.rs?
   fn v8__platform__NewDefaultPlatform() -> *mut Platform;
 
-  fn v8__Platform__DELETE(this: &'static mut Platform) -> ();
+  fn v8__Platform__DELETE(this: *mut Platform);
 }
 
 pub fn new_default_platform() -> UniquePtr<Platform> {
@@ -22,8 +21,8 @@ pub fn new_default_platform() -> UniquePtr<Platform> {
 #[repr(C)]
 pub struct Platform(Opaque);
 
-impl Delete for Platform {
-  fn delete(&'static mut self) {
+impl Drop for Platform {
+  fn drop(&mut self) {
     unsafe { v8__Platform__DELETE(self) }
   }
 }

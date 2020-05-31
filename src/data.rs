@@ -3,7 +3,6 @@
 use std::convert::From;
 use std::convert::TryFrom;
 use std::error::Error;
-use std::ffi::c_void;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -58,7 +57,7 @@ macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
     impl<'sc> PartialEq<Local<'sc, $rhs>> for Local<'sc, $type> {
       fn eq(&self, other: &Local<'sc, $rhs>) -> bool {
-        unsafe { v8__Local__EQ(transmute(*self), transmute(*other)) }
+        self.eq_identity((*other).into())
       }
     }
   };
@@ -72,7 +71,13 @@ macro_rules! impl_partial_eq {
 }
 
 extern "C" {
-  fn v8__Local__EQ(this: Local<c_void>, other: Local<c_void>) -> bool;
+  fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
+}
+
+impl Data {
+  fn eq_identity(&self, other: Local<Self>) -> bool {
+    unsafe { v8__Data__EQ(self, &*other) }
+  }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -94,26 +99,26 @@ impl Display for TryFromTypeError {
 
 impl Error for TryFromTypeError {}
 
-/// A sandboxed execution context with its own set of built-in objects
-/// and functions.
-#[repr(C)]
-pub struct Context(Opaque);
-
-impl_eq! { for Context }
-impl_partial_eq! { Context for Context use identity }
-
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
 pub struct Data(Opaque);
 
 impl_from! { AccessorSignature for Data }
+impl_from! { Context for Data }
+impl_from! { Message for Data }
 impl_from! { Module for Data }
+impl_from! { PrimitiveArray for Data }
 impl_from! { Private for Data }
+impl_from! { Script for Data }
+impl_from! { ScriptOrModule for Data }
 impl_from! { Signature for Data }
+impl_from! { StackFrame for Data }
+impl_from! { StackTrace for Data }
 impl_from! { Template for Data }
 impl_from! { FunctionTemplate for Data }
 impl_from! { ObjectTemplate for Data }
 impl_from! { UnboundModuleScript for Data }
+impl_from! { UnboundScript for Data }
 impl_from! { Value for Data }
 impl_from! { External for Data }
 impl_from! { Object for Data }
@@ -160,13 +165,21 @@ impl_from! { Integer for Data }
 impl_from! { Int32 for Data }
 impl_from! { Uint32 for Data }
 impl_partial_eq! { AccessorSignature for Data use identity }
+impl_partial_eq! { Context for Data use identity }
+impl_partial_eq! { Message for Data use identity }
 impl_partial_eq! { Module for Data use identity }
+impl_partial_eq! { PrimitiveArray for Data use identity }
 impl_partial_eq! { Private for Data use identity }
+impl_partial_eq! { Script for Data use identity }
+impl_partial_eq! { ScriptOrModule for Data use identity }
 impl_partial_eq! { Signature for Data use identity }
+impl_partial_eq! { StackFrame for Data use identity }
+impl_partial_eq! { StackTrace for Data use identity }
 impl_partial_eq! { Template for Data use identity }
 impl_partial_eq! { FunctionTemplate for Data use identity }
 impl_partial_eq! { ObjectTemplate for Data use identity }
 impl_partial_eq! { UnboundModuleScript for Data use identity }
+impl_partial_eq! { UnboundScript for Data use identity }
 impl_partial_eq! { External for Data use identity }
 impl_partial_eq! { Object for Data use identity }
 impl_partial_eq! { Array for Data use identity }
@@ -214,6 +227,25 @@ impl_eq! { for AccessorSignature }
 impl_partial_eq! { Data for AccessorSignature use identity }
 impl_partial_eq! { AccessorSignature for AccessorSignature use identity }
 
+/// A sandboxed execution context with its own set of built-in objects
+/// and functions.
+#[repr(C)]
+pub struct Context(Opaque);
+
+impl_deref! { Data for Context }
+impl_eq! { for Context }
+impl_partial_eq! { Data for Context use identity }
+impl_partial_eq! { Context for Context use identity }
+
+/// An error message.
+#[repr(C)]
+pub struct Message(Opaque);
+
+impl_deref! { Data for Message }
+impl_eq! { for Message }
+impl_partial_eq! { Data for Message use identity }
+impl_partial_eq! { Message for Message use identity }
+
 /// A compiled JavaScript module.
 #[repr(C)]
 pub struct Module(Opaque);
@@ -222,6 +254,19 @@ impl_deref! { Data for Module }
 impl_eq! { for Module }
 impl_partial_eq! { Data for Module use identity }
 impl_partial_eq! { Module for Module use identity }
+
+/// An array to hold Primitive values. This is used by the embedder to
+/// pass host defined options to the ScriptOptions during compilation.
+///
+/// This is passed back to the embedder as part of
+/// HostImportModuleDynamicallyCallback for module loading.
+#[repr(C)]
+pub struct PrimitiveArray(Opaque);
+
+impl_deref! { Data for PrimitiveArray }
+impl_eq! { for PrimitiveArray }
+impl_partial_eq! { Data for PrimitiveArray use identity }
+impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
 
 /// A private symbol
 ///
@@ -233,6 +278,28 @@ impl_deref! { Data for Private }
 impl_eq! { for Private }
 impl_partial_eq! { Data for Private use identity }
 impl_partial_eq! { Private for Private use identity }
+
+/// A compiled JavaScript script, tied to a Context which was active when the
+/// script was compiled.
+#[repr(C)]
+pub struct Script(Opaque);
+
+impl_deref! { Data for Script }
+impl_eq! { for Script }
+impl_partial_eq! { Data for Script use identity }
+impl_partial_eq! { Script for Script use identity }
+
+/// A container type that holds relevant metadata for module loading.
+///
+/// This is passed back to the embedder as part of
+/// HostImportModuleDynamicallyCallback for module loading.
+#[repr(C)]
+pub struct ScriptOrModule(Opaque);
+
+impl_deref! { Data for ScriptOrModule }
+impl_eq! { for ScriptOrModule }
+impl_partial_eq! { Data for ScriptOrModule use identity }
+impl_partial_eq! { ScriptOrModule for ScriptOrModule use identity }
 
 /// A Signature specifies which receiver is valid for a function.
 ///
@@ -247,6 +314,26 @@ impl_deref! { Data for Signature }
 impl_eq! { for Signature }
 impl_partial_eq! { Data for Signature use identity }
 impl_partial_eq! { Signature for Signature use identity }
+
+/// A single JavaScript stack frame.
+#[repr(C)]
+pub struct StackFrame(Opaque);
+
+impl_deref! { Data for StackFrame }
+impl_eq! { for StackFrame }
+impl_partial_eq! { Data for StackFrame use identity }
+impl_partial_eq! { StackFrame for StackFrame use identity }
+
+/// Representation of a JavaScript stack trace. The information collected is a
+/// snapshot of the execution stack and the information remains valid after
+/// execution continues.
+#[repr(C)]
+pub struct StackTrace(Opaque);
+
+impl_deref! { Data for StackTrace }
+impl_eq! { for StackTrace }
+impl_partial_eq! { Data for StackTrace use identity }
+impl_partial_eq! { StackTrace for StackTrace use identity }
 
 /// The superclass of object and function templates.
 #[repr(C)]
@@ -295,11 +382,12 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 ///    proto_t->Set(isolate, "proto_const", v8::Number::New(isolate, 2));
 ///
 ///    v8::Local<v8::ObjectTemplate> instance_t = t->InstanceTemplate();
-///    instance_t->SetAccessor(String::NewFromUtf8(isolate, "instance_accessor"),
-///                            InstanceAccessorCallback);
+///    instance_t->SetAccessor(
+///        String::NewFromUtf8Literal(isolate, "instance_accessor"),
+///        InstanceAccessorCallback);
 ///    instance_t->SetHandler(
 ///        NamedPropertyHandlerConfiguration(PropertyHandlerCallback));
-///    instance_t->Set(String::NewFromUtf8(isolate, "instance_property"),
+///    instance_t->Set(String::NewFromUtf8Literal(isolate, "instance_property"),
 ///                    Number::New(isolate, 3));
 ///
 ///    v8::Local<v8::Function> function = t->GetFunction();
@@ -359,6 +447,12 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 ///   child_instance.instance_accessor calls 'InstanceAccessorCallback'
 ///   child_instance.instance_property == 3;
 /// ```
+///
+/// The additional 'c_function' parameter refers to a fast API call, which
+/// must not trigger GC or JavaScript execution, or call into V8 in other
+/// ways. For more information how to define them, see
+/// include/v8-fast-api-calls.h. Please note that this feature is still
+/// experimental.
 #[repr(C)]
 pub struct FunctionTemplate(Opaque);
 
@@ -389,6 +483,15 @@ impl_deref! { Data for UnboundModuleScript }
 impl_eq! { for UnboundModuleScript }
 impl_partial_eq! { Data for UnboundModuleScript use identity }
 impl_partial_eq! { UnboundModuleScript for UnboundModuleScript use identity }
+
+/// A compiled JavaScript script, not yet tied to a Context.
+#[repr(C)]
+pub struct UnboundScript(Opaque);
+
+impl_deref! { Data for UnboundScript }
+impl_eq! { for UnboundScript }
+impl_partial_eq! { Data for UnboundScript use identity }
+impl_partial_eq! { UnboundScript for UnboundScript use identity }
 
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
@@ -917,9 +1020,10 @@ impl_partial_eq! { Value for Date use identity }
 impl_partial_eq! { Object for Date use identity }
 impl_partial_eq! { Date for Date use identity }
 
-/// An instance of the built-in FinalizationGroup constructor.
+/// An instance of the built-in FinalizationRegistry constructor.
 ///
-/// This API is experimental and may change significantly.
+/// The C++ name is FinalizationGroup for backwards compatibility. This API is
+/// experimental and deprecated.
 #[repr(C)]
 pub struct FinalizationGroup(Opaque);
 
@@ -1247,62 +1351,3 @@ impl_partial_eq! { Primitive for Uint32 use strict_equals }
 impl_partial_eq! { Number for Uint32 use strict_equals }
 impl_partial_eq! { Integer for Uint32 use strict_equals }
 impl_partial_eq! { Uint32 for Uint32 use strict_equals }
-
-/// An error message.
-#[repr(C)]
-pub struct Message(Opaque);
-
-impl_eq! { for Message }
-impl_partial_eq! { Message for Message use identity }
-
-/// An array to hold Primitive values. This is used by the embedder to
-/// pass host defined options to the ScriptOptions during compilation.
-///
-/// This is passed back to the embedder as part of
-/// HostImportModuleDynamicallyCallback for module loading.
-#[repr(C)]
-pub struct PrimitiveArray(Opaque);
-
-impl_eq! { for PrimitiveArray }
-impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
-
-/// A compiled JavaScript script, tied to a Context which was active when the
-/// script was compiled.
-#[repr(C)]
-pub struct Script(Opaque);
-
-impl_eq! { for Script }
-impl_partial_eq! { Script for Script use identity }
-
-/// A container type that holds relevant metadata for module loading.
-///
-/// This is passed back to the embedder as part of
-/// HostImportModuleDynamicallyCallback for module loading.
-#[repr(C)]
-pub struct ScriptOrModule(Opaque);
-
-impl_eq! { for ScriptOrModule }
-impl_partial_eq! { ScriptOrModule for ScriptOrModule use identity }
-
-/// A single JavaScript stack frame.
-#[repr(C)]
-pub struct StackFrame(Opaque);
-
-impl_eq! { for StackFrame }
-impl_partial_eq! { StackFrame for StackFrame use identity }
-
-/// Representation of a JavaScript stack trace. The information collected is a
-/// snapshot of the execution stack and the information remains valid after
-/// execution continues.
-#[repr(C)]
-pub struct StackTrace(Opaque);
-
-impl_eq! { for StackTrace }
-impl_partial_eq! { StackTrace for StackTrace use identity }
-
-/// A compiled JavaScript script, not yet tied to a Context.
-#[repr(C)]
-pub struct UnboundScript(Opaque);
-
-impl_eq! { for UnboundScript }
-impl_partial_eq! { UnboundScript for UnboundScript use identity }

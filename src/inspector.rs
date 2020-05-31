@@ -16,7 +16,6 @@
 use crate::scope_traits::InIsolate;
 use crate::support::int;
 use crate::support::CxxVTable;
-use crate::support::Delete;
 use crate::support::FieldOffset;
 use crate::support::Opaque;
 use crate::support::RustVTable;
@@ -29,36 +28,36 @@ use crate::Local;
 extern "C" {
   fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<Channel>,
-  ) -> ();
+  );
 
   fn v8_inspector__V8Inspector__Channel__sendResponse(
     this: &mut Channel,
     call_id: int,
     message: UniquePtr<StringBuffer>,
-  ) -> ();
+  );
   fn v8_inspector__V8Inspector__Channel__sendNotification(
     this: &mut Channel,
     message: UniquePtr<StringBuffer>,
-  ) -> ();
+  );
   fn v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
     this: &mut Channel,
-  ) -> ();
+  );
 
   fn v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
     buf: &mut std::mem::MaybeUninit<V8InspectorClient>,
-  ) -> ();
+  );
 
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut V8InspectorClient,
     context_group_id: int,
-  ) -> ();
+  );
   fn v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
     this: &mut V8InspectorClient,
-  ) -> ();
+  );
   fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
     this: &mut V8InspectorClient,
     context_group_id: int,
-  ) -> ();
+  );
   fn v8_inspector__V8InspectorClient__consoleAPIMessage(
     this: &mut V8InspectorClient,
     context_group_id: int,
@@ -68,29 +67,26 @@ extern "C" {
     line_number: u32,
     column_number: u32,
     stack_trace: &mut V8StackTrace,
-  ) -> ();
-
-  fn v8_inspector__V8InspectorSession__DELETE(
-    this: &'static mut V8InspectorSession,
   );
+
+  fn v8_inspector__V8InspectorSession__DELETE(this: &mut V8InspectorSession);
   fn v8_inspector__V8InspectorSession__dispatchProtocolMessage(
     session: *mut V8InspectorSession,
-    message: &StringView,
+    message: StringView,
   );
   fn v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     session: *mut V8InspectorSession,
-    break_reason: &StringView,
-    break_details: &StringView,
+    break_reason: StringView,
+    break_details: StringView,
   );
 
-  fn v8_inspector__StringBuffer__DELETE(this: &'static mut StringBuffer) -> ();
-  fn v8_inspector__StringBuffer__string(this: &mut StringBuffer)
-    -> &StringView;
+  fn v8_inspector__StringBuffer__DELETE(this: &mut StringBuffer);
+  fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView;
   fn v8_inspector__StringBuffer__create(
-    source: &StringView,
+    source: StringView,
   ) -> UniquePtr<StringBuffer>;
 
-  fn v8_inspector__V8Inspector__DELETE(this: &'static mut V8Inspector);
+  fn v8_inspector__V8Inspector__DELETE(this: &mut V8Inspector);
   fn v8_inspector__V8Inspector__create(
     isolate: *mut Isolate,
     client: *mut V8InspectorClient,
@@ -99,13 +95,13 @@ extern "C" {
     inspector: *mut V8Inspector,
     context_group_id: int,
     channel: *mut Channel,
-    state: *const StringView,
+    state: StringView,
   ) -> *mut V8InspectorSession;
   fn v8_inspector__V8Inspector__contextCreated(
-    inspector: *mut V8Inspector,
-    context: *mut Context,
-    context_group_id: int,
-    human_readable_name: *const StringView,
+    this: *mut V8Inspector,
+    context: *const Context,
+    contextGroupId: int,
+    humanReadableName: StringView,
   );
 }
 
@@ -237,13 +233,9 @@ pub trait ChannelImpl: AsChannel {
   fn base(&self) -> &ChannelBase;
   fn base_mut(&mut self) -> &mut ChannelBase;
 
-  fn send_response(
-    &mut self,
-    call_id: i32,
-    message: UniquePtr<StringBuffer>,
-  ) -> ();
-  fn send_notification(&mut self, message: UniquePtr<StringBuffer>) -> ();
-  fn flush_protocol_notifications(&mut self) -> ();
+  fn send_response(&mut self, call_id: i32, message: UniquePtr<StringBuffer>);
+  fn send_notification(&mut self, message: UniquePtr<StringBuffer>);
+  fn flush_protocol_notifications(&mut self);
 }
 
 pub struct ChannelBase {
@@ -378,9 +370,9 @@ mod tests {
   fn test_channel() {
     let mut channel = TestChannel::new();
     let msg_view = StringView::from(MESSAGE);
-    channel.send_response(999, StringBuffer::create(&msg_view));
+    channel.send_response(999, StringBuffer::create(msg_view));
     assert_eq!(CALL_COUNT.swap(0, SeqCst), 1);
-    channel.send_notification(StringBuffer::create(&msg_view));
+    channel.send_notification(StringBuffer::create(msg_view));
     assert_eq!(CALL_COUNT.swap(0, SeqCst), 1);
     channel.flush_protocol_notifications();
     assert_eq!(CALL_COUNT.swap(0, SeqCst), 1);
@@ -566,7 +558,7 @@ impl V8InspectorClientBase {
 pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
-  pub fn dispatch_protocol_message(&mut self, message: &StringView) {
+  pub fn dispatch_protocol_message(&mut self, message: StringView) {
     unsafe {
       v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message)
     }
@@ -574,8 +566,8 @@ impl V8InspectorSession {
 
   pub fn schedule_pause_on_next_statement(
     &mut self,
-    reason: &StringView,
-    detail: &StringView,
+    reason: StringView,
+    detail: StringView,
   ) {
     unsafe {
       v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
@@ -585,8 +577,8 @@ impl V8InspectorSession {
   }
 }
 
-impl Delete for V8InspectorSession {
-  fn delete(&'static mut self) {
+impl Drop for V8InspectorSession {
+  fn drop(&mut self) {
     unsafe { v8_inspector__V8InspectorSession__DELETE(self) };
   }
 }
@@ -607,18 +599,18 @@ impl StringBuffer {
   // therefore we declare self as mutable here.
   // TODO: figure out whether it'd be safe to assume a const receiver here.
   // That would make it possible to implement `Deref<Target = StringBuffer>`.
-  pub fn string(&mut self) -> &StringView {
+  pub fn string(&self) -> StringView {
     unsafe { v8_inspector__StringBuffer__string(self) }
   }
 
   /// This method copies contents.
-  pub fn create(source: &StringView) -> UniquePtr<StringBuffer> {
+  pub fn create(source: StringView) -> UniquePtr<StringBuffer> {
     unsafe { v8_inspector__StringBuffer__create(source) }
   }
 }
 
-impl Delete for StringBuffer {
-  fn delete(&'static mut self) {
+impl Drop for StringBuffer {
+  fn drop(&mut self) {
     unsafe { v8_inspector__StringBuffer__DELETE(self) }
   }
 }
@@ -640,6 +632,7 @@ use std::string;
 //    `u8` have the same size. This is assumption is checked in 'support.h'.
 //    TODO: find/open upstream issue to allow #[repr(bool)] support.
 
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum StringView<'a> {
   // Do not reorder!
@@ -708,8 +701,8 @@ impl<'a> StringView<'a> {
   }
 }
 
-impl<'a: 'b, 'b> IntoIterator for &'a StringView<'b> {
-  type IntoIter = StringViewIterator<'a, 'b>;
+impl<'a> IntoIterator for StringView<'a> {
+  type IntoIter = StringViewIterator<'a>;
   type Item = u16;
 
   fn into_iter(self) -> Self::IntoIter {
@@ -804,12 +797,12 @@ impl<'a, T> Deref for CharacterArray<'a, T> {
 }
 
 #[derive(Copy, Clone)]
-pub struct StringViewIterator<'a: 'b, 'b> {
-  view: &'a StringView<'b>,
+pub struct StringViewIterator<'a> {
+  view: StringView<'a>,
   pos: usize,
 }
 
-impl<'a: 'b, 'b> Iterator for StringViewIterator<'a, 'b> {
+impl<'a> Iterator for StringViewIterator<'a> {
   type Item = u16;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -822,7 +815,7 @@ impl<'a: 'b, 'b> Iterator for StringViewIterator<'a, 'b> {
   }
 }
 
-impl<'a: 'b, 'b> ExactSizeIterator for StringViewIterator<'a, 'b> {
+impl<'a> ExactSizeIterator for StringViewIterator<'a> {
   fn len(&self) -> usize {
     self.view.len()
   }
@@ -859,7 +852,7 @@ impl V8Inspector {
     &mut self,
     context_group_id: i32,
     channel: &mut T,
-    state: &StringView,
+    state: StringView,
   ) -> UniqueRef<V8InspectorSession>
   where
     T: AsChannel,
@@ -878,14 +871,14 @@ impl V8Inspector {
   /// work to bind the V8ContextInfo, which is not used elsewhere.
   pub fn context_created(
     &mut self,
-    mut context: Local<Context>,
+    context: Local<Context>,
     context_group_id: i32,
-    human_readable_name: &StringView,
+    human_readable_name: StringView,
   ) {
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
         self,
-        &mut *context,
+        &*context,
         context_group_id,
         human_readable_name,
       )
@@ -893,8 +886,8 @@ impl V8Inspector {
   }
 }
 
-impl Delete for V8Inspector {
-  fn delete(&'static mut self) {
+impl Drop for V8Inspector {
+  fn drop(&mut self) {
     unsafe { v8_inspector__V8Inspector__DELETE(self) };
   }
 }

@@ -18,6 +18,7 @@ secondary_source = "//v8/"
 
 default_args = {
   linux_use_bundled_binutils = false
+  use_sysroot = false
 
   use_dummy_lastchange = true
   treat_warnings_as_errors = true

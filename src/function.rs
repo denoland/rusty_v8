@@ -19,48 +19,47 @@ use crate::Value;
 
 extern "C" {
   fn v8__Function__New(
-    context: *mut Context,
+    context: *const Context,
     callback: FunctionCallback,
-  ) -> *mut Function;
+  ) -> *const Function;
   fn v8__Function__NewWithData(
-    context: *mut Context,
+    context: *const Context,
     callback: FunctionCallback,
-    data: Local<Value>,
-  ) -> *mut Function;
+    data: *const Value,
+  ) -> *const Function;
   fn v8__Function__Call(
-    function: *const Function,
-    context: Local<Context>,
-    recv: Local<Value>,
+    this: *const Function,
+    context: *const Context,
+    recv: *const Value,
     argc: int,
-    argv: *const Local<Value>,
-  ) -> *mut Value;
+    argv: *const *const Value,
+  ) -> *const Value;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
   ) -> *mut Value;
   fn v8__FunctionCallbackInfo__This(
-    info: *const FunctionCallbackInfo,
-  ) -> *mut Object;
-  fn v8__FunctionCallbackInfo__Length(info: *const FunctionCallbackInfo)
+    this: *const FunctionCallbackInfo,
+  ) -> *const Object;
+  fn v8__FunctionCallbackInfo__Length(this: *const FunctionCallbackInfo)
     -> int;
   fn v8__FunctionCallbackInfo__GetArgument(
-    info: *const FunctionCallbackInfo,
+    this: *const FunctionCallbackInfo,
     i: int,
-  ) -> *mut Value;
+  ) -> *const Value;
   fn v8__FunctionCallbackInfo__Data(
-    info: *const FunctionCallbackInfo,
-  ) -> *mut Value;
+    this: *const FunctionCallbackInfo,
+  ) -> *const Value;
 
   fn v8__PropertyCallbackInfo__GetReturnValue(
-    info: *const PropertyCallbackInfo,
+    this: *const PropertyCallbackInfo,
   ) -> *mut Value;
   fn v8__PropertyCallbackInfo__This(
-    info: *const PropertyCallbackInfo,
-  ) -> *mut Object;
+    this: *const PropertyCallbackInfo,
+  ) -> *const Object;
 
-  fn v8__ReturnValue__Set(rv: &mut ReturnValue, value: *mut Value);
-  fn v8__ReturnValue__Get(rv: &ReturnValue) -> *mut Value;
-
+  fn v8__ReturnValue__Set(this: *mut ReturnValue, value: *const Value);
+  fn v8__ReturnValue__Get(this: *const ReturnValue) -> *const Value;
 }
 
 // Npte: the 'cb lifetime is required because the ReturnValue object must not
@@ -86,8 +85,8 @@ impl<'cb> ReturnValue<'cb> {
 
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
-  pub fn set(&mut self, mut value: Local<Value>) {
-    unsafe { v8__ReturnValue__Set(&mut *self, &mut *value) }
+  pub fn set(&mut self, value: Local<Value>) {
+    unsafe { v8__ReturnValue__Set(&mut *self, &*value) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
@@ -110,7 +109,7 @@ pub struct FunctionCallbackInfo {
   // The layout of this struct must match that of `class FunctionCallbackInfo`
   // as defined in v8.h.
   implicit_args: *mut Opaque,
-  values: *mut Value,
+  values: *const Value,
   length: int,
 }
 
@@ -147,14 +146,14 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 
   /// Returns the receiver. This corresponds to the "this" value.
-  pub fn this(&self) -> Local<Object> {
+  pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
     }
   }
 
   /// Returns the data argument specified when creating the callback.
-  pub fn data(&self) -> Option<Local<Value>> {
+  pub fn data(&self) -> Option<Local<'s, Value>> {
     unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
   }
 
@@ -169,7 +168,7 @@ impl<'s> FunctionCallbackArguments<'s> {
 
   /// Accessor for the available arguments. Returns `undefined` if the index is
   /// out of bounds.
-  pub fn get(&self, i: int) -> Local<Value> {
+  pub fn get(&self, i: int) -> Local<'s, Value> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self.info, i))
         .unwrap()
@@ -229,7 +228,7 @@ impl<'s> PropertyCallbackArguments<'s> {
   ///
   ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
   /// ```
-  pub fn this(&self) -> Local<Object> {
+  pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
     }
@@ -288,11 +287,11 @@ impl Function {
   /// for a given FunctionCallback.
   pub fn new<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
+    context: Local<Context>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'sc, Function>> {
     unsafe {
-      scope.to_local(v8__Function__New(&mut *context, callback.map_fn_to()))
+      scope.to_local(v8__Function__New(&*context, callback.map_fn_to()))
     }
   }
 
@@ -300,15 +299,15 @@ impl Function {
   /// for a given FunctionCallback and associated data.
   pub fn new_with_data<'sc>(
     scope: &mut impl ToLocal<'sc>,
-    mut context: Local<Context>,
+    context: Local<Context>,
     data: Local<Value>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'sc, Function>> {
     unsafe {
       scope.to_local(v8__Function__NewWithData(
-        &mut *context,
+        &*context,
         callback.map_fn_to(),
-        data,
+        &*data,
       ))
     }
   }
@@ -320,10 +319,11 @@ impl Function {
     recv: Local<Value>,
     args: &[Local<Value>],
   ) -> Option<Local<'sc, Value>> {
-    let argv = args.as_ptr();
+    let args = Local::slice_into_raw(args);
     let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
     unsafe {
-      scope.to_local(v8__Function__Call(self, context, recv, argc, argv))
+      scope.to_local(v8__Function__Call(self, &*context, &*recv, argc, argv))
     }
   }
 }

@@ -1,12 +1,12 @@
 use std::mem::drop;
 use std::mem::forget;
+use std::mem::ManuallyDrop;
 
 use crate::support::CxxVTable;
-use crate::support::Delete;
 use crate::support::FieldOffset;
 use crate::support::Opaque;
 use crate::support::RustVTable;
-use crate::support::UniquePtr;
+use crate::support::UniqueRef;
 
 // class Task {
 //  public:
@@ -15,9 +15,9 @@ use crate::support::UniquePtr;
 // };
 
 extern "C" {
-  fn v8__Task__BASE__CONSTRUCT(buf: &mut std::mem::MaybeUninit<Task>) -> ();
-  fn v8__Task__DELETE(this: &'static mut Task) -> ();
-  fn v8__Task__Run(this: &mut Task) -> ();
+  fn v8__Task__BASE__CONSTRUCT(buf: *mut std::mem::MaybeUninit<Task>);
+  fn v8__Task__DELETE(this: *mut Task);
+  fn v8__Task__Run(this: *mut Task);
 }
 
 #[no_mangle]
@@ -41,8 +41,8 @@ impl Task {
   }
 }
 
-impl Delete for Task {
-  fn delete(&'static mut self) {
+impl Drop for Task {
+  fn drop(&mut self) {
     unsafe { v8__Task__DELETE(self) }
   }
 }
@@ -52,13 +52,13 @@ pub trait AsTask {
   fn as_task_mut(&mut self) -> &mut Task;
 
   // TODO: this should be a trait in itself.
-  fn into_unique_ptr(mut self: Box<Self>) -> UniquePtr<Task>
+  fn into_unique_ref(mut self: Box<Self>) -> UniqueRef<Task>
   where
     Self: 'static,
   {
     let task = self.as_task_mut() as *mut Task;
     forget(self);
-    unsafe { UniquePtr::from_raw(task) }
+    unsafe { UniqueRef::from_raw(task) }
   }
 }
 
@@ -86,27 +86,27 @@ where
 pub trait TaskImpl: AsTask {
   fn base(&self) -> &TaskBase;
   fn base_mut(&mut self) -> &mut TaskBase;
-  fn run(&mut self) -> ();
+  fn run(&mut self);
 }
 
 pub struct TaskBase {
-  cxx_base: Task,
+  cxx_base: ManuallyDrop<Task>,
   offset_within_embedder: FieldOffset<Self>,
   rust_vtable: RustVTable<&'static dyn TaskImpl>,
 }
 
 impl TaskBase {
-  fn construct_cxx_base() -> Task {
+  fn construct_cxx_base() -> ManuallyDrop<Task> {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<Task>::uninit();
       v8__Task__BASE__CONSTRUCT(&mut buf);
-      buf.assume_init()
+      ManuallyDrop::new(buf.assume_init())
     }
   }
 
   fn get_cxx_base_offset() -> FieldOffset<Task> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &*(*buf.as_ptr()).cxx_base })
   }
 
   fn get_offset_within_embedder<T>() -> FieldOffset<Self>
@@ -210,15 +210,19 @@ mod tests {
   #[test]
   fn test_task() {
     {
-      TestTask::new().run();
+      let mut task = TestTask::new();
+      task.run();
+      drop(task);
+      assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
+      assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
     }
-    assert_eq!(RUN_COUNT.swap(0, SeqCst), 1);
-    assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
-
     {
-      Box::new(TestTask::new()).into_unique_ptr();
+      let mut task = Box::new(TestTask::new()).into_unique_ref();
+      task.run();
+      task.run();
+      drop(task);
+      assert_eq!(RUN_COUNT.swap(0, SeqCst), 2);
+      assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
     }
-    assert_eq!(RUN_COUNT.swap(0, SeqCst), 0);
-    assert_eq!(DROP_COUNT.swap(0, SeqCst), 1);
   }
 }
