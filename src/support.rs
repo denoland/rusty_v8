@@ -177,7 +177,7 @@ where
   Self: Sized,
 {
   fn clone(shared_ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self>;
-  fn from_unique_ptr(shared_ptr: UniquePtr<Self>) -> SharedPtrBase<Self>;
+  fn from_unique_ptr(unique_ptr: UniquePtr<Self>) -> SharedPtrBase<Self>;
   fn get(shared_ptr: &SharedPtrBase<Self>) -> *mut Self;
   fn reset(shared_ptr: &mut SharedPtrBase<Self>);
   fn use_count(shared_ptr: &SharedPtrBase<Self>) -> long;
