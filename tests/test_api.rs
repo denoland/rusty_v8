@@ -3009,3 +3009,79 @@ fn test_object_get_property_names() {
     assert!(own_props.get_index(scope, context, 0).unwrap() == js_test_str);
   }
 }
+
+#[test]
+fn module_snapshot() {
+  let _setup_guard = setup();
+
+  let startup_data = {
+    let mut snapshot_creator = v8::SnapshotCreator::new(None);
+    {
+      // TODO(ry) this shouldn't be necessary. workaround unfinished business in
+      // the scope type system.
+      let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+
+      let mut hs = v8::HandleScope::new(&mut isolate);
+      let scope = hs.enter();
+      let context = v8::Context::new(scope);
+      let mut cs = v8::ContextScope::new(scope, context);
+      let scope = cs.enter();
+
+      let source_text = v8_str(
+        scope,
+        "import 'globalThis.b = 42';\n\
+         globalThis.a = 3",
+      );
+      let origin = mock_script_origin(scope, "foo.js");
+      let source = v8::script_compiler::Source::new(source_text, &origin);
+
+      let mut module =
+        v8::script_compiler::compile_module(scope, source).unwrap();
+      assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+
+      let result = module.instantiate_module(
+        context,
+        compile_specifier_as_module_resolve_callback,
+      );
+      assert!(result.unwrap());
+      assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+
+      let result = module.evaluate(scope, context);
+      assert!(result.is_some());
+      assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+      snapshot_creator.set_default_context(context);
+      std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+    }
+
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Keep)
+      .unwrap()
+  };
+  assert!(startup_data.len() > 0);
+  {
+    let params = v8::Isolate::create_params().snapshot_blob(startup_data);
+    let mut isolate = v8::Isolate::new(params);
+    {
+      let mut hs = v8::HandleScope::new(&mut isolate);
+      let scope = hs.enter();
+      let context = v8::Context::new(scope);
+      let mut cs = v8::ContextScope::new(scope, context);
+      let scope = cs.enter();
+
+      let true_val = v8::Boolean::new(scope, true).into();
+
+      let source = v8::String::new(scope, "a === 3").unwrap();
+      let mut script =
+        v8::Script::compile(scope, context, source, None).unwrap();
+      let result = script.run(scope, context).unwrap();
+      assert!(result.same_value(true_val));
+
+      let source = v8::String::new(scope, "b === 42").unwrap();
+      let mut script =
+        v8::Script::compile(scope, context, source, None).unwrap();
+      let result = script.run(scope, context).unwrap();
+      assert!(result.same_value(true_val));
+    }
+  }
+}
