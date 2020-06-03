@@ -1,7 +1,7 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
-use crate::scope::Entered;
 use crate::scope::Escapable;
+use crate::scope::Scope;
 use crate::CallbackScope;
 use crate::Context;
 use crate::ContextScope;
@@ -61,7 +61,7 @@ pub(crate) mod internal {
     }
   }
 
-  impl<'s, S> GetRawIsolate for Entered<'_, S>
+  impl<'s, S> GetRawIsolate for Scope<'_, S>
   where
     S: GetRawIsolate,
   {
@@ -132,7 +132,7 @@ pub trait InIsolate {
   fn isolate(&mut self) -> &mut Isolate;
 }
 
-impl<'s, S, P> InIsolate for Entered<'s, S, P>
+impl<'s, S, P> InIsolate for Scope<'s, S, P>
 where
   S: internal::GetRawIsolate,
 {
@@ -173,11 +173,11 @@ pub trait ToLocal<'s>: InIsolate {
   }
 }
 
-impl<'s> ToLocal<'s> for Entered<'s, FunctionCallbackInfo> {}
-impl<'s> ToLocal<'s> for Entered<'s, PropertyCallbackInfo> {}
-impl<'s, P> ToLocal<'s> for Entered<'s, HandleScope, P> {}
-impl<'s, P> ToLocal<'s> for Entered<'s, EscapableHandleScope, P> {}
-impl<'s, 'p: 's, P> ToLocal<'p> for Entered<'s, ContextScope, P> where
+impl<'s> ToLocal<'s> for Scope<'s, FunctionCallbackInfo> {}
+impl<'s> ToLocal<'s> for Scope<'s, PropertyCallbackInfo> {}
+impl<'s, P> ToLocal<'s> for Scope<'s, HandleScope, P> {}
+impl<'s, P> ToLocal<'s> for Scope<'s, EscapableHandleScope, P> {}
+impl<'s, 'p: 's, P> ToLocal<'p> for Scope<'s, ContextScope, P> where
   P: ToLocal<'p>
 {
 }
@@ -185,7 +185,7 @@ impl<'s, 'p: 's, P> ToLocal<'p> for Entered<'s, ContextScope, P> where
 pub trait ToLocalOrReturnsLocal<'s>: InIsolate {}
 impl<'s, E> ToLocalOrReturnsLocal<'s> for E where E: ToLocal<'s> {}
 impl<'s, 'p: 's> ToLocalOrReturnsLocal<'p>
-  for Entered<'s, CallbackScope<Escapable>>
+  for Scope<'s, CallbackScope<Escapable>>
 {
 }
 
@@ -193,7 +193,7 @@ pub trait EscapeLocal<'s, 'p: 's>: ToLocal<'s> {
   fn escape<T>(&mut self, local: Local<T>) -> Local<'p, T>;
 }
 
-impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Entered<'s, EscapableHandleScope, P>
+impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Scope<'s, EscapableHandleScope, P>
 where
   P: ToLocalOrReturnsLocal<'p>,
 {
@@ -202,7 +202,7 @@ where
   }
 }
 
-impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Entered<'s, ContextScope, P>
+impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Scope<'s, ContextScope, P>
 where
   P: EscapeLocal<'s, 'p>,
 {
@@ -211,7 +211,7 @@ where
   }
 }
 
-impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Entered<'s, HandleScope, P>
+impl<'s, 'p: 's, P> EscapeLocal<'s, 'p> for Scope<'s, HandleScope, P>
 where
   P: EscapeLocal<'s, 'p>,
 {
@@ -220,9 +220,9 @@ where
   }
 }
 
-// TODO(piscisaureus): move the impls for Entered to a more sensible spot.
+// TODO(piscisaureus): move the impls for Scope to a more sensible spot.
 
-impl<'s, S, P> Entered<'s, S, P>
+impl<'s, S, P> Scope<'s, S, P>
 where
   Self: InIsolate,
 {
@@ -231,7 +231,7 @@ where
   }
 }
 
-impl<'s, 'p: 's, S, P> Entered<'s, S, P>
+impl<'s, 'p: 's, S, P> Scope<'s, S, P>
 where
   Self: ToLocal<'p>,
 {
@@ -252,7 +252,7 @@ where
   }
 }
 
-impl<'s, 'p: 's, S, P> Entered<'s, S, P>
+impl<'s, 'p: 's, S, P> Scope<'s, S, P>
 where
   Self: EscapeLocal<'s, 'p>,
 {

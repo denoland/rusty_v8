@@ -1,7 +1,7 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
 use crate::isolate::Isolate;
-use crate::scope::Scope;
+use crate::scope::ScopeData;
 use crate::scope::ScopeDefinition;
 use crate::scope_traits::ToLocalOrReturnsLocal;
 use crate::Data;
@@ -38,12 +38,12 @@ extern "C" {
 pub struct HandleScope([usize; 3]);
 
 impl<'s> HandleScope {
-  pub fn new<P>(parent: &'s mut P) -> Scope<'s, Self, P>
+  pub fn new<P>(parent: &'s mut P) -> ScopeData<'s, Self, P>
   where
     P: InIsolate,
   {
     let isolate: *mut Isolate = parent.isolate();
-    Scope::new(isolate, parent)
+    ScopeData::new(isolate, parent)
   }
 }
 
@@ -66,12 +66,12 @@ impl Drop for HandleScope {
 pub struct EscapableHandleScope([usize; 4]);
 
 impl<'s> EscapableHandleScope {
-  pub fn new<'p: 's, P>(parent: &'s mut P) -> Scope<'s, Self, P>
+  pub fn new<'p: 's, P>(parent: &'s mut P) -> ScopeData<'s, Self, P>
   where
     P: ToLocalOrReturnsLocal<'p>,
   {
     let isolate: *mut Isolate = parent.isolate();
-    Scope::new(isolate, parent)
+    ScopeData::new(isolate, parent)
   }
 
   /// Pushes the value into the previous scope and returns a handle to it.

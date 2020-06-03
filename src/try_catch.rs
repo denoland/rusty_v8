@@ -64,7 +64,7 @@ pub struct TryCatchScope<'tc>(TryCatchState<'tc>);
 enum TryCatchState<'tc> {
   New { isolate: *mut Isolate },
   Uninit(MaybeUninit<TryCatch<'tc>>),
-  Entered(TryCatch<'tc>),
+  Scope(TryCatch<'tc>),
 }
 
 impl<'tc> TryCatch<'tc> {
@@ -229,12 +229,12 @@ impl<'tc> TryCatchScope<'tc> {
     TryCatch::construct(buf, isolate);
 
     *state = match take(state) {
-      Uninit(b) => Entered(unsafe { b.assume_init() }),
+      Uninit(b) => Scope(unsafe { b.assume_init() }),
       _ => unreachable!(),
     };
 
     match state {
-      Entered(v) => v,
+      Scope(v) => v,
       _ => unreachable!(),
     }
   }

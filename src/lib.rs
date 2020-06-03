@@ -37,7 +37,7 @@
 //! object that is directly accessible, which guarantees that all interactions
 //! with the Isolate are safe.
 //!
-//! A Scope as such is not a trait (there is currently an internal
+//! A ScopeData as such is not a trait (there is currently an internal
 //! ScopeDefinition trait but that's only there to make implementation easier).
 //!
 //! Rather, there are a number of traits that are implemented for the scopes
@@ -46,7 +46,7 @@
 //! ToLocal (I might rename that) is implemented for all Scopes in which new
 //! Local handles can be created and it sets the appropriate lifetime on them.
 //!
-//! Furthermore, many callbacks will receive receive an appropriate Scope object
+//! Furthermore, many callbacks will receive receive an appropriate ScopeData object
 //! as their first argument, which 'encodes' the the state the isolate is in
 //! when the callback is called. E.g. a FunctionCallbackScope implements
 //! InIsolate + and ToLocal (it acts as a HandleScope).
@@ -149,7 +149,7 @@ pub use scope::CallbackScope;
 pub use scope::ContextScope;
 pub use scope::FunctionCallbackScope;
 pub use scope::PropertyCallbackScope;
-pub use scope::Scope;
+pub use scope::ScopeData;
 pub use scope_traits::*;
 pub use script::ScriptOrigin;
 pub use snapshot::FunctionCodeHandling;
