@@ -234,6 +234,30 @@ fn escapable_handle_scope() {
   }
 }
 
+#[ignore]
+#[test]
+#[should_panic(
+  expected = "Only one handle can escape from an EscapableHandleScope"
+)]
+fn escapable_handle_scope_can_escape_only_once() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut hs = v8::HandleScope::new(&mut isolate);
+  let hs = hs.enter();
+
+  let mut ehs = v8::EscapableHandleScope::new(hs);
+  let ehs = ehs.enter();
+
+  let local1 = v8::Integer::new(ehs, -123);
+  let escaped1 = ehs.escape(local1);
+  assert!(escaped1 == local1);
+
+  let local2 = v8::Integer::new(ehs, 456);
+  let escaped2 = ehs.escape(local2);
+  assert!(escaped2 == local2);
+}
+
 #[test]
 fn context_scope() {
   let _setup_guard = setup();
