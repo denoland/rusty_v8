@@ -2,11 +2,10 @@ use std::mem::transmute;
 use std::ptr::NonNull;
 
 use crate::Data;
-use crate::InIsolate;
+use crate::HandleScope;
 use crate::Isolate;
 use crate::IsolateHandle;
 use crate::Local;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__Local__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
@@ -50,16 +49,12 @@ impl<T> Global<T> {
   /// Construct a new Global from an existing handle. When the existing handle
   /// is non-empty, a new storage cell is created pointing to the same object,
   /// and no flags are set.
-  pub fn new_from(
-    scope: &mut impl InIsolate,
-    other: impl AnyHandle<T>,
-  ) -> Self {
-    let isolate = scope.isolate();
-    let other_value = other.read(isolate);
+  pub fn new_from(scope: &mut Isolate, other: impl AnyHandle<T>) -> Self {
+    let other_value = other.read(scope);
     Self {
       value: other_value
-        .map(|v| unsafe { transmute(v8__Global__New(isolate, transmute(v))) }),
-      isolate_handle: other_value.map(|_| isolate.thread_safe_handle()),
+        .map(|v| unsafe { transmute(v8__Global__New(scope, transmute(v))) }),
+      isolate_handle: other_value.map(|_| scope.thread_safe_handle()),
     }
   }
 
@@ -70,25 +65,25 @@ impl<T> Global<T> {
   }
 
   /// Construct a Local<T> from this global handle.
-  pub fn get<'sc>(
+  pub fn get<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, T>> {
-    self.check_isolate(scope.isolate());
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Option<Local<'s, T>> {
+    self.check_isolate(scope);
     self
       .value
       .map(|g| g.as_ptr() as *const Data)
       .and_then(|g| unsafe {
-        scope.cast_local(|scope| v8__Local__New(scope.isolate(), g) as *const T)
+        scope
+          .cast_local(|sd| v8__Local__New(sd.get_isolate_ptr(), g) as *const T)
       })
   }
 
   /// If non-empty, destroy the underlying storage cell
   /// and create a new one with the contents of other if other is non empty.
-  pub fn set(&mut self, scope: &mut impl InIsolate, other: impl AnyHandle<T>) {
-    let isolate = scope.isolate();
-    self.check_isolate(isolate);
-    let other_value = other.read(isolate);
+  pub fn set(&mut self, scope: &mut Isolate, other: impl AnyHandle<T>) {
+    self.check_isolate(scope);
+    let other_value = other.read(scope);
     match (&mut self.value, &other_value) {
       (None, None) => {}
       (target, None) => unsafe {
@@ -99,17 +94,17 @@ impl<T> Global<T> {
       (target, source) => unsafe {
         v8__Global__Reset__2(
           &mut *(target as *mut Option<NonNull<T>> as *mut *const Data),
-          isolate,
+          scope,
           &*(source as *const Option<NonNull<T>> as *const *const Data),
         )
       },
     }
-    self.isolate_handle = other_value.map(|_| isolate.thread_safe_handle());
+    self.isolate_handle = other_value.map(|_| scope.thread_safe_handle());
   }
 
   /// If non-empty, destroy the underlying storage cell
   /// IsEmpty() will return true after this call.
-  pub fn reset(&mut self, scope: &mut impl InIsolate) {
+  pub fn reset(&mut self, scope: &mut Isolate) {
     self.set(scope, None);
   }
 
@@ -164,19 +159,19 @@ pub trait AnyHandle<T> {
   fn read(self, isolate: &mut Isolate) -> Option<NonNull<T>>;
 }
 
-impl<'sc, T> AnyHandle<T> for Local<'sc, T> {
+impl<'s, T> AnyHandle<T> for Local<'s, T> {
   fn read(self, _isolate: &mut Isolate) -> Option<NonNull<T>> {
     Some(self.as_non_null())
   }
 }
 
-impl<'sc, T> AnyHandle<T> for Option<Local<'sc, T>> {
+impl<'s, T> AnyHandle<T> for Option<Local<'s, T>> {
   fn read(self, _isolate: &mut Isolate) -> Option<NonNull<T>> {
     self.map(|local| local.as_non_null())
   }
 }
 
-impl<'sc, T> AnyHandle<T> for &Global<T> {
+impl<'s, T> AnyHandle<T> for &Global<T> {
   fn read(self, isolate: &mut Isolate) -> Option<NonNull<T>> {
     self.check_isolate(isolate);
     self.value

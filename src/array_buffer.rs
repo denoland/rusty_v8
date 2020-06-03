@@ -14,10 +14,9 @@ use crate::support::SharedRef;
 use crate::support::UniquePtr;
 use crate::support::UniqueRef;
 use crate::ArrayBuffer;
-use crate::InIsolate;
+use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
@@ -236,25 +235,31 @@ impl ArrayBuffer {
   /// Allocated memory will be owned by a created ArrayBuffer and
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s>,
     byte_length: usize,
-  ) -> Local<'sc, ArrayBuffer> {
+  ) -> Local<'s, ArrayBuffer> {
     unsafe {
-      scope.cast_local(|scope| {
-        v8__ArrayBuffer__New__with_byte_length(scope.isolate(), byte_length)
+      scope.cast_local(|sd| {
+        v8__ArrayBuffer__New__with_byte_length(
+          sd.get_isolate_ptr(),
+          byte_length,
+        )
       })
     }
     .unwrap()
   }
 
-  pub fn with_backing_store<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn with_backing_store<'s>(
+    scope: &mut HandleScope<'s>,
     backing_store: &SharedRef<BackingStore>,
-  ) -> Local<'sc, ArrayBuffer> {
+  ) -> Local<'s, ArrayBuffer> {
     unsafe {
-      scope.cast_local(|scope| {
-        v8__ArrayBuffer__New__with_backing_store(scope.isolate(), backing_store)
+      scope.cast_local(|sd| {
+        v8__ArrayBuffer__New__with_backing_store(
+          sd.get_isolate_ptr(),
+          backing_store,
+        )
       })
     }
     .unwrap()
@@ -281,12 +286,12 @@ impl ArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   pub fn new_backing_store(
-    scope: &mut impl InIsolate,
+    scope: &mut Isolate,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_byte_length(
-        scope.isolate(),
+        scope,
         byte_length,
       ))
     }

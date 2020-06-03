@@ -5,11 +5,10 @@ use std::slice;
 
 use crate::support::char;
 use crate::support::int;
-use crate::InIsolate;
+use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::String;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
@@ -63,26 +62,26 @@ bitflags! {
 }
 
 impl String {
-  pub fn empty<'sc>(scope: &mut impl ToLocal<'sc>) -> Local<'sc, String> {
+  pub fn empty<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, String> {
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
-    unsafe { scope.cast_local(|scope| v8__String__Empty(scope.isolate())) }
+    unsafe { scope.cast_local(|sd| v8__String__Empty(sd.get_isolate_ptr())) }
       .unwrap()
   }
 
-  pub fn new_from_utf8<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new_from_utf8<'s>(
+    scope: &mut HandleScope<'s, ()>,
     buffer: &[u8],
     new_type: NewStringType,
-  ) -> Option<Local<'sc, String>> {
+  ) -> Option<Local<'s, String>> {
     if buffer.is_empty() {
       return Some(Self::empty(scope));
     }
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
-      scope.cast_local(|scope| {
+      scope.cast_local(|sd| {
         v8__String__NewFromUtf8(
-          scope.isolate(),
+          sd.get_isolate_ptr(),
           buffer.as_ptr() as *const char,
           new_type,
           buffer_len,
@@ -98,13 +97,13 @@ impl String {
 
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
-  pub fn utf8_length(&self, scope: &mut impl InIsolate) -> usize {
-    unsafe { v8__String__Utf8Length(self, scope.isolate()) as usize }
+  pub fn utf8_length(&self, scope: &mut Isolate) -> usize {
+    unsafe { v8__String__Utf8Length(self, scope) as usize }
   }
 
   pub fn write_utf8(
     &self,
-    scope: &mut impl InIsolate,
+    scope: &mut Isolate,
     buffer: &mut [u8],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
@@ -113,7 +112,7 @@ impl String {
     let bytes = unsafe {
       v8__String__WriteUtf8(
         self,
-        scope.isolate(),
+        scope,
         buffer.as_mut_ptr() as *mut char,
         buffer.len().try_into().unwrap_or(int::max_value()),
         &mut nchars_ref_int,
@@ -127,17 +126,17 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s, ()>,
     value: &str,
-  ) -> Option<Local<'sc, String>> {
+  ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
   // Convenience function not present in the original V8 API.
   pub fn to_rust_string_lossy(
     &self,
-    scope: &mut impl InIsolate,
+    scope: &mut Isolate,
   ) -> std::string::String {
     let capacity = self.utf8_length(scope);
     let mut string = std::string::String::with_capacity(capacity);

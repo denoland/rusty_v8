@@ -1,11 +1,11 @@
-error[E0597]: `hs` does not live long enough
-  --> $DIR/try_catch_message_lifetime.rs:11:14
+error[E0597]: `scope3` does not live long enough
+  --> $DIR/try_catch_message_lifetime.rs:15:43
    |
-9  |   let _exception = {
-   |       ---------- borrow later stored here
-10 |     let mut hs = v8::HandleScope::new(&mut isolate);
-11 |     let hs = hs.enter();
-   |              ^^ borrowed value does not live long enough
-12 |     try_catch.message(hs).unwrap()
-13 |   };
-   |   - `hs` dropped here while still borrowed
+13 |   let _message = {
+   |       -------- borrow later stored here
+14 |     let mut scope3 = v8::HandleScope::new(&mut scope2);
+15 |     let mut scope4 = v8::HandleScope::new(&mut scope3);
+   |                                           ^^^^^^^^^^^ borrowed value does not live long enough
+16 |     try_catch.message(&mut scope4).unwrap()
+17 |   };
+   |   - `scope3` dropped here while still borrowed

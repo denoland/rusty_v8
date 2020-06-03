@@ -1,4 +1,5 @@
 use crate::external_references::ExternalReferences;
+use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
 use crate::support::intptr_t;
@@ -105,7 +106,7 @@ impl SnapshotCreator {
   /// Set the default context to be included in the snapshot blob.
   /// The snapshot will not contain the global proxy, and we expect one or a
   /// global object template to create one, to be provided upon deserialization.
-  pub fn set_default_context<'sc>(&mut self, context: Local<'sc, Context>) {
+  pub fn set_default_context<'s>(&mut self, context: Local<'s, Context>) {
     unsafe { v8__SnapshotCreator__SetDefaultContext(self, &*context) };
   }
 
@@ -115,6 +116,10 @@ impl SnapshotCreator {
     &mut self,
     function_code_handling: FunctionCodeHandling,
   ) -> Option<StartupData> {
+    {
+      let isolate = unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) };
+      ScopeData::get_root_mut(isolate);
+    }
     let blob =
       unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {
@@ -134,6 +139,7 @@ impl SnapshotCreator {
   pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
     let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
+    ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(Box::new(()));
     owned_isolate
   }

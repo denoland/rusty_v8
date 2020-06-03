@@ -209,29 +209,6 @@ void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
 
 void v8__HandleScope__DESTRUCT(v8::HandleScope* self) { self->~HandleScope(); }
 
-v8::Isolate* v8__HandleScope__GetIsolate(const v8::HandleScope& self) {
-  return self.GetIsolate();
-}
-
-void v8__EscapableHandleScope__CONSTRUCT(
-    uninit_t<v8::EscapableHandleScope>* buf, v8::Isolate* isolate) {
-  construct_in_place<v8::EscapableHandleScope>(buf, isolate);
-}
-
-void v8__EscapableHandleScope__DESTRUCT(v8::EscapableHandleScope* self) {
-  self->~EscapableHandleScope();
-}
-
-const v8::Data* v8__EscapableHandleScope__Escape(v8::EscapableHandleScope* self,
-                                                 const v8::Data& value) {
-  return local_to_ptr(self->Escape(ptr_to_local(&value)));
-}
-
-v8::Isolate* v8__EscapableHandleScope__GetIsolate(
-    const v8::EscapableHandleScope& self) {
-  return self.GetIsolate();
-}
-
 const v8::Data* v8__Local__New(v8::Isolate* isolate, const v8::Data& other) {
   return local_to_ptr(v8::Local<v8::Data>::New(isolate, ptr_to_local(&other)));
 }
@@ -887,6 +864,10 @@ const v8::Context* v8__Context__New(v8::Isolate* isolate,
                        ptr_to_maybe_local(global_object),
                        v8::DeserializeInternalFieldsCallback(
                            DeserializeInternalFields, nullptr)));
+}
+
+bool v8__Context__EQ(const v8::Context& self, const v8::Context& other) {
+  return ptr_to_local(&self) == ptr_to_local(&other);
 }
 
 void v8__Context__Enter(const v8::Context& self) {

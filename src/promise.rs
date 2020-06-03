@@ -3,10 +3,10 @@ use std::marker::PhantomData;
 use crate::support::MaybeBool;
 use crate::Context;
 use crate::Function;
+use crate::HandleScope;
 use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
-use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -79,22 +79,19 @@ impl Promise {
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
-  pub fn result<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Local<'sc, Value> {
+  pub fn result<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Promise__Result(&*self)) }.unwrap()
   }
 
   /// Register a rejection handler with a promise.
   ///
   /// See `Self::then2`.
-  pub fn catch<'sc>(
+  pub fn catch<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut HandleScope<'s>,
     context: Local<Context>,
     handler: Local<Function>,
-  ) -> Option<Local<'sc, Promise>> {
+  ) -> Option<Local<'s, Promise>> {
     unsafe {
       scope.cast_local(|_| v8__Promise__Catch(&*self, &*context, &*handler))
     }
@@ -103,12 +100,12 @@ impl Promise {
   /// Register a resolution handler with a promise.
   ///
   /// See `Self::then2`.
-  pub fn then<'sc>(
+  pub fn then<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut HandleScope<'s>,
     context: Local<Context>,
     handler: Local<Function>,
-  ) -> Option<Local<'sc, Promise>> {
+  ) -> Option<Local<'s, Promise>> {
     unsafe {
       scope.cast_local(|_| v8__Promise__Then(&*self, &*context, &*handler))
     }
@@ -118,13 +115,13 @@ impl Promise {
   /// The handler is given the respective resolution/rejection value as
   /// an argument. If the promise is already resolved/rejected, the handler is
   /// invoked at the end of turn.
-  pub fn then2<'sc>(
+  pub fn then2<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut HandleScope<'s>,
     context: Local<Context>,
     on_fulfilled: Local<Function>,
     on_rejected: Local<Function>,
-  ) -> Option<Local<'sc, Promise>> {
+  ) -> Option<Local<'s, Promise>> {
     unsafe {
       scope.cast_local(|_| {
         v8__Promise__Then2(&*self, &*context, &*on_fulfilled, &*on_rejected)
@@ -135,38 +132,38 @@ impl Promise {
 
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
-    context: Local<'sc, Context>,
-  ) -> Option<Local<'sc, PromiseResolver>> {
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s>,
+    context: Local<'s, Context>,
+  ) -> Option<Local<'s, PromiseResolver>> {
     unsafe { scope.cast_local(|_| v8__Promise__Resolver__New(&*context)) }
   }
 
   /// Extract the associated promise.
-  pub fn get_promise<'sc>(
+  pub fn get_promise<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Local<'sc, Promise> {
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, Promise> {
     unsafe { scope.cast_local(|_| v8__Promise__Resolver__GetPromise(&*self)) }
       .unwrap()
   }
 
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn resolve<'sc>(
+  pub fn resolve<'s>(
     &self,
-    context: Local<'sc, Context>,
-    value: Local<'sc, Value>,
+    context: Local<'s, Context>,
+    value: Local<'s, Value>,
   ) -> Option<bool> {
     unsafe { v8__Promise__Resolver__Resolve(&*self, &*context, &*value).into() }
   }
 
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn reject<'sc>(
+  pub fn reject<'s>(
     &self,
-    context: Local<'sc, Context>,
-    value: Local<'sc, Value>,
+    context: Local<'s, Context>,
+    value: Local<'s, Value>,
   ) -> Option<bool> {
     unsafe { v8__Promise__Resolver__Reject(&*self, &*context, &*value).into() }
   }

@@ -5,11 +5,10 @@ use std::mem::take;
 use std::mem::MaybeUninit;
 
 use crate::Context;
-use crate::InIsolate;
+use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Message;
-use crate::ToLocal;
 use crate::Value;
 
 extern "C" {
@@ -72,10 +71,8 @@ impl<'tc> TryCatch<'tc> {
   /// stack allocated because the memory location itself is compared against
   /// JavaScript try/catch blocks.
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(scope: &mut impl InIsolate) -> TryCatchScope<'tc> {
-    TryCatchScope(TryCatchState::New {
-      isolate: scope.isolate(),
-    })
+  pub fn new(scope: &mut Isolate) -> TryCatchScope<'tc> {
+    TryCatchScope(TryCatchState::New { isolate: scope })
   }
 
   /// Returns true if an exception has been caught by this try/catch block.
@@ -115,10 +112,10 @@ impl<'tc> TryCatch<'tc> {
   /// no longer and no shorter than the active HandleScope at the time this
   /// method is called. An issue has been opened about this in the V8 bug
   /// tracker: https://bugs.chromium.org/p/v8/issues/detail?id=10537.
-  pub fn exception<'sc>(
+  pub fn exception<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Value>> {
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__TryCatch__Exception(&self.0)) }
   }
 
@@ -127,20 +124,20 @@ impl<'tc> TryCatch<'tc> {
   ///
   /// Note: the remark about the lifetime for the `exception()` return value
   /// applies here too.
-  pub fn message<'sc>(
+  pub fn message<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Message>> {
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Message>> {
     unsafe { scope.cast_local(|_| v8__TryCatch__Message(&self.0)) }
   }
 
   /// Returns the .stack property of the thrown object. If no .stack
   /// property is present an empty handle is returned.
-  pub fn stack_trace<'sc>(
+  pub fn stack_trace<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut HandleScope<'s>,
     context: Local<Context>,
-  ) -> Option<Local<'sc, Value>> {
+  ) -> Option<Local<'s, Value>> {
     unsafe {
       scope.cast_local(|_| v8__TryCatch__StackTrace(&self.0, &*context))
     }

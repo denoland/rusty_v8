@@ -3,9 +3,8 @@ use rusty_v8 as v8;
 
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
-  let mut scope1 = v8::HandleScope::new(&mut isolate);
-  let mut _scope2 = v8::EscapableHandleScope::new(&mut scope1);
-  let _local = v8::Integer::new(&mut scope1, 123);
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let _object = v8::Object::new(&mut scope);
 }
 
 fn mock<T>() -> T {

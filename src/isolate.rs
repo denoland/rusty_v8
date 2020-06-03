@@ -2,10 +2,10 @@
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
+use crate::scope::data::ScopeData;
 use crate::support::Opaque;
 use crate::Context;
 use crate::Function;
-use crate::InIsolate;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -103,10 +103,6 @@ extern "C" {
     callback: InterruptCallback,
     data: *mut c_void,
   );
-  fn v8__Isolate__ThrowException(
-    isolate: *mut Isolate,
-    exception: *const Value,
-  ) -> *const Value;
   fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
@@ -133,6 +129,10 @@ extern "C" {
 pub struct Isolate(Opaque);
 
 impl Isolate {
+  const ANNEX_SLOT: u32 = 0;
+  const CURRENT_SCOPE_DATA_SLOT: u32 = 1;
+  const INTERNAL_SLOT_COUNT: u32 = 2;
+
   /// Creates a new isolate.  Does not change the currently entered
   /// isolate.
   ///
@@ -146,6 +146,7 @@ impl Isolate {
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
     let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
+    ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(create_param_allocations);
     owned_isolate
   }
@@ -165,18 +166,23 @@ impl Isolate {
   ) {
     let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
     let annex_ptr = Arc::into_raw(annex_arc);
-    unsafe { assert!(v8__Isolate__GetData(self, 0).is_null()) };
-    unsafe { v8__Isolate__SetData(self, 0, annex_ptr as *mut c_void) };
+    unsafe {
+      assert!(v8__Isolate__GetData(self, Self::ANNEX_SLOT).is_null());
+      v8__Isolate__SetData(self, Self::ANNEX_SLOT, annex_ptr as *mut c_void);
+    };
   }
 
   fn get_annex(&self) -> &IsolateAnnex {
     unsafe {
-      &*(v8__Isolate__GetData(self, 0) as *const _ as *const IsolateAnnex)
+      &*(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *const _
+        as *const IsolateAnnex)
     }
   }
 
   fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
-    unsafe { &mut *(v8__Isolate__GetData(self, 0) as *mut IsolateAnnex) }
+    unsafe {
+      &mut *(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *mut IsolateAnnex)
+    }
   }
 
   fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
@@ -186,22 +192,45 @@ impl Isolate {
     annex_arc
   }
 
-  /// Associate embedder-specific data with the isolate. |slot| has to be
-  /// between 0 and GetNumberOfDataSlots() - 1.
+  /// Associate embedder-specific data with the isolate. `slot` has to be
+  /// between 0 and `Isolate::get_number_of_data_slots()`.
   unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    v8__Isolate__SetData(self, slot + 1, ptr)
+    v8__Isolate__SetData(self, slot + Self::INTERNAL_SLOT_COUNT, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
-  /// Returns NULL if SetData has never been called for the given |slot|.
+  /// Returns NULL if SetData has never been called for the given `slot`.
   fn get_data(&self, slot: u32) -> *mut c_void {
-    unsafe { v8__Isolate__GetData(self, slot + 1) }
+    unsafe { v8__Isolate__GetData(self, slot + Self::INTERNAL_SLOT_COUNT) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
-  /// are in the range of 0 - GetNumberOfDataSlots() - 1.
+  /// are in the range of 0 - `Isolate::get_number_of_data_slots() - 1`.
   fn get_number_of_data_slots(&self) -> u32 {
-    unsafe { v8__Isolate__GetNumberOfDataSlots(self) - 1 }
+    unsafe {
+      v8__Isolate__GetNumberOfDataSlots(self) - Self::INTERNAL_SLOT_COUNT
+    }
+  }
+
+  /// Returns a pointer to the `ScopeData` struct for the current scope.
+  pub(crate) fn get_current_scope_data(&self) -> Option<NonNull<ScopeData>> {
+    let scope_data_ptr =
+      unsafe { v8__Isolate__GetData(self, Self::CURRENT_SCOPE_DATA_SLOT) };
+    NonNull::new(scope_data_ptr).map(NonNull::cast)
+  }
+
+  /// Updates the slot that stores a `ScopeData` pointer for the current scope.
+  pub(crate) fn set_current_scope_data(
+    &mut self,
+    scope_data: Option<NonNull<ScopeData>>,
+  ) {
+    let scope_data_ptr = scope_data
+      .map(NonNull::cast)
+      .map(NonNull::as_ptr)
+      .unwrap_or_else(null_mut);
+    unsafe {
+      v8__Isolate__SetData(self, Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr)
+    };
   }
 
   /// Get mutable reference to embedder data.
@@ -247,7 +276,7 @@ impl Isolate {
   /// Sets this isolate as the entered one for the current thread.
   /// Saves the previously entered one (if any), so that it can be
   /// restored when exiting.  Re-entering an isolate is allowed.
-  pub(crate) fn enter(&mut self) {
+  pub(crate) fn enter_isolate(&mut self) {
     unsafe { v8__Isolate__Enter(self) }
   }
 
@@ -256,7 +285,7 @@ impl Isolate {
   /// entered more than once.
   ///
   /// Requires: self == Isolate::GetCurrent().
-  pub(crate) fn exit(&mut self) {
+  pub(crate) fn exit_isolate(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
   }
 
@@ -316,24 +345,6 @@ impl Isolate {
     }
   }
 
-  /// Schedules an exception to be thrown when returning to JavaScript. When an
-  /// exception has been scheduled it is illegal to invoke any JavaScript
-  /// operation; the caller must return immediately and only after the exception
-  /// has been handled does it become legal to invoke JavaScript operations.
-  ///
-  /// This function always returns the `undefined` value.
-  pub fn throw_exception(
-    &mut self,
-    exception: Local<Value>,
-  ) -> Local<'_, Value> {
-    let result = unsafe {
-      Local::from_raw(v8__Isolate__ThrowException(self, &*exception))
-    }
-    .unwrap();
-    debug_assert!(result.is_undefined());
-    result
-  }
-
   /// Runs the default MicrotaskQueue until it gets empty.
   /// Any exceptions thrown by microtask callbacks are swallowed.
   pub fn run_microtasks(&mut self) {
@@ -348,11 +359,13 @@ impl Isolate {
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
-    let annex = self.get_annex_mut();
+    // Drop the scope stack.
+    ScopeData::drop_root(self);
 
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.
+    let annex = self.get_annex_mut();
     {
       let _lock = annex.isolate_mutex.lock().unwrap();
       annex.isolate = null_mut();
@@ -545,12 +558,6 @@ impl OwnedIsolate {
   pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
     Self { cxx_isolate }
-  }
-}
-
-impl InIsolate for OwnedIsolate {
-  fn isolate(&mut self) -> &mut Isolate {
-    self.deref_mut()
   }
 }
 

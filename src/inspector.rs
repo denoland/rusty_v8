@@ -13,7 +13,6 @@
 //! https://github.com/nodejs/node/tree/v13.7.0/src/inspector
 //! https://github.com/denoland/deno/blob/v0.38.0/cli/inspector.rs
 
-use crate::scope_traits::InIsolate;
 use crate::support::int;
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
@@ -834,7 +833,7 @@ pub struct V8Inspector(Opaque);
 
 impl V8Inspector {
   pub fn create<T>(
-    isolate: &mut impl InIsolate,
+    isolate: &mut Isolate,
     client: &mut T,
   ) -> UniqueRef<V8Inspector>
   where
@@ -842,7 +841,7 @@ impl V8Inspector {
   {
     unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__create(
-        isolate.isolate(),
+        isolate,
         client.as_client_mut(),
       ))
     }

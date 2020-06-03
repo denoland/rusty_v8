@@ -3,12 +3,11 @@ use rusty_v8 as v8;
 
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
-  let mut hs1 = v8::HandleScope::new(&mut isolate);
-  let hs1 = hs1.enter();
+  let mut scope1 = v8::HandleScope::new(&mut isolate);
 
-  let _hs2 = {
-    let mut hs2 = v8::EscapableHandleScope::new(hs1);
-    hs2.enter()
+  let mut _scope3 = {
+    let mut scope2 = v8::HandleScope::new(&mut scope1);
+    v8::EscapableHandleScope::new(&mut scope2)
   };
 }
 

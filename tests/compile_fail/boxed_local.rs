@@ -3,11 +3,12 @@ use rusty_v8 as v8;
 
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
+  let mut scope1 = v8::HandleScope::new(&mut isolate);
 
   let _boxed_local = {
-    let mut hs = v8::HandleScope::new(&mut isolate);
-    let hs = hs.enter();
-    Box::new(v8::Integer::new(hs, 123))
+    let mut scope2 = v8::HandleScope::new(&mut scope1);
+    let mut scope3 = v8::HandleScope::new(&mut scope2);
+    Box::new(v8::Integer::new(&mut scope3, 123))
   };
 }
 

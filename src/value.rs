@@ -1,13 +1,13 @@
 use crate::support::Maybe;
 use crate::BigInt;
 use crate::Context;
+use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
 use crate::Local;
 use crate::Number;
 use crate::Object;
 use crate::String;
-use crate::ToLocal;
 use crate::Uint32;
 use crate::Value;
 
@@ -411,124 +411,124 @@ impl Value {
     unsafe { v8__Value__IsModuleNamespaceObject(self) }
   }
 
-  pub fn strict_equals<'sc>(&self, that: Local<'sc, Value>) -> bool {
+  pub fn strict_equals<'s>(&self, that: Local<'s, Value>) -> bool {
     unsafe { v8__Value__StrictEquals(self, &*that) }
   }
 
-  pub fn same_value<'sc>(&self, that: Local<'sc, Value>) -> bool {
+  pub fn same_value<'s>(&self, that: Local<'s, Value>) -> bool {
     unsafe { v8__Value__SameValue(self, &*that) }
   }
 
-  pub fn to_big_int<'sc>(
+  pub fn to_big_int<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, BigInt>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToBigInt(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, BigInt>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToBigInt(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn to_number<'sc>(
+  pub fn to_number<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Number>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToNumber(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Number>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToNumber(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn to_string<'sc>(
+  pub fn to_string<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, String>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToString(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToString(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn to_detail_string<'sc>(
+  pub fn to_detail_string<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, String>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToDetailString(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Value__ToDetailString(self, &*sd.get_current_context())
+      })
+    }
   }
 
-  pub fn to_object<'sc>(
+  pub fn to_object<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Object>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToObject(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Object>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToObject(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn to_integer<'sc>(
+  pub fn to_integer<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Integer>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToInteger(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Integer>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToInteger(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn to_uint32<'sc>(
+  pub fn to_uint32<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Uint32>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToUint32(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Uint32>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToUint32(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn to_int32<'sc>(
+  pub fn to_int32<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, Int32>> {
-    scope.get_current_context().and_then(|context| unsafe {
-      scope.cast_local(|_| v8__Value__ToInt32(self, &*context))
-    })
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Int32>> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Value__ToInt32(self, &*sd.get_current_context()))
+    }
   }
 
-  pub fn number_value<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<f64> {
-    scope.get_current_context().and_then(|context| unsafe {
-      let mut out = Maybe::<f64>::default();
-      v8__Value__NumberValue(self, &*context, &mut out);
-      out.into()
-    })
+  pub fn number_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<f64> {
+    let mut out = Maybe::<f64>::default();
+    unsafe {
+      v8__Value__NumberValue(self, &*scope.get_current_context(), &mut out)
+    };
+    out.into()
   }
 
-  pub fn integer_value<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<i64> {
-    scope.get_current_context().and_then(|context| unsafe {
-      let mut out = Maybe::<i64>::default();
-      v8__Value__IntegerValue(self, &*context, &mut out);
-      out.into()
-    })
+  pub fn integer_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<i64> {
+    let mut out = Maybe::<i64>::default();
+    unsafe {
+      v8__Value__IntegerValue(self, &*scope.get_current_context(), &mut out)
+    };
+    out.into()
   }
 
-  pub fn uint32_value<'sc>(
-    &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<u32> {
-    scope.get_current_context().and_then(|context| unsafe {
-      let mut out = Maybe::<u32>::default();
-      v8__Value__Uint32Value(self, &*context, &mut out);
-      out.into()
-    })
+  pub fn uint32_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<u32> {
+    let mut out = Maybe::<u32>::default();
+    unsafe {
+      v8__Value__Uint32Value(self, &*scope.get_current_context(), &mut out)
+    };
+    out.into()
   }
 
-  pub fn int32_value<'sc>(&self, scope: &mut impl ToLocal<'sc>) -> Option<i32> {
-    scope.get_current_context().and_then(|context| unsafe {
-      let mut out = Maybe::<i32>::default();
-      v8__Value__Int32Value(self, &*context, &mut out);
-      out.into()
-    })
+  pub fn int32_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<i32> {
+    let mut out = Maybe::<i32>::default();
+    unsafe {
+      v8__Value__Int32Value(self, &*scope.get_current_context(), &mut out)
+    };
+    out.into()
   }
 }

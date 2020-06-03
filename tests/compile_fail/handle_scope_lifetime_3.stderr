@@ -1,11 +1,9 @@
-error[E0597]: `hs2` does not live long enough
-  --> $DIR/handle_scope_lifetime_3.rs:11:15
+error[E0499]: cannot borrow `scope1` as mutable more than once at a time
+  --> $DIR/handle_scope_lifetime_3.rs:10:22
    |
-9  |   let _local = {
-   |       ------ borrow later stored here
-10 |     let mut hs2 = v8::EscapableHandleScope::new(hs1);
-11 |     let hs2 = hs2.enter();
-   |               ^^^ borrowed value does not live long enough
-12 |     v8::Integer::new(hs2, 456)
-13 |   };
-   |   - `hs2` dropped here while still borrowed
+9  |     let mut _scope2 = v8::EscapableHandleScope::new(&mut scope1);
+   |                                                     ----------- first mutable borrow occurs here
+10 |     v8::Integer::new(&mut scope1, 123)
+   |                      ^^^^^^^^^^^ second mutable borrow occurs here
+11 |   };
+   |   - first borrow might be used here, when `_scope2` is dropped and runs the `Drop` code for type `rusty_v8::scope::EscapableHandleScope`

@@ -25,8 +25,8 @@ macro_rules! impl_deref {
 
 macro_rules! impl_from {
   { $source:ident for $type:ident } => {
-    impl<'sc> From<Local<'sc, $source>> for Local<'sc, $type> {
-      fn from(l: Local<'sc, $source>) -> Self {
+    impl<'s> From<Local<'s, $source>> for Local<'s, $type> {
+      fn from(l: Local<'s, $source>) -> Self {
         unsafe { transmute(l) }
       }
     }
@@ -35,9 +35,9 @@ macro_rules! impl_from {
 
 macro_rules! impl_try_from {
   { $source:ident for $target:ident if $value:pat => $check:expr } => {
-    impl<'sc> TryFrom<Local<'sc, $source>> for Local<'sc, $target> {
+    impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
       type Error = TryFromTypeError;
-      fn try_from(l: Local<'sc, $source>) -> Result<Self, Self::Error> {
+      fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
         match l {
           $value if $check => Ok(unsafe { transmute(l) }),
           _ => Err(TryFromTypeError::new(stringify!($target)))
@@ -49,21 +49,21 @@ macro_rules! impl_try_from {
 
 macro_rules! impl_eq {
   { for $type:ident } => {
-    impl<'sc> Eq for Local<'sc, $type> {}
+    impl<'s> Eq for Local<'s, $type> {}
   };
 }
 
 macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
-    impl<'sc> PartialEq<Local<'sc, $rhs>> for Local<'sc, $type> {
-      fn eq(&self, other: &Local<'sc, $rhs>) -> bool {
+    impl<'s> PartialEq<Local<'s, $rhs>> for Local<'s, $type> {
+      fn eq(&self, other: &Local<'s, $rhs>) -> bool {
         self.eq_identity((*other).into())
       }
     }
   };
   { $rhs:ident for $type:ident use strict_equals } => {
-    impl<'sc> PartialEq<Local<'sc, $rhs>> for Local<'sc, $type> {
-      fn eq(&self, other: &Local<'sc, $rhs>) -> bool {
+    impl<'s> PartialEq<Local<'s, $rhs>> for Local<'s, $type> {
+      fn eq(&self, other: &Local<'s, $rhs>) -> bool {
         self.strict_equals((*other).into())
       }
     }

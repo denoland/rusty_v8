@@ -2,9 +2,8 @@
 use rusty_v8 as v8;
 
 pub fn main() {
-  let context: v8::Local<v8::Context> = mock();
-  let mut cs = v8::CallbackScope::new(context);
-  let _hs = v8::EscapableHandleScope::new(cs.enter());
+  let mut isolate = v8::Isolate::new(mock());
+  let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
 }
 
 fn mock<T>() -> T {

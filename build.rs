@@ -61,6 +61,10 @@ fn build_v8() {
     vec!["is_debug=false".to_string()]
   };
 
+  if !cargo_gn::is_debug() {
+    gn_args.push("v8_enable_handle_zapping=false".to_string());
+  }
+
   if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));

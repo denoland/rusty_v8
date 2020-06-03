@@ -1,10 +1,10 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 use crate::support::int;
+use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Primitive;
 use crate::PrimitiveArray;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__PrimitiveArray__New(
@@ -29,13 +29,13 @@ extern "C" {
 }
 
 impl PrimitiveArray {
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s>,
     length: usize,
-  ) -> Local<'sc, PrimitiveArray> {
+  ) -> Local<'s, PrimitiveArray> {
     unsafe {
-      scope.cast_local(|scope| {
-        v8__PrimitiveArray__New(scope.isolate(), length as int)
+      scope.cast_local(|sd| {
+        v8__PrimitiveArray__New(sd.get_isolate_ptr(), length as int)
       })
     }
     .unwrap()
@@ -45,25 +45,30 @@ impl PrimitiveArray {
     unsafe { v8__PrimitiveArray__Length(self) as usize }
   }
 
-  pub fn set<'sc>(
+  pub fn set<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut HandleScope<'s>,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
     unsafe {
-      v8__PrimitiveArray__Set(self, scope.isolate(), index as int, &*item)
+      v8__PrimitiveArray__Set(
+        self,
+        scope.get_isolate_ptr(),
+        index as int,
+        &*item,
+      )
     }
   }
 
-  pub fn get<'sc>(
+  pub fn get<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
+    scope: &mut HandleScope<'s>,
     index: usize,
-  ) -> Local<'sc, Primitive> {
+  ) -> Local<'s, Primitive> {
     unsafe {
-      scope.cast_local(|scope| {
-        v8__PrimitiveArray__Get(self, scope.isolate(), index as int)
+      scope.cast_local(|sd| {
+        v8__PrimitiveArray__Get(self, sd.get_isolate_ptr(), index as int)
       })
     }
     .unwrap()

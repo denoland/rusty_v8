@@ -1,8 +1,8 @@
 use crate::isolate::Isolate;
+use crate::HandleScope;
 use crate::Integer;
 use crate::Local;
 use crate::Number;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *const Number;
@@ -16,12 +16,14 @@ extern "C" {
 }
 
 impl Number {
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s, ()>,
     value: f64,
-  ) -> Local<'sc, Number> {
-    unsafe { scope.cast_local(|scope| v8__Number__New(scope.isolate(), value)) }
-      .unwrap()
+  ) -> Local<'s, Number> {
+    unsafe {
+      scope.cast_local(|sd| v8__Number__New(sd.get_isolate_ptr(), value))
+    }
+    .unwrap()
   }
 
   pub fn value(&self) -> f64 {
@@ -30,23 +32,23 @@ impl Number {
 }
 
 impl Integer {
-  pub fn new<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s, ()>,
     value: i32,
-  ) -> Local<'sc, Integer> {
+  ) -> Local<'s, Integer> {
     unsafe {
-      scope.cast_local(|scope| v8__Integer__New(scope.isolate(), value))
+      scope.cast_local(|sd| v8__Integer__New(sd.get_isolate_ptr(), value))
     }
     .unwrap()
   }
 
-  pub fn new_from_unsigned<'sc>(
-    scope: &mut impl ToLocal<'sc>,
+  pub fn new_from_unsigned<'s>(
+    scope: &mut HandleScope<'s, ()>,
     value: u32,
-  ) -> Local<'sc, Integer> {
+  ) -> Local<'s, Integer> {
     unsafe {
-      scope.cast_local(|scope| {
-        v8__Integer__NewFromUnsigned(scope.isolate(), value)
+      scope.cast_local(|sd| {
+        v8__Integer__NewFromUnsigned(sd.get_isolate_ptr(), value)
       })
     }
     .unwrap()

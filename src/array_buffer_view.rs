@@ -4,8 +4,8 @@ use std::ffi::c_void;
 use crate::support::int;
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
+use crate::HandleScope;
 use crate::Local;
-use crate::ToLocal;
 
 extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -22,10 +22,10 @@ extern "C" {
 
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
-  pub fn buffer<'sc>(
+  pub fn buffer<'s>(
     &self,
-    scope: &mut impl ToLocal<'sc>,
-  ) -> Option<Local<'sc, ArrayBuffer>> {
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }
 
