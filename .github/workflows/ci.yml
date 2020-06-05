@@ -107,7 +107,7 @@ jobs:
         run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
 
       - name: Cache
-        uses: denoland/github-actions-cache@stable-prerelease
+        uses: actions/cache@v2
         with:
           # Note: rusty_v8 targets always get get rebuilt, and their outputs
           # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
