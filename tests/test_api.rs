@@ -2983,10 +2983,7 @@ fn test_object_get_property_names() {
   let js_proto_test_str: v8::Local<v8::Value> =
     v8::String::new(scope, "proto_test").unwrap().into();
   let js_test_symbol: v8::Local<v8::Value> =
-    eval(scope, context, "Symbol('test_symbol')")
-      .unwrap()
-      .try_into()
-      .unwrap();
+    eval(scope, context, "Symbol('test_symbol')").unwrap();
   let js_null: v8::Local<v8::Value> = v8::null(scope).into();
   let js_sort_fn: v8::Local<v8::Function> =
     eval(scope, context, "Array.prototype.sort")
