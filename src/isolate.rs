@@ -404,8 +404,8 @@ pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
-  // (which may outlive the isolate itself) can determine whether the isolate is
-  // still alive, and if so, get a reference to it. Safety rules:
+  // (which may outlive the isolate itself) can determine whether the isolate
+  // is still alive, and if so, get a reference to it. Safety rules:
   // - The 'main thread' must lock the mutex and reset `isolate` to null just
   //   before the isolate is disposed.
   // - Any other thread must lock the mutex while it's reading/using the

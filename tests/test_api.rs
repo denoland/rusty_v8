@@ -1368,8 +1368,8 @@ fn promise_resolved() {
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
-    // Resolve again with different value, since promise is already in `Fulfilled` state
-    // it should be ignored.
+    // Resolve again with different value, since promise is already in
+    // `Fulfilled` state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.resolve(context, value.into());
     let result = promise.result(scope);
@@ -1401,8 +1401,8 @@ fn promise_rejected() {
     let result = promise.result(scope);
     let result_str = result.to_string(scope).unwrap();
     assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
-    // Reject again with different value, since promise is already in `Rejected` state
-    // it should be ignored.
+    // Reject again with different value, since promise is already in `Rejected`
+    // state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.reject(context, value.into());
     let result = promise.result(scope);

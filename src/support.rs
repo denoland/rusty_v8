@@ -317,9 +317,9 @@ pub(crate) enum Allocation<T: ?Sized + 'static> {
   Rc(Rc<T>),
   UniqueRef(UniqueRef<T>),
   Other(Box<dyn Borrow<T> + 'static>),
-  // Note: it would be nice to add `SharedRef` to this list, but it requires the
-  // `T: Shared` bound, and it's unfortunately not possible to set bounds on
-  // individual enum variants.
+  // Note: it would be nice to add `SharedRef` to this list, but it
+  // requires the `T: Shared` bound, and it's unfortunately not possible
+  // to set bounds on individual enum variants.
 }
 
 impl<T: ?Sized + 'static> Allocation<T> {

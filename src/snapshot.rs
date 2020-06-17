@@ -126,8 +126,8 @@ impl SnapshotCreator {
     }
   }
 
-  /// This is marked unsafe because it should be called at most once per snapshot
-  /// creator.
+  /// This is marked unsafe because it should be called at most once per
+  /// snapshot creator.
   // TODO Because the SnapshotCreator creates its own isolate, we need a way to
   // get an owned handle to it. This is a questionable design which ought to be
   // revisited after the libdeno integration is complete.

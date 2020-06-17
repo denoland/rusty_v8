@@ -61,7 +61,8 @@
 //!   the necessity to import the MapFnTo trait.
 //! - Fully integrate TryCatch blocks into the scope system (currently a
 //!   TryCatch works like a scope internally but it's not integrated).
-//! - Add methods to some on some of the scopes like get_context() for ContextScope.
+//! - Add methods to some on some of the scopes like get_context() for
+//!   ContextScope.
 //! - Rename/reorganize/document.
 
 #![allow(clippy::missing_safety_doc)]

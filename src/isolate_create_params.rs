@@ -34,8 +34,8 @@ impl CreateParams {
     self
   }
 
-  /// The ArrayBuffer::ArrayBufferAllocator to use for allocating and freeing the backing
-  /// store of ArrayBuffers.
+  /// The ArrayBuffer::ArrayBufferAllocator to use for allocating and freeing
+  /// the backing store of ArrayBuffers.
   pub fn array_buffer_allocator(
     mut self,
     array_buffer_allocator: impl Into<SharedPtr<ArrayBufferAllocator>>,

@@ -296,7 +296,8 @@ impl Array {
     unsafe { scope.to_local(ptr) }.unwrap()
   }
 
-  /// Creates a JavaScript array out of a Local<Value> array with a known length.
+  /// Creates a JavaScript array out of a Local<Value> array with a known
+  /// length.
   pub fn new_with_elements<'sc>(
     scope: &mut impl ToLocal<'sc>,
     elements: &[Local<Value>],

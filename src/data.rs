@@ -355,8 +355,8 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 /// temporary functions that can be collected using Scripts is
 /// preferred.
 ///
-/// Any modification of a FunctionTemplate after first instantiation will trigger
-/// a crash.
+/// Any modification of a FunctionTemplate after first instantiation will
+/// trigger a crash.
 ///
 /// A FunctionTemplate can have properties, these properties are added to the
 /// function object when it is created.
