@@ -232,12 +232,6 @@ v8::Isolate* v8__EscapableHandleScope__GetIsolate(
   return self.GetIsolate();
 }
 
-void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* buf, v8::Isolate* isolate) {
-  construct_in_place<v8::Locker>(buf, isolate);
-}
-
-void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }
-
 const v8::Data* v8__Local__New(v8::Isolate* isolate, const v8::Data& other) {
   return local_to_ptr(v8::Local<v8::Data>::New(isolate, ptr_to_local(&other)));
 }
