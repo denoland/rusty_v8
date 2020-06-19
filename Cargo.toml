@@ -59,4 +59,4 @@ cargo_gn = "0.0.15"
 which = "4.0.0"
 
 [dev-dependencies]
-trybuild = "1.0.28"
+trybuild = "1.0.30"
