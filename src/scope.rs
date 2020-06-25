@@ -48,6 +48,16 @@
 //!   - A `Context` is available; any type of value can be created.
 //!   - Derefs to `HandleScope<'s>`.
 //!
+//! - `TryCatch<'s, P>`
+//!   - 's = lifetime of the TryCatch scope.
+//!   - `P` is either a `HandleScope` or an `EscapableHandleScope`. This type
+//!     also determines for how long the values returned by `TryCatch` methods
+//!     `exception()`, `message()`, and `stack_trace()` are valid.
+//!   - Derefs to `P`.
+//!   - Creating a new scope inside the `TryCatch` block makes its methods
+//!     inaccessible until the inner scope is dropped. However, the `TryCatch`
+//!     object will nonetheless catch all exception thrown during its lifetime.
+//!
 //! - `CallbackScope<'s>`
 //!   - 's = lifetime of local handles created in this scope, and the value
 //!     returned from the callback, and of the scope itself.
@@ -226,6 +236,161 @@ impl<'s, 'e: 's, C> EscapableHandleScope<'s, 'e, C> {
   }
 }
 
+/// An external exception handler.
+pub struct TryCatch<'s, P> {
+  data: NonNull<data::ScopeData>,
+  _phantom: PhantomData<&'s mut P>,
+}
+
+impl<'s, P: param::NewTryCatch<'s>> TryCatch<'s, P> {
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(param: &'s mut P) -> P::NewScope {
+    param.get_scope_data_mut().new_try_catch_data().as_scope()
+  }
+}
+
+impl<'s, P> TryCatch<'s, P> {
+  /// Returns true if an exception has been caught by this try/catch block.
+  pub fn has_caught(&self) -> bool {
+    unsafe { raw::v8__TryCatch__HasCaught(self.get_raw()) }
+  }
+
+  /// For certain types of exceptions, it makes no sense to continue execution.
+  ///
+  /// If CanContinue returns false, the correct action is to perform any C++
+  /// cleanup needed and then return. If CanContinue returns false and
+  /// HasTerminated returns true, it is possible to call
+  /// CancelTerminateExecution in order to continue calling into the engine.
+  pub fn can_continue(&self) -> bool {
+    unsafe { raw::v8__TryCatch__CanContinue(self.get_raw()) }
+  }
+
+  /// Returns true if an exception has been caught due to script execution
+  /// being terminated.
+  ///
+  /// There is no JavaScript representation of an execution termination
+  /// exception. Such exceptions are thrown when the TerminateExecution
+  /// methods are called to terminate a long-running script.
+  ///
+  /// If such an exception has been thrown, HasTerminated will return true,
+  /// indicating that it is possible to call CancelTerminateExecution in order
+  /// to continue calling into the engine.
+  pub fn has_terminated(&self) -> bool {
+    unsafe { raw::v8__TryCatch__HasTerminated(self.get_raw()) }
+  }
+
+  /// Returns true if verbosity is enabled.
+  pub fn is_verbose(&self) -> bool {
+    unsafe { raw::v8__TryCatch__IsVerbose(self.get_raw()) }
+  }
+
+  /// Set verbosity of the external exception handler.
+  ///
+  /// By default, exceptions that are caught by an external exception
+  /// handler are not reported. Call SetVerbose with true on an
+  /// external exception handler to have exceptions caught by the
+  /// handler reported as if they were not caught.
+  pub fn set_verbose(&mut self, value: bool) {
+    unsafe { raw::v8__TryCatch__SetVerbose(self.get_raw_mut(), value) };
+  }
+
+  /// Set whether or not this TryCatch should capture a Message object
+  /// which holds source information about where the exception
+  /// occurred. True by default.
+  pub fn set_capture_message(&mut self, value: bool) {
+    unsafe { raw::v8__TryCatch__SetCaptureMessage(self.get_raw_mut(), value) };
+  }
+
+  /// Clears any exceptions that may have been caught by this try/catch block.
+  /// After this method has been called, HasCaught() will return false. Cancels
+  /// the scheduled exception if it is caught and ReThrow() is not called
+  /// before.
+  ///
+  /// It is not necessary to clear a try/catch block before using it again; if
+  /// another exception is thrown the previously caught exception will just be
+  /// overwritten. However, it is often a good idea since it makes it easier
+  /// to determine which operation threw a given exception.
+  pub fn reset(&mut self) {
+    unsafe { raw::v8__TryCatch__Reset(self.get_raw_mut()) };
+  }
+
+  fn get_raw(&self) -> &raw::TryCatch {
+    data::ScopeData::get(self).get_try_catch()
+  }
+
+  fn get_raw_mut(&mut self) -> &mut raw::TryCatch {
+    data::ScopeData::get_mut(self).get_try_catch_mut()
+  }
+}
+
+impl<'s, 'p: 's, P> TryCatch<'s, P>
+where
+  Self: AsMut<HandleScope<'p, ()>>,
+{
+  /// Returns the exception caught by this try/catch block. If no exception has
+  /// been caught an empty handle is returned.
+  ///
+  /// Note: v8.h states that "the returned handle is valid until this TryCatch
+  /// block has been destroyed". This is incorrect; the return value lives
+  /// no longer and no shorter than the active HandleScope at the time this
+  /// method is called. An issue has been opened about this in the V8 bug
+  /// tracker: https://bugs.chromium.org/p/v8/issues/detail?id=10537.
+  pub fn exception(&mut self) -> Option<Local<'p, Value>> {
+    unsafe {
+      self
+        .as_mut()
+        .cast_local(|sd| raw::v8__TryCatch__Exception(sd.get_try_catch()))
+    }
+  }
+
+  /// Returns the message associated with this exception. If there is
+  /// no message associated an empty handle is returned.
+  ///
+  /// Note: the remark about the lifetime for the `exception()` return value
+  /// applies here too.
+  pub fn message(&mut self) -> Option<Local<'p, Message>> {
+    unsafe {
+      self
+        .as_mut()
+        .cast_local(|sd| raw::v8__TryCatch__Message(sd.get_try_catch()))
+    }
+  }
+
+  /// Throws the exception caught by this TryCatch in a way that avoids
+  /// it being caught again by this same TryCatch. As with ThrowException
+  /// it is illegal to execute any JavaScript operations after calling
+  /// ReThrow; the caller must return immediately to where the exception
+  /// is caught.
+  ///
+  /// This function returns the `undefined` value when successful, or `None` if
+  /// no exception was caught and therefore there was nothing to rethrow.
+  pub fn rethrow(&mut self) -> Option<Local<'_, Value>> {
+    unsafe {
+      self
+        .as_mut()
+        .cast_local(|sd| raw::v8__TryCatch__ReThrow(sd.get_try_catch_mut()))
+    }
+  }
+}
+
+impl<'s, 'p: 's, P> TryCatch<'s, P>
+where
+  Self: AsMut<HandleScope<'p>>,
+{
+  /// Returns the .stack property of the thrown object. If no .stack
+  /// property is present an empty handle is returned.
+  pub fn stack_trace(&mut self) -> Option<Local<'p, Value>> {
+    unsafe {
+      self.as_mut().cast_local(|sd| {
+        raw::v8__TryCatch__StackTrace(
+          sd.get_try_catch(),
+          sd.get_current_context(),
+        )
+      })
+    }
+  }
+}
+
 /// A `CallbackScope` can be used to bootstrap a `HandleScope` and
 /// `ContextScope` inside a callback function that gets called by V8.
 /// Bootstrapping a scope inside a callback is the only valid use case of this
@@ -295,25 +460,40 @@ macro_rules! impl_as {
 impl_as!(<'s, 'p, P> ContextScope<'s, P> as Isolate);
 impl_as!(<'s, C> HandleScope<'s, C> as Isolate);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as Isolate);
+impl_as!(<'s, P> TryCatch<'s, P> as Isolate);
 impl_as!(<'s> CallbackScope<'s> as Isolate);
 
 impl_as!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p, ()>);
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p, ()>);
 impl_as!(<'s, C> HandleScope<'s, C> as HandleScope<'s, ()>);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as HandleScope<'s, ()>);
+impl_as!(<'s, 'p, C> TryCatch<'s, HandleScope<'p, C>> as HandleScope<'p, ()>);
+impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as HandleScope<'p, ()>);
 impl_as!(<'s> CallbackScope<'s> as HandleScope<'s, ()>);
 
 impl_as!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p>);
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p>);
 impl_as!(<'s> HandleScope<'s> as HandleScope<'s>);
 impl_as!(<'s, 'e> EscapableHandleScope<'s, 'e> as HandleScope<'s>);
+impl_as!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as HandleScope<'p>);
+impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p>);
 impl_as!(<'s> CallbackScope<'s> as HandleScope<'s>);
 
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e, ()>);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as EscapableHandleScope<'s, 'e, ()>);
+impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as EscapableHandleScope<'p, 'e, ()>);
 
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
 impl_as!(<'s, 'e> EscapableHandleScope<'s, 'e> as EscapableHandleScope<'s, 'e>);
+impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
+
+impl_as!(<'s, 'p, C> TryCatch<'s, HandleScope<'p, C>> as TryCatch<'s, HandleScope<'p, ()>>);
+impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as TryCatch<'s, HandleScope<'p, ()>>);
+impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as TryCatch<'s, EscapableHandleScope<'p, 'e, ()>>);
+
+impl_as!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as TryCatch<'s, HandleScope<'p>>);
+impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as TryCatch<'s, HandleScope<'p>>);
+impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as TryCatch<'s, EscapableHandleScope<'p, 'e>>);
 
 macro_rules! impl_deref {
   (<$($params:tt),+> $src_type:ty as $tgt_type:ty) => {
@@ -341,6 +521,11 @@ impl_deref!(<'s> HandleScope<'s> as HandleScope<'s, ()>);
 impl_deref!(<'s, 'e> EscapableHandleScope<'s, 'e, ()> as HandleScope<'s, ()>);
 impl_deref!(<'s, 'e> EscapableHandleScope<'s, 'e> as HandleScope<'s>);
 
+impl_deref!(<'s, 'p> TryCatch<'s, HandleScope<'p, ()>> as HandleScope<'p, ()>);
+impl_deref!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as HandleScope<'p>);
+impl_deref!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e, ()>> as EscapableHandleScope<'p, 'e, ()>);
+impl_deref!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
+
 impl_deref!(<'s> CallbackScope<'s> as HandleScope<'s>);
 
 macro_rules! impl_scope_drop {
@@ -358,6 +543,7 @@ macro_rules! impl_scope_drop {
 impl_scope_drop!(<'s, 'p, P> ContextScope<'s, P>);
 impl_scope_drop!(<'s, C> HandleScope<'s, C> );
 impl_scope_drop!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> );
+impl_scope_drop!(<'s, P> TryCatch<'s, P> );
 impl_scope_drop!(<'s> CallbackScope<'s> );
 
 pub unsafe trait Scope: Sized {}
@@ -413,6 +599,12 @@ mod param {
     type NewScope = ContextScope<'s, EscapableHandleScope<'p, 'e>>;
   }
 
+  impl<'s, 'p: 's, P: NewContextScope<'s>> NewContextScope<'s>
+    for TryCatch<'p, P>
+  {
+    type NewScope = <P as NewContextScope<'s>>::NewScope;
+  }
+
   impl<'s, 'p: 's> NewContextScope<'s> for CallbackScope<'p> {
     type NewScope = ContextScope<'s, HandleScope<'p>>;
   }
@@ -445,6 +637,10 @@ mod param {
     type NewScope = EscapableHandleScope<'s, 'e, C>;
   }
 
+  impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s> for TryCatch<'p, P> {
+    type NewScope = <P as NewHandleScope<'s>>::NewScope;
+  }
+
   impl<'s, 'p: 's> NewHandleScope<'s> for CallbackScope<'p> {
     type NewScope = HandleScope<'s>;
   }
@@ -469,8 +665,40 @@ mod param {
     type NewScope = EscapableHandleScope<'s, 'p, C>;
   }
 
+  impl<'s, 'p: 's, 'e: 'p, P: NewEscapableHandleScope<'s, 'e>>
+    NewEscapableHandleScope<'s, 'e> for TryCatch<'p, P>
+  {
+    type NewScope = <P as NewEscapableHandleScope<'s, 'e>>::NewScope;
+  }
+
   impl<'s, 'p: 's> NewEscapableHandleScope<'s, 'p> for CallbackScope<'p> {
     type NewScope = EscapableHandleScope<'s, 'p>;
+  }
+
+  pub trait NewTryCatch<'s>: data::GetScopeData {
+    type NewScope: Scope;
+  }
+
+  impl<'s, 'p: 's, P: NewTryCatch<'s>> NewTryCatch<'s> for ContextScope<'p, P> {
+    type NewScope = <P as NewTryCatch<'s>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, C> NewTryCatch<'s> for HandleScope<'p, C> {
+    type NewScope = TryCatch<'s, HandleScope<'p, C>>;
+  }
+
+  impl<'s, 'p: 's, 'e: 'p, C> NewTryCatch<'s>
+    for EscapableHandleScope<'p, 'e, C>
+  {
+    type NewScope = TryCatch<'s, EscapableHandleScope<'p, 'e, C>>;
+  }
+
+  impl<'s, 'p: 's, P> NewTryCatch<'s> for TryCatch<'p, P> {
+    type NewScope = TryCatch<'s, P>;
+  }
+
+  impl<'s, 'p: 's> NewTryCatch<'s> for CallbackScope<'p> {
+    type NewScope = TryCatch<'s, HandleScope<'p>>;
   }
 
   pub trait NewCallbackScope<'s>: Copy + Sized {
@@ -548,6 +776,7 @@ pub(crate) mod data {
     // (eiter current or shadowed -- not free).
     context: Cell<Option<NonNull<Context>>>,
     escape_slot: Option<NonNull<Option<raw::EscapeSlot>>>,
+    try_catch: Option<NonNull<raw::TryCatch>>,
     scope_type_specific_data: ScopeTypeSpecificData,
   }
 
@@ -654,6 +883,24 @@ pub(crate) mod data {
           } => {
             unsafe { raw_handle_scope.init(isolate) };
             data.escape_slot.replace(raw_escape_slot.into());
+          }
+          _ => unreachable!(),
+        }
+      })
+    }
+
+    pub(super) fn new_try_catch_data(&mut self) -> &mut Self {
+      self.new_scope_data_with(|data| {
+        let isolate = data.isolate;
+        data.scope_type_specific_data.init_with(|| {
+          ScopeTypeSpecificData::TryCatch {
+            raw_try_catch: unsafe { raw::TryCatch::uninit() },
+          }
+        });
+        match &mut data.scope_type_specific_data {
+          ScopeTypeSpecificData::TryCatch { raw_try_catch } => {
+            unsafe { raw_try_catch.init(isolate) };
+            data.try_catch.replace(raw_try_catch.into());
           }
           _ => unreachable!(),
         }
@@ -893,6 +1140,22 @@ pub(crate) mod data {
         .map(|escape_slot_nn| unsafe { escape_slot_nn.as_mut() })
     }
 
+    pub(super) fn get_try_catch(&self) -> &raw::TryCatch {
+      self
+        .try_catch
+        .as_ref()
+        .map(|try_catch_nn| unsafe { try_catch_nn.as_ref() })
+        .unwrap()
+    }
+
+    pub(super) fn get_try_catch_mut(&mut self) -> &mut raw::TryCatch {
+      self
+        .try_catch
+        .as_mut()
+        .map(|try_catch_nn| unsafe { try_catch_nn.as_mut() })
+        .unwrap()
+    }
+
     /// Returns a new `Box<ScopeData>` with the `isolate` field set as specified
     /// by the first parameter, and the other fields initialized to their
     /// default values. This function exists solely because it turns out that
@@ -911,6 +1174,7 @@ pub(crate) mod data {
             status: Default::default(),
             context: Default::default(),
             escape_slot: Default::default(),
+            try_catch: Default::default(),
             scope_type_specific_data: Default::default(),
           },
         );
@@ -943,6 +1207,9 @@ pub(crate) mod data {
     EscapableHandleScope {
       raw_handle_scope: raw::HandleScope,
       raw_escape_slot: Option<raw::EscapeSlot>,
+    },
+    TryCatch {
+      raw_try_catch: raw::TryCatch,
     },
   }
 
@@ -1081,6 +1348,34 @@ mod raw {
     }
   }
 
+  #[repr(C)]
+  pub(super) struct TryCatch([usize; 6]);
+
+  impl TryCatch {
+    /// This function is marked unsafe because the caller must ensure that the
+    /// returned value isn't dropped before `init()` has been called.
+    pub unsafe fn uninit() -> Self {
+      // This is safe because there is no combination of bits that would produce
+      // an invalid `[usize; 6]`.
+      #[allow(clippy::uninit_assumed_init)]
+      Self(MaybeUninit::uninit().assume_init())
+    }
+
+    /// This function is marked unsafe because `init()` must be called exactly
+    /// once, no more and no less, after creating a `TryCatch` value with
+    /// `TryCatch::uninit()`.
+    pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
+      let buf = NonNull::from(self).cast();
+      v8__TryCatch__CONSTRUCT(buf.as_ptr(), isolate.as_ptr());
+    }
+  }
+
+  impl Drop for TryCatch {
+    fn drop(&mut self) {
+      unsafe { v8__TryCatch__DESTRUCT(self) };
+    }
+  }
+
   extern "C" {
     pub(super) fn v8__Isolate__GetCurrentContext(
       isolate: *mut Isolate,
@@ -1113,6 +1408,33 @@ mod raw {
       other: *const Data,
     ) -> *const Data;
     pub(super) fn v8__Undefined(isolate: *mut Isolate) -> *const Primitive;
+
+    pub(super) fn v8__TryCatch__CONSTRUCT(
+      buf: *mut MaybeUninit<TryCatch>,
+      isolate: *mut Isolate,
+    );
+    pub(super) fn v8__TryCatch__DESTRUCT(this: *mut TryCatch);
+    pub(super) fn v8__TryCatch__HasCaught(this: *const TryCatch) -> bool;
+    pub(super) fn v8__TryCatch__CanContinue(this: *const TryCatch) -> bool;
+    pub(super) fn v8__TryCatch__HasTerminated(this: *const TryCatch) -> bool;
+    pub(super) fn v8__TryCatch__IsVerbose(this: *const TryCatch) -> bool;
+    pub(super) fn v8__TryCatch__SetVerbose(this: *mut TryCatch, value: bool);
+    pub(super) fn v8__TryCatch__SetCaptureMessage(
+      this: *mut TryCatch,
+      value: bool,
+    );
+    pub(super) fn v8__TryCatch__Reset(this: *mut TryCatch);
+    pub(super) fn v8__TryCatch__Exception(
+      this: *const TryCatch,
+    ) -> *const Value;
+    pub(super) fn v8__TryCatch__StackTrace(
+      this: *const TryCatch,
+      context: *const Context,
+    ) -> *const Value;
+    pub(super) fn v8__TryCatch__Message(
+      this: *const TryCatch,
+    ) -> *const Message;
+    pub(super) fn v8__TryCatch__ReThrow(this: *mut TryCatch) -> *const Value;
 
     pub(super) fn v8__Message__GetIsolate(this: *const Message)
       -> *mut Isolate;
@@ -1179,24 +1501,60 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
-        let l3_ehs = &mut EscapableHandleScope::new(l2_cxs);
-        AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
-        let l4_cxs = &mut ContextScope::new(l3_ehs, context);
-        AssertTypeOf(l4_cxs).is::<ContextScope<EscapableHandleScope>>();
-        let d = l4_cxs.deref_mut();
-        AssertTypeOf(d).is::<EscapableHandleScope>();
-        let d = d.deref_mut();
+        let l3_tc = &mut TryCatch::new(l2_cxs);
+        AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
+        let d = l3_tc.deref_mut();
         AssertTypeOf(d).is::<HandleScope>();
         let d = d.deref_mut();
         AssertTypeOf(d).is::<HandleScope<()>>();
         let d = d.deref_mut();
         AssertTypeOf(d).is::<Isolate>();
       }
+      {
+        let l3_ehs = &mut EscapableHandleScope::new(l2_cxs);
+        AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
+        {
+          let l4_cxs = &mut ContextScope::new(l3_ehs, context);
+          AssertTypeOf(l4_cxs).is::<ContextScope<EscapableHandleScope>>();
+          let d = l4_cxs.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+        {
+          let l4_tc = &mut TryCatch::new(l3_ehs);
+          AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
+          let d = l4_tc.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
+    }
+    {
+      let l2_tc = &mut TryCatch::new(l1_hs);
+      AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
+      let d = l2_tc.deref_mut();
+      AssertTypeOf(d).is::<HandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<Isolate>();
     }
     {
       let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
       AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
-      let d = l2_ehs.deref_mut();
+      let l3_tc = &mut TryCatch::new(l2_ehs);
+      AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
+      let d = l3_tc.deref_mut();
+      AssertTypeOf(d).is::<EscapableHandleScope<()>>();
+      let d = d.deref_mut();
       AssertTypeOf(d).is::<HandleScope<()>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
@@ -1235,6 +1593,7 @@ mod tests {
       AssertTypeOf(&HandleScope::new(l2_cxs)).is::<HandleScope>();
       AssertTypeOf(&EscapableHandleScope::new(l2_cxs))
         .is::<EscapableHandleScope>();
+      AssertTypeOf(&TryCatch::new(l2_cxs)).is::<TryCatch<HandleScope>>();
     }
     {
       let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
@@ -1250,7 +1609,39 @@ mod tests {
         AssertTypeOf(&HandleScope::new(l3_cxs)).is::<EscapableHandleScope>();
         AssertTypeOf(&EscapableHandleScope::new(l3_cxs))
           .is::<EscapableHandleScope>();
+        {
+          let l4_tc = &mut TryCatch::new(l3_cxs);
+          AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
+          AssertTypeOf(&ContextScope::new(l4_tc, context))
+            .is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&HandleScope::new(l4_tc)).is::<EscapableHandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l4_tc))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l4_tc))
+            .is::<TryCatch<EscapableHandleScope>>();
+        }
       }
+      {
+        let l3_tc = &mut TryCatch::new(l2_ehs);
+        AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
+        AssertTypeOf(&ContextScope::new(l3_tc, context))
+          .is::<ContextScope<EscapableHandleScope>>();
+        AssertTypeOf(&HandleScope::new(l3_tc)).is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+          .is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&TryCatch::new(l3_tc))
+          .is::<TryCatch<EscapableHandleScope<()>>>();
+      }
+    }
+    {
+      let l2_tc = &mut TryCatch::new(l1_hs);
+      AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
+      AssertTypeOf(&ContextScope::new(l2_tc, context))
+        .is::<ContextScope<HandleScope>>();
+      AssertTypeOf(&HandleScope::new(l2_tc)).is::<HandleScope<()>>();
+      AssertTypeOf(&EscapableHandleScope::new(l2_tc))
+        .is::<EscapableHandleScope<()>>();
+      AssertTypeOf(&TryCatch::new(l2_tc)).is::<TryCatch<HandleScope<()>>>();
     }
     {
       let l2_cbs = &mut unsafe { CallbackScope::new(context) };
@@ -1265,6 +1656,7 @@ mod tests {
         AssertTypeOf(&HandleScope::new(l3_hs)).is::<HandleScope>();
         AssertTypeOf(&EscapableHandleScope::new(l3_hs))
           .is::<EscapableHandleScope>();
+        AssertTypeOf(&TryCatch::new(l3_hs)).is::<TryCatch<HandleScope>>();
       }
       {
         let l3_ehs = &mut EscapableHandleScope::new(l2_cbs);
@@ -1274,6 +1666,18 @@ mod tests {
         AssertTypeOf(&HandleScope::new(l3_ehs)).is::<EscapableHandleScope>();
         AssertTypeOf(&EscapableHandleScope::new(l3_ehs))
           .is::<EscapableHandleScope>();
+        AssertTypeOf(&TryCatch::new(l3_ehs))
+          .is::<TryCatch<EscapableHandleScope>>();
+      }
+      {
+        let l3_tc = &mut TryCatch::new(l2_cbs);
+        AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
+        AssertTypeOf(&ContextScope::new(l3_tc, context))
+          .is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&HandleScope::new(l3_tc)).is::<HandleScope>();
+        AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+          .is::<EscapableHandleScope>();
+        AssertTypeOf(&TryCatch::new(l3_tc)).is::<TryCatch<HandleScope>>();
       }
     }
   }

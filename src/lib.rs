@@ -61,7 +61,6 @@ mod snapshot;
 mod string;
 mod support;
 mod template;
-mod try_catch;
 mod uint8_array;
 mod value;
 
@@ -105,6 +104,7 @@ pub use scope::CallbackScope;
 pub use scope::ContextScope;
 pub use scope::EscapableHandleScope;
 pub use scope::HandleScope;
+pub use scope::TryCatch;
 pub use script::ScriptOrigin;
 pub use snapshot::FunctionCodeHandling;
 pub use snapshot::SnapshotCreator;
@@ -115,7 +115,6 @@ pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;
 pub use template::*;
-pub use try_catch::{TryCatch, TryCatchScope};
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;
