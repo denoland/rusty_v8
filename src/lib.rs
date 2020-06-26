@@ -18,8 +18,8 @@
 //! let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
 //! println!("javascript code: {}", code.to_rust_string_lossy(scope));
 //!
-//! let mut script = v8::Script::compile(scope, context, code, None).unwrap();
-//! let result = script.run(scope, context).unwrap();
+//! let mut script = v8::Script::compile(scope, code, None).unwrap();
+//! let result = script.run(scope).unwrap();
 //! let result = result.to_string(scope).unwrap();
 //! println!("result: {}", result.to_rust_string_lossy(scope));
 //! ```

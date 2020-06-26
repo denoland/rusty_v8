@@ -264,11 +264,12 @@ impl Function {
   /// for a given FunctionCallback.
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
-      scope.cast_local(|_| v8__Function__New(&*context, callback.map_fn_to()))
+      scope.cast_local(|sd| {
+        v8__Function__New(sd.get_current_context(), callback.map_fn_to())
+      })
     }
   }
 
@@ -276,13 +277,16 @@ impl Function {
   /// for a given FunctionCallback and associated data.
   pub fn new_with_data<'s>(
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     data: Local<Value>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
-      scope.cast_local(|_| {
-        v8__Function__NewWithData(&*context, callback.map_fn_to(), &*data)
+      scope.cast_local(|sd| {
+        v8__Function__NewWithData(
+          sd.get_current_context(),
+          callback.map_fn_to(),
+          &*data,
+        )
       })
     }
   }
@@ -290,7 +294,6 @@ impl Function {
   pub fn call<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     recv: Local<Value>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Value>> {
@@ -298,8 +301,9 @@ impl Function {
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
     unsafe {
-      scope
-        .cast_local(|_| v8__Function__Call(self, &*context, &*recv, argc, argv))
+      scope.cast_local(|sd| {
+        v8__Function__Call(self, sd.get_current_context(), &*recv, argc, argv)
+      })
     }
   }
 }

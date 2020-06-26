@@ -205,11 +205,15 @@ impl Module {
   #[must_use]
   pub fn instantiate_module<'a>(
     &mut self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     callback: impl MapFnTo<ResolveCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Module__InstantiateModule(self, &*context, callback.map_fn_to())
+      v8__Module__InstantiateModule(
+        self,
+        &*scope.get_current_context(),
+        callback.map_fn_to(),
+      )
     }
     .into()
   }
@@ -224,8 +228,10 @@ impl Module {
   pub fn evaluate<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.cast_local(|_| v8__Module__Evaluate(&*self, &*context)) }
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Module__Evaluate(&*self, sd.get_current_context()))
+    }
   }
 }

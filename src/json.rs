@@ -21,18 +21,23 @@ extern "C" {
 /// successful.
 pub fn parse<'s>(
   scope: &mut HandleScope<'s>,
-  context: Local<'_, Context>,
   json_string: Local<'_, String>,
 ) -> Option<Local<'s, Value>> {
-  unsafe { scope.cast_local(|_| v8__JSON__Parse(&*context, &*json_string)) }
+  unsafe {
+    scope
+      .cast_local(|sd| v8__JSON__Parse(sd.get_current_context(), &*json_string))
+  }
 }
 
 /// Tries to stringify the JSON-serializable object `json_object` and returns
 /// it as string if successful.
 pub fn stringify<'s>(
   scope: &mut HandleScope<'s>,
-  context: Local<'s, Context>,
   json_object: Local<'s, Value>,
 ) -> Option<Local<'s, String>> {
-  unsafe { scope.cast_local(|_| v8__JSON__Stringify(&*context, &*json_object)) }
+  unsafe {
+    scope.cast_local(|sd| {
+      v8__JSON__Stringify(sd.get_current_context(), &*json_object)
+    })
+  }
 }

@@ -183,9 +183,12 @@ impl Message {
   pub fn get_source_line<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
   ) -> Option<Local<'s, String>> {
-    unsafe { scope.cast_local(|_| v8__Message__GetSourceLine(self, &*context)) }
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Message__GetSourceLine(self, sd.get_current_context())
+      })
+    }
   }
 
   /// Returns the resource name for the script from where the function causing
@@ -198,8 +201,10 @@ impl Message {
   }
 
   /// Returns the number, 1-based, of the line where the error occurred.
-  pub fn get_line_number(&self, context: Local<Context>) -> Option<usize> {
-    let i = unsafe { v8__Message__GetLineNumber(self, &*context) };
+  pub fn get_line_number(&self, scope: &mut HandleScope) -> Option<usize> {
+    let i = unsafe {
+      v8__Message__GetLineNumber(self, &*scope.get_current_context())
+    };
     if i < 0 {
       None
     } else {

@@ -20,12 +20,13 @@ extern "C" {
 impl Proxy {
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     target: Local<Object>,
     handler: Local<Object>,
   ) -> Option<Local<'s, Proxy>> {
     unsafe {
-      scope.cast_local(|_| v8__Proxy__New(&*context, &*target, &*handler))
+      scope.cast_local(|sd| {
+        v8__Proxy__New(sd.get_current_context(), &*target, &*handler)
+      })
     }
   }
 

@@ -81,11 +81,12 @@ impl FunctionTemplate {
   /// Returns the unique function instance in the current execution context.
   pub fn get_function<'s>(
     &mut self,
-    scope: &mut HandleScope<'s, ()>,
-    context: Local<Context>,
+    scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
-      scope.cast_local(|_| v8__FunctionTemplate__GetFunction(&*self, &*context))
+      scope.cast_local(|sd| {
+        v8__FunctionTemplate__GetFunction(&*self, sd.get_current_context())
+      })
     }
   }
 
@@ -124,10 +125,11 @@ impl ObjectTemplate {
   pub fn new_instance<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
-      scope.cast_local(|_| v8__ObjectTemplate__NewInstance(self, &*context))
+      scope.cast_local(|sd| {
+        v8__ObjectTemplate__NewInstance(self, sd.get_current_context())
+      })
     }
   }
 }

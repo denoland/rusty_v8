@@ -89,11 +89,12 @@ impl Promise {
   pub fn catch<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
-      scope.cast_local(|_| v8__Promise__Catch(&*self, &*context, &*handler))
+      scope.cast_local(|sd| {
+        v8__Promise__Catch(&*self, sd.get_current_context(), &*handler)
+      })
     }
   }
 
@@ -103,11 +104,12 @@ impl Promise {
   pub fn then<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
-      scope.cast_local(|_| v8__Promise__Then(&*self, &*context, &*handler))
+      scope.cast_local(|sd| {
+        v8__Promise__Then(&*self, sd.get_current_context(), &*handler)
+      })
     }
   }
 
@@ -118,13 +120,17 @@ impl Promise {
   pub fn then2<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     on_fulfilled: Local<Function>,
     on_rejected: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
-      scope.cast_local(|_| {
-        v8__Promise__Then2(&*self, &*context, &*on_fulfilled, &*on_rejected)
+      scope.cast_local(|sd| {
+        v8__Promise__Then2(
+          &*self,
+          sd.get_current_context(),
+          &*on_fulfilled,
+          &*on_rejected,
+        )
       })
     }
   }
@@ -134,9 +140,11 @@ impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
-    context: Local<'s, Context>,
   ) -> Option<Local<'s, PromiseResolver>> {
-    unsafe { scope.cast_local(|_| v8__Promise__Resolver__New(&*context)) }
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Promise__Resolver__New(sd.get_current_context()))
+    }
   }
 
   /// Extract the associated promise.
@@ -150,22 +158,36 @@ impl PromiseResolver {
 
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn resolve<'s>(
+  pub fn resolve(
     &self,
-    context: Local<'s, Context>,
-    value: Local<'s, Value>,
+    scope: &mut HandleScope,
+    value: Local<'_, Value>,
   ) -> Option<bool> {
-    unsafe { v8__Promise__Resolver__Resolve(&*self, &*context, &*value).into() }
+    unsafe {
+      v8__Promise__Resolver__Resolve(
+        &*self,
+        &*scope.get_current_context(),
+        &*value,
+      )
+      .into()
+    }
   }
 
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
-  pub fn reject<'s>(
+  pub fn reject(
     &self,
-    context: Local<'s, Context>,
-    value: Local<'s, Value>,
+    scope: &mut HandleScope,
+    value: Local<'_, Value>,
   ) -> Option<bool> {
-    unsafe { v8__Promise__Resolver__Reject(&*self, &*context, &*value).into() }
+    unsafe {
+      v8__Promise__Resolver__Reject(
+        &*self,
+        &*scope.get_current_context(),
+        &*value,
+      )
+      .into()
+    }
   }
 }
 

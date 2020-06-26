@@ -130,32 +130,41 @@ impl Object {
   /// result.Check().
   pub fn set(
     &self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     key: Local<Value>,
     value: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__Set(self, &*context, &*key, &*value) }.into()
+    unsafe {
+      v8__Object__Set(self, &*scope.get_current_context(), &*key, &*value)
+    }
+    .into()
   }
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
   pub fn set_index(
     &self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     index: u32,
     value: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__SetIndex(self, &*context, index, &*value) }.into()
+    unsafe {
+      v8__Object__SetIndex(self, &*scope.get_current_context(), index, &*value)
+    }
+    .into()
   }
 
   /// Set the prototype object. This does not skip objects marked to be
   /// skipped by proto and it does not consult the security handler.
   pub fn set_prototype(
     &self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     prototype: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__SetPrototype(self, &*context, &*prototype) }.into()
+    unsafe {
+      v8__Object__SetPrototype(self, &*scope.get_current_context(), &*prototype)
+    }
+    .into()
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
@@ -167,12 +176,19 @@ impl Object {
   /// Returns true on success.
   pub fn create_data_property(
     &self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     key: Local<Name>,
     value: Local<Value>,
   ) -> Option<bool> {
-    unsafe { v8__Object__CreateDataProperty(self, &*context, &*key, &*value) }
-      .into()
+    unsafe {
+      v8__Object__CreateDataProperty(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &*value,
+      )
+    }
+    .into()
   }
 
   /// Implements DefineOwnProperty.
@@ -183,13 +199,19 @@ impl Object {
   /// Returns true on success.
   pub fn define_own_property(
     &self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     key: Local<Name>,
     value: Local<Value>,
     attr: PropertyAttribute,
   ) -> Option<bool> {
     unsafe {
-      v8__Object__DefineOwnProperty(self, &*context, &*key, &*value, attr)
+      v8__Object__DefineOwnProperty(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &*value,
+        attr,
+      )
     }
     .into()
   }
@@ -197,20 +219,23 @@ impl Object {
   pub fn get<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     key: Local<Value>,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.cast_local(|_| v8__Object__Get(self, &*context, &*key)) }
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Object__Get(self, sd.get_current_context(), &*key))
+    }
   }
 
   pub fn get_index<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     index: u32,
   ) -> Option<Local<'s, Value>> {
     unsafe {
-      scope.cast_local(|_| v8__Object__GetIndex(self, &*context, index))
+      scope.cast_local(|sd| {
+        v8__Object__GetIndex(self, sd.get_current_context(), index)
+      })
     }
   }
 
@@ -226,12 +251,17 @@ impl Object {
   /// Note: SideEffectType affects the getter only, not the setter.
   pub fn set_accessor(
     &mut self,
-    context: Local<Context>,
+    scope: &mut HandleScope,
     name: Local<Name>,
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Object__SetAccessor(self, &*context, &*name, getter.map_fn_to())
+      v8__Object__SetAccessor(
+        self,
+        &*scope.get_current_context(),
+        &*name,
+        getter.map_fn_to(),
+      )
     }
     .into()
   }
@@ -259,10 +289,11 @@ impl Object {
   pub fn get_own_property_names<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
   ) -> Option<Local<'s, Array>> {
     unsafe {
-      scope.cast_local(|_| v8__Object__GetOwnPropertyNames(self, &*context))
+      scope.cast_local(|sd| {
+        v8__Object__GetOwnPropertyNames(self, sd.get_current_context())
+      })
     }
   }
 
@@ -273,10 +304,11 @@ impl Object {
   pub fn get_property_names<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
   ) -> Option<Local<'s, Array>> {
     unsafe {
-      scope.cast_local(|_| v8__Object__GetPropertyNames(self, &*context))
+      scope.cast_local(|sd| {
+        v8__Object__GetPropertyNames(self, sd.get_current_context())
+      })
     }
   }
 }

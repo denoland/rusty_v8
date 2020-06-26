@@ -44,14 +44,13 @@ impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   pub fn compile<'s>(
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
     source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'s, Script>> {
     unsafe {
-      scope.cast_local(|_| {
+      scope.cast_local(|sd| {
         v8__Script__Compile(
-          &*context,
+          sd.get_current_context(),
           &*source,
           origin.map(|r| r as *const _).unwrap_or_else(null),
         )
@@ -65,9 +64,10 @@ impl Script {
   pub fn run<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    context: Local<Context>,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.cast_local(|_| v8__Script__Run(self, &*context)) }
+    unsafe {
+      scope.cast_local(|sd| v8__Script__Run(self, sd.get_current_context()))
+    }
   }
 }
 
