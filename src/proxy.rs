@@ -31,24 +31,24 @@ impl Proxy {
   }
 
   pub fn get_handler<'s>(
-    &mut self,
+    &self,
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(&*self)) }.unwrap()
   }
 
   pub fn get_target<'s>(
-    &mut self,
+    &self,
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(&*self)) }.unwrap()
   }
 
-  pub fn is_revoked(&mut self) -> bool {
+  pub fn is_revoked(&self) -> bool {
     unsafe { v8__Proxy__IsRevoked(self) }
   }
 
-  pub fn revoke(&mut self) {
+  pub fn revoke(&self) {
     unsafe { v8__Proxy__Revoke(self) };
   }
 }

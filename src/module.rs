@@ -204,7 +204,7 @@ impl Module {
   /// exception is propagated.)
   #[must_use]
   pub fn instantiate_module<'a>(
-    &mut self,
+    &self,
     scope: &mut HandleScope,
     callback: impl MapFnTo<ResolveCallback<'a>>,
   ) -> Option<bool> {

@@ -62,7 +62,7 @@ impl Script {
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
   pub fn run<'s>(
-    &mut self,
+    &self,
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, Value>> {
     unsafe {

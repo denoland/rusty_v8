@@ -43,7 +43,7 @@ impl CoreIsolate {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, code).unwrap();
-    let mut script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
     let r = script.run(scope);
     r.is_some()
   }

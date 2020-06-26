@@ -80,12 +80,12 @@ impl FunctionTemplate {
 
   /// Returns the unique function instance in the current execution context.
   pub fn get_function<'s>(
-    &mut self,
+    &self,
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__FunctionTemplate__GetFunction(&*self, sd.get_current_context())
+        v8__FunctionTemplate__GetFunction(self, sd.get_current_context())
       })
     }
   }
@@ -93,8 +93,8 @@ impl FunctionTemplate {
   /// Set the class name of the FunctionTemplate. This is used for
   /// printing objects created with the function created from the
   /// FunctionTemplate as its constructor.
-  pub fn set_class_name(&mut self, name: Local<String>) {
-    unsafe { v8__FunctionTemplate__SetClassName(&*self, &*name) };
+  pub fn set_class_name(&self, name: Local<String>) {
+    unsafe { v8__FunctionTemplate__SetClassName(self, &*name) };
   }
 }
 

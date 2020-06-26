@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use std::ptr::NonNull;
 
 /// An object reference managed by the v8 garbage collector.
@@ -79,12 +78,6 @@ impl<'s, T> Deref for Local<'s, T> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_ref() }
-  }
-}
-
-impl<'s, T> DerefMut for Local<'s, T> {
-  fn deref_mut(&mut self) -> &mut T {
-    unsafe { self.0.as_mut() }
   }
 }
 

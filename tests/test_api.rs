@@ -529,7 +529,7 @@ fn eval<'s>(
 ) -> Option<v8::Local<'s, v8::Value>> {
   let scope = &mut v8::EscapableHandleScope::new(scope);
   let source = v8::String::new(scope, code).unwrap();
-  let mut script = v8::Script::compile(scope, source, None).unwrap();
+  let script = v8::Script::compile(scope, source, None).unwrap();
   let r = script.run(scope);
   r.map(|v| scope.escape(v))
 }
@@ -689,7 +689,7 @@ fn terminate_execution() {
   // Rn an infinite loop, which should be terminated.
   let source = v8::String::new(scope, "for(;;) {}").unwrap();
   let r = v8::Script::compile(scope, source, None);
-  let mut script = r.unwrap();
+  let script = r.unwrap();
   let result = script.run(scope);
   assert!(result.is_none());
   // TODO assert_eq!(e.to_string(), "Uncaught Error: execution terminated")
@@ -774,7 +774,7 @@ fn add_message_listener() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "throw 'foo'").unwrap();
-    let mut script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
     assert!(script.run(scope).is_none());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
   }
@@ -814,8 +814,7 @@ fn set_host_initialize_import_meta_object_callback() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = mock_source(scope, "google.com", "import.meta;");
-    let mut module =
-      v8::script_compiler::compile_module(scope, source).unwrap();
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
     let result =
       module.instantiate_module(scope, unexpected_module_resolve_callback);
     assert!(result.is_some());
@@ -839,7 +838,7 @@ fn script_compile_and_run() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "'Hello ' + 13 + 'th planet'").unwrap();
-    let mut script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
     source.to_rust_string_lossy(scope);
     let result = script.run(scope).unwrap();
     let result = result.to_string(scope).unwrap();
@@ -880,7 +879,7 @@ fn script_origin() {
     );
 
     let source = v8::String::new(scope, "1+2").unwrap();
-    let mut script =
+    let script =
       v8::Script::compile(scope, source, Some(&script_origin)).unwrap();
     source.to_rust_string_lossy(scope);
     let _result = script.run(scope).unwrap();
@@ -1090,8 +1089,7 @@ fn object_template_from_function_template() {
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    let mut function_templ =
-      v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let expected_class_name = v8::String::new(scope, "fortytwo").unwrap();
     function_templ.set_class_name(expected_class_name);
     let object_templ =
@@ -1240,7 +1238,7 @@ fn object_set_accessor() {
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     };
 
-    let mut obj = v8::Object::new(scope);
+    let obj = v8::Object::new(scope);
 
     let getter_key = v8::String::new(scope, "getter_key").unwrap();
     obj.set_accessor(scope, getter_key.into(), getter);
@@ -1334,7 +1332,7 @@ fn proxy() {
     let handler = v8::Object::new(scope);
     let maybe_proxy = v8::Proxy::new(scope, target, handler);
     assert!(maybe_proxy.is_some());
-    let mut proxy = maybe_proxy.unwrap();
+    let proxy = maybe_proxy.unwrap();
     assert!(target == proxy.get_target(scope));
     assert!(handler == proxy.get_handler(scope));
     assert!(!proxy.is_revoked());
@@ -1406,7 +1404,7 @@ fn function() {
     let global = context.global(scope);
     let recv: v8::Local<v8::Value> = global.into();
     // create function using template
-    let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+    let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
     let function = fn_template
       .get_function(scope)
       .expect("Unable to create function");
@@ -1547,8 +1545,7 @@ fn module_instantiation_failures1() {
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let mut module =
-      v8::script_compiler::compile_module(scope, source).unwrap();
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
 
@@ -1624,8 +1621,7 @@ fn module_evaluation() {
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
-    let mut module =
-      v8::script_compiler::compile_module(scope, source).unwrap();
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
     let result = module
@@ -1710,7 +1706,7 @@ fn array_buffer_view() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let source =
       v8::String::new(scope, "new Uint8Array([23,23,23,23])").unwrap();
-    let mut script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
     source.to_rust_string_lossy(scope);
     let result: v8::Local<v8::ArrayBufferView> =
       script.run(scope).unwrap().try_into().unwrap();
@@ -1746,7 +1742,7 @@ fn snapshot_creator() {
       let scope = &mut v8::ContextScope::new(scope, context);
 
       let source = v8::String::new(scope, "a = 1 + 2").unwrap();
-      let mut script = v8::Script::compile(scope, source, None).unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
       script.run(scope).unwrap();
 
       snapshot_creator.set_default_context(context);
@@ -1767,7 +1763,7 @@ fn snapshot_creator() {
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       let source = v8::String::new(scope, "a === 3").unwrap();
-      let mut script = v8::Script::compile(scope, source, None).unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
       let result = script.run(scope).unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
@@ -1799,7 +1795,7 @@ fn external_references() {
       let scope = &mut v8::ContextScope::new(scope, context);
 
       // create function using template
-      let mut fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+      let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
       let function = fn_template
         .get_function(scope)
         .expect("Unable to create function");
@@ -1863,7 +1859,7 @@ fn uint8_array() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let source =
       v8::String::new(scope, "new Uint8Array([23,23,23,23])").unwrap();
-    let mut script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
     source.to_rust_string_lossy(scope);
     let result: v8::Local<v8::ArrayBufferView> =
       script.run(scope).unwrap().try_into().unwrap();
@@ -1949,7 +1945,7 @@ fn shared_array_buffer() {
         sharedBytes[5] + sharedBytes[12]",
     )
     .unwrap();
-    let mut script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
 
     let result: v8::Local<v8::Integer> =
       script.run(scope).unwrap().try_into().unwrap();
@@ -2897,8 +2893,7 @@ fn module_snapshot() {
       let origin = mock_script_origin(scope, "foo.js");
       let source = v8::script_compiler::Source::new(source_text, &origin);
 
-      let mut module =
-        v8::script_compiler::compile_module(scope, source).unwrap();
+      let module = v8::script_compiler::compile_module(scope, source).unwrap();
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
       let result = module.instantiate_module(
@@ -2931,12 +2926,12 @@ fn module_snapshot() {
       let true_val = v8::Boolean::new(scope, true).into();
 
       let source = v8::String::new(scope, "a === 3").unwrap();
-      let mut script = v8::Script::compile(scope, source, None).unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
       let result = script.run(scope).unwrap();
       assert!(result.same_value(true_val));
 
       let source = v8::String::new(scope, "b === 42").unwrap();
-      let mut script = v8::Script::compile(scope, source, None).unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
       let result = script.run(scope).unwrap();
       assert!(result.same_value(true_val));
     }

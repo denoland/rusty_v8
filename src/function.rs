@@ -90,7 +90,7 @@ impl<'cb> ReturnValue<'cb> {
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
-  pub fn get<'s>(&mut self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn get<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__ReturnValue__Get(self)) }.unwrap()
   }
 }

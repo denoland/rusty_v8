@@ -250,7 +250,7 @@ impl Object {
 
   /// Note: SideEffectType affects the getter only, not the setter.
   pub fn set_accessor(
-    &mut self,
+    &self,
     scope: &mut HandleScope,
     name: Local<Name>,
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
