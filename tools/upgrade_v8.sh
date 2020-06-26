@@ -1,8 +1,8 @@
 # WARNING: This is not an automated tool! This is just some commands to copy and
 # paste manually to upgrade V8.
 
-export BRANCH=20200605_rusty_v8
-export COMMITDATE=2020-05-05T17:39:10.000Z
+export BRANCH=20200626_rusty_v8
+export COMMITDATE=2020-06-25T12:06:47.000Z
 
 git submodule foreach 'git remote rm upstream; true' &&
 git -C build remote add upstream https://chromium.googlesource.com/chromium/src/build &&
