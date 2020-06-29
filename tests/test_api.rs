@@ -2940,36 +2940,36 @@ fn module_snapshot() {
 
 #[test]
 fn icu_date() {
-    let _setup_guard = setup();
-    let isolate = &mut v8::Isolate::new(Default::default());
-    {
-        let scope = &mut v8::HandleScope::new(isolate);
-        let context = v8::Context::new(scope);
-        let scope = &mut v8::ContextScope::new(scope, context);
-        let source = r#"
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
         (new Date(Date.UTC(2020, 5, 26, 7, 0, 0))).toLocaleString("de-DE", {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         "#;
-        let value = eval(scope, source).unwrap();
-        let date_de_val = v8::String::new(scope, "Freitag, 26. Juni 2020").unwrap();
-        assert!(value.is_string());
-        assert!(value.strict_equals(date_de_val.into()));
-    }
+    let value = eval(scope, source).unwrap();
+    let date_de_val = v8::String::new(scope, "Freitag, 26. Juni 2020").unwrap();
+    assert!(value.is_string());
+    assert!(value.strict_equals(date_de_val.into()));
+  }
 }
 
 #[test]
 fn icu_format() {
-    let _setup_guard = setup();
-    let isolate = &mut v8::Isolate::new(Default::default());
-    {
-        let scope = &mut v8::HandleScope::new(isolate);
-        let context = v8::Context::new(scope);
-        let scope = &mut v8::ContextScope::new(scope, context);
-        let source = r#"
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
         new Intl.NumberFormat('ja-JP',{ style: 'currency',currency: 'JPY'}).format(1230000);
         "#;
-        let value = eval(scope, source).unwrap();
-        let currency_jpy_val = v8::String::new(scope, "￥1,230,000").unwrap();
-        assert!(value.is_string());
-        assert!(value.strict_equals(currency_jpy_val.into()));
-    }
+    let value = eval(scope, source).unwrap();
+    let currency_jpy_val = v8::String::new(scope, "￥1,230,000").unwrap();
+    assert!(value.is_string());
+    assert!(value.strict_equals(currency_jpy_val.into()));
+  }
 }
