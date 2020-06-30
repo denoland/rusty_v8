@@ -53,31 +53,36 @@ macro_rules! impl_eq {
   };
 }
 
+extern "C" {
+  fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
+  fn v8__Value__StrictEquals(this: *const Value, other: *const Value) -> bool;
+}
+
 macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
-    impl<'s> PartialEq<Local<'s, $rhs>> for Local<'s, $type> {
-      fn eq(&self, other: &Local<'s, $rhs>) -> bool {
-        self.eq_identity((*other).into())
+    impl<'s> PartialEq<$rhs> for $type {
+      fn eq(&self, other: &$rhs) -> bool {
+        unsafe {
+          v8__Data__EQ(
+            self as *const _ as *const Data,
+            other as *const _ as *const Data,
+          )
+        }
       }
     }
   };
   { $rhs:ident for $type:ident use strict_equals } => {
-    impl<'s> PartialEq<Local<'s, $rhs>> for Local<'s, $type> {
-      fn eq(&self, other: &Local<'s, $rhs>) -> bool {
-        self.strict_equals((*other).into())
+    impl<'s> PartialEq<$rhs> for $type {
+      fn eq(&self, other: &$rhs) -> bool {
+        unsafe {
+          v8__Value__StrictEquals(
+            self as *const _ as *const Value,
+            other as *const _ as *const Value,
+          )
+        }
       }
     }
   };
-}
-
-extern "C" {
-  fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
-}
-
-impl Data {
-  fn eq_identity(&self, other: Local<Self>) -> bool {
-    unsafe { v8__Data__EQ(self, &*other) }
-  }
 }
 
 #[derive(Clone, Copy, Debug)]

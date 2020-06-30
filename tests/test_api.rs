@@ -87,47 +87,38 @@ fn handle_scope_non_lexical_lifetime() {
 fn global_handles() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let mut g1 = v8::Global::<v8::String>::new();
-  let mut g2 = v8::Global::<v8::Integer>::new();
-  let mut g3 = v8::Global::<v8::Integer>::new();
-  let mut _g4 = v8::Global::<v8::Integer>::new();
-  let g5 = v8::Global::<v8::Script>::new();
-  let mut g6 = v8::Global::<v8::Integer>::new();
+  let g1: v8::Global<v8::String>;
+  let mut g2: Option<v8::Global<v8::Integer>> = None;
+  let g3: v8::Global<v8::Integer>;
+  let g4: v8::Global<v8::Integer>;
+  let mut g5: Option<v8::Global<v8::Integer>> = None;
+  let g6;
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let l1 = v8::String::new(scope, "bla").unwrap();
     let l2 = v8::Integer::new(scope, 123);
-    g1.set(scope, l1);
-    g2.set(scope, l2);
-    g3.set(scope, &g2);
-    _g4 = v8::Global::new_from(scope, l2);
-    let l6 = v8::Integer::new(scope, 100);
-    g6.set(scope, l6);
+    g1 = v8::Global::new(scope, l1);
+    g2.replace(v8::Global::new(scope, l2));
+    g3 = v8::Global::new(scope, g2.as_ref().unwrap());
+    g4 = v8::Global::new(scope, l2);
+    let l5 = v8::Integer::new(scope, 100);
+    g5.replace(v8::Global::new(scope, l5));
+    g6 = g1.clone();
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    assert!(!g1.is_empty());
-    assert_eq!(g1.get(scope).unwrap().to_rust_string_lossy(scope), "bla");
-    assert!(!g2.is_empty());
-    assert_eq!(g2.get(scope).unwrap().value(), 123);
-    assert!(!g3.is_empty());
-    assert_eq!(g3.get(scope).unwrap().value(), 123);
-    assert!(!_g4.is_empty());
-    assert_eq!(_g4.get(scope).unwrap().value(), 123);
-    assert!(g5.is_empty());
-    let num = g6.get(scope).unwrap();
-    g6.reset(scope);
-    assert_eq!(num.value(), 100);
+    assert_eq!(g1.get(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g2.as_ref().unwrap().get(scope).value(), 123);
+    assert_eq!(g3.get(scope).value(), 123);
+    assert_eq!(g4.get(scope).value(), 123);
+    {
+      let num = g5.as_ref().unwrap().get(scope);
+      assert_eq!(num.value(), 100);
+    }
+    g5.take();
+    assert!(g6 == g1);
+    assert_eq!(g6.get(scope).to_rust_string_lossy(scope), "bla");
   }
-  g1.reset(isolate);
-  assert!(g1.is_empty());
-  g2.reset(isolate);
-  assert!(g2.is_empty());
-  g3.reset(isolate);
-  assert!(g3.is_empty());
-  _g4.reset(isolate);
-  assert!(_g4.is_empty());
-  assert!(g5.is_empty());
 }
 
 #[test]
@@ -135,17 +126,17 @@ fn global_handle_drop() {
   let _setup_guard = setup();
 
   // Global 'g1' will be dropped _after_ the Isolate has been disposed.
-  let mut g1 = v8::Global::<v8::String>::new();
+  let _g1: v8::Global<v8::String>;
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
 
   let l1 = v8::String::new(scope, "foo").unwrap();
-  g1.set(scope, l1);
+  _g1 = v8::Global::new(scope, l1);
 
   // Global 'g2' will be dropped _before_ the Isolate has been disposed.
   let l2 = v8::String::new(scope, "bar").unwrap();
-  let _g2 = v8::Global::new_from(scope, l2);
+  let _g2 = v8::Global::new(scope, l2);
 }
 
 #[test]
@@ -341,10 +332,10 @@ fn get_isolate_from_handle() {
     // Check that we can get the isolate from a Local.
     check_handle_helper(scope, expect_some, local);
 
-    // Check that we can still get it after converting it to a Global and back.
-    let global = v8::Global::new_from(scope, local);
-    let local = global.get(scope).unwrap();
-    check_handle_helper(scope, expect_some, local);
+    // Check that we can still get it after converting it to a Global.
+    let global = v8::Global::new(scope, local);
+    let local2 = v8::Local::new(scope, &global);
+    check_handle_helper(scope, expect_some, local2);
   };
 
   fn check_eval<'s>(
@@ -1997,6 +1988,9 @@ fn value_checker() {
     assert!(value == value);
     assert!(value == v8::Local::<v8::Primitive>::try_from(value).unwrap());
     assert!(value == v8::null(scope));
+    assert!(value == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::null(scope));
     assert!(value != v8::undefined(scope));
     assert!(value != v8::Boolean::new(scope, false));
     assert!(value != v8::Integer::new(scope, 0));
@@ -2008,6 +2002,10 @@ fn value_checker() {
     assert!(value == value);
     assert!(value == v8::Local::<v8::Boolean>::try_from(value).unwrap());
     assert!(value == v8::Boolean::new(scope, true));
+    assert!(value == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == eval(scope, "!false").unwrap());
+    assert!(v8::Global::new(scope, value) != eval(scope, "1").unwrap());
     assert!(value != v8::Boolean::new(scope, false));
 
     let value = eval(scope, "false").unwrap();
@@ -2017,6 +2015,10 @@ fn value_checker() {
     assert!(value == value);
     assert!(value == v8::Local::<v8::Boolean>::try_from(value).unwrap());
     assert!(value == v8::Boolean::new(scope, false));
+    assert!(value == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == eval(scope, "!true").unwrap());
+    assert!(v8::Global::new(scope, value) != eval(scope, "0").unwrap());
     assert!(value != v8::Boolean::new(scope, true));
     assert!(value != v8::null(scope));
     assert!(value != v8::undefined(scope));
@@ -2036,22 +2038,27 @@ fn value_checker() {
     assert!(value.is_symbol());
     assert!(value == value);
     assert!(value == v8::Local::<v8::Symbol>::try_from(value).unwrap());
-    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
     assert!(value != eval(scope, "Symbol()").unwrap());
+    assert!(v8::Global::new(scope, value) != eval(scope, "Symbol()").unwrap());
 
     let value = eval(scope, "() => 0").unwrap();
     assert!(value.is_function());
     assert!(value == value);
     assert!(value == v8::Local::<v8::Function>::try_from(value).unwrap());
-    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
     assert!(value != eval(scope, "() => 0").unwrap());
+    assert!(v8::Global::new(scope, value) != eval(scope, "() => 0").unwrap());
 
     let value = eval(scope, "async () => 0").unwrap();
     assert!(value.is_async_function());
     assert!(value == value);
     assert!(value == v8::Local::<v8::Function>::try_from(value).unwrap());
-    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
     assert!(value != v8::Object::new(scope));
+    assert!(v8::Global::new(scope, value) != v8::Object::new(scope));
 
     let value = eval(scope, "[]").unwrap();
     assert!(value.is_array());
@@ -2128,8 +2135,10 @@ fn value_checker() {
     assert!(value.is_object());
     assert!(value == value);
     assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
-    assert!(value == v8::Global::new_from(scope, value).get(scope).unwrap());
+    assert!(value == v8::Global::new(scope, value));
+    assert!(v8::Global::new(scope, value) == v8::Global::new(scope, value));
     assert!(value != v8::Object::new(scope));
+    assert!(v8::Global::new(scope, value) != v8::Object::new(scope));
 
     let value = eval(scope, "new Date()").unwrap();
     assert!(value.is_date());

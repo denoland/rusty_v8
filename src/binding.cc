@@ -220,17 +220,9 @@ const v8::Data* v8__Global__New(v8::Isolate* isolate, const v8::Data& other) {
   return make_pod<v8::Data*>(std::move(global));
 }
 
-void v8__Global__Reset__0(const v8::Data*& self) {
-  auto global = ptr_to_global(self);
+void v8__Global__Reset(const v8::Data* data) {
+  auto global = ptr_to_global(data);
   global.Reset();
-  self = make_pod<v8::Data*>(std::move(global));
-}
-
-void v8__Global__Reset__2(const v8::Data*& self, v8::Isolate* isolate,
-                          const v8::Data* const& other) {
-  auto global = ptr_to_global(self);
-  global.Reset(isolate, ptr_to_local(other));
-  self = make_pod<v8::Data*>(std::move(global));
 }
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
