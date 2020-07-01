@@ -2070,6 +2070,8 @@ fn value_checker() {
     assert!(value != v8::undefined(scope));
     assert!(value != v8::Boolean::new(scope, false));
     assert!(value != v8::Integer::new(scope, 0));
+    assert!(value.to_boolean(scope) == v8::Boolean::new(scope, false));
+    assert!(!value.boolean_value(scope));
 
     let value = eval(scope, "true").unwrap();
     assert!(value.is_boolean());
@@ -2083,6 +2085,7 @@ fn value_checker() {
     assert!(v8::Global::new(scope, value) == eval(scope, "!false").unwrap());
     assert!(v8::Global::new(scope, value) != eval(scope, "1").unwrap());
     assert!(value != v8::Boolean::new(scope, false));
+    assert!(value.boolean_value(scope));
 
     let value = eval(scope, "false").unwrap();
     assert!(value.is_boolean());
@@ -2099,6 +2102,7 @@ fn value_checker() {
     assert!(value != v8::null(scope));
     assert!(value != v8::undefined(scope));
     assert!(value != v8::Integer::new(scope, 0));
+    assert!(!value.boolean_value(scope));
 
     let value = eval(scope, "'name'").unwrap();
     assert!(value.is_name());
@@ -2108,6 +2112,8 @@ fn value_checker() {
     assert!(value == v8::String::new(scope, "name").unwrap());
     assert!(value != v8::String::new(scope, "name\0").unwrap());
     assert!(value != v8::Object::new(scope));
+    assert!(value.to_boolean(scope) == v8::Boolean::new(scope, true));
+    assert!(value.boolean_value(scope));
 
     let value = eval(scope, "Symbol()").unwrap();
     assert!(value.is_name());

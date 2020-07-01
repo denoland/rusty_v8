@@ -1,9 +1,11 @@
 use crate::support::Maybe;
 use crate::BigInt;
+use crate::Boolean;
 use crate::Context;
 use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
+use crate::Isolate;
 use crate::Local;
 use crate::Number;
 use crate::Object;
@@ -102,6 +104,10 @@ extern "C" {
     this: *const Value,
     context: *const Context,
   ) -> *const Int32;
+  fn v8__Value__ToBoolean(
+    this: *const Value,
+    isolate: *mut Isolate,
+  ) -> *const Boolean;
 
   fn v8__Value__NumberValue(
     this: *const Value,
@@ -123,6 +129,8 @@ extern "C" {
     context: *const Context,
     out: *mut Maybe<i32>,
   );
+  fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
+    -> bool;
 }
 
 impl Value {
@@ -500,6 +508,17 @@ impl Value {
     }
   }
 
+  /// Perform the equivalent of Boolean(value) in JS. This can never fail.
+  pub fn to_boolean<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, Boolean> {
+    unsafe {
+      scope.cast_local(|sd| v8__Value__ToBoolean(self, sd.get_isolate_ptr()))
+    }
+    .unwrap()
+  }
+
   pub fn number_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<f64> {
     let mut out = Maybe::<f64>::default();
     unsafe {
@@ -530,5 +549,9 @@ impl Value {
       v8__Value__Int32Value(self, &*scope.get_current_context(), &mut out)
     };
     out.into()
+  }
+
+  pub fn boolean_value<'s>(&self, scope: &mut HandleScope<'s, ()>) -> bool {
+    unsafe { v8__Value__BooleanValue(self, scope.get_isolate_ptr()) }
   }
 }

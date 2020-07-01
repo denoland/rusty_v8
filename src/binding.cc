@@ -473,6 +473,11 @@ const v8::Object* v8__Value__ToObject(const v8::Value& self,
   return maybe_local_to_ptr(self.ToObject(ptr_to_local(&context)));
 }
 
+const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
+                                        v8::Isolate* isolate) {
+  return local_to_ptr(self.ToBoolean(isolate));
+}
+
 void v8__Value__NumberValue(const v8::Value& self, const v8::Context& context,
                             v8::Maybe<double>* out) {
   *out = self.NumberValue(ptr_to_local(&context));
@@ -491,6 +496,10 @@ void v8__Value__Uint32Value(const v8::Value& self, const v8::Context& context,
 void v8__Value__Int32Value(const v8::Value& self, const v8::Context& context,
                            v8::Maybe<int32_t>* out) {
   *out = self.Int32Value(ptr_to_local(&context));
+}
+
+bool v8__Value__BooleanValue(const v8::Value& self, v8::Isolate* isolate) {
+  return self.BooleanValue(isolate);
 }
 
 const v8::Primitive* v8__Null(v8::Isolate* isolate) {
