@@ -266,6 +266,30 @@ fn context_scope_param_and_context_must_share_isolate() {
 }
 
 #[test]
+#[should_panic(
+  expected = "attempt to use Handle in an Isolate that is not its host"
+)]
+fn handle_scope_param_and_context_must_share_isolate() {
+  let _setup_guard = setup();
+  let isolate1 = &mut v8::Isolate::new(Default::default());
+  let isolate2 = &mut v8::Isolate::new(Default::default());
+  let global_context1;
+  let global_context2;
+  {
+    let scope1 = &mut v8::HandleScope::new(isolate1);
+    let scope2 = &mut v8::HandleScope::new(isolate2);
+    let local_context_1 = v8::Context::new(scope1);
+    let local_context_2 = v8::Context::new(scope2);
+    global_context1 = v8::Global::new(scope1, local_context_1);
+    global_context2 = v8::Global::new(scope2, local_context_2);
+  }
+  let _handle_scope_12 =
+    &mut v8::HandleScope::with_context(isolate1, global_context2);
+  let _handle_scope_21 =
+    &mut v8::HandleScope::with_context(isolate2, global_context1);
+}
+
+#[test]
 fn microtasks() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

@@ -83,6 +83,7 @@ use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
 use crate::Context;
 use crate::Data;
+use crate::Handle;
 use crate::Isolate;
 use crate::Local;
 use crate::Message;
@@ -140,6 +141,24 @@ impl<'s> HandleScope<'s> {
     param
       .get_scope_data_mut()
       .new_handle_scope_data()
+      .as_scope()
+  }
+
+  /// Opens a new `HandleScope` and enters a `Context` in one step.
+  /// The first argument should be an `Isolate` or `OwnedIsolate`.
+  /// The second argument can be any handle that refers to a `Context` object;
+  /// usually this will be a `Global<Context>`.
+  pub fn with_context<
+    P: param::NewHandleScopeWithContext<'s>,
+    H: Handle<Data = Context>,
+  >(
+    param: &'s mut P,
+    context: H,
+  ) -> Self {
+    let context_ref = context.get(param.get_isolate_mut());
+    param
+      .get_scope_data_mut()
+      .new_handle_scope_data_with_context(context_ref)
       .as_scope()
   }
 
@@ -645,6 +664,22 @@ mod param {
     type NewScope = HandleScope<'s>;
   }
 
+  pub trait NewHandleScopeWithContext<'s>: data::GetScopeData {
+    fn get_isolate_mut(&mut self) -> &mut Isolate;
+  }
+
+  impl<'s> NewHandleScopeWithContext<'s> for Isolate {
+    fn get_isolate_mut(&mut self) -> &mut Isolate {
+      self
+    }
+  }
+
+  impl<'s> NewHandleScopeWithContext<'s> for OwnedIsolate {
+    fn get_isolate_mut(&mut self) -> &mut Isolate {
+      &mut *self
+    }
+  }
+
   pub trait NewEscapableHandleScope<'s, 'e: 's>: data::GetScopeData {
     type NewScope: Scope;
   }
@@ -846,21 +881,72 @@ pub(crate) mod data {
       })
     }
 
-    pub(super) fn new_handle_scope_data(&mut self) -> &mut Self {
+    /// Implementation helper function, which creates the raw `HandleScope`, but
+    /// defers (maybe) entering a context to the provided callback argument.
+    /// This function gets called by `Self::new_handle_scope_data()` and
+    /// `Self::new_handle_scope_data_with_context()`.
+    #[inline(always)]
+    fn new_handle_scope_data_with<F>(&mut self, init_context_fn: F) -> &mut Self
+    where
+      F: FnOnce(
+        NonNull<Isolate>,
+        &mut Cell<Option<NonNull<Context>>>,
+        &mut Option<raw::ContextScope>,
+      ),
+    {
       self.new_scope_data_with(|data| {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::HandleScope {
             raw_handle_scope: unsafe { raw::HandleScope::uninit() },
+            raw_context_scope: None,
           }
         });
         match &mut data.scope_type_specific_data {
-          ScopeTypeSpecificData::HandleScope { raw_handle_scope } => {
+          ScopeTypeSpecificData::HandleScope {
+            raw_handle_scope,
+            raw_context_scope,
+          } => {
             unsafe { raw_handle_scope.init(isolate) };
+            init_context_fn(isolate, &mut data.context, raw_context_scope);
           }
           _ => unreachable!(),
-        }
+        };
       })
+    }
+
+    pub(super) fn new_handle_scope_data(&mut self) -> &mut Self {
+      self.new_handle_scope_data_with(|_, _, raw_context_scope| {
+        debug_assert!(raw_context_scope.is_none())
+      })
+    }
+
+    pub(super) fn new_handle_scope_data_with_context(
+      &mut self,
+      context_ref: &Context,
+    ) -> &mut Self {
+      self.new_handle_scope_data_with(
+        move |isolate, context_data, raw_context_scope| unsafe {
+          let context_nn = NonNull::from(context_ref);
+          // Copy the `Context` reference to a new local handle to enure that it
+          // cannot get garbage collected until after this scope is dropped.
+          let local_context_ptr =
+            raw::v8__Local__New(isolate.as_ptr(), context_nn.cast().as_ptr())
+              as *const Context;
+          let local_context_nn =
+            NonNull::new_unchecked(local_context_ptr as *mut _);
+          let local_context = Local::from_non_null(local_context_nn);
+          // Initialize the `raw::ContextScope`. This enters the context too.
+          debug_assert!(raw_context_scope.is_none());
+          ptr::write(
+            raw_context_scope,
+            Some(raw::ContextScope::new(local_context)),
+          );
+          // Also store the newly created `Local<Context>` in the `Cell` that
+          // serves as a look-up cache for the current context.
+          context_data.set(Some(local_context_nn));
+        },
+      )
     }
 
     pub(super) fn new_escapable_handle_scope_data(&mut self) -> &mut Self {
@@ -1203,6 +1289,7 @@ pub(crate) mod data {
     },
     HandleScope {
       raw_handle_scope: raw::HandleScope,
+      raw_context_scope: Option<raw::ContextScope>,
     },
     EscapableHandleScope {
       raw_handle_scope: raw::HandleScope,
@@ -1216,6 +1303,22 @@ pub(crate) mod data {
   impl Default for ScopeTypeSpecificData {
     fn default() -> Self {
       Self::None
+    }
+  }
+
+  impl Drop for ScopeTypeSpecificData {
+    fn drop(&mut self) {
+      // For `HandleScope`s that also enter a `Context`, drop order matters. The
+      // context is stored in a `Local` handle, which is allocated in this
+      // scope's own private `raw::HandleScope`. When that `raw::HandleScope`
+      // is dropped first, we immediately lose the `Local<Context>` handle,
+      // which we need in order to exit `ContextScope`.
+      if let Self::HandleScope {
+        raw_context_scope, ..
+      } = self
+      {
+        *raw_context_scope = None
+      }
     }
   }
 
@@ -1272,22 +1375,21 @@ mod raw {
   pub(super) struct Address(NonZeroUsize);
 
   pub(super) struct ContextScope {
-    entered_context: *const Context,
+    entered_context: NonNull<Context>,
   }
 
   impl ContextScope {
     pub fn new(context: Local<Context>) -> Self {
       unsafe { v8__Context__Enter(&*context) };
       Self {
-        entered_context: &*context,
+        entered_context: context.as_non_null(),
       }
     }
   }
 
   impl Drop for ContextScope {
     fn drop(&mut self) {
-      debug_assert!(!self.entered_context.is_null());
-      unsafe { v8__Context__Exit(self.entered_context) };
+      unsafe { v8__Context__Exit(self.entered_context.as_ptr()) };
     }
   }
 
@@ -1452,6 +1554,7 @@ mod raw {
 mod tests {
   use super::*;
   use crate::new_default_platform;
+  use crate::Global;
   use crate::V8;
   use std::any::type_name;
   use std::sync::Once;
@@ -1581,104 +1684,116 @@ mod tests {
     initialize_v8();
     let isolate = &mut Isolate::new(Default::default());
     AssertTypeOf(isolate).is::<OwnedIsolate>();
-    let l1_hs = &mut HandleScope::new(isolate);
-    AssertTypeOf(l1_hs).is::<HandleScope<()>>();
-    let context = Context::new(l1_hs);
-    AssertTypeOf(&HandleScope::new(l1_hs)).is::<HandleScope<()>>();
+    let global_context: Global<Context>;
     {
-      let l2_cxs = &mut ContextScope::new(l1_hs, context);
-      AssertTypeOf(l2_cxs).is::<ContextScope<HandleScope>>();
-      AssertTypeOf(&ContextScope::new(l2_cxs, context))
-        .is::<ContextScope<HandleScope>>();
-      AssertTypeOf(&HandleScope::new(l2_cxs)).is::<HandleScope>();
-      AssertTypeOf(&EscapableHandleScope::new(l2_cxs))
-        .is::<EscapableHandleScope>();
-      AssertTypeOf(&TryCatch::new(l2_cxs)).is::<TryCatch<HandleScope>>();
-    }
-    {
-      let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
-      AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
-      AssertTypeOf(&HandleScope::new(l2_ehs)).is::<EscapableHandleScope<()>>();
-      AssertTypeOf(&EscapableHandleScope::new(l2_ehs))
-        .is::<EscapableHandleScope<()>>();
+      let l1_hs = &mut HandleScope::new(isolate);
+      AssertTypeOf(l1_hs).is::<HandleScope<()>>();
+      let context = Context::new(l1_hs);
+      global_context = Global::new(l1_hs, context);
+      AssertTypeOf(&HandleScope::new(l1_hs)).is::<HandleScope<()>>();
       {
-        let l3_cxs = &mut ContextScope::new(l2_ehs, context);
-        AssertTypeOf(l3_cxs).is::<ContextScope<EscapableHandleScope>>();
-        AssertTypeOf(&ContextScope::new(l3_cxs, context))
-          .is::<ContextScope<EscapableHandleScope>>();
-        AssertTypeOf(&HandleScope::new(l3_cxs)).is::<EscapableHandleScope>();
-        AssertTypeOf(&EscapableHandleScope::new(l3_cxs))
+        let l2_cxs = &mut ContextScope::new(l1_hs, context);
+        AssertTypeOf(l2_cxs).is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&ContextScope::new(l2_cxs, context))
+          .is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&HandleScope::new(l2_cxs)).is::<HandleScope>();
+        AssertTypeOf(&EscapableHandleScope::new(l2_cxs))
           .is::<EscapableHandleScope>();
+        AssertTypeOf(&TryCatch::new(l2_cxs)).is::<TryCatch<HandleScope>>();
+      }
+      {
+        let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
+        AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&HandleScope::new(l2_ehs))
+          .is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&EscapableHandleScope::new(l2_ehs))
+          .is::<EscapableHandleScope<()>>();
         {
-          let l4_tc = &mut TryCatch::new(l3_cxs);
-          AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
-          AssertTypeOf(&ContextScope::new(l4_tc, context))
+          let l3_cxs = &mut ContextScope::new(l2_ehs, context);
+          AssertTypeOf(l3_cxs).is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&ContextScope::new(l3_cxs, context))
             .is::<ContextScope<EscapableHandleScope>>();
-          AssertTypeOf(&HandleScope::new(l4_tc)).is::<EscapableHandleScope>();
-          AssertTypeOf(&EscapableHandleScope::new(l4_tc))
+          AssertTypeOf(&HandleScope::new(l3_cxs)).is::<EscapableHandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_cxs))
             .is::<EscapableHandleScope>();
-          AssertTypeOf(&TryCatch::new(l4_tc))
-            .is::<TryCatch<EscapableHandleScope>>();
+          {
+            let l4_tc = &mut TryCatch::new(l3_cxs);
+            AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
+            AssertTypeOf(&ContextScope::new(l4_tc, context))
+              .is::<ContextScope<EscapableHandleScope>>();
+            AssertTypeOf(&HandleScope::new(l4_tc)).is::<EscapableHandleScope>();
+            AssertTypeOf(&EscapableHandleScope::new(l4_tc))
+              .is::<EscapableHandleScope>();
+            AssertTypeOf(&TryCatch::new(l4_tc))
+              .is::<TryCatch<EscapableHandleScope>>();
+          }
+        }
+        {
+          let l3_tc = &mut TryCatch::new(l2_ehs);
+          AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
+          AssertTypeOf(&ContextScope::new(l3_tc, context))
+            .is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_tc))
+            .is::<EscapableHandleScope<()>>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+            .is::<EscapableHandleScope<()>>();
+          AssertTypeOf(&TryCatch::new(l3_tc))
+            .is::<TryCatch<EscapableHandleScope<()>>>();
         }
       }
       {
-        let l3_tc = &mut TryCatch::new(l2_ehs);
-        AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
-        AssertTypeOf(&ContextScope::new(l3_tc, context))
-          .is::<ContextScope<EscapableHandleScope>>();
-        AssertTypeOf(&HandleScope::new(l3_tc)).is::<EscapableHandleScope<()>>();
-        AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+        let l2_tc = &mut TryCatch::new(l1_hs);
+        AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
+        AssertTypeOf(&ContextScope::new(l2_tc, context))
+          .is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&HandleScope::new(l2_tc)).is::<HandleScope<()>>();
+        AssertTypeOf(&EscapableHandleScope::new(l2_tc))
           .is::<EscapableHandleScope<()>>();
-        AssertTypeOf(&TryCatch::new(l3_tc))
-          .is::<TryCatch<EscapableHandleScope<()>>>();
+        AssertTypeOf(&TryCatch::new(l2_tc)).is::<TryCatch<HandleScope<()>>>();
+      }
+      {
+        let l2_cbs = &mut unsafe { CallbackScope::new(context) };
+        AssertTypeOf(l2_cbs).is::<CallbackScope>();
+        AssertTypeOf(&ContextScope::new(l2_cbs, context))
+          .is::<ContextScope<HandleScope>>();
+        {
+          let l3_hs = &mut HandleScope::new(l2_cbs);
+          AssertTypeOf(l3_hs).is::<HandleScope>();
+          AssertTypeOf(&ContextScope::new(l3_hs, context))
+            .is::<ContextScope<HandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_hs)).is::<HandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_hs))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l3_hs)).is::<TryCatch<HandleScope>>();
+        }
+        {
+          let l3_ehs = &mut EscapableHandleScope::new(l2_cbs);
+          AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
+          AssertTypeOf(&ContextScope::new(l3_ehs, context))
+            .is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_ehs)).is::<EscapableHandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_ehs))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l3_ehs))
+            .is::<TryCatch<EscapableHandleScope>>();
+        }
+        {
+          let l3_tc = &mut TryCatch::new(l2_cbs);
+          AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
+          AssertTypeOf(&ContextScope::new(l3_tc, context))
+            .is::<ContextScope<HandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_tc)).is::<HandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l3_tc)).is::<TryCatch<HandleScope>>();
+        }
       }
     }
     {
-      let l2_tc = &mut TryCatch::new(l1_hs);
-      AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
-      AssertTypeOf(&ContextScope::new(l2_tc, context))
-        .is::<ContextScope<HandleScope>>();
-      AssertTypeOf(&HandleScope::new(l2_tc)).is::<HandleScope<()>>();
-      AssertTypeOf(&EscapableHandleScope::new(l2_tc))
-        .is::<EscapableHandleScope<()>>();
-      AssertTypeOf(&TryCatch::new(l2_tc)).is::<TryCatch<HandleScope<()>>>();
-    }
-    {
-      let l2_cbs = &mut unsafe { CallbackScope::new(context) };
-      AssertTypeOf(l2_cbs).is::<CallbackScope>();
-      AssertTypeOf(&ContextScope::new(l2_cbs, context))
-        .is::<ContextScope<HandleScope>>();
-      {
-        let l3_hs = &mut HandleScope::new(l2_cbs);
-        AssertTypeOf(l3_hs).is::<HandleScope>();
-        AssertTypeOf(&ContextScope::new(l3_hs, context))
-          .is::<ContextScope<HandleScope>>();
-        AssertTypeOf(&HandleScope::new(l3_hs)).is::<HandleScope>();
-        AssertTypeOf(&EscapableHandleScope::new(l3_hs))
-          .is::<EscapableHandleScope>();
-        AssertTypeOf(&TryCatch::new(l3_hs)).is::<TryCatch<HandleScope>>();
-      }
-      {
-        let l3_ehs = &mut EscapableHandleScope::new(l2_cbs);
-        AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
-        AssertTypeOf(&ContextScope::new(l3_ehs, context))
-          .is::<ContextScope<EscapableHandleScope>>();
-        AssertTypeOf(&HandleScope::new(l3_ehs)).is::<EscapableHandleScope>();
-        AssertTypeOf(&EscapableHandleScope::new(l3_ehs))
-          .is::<EscapableHandleScope>();
-        AssertTypeOf(&TryCatch::new(l3_ehs))
-          .is::<TryCatch<EscapableHandleScope>>();
-      }
-      {
-        let l3_tc = &mut TryCatch::new(l2_cbs);
-        AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
-        AssertTypeOf(&ContextScope::new(l3_tc, context))
-          .is::<ContextScope<HandleScope>>();
-        AssertTypeOf(&HandleScope::new(l3_tc)).is::<HandleScope>();
-        AssertTypeOf(&EscapableHandleScope::new(l3_tc))
-          .is::<EscapableHandleScope>();
-        AssertTypeOf(&TryCatch::new(l3_tc)).is::<TryCatch<HandleScope>>();
-      }
+      AssertTypeOf(&HandleScope::with_context(isolate, &global_context))
+        .is::<HandleScope>();
+      AssertTypeOf(&HandleScope::with_context(isolate, global_context))
+        .is::<HandleScope>();
     }
   }
 }
