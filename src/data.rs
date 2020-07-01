@@ -141,7 +141,6 @@ impl_from! { Uint8ClampedArray for Data }
 impl_from! { BigIntObject for Data }
 impl_from! { BooleanObject for Data }
 impl_from! { Date for Data }
-impl_from! { FinalizationGroup for Data }
 impl_from! { Function for Data }
 impl_from! { Map for Data }
 impl_from! { NumberObject for Data }
@@ -201,7 +200,6 @@ impl_partial_eq! { Uint8ClampedArray for Data use identity }
 impl_partial_eq! { BigIntObject for Data use identity }
 impl_partial_eq! { BooleanObject for Data use identity }
 impl_partial_eq! { Date for Data use identity }
-impl_partial_eq! { FinalizationGroup for Data use identity }
 impl_partial_eq! { Function for Data use identity }
 impl_partial_eq! { Map for Data use identity }
 impl_partial_eq! { NumberObject for Data use identity }
@@ -519,7 +517,6 @@ impl_from! { Uint8ClampedArray for Value }
 impl_from! { BigIntObject for Value }
 impl_from! { BooleanObject for Value }
 impl_from! { Date for Value }
-impl_from! { FinalizationGroup for Value }
 impl_from! { Function for Value }
 impl_from! { Map for Value }
 impl_from! { NumberObject for Value }
@@ -564,7 +561,6 @@ impl_partial_eq! { Uint8ClampedArray for Value use identity }
 impl_partial_eq! { BigIntObject for Value use identity }
 impl_partial_eq! { BooleanObject for Value use identity }
 impl_partial_eq! { Date for Value use identity }
-impl_partial_eq! { FinalizationGroup for Value use identity }
 impl_partial_eq! { Function for Value use identity }
 impl_partial_eq! { Map for Value use identity }
 impl_partial_eq! { NumberObject for Value use identity }
@@ -625,7 +621,6 @@ impl_from! { Uint8ClampedArray for Object }
 impl_from! { BigIntObject for Object }
 impl_from! { BooleanObject for Object }
 impl_from! { Date for Object }
-impl_from! { FinalizationGroup for Object }
 impl_from! { Function for Object }
 impl_from! { Map for Object }
 impl_from! { NumberObject for Object }
@@ -661,7 +656,6 @@ impl_partial_eq! { Uint8ClampedArray for Object use identity }
 impl_partial_eq! { BigIntObject for Object use identity }
 impl_partial_eq! { BooleanObject for Object use identity }
 impl_partial_eq! { Date for Object use identity }
-impl_partial_eq! { FinalizationGroup for Object use identity }
 impl_partial_eq! { Function for Object use identity }
 impl_partial_eq! { Map for Object use identity }
 impl_partial_eq! { NumberObject for Object use identity }
@@ -1019,20 +1013,6 @@ impl_partial_eq! { Data for Date use identity }
 impl_partial_eq! { Value for Date use identity }
 impl_partial_eq! { Object for Date use identity }
 impl_partial_eq! { Date for Date use identity }
-
-/// An instance of the built-in FinalizationRegistry constructor.
-///
-/// The C++ name is FinalizationGroup for backwards compatibility. This API is
-/// experimental and deprecated.
-#[repr(C)]
-pub struct FinalizationGroup(Opaque);
-
-impl_deref! { Object for FinalizationGroup }
-impl_eq! { for FinalizationGroup }
-impl_partial_eq! { Data for FinalizationGroup use identity }
-impl_partial_eq! { Value for FinalizationGroup use identity }
-impl_partial_eq! { Object for FinalizationGroup use identity }
-impl_partial_eq! { FinalizationGroup for FinalizationGroup use identity }
 
 /// A JavaScript function object (ECMA-262, 15.3).
 #[repr(C)]
