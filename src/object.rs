@@ -79,6 +79,26 @@ extern "C" {
     this: *const Object,
     context: *const Context,
   ) -> *const Array;
+  fn v8__Object__Has(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
+  fn v8__Object__HasIndex(
+    this: *const Object,
+    context: *const Context,
+    index: u32,
+  ) -> MaybeBool;
+  fn v8__Object__Delete(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
+  fn v8__Object__DeleteIndex(
+    this: *const Object,
+    context: *const Context,
+    index: u32,
+  ) -> MaybeBool;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -310,6 +330,54 @@ impl Object {
         v8__Object__GetPropertyNames(self, sd.get_current_context())
       })
     }
+  }
+
+  // Calls the abstract operation HasProperty(O, P) described in ECMA-262,
+  // 7.3.10. Returns true, if the object has the property, either own or on the
+  // prototype chain. Interceptors, i.e., PropertyQueryCallbacks, are called if
+  // present.
+  //
+  // This function has the same side effects as JavaScript's variable in object.
+  // For example, calling this on a revoked proxy will throw an exception.
+  //
+  // Note: This function converts the key to a name, which possibly calls back
+  // into JavaScript.
+  pub fn has<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Object__Has(self, &*scope.get_current_context(), &*key) }
+      .into()
+  }
+
+  pub fn has_index<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    index: u32,
+  ) -> Option<bool> {
+    unsafe { v8__Object__HasIndex(self, &*scope.get_current_context(), index) }
+      .into()
+  }
+
+  pub fn delete<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Object__Delete(self, &*scope.get_current_context(), &*key) }
+      .into()
+  }
+
+  pub fn delete_index<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    index: u32,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__DeleteIndex(self, &*scope.get_current_context(), index)
+    }
+    .into()
   }
 }
 

@@ -752,6 +752,30 @@ const v8::Array* v8__Object__GetPropertyNames(const v8::Object* self,
       ptr_to_local(self)->GetPropertyNames(ptr_to_local(context)));
 }
 
+MaybeBool v8__Object__Has(const v8::Object& self, const v8::Context& context,
+                          const v8::Value& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Has(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__HasIndex(const v8::Object& self,
+                               const v8::Context& context, uint32_t index) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Has(ptr_to_local(&context), index));
+}
+
+MaybeBool v8__Object__Delete(const v8::Object& self, const v8::Context& context,
+                             const v8::Value& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Delete(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__DeleteIndex(const v8::Object& self,
+                                  const v8::Context& context, uint32_t index) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Delete(ptr_to_local(&context), index));
+}
+
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }

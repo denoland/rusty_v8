@@ -1190,6 +1190,12 @@ fn object() {
     assert!(!object_.is_null_or_undefined());
     let id = object_.get_identity_hash();
     assert_ne!(id, 0);
+
+    assert!(object.has(scope, n1.into()).unwrap());
+    let n_unused = v8::String::new(scope, "unused").unwrap().into();
+    assert!(!object.has(scope, n_unused).unwrap());
+    assert!(object.delete(scope, n1.into()).unwrap());
+    assert!(!object.has(scope, n1.into()).unwrap());
   }
 }
 
@@ -1230,6 +1236,10 @@ fn array() {
     let maybe_v2 = array.get_index(scope, 1);
     assert!(maybe_v2.is_some());
     assert!(maybe_v2.unwrap().same_value(s2.into()));
+
+    assert!(array.has_index(scope, 1).unwrap());
+    assert!(array.delete_index(scope, 1).unwrap());
+    assert!(!array.has_index(scope, 1).unwrap());
   }
 }
 
