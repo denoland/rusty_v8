@@ -38,6 +38,7 @@ mod array_buffer_view;
 mod context;
 mod data;
 mod exception;
+mod external;
 mod external_references;
 mod function;
 mod handle;

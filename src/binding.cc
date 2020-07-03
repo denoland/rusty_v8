@@ -765,6 +765,12 @@ const v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
 
 uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
+const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
+  return local_to_ptr(v8::External::New(isolate, value));
+}
+
+void* v8__External__Value(const v8::External& self) { return self.Value(); }
+
 size_t v8__Map__Size(const v8::Map& self) { return self.Size(); }
 
 const v8::Array* v8__Map__As__Array(const v8::Map& self) {
