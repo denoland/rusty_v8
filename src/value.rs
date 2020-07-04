@@ -419,12 +419,33 @@ impl Value {
     unsafe { v8__Value__IsModuleNamespaceObject(self) }
   }
 
-  pub fn strict_equals<'s>(&self, that: Local<'s, Value>) -> bool {
+  pub fn strict_equals(&self, that: Local<Value>) -> bool {
     unsafe { v8__Value__StrictEquals(self, &*that) }
   }
 
-  pub fn same_value<'s>(&self, that: Local<'s, Value>) -> bool {
+  pub fn same_value(&self, that: Local<Value>) -> bool {
     unsafe { v8__Value__SameValue(self, &*that) }
+  }
+
+  /// Implements the the abstract operation `SameValueZero`, which is defined in
+  /// ECMA-262 6th edition § 7.2.10
+  /// (http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero).
+  ///
+  /// This operation is used to compare values for the purpose of insertion into
+  /// a `Set`, or determining whether `Map` keys are equivalent. Its semantics
+  /// are almost the same as `strict_equals()` and `same_value()`, with the
+  /// following important distinctions:
+  ///   - It considers `NaN` equal to `NaN` (unlike `strict_equals()`).
+  ///   - It considers `-0` equal to `0` (unlike `same_value()`).
+  pub fn same_value_zero(&self, that: Local<Value>) -> bool {
+    // The SMI representation of zero is also zero. In debug builds, double
+    // check this, so in the unlikely event that V8 changes its internal
+    // representation of SMIs such that this invariant no longer holds, we'd
+    // catch it.
+    self.same_value(that) || {
+      let zero = Integer::zero().into();
+      self.strict_equals(zero) && that.strict_equals(zero)
+    }
   }
 
   pub fn to_big_int<'s>(

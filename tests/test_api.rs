@@ -1764,6 +1764,56 @@ fn equality() {
 }
 
 #[test]
+#[allow(clippy::eq_op)]
+fn equality_edge_cases() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let pos_zero = eval(scope, "0").unwrap();
+  let neg_zero = eval(scope, "-0").unwrap();
+  let nan = eval(scope, "NaN").unwrap();
+
+  assert!(pos_zero == pos_zero);
+  assert!(pos_zero.same_value(pos_zero));
+  assert!(pos_zero.same_value_zero(pos_zero));
+  assert!(pos_zero.strict_equals(pos_zero));
+
+  assert!(neg_zero == neg_zero);
+  assert!(neg_zero.same_value(neg_zero));
+  assert!(neg_zero.same_value_zero(neg_zero));
+  assert!(neg_zero.strict_equals(neg_zero));
+
+  assert!(pos_zero == neg_zero);
+  assert!(!pos_zero.same_value(neg_zero));
+  assert!(pos_zero.same_value_zero(neg_zero));
+  assert!(pos_zero.strict_equals(neg_zero));
+
+  assert!(neg_zero == pos_zero);
+  assert!(!neg_zero.same_value(pos_zero));
+  assert!(neg_zero.same_value_zero(pos_zero));
+  assert!(pos_zero.strict_equals(pos_zero));
+
+  assert!(nan != nan);
+  assert!(nan.same_value(nan));
+  assert!(nan.same_value_zero(nan));
+  assert!(!nan.strict_equals(nan));
+
+  assert!(nan != pos_zero);
+  assert!(!nan.same_value(pos_zero));
+  assert!(!nan.same_value_zero(pos_zero));
+  assert!(!nan.strict_equals(pos_zero));
+
+  assert!(neg_zero != nan);
+  assert!(!neg_zero.same_value(nan));
+  assert!(!neg_zero.same_value_zero(nan));
+  assert!(!neg_zero.strict_equals(nan));
+}
+
+#[test]
 fn array_buffer_view() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
