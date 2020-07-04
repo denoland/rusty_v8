@@ -237,6 +237,9 @@ impl<'a, T> Handle for &'a Global<T> {
   }
 }
 
+impl<'s, T> Eq for Local<'s, T> where T: Eq {}
+impl<T> Eq for Global<T> where T: Eq {}
+
 impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Local<'s, T>
 where
   T: PartialEq<Rhs::Data>,

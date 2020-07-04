@@ -1797,7 +1797,7 @@ fn equality_edge_cases() {
   assert!(neg_zero.same_value_zero(pos_zero));
   assert!(pos_zero.strict_equals(pos_zero));
 
-  assert!(nan != nan);
+  assert!(nan == nan);
   assert!(nan.same_value(nan));
   assert!(nan.same_value_zero(nan));
   assert!(!nan.strict_equals(nan));
@@ -2258,7 +2258,7 @@ fn value_checker() {
     assert!(value.is_number());
     assert!(!value.is_int32());
     assert!(!value.is_uint32());
-    assert!(value != value);
+    assert!(!value.strict_equals(value));
     assert!(
       value.to_string(scope).unwrap() == v8::String::new(scope, "NaN").unwrap()
     );

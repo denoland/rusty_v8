@@ -49,12 +49,13 @@ macro_rules! impl_try_from {
 
 macro_rules! impl_eq {
   { for $type:ident } => {
-    impl<'s> Eq for Local<'s, $type> {}
+    impl<'s> Eq for $type {}
   };
 }
 
 extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
+  fn v8__Value__SameValue(this: *const Value, other: *const Value) -> bool;
   fn v8__Value__StrictEquals(this: *const Value, other: *const Value) -> bool;
 }
 
@@ -62,23 +63,31 @@ macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
     impl<'s> PartialEq<$rhs> for $type {
       fn eq(&self, other: &$rhs) -> bool {
-        unsafe {
-          v8__Data__EQ(
-            self as *const _ as *const Data,
-            other as *const _ as *const Data,
-          )
-        }
+        let a = self as *const _ as *const Data;
+        let b = other as *const _ as *const Data;
+        unsafe { v8__Data__EQ(a, b) }
       }
     }
   };
   { $rhs:ident for $type:ident use strict_equals } => {
     impl<'s> PartialEq<$rhs> for $type {
       fn eq(&self, other: &$rhs) -> bool {
+        let a = self as *const _ as *const Value;
+        let b = other as *const _ as *const Value;
+        unsafe { v8__Value__StrictEquals(a, b) }
+      }
+    }
+  };
+  { $rhs:ident for $type:ident use same_value_zero } => {
+    impl<'s> PartialEq<$rhs> for $type {
+      fn eq(&self, other: &$rhs) -> bool {
+        let a = self as *const _ as *const Value;
+        let b = other as *const _ as *const Value;
         unsafe {
-          v8__Value__StrictEquals(
-            self as *const _ as *const Value,
-            other as *const _ as *const Value,
-          )
+          v8__Value__SameValue(a, b) || {
+            let zero = &*Local::<Value>::from(Integer::zero());
+            v8__Value__StrictEquals(a, zero) && v8__Value__StrictEquals(b, zero)
+          }
         }
       }
     }
@@ -544,7 +553,8 @@ impl_from! { Number for Value }
 impl_from! { Integer for Value }
 impl_from! { Int32 for Value }
 impl_from! { Uint32 for Value }
-impl_partial_eq! { Value for Value use strict_equals }
+impl_eq! { for Value }
+impl_partial_eq! { Value for Value use same_value_zero }
 impl_partial_eq! { External for Value use identity }
 impl_partial_eq! { Object for Value use identity }
 impl_partial_eq! { Array for Value use identity }
@@ -578,16 +588,16 @@ impl_partial_eq! { SharedArrayBuffer for Value use identity }
 impl_partial_eq! { StringObject for Value use identity }
 impl_partial_eq! { SymbolObject for Value use identity }
 impl_partial_eq! { WasmModuleObject for Value use identity }
-impl_partial_eq! { Primitive for Value use strict_equals }
-impl_partial_eq! { BigInt for Value use strict_equals }
+impl_partial_eq! { Primitive for Value use same_value_zero }
+impl_partial_eq! { BigInt for Value use same_value_zero }
 impl_partial_eq! { Boolean for Value use identity }
-impl_partial_eq! { Name for Value use strict_equals }
-impl_partial_eq! { String for Value use strict_equals }
+impl_partial_eq! { Name for Value use same_value_zero }
+impl_partial_eq! { String for Value use same_value_zero }
 impl_partial_eq! { Symbol for Value use identity }
-impl_partial_eq! { Number for Value use strict_equals }
-impl_partial_eq! { Integer for Value use strict_equals }
-impl_partial_eq! { Int32 for Value use strict_equals }
-impl_partial_eq! { Uint32 for Value use strict_equals }
+impl_partial_eq! { Number for Value use same_value_zero }
+impl_partial_eq! { Integer for Value use same_value_zero }
+impl_partial_eq! { Int32 for Value use same_value_zero }
+impl_partial_eq! { Uint32 for Value use same_value_zero }
 
 /// A JavaScript value that wraps a C++ void*. This type of value is mainly used
 /// to associate C++ data structures with JavaScript objects.
@@ -1187,17 +1197,18 @@ impl_from! { Number for Primitive }
 impl_from! { Integer for Primitive }
 impl_from! { Int32 for Primitive }
 impl_from! { Uint32 for Primitive }
-impl_partial_eq! { Value for Primitive use strict_equals }
-impl_partial_eq! { Primitive for Primitive use strict_equals }
-impl_partial_eq! { BigInt for Primitive use strict_equals }
+impl_eq! { for Primitive }
+impl_partial_eq! { Value for Primitive use same_value_zero }
+impl_partial_eq! { Primitive for Primitive use same_value_zero }
+impl_partial_eq! { BigInt for Primitive use same_value_zero }
 impl_partial_eq! { Boolean for Primitive use identity }
-impl_partial_eq! { Name for Primitive use strict_equals }
-impl_partial_eq! { String for Primitive use strict_equals }
+impl_partial_eq! { Name for Primitive use same_value_zero }
+impl_partial_eq! { String for Primitive use same_value_zero }
 impl_partial_eq! { Symbol for Primitive use identity }
-impl_partial_eq! { Number for Primitive use strict_equals }
-impl_partial_eq! { Integer for Primitive use strict_equals }
-impl_partial_eq! { Int32 for Primitive use strict_equals }
-impl_partial_eq! { Uint32 for Primitive use strict_equals }
+impl_partial_eq! { Number for Primitive use same_value_zero }
+impl_partial_eq! { Integer for Primitive use same_value_zero }
+impl_partial_eq! { Int32 for Primitive use same_value_zero }
+impl_partial_eq! { Uint32 for Primitive use same_value_zero }
 
 /// A JavaScript BigInt value (https://tc39.github.io/proposal-bigint)
 #[repr(C)]
@@ -1207,8 +1218,8 @@ impl_deref! { Primitive for BigInt }
 impl_try_from! { Value for BigInt if v => v.is_big_int() }
 impl_try_from! { Primitive for BigInt if v => v.is_big_int() }
 impl_eq! { for BigInt }
-impl_partial_eq! { Value for BigInt use strict_equals }
-impl_partial_eq! { Primitive for BigInt use strict_equals }
+impl_partial_eq! { Value for BigInt use same_value_zero }
+impl_partial_eq! { Primitive for BigInt use same_value_zero }
 impl_partial_eq! { BigInt for BigInt use strict_equals }
 
 /// A primitive boolean value (ECMA-262, 4.3.14). Either the true
@@ -1235,8 +1246,8 @@ impl_try_from! { Primitive for Name if v => v.is_name() }
 impl_from! { String for Name }
 impl_from! { Symbol for Name }
 impl_eq! { for Name }
-impl_partial_eq! { Value for Name use strict_equals }
-impl_partial_eq! { Primitive for Name use strict_equals }
+impl_partial_eq! { Value for Name use same_value_zero }
+impl_partial_eq! { Primitive for Name use same_value_zero }
 impl_partial_eq! { Name for Name use strict_equals }
 impl_partial_eq! { String for Name use strict_equals }
 impl_partial_eq! { Symbol for Name use identity }
@@ -1250,8 +1261,8 @@ impl_try_from! { Value for String if v => v.is_string() }
 impl_try_from! { Primitive for String if v => v.is_string() }
 impl_try_from! { Name for String if v => v.is_string() }
 impl_eq! { for String }
-impl_partial_eq! { Value for String use strict_equals }
-impl_partial_eq! { Primitive for String use strict_equals }
+impl_partial_eq! { Value for String use same_value_zero }
+impl_partial_eq! { Primitive for String use same_value_zero }
 impl_partial_eq! { Name for String use strict_equals }
 impl_partial_eq! { String for String use strict_equals }
 
@@ -1280,12 +1291,13 @@ impl_try_from! { Primitive for Number if v => v.is_number() }
 impl_from! { Integer for Number }
 impl_from! { Int32 for Number }
 impl_from! { Uint32 for Number }
-impl_partial_eq! { Value for Number use strict_equals }
-impl_partial_eq! { Primitive for Number use strict_equals }
-impl_partial_eq! { Number for Number use strict_equals }
-impl_partial_eq! { Integer for Number use strict_equals }
-impl_partial_eq! { Int32 for Number use strict_equals }
-impl_partial_eq! { Uint32 for Number use strict_equals }
+impl_eq! { for Number }
+impl_partial_eq! { Value for Number use same_value_zero }
+impl_partial_eq! { Primitive for Number use same_value_zero }
+impl_partial_eq! { Number for Number use same_value_zero }
+impl_partial_eq! { Integer for Number use same_value_zero }
+impl_partial_eq! { Int32 for Number use same_value_zero }
+impl_partial_eq! { Uint32 for Number use same_value_zero }
 
 /// A JavaScript value representing a signed integer.
 #[repr(C)]
@@ -1298,9 +1310,9 @@ impl_try_from! { Number for Integer if v => v.is_int32() || v.is_uint32() }
 impl_from! { Int32 for Integer }
 impl_from! { Uint32 for Integer }
 impl_eq! { for Integer }
-impl_partial_eq! { Value for Integer use strict_equals }
-impl_partial_eq! { Primitive for Integer use strict_equals }
-impl_partial_eq! { Number for Integer use strict_equals }
+impl_partial_eq! { Value for Integer use same_value_zero }
+impl_partial_eq! { Primitive for Integer use same_value_zero }
+impl_partial_eq! { Number for Integer use same_value_zero }
 impl_partial_eq! { Integer for Integer use strict_equals }
 impl_partial_eq! { Int32 for Integer use strict_equals }
 impl_partial_eq! { Uint32 for Integer use strict_equals }
@@ -1315,9 +1327,9 @@ impl_try_from! { Primitive for Int32 if v => v.is_int32() }
 impl_try_from! { Number for Int32 if v => v.is_int32() }
 impl_try_from! { Integer for Int32 if v => v.is_int32() }
 impl_eq! { for Int32 }
-impl_partial_eq! { Value for Int32 use strict_equals }
-impl_partial_eq! { Primitive for Int32 use strict_equals }
-impl_partial_eq! { Number for Int32 use strict_equals }
+impl_partial_eq! { Value for Int32 use same_value_zero }
+impl_partial_eq! { Primitive for Int32 use same_value_zero }
+impl_partial_eq! { Number for Int32 use same_value_zero }
 impl_partial_eq! { Integer for Int32 use strict_equals }
 impl_partial_eq! { Int32 for Int32 use strict_equals }
 
@@ -1331,8 +1343,8 @@ impl_try_from! { Primitive for Uint32 if v => v.is_uint32() }
 impl_try_from! { Number for Uint32 if v => v.is_uint32() }
 impl_try_from! { Integer for Uint32 if v => v.is_uint32() }
 impl_eq! { for Uint32 }
-impl_partial_eq! { Value for Uint32 use strict_equals }
-impl_partial_eq! { Primitive for Uint32 use strict_equals }
-impl_partial_eq! { Number for Uint32 use strict_equals }
+impl_partial_eq! { Value for Uint32 use same_value_zero }
+impl_partial_eq! { Primitive for Uint32 use same_value_zero }
+impl_partial_eq! { Number for Uint32 use same_value_zero }
 impl_partial_eq! { Integer for Uint32 use strict_equals }
 impl_partial_eq! { Uint32 for Uint32 use strict_equals }
