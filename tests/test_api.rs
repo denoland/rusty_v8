@@ -553,42 +553,60 @@ fn eval<'s>(
 fn external() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-    let global = context.global(scope);
+  let scope = &mut v8::HandleScope::new(isolate);
 
-    let ex1_value = 1234567usize as *mut std::ffi::c_void;
-    let ex2_value = -1isize as *mut std::ffi::c_void;
+  let ex1_value = 1usize as *mut std::ffi::c_void;
+  let ex1_handle_a = v8::External::new(scope, ex1_value);
+  assert_eq!(ex1_handle_a.value(), ex1_value);
 
-    let ex1_handle = v8::External::new(scope, ex1_value);
-    let ex2_handle = v8::External::new(scope, ex2_value);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let global = context.global(scope);
 
-    assert!(ex1_handle != ex2_handle);
-    assert_ne!(ex1_value, ex2_value);
-    assert_eq!(ex1_handle.value(), ex1_value);
-    assert_eq!(ex2_handle.value(), ex2_value);
+  let ex2_value = 2334567usize as *mut std::ffi::c_void;
+  let ex3_value = -2isize as *mut std::ffi::c_void;
 
-    let ex1_key = v8::String::new(scope, "e1").unwrap().into();
-    let ex2_key = v8::String::new(scope, "e2").unwrap().into();
+  let ex2_handle_a = v8::External::new(scope, ex2_value);
+  let ex3_handle_a = v8::External::new(scope, ex3_value);
 
-    global.set(scope, ex1_key, ex1_handle.into());
-    global.set(scope, ex2_key, ex2_handle.into());
+  assert!(ex1_handle_a != ex2_handle_a);
+  assert!(ex2_handle_a != ex3_handle_a);
+  assert!(ex3_handle_a != ex1_handle_a);
 
-    let ex1_handle_2: v8::Local<v8::External> =
-      eval(scope, "e1").unwrap().try_into().unwrap();
-    let ex2_handle_2: v8::Local<v8::External> =
-      eval(scope, "e2").unwrap().try_into().unwrap();
+  assert_ne!(ex2_value, ex3_value);
+  assert_eq!(ex2_handle_a.value(), ex2_value);
+  assert_eq!(ex3_handle_a.value(), ex3_value);
 
-    assert!(ex1_handle_2 != ex2_handle_2);
-    assert!(ex1_handle == ex1_handle_2);
-    assert!(ex2_handle == ex2_handle_2);
+  let ex1_key = v8::String::new(scope, "ex1").unwrap().into();
+  let ex2_key = v8::String::new(scope, "ex2").unwrap().into();
+  let ex3_key = v8::String::new(scope, "ex3").unwrap().into();
 
-    assert_ne!(ex1_value, ex2_value);
-    assert_eq!(ex1_handle.value(), ex1_value);
-    assert_eq!(ex2_handle.value(), ex2_value);
-  }
+  global.set(scope, ex1_key, ex1_handle_a.into());
+  global.set(scope, ex2_key, ex2_handle_a.into());
+  global.set(scope, ex3_key, ex3_handle_a.into());
+
+  let ex1_handle_b: v8::Local<v8::External> =
+    eval(scope, "ex1").unwrap().try_into().unwrap();
+  let ex2_handle_b: v8::Local<v8::External> =
+    eval(scope, "ex2").unwrap().try_into().unwrap();
+  let ex3_handle_b: v8::Local<v8::External> =
+    eval(scope, "ex3").unwrap().try_into().unwrap();
+
+  assert!(ex1_handle_b != ex2_handle_b);
+  assert!(ex2_handle_b != ex3_handle_b);
+  assert!(ex3_handle_b != ex1_handle_b);
+
+  assert!(ex1_handle_a == ex1_handle_b);
+  assert!(ex2_handle_a == ex2_handle_b);
+  assert!(ex3_handle_a == ex3_handle_b);
+
+  assert_ne!(ex1_handle_a.value(), ex2_value);
+  assert_ne!(ex2_handle_a.value(), ex3_value);
+  assert_ne!(ex3_handle_a.value(), ex1_value);
+
+  assert_eq!(ex1_handle_a.value(), ex1_value);
+  assert_eq!(ex2_handle_a.value(), ex2_value);
+  assert_eq!(ex3_handle_a.value(), ex3_value);
 }
 
 #[test]

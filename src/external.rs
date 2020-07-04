@@ -17,7 +17,7 @@ extern "C" {
 
 impl External {
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope<'s, ()>,
     value: *mut c_void,
   ) -> Local<'s, Self> {
     unsafe {
