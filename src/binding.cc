@@ -12,6 +12,7 @@
 #include "v8/src/execution/isolate-utils.h"
 #include "v8/src/objects/objects-inl.h"
 #include "v8/src/objects/objects.h"
+#include "v8/src/objects/smi.h"
 
 using namespace support;
 
@@ -619,6 +620,10 @@ void std__shared_ptr__v8__ArrayBuffer__Allocator__reset(
 long std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
     const std::shared_ptr<v8::ArrayBuffer::Allocator>& ptr) {
   return ptr.use_count();
+}
+
+int v8__Name__GetIdentityHash(const v8::Name& self) {
+  return ptr_to_local(&self)->GetIdentityHash();
 }
 
 const v8::String* v8__String__Empty(v8::Isolate* isolate) {
@@ -1730,6 +1735,17 @@ v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
              ? reinterpret_cast<v8::Isolate*>(isolate)
              : nullptr;
 }
+
+int v8__internal__Object__GetHash(const v8::Data& data) {
+  namespace i = v8::internal;
+  i::Object object(reinterpret_cast<const i::Address&>(data));
+  i::Isolate* isolate;
+  int hash = object.IsHeapObject() && i::GetIsolateFromHeapObject(
+                                          object.GetHeapObject(), &isolate)
+                 ? object.GetOrCreateHash(isolate).value()
+                 : i::Smi::ToInt(object.GetHash());
+  assert(hash != 0);
+  return hash;
 }
 
 }  // extern "C"

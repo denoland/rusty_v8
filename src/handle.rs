@@ -1,3 +1,6 @@
+use std::borrow::Borrow;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
@@ -237,8 +240,41 @@ impl<'a, T> Handle for &'a Global<T> {
   }
 }
 
+impl<'s, T> Borrow<T> for Local<'s, T> {
+  fn borrow(&self) -> &T {
+    &**self
+  }
+}
+
+impl<T> Borrow<T> for Global<T> {
+  fn borrow(&self) -> &T {
+    let HandleInfo { data, host } = self.get_handle_info();
+    if let HandleHost::DisposedIsolate = host {
+      panic!("attempt to access Handle hosted by disposed Isolate");
+    }
+    unsafe { &*data.as_ptr() }
+  }
+}
+
 impl<'s, T> Eq for Local<'s, T> where T: Eq {}
 impl<T> Eq for Global<T> where T: Eq {}
+
+impl<'s, T: Hash> Hash for Local<'s, T> {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    (&**self).hash(state)
+  }
+}
+
+impl<T: Hash> Hash for Global<T> {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    unsafe {
+      if self.isolate_handle.get_isolate_ptr().is_null() {
+        panic!("can't hash Global after its host Isolate has been disposed");
+      }
+      self.data.as_ref().hash(state);
+    }
+  }
+}
 
 impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Local<'s, T>
 where

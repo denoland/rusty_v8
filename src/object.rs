@@ -286,11 +286,9 @@ impl Object {
     .into()
   }
 
-  /// Returns the identity hash for this object. The current implementation
-  /// uses a hidden property on the object to store the identity hash.
-  ///
-  /// The return value will never be 0. Also, it is not guaranteed to be
-  /// unique.
+  /// The `Object` specific equivalent of `Data::get_hash()`.
+  /// This function is kept around for testing purposes only.
+  #[doc(hidden)]
   pub fn get_identity_hash(&self) -> int {
     unsafe { v8__Object__GetIdentityHash(self) }
   }

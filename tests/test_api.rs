@@ -1799,26 +1799,31 @@ fn equality_edge_cases() {
   assert!(pos_zero.same_value(pos_zero));
   assert!(pos_zero.same_value_zero(pos_zero));
   assert!(pos_zero.strict_equals(pos_zero));
+  assert_eq!(pos_zero.get_hash(), pos_zero.get_hash());
 
   assert!(neg_zero == neg_zero);
   assert!(neg_zero.same_value(neg_zero));
   assert!(neg_zero.same_value_zero(neg_zero));
   assert!(neg_zero.strict_equals(neg_zero));
+  assert_eq!(neg_zero.get_hash(), neg_zero.get_hash());
 
   assert!(pos_zero == neg_zero);
   assert!(!pos_zero.same_value(neg_zero));
   assert!(pos_zero.same_value_zero(neg_zero));
   assert!(pos_zero.strict_equals(neg_zero));
+  assert_eq!(pos_zero.get_hash(), neg_zero.get_hash());
 
   assert!(neg_zero == pos_zero);
   assert!(!neg_zero.same_value(pos_zero));
   assert!(neg_zero.same_value_zero(pos_zero));
-  assert!(pos_zero.strict_equals(pos_zero));
+  assert!(neg_zero.strict_equals(pos_zero));
+  assert_eq!(neg_zero.get_hash(), pos_zero.get_hash());
 
   assert!(nan == nan);
   assert!(nan.same_value(nan));
   assert!(nan.same_value_zero(nan));
   assert!(!nan.strict_equals(nan));
+  assert_eq!(nan.get_hash(), nan.get_hash());
 
   assert!(nan != pos_zero);
   assert!(!nan.same_value(pos_zero));
@@ -1829,6 +1834,126 @@ fn equality_edge_cases() {
   assert!(!neg_zero.same_value(nan));
   assert!(!neg_zero.same_value_zero(nan));
   assert!(!neg_zero.strict_equals(nan));
+}
+
+#[test]
+fn get_hash() {
+  use std::collections::HashMap;
+  use std::collections::HashSet;
+  use std::iter::once;
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Note: the set with hashes and the collition counter is used below in both
+  // the 'primitives' and the 'objects' section.
+  let mut hashes = HashSet::new();
+  let mut collision_count = 0;
+
+  let mut get_primitives = || -> v8::Local<v8::Array> {
+    eval(
+      scope,
+      r#"[
+        undefined,
+        null,
+        false,
+        true,
+        0,
+        123,
+        12345e67,
+        123456789012345678901234567890123456789012345678901234567890n,
+        NaN,
+        -Infinity,
+        "",
+        "hello metaverse!",
+        Symbol.isConcatSpreadable
+      ]"#,
+    )
+    .unwrap()
+    .try_into()
+    .unwrap()
+  };
+
+  let primitives1 = get_primitives();
+  let primitives2 = get_primitives();
+
+  let len = primitives1.length();
+  assert!(len > 10);
+  assert_eq!(len, primitives2.length());
+
+  let mut name_count = 0;
+
+  for i in 0..len {
+    let pri1 = primitives1.get_index(scope, i).unwrap();
+    let pri2 = primitives2.get_index(scope, i).unwrap();
+    let hash = pri1.get_hash();
+    assert_ne!(hash, 0);
+    assert_eq!(hash, pri2.get_hash());
+    if let Ok(name) = v8::Local::<v8::Name>::try_from(pri1) {
+      assert_eq!(hash, name.get_identity_hash());
+      name_count += 1;
+    }
+    if !hashes.insert(hash) {
+      collision_count += 1;
+    }
+    let map =
+      once((v8::Global::new(scope, pri1), i)).collect::<HashMap<_, _>>();
+    assert_eq!(map[&*pri2], i);
+  }
+
+  assert_eq!(name_count, 3);
+  assert!(collision_count <= 2);
+
+  for _ in 0..1 {
+    let objects: v8::Local::<v8::Array> = eval(
+      scope,
+      r#"[
+        [1, 2, 3],
+        (function() { return arguments; })(1, 2, 3),
+        { a: 1, b: 2, c: 3 },
+        Object.create(null),
+        new Map([[null, 1], ["2", 3n]]),
+        new Set(),
+        function f() {},
+        function* f() {},
+        async function f() {},
+        async function* f() {},
+        foo => foo,
+        async bar => bar,
+        class Custom extends Object { method(p) { return -p; } },
+        new class MyString extends String { constructor() { super("yeaeaeah"); } },
+        (() => { try { not_defined } catch(e) { return e; } })()
+      ]"#)
+    .unwrap()
+    .try_into()
+    .unwrap();
+
+    let len = objects.length();
+    assert!(len > 10);
+
+    for i in 0..len {
+      let val = objects.get_index(scope, i).unwrap();
+      let hash = val.get_hash();
+      assert_ne!(hash, 0);
+      let obj = v8::Local::<v8::Object>::try_from(val).unwrap();
+      assert_eq!(hash, obj.get_identity_hash());
+      if !hashes.insert(hash) {
+        collision_count += 1;
+      }
+      let map =
+        once((v8::Global::new(scope, obj), i)).collect::<HashMap<_, _>>();
+      assert_eq!(map[&*obj], i);
+    }
+
+    assert!(collision_count <= 2);
+  }
+
+  // TODO: add tests for `External` and for types that are not derived from
+  // `v8::Value`, like `Module`, `Function/ObjectTemplate` etc.
 }
 
 #[test]

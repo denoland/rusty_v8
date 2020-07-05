@@ -45,6 +45,7 @@ mod handle;
 mod isolate;
 mod isolate_create_params;
 mod module;
+mod name;
 mod number;
 mod object;
 mod platform;

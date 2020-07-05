@@ -183,7 +183,9 @@ impl Module {
     }
   }
 
-  /// Returns the identity hash for this object.
+  /// The `Module` specific equivalent of `Data::get_hash()`.
+  /// This function is kept around for testing purposes only.
+  #[doc(hidden)]
   pub fn get_identity_hash(&self) -> int {
     unsafe { v8__Module__GetIdentityHash(self) }
   }

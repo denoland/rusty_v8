@@ -6,11 +6,33 @@ use std::error::Error;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::mem::transmute;
 use std::ops::Deref;
 
+use crate::support::int;
 use crate::support::Opaque;
 use crate::Local;
+
+extern "C" {
+  fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
+  fn v8__internal__Object__GetHash(this: *const Data) -> int;
+
+  fn v8__Value__SameValue(this: *const Value, other: *const Value) -> bool;
+  fn v8__Value__StrictEquals(this: *const Value, other: *const Value) -> bool;
+}
+
+impl Data {
+  /// Returns the V8 hash value for this value. The current implementation
+  /// uses a hidden property to store the identity hash on some object types.
+  ///
+  /// The return value will never be 0. Also, it is not guaranteed to be
+  /// unique.
+  pub fn get_hash(&self) -> int {
+    unsafe { v8__internal__Object__GetHash(self) }
+  }
+}
 
 macro_rules! impl_deref {
   { $target:ident for $type:ident } => {
@@ -49,14 +71,18 @@ macro_rules! impl_try_from {
 
 macro_rules! impl_eq {
   { for $type:ident } => {
-    impl<'s> Eq for $type {}
+    impl Eq for $type {}
   };
 }
 
-extern "C" {
-  fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
-  fn v8__Value__SameValue(this: *const Value, other: *const Value) -> bool;
-  fn v8__Value__StrictEquals(this: *const Value, other: *const Value) -> bool;
+macro_rules! impl_hash {
+  { for $type:ident } => {
+    impl Hash for $type {
+      fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get_hash().hash(state)
+      }
+    }
+  };
 }
 
 macro_rules! impl_partial_eq {
@@ -236,6 +262,7 @@ pub struct AccessorSignature(Opaque);
 
 impl_deref! { Data for AccessorSignature }
 impl_eq! { for AccessorSignature }
+impl_hash! { for AccessorSignature }
 impl_partial_eq! { Data for AccessorSignature use identity }
 impl_partial_eq! { AccessorSignature for AccessorSignature use identity }
 
@@ -246,6 +273,7 @@ pub struct Context(Opaque);
 
 impl_deref! { Data for Context }
 impl_eq! { for Context }
+impl_hash! { for Context }
 impl_partial_eq! { Data for Context use identity }
 impl_partial_eq! { Context for Context use identity }
 
@@ -255,6 +283,7 @@ pub struct Message(Opaque);
 
 impl_deref! { Data for Message }
 impl_eq! { for Message }
+impl_hash! { for Message }
 impl_partial_eq! { Data for Message use identity }
 impl_partial_eq! { Message for Message use identity }
 
@@ -264,6 +293,7 @@ pub struct Module(Opaque);
 
 impl_deref! { Data for Module }
 impl_eq! { for Module }
+impl_hash! { for Module }
 impl_partial_eq! { Data for Module use identity }
 impl_partial_eq! { Module for Module use identity }
 
@@ -277,6 +307,7 @@ pub struct PrimitiveArray(Opaque);
 
 impl_deref! { Data for PrimitiveArray }
 impl_eq! { for PrimitiveArray }
+impl_hash! { for PrimitiveArray }
 impl_partial_eq! { Data for PrimitiveArray use identity }
 impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
 
@@ -288,6 +319,7 @@ pub struct Private(Opaque);
 
 impl_deref! { Data for Private }
 impl_eq! { for Private }
+impl_hash! { for Private }
 impl_partial_eq! { Data for Private use identity }
 impl_partial_eq! { Private for Private use identity }
 
@@ -298,6 +330,7 @@ pub struct Script(Opaque);
 
 impl_deref! { Data for Script }
 impl_eq! { for Script }
+impl_hash! { for Script }
 impl_partial_eq! { Data for Script use identity }
 impl_partial_eq! { Script for Script use identity }
 
@@ -310,6 +343,7 @@ pub struct ScriptOrModule(Opaque);
 
 impl_deref! { Data for ScriptOrModule }
 impl_eq! { for ScriptOrModule }
+impl_hash! { for ScriptOrModule }
 impl_partial_eq! { Data for ScriptOrModule use identity }
 impl_partial_eq! { ScriptOrModule for ScriptOrModule use identity }
 
@@ -324,6 +358,7 @@ pub struct Signature(Opaque);
 
 impl_deref! { Data for Signature }
 impl_eq! { for Signature }
+impl_hash! { for Signature }
 impl_partial_eq! { Data for Signature use identity }
 impl_partial_eq! { Signature for Signature use identity }
 
@@ -333,6 +368,7 @@ pub struct StackFrame(Opaque);
 
 impl_deref! { Data for StackFrame }
 impl_eq! { for StackFrame }
+impl_hash! { for StackFrame }
 impl_partial_eq! { Data for StackFrame use identity }
 impl_partial_eq! { StackFrame for StackFrame use identity }
 
@@ -344,6 +380,7 @@ pub struct StackTrace(Opaque);
 
 impl_deref! { Data for StackTrace }
 impl_eq! { for StackTrace }
+impl_hash! { for StackTrace }
 impl_partial_eq! { Data for StackTrace use identity }
 impl_partial_eq! { StackTrace for StackTrace use identity }
 
@@ -355,6 +392,7 @@ impl_deref! { Data for Template }
 impl_from! { FunctionTemplate for Template }
 impl_from! { ObjectTemplate for Template }
 impl_eq! { for Template }
+impl_hash! { for Template }
 impl_partial_eq! { Data for Template use identity }
 impl_partial_eq! { Template for Template use identity }
 impl_partial_eq! { FunctionTemplate for Template use identity }
@@ -470,6 +508,7 @@ pub struct FunctionTemplate(Opaque);
 
 impl_deref! { Template for FunctionTemplate }
 impl_eq! { for FunctionTemplate }
+impl_hash! { for FunctionTemplate }
 impl_partial_eq! { Data for FunctionTemplate use identity }
 impl_partial_eq! { Template for FunctionTemplate use identity }
 impl_partial_eq! { FunctionTemplate for FunctionTemplate use identity }
@@ -483,6 +522,7 @@ pub struct ObjectTemplate(Opaque);
 
 impl_deref! { Template for ObjectTemplate }
 impl_eq! { for ObjectTemplate }
+impl_hash! { for ObjectTemplate }
 impl_partial_eq! { Data for ObjectTemplate use identity }
 impl_partial_eq! { Template for ObjectTemplate use identity }
 impl_partial_eq! { ObjectTemplate for ObjectTemplate use identity }
@@ -493,6 +533,7 @@ pub struct UnboundModuleScript(Opaque);
 
 impl_deref! { Data for UnboundModuleScript }
 impl_eq! { for UnboundModuleScript }
+impl_hash! { for UnboundModuleScript }
 impl_partial_eq! { Data for UnboundModuleScript use identity }
 impl_partial_eq! { UnboundModuleScript for UnboundModuleScript use identity }
 
@@ -502,6 +543,7 @@ pub struct UnboundScript(Opaque);
 
 impl_deref! { Data for UnboundScript }
 impl_eq! { for UnboundScript }
+impl_hash! { for UnboundScript }
 impl_partial_eq! { Data for UnboundScript use identity }
 impl_partial_eq! { UnboundScript for UnboundScript use identity }
 
@@ -554,6 +596,7 @@ impl_from! { Integer for Value }
 impl_from! { Int32 for Value }
 impl_from! { Uint32 for Value }
 impl_eq! { for Value }
+impl_hash! { for Value }
 impl_partial_eq! { Value for Value use same_value_zero }
 impl_partial_eq! { External for Value use identity }
 impl_partial_eq! { Object for Value use identity }
@@ -607,6 +650,7 @@ pub struct External(Opaque);
 impl_deref! { Value for External }
 impl_try_from! { Value for External if v => v.is_external() }
 impl_eq! { for External }
+impl_hash! { for External }
 impl_partial_eq! { Data for External use identity }
 impl_partial_eq! { Value for External use identity }
 impl_partial_eq! { External for External use identity }
@@ -649,6 +693,7 @@ impl_from! { StringObject for Object }
 impl_from! { SymbolObject for Object }
 impl_from! { WasmModuleObject for Object }
 impl_eq! { for Object }
+impl_hash! { for Object }
 impl_partial_eq! { Data for Object use identity }
 impl_partial_eq! { Value for Object use identity }
 impl_partial_eq! { Object for Object use identity }
@@ -692,6 +737,7 @@ impl_deref! { Object for Array }
 impl_try_from! { Value for Array if v => v.is_array() }
 impl_try_from! { Object for Array if v => v.is_array() }
 impl_eq! { for Array }
+impl_hash! { for Array }
 impl_partial_eq! { Data for Array use identity }
 impl_partial_eq! { Value for Array use identity }
 impl_partial_eq! { Object for Array use identity }
@@ -705,6 +751,7 @@ impl_deref! { Object for ArrayBuffer }
 impl_try_from! { Value for ArrayBuffer if v => v.is_array_buffer() }
 impl_try_from! { Object for ArrayBuffer if v => v.is_array_buffer() }
 impl_eq! { for ArrayBuffer }
+impl_hash! { for ArrayBuffer }
 impl_partial_eq! { Data for ArrayBuffer use identity }
 impl_partial_eq! { Value for ArrayBuffer use identity }
 impl_partial_eq! { Object for ArrayBuffer use identity }
@@ -732,6 +779,7 @@ impl_from! { Uint32Array for ArrayBufferView }
 impl_from! { Uint8Array for ArrayBufferView }
 impl_from! { Uint8ClampedArray for ArrayBufferView }
 impl_eq! { for ArrayBufferView }
+impl_hash! { for ArrayBufferView }
 impl_partial_eq! { Data for ArrayBufferView use identity }
 impl_partial_eq! { Value for ArrayBufferView use identity }
 impl_partial_eq! { Object for ArrayBufferView use identity }
@@ -759,6 +807,7 @@ impl_try_from! { Value for DataView if v => v.is_data_view() }
 impl_try_from! { Object for DataView if v => v.is_data_view() }
 impl_try_from! { ArrayBufferView for DataView if v => v.is_data_view() }
 impl_eq! { for DataView }
+impl_hash! { for DataView }
 impl_partial_eq! { Data for DataView use identity }
 impl_partial_eq! { Value for DataView use identity }
 impl_partial_eq! { Object for DataView use identity }
@@ -786,6 +835,7 @@ impl_from! { Uint32Array for TypedArray }
 impl_from! { Uint8Array for TypedArray }
 impl_from! { Uint8ClampedArray for TypedArray }
 impl_eq! { for TypedArray }
+impl_hash! { for TypedArray }
 impl_partial_eq! { Data for TypedArray use identity }
 impl_partial_eq! { Value for TypedArray use identity }
 impl_partial_eq! { Object for TypedArray use identity }
@@ -813,6 +863,7 @@ impl_try_from! { Object for BigInt64Array if v => v.is_big_int64_array() }
 impl_try_from! { ArrayBufferView for BigInt64Array if v => v.is_big_int64_array() }
 impl_try_from! { TypedArray for BigInt64Array if v => v.is_big_int64_array() }
 impl_eq! { for BigInt64Array }
+impl_hash! { for BigInt64Array }
 impl_partial_eq! { Data for BigInt64Array use identity }
 impl_partial_eq! { Value for BigInt64Array use identity }
 impl_partial_eq! { Object for BigInt64Array use identity }
@@ -830,6 +881,7 @@ impl_try_from! { Object for BigUint64Array if v => v.is_big_uint64_array() }
 impl_try_from! { ArrayBufferView for BigUint64Array if v => v.is_big_uint64_array() }
 impl_try_from! { TypedArray for BigUint64Array if v => v.is_big_uint64_array() }
 impl_eq! { for BigUint64Array }
+impl_hash! { for BigUint64Array }
 impl_partial_eq! { Data for BigUint64Array use identity }
 impl_partial_eq! { Value for BigUint64Array use identity }
 impl_partial_eq! { Object for BigUint64Array use identity }
@@ -847,6 +899,7 @@ impl_try_from! { Object for Float32Array if v => v.is_float32_array() }
 impl_try_from! { ArrayBufferView for Float32Array if v => v.is_float32_array() }
 impl_try_from! { TypedArray for Float32Array if v => v.is_float32_array() }
 impl_eq! { for Float32Array }
+impl_hash! { for Float32Array }
 impl_partial_eq! { Data for Float32Array use identity }
 impl_partial_eq! { Value for Float32Array use identity }
 impl_partial_eq! { Object for Float32Array use identity }
@@ -864,6 +917,7 @@ impl_try_from! { Object for Float64Array if v => v.is_float64_array() }
 impl_try_from! { ArrayBufferView for Float64Array if v => v.is_float64_array() }
 impl_try_from! { TypedArray for Float64Array if v => v.is_float64_array() }
 impl_eq! { for Float64Array }
+impl_hash! { for Float64Array }
 impl_partial_eq! { Data for Float64Array use identity }
 impl_partial_eq! { Value for Float64Array use identity }
 impl_partial_eq! { Object for Float64Array use identity }
@@ -881,6 +935,7 @@ impl_try_from! { Object for Int16Array if v => v.is_int16_array() }
 impl_try_from! { ArrayBufferView for Int16Array if v => v.is_int16_array() }
 impl_try_from! { TypedArray for Int16Array if v => v.is_int16_array() }
 impl_eq! { for Int16Array }
+impl_hash! { for Int16Array }
 impl_partial_eq! { Data for Int16Array use identity }
 impl_partial_eq! { Value for Int16Array use identity }
 impl_partial_eq! { Object for Int16Array use identity }
@@ -898,6 +953,7 @@ impl_try_from! { Object for Int32Array if v => v.is_int32_array() }
 impl_try_from! { ArrayBufferView for Int32Array if v => v.is_int32_array() }
 impl_try_from! { TypedArray for Int32Array if v => v.is_int32_array() }
 impl_eq! { for Int32Array }
+impl_hash! { for Int32Array }
 impl_partial_eq! { Data for Int32Array use identity }
 impl_partial_eq! { Value for Int32Array use identity }
 impl_partial_eq! { Object for Int32Array use identity }
@@ -915,6 +971,7 @@ impl_try_from! { Object for Int8Array if v => v.is_int8_array() }
 impl_try_from! { ArrayBufferView for Int8Array if v => v.is_int8_array() }
 impl_try_from! { TypedArray for Int8Array if v => v.is_int8_array() }
 impl_eq! { for Int8Array }
+impl_hash! { for Int8Array }
 impl_partial_eq! { Data for Int8Array use identity }
 impl_partial_eq! { Value for Int8Array use identity }
 impl_partial_eq! { Object for Int8Array use identity }
@@ -932,6 +989,7 @@ impl_try_from! { Object for Uint16Array if v => v.is_uint16_array() }
 impl_try_from! { ArrayBufferView for Uint16Array if v => v.is_uint16_array() }
 impl_try_from! { TypedArray for Uint16Array if v => v.is_uint16_array() }
 impl_eq! { for Uint16Array }
+impl_hash! { for Uint16Array }
 impl_partial_eq! { Data for Uint16Array use identity }
 impl_partial_eq! { Value for Uint16Array use identity }
 impl_partial_eq! { Object for Uint16Array use identity }
@@ -949,6 +1007,7 @@ impl_try_from! { Object for Uint32Array if v => v.is_uint32_array() }
 impl_try_from! { ArrayBufferView for Uint32Array if v => v.is_uint32_array() }
 impl_try_from! { TypedArray for Uint32Array if v => v.is_uint32_array() }
 impl_eq! { for Uint32Array }
+impl_hash! { for Uint32Array }
 impl_partial_eq! { Data for Uint32Array use identity }
 impl_partial_eq! { Value for Uint32Array use identity }
 impl_partial_eq! { Object for Uint32Array use identity }
@@ -966,6 +1025,7 @@ impl_try_from! { Object for Uint8Array if v => v.is_uint8_array() }
 impl_try_from! { ArrayBufferView for Uint8Array if v => v.is_uint8_array() }
 impl_try_from! { TypedArray for Uint8Array if v => v.is_uint8_array() }
 impl_eq! { for Uint8Array }
+impl_hash! { for Uint8Array }
 impl_partial_eq! { Data for Uint8Array use identity }
 impl_partial_eq! { Value for Uint8Array use identity }
 impl_partial_eq! { Object for Uint8Array use identity }
@@ -983,6 +1043,7 @@ impl_try_from! { Object for Uint8ClampedArray if v => v.is_uint8_clamped_array()
 impl_try_from! { ArrayBufferView for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_try_from! { TypedArray for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_eq! { for Uint8ClampedArray }
+impl_hash! { for Uint8ClampedArray }
 impl_partial_eq! { Data for Uint8ClampedArray use identity }
 impl_partial_eq! { Value for Uint8ClampedArray use identity }
 impl_partial_eq! { Object for Uint8ClampedArray use identity }
@@ -998,6 +1059,7 @@ impl_deref! { Object for BigIntObject }
 impl_try_from! { Value for BigIntObject if v => v.is_big_int_object() }
 impl_try_from! { Object for BigIntObject if v => v.is_big_int_object() }
 impl_eq! { for BigIntObject }
+impl_hash! { for BigIntObject }
 impl_partial_eq! { Data for BigIntObject use identity }
 impl_partial_eq! { Value for BigIntObject use identity }
 impl_partial_eq! { Object for BigIntObject use identity }
@@ -1011,6 +1073,7 @@ impl_deref! { Object for BooleanObject }
 impl_try_from! { Value for BooleanObject if v => v.is_boolean_object() }
 impl_try_from! { Object for BooleanObject if v => v.is_boolean_object() }
 impl_eq! { for BooleanObject }
+impl_hash! { for BooleanObject }
 impl_partial_eq! { Data for BooleanObject use identity }
 impl_partial_eq! { Value for BooleanObject use identity }
 impl_partial_eq! { Object for BooleanObject use identity }
@@ -1024,6 +1087,7 @@ impl_deref! { Object for Date }
 impl_try_from! { Value for Date if v => v.is_date() }
 impl_try_from! { Object for Date if v => v.is_date() }
 impl_eq! { for Date }
+impl_hash! { for Date }
 impl_partial_eq! { Data for Date use identity }
 impl_partial_eq! { Value for Date use identity }
 impl_partial_eq! { Object for Date use identity }
@@ -1037,6 +1101,7 @@ impl_deref! { Object for Function }
 impl_try_from! { Value for Function if v => v.is_function() }
 impl_try_from! { Object for Function if v => v.is_function() }
 impl_eq! { for Function }
+impl_hash! { for Function }
 impl_partial_eq! { Data for Function use identity }
 impl_partial_eq! { Value for Function use identity }
 impl_partial_eq! { Object for Function use identity }
@@ -1050,6 +1115,7 @@ impl_deref! { Object for Map }
 impl_try_from! { Value for Map if v => v.is_map() }
 impl_try_from! { Object for Map if v => v.is_map() }
 impl_eq! { for Map }
+impl_hash! { for Map }
 impl_partial_eq! { Data for Map use identity }
 impl_partial_eq! { Value for Map use identity }
 impl_partial_eq! { Object for Map use identity }
@@ -1063,6 +1129,7 @@ impl_deref! { Object for NumberObject }
 impl_try_from! { Value for NumberObject if v => v.is_number_object() }
 impl_try_from! { Object for NumberObject if v => v.is_number_object() }
 impl_eq! { for NumberObject }
+impl_hash! { for NumberObject }
 impl_partial_eq! { Data for NumberObject use identity }
 impl_partial_eq! { Value for NumberObject use identity }
 impl_partial_eq! { Object for NumberObject use identity }
@@ -1076,6 +1143,7 @@ impl_deref! { Object for Promise }
 impl_try_from! { Value for Promise if v => v.is_promise() }
 impl_try_from! { Object for Promise if v => v.is_promise() }
 impl_eq! { for Promise }
+impl_hash! { for Promise }
 impl_partial_eq! { Data for Promise use identity }
 impl_partial_eq! { Value for Promise use identity }
 impl_partial_eq! { Object for Promise use identity }
@@ -1086,6 +1154,7 @@ pub struct PromiseResolver(Opaque);
 
 impl_deref! { Object for PromiseResolver }
 impl_eq! { for PromiseResolver }
+impl_hash! { for PromiseResolver }
 impl_partial_eq! { Data for PromiseResolver use identity }
 impl_partial_eq! { Value for PromiseResolver use identity }
 impl_partial_eq! { Object for PromiseResolver use identity }
@@ -1100,6 +1169,7 @@ impl_deref! { Object for Proxy }
 impl_try_from! { Value for Proxy if v => v.is_proxy() }
 impl_try_from! { Object for Proxy if v => v.is_proxy() }
 impl_eq! { for Proxy }
+impl_hash! { for Proxy }
 impl_partial_eq! { Data for Proxy use identity }
 impl_partial_eq! { Value for Proxy use identity }
 impl_partial_eq! { Object for Proxy use identity }
@@ -1113,6 +1183,7 @@ impl_deref! { Object for RegExp }
 impl_try_from! { Value for RegExp if v => v.is_reg_exp() }
 impl_try_from! { Object for RegExp if v => v.is_reg_exp() }
 impl_eq! { for RegExp }
+impl_hash! { for RegExp }
 impl_partial_eq! { Data for RegExp use identity }
 impl_partial_eq! { Value for RegExp use identity }
 impl_partial_eq! { Object for RegExp use identity }
@@ -1126,6 +1197,7 @@ impl_deref! { Object for Set }
 impl_try_from! { Value for Set if v => v.is_set() }
 impl_try_from! { Object for Set if v => v.is_set() }
 impl_eq! { for Set }
+impl_hash! { for Set }
 impl_partial_eq! { Data for Set use identity }
 impl_partial_eq! { Value for Set use identity }
 impl_partial_eq! { Object for Set use identity }
@@ -1139,6 +1211,7 @@ impl_deref! { Object for SharedArrayBuffer }
 impl_try_from! { Value for SharedArrayBuffer if v => v.is_shared_array_buffer() }
 impl_try_from! { Object for SharedArrayBuffer if v => v.is_shared_array_buffer() }
 impl_eq! { for SharedArrayBuffer }
+impl_hash! { for SharedArrayBuffer }
 impl_partial_eq! { Data for SharedArrayBuffer use identity }
 impl_partial_eq! { Value for SharedArrayBuffer use identity }
 impl_partial_eq! { Object for SharedArrayBuffer use identity }
@@ -1152,6 +1225,7 @@ impl_deref! { Object for StringObject }
 impl_try_from! { Value for StringObject if v => v.is_string_object() }
 impl_try_from! { Object for StringObject if v => v.is_string_object() }
 impl_eq! { for StringObject }
+impl_hash! { for StringObject }
 impl_partial_eq! { Data for StringObject use identity }
 impl_partial_eq! { Value for StringObject use identity }
 impl_partial_eq! { Object for StringObject use identity }
@@ -1165,6 +1239,7 @@ impl_deref! { Object for SymbolObject }
 impl_try_from! { Value for SymbolObject if v => v.is_symbol_object() }
 impl_try_from! { Object for SymbolObject if v => v.is_symbol_object() }
 impl_eq! { for SymbolObject }
+impl_hash! { for SymbolObject }
 impl_partial_eq! { Data for SymbolObject use identity }
 impl_partial_eq! { Value for SymbolObject use identity }
 impl_partial_eq! { Object for SymbolObject use identity }
@@ -1177,6 +1252,7 @@ impl_deref! { Object for WasmModuleObject }
 impl_try_from! { Value for WasmModuleObject if v => v.is_wasm_module_object() }
 impl_try_from! { Object for WasmModuleObject if v => v.is_wasm_module_object() }
 impl_eq! { for WasmModuleObject }
+impl_hash! { for WasmModuleObject }
 impl_partial_eq! { Data for WasmModuleObject use identity }
 impl_partial_eq! { Value for WasmModuleObject use identity }
 impl_partial_eq! { Object for WasmModuleObject use identity }
@@ -1198,6 +1274,7 @@ impl_from! { Integer for Primitive }
 impl_from! { Int32 for Primitive }
 impl_from! { Uint32 for Primitive }
 impl_eq! { for Primitive }
+impl_hash! { for Primitive }
 impl_partial_eq! { Value for Primitive use same_value_zero }
 impl_partial_eq! { Primitive for Primitive use same_value_zero }
 impl_partial_eq! { BigInt for Primitive use same_value_zero }
@@ -1218,6 +1295,7 @@ impl_deref! { Primitive for BigInt }
 impl_try_from! { Value for BigInt if v => v.is_big_int() }
 impl_try_from! { Primitive for BigInt if v => v.is_big_int() }
 impl_eq! { for BigInt }
+impl_hash! { for BigInt }
 impl_partial_eq! { Value for BigInt use same_value_zero }
 impl_partial_eq! { Primitive for BigInt use same_value_zero }
 impl_partial_eq! { BigInt for BigInt use strict_equals }
@@ -1231,6 +1309,7 @@ impl_deref! { Primitive for Boolean }
 impl_try_from! { Value for Boolean if v => v.is_boolean() }
 impl_try_from! { Primitive for Boolean if v => v.is_boolean() }
 impl_eq! { for Boolean }
+impl_hash! { for Boolean }
 impl_partial_eq! { Data for Boolean use identity }
 impl_partial_eq! { Value for Boolean use identity }
 impl_partial_eq! { Primitive for Boolean use identity }
@@ -1246,6 +1325,7 @@ impl_try_from! { Primitive for Name if v => v.is_name() }
 impl_from! { String for Name }
 impl_from! { Symbol for Name }
 impl_eq! { for Name }
+impl_hash! { for Name }
 impl_partial_eq! { Value for Name use same_value_zero }
 impl_partial_eq! { Primitive for Name use same_value_zero }
 impl_partial_eq! { Name for Name use strict_equals }
@@ -1261,6 +1341,7 @@ impl_try_from! { Value for String if v => v.is_string() }
 impl_try_from! { Primitive for String if v => v.is_string() }
 impl_try_from! { Name for String if v => v.is_string() }
 impl_eq! { for String }
+impl_hash! { for String }
 impl_partial_eq! { Value for String use same_value_zero }
 impl_partial_eq! { Primitive for String use same_value_zero }
 impl_partial_eq! { Name for String use strict_equals }
@@ -1275,6 +1356,7 @@ impl_try_from! { Value for Symbol if v => v.is_symbol() }
 impl_try_from! { Primitive for Symbol if v => v.is_symbol() }
 impl_try_from! { Name for Symbol if v => v.is_symbol() }
 impl_eq! { for Symbol }
+impl_hash! { for Symbol }
 impl_partial_eq! { Data for Symbol use identity }
 impl_partial_eq! { Value for Symbol use identity }
 impl_partial_eq! { Primitive for Symbol use identity }
@@ -1292,6 +1374,7 @@ impl_from! { Integer for Number }
 impl_from! { Int32 for Number }
 impl_from! { Uint32 for Number }
 impl_eq! { for Number }
+impl_hash! { for Number }
 impl_partial_eq! { Value for Number use same_value_zero }
 impl_partial_eq! { Primitive for Number use same_value_zero }
 impl_partial_eq! { Number for Number use same_value_zero }
@@ -1310,6 +1393,7 @@ impl_try_from! { Number for Integer if v => v.is_int32() || v.is_uint32() }
 impl_from! { Int32 for Integer }
 impl_from! { Uint32 for Integer }
 impl_eq! { for Integer }
+impl_hash! { for Integer }
 impl_partial_eq! { Value for Integer use same_value_zero }
 impl_partial_eq! { Primitive for Integer use same_value_zero }
 impl_partial_eq! { Number for Integer use same_value_zero }
@@ -1327,6 +1411,7 @@ impl_try_from! { Primitive for Int32 if v => v.is_int32() }
 impl_try_from! { Number for Int32 if v => v.is_int32() }
 impl_try_from! { Integer for Int32 if v => v.is_int32() }
 impl_eq! { for Int32 }
+impl_hash! { for Int32 }
 impl_partial_eq! { Value for Int32 use same_value_zero }
 impl_partial_eq! { Primitive for Int32 use same_value_zero }
 impl_partial_eq! { Number for Int32 use same_value_zero }
@@ -1343,6 +1428,7 @@ impl_try_from! { Primitive for Uint32 if v => v.is_uint32() }
 impl_try_from! { Number for Uint32 if v => v.is_uint32() }
 impl_try_from! { Integer for Uint32 if v => v.is_uint32() }
 impl_eq! { for Uint32 }
+impl_hash! { for Uint32 }
 impl_partial_eq! { Value for Uint32 use same_value_zero }
 impl_partial_eq! { Primitive for Uint32 use same_value_zero }
 impl_partial_eq! { Number for Uint32 use same_value_zero }
