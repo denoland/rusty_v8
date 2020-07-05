@@ -10,7 +10,8 @@
 #include "v8/include/v8.h"
 #include "v8/src/execution/isolate-utils-inl.h"
 #include "v8/src/execution/isolate-utils.h"
-#include "v8/src/objects/maybe-object.h"
+#include "v8/src/objects/objects-inl.h"
+#include "v8/src/objects/objects.h"
 
 using namespace support;
 
@@ -1720,18 +1721,15 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
 'v8_enable_shared_ro_heap' feature enabled.
 #endif
 
-v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& location) {
-  auto address = *reinterpret_cast<const v8::internal::Address*>(&location);
-  auto maybe_object = v8::internal::MaybeObject(address);
-  if (maybe_object.IsSmi() || maybe_object.IsCleared()) {
-    return nullptr;
-  }
-  auto heap_object = maybe_object.GetHeapObject();
-  v8::internal::Isolate* isolate;
-  if (!v8::internal::GetIsolateFromHeapObject(heap_object, &isolate)) {
-    return nullptr;
-  }
-  return reinterpret_cast<v8::Isolate*>(isolate);
+v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
+  namespace i = v8::internal;
+  i::Object object(reinterpret_cast<const i::Address&>(data));
+  i::Isolate* isolate;
+  return object.IsHeapObject() &&
+                 i::GetIsolateFromHeapObject(object.GetHeapObject(), &isolate)
+             ? reinterpret_cast<v8::Isolate*>(isolate)
+             : nullptr;
+}
 }
 
 }  // extern "C"
