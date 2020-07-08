@@ -91,6 +91,11 @@ fn build_v8() {
     }
   }
 
+  if env::var("TARGET").unwrap() == "x86_64-unknown-linux-musl" {
+    gn_args.push("use_glib=false".to_string());
+    gn_args.push("use_gold=true".to_string());
+  };
+
   if env::var("TARGET").unwrap() == "aarch64-unknown-linux-gnu" {
     gn_args.push(r#"target_cpu="arm64""#.to_string());
     gn_args.push("use_sysroot=true".to_string());
