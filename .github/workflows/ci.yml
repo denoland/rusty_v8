@@ -95,7 +95,8 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
 
           sudo apt update
-          sudo apt install musl musl-tools
+          sudo apt install musl musl-dev musl-tools
+          sudo ld-musl-config
 
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
