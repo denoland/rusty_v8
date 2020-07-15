@@ -2887,6 +2887,7 @@ fn module_snapshot() {
       let source_text = v8::String::new(
         scope,
         "import 'globalThis.b = 42';\n\
+         globalThis.c = () => { return 1+1 }\n\
          globalThis.a = 3",
       )
       .unwrap();
