@@ -3,6 +3,7 @@ use crate::support::int;
 use crate::support::MapFnTo;
 use crate::support::MaybeBool;
 use crate::AccessorNameGetterCallback;
+use crate::AccessorNameSetterCallback;
 use crate::Array;
 use crate::Context;
 use crate::HandleScope;
@@ -27,6 +28,13 @@ extern "C" {
     context: *const Context,
     key: *const Name,
     getter: AccessorNameGetterCallback,
+  ) -> MaybeBool;
+  fn v8__Object__SetAccessorWithSetter(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+    setter: AccessorNameSetterCallback,
   ) -> MaybeBool;
   fn v8__Object__Get(
     this: *const Object,
@@ -281,6 +289,25 @@ impl Object {
         &*scope.get_current_context(),
         &*name,
         getter.map_fn_to(),
+      )
+    }
+    .into()
+  }
+
+  pub fn set_accessor_with_setter(
+    &self,
+    scope: &mut HandleScope,
+    name: Local<Name>,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetAccessorWithSetter(
+        self,
+        &*scope.get_current_context(),
+        &*name,
+        getter.map_fn_to(),
+        setter.map_fn_to(),
       )
     }
     .into()
