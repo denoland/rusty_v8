@@ -1346,6 +1346,98 @@ fn object_set_accessor() {
 }
 
 #[test]
+fn object_set_accessor_with_setter() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    let getter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let s = v8::String::new(scope, "hello").unwrap();
+      assert!(rv.get(scope).is_undefined());
+      rv.set(s.into());
+
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let setter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  value: v8::Local<v8::Value>,
+                  args: v8::PropertyCallbackArguments| {
+      println!("setter called");
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let new_value = v8::Local::<v8::Integer>::try_from(value).unwrap();
+      this.set(scope, int_key.into(), new_value.into());
+
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let obj = v8::Object::new(scope);
+
+    let getter_setter_key =
+      v8::String::new(scope, "getter_setter_key").unwrap();
+    obj.set_accessor_with_setter(
+      scope,
+      getter_setter_key.into(),
+      getter,
+      setter,
+    );
+
+    let int_key = v8::String::new(scope, "int_key").unwrap();
+    let int_value = v8::Integer::new(scope, 42);
+    obj.set(scope, int_key.into(), int_value.into());
+
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(scope, obj_name.into(), obj.into());
+
+    let actual = eval(scope, "obj.getter_setter_key").unwrap();
+    let expected = v8::String::new(scope, "hello").unwrap();
+    assert!(actual.strict_equals(expected.into()));
+
+    eval(scope, "obj.getter_setter_key = 123").unwrap();
+    assert_eq!(
+      obj
+        .get(scope, int_key.into())
+        .unwrap()
+        .to_integer(scope)
+        .unwrap()
+        .value(),
+      123
+    );
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
+  }
+}
+
+#[test]
 fn promise_resolved() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

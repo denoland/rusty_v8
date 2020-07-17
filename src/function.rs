@@ -258,6 +258,26 @@ where
   }
 }
 
+pub type AccessorNameSetterCallback<'s> =
+  extern "C" fn(Local<'s, Name>, Local<'s, Value>, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for AccessorNameSetterCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, Local<Name>, Local<Value>, PropertyCallbackArguments),
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>,
+             value: Local<Value>,
+             info: *const PropertyCallbackInfo| {
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      (F::get())(scope, key, value, args);
+    };
+    f.to_c_fn()
+  }
+}
+
 impl Function {
   // TODO: add remaining arguments from C++
   /// Create a function in the current execution context
