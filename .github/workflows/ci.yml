@@ -70,7 +70,7 @@ jobs:
       - name: Install rust
         uses: hecrj/setup-rust-action@v1
         with:
-          rust-version: 1.44.1
+          rust-version: 1.45.0
 
       - name: Install rust tools
         run: rustup component add clippy rustfmt
