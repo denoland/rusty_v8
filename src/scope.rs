@@ -58,6 +58,16 @@
 //!     inaccessible until the inner scope is dropped. However, the `TryCatch`
 //!     object will nonetheless catch all exception thrown during its lifetime.
 //!
+//! - `CallbackScope<'s, ()>`
+//!   - 's = lifetime of local handles created in this scope, and the value
+//!     returned from the callback, and of the scope itself.
+//!   - A `Context` is _not_ available. Only certain types JavaScript values can
+//!     be created: primitive values, templates, and instances of `Context`.
+//!   - Derefs to `HandleScope<'s, ()>`.
+//!   - This scope type is only to be constructed inside embedder defined
+//!     callbacks when these are called by V8.
+//!   - When a scope is created inside, type is erased to `HandleScope<'s, ()>`.
+//!
 //! - `CallbackScope<'s>`
 //!   - 's = lifetime of local handles created in this scope, and the value
 //!     returned from the callback, and of the scope itself.
@@ -421,7 +431,11 @@ where
 /// callbacks in this fashion, so the embedder would never needs to construct
 /// a CallbackScope.
 ///
-/// A CallbackScope can be created from the following inputs:
+/// A `CallbackScope<()>`, without context, can be created from:
+///   - `&mut Isolate`
+///   - `&mut OwnedIsolate`
+///
+/// A `CallbackScope`, with context, can be created from:
 ///   - `Local<Context>`
 ///   - `Local<Message>`
 ///   - `Local<Object>`
@@ -430,15 +444,17 @@ where
 ///   - `&FunctionCallbackInfo`
 ///   - `&PropertyCallbackInfo`
 ///   - `&PromiseRejectMessage`
-pub struct CallbackScope<'s> {
+pub struct CallbackScope<'s, C = Context> {
   data: NonNull<data::ScopeData>,
-  _phantom: PhantomData<&'s mut HandleScope<'s>>,
+  _phantom: PhantomData<&'s mut HandleScope<'s, C>>,
 }
 
 impl<'s> CallbackScope<'s> {
-  pub unsafe fn new<P: param::NewCallbackScope<'s>>(param: P) -> Self {
-    data::ScopeData::get_current_mut(param.get_isolate_mut())
-      .new_callback_scope_data(param.maybe_get_current_context())
+  #[allow(clippy::new_ret_no_self)]
+  pub unsafe fn new<P: param::NewCallbackScope<'s>>(param: P) -> P::NewScope {
+    let (isolate, context) = param.get_isolate_mut_and_maybe_current_context();
+    data::ScopeData::get_current_mut(isolate)
+      .new_callback_scope_data(context)
       .as_scope()
   }
 }
@@ -480,7 +496,7 @@ impl_as!(<'s, 'p, P> ContextScope<'s, P> as Isolate);
 impl_as!(<'s, C> HandleScope<'s, C> as Isolate);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as Isolate);
 impl_as!(<'s, P> TryCatch<'s, P> as Isolate);
-impl_as!(<'s> CallbackScope<'s> as Isolate);
+impl_as!(<'s, C> CallbackScope<'s, C> as Isolate);
 
 impl_as!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p, ()>);
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p, ()>);
@@ -488,7 +504,7 @@ impl_as!(<'s, C> HandleScope<'s, C> as HandleScope<'s, ()>);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as HandleScope<'s, ()>);
 impl_as!(<'s, 'p, C> TryCatch<'s, HandleScope<'p, C>> as HandleScope<'p, ()>);
 impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as HandleScope<'p, ()>);
-impl_as!(<'s> CallbackScope<'s> as HandleScope<'s, ()>);
+impl_as!(<'s, C> CallbackScope<'s, C> as HandleScope<'s, ()>);
 
 impl_as!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p>);
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p>);
@@ -534,7 +550,7 @@ macro_rules! impl_deref {
 impl_deref!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p>);
 impl_deref!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
 
-impl_deref!(<'s> HandleScope<'s,()> as Isolate);
+impl_deref!(<'s> HandleScope<'s, ()> as Isolate);
 impl_deref!(<'s> HandleScope<'s> as HandleScope<'s, ()>);
 
 impl_deref!(<'s, 'e> EscapableHandleScope<'s, 'e, ()> as HandleScope<'s, ()>);
@@ -545,6 +561,7 @@ impl_deref!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as HandleScope<'p>);
 impl_deref!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e, ()>> as EscapableHandleScope<'p, 'e, ()>);
 impl_deref!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
 
+impl_deref!(<'s> CallbackScope<'s, ()> as HandleScope<'s, ()>);
 impl_deref!(<'s> CallbackScope<'s> as HandleScope<'s>);
 
 macro_rules! impl_scope_drop {
@@ -563,7 +580,7 @@ impl_scope_drop!(<'s, 'p, P> ContextScope<'s, P>);
 impl_scope_drop!(<'s, C> HandleScope<'s, C> );
 impl_scope_drop!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> );
 impl_scope_drop!(<'s, P> TryCatch<'s, P> );
-impl_scope_drop!(<'s> CallbackScope<'s> );
+impl_scope_drop!(<'s, C> CallbackScope<'s, C> );
 
 pub unsafe trait Scope: Sized {}
 
@@ -600,7 +617,7 @@ impl<T: Scope> ScopeCast for T {
 mod param {
   use super::*;
 
-  pub trait NewContextScope<'s>: data::GetScopeData {
+  pub trait NewContextScope<'s>: getter::GetScopeData {
     type NewScope: Scope;
   }
 
@@ -624,11 +641,11 @@ mod param {
     type NewScope = <P as NewContextScope<'s>>::NewScope;
   }
 
-  impl<'s, 'p: 's> NewContextScope<'s> for CallbackScope<'p> {
+  impl<'s, 'p: 's, C> NewContextScope<'s> for CallbackScope<'p, C> {
     type NewScope = ContextScope<'s, HandleScope<'p>>;
   }
 
-  pub trait NewHandleScope<'s>: data::GetScopeData {
+  pub trait NewHandleScope<'s>: getter::GetScopeData {
     type NewScope: Scope;
   }
 
@@ -660,11 +677,11 @@ mod param {
     type NewScope = <P as NewHandleScope<'s>>::NewScope;
   }
 
-  impl<'s, 'p: 's> NewHandleScope<'s> for CallbackScope<'p> {
-    type NewScope = HandleScope<'s>;
+  impl<'s, 'p: 's, C> NewHandleScope<'s> for CallbackScope<'p, C> {
+    type NewScope = HandleScope<'s, C>;
   }
 
-  pub trait NewHandleScopeWithContext<'s>: data::GetScopeData {
+  pub trait NewHandleScopeWithContext<'s>: getter::GetScopeData {
     fn get_isolate_mut(&mut self) -> &mut Isolate;
   }
 
@@ -680,7 +697,7 @@ mod param {
     }
   }
 
-  pub trait NewEscapableHandleScope<'s, 'e: 's>: data::GetScopeData {
+  pub trait NewEscapableHandleScope<'s, 'e: 's>: getter::GetScopeData {
     type NewScope: Scope;
   }
 
@@ -706,11 +723,11 @@ mod param {
     type NewScope = <P as NewEscapableHandleScope<'s, 'e>>::NewScope;
   }
 
-  impl<'s, 'p: 's> NewEscapableHandleScope<'s, 'p> for CallbackScope<'p> {
-    type NewScope = EscapableHandleScope<'s, 'p>;
+  impl<'s, 'p: 's, C> NewEscapableHandleScope<'s, 'p> for CallbackScope<'p, C> {
+    type NewScope = EscapableHandleScope<'s, 'p, C>;
   }
 
-  pub trait NewTryCatch<'s>: data::GetScopeData {
+  pub trait NewTryCatch<'s>: getter::GetScopeData {
     type NewScope: Scope;
   }
 
@@ -732,59 +749,138 @@ mod param {
     type NewScope = TryCatch<'s, P>;
   }
 
-  impl<'s, 'p: 's> NewTryCatch<'s> for CallbackScope<'p> {
-    type NewScope = TryCatch<'s, HandleScope<'p>>;
+  impl<'s, 'p: 's, C> NewTryCatch<'s> for CallbackScope<'p, C> {
+    type NewScope = TryCatch<'s, HandleScope<'p, C>>;
   }
 
-  pub trait NewCallbackScope<'s>: Copy + Sized {
-    fn maybe_get_current_context(self) -> Option<Local<'s, Context>> {
-      None
+  pub trait NewCallbackScope<'s>: Sized + getter::GetIsolate<'s> {
+    type NewScope: Scope;
+
+    unsafe fn get_isolate_mut_and_maybe_current_context(
+      self,
+    ) -> (&'s mut Isolate, Option<Local<'s, Context>>) {
+      (self.get_isolate_mut(), None)
     }
-    fn get_isolate_mut(self) -> &'s mut Isolate;
+  }
+
+  impl<'s> NewCallbackScope<'s> for &'s mut Isolate {
+    type NewScope = CallbackScope<'s, ()>;
+  }
+
+  impl<'s> NewCallbackScope<'s> for &'s mut OwnedIsolate {
+    type NewScope = CallbackScope<'s, ()>;
+  }
+
+  impl<'s> NewCallbackScope<'s> for &'s FunctionCallbackInfo {
+    type NewScope = CallbackScope<'s>;
+  }
+
+  impl<'s> NewCallbackScope<'s> for &'s PropertyCallbackInfo {
+    type NewScope = CallbackScope<'s>;
   }
 
   impl<'s> NewCallbackScope<'s> for Local<'s, Context> {
-    fn maybe_get_current_context(self) -> Option<Local<'s, Context>> {
-      Some(self)
-    }
+    type NewScope = CallbackScope<'s>;
 
-    fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *raw::v8__Context__GetIsolate(&*self) }
+    unsafe fn get_isolate_mut_and_maybe_current_context(
+      self,
+    ) -> (&'s mut Isolate, Option<Local<'s, Context>>) {
+      (getter::GetIsolate::get_isolate_mut(self), Some(self))
     }
   }
 
   impl<'s> NewCallbackScope<'s> for Local<'s, Message> {
-    fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *raw::v8__Message__GetIsolate(&*self) }
-    }
+    type NewScope = CallbackScope<'s>;
   }
 
-  impl<'s, T> NewCallbackScope<'s> for T
-  where
-    T: Copy + Into<Local<'s, Object>>,
-  {
-    fn get_isolate_mut(self) -> &'s mut Isolate {
-      let object: Local<Object> = self.into();
-      unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
-    }
+  impl<'s, T: Into<Local<'s, Object>>> NewCallbackScope<'s> for T {
+    type NewScope = CallbackScope<'s>;
   }
 
   impl<'s> NewCallbackScope<'s> for &'s PromiseRejectMessage<'s> {
-    fn get_isolate_mut(self) -> &'s mut Isolate {
+    type NewScope = CallbackScope<'s>;
+  }
+}
+
+/// The private `getter` module defines traits to look up the related `Isolate`
+/// and `ScopeData` for many different types. The implementation of those traits
+/// on the types that implement them are also all contained in this module.
+mod getter {
+  pub use super::*;
+
+  pub trait GetIsolate<'s> {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate;
+  }
+
+  impl<'s> GetIsolate<'s> for &'s mut Isolate {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      self
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for &'s mut OwnedIsolate {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *self
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for &'s FunctionCallbackInfo {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *raw::v8__FunctionCallbackInfo__GetIsolate(self)
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for &'s PropertyCallbackInfo {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *raw::v8__PropertyCallbackInfo__GetIsolate(self)
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for Local<'s, Context> {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *raw::v8__Context__GetIsolate(&*self)
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for Local<'s, Message> {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *raw::v8__Message__GetIsolate(&*self)
+    }
+  }
+
+  impl<'s, T: Into<Local<'s, Object>>> GetIsolate<'s> for T {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      let object: Local<Object> = self.into();
+      &mut *raw::v8__Object__GetIsolate(&*object)
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for &'s PromiseRejectMessage<'s> {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       let object: Local<Object> = self.get_promise().into();
-      unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
+      &mut *raw::v8__Object__GetIsolate(&*object)
     }
   }
 
-  impl<'s> NewCallbackScope<'s> for &'s FunctionCallbackInfo {
-    fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *raw::v8__FunctionCallbackInfo__GetIsolate(self) }
+  pub trait GetScopeData {
+    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData;
+  }
+
+  impl<T: Scope> GetScopeData for T {
+    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
+      data::ScopeData::get_mut(self)
     }
   }
 
-  impl<'s> NewCallbackScope<'s> for &'s PropertyCallbackInfo {
-    fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *raw::v8__PropertyCallbackInfo__GetIsolate(self) }
+  impl GetScopeData for Isolate {
+    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
+      data::ScopeData::get_root_mut(self)
+    }
+  }
+
+  impl GetScopeData for OwnedIsolate {
+    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
+      data::ScopeData::get_root_mut(self)
     }
   }
 }
@@ -1341,28 +1437,6 @@ pub(crate) mod data {
       unsafe { ptr::write(self, (init_fn)()) }
     }
   }
-
-  pub trait GetScopeData {
-    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData;
-  }
-
-  impl<T: Scope> GetScopeData for T {
-    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
-      data::ScopeData::get_mut(self)
-    }
-  }
-
-  impl GetScopeData for Isolate {
-    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
-      data::ScopeData::get_root_mut(self)
-    }
-  }
-
-  impl GetScopeData for OwnedIsolate {
-    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
-      data::ScopeData::get_root_mut(self)
-    }
-  }
 }
 
 /// The `raw` module contains prototypes for all the `extern C` functions that
@@ -1677,6 +1751,15 @@ mod tests {
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
     }
+    {
+      let isolate: &mut Isolate = l1_hs.as_mut();
+      let l2_cbs = &mut unsafe { CallbackScope::new(isolate) };
+      AssertTypeOf(l2_cbs).is::<CallbackScope<()>>();
+      let d = l2_cbs.deref_mut();
+      AssertTypeOf(d).is::<HandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<Isolate>();
+    }
   }
 
   #[test]
@@ -1788,6 +1871,17 @@ mod tests {
           AssertTypeOf(&TryCatch::new(l3_tc)).is::<TryCatch<HandleScope>>();
         }
       }
+    }
+    {
+      let l1_cbs = &mut unsafe { CallbackScope::new(&mut *isolate) };
+      AssertTypeOf(l1_cbs).is::<CallbackScope<()>>();
+      let context = Context::new(l1_cbs);
+      AssertTypeOf(&ContextScope::new(l1_cbs, context))
+        .is::<ContextScope<HandleScope>>();
+      AssertTypeOf(&HandleScope::new(l1_cbs)).is::<HandleScope<()>>();
+      AssertTypeOf(&EscapableHandleScope::new(l1_cbs))
+        .is::<EscapableHandleScope<()>>();
+      AssertTypeOf(&TryCatch::new(l1_cbs)).is::<TryCatch<HandleScope<()>>>();
     }
     {
       AssertTypeOf(&HandleScope::with_context(isolate, &global_context))
