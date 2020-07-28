@@ -114,6 +114,14 @@ impl CreateParams {
     self
   }
 
+  pub fn heap_limits(mut self, min: usize, max: usize) -> Self {
+    self
+      .raw
+      .constraints
+      .configure_defaults_from_heap_size(min, max);
+    self
+  }
+
   fn set_fallback_defaults(mut self) -> Self {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
