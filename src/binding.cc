@@ -178,6 +178,18 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
   return isolate->AddMessageListener(callback);
 }
 
+void v8__Isolate__AddNearHeapLimitCallback(v8::Isolate* isolate,
+                                           v8::NearHeapLimitCallback callback,
+                                           void* data) {
+  isolate.AddNearHeapLimitCallback(callback, data);
+}
+
+void v8__Isolate__RemoveNearHeapLimitCallback(
+    v8::Isolate* isolate, v8::NearHeapLimitCallback callback,
+    size_t heap_limit) {
+  isolate.RemoveNearHeapLimitCallback(callback, heap_limit);
+}
+
 const v8::Value* v8__Isolate__ThrowException(v8::Isolate* isolate,
                                              const v8::Value& exception) {
   return local_to_ptr(isolate->ThrowException(ptr_to_local(&exception)));

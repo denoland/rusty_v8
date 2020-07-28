@@ -69,6 +69,12 @@ pub type HostImportModuleDynamicallyCallback = extern "C" fn(
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
+pub type NearHeapLimitCallback = extern "C" fn(
+  data: *mut c_void,
+  current_heap_limit: usize,
+  initial_heap_limit: usize,
+) -> usize;
+
 extern "C" {
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
@@ -86,6 +92,16 @@ extern "C" {
     isolate: *mut Isolate,
     callback: MessageCallback,
   ) -> bool;
+  fn v8__Isolate__AddNearHeapLimitCallback(
+    isolate: *mut Isolate,
+    callback: NearHeapLimitCallback,
+    data: *mut c_void,
+  );
+  fn v8__Isolate__RemoveNearHeapLimitCallback(
+    isolate: *mut Isolate,
+    callback: NearHeapLimitCallback,
+    heap_limit: usize,
+  );
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: *mut Isolate,
     callback: PromiseRejectCallback,
@@ -343,6 +359,40 @@ impl Isolate {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
     }
+  }
+
+  /// Add a callback to invoke in case the heap size is close to the heap limit.
+  /// If multiple callbacks are added, only the most recently added callback is
+  /// invoked.
+  ///
+  /// # Safety
+  ///
+  /// Don't pass a null-pointer for the callback!
+  /// Make sure the callback only casts `data` to the type the `data` argument
+  /// here.
+  pub unsafe fn add_near_heap_limit_callback(
+    &mut self,
+    callback: NearHeapLimitCallback,
+    data: *mut c_void,
+  ) {
+    v8__Isolate__AddNearHeapLimitCallback(self, callback, data)
+  }
+
+  /// Remove the given callback and restore the heap limit to the
+  /// given limit. If the given limit is zero, then it is ignored.
+  /// If the current heap size is greater than the given limit,
+  /// then the heap limit is restored to the minimal limit that
+  /// is possible for the current heap size.
+  ///
+  /// # Safety
+  ///
+  /// Don't pass a null-pointer for the callback!
+  pub unsafe fn remove_near_heap_limit_callback(
+    &mut self,
+    callback: NearHeapLimitCallback,
+    heap_limit: usize,
+  ) {
+    v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
   }
 
   /// Runs the default MicrotaskQueue until it gets empty.
