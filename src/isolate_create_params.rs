@@ -201,4 +201,28 @@ pub(crate) mod raw {
     initial_young_generation_size_: usize,
     stack_limit_: *mut u32,
   }
+
+  extern "C" {
+    fn v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
+      constraints: *mut ResourceConstraints,
+      initial_heap_size_in_bytes: usize,
+      maximum_heap_size_in_bytes: usize,
+    );
+  }
+
+  impl ResourceConstraints {
+    pub fn configure_defaults_from_heap_size(
+      &mut self,
+      initial_heap_size_in_bytes: usize,
+      maximum_heap_size_in_bytes: usize,
+    ) {
+      unsafe {
+        v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
+          self,
+          initial_heap_size_in_bytes,
+          maximum_heap_size_in_bytes,
+        )
+      };
+    }
+  }
 }
