@@ -181,13 +181,13 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
 void v8__Isolate__AddNearHeapLimitCallback(v8::Isolate* isolate,
                                            v8::NearHeapLimitCallback callback,
                                            void* data) {
-  isolate.AddNearHeapLimitCallback(callback, data);
+  isolate->AddNearHeapLimitCallback(callback, data);
 }
 
 void v8__Isolate__RemoveNearHeapLimitCallback(
     v8::Isolate* isolate, v8::NearHeapLimitCallback callback,
     size_t heap_limit) {
-  isolate.RemoveNearHeapLimitCallback(callback, heap_limit);
+  isolate->RemoveNearHeapLimitCallback(callback, heap_limit);
 }
 
 const v8::Value* v8__Isolate__ThrowException(v8::Isolate* isolate,
@@ -219,8 +219,8 @@ size_t v8__Isolate__CreateParams__SIZEOF() {
 void v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
     v8::ResourceConstraints* constraints, size_t initial_heap_size_in_bytes,
     size_t maximum_heap_size_in_bytes) {
-  constraints.ConfigureDefaultsFromHeapSize(initial_heap_size_in_bytes,
-                                            maximum_heap_size_in_bytes)
+  constraints->ConfigureDefaultsFromHeapSize(initial_heap_size_in_bytes,
+                                             maximum_heap_size_in_bytes)
 }
 
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
