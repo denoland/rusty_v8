@@ -115,10 +115,17 @@ impl CreateParams {
   }
 
   /// Configures the constraints with reasonable default values based on the
-  /// provided heap size limit.
+  /// provided lower and upper bounds.
+  ///
+  /// By default V8 starts with a small heap and dynamically grows it to match
+  /// the set of live objects. This may lead to ineffective garbage collections
+  /// at startup if the live set is large. Setting the initial heap size avoids
+  /// such garbage collections. Note that this does not affect young generation
+  /// garbage collections.
   ///
   /// When the heap size approaches `max`, V8 will perform series of
-  /// garbage collections and invoke the *NearHeapLimitCallback*.
+  /// garbage collections and invoke the
+  /// [NearHeapLimitCallback](struct.Isolate.html#method.add_near_heap_limit_callback).
   /// If the garbage collections do not help and the callback does not
   /// increase the limit, then V8 will crash with V8::FatalProcessOutOfMemory.
   ///
@@ -126,13 +133,13 @@ impl CreateParams {
   ///
   /// # Arguments
   ///
-  /// * `min` - Lower bound for when to do garbage collections
-  /// * `max` - The hard limit for the heap size.
-  pub fn heap_limits(mut self, min: usize, max: usize) -> Self {
+  /// * `initial` - The initial heap size or zero in bytes
+  /// * `max` - The hard limit for the heap size in bytes
+  pub fn heap_limits(mut self, initial: usize, max: usize) -> Self {
     self
       .raw
       .constraints
-      .configure_defaults_from_heap_size(min, max);
+      .configure_defaults_from_heap_size(initial, max);
     self
   }
 
