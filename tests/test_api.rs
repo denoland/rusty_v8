@@ -10,6 +10,7 @@ use std::sync::Mutex;
 
 use rusty_v8 as v8;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
+use std::ffi::c_void;
 use v8::MapFnTo;
 
 lazy_static! {
@@ -3312,4 +3313,54 @@ fn module_snapshot() {
       assert!(result.same_value(true_val));
     }
   }
+}
+
+struct TestHeapLimitState {
+  near_limit_callback_called: bool,
+}
+
+extern "C" fn heap_limit_callback(
+  data: *mut c_void,
+  current_heap_limit: usize,
+  _initial_heap_limit: usize,
+) -> usize {
+  let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
+  state.near_limit_callback_called = true;
+  current_heap_limit // not resizing the limit
+}
+
+#[test]
+fn heap_limits() {
+  let _setup_guard = setup();
+
+  let params = v8::CreateParams::default().heap_limits(0, 20 * 1024 * 1024); // 20 MB
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut test_state = TestHeapLimitState {
+    near_limit_callback_called: false,
+  };
+  let state_ptr = &mut test_state as *mut _ as *mut c_void;
+  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source = r#"
+      let my_string = "";
+    "#;
+    let res = eval(scope, source);
+    assert!(res.is_some());
+
+    // allocate some stuff, 20 MB is reached at about 900k iterations
+    for _ in 0..1000000 {
+      assert!(eval(scope, "my_string += 'HelloWorld'").is_some());
+      if test_state.near_limit_callback_called {
+        break;
+      }
+    }
+  }
+
+  assert!(test_state.near_limit_callback_called);
 }
