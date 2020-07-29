@@ -364,17 +364,16 @@ impl Isolate {
   /// Add a callback to invoke in case the heap size is close to the heap limit.
   /// If multiple callbacks are added, only the most recently added callback is
   /// invoked.
+  //
+  // this in itself is safe because `data` will be passed to the callback
+  // without being dereferenced
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
   pub fn add_near_heap_limit_callback(
     &mut self,
     callback: NearHeapLimitCallback,
     data: *mut c_void,
   ) {
-    // this in itself is safe because `data` will be passed to the callback
-    // without being dereferenced
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    unsafe {
-      v8__Isolate__AddNearHeapLimitCallback(self, callback, data)
-    };
+    unsafe { v8__Isolate__AddNearHeapLimitCallback(self, callback, data) };
   }
 
   /// Remove the given callback and restore the heap limit to the
