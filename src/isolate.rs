@@ -369,7 +369,12 @@ impl Isolate {
     callback: NearHeapLimitCallback,
     data: *mut c_void,
   ) {
-    unsafe { v8__Isolate__AddNearHeapLimitCallback(self, callback, data) };
+    // this in itself is safe because `data` will be passed to the callback
+    // without being dereferenced
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    unsafe {
+      v8__Isolate__AddNearHeapLimitCallback(self, callback, data)
+    };
   }
 
   /// Remove the given callback and restore the heap limit to the
