@@ -114,6 +114,20 @@ impl CreateParams {
     self
   }
 
+  /// Configures the constraints with reasonable default values based on the
+  /// provided heap size limit.
+  ///
+  /// When the heap size approaches `max`, V8 will perform series of
+  /// garbage collections and invoke the *NearHeapLimitCallback*.
+  /// If the garbage collections do not help and the callback does not
+  /// increase the limit, then V8 will crash with V8::FatalProcessOutOfMemory.
+  ///
+  /// The heap size includes both the young and the old generation.
+  ///
+  /// # Arguments
+  ///
+  /// * `min` - Lower bound for when to do garbage collections
+  /// * `max` - The hard limit for the heap size.
   pub fn heap_limits(mut self, min: usize, max: usize) -> Self {
     self
       .raw
