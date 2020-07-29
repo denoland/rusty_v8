@@ -364,18 +364,12 @@ impl Isolate {
   /// Add a callback to invoke in case the heap size is close to the heap limit.
   /// If multiple callbacks are added, only the most recently added callback is
   /// invoked.
-  ///
-  /// # Safety
-  ///
-  /// Don't pass a null-pointer for the callback!
-  /// Make sure the callback only casts `data` to the type the `data` argument
-  /// here.
-  pub unsafe fn add_near_heap_limit_callback(
+  pub fn add_near_heap_limit_callback(
     &mut self,
     callback: NearHeapLimitCallback,
     data: *mut c_void,
   ) {
-    v8__Isolate__AddNearHeapLimitCallback(self, callback, data)
+    unsafe { v8__Isolate__AddNearHeapLimitCallback(self, callback, data) };
   }
 
   /// Remove the given callback and restore the heap limit to the
@@ -383,16 +377,14 @@ impl Isolate {
   /// If the current heap size is greater than the given limit,
   /// then the heap limit is restored to the minimal limit that
   /// is possible for the current heap size.
-  ///
-  /// # Safety
-  ///
-  /// Don't pass a null-pointer for the callback!
-  pub unsafe fn remove_near_heap_limit_callback(
+  pub fn remove_near_heap_limit_callback(
     &mut self,
     callback: NearHeapLimitCallback,
     heap_limit: usize,
   ) {
-    v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
+    unsafe {
+      v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
+    };
   }
 
   /// Runs the default MicrotaskQueue until it gets empty.
