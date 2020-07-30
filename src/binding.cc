@@ -178,6 +178,18 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
   return isolate->AddMessageListener(callback);
 }
 
+void v8__Isolate__AddNearHeapLimitCallback(v8::Isolate* isolate,
+                                           v8::NearHeapLimitCallback callback,
+                                           void* data) {
+  isolate->AddNearHeapLimitCallback(callback, data);
+}
+
+void v8__Isolate__RemoveNearHeapLimitCallback(
+    v8::Isolate* isolate, v8::NearHeapLimitCallback callback,
+    size_t heap_limit) {
+  isolate->RemoveNearHeapLimitCallback(callback, heap_limit);
+}
+
 const v8::Value* v8__Isolate__ThrowException(v8::Isolate* isolate,
                                              const v8::Value& exception) {
   return local_to_ptr(isolate->ThrowException(ptr_to_local(&exception)));
@@ -202,6 +214,13 @@ void v8__Isolate__CreateParams__CONSTRUCT(
 
 size_t v8__Isolate__CreateParams__SIZEOF() {
   return sizeof(v8::Isolate::CreateParams);
+}
+
+void v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
+    v8::ResourceConstraints* constraints, size_t initial_heap_size_in_bytes,
+    size_t maximum_heap_size_in_bytes) {
+  constraints->ConfigureDefaultsFromHeapSize(initial_heap_size_in_bytes,
+                                             maximum_heap_size_in_bytes);
 }
 
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
@@ -743,11 +762,10 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key), getter));
 }
 
-MaybeBool v8__Object__SetAccessorWithSetter(const v8::Object& self,
-                                            const v8::Context& context,
-                                            const v8::Name& key,
-                                            v8::AccessorNameGetterCallback getter,
-                                            v8::AccessorNameSetterCallback setter) {
+MaybeBool v8__Object__SetAccessorWithSetter(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key,
+    v8::AccessorNameGetterCallback getter,
+    v8::AccessorNameSetterCallback setter) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
       ptr_to_local(&context), ptr_to_local(&key), getter, setter));
 }

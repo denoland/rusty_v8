@@ -114,6 +114,35 @@ impl CreateParams {
     self
   }
 
+  /// Configures the constraints with reasonable default values based on the
+  /// provided lower and upper bounds.
+  ///
+  /// By default V8 starts with a small heap and dynamically grows it to match
+  /// the set of live objects. This may lead to ineffective garbage collections
+  /// at startup if the live set is large. Setting the initial heap size avoids
+  /// such garbage collections. Note that this does not affect young generation
+  /// garbage collections.
+  ///
+  /// When the heap size approaches `max`, V8 will perform series of
+  /// garbage collections and invoke the
+  /// [NearHeapLimitCallback](struct.Isolate.html#method.add_near_heap_limit_callback).
+  /// If the garbage collections do not help and the callback does not
+  /// increase the limit, then V8 will crash with V8::FatalProcessOutOfMemory.
+  ///
+  /// The heap size includes both the young and the old generation.
+  ///
+  /// # Arguments
+  ///
+  /// * `initial` - The initial heap size or zero in bytes
+  /// * `max` - The hard limit for the heap size in bytes
+  pub fn heap_limits(mut self, initial: usize, max: usize) -> Self {
+    self
+      .raw
+      .constraints
+      .configure_defaults_from_heap_size(initial, max);
+    self
+  }
+
   fn set_fallback_defaults(mut self) -> Self {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
@@ -200,5 +229,29 @@ pub(crate) mod raw {
     initial_old_generation_size_: usize,
     initial_young_generation_size_: usize,
     stack_limit_: *mut u32,
+  }
+
+  extern "C" {
+    fn v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
+      constraints: *mut ResourceConstraints,
+      initial_heap_size_in_bytes: usize,
+      maximum_heap_size_in_bytes: usize,
+    );
+  }
+
+  impl ResourceConstraints {
+    pub fn configure_defaults_from_heap_size(
+      &mut self,
+      initial_heap_size_in_bytes: usize,
+      maximum_heap_size_in_bytes: usize,
+    ) {
+      unsafe {
+        v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
+          self,
+          initial_heap_size_in_bytes,
+          maximum_heap_size_in_bytes,
+        )
+      };
+    }
   }
 }

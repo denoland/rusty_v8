@@ -4,6 +4,7 @@
 extern crate lazy_static;
 
 use std::convert::{Into, TryFrom, TryInto};
+use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -3312,4 +3313,42 @@ fn module_snapshot() {
       assert!(result.same_value(true_val));
     }
   }
+}
+
+#[derive(Default)]
+struct TestHeapLimitState {
+  near_heap_limit_callback_calls: u64,
+}
+
+extern "C" fn heap_limit_callback(
+  data: *mut c_void,
+  current_heap_limit: usize,
+  _initial_heap_limit: usize,
+) -> usize {
+  let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
+  state.near_heap_limit_callback_calls += 1;
+  current_heap_limit * 2 // Avoid V8 OOM.
+}
+
+#[test]
+fn heap_limits() {
+  let _setup_guard = setup();
+
+  let params = v8::CreateParams::default().heap_limits(0, 20 * 1024 * 1024); // 20 MB
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut test_state = TestHeapLimitState::default();
+  let state_ptr = &mut test_state as *mut _ as *mut c_void;
+  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  // Allocate some strings; 20 MB is reached at about 800k iterations.
+  for _ in 0..1_000_000 {
+    v8::String::new(scope, "HelloWorld").unwrap();
+    if test_state.near_heap_limit_callback_calls > 0 {
+      break;
+    }
+  }
+  assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
