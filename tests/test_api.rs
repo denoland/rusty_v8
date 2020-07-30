@@ -3315,8 +3315,9 @@ fn module_snapshot() {
   }
 }
 
+#[derive(Default)]
 struct TestHeapLimitState {
-  near_limit_callback_called: bool,
+  near_limit_callback_calls: u64,
 }
 
 extern "C" fn heap_limit_callback(
@@ -3325,7 +3326,7 @@ extern "C" fn heap_limit_callback(
   _initial_heap_limit: usize,
 ) -> usize {
   let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
-  state.near_limit_callback_called = true;
+  state.near_limit_callback_calls += 1;
   current_heap_limit * 2 // avoid V8 OOM
 }
 
@@ -3336,9 +3337,7 @@ fn heap_limits() {
   let params = v8::CreateParams::default().heap_limits(0, 20 * 1024 * 1024); // 20 MB
   let isolate = &mut v8::Isolate::new(params);
 
-  let mut test_state = TestHeapLimitState {
-    near_limit_callback_called: false,
-  };
+  let mut test_state = TestHeapLimitState::default();
   let state_ptr = &mut test_state as *mut _ as *mut c_void;
   isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
 
@@ -3348,13 +3347,13 @@ fn heap_limits() {
     let scope = &mut v8::ContextScope::new(scope, context);
 
     // allocate some strings, 20 MB is reached at about 800k iterations
-    for i in 0..1000000 {
+    for _ in 0..1000000 {
       assert!(v8::String::new(scope, "HelloWorld").is_some());
-      if test_state.near_limit_callback_called {
+      if test_state.near_limit_callback_calls > 0 {
         break;
       }
     }
   }
 
-  assert!(test_state.near_limit_callback_called);
+  assert_eq!(1, test_state.near_limit_callback_calls);
 }
