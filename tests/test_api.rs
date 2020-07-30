@@ -3326,7 +3326,7 @@ extern "C" fn heap_limit_callback(
 ) -> usize {
   let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
   state.near_limit_callback_called = true;
-  current_heap_limit // not resizing the limit
+  current_heap_limit * 2 // avoid V8 OOM
 }
 
 #[test]
@@ -3347,16 +3347,11 @@ fn heap_limits() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let source = r#"
-      let my_string = "";
-    "#;
-    let res = eval(scope, source);
-    assert!(res.is_some());
-
-    // allocate some stuff, 20 MB is reached at about 900k iterations
-    for _ in 0..1000000 {
-      assert!(eval(scope, "my_string += 'HelloWorld'").is_some());
+    // allocate some strings, 20 MB is reached at about 800k iterations
+    for i in 0..1000000 {
+      assert!(v8::String::new(scope, "HelloWorld").is_some());
       if test_state.near_limit_callback_called {
+        eprintln!("reached at: {}", i);
         break;
       }
     }
