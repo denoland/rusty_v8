@@ -3351,7 +3351,6 @@ fn heap_limits() {
     for i in 0..1000000 {
       assert!(v8::String::new(scope, "HelloWorld").is_some());
       if test_state.near_limit_callback_called {
-        eprintln!("reached at: {}", i);
         break;
       }
     }
