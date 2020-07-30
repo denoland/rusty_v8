@@ -762,11 +762,10 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key), getter));
 }
 
-MaybeBool v8__Object__SetAccessorWithSetter(const v8::Object& self,
-                                            const v8::Context& context,
-                                            const v8::Name& key,
-                                            v8::AccessorNameGetterCallback getter,
-                                            v8::AccessorNameSetterCallback setter) {
+MaybeBool v8__Object__SetAccessorWithSetter(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key,
+    v8::AccessorNameGetterCallback getter,
+    v8::AccessorNameSetterCallback setter) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
       ptr_to_local(&context), ptr_to_local(&key), getter, setter));
 }

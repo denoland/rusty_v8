@@ -4,12 +4,12 @@
 extern crate lazy_static;
 
 use std::convert::{Into, TryFrom, TryInto};
+use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use rusty_v8 as v8;
-use std::ffi::c_void;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
 
@@ -3317,7 +3317,7 @@ fn module_snapshot() {
 
 #[derive(Default)]
 struct TestHeapLimitState {
-  near_limit_callback_calls: u64,
+  near_heap_limit_callback_calls: u64,
 }
 
 extern "C" fn heap_limit_callback(
@@ -3326,8 +3326,8 @@ extern "C" fn heap_limit_callback(
   _initial_heap_limit: usize,
 ) -> usize {
   let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
-  state.near_limit_callback_calls += 1;
-  current_heap_limit * 2 // avoid V8 OOM
+  state.near_heap_limit_callback_calls += 1;
+  current_heap_limit * 2 // Avoid V8 OOM.
 }
 
 #[test]
@@ -3341,19 +3341,14 @@ fn heap_limits() {
   let state_ptr = &mut test_state as *mut _ as *mut c_void;
   isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
 
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
+  let scope = &mut v8::HandleScope::new(isolate);
 
-    // allocate some strings, 20 MB is reached at about 800k iterations
-    for _ in 0..1000000 {
-      assert!(v8::String::new(scope, "HelloWorld").is_some());
-      if test_state.near_limit_callback_calls > 0 {
-        break;
-      }
+  // Allocate some strings; 20 MB is reached at about 800k iterations.
+  for _ in 0..1_000_000 {
+    v8::String::new(scope, "HelloWorld").unwrap();
+    if test_state.near_heap_limit_callback_calls > 0 {
+      break;
     }
   }
-
-  assert_eq!(1, test_state.near_limit_callback_calls);
+  assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
