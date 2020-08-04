@@ -17,6 +17,7 @@ extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
     buf: *mut MaybeUninit<SnapshotCreator>,
     external_references: *const intptr_t,
+    startup_data: *mut StartupData,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
@@ -79,17 +80,20 @@ pub struct SnapshotCreator([usize; 1]);
 impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  pub fn new(external_references: Option<&'static ExternalReferences>) -> Self {
+  pub fn new(
+    external_references: Option<&'static ExternalReferences>,
+    startup_data: Option<StartupData>,
+  ) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
-    let external_references_ptr = if let Some(er) = external_references {
-      er.as_ptr()
-    } else {
-      std::ptr::null()
-    };
+    let external_references_ptr =
+      external_references.map_or_else(|| std::ptr::null(), |er| er.as_ptr());
+    let startup_data_ptr = startup_data
+      .map_or_else(|| std::ptr::null_mut(), |sd| Box::into_raw(Box::new(sd)));
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
         external_references_ptr,
+        startup_data_ptr,
       );
       snapshot_creator.assume_init()
     }

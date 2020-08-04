@@ -1420,8 +1420,10 @@ bool v8__Proxy__IsRevoked(const v8::Proxy& self) {
 void v8__Proxy__Revoke(const v8::Proxy& self) { ptr_to_local(&self)->Revoke(); }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>* buf,
-                                    const intptr_t* external_references) {
-  construct_in_place<v8::SnapshotCreator>(buf, external_references);
+                                    const intptr_t* external_references,
+                                    v8::StartupData* startup_data) {
+  construct_in_place<v8::SnapshotCreator>(buf, external_references,
+                                          startup_data);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
