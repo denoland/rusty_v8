@@ -86,9 +86,9 @@ impl SnapshotCreator {
   ) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr =
-      external_references.map_or_else(|| std::ptr::null(), |er| er.as_ptr());
+      external_references.map_or_else(std::ptr::null, |er| er.as_ptr());
     let startup_data_ptr = startup_data
-      .map_or_else(|| std::ptr::null_mut(), |sd| Box::into_raw(Box::new(sd)));
+      .map_or_else(std::ptr::null_mut, |sd| Box::into_raw(Box::new(sd)));
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
