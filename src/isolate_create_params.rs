@@ -143,15 +143,14 @@ impl CreateParams {
     self
   }
 
-  fn set_fallback_defaults(mut self) -> Self {
+  pub(crate) fn apply_defaults_for_isolate(mut self) -> Self {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
     }
     self
   }
 
-  pub(crate) fn finalize(mut self) -> (raw::CreateParams, Box<dyn Any>) {
-    self = self.set_fallback_defaults();
+  pub(crate) fn finalize(self) -> (raw::CreateParams, Box<dyn Any>) {
     let Self { raw, allocations } = self;
     (raw, Box::new(allocations))
   }
@@ -212,7 +211,7 @@ pub(crate) mod raw {
   }
 
   impl StartupData {
-    pub(super) fn boxed_header(data: &Allocation<[u8]>) -> Box<Self> {
+    pub(crate) fn boxed_header(data: &Allocation<[u8]>) -> Box<Self> {
       Box::new(Self {
         data: &data[0] as *const _ as *const char,
         raw_size: int::try_from(data.len()).unwrap(),

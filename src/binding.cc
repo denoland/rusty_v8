@@ -1420,10 +1420,13 @@ bool v8__Proxy__IsRevoked(const v8::Proxy& self) {
 void v8__Proxy__Revoke(const v8::Proxy& self) { ptr_to_local(&self)->Revoke(); }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>* buf,
-                                    const intptr_t* external_references,
-                                    v8::StartupData* startup_data) {
-  construct_in_place<v8::SnapshotCreator>(buf, external_references,
-                                          startup_data);
+                                    const intptr_t& external_references,
+                                    const v8::StartupData& startup_data) {
+  // The `v8::SnapshotCreator` constructor definition does not say that
+  // `startup_data` is const, but this appears to be a mistake.
+  auto startup_data_ptr = const_cast<v8::StartupData*>(&startup_data);
+  construct_in_place<v8::SnapshotCreator>(buf, &external_references,
+                                          startup_data_ptr);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
@@ -1432,8 +1435,11 @@ void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
 
 void v8__StartupData__DESTRUCT(v8::StartupData* self) { delete[] self->data; }
 
-v8::Isolate* v8__SnapshotCreator__GetIsolate(v8::SnapshotCreator* self) {
-  return self->GetIsolate();
+v8::Isolate* v8__SnapshotCreator__GetIsolate(const v8::SnapshotCreator& self) {
+  // `v8::SnapshotCreator::GetIsolate()` is not declared as a const method, but
+  // this appears to be a mistake.
+  auto self_ptr = const_cast<v8::SnapshotCreator*>(&self);
+  return self_ptr->GetIsolate();
 }
 
 v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,

@@ -2082,25 +2082,26 @@ fn snapshot_creator() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    {
-      // Check that the SnapshotCreator isolate has been set up correctly.
-      let _ = isolate.thread_safe_handle();
+    let snapshot_creator = &mut v8::SnapshotCreator::new(
+      Option::<&[isize]>::None,
+      Option::<&[u8]>::None,
+    );
+    let context;
 
-      let scope = &mut v8::HandleScope::new(&mut isolate);
-      let context = v8::Context::new(scope);
+    // Check that the SnapshotCreator owned Isolate has been set up correctly.
+    let _ = snapshot_creator.thread_safe_handle();
+
+    {
+      let scope = &mut v8::HandleScope::new(snapshot_creator);
+      context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
       let source = v8::String::new(scope, "a = 1 + 2").unwrap();
       let script = v8::Script::compile(scope, source, None).unwrap();
       script.run(scope).unwrap();
-
-      snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+
+    snapshot_creator.set_default_context(context);
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -2137,14 +2138,15 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator =
-      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES), None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let snapshot_creator = &mut v8::SnapshotCreator::new(
+      Some(&**EXTERNAL_REFERENCES),
+      Option::<&[u8]>::None,
+    );
+    let context;
+
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
-      let context = v8::Context::new(scope);
+      let scope = &mut v8::HandleScope::new(snapshot_creator);
+      context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
       // create function using template
@@ -2156,10 +2158,9 @@ fn external_references() {
       let global = context.global(scope);
       let key = v8::String::new(scope, "F").unwrap();
       global.set(scope, key.into(), function.into());
-
-      snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+
+    snapshot_creator.set_default_context(context);
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -3252,12 +3253,11 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator =
+      v8::SnapshotCreator::new(Option::<&[isize]>::None, Option::<&[u8]>::None);
+
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3286,32 +3286,32 @@ fn module_snapshot() {
 
       snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Keep)
       .unwrap()
   };
   assert!(startup_data.len() > 0);
+
   {
     let params = v8::Isolate::create_params().snapshot_blob(startup_data);
     let isolate = &mut v8::Isolate::new(params);
-    {
-      let scope = &mut v8::HandleScope::new(isolate);
-      let context = v8::Context::new(scope);
-      let scope = &mut v8::ContextScope::new(scope, context);
 
-      let true_val = v8::Boolean::new(scope, true).into();
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
 
-      let source = v8::String::new(scope, "a === 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
-      assert!(result.same_value(true_val));
+    let true_val = v8::Boolean::new(scope, true).into();
 
-      let source = v8::String::new(scope, "b === 42").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
-      assert!(result.same_value(true_val));
-    }
+    let source = v8::String::new(scope, "a === 3").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert!(result.same_value(true_val));
+
+    let source = v8::String::new(scope, "b === 42").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert!(result.same_value(true_val));
   }
 }
 
@@ -3319,17 +3319,15 @@ fn module_snapshot() {
 fn snapshot_from_snapshot() {
   let _setup_guard = setup();
 
-  // Create a snapshot for loading later
-  let init_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    {
-      // Check that the SnapshotCreator isolate has been set up correctly.
-      let _ = isolate.thread_safe_handle();
+  // Create a snapshot that contains the global variable `a`.
+  let snapshot1 = {
+    let snapshot_creator = &mut v8::SnapshotCreator::new(
+      Option::<&[isize]>::None,
+      Option::<&[u8]>::None,
+    );
 
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+    {
+      let scope = &mut v8::HandleScope::new(snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3339,25 +3337,21 @@ fn snapshot_from_snapshot() {
 
       snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
-  assert!(init_data.len() > 0);
+  assert!(snapshot1.len() > 0);
 
-  // Make another snapshot using the previous snapshot as a base
-  // Increase 'a' by 4
-  let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, Some(init_data));
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+  // Create another snapshot using the first snapshot as a base, and then
+  // increment global variable `a`, which is part of the snapshot, by 4.
+  let snapshot2 = {
+    let snapshot_creator =
+      &mut v8::SnapshotCreator::new(Option::<&[isize]>::None, Some(snapshot1));
+
     {
-      // Check that the SnapshotCreator isolate has been set up correctly.
-      let _ = isolate.thread_safe_handle();
-
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3367,28 +3361,26 @@ fn snapshot_from_snapshot() {
 
       snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
-  assert!(startup_data.len() > 0);
+  assert!(snapshot2.len() > 0);
 
-  // Now we try to load up the snapshot and check that 'a' has the correct
-  // value.
+  // Load the second snapshot and check that `a` has the expected value.
   {
-    let params = v8::Isolate::create_params().snapshot_blob(startup_data);
+    let params = v8::Isolate::create_params().snapshot_blob(snapshot2);
     let isolate = &mut v8::Isolate::new(params);
-    {
-      let scope = &mut v8::HandleScope::new(isolate);
-      let context = v8::Context::new(scope);
-      let scope = &mut v8::ContextScope::new(scope, context);
-      let source = v8::String::new(scope, "a === 7").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
-      let true_val = v8::Boolean::new(scope, true).into();
-      assert!(result.same_value(true_val));
-    }
+
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source = v8::String::new(scope, "a === 7").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert!(result.is_true());
   }
 }
 

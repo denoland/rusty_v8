@@ -1,27 +1,29 @@
-use crate::external_references::ExternalReferences;
+use crate::isolate_create_params::raw;
 use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
 use crate::support::intptr_t;
+use crate::support::Allocated;
 use crate::Context;
+use crate::CreateParams;
 use crate::Isolate;
 use crate::Local;
-use crate::OwnedIsolate;
 
 use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
     buf: *mut MaybeUninit<SnapshotCreator>,
     external_references: *const intptr_t,
-    startup_data: *mut StartupData,
+    startup_data: *const raw::StartupData,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
-    this: *mut SnapshotCreator,
+    this: *const SnapshotCreator,
   ) -> *mut Isolate;
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
@@ -34,6 +36,8 @@ extern "C" {
   fn v8__StartupData__DESTRUCT(this: *mut StartupData);
 }
 
+// TODO(piscisaureus): merge this struct with
+// `isolate_create_params::raw::StartupData`.
 #[repr(C)]
 pub struct StartupData {
   data: *const char,
@@ -81,28 +85,43 @@ impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
   pub fn new(
-    external_references: Option<&'static ExternalReferences>,
-    startup_data: Option<StartupData>,
+    external_references: Option<impl Allocated<[intptr_t]>>,
+    snapshot_blob: Option<impl Allocated<[u8]>>,
   ) -> Self {
-    let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
-    let external_references_ptr =
-      external_references.map_or_else(std::ptr::null, |er| er.as_ptr());
-    let startup_data_ptr = startup_data
-      .map_or_else(std::ptr::null_mut, |sd| Box::into_raw(Box::new(sd)));
-    unsafe {
-      v8__SnapshotCreator__CONSTRUCT(
-        &mut snapshot_creator,
-        external_references_ptr,
-        startup_data_ptr,
-      );
-      snapshot_creator.assume_init()
+    let mut create_params = CreateParams::default();
+    if let Some(er) = external_references {
+      create_params = create_params.external_references(er);
     }
+    if let Some(sb) = snapshot_blob {
+      create_params = create_params.snapshot_blob(sb);
+    }
+    let (raw_create_params, create_param_allocations) =
+      create_params.finalize();
+
+    let mut snapshot_creator = unsafe {
+      let mut buf = MaybeUninit::<Self>::uninit();
+      v8__SnapshotCreator__CONSTRUCT(
+        &mut buf,
+        raw_create_params.external_references,
+        raw_create_params.snapshot_blob,
+      );
+      buf.assume_init()
+    };
+
+    // Initialize extra (rusty_v8 specific) Isolate associated state.
+    ScopeData::new_root(&mut snapshot_creator);
+    snapshot_creator.create_annex(create_param_allocations);
+
+    snapshot_creator
   }
 }
 
 impl Drop for SnapshotCreator {
   fn drop(&mut self) {
-    unsafe { v8__SnapshotCreator__DESTRUCT(self) };
+    unsafe {
+      self.drop_scope_stack_and_annex();
+      v8__SnapshotCreator__DESTRUCT(self);
+    }
   }
 }
 
@@ -119,11 +138,10 @@ impl SnapshotCreator {
   pub fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,
-  ) -> Option<StartupData> {
-    {
-      let isolate = unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) };
-      ScopeData::get_root_mut(isolate);
-    }
+  ) -> Option<impl Allocated<[u8]>> {
+    // Make sure that all scopes have been properly exited.
+    ScopeData::get_root_mut(self);
+
     let blob =
       unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {
@@ -134,17 +152,17 @@ impl SnapshotCreator {
       Some(blob)
     }
   }
+}
 
-  /// This is marked unsafe because it should be called at most once per
-  /// snapshot creator.
-  // TODO Because the SnapshotCreator creates its own isolate, we need a way to
-  // get an owned handle to it. This is a questionable design which ought to be
-  // revisited after the libdeno integration is complete.
-  pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
-    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(Box::new(()));
-    owned_isolate
+impl Deref for SnapshotCreator {
+  type Target = Isolate;
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*v8__SnapshotCreator__GetIsolate(self) }
+  }
+}
+
+impl DerefMut for SnapshotCreator {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) }
   }
 }

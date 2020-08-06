@@ -18,7 +18,8 @@
 //!   - 's = lifetime of local handles created in this scope, and of the scope
 //!     itself.
 //!   - This type is returned when a HandleScope is constructed from a direct
-//!     reference to an isolate (`&mut Isolate` or `&mut OwnedIsolate`).
+//!     reference to an isolate (either a `&mut Isolate`, `&mut OwnedIsolate`,
+//!     or `&mut SnapshotCreator`).
 //!   - A `Context` is _not_ available. Only certain types JavaScript values can
 //!     be created: primitive values, templates, and instances of `Context`.
 //!   - Derefs to `Isolate`.
@@ -101,6 +102,7 @@ use crate::Object;
 use crate::OwnedIsolate;
 use crate::Primitive;
 use crate::PromiseRejectMessage;
+use crate::SnapshotCreator;
 use crate::Value;
 
 /// Stack-allocated class which sets the execution context for all operations
@@ -155,7 +157,8 @@ impl<'s> HandleScope<'s> {
   }
 
   /// Opens a new `HandleScope` and enters a `Context` in one step.
-  /// The first argument should be an `Isolate` or `OwnedIsolate`.
+  /// The first argument should be an `Isolate`, `OwnedIsolate`, or
+  /// `SnapshotCreator`.
   /// The second argument can be any handle that refers to a `Context` object;
   /// usually this will be a `Global<Context>`.
   pub fn with_context<
@@ -657,6 +660,10 @@ mod param {
     type NewScope = HandleScope<'s, ()>;
   }
 
+  impl<'s> NewHandleScope<'s> for SnapshotCreator {
+    type NewScope = HandleScope<'s, ()>;
+  }
+
   impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s>
     for ContextScope<'p, P>
   {
@@ -692,6 +699,12 @@ mod param {
   }
 
   impl<'s> NewHandleScopeWithContext<'s> for OwnedIsolate {
+    fn get_isolate_mut(&mut self) -> &mut Isolate {
+      &mut *self
+    }
+  }
+
+  impl<'s> NewHandleScopeWithContext<'s> for SnapshotCreator {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       &mut *self
     }
@@ -771,6 +784,10 @@ mod param {
     type NewScope = CallbackScope<'s, ()>;
   }
 
+  impl<'s> NewCallbackScope<'s> for &'s mut SnapshotCreator {
+    type NewScope = CallbackScope<'s, ()>;
+  }
+
   impl<'s> NewCallbackScope<'s> for &'s FunctionCallbackInfo {
     type NewScope = CallbackScope<'s>;
   }
@@ -819,6 +836,12 @@ mod getter {
   }
 
   impl<'s> GetIsolate<'s> for &'s mut OwnedIsolate {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *self
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for &'s mut SnapshotCreator {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self
     }
@@ -879,6 +902,12 @@ mod getter {
   }
 
   impl GetScopeData for OwnedIsolate {
+    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
+      data::ScopeData::get_root_mut(self)
+    }
+  }
+
+  impl GetScopeData for SnapshotCreator {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self)
     }

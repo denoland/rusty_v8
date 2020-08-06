@@ -159,7 +159,8 @@ impl Isolate {
   #[allow(clippy::new_ret_no_self)]
   pub fn new(params: CreateParams) -> OwnedIsolate {
     crate::V8::assert_initialized();
-    let (raw_create_params, create_param_allocations) = params.finalize();
+    let (raw_create_params, create_param_allocations) =
+      params.apply_defaults_for_isolate().finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
     let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
     ScopeData::new_root(&mut owned_isolate);
@@ -398,9 +399,7 @@ impl Isolate {
     unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
   }
 
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  unsafe fn dispose(&mut self) {
+  pub(crate) unsafe fn drop_scope_stack_and_annex(&mut self) {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
@@ -420,6 +419,12 @@ impl Isolate {
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
     self.set_data(0, null_mut());
+  }
+
+  /// Disposes the isolate.  The isolate must not be entered by any
+  /// thread to be disposable.
+  unsafe fn dispose(&mut self) {
+    self.drop_scope_stack_and_annex();
 
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
@@ -458,6 +463,7 @@ impl Isolate {
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
