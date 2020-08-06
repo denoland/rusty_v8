@@ -20,7 +20,7 @@ extern "C" {
   );
   fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
-    this: *mut SnapshotCreator,
+    this: *const SnapshotCreator,
   ) -> *mut Isolate;
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
@@ -33,6 +33,8 @@ extern "C" {
   fn v8__StartupData__DESTRUCT(this: *mut StartupData);
 }
 
+// TODO(piscisaureus): merge this struct with
+// `isolate_create_params::raw::StartupData`.
 #[repr(C)]
 pub struct StartupData {
   data: *const char,
