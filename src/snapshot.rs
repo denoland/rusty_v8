@@ -82,13 +82,13 @@ impl SnapshotCreator {
   /// The isolate is created from scratch.
   pub fn new(
     external_references: Option<&'static ExternalReferences>,
-    startup_data: Option<StartupData>,
+    startup_data: Option<&mut StartupData>,
   ) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr =
       external_references.map_or_else(std::ptr::null, |er| er.as_ptr());
-    let startup_data_ptr = startup_data
-      .map_or_else(std::ptr::null_mut, |sd| Box::into_raw(Box::new(sd)));
+    let startup_data_ptr =
+      startup_data.map_or_else(std::ptr::null_mut, |sd| sd as *mut StartupData);
     unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,

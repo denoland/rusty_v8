@@ -3320,7 +3320,7 @@ fn snapshot_from_snapshot() {
   let _setup_guard = setup();
 
   // Create a snapshot for loading later
-  let init_data = {
+  let mut init_data = {
     let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
@@ -3349,7 +3349,8 @@ fn snapshot_from_snapshot() {
   // Make another snapshot using the previous snapshot as a base
   // Increase 'a' by 4
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, Some(init_data));
+    let mut snapshot_creator =
+      v8::SnapshotCreator::new(None, Some(&mut init_data));
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
