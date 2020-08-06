@@ -51,12 +51,12 @@ exclude = [
 
 [dependencies]
 lazy_static = "1.4.0"
-libc = "0.2.73"
+libc = "0.2.74"
 bitflags = "1.2.1"
 
 [build-dependencies]
 cargo_gn = "0.0.15"
-which = "4.0.1"
+which = "4.0.2"
 
 [dev-dependencies]
-trybuild = "1.0.30"
+trybuild = "1.0.31"

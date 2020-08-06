@@ -3411,7 +3411,7 @@ extern "C" fn heap_limit_callback(
 fn heap_limits() {
   let _setup_guard = setup();
 
-  let params = v8::CreateParams::default().heap_limits(0, 20 * 1024 * 1024); // 20 MB
+  let params = v8::CreateParams::default().heap_limits(0, 10 << 20); // 10 MB.
   let isolate = &mut v8::Isolate::new(params);
 
   let mut test_state = TestHeapLimitState::default();
@@ -3419,10 +3419,23 @@ fn heap_limits() {
   isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
 
   let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
 
-  // Allocate some strings; 20 MB is reached at about 800k iterations.
+  // Allocate JavaScript arrays until V8 calls the near-heap-limit callback.
+  // It takes about 100-200k iterations of this loop to get to that point.
   for _ in 0..1_000_000 {
-    v8::String::new(scope, "HelloWorld").unwrap();
+    eval(
+      scope,
+      r#"
+        "hello 🦕 world"
+          .repeat(5)
+          .split("🦕", 2)
+          .map((s) => s.split(""))
+          .shift()
+      "#,
+    )
+    .unwrap();
     if test_state.near_heap_limit_callback_calls > 0 {
       break;
     }
