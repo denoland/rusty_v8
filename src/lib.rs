@@ -87,6 +87,8 @@ pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
 pub use isolate::MessageCallback;
+pub use isolate::ModifyCodeGenerationFromStringsCallback;
+pub use isolate::ModifyCodeGenerationFromStringsResult;
 pub use isolate::NearHeapLimitCallback;
 pub use isolate::OwnedIsolate;
 pub use isolate::PromiseRejectCallback;
