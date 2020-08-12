@@ -654,3 +654,25 @@ impl DerefMut for OwnedIsolate {
     unsafe { self.cxx_isolate.as_mut() }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn block_eval() {
+    extern "C" fn block_code_execution(
+      _ctx: Local<Context>,
+      _src: Local<Value>,
+    ) -> ModifyCodeGenerationFromStringsResult<'static> {
+      ModifyCodeGenerationFromStringsResult {
+        codegen_allowed: false,
+        modified_source: None,
+      }
+    }
+
+    let mut isolate = Isolate::new(CreateParams::default());
+    isolate
+      .set_modify_code_generation_from_strings_callback(block_code_execution);
+  }
+}
