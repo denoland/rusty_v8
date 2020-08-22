@@ -136,7 +136,7 @@ fn slots_layer1() {
   assert_eq!(123, core_isolate.get_i());
   assert_eq!(drop_count.load(Ordering::SeqCst), 0);
   // Check that we can deref CoreIsolate by running a random v8::Isolate method
-  core_isolate.run_microtasks();
+  core_isolate.perform_microtask_checkpoint();
   drop(core_isolate);
   assert_eq!(drop_count.load(Ordering::SeqCst), 1);
   drop(isolate_handle);
@@ -154,7 +154,7 @@ fn slots_layer2() {
   es_isolate.set_x(true);
   assert!(es_isolate.get_x());
   // Check that we can deref all the way to a v8::Isolate method
-  es_isolate.run_microtasks();
+  es_isolate.perform_microtask_checkpoint();
 
   // When we drop, both CoreIsolateState and EsIsolateState should be dropped.
   assert_eq!(drop_count.load(Ordering::SeqCst), 0);

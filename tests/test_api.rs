@@ -302,7 +302,7 @@ fn microtasks() {
     v8::MicrotasksPolicy::Explicit
   );
 
-  isolate.run_microtasks();
+  isolate.perform_microtask_checkpoint();
 
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -325,7 +325,7 @@ fn microtasks() {
     let _ = eval(scope, "").unwrap();
 
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
-    scope.run_microtasks();
+    scope.perform_microtask_checkpoint();
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 
     scope.set_microtasks_policy(v8::MicrotasksPolicy::Auto);

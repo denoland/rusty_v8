@@ -142,7 +142,7 @@ extern "C" {
     isolate: *mut Isolate,
     policy: MicrotasksPolicy,
   );
-  fn v8__Isolate__RunMicrotasks(isolate: *mut Isolate);
+  fn v8__Isolate__PerformMicrotaskCheckpoint(isolate: *mut Isolate);
   fn v8__Isolate__EnqueueMicrotask(
     isolate: *mut Isolate,
     function: *const Function,
@@ -417,10 +417,18 @@ impl Isolate {
     unsafe { v8__Isolate__SetMicrotasksPolicy(self, policy) }
   }
 
-  /// Runs the default MicrotaskQueue until it gets empty.
-  /// Any exceptions thrown by microtask callbacks are swallowed.
+  /// Runs the default MicrotaskQueue until it gets empty and perform other
+  /// microtask checkpoint steps, such as calling ClearKeptObjects. Asserts that
+  /// the MicrotasksPolicy is not kScoped. Any exceptions thrown by microtask
+  /// callbacks are swallowed.
+  pub fn perform_microtask_checkpoint(&mut self) {
+    unsafe { v8__Isolate__PerformMicrotaskCheckpoint(self) }
+  }
+
+  /// An alias for PerformMicrotaskCheckpoint.
+  #[deprecated(note = "Use Isolate::perform_microtask_checkpoint() instead")]
   pub fn run_microtasks(&mut self) {
-    unsafe { v8__Isolate__RunMicrotasks(self) }
+    self.perform_microtask_checkpoint()
   }
 
   /// Enqueues the callback to the default MicrotaskQueue

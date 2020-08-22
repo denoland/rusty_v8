@@ -152,8 +152,8 @@ void v8__Isolate__SetMicrotasksPolicy(v8::Isolate* isolate,
   isolate->SetMicrotasksPolicy(policy);
 }
 
-void v8__Isolate__RunMicrotasks(v8::Isolate* isolate) {
-  isolate->RunMicrotasks();
+void v8__Isolate__PerformMicrotaskCheckpoint(v8::Isolate* isolate) {
+  isolate->PerformMicrotaskCheckpoint();
 }
 
 void v8__Isolate__EnqueueMicrotask(v8::Isolate* isolate,
