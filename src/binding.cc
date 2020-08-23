@@ -115,6 +115,11 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+void v8__Isolate__GetHeapStatistics(v8::Isolate* isolate,
+                                    v8::HeapStatistics* s) {
+  isolate->GetHeapStatistics(s);
+}
+
 const v8::Context* v8__Isolate__GetCurrentContext(v8::Isolate* isolate) {
   return local_to_ptr(isolate->GetCurrentContext());
 }
@@ -1777,5 +1782,36 @@ int v8__internal__Object__GetHash(const v8::Data& data) {
   assert(hash != 0);
   return hash;
 }
+
+void v8__HeapStatistics__CONSTRUCT(uninit_t<v8::HeapStatistics>* buf) {
+  // Should be <= than its counterpart in src/isolate.rs
+  static_assert(sizeof(v8::HeapStatistics) <= sizeof(uintptr_t[16]),
+                "HeapStatistics mismatch");
+  construct_in_place<v8::HeapStatistics>(buf);
+}
+
+// The const_cast doesn't violate const correctness, the methods
+// are simple getters that don't mutate the object or global state.
+#define V(name)                                                               \
+  size_t v8__HeapStatistics__##name(const v8::HeapStatistics* s) {            \
+    return const_cast<v8::HeapStatistics*>(s)->name();                        \
+  }
+
+V(total_heap_size)
+V(total_heap_size_executable)
+V(total_physical_size)
+V(total_available_size)
+V(total_global_handles_size)
+V(used_global_handles_size)
+V(used_heap_size)
+V(heap_size_limit)
+V(malloced_memory)
+V(external_memory)
+V(peak_malloced_memory)
+V(number_of_native_contexts)
+V(number_of_detached_contexts)
+V(does_zap_garbage)  // Returns size_t, not bool like you'd expect.
+
+#undef V
 
 }  // extern "C"
