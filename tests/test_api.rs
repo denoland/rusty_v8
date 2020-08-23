@@ -3365,3 +3365,29 @@ fn heap_limits() {
   }
   assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
+
+#[test]
+fn heap_statistics() {
+  let _setup_guard = setup();
+
+  let params = v8::CreateParams::default().heap_limits(0, 10 << 20); // 10 MB.
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut s = v8::HeapStatistics::default();
+  isolate.get_heap_statistics(&mut s);
+  assert!(s.heap_size_limit() > 0);
+  assert!(s.total_heap_size() > 0);
+  assert!(s.total_global_handles_size() >= s.used_global_handles_size());
+  assert!(s.used_heap_size() > 0);
+  assert!(s.heap_size_limit() >= s.used_heap_size());
+  assert!(s.peak_malloced_memory() >= s.malloced_memory());
+  assert_eq!(s.number_of_native_contexts(), 0);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let _ = eval(scope, "").unwrap();
+
+  scope.get_heap_statistics(&mut s);
+  assert_ne!(s.number_of_native_contexts(), 0);
+}
