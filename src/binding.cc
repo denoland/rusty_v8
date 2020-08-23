@@ -141,8 +141,24 @@ uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
   return SLOT_NUM_EXTERNAL(isolate);
 }
 
-void v8__Isolate__RunMicrotasks(v8::Isolate* isolate) {
-  isolate->RunMicrotasks();
+v8::MicrotasksPolicy v8__Isolate__GetMicrotasksPolicy(
+    const v8::Isolate* isolate) {
+  return isolate->GetMicrotasksPolicy();
+}
+
+void v8__Isolate__SetMicrotasksPolicy(v8::Isolate* isolate,
+                                      v8::MicrotasksPolicy policy) {
+  static_assert(0 == static_cast<uint32_t>(v8::MicrotasksPolicy::kExplicit),
+                "v8::MicrotasksPolicy::kExplicit mismatch");
+  static_assert(1 == static_cast<uint32_t>(v8::MicrotasksPolicy::kScoped),
+                "v8::MicrotasksPolicy::kScoped mismatch");
+  static_assert(2 == static_cast<uint32_t>(v8::MicrotasksPolicy::kAuto),
+                "v8::MicrotasksPolicy::kAuto mismatch");
+  isolate->SetMicrotasksPolicy(policy);
+}
+
+void v8__Isolate__PerformMicrotaskCheckpoint(v8::Isolate* isolate) {
+  isolate->PerformMicrotaskCheckpoint();
 }
 
 void v8__Isolate__EnqueueMicrotask(v8::Isolate* isolate,

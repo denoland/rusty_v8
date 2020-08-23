@@ -295,7 +295,14 @@ fn microtasks() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  isolate.run_microtasks();
+  assert_eq!(isolate.get_microtasks_policy(), v8::MicrotasksPolicy::Auto);
+  isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
+  assert_eq!(
+    isolate.get_microtasks_policy(),
+    v8::MicrotasksPolicy::Explicit
+  );
+
+  isolate.perform_microtask_checkpoint();
 
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -314,9 +321,20 @@ fn microtasks() {
     .unwrap();
     scope.enqueue_microtask(function);
 
+    // Flushes the microtasks queue unless the policy is set to explicit.
+    let _ = eval(scope, "").unwrap();
+
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
-    scope.run_microtasks();
+    scope.perform_microtask_checkpoint();
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    scope.set_microtasks_policy(v8::MicrotasksPolicy::Auto);
+    assert_eq!(scope.get_microtasks_policy(), v8::MicrotasksPolicy::Auto);
+    scope.enqueue_microtask(function);
+
+    let _ = eval(scope, "").unwrap();
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
   }
 }
 

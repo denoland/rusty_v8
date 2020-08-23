@@ -28,6 +28,19 @@ use std::ptr::NonNull;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+/// Policy for running microtasks:
+///   - explicit: microtasks are invoked with the
+///               Isolate::PerformMicrotaskCheckpoint() method;
+///   - auto: microtasks are invoked when the script call depth decrements
+///           to zero.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub enum MicrotasksPolicy {
+  Explicit = 0,
+  // Scoped = 1 (RAII) is omitted for now, doesn't quite map to idiomatic Rust.
+  Auto = 2,
+}
+
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
 pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
@@ -132,7 +145,14 @@ extern "C" {
   fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
-  fn v8__Isolate__RunMicrotasks(isolate: *mut Isolate);
+  fn v8__Isolate__GetMicrotasksPolicy(
+    isolate: *const Isolate,
+  ) -> MicrotasksPolicy;
+  fn v8__Isolate__SetMicrotasksPolicy(
+    isolate: *mut Isolate,
+    policy: MicrotasksPolicy,
+  );
+  fn v8__Isolate__PerformMicrotaskCheckpoint(isolate: *mut Isolate);
   fn v8__Isolate__EnqueueMicrotask(
     isolate: *mut Isolate,
     function: *const Function,
@@ -433,10 +453,28 @@ impl Isolate {
     };
   }
 
-  /// Runs the default MicrotaskQueue until it gets empty.
-  /// Any exceptions thrown by microtask callbacks are swallowed.
+  /// Returns the policy controlling how Microtasks are invoked.
+  pub fn get_microtasks_policy(&self) -> MicrotasksPolicy {
+    unsafe { v8__Isolate__GetMicrotasksPolicy(self) }
+  }
+
+  /// Returns the policy controlling how Microtasks are invoked.
+  pub fn set_microtasks_policy(&mut self, policy: MicrotasksPolicy) {
+    unsafe { v8__Isolate__SetMicrotasksPolicy(self, policy) }
+  }
+
+  /// Runs the default MicrotaskQueue until it gets empty and perform other
+  /// microtask checkpoint steps, such as calling ClearKeptObjects. Asserts that
+  /// the MicrotasksPolicy is not kScoped. Any exceptions thrown by microtask
+  /// callbacks are swallowed.
+  pub fn perform_microtask_checkpoint(&mut self) {
+    unsafe { v8__Isolate__PerformMicrotaskCheckpoint(self) }
+  }
+
+  /// An alias for PerformMicrotaskCheckpoint.
+  #[deprecated(note = "Use Isolate::perform_microtask_checkpoint() instead")]
   pub fn run_microtasks(&mut self) {
-    unsafe { v8__Isolate__RunMicrotasks(self) }
+    self.perform_microtask_checkpoint()
   }
 
   /// Enqueues the callback to the default MicrotaskQueue
