@@ -10,6 +10,7 @@ use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::Context;
 use crate::HandleScope;
+use crate::Isolate;
 use crate::Local;
 use crate::Module;
 use crate::String;
@@ -82,6 +83,48 @@ where
   }
 }
 
+// System V AMD64 ABI: Local<Value> returned in a register.
+#[cfg(not(target_os = "windows"))]
+pub type SyntheticModuleEvaluationSteps<'a> =
+  extern "C" fn(Local<'a, Context>, Local<'a, Module>) -> *const Value;
+
+// Windows x64 ABI: Local<Value> returned on the stack.
+#[cfg(target_os = "windows")]
+pub type SyntheticModuleEvaluationSteps<'a> =
+  extern "C" fn(
+    *mut *const Value,
+    Local<'a, Context>,
+    Local<'a, Module>,
+  ) -> *mut *const Value;
+
+impl<'a, F> MapFnFrom<F> for SyntheticModuleEvaluationSteps<'a>
+where
+  F: UnitType
+    + Fn(Local<'a, Context>, Local<'a, Module>) -> Option<Local<'a, Value>>,
+{
+  #[cfg(not(target_os = "windows"))]
+  fn mapping() -> Self {
+    let f = |context, module| {
+      (F::get())(context, module)
+        .map(|r| -> *const Value { &*r })
+        .unwrap_or(null())
+    };
+    f.to_c_fn()
+  }
+
+  #[cfg(target_os = "windows")]
+  fn mapping() -> Self {
+    let f = |ret_ptr, context, module| {
+      let r = (F::get())(context, module)
+        .map(|r| -> *const Value { &*r })
+        .unwrap_or(null());
+      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
+      ret_ptr // Return stack pointer to the return value.
+    };
+    f.to_c_fn()
+  }
+}
+
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
   fn v8__Module__GetException(this: *const Module) -> *const Value;
@@ -104,6 +147,21 @@ extern "C" {
     this: *const Module,
     context: *const Context,
   ) -> *const Value;
+  fn v8__Module__IsSourceTextModule(this: *const Module) -> bool;
+  fn v8__Module__IsSyntheticModule(this: *const Module) -> bool;
+  fn v8__Module__CreateSyntheticModule(
+    isolate: *const Isolate,
+    module_name: *const String,
+    export_names_len: usize,
+    export_names_raw: *const *const String,
+    evaluation_steps: SyntheticModuleEvaluationSteps,
+  ) -> *const Module;
+  fn v8__Module__SetSyntheticModuleExport(
+    this: *const Module,
+    isolate: *const Isolate,
+    export_name: *const String,
+    export_value: *const Value,
+  ) -> MaybeBool;
   fn v8__Location__GetLineNumber(this: *const Location) -> int;
   fn v8__Location__GetColumnNumber(this: *const Location) -> int;
 }
@@ -235,5 +293,67 @@ impl Module {
       scope
         .cast_local(|sd| v8__Module__Evaluate(&*self, sd.get_current_context()))
     }
+  }
+
+  /// Returns whether the module is a SourceTextModule.
+  pub fn is_source_text_module(&self) -> bool {
+    unsafe { v8__Module__IsSourceTextModule(&*self) }
+  }
+
+  /// Returns whether the module is a SyntheticModule.
+  pub fn is_synthetic_module(&self) -> bool {
+    unsafe { v8__Module__IsSyntheticModule(&*self) }
+  }
+
+  /// Creates a new SyntheticModule with the specified export names, where
+  /// evaluation_steps will be executed upon module evaluation.
+  /// export_names must not contain duplicates.
+  /// module_name is used solely for logging/debugging and doesn't affect module
+  /// behavior.
+  pub fn create_synthetic_module<'s, 'a>(
+    scope: &mut HandleScope<'s>,
+    module_name: Local<String>,
+    export_names: &[Local<String>],
+    evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
+  ) -> Local<'s, Module> {
+    let export_names = Local::slice_into_raw(export_names);
+    let export_names_len = export_names.len();
+    let export_names = export_names.as_ptr();
+    unsafe {
+      scope
+        .cast_local(|sd| {
+          v8__Module__CreateSyntheticModule(
+            sd.get_isolate_ptr(),
+            &*module_name,
+            export_names_len,
+            export_names,
+            evaluation_steps.map_fn_to(),
+          )
+        })
+        .unwrap()
+    }
+  }
+
+  /// Set this module's exported value for the name export_name to the specified
+  /// export_value. This method must be called only on Modules created via
+  /// create_synthetic_module.  An error will be thrown if export_name is not one
+  /// of the export_names that were passed in that create_synthetic_module call.
+  /// Returns Some(true) on success, None if an error was thrown.
+  #[must_use]
+  pub fn set_synthetic_module_export(
+    &self,
+    scope: &mut HandleScope,
+    export_name: Local<String>,
+    export_value: Local<Value>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Module__SetSyntheticModuleExport(
+        &*self,
+        scope.get_isolate_ptr(),
+        &*export_name,
+        &*export_value,
+      )
+    }
+    .into()
   }
 }

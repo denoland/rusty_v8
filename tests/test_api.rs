@@ -1818,6 +1818,8 @@ fn module_evaluation() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.is_source_text_module());
+    assert!(!module.is_synthetic_module());
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
     let result = module
@@ -3408,4 +3410,76 @@ fn heap_statistics() {
 
   scope.get_heap_statistics(&mut s);
   assert_ne!(s.number_of_native_contexts(), 0);
+}
+
+fn synthetic_evaluation_steps<'a>(
+  context: v8::Local<'a, v8::Context>,
+  module: v8::Local<v8::Module>,
+) -> Option<v8::Local<'a, v8::Value>> {
+  let scope = &mut unsafe { v8::CallbackScope::new(context) };
+  let mut set = |name, value| {
+    let name = v8::String::new(scope, name).unwrap();
+    let value = v8::Number::new(scope, value).into();
+    module
+      .set_synthetic_module_export(scope, name, value)
+      .unwrap();
+  };
+  set("a", 1.0);
+  set("b", 2.0);
+
+  {
+    let scope = &mut v8::TryCatch::new(scope);
+    let name = v8::String::new(scope, "does not exist").unwrap();
+    let value = v8::undefined(scope).into();
+    assert!(module.set_synthetic_module_export(scope, name, value) == None);
+    assert!(scope.has_caught());
+    scope.reset();
+  }
+
+  Some(v8::undefined(scope).into())
+}
+
+#[test]
+fn synthetic_module() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let export_names = [
+    v8::String::new(scope, "a").unwrap(),
+    v8::String::new(scope, "b").unwrap(),
+  ];
+  let module_name = v8::String::new(scope, "synthetic module").unwrap();
+  let module = v8::Module::create_synthetic_module(
+    scope,
+    module_name,
+    &export_names,
+    synthetic_evaluation_steps,
+  );
+  assert!(!module.is_source_text_module());
+  assert!(module.is_synthetic_module());
+  assert_eq!(module.get_status(), v8::ModuleStatus::Uninstantiated);
+
+  module
+    .instantiate_module(scope, unexpected_module_resolve_callback)
+    .unwrap();
+  assert_eq!(module.get_status(), v8::ModuleStatus::Instantiated);
+
+  module.evaluate(scope).unwrap();
+  assert_eq!(module.get_status(), v8::ModuleStatus::Evaluated);
+
+  let ns =
+    v8::Local::<v8::Object>::try_from(module.get_module_namespace()).unwrap();
+
+  let mut check = |name, value| {
+    let name = v8::String::new(scope, name).unwrap().into();
+    let value = v8::Number::new(scope, value).into();
+    assert!(ns.get(scope, name).unwrap().strict_equals(value));
+  };
+  check("a", 1.0);
+  check("b", 2.0);
 }
