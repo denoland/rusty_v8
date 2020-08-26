@@ -3350,6 +3350,8 @@ extern "C" fn heap_limit_callback(
   current_heap_limit * 2 // Avoid V8 OOM.
 }
 
+// This test might fail due to a bug in V8. The upstream bug report is at
+// https://bugs.chromium.org/p/v8/issues/detail?id=10843.
 #[test]
 fn heap_limits() {
   let _setup_guard = setup();
@@ -3366,14 +3368,14 @@ fn heap_limits() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   // Allocate JavaScript arrays until V8 calls the near-heap-limit callback.
-  // It takes about 100-200k iterations of this loop to get to that point.
+  // It takes about 50-200k iterations of this loop to get to that point.
   for _ in 0..1_000_000 {
     eval(
       scope,
       r#"
         "hello 🦕 world"
-          .repeat(5)
-          .split("🦕", 2)
+          .repeat(10)
+          .split("🦕")
           .map((s) => s.split(""))
           .shift()
       "#,
@@ -3400,7 +3402,8 @@ fn heap_statistics() {
   assert!(s.total_global_handles_size() >= s.used_global_handles_size());
   assert!(s.used_heap_size() > 0);
   assert!(s.heap_size_limit() >= s.used_heap_size());
-  assert!(s.peak_malloced_memory() >= s.malloced_memory());
+  assert!(s.peak_malloced_memory() > 0);
+  assert!(s.malloced_memory() > 0);
   assert_eq!(s.number_of_native_contexts(), 0);
 
   let scope = &mut v8::HandleScope::new(isolate);

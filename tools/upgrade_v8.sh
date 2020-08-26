@@ -1,8 +1,8 @@
 # WARNING: This is not an automated tool! This is just some commands to copy and
 # paste manually to upgrade V8.
 
-export BRANCH=20200806_rusty_v8
-export COMMITDATE=2020-08-05T17:03:41.000Z
+export BRANCH=20200827_rusty_v8
+export COMMITDATE=2020-08-26T18:48:51.000Z
 
 git submodule update -f
 git submodule foreach 'git remote rm upstream; true' &&
