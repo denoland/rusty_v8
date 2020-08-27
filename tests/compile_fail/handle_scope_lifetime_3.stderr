@@ -6,4 +6,4 @@ error[E0499]: cannot borrow `scope1` as mutable more than once at a time
 10 |     v8::Integer::new(&mut scope1, 123)
    |                      ^^^^^^^^^^^ second mutable borrow occurs here
 11 |   };
-   |   - first borrow might be used here, when `_scope2` is dropped and runs the `Drop` code for type `rusty_v8::scope::EscapableHandleScope`
+   |   - first borrow might be used here, when `_scope2` is dropped and runs the `Drop` code for type `rusty_v8::EscapableHandleScope`

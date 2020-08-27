@@ -1,13 +1,13 @@
-error[E0277]: the trait bound `rusty_v8::isolate::OwnedIsolate: rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
+error[E0277]: the trait bound `rusty_v8::OwnedIsolate: rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
  --> $DIR/handle_scope_escape_to_nowhere.rs:6:50
   |
 6 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-  |                                                  ^^^^^^^^^^^^ the trait `rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `rusty_v8::isolate::OwnedIsolate`
+  |                                                  ^^^^^^^^^^^^ the trait `rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `rusty_v8::OwnedIsolate`
   |
-  = note: required by `rusty_v8::scope::EscapableHandleScope::<'s, 'e>::new`
+  = note: required by `rusty_v8::EscapableHandleScope::<'s, 'e>::new`
 
-error[E0277]: the trait bound `rusty_v8::isolate::OwnedIsolate: rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
+error[E0277]: the trait bound `rusty_v8::OwnedIsolate: rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
  --> $DIR/handle_scope_escape_to_nowhere.rs:6:20
   |
 6 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `rusty_v8::isolate::OwnedIsolate`
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `rusty_v8::OwnedIsolate`
