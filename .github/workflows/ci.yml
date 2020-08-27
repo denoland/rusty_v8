@@ -98,14 +98,6 @@ jobs:
           echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
           echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
 
-      - name: Configure cargo data directory
-        # After this point, all cargo registry and crate data is stored in
-        # $GITHUB_WORKSPACE/target/cargo. This allows us to cache only the files
-        # that are needed during the build process. Additionally, this works
-        # around a bug in the 'cache' action that causes directories outside of
-        # the workspace dir to be saved/restored incorrectly.
-        run: echo "::set-env name=CARGO_HOME::$(pwd)/target/cargo"
-
       - name: Cache
         uses: actions/cache@v2
         with:
@@ -116,7 +108,6 @@ jobs:
           # come from the registry. By additionally saving the sccache cache
           # directory it's still possible to build v8 fast.
           path: |-
-            target/cargo
             target/sccache
             target/*/.*
             target/*/build
