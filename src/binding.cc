@@ -1740,7 +1740,7 @@ bool v8__Module__IsSourceTextModule(const v8::Module& self) {
   return ptr_to_local(&self)->IsSourceTextModule();
 }
 
-bool v8__Module__IsSyntheticModule(const v8::Module&self) {
+bool v8__Module__IsSyntheticModule(const v8::Module& self) {
   return ptr_to_local(&self)->IsSyntheticModule();
 }
 
@@ -1753,8 +1753,7 @@ const v8::Module* v8__Module__CreateSyntheticModule(
     export_names.push_back(ptr_to_local(export_names_raw[i]));
   }
   return local_to_ptr(v8::Module::CreateSyntheticModule(
-        isolate, ptr_to_local(module_name), export_names,
-        evaluation_steps));
+      isolate, ptr_to_local(module_name), export_names, evaluation_steps));
 }
 
 MaybeBool v8__Module__SetSyntheticModuleExport(const v8::Module& self,
@@ -1762,7 +1761,7 @@ MaybeBool v8__Module__SetSyntheticModuleExport(const v8::Module& self,
                                                const v8::String* export_name,
                                                const v8::Value* export_value) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetSyntheticModuleExport(
-        isolate, ptr_to_local(export_name), ptr_to_local(export_value)));
+      isolate, ptr_to_local(export_name), ptr_to_local(export_value)));
 }
 
 using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);
@@ -1837,9 +1836,9 @@ void v8__HeapStatistics__CONSTRUCT(uninit_t<v8::HeapStatistics>* buf) {
 
 // The const_cast doesn't violate const correctness, the methods
 // are simple getters that don't mutate the object or global state.
-#define V(name)                                                               \
-  size_t v8__HeapStatistics__##name(const v8::HeapStatistics* s) {            \
-    return const_cast<v8::HeapStatistics*>(s)->name();                        \
+#define V(name)                                                    \
+  size_t v8__HeapStatistics__##name(const v8::HeapStatistics* s) { \
+    return const_cast<v8::HeapStatistics*>(s)->name();             \
   }
 
 V(total_heap_size)

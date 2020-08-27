@@ -15,6 +15,7 @@ except ImportError:  # For Py3 compatibility
     from urllib.error import HTTPError, URLError
     from urllib.request import urlopen
 
+
 def DownloadUrl(url, output_file):
     """Download url into output_file."""
     CHUNK_SIZE = 4096

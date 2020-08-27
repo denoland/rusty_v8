@@ -1420,10 +1420,7 @@ pub(crate) mod data {
 
   impl ScopeTypeSpecificData {
     pub fn is_none(&self) -> bool {
-      match self {
-        Self::None => true,
-        _ => false,
-      }
+      matches!(self, Self::None)
     }
 
     /// Replaces a `ScopeTypeSpecificData::None` value with the value returned
