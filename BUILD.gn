@@ -1,20 +1,23 @@
 # Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+import("//v8/gni/v8.gni")
 
-static_library("rusty_v8") {
-  complete_static_lib = true
+v8_static_library("rusty_v8") {
   sources = [ "src/binding.cc" ]
   deps = [
+    ":v8",
     "//build/config:shared_library_deps",
+  ]
+  configs = [ ":rusty_v8_config" ]
+}
+
+v8_source_set("v8") {
+  deps = [
     "//v8:v8",
     "//v8:v8_libbase",
     "//v8:v8_libplatform",
     "//v8:v8_libsampler",
   ]
-  configs -= [
-    "//build/config/compiler:default_init_stack_vars",
-    "//build/config/compiler:thin_archive",
-  ]
-  configs += [ ":rusty_v8_config" ]
+  configs = [ ":rusty_v8_config" ]
 }
 
 config("rusty_v8_config") {

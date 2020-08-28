@@ -3402,8 +3402,7 @@ fn heap_statistics() {
   assert!(s.total_global_handles_size() >= s.used_global_handles_size());
   assert!(s.used_heap_size() > 0);
   assert!(s.heap_size_limit() >= s.used_heap_size());
-  assert!(s.peak_malloced_memory() > 0);
-  assert!(s.malloced_memory() > 0);
+  assert!(s.peak_malloced_memory() >= s.malloced_memory());
   assert_eq!(s.number_of_native_contexts(), 0);
 
   let scope = &mut v8::HandleScope::new(isolate);
