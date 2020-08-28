@@ -39,6 +39,9 @@ Binaries builds are turned on by default: `cargo build` will initiate a download
 from github to get the static lib. To disable this build using the
 `V8_FROM_SOURCE` environmental variable.
 
+If you prefer another location for downloading binaries,
+use the`RUSTY_V8_MIRROR` environmental variable.
+
 When making changes to rusty_v8 itself, it should be tested by build from
 source. The CI always builds from source.
 
