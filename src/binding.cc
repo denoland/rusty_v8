@@ -153,6 +153,11 @@ uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
   return SLOT_NUM_EXTERNAL(isolate);
 }
 
+const v8::Data* v8__Isolate__GetDataFromSnapshotOnce(v8::Isolate* isolate,
+                                                     size_t index) {
+  return maybe_local_to_ptr(isolate->GetDataFromSnapshotOnce<v8::Data>(index));
+}
+
 v8::MicrotasksPolicy v8__Isolate__GetMicrotasksPolicy(
     const v8::Isolate* isolate) {
   return isolate->GetMicrotasksPolicy();
@@ -296,11 +301,7 @@ const v8::Module* v8__ScriptCompiler__CompileModule(
     v8::ScriptCompiler::NoCacheReason no_cache_reason) {
   v8::MaybeLocal<v8::Module> maybe_local = v8::ScriptCompiler::CompileModule(
       isolate, source, options, no_cache_reason);
-  if (maybe_local.IsEmpty()) {
-    return nullptr;
-  } else {
-    return local_to_ptr(maybe_local.ToLocalChecked());
-  }
+  return maybe_local_to_ptr(maybe_local);
 }
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
@@ -1012,6 +1013,12 @@ const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
 
+const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
+                                                     size_t index) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
+}
+
 const v8::String* v8__Message__Get(const v8::Message& self) {
   return local_to_ptr(self.Get());
 }
@@ -1517,6 +1524,17 @@ v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
 void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator* self,
                                             const v8::Context& context) {
   self->SetDefaultContext(ptr_to_local(&context), SerializeInternalFields);
+}
+
+size_t v8__SnapshotCreator__AddData_to_isolate(v8::SnapshotCreator* self,
+                                               const v8::Data& data) {
+  return self->AddData(ptr_to_local(&data));
+}
+
+size_t v8__SnapshotCreator__AddData_to_context(v8::SnapshotCreator* self,
+                                               const v8::Context* context,
+                                               const v8::Data& data) {
+  return self->AddData(ptr_to_local(context), ptr_to_local(&data));
 }
 
 v8::StartupData v8__SnapshotCreator__CreateBlob(

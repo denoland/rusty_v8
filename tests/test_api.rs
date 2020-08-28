@@ -2101,6 +2101,9 @@ fn snapshot_creator() {
   let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
+  let isolate_data_index;
+  let context_data_index;
+  let context_data_index_2;
   let startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::new(None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
@@ -2119,6 +2122,13 @@ fn snapshot_creator() {
       script.run(scope).unwrap();
 
       snapshot_creator.set_default_context(context);
+
+      isolate_data_index =
+        snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
+      context_data_index =
+        snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
+      context_data_index_2 =
+        snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
     }
     std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
@@ -2140,6 +2150,40 @@ fn snapshot_creator() {
       let result = script.run(scope).unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
+
+      // TODO: get_isolate_data_from_snapshot_once::<v8::Number>
+      let isolate_data = scope
+        .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index)
+        .unwrap();
+
+      assert!(isolate_data.strict_equals(v8::Number::new(scope, 1.0).into()));
+      assert!(match scope
+        .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index)
+      {
+        Err(v8::GetDataFromSnapshotError::NoData) => true,
+        _ => false,
+      });
+
+      // TODO: get_context_data_from_snapshot_once::<v8::Number>
+      let context_data = scope
+        .get_context_data_from_snapshot_once::<v8::Value>(context_data_index)
+        .unwrap();
+      assert!(context_data.strict_equals(v8::Number::new(scope, 2.0).into()));
+      assert!(match scope
+        .get_context_data_from_snapshot_once::<v8::Value>(context_data_index)
+      {
+        Err(v8::GetDataFromSnapshotError::NoData) => true,
+        _ => false,
+      });
+
+      assert!(
+        match scope.get_context_data_from_snapshot_once::<v8::Private>(
+          context_data_index_2
+        ) {
+          Err(v8::GetDataFromSnapshotError::TryFromTypeError(..)) => true,
+          _ => false,
+        }
+      );
     }
   }
 }

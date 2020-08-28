@@ -109,6 +109,7 @@ pub use proxy::*;
 pub use scope::CallbackScope;
 pub use scope::ContextScope;
 pub use scope::EscapableHandleScope;
+pub use scope::GetDataFromSnapshotError;
 pub use scope::HandleScope;
 pub use scope::TryCatch;
 pub use script::ScriptOrigin;
