@@ -14,3 +14,6 @@ git submodule foreach '[ -f ./include/v8.h ] || (export SHA=`git log upstream/ma
 
 git -C build push git@github.com:denoland/chromium_build HEAD:refs/heads/$BRANCH
 git -C buildtools push git@github.com:denoland/chromium_buildtools HEAD:refs/heads/$BRANCH
+
+git -C build push git@github.com:denoland/chromium_build upstream/master:refs/heads/upstream
+git -C buildtools push git@github.com:denoland/chromium_buildtools upstream/master:refs/heads/upstream
