@@ -178,7 +178,7 @@ where
 {
   fn clone(shared_ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self>;
   fn from_unique_ptr(unique_ptr: UniquePtr<Self>) -> SharedPtrBase<Self>;
-  fn get(shared_ptr: &SharedPtrBase<Self>) -> *mut Self;
+  fn get(shared_ptr: &SharedPtrBase<Self>) -> *const Self;
   fn reset(shared_ptr: &mut SharedPtrBase<Self>);
   fn use_count(shared_ptr: &SharedPtrBase<Self>) -> long;
 }
@@ -186,6 +186,7 @@ where
 /// Private base type which is shared by the `SharedPtr` and `SharedRef`
 /// implementations.
 #[repr(C)]
+#[derive(Eq, PartialEq)]
 pub struct SharedPtrBase<T: Shared>([usize; 2], PhantomData<T>);
 
 unsafe impl<T: Shared + Sync> Send for SharedPtrBase<T> {}
@@ -205,7 +206,6 @@ impl<T: Shared> Drop for SharedPtrBase<T> {
 
 /// Wrapper around a C++ shared_ptr. A shared_ptr may be be null.
 #[repr(C)]
-#[derive(Default)]
 pub struct SharedPtr<T: Shared>(SharedPtrBase<T>);
 
 impl<T: Shared> SharedPtr<T> {
@@ -235,6 +235,12 @@ impl<T: Shared> SharedPtr<T> {
 impl<T: Shared> Clone for SharedPtr<T> {
   fn clone(&self) -> Self {
     Self(<T as Shared>::clone(&self.0))
+  }
+}
+
+impl<T: Shared> Default for SharedPtr<T> {
+  fn default() -> Self {
+    Self(Default::default())
   }
 }
 
@@ -625,13 +631,85 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::ptr::null;
   use std::sync::atomic::AtomicBool;
   use std::sync::atomic::Ordering;
 
+  #[derive(Eq, PartialEq)]
+  struct MockSharedObj {
+    pub inner: u32,
+  }
+
+  impl MockSharedObj {
+    const INSTANCE_A: Self = Self { inner: 11111 };
+    const INSTANCE_B: Self = Self { inner: 22222 };
+
+    const SHARED_PTR_BASE_A: SharedPtrBase<Self> =
+      SharedPtrBase([1, 1], PhantomData);
+    const SHARED_PTR_BASE_B: SharedPtrBase<Self> =
+      SharedPtrBase([2, 2], PhantomData);
+  }
+
+  impl Shared for MockSharedObj {
+    fn clone(_: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
+      unimplemented!()
+    }
+
+    fn from_unique_ptr(_: UniquePtr<Self>) -> SharedPtrBase<Self> {
+      unimplemented!()
+    }
+
+    fn get(p: &SharedPtrBase<Self>) -> *const Self {
+      match p {
+        &Self::SHARED_PTR_BASE_A => &Self::INSTANCE_A,
+        &Self::SHARED_PTR_BASE_B => &Self::INSTANCE_B,
+        p if p == &Default::default() => null(),
+        _ => unreachable!(),
+      }
+    }
+
+    fn reset(p: &mut SharedPtrBase<Self>) {
+      forget(take(p));
+    }
+
+    fn use_count(_: &SharedPtrBase<Self>) -> long {
+      unimplemented!()
+    }
+  }
+
+  #[test]
+  fn shared_ptr_and_shared_ref() {
+    let mut shared_ptr_a1 = SharedPtr(MockSharedObj::SHARED_PTR_BASE_A);
+    assert!(!shared_ptr_a1.is_null());
+
+    let shared_ref_a: SharedRef<_> = shared_ptr_a1.take().unwrap();
+    assert_eq!(shared_ref_a.inner, 11111);
+
+    assert!(shared_ptr_a1.is_null());
+
+    let shared_ptr_a2: SharedPtr<_> = shared_ref_a.into();
+    assert!(!shared_ptr_a2.is_null());
+    assert_eq!(shared_ptr_a2.unwrap().inner, 11111);
+
+    let mut shared_ptr_b1 = SharedPtr(MockSharedObj::SHARED_PTR_BASE_B);
+    assert!(!shared_ptr_b1.is_null());
+
+    let shared_ref_b: SharedRef<_> = shared_ptr_b1.take().unwrap();
+    assert_eq!(shared_ref_b.inner, 22222);
+
+    assert!(shared_ptr_b1.is_null());
+
+    let shared_ptr_b2: SharedPtr<_> = shared_ref_b.into();
+    assert!(!shared_ptr_b2.is_null());
+    assert_eq!(shared_ptr_b2.unwrap().inner, 22222);
+  }
+
   static TEST_OBJ_DROPPED: AtomicBool = AtomicBool::new(false);
+
   struct TestObj {
     pub id: u32,
   }
+
   impl Drop for TestObj {
     fn drop(&mut self) {
       assert!(!TEST_OBJ_DROPPED.swap(true, Ordering::SeqCst));
@@ -639,12 +717,15 @@ mod tests {
   }
 
   struct TestObjRef(TestObj);
+
   impl Deref for TestObjRef {
     type Target = TestObj;
+
     fn deref(&self) -> &TestObj {
       &self.0
     }
   }
+
   impl Borrow<TestObj> for TestObjRef {
     fn borrow(&self) -> &TestObj {
       &**self

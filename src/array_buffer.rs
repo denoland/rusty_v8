@@ -113,7 +113,7 @@ impl Shared for Allocator {
       )
     }
   }
-  fn get(ptr: &SharedPtrBase<Self>) -> *mut Self {
+  fn get(ptr: &SharedPtrBase<Self>) -> *const Self {
     unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__get(ptr) }
   }
   fn reset(ptr: &mut SharedPtrBase<Self>) {
@@ -219,7 +219,7 @@ impl Shared for BackingStore {
       std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(unique_ptr)
     }
   }
-  fn get(ptr: &SharedPtrBase<Self>) -> *mut Self {
+  fn get(ptr: &SharedPtrBase<Self>) -> *const Self {
     unsafe { std__shared_ptr__v8__BackingStore__get(ptr) }
   }
   fn reset(ptr: &mut SharedPtrBase<Self>) {
