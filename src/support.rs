@@ -1,9 +1,11 @@
+use std::any::type_name;
 use std::any::Any;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::convert::identity;
 use std::convert::AsMut;
 use std::convert::AsRef;
+use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::mem::align_of;
 use std::mem::forget;
@@ -18,6 +20,9 @@ use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::thread::yield_now;
+use std::time::Duration;
+use std::time::Instant;
 
 // TODO use libc::intptr_t when stable.
 // https://doc.rust-lang.org/1.7.0/libc/type.intptr_t.html
@@ -209,12 +214,20 @@ impl<T: Shared> Drop for SharedPtrBase<T> {
 pub struct SharedPtr<T: Shared>(SharedPtrBase<T>);
 
 impl<T: Shared> SharedPtr<T> {
-  pub fn is_null(&self) -> bool {
-    <T as Shared>::get(&self.0).is_null()
+  /// Asserts that the number of references to the shared inner value is equal
+  /// to the `expected` count.
+  ///
+  /// This function relies on the C++ method `std::shared_ptr::use_count()`,
+  /// which usually performs a relaxed load. This function will repeatedly call
+  /// `use_count()` until it returns the expected value, for up to one second.
+  /// Therefore it should probably not be used in performance critical code.
+  #[track_caller]
+  pub fn assert_use_count_eq(&self, expected: usize) {
+    assert_shared_ptr_use_count_eq("SharedPtr", &self.0, expected);
   }
 
-  pub fn use_count(&self) -> long {
-    <T as Shared>::use_count(&self.0)
+  pub fn is_null(&self) -> bool {
+    <T as Shared>::get(&self.0).is_null()
   }
 
   pub fn take(&mut self) -> Option<SharedRef<T>> {
@@ -267,8 +280,16 @@ impl<T: Shared> From<SharedRef<T>> for SharedPtr<T> {
 pub struct SharedRef<T: Shared>(SharedPtrBase<T>);
 
 impl<T: Shared> SharedRef<T> {
-  pub fn use_count(&self) -> long {
-    <T as Shared>::use_count(&self.0)
+  /// Asserts that the number of references to the shared inner value is equal
+  /// to the `expected` count.
+  ///
+  /// This function relies on the C++ method `std::shared_ptr::use_count()`,
+  /// which usually performs a relaxed load. This function will repeatedly call
+  /// `use_count()` until it returns the expected value, for up to one second.
+  /// Therefore it should probably not be used in performance critical code.
+  #[track_caller]
+  pub fn assert_use_count_eq(&self, expected: usize) {
+    assert_shared_ptr_use_count_eq("SharedRef", &self.0, expected);
   }
 }
 
@@ -301,6 +322,42 @@ impl<T: Shared> Borrow<T> for SharedRef<T> {
   fn borrow(&self) -> &T {
     &**self
   }
+}
+
+#[track_caller]
+fn assert_shared_ptr_use_count_eq<T: Shared>(
+  wrapper_type_name: &str,
+  shared_ptr: &SharedPtrBase<T>,
+  expected: usize,
+) {
+  let mut actual = T::use_count(shared_ptr);
+  let ok = match long::try_from(expected) {
+    Err(_) => false, // Non-`long` value can never match actual use count.
+    Ok(expected) if actual == expected => true, // Fast path.
+    Ok(expected) => {
+      pub const RETRY_TIMEOUT: Duration = Duration::from_secs(1);
+      let start = Instant::now();
+      loop {
+        yield_now();
+        actual = T::use_count(shared_ptr);
+        if actual == expected {
+          break true;
+        } else if start.elapsed() > RETRY_TIMEOUT {
+          break false;
+        }
+      }
+    }
+  };
+  assert!(
+    ok,
+    "assertion failed: `{}<{}>` reference count does not match expectation\
+       \n   actual: {}\
+       \n expected: {}",
+    wrapper_type_name,
+    type_name::<T>(),
+    actual,
+    expected
+  );
 }
 
 /// A trait for values with static lifetimes that are allocated at a fixed
@@ -672,8 +729,13 @@ mod tests {
       forget(take(p));
     }
 
-    fn use_count(_: &SharedPtrBase<Self>) -> long {
-      unimplemented!()
+    fn use_count(p: &SharedPtrBase<Self>) -> long {
+      match p {
+        &Self::SHARED_PTR_BASE_A => 1,
+        &Self::SHARED_PTR_BASE_B => 2,
+        p if p == &Default::default() => 0,
+        _ => unreachable!(),
+      }
     }
   }
 
@@ -681,27 +743,53 @@ mod tests {
   fn shared_ptr_and_shared_ref() {
     let mut shared_ptr_a1 = SharedPtr(MockSharedObj::SHARED_PTR_BASE_A);
     assert!(!shared_ptr_a1.is_null());
+    shared_ptr_a1.assert_use_count_eq(1);
 
     let shared_ref_a: SharedRef<_> = shared_ptr_a1.take().unwrap();
     assert_eq!(shared_ref_a.inner, 11111);
+    shared_ref_a.assert_use_count_eq(1);
 
     assert!(shared_ptr_a1.is_null());
+    shared_ptr_a1.assert_use_count_eq(0);
 
     let shared_ptr_a2: SharedPtr<_> = shared_ref_a.into();
     assert!(!shared_ptr_a2.is_null());
+    shared_ptr_a2.assert_use_count_eq(1);
     assert_eq!(shared_ptr_a2.unwrap().inner, 11111);
 
     let mut shared_ptr_b1 = SharedPtr(MockSharedObj::SHARED_PTR_BASE_B);
     assert!(!shared_ptr_b1.is_null());
+    shared_ptr_b1.assert_use_count_eq(2);
 
     let shared_ref_b: SharedRef<_> = shared_ptr_b1.take().unwrap();
     assert_eq!(shared_ref_b.inner, 22222);
+    shared_ref_b.assert_use_count_eq(2);
 
     assert!(shared_ptr_b1.is_null());
+    shared_ptr_b1.assert_use_count_eq(0);
 
     let shared_ptr_b2: SharedPtr<_> = shared_ref_b.into();
     assert!(!shared_ptr_b2.is_null());
+    shared_ptr_b2.assert_use_count_eq(2);
     assert_eq!(shared_ptr_b2.unwrap().inner, 22222);
+  }
+
+  #[test]
+  #[should_panic(expected = "assertion failed: \
+      `SharedPtr<rusty_v8::support::tests::MockSharedObj>` reference count \
+      does not match expectation")]
+  fn shared_ptr_use_count_assertion_failed() {
+    let shared_ptr: SharedPtr<MockSharedObj> = Default::default();
+    shared_ptr.assert_use_count_eq(3);
+  }
+
+  #[test]
+  #[should_panic(expected = "assertion failed: \
+      `SharedRef<rusty_v8::support::tests::MockSharedObj>` reference count \
+      does not match expectation")]
+  fn shared_ref_use_count_assertion_failed() {
+    let shared_ref = SharedRef(MockSharedObj::SHARED_PTR_BASE_B);
+    shared_ref.assert_use_count_eq(7);
   }
 
   static TEST_OBJ_DROPPED: AtomicBool = AtomicBool::new(false);

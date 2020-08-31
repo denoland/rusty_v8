@@ -459,22 +459,22 @@ fn backing_store_segfault() {
   let _setup_guard = setup();
   let array_buffer_allocator = v8::new_default_allocator().make_shared();
   let shared_bs = {
-    assert_eq!(1, v8::SharedRef::use_count(&array_buffer_allocator));
+    array_buffer_allocator.assert_use_count_eq(1);
     let params = v8::Isolate::create_params()
       .array_buffer_allocator(array_buffer_allocator.clone());
-    assert_eq!(2, v8::SharedRef::use_count(&array_buffer_allocator));
+    array_buffer_allocator.assert_use_count_eq(2);
     let isolate = &mut v8::Isolate::new(params);
-    assert_eq!(2, v8::SharedRef::use_count(&array_buffer_allocator));
+    array_buffer_allocator.assert_use_count_eq(2);
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let ab = v8::ArrayBuffer::new(scope, 10);
     let shared_bs = ab.get_backing_store();
-    assert_eq!(3, v8::SharedRef::use_count(&array_buffer_allocator));
+    array_buffer_allocator.assert_use_count_eq(3);
     shared_bs
   };
-  assert_eq!(1, v8::SharedRef::use_count(&shared_bs));
-  assert_eq!(2, v8::SharedRef::use_count(&array_buffer_allocator));
+  shared_bs.assert_use_count_eq(1);
+  array_buffer_allocator.assert_use_count_eq(2);
   drop(array_buffer_allocator);
   drop(shared_bs); // Error occurred here.
 }
@@ -482,21 +482,21 @@ fn backing_store_segfault() {
 #[test]
 fn shared_array_buffer_allocator() {
   let alloc1 = v8::new_default_allocator().make_shared();
-  assert_eq!(1, v8::SharedRef::use_count(&alloc1));
+  alloc1.assert_use_count_eq(1);
 
   let alloc2 = alloc1.clone();
-  assert_eq!(2, v8::SharedRef::use_count(&alloc1));
-  assert_eq!(2, v8::SharedRef::use_count(&alloc2));
+  alloc1.assert_use_count_eq(2);
+  alloc2.assert_use_count_eq(2);
 
   let mut alloc2 = v8::SharedPtr::from(alloc2);
-  assert_eq!(2, v8::SharedRef::use_count(&alloc1));
-  assert_eq!(2, v8::SharedPtr::use_count(&alloc2));
+  alloc1.assert_use_count_eq(2);
+  alloc2.assert_use_count_eq(2);
 
   drop(alloc1);
-  assert_eq!(1, v8::SharedPtr::use_count(&alloc2));
+  alloc2.assert_use_count_eq(1);
 
   alloc2.take();
-  assert_eq!(0, v8::SharedPtr::use_count(&alloc2));
+  alloc2.assert_use_count_eq(0);
 }
 
 #[test]
@@ -514,46 +514,46 @@ fn array_buffer_with_shared_backing_store() {
 
     let bs1 = ab1.get_backing_store();
     assert_eq!(ab1.byte_length(), bs1.byte_length());
-    assert_eq!(2, v8::SharedRef::use_count(&bs1));
+    bs1.assert_use_count_eq(2);
 
     let bs2 = ab1.get_backing_store();
     assert_eq!(ab1.byte_length(), bs2.byte_length());
-    assert_eq!(3, v8::SharedRef::use_count(&bs1));
-    assert_eq!(3, v8::SharedRef::use_count(&bs2));
+    bs1.assert_use_count_eq(3);
+    bs2.assert_use_count_eq(3);
 
     let bs3 = ab1.get_backing_store();
     assert_eq!(ab1.byte_length(), bs3.byte_length());
-    assert_eq!(4, v8::SharedRef::use_count(&bs1));
-    assert_eq!(4, v8::SharedRef::use_count(&bs2));
-    assert_eq!(4, v8::SharedRef::use_count(&bs3));
+    bs1.assert_use_count_eq(4);
+    bs2.assert_use_count_eq(4);
+    bs3.assert_use_count_eq(4);
 
     drop(bs2);
-    assert_eq!(3, v8::SharedRef::use_count(&bs1));
-    assert_eq!(3, v8::SharedRef::use_count(&bs3));
+    bs1.assert_use_count_eq(3);
+    bs3.assert_use_count_eq(3);
 
     drop(bs1);
-    assert_eq!(2, v8::SharedRef::use_count(&bs3));
+    bs3.assert_use_count_eq(2);
 
     let ab2 = v8::ArrayBuffer::with_backing_store(scope, &bs3);
     assert_eq!(ab1.byte_length(), ab2.byte_length());
-    assert_eq!(3, v8::SharedRef::use_count(&bs3));
+    bs3.assert_use_count_eq(3);
 
     let bs4 = ab2.get_backing_store();
     assert_eq!(ab1.byte_length(), bs4.byte_length());
-    assert_eq!(4, v8::SharedRef::use_count(&bs3));
-    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+    bs3.assert_use_count_eq(4);
+    bs4.assert_use_count_eq(4);
 
     let bs5 = bs4.clone();
-    assert_eq!(5, v8::SharedRef::use_count(&bs3));
-    assert_eq!(5, v8::SharedRef::use_count(&bs4));
-    assert_eq!(5, v8::SharedRef::use_count(&bs5));
+    bs3.assert_use_count_eq(5);
+    bs4.assert_use_count_eq(5);
+    bs5.assert_use_count_eq(5);
 
     drop(bs3);
-    assert_eq!(4, v8::SharedRef::use_count(&bs4));
-    assert_eq!(4, v8::SharedRef::use_count(&bs4));
+    bs4.assert_use_count_eq(4);
+    bs5.assert_use_count_eq(4);
 
     drop(bs4);
-    assert_eq!(3, v8::SharedRef::use_count(&bs5));
+    bs5.assert_use_count_eq(3);
   }
 }
 
