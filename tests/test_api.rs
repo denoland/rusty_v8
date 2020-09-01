@@ -3486,6 +3486,7 @@ fn synthetic_module() {
   check("b", 2.0);
 }
 
+#[allow(clippy::float_cmp)]
 #[test]
 fn date() {
   let time = 1_291_404_900_000.; // 2010-12-03 20:35:00 - Mees <3
@@ -3510,8 +3511,7 @@ fn date() {
   assert_eq!(result, "2010-12-03T19:35:00.000Z");
 
   // V8 chops off fractions.
-  let pi = 3.1415;
-  let date = v8::Date::new(scope, pi).unwrap();
+  let date = v8::Date::new(scope, std::f64::consts::PI).unwrap();
   assert_eq!(date.value_of(), 3.0);
   assert_eq!(date.number_value(scope).unwrap(), 3.0);
 }
