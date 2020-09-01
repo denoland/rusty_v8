@@ -852,6 +852,23 @@ const v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
 
 uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
+const v8::Date* v8__Date__New(const v8::Context& context, double time) {
+  // v8::Date::New() is kind of weird in that it returns a v8::Value,
+  // not a v8::Date, even though the object is always a Date object.
+  // Let's paper over that quirk here.
+  v8::MaybeLocal<v8::Date> maybe_date;
+
+  v8::Local<v8::Value> value;
+  if (v8::Date::New(ptr_to_local(&context), time).ToLocal(&value)) {
+    assert(value->IsDate());
+    maybe_date = value.As<v8::Date>();
+  }
+
+  return maybe_local_to_ptr(maybe_date);
+}
+
+double v8__Date__ValueOf(const v8::Date& self) { return self.ValueOf(); }
+
 const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
   return local_to_ptr(v8::External::New(isolate, value));
 }
