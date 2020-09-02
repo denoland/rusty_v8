@@ -3485,3 +3485,33 @@ fn synthetic_module() {
   check("a", 1.0);
   check("b", 2.0);
 }
+
+#[allow(clippy::float_cmp)]
+#[test]
+fn date() {
+  let time = 1_291_404_900_000.; // 2010-12-03 20:35:00 - Mees <3
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let date = v8::Date::new(scope, time).unwrap();
+  assert_eq!(date.value_of(), time);
+
+  let key = v8::String::new(scope, "d").unwrap();
+  context.global(scope).set(scope, key.into(), date.into());
+
+  let result = eval(scope, "d.toISOString()").unwrap();
+  let result = result.to_string(scope).unwrap();
+  let result = result.to_rust_string_lossy(scope);
+  assert_eq!(result, "2010-12-03T19:35:00.000Z");
+
+  // V8 chops off fractions.
+  let date = v8::Date::new(scope, std::f64::consts::PI).unwrap();
+  assert_eq!(date.value_of(), 3.0);
+  assert_eq!(date.number_value(scope).unwrap(), 3.0);
+}

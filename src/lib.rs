@@ -37,6 +37,7 @@ mod array_buffer;
 mod array_buffer_view;
 mod context;
 mod data;
+mod date;
 mod exception;
 mod external;
 mod external_references;
