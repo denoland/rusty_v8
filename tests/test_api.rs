@@ -1632,6 +1632,42 @@ fn function() {
     function
       .call(scope, recv, &[])
       .expect("Function call failed");
+
+    fn fn_builder_callback(
+      scope: &mut v8::HandleScope,
+      args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue,
+    ) {
+      assert_eq!(
+        v8::Local::<v8::String>::try_from(args.data().unwrap())
+          .unwrap()
+          .to_rust_string_lossy(scope),
+        "hello"
+      );
+    }
+
+    let function = v8::Function::build(fn_builder_callback)
+      .length(2)
+      .data(v8::String::new(scope, "hello").unwrap().into())
+      .constructor_behavior(v8::ConstructorBehavior::Throw)
+      .side_effect_type(v8::SideEffectType::HasNoSideEffect)
+      .name(v8::String::new(scope, "fn_builder_callback").unwrap())
+      .finish(scope)
+      .unwrap();
+
+    let len_prop = v8::String::new(scope, "length").unwrap().into();
+    assert!(function
+      .get(scope, len_prop)
+      .unwrap()
+      .strict_equals(v8::Number::new(scope, 2.0).into()));
+
+    function.call(scope, recv, &[]).unwrap();
+
+    {
+      let scope = &mut v8::TryCatch::new(scope);
+      assert!(function.new_instance(scope, &[]).is_none());
+      assert!(scope.has_caught());
+    }
   }
 }
 

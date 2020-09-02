@@ -13,18 +13,40 @@ use crate::HandleScope;
 use crate::Local;
 use crate::Name;
 use crate::Object;
+use crate::String;
 use crate::Value;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(C)]
+pub enum ConstructorBehavior {
+  Throw,
+  Allow,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(C)]
+#[allow(clippy::enum_variant_names)]
+pub enum SideEffectType {
+  HasSideEffect,
+  HasNoSideEffect,
+  HasSideEffectToReceiver,
+}
 
 extern "C" {
   fn v8__Function__New(
     context: *const Context,
     callback: FunctionCallback,
-  ) -> *const Function;
-  fn v8__Function__NewWithData(
-    context: *const Context,
-    callback: FunctionCallback,
     data: *const Value,
+    length: int,
+    behavior: ConstructorBehavior,
+    side_effect_type: SideEffectType,
   ) -> *const Function;
+  fn v8__Function__NewInstance(
+    this: *const Function,
+    context: *const Context,
+    argc: int,
+    argv: *const *const Value,
+  ) -> *const Object;
   fn v8__Function__Call(
     this: *const Function,
     context: *const Context,
@@ -32,6 +54,7 @@ extern "C" {
     argc: int,
     argv: *const *const Value,
   ) -> *const Value;
+  fn v8__Function__SetName(this: *const Function, name: *const String);
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -278,37 +301,122 @@ where
   }
 }
 
+pub struct FunctionBuilder<'s> {
+  callback: FunctionCallback,
+  data: Option<Local<'s, Value>>,
+  length: i32,
+  constructor_behavior: ConstructorBehavior,
+  side_effect_type: SideEffectType,
+  name: Option<Local<'s, String>>,
+}
+
+impl<'s> FunctionBuilder<'s> {
+  fn new(callback: impl MapFnTo<FunctionCallback>) -> FunctionBuilder<'s> {
+    FunctionBuilder {
+      callback: callback.map_fn_to(),
+      data: None,
+      length: 0,
+      constructor_behavior: ConstructorBehavior::Allow,
+      side_effect_type: SideEffectType::HasSideEffect,
+      name: None,
+    }
+  }
+
+  /// Set the associated data of this function.
+  pub fn data<'a>(
+    &'a mut self,
+    data: Local<'s, Value>,
+  ) -> &'a mut FunctionBuilder<'s> {
+    self.data = Some(data);
+    self
+  }
+
+  /// Set the formal argument length of this function.
+  pub fn length<'a>(&'a mut self, length: i32) -> &'a mut FunctionBuilder<'s> {
+    self.length = length;
+    self
+  }
+
+  /// Set the `ConstructorBehavior` of this function.
+  pub fn constructor_behavior<'a>(
+    &'a mut self,
+    behavior: ConstructorBehavior,
+  ) -> &'a mut FunctionBuilder<'s> {
+    self.constructor_behavior = behavior;
+    self
+  }
+
+  /// Set the `SideEffectType` of this function.
+  pub fn side_effect_type<'a>(
+    &'a mut self,
+    side_effect_type: SideEffectType,
+  ) -> &'a mut FunctionBuilder<'s> {
+    self.side_effect_type = side_effect_type;
+    self
+  }
+
+  /// Set the name property of this function.
+  pub fn name<'a>(
+    &'a mut self,
+    name: Local<'s, String>,
+  ) -> &'a mut FunctionBuilder<'s> {
+    self.name = Some(name);
+    self
+  }
+
+  /// Build the function.
+  pub fn finish(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Function>> {
+    match unsafe {
+      scope.cast_local(|sd| {
+        v8__Function__New(
+          sd.get_current_context(),
+          self.callback,
+          self.data.map_or_else(std::ptr::null, |v| &*v),
+          self.length,
+          self.constructor_behavior,
+          self.side_effect_type,
+        )
+      })
+    } {
+      Some(f) => {
+        if let Some(name) = self.name {
+          unsafe { v8__Function__SetName(&*f, &*name) }
+        }
+        Some(f)
+      }
+      None => None,
+    }
+  }
+}
+
 impl Function {
-  // TODO: add remaining arguments from C++
+  /// Create a function using `FunctionBuilder`.
+  pub fn build<'s>(
+    callback: impl MapFnTo<FunctionCallback>,
+  ) -> FunctionBuilder<'s> {
+    FunctionBuilder::new(callback)
+  }
+
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Function__New(sd.get_current_context(), callback.map_fn_to())
-      })
-    }
+    FunctionBuilder::new(callback).finish(scope)
   }
 
   /// Create a function in the current execution context
   /// for a given FunctionCallback and associated data.
   pub fn new_with_data<'s>(
     scope: &mut HandleScope<'s>,
-    data: Local<Value>,
+    data: Local<'s, Value>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Function__NewWithData(
-          sd.get_current_context(),
-          callback.map_fn_to(),
-          &*data,
-        )
-      })
-    }
+    FunctionBuilder::new(callback).data(data).finish(scope)
   }
 
   pub fn call<'s>(
@@ -323,6 +431,21 @@ impl Function {
     unsafe {
       scope.cast_local(|sd| {
         v8__Function__Call(self, sd.get_current_context(), &*recv, argc, argv)
+      })
+    }
+  }
+
+  pub fn new_instance<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    args: &[Local<Value>],
+  ) -> Option<Local<'s, Object>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Function__NewInstance(self, sd.get_current_context(), argc, argv)
       })
     }
   }

@@ -1078,16 +1078,21 @@ const v8::StackTrace* v8__Exception__GetStackTrace(const v8::Value& exception) {
 }
 
 const v8::Function* v8__Function__New(const v8::Context& context,
-                                      v8::FunctionCallback callback) {
-  return maybe_local_to_ptr(
-      v8::Function::New(ptr_to_local(&context), callback));
+                                      v8::FunctionCallback callback,
+                                      const v8::Value* data, int length,
+                                      v8::ConstructorBehavior behavior,
+                                      v8::SideEffectType side_effect_type) {
+  return maybe_local_to_ptr(v8::Function::New(ptr_to_local(&context), callback,
+                                              ptr_to_local(data), length,
+                                              behavior, side_effect_type));
 }
 
-const v8::Function* v8__Function__NewWithData(const v8::Context& context,
-                                              v8::FunctionCallback callback,
-                                              const v8::Value& data) {
-  return maybe_local_to_ptr(
-      v8::Function::New(ptr_to_local(&context), callback, ptr_to_local(&data)));
+const v8::Object* v8__Function__NewInstance(const v8::Function& self,
+                                            const v8::Context& context,
+                                            int argc,
+                                            const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->NewInstance(
+      ptr_to_local(&context), argc, const_ptr_array_to_local_array(argv)));
 }
 
 const v8::Value* v8__Function__Call(const v8::Function& self,
@@ -1097,6 +1102,10 @@ const v8::Value* v8__Function__Call(const v8::Function& self,
   return maybe_local_to_ptr(
       ptr_to_local(&self)->Call(ptr_to_local(&context), ptr_to_local(&recv),
                                 argc, const_ptr_array_to_local_array(argv)));
+}
+
+void v8__Function__SetName(const v8::Function& self, const v8::String& name) {
+  ptr_to_local(&self)->SetName(ptr_to_local(&name));
 }
 
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
@@ -1763,7 +1772,7 @@ bool v8__Module__IsSyntheticModule(const v8::Module& self) {
 
 const v8::Module* v8__Module__CreateSyntheticModule(
     v8::Isolate* isolate, const v8::String* module_name,
-    size_t export_names_len, const v8::String* export_names_raw[],
+    size_t export_names_len, const v8::String* const export_names_raw[],
     v8::Module::SyntheticModuleEvaluationSteps evaluation_steps) {
   std::vector<v8::Local<v8::String>> export_names{};
   for (size_t i = 0; i < export_names_len; i += 1) {
