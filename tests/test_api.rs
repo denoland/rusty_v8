@@ -2700,7 +2700,78 @@ fn value_checker() {
 }
 
 #[test]
-fn try_from_local() {
+fn try_from_data() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let module_source = mock_source(scope, "answer.js", "fail()");
+  let function_callback =
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| { unreachable!() };
+
+  let function_template = v8::FunctionTemplate::new(scope, function_callback);
+  let d: v8::Local<v8::Data> = function_template.into();
+  assert!(d.is_function_template());
+  assert!(!d.is_module());
+  assert!(!d.is_object_template());
+  assert!(!d.is_private());
+  assert!(!d.is_value());
+  assert!(
+    v8::Local::<v8::FunctionTemplate>::try_from(d).unwrap()
+      == function_template
+  );
+
+  let module =
+    v8::script_compiler::compile_module(scope, module_source).unwrap();
+  let d: v8::Local<v8::Data> = module.into();
+  assert!(!d.is_function_template());
+  assert!(d.is_module());
+  assert!(!d.is_object_template());
+  assert!(!d.is_private());
+  assert!(!d.is_value());
+  assert!(v8::Local::<v8::Module>::try_from(d).unwrap() == module);
+
+  let object_template = v8::ObjectTemplate::new(scope);
+  let d: v8::Local<v8::Data> = object_template.into();
+  assert!(!d.is_function_template());
+  assert!(!d.is_module());
+  assert!(d.is_object_template());
+  assert!(!d.is_private());
+  assert!(!d.is_value());
+  assert!(
+    v8::Local::<v8::ObjectTemplate>::try_from(d).unwrap() == object_template
+  );
+
+  // There is currently no way to construct instances of `v8::Private`,
+  // therefore we don't have a test where `is_private()` succeeds.
+
+  let values: &[v8::Local<v8::Value>] = &[
+    v8::null(scope).into(),
+    v8::undefined(scope).into(),
+    v8::Boolean::new(scope, true).into(),
+    v8::Function::new(scope, function_callback).unwrap().into(),
+    v8::Number::new(scope, 42.0).into(),
+    v8::Object::new(scope).into(),
+    v8::String::new(scope, "hello").unwrap().into(),
+  ];
+  for &v in values {
+    let d: v8::Local<v8::Data> = v.into();
+    assert!(!d.is_function_template());
+    assert!(!d.is_module());
+    assert!(!d.is_object_template());
+    assert!(!d.is_private());
+    assert!(d.is_value());
+    assert!(v8::Local::<v8::Value>::try_from(d).unwrap() == v);
+  }
+}
+
+#[test]
+fn try_from_value() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   {

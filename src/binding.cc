@@ -307,6 +307,20 @@ bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
   return ptr_to_local(&self) == ptr_to_local(&other);
 }
 
+bool v8__Data__IsValue(const v8::Data& self) { return self.IsValue(); }
+
+bool v8__Data__IsModule(const v8::Data& self) { return self.IsModule(); }
+
+bool v8__Data__IsPrivate(const v8::Data& self) { return self.IsPrivate(); }
+
+bool v8__Data__IsObjectTemplate(const v8::Data& self) {
+  return self.IsObjectTemplate();
+}
+
+bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
+  return self.IsFunctionTemplate();
+}
+
 bool v8__Value__IsUndefined(const v8::Value& self) {
   return self.IsUndefined();
 }
