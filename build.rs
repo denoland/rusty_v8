@@ -81,8 +81,12 @@ fn build_v8() {
     cc_wrapper(&mut gn_args, &Path::new(&p));
   } else if let Ok(p) = which("sccache") {
     cc_wrapper(&mut gn_args, &p);
+  } else if let Some(p) = env::var_os("CCACHE") {
+    cc_wrapper(&mut gn_args, &Path::new(&p));
+  } else if let Ok(p) = which("ccache") {
+    cc_wrapper(&mut gn_args, &p);
   } else {
-    println!("cargo:warning=Not using sccache");
+    println!("cargo:warning=Not using sccache or ccache");
   }
 
   if let Ok(args) = env::var("GN_ARGS") {
