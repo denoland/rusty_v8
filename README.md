@@ -71,7 +71,7 @@ providing a `$CLANG_BASE_PATH` environmental variable pointing to a recent
 You could also pass in additional arguments to `gn` by setting the `$GN_ARGS`
 environmental variable.
 
-Env vars used in when building from source: `SCCACHE`, `GN`, `NINJA`,
+Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
 
 ## FAQ
@@ -79,9 +79,9 @@ Env vars used in when building from source: `SCCACHE`, `GN`, `NINJA`,
 **Building V8 takes over 30 minutes, this is too slow for me to use this crate.
 What should I do?**
 
-Install [sccache](https://github.com/mozilla/sccache). Our build scripts will
-detect and use sccache. Set the `$SCCACHE` environmental variable if it's not in
-your path.
+Install [sccache](https://github.com/mozilla/sccache) or
+[ccache](https://ccache.dev/). Our build scripts will detect and use them. Set
+the `$SCCACHE` or `$CCACHE` environmental variable if it's not in your path.
 
 **What are all these random directories for like `build` and `buildtools` are
 these really necessary?**
