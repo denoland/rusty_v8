@@ -11,6 +11,7 @@ use crate::support::UniqueRef;
 
 extern "C" {
   fn v8__V8__SetFlagsFromCommandLine(argc: *mut c_int, argv: *mut *mut c_char);
+  fn v8__V8__SetFlagsFromString(flags: *const u8, length: usize);
   fn v8__V8__GetVersion() -> *const c_char;
   fn v8__V8__InitializePlatform(platform: *mut Platform);
   fn v8__V8__Initialize();
@@ -77,6 +78,13 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
       slice.to_string()
     })
     .collect()
+}
+
+/// Sets V8 flags from a string.
+pub fn set_flags_from_string(flags: &str) {
+  unsafe {
+    v8__V8__SetFlagsFromString(flags.as_ptr(), flags.len());
+  }
 }
 
 /// Get the version string.
