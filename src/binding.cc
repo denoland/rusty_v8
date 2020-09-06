@@ -93,6 +93,10 @@ void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
   v8::V8::SetFlagsFromCommandLine(argc, argv, true);
 }
 
+void v8__V8__SetFlagsFromString(const char* flags, size_t length) {
+  v8::V8::SetFlagsFromString(flags, length);
+}
+
 const char* v8__V8__GetVersion() { return v8::V8::GetVersion(); }
 
 void v8__V8__InitializePlatform(v8::Platform* platform) {
