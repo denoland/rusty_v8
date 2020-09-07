@@ -3414,6 +3414,12 @@ fn heap_statistics() {
   assert_ne!(s.number_of_native_contexts(), 0);
 }
 
+#[test]
+fn low_memory_notification() {
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.low_memory_notification();
+}
+
 fn synthetic_evaluation_steps<'a>(
   context: v8::Local<'a, v8::Context>,
   module: v8::Local<v8::Module>,
