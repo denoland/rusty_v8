@@ -3417,7 +3417,7 @@ fn heap_statistics() {
 #[test]
 fn low_memory_notification() {
   let mut isolate = v8::Isolate::new(Default::default());
-  isolate.trigger_low_memory_notification();
+  isolate.low_memory_notification();
 }
 
 fn synthetic_evaluation_steps<'a>(

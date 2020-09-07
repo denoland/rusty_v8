@@ -369,7 +369,7 @@ impl Isolate {
 
   /// Optional notification that the system is running low on memory.
   /// V8 uses these notifications to attempt to free memory.
-  pub fn trigger_low_memory_notification(&mut self) {
+  pub fn low_memory_notification(&mut self) {
     unsafe { v8__Isolate__LowMemoryNotification(self) }
   }
 
