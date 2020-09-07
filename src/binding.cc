@@ -119,6 +119,10 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
+  isolate->LowMemoryNotification();
+}
+
 void v8__Isolate__GetHeapStatistics(v8::Isolate* isolate,
                                     v8::HeapStatistics* s) {
   isolate->GetHeapStatistics(s);
