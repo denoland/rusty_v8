@@ -8,11 +8,12 @@ use std::vec::Vec;
 
 use crate::platform::Platform;
 use crate::support::UniqueRef;
+use crate::support::UnitType;
 
 extern "C" {
   fn v8__V8__SetFlagsFromCommandLine(argc: *mut c_int, argv: *mut *mut c_char);
   fn v8__V8__SetFlagsFromString(flags: *const u8, length: usize);
-  fn v8__V8__SetEntropySource(callback: extern "C" fn(*mut u8, usize) -> bool);
+  fn v8__V8__SetEntropySource(callback: EntropySource);
   fn v8__V8__GetVersion() -> *const c_char;
   fn v8__V8__InitializePlatform(platform: *mut Platform);
   fn v8__V8__Initialize();
@@ -22,7 +23,39 @@ extern "C" {
 
 /// EntropySource is used as a callback function when v8 needs a source
 /// of entropy.
-pub type EntropySource = fn(&mut [u8]) -> bool;
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+pub struct EntropySource(RawEntropySource);
+
+pub trait IntoEntropySource:
+  UnitType + Into<EntropySource> + FnOnce(&mut [u8]) -> bool
+{
+}
+
+impl<F> IntoEntropySource for F where
+  F: UnitType + Into<EntropySource> + FnOnce(&mut [u8]) -> bool
+{
+}
+
+type RawEntropySource = extern "C" fn(*mut u8, usize) -> bool;
+
+impl<F> From<F> for EntropySource
+where
+  F: UnitType + FnOnce(&mut [u8]) -> bool,
+{
+  fn from(_: F) -> Self {
+    #[inline(always)]
+    extern "C" fn adapter<F: IntoEntropySource>(
+      buffer: *mut u8,
+      length: usize,
+    ) -> bool {
+      let buffer = unsafe { std::slice::from_raw_parts_mut(buffer, length) };
+      (F::get())(buffer)
+    }
+
+    Self(adapter::<F>)
+  }
+}
 
 #[derive(Debug, Eq, PartialEq)]
 enum GlobalState {
@@ -37,10 +70,6 @@ use GlobalState::*;
 lazy_static! {
   static ref GLOBAL_STATE: Mutex<GlobalState> =
     Mutex::new(GlobalState::Uninitialized);
-}
-
-lazy_static! {
-  static ref ENTROPY_SOURCE: Mutex<Option<EntropySource>> = Mutex::new(None);
 }
 
 pub fn assert_initialized() {
@@ -98,23 +127,10 @@ pub fn set_flags_from_string(flags: &str) {
 
 /// Allows the host application to provide a callback which can be used
 /// as a source of entropy for random number generators.
-pub fn set_entropy_source(callback: EntropySource) {
-  let mut entropy_source = ENTROPY_SOURCE.lock().unwrap();
-  *entropy_source = Some(callback);
-  drop(entropy_source);
-  unsafe {
-    v8__V8__SetEntropySource(trampoline);
-  }
-  extern "C" fn trampoline(buffer: *mut u8, length: usize) -> bool {
-    let entropy_source = ENTROPY_SOURCE.lock().unwrap();
-    let callback = *entropy_source;
-    drop(entropy_source);
-    if let Some(callback) = callback {
-      callback(unsafe { std::slice::from_raw_parts_mut(buffer, length) })
-    } else {
-      false
-    }
-  }
+pub fn set_entropy_source(
+  callback: impl UnitType + Into<EntropySource> + FnOnce(&mut [u8]) -> bool,
+) {
+  unsafe { v8__V8__SetEntropySource(callback.into()) };
 }
 
 /// Get the version string.
