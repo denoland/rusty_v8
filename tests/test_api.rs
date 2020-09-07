@@ -3397,20 +3397,35 @@ fn heap_statistics() {
 
   let mut s = v8::HeapStatistics::default();
   isolate.get_heap_statistics(&mut s);
-  assert!(s.heap_size_limit() > 0);
-  assert!(s.total_heap_size() > 0);
-  assert!(s.total_global_handles_size() >= s.used_global_handles_size());
+
   assert!(s.used_heap_size() > 0);
-  assert!(s.heap_size_limit() >= s.used_heap_size());
-  assert!(s.peak_malloced_memory() >= s.malloced_memory());
+  assert!(s.total_heap_size() > 0);
+  assert!(s.total_heap_size() >= s.used_heap_size());
+  assert!(s.heap_size_limit() > 0);
+  assert!(s.heap_size_limit() >= s.total_heap_size());
+
+  assert!(s.malloced_memory() > 0);
+  assert!(s.peak_malloced_memory() > 0);
+  // This invariant broke somewhere between V8 versions 8.6.337 and 8.7.25.
+  // TODO(piscisaureus): re-enable this assertion when the underlying V8 bug is
+  // fixed.
+  // assert!(s.peak_malloced_memory() >= s.malloced_memory());
+
+  assert_eq!(s.used_global_handles_size(), 0);
+  assert_eq!(s.total_global_handles_size(), 0);
   assert_eq!(s.number_of_native_contexts(), 0);
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
-  let _ = eval(scope, "").unwrap();
+
+  let local = eval(scope, "").unwrap();
+  let _global = v8::Global::new(scope, local);
 
   scope.get_heap_statistics(&mut s);
+
+  assert_ne!(s.used_global_handles_size(), 0);
+  assert_ne!(s.total_global_handles_size(), 0);
   assert_ne!(s.number_of_native_contexts(), 0);
 }
 
