@@ -3,6 +3,7 @@ use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
+use crate::support::BuildTypeIdHasher;
 use crate::support::Opaque;
 use crate::Context;
 use crate::Function;
@@ -17,7 +18,7 @@ use crate::Value;
 
 use std::any::Any;
 use std::any::TypeId;
-use std::cell::{Ref, RefCell, RefMut};
+
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
@@ -311,25 +312,18 @@ impl Isolate {
     };
   }
 
-  /// Get mutable reference to embedder data.
-  pub fn get_slot_mut<T: 'static>(&self) -> Option<RefMut<T>> {
-    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
-    let ref_mut = cell.try_borrow_mut().ok()?;
-    let ref_mut = RefMut::map(ref_mut, |box_any| {
-      let mut_any = &mut **box_any;
-      Any::downcast_mut::<T>(mut_any).unwrap()
-    });
-    Some(ref_mut)
+  /// Get a reference to embedder data added with `set_slot()`.
+  pub fn get_slot<T: 'static>(&self) -> Option<&T> {
+    let b = self.get_annex().slots.get(&TypeId::of::<T>())?;
+    let r = Any::downcast_ref::<T>(&**b).unwrap();
+    Some(r)
   }
 
-  /// Get reference to embedder data.
-  pub fn get_slot<T: 'static>(&self) -> Option<Ref<T>> {
-    let cell = self.get_annex().slots.get(&TypeId::of::<T>())?;
-    let r = cell.try_borrow().ok()?;
-    Some(Ref::map(r, |box_any| {
-      let a = &**box_any;
-      Any::downcast_ref::<T>(a).unwrap()
-    }))
+  /// Get a mutable reference to embedder data added with `set_slot()`.
+  pub fn get_slot_mut<T: 'static>(&mut self) -> Option<&mut T> {
+    let b = self.get_annex_mut().slots.get_mut(&TypeId::of::<T>())?;
+    let r = Any::downcast_mut::<T>(&mut **b).unwrap();
+    Some(r)
   }
 
   /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
@@ -347,7 +341,7 @@ impl Isolate {
     self
       .get_annex_mut()
       .slots
-      .insert(Any::type_id(&value), RefCell::new(Box::new(value)))
+      .insert(Any::type_id(&value), Box::new(value))
       .is_none()
   }
 
@@ -548,7 +542,7 @@ impl Isolate {
 
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
-  slots: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+  slots: HashMap<TypeId, Box<dyn Any>, BuildTypeIdHasher>,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -567,7 +561,7 @@ impl IsolateAnnex {
   ) -> Self {
     Self {
       create_param_allocations,
-      slots: HashMap::new(),
+      slots: HashMap::default(),
       isolate,
       isolate_mutex: Mutex::new(()),
     }
