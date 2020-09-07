@@ -105,6 +105,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     this: *mut Isolate,
@@ -364,6 +365,12 @@ impl Isolate {
   /// Requires: self == Isolate::GetCurrent().
   pub(crate) fn exit_isolate(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
+  }
+
+  /// Optional notification that the system is running low on memory.
+  /// V8 uses these notifications to attempt to free memory.
+  pub fn low_memory_notification(&mut self) {
+    unsafe { v8__Isolate__LowMemoryNotification(self) }
   }
 
   /// Get statistics about the heap memory usage.
