@@ -68,10 +68,8 @@ jobs:
       - name: Install rust
         uses: hecrj/setup-rust-action@v1
         with:
+          components: clippy, rustfmt
           rust-version: 1.46.0
-
-      - name: Install rust tools
-        run: rustup component add clippy rustfmt
 
       - name: Install python
         uses: actions/setup-python@v1
