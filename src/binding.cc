@@ -97,6 +97,10 @@ void v8__V8__SetFlagsFromString(const char* flags, size_t length) {
   v8::V8::SetFlagsFromString(flags, length);
 }
 
+void v8__V8__SetEntropySource(v8::EntropySource callback) {
+  v8::V8::SetEntropySource(callback);
+}
+
 const char* v8__V8__GetVersion() { return v8::V8::GetVersion(); }
 
 void v8__V8__InitializePlatform(v8::Platform* platform) {
