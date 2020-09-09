@@ -11,6 +11,26 @@
 
 #include "v8/include/v8.h"
 
+// Work around a bug in the V8 headers.
+//
+// The following template is defined in v8-internal.h. It has a subtle bug that
+// indirectly makes it impossible to convert `v8::Data` handles to themselves.
+// Some methods do that impliclity so they don't compile without this hack; one
+// example is `Local<Data> MaybeLocal::FromMaybe(Local<Data> default_value)`.
+//
+// Spot the bug :)
+//
+// ```
+// template <class T>
+// V8_INLINE void PerformCastCheck(T* data) {
+//   CastCheck<std::is_base_of<Data, T>::value &&
+//             !std::is_same<Data, std::remove_cv<T>>::value>::Perform(data);
+// }
+// ```
+template <>
+template <>
+inline void v8::internal::CastCheck<true>::Perform<v8::Data>(v8::Data* data) {}
+
 // Check assumptions made in binding code.
 static_assert(sizeof(bool) == sizeof(uint8_t), "");
 static_assert(sizeof(std::unique_ptr<void>) == sizeof(void*), "");
