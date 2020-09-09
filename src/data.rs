@@ -1,5 +1,6 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
+use std::any::type_name;
 use std::convert::From;
 use std::convert::TryFrom;
 use std::error::Error;
@@ -89,11 +90,11 @@ macro_rules! impl_from {
 macro_rules! impl_try_from {
   { $source:ident for $target:ident if $value:pat => $check:expr } => {
     impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
-      type Error = TryFromTypeError;
+      type Error = DataError;
       fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
         match l {
           $value if $check => Ok(unsafe { transmute(l) }),
-          _ => Err(TryFromTypeError::new(stringify!($target)))
+          _ => Err(DataError::bad_type::<$target, $source>())
         }
       }
     }
@@ -152,23 +153,45 @@ macro_rules! impl_partial_eq {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct TryFromTypeError {
-  expected_type: &'static str,
+pub enum DataError {
+  BadType {
+    actual: &'static str,
+    expected: &'static str,
+  },
+  NoData {
+    expected: &'static str,
+  },
 }
 
-impl TryFromTypeError {
-  fn new(expected_type: &'static str) -> Self {
-    Self { expected_type }
+impl DataError {
+  pub(crate) fn bad_type<E: 'static, A: 'static>() -> Self {
+    Self::BadType {
+      expected: type_name::<E>(),
+      actual: type_name::<A>(),
+    }
+  }
+
+  pub(crate) fn no_data<E: 'static>() -> Self {
+    Self::NoData {
+      expected: type_name::<E>(),
+    }
   }
 }
 
-impl Display for TryFromTypeError {
+impl Display for DataError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "{} expected", self.expected_type)
+    match self {
+      Self::BadType { expected, actual } => {
+        write!(f, "expected type `{}`, got `{}`", expected, actual)
+      }
+      Self::NoData { expected } => {
+        write!(f, "expected `Some({})`, found `None`", expected)
+      }
+    }
   }
 }
 
-impl Error for TryFromTypeError {}
+impl Error for DataError {}
 
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
@@ -587,6 +610,11 @@ impl_partial_eq! { UnboundScript for UnboundScript use identity }
 pub struct Value(Opaque);
 
 impl_deref! { Data for Value }
+// TODO: Also implement `TryFrom<Data>` for all subtypes of `Value`,
+// so a `Local<Data>` can be directly cast to any `Local` with a JavaScript
+// value type in it. We need this to make certain APIs work, such as
+// `scope.get_context_data_from_snapshot_once::<v8::Number>()` and
+// `scope.get_isolate_data_from_snapshot_once::<v8::Number>()`.
 impl_try_from! { Data for Value if d => d.is_value() }
 impl_from! { External for Value }
 impl_from! { Object for Value }

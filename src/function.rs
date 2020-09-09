@@ -1,12 +1,12 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 
+use crate::scope::CallbackScope;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::{int, Opaque};
-use crate::CallbackScope;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;

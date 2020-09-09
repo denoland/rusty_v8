@@ -82,10 +82,7 @@ use std::alloc::Layout;
 use std::any::type_name;
 use std::cell::Cell;
 use std::convert::TryInto;
-use std::error::Error;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Formatter;
+
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
@@ -98,6 +95,7 @@ use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
 use crate::Context;
 use crate::Data;
+use crate::DataError;
 use crate::Handle;
 use crate::Isolate;
 use crate::Local;
@@ -106,7 +104,6 @@ use crate::Object;
 use crate::OwnedIsolate;
 use crate::Primitive;
 use crate::PromiseRejectMessage;
-use crate::TryFromTypeError;
 use crate::Value;
 
 /// Stack-allocated class which sets the execution context for all operations
@@ -230,78 +227,57 @@ impl<'s> HandleScope<'s, ()> {
   }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum GetDataFromSnapshotError {
-  NoData,
-  TryFromTypeError(TryFromTypeError),
-}
-
-impl Display for GetDataFromSnapshotError {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    match self {
-      GetDataFromSnapshotError::NoData => write!(f, "no data was available"),
-      GetDataFromSnapshotError::TryFromTypeError(e) => write!(f, "{}", e),
-    }
-  }
-}
-
-impl Error for GetDataFromSnapshotError {}
-
 impl<'s> HandleScope<'s> {
   /// Return data that was previously attached to the isolate snapshot via
   /// SnapshotCreator, and removes the reference to it. If called again with
-  /// same `index` argument, this function returns `GetDataFromSnapshotError`.
+  /// same `index` argument, this function returns `DataError::NoData`.
   ///
   /// The value that was stored in the snapshot must either match or be
-  /// convertible to type parameter `T`, otherwise `GetDataFromSnapshotError`
-  /// is returned.
+  /// convertible to type parameter `T`, otherwise `DataError::BadType` is
+  /// returned.
   pub fn get_isolate_data_from_snapshot_once<T>(
     &mut self,
     index: usize,
-  ) -> Result<Local<'s, T>, GetDataFromSnapshotError>
+  ) -> Result<Local<'s, T>, DataError>
   where
-    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = TryFromTypeError>,
+    T: 'static,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
   {
-    match unsafe {
-      self.cast_local(|sd| {
-        raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
-      })
-    } {
-      Some(v) => match v.try_into() {
-        Ok(v) => Ok(v),
-        Err(e) => Err(GetDataFromSnapshotError::TryFromTypeError(e)),
-      },
-      None => Err(GetDataFromSnapshotError::NoData),
+    unsafe {
+      self
+        .cast_local(|sd| {
+          raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
+        })
+        .ok_or_else(DataError::no_data::<T>)
+        .and_then(|data| data.try_into())
     }
   }
 
   /// Return data that was previously attached to the context snapshot via
   /// SnapshotCreator, and removes the reference to it. If called again with
-  /// same `index` argument, this function returns `GetDataFromSnapshotError`.
+  /// same `index` argument, this function returns `DataError::NoData`.
   ///
   /// The value that was stored in the snapshot must either match or be
-  /// convertible to type parameter `T`, otherwise `GetDataFromSnapshotError`
-  /// is returned.
+  /// convertible to type parameter `T`, otherwise `DataError::BadType` is
+  /// returned.
   pub fn get_context_data_from_snapshot_once<T>(
     &mut self,
     index: usize,
-  ) -> Result<Local<'s, T>, GetDataFromSnapshotError>
+  ) -> Result<Local<'s, T>, DataError>
   where
-    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = TryFromTypeError>,
+    T: 'static,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
   {
-    match unsafe {
-      self.cast_local(|sd| {
-        raw::v8__Context__GetDataFromSnapshotOnce(
-          sd.get_current_context(),
-          index,
-        )
-      })
-    } {
-      Some(v) => match v.try_into() {
-        Ok(v) => Ok(v),
-        Err(e) => Err(GetDataFromSnapshotError::TryFromTypeError(e)),
-      },
-      None => Err(GetDataFromSnapshotError::NoData),
+    unsafe {
+      self
+        .cast_local(|sd| {
+          raw::v8__Context__GetDataFromSnapshotOnce(
+            sd.get_current_context(),
+            index,
+          )
+        })
+        .ok_or_else(DataError::no_data::<T>)
+        .and_then(|data| data.try_into())
     }
   }
 }

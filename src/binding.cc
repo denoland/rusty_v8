@@ -1532,9 +1532,9 @@ size_t v8__SnapshotCreator__AddData_to_isolate(v8::SnapshotCreator* self,
 }
 
 size_t v8__SnapshotCreator__AddData_to_context(v8::SnapshotCreator* self,
-                                               const v8::Context* context,
+                                               const v8::Context& context,
                                                const v8::Data& data) {
-  return self->AddData(ptr_to_local(context), ptr_to_local(&data));
+  return self->AddData(ptr_to_local(&context), ptr_to_local(&data));
 }
 
 v8::StartupData v8__SnapshotCreator__CreateBlob(
