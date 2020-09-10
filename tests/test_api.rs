@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::any::type_name;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
 use std::ptr::NonNull;
@@ -2101,6 +2102,9 @@ fn snapshot_creator() {
   let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
+  let isolate_data_index;
+  let context_data_index;
+  let context_data_index_2;
   let startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::new(None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
@@ -2119,6 +2123,13 @@ fn snapshot_creator() {
       script.run(scope).unwrap();
 
       snapshot_creator.set_default_context(context);
+
+      isolate_data_index =
+        snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
+      context_data_index =
+        snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
+      context_data_index_2 =
+        snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
     }
     std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
@@ -2140,6 +2151,26 @@ fn snapshot_creator() {
       let result = script.run(scope).unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
+
+      let isolate_data = scope
+        .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(isolate_data.unwrap() == v8::Number::new(scope, 1.0));
+      let no_data_err = scope
+        .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let context_data = scope
+        .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(context_data.unwrap() == v8::Number::new(scope, 2.0));
+      let no_data_err = scope
+        .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let bad_type_err = scope
+        .get_context_data_from_snapshot_once::<v8::Private>(
+          context_data_index_2,
+        );
+      assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
     }
   }
 }
@@ -2782,20 +2813,16 @@ fn try_from_value() {
     {
       let value: v8::Local<v8::Value> = v8::undefined(scope).into();
       let _primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
-      assert_eq!(
-        v8::Local::<v8::Object>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Object expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Int32>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Int32 expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::Object>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Object>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Int32>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Int32>()
+      ));
     }
 
     {
@@ -2803,20 +2830,16 @@ fn try_from_value() {
       let primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
       let _boolean = v8::Local::<v8::Boolean>::try_from(value).unwrap();
       let _boolean = v8::Local::<v8::Boolean>::try_from(primitive).unwrap();
-      assert_eq!(
-        v8::Local::<v8::String>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "String expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Number>::try_from(primitive)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Number expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::String>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::String>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Number>::try_from(primitive),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Number>()
+      ));
     }
 
     {
@@ -2831,27 +2854,21 @@ fn try_from_value() {
       let _int32 = v8::Local::<v8::Int32>::try_from(primitive).unwrap();
       let _int32 = v8::Local::<v8::Int32>::try_from(integer).unwrap();
       let _int32 = v8::Local::<v8::Int32>::try_from(number).unwrap();
-      assert_eq!(
-        v8::Local::<v8::String>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "String expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Boolean>::try_from(primitive)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Boolean expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Uint32>::try_from(integer)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Uint32 expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::String>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::String>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Boolean>::try_from(primitive),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Boolean>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Uint32>::try_from(integer),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Uint32>()
+      ));
     }
 
     {
@@ -2859,48 +2876,36 @@ fn try_from_value() {
       let object = v8::Local::<v8::Object>::try_from(value).unwrap();
       let _function = v8::Local::<v8::Function>::try_from(value).unwrap();
       let _function = v8::Local::<v8::Function>::try_from(object).unwrap();
-      assert_eq!(
-        v8::Local::<v8::Primitive>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Primitive expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::BigInt>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "BigInt expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::NumberObject>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "NumberObject expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::NumberObject>::try_from(object)
-          .err()
-          .unwrap()
-          .to_string(),
-        "NumberObject expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Set>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Set expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Set>::try_from(object)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Set expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::Primitive>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Primitive>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::BigInt>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::BigInt>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::NumberObject>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::NumberObject>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::NumberObject>::try_from(object),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::NumberObject>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Set>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Set>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Set>::try_from(object),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Set>()
+      ));
     }
   }
 }
