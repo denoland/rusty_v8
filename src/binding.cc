@@ -717,6 +717,57 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
+const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
+                                  const v8::String* description) {
+  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(description)));
+}
+
+const v8::Symbol* v8__Symbol__For(v8::Isolate* isolate,
+                                  const v8::String* description) {
+  return local_to_ptr(v8::Symbol::For(isolate, ptr_to_local(description)));
+}
+
+const v8::Symbol* v8__Symbol__ForApi(v8::Isolate* isolate,
+                                     const v8::String* description) {
+  return local_to_ptr(v8::Symbol::ForApi(isolate, ptr_to_local(description)));
+}
+
+#define V(NAME)                                                   \
+  const v8::Symbol* v8__Symbol__Get##NAME(v8::Isolate* isolate) { \
+    return local_to_ptr(v8::Symbol::Get##NAME(isolate));          \
+  }
+
+V(AsyncIterator)
+V(HasInstance)
+V(IsConcatSpreadable)
+V(Iterator)
+V(Match)
+V(Replace)
+V(Search)
+V(Split)
+V(ToPrimitive)
+V(ToStringTag)
+V(Unscopables)
+#undef V
+
+const v8::Value* v8__Symbol__Description(const v8::Symbol& self) {
+  return local_to_ptr(ptr_to_local(&self)->Description());
+}
+
+const v8::Private* v8__Private__New(v8::Isolate* isolate,
+                                    const v8::String* name) {
+  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(name)));
+}
+
+const v8::Private* v8__Private__ForApi(v8::Isolate* isolate,
+                                       const v8::String* name) {
+  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(name)));
+}
+
+const v8::Value* v8__Private__Name(const v8::Private& self) {
+  return local_to_ptr(ptr_to_local(&self)->Name());
+}
+
 void v8__Template__Set(const v8::Template& self, const v8::Name& key,
                        const v8::Data& value, v8::PropertyAttribute attr) {
   ptr_to_local(&self)->Set(ptr_to_local(&key), ptr_to_local(&value), attr);
@@ -924,6 +975,39 @@ const v8::Integer* v8__Integer__NewFromUnsigned(v8::Isolate* isolate,
 }
 
 int64_t v8__Integer__Value(const v8::Integer& self) { return self.Value(); }
+
+const v8::BigInt* v8__BigInt__New(v8::Isolate* isolate, int64_t value) {
+  return local_to_ptr(v8::BigInt::New(isolate, value));
+}
+
+const v8::BigInt* v8__BigInt__NewFromUnsigned(v8::Isolate* isolate,
+                                              uint64_t value) {
+  return local_to_ptr(v8::BigInt::NewFromUnsigned(isolate, value));
+}
+
+const v8::BigInt* v8__BigInt__NewFromWords(const v8::Context& context,
+                                           int sign_bit, int word_count,
+                                           const uint64_t* words) {
+  return maybe_local_to_ptr(v8::BigInt::NewFromWords(
+      ptr_to_local(&context), sign_bit, word_count, words));
+}
+
+uint64_t v8__BigInt__Uint64Value(const v8::BigInt& self, bool* lossless) {
+  return ptr_to_local(&self)->Uint64Value(lossless);
+}
+
+int64_t v8__BigInt__Int64Value(const v8::BigInt& self, bool* lossless) {
+  return ptr_to_local(&self)->Int64Value(lossless);
+}
+
+int v8__BigInt__WordCount(const v8::BigInt& self) {
+  return ptr_to_local(&self)->WordCount();
+}
+
+void v8__BigInt__ToWordsArray(const v8::BigInt& self, int* sign_bit,
+                              int* word_count, uint64_t* words) {
+  ptr_to_local(&self)->ToWordsArray(sign_bit, word_count, words);
+}
 
 const v8::ArrayBuffer* v8__ArrayBufferView__Buffer(
     const v8::ArrayBufferView& self) {

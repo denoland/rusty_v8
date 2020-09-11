@@ -2778,16 +2778,22 @@ fn try_from_data() {
     v8::Local::<v8::ObjectTemplate>::try_from(d).unwrap() == object_template
   );
 
-  // There is currently no way to construct instances of `v8::Private`,
-  // therefore we don't have a test where `is_private()` succeeds.
+  let p: v8::Local<v8::Data> = v8::Private::new(scope, None).into();
+  assert!(!p.is_function_template());
+  assert!(!p.is_module());
+  assert!(!p.is_object_template());
+  assert!(p.is_private());
+  assert!(!p.is_value());
 
   let values: &[v8::Local<v8::Value>] = &[
     v8::null(scope).into(),
     v8::undefined(scope).into(),
+    v8::BigInt::new_from_u64(scope, 1337).into(),
     v8::Boolean::new(scope, true).into(),
     v8::Function::new(scope, function_callback).unwrap().into(),
     v8::Number::new(scope, 42.0).into(),
     v8::Object::new(scope).into(),
+    v8::Symbol::new(scope, None).into(),
     v8::String::new(scope, "hello").unwrap().into(),
   ];
   for &v in values {
@@ -3611,4 +3617,98 @@ fn date() {
   let date = v8::Date::new(scope, std::f64::consts::PI).unwrap();
   assert_eq!(date.value_of(), 3.0);
   assert_eq!(date.number_value(scope).unwrap(), 3.0);
+}
+
+#[test]
+fn symbol() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let desc = v8::String::new(scope, "a description").unwrap();
+
+  let s = v8::Symbol::new(scope, None);
+  assert!(s.description(scope) == v8::undefined(scope));
+
+  let s = v8::Symbol::new(scope, Some(desc));
+  assert!(s.description(scope) == desc);
+
+  let s_pub = v8::Symbol::r#for(scope, desc);
+  assert!(s_pub.description(scope) == desc);
+  assert!(s_pub != s);
+
+  let s_pub2 = v8::Symbol::r#for(scope, desc);
+  assert!(s_pub2 != s);
+  assert!(s_pub == s_pub2);
+
+  let s = eval(scope, "Symbol.asyncIterator").unwrap();
+  assert!(s == v8::Symbol::get_async_iterator(scope));
+}
+
+#[test]
+fn private() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let p = v8::Private::new(scope, None);
+  assert!(p.name(scope) == v8::undefined(scope));
+
+  let name = v8::String::new(scope, "a name").unwrap();
+  let p = v8::Private::new(scope, Some(name));
+  assert!(p.name(scope) == name);
+
+  let p_api = v8::Private::for_api(scope, Some(name));
+  assert!(p_api.name(scope) == name);
+  assert!(p_api != p);
+
+  let p_api2 = v8::Private::for_api(scope, Some(name));
+  assert!(p_api2 != p);
+  assert!(p_api == p_api2);
+}
+
+#[test]
+fn bigint() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let b = v8::BigInt::new_from_u64(scope, 1337);
+  assert_eq!(b.u64_value(), (1337, true));
+
+  let b = v8::BigInt::new_from_i64(scope, -1337);
+  assert_eq!(b.i64_value(), (-1337, true));
+
+  let words = vec![10, 10];
+  let b = v8::BigInt::new_from_words(scope, false, &words).unwrap();
+  assert_eq!(b.i64_value(), (10, false));
+
+  let raw_b = eval(scope, "184467440737095516170n").unwrap();
+  assert!(b == raw_b);
+
+  let b = v8::BigInt::new_from_words(scope, true, &words).unwrap();
+  assert_eq!(b.i64_value(), (-10, false));
+
+  let raw_b = eval(scope, "-184467440737095516170n").unwrap();
+  assert!(b == raw_b);
+
+  let raw_b = v8::Local::<v8::BigInt>::try_from(raw_b).unwrap();
+
+  let mut vec = Vec::new();
+  vec.resize(raw_b.word_count(), 0);
+  assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
+
+  let mut vec = Vec::new();
+  vec.resize(1, 0);
+  assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10][..]));
+
+  let mut vec = Vec::new();
+  vec.resize(20, 1337);
+  assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
 }
