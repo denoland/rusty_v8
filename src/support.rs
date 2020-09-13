@@ -1,5 +1,6 @@
 use std::any::type_name;
 use std::any::Any;
+use std::any::TypeId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::convert::identity;
@@ -7,6 +8,8 @@ use std::convert::AsMut;
 use std::convert::AsRef;
 use std::convert::TryFrom;
 use std::fmt::{self, Debug, Formatter};
+use std::hash::BuildHasher;
+use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::mem::align_of;
 use std::mem::forget;
@@ -522,6 +525,46 @@ impl<F> FieldOffset<F> {
     (((field as *mut _ as usize) - self.0) as *mut E)
       .as_mut()
       .unwrap()
+  }
+}
+
+/// A special hasher that is optimized for hashing `std::any::TypeId` values.
+/// It can't be used for anything else.
+#[derive(Clone, Default)]
+pub(crate) struct TypeIdHasher {
+  state: Option<u64>,
+}
+
+impl Hasher for TypeIdHasher {
+  fn write(&mut self, _bytes: &[u8]) {
+    panic!("TypeIdHasher::write() called unexpectedly");
+  }
+
+  fn write_u64(&mut self, value: u64) {
+    // `TypeId` values are actually 64-bit values which themselves come out of
+    // some hash function, so it's unnecessary to shuffle their bits further.
+    assert_eq!(size_of::<TypeId>(), size_of::<u64>());
+    assert_eq!(align_of::<TypeId>(), size_of::<u64>());
+    let prev_state = self.state.replace(value);
+    assert_eq!(prev_state, None);
+  }
+
+  fn finish(&self) -> u64 {
+    self.state.unwrap()
+  }
+}
+
+/// Factory for instances of `TypeIdHasher`. This is the type that one would
+/// pass to the constructor of some map/set type in order to make it use
+/// `TypeIdHasher` instead of the default hasher implementation.
+#[derive(Copy, Clone, Default)]
+pub(crate) struct BuildTypeIdHasher;
+
+impl BuildHasher for BuildTypeIdHasher {
+  type Hasher = TypeIdHasher;
+
+  fn build_hasher(&self) -> Self::Hasher {
+    Default::default()
   }
 }
 

@@ -97,6 +97,10 @@ void v8__V8__SetFlagsFromString(const char* flags, size_t length) {
   v8::V8::SetFlagsFromString(flags, length);
 }
 
+void v8__V8__SetEntropySource(v8::EntropySource callback) {
+  v8::V8::SetEntropySource(callback);
+}
+
 const char* v8__V8__GetVersion() { return v8::V8::GetVersion(); }
 
 void v8__V8__InitializePlatform(v8::Platform* platform) {
@@ -118,6 +122,10 @@ void v8__Isolate__Dispose(v8::Isolate* isolate) { isolate->Dispose(); }
 void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
+
+void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
+  isolate->LowMemoryNotification();
+}
 
 void v8__Isolate__GetHeapStatistics(v8::Isolate* isolate,
                                     v8::HeapStatistics* s) {
@@ -143,6 +151,11 @@ void* v8__Isolate__GetData(v8::Isolate* isolate, uint32_t slot) {
 
 uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
   return SLOT_NUM_EXTERNAL(isolate);
+}
+
+const v8::Data* v8__Isolate__GetDataFromSnapshotOnce(v8::Isolate* isolate,
+                                                     size_t index) {
+  return maybe_local_to_ptr(isolate->GetDataFromSnapshotOnce<v8::Data>(index));
 }
 
 v8::MicrotasksPolicy v8__Isolate__GetMicrotasksPolicy(
@@ -288,15 +301,25 @@ const v8::Module* v8__ScriptCompiler__CompileModule(
     v8::ScriptCompiler::NoCacheReason no_cache_reason) {
   v8::MaybeLocal<v8::Module> maybe_local = v8::ScriptCompiler::CompileModule(
       isolate, source, options, no_cache_reason);
-  if (maybe_local.IsEmpty()) {
-    return nullptr;
-  } else {
-    return local_to_ptr(maybe_local.ToLocalChecked());
-  }
+  return maybe_local_to_ptr(maybe_local);
 }
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
   return ptr_to_local(&self) == ptr_to_local(&other);
+}
+
+bool v8__Data__IsValue(const v8::Data& self) { return self.IsValue(); }
+
+bool v8__Data__IsModule(const v8::Data& self) { return self.IsModule(); }
+
+bool v8__Data__IsPrivate(const v8::Data& self) { return self.IsPrivate(); }
+
+bool v8__Data__IsObjectTemplate(const v8::Data& self) {
+  return self.IsObjectTemplate();
+}
+
+bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
+  return self.IsFunctionTemplate();
 }
 
 bool v8__Value__IsUndefined(const v8::Value& self) {
@@ -990,6 +1013,12 @@ const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
 
+const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
+                                                     size_t index) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
+}
+
 const v8::String* v8__Message__Get(const v8::Message& self) {
   return local_to_ptr(self.Get());
 }
@@ -1495,6 +1524,17 @@ v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
 void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator* self,
                                             const v8::Context& context) {
   self->SetDefaultContext(ptr_to_local(&context), SerializeInternalFields);
+}
+
+size_t v8__SnapshotCreator__AddData_to_isolate(v8::SnapshotCreator* self,
+                                               const v8::Data& data) {
+  return self->AddData(ptr_to_local(&data));
+}
+
+size_t v8__SnapshotCreator__AddData_to_context(v8::SnapshotCreator* self,
+                                               const v8::Context& context,
+                                               const v8::Data& data) {
+  return self->AddData(ptr_to_local(&context), ptr_to_local(&data));
 }
 
 v8::StartupData v8__SnapshotCreator__CreateBlob(

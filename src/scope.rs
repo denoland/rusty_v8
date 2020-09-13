@@ -81,6 +81,8 @@ use std::alloc::alloc;
 use std::alloc::Layout;
 use std::any::type_name;
 use std::cell::Cell;
+use std::convert::TryInto;
+
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
@@ -93,6 +95,7 @@ use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
 use crate::Context;
 use crate::Data;
+use crate::DataError;
 use crate::Handle;
 use crate::Isolate;
 use crate::Local;
@@ -223,6 +226,61 @@ impl<'s> HandleScope<'s, ()> {
 
   pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
     data::ScopeData::get(self).get_isolate_ptr()
+  }
+}
+
+impl<'s> HandleScope<'s> {
+  /// Return data that was previously attached to the isolate snapshot via
+  /// SnapshotCreator, and removes the reference to it. If called again with
+  /// same `index` argument, this function returns `DataError::NoData`.
+  ///
+  /// The value that was stored in the snapshot must either match or be
+  /// convertible to type parameter `T`, otherwise `DataError::BadType` is
+  /// returned.
+  pub fn get_isolate_data_from_snapshot_once<T>(
+    &mut self,
+    index: usize,
+  ) -> Result<Local<'s, T>, DataError>
+  where
+    T: 'static,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
+  {
+    unsafe {
+      self
+        .cast_local(|sd| {
+          raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
+        })
+        .ok_or_else(DataError::no_data::<T>)
+        .and_then(|data| data.try_into())
+    }
+  }
+
+  /// Return data that was previously attached to the context snapshot via
+  /// SnapshotCreator, and removes the reference to it. If called again with
+  /// same `index` argument, this function returns `DataError::NoData`.
+  ///
+  /// The value that was stored in the snapshot must either match or be
+  /// convertible to type parameter `T`, otherwise `DataError::BadType` is
+  /// returned.
+  pub fn get_context_data_from_snapshot_once<T>(
+    &mut self,
+    index: usize,
+  ) -> Result<Local<'s, T>, DataError>
+  where
+    T: 'static,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
+  {
+    unsafe {
+      self
+        .cast_local(|sd| {
+          raw::v8__Context__GetDataFromSnapshotOnce(
+            sd.get_current_context(),
+            index,
+          )
+        })
+        .ok_or_else(DataError::no_data::<T>)
+        .and_then(|data| data.try_into())
+    }
   }
 }
 
@@ -1571,6 +1629,10 @@ mod raw {
       isolate: *mut Isolate,
       exception: *const Value,
     ) -> *const Value;
+    pub(super) fn v8__Isolate__GetDataFromSnapshotOnce(
+      this: *mut Isolate,
+      index: usize,
+    ) -> *const Data;
 
     pub(super) fn v8__Context__EQ(
       this: *const Context,
@@ -1580,6 +1642,10 @@ mod raw {
     pub(super) fn v8__Context__Exit(this: *const Context);
     pub(super) fn v8__Context__GetIsolate(this: *const Context)
       -> *mut Isolate;
+    pub(super) fn v8__Context__GetDataFromSnapshotOnce(
+      this: *const Context,
+      index: usize,
+    ) -> *const Data;
 
     pub(super) fn v8__HandleScope__CONSTRUCT(
       buf: *mut MaybeUninit<HandleScope>,

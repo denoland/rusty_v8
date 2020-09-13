@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::any::type_name;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
 use std::ptr::NonNull;
@@ -2101,6 +2102,9 @@ fn snapshot_creator() {
   let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
+  let isolate_data_index;
+  let context_data_index;
+  let context_data_index_2;
   let startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::new(None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
@@ -2119,6 +2123,13 @@ fn snapshot_creator() {
       script.run(scope).unwrap();
 
       snapshot_creator.set_default_context(context);
+
+      isolate_data_index =
+        snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
+      context_data_index =
+        snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
+      context_data_index_2 =
+        snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
     }
     std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
@@ -2140,6 +2151,26 @@ fn snapshot_creator() {
       let result = script.run(scope).unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
+
+      let isolate_data = scope
+        .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(isolate_data.unwrap() == v8::Number::new(scope, 1.0));
+      let no_data_err = scope
+        .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let context_data = scope
+        .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(context_data.unwrap() == v8::Number::new(scope, 2.0));
+      let no_data_err = scope
+        .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let bad_type_err = scope
+        .get_context_data_from_snapshot_once::<v8::Private>(
+          context_data_index_2,
+        );
+      assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
     }
   }
 }
@@ -2700,7 +2731,78 @@ fn value_checker() {
 }
 
 #[test]
-fn try_from_local() {
+fn try_from_data() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let module_source = mock_source(scope, "answer.js", "fail()");
+  let function_callback =
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| { unreachable!() };
+
+  let function_template = v8::FunctionTemplate::new(scope, function_callback);
+  let d: v8::Local<v8::Data> = function_template.into();
+  assert!(d.is_function_template());
+  assert!(!d.is_module());
+  assert!(!d.is_object_template());
+  assert!(!d.is_private());
+  assert!(!d.is_value());
+  assert!(
+    v8::Local::<v8::FunctionTemplate>::try_from(d).unwrap()
+      == function_template
+  );
+
+  let module =
+    v8::script_compiler::compile_module(scope, module_source).unwrap();
+  let d: v8::Local<v8::Data> = module.into();
+  assert!(!d.is_function_template());
+  assert!(d.is_module());
+  assert!(!d.is_object_template());
+  assert!(!d.is_private());
+  assert!(!d.is_value());
+  assert!(v8::Local::<v8::Module>::try_from(d).unwrap() == module);
+
+  let object_template = v8::ObjectTemplate::new(scope);
+  let d: v8::Local<v8::Data> = object_template.into();
+  assert!(!d.is_function_template());
+  assert!(!d.is_module());
+  assert!(d.is_object_template());
+  assert!(!d.is_private());
+  assert!(!d.is_value());
+  assert!(
+    v8::Local::<v8::ObjectTemplate>::try_from(d).unwrap() == object_template
+  );
+
+  // There is currently no way to construct instances of `v8::Private`,
+  // therefore we don't have a test where `is_private()` succeeds.
+
+  let values: &[v8::Local<v8::Value>] = &[
+    v8::null(scope).into(),
+    v8::undefined(scope).into(),
+    v8::Boolean::new(scope, true).into(),
+    v8::Function::new(scope, function_callback).unwrap().into(),
+    v8::Number::new(scope, 42.0).into(),
+    v8::Object::new(scope).into(),
+    v8::String::new(scope, "hello").unwrap().into(),
+  ];
+  for &v in values {
+    let d: v8::Local<v8::Data> = v.into();
+    assert!(!d.is_function_template());
+    assert!(!d.is_module());
+    assert!(!d.is_object_template());
+    assert!(!d.is_private());
+    assert!(d.is_value());
+    assert!(v8::Local::<v8::Value>::try_from(d).unwrap() == v);
+  }
+}
+
+#[test]
+fn try_from_value() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
@@ -2711,20 +2813,16 @@ fn try_from_local() {
     {
       let value: v8::Local<v8::Value> = v8::undefined(scope).into();
       let _primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
-      assert_eq!(
-        v8::Local::<v8::Object>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Object expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Int32>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Int32 expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::Object>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Object>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Int32>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Int32>()
+      ));
     }
 
     {
@@ -2732,20 +2830,16 @@ fn try_from_local() {
       let primitive = v8::Local::<v8::Primitive>::try_from(value).unwrap();
       let _boolean = v8::Local::<v8::Boolean>::try_from(value).unwrap();
       let _boolean = v8::Local::<v8::Boolean>::try_from(primitive).unwrap();
-      assert_eq!(
-        v8::Local::<v8::String>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "String expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Number>::try_from(primitive)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Number expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::String>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::String>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Number>::try_from(primitive),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Number>()
+      ));
     }
 
     {
@@ -2760,27 +2854,21 @@ fn try_from_local() {
       let _int32 = v8::Local::<v8::Int32>::try_from(primitive).unwrap();
       let _int32 = v8::Local::<v8::Int32>::try_from(integer).unwrap();
       let _int32 = v8::Local::<v8::Int32>::try_from(number).unwrap();
-      assert_eq!(
-        v8::Local::<v8::String>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "String expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Boolean>::try_from(primitive)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Boolean expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Uint32>::try_from(integer)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Uint32 expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::String>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::String>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Boolean>::try_from(primitive),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Boolean>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Uint32>::try_from(integer),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Uint32>()
+      ));
     }
 
     {
@@ -2788,48 +2876,36 @@ fn try_from_local() {
       let object = v8::Local::<v8::Object>::try_from(value).unwrap();
       let _function = v8::Local::<v8::Function>::try_from(value).unwrap();
       let _function = v8::Local::<v8::Function>::try_from(object).unwrap();
-      assert_eq!(
-        v8::Local::<v8::Primitive>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Primitive expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::BigInt>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "BigInt expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::NumberObject>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "NumberObject expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::NumberObject>::try_from(object)
-          .err()
-          .unwrap()
-          .to_string(),
-        "NumberObject expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Set>::try_from(value)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Set expected"
-      );
-      assert_eq!(
-        v8::Local::<v8::Set>::try_from(object)
-          .err()
-          .unwrap()
-          .to_string(),
-        "Set expected"
-      );
+      assert!(matches!(
+        v8::Local::<v8::Primitive>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Primitive>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::BigInt>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::BigInt>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::NumberObject>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::NumberObject>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::NumberObject>::try_from(object),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::NumberObject>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Set>::try_from(value),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Set>()
+      ));
+      assert!(matches!(
+        v8::Local::<v8::Set>::try_from(object),
+        Err(v8::DataError::BadType { expected, .. })
+          if expected == type_name::<v8::Set>()
+      ));
     }
   }
 }
@@ -3397,21 +3473,42 @@ fn heap_statistics() {
 
   let mut s = v8::HeapStatistics::default();
   isolate.get_heap_statistics(&mut s);
-  assert!(s.heap_size_limit() > 0);
-  assert!(s.total_heap_size() > 0);
-  assert!(s.total_global_handles_size() >= s.used_global_handles_size());
+
   assert!(s.used_heap_size() > 0);
-  assert!(s.heap_size_limit() >= s.used_heap_size());
-  assert!(s.peak_malloced_memory() >= s.malloced_memory());
+  assert!(s.total_heap_size() > 0);
+  assert!(s.total_heap_size() >= s.used_heap_size());
+  assert!(s.heap_size_limit() > 0);
+  assert!(s.heap_size_limit() >= s.total_heap_size());
+
+  assert!(s.malloced_memory() > 0);
+  assert!(s.peak_malloced_memory() > 0);
+  // This invariant broke somewhere between V8 versions 8.6.337 and 8.7.25.
+  // TODO(piscisaureus): re-enable this assertion when the underlying V8 bug is
+  // fixed.
+  // assert!(s.peak_malloced_memory() >= s.malloced_memory());
+
+  assert_eq!(s.used_global_handles_size(), 0);
+  assert_eq!(s.total_global_handles_size(), 0);
   assert_eq!(s.number_of_native_contexts(), 0);
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
-  let _ = eval(scope, "").unwrap();
+
+  let local = eval(scope, "").unwrap();
+  let _global = v8::Global::new(scope, local);
 
   scope.get_heap_statistics(&mut s);
+
+  assert_ne!(s.used_global_handles_size(), 0);
+  assert_ne!(s.total_global_handles_size(), 0);
   assert_ne!(s.number_of_native_contexts(), 0);
+}
+
+#[test]
+fn low_memory_notification() {
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.low_memory_notification();
 }
 
 fn synthetic_evaluation_steps<'a>(

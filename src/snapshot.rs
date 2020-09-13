@@ -4,6 +4,7 @@ use crate::support::char;
 use crate::support::int;
 use crate::support::intptr_t;
 use crate::Context;
+use crate::Data;
 use crate::Isolate;
 use crate::Local;
 use crate::OwnedIsolate;
@@ -30,6 +31,15 @@ extern "C" {
     this: *mut SnapshotCreator,
     context: *const Context,
   );
+  fn v8__SnapshotCreator__AddData_to_isolate(
+    this: *mut SnapshotCreator,
+    data: *const Data,
+  ) -> usize;
+  fn v8__SnapshotCreator__AddData_to_context(
+    this: *mut SnapshotCreator,
+    context: *const Context,
+    data: *const Data,
+  ) -> usize;
   fn v8__StartupData__DESTRUCT(this: *mut StartupData);
 }
 
@@ -113,6 +123,34 @@ impl SnapshotCreator {
   /// global object template to create one, to be provided upon deserialization.
   pub fn set_default_context<'s>(&mut self, context: Local<'s, Context>) {
     unsafe { v8__SnapshotCreator__SetDefaultContext(self, &*context) };
+  }
+
+  /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is created
+  /// from an existing snapshot.
+  pub fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    unsafe { v8__SnapshotCreator__AddData_to_isolate(self, &*data.into()) }
+  }
+
+  /// Attach arbitrary `v8::Data` to the context snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is
+  /// created from an existing snapshot.
+  pub fn add_context_data<T>(
+    &mut self,
+    context: Local<Context>,
+    data: Local<T>,
+  ) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    unsafe {
+      v8__SnapshotCreator__AddData_to_context(self, &*context, &*data.into())
+    }
   }
 
   /// Creates a snapshot data blob.

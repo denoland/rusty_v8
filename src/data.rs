@@ -1,5 +1,6 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 
+use std::any::type_name;
 use std::convert::From;
 use std::convert::TryFrom;
 use std::error::Error;
@@ -17,6 +18,12 @@ use crate::Local;
 
 extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
+  fn v8__Data__IsValue(this: *const Data) -> bool;
+  fn v8__Data__IsModule(this: *const Data) -> bool;
+  fn v8__Data__IsPrivate(this: *const Data) -> bool;
+  fn v8__Data__IsObjectTemplate(this: *const Data) -> bool;
+  fn v8__Data__IsFunctionTemplate(this: *const Data) -> bool;
+
   fn v8__internal__Object__GetHash(this: *const Data) -> int;
 
   fn v8__Value__SameValue(this: *const Value, other: *const Value) -> bool;
@@ -31,6 +38,31 @@ impl Data {
   /// unique.
   pub fn get_hash(&self) -> int {
     unsafe { v8__internal__Object__GetHash(self) }
+  }
+
+  /// Returns true if this data is a `Value`.
+  pub fn is_value(&self) -> bool {
+    unsafe { v8__Data__IsValue(self) }
+  }
+
+  /// Returns true if this data is a `Module`.
+  pub fn is_module(&self) -> bool {
+    unsafe { v8__Data__IsModule(self) }
+  }
+
+  /// Returns true if this data is a `Private`.
+  pub fn is_private(&self) -> bool {
+    unsafe { v8__Data__IsPrivate(self) }
+  }
+
+  /// Returns true if this data is an `ObjectTemplate`
+  pub fn is_object_template(&self) -> bool {
+    unsafe { v8__Data__IsObjectTemplate(self) }
+  }
+
+  /// Returns true if this data is a `FunctionTemplate.`
+  pub fn is_function_template(&self) -> bool {
+    unsafe { v8__Data__IsFunctionTemplate(self) }
   }
 }
 
@@ -58,11 +90,11 @@ macro_rules! impl_from {
 macro_rules! impl_try_from {
   { $source:ident for $target:ident if $value:pat => $check:expr } => {
     impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
-      type Error = TryFromTypeError;
+      type Error = DataError;
       fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
         match l {
           $value if $check => Ok(unsafe { transmute(l) }),
-          _ => Err(TryFromTypeError::new(stringify!($target)))
+          _ => Err(DataError::bad_type::<$target, $source>())
         }
       }
     }
@@ -121,23 +153,45 @@ macro_rules! impl_partial_eq {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct TryFromTypeError {
-  expected_type: &'static str,
+pub enum DataError {
+  BadType {
+    actual: &'static str,
+    expected: &'static str,
+  },
+  NoData {
+    expected: &'static str,
+  },
 }
 
-impl TryFromTypeError {
-  fn new(expected_type: &'static str) -> Self {
-    Self { expected_type }
+impl DataError {
+  pub(crate) fn bad_type<E: 'static, A: 'static>() -> Self {
+    Self::BadType {
+      expected: type_name::<E>(),
+      actual: type_name::<A>(),
+    }
+  }
+
+  pub(crate) fn no_data<E: 'static>() -> Self {
+    Self::NoData {
+      expected: type_name::<E>(),
+    }
   }
 }
 
-impl Display for TryFromTypeError {
+impl Display for DataError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "{} expected", self.expected_type)
+    match self {
+      Self::BadType { expected, actual } => {
+        write!(f, "expected type `{}`, got `{}`", expected, actual)
+      }
+      Self::NoData { expected } => {
+        write!(f, "expected `Some({})`, found `None`", expected)
+      }
+    }
   }
 }
 
-impl Error for TryFromTypeError {}
+impl Error for DataError {}
 
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
@@ -297,6 +351,7 @@ impl_partial_eq! { Message for Message use identity }
 pub struct Module(Opaque);
 
 impl_deref! { Data for Module }
+impl_try_from! { Data for Module if d => d.is_module() }
 impl_eq! { for Module }
 impl_hash! { for Module }
 impl_partial_eq! { Data for Module use identity }
@@ -325,6 +380,7 @@ impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
 pub struct Private(Opaque);
 
 impl_deref! { Data for Private }
+impl_try_from! { Data for Private if d => d.is_private() }
 impl_eq! { for Private }
 impl_hash! { for Private }
 impl_partial_eq! { Data for Private use identity }
@@ -521,6 +577,7 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 pub struct FunctionTemplate(Opaque);
 
 impl_deref! { Template for FunctionTemplate }
+impl_try_from! { Data for FunctionTemplate if d => d.is_function_template() }
 impl_eq! { for FunctionTemplate }
 impl_hash! { for FunctionTemplate }
 impl_partial_eq! { Data for FunctionTemplate use identity }
@@ -536,6 +593,7 @@ impl_partial_eq! { FunctionTemplate for FunctionTemplate use identity }
 pub struct ObjectTemplate(Opaque);
 
 impl_deref! { Template for ObjectTemplate }
+impl_try_from! { Data for ObjectTemplate if d => d.is_object_template() }
 impl_eq! { for ObjectTemplate }
 impl_hash! { for ObjectTemplate }
 impl_partial_eq! { Data for ObjectTemplate use identity }
@@ -570,6 +628,12 @@ impl_partial_eq! { UnboundScript for UnboundScript use identity }
 pub struct Value(Opaque);
 
 impl_deref! { Data for Value }
+// TODO: Also implement `TryFrom<Data>` for all subtypes of `Value`,
+// so a `Local<Data>` can be directly cast to any `Local` with a JavaScript
+// value type in it. We need this to make certain APIs work, such as
+// `scope.get_context_data_from_snapshot_once::<v8::Number>()` and
+// `scope.get_isolate_data_from_snapshot_once::<v8::Number>()`.
+impl_try_from! { Data for Value if d => d.is_value() }
 impl_from! { External for Value }
 impl_from! { Object for Value }
 impl_from! { Array for Value }

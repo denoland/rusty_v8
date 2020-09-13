@@ -53,8 +53,8 @@ impl CoreIsolate {
     s.i
   }
 
-  fn set_i(&self, i: usize) {
-    let mut s = self.0.get_slot_mut::<CoreIsolateState>().unwrap();
+  fn set_i(&mut self, i: usize) {
+    let s = self.0.get_slot_mut::<CoreIsolateState>().unwrap();
     s.i = i;
   }
 }
@@ -102,8 +102,8 @@ impl EsIsolate {
     state.x
   }
 
-  fn set_x(&self, x: bool) {
-    let mut state = self.0.get_slot_mut::<EsIsolateState>().unwrap();
+  fn set_x(&mut self, x: bool) {
+    let state = self.0.get_slot_mut::<EsIsolateState>().unwrap();
     state.x = x;
   }
 }
