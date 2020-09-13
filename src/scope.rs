@@ -106,6 +106,7 @@ use crate::Value;
 /// Stack-allocated class which sets the execution context for all operations
 /// executed within a local scope. After entering a context, all code compiled
 /// and run is compiled and run in this context.
+#[derive(Debug)]
 pub struct ContextScope<'s, P> {
   data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut P>,
@@ -140,6 +141,7 @@ impl<'s, P: param::NewContextScope<'s>> ContextScope<'s, P> {
 /// garbage collector will no longer track the object stored in the
 /// handle and may deallocate it.  The behavior of accessing a handle
 /// for which the handle scope has been deleted is undefined.
+#[derive(Debug)]
 pub struct HandleScope<'s, C = Context> {
   data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut C>,
@@ -231,6 +233,7 @@ impl<'s> HandleScope<'s, ()> {
 // eventually remove it. Blocker at the time of writing is that there are some
 // tests that enter an `EscapableHandleScope` without creating a `ContextScope`
 // at all. These tests need to updated first.
+#[derive(Debug)]
 pub struct EscapableHandleScope<'s, 'e: 's, C = Context> {
   data: NonNull<data::ScopeData>,
   _phantom:
@@ -266,6 +269,7 @@ impl<'s, 'e: 's, C> EscapableHandleScope<'s, 'e, C> {
 }
 
 /// An external exception handler.
+#[derive(Debug)]
 pub struct TryCatch<'s, P> {
   data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut P>,
@@ -444,6 +448,7 @@ where
 ///   - `&FunctionCallbackInfo`
 ///   - `&PropertyCallbackInfo`
 ///   - `&PromiseRejectMessage`
+#[derive(Debug)]
 pub struct CallbackScope<'s, C = Context> {
   data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut HandleScope<'s, C>>,
@@ -608,8 +613,8 @@ impl<T: Scope> ScopeCast for T {
 ///
 /// For example: a `ContextScope` created inside `HandleScope<'a, ()>` does not
 /// produce a `ContextScope`, but rather a `HandleScope<'a, Context>`, which
-/// describes a scope that is both a `HandleScope` _and_ a `ContextScope`.  
-///  
+/// describes a scope that is both a `HandleScope` _and_ a `ContextScope`.
+///
 /// The Traits in the (private) `param` module define which types can be passed
 /// as a parameter to the `«Some»Scope::new()` constructor, and what the
 /// actual, merged scope type will be that `new()` returns for a specific
@@ -891,6 +896,7 @@ mod getter {
 pub(crate) mod data {
   use super::*;
 
+  #[derive(Debug)]
   pub struct ScopeData {
     // The first four fields are always valid - even when the `Box<ScopeData>`
     // struct is free (does not contain data related to an actual scope).
@@ -1378,6 +1384,7 @@ pub(crate) mod data {
     }
   }
 
+  #[derive(Debug)]
   enum ScopeTypeSpecificData {
     None,
     ContextScope {
@@ -1441,10 +1448,11 @@ pub(crate) mod data {
 mod raw {
   use super::*;
 
-  #[derive(Clone, Copy)]
+  #[derive(Clone, Copy, Debug)]
   #[repr(transparent)]
   pub(super) struct Address(NonZeroUsize);
 
+  #[derive(Debug)]
   pub(super) struct ContextScope {
     entered_context: NonNull<Context>,
   }
@@ -1465,6 +1473,7 @@ mod raw {
   }
 
   #[repr(C)]
+  #[derive(Debug)]
   pub(super) struct HandleScope([usize; 3]);
 
   impl HandleScope {
@@ -1493,6 +1502,7 @@ mod raw {
   }
 
   #[repr(transparent)]
+  #[derive(Debug)]
   pub(super) struct EscapeSlot(NonNull<raw::Address>);
 
   impl EscapeSlot {
@@ -1522,6 +1532,7 @@ mod raw {
   }
 
   #[repr(C)]
+  #[derive(Debug)]
   pub(super) struct TryCatch([usize; 6]);
 
   impl TryCatch {

@@ -35,6 +35,7 @@ extern "C" {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum NewStringType {
   Normal,
   Internalized,

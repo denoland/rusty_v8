@@ -24,8 +24,9 @@ extern "C" {
   ) -> *const Module;
 }
 
-#[repr(C)]
 /// Source code which can be then compiled to a UnboundScript or Script.
+#[repr(C)]
+#[derive(Debug)]
 pub struct Source([usize; 8]);
 
 impl Source {
@@ -46,6 +47,7 @@ impl Drop for Source {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum CompileOptions {
   NoCompileOptions = 0,
   ConsumeCodeCache,
@@ -54,6 +56,7 @@ pub enum CompileOptions {
 
 /// The reason for which we are not requesting or providing a code cache.
 #[repr(C)]
+#[derive(Debug)]
 pub enum NoCacheReason {
   NoReason = 0,
   BecauseCachingDisabled,

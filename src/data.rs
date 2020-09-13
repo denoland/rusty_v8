@@ -141,6 +141,7 @@ impl Error for TryFromTypeError {}
 
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Data(Opaque);
 
 impl_from! { AccessorSignature for Data }
@@ -258,6 +259,7 @@ impl_partial_eq! { Symbol for Data use identity }
 /// An AccessorSignature specifies which receivers are valid parameters
 /// to an accessor callback.
 #[repr(C)]
+#[derive(Debug)]
 pub struct AccessorSignature(Opaque);
 
 impl_deref! { Data for AccessorSignature }
@@ -269,6 +271,7 @@ impl_partial_eq! { AccessorSignature for AccessorSignature use identity }
 /// A sandboxed execution context with its own set of built-in objects
 /// and functions.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Context(Opaque);
 
 impl_deref! { Data for Context }
@@ -279,6 +282,7 @@ impl_partial_eq! { Context for Context use identity }
 
 /// An error message.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Message(Opaque);
 
 impl_deref! { Data for Message }
@@ -289,6 +293,7 @@ impl_partial_eq! { Message for Message use identity }
 
 /// A compiled JavaScript module.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Module(Opaque);
 
 impl_deref! { Data for Module }
@@ -303,6 +308,7 @@ impl_partial_eq! { Module for Module use identity }
 /// This is passed back to the embedder as part of
 /// HostImportModuleDynamicallyCallback for module loading.
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrimitiveArray(Opaque);
 
 impl_deref! { Data for PrimitiveArray }
@@ -315,6 +321,7 @@ impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
 ///
 /// This is an experimental feature. Use at your own risk.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Private(Opaque);
 
 impl_deref! { Data for Private }
@@ -326,6 +333,7 @@ impl_partial_eq! { Private for Private use identity }
 /// A compiled JavaScript script, tied to a Context which was active when the
 /// script was compiled.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Script(Opaque);
 
 impl_deref! { Data for Script }
@@ -339,6 +347,7 @@ impl_partial_eq! { Script for Script use identity }
 /// This is passed back to the embedder as part of
 /// HostImportModuleDynamicallyCallback for module loading.
 #[repr(C)]
+#[derive(Debug)]
 pub struct ScriptOrModule(Opaque);
 
 impl_deref! { Data for ScriptOrModule }
@@ -354,6 +363,7 @@ impl_partial_eq! { ScriptOrModule for ScriptOrModule use identity }
 /// from a FunctionTemplate that inherits directly or indirectly from the
 /// signature's FunctionTemplate.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Signature(Opaque);
 
 impl_deref! { Data for Signature }
@@ -364,6 +374,7 @@ impl_partial_eq! { Signature for Signature use identity }
 
 /// A single JavaScript stack frame.
 #[repr(C)]
+#[derive(Debug)]
 pub struct StackFrame(Opaque);
 
 impl_deref! { Data for StackFrame }
@@ -376,6 +387,7 @@ impl_partial_eq! { StackFrame for StackFrame use identity }
 /// snapshot of the execution stack and the information remains valid after
 /// execution continues.
 #[repr(C)]
+#[derive(Debug)]
 pub struct StackTrace(Opaque);
 
 impl_deref! { Data for StackTrace }
@@ -386,6 +398,7 @@ impl_partial_eq! { StackTrace for StackTrace use identity }
 
 /// The superclass of object and function templates.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Template(Opaque);
 
 impl_deref! { Data for Template }
@@ -504,6 +517,7 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 /// include/v8-fast-api-calls.h. Please note that this feature is still
 /// experimental.
 #[repr(C)]
+#[derive(Debug)]
 pub struct FunctionTemplate(Opaque);
 
 impl_deref! { Template for FunctionTemplate }
@@ -518,6 +532,7 @@ impl_partial_eq! { FunctionTemplate for FunctionTemplate use identity }
 /// Properties added to an ObjectTemplate are added to each object
 /// created from the ObjectTemplate.
 #[repr(C)]
+#[derive(Debug)]
 pub struct ObjectTemplate(Opaque);
 
 impl_deref! { Template for ObjectTemplate }
@@ -529,6 +544,7 @@ impl_partial_eq! { ObjectTemplate for ObjectTemplate use identity }
 
 /// A compiled JavaScript module, not yet tied to a Context.
 #[repr(C)]
+#[derive(Debug)]
 pub struct UnboundModuleScript(Opaque);
 
 impl_deref! { Data for UnboundModuleScript }
@@ -539,6 +555,7 @@ impl_partial_eq! { UnboundModuleScript for UnboundModuleScript use identity }
 
 /// A compiled JavaScript script, not yet tied to a Context.
 #[repr(C)]
+#[derive(Debug)]
 pub struct UnboundScript(Opaque);
 
 impl_deref! { Data for UnboundScript }
@@ -549,6 +566,7 @@ impl_partial_eq! { UnboundScript for UnboundScript use identity }
 
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Value(Opaque);
 
 impl_deref! { Data for Value }
@@ -645,6 +663,7 @@ impl_partial_eq! { Uint32 for Value use same_value_zero }
 /// A JavaScript value that wraps a C++ void*. This type of value is mainly used
 /// to associate C++ data structures with JavaScript objects.
 #[repr(C)]
+#[derive(Debug)]
 pub struct External(Opaque);
 
 impl_deref! { Value for External }
@@ -657,6 +676,7 @@ impl_partial_eq! { External for External use identity }
 
 /// A JavaScript object (ECMA-262, 4.3.3)
 #[repr(C)]
+#[derive(Debug)]
 pub struct Object(Opaque);
 
 impl_deref! { Value for Object }
@@ -731,6 +751,7 @@ impl_partial_eq! { WasmModuleObject for Object use identity }
 
 /// An instance of the built-in array constructor (ECMA-262, 15.4.2).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Array(Opaque);
 
 impl_deref! { Object for Array }
@@ -745,6 +766,7 @@ impl_partial_eq! { Array for Array use identity }
 
 /// An instance of the built-in ArrayBuffer constructor (ES6 draft 15.13.5).
 #[repr(C)]
+#[derive(Debug)]
 pub struct ArrayBuffer(Opaque);
 
 impl_deref! { Object for ArrayBuffer }
@@ -760,6 +782,7 @@ impl_partial_eq! { ArrayBuffer for ArrayBuffer use identity }
 /// A base class for an instance of one of "views" over ArrayBuffer,
 /// including TypedArrays and DataView (ES6 draft 15.13).
 #[repr(C)]
+#[derive(Debug)]
 pub struct ArrayBufferView(Opaque);
 
 impl_deref! { Object for ArrayBufferView }
@@ -800,6 +823,7 @@ impl_partial_eq! { Uint8ClampedArray for ArrayBufferView use identity }
 
 /// An instance of DataView constructor (ES6 draft 15.13.7).
 #[repr(C)]
+#[derive(Debug)]
 pub struct DataView(Opaque);
 
 impl_deref! { ArrayBufferView for DataView }
@@ -817,6 +841,7 @@ impl_partial_eq! { DataView for DataView use identity }
 /// A base class for an instance of TypedArray series of constructors
 /// (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct TypedArray(Opaque);
 
 impl_deref! { ArrayBufferView for TypedArray }
@@ -855,6 +880,7 @@ impl_partial_eq! { Uint8ClampedArray for TypedArray use identity }
 
 /// An instance of BigInt64Array constructor.
 #[repr(C)]
+#[derive(Debug)]
 pub struct BigInt64Array(Opaque);
 
 impl_deref! { TypedArray for BigInt64Array }
@@ -873,6 +899,7 @@ impl_partial_eq! { BigInt64Array for BigInt64Array use identity }
 
 /// An instance of BigUint64Array constructor.
 #[repr(C)]
+#[derive(Debug)]
 pub struct BigUint64Array(Opaque);
 
 impl_deref! { TypedArray for BigUint64Array }
@@ -891,6 +918,7 @@ impl_partial_eq! { BigUint64Array for BigUint64Array use identity }
 
 /// An instance of Float32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Float32Array(Opaque);
 
 impl_deref! { TypedArray for Float32Array }
@@ -909,6 +937,7 @@ impl_partial_eq! { Float32Array for Float32Array use identity }
 
 /// An instance of Float64Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Float64Array(Opaque);
 
 impl_deref! { TypedArray for Float64Array }
@@ -927,6 +956,7 @@ impl_partial_eq! { Float64Array for Float64Array use identity }
 
 /// An instance of Int16Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Int16Array(Opaque);
 
 impl_deref! { TypedArray for Int16Array }
@@ -945,6 +975,7 @@ impl_partial_eq! { Int16Array for Int16Array use identity }
 
 /// An instance of Int32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Int32Array(Opaque);
 
 impl_deref! { TypedArray for Int32Array }
@@ -963,6 +994,7 @@ impl_partial_eq! { Int32Array for Int32Array use identity }
 
 /// An instance of Int8Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Int8Array(Opaque);
 
 impl_deref! { TypedArray for Int8Array }
@@ -981,6 +1013,7 @@ impl_partial_eq! { Int8Array for Int8Array use identity }
 
 /// An instance of Uint16Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Uint16Array(Opaque);
 
 impl_deref! { TypedArray for Uint16Array }
@@ -999,6 +1032,7 @@ impl_partial_eq! { Uint16Array for Uint16Array use identity }
 
 /// An instance of Uint32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Uint32Array(Opaque);
 
 impl_deref! { TypedArray for Uint32Array }
@@ -1017,6 +1051,7 @@ impl_partial_eq! { Uint32Array for Uint32Array use identity }
 
 /// An instance of Uint8Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Uint8Array(Opaque);
 
 impl_deref! { TypedArray for Uint8Array }
@@ -1035,6 +1070,7 @@ impl_partial_eq! { Uint8Array for Uint8Array use identity }
 
 /// An instance of Uint8ClampedArray constructor (ES6 draft 15.13.6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Uint8ClampedArray(Opaque);
 
 impl_deref! { TypedArray for Uint8ClampedArray }
@@ -1053,6 +1089,7 @@ impl_partial_eq! { Uint8ClampedArray for Uint8ClampedArray use identity }
 
 /// A BigInt object (https://tc39.github.io/proposal-bigint)
 #[repr(C)]
+#[derive(Debug)]
 pub struct BigIntObject(Opaque);
 
 impl_deref! { Object for BigIntObject }
@@ -1067,6 +1104,7 @@ impl_partial_eq! { BigIntObject for BigIntObject use identity }
 
 /// A Boolean object (ECMA-262, 4.3.15).
 #[repr(C)]
+#[derive(Debug)]
 pub struct BooleanObject(Opaque);
 
 impl_deref! { Object for BooleanObject }
@@ -1081,6 +1119,7 @@ impl_partial_eq! { BooleanObject for BooleanObject use identity }
 
 /// An instance of the built-in Date constructor (ECMA-262, 15.9).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Date(Opaque);
 
 impl_deref! { Object for Date }
@@ -1095,6 +1134,7 @@ impl_partial_eq! { Date for Date use identity }
 
 /// A JavaScript function object (ECMA-262, 15.3).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Function(Opaque);
 
 impl_deref! { Object for Function }
@@ -1109,6 +1149,7 @@ impl_partial_eq! { Function for Function use identity }
 
 /// An instance of the built-in Map constructor (ECMA-262, 6th Edition, 23.1.1).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Map(Opaque);
 
 impl_deref! { Object for Map }
@@ -1123,6 +1164,7 @@ impl_partial_eq! { Map for Map use identity }
 
 /// A Number object (ECMA-262, 4.3.21).
 #[repr(C)]
+#[derive(Debug)]
 pub struct NumberObject(Opaque);
 
 impl_deref! { Object for NumberObject }
@@ -1137,6 +1179,7 @@ impl_partial_eq! { NumberObject for NumberObject use identity }
 
 /// An instance of the built-in Promise constructor (ES6 draft).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Promise(Opaque);
 
 impl_deref! { Object for Promise }
@@ -1150,6 +1193,7 @@ impl_partial_eq! { Object for Promise use identity }
 impl_partial_eq! { Promise for Promise use identity }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PromiseResolver(Opaque);
 
 impl_deref! { Object for PromiseResolver }
@@ -1163,6 +1207,7 @@ impl_partial_eq! { PromiseResolver for PromiseResolver use identity }
 /// An instance of the built-in Proxy constructor (ECMA-262, 6th Edition,
 /// 26.2.1).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Proxy(Opaque);
 
 impl_deref! { Object for Proxy }
@@ -1177,6 +1222,7 @@ impl_partial_eq! { Proxy for Proxy use identity }
 
 /// An instance of the built-in RegExp constructor (ECMA-262, 15.10).
 #[repr(C)]
+#[derive(Debug)]
 pub struct RegExp(Opaque);
 
 impl_deref! { Object for RegExp }
@@ -1191,6 +1237,7 @@ impl_partial_eq! { RegExp for RegExp use identity }
 
 /// An instance of the built-in Set constructor (ECMA-262, 6th Edition, 23.2.1).
 #[repr(C)]
+#[derive(Debug)]
 pub struct Set(Opaque);
 
 impl_deref! { Object for Set }
@@ -1205,6 +1252,7 @@ impl_partial_eq! { Set for Set use identity }
 
 /// An instance of the built-in SharedArrayBuffer constructor.
 #[repr(C)]
+#[derive(Debug)]
 pub struct SharedArrayBuffer(Opaque);
 
 impl_deref! { Object for SharedArrayBuffer }
@@ -1219,6 +1267,7 @@ impl_partial_eq! { SharedArrayBuffer for SharedArrayBuffer use identity }
 
 /// A String object (ECMA-262, 4.3.18).
 #[repr(C)]
+#[derive(Debug)]
 pub struct StringObject(Opaque);
 
 impl_deref! { Object for StringObject }
@@ -1233,6 +1282,7 @@ impl_partial_eq! { StringObject for StringObject use identity }
 
 /// A Symbol object (ECMA-262 edition 6).
 #[repr(C)]
+#[derive(Debug)]
 pub struct SymbolObject(Opaque);
 
 impl_deref! { Object for SymbolObject }
@@ -1246,6 +1296,7 @@ impl_partial_eq! { Object for SymbolObject use identity }
 impl_partial_eq! { SymbolObject for SymbolObject use identity }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct WasmModuleObject(Opaque);
 
 impl_deref! { Object for WasmModuleObject }
@@ -1260,6 +1311,7 @@ impl_partial_eq! { WasmModuleObject for WasmModuleObject use identity }
 
 /// The superclass of primitive values. See ECMA-262 4.3.2.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Primitive(Opaque);
 
 impl_deref! { Value for Primitive }
@@ -1289,6 +1341,7 @@ impl_partial_eq! { Uint32 for Primitive use same_value_zero }
 
 /// A JavaScript BigInt value (https://tc39.github.io/proposal-bigint)
 #[repr(C)]
+#[derive(Debug)]
 pub struct BigInt(Opaque);
 
 impl_deref! { Primitive for BigInt }
@@ -1303,6 +1356,7 @@ impl_partial_eq! { BigInt for BigInt use strict_equals }
 /// A primitive boolean value (ECMA-262, 4.3.14). Either the true
 /// or false value.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Boolean(Opaque);
 
 impl_deref! { Primitive for Boolean }
@@ -1317,6 +1371,7 @@ impl_partial_eq! { Boolean for Boolean use identity }
 
 /// A superclass for symbols and strings.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Name(Opaque);
 
 impl_deref! { Primitive for Name }
@@ -1334,6 +1389,7 @@ impl_partial_eq! { Symbol for Name use identity }
 
 /// A JavaScript string value (ECMA-262, 4.3.17).
 #[repr(C)]
+#[derive(Debug)]
 pub struct String(Opaque);
 
 impl_deref! { Name for String }
@@ -1349,6 +1405,7 @@ impl_partial_eq! { String for String use strict_equals }
 
 /// A JavaScript symbol (ECMA-262 edition 6)
 #[repr(C)]
+#[derive(Debug)]
 pub struct Symbol(Opaque);
 
 impl_deref! { Name for Symbol }
@@ -1365,6 +1422,7 @@ impl_partial_eq! { Symbol for Symbol use identity }
 
 /// A JavaScript number value (ECMA-262, 4.3.20)
 #[repr(C)]
+#[derive(Debug)]
 pub struct Number(Opaque);
 
 impl_deref! { Primitive for Number }
@@ -1384,6 +1442,7 @@ impl_partial_eq! { Uint32 for Number use same_value_zero }
 
 /// A JavaScript value representing a signed integer.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Integer(Opaque);
 
 impl_deref! { Number for Integer }
@@ -1403,6 +1462,7 @@ impl_partial_eq! { Uint32 for Integer use strict_equals }
 
 /// A JavaScript value representing a 32-bit signed integer.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Int32(Opaque);
 
 impl_deref! { Integer for Int32 }
@@ -1420,6 +1480,7 @@ impl_partial_eq! { Int32 for Int32 use strict_equals }
 
 /// A JavaScript value representing a 32-bit unsigned integer.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Uint32(Opaque);
 
 impl_deref! { Integer for Uint32 }

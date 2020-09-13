@@ -166,8 +166,9 @@ extern "C" {
   fn v8__Location__GetColumnNumber(this: *const Location) -> int;
 }
 
-#[repr(C)]
 /// A location in JavaScript source.
+#[repr(C)]
+#[derive(Debug)]
 pub struct Location([usize; 1]);
 
 impl Location {

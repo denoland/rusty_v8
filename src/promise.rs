@@ -200,7 +200,7 @@ pub enum PromiseRejectEvent {
   PromiseResolveAfterResolved,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 

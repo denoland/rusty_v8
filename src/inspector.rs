@@ -23,6 +23,7 @@ use crate::support::UniqueRef;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use std::fmt::{self, Debug, Formatter};
 
 extern "C" {
   fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
@@ -176,6 +177,7 @@ pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessag
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct Channel {
   _cxx_vtable: CxxVTable,
 }
@@ -305,6 +307,15 @@ impl ChannelBase {
   }
 }
 
+impl Debug for ChannelBase {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("ChannelBase")
+      .field("cxx_base", &self.cxx_base)
+      .field("offset_within_embedder", &self.offset_within_embedder)
+      .finish()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -318,6 +329,7 @@ mod tests {
   // Using repr(C) to preserve field ordering and test that everything works
   // when the ChannelBase field is not the first element of the struct.
   #[repr(C)]
+  #[derive(Debug)]
   pub struct TestChannel {
     field1: i32,
     base: ChannelBase,
@@ -379,6 +391,7 @@ mod tests {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct V8InspectorClient {
   _cxx_vtable: CxxVTable,
 }
@@ -553,7 +566,17 @@ impl V8InspectorClientBase {
   }
 }
 
+impl Debug for V8InspectorClientBase {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("V8InspectorClientBase")
+      .field("cxx_base", &self.cxx_base)
+      .field("offset_within_embedder", &self.offset_within_embedder)
+      .finish()
+  }
+}
+
 #[repr(C)]
+#[derive(Debug)]
 pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
@@ -587,6 +610,7 @@ impl Drop for V8InspectorSession {
 // case, but currently to obtain a `UniquePtr<StringBuffer>` is by making a
 // copy using `StringBuffer::create()`.
 #[repr(C)]
+#[derive(Debug)]
 pub struct StringBuffer {
   _cxx_vtable: CxxVTable,
 }
@@ -615,7 +639,6 @@ impl Drop for StringBuffer {
 }
 
 unsafe impl Send for StringBuffer {}
-use std::fmt;
 use std::iter::ExactSizeIterator;
 use std::iter::IntoIterator;
 use std::marker::PhantomData;
@@ -631,7 +654,7 @@ use std::string;
 //    `u8` have the same size. This is assumption is checked in 'support.h'.
 //    TODO: find/open upstream issue to allow #[repr(bool)] support.
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Copy)]
 #[repr(u8)]
 pub enum StringView<'a> {
   // Do not reorder!
@@ -648,8 +671,8 @@ impl StringView<'static> {
 impl fmt::Display for StringView<'_> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
-      Self::U16(v) => v.fmt(f),
-      Self::U8(v) => v.fmt(f),
+      Self::U16(v) => write!(f, "{}", v),
+      Self::U8(v) => write!(f, "{}", v),
     }
   }
 }
@@ -795,7 +818,7 @@ impl<'a, T> Deref for CharacterArray<'a, T> {
   }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct StringViewIterator<'a> {
   view: StringView<'a>,
   pos: usize,
@@ -829,6 +852,7 @@ fn string_view_display() {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct V8Inspector(Opaque);
 
 impl V8Inspector {
@@ -892,6 +916,7 @@ impl Drop for V8Inspector {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct V8StackTrace {
   _cxx_vtable: CxxVTable,
 }

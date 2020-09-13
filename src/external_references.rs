@@ -11,6 +11,7 @@ pub union ExternalReference<'s> {
   pub message: MessageCallback,
 }
 
+#[derive(Debug)]
 pub struct ExternalReferences {
   null_terminated: Vec<intptr_t>,
 }
