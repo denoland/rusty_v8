@@ -50,7 +50,7 @@ extern "C" {
 /// Note: Local handles in Rusty V8 differ from the V8 C++ API in that they are
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
-#[repr(C)]
+#[repr(transparent)]
 pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 
 impl<'s, T> Local<'s, T> {

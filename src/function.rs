@@ -1,28 +1,24 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 
-use crate::scope::CallbackScope;
-use crate::support::MapFnFrom;
-use crate::support::MapFnTo;
-use crate::support::ToCFn;
-use crate::support::UnitType;
+use crate::impl_function_callback;
 use crate::support::{int, Opaque};
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
 use crate::Local;
-use crate::Name;
 use crate::Object;
+use crate::RawFunctionCallback;
 use crate::Value;
 
 extern "C" {
   fn v8__Function__New(
     context: *const Context,
-    callback: FunctionCallback,
+    callback: RawFunctionCallback,
   ) -> *const Function;
   fn v8__Function__NewWithData(
     context: *const Context,
-    callback: FunctionCallback,
+    callback: RawFunctionCallback,
     data: *const Value,
   ) -> *const Function;
   fn v8__Function__Call(
@@ -64,34 +60,46 @@ extern "C" {
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.
 #[repr(C)]
-pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
+pub struct ReturnValue<'s, R = Value>(*mut Value, PhantomData<&'s R>);
 
 /// In V8 ReturnValue<> has a type parameter, but
 /// it turns out that in most of the APIs it's ReturnValue<Value>
 /// and for our purposes we currently don't need
 /// other types. So for now it's a simplified version.
-impl<'cb> ReturnValue<'cb> {
-  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
+impl<T> ReturnValue<'_, T> {
+  pub(crate) fn from_function_callback_info(
+    info: *const FunctionCallbackInfo,
+  ) -> Self {
     let slot = unsafe { v8__FunctionCallbackInfo__GetReturnValue(info) };
     Self(slot, PhantomData)
   }
 
-  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+  pub(crate) fn from_property_callback_info(
+    info: *const PropertyCallbackInfo,
+  ) -> Self {
     let slot = unsafe { v8__PropertyCallbackInfo__GetReturnValue(info) };
     Self(slot, PhantomData)
   }
 
   // NOTE: simplest setter, possibly we'll need to add
   // more setters specialized per type
-  pub fn set(&mut self, value: Local<Value>) {
-    unsafe { v8__ReturnValue__Set(&mut *self, &*value) }
+  pub fn set<'s>(
+    &mut self,
+    value: impl Into<Local<'s, T>> + Into<Local<'s, Value>>,
+  ) {
+    let value: Local<'s, Value> = value.into();
+    unsafe { v8__ReturnValue__Set(self as *mut Self as *mut _, &*value) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
   pub fn get<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__ReturnValue__Get(self)) }.unwrap()
+    unsafe {
+      scope
+        .cast_local(|_| v8__ReturnValue__Get(self as *const Self as *const _))
+    }
+    .unwrap()
   }
 }
 
@@ -123,7 +131,9 @@ pub struct FunctionCallbackArguments<'s> {
 }
 
 impl<'s> FunctionCallbackArguments<'s> {
-  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
+  pub(crate) fn from_function_callback_info(
+    info: *const FunctionCallbackInfo,
+  ) -> Self {
     Self {
       info,
       phantom: PhantomData,
@@ -167,7 +177,9 @@ pub struct PropertyCallbackArguments<'s> {
 }
 
 impl<'s> PropertyCallbackArguments<'s> {
-  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+  pub(crate) fn from_property_callback_info(
+    info: *const PropertyCallbackInfo,
+  ) -> Self {
     Self {
       info,
       phantom: PhantomData,
@@ -220,75 +232,17 @@ impl<'s> PropertyCallbackArguments<'s> {
   }
 }
 
-pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
-
-impl<F> MapFnFrom<F> for FunctionCallback
-where
-  F: UnitType + Fn(&mut HandleScope, FunctionCallbackArguments, ReturnValue),
-{
-  fn mapping() -> Self {
-    let f = |info: *const FunctionCallbackInfo| {
-      let scope = &mut unsafe { CallbackScope::new(&*info) };
-      let args = FunctionCallbackArguments::from_function_callback_info(info);
-      let rv = ReturnValue::from_function_callback_info(info);
-      (F::get())(scope, args, rv);
-    };
-    f.to_c_fn()
-  }
-}
-
-/// AccessorNameGetterCallback is used as callback functions when getting a
-/// particular property. See Object and ObjectTemplate's method SetAccessor.
-pub type AccessorNameGetterCallback<'s> =
-  extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo);
-
-impl<F> MapFnFrom<F> for AccessorNameGetterCallback<'_>
-where
-  F: UnitType
-    + Fn(&mut HandleScope, Local<Name>, PropertyCallbackArguments, ReturnValue),
-{
-  fn mapping() -> Self {
-    let f = |key: Local<Name>, info: *const PropertyCallbackInfo| {
-      let scope = &mut unsafe { CallbackScope::new(&*info) };
-      let args = PropertyCallbackArguments::from_property_callback_info(info);
-      let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope, key, args, rv);
-    };
-    f.to_c_fn()
-  }
-}
-
-pub type AccessorNameSetterCallback<'s> =
-  extern "C" fn(Local<'s, Name>, Local<'s, Value>, *const PropertyCallbackInfo);
-
-impl<F> MapFnFrom<F> for AccessorNameSetterCallback<'_>
-where
-  F: UnitType
-    + Fn(&mut HandleScope, Local<Name>, Local<Value>, PropertyCallbackArguments),
-{
-  fn mapping() -> Self {
-    let f = |key: Local<Name>,
-             value: Local<Value>,
-             info: *const PropertyCallbackInfo| {
-      let scope = &mut unsafe { CallbackScope::new(&*info) };
-      let args = PropertyCallbackArguments::from_property_callback_info(info);
-      (F::get())(scope, key, value, args);
-    };
-    f.to_c_fn()
-  }
-}
-
 impl Function {
   // TODO: add remaining arguments from C++
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
-    callback: impl MapFnTo<FunctionCallback>,
+    callback: impl_function_callback!(),
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Function__New(sd.get_current_context(), callback.map_fn_to())
+        v8__Function__New(sd.get_current_context(), callback.into())
       })
     }
   }
@@ -298,13 +252,13 @@ impl Function {
   pub fn new_with_data<'s>(
     scope: &mut HandleScope<'s>,
     data: Local<Value>,
-    callback: impl MapFnTo<FunctionCallback>,
+    callback: impl_function_callback!(),
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Function__NewWithData(
           sd.get_current_context(),
-          callback.map_fn_to(),
+          callback.into(),
           &*data,
         )
       })

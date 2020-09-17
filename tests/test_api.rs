@@ -5,14 +5,11 @@ extern crate lazy_static;
 
 use std::any::type_name;
 use std::convert::{Into, TryFrom, TryInto};
-use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use rusty_v8 as v8;
-// TODO(piscisaureus): Ideally there would be no need to import this trait.
-use v8::MapFnTo;
 
 lazy_static! {
   static ref INIT_LOCK: Mutex<u32> = Mutex::new(0);
@@ -748,16 +745,15 @@ fn thread_safe_handle_drop_after_isolate() {
   assert_eq!(false, handle.cancel_terminate_execution());
   assert_eq!(false, handle.is_execution_terminating());
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-  extern "C" fn callback(
-    _isolate: &mut v8::Isolate,
-    data: *mut std::ffi::c_void,
-  ) {
-    assert_eq!(data, std::ptr::null_mut());
-    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-  }
   assert_eq!(
     false,
-    handle.request_interrupt(callback, std::ptr::null_mut())
+    handle.request_interrupt(
+      |_isolate, data| {
+        assert!(data.is_null());
+        CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      },
+      std::ptr::null_mut()
+    )
   );
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
@@ -807,14 +803,13 @@ fn request_interrupt_small_scripts() {
     let scope = &mut v8::ContextScope::new(scope, context);
 
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-    extern "C" fn callback(
-      _isolate: &mut v8::Isolate,
-      data: *mut std::ffi::c_void,
-    ) {
-      assert_eq!(data, std::ptr::null_mut());
-      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    }
-    handle.request_interrupt(callback, std::ptr::null_mut());
+    handle.request_interrupt(
+      |_isolate, data| {
+        assert!(data.is_null());
+        CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      },
+      std::ptr::null_mut(),
+    );
     eval(scope, "(function(x){return x;})(1);");
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
   }
@@ -828,12 +823,11 @@ fn add_message_listener() {
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn check_message_0(
-    message: v8::Local<v8::Message>,
-    _exception: v8::Local<v8::Value>,
+  fn check_message_0<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    message: v8::Local<'s, v8::Message>,
+    _exception: v8::Local<'s, v8::Value>,
   ) {
-    let scope = &mut unsafe { v8::CallbackScope::new(message) };
-    let scope = &mut v8::HandleScope::new(scope);
     let message_str = message.get(scope);
     assert_eq!(message_str.to_rust_string_lossy(scope), "Uncaught foo");
     assert_eq!(Some(1), message.get_line_number(scope));
@@ -875,11 +869,11 @@ fn add_message_listener() {
   }
 }
 
-fn unexpected_module_resolve_callback<'a>(
-  _context: v8::Local<'a, v8::Context>,
-  _specifier: v8::Local<'a, v8::String>,
-  _referrer: v8::Local<'a, v8::Module>,
-) -> Option<v8::Local<'a, v8::Module>> {
+fn unexpected_module_resolve_callback<'s>(
+  _scope: &mut v8::HandleScope<'s>,
+  _specifier: v8::Local<'s, v8::String>,
+  _referrer: v8::Local<'s, v8::Module>,
+) -> Option<v8::Local<'s, v8::Module>> {
   unreachable!()
 }
 
@@ -890,14 +884,12 @@ fn set_host_initialize_import_meta_object_callback() {
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn callback(
-    context: v8::Local<v8::Context>,
-    _module: v8::Local<v8::Module>,
-    meta: v8::Local<v8::Object>,
+  fn callback<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _module: v8::Local<'s, v8::Module>,
+    meta: v8::Local<'s, v8::Object>,
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
     let key = v8::String::new(scope, "foo").unwrap();
     let value = v8::String::new(scope, "bar").unwrap();
     meta.create_data_property(scope, key.into(), value.into());
@@ -1096,7 +1088,7 @@ fn create_message_argument_lifetimes() {
        mut rv: v8::ReturnValue| {
         let message = v8::Exception::create_message(scope, args.get(0));
         let message_str = message.get(scope);
-        rv.set(message_str.into())
+        rv.set(message_str)
       },
     )
     .unwrap();
@@ -1338,7 +1330,7 @@ fn object_set_accessor() {
 
       let s = v8::String::new(scope, "hello").unwrap();
       assert!(rv.get(scope).is_undefined());
-      rv.set(s.into());
+      rv.set(s);
 
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     };
@@ -1392,7 +1384,7 @@ fn object_set_accessor_with_setter() {
 
       let s = v8::String::new(scope, "hello").unwrap();
       assert!(rv.get(scope).is_undefined());
-      rv.set(s.into());
+      rv.set(s);
 
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     };
@@ -1546,7 +1538,7 @@ fn fn_callback(
   assert_eq!(args.length(), 0);
   let s = v8::String::new(scope, "Hello callback!").unwrap();
   assert!(rv.get(scope).is_undefined());
-  rv.set(s.into());
+  rv.set(s);
 }
 
 fn fn_callback2(
@@ -1567,7 +1559,7 @@ fn fn_callback2(
 
   let s = v8::String::new(scope, "Hello callback!").unwrap();
   assert!(rv.get(scope).is_undefined());
-  rv.set(s.into());
+  rv.set(s);
 }
 
 fn fortytwo_callback(
@@ -1575,7 +1567,7 @@ fn fortytwo_callback(
   _: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  rv.set(v8::Integer::new(scope, 42).into());
+  rv.set(v8::Integer::new(scope, 42))
 }
 
 fn data_is_true_callback(
@@ -1636,8 +1628,10 @@ fn function() {
   }
 }
 
-extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
-  let scope = &mut unsafe { v8::CallbackScope::new(&msg) };
+fn promise_reject_callback<'a>(
+  scope: &mut v8::HandleScope<'a>,
+  msg: v8::PromiseRejectMessage<'a>,
+) {
   let event = msg.get_event();
   assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
   let promise = msg.get_promise();
@@ -1765,13 +1759,11 @@ fn module_instantiation_failures1() {
     // Instantiation should fail.
     {
       let tc = &mut v8::TryCatch::new(scope);
-      fn resolve_callback<'a>(
-        context: v8::Local<'a, v8::Context>,
-        _specifier: v8::Local<'a, v8::String>,
-        _referrer: v8::Local<'a, v8::Module>,
-      ) -> Option<v8::Local<'a, v8::Module>> {
-        let scope = &mut unsafe { v8::CallbackScope::new(context) };
-        let scope = &mut v8::HandleScope::new(scope);
+      fn resolve_callback<'s>(
+        scope: &mut v8::HandleScope<'s>,
+        _specifier: v8::Local<'s, v8::String>,
+        _referrer: v8::Local<'s, v8::Module>,
+      ) -> Option<v8::Local<'s, v8::Module>> {
         let e = v8::String::new(scope, "boom").unwrap();
         scope.throw_exception(e.into());
         None
@@ -1788,12 +1780,11 @@ fn module_instantiation_failures1() {
   }
 }
 
-fn compile_specifier_as_module_resolve_callback<'a>(
-  context: v8::Local<'a, v8::Context>,
-  specifier: v8::Local<'a, v8::String>,
-  _referrer: v8::Local<'a, v8::Module>,
-) -> Option<v8::Local<'a, v8::Module>> {
-  let scope = &mut unsafe { v8::CallbackScope::new(context) };
+fn compile_specifier_as_module_resolve_callback<'s>(
+  scope: &mut v8::HandleScope<'s>,
+  specifier: v8::Local<'s, v8::String>,
+  _referrer: v8::Local<'s, v8::Module>,
+) -> Option<v8::Local<'s, v8::Module>> {
   let origin = mock_script_origin(scope, "module.js");
   let source = v8::script_compiler::Source::new(specifier, &origin);
   let module = v8::script_compiler::compile_module(scope, source).unwrap();
@@ -2177,9 +2168,9 @@ fn snapshot_creator() {
 
 lazy_static! {
   static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
-    v8::ExternalReferences::new(&[v8::ExternalReference {
-      function: fn_callback.map_fn_to()
-    }]);
+    v8::ExternalReferences::new(&[v8::ExternalReference::function_callback(
+      fn_callback
+    )]);
 }
 
 #[test]
@@ -2288,20 +2279,18 @@ fn dynamic_import() {
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn dynamic_import_cb(
-    context: v8::Local<v8::Context>,
-    _referrer: v8::Local<v8::ScriptOrModule>,
-    specifier: v8::Local<v8::String>,
-  ) -> *mut v8::Promise {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
+  fn dynamic_import_cb<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _referrer: v8::Local<'s, v8::ScriptOrModule>,
+    specifier: v8::Local<'s, v8::String>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
     assert!(
       specifier.strict_equals(v8::String::new(scope, "bar.js").unwrap().into())
     );
     let e = v8::String::new(scope, "boom").unwrap();
     scope.throw_exception(e.into());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    std::ptr::null_mut()
+    None
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
@@ -3416,16 +3405,6 @@ struct TestHeapLimitState {
   near_heap_limit_callback_calls: u64,
 }
 
-extern "C" fn heap_limit_callback(
-  data: *mut c_void,
-  current_heap_limit: usize,
-  _initial_heap_limit: usize,
-) -> usize {
-  let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
-  state.near_heap_limit_callback_calls += 1;
-  current_heap_limit * 2 // Avoid V8 OOM.
-}
-
 // This test might fail due to a bug in V8. The upstream bug report is at
 // https://bugs.chromium.org/p/v8/issues/detail?id=10843.
 #[test]
@@ -3436,8 +3415,15 @@ fn heap_limits() {
   let isolate = &mut v8::Isolate::new(params);
 
   let mut test_state = TestHeapLimitState::default();
-  let state_ptr = &mut test_state as *mut _ as *mut c_void;
-  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+  let state_ptr = &mut test_state as *mut _ as *mut ();
+  isolate.add_near_heap_limit_callback(
+    |current_heap_limit, _initial_heap_limit, data| {
+      let state = unsafe { &mut *(data as *mut TestHeapLimitState) };
+      state.near_heap_limit_callback_calls += 1;
+      current_heap_limit * 2 // Avoid V8 OOM.
+    },
+    state_ptr,
+  );
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -3512,10 +3498,9 @@ fn low_memory_notification() {
 }
 
 fn synthetic_evaluation_steps<'a>(
-  context: v8::Local<'a, v8::Context>,
-  module: v8::Local<v8::Module>,
+  scope: &mut v8::HandleScope<'a>,
+  module: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Value>> {
-  let scope = &mut unsafe { v8::CallbackScope::new(context) };
   let mut set = |name, value| {
     let name = v8::String::new(scope, name).unwrap();
     let value = v8::Number::new(scope, value).into();

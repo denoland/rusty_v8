@@ -1,9 +1,8 @@
+use crate::impl_accessor_name_getter_callback;
+use crate::impl_accessor_name_setter_callback;
 use crate::isolate::Isolate;
 use crate::support::int;
-use crate::support::MapFnTo;
 use crate::support::MaybeBool;
-use crate::AccessorNameGetterCallback;
-use crate::AccessorNameSetterCallback;
 use crate::Array;
 use crate::Context;
 use crate::HandleScope;
@@ -12,6 +11,8 @@ use crate::Map;
 use crate::Name;
 use crate::Object;
 use crate::PropertyAttribute;
+use crate::RawAccessorNameGetterCallback;
+use crate::RawAccessorNameSetterCallback;
 use crate::Value;
 
 extern "C" {
@@ -27,14 +28,14 @@ extern "C" {
     this: *const Object,
     context: *const Context,
     key: *const Name,
-    getter: AccessorNameGetterCallback,
+    getter: RawAccessorNameGetterCallback,
   ) -> MaybeBool;
   fn v8__Object__SetAccessorWithSetter(
     this: *const Object,
     context: *const Context,
     key: *const Name,
-    getter: AccessorNameGetterCallback,
-    setter: AccessorNameSetterCallback,
+    getter: RawAccessorNameGetterCallback,
+    setter: RawAccessorNameSetterCallback,
   ) -> MaybeBool;
   fn v8__Object__Get(
     this: *const Object,
@@ -281,14 +282,14 @@ impl Object {
     &self,
     scope: &mut HandleScope,
     name: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    getter: impl_accessor_name_getter_callback!(),
   ) -> Option<bool> {
     unsafe {
       v8__Object__SetAccessor(
         self,
         &*scope.get_current_context(),
         &*name,
-        getter.map_fn_to(),
+        getter.into(),
       )
     }
     .into()
@@ -298,16 +299,16 @@ impl Object {
     &self,
     scope: &mut HandleScope,
     name: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
-    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
+    getter: impl_accessor_name_getter_callback!(),
+    setter: impl_accessor_name_setter_callback!(),
   ) -> Option<bool> {
     unsafe {
       v8__Object__SetAccessorWithSetter(
         self,
         &*scope.get_current_context(),
         &*name,
-        getter.map_fn_to(),
-        setter.map_fn_to(),
+        getter.into(),
+        setter.into(),
       )
     }
     .into()

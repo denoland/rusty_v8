@@ -58,36 +58,6 @@ static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
 static_assert(sizeof(three_pointers_t) == sizeof(v8_inspector::StringView),
               "StringView size mismatch");
 
-enum InternalSlots {
-  kSlotDynamicImport = 0,
-  kNumInternalSlots,
-};
-#define SLOT_NUM_EXTERNAL(isolate) \
-  (isolate->GetNumberOfDataSlots() - kNumInternalSlots)
-#define SLOT_INTERNAL(isolate, slot) \
-  (isolate->GetNumberOfDataSlots() - 1 - slot)
-
-// This is an extern C calling convention compatible version of
-// v8::HostImportModuleDynamicallyCallback
-typedef v8::Promise* (*v8__HostImportModuleDynamicallyCallback)(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier);
-
-v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier) {
-  auto* isolate = context->GetIsolate();
-  void* d = isolate->GetData(SLOT_INTERNAL(isolate, kSlotDynamicImport));
-  auto* callback = reinterpret_cast<v8__HostImportModuleDynamicallyCallback>(d);
-  assert(callback != nullptr);
-  auto* promise_ptr = callback(context, referrer, specifier);
-  if (promise_ptr == nullptr) {
-    return v8::MaybeLocal<v8::Promise>();
-  } else {
-    return v8::MaybeLocal<v8::Promise>(ptr_to_local(promise_ptr));
-  }
-}
-
 extern "C" {
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
   v8::V8::SetFlagsFromCommandLine(argc, argv, true);
@@ -150,7 +120,7 @@ void* v8__Isolate__GetData(v8::Isolate* isolate, uint32_t slot) {
 }
 
 uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
-  return SLOT_NUM_EXTERNAL(isolate);
+  return isolate->GetNumberOfDataSlots();
 }
 
 const v8::Data* v8__Isolate__GetDataFromSnapshotOnce(v8::Isolate* isolate,
@@ -204,11 +174,8 @@ void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
 }
 
 void v8__Isolate__SetHostImportModuleDynamicallyCallback(
-    v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
-  isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
-                   reinterpret_cast<void*>(callback));
-  isolate->SetHostImportModuleDynamicallyCallback(
-      HostImportModuleDynamicallyCallback);
+    v8::Isolate* isolate, v8::HostImportModuleDynamicallyCallback callback) {
+  isolate->SetHostImportModuleDynamicallyCallback(callback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,

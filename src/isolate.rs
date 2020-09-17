@@ -1,20 +1,23 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+use crate::impl_host_import_module_dynamically_callback;
+use crate::impl_host_initialize_import_meta_object_callback;
+use crate::impl_interrupt_callback;
+use crate::impl_message_callback;
+use crate::impl_near_heap_limit_callback;
+use crate::impl_promise_reject_callback;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
-use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::support::BuildTypeIdHasher;
 use crate::support::Opaque;
-use crate::Context;
 use crate::Function;
 use crate::Local;
-use crate::Message;
-use crate::Module;
-use crate::Object;
-use crate::Promise;
-use crate::ScriptOrModule;
-use crate::String;
-use crate::Value;
+use crate::RawHostImportModuleDynamicallyCallback;
+use crate::RawHostInitializeImportMetaObjectCallback;
+use crate::RawInterruptCallback;
+use crate::RawMessageCallback;
+use crate::RawNearHeapLimitCallback;
+use crate::RawPromiseRejectCallback;
 
 use std::any::Any;
 use std::any::TypeId;
@@ -42,54 +45,6 @@ pub enum MicrotasksPolicy {
   Auto = 2,
 }
 
-pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
-
-pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
-
-/// HostInitializeImportMetaObjectCallback is called the first time import.meta
-/// is accessed for a module. Subsequent access will reuse the same value.
-///
-/// The method combines two implementation-defined abstract operations into one:
-/// HostGetImportMetaProperties and HostFinalizeImportMeta.
-///
-/// The embedder should use v8::Object::CreateDataProperty to add properties on
-/// the meta object.
-pub type HostInitializeImportMetaObjectCallback =
-  extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
-
-/// HostImportModuleDynamicallyCallback is called when we require the
-/// embedder to load a module. This is used as part of the dynamic
-/// import syntax.
-///
-/// The referrer contains metadata about the script/module that calls
-/// import.
-///
-/// The specifier is the name of the module that should be imported.
-///
-/// The embedder must compile, instantiate, evaluate the Module, and
-/// obtain it's namespace object.
-///
-/// The Promise returned from this function is forwarded to userland
-/// JavaScript. The embedder must resolve this promise with the module
-/// namespace object. In case of an exception, the embedder must reject
-/// this promise with the exception. If the promise creation itself
-/// fails (e.g. due to stack overflow), the embedder must propagate
-/// that exception by returning an empty MaybeLocal.
-pub type HostImportModuleDynamicallyCallback = extern "C" fn(
-  Local<Context>,
-  Local<ScriptOrModule>,
-  Local<String>,
-) -> *mut Promise;
-
-pub type InterruptCallback =
-  extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
-
-pub type NearHeapLimitCallback = extern "C" fn(
-  data: *mut c_void,
-  current_heap_limit: usize,
-  initial_heap_limit: usize,
-) -> usize;
-
 /// Collection of V8 heap information.
 ///
 /// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
@@ -115,33 +70,33 @@ extern "C" {
   );
   fn v8__Isolate__AddMessageListener(
     isolate: *mut Isolate,
-    callback: MessageCallback,
+    callback: RawMessageCallback,
   ) -> bool;
   fn v8__Isolate__AddNearHeapLimitCallback(
     isolate: *mut Isolate,
-    callback: NearHeapLimitCallback,
+    callback: RawNearHeapLimitCallback,
     data: *mut c_void,
   );
   fn v8__Isolate__RemoveNearHeapLimitCallback(
     isolate: *mut Isolate,
-    callback: NearHeapLimitCallback,
+    callback: RawNearHeapLimitCallback,
     heap_limit: usize,
   );
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: *mut Isolate,
-    callback: PromiseRejectCallback,
+    callback: RawPromiseRejectCallback,
   );
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     isolate: *mut Isolate,
-    callback: HostInitializeImportMetaObjectCallback,
+    callback: RawHostInitializeImportMetaObjectCallback,
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: RawHostImportModuleDynamicallyCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
-    callback: InterruptCallback,
+    callback: RawInterruptCallback,
     data: *mut c_void,
   );
   fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
@@ -394,26 +349,32 @@ impl Isolate {
   /// case it will be called more than once for each message.
   ///
   /// The exception object will be passed to the callback.
-  pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
-    unsafe { v8__Isolate__AddMessageListener(self, callback) }
+  pub fn add_message_listener(
+    &mut self,
+    callback: impl_message_callback!(),
+  ) -> bool {
+    unsafe { v8__Isolate__AddMessageListener(self, callback.into()) }
   }
 
   /// Set callback to notify about promise reject with no handler, or
   /// revocation of such a previous notification once the handler is added.
   pub fn set_promise_reject_callback(
     &mut self,
-    callback: PromiseRejectCallback,
+    callback: impl_promise_reject_callback!(),
   ) {
-    unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
+    unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback.into()) }
   }
   /// This specifies the callback called by the upcoming importa.meta
   /// language feature to retrieve host-defined meta data for a module.
   pub fn set_host_initialize_import_meta_object_callback(
     &mut self,
-    callback: HostInitializeImportMetaObjectCallback,
+    callback: impl_host_initialize_import_meta_object_callback!(),
   ) {
     unsafe {
-      v8__Isolate__SetHostInitializeImportMetaObjectCallback(self, callback)
+      v8__Isolate__SetHostInitializeImportMetaObjectCallback(
+        self,
+        callback.into(),
+      )
     }
   }
 
@@ -421,10 +382,10 @@ impl Isolate {
   /// import() language feature to load modules.
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: impl_host_import_module_dynamically_callback!(),
   ) {
     unsafe {
-      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
+      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback.into())
     }
   }
 
@@ -434,10 +395,16 @@ impl Isolate {
   #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
   pub fn add_near_heap_limit_callback(
     &mut self,
-    callback: NearHeapLimitCallback,
-    data: *mut c_void,
+    callback: impl_near_heap_limit_callback!(),
+    data: *mut (),
   ) {
-    unsafe { v8__Isolate__AddNearHeapLimitCallback(self, callback, data) };
+    unsafe {
+      v8__Isolate__AddNearHeapLimitCallback(
+        self,
+        callback.into(),
+        data as *mut c_void,
+      )
+    };
   }
 
   /// Remove the given callback and restore the heap limit to the given limit.
@@ -446,11 +413,15 @@ impl Isolate {
   /// minimal limit that is possible for the current heap size.
   pub fn remove_near_heap_limit_callback(
     &mut self,
-    callback: NearHeapLimitCallback,
+    callback: impl_near_heap_limit_callback!(),
     heap_limit: usize,
   ) {
     unsafe {
-      v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
+      v8__Isolate__RemoveNearHeapLimitCallback(
+        self,
+        callback.into(),
+        heap_limit,
+      )
     };
   }
 
@@ -663,14 +634,20 @@ impl IsolateHandle {
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
   pub fn request_interrupt(
     &self,
-    callback: InterruptCallback,
-    data: *mut c_void,
+    callback: impl_interrupt_callback!(),
+    data: *mut (),
   ) -> bool {
     let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
       false
     } else {
-      unsafe { v8__Isolate__RequestInterrupt(self.0.isolate, callback, data) };
+      unsafe {
+        v8__Isolate__RequestInterrupt(
+          self.0.isolate,
+          callback.into(),
+          data as *mut _,
+        )
+      };
       true
     }
   }

@@ -17,6 +17,7 @@ use crate::ArrayBuffer;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::RawBackingStoreDeleterCallback;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
@@ -40,7 +41,7 @@ extern "C" {
   fn v8__ArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
     byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
+    deleter: RawBackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 
@@ -140,21 +141,6 @@ impl Drop for Allocator {
   fn drop(&mut self) {
     unsafe { v8__ArrayBuffer__Allocator__DELETE(self) };
   }
-}
-
-pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
-  data: *mut c_void,
-  byte_length: usize,
-  deleter_data: *mut c_void,
-);
-
-pub unsafe extern "C" fn backing_store_deleter_callback(
-  data: *mut c_void,
-  _byte_length: usize,
-  _deleter_data: *mut c_void,
-) {
-  let b = Box::from_raw(data);
-  drop(b)
 }
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
@@ -307,13 +293,15 @@ impl ArrayBuffer {
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    let byte_length = data.len();
-    let data_ptr = Box::into_raw(data) as *mut c_void;
+    let data = Box::leak(data);
+    let deleter = |data: &mut [u8], _| unsafe {
+      Box::from_raw(data);
+    };
     unsafe {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        backing_store_deleter_callback,
+        data.as_mut_ptr() as *mut c_void,
+        data.len(),
+        deleter.into(),
         null_mut(),
       ))
     }

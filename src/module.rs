@@ -1,129 +1,19 @@
 use std::convert::TryInto;
 use std::mem::MaybeUninit;
-use std::ptr::null;
 
+use crate::callback::RawModuleResolveCallback;
+use crate::impl_module_resolve_callback;
+use crate::impl_synthetic_module_evaluation_steps;
 use crate::support::int;
-use crate::support::MapFnFrom;
-use crate::support::MapFnTo;
 use crate::support::MaybeBool;
-use crate::support::ToCFn;
-use crate::support::UnitType;
 use crate::Context;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Module;
+use crate::RawSyntheticModuleEvaluationSteps;
 use crate::String;
 use crate::Value;
-
-/// Called during Module::instantiate_module. Provided with arguments:
-/// (context, specifier, referrer). Return None on error.
-///
-/// Note: this callback has an unusual signature due to ABI incompatibilities
-/// between Rust and C++. However end users can implement the callback as
-/// follows; it'll be automatically converted.
-///
-/// ```rust,ignore
-///   fn my_resolve_callback<'a>(
-///      context: v8::Local<'a, v8::Context>,
-///      specifier: v8::Local<'a, v8::String>,
-///      referrer: v8::Local<'a, v8::Module>,
-///   ) -> Option<v8::Local<'a, v8::Module>> {
-///      // ...
-///      Some(resolved_module)
-///   }
-/// ```
-
-// System V AMD64 ABI: Local<Module> returned in a register.
-#[cfg(not(target_os = "windows"))]
-pub type ResolveCallback<'a> = extern "C" fn(
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, Module>,
-) -> *const Module;
-
-// Windows x64 ABI: Local<Module> returned on the stack.
-#[cfg(target_os = "windows")]
-pub type ResolveCallback<'a> = extern "C" fn(
-  *mut *const Module,
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, Module>,
-) -> *mut *const Module;
-
-impl<'a, F> MapFnFrom<F> for ResolveCallback<'a>
-where
-  F: UnitType
-    + Fn(
-      Local<'a, Context>,
-      Local<'a, String>,
-      Local<'a, Module>,
-    ) -> Option<Local<'a, Module>>,
-{
-  #[cfg(not(target_os = "windows"))]
-  fn mapping() -> Self {
-    let f = |context, specifier, referrer| {
-      (F::get())(context, specifier, referrer)
-        .map(|r| -> *const Module { &*r })
-        .unwrap_or(null())
-    };
-    f.to_c_fn()
-  }
-
-  #[cfg(target_os = "windows")]
-  fn mapping() -> Self {
-    let f = |ret_ptr, context, specifier, referrer| {
-      let r = (F::get())(context, specifier, referrer)
-        .map(|r| -> *const Module { &*r })
-        .unwrap_or(null());
-      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
-      ret_ptr // Return stack pointer to the return value.
-    };
-    f.to_c_fn()
-  }
-}
-
-// System V AMD64 ABI: Local<Value> returned in a register.
-#[cfg(not(target_os = "windows"))]
-pub type SyntheticModuleEvaluationSteps<'a> =
-  extern "C" fn(Local<'a, Context>, Local<'a, Module>) -> *const Value;
-
-// Windows x64 ABI: Local<Value> returned on the stack.
-#[cfg(target_os = "windows")]
-pub type SyntheticModuleEvaluationSteps<'a> =
-  extern "C" fn(
-    *mut *const Value,
-    Local<'a, Context>,
-    Local<'a, Module>,
-  ) -> *mut *const Value;
-
-impl<'a, F> MapFnFrom<F> for SyntheticModuleEvaluationSteps<'a>
-where
-  F: UnitType
-    + Fn(Local<'a, Context>, Local<'a, Module>) -> Option<Local<'a, Value>>,
-{
-  #[cfg(not(target_os = "windows"))]
-  fn mapping() -> Self {
-    let f = |context, module| {
-      (F::get())(context, module)
-        .map(|r| -> *const Value { &*r })
-        .unwrap_or(null())
-    };
-    f.to_c_fn()
-  }
-
-  #[cfg(target_os = "windows")]
-  fn mapping() -> Self {
-    let f = |ret_ptr, context, module| {
-      let r = (F::get())(context, module)
-        .map(|r| -> *const Value { &*r })
-        .unwrap_or(null());
-      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
-      ret_ptr // Return stack pointer to the return value.
-    };
-    f.to_c_fn()
-  }
-}
 
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
@@ -141,7 +31,7 @@ extern "C" {
   fn v8__Module__InstantiateModule(
     this: *const Module,
     context: *const Context,
-    cb: ResolveCallback,
+    cb: RawModuleResolveCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *const Module,
@@ -154,7 +44,7 @@ extern "C" {
     module_name: *const String,
     export_names_len: usize,
     export_names_raw: *const *const String,
-    evaluation_steps: SyntheticModuleEvaluationSteps,
+    evaluation_steps: RawSyntheticModuleEvaluationSteps,
   ) -> *const Module;
   fn v8__Module__SetSyntheticModuleExport(
     this: *const Module,
@@ -263,16 +153,16 @@ impl Module {
   /// instantiation. (In the case where the callback throws an exception, that
   /// exception is propagated.)
   #[must_use]
-  pub fn instantiate_module<'a>(
+  pub fn instantiate_module(
     &self,
     scope: &mut HandleScope,
-    callback: impl MapFnTo<ResolveCallback<'a>>,
+    callback: impl_module_resolve_callback!(),
   ) -> Option<bool> {
     unsafe {
       v8__Module__InstantiateModule(
         self,
         &*scope.get_current_context(),
-        callback.map_fn_to(),
+        callback.into(),
       )
     }
     .into()
@@ -314,7 +204,7 @@ impl Module {
     scope: &mut HandleScope<'s>,
     module_name: Local<String>,
     export_names: &[Local<String>],
-    evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
+    evaluation_steps: impl_synthetic_module_evaluation_steps!(),
   ) -> Local<'s, Module> {
     let export_names = Local::slice_into_raw(export_names);
     let export_names_len = export_names.len();
@@ -327,7 +217,7 @@ impl Module {
             &*module_name,
             export_names_len,
             export_names,
-            evaluation_steps.map_fn_to(),
+            evaluation_steps.into(),
           )
         })
         .unwrap()
@@ -336,9 +226,9 @@ impl Module {
 
   /// Set this module's exported value for the name export_name to the specified
   /// export_value. This method must be called only on Modules created via
-  /// create_synthetic_module.  An error will be thrown if export_name is not one
-  /// of the export_names that were passed in that create_synthetic_module call.
-  /// Returns Some(true) on success, None if an error was thrown.
+  /// create_synthetic_module.  An error will be thrown if export_name is not
+  /// one of the export_names that were passed in that create_synthetic_module
+  /// call. Returns Some(true) on success, None if an error was thrown.
   #[must_use]
   pub fn set_synthetic_module_export(
     &self,

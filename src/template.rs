@@ -3,15 +3,15 @@ use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
+use crate::impl_function_callback;
 use crate::isolate::Isolate;
-use crate::support::MapFnTo;
 use crate::Context;
 use crate::Function;
-use crate::FunctionCallback;
 use crate::HandleScope;
 use crate::Local;
 use crate::Object;
 use crate::PropertyAttribute;
+use crate::RawFunctionCallback;
 use crate::String;
 use crate::NONE;
 
@@ -25,7 +25,7 @@ extern "C" {
 
   fn v8__FunctionTemplate__New(
     isolate: *mut Isolate,
-    callback: FunctionCallback,
+    callback: RawFunctionCallback,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -68,11 +68,11 @@ impl FunctionTemplate {
   /// Creates a function template.
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
-    callback: impl MapFnTo<FunctionCallback>,
+    callback: impl_function_callback!(),
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__FunctionTemplate__New(sd.get_isolate_ptr(), callback.map_fn_to())
+        v8__FunctionTemplate__New(sd.get_isolate_ptr(), callback.into())
       })
     }
     .unwrap()
