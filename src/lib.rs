@@ -35,6 +35,7 @@ extern crate libc;
 
 mod array_buffer;
 mod array_buffer_view;
+mod callback;
 mod context;
 mod data;
 mod date;
@@ -74,7 +75,9 @@ pub mod script_compiler;
 #[allow(non_snake_case)]
 pub mod V8;
 
+pub use crate::NearHeapLimitCallback;
 pub use array_buffer::*;
+pub use callback::*;
 pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReference;
@@ -84,15 +87,10 @@ pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;
 pub use isolate::HeapStatistics;
-pub use isolate::HostImportModuleDynamicallyCallback;
-pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
-pub use isolate::MessageCallback;
 pub use isolate::MicrotasksPolicy;
-pub use isolate::NearHeapLimitCallback;
 pub use isolate::OwnedIsolate;
-pub use isolate::PromiseRejectCallback;
 pub use isolate_create_params::CreateParams;
 pub use module::*;
 pub use object::*;
@@ -121,6 +119,3 @@ pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;
 pub use template::*;
-
-// TODO(piscisaureus): Ideally this trait would not be exported.
-pub use support::MapFnTo;

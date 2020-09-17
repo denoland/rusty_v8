@@ -22,7 +22,8 @@ fn set_entropy_source() {
   v8::V8::initialize_platform(v8::new_default_platform().unwrap());
   v8::V8::initialize();
 
-  // Assumes that every isolate creates a PRNG from scratch, which is currently true.
+  // Assumes that every isolate creates a PRNG from scratch, which is currently
+  // true.
   let mut results = vec![];
   for _ in 0..N {
     let isolate = &mut v8::Isolate::new(Default::default());

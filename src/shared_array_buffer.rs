@@ -3,14 +3,13 @@
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
-use crate::array_buffer::backing_store_deleter_callback;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::BackingStore;
-use crate::BackingStoreDeleterCallback;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::RawBackingStoreDeleterCallback;
 use crate::SharedArrayBuffer;
 
 extern "C" {
@@ -34,7 +33,7 @@ extern "C" {
   fn v8__SharedArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
     byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
+    deleter: RawBackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 }
@@ -117,13 +116,15 @@ impl SharedArrayBuffer {
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    let byte_length = data.len();
-    let data_ptr = Box::into_raw(data) as *mut c_void;
+    let data = Box::leak(data);
+    let deleter = |data: &mut [u8], _| unsafe {
+      Box::from_raw(data);
+    };
     unsafe {
       UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        backing_store_deleter_callback,
+        data.as_mut_ptr() as *mut c_void,
+        data.len(),
+        deleter.into(),
         null_mut(),
       ))
     }
