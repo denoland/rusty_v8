@@ -211,7 +211,7 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
     eprint!(" ");
   }
 
-  for _ in 0..end_column {
+  for _ in start_column..end_column {
     eprint!("^");
   }
 
