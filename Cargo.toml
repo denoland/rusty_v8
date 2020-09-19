@@ -63,3 +63,6 @@ trybuild = "1.0.33"
 
 [[example]]
 name = "hello_world"
+
+[[example]]
+name = "shell"
