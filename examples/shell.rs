@@ -22,18 +22,18 @@ fn main() {
   let args = v8::V8::set_flags_from_command_line(args);
 
   let mut run_shell_flag = args.len() == 1;
-  let isolate = &mut v8::Isolate::new(Default::default());
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
   let handle_scope = &mut v8::HandleScope::new(isolate);
 
   let context = v8::Context::new(handle_scope);
 
   let context_scope = &mut v8::ContextScope::new(handle_scope, context);
-  let handle_scope = &mut v8::HandleScope::new(context_scope);
+  let scope = &mut v8::HandleScope::new(context_scope);
 
-  run_main(handle_scope, &*args, &mut run_shell_flag);
+  run_main(scope, &*args, &mut run_shell_flag);
 
   if run_shell_flag {
-    run_shell(handle_scope);
+    run_shell(scope);
   }
 }
 
@@ -147,24 +147,21 @@ fn execute_string(
     return;
   };
 
-  match script.run(&mut handle_scope) {
-    Some(result) => {
-      if print_result {
-        println!(
-          "{}",
-          result
-            .to_string(&mut handle_scope)
-            .unwrap()
-            .to_rust_string_lossy(&mut handle_scope)
-        );
-      }
+  if let Some(result) = script.run(&mut handle_scope) {
+    if print_result {
+      println!(
+        "{}",
+        result
+          .to_string(&mut handle_scope)
+          .unwrap()
+          .to_rust_string_lossy(&mut handle_scope)
+      );
     }
-    None => {
-      drop(handle_scope);
-      assert!(try_catch.has_caught());
-      if report_exceptions_flag {
-        report_exceptions(try_catch);
-      }
+  } else {
+    drop(handle_scope);
+    assert!(try_catch.has_caught());
+    if report_exceptions_flag {
+      report_exceptions(try_catch);
     }
   }
 }
@@ -185,12 +182,14 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
   // Print (filename):(line number): (message).
   let filename = message
     .get_script_resource_name(&mut try_catch)
-    .map(|s| {
-      s.to_string(&mut try_catch)
-        .unwrap()
-        .to_rust_string_lossy(&mut try_catch)
-    })
-    .unwrap_or_else(|| "(unknown)".into());
+    .map_or_else(
+      || "(unknown)".into(),
+      |s| {
+        s.to_string(&mut try_catch)
+          .unwrap()
+          .to_rust_string_lossy(&mut try_catch)
+      },
+    );
   let line_number = message.get_line_number(&mut try_catch).unwrap_or_default();
 
   eprintln!("{}:{}: {}", filename, line_number, exception_string);

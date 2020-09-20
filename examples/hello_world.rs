@@ -12,7 +12,7 @@ fn main() {
   v8::V8::initialize();
 
   // Create a new Isolate and make it the current one.
-  let isolate = &mut v8::Isolate::new(Default::default());
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
   // Create a stack-allocated handle scope.
   let handle_scope = &mut v8::HandleScope::new(isolate);
@@ -44,7 +44,7 @@ fn main() {
   //       get_local 1
   //       i32.add)
   //
-  let csource = r#"
+  let c_source = r#"
         let bytes = new Uint8Array([
           0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01,
           0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f, 0x03, 0x02, 0x01, 0x00, 0x07,
@@ -56,7 +56,7 @@ fn main() {
         instance.exports.add(3, 4);
       "#;
   // Create a string containing the JavaScript source code.
-  let source = v8::String::new(scope, csource).unwrap();
+  let source = v8::String::new(scope, c_source).unwrap();
 
   // Compile the source code.
   let script = v8::Script::compile(scope, source, None).unwrap();
@@ -64,7 +64,7 @@ fn main() {
   // Run the script to get the result.
   let result = script.run(scope).unwrap();
 
-  // Convert the result to a uint32 and print it.
+  // Print the result.
   let result = result.to_uint32(scope).unwrap();
-  println!("3 + 4 = {}", result.value() as u32);
+  println!("3 + 4 = {}", result.value());
 }

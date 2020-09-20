@@ -6,6 +6,7 @@
 use rusty_v8 as v8;
 use std::collections::HashMap;
 
+#[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
   scope: &mut v8::HandleScope,
   arg: v8::FunctionCallbackArguments,
@@ -34,7 +35,7 @@ fn main() {
     panic!("no script was specified");
   }
 
-  let mut isolate = v8::Isolate::new(Default::default());
+  let mut isolate = v8::Isolate::new(v8::CreateParams::default());
   let mut scope = v8::HandleScope::new(&mut isolate);
 
   let source = std::fs::read_to_string(&file)
@@ -66,15 +67,12 @@ fn parse_args() -> (HashMap<String, String>, String) {
   let mut file = String::new();
 
   for arg in &args {
-    match arg.find('=') {
-      Some(pos) => {
-        let (key, value) = arg.split_at(pos);
-        let value = &value[1..];
-        options.insert(key.into(), value.into());
-      }
-      None => {
-        file = arg.into();
-      }
+    if let Some(pos) = arg.find('=') {
+      let (key, value) = arg.split_at(pos);
+      let value = &value[1..];
+      options.insert(key.into(), value.into());
+    } else {
+      file = arg.into();
     }
   }
 
@@ -98,7 +96,7 @@ struct StringHttpRequest {
 }
 
 impl StringHttpRequest {
-  /// Creates a StringHttpRequest.
+  /// Creates a `StringHttpRequest`.
   pub fn new(
     path: impl Into<String>,
     referrer: impl Into<String>,
@@ -288,7 +286,8 @@ where
     result
   }
 
-  /// This handles the properties of HttpRequest
+  /// This handles the properties of `HttpRequest`
+  #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
   fn request_prop_handler(
     scope: &mut v8::HandleScope,
     key: v8::Local<v8::Name>,
@@ -367,7 +366,7 @@ where
 
       let key = key.to_string(scope).unwrap().to_rust_string_lossy(scope);
       let value = value.to_string(scope).unwrap().to_rust_string_lossy(scope);
-      
+
       println!("{}: {}", key, value);
     }
   }
