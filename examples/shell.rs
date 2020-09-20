@@ -1,10 +1,14 @@
-/// Rust version of `v8/samples/shell.cc`.
-///
-/// This sample program shows how to implement a simple javascript shell
-/// based on V8.  This includes initializing V8 with command line options,
-/// creating global functions, compiling and executing strings.
-///
-/// For a more sophisticated shell, consider using the debug shell D8.
+//! Rust version of `v8/samples/shell.cc`.
+//!
+//! This sample program shows how to implement a simple javascript shell
+//! based on V8.  This includes initializing V8 with command line options,
+//! creating global functions, compiling and executing strings.
+//!
+//! For a more sophisticated shell, consider using the debug shell D8.
+
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+
 use rusty_v8 as v8;
 
 fn main() {
@@ -225,11 +229,8 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
   let stack_trace = unsafe { v8::Local::<v8::String>::cast(stack_trace) };
   let stack_trace = stack_trace
     .to_string(&mut try_catch)
-    .and_then(|s| {
-      Some(s
-        .to_rust_string_lossy(&mut try_catch))
-    });
-  
+    .map(|s| s.to_rust_string_lossy(&mut try_catch));
+
   if let Some(stack_trace) = stack_trace {
     eprintln!("{}", stack_trace);
   }
