@@ -21,7 +21,6 @@ fn main() {
   let isolate = &mut v8::Isolate::new(Default::default());
   let handle_scope = &mut v8::HandleScope::new(isolate);
 
-  // TODO: check if the context is empty
   let context = v8::Context::new(handle_scope);
 
   let context_scope = &mut v8::ContextScope::new(handle_scope, context);
@@ -87,7 +86,7 @@ fn run_main(
         let script: &str = &args[i + 1];
         skip_next = true;
 
-        // TODO: pump event loop
+        // TODO: pump event loop (not implemented on rusty_v8?)
         // while v8::Platform::pump_message_loop(&platform, isolate) {
         //   // do nothing
         // }
@@ -217,5 +216,21 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
 
   eprintln!();
 
-  // TODO: print stacktrace
+  // Print stack trace
+  let stack_trace = if let Some(stack_trace) = try_catch.stack_trace() {
+    stack_trace
+  } else {
+    return;
+  };
+  let stack_trace = unsafe { v8::Local::<v8::String>::cast(stack_trace) };
+  let stack_trace = stack_trace
+    .to_string(&mut try_catch)
+    .and_then(|s| {
+      Some(s
+        .to_rust_string_lossy(&mut try_catch))
+    });
+  
+  if let Some(stack_trace) = stack_trace {
+    eprintln!("{}", stack_trace);
+  }
 }
