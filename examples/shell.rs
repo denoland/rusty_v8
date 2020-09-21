@@ -86,7 +86,7 @@ fn run_main(
         // alone JavaScript engines.
       }
       "-e" => {
-        // Exectute script.
+        // Execute script.
         let script: &str = &args[i + 1];
         skip_next = true;
 

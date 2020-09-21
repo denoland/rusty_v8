@@ -9,10 +9,10 @@ use std::collections::HashMap;
 #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
   scope: &mut v8::HandleScope,
-  arg: v8::FunctionCallbackArguments,
+  args: v8::FunctionCallbackArguments,
   mut retval: v8::ReturnValue,
 ) {
-  let message = arg
+  let message = args
     .get(0)
     .to_string(scope)
     .unwrap()
@@ -196,7 +196,7 @@ where
       .get(&mut self_.context_scope, process_str.into())
       .expect("missing function Process");
 
-    let process_fn = unsafe { v8::Local::<'_, v8::Function>::cast(process_fn) };
+    let process_fn = v8::Local::<v8::Function>::try_from(process_fn).expect("function expected");
     self_.process_fn = Some(process_fn);
 
     self_
