@@ -195,7 +195,8 @@ where
       .get(&mut self_.context_scope, process_str.into())
       .expect("missing function Process");
 
-    let process_fn = v8::Local::<v8::Function>::try_from(process_fn).expect("function expected");
+    let process_fn = v8::Local::<v8::Function>::try_from(process_fn)
+      .expect("function expected");
     self_.process_fn = Some(process_fn);
 
     self_
