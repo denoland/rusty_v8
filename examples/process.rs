@@ -5,12 +5,13 @@
 
 use rusty_v8 as v8;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
-  mut retval: v8::ReturnValue,
+  mut _retval: v8::ReturnValue,
 ) {
   let message = args
     .get(0)
@@ -19,8 +20,6 @@ fn log_callback(
     .to_rust_string_lossy(scope);
 
   println!("Logged: {}", message);
-
-  retval.set(v8::undefined(scope).into());
 }
 
 fn main() {
