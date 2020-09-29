@@ -106,51 +106,48 @@ fn execute_string(
   print_result: bool,
   report_exceptions_flag: bool,
 ) {
-  let mut try_catch = v8::TryCatch::new(scope);
-  let mut handle_scope = v8::HandleScope::new(&mut try_catch);
+  let mut scope = v8::TryCatch::new(scope);
 
-  let script = v8::String::new(&mut handle_scope, script).unwrap();
+  let script = v8::String::new(&mut scope, script).unwrap();
   let origin = v8::ScriptOrigin::new(
-    v8::String::new(&mut handle_scope, filename).unwrap().into(),
-    v8::Integer::new(&mut handle_scope, 0),
-    v8::Integer::new(&mut handle_scope, 0),
-    v8::Boolean::new(&mut handle_scope, false),
-    v8::Integer::new(&mut handle_scope, 0),
-    v8::undefined(&mut handle_scope).into(),
-    v8::Boolean::new(&mut handle_scope, false),
-    v8::Boolean::new(&mut handle_scope, false),
-    v8::Boolean::new(&mut handle_scope, false),
+    v8::String::new(&mut scope, filename).unwrap().into(),
+    v8::Integer::new(&mut scope, 0),
+    v8::Integer::new(&mut scope, 0),
+    v8::Boolean::new(&mut scope, false),
+    v8::Integer::new(&mut scope, 0),
+    v8::undefined(&mut scope).into(),
+    v8::Boolean::new(&mut scope, false),
+    v8::Boolean::new(&mut scope, false),
+    v8::Boolean::new(&mut scope, false),
   );
 
   let script = if let Some(script) =
-    v8::Script::compile(&mut handle_scope, script, Some(&origin))
+    v8::Script::compile(&mut scope, script, Some(&origin))
   {
     script
   } else {
-    drop(handle_scope);
-    assert!(try_catch.has_caught());
+    assert!(scope.has_caught());
 
     if report_exceptions_flag {
-      report_exceptions(try_catch);
+      report_exceptions(scope);
     }
     return;
   };
 
-  if let Some(result) = script.run(&mut handle_scope) {
+  if let Some(result) = script.run(&mut scope) {
     if print_result {
       println!(
         "{}",
         result
-          .to_string(&mut handle_scope)
+          .to_string(&mut scope)
           .unwrap()
-          .to_rust_string_lossy(&mut handle_scope)
+          .to_rust_string_lossy(&mut scope)
       );
     }
   } else {
-    drop(handle_scope);
-    assert!(try_catch.has_caught());
+    assert!(scope.has_caught());
     if report_exceptions_flag {
-      report_exceptions(try_catch);
+      report_exceptions(scope);
     }
   }
 }
