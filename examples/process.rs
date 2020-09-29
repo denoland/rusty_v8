@@ -1,8 +1,3 @@
-//! Rust version of `v8/sample/process.rs`
-
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-
 use rusty_v8 as v8;
 use std::collections::HashMap;
 use std::convert::TryFrom;

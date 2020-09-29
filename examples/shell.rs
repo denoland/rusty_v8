@@ -1,14 +1,3 @@
-//! Rust version of `v8/samples/shell.cc`.
-//!
-//! This sample program shows how to implement a simple javascript shell
-//! based on V8.  This includes initializing V8 with command line options,
-//! creating global functions, compiling and executing strings.
-//!
-//! For a more sophisticated shell, consider using the debug shell D8.
-
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-
 use rusty_v8 as v8;
 
 fn main() {

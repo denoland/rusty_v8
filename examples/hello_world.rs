@@ -1,8 +1,3 @@
-//! Rust version of `v8/samples/hello-world.cc`.
-
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-
 use rusty_v8 as v8;
 
 fn main() {
