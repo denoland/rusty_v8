@@ -52,7 +52,8 @@ impl Symbol {
   /// Also, there is only one global description space for the descriptions used as
   /// keys.
   /// To minimize the potential for clashes, use qualified descriptions as keys.
-  pub fn r#for<'s>(
+  /// Corresponds to v8::Symbol::For() in C++.
+  pub fn for_global<'s>(
     scope: &mut HandleScope<'s>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {

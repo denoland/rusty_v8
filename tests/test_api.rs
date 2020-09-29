@@ -3667,11 +3667,11 @@ fn symbol() {
   let s = v8::Symbol::new(scope, Some(desc));
   assert!(s.description(scope) == desc);
 
-  let s_pub = v8::Symbol::r#for(scope, desc);
+  let s_pub = v8::Symbol::for_global(scope, desc);
   assert!(s_pub.description(scope) == desc);
   assert!(s_pub != s);
 
-  let s_pub2 = v8::Symbol::r#for(scope, desc);
+  let s_pub2 = v8::Symbol::for_global(scope, desc);
   assert!(s_pub2 != s);
   assert!(s_pub == s_pub2);
 
