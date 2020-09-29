@@ -4,6 +4,7 @@ use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::isolate::Isolate;
+use crate::support::int;
 use crate::support::MapFnTo;
 use crate::Context;
 use crate::Function;
@@ -14,6 +15,7 @@ use crate::Object;
 use crate::PropertyAttribute;
 use crate::String;
 use crate::NONE;
+use std::convert::TryFrom;
 
 extern "C" {
   fn v8__Template__Set(
@@ -44,6 +46,12 @@ extern "C" {
     this: *const ObjectTemplate,
     context: *const Context,
   ) -> *const Object;
+  fn v8__ObjectTemplate__InternalFieldCount(this: *const ObjectTemplate)
+    -> int;
+  fn v8__ObjectTemplate__SetInternalFieldCount(
+    this: *const ObjectTemplate,
+    value: int,
+  );
 }
 
 impl Template {
@@ -130,6 +138,27 @@ impl ObjectTemplate {
       scope.cast_local(|sd| {
         v8__ObjectTemplate__NewInstance(self, sd.get_current_context())
       })
+    }
+  }
+
+  /// Gets the number of internal fields for objects generated from
+  /// this template.
+  pub fn internal_field_count(&self) -> usize {
+    let count = unsafe { v8__ObjectTemplate__InternalFieldCount(self) };
+    usize::try_from(count).expect("bad internal field count") // Can't happen.
+  }
+
+  /// Sets the number of internal fields for objects generated from
+  /// this template.
+  pub fn set_internal_field_count(&self, value: usize) -> bool {
+    // The C++ API takes an i32 but trying to set a value < 0
+    // results in unpredictable behavior, hence we disallow it.
+    match int::try_from(value) {
+      Err(_) => false,
+      Ok(value) => {
+        unsafe { v8__ObjectTemplate__SetInternalFieldCount(self, value) };
+        true
+      }
     }
   }
 }

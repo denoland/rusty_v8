@@ -733,6 +733,15 @@ const v8::Object* v8__ObjectTemplate__NewInstance(
       ptr_to_local(&self)->NewInstance(ptr_to_local(&context)));
 }
 
+int v8__ObjectTemplate__InternalFieldCount(const v8::ObjectTemplate& self) {
+  return ptr_to_local(&self)->InternalFieldCount();
+}
+
+void v8__ObjectTemplate__SetInternalFieldCount(
+    const v8::ObjectTemplate& self, int value) {
+  ptr_to_local(&self)->SetInternalFieldCount(value);
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
@@ -864,6 +873,20 @@ MaybeBool v8__Object__DeleteIndex(const v8::Object& self,
                                   const v8::Context& context, uint32_t index) {
   return maybe_to_maybe_bool(
       ptr_to_local(&self)->Delete(ptr_to_local(&context), index));
+}
+
+int v8__Object__InternalFieldCount(const v8::Object& self) {
+  return ptr_to_local(&self)->InternalFieldCount();
+}
+
+const v8::Value* v8__Object__GetInternalField(const v8::Object& self,
+                                              int index) {
+  return local_to_ptr(ptr_to_local(&self)->GetInternalField(index));
+}
+
+void v8__Object__SetInternalField(const v8::Object& self, int index,
+                                  const v8::Value&  value) {
+  ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
 }
 
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
