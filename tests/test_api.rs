@@ -1133,6 +1133,25 @@ fn json() {
 }
 
 #[test]
+fn no_internal_field() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let object = v8::Object::new(scope);
+    let value = v8::Integer::new(scope, 42).into();
+    assert_eq!(0, object.internal_field_count());
+    for index in &[0, 1, 1337] {
+      assert!(object.get_internal_field(scope, *index).is_none());
+      assert_eq!(false, object.set_internal_field(*index, value));
+      assert!(object.get_internal_field(scope, *index).is_none());
+    }
+  }
+}
+
+#[test]
 fn object_template() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1142,11 +1161,23 @@ fn object_template() {
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8::String::new(scope, "f").unwrap();
     let attr = v8::READ_ONLY + v8::DONT_ENUM + v8::DONT_DELETE;
+    object_templ.set_internal_field_count(1);
     object_templ.set_with_attr(name.into(), function_templ.into(), attr);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
+
     let object = object_templ.new_instance(scope).unwrap();
     assert!(!object.is_null_or_undefined());
+    assert_eq!(1, object.internal_field_count());
+
+    let value = object.get_internal_field(scope, 0).unwrap();
+    assert!(value.is_undefined());
+
+    let fortytwo = v8::Integer::new(scope, 42).into();
+    assert_eq!(true, object.set_internal_field(0, fortytwo));
+    let value = object.get_internal_field(scope, 0).unwrap();
+    assert!(value.same_value(fortytwo));
+
     let name = v8::String::new(scope, "g").unwrap();
     context.global(scope).define_own_property(
       scope,
@@ -1189,6 +1220,7 @@ fn object_template_from_function_template() {
     function_templ.set_class_name(expected_class_name);
     let object_templ =
       v8::ObjectTemplate::new_from_template(scope, function_templ);
+    assert_eq!(0, object_templ.internal_field_count());
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let object = object_templ.new_instance(scope).unwrap();
