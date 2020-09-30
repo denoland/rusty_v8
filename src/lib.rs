@@ -35,6 +35,7 @@ extern crate libc;
 
 mod array_buffer;
 mod array_buffer_view;
+mod bigint;
 mod context;
 mod data;
 mod date;
@@ -52,6 +53,7 @@ mod object;
 mod platform;
 mod primitive_array;
 mod primitives;
+mod private;
 mod promise;
 mod property_attribute;
 mod proxy;
@@ -62,6 +64,7 @@ mod shared_array_buffer;
 mod snapshot;
 mod string;
 mod support;
+mod symbol;
 mod template;
 mod uint8_array;
 mod value;
@@ -75,6 +78,7 @@ pub mod script_compiler;
 pub mod V8;
 
 pub use array_buffer::*;
+pub use bigint::*;
 pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReference;
@@ -103,6 +107,7 @@ pub use platform::Task;
 pub use platform::TaskBase;
 pub use platform::TaskImpl;
 pub use primitives::*;
+pub use private::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
 pub use property_attribute::*;
 pub use proxy::*;
@@ -120,6 +125,7 @@ pub use support::SharedPtr;
 pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;
+pub use symbol::*;
 pub use template::*;
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
