@@ -156,7 +156,8 @@ where
     request_template.set_internal_field_count(1);
 
     // make it global
-    let request_template = v8::Global::new(&mut context_scope, request_template);
+    let request_template =
+      v8::Global::new(&mut context_scope, request_template);
 
     let mut self_ = JsHttpRequestProcessor {
       context,
