@@ -261,11 +261,8 @@ where
     // Local scope for temporary handles.
     let scope = &mut self.context_scope;
 
-    let result = self
-      .request_template
-      .new_instance(scope)
-      .unwrap();
-    
+    let result = self.request_template.new_instance(scope).unwrap();
+
     let external = v8::External::new(
       scope,
       Box::leak(request) as *mut Box<dyn HttpRequest> as *mut c_void,
