@@ -129,8 +129,8 @@ struct JsHttpRequestProcessor<'s, 'i> {
   context: v8::Local<'s, v8::Context>,
   context_scope: v8::ContextScope<'i, v8::HandleScope<'s>>,
   process_fn: Option<v8::Local<'s, v8::Function>>,
-  request_template: v8::Local<'s, v8::ObjectTemplate>,
-  _map_template: Option<v8::Local<'s, v8::ObjectTemplate>>,
+  request_template: v8::Global<v8::ObjectTemplate>,
+  _map_template: Option<v8::Global<v8::ObjectTemplate>>,
 }
 
 impl<'s, 'i> JsHttpRequestProcessor<'s, 'i>
@@ -154,6 +154,9 @@ where
 
     let request_template = v8::ObjectTemplate::new(&mut context_scope);
     request_template.set_internal_field_count(1);
+
+    // make it global
+    let request_template = v8::Global::new(&mut context_scope, request_template);
 
     let mut self_ = JsHttpRequestProcessor {
       context,
@@ -261,7 +264,8 @@ where
     // Local scope for temporary handles.
     let scope = &mut self.context_scope;
 
-    let result = self.request_template.new_instance(scope).unwrap();
+    let request_template = v8::Local::new(scope, &self.request_template);
+    let result = request_template.new_instance(scope).unwrap();
 
     let external = v8::External::new(
       scope,
