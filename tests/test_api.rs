@@ -2314,6 +2314,36 @@ fn uint8_array() {
 }
 
 #[test]
+fn typed_array_constructors() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let ab = v8::ArrayBuffer::new(scope, 8);
+
+  macro_rules! test {
+    ($name:ident, $check:ident) => {
+      let t = v8::$name::new(scope, ab, 0, 0).unwrap();
+      assert!(t.$check());
+    };
+  }
+
+  test!(Uint8Array, is_uint8_array);
+  test!(Uint8ClampedArray, is_uint8_clamped_array);
+  test!(Int8Array, is_int8_array);
+  test!(Uint16Array, is_uint16_array);
+  test!(Int16Array, is_int16_array);
+  test!(Uint32Array, is_uint32_array);
+  test!(Int32Array, is_int32_array);
+  test!(Float32Array, is_float32_array);
+  test!(Float64Array, is_float64_array);
+  test!(BigUint64Array, is_big_uint64_array);
+  test!(BigInt64Array, is_big_int64_array);
+}
+
+#[test]
 fn dynamic_import() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

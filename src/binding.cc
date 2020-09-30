@@ -788,8 +788,8 @@ int v8__ObjectTemplate__InternalFieldCount(const v8::ObjectTemplate& self) {
   return ptr_to_local(&self)->InternalFieldCount();
 }
 
-void v8__ObjectTemplate__SetInternalFieldCount(
-    const v8::ObjectTemplate& self, int value) {
+void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
+                                               int value) {
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
@@ -936,7 +936,7 @@ const v8::Value* v8__Object__GetInternalField(const v8::Object& self,
 }
 
 void v8__Object__SetInternalField(const v8::Object& self, int index,
-                                  const v8::Value&  value) {
+                                  const v8::Value& value) {
   ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
 }
 
@@ -1395,11 +1395,25 @@ void v8__TryCatch__SetCaptureMessage(v8::TryCatch* self, bool value) {
   self->SetCaptureMessage(value);
 }
 
-const v8::Uint8Array* v8__Uint8Array__New(const v8::ArrayBuffer& buf_ptr,
-                                          size_t byte_offset, size_t length) {
-  return local_to_ptr(
-      v8::Uint8Array::New(ptr_to_local(&buf_ptr), byte_offset, length));
-}
+#define V(NAME)                                                          \
+  const v8::NAME* v8__##NAME##__New(const v8::ArrayBuffer& buf_ptr,      \
+                                    size_t byte_offset, size_t length) { \
+    return local_to_ptr(                                                 \
+        v8::NAME::New(ptr_to_local(&buf_ptr), byte_offset, length));     \
+  }
+
+V(Uint8Array)
+V(Uint8ClampedArray)
+V(Int8Array)
+V(Uint16Array)
+V(Int16Array)
+V(Uint32Array)
+V(Int32Array)
+V(Float32Array)
+V(Float64Array)
+V(BigUint64Array)
+V(BigInt64Array)
+#undef V
 
 const v8::Script* v8__Script__Compile(const v8::Context& context,
                                       const v8::String& source,

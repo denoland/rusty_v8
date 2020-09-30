@@ -66,7 +66,7 @@ mod string;
 mod support;
 mod symbol;
 mod template;
-mod uint8_array;
+mod typed_array;
 mod value;
 
 pub mod inspector;
