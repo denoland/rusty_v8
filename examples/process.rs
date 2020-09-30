@@ -129,7 +129,7 @@ struct JsHttpRequestProcessor<'s, 'i> {
   context: v8::Local<'s, v8::Context>,
   context_scope: v8::ContextScope<'i, v8::HandleScope<'s>>,
   process_fn: Option<v8::Local<'s, v8::Function>>,
-  _request_template: Option<v8::Local<'s, v8::ObjectTemplate>>,
+  request_template: v8::Local<'s, v8::ObjectTemplate>,
   _map_template: Option<v8::Local<'s, v8::ObjectTemplate>>,
 }
 
@@ -150,13 +150,16 @@ where
     );
 
     let context = v8::Context::new_from_template(isolate_scope, global);
-    let context_scope = v8::ContextScope::new(isolate_scope, context);
+    let mut context_scope = v8::ContextScope::new(isolate_scope, context);
+
+    let request_template = v8::ObjectTemplate::new(&mut context_scope);
+    request_template.set_internal_field_count(1);
 
     let mut self_ = JsHttpRequestProcessor {
       context,
       context_scope,
       process_fn: None,
-      _request_template: None,
+      request_template,
       _map_template: None,
     };
 
@@ -248,8 +251,6 @@ where
     &mut self,
     request: Box<dyn HttpRequest>,
   ) -> v8::Local<'s, v8::Object> {
-    // TODO: support ObjectTemplate (SetAccessor is not supported?)
-    // TODO: use internal field (SetInternalField is not supported?)
     // TODO: fix memory leak
 
     use std::ffi::c_void;
@@ -260,14 +261,17 @@ where
     // Local scope for temporary handles.
     let scope = &mut self.context_scope;
 
-    let result = v8::Object::new(scope);
+    let result = self
+      .request_template
+      .new_instance(scope)
+      .unwrap();
+    
     let external = v8::External::new(
       scope,
       Box::leak(request) as *mut Box<dyn HttpRequest> as *mut c_void,
     );
 
-    let key = v8::String::new(scope, "__private__").unwrap().into();
-    result.set(scope, key, external.into());
+    result.set_internal_field(0, external.into());
 
     let name = v8::String::new(scope, "path").unwrap().into();
     result.set_accessor(scope, name, Self::request_prop_handler);
@@ -319,8 +323,7 @@ where
     scope: &mut v8::HandleScope,
     request: v8::Local<'a, v8::Object>,
   ) -> *mut Box<dyn HttpRequest> {
-    let key = v8::String::new(scope, "__private__").unwrap().into();
-    let external = request.get(scope, key).unwrap();
+    let external = request.get_internal_field(scope, 0).unwrap();
     let external = unsafe { v8::Local::<v8::External>::cast(external) };
     external.value() as *mut Box<dyn HttpRequest>
   }
