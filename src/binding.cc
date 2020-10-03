@@ -825,6 +825,10 @@ const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototype());
 }
 
+const v8::Value* v8__Object__GetInternalField(const v8::Object& self, uint32_t index) {
+  return local_to_ptr(ptr_to_local(&self)->GetInternalField(index));
+}
+
 MaybeBool v8__Object__Set(const v8::Object& self, const v8::Context& context,
                           const v8::Value& key, const v8::Value& value) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->Set(
@@ -843,6 +847,12 @@ MaybeBool v8__Object__SetPrototype(const v8::Object& self,
                                    const v8::Value& prototype) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetPrototype(
       ptr_to_local(&context), ptr_to_local(&prototype)));
+}
+
+void v8__Object__SetInternalField(const v8::Object& self,
+                                   uint32_t index,
+                                   const v8::Value& value) {
+  return ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
 }
 
 MaybeBool v8__Object__CreateDataProperty(const v8::Object& self,

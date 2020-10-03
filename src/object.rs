@@ -48,6 +48,7 @@ extern "C" {
     index: u32,
   ) -> *const Value;
   fn v8__Object__GetPrototype(this: *const Object) -> *const Value;
+  fn v8__Object__GetInternalField(this: *const Object, index: u32) -> *const Value;
   fn v8__Object__Set(
     this: *const Object,
     context: *const Context,
@@ -65,6 +66,11 @@ extern "C" {
     context: *const Context,
     prototype: *const Value,
   ) -> MaybeBool;
+  fn v8__Object__SetInternalField(
+    this: *const Object,
+    index: u32,
+    value: *const Value,
+  );
   fn v8__Object__CreateDataProperty(
     this: *const Object,
     context: *const Context,
@@ -206,6 +212,17 @@ impl Object {
     .into()
   }
 
+  /// Set internal field value. Should be used with ObjectTemplate::SetInternalFieldCount.
+  pub fn set_internal_field(
+    &self,
+    index: u32,
+    value: Local<Value>,
+  ) {
+    unsafe {
+      v8__Object__SetInternalField(self, index, &*value)
+    }
+  }
+
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
   ///
   /// Defines a configurable, writable, enumerable property with the given value
@@ -285,6 +302,14 @@ impl Object {
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Object__GetPrototype(self)) }
+  }
+
+  pub fn get_internal_field<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    index: u32
+  ) -> Option<Local<'s, Value>> {
+    unsafe { scope.cast_local(|_| v8__Object__GetInternalField(self, index)) }
   }
 
   /// Note: SideEffectType affects the getter only, not the setter.
