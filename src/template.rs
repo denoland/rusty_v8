@@ -37,6 +37,9 @@ extern "C" {
     this: *const FunctionTemplate,
     name: *const String,
   );
+  fn v8__FunctionTemplate__PrototypeTemplate(
+    this: *const FunctionTemplate
+  ) -> *const ObjectTemplate;
   fn v8__FunctionTemplate__InstanceTemplate(
     this: *const FunctionTemplate
   ) -> *const ObjectTemplate;
@@ -106,6 +109,18 @@ impl FunctionTemplate {
   /// FunctionTemplate as its constructor.
   pub fn set_class_name(&self, name: Local<String>) {
     unsafe { v8__FunctionTemplate__SetClassName(self, &*name) };
+  }
+
+  pub fn prototype_template<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, ObjectTemplate> {
+    unsafe {
+      scope.cast_local(|_| {
+        v8__FunctionTemplate__PrototypeTemplate(self)
+      })
+    }
+    .unwrap()
   }
 
   pub fn instance_template<'s>(
