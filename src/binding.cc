@@ -547,6 +547,11 @@ const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
   return local_to_ptr(self.ToBoolean(isolate));
 }
 
+const v8::External* v8__Value__ToExternal(v8::Value& self,
+                                        v8::Isolate* isolate) {
+  return v8::External::Cast(&self);
+}
+
 void v8__Value__NumberValue(const v8::Value& self, const v8::Context& context,
                             v8::Maybe<double>* out) {
   *out = self.NumberValue(ptr_to_local(&context));

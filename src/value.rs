@@ -2,6 +2,7 @@ use crate::support::Maybe;
 use crate::BigInt;
 use crate::Boolean;
 use crate::Context;
+use crate::External;
 use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
@@ -108,6 +109,10 @@ extern "C" {
     this: *const Value,
     isolate: *mut Isolate,
   ) -> *const Boolean;
+  fn v8__Value__ToExternal(
+    this: *const Value,
+    isolate: *mut Isolate,
+  ) -> *const External;
 
   fn v8__Value__NumberValue(
     this: *const Value,
@@ -536,6 +541,16 @@ impl Value {
   ) -> Local<'s, Boolean> {
     unsafe {
       scope.cast_local(|sd| v8__Value__ToBoolean(self, sd.get_isolate_ptr()))
+    }
+    .unwrap()
+  }
+
+  pub fn to_external<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, External> {
+    unsafe {
+      scope.cast_local(|sd| v8__Value__ToExternal(self, sd.get_isolate_ptr()))
     }
     .unwrap()
   }
