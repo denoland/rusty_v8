@@ -38,10 +38,10 @@ extern "C" {
     name: *const String,
   );
   fn v8__FunctionTemplate__PrototypeTemplate(
-    this: *const FunctionTemplate
+    this: *const FunctionTemplate,
   ) -> *const ObjectTemplate;
   fn v8__FunctionTemplate__InstanceTemplate(
-    this: *const FunctionTemplate
+    this: *const FunctionTemplate,
   ) -> *const ObjectTemplate;
 
   fn v8__ObjectTemplate__New(
@@ -116,9 +116,7 @@ impl FunctionTemplate {
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
-      scope.cast_local(|_| {
-        v8__FunctionTemplate__PrototypeTemplate(self)
-      })
+      scope.cast_local(|_| v8__FunctionTemplate__PrototypeTemplate(self))
     }
     .unwrap()
   }
@@ -128,9 +126,7 @@ impl FunctionTemplate {
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
-      scope.cast_local(|_| {
-        v8__FunctionTemplate__InstanceTemplate(self)
-      })
+      scope.cast_local(|_| v8__FunctionTemplate__InstanceTemplate(self))
     }
     .unwrap()
   }
