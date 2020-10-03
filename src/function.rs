@@ -39,6 +39,9 @@ extern "C" {
   fn v8__FunctionCallbackInfo__This(
     this: *const FunctionCallbackInfo,
   ) -> *const Object;
+  fn v8__FunctionCallbackInfo__Holder(
+    this: *const FunctionCallbackInfo,
+  ) -> *const Object;
   fn v8__FunctionCallbackInfo__Length(this: *const FunctionCallbackInfo)
     -> int;
   fn v8__FunctionCallbackInfo__GetArgument(
@@ -53,6 +56,9 @@ extern "C" {
     this: *const PropertyCallbackInfo,
   ) -> *mut Value;
   fn v8__PropertyCallbackInfo__This(
+    this: *const PropertyCallbackInfo,
+  ) -> *const Object;
+  fn v8__PropertyCallbackInfo__Holder(
     this: *const PropertyCallbackInfo,
   ) -> *const Object;
 
@@ -137,6 +143,13 @@ impl<'s> FunctionCallbackArguments<'s> {
     }
   }
 
+  /// Returns the instance of function template.
+  pub fn holder(&self) -> Local<'s, Object> {
+    unsafe {
+      Local::from_raw(v8__FunctionCallbackInfo__Holder(self.info)).unwrap()
+    }
+  }
+
   /// Returns the data argument specified when creating the callback.
   pub fn data(&self) -> Option<Local<'s, Value>> {
     unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
@@ -216,6 +229,12 @@ impl<'s> PropertyCallbackArguments<'s> {
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
+    }
+  }
+  /// Returns the instance of function template.
+  pub fn holder(&self) -> Local<'s, Object> {
+    unsafe {
+      Local::from_raw(v8__PropertyCallbackInfo__Holder(self.info)).unwrap()
     }
   }
 }

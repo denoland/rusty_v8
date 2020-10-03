@@ -1274,6 +1274,11 @@ const v8::Object* v8__FunctionCallbackInfo__This(
   return local_to_ptr(self.This());
 }
 
+const v8::Object* v8__FunctionCallbackInfo__Holder(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Holder());
+}
+
 int v8__FunctionCallbackInfo__Length(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.Length();
@@ -1578,6 +1583,11 @@ v8::Value* v8__PropertyCallbackInfo__GetReturnValue(
 const v8::Object* v8__PropertyCallbackInfo__This(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.This());
+}
+
+const v8::Object* v8__PropertyCallbackInfo__Holder(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Holder());
 }
 
 const v8::Proxy* v8__Proxy__New(const v8::Context& context,
