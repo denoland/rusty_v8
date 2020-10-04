@@ -1247,7 +1247,9 @@ fn instance_template_of_function_template() {
     inst_templ.set(inst_func_name.into(), inst_func_templ.into());
     let function = function_templ.get_function(scope).unwrap();
     let name = v8::String::new(scope, "f").unwrap();
-    context.global(scope).set(scope, name.into(), function.into());
+    context
+      .global(scope)
+      .set(scope, name.into(), function.into());
     let actual = eval(scope, "new f().inst_func()").unwrap();
     let expected = v8::Integer::new(scope, 42);
     assert!(expected.strict_equals(actual));
@@ -1269,8 +1271,11 @@ fn prototype_template_of_function_template() {
     proto_templ.set(proto_func_name.into(), proto_func_templ.into());
     let function = function_templ.get_function(scope).unwrap();
     let name = v8::String::new(scope, "f").unwrap();
-    context.global(scope).set(scope, name.into(), function.into());
-    let actual = eval(scope, "new f().proto_func() + f.prototype.proto_func()").unwrap();
+    context
+      .global(scope)
+      .set(scope, name.into(), function.into());
+    let actual =
+      eval(scope, "new f().proto_func() + f.prototype.proto_func()").unwrap();
     let expected = v8::Integer::new(scope, 84);
     assert!(expected.strict_equals(actual));
   }
