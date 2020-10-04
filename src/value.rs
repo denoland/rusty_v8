@@ -545,16 +545,6 @@ impl Value {
     .unwrap()
   }
 
-  pub fn to_external<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, External> {
-    unsafe {
-      scope.cast_local(|sd| v8__Value__ToExternal(self, sd.get_isolate_ptr()))
-    }
-    .unwrap()
-  }
-
   pub fn number_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<f64> {
     let mut out = Maybe::<f64>::default();
     unsafe {
