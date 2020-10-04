@@ -1233,6 +1233,50 @@ fn object_template_from_function_template() {
 }
 
 #[test]
+fn instance_template_of_function_template() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let function_templ = v8::FunctionTemplate::new(scope, fn_callback);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let inst_templ = function_templ.instance_template(scope);
+    let inst_func_name = v8::String::new(scope, "inst_func").unwrap();
+    let inst_func_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    inst_templ.set(inst_func_name.into(), inst_func_templ.into());
+    let function = function_templ.get_function(scope).unwrap();
+    let name = v8::String::new(scope, "f").unwrap();
+    context.global(scope).set(scope, name.into(), function.into());
+    let actual = eval(scope, "new f().inst_func()").unwrap();
+    let expected = v8::Integer::new(scope, 42);
+    assert!(expected.strict_equals(actual));
+  }
+}
+
+#[test]
+fn prototype_template_of_function_template() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let function_templ = v8::FunctionTemplate::new(scope, fn_callback);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let proto_templ = function_templ.prototype_template(scope);
+    let proto_func_name = v8::String::new(scope, "proto_func").unwrap();
+    let proto_func_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    proto_templ.set(proto_func_name.into(), proto_func_templ.into());
+    let function = function_templ.get_function(scope).unwrap();
+    let name = v8::String::new(scope, "f").unwrap();
+    context.global(scope).set(scope, name.into(), function.into());
+    let actual = eval(scope, "new f().proto_func() + f.prototype.proto_func()").unwrap();
+    let expected = v8::Integer::new(scope, 84);
+    assert!(expected.strict_equals(actual));
+  }
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1340,6 +1384,37 @@ fn create_data_property() {
     assert!(obj.set(scope, key2.into(), value.into()).unwrap());
     let actual = obj.get(scope, key2.into()).unwrap();
     assert!(value.strict_equals(actual));
+  }
+}
+
+#[test]
+fn object_this_and_holder() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = |_: &mut v8::HandleScope,
+                  _: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  _: v8::ReturnValue| {
+      let this = args.this();
+      let holder = args.holder();
+
+      assert!(this.strict_equals(holder.into()));
+    };
+
+    let obj = v8::Object::new(scope);
+    let getter_key = v8::String::new(scope, "getter_key").unwrap();
+    obj.set_accessor(scope, getter_key.into(), getter);
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(scope, obj_name.into(), obj.into());
+
+    eval(scope, "obj.getter_key").unwrap();
   }
 }
 
