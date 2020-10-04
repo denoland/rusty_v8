@@ -548,7 +548,7 @@ const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
 }
 
 const v8::External* v8__Value__ToExternal(v8::Value& self,
-                                        v8::Isolate* isolate) {
+                                          v8::Isolate* isolate) {
   return v8::External::Cast(&self);
 }
 
@@ -1260,7 +1260,8 @@ void v8__FunctionTemplate__SetClassName(const v8::FunctionTemplate& self,
   ptr_to_local(&self)->SetClassName(ptr_to_local(&name));
 }
 
-const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(const v8::FunctionTemplate& self) {
+const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
+      const v8::FunctionTemplate& self) {
   return local_to_ptr(ptr_to_local(&self)->PrototypeTemplate());
 }
 
