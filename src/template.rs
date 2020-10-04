@@ -111,6 +111,8 @@ impl FunctionTemplate {
     unsafe { v8__FunctionTemplate__SetClassName(self, &*name) };
   }
 
+  /// A PrototypeTemplate is the template used to create the prototype object
+  /// of the function created by this template.
   pub fn prototype_template<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -121,6 +123,7 @@ impl FunctionTemplate {
     .unwrap()
   }
 
+  /// Get the InstanceTemplate.
   pub fn instance_template<'s>(
     &self,
     scope: &mut HandleScope<'s>,
