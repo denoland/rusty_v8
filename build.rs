@@ -11,7 +11,7 @@ fn main() {
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
   // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
-  let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
+  let is_cargo_doc = env::var_os("DOCS_RS").is_some();
 
   // Don't build V8 if the rust language server (RLS) is running.
   let is_rls = env::var_os("CARGO")
