@@ -2314,6 +2314,50 @@ fn uint8_array() {
 }
 
 #[test]
+fn typed_array_constructors() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let ab = v8::ArrayBuffer::new(scope, 8);
+
+  let t = v8::Uint8Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint8_array());
+
+  let t = v8::Uint8ClampedArray::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint8_clamped_array());
+
+  let t = v8::Int8Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_int8_array());
+
+  let t = v8::Uint16Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint16_array());
+
+  let t = v8::Int16Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_int16_array());
+
+  let t = v8::Uint32Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint32_array());
+
+  let t = v8::Int32Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_int32_array());
+
+  let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_float32_array());
+
+  let t = v8::Float64Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_float64_array());
+
+  let t = v8::BigUint64Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_big_uint64_array());
+
+  let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_big_int64_array());
+}
+
+#[test]
 fn dynamic_import() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

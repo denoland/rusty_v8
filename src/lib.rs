@@ -66,7 +66,7 @@ mod string;
 mod support;
 mod symbol;
 mod template;
-mod uint8_array;
+mod typed_array;
 mod value;
 mod value_deserializer;
 mod value_serializer;
