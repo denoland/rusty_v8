@@ -451,7 +451,7 @@ impl<T: ?Sized> Borrow<T> for Allocation<T> {
 
 #[repr(C)]
 #[derive(Debug, PartialEq)]
-pub(crate) enum MaybeBool {
+pub enum MaybeBool {
   JustFalse = 0,
   JustTrue = 1,
   Nothing = 2,
@@ -463,6 +463,16 @@ impl Into<Option<bool>> for MaybeBool {
       MaybeBool::JustFalse => Some(false),
       MaybeBool::JustTrue => Some(true),
       MaybeBool::Nothing => None,
+    }
+  }
+}
+
+impl From<Option<bool>> for MaybeBool {
+  fn from(option: Option<bool>) -> Self {
+    match option {
+      Some(false) => MaybeBool::JustFalse,
+      Some(true) => MaybeBool::JustTrue,
+      None => MaybeBool::Nothing,
     }
   }
 }
