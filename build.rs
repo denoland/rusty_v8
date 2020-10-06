@@ -1,5 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
@@ -199,6 +200,11 @@ fn static_lib_url() -> (String, String) {
 }
 
 fn download_file(url: String, filename: PathBuf) {
+  if !url.starts_with("http:") && !url.starts_with("https:") {
+    fs::copy(&url, filename).unwrap();
+    return;
+  }
+
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
   println!("Downloading {}", url);
