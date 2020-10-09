@@ -2,7 +2,13 @@
 
 static_library("rusty_v8") {
   complete_static_lib = true
-  sources = [ "src/binding.cc" ]
+  sources = [
+    "src/binding.cc",
+    "v8/src/wasm/c-api.cc",
+    "v8/src/wasm/c-api.h",
+    "v8/third_party/wasm-api/wasm.h",
+    "v8/third_party/wasm-api/wasm.hh",
+  ]
   deps = [
     "//build/config:shared_library_deps",
     "//v8:v8",
