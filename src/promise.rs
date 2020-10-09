@@ -214,8 +214,7 @@ impl<'msg> PromiseRejectMessage<'msg> {
     unsafe { v8__PromiseRejectMessage__GetEvent(self) }
   }
 
-  pub fn get_value(&self) -> Local<'msg, Value> {
+  pub fn get_value(&self) -> Option<Local<'msg, Value>> {
     unsafe { Local::from_raw(v8__PromiseRejectMessage__GetValue(self)) }
-      .unwrap()
   }
 }

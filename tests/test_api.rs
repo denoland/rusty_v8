@@ -1674,7 +1674,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
   let promise = msg.get_promise();
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
-  let value = msg.get_value();
+  let value = msg.get_value().unwrap();
   {
     let scope = &mut v8::HandleScope::new(scope);
     let value_str = value.to_string(scope).unwrap();
@@ -1695,6 +1695,34 @@ fn set_promise_reject_callback() {
     let resolver = v8::PromiseResolver::new(scope).unwrap();
     let value = v8::String::new(scope, "promise rejected").unwrap();
     resolver.reject(scope, value.into());
+  }
+}
+
+#[test]
+fn promise_reject_callback_no_value() {
+  extern "C" fn promise_reject_callback(m: v8::PromiseRejectMessage) {
+    use v8::PromiseRejectEvent::*;
+    let value = m.get_value();
+    match m.get_event() {
+      PromiseHandlerAddedAfterReject => assert!(value.is_none()),
+      PromiseRejectWithNoHandler => assert!(value.is_some()),
+      _ => unreachable!(),
+    };
+  }
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_promise_reject_callback(promise_reject_callback);
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      function kaboom(resolve, reject) {
+        throw new Error("kaboom");
+      }
+      new Promise(kaboom).then(_ => {});
+    "#;
+    eval(scope, source).unwrap();
   }
 }
 
