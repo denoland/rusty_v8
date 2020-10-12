@@ -1726,6 +1726,57 @@ fn promise_reject_callback_no_value() {
   }
 }
 
+#[test]
+fn promise_hook() {
+  extern "C" fn hook(
+    type_: v8::PromiseHookType,
+    promise: v8::Local<v8::Promise>,
+    _parent: v8::Local<v8::Value>,
+  ) {
+    let scope = &mut unsafe { v8::CallbackScope::new(promise) };
+    let context = promise.creation_context(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let name = v8::String::new(scope, "hook").unwrap();
+    let func = global.get(scope, name.into()).unwrap();
+    let func = v8::Local::<v8::Function>::try_from(func).unwrap();
+    let args = &[v8::Integer::new(scope, type_ as i32).into(), promise.into()];
+    func.call(scope, global.into(), args).unwrap();
+  }
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_promise_hook(hook);
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      var promises = new Set();
+      function hook(type, promise) {
+        if (type === /* Init    */ 0) promises.add(promise);
+        if (type === /* Resolve */ 1) promises.delete(promise);
+      }
+      function expect(expected, actual = promises.size) {
+        if (actual !== expected) throw `expected ${expected}, actual ${actual}`;
+      }
+      expect(0);
+      new Promise(resolve => {
+        expect(1);
+        resolve();
+        expect(0);
+      });
+      expect(0);
+      new Promise(() => {});
+      expect(1);
+      promises.values().next().value
+    "#;
+    let promise = eval(scope, source).unwrap();
+    let promise = v8::Local::<v8::Promise>::try_from(promise).unwrap();
+    assert!(!promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+  }
+}
+
 fn mock_script_origin<'s>(
   scope: &mut v8::HandleScope<'s>,
   resource_name_: &str,
