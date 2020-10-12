@@ -1734,8 +1734,8 @@ fn promise_hook() {
     _parent: v8::Local<v8::Value>,
   ) {
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
-    let scope = &mut v8::HandleScope::new(scope);
     let context = promise.creation_context(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let name = v8::String::new(scope, "hook").unwrap();
     let func = global.get(scope, name.into()).unwrap();
