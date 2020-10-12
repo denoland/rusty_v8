@@ -98,6 +98,8 @@ pub use isolate::MessageCallback;
 pub use isolate::MicrotasksPolicy;
 pub use isolate::NearHeapLimitCallback;
 pub use isolate::OwnedIsolate;
+pub use isolate::PromiseHook;
+pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
 pub use isolate_create_params::CreateParams;
 pub use module::*;
