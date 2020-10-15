@@ -147,6 +147,14 @@ impl<T> Global<T> {
   pub fn get<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::get(self, scope)
   }
+
+  // Note: only works for strong persistent globals. Needs to change
+  // if and when rusty_v8 grows support for weak persistent globals.
+  pub fn map<U, F: FnOnce(&Local<T>) -> U>(&self, f: F) -> U {
+    let p = self.data.cast().as_ptr();
+    let v = unsafe { Local::from_raw(p) }.unwrap();
+    f(&v)
+  }
 }
 
 impl<T> Clone for Global<T> {

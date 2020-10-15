@@ -121,6 +121,12 @@ fn global_handles() {
     assert!(g6 == g1);
     assert_eq!(g6.get(scope).to_rust_string_lossy(scope), "bla");
   }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let this: v8::Local<v8::Value> = v8::Integer::new(scope, 42).into();
+    let g = v8::Global::new(scope, this);
+    assert!(g.map(|that| this.strict_equals(*that)));
+  }
 }
 
 #[test]

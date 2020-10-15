@@ -1,0 +1,9 @@
+error[E0505]: cannot move out of `global` because it is borrowed
+ --> $DIR/global_map_lifetime_2.rs:9:23
+  |
+9 |   let () = global.map(|_| drop(global));
+  |            ------ --- ^^^      ------ move occurs due to use in closure
+  |            |      |   |
+  |            |      |   move out of `global` occurs here
+  |            |      borrow later used by call
+  |            borrow of `global` occurs here
