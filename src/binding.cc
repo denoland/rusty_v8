@@ -249,6 +249,10 @@ void v8__Isolate__CancelTerminateExecution(v8::Isolate* isolate) {
   isolate->CancelTerminateExecution();
 }
 
+void v8__Isolate__SetAllowAtomicsWait(v8::Isolate* isolate, bool allow) {
+  isolate->SetAllowAtomicsWait(allow);
+}
+
 void v8__Isolate__CreateParams__CONSTRUCT(
     uninit_t<v8::Isolate::CreateParams>* buf) {
   construct_in_place<v8::Isolate::CreateParams>(buf);

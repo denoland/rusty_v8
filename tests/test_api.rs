@@ -1777,6 +1777,38 @@ fn promise_hook() {
   }
 }
 
+#[test]
+fn allow_atomics_wait() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  for allow in &[false, true, false] {
+    let allow = *allow;
+    isolate.set_allow_atomics_wait(allow);
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source = r#"
+        const b = new SharedArrayBuffer(4);
+        const a = new Int32Array(b);
+        "timed-out" === Atomics.wait(a, 0, 0, 1);
+      "#;
+      let try_catch = &mut v8::TryCatch::new(scope);
+      let result = eval(try_catch, source);
+      if allow {
+        assert!(!try_catch.has_caught());
+        assert!(result.unwrap().is_true());
+      } else {
+        assert!(try_catch.has_caught());
+        let exc = try_catch.exception().unwrap();
+        let exc = exc.to_string(try_catch).unwrap();
+        let exc = exc.to_rust_string_lossy(try_catch);
+        assert!(exc.contains("Atomics.wait cannot be called in this context"));
+      }
+    }
+  }
+}
+
 fn mock_script_origin<'s>(
   scope: &mut v8::HandleScope<'s>,
   resource_name_: &str,
