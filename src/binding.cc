@@ -1909,6 +1909,14 @@ int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
 
+int v8__Module__ScriptId(const v8::Module& self) {
+  // Module::ScriptId() isn't marked const but its implementation is
+  // so this const_cast is sound.
+  // TODO(bnoordhuis) Open V8 CL to mark Module::ScriptId() and
+  // UnboundScript::GetId() const.
+  return const_cast<v8::Module&>(self).ScriptId();
+}
+
 MaybeBool v8__Module__InstantiateModule(const v8::Module& self,
                                         const v8::Context& context,
                                         v8::Module::ResolveCallback cb) {

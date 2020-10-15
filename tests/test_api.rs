@@ -1856,6 +1856,7 @@ fn module_instantiation_failures1() {
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
+    assert!(module.script_id().is_some());
 
     assert_eq!(
       "./foo.js",
@@ -1930,6 +1931,7 @@ fn module_evaluation() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
     assert!(module.is_source_text_module());
     assert!(!module.is_synthetic_module());
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
@@ -3530,16 +3532,21 @@ fn module_snapshot() {
       let module = v8::script_compiler::compile_module(scope, source).unwrap();
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
+      let script_id = module.script_id();
+      assert!(script_id.is_some());
+
       let result = module.instantiate_module(
         scope,
         compile_specifier_as_module_resolve_callback,
       );
       assert!(result.unwrap());
       assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+      assert_eq!(script_id, module.script_id());
 
       let result = module.evaluate(scope);
       assert!(result.is_some());
       assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+      assert_eq!(script_id, module.script_id());
 
       snapshot_creator.set_default_context(context);
     }
@@ -3722,6 +3729,7 @@ fn synthetic_module() {
   );
   assert!(!module.is_source_text_module());
   assert!(module.is_synthetic_module());
+  assert!(module.script_id().is_none());
   assert_eq!(module.get_status(), v8::ModuleStatus::Uninstantiated);
 
   module
