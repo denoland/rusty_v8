@@ -186,6 +186,7 @@ extern "C" {
     isolate: *mut Isolate,
     function: *const Function,
   );
+  fn v8__Isolate__SetAllowAtomicsWait(isolate: *mut Isolate, allow: bool);
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
@@ -514,6 +515,13 @@ impl Isolate {
   /// Enqueues the callback to the default MicrotaskQueue
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
     unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
+  }
+
+  /// Set whether calling Atomics.wait (a function that may block) is allowed in
+  /// this isolate. This can also be configured via
+  /// CreateParams::allow_atomics_wait.
+  pub fn set_allow_atomics_wait(&mut self, allow: bool) {
+    unsafe { v8__Isolate__SetAllowAtomicsWait(self, allow) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any
