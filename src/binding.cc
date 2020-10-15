@@ -944,6 +944,40 @@ void v8__Object__SetInternalField(const v8::Object& self, int index,
   ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
 }
 
+const v8::Value* v8__Object__GetPrivate(const v8::Object& self,
+                                        const v8::Context& context,
+                                        const v8::Private& key) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->GetPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__SetPrivate(const v8::Object& self,
+                                 const v8::Context& context,
+                                 const v8::Private& key,
+                                 const v8::Value& value) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->SetPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key),
+                                      ptr_to_local(&value)));
+}
+
+MaybeBool v8__Object__DeletePrivate(const v8::Object& self,
+                                    const v8::Context& context,
+                                    const v8::Private& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->DeletePrivate(ptr_to_local(&context),
+                                         ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__HasPrivate(const v8::Object& self,
+                                 const v8::Context& context,
+                                 const v8::Private& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->HasPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key)));
+}
+
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }

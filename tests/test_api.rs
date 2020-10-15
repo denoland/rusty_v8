@@ -3832,6 +3832,23 @@ fn private() {
   let p_api2 = v8::Private::for_api(scope, Some(name));
   assert!(p_api2 != p);
   assert!(p_api == p_api2);
+
+  let object = v8::Object::new(scope);
+  let sentinel = v8::Object::new(scope).into();
+  assert!(!object.has_private(scope, p).unwrap());
+  assert!(object.get_private(scope, p).unwrap().is_undefined());
+  // True indicates that the operation didn't throw an
+  // exception, not that it found and deleted a key.
+  assert!(object.delete_private(scope, p).unwrap());
+  assert!(object.set_private(scope, p, sentinel).unwrap());
+  assert!(object.has_private(scope, p).unwrap());
+  assert!(object
+    .get_private(scope, p)
+    .unwrap()
+    .strict_equals(sentinel));
+  assert!(object.delete_private(scope, p).unwrap());
+  assert!(!object.has_private(scope, p).unwrap());
+  assert!(object.get_private(scope, p).unwrap().is_undefined());
 }
 
 #[test]
