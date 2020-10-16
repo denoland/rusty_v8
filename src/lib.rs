@@ -66,8 +66,10 @@ mod string;
 mod support;
 mod symbol;
 mod template;
-mod uint8_array;
+mod typed_array;
 mod value;
+mod value_deserializer;
+mod value_serializer;
 
 pub mod inspector;
 pub mod json;
@@ -96,6 +98,8 @@ pub use isolate::MessageCallback;
 pub use isolate::MicrotasksPolicy;
 pub use isolate::NearHeapLimitCallback;
 pub use isolate::OwnedIsolate;
+pub use isolate::PromiseHook;
+pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
 pub use isolate_create_params::CreateParams;
 pub use module::*;
@@ -127,6 +131,12 @@ pub use support::UniquePtr;
 pub use support::UniqueRef;
 pub use symbol::*;
 pub use template::*;
+pub use value_deserializer::ValueDeserializer;
+pub use value_deserializer::ValueDeserializerHelper;
+pub use value_deserializer::ValueDeserializerImpl;
+pub use value_serializer::ValueSerializer;
+pub use value_serializer::ValueSerializerHelper;
+pub use value_serializer::ValueSerializerImpl;
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;

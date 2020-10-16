@@ -1,5 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
@@ -11,7 +12,7 @@ fn main() {
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
   // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
-  let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
+  let is_cargo_doc = env::var_os("DOCS_RS").is_some();
 
   // Don't build V8 if the rust language server (RLS) is running.
   let is_rls = env::var_os("CARGO")
@@ -199,6 +200,11 @@ fn static_lib_url() -> (String, String) {
 }
 
 fn download_file(url: String, filename: PathBuf) {
+  if !url.starts_with("http:") && !url.starts_with("https:") {
+    fs::copy(&url, filename).unwrap();
+    return;
+  }
+
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
   println!("Downloading {}", url);

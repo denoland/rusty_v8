@@ -188,6 +188,10 @@ void v8__Isolate__RequestInterrupt(v8::Isolate* isolate,
   isolate->RequestInterrupt(callback, data);
 }
 
+void v8__Isolate__SetPromiseHook(v8::Isolate* isolate, v8::PromiseHook hook) {
+  isolate->SetPromiseHook(hook);
+}
+
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
   isolate->SetPromiseRejectCallback(callback);
@@ -243,6 +247,10 @@ bool v8__Isolate__IsExecutionTerminating(v8::Isolate* isolate) {
 
 void v8__Isolate__CancelTerminateExecution(v8::Isolate* isolate) {
   isolate->CancelTerminateExecution();
+}
+
+void v8__Isolate__SetAllowAtomicsWait(v8::Isolate* isolate, bool allow) {
+  isolate->SetAllowAtomicsWait(allow);
 }
 
 void v8__Isolate__CreateParams__CONSTRUCT(
@@ -788,8 +796,8 @@ int v8__ObjectTemplate__InternalFieldCount(const v8::ObjectTemplate& self) {
   return ptr_to_local(&self)->InternalFieldCount();
 }
 
-void v8__ObjectTemplate__SetInternalFieldCount(
-    const v8::ObjectTemplate& self, int value) {
+void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
+                                               int value) {
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
@@ -936,8 +944,42 @@ const v8::Value* v8__Object__GetInternalField(const v8::Object& self,
 }
 
 void v8__Object__SetInternalField(const v8::Object& self, int index,
-                                  const v8::Value&  value) {
+                                  const v8::Value& value) {
   ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
+}
+
+const v8::Value* v8__Object__GetPrivate(const v8::Object& self,
+                                        const v8::Context& context,
+                                        const v8::Private& key) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->GetPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__SetPrivate(const v8::Object& self,
+                                 const v8::Context& context,
+                                 const v8::Private& key,
+                                 const v8::Value& value) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->SetPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key),
+                                      ptr_to_local(&value)));
+}
+
+MaybeBool v8__Object__DeletePrivate(const v8::Object& self,
+                                    const v8::Context& context,
+                                    const v8::Private& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->DeletePrivate(ptr_to_local(&context),
+                                         ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__HasPrivate(const v8::Object& self,
+                                 const v8::Context& context,
+                                 const v8::Private& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->HasPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key)));
 }
 
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
@@ -1395,11 +1437,25 @@ void v8__TryCatch__SetCaptureMessage(v8::TryCatch* self, bool value) {
   self->SetCaptureMessage(value);
 }
 
-const v8::Uint8Array* v8__Uint8Array__New(const v8::ArrayBuffer& buf_ptr,
-                                          size_t byte_offset, size_t length) {
-  return local_to_ptr(
-      v8::Uint8Array::New(ptr_to_local(&buf_ptr), byte_offset, length));
-}
+#define V(NAME)                                                          \
+  const v8::NAME* v8__##NAME##__New(const v8::ArrayBuffer& buf_ptr,      \
+                                    size_t byte_offset, size_t length) { \
+    return local_to_ptr(                                                 \
+        v8::NAME::New(ptr_to_local(&buf_ptr), byte_offset, length));     \
+  }
+
+V(Uint8Array)
+V(Uint8ClampedArray)
+V(Int8Array)
+V(Uint16Array)
+V(Int16Array)
+V(Uint32Array)
+V(Int32Array)
+V(Float32Array)
+V(Float64Array)
+V(BigUint64Array)
+V(BigInt64Array)
+#undef V
 
 const v8::Script* v8__Script__Compile(const v8::Context& context,
                                       const v8::String& source,
@@ -1891,6 +1947,14 @@ int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
 
+int v8__Module__ScriptId(const v8::Module& self) {
+  // Module::ScriptId() isn't marked const but its implementation is
+  // so this const_cast is sound.
+  // TODO(bnoordhuis) Open V8 CL to mark Module::ScriptId() and
+  // UnboundScript::GetId() const.
+  return const_cast<v8::Module&>(self).ScriptId();
+}
+
 MaybeBool v8__Module__InstantiateModule(const v8::Module& self,
                                         const v8::Context& context,
                                         v8::Module::ResolveCallback cb) {
@@ -2025,5 +2089,245 @@ V(number_of_detached_contexts)
 V(does_zap_garbage)  // Returns size_t, not bool like you'd expect.
 
 #undef V
+}  // extern "C"
 
+// v8::ValueSerializer::Delegate
+
+extern "C" {
+void v8__ValueSerializer__Delegate__ThrowDataCloneError(
+    v8::ValueSerializer::Delegate* self,
+    v8::Local<v8::String> message);
+
+MaybeBool v8__ValueSerializer__Delegate__WriteHostObject(
+    v8::ValueSerializer::Delegate* self, v8::Isolate* isolate,
+    v8::Local<v8::Object> object);
+
+bool v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
+    v8::ValueSerializer::Delegate* self, v8::Isolate* isolate,
+    v8::Local<v8::SharedArrayBuffer> shared_array_buffer, uint32_t* result);
+
+bool v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
+    v8::ValueSerializer::Delegate* self, v8::Isolate* isolate,
+    v8::Local<v8::WasmModuleObject> module, uint32_t* result);
+
+void* v8__ValueSerializer__Delegate__ReallocateBufferMemory(
+    v8::ValueSerializer::Delegate* self, void* old_buffer, size_t size,
+    size_t* actual_size);
+
+void v8__ValueSerializer__Delegate__FreeBufferMemory(
+    v8::ValueSerializer::Delegate* self, void* buffer);
+}
+
+struct v8__ValueSerializer__Delegate : public v8::ValueSerializer::Delegate {
+  void ThrowDataCloneError(v8::Local<v8::String> message) override {
+    v8__ValueSerializer__Delegate__ThrowDataCloneError(this, message);
+  }
+
+  v8::Maybe<bool> WriteHostObject(v8::Isolate* isolate,
+                                  v8::Local<v8::Object> object) override {
+    return maybe_bool_to_maybe(
+        v8__ValueSerializer__Delegate__WriteHostObject(this, isolate,
+                                                             object));
+  }
+
+  v8::Maybe<uint32_t> GetSharedArrayBufferId(
+      v8::Isolate* isolate,
+      v8::Local<v8::SharedArrayBuffer> shared_array_buffer) override {
+    uint32_t result = 0;
+    if (!v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
+            this, isolate, shared_array_buffer, &result))
+      return v8::Nothing<uint32_t>();
+    return v8::Just(result);
+  }
+
+  v8::Maybe<uint32_t> GetWasmModuleTransferId(
+      v8::Isolate* isolate, v8::Local<v8::WasmModuleObject> module) override {
+    uint32_t result = 0;
+    if (!v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
+            this, isolate, module, &result))
+      return v8::Nothing<uint32_t>();
+    return v8::Just(result);
+  }
+
+  void* ReallocateBufferMemory(void* old_buffer, size_t size,
+                               size_t* actual_size) override {
+    return v8__ValueSerializer__Delegate__ReallocateBufferMemory(
+        this, old_buffer, size, actual_size);
+  }
+
+  void FreeBufferMemory(void* buffer) override {
+    v8__ValueSerializer__Delegate__FreeBufferMemory(this, buffer);
+  }
+};
+
+extern "C" {
+void v8__ValueSerializer__Delegate__CONSTRUCT(
+    uninit_t<v8__ValueSerializer__Delegate>* buf) {
+  static_assert(sizeof(v8__ValueSerializer__Delegate) == sizeof(size_t),
+                "v8__ValueSerializer__Delegate size mismatch");
+  construct_in_place<v8__ValueSerializer__Delegate>(buf);
+}
+}
+
+// v8::ValueSerializer
+
+extern "C" {
+void v8__ValueSerializer__CONSTRUCT(uninit_t<v8::ValueSerializer>* buf,
+                                    v8::Isolate* isolate,
+                                    v8::ValueSerializer::Delegate* delegate) {
+  static_assert(sizeof(v8::ValueSerializer) == sizeof(size_t),
+                "v8::ValueSerializer size mismatch");
+  construct_in_place<v8::ValueSerializer>(buf, isolate, delegate);
+}
+
+void v8__ValueSerializer__DESTRUCT(v8::ValueSerializer* self) {
+  self->~ValueSerializer();
+}
+
+void v8__ValueSerializer__Release(v8::ValueSerializer* self,
+                                  uint8_t** ptr, size_t* size) {
+  auto result = self->Release();
+  *ptr = result.first;
+  *size = result.second;
+}
+
+void v8__ValueSerializer__WriteHeader(v8::ValueSerializer* self) {
+  self->WriteHeader();
+}
+
+MaybeBool v8__ValueSerializer__WriteValue(v8::ValueSerializer* self,
+                                          v8::Local<v8::Context> context,
+                                          v8::Local<v8::Value> value) {
+  return maybe_to_maybe_bool(self->WriteValue(context, value));
+}
+
+void v8__ValueSerializer__TransferArrayBuffer(
+    v8::ValueSerializer* self, uint32_t transfer_id,
+    v8::Local<v8::ArrayBuffer> array_buffer) {
+  self->TransferArrayBuffer(transfer_id, array_buffer);
+}
+
+void v8__ValueSerializer__WriteUint32(v8::ValueSerializer* self,
+                                      uint32_t value) {
+  self->WriteUint32(value);
+}
+
+void v8__ValueSerializer__WriteUint64(v8::ValueSerializer* self,
+                                      uint64_t value) {
+  self->WriteUint64(value);
+}
+
+void v8__ValueSerializer__WriteDouble(v8::ValueSerializer* self, double value) {
+  self->WriteDouble(value);
+}
+
+void v8__ValueSerializer__WriteRawBytes(v8::ValueSerializer* self,
+                                        const void* source, size_t length) {
+  self->WriteRawBytes(source, length);
+}
+}
+
+// v8::ValueDeserializer::Delegate
+
+extern "C" {
+v8::Object* v8__ValueDeserializer__Delegate__ReadHostObject(
+    v8::ValueDeserializer::Delegate* self, v8::Isolate* isolate);
+
+v8::SharedArrayBuffer*
+v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId(
+    v8::ValueDeserializer::Delegate* self, v8::Isolate* isolate,
+    uint32_t transfer_id);
+
+v8::WasmModuleObject*
+v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
+    v8::ValueDeserializer::Delegate* self, v8::Isolate* isolate,
+    uint32_t clone_id);
+}
+
+struct v8__ValueDeserializer__Delegate : public v8::ValueDeserializer::Delegate {
+  v8::MaybeLocal<v8::Object> ReadHostObject(v8::Isolate* isolate) override {
+    return ptr_to_maybe_local(
+        v8__ValueDeserializer__Delegate__ReadHostObject(this, isolate));
+  }
+
+  v8::MaybeLocal<v8::SharedArrayBuffer> GetSharedArrayBufferFromId(
+      v8::Isolate* isolate, uint32_t transfer_id) override {
+    return ptr_to_maybe_local(
+        v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId(
+            this, isolate, transfer_id));
+  }
+
+  v8::MaybeLocal<v8::WasmModuleObject> GetWasmModuleFromId(
+      v8::Isolate* isolate, uint32_t clone_id) override {
+    return ptr_to_maybe_local(
+        v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
+            this, isolate, clone_id));
+  }
+};
+
+extern "C" {
+void v8__ValueDeserializer__Delegate__CONSTRUCT(
+    uninit_t<v8__ValueDeserializer__Delegate>* buf) {
+  static_assert(sizeof(v8__ValueDeserializer__Delegate) == sizeof(size_t),
+                "v8__ValueDeserializer__Delegate size mismatch");
+  construct_in_place<v8__ValueDeserializer__Delegate>(buf);
+}
+}
+
+// v8::ValueDeserializer
+
+extern "C" {
+void v8__ValueDeserializer__CONSTRUCT(
+    uninit_t<v8::ValueDeserializer>* buf, v8::Isolate* isolate,
+    const uint8_t* data, size_t size,
+    v8::ValueDeserializer::Delegate* delegate) {
+  static_assert(sizeof(v8::ValueDeserializer) == sizeof(size_t),
+                "v8::ValueDeserializer size mismatch");
+  construct_in_place<v8::ValueDeserializer>(buf, isolate, data, size, delegate);
+}
+
+void v8__ValueDeserializer__DESTRUCT(v8::ValueDeserializer* self) {
+  self->~ValueDeserializer();
+}
+
+MaybeBool v8__ValueDeserializer__ReadHeader(v8::ValueDeserializer* self,
+                                            v8::Local<v8::Context> context) {
+  return maybe_to_maybe_bool(self->ReadHeader(context));
+}
+
+v8::Value* v8__ValueDeserializer__ReadValue(v8::ValueDeserializer* self,
+                                            v8::Local<v8::Context> context) {
+  return maybe_local_to_ptr(self->ReadValue(context));
+}
+
+void v8__ValueDeserializer__TransferArrayBuffer(
+    v8::ValueDeserializer* self, uint32_t transfer_id,
+    v8::Local<v8::ArrayBuffer> array_buffer) {
+  self->TransferArrayBuffer(transfer_id, array_buffer);
+}
+
+void v8__ValueDeserializer__SetSupportsLegacyWireFormat(
+    v8::ValueDeserializer* self, bool supports_legacy_wire_format) {
+  self->SetSupportsLegacyWireFormat(supports_legacy_wire_format);
+}
+
+bool v8__ValueDeserializer__ReadUint32(v8::ValueDeserializer* self,
+                                       uint32_t* value) {
+  return self->ReadUint32(value);
+}
+
+bool v8__ValueDeserializer__ReadUint64(v8::ValueDeserializer* self,
+                                       uint64_t* value) {
+  return self->ReadUint64(value);
+}
+
+bool v8__ValueDeserializer__ReadDouble(v8::ValueDeserializer* self,
+                                       double* value) {
+  return self->ReadDouble(value);
+}
+
+bool v8__ValueDeserializer__ReadRawBytes(v8::ValueDeserializer* self,
+                                         size_t length, const void** data) {
+  return self->ReadRawBytes(length, data);
+}
 }  // extern "C"
