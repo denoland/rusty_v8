@@ -60,3 +60,12 @@ which = "4.0.2"
 
 [dev-dependencies]
 trybuild = "1.0.33"
+
+[[example]]
+name = "hello_world"
+
+[[example]]
+name = "shell"
+
+[[example]]
+name = "process"
