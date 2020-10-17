@@ -116,7 +116,7 @@ jobs:
           sudo ln -s /usr/arm-linux-gnueabihf/lib/ld-linux-armhf.so.3 \
                      /lib/ld-linux-armhf.so.3
 
-          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/arm-linux-gnueabihf-gcc-5"
+          echo "::set-env name=CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER::/usr/bin/arm-linux-gnueabihf-gcc-5"
           echo "::set-env name=QEMU_LD_PREFIX::/usr/arm-linux-gnueabihf"
 
       - name: Cache
