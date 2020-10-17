@@ -108,6 +108,8 @@ fn build_v8() {
     gn_args.push("use_sysroot=true".to_string());
     maybe_install_sysroot("arm");
     maybe_install_sysroot("arm");
+    maybe_install_sysroot("i386");
+    maybe_install_sysroot("i386");
   };
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
