@@ -105,6 +105,7 @@ fn build_v8() {
 
   if env::var("TARGET").unwrap() == "armv7-unknown-linux-gnueabihf" {
     gn_args.push(r#"target_cpu="arm""#.to_string());
+    gn_args.push(r#"v8_target_cpu="arm""#.to_string());
     gn_args.push("use_sysroot=true".to_string());
     maybe_install_sysroot("arm");
     maybe_install_sysroot("arm");
