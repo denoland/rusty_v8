@@ -132,6 +132,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
@@ -387,6 +388,21 @@ impl Isolate {
   /// Requires: self == Isolate::GetCurrent().
   pub(crate) fn exit_isolate(&mut self) {
     unsafe { v8__Isolate__Exit(self) }
+  }
+
+  /// Clears the set of objects held strongly by the heap. This set of
+  /// objects are originally built when a WeakRef is created or
+  /// successfully dereferenced.
+  ///
+  /// This is invoked automatically after microtasks are run. See
+  /// MicrotasksPolicy for when microtasks are run.
+  ///
+  /// This needs to be manually invoked only if the embedder is manually
+  /// running microtasks via a custom MicrotaskQueue class's PerformCheckpoint.
+  /// In that case, it is the embedder's responsibility to make this call at a
+  /// time which does not interrupt synchronous ECMAScript code execution.
+  pub fn clear_kept_objects(&mut self) {
+    unsafe { v8__Isolate__ClearKeptObjects(self) }
   }
 
   /// Optional notification that the system is running low on memory.

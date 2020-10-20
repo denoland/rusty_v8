@@ -31,6 +31,7 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
+    v8::V8::set_flags_from_string("--expose_gc");
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
   }
@@ -852,7 +853,9 @@ fn add_message_listener() {
     let frame = stack_trace.get_frame(scope, 0).unwrap();
     assert_eq!(1, frame.get_line_number());
     assert_eq!(1, frame.get_column());
-    assert_eq!(3, frame.get_script_id());
+    // Note: V8 flags like --expose_externalize_string and --expose_gc install
+    // scripts of their own and therefore affect the script id that we get.
+    assert_eq!(4, frame.get_script_id());
     assert!(frame.get_script_name(scope).is_none());
     assert!(frame.get_script_name_or_source_url(scope).is_none());
     assert!(frame.get_function_name(scope).is_none());
@@ -4254,4 +4257,32 @@ fn value_serializer_not_implemented() {
     scope.message().unwrap().get(scope).to_rust_string_lossy(scope),
     "Uncaught Error: Deno serializer: get_shared_array_buffer_id not implemented"
   );
+}
+
+#[test]
+fn clear_kept_objects() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let step1 = r#"
+    var weakrefs = [];
+    for (let i = 0; i < 424242; i++) weakrefs.push(new WeakRef({ i }));
+    gc();
+    if (weakrefs.some(w => !w.deref())) throw "fail";
+  "#;
+
+  let step2 = r#"
+    gc();
+    if (weakrefs.every(w => w.deref())) throw "fail";
+  "#;
+
+  eval(scope, step1).unwrap();
+  scope.clear_kept_objects();
+  eval(scope, step2).unwrap();
 }
