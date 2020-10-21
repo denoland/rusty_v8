@@ -123,6 +123,10 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+void v8__Isolate__ClearKeptObjects(v8::Isolate* isolate) {
+  isolate->ClearKeptObjects();
+}
+
 void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
   isolate->LowMemoryNotification();
 }
