@@ -1671,6 +1671,24 @@ fn function() {
   }
 }
 
+#[test]
+fn constructor() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let array_name = v8::String::new(scope, "Array").unwrap();
+    let array_constructor = global.get(scope, array_name.into()).unwrap();
+    let array_constructor = v8::Local::<v8::Function>::try_from(array_constructor).unwrap();
+    let array = array_constructor.new_instance(scope, &[]).unwrap();
+    v8::Local::<v8::Array>::try_from(array).unwrap();
+  }
+}
+
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let scope = &mut unsafe { v8::CallbackScope::new(&msg) };
   let event = msg.get_event();
