@@ -1683,7 +1683,8 @@ fn constructor() {
     let global = context.global(scope);
     let array_name = v8::String::new(scope, "Array").unwrap();
     let array_constructor = global.get(scope, array_name.into()).unwrap();
-    let array_constructor = v8::Local::<v8::Function>::try_from(array_constructor).unwrap();
+    let array_constructor =
+      v8::Local::<v8::Function>::try_from(array_constructor).unwrap();
     let array = array_constructor.new_instance(scope, &[]).unwrap();
     v8::Local::<v8::Array>::try_from(array).unwrap();
   }
