@@ -1285,6 +1285,14 @@ const v8::Value* v8__Function__Call(const v8::Function& self,
                                 argc, const_ptr_array_to_local_array(argv)));
 }
 
+const v8::Object* v8__Function__NewInstance(const v8::Function& self,
+                                    const v8::Context& context, int argc,
+                                    const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->NewInstance(ptr_to_local(&context),
+                                argc, const_ptr_array_to_local_array(argv)));
+}
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback = nullptr) {
   return local_to_ptr(v8::FunctionTemplate::New(isolate, callback));
