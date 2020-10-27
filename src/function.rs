@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::ptr::null;
 
 use crate::scope::CallbackScope;
 use crate::support::MapFnFrom;
@@ -17,10 +18,6 @@ use crate::Value;
 
 extern "C" {
   fn v8__Function__New(
-    context: *const Context,
-    callback: FunctionCallback,
-  ) -> *const Function;
-  fn v8__Function__NewWithData(
     context: *const Context,
     callback: FunctionCallback,
     data: *const Value,
@@ -294,7 +291,11 @@ impl Function {
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Function__New(sd.get_current_context(), callback.map_fn_to())
+        v8__Function__New(
+          sd.get_current_context(),
+          callback.map_fn_to(),
+          null(),
+        )
       })
     }
   }
@@ -308,7 +309,7 @@ impl Function {
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Function__NewWithData(
+        v8__Function__New(
           sd.get_current_context(),
           callback.map_fn_to(),
           &*data,

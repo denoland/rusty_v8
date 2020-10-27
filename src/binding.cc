@@ -1264,16 +1264,11 @@ const v8::StackTrace* v8__Exception__GetStackTrace(const v8::Value& exception) {
 }
 
 const v8::Function* v8__Function__New(const v8::Context& context,
-                                      v8::FunctionCallback callback) {
+                                      v8::FunctionCallback callback,
+                                      const v8::Value* maybe_data) {
   return maybe_local_to_ptr(
-      v8::Function::New(ptr_to_local(&context), callback));
-}
-
-const v8::Function* v8__Function__NewWithData(const v8::Context& context,
-                                              v8::FunctionCallback callback,
-                                              const v8::Value& data) {
-  return maybe_local_to_ptr(
-      v8::Function::New(ptr_to_local(&context), callback, ptr_to_local(&data)));
+      v8::Function::New(ptr_to_local(&context), callback,
+                        ptr_to_local(maybe_data)));
 }
 
 const v8::Value* v8__Function__Call(const v8::Function& self,
