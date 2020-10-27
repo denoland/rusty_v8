@@ -1635,6 +1635,7 @@ fn function() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let recv: v8::Local<v8::Value> = global.into();
+
     // create function using template
     let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
     let function = fn_template
@@ -1646,6 +1647,7 @@ fn function() {
     function
       .call(scope, recv, &[])
       .expect("Function call failed");
+
     // create function without a template
     let function = v8::Function::new(scope, fn_callback2)
       .expect("Unable to create function");
@@ -1657,17 +1659,30 @@ fn function() {
     let value_str = value.to_string(scope).unwrap();
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "Hello callback!".to_string());
+
     // create a function with associated data
     let true_data = v8::Boolean::new(scope, true);
-    let function = v8::Function::new_with_data(
-      scope,
-      true_data.into(),
-      data_is_true_callback,
-    )
-    .expect("Unable to create function with data");
+    let function = v8::Function::builder(data_is_true_callback)
+      .data(true_data.into())
+      .build(scope)
+      .expect("Unable to create function with data");
     function
       .call(scope, recv, &[])
       .expect("Function call failed");
+
+    // create a prototype-less function that throws on new
+    let function = v8::Function::builder(fn_callback)
+      .length(42)
+      .constructor_behavior(v8::ConstructorBehavior::Throw)
+      .build(scope)
+      .unwrap();
+    let name = v8::String::new(scope, "f").unwrap();
+    global.set(scope, name.into(), function.into()).unwrap();
+    let result = eval(scope, "f.length").unwrap();
+    assert_eq!(42, result.integer_value(scope).unwrap());
+    let result = eval(scope, "f.prototype").unwrap();
+    assert!(result.is_undefined());
+    assert!(eval(scope, "new f()").is_none()); // throws
   }
 }
 

@@ -1263,12 +1263,17 @@ const v8::StackTrace* v8__Exception__GetStackTrace(const v8::Value& exception) {
   return local_to_ptr(v8::Exception::GetStackTrace(ptr_to_local(&exception)));
 }
 
-const v8::Function* v8__Function__New(const v8::Context& context,
-                                      v8::FunctionCallback callback,
-                                      const v8::Value* maybe_data) {
+const v8::Function* v8__Function__New(
+    const v8::Context& context,
+    v8::FunctionCallback callback,
+    const v8::Value* data_or_null,
+    int length,
+    v8::ConstructorBehavior constructor_behavior,
+    v8::SideEffectType side_effect_type) {
   return maybe_local_to_ptr(
       v8::Function::New(ptr_to_local(&context), callback,
-                        ptr_to_local(maybe_data)));
+                        ptr_to_local(data_or_null), length,
+                        constructor_behavior, side_effect_type));
 }
 
 const v8::Value* v8__Function__Call(const v8::Function& self,
@@ -1289,8 +1294,20 @@ const v8::Object* v8__Function__NewInstance(const v8::Function& self,
 }
 
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
-    v8::Isolate* isolate, v8::FunctionCallback callback = nullptr) {
-  return local_to_ptr(v8::FunctionTemplate::New(isolate, callback));
+    v8::Isolate* isolate,
+    v8::FunctionCallback callback,
+    const v8::Value* data_or_null,
+    const v8::Signature* signature_or_null,
+    int length,
+    v8::ConstructorBehavior constructor_behavior,
+    v8::SideEffectType side_effect_type,
+    const v8::CFunction* c_function_or_null) {
+  return local_to_ptr(
+      v8::FunctionTemplate::New(isolate, callback,
+                                ptr_to_local(data_or_null),
+                                ptr_to_local(signature_or_null), length,
+                                constructor_behavior, side_effect_type,
+                                c_function_or_null));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(
