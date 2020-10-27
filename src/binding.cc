@@ -1,9 +1,11 @@
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <vector>
 
 #include "support.h"
 #include "v8/include/libplatform/libplatform.h"
+#include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8-profiler.h"
@@ -1288,9 +1290,49 @@ const v8::Object* v8__Function__NewInstance(const v8::Function& self,
                                 argc, const_ptr_array_to_local_array(argv)));
 }
 
+struct CFunctionInfo : public v8::CFunctionInfo {
+  using Type = v8::CTypeInfo::Type;
+
+  const v8::CTypeInfo return_info = v8::CTypeInfo::FromCType(Type::kVoid);
+
+  const std::vector<v8::CTypeInfo> argument_info = {
+      v8::CTypeInfo::FromCType(Type::kV8Value),
+      v8::CTypeInfo::FromCType(Type::kInt32),
+  };
+
+  const v8::CTypeInfo& ReturnInfo() const final {
+    return return_info;
+  }
+
+  unsigned int ArgumentCount() const final {
+    return argument_info.size();
+  }
+
+  const v8::CTypeInfo& ArgumentInfo(unsigned int index) const final {
+    return argument_info[index];
+  }
+};
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
-    v8::Isolate* isolate, v8::FunctionCallback callback = nullptr) {
-  return local_to_ptr(v8::FunctionTemplate::New(isolate, callback));
+    v8::Isolate* isolate,
+    void (*fast_callback)(v8::ApiObject, int32_t),
+    v8::FunctionCallback slow_callback) {
+  v8::Local<v8::Value> data;
+  int length = 0;
+  v8::Local<v8::Signature> signature;
+  auto constructor_behavior = v8::ConstructorBehavior::kAllow;
+  auto side_effect_type = v8::SideEffectType::kHasSideEffect;
+  v8::CFunction c_function;
+
+  if (fast_callback != nullptr) {
+    auto type_info = new CFunctionInfo(); // FIXME(bnoordhuis) Memory is leaked.
+    c_function = v8::CFunction::Make(fast_callback, type_info);
+  }
+
+  return local_to_ptr(
+      v8::FunctionTemplate::New(isolate, slow_callback, data, signature, length,
+                                constructor_behavior, side_effect_type,
+                                &c_function));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(

@@ -31,7 +31,9 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
-    v8::V8::set_flags_from_string("--expose_gc");
+    v8::V8::set_flags_from_string(
+      "--allow_natives_syntax --expose_gc --turbo_fast_api_calls",
+    );
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
   }
@@ -4304,4 +4306,61 @@ fn clear_kept_objects() {
   eval(scope, step1).unwrap();
   scope.clear_kept_objects();
   eval(scope, step2).unwrap();
+}
+
+#[test]
+fn fast_api_call() {
+  static mut WHO: &str = "none";
+
+  extern "C" fn fast_callback(_: v8::ApiObject, value: i32) {
+    assert_eq!(42, value);
+    unsafe { WHO = "fast" };
+  }
+
+  fn slow_callback(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    _: v8::ReturnValue,
+  ) {
+    assert_eq!(42, args.get(0).integer_value(scope).unwrap());
+    unsafe { WHO = "slow" };
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let object_templ = v8::ObjectTemplate::new(scope);
+    let function_templ =
+      v8::FunctionTemplate::new_fast(scope, fast_callback, slow_callback);
+    let name = v8::String::new(scope, "g").unwrap();
+    object_templ.set(name.into(), function_templ.into());
+    let context = v8::Context::new_from_template(scope, object_templ);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // %PrepareFunctionForOptimization() does not like API functions,
+    // only "real" JS functions, so we wrap g() in f().
+    let source = r#"
+      function f(x) { return g(x); }
+      %PrepareFunctionForOptimization(f);
+      f(42);
+    "#;
+    eval(scope, source).unwrap();
+    assert_eq!("slow", unsafe { WHO });
+
+    let source = r#"
+      %OptimizeFunctionOnNextCall(f);
+      f(42);
+    "#;
+    eval(scope, source).unwrap();
+    assert_eq!("fast", unsafe { WHO });
+
+    // Direct call causes fallback to the slow path.
+    eval(scope, "g(42)").unwrap();
+    assert_eq!("slow", unsafe { WHO });
+
+    // Implicitly casts from float to int and returns to the fast lane.
+    eval(scope, "f(42.42)").unwrap();
+    assert_eq!("fast", unsafe { WHO });
+  }
 }
