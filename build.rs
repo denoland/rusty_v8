@@ -96,12 +96,17 @@ fn build_v8() {
     }
   }
 
-  if env::var("TARGET").unwrap() == "aarch64-unknown-linux-gnu" {
-    gn_args.push(r#"target_cpu="arm64""#.to_string());
-    gn_args.push("use_sysroot=true".to_string());
-    maybe_install_sysroot("arm64");
-    maybe_install_sysroot("amd64");
-  };
+  let target_triple = env::var("TARGET").unwrap();
+  // check if the target triple describes a non-native environment
+  if target_triple != env::var("HOST").unwrap() {
+    // cross-compilation setup
+    if target_triple == "aarch64-unknown-linux-gnu" {
+      gn_args.push(r#"target_cpu="arm64""#.to_string());
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("arm64");
+      maybe_install_sysroot("amd64");
+    };
+  }
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
