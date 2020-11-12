@@ -63,7 +63,7 @@ extern "C" {
   fn v8__ReturnValue__Get(this: *const ReturnValue) -> *const Value;
 }
 
-// Npte: the 'cb lifetime is required because the ReturnValue object must not
+// Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.
 #[repr(C)]
