@@ -4,8 +4,10 @@
 extern crate lazy_static;
 
 use std::any::type_name;
+use std::collections::hash_map::DefaultHasher;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
+use std::hash::Hash;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -1989,6 +1991,7 @@ fn module_evaluation() {
     assert!(module.is_source_text_module());
     assert!(!module.is_synthetic_module());
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
 
     let result = module
       .instantiate_module(scope, compile_specifier_as_module_resolve_callback);

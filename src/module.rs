@@ -1,4 +1,6 @@
 use std::convert::TryInto;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
@@ -369,5 +371,11 @@ impl Module {
       )
     }
     .into()
+  }
+}
+
+impl Hash for Module {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    state.write_i32(self.get_identity_hash());
   }
 }
