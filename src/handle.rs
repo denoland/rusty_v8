@@ -94,6 +94,10 @@ impl<'s, T> Local<'s, T> {
   pub(crate) fn slice_into_raw(slice: &[Self]) -> &[*const T] {
     unsafe { &*(slice as *const [Self] as *const [*const T]) }
   }
+
+  pub(crate) fn raw_or_null(v: Option<Self>) -> *const T {
+    v.map(|v| &*v as *const _).unwrap_or_else(std::ptr::null)
+  }
 }
 
 impl<'s, T> Copy for Local<'s, T> {}

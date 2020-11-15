@@ -111,14 +111,14 @@ fn execute_string(
   let script = v8::String::new(&mut scope, script).unwrap();
   let origin = v8::ScriptOrigin::new(
     v8::String::new(&mut scope, filename).unwrap().into(),
-    v8::Integer::new(&mut scope, 0),
-    v8::Integer::new(&mut scope, 0),
-    v8::Boolean::new(&mut scope, false),
-    v8::Integer::new(&mut scope, 0),
-    v8::undefined(&mut scope).into(),
-    v8::Boolean::new(&mut scope, false),
-    v8::Boolean::new(&mut scope, false),
-    v8::Boolean::new(&mut scope, false),
+    Some(v8::Integer::new(&mut scope, 0)),
+    Some(v8::Integer::new(&mut scope, 0)),
+    Some(v8::Boolean::new(&mut scope, false)),
+    Some(v8::Integer::new(&mut scope, 0)),
+    Some(v8::undefined(&mut scope).into()),
+    Some(v8::Boolean::new(&mut scope, false)),
+    Some(v8::Boolean::new(&mut scope, false)),
+    Some(v8::Boolean::new(&mut scope, false)),
   );
 
   let script = if let Some(script) =

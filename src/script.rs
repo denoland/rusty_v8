@@ -77,28 +77,28 @@ impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
     resource_name: Local<'s, Value>,
-    resource_line_offset: Local<'s, Integer>,
-    resource_column_offset: Local<'s, Integer>,
-    resource_is_shared_cross_origin: Local<'s, Boolean>,
-    script_id: Local<'s, Integer>,
-    source_map_url: Local<'s, Value>,
-    resource_is_opaque: Local<'s, Boolean>,
-    is_wasm: Local<'s, Boolean>,
-    is_module: Local<'s, Boolean>,
+    resource_line_offset: Option<Local<'s, Integer>>,
+    resource_column_offset: Option<Local<'s, Integer>>,
+    resource_is_shared_cross_origin: Option<Local<'s, Boolean>>,
+    script_id: Option<Local<'s, Integer>>,
+    source_map_url: Option<Local<'s, Value>>,
+    resource_is_opaque: Option<Local<'s, Boolean>>,
+    is_wasm: Option<Local<'s, Boolean>>,
+    is_module: Option<Local<'s, Boolean>>,
   ) -> Self {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
       v8__ScriptOrigin__CONSTRUCT(
         &mut buf,
         &*resource_name,
-        &*resource_line_offset,
-        &*resource_column_offset,
-        &*resource_is_shared_cross_origin,
-        &*script_id,
-        &*source_map_url,
-        &*resource_is_opaque,
-        &*is_wasm,
-        &*is_module,
+        Local::raw_or_null(resource_line_offset),
+        Local::raw_or_null(resource_column_offset),
+        Local::raw_or_null(resource_is_shared_cross_origin),
+        Local::raw_or_null(script_id),
+        Local::raw_or_null(source_map_url),
+        Local::raw_or_null(resource_is_opaque),
+        Local::raw_or_null(is_wasm),
+        Local::raw_or_null(is_module),
       );
       buf.assume_init()
     }
