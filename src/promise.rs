@@ -77,7 +77,7 @@ impl Promise {
     unsafe { v8__Promise__HasHandler(&*self) }
   }
 
-  /// Returns the content of the Promise Result. The Promise must not
+  /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
   pub fn result<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Promise__Result(&*self)) }.unwrap()

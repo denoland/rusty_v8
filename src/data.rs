@@ -503,7 +503,7 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 /// and "instance" for the instance object created above. The function
 /// and the instance will have the following properties:
 ///
-/// ```javascript,ignore
+/// ```ignore
 ///   func_property in function == true;
 ///   function.func_property == 1;
 ///
@@ -547,7 +547,7 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 /// The Child function and Child instance will have the following
 /// properties:
 ///
-/// ```javascript,ignore
+/// ```ignore
 ///   child_func.prototype.__proto__ == function.prototype;
 ///   child_instance.instance_accessor calls 'InstanceAccessorCallback'
 ///   child_instance.instance_property == 3;
