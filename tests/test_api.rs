@@ -702,11 +702,7 @@ fn try_catch_caught_lifetime() {
     (caught_exc, caught_msg)
   };
   // This should not crash.
-  assert!(caught_exc
-    .to_string(scope)
-    .unwrap()
-    .to_rust_string_lossy(scope)
-    .contains("DANG"));
+  assert!(caught_exc.to_rust_string_lossy(scope).contains("DANG"));
   assert!(caught_msg
     .get(scope)
     .to_rust_string_lossy(scope)
@@ -941,7 +937,6 @@ fn script_compile_and_run() {
     let script = v8::Script::compile(scope, source, None).unwrap();
     source.to_rust_string_lossy(scope);
     let result = script.run(scope).unwrap();
-    let result = result.to_string(scope).unwrap();
     assert_eq!(result.to_rust_string_lossy(scope), "Hello 13th planet");
   }
 }
@@ -1512,15 +1507,13 @@ fn promise_resolved() {
     resolver.resolve(scope, value.into());
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in
     // `Fulfilled` state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.resolve(scope, value.into());
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
   }
 }
 
@@ -1543,15 +1536,13 @@ fn promise_rejected() {
     assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
     // Reject again with different value, since promise is already in `Rejected`
     // state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.reject(scope, value.into());
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
   }
 }
 #[test]
@@ -1656,9 +1647,8 @@ fn function() {
     let value = function
       .call(scope, recv, &[arg1.into(), arg2.into()])
       .unwrap();
-    let value_str = value.to_string(scope).unwrap();
-    let rust_str = value_str.to_rust_string_lossy(scope);
-    assert_eq!(rust_str, "Hello callback!".to_string());
+    let value_str = value.to_rust_string_lossy(scope);
+    assert_eq!(value_str, "Hello callback!".to_string());
     // create a function with associated data
     let true_data = v8::Boolean::new(scope, true);
     let function = v8::Function::new_with_data(
@@ -1701,9 +1691,8 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let value = msg.get_value().unwrap();
   {
     let scope = &mut v8::HandleScope::new(scope);
-    let value_str = value.to_string(scope).unwrap();
-    let rust_str = value_str.to_rust_string_lossy(scope);
-    assert_eq!(rust_str, "promise rejected".to_string());
+    let value_str = value.to_rust_string_lossy(scope);
+    assert_eq!(value_str, "promise rejected".to_string());
   }
 }
 
@@ -3445,7 +3434,6 @@ fn test_prototype_api() {
 
     let sub_gotten = obj.get(scope, key_local).unwrap();
     assert!(sub_gotten.is_string());
-    let sub_gotten = sub_gotten.to_string(scope).unwrap();
     assert_eq!(sub_gotten.to_rust_string_lossy(scope), "test_proto_value");
   }
   {
