@@ -57,7 +57,9 @@ impl BigInt {
   /// specified list of digits/words.
   /// The resulting number is calculated as:
   ///
+  /// ```
   /// (-1)^sign_bit * (words[0] * (2^64)^0 + words[1] * (2^64)^1 + ...)
+  /// ```
   pub fn new_from_words<'s>(
     scope: &mut HandleScope<'s>,
     sign_bit: bool,
