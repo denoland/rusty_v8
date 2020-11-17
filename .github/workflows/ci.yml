@@ -154,8 +154,8 @@ jobs:
           cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
-          echo "$(pwd)/$basename"
-          echo "$(pwd)/$basename" >> $GITHUB_PATH
+          echo "$(pwd)/$basename/"
+          echo "$(pwd)/$basename/" >> $GITHUB_PATH
           . $basename/sccache --start-server
 
       - name: Test
