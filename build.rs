@@ -1,5 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
@@ -11,7 +12,7 @@ fn main() {
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
   // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
-  let is_cargo_doc = env::var_os("RUSTDOCFLAGS").is_some();
+  let is_cargo_doc = env::var_os("DOCS_RS").is_some();
 
   // Don't build V8 if the rust language server (RLS) is running.
   let is_rls = env::var_os("CARGO")
@@ -95,12 +96,17 @@ fn build_v8() {
     }
   }
 
-  if env::var("TARGET").unwrap() == "aarch64-unknown-linux-gnu" {
-    gn_args.push(r#"target_cpu="arm64""#.to_string());
-    gn_args.push("use_sysroot=true".to_string());
-    maybe_install_sysroot("arm64");
-    maybe_install_sysroot("amd64");
-  };
+  let target_triple = env::var("TARGET").unwrap();
+  // check if the target triple describes a non-native environment
+  if target_triple != env::var("HOST").unwrap() {
+    // cross-compilation setup
+    if target_triple == "aarch64-unknown-linux-gnu" {
+      gn_args.push(r#"target_cpu="arm64""#.to_string());
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("arm64");
+      maybe_install_sysroot("amd64");
+    };
+  }
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
@@ -199,6 +205,11 @@ fn static_lib_url() -> (String, String) {
 }
 
 fn download_file(url: String, filename: PathBuf) {
+  if !url.starts_with("http:") && !url.starts_with("https:") {
+    fs::copy(&url, filename).unwrap();
+    return;
+  }
+
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
   println!("Downloading {}", url);

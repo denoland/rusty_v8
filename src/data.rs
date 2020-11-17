@@ -353,7 +353,6 @@ pub struct Module(Opaque);
 impl_deref! { Data for Module }
 impl_try_from! { Data for Module if d => d.is_module() }
 impl_eq! { for Module }
-impl_hash! { for Module }
 impl_partial_eq! { Data for Module use identity }
 impl_partial_eq! { Module for Module use identity }
 

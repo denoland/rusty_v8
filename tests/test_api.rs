@@ -4,8 +4,10 @@
 extern crate lazy_static;
 
 use std::any::type_name;
+use std::collections::hash_map::DefaultHasher;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
+use std::hash::Hash;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -31,6 +33,7 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
+    v8::V8::set_flags_from_string("--expose_gc");
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
   }
@@ -852,7 +855,9 @@ fn add_message_listener() {
     let frame = stack_trace.get_frame(scope, 0).unwrap();
     assert_eq!(1, frame.get_line_number());
     assert_eq!(1, frame.get_column());
-    assert_eq!(3, frame.get_script_id());
+    // Note: V8 flags like --expose_externalize_string and --expose_gc install
+    // scripts of their own and therefore affect the script id that we get.
+    assert_eq!(4, frame.get_script_id());
     assert!(frame.get_script_name(scope).is_none());
     assert!(frame.get_script_name_or_source_url(scope).is_none());
     assert!(frame.get_function_name(scope).is_none());
@@ -1133,6 +1138,25 @@ fn json() {
 }
 
 #[test]
+fn no_internal_field() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let object = v8::Object::new(scope);
+    let value = v8::Integer::new(scope, 42).into();
+    assert_eq!(0, object.internal_field_count());
+    for index in &[0, 1, 1337] {
+      assert!(object.get_internal_field(scope, *index).is_none());
+      assert_eq!(false, object.set_internal_field(*index, value));
+      assert!(object.get_internal_field(scope, *index).is_none());
+    }
+  }
+}
+
+#[test]
 fn object_template() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1142,11 +1166,23 @@ fn object_template() {
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8::String::new(scope, "f").unwrap();
     let attr = v8::READ_ONLY + v8::DONT_ENUM + v8::DONT_DELETE;
+    object_templ.set_internal_field_count(1);
     object_templ.set_with_attr(name.into(), function_templ.into(), attr);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
+
     let object = object_templ.new_instance(scope).unwrap();
     assert!(!object.is_null_or_undefined());
+    assert_eq!(1, object.internal_field_count());
+
+    let value = object.get_internal_field(scope, 0).unwrap();
+    assert!(value.is_undefined());
+
+    let fortytwo = v8::Integer::new(scope, 42).into();
+    assert_eq!(true, object.set_internal_field(0, fortytwo));
+    let value = object.get_internal_field(scope, 0).unwrap();
+    assert!(value.same_value(fortytwo));
+
     let name = v8::String::new(scope, "g").unwrap();
     context.global(scope).define_own_property(
       scope,
@@ -1189,6 +1225,7 @@ fn object_template_from_function_template() {
     function_templ.set_class_name(expected_class_name);
     let object_templ =
       v8::ObjectTemplate::new_from_template(scope, function_templ);
+    assert_eq!(0, object_templ.internal_field_count());
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let object = object_templ.new_instance(scope).unwrap();
@@ -1636,13 +1673,32 @@ fn function() {
   }
 }
 
+#[test]
+fn constructor() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let array_name = v8::String::new(scope, "Array").unwrap();
+    let array_constructor = global.get(scope, array_name.into()).unwrap();
+    let array_constructor =
+      v8::Local::<v8::Function>::try_from(array_constructor).unwrap();
+    let array = array_constructor.new_instance(scope, &[]).unwrap();
+    v8::Local::<v8::Array>::try_from(array).unwrap();
+  }
+}
+
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let scope = &mut unsafe { v8::CallbackScope::new(&msg) };
   let event = msg.get_event();
   assert_eq!(event, v8::PromiseRejectEvent::PromiseRejectWithNoHandler);
   let promise = msg.get_promise();
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
-  let value = msg.get_value();
+  let value = msg.get_value().unwrap();
   {
     let scope = &mut v8::HandleScope::new(scope);
     let value_str = value.to_string(scope).unwrap();
@@ -1663,6 +1719,117 @@ fn set_promise_reject_callback() {
     let resolver = v8::PromiseResolver::new(scope).unwrap();
     let value = v8::String::new(scope, "promise rejected").unwrap();
     resolver.reject(scope, value.into());
+  }
+}
+
+#[test]
+fn promise_reject_callback_no_value() {
+  extern "C" fn promise_reject_callback(m: v8::PromiseRejectMessage) {
+    use v8::PromiseRejectEvent::*;
+    let value = m.get_value();
+    match m.get_event() {
+      PromiseHandlerAddedAfterReject => assert!(value.is_none()),
+      PromiseRejectWithNoHandler => assert!(value.is_some()),
+      _ => unreachable!(),
+    };
+  }
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_promise_reject_callback(promise_reject_callback);
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      function kaboom(resolve, reject) {
+        throw new Error("kaboom");
+      }
+      new Promise(kaboom).then(_ => {});
+    "#;
+    eval(scope, source).unwrap();
+  }
+}
+
+#[test]
+fn promise_hook() {
+  extern "C" fn hook(
+    type_: v8::PromiseHookType,
+    promise: v8::Local<v8::Promise>,
+    _parent: v8::Local<v8::Value>,
+  ) {
+    let scope = &mut unsafe { v8::CallbackScope::new(promise) };
+    let context = promise.creation_context(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let name = v8::String::new(scope, "hook").unwrap();
+    let func = global.get(scope, name.into()).unwrap();
+    let func = v8::Local::<v8::Function>::try_from(func).unwrap();
+    let args = &[v8::Integer::new(scope, type_ as i32).into(), promise.into()];
+    func.call(scope, global.into(), args).unwrap();
+  }
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_promise_hook(hook);
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      var promises = new Set();
+      function hook(type, promise) {
+        if (type === /* Init    */ 0) promises.add(promise);
+        if (type === /* Resolve */ 1) promises.delete(promise);
+      }
+      function expect(expected, actual = promises.size) {
+        if (actual !== expected) throw `expected ${expected}, actual ${actual}`;
+      }
+      expect(0);
+      new Promise(resolve => {
+        expect(1);
+        resolve();
+        expect(0);
+      });
+      expect(0);
+      new Promise(() => {});
+      expect(1);
+      promises.values().next().value
+    "#;
+    let promise = eval(scope, source).unwrap();
+    let promise = v8::Local::<v8::Promise>::try_from(promise).unwrap();
+    assert!(!promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+  }
+}
+
+#[test]
+fn allow_atomics_wait() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  for allow in &[false, true, false] {
+    let allow = *allow;
+    isolate.set_allow_atomics_wait(allow);
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source = r#"
+        const b = new SharedArrayBuffer(4);
+        const a = new Int32Array(b);
+        "timed-out" === Atomics.wait(a, 0, 0, 1);
+      "#;
+      let try_catch = &mut v8::TryCatch::new(scope);
+      let result = eval(try_catch, source);
+      if allow {
+        assert!(!try_catch.has_caught());
+        assert!(result.unwrap().is_true());
+      } else {
+        assert!(try_catch.has_caught());
+        let exc = try_catch.exception().unwrap();
+        let exc = exc.to_string(try_catch).unwrap();
+        let exc = exc.to_rust_string_lossy(try_catch);
+        assert!(exc.contains("Atomics.wait cannot be called in this context"));
+      }
+    }
   }
 }
 
@@ -1745,6 +1912,7 @@ fn module_instantiation_failures1() {
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     assert_eq!(2, module.get_module_requests_length());
+    assert!(module.script_id().is_some());
 
     assert_eq!(
       "./foo.js",
@@ -1819,9 +1987,11 @@ fn module_evaluation() {
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
     assert!(module.is_source_text_module());
     assert!(!module.is_synthetic_module());
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
 
     let result = module
       .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
@@ -2279,6 +2449,50 @@ fn uint8_array() {
     let uint8_array = v8::Uint8Array::new(scope, ab, 0, 0);
     assert!(uint8_array.is_some());
   }
+}
+
+#[test]
+fn typed_array_constructors() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let ab = v8::ArrayBuffer::new(scope, 8);
+
+  let t = v8::Uint8Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint8_array());
+
+  let t = v8::Uint8ClampedArray::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint8_clamped_array());
+
+  let t = v8::Int8Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_int8_array());
+
+  let t = v8::Uint16Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint16_array());
+
+  let t = v8::Int16Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_int16_array());
+
+  let t = v8::Uint32Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_uint32_array());
+
+  let t = v8::Int32Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_int32_array());
+
+  let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_float32_array());
+
+  let t = v8::Float64Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_float64_array());
+
+  let t = v8::BigUint64Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_big_uint64_array());
+
+  let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_big_int64_array());
 }
 
 #[test]
@@ -2778,16 +2992,22 @@ fn try_from_data() {
     v8::Local::<v8::ObjectTemplate>::try_from(d).unwrap() == object_template
   );
 
-  // There is currently no way to construct instances of `v8::Private`,
-  // therefore we don't have a test where `is_private()` succeeds.
+  let p: v8::Local<v8::Data> = v8::Private::new(scope, None).into();
+  assert!(!p.is_function_template());
+  assert!(!p.is_module());
+  assert!(!p.is_object_template());
+  assert!(p.is_private());
+  assert!(!p.is_value());
 
   let values: &[v8::Local<v8::Value>] = &[
     v8::null(scope).into(),
     v8::undefined(scope).into(),
+    v8::BigInt::new_from_u64(scope, 1337).into(),
     v8::Boolean::new(scope, true).into(),
     v8::Function::new(scope, function_callback).unwrap().into(),
     v8::Number::new(scope, 42.0).into(),
     v8::Object::new(scope).into(),
+    v8::Symbol::new(scope, None).into(),
     v8::String::new(scope, "hello").unwrap().into(),
   ];
   for &v in values {
@@ -3369,16 +3589,21 @@ fn module_snapshot() {
       let module = v8::script_compiler::compile_module(scope, source).unwrap();
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
 
+      let script_id = module.script_id();
+      assert!(script_id.is_some());
+
       let result = module.instantiate_module(
         scope,
         compile_specifier_as_module_resolve_callback,
       );
       assert!(result.unwrap());
       assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+      assert_eq!(script_id, module.script_id());
 
       let result = module.evaluate(scope);
       assert!(result.is_some());
       assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+      assert_eq!(script_id, module.script_id());
 
       snapshot_creator.set_default_context(context);
     }
@@ -3561,6 +3786,7 @@ fn synthetic_module() {
   );
   assert!(!module.is_source_text_module());
   assert!(module.is_synthetic_module());
+  assert!(module.script_id().is_none());
   assert_eq!(module.get_status(), v8::ModuleStatus::Uninstantiated);
 
   module
@@ -3611,4 +3837,474 @@ fn date() {
   let date = v8::Date::new(scope, std::f64::consts::PI).unwrap();
   assert_eq!(date.value_of(), 3.0);
   assert_eq!(date.number_value(scope).unwrap(), 3.0);
+}
+
+#[test]
+fn symbol() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let desc = v8::String::new(scope, "a description").unwrap();
+
+  let s = v8::Symbol::new(scope, None);
+  assert!(s.description(scope) == v8::undefined(scope));
+
+  let s = v8::Symbol::new(scope, Some(desc));
+  assert!(s.description(scope) == desc);
+
+  let s_pub = v8::Symbol::for_global(scope, desc);
+  assert!(s_pub.description(scope) == desc);
+  assert!(s_pub != s);
+
+  let s_pub2 = v8::Symbol::for_global(scope, desc);
+  assert!(s_pub2 != s);
+  assert!(s_pub == s_pub2);
+
+  let s = eval(scope, "Symbol.asyncIterator").unwrap();
+  assert!(s == v8::Symbol::get_async_iterator(scope));
+}
+
+#[test]
+fn private() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let p = v8::Private::new(scope, None);
+  assert!(p.name(scope) == v8::undefined(scope));
+
+  let name = v8::String::new(scope, "a name").unwrap();
+  let p = v8::Private::new(scope, Some(name));
+  assert!(p.name(scope) == name);
+
+  let p_api = v8::Private::for_api(scope, Some(name));
+  assert!(p_api.name(scope) == name);
+  assert!(p_api != p);
+
+  let p_api2 = v8::Private::for_api(scope, Some(name));
+  assert!(p_api2 != p);
+  assert!(p_api == p_api2);
+
+  let object = v8::Object::new(scope);
+  let sentinel = v8::Object::new(scope).into();
+  assert!(!object.has_private(scope, p).unwrap());
+  assert!(object.get_private(scope, p).unwrap().is_undefined());
+  // True indicates that the operation didn't throw an
+  // exception, not that it found and deleted a key.
+  assert!(object.delete_private(scope, p).unwrap());
+  assert!(object.set_private(scope, p, sentinel).unwrap());
+  assert!(object.has_private(scope, p).unwrap());
+  assert!(object
+    .get_private(scope, p)
+    .unwrap()
+    .strict_equals(sentinel));
+  assert!(object.delete_private(scope, p).unwrap());
+  assert!(!object.has_private(scope, p).unwrap());
+  assert!(object.get_private(scope, p).unwrap().is_undefined());
+}
+
+#[test]
+fn bigint() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let b = v8::BigInt::new_from_u64(scope, 1337);
+  assert_eq!(b.u64_value(), (1337, true));
+
+  let b = v8::BigInt::new_from_i64(scope, -1337);
+  assert_eq!(b.i64_value(), (-1337, true));
+
+  let words = vec![10, 10];
+  let b = v8::BigInt::new_from_words(scope, false, &words).unwrap();
+  assert_eq!(b.i64_value(), (10, false));
+
+  let raw_b = eval(scope, "184467440737095516170n").unwrap();
+  assert!(b == raw_b);
+
+  let b = v8::BigInt::new_from_words(scope, true, &words).unwrap();
+  assert_eq!(b.i64_value(), (-10, false));
+
+  let raw_b = eval(scope, "-184467440737095516170n").unwrap();
+  assert!(b == raw_b);
+
+  let raw_b = v8::Local::<v8::BigInt>::try_from(raw_b).unwrap();
+
+  let mut vec = Vec::new();
+  vec.resize(raw_b.word_count(), 0);
+  assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
+
+  let mut vec = Vec::new();
+  vec.resize(1, 0);
+  assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10][..]));
+
+  let mut vec = Vec::new();
+  vec.resize(20, 1337);
+  assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
+}
+
+// SerDes testing
+type ArrayBuffers = Vec<v8::SharedRef<v8::BackingStore>>;
+
+struct Custom1Value<'a> {
+  array_buffers: &'a mut ArrayBuffers,
+}
+
+impl<'a> Custom1Value<'a> {
+  fn serializer<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    array_buffers: &'a mut ArrayBuffers,
+  ) -> v8::ValueSerializer<'a, 's> {
+    v8::ValueSerializer::new(scope, Box::new(Self { array_buffers }))
+  }
+
+  fn deserializer<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    data: &[u8],
+    array_buffers: &'a mut ArrayBuffers,
+  ) -> v8::ValueDeserializer<'a, 's> {
+    v8::ValueDeserializer::new(scope, Box::new(Self { array_buffers }), data)
+  }
+}
+
+impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
+  #[allow(unused_variables)]
+  fn throw_data_clone_error<'s>(
+    &mut self,
+    scope: &mut v8::HandleScope<'s>,
+    message: v8::Local<'s, v8::String>,
+  ) {
+    let error = v8::Exception::error(scope, message);
+    scope.throw_exception(error);
+  }
+
+  #[allow(unused_variables)]
+  fn get_shared_array_buffer_id<'s>(
+    &mut self,
+    scope: &mut v8::HandleScope<'s>,
+    shared_array_buffer: v8::Local<'s, v8::SharedArrayBuffer>,
+  ) -> Option<u32> {
+    self
+      .array_buffers
+      .push(v8::SharedArrayBuffer::get_backing_store(
+        &shared_array_buffer,
+      ));
+    Some((self.array_buffers.len() as u32) - 1)
+  }
+}
+
+impl<'a> v8::ValueDeserializerImpl for Custom1Value<'a> {
+  #[allow(unused_variables)]
+  fn get_shared_array_buffer_from_id<'s>(
+    &mut self,
+    scope: &mut v8::HandleScope<'s>,
+    transfer_id: u32,
+  ) -> Option<v8::Local<'s, v8::SharedArrayBuffer>> {
+    let backing_store = self.array_buffers.get(transfer_id as usize).unwrap();
+    Some(v8::SharedArrayBuffer::with_backing_store(
+      scope,
+      backing_store,
+    ))
+  }
+}
+
+#[test]
+fn value_serializer_and_deserializer() {
+  use v8::ValueDeserializerHelper;
+  use v8::ValueSerializerHelper;
+
+  let _setup_guard = setup();
+  let mut array_buffers = ArrayBuffers::new();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let buffer;
+  {
+    let mut value_serializer =
+      Custom1Value::serializer(scope, &mut array_buffers);
+    value_serializer.write_header();
+    value_serializer.write_double(55.44);
+    value_serializer.write_uint32(22);
+    buffer = value_serializer.release();
+  }
+
+  let mut double: f64 = 0.0;
+  let mut int32: u32 = 0;
+  {
+    let mut value_deserializer =
+      Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
+    assert_eq!(value_deserializer.read_header(context), Some(true));
+    assert_eq!(value_deserializer.read_double(&mut double), true);
+    assert_eq!(value_deserializer.read_uint32(&mut int32), true);
+
+    assert_eq!(value_deserializer.read_uint32(&mut int32), false);
+  }
+
+  assert_eq!((double - 55.44).abs() < f64::EPSILON, true);
+  assert_eq!(int32, 22);
+}
+
+#[test]
+fn value_serializer_and_deserializer_js_objects() {
+  let buffer;
+  let mut array_buffers = ArrayBuffers::new();
+  {
+    let _setup_guard = setup();
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let objects: v8::Local<v8::Value> = eval(
+      scope,
+      r#"[
+        undefined,
+        true,
+        false,
+        null,
+        33,
+        44.444,
+        99999.55434344,
+        "test",
+        [1, 2, 3],
+        {a: "tt", add: "tsqqqss"}
+      ]"#,
+    )
+    .unwrap();
+    let mut value_serializer =
+      Custom1Value::serializer(scope, &mut array_buffers);
+    assert_eq!(value_serializer.write_value(context, objects), Some(true));
+
+    buffer = value_serializer.release();
+  }
+
+  {
+    let _setup_guard = setup();
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let mut value_deserializer =
+      Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
+    let name = v8::String::new(scope, "objects").unwrap();
+    let objects: v8::Local<v8::Value> =
+      value_deserializer.read_value(context).unwrap();
+
+    context.global(scope).set(scope, name.into(), objects);
+
+    let result: v8::Local<v8::Value> = eval(
+      scope,
+      r#"
+      {
+        const compare = [
+          undefined,
+          true,
+          false,
+          null,
+          33,
+          44.444,
+          99999.55434344,
+          "test",
+          [1, 2, 3],
+          {a: "tt", add: "tsqqqss"}
+        ];
+        let equal = true;
+        function obj_isEquivalent(a, b) {
+          if (a == null) return b == null;
+          let aProps = Object.getOwnPropertyNames(a);
+          let bProps = Object.getOwnPropertyNames(b);
+          if (aProps.length != bProps.length) return false;
+          for (let i = 0; i < aProps.length; i++) {
+            let propName = aProps[i];
+            if (a[propName] !== b[propName]) return false;
+          }
+          return true;
+        }
+        function arr_isEquivalent(a, b) {
+          if (a.length != b.length) return false;
+          for (let i = 0; i < Math.max(a.length, b.length); i++) {
+              if (a[i] !== b[i]) return false;
+          }
+          return true;
+        }
+        objects.forEach(function (item, index) {
+          let other = compare[index];
+          if (Array.isArray(item)) {
+            equal = equal && arr_isEquivalent(item, other);
+          } else if (typeof item == 'object') {
+            equal = equal && obj_isEquivalent(item, other);
+          } else {
+            equal = equal && (item == objects[index]);
+          }
+        }); 
+        equal.toString()
+      }
+      "#,
+    )
+    .unwrap();
+
+    let expected = v8::String::new(scope, "true").unwrap();
+    assert!(expected.strict_equals(result));
+  }
+}
+
+#[test]
+fn value_serializer_and_deserializer_array_buffers() {
+  let buffer;
+  let mut array_buffers = ArrayBuffers::new();
+  {
+    let _setup_guard = setup();
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let objects: v8::Local<v8::Value> = eval(
+      scope,
+      r#"{
+      var sab = new SharedArrayBuffer(10);
+      var arr = new Int8Array(sab);
+      arr[3] = 4;
+      sab
+      }"#,
+    )
+    .unwrap();
+    let mut value_serializer =
+      Custom1Value::serializer(scope, &mut array_buffers);
+    assert_eq!(value_serializer.write_value(context, objects), Some(true));
+
+    buffer = value_serializer.release();
+  }
+
+  {
+    let _setup_guard = setup();
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let mut value_deserializer =
+      Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
+    let name = v8::String::new(scope, "objects").unwrap();
+    let objects: v8::Local<v8::Value> =
+      value_deserializer.read_value(context).unwrap();
+
+    context.global(scope).set(scope, name.into(), objects);
+
+    let result: v8::Local<v8::Value> = eval(
+      scope,
+      r#"
+      {
+        var arr = new Int8Array(objects);
+        arr.toString()
+      }
+      "#,
+    )
+    .unwrap();
+
+    let expected = v8::String::new(scope, "0,0,0,4,0,0,0,0,0,0").unwrap();
+    assert!(expected.strict_equals(result));
+  }
+}
+
+struct Custom2Value {}
+
+impl<'a> Custom2Value {
+  fn serializer<'s>(
+    scope: &mut v8::HandleScope<'s>,
+  ) -> v8::ValueSerializer<'a, 's> {
+    v8::ValueSerializer::new(scope, Box::new(Self {}))
+  }
+}
+
+impl<'a> v8::ValueSerializerImpl for Custom2Value {
+  #[allow(unused_variables)]
+  fn throw_data_clone_error<'s>(
+    &mut self,
+    scope: &mut v8::HandleScope<'s>,
+    message: v8::Local<'s, v8::String>,
+  ) {
+    let error = v8::Exception::error(scope, message);
+    scope.throw_exception(error);
+  }
+}
+
+#[test]
+fn value_serializer_not_implemented() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let scope = &mut v8::TryCatch::new(scope);
+
+  let objects: v8::Local<v8::Value> = eval(
+    scope,
+    r#"{
+    var sab = new SharedArrayBuffer(10);
+    var arr = new Int8Array(sab);
+    arr[3] = 4;
+    sab
+    }"#,
+  )
+  .unwrap();
+  let mut value_serializer = Custom2Value::serializer(scope);
+  assert_eq!(value_serializer.write_value(context, objects), None);
+
+  assert!(scope.exception().is_some());
+  assert!(scope.stack_trace().is_some());
+  assert!(scope.message().is_some());
+  assert_eq!(
+    scope.message().unwrap().get(scope).to_rust_string_lossy(scope),
+    "Uncaught Error: Deno serializer: get_shared_array_buffer_id not implemented"
+  );
+}
+
+#[test]
+fn clear_kept_objects() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let step1 = r#"
+    var weakrefs = [];
+    for (let i = 0; i < 424242; i++) weakrefs.push(new WeakRef({ i }));
+    gc();
+    if (weakrefs.some(w => !w.deref())) throw "fail";
+  "#;
+
+  let step2 = r#"
+    gc();
+    if (weakrefs.every(w => w.deref())) throw "fail";
+  "#;
+
+  eval(scope, step1).unwrap();
+  scope.clear_kept_objects();
+  eval(scope, step2).unwrap();
 }

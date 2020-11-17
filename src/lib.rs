@@ -18,7 +18,7 @@
 //! let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
 //! println!("javascript code: {}", code.to_rust_string_lossy(scope));
 //!
-//! let mut script = v8::Script::compile(scope, code, None).unwrap();
+//! let script = v8::Script::compile(scope, code, None).unwrap();
 //! let result = script.run(scope).unwrap();
 //! let result = result.to_string(scope).unwrap();
 //! println!("result: {}", result.to_rust_string_lossy(scope));
@@ -35,6 +35,7 @@ extern crate libc;
 
 mod array_buffer;
 mod array_buffer_view;
+mod bigint;
 mod context;
 mod data;
 mod date;
@@ -52,6 +53,7 @@ mod object;
 mod platform;
 mod primitive_array;
 mod primitives;
+mod private;
 mod promise;
 mod property_attribute;
 mod proxy;
@@ -62,9 +64,12 @@ mod shared_array_buffer;
 mod snapshot;
 mod string;
 mod support;
+mod symbol;
 mod template;
-mod uint8_array;
+mod typed_array;
 mod value;
+mod value_deserializer;
+mod value_serializer;
 
 pub mod inspector;
 pub mod json;
@@ -75,6 +80,7 @@ pub mod script_compiler;
 pub mod V8;
 
 pub use array_buffer::*;
+pub use bigint::*;
 pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReference;
@@ -92,6 +98,8 @@ pub use isolate::MessageCallback;
 pub use isolate::MicrotasksPolicy;
 pub use isolate::NearHeapLimitCallback;
 pub use isolate::OwnedIsolate;
+pub use isolate::PromiseHook;
+pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
 pub use isolate_create_params::CreateParams;
 pub use module::*;
@@ -103,6 +111,7 @@ pub use platform::Task;
 pub use platform::TaskBase;
 pub use platform::TaskImpl;
 pub use primitives::*;
+pub use private::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
 pub use property_attribute::*;
 pub use proxy::*;
@@ -120,7 +129,14 @@ pub use support::SharedPtr;
 pub use support::SharedRef;
 pub use support::UniquePtr;
 pub use support::UniqueRef;
+pub use symbol::*;
 pub use template::*;
+pub use value_deserializer::ValueDeserializer;
+pub use value_deserializer::ValueDeserializerHelper;
+pub use value_deserializer::ValueDeserializerImpl;
+pub use value_serializer::ValueSerializer;
+pub use value_serializer::ValueSerializerHelper;
+pub use value_serializer::ValueSerializerImpl;
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;

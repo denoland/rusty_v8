@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 8.7.75
+V8 Version: 8.7.220.24
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=master)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/rusty_v8.svg)](https://crates.io/crates/rusty_v8)
@@ -39,11 +39,41 @@ Binaries builds are turned on by default: `cargo build` will initiate a download
 from github to get the static lib. To disable this build using the
 `V8_FROM_SOURCE` environmental variable.
 
-If you prefer another location for downloading binaries,
-use the`RUSTY_V8_MIRROR` environmental variable.
-
 When making changes to rusty_v8 itself, it should be tested by build from
 source. The CI always builds from source.
+
+## The `RUSTY_V8_MIRROR` environment variable
+
+Tells the build script where to get binary builds from. Understands
+`http://` and `https://` URLs, and file paths. The default is
+https://github.com/denoland/rusty_v8/releases/download.
+
+File-based mirrors are good for using cached downloads. First, point
+the environment variable to a suitable location:
+
+    # you might want to add this to your .bashrc
+    $ export RUSTY_V8_MIRROR=$HOME/.cache/rusty_v8
+
+Then populate the cache:
+
+```bash
+#!/bin/bash
+
+# see https://github.com/denoland/rusty_v8/releases
+
+for REL in v0.9.0 v0.10.0; do
+  mkdir -p $RUSTY_V8_MIRROR/$REL
+  for FILE in \
+    librusty_v8_debug_x86_64-unknown-linux-gnu.a \
+    librusty_v8_release_x86_64-unknown-linux-gnu.a \
+  ; do
+    if [ ! -f $RUSTY_V8_MIRROR/$REL/$FILE ]; then
+      wget -O $CACHE_DIR/$REL/$FILE \
+        https://github.com/denoland/rusty_v8/releases/download/$REL/$FILE
+    fi
+  done
+done
+```
 
 ## Build V8 from Source
 

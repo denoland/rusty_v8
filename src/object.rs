@@ -11,8 +11,10 @@ use crate::Local;
 use crate::Map;
 use crate::Name;
 use crate::Object;
+use crate::Private;
 use crate::PropertyAttribute;
 use crate::Value;
+use std::convert::TryFrom;
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *const Object;
@@ -106,6 +108,37 @@ extern "C" {
     this: *const Object,
     context: *const Context,
     index: u32,
+  ) -> MaybeBool;
+  fn v8__Object__InternalFieldCount(this: *const Object) -> int;
+  fn v8__Object__GetInternalField(
+    this: *const Object,
+    index: int,
+  ) -> *const Value;
+  fn v8__Object__SetInternalField(
+    this: *const Object,
+    index: int,
+    value: *const Value,
+  );
+  fn v8__Object__GetPrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+  ) -> *const Value;
+  fn v8__Object__SetPrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+    value: *const Value,
+  ) -> MaybeBool;
+  fn v8__Object__DeletePrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+  ) -> MaybeBool;
+  fn v8__Object__HasPrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
   ) -> MaybeBool;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
@@ -401,6 +434,115 @@ impl Object {
   ) -> Option<bool> {
     unsafe {
       v8__Object__DeleteIndex(self, &*scope.get_current_context(), index)
+    }
+    .into()
+  }
+
+  /// Gets the number of internal fields for this Object.
+  pub fn internal_field_count(&self) -> usize {
+    let count = unsafe { v8__Object__InternalFieldCount(self) };
+    usize::try_from(count).expect("bad internal field count") // Can't happen.
+  }
+
+  /// Gets the value from an internal field.
+  pub fn get_internal_field<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    index: usize,
+  ) -> Option<Local<'s, Value>> {
+    // Trying to access out-of-bounds internal fields makes V8 abort
+    // in debug mode and access out-of-bounds memory in release mode.
+    // The C++ API takes an i32 but doesn't check for indexes < 0, which
+    // results in an out-of-bounds access in both debug and release mode.
+    if index < self.internal_field_count() {
+      if let Ok(index) = int::try_from(index) {
+        return unsafe {
+          scope.cast_local(|_| v8__Object__GetInternalField(self, index))
+        };
+      }
+    }
+    None
+  }
+
+  /// Sets the value in an internal field. Returns false when the index
+  /// is out of bounds, true otherwise.
+  pub fn set_internal_field(&self, index: usize, value: Local<Value>) -> bool {
+    // Trying to access out-of-bounds internal fields makes V8 abort
+    // in debug mode and access out-of-bounds memory in release mode.
+    // The C++ API takes an i32 but doesn't check for indexes < 0, which
+    // results in an out-of-bounds access in both debug and release mode.
+    if index < self.internal_field_count() {
+      if let Ok(index) = int::try_from(index) {
+        unsafe { v8__Object__SetInternalField(self, index, &*value) };
+        return true;
+      }
+    }
+    false
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn get_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__GetPrivate(self, sd.get_current_context(), &*key)
+      })
+    }
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn set_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+    value: Local<Value>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetPrivate(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &*value,
+      )
+    }
+    .into()
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn delete_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__DeletePrivate(self, &*scope.get_current_context(), &*key)
+    }
+    .into()
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn has_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__HasPrivate(self, &*scope.get_current_context(), &*key)
     }
     .into()
   }

@@ -1,4 +1,6 @@
 use std::convert::TryInto;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
@@ -138,6 +140,7 @@ extern "C" {
   ) -> Location;
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
+  fn v8__Module__ScriptId(this: *const Module) -> int;
   fn v8__Module__InstantiateModule(
     this: *const Module,
     context: *const Context,
@@ -249,6 +252,19 @@ impl Module {
     unsafe { v8__Module__GetIdentityHash(self) }
   }
 
+  /// Returns the underlying script's id.
+  ///
+  /// The module must be a SourceTextModule and must not have an Errored status.
+  pub fn script_id(&self) -> Option<int> {
+    if !self.is_source_text_module() {
+      return None;
+    }
+    if self.get_status() == ModuleStatus::Errored {
+      return None;
+    }
+    Some(unsafe { v8__Module__ScriptId(self) })
+  }
+
   /// Returns the namespace object of this module.
   ///
   /// The module's status must be at least kInstantiated.
@@ -356,5 +372,11 @@ impl Module {
       )
     }
     .into()
+  }
+}
+
+impl Hash for Module {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    state.write_i32(self.get_identity_hash());
   }
 }
