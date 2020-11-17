@@ -156,7 +156,7 @@ jobs:
           tar -xzvf "$basename.tar.gz"
           . $basename/sccache --start-server
 
-          echo "$(pwd)/$basename" >> $GITHUB_PATH
+          echo "$(pwd)/$(basename)" >> $GITHUB_PATH
 
       - name: Test
         run:
