@@ -135,6 +135,7 @@ jobs:
         run: cargo clean -p serde_derive
 
       - name: Install and start sccache
+        shell: bash
         env:
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
           SCCACHE_CACHE_SIZE: 128M
