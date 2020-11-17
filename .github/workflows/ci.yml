@@ -141,15 +141,11 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
           version = "0.2.12"
-          if [[ "macOS" = "${{ runner.os }}" ]]; then
-            platform = "x86_64-apple-darwin"
-          fi 
-          if [[ "Linux" = "${{ runner.os }}" ]]; then
-            platform = "x86_64-unknown-linux-musl"
-          fi 
-          if [[ "Windows" = "${{ runner.os }}" ]]; then
-            platform = "x86_64-pc-windows-msvc"
-          fi 
+          case "${{ runner.os }}" in
+            macOS) platform="x86_64-apple-darwin" ;;
+            Linux) platform="x86_64-unknown-linux-musl" ;;
+            Windows) platform="x86_64-pc-windows-msvc" ;;
+          esac
           basename = "sccache-$version-$platform"
           url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
