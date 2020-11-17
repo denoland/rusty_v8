@@ -147,13 +147,12 @@ jobs:
             Windows) platform="x86_64-pc-windows-msvc" ;;
           esac
           basename="sccache-$version-$platform"
-          url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
+          url="https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
-          echo "$(pwd)/$basename/"
           echo "$(pwd)/$basename/" >> $GITHUB_PATH
-          . $basename/sccache --start-server
+          sccache --start-server
 
       - name: Test
         run:
