@@ -17,7 +17,7 @@ use std::ptr::null;
 
 /// Initial configuration parameters for a new Isolate.
 #[must_use]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CreateParams {
   raw: raw::CreateParams,
   allocations: CreateParamAllocations,
@@ -157,7 +157,7 @@ impl CreateParams {
   }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct CreateParamAllocations {
   // Owner of the snapshot data buffer itself.
   snapshot_blob_data: Option<Allocation<[u8]>>,
@@ -172,6 +172,7 @@ pub(crate) mod raw {
   use super::*;
 
   #[repr(C)]
+  #[derive(Debug)]
   pub(crate) struct CreateParams {
     pub code_event_handler: *const Opaque, // JitCodeEventHandler
     pub constraints: ResourceConstraints,
@@ -206,6 +207,7 @@ pub(crate) mod raw {
   }
 
   #[repr(C)]
+  #[derive(Debug)]
   pub(crate) struct StartupData {
     pub data: *const char,
     pub raw_size: int,
@@ -221,6 +223,7 @@ pub(crate) mod raw {
   }
 
   #[repr(C)]
+  #[derive(Debug)]
   pub(crate) struct ResourceConstraints {
     code_range_size_: usize,
     max_old_generation_size_: usize,

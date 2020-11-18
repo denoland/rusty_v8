@@ -100,6 +100,7 @@ extern "C" {
 /// namespace array_buffer, which will contain only the Allocator we opt in Rust
 /// to allow it to live in the top level: v8::Allocator
 #[repr(C)]
+#[derive(Debug)]
 pub struct Allocator(Opaque);
 
 impl Shared for Allocator {
@@ -169,6 +170,7 @@ pub unsafe extern "C" fn backing_store_deleter_callback(
 /// default. Use Isolate::CreateParams::array_buffer_allocator_shared when
 /// creating the Isolate to make it hold a reference to the allocator itself.
 #[repr(C)]
+#[derive(Debug)]
 pub struct BackingStore([usize; 6]);
 
 unsafe impl Send for BackingStore {}

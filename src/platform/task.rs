@@ -1,3 +1,4 @@
+use std::fmt::{self, Debug, Formatter};
 use std::mem::drop;
 use std::mem::forget;
 use std::mem::ManuallyDrop;
@@ -31,6 +32,7 @@ pub unsafe extern "C" fn v8__Task__BASE__Run(this: &mut Task) {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct Task {
   _cxx_vtable: CxxVTable,
 }
@@ -158,6 +160,15 @@ impl TaskBase {
 
   pub unsafe fn dispatch_box(task: &mut Task) -> Box<dyn TaskImpl> {
     std::mem::transmute(Self::dispatch_mut(task))
+  }
+}
+
+impl Debug for TaskBase {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("TaskBase")
+      .field("cxx_base", &self.cxx_base)
+      .field("offset_within_embedder", &self.offset_within_embedder)
+      .finish()
   }
 }
 

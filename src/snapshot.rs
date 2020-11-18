@@ -46,6 +46,7 @@ extern "C" {
 // TODO(piscisaureus): merge this struct with
 // `isolate_create_params::raw::StartupData`.
 #[repr(C)]
+#[derive(Debug)]
 pub struct StartupData {
   data: *const char,
   raw_size: int,
@@ -79,6 +80,7 @@ impl Drop for StartupData {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum FunctionCodeHandling {
   Clear,
   Keep,
@@ -86,6 +88,7 @@ pub enum FunctionCodeHandling {
 
 /// Helper class to create a snapshot data blob.
 #[repr(C)]
+#[derive(Debug)]
 pub struct SnapshotCreator([usize; 1]);
 
 impl SnapshotCreator {
