@@ -33,7 +33,7 @@
 //!   - 's = lifetime of the scope itself.
 //!   - A `Context` is available; any type of value can be created.
 //!   - Derefs to `P`.
-//!   - When a constructed as the child of a `HandleScope<'a, ()>`, the returned
+//!   - When constructed as the child of a `HandleScope<'a, ()>`, the returned
 //!     type is `ContextScope<'s, HandleScope<'p>>`. In other words, the parent
 //!     HandleScope gets an upgrade to indicate the availability of a `Context`.
 //!   - When a new scope is constructed inside this type of scope, the
