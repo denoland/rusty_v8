@@ -134,7 +134,7 @@ impl String {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
-  // Convenience function not present in the original V8 API.
+  /// Convenience function not present in the original V8 API.
   pub fn to_rust_string_lossy(
     &self,
     scope: &mut Isolate,
