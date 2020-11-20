@@ -730,18 +730,18 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
 }
 
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
-                                  const v8::String* description) {
-  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(description)));
+                                  const v8::String& description) {
+  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(&description)));
 }
 
 const v8::Symbol* v8__Symbol__For(v8::Isolate* isolate,
-                                  const v8::String* description) {
-  return local_to_ptr(v8::Symbol::For(isolate, ptr_to_local(description)));
+                                  const v8::String& description) {
+  return local_to_ptr(v8::Symbol::For(isolate, ptr_to_local(&description)));
 }
 
 const v8::Symbol* v8__Symbol__ForApi(v8::Isolate* isolate,
-                                     const v8::String* description) {
-  return local_to_ptr(v8::Symbol::ForApi(isolate, ptr_to_local(description)));
+                                     const v8::String& description) {
+  return local_to_ptr(v8::Symbol::ForApi(isolate, ptr_to_local(&description)));
 }
 
 #define V(NAME)                                                   \
@@ -767,13 +767,13 @@ const v8::Value* v8__Symbol__Description(const v8::Symbol& self) {
 }
 
 const v8::Private* v8__Private__New(v8::Isolate* isolate,
-                                    const v8::String* name) {
-  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(name)));
+                                    const v8::String& name) {
+  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(&name)));
 }
 
 const v8::Private* v8__Private__ForApi(v8::Isolate* isolate,
-                                       const v8::String* name) {
-  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(name)));
+                                       const v8::String& name) {
+  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(&name)));
 }
 
 const v8::Value* v8__Private__Name(const v8::Private& self) {
@@ -1056,7 +1056,7 @@ const v8::BigInt* v8__BigInt__NewFromUnsigned(v8::Isolate* isolate,
 
 const v8::BigInt* v8__BigInt__NewFromWords(const v8::Context& context,
                                            int sign_bit, int word_count,
-                                           const uint64_t* words) {
+                                           const uint64_t words[]) {
   return maybe_local_to_ptr(v8::BigInt::NewFromWords(
       ptr_to_local(&context), sign_bit, word_count, words));
 }
@@ -1074,7 +1074,7 @@ int v8__BigInt__WordCount(const v8::BigInt& self) {
 }
 
 void v8__BigInt__ToWordsArray(const v8::BigInt& self, int* sign_bit,
-                              int* word_count, uint64_t* words) {
+                              int* word_count, uint64_t words[]) {
   ptr_to_local(&self)->ToWordsArray(sign_bit, word_count, words);
 }
 
