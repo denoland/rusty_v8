@@ -3202,7 +3202,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     &mut self,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!("send_notificatio message {}", message.unwrap().string());
+    println!("send_notification message {}", message.unwrap().string());
     self.count_send_notification += 1;
   }
   fn flush_protocol_notifications(&mut self) {
