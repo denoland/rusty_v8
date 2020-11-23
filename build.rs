@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::process::Command;
 use which::which;
+use fslock::LockFile;
 
 fn main() {
   // Detect if trybuild tests are being compiled.
@@ -27,7 +28,19 @@ fn main() {
     if env::var_os("V8_FROM_SOURCE").is_some() {
       build_v8()
     } else {
+      // utilize a lockfile to prevent linking of
+      // only partially downloaded static library. 
+      let root = env::current_dir().unwrap();
+      let out_dir = env::var_os("OUT_DIR").unwrap();
+      let lockfilepath = root
+        .join(out_dir).parent().unwrap().parent().unwrap()
+        .join("lib_download.fslock");
+      println!("download lockfile: {:?}", &lockfilepath);
+      let mut lockfile = LockFile::open(&lockfilepath)
+        .expect("Couldn't open lib download lockfile.");
+      lockfile.lock().expect("Couldn't get lock");
       download_static_lib_binaries();
+      lockfile.unlock().expect("Couldn't unlock lockfile");
     }
   }
 
