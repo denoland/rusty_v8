@@ -144,20 +144,7 @@ fn platform() -> &'static str {
 }
 
 fn download_ninja_gn_binaries() {
-  let root = env::current_dir().unwrap();
-  let out_dir = env::var_os("OUT_DIR").expect(
-    "The 'OUT_DIR' environment is not set (it should be something like \
-     'target/debug/rusty_v8-{hash}').",
-  );
-  let out_dir_abs = root.join(out_dir);
-  // This would be target/debug or target/release
-  let target_dir = out_dir_abs
-    .parent()
-    .unwrap()
-    .parent()
-    .unwrap()
-    .parent()
-    .unwrap();
+  let target_dir = build_dir();
   let bin_dir = target_dir
     .join("ninja_gn_binaries-20200827")
     .join(platform());
@@ -183,7 +170,7 @@ fn download_ninja_gn_binaries() {
   env::set_var("NINJA", ninja);
 }
 
-fn static_lib_url() -> (String, String) {
+fn static_lib_url() -> String {
   let default_base = "https://github.com/denoland/rusty_v8/releases/download";
   let base =
     env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
@@ -191,17 +178,48 @@ fn static_lib_url() -> (String, String) {
   let target = env::var("TARGET").unwrap();
   if cfg!(target_os = "windows") {
     // Note: we always use the release build on windows.
-    let url = format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target);
-    let static_lib_name = "rusty_v8.lib".to_string();
-    (url, static_lib_name)
+    format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target)
   } else {
     let profile = env::var("PROFILE").unwrap();
     assert!(profile == "release" || profile == "debug");
-    let url =
-      format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target);
-    let static_lib_name = "librusty_v8.a".to_string();
-    (url, static_lib_name)
+    format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target)
   }
+}
+
+fn static_lib_name() -> &'static str {
+  match cfg!(target_os = "windows") {
+    true => "rusty_v8.lib",
+    false => "librusty_v8.a",
+  }
+}
+
+fn static_lib_path() -> PathBuf {
+  static_lib_dir().join(static_lib_name())
+}
+
+fn static_lib_dir() -> PathBuf {
+  build_dir().join("gn_out").join("obj")
+}
+
+fn build_dir() -> PathBuf {
+  let root = env::current_dir().unwrap();
+
+  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
+  let out_dir = env::var_os("OUT_DIR").expect(
+    "The 'OUT_DIR' environment is not set (it should be something like \
+     'target/debug/rusty_v8-{hash}').",
+  );
+  let out_dir_abs = root.join(out_dir);
+
+  // This would be target/debug or target/release
+  out_dir_abs
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .to_path_buf()
 }
 
 fn download_file(url: String, filename: PathBuf) {
@@ -243,30 +261,14 @@ fn download_file(url: String, filename: PathBuf) {
 }
 
 fn download_static_lib_binaries() {
-  let (url, static_lib_name) = static_lib_url();
+  let url = static_lib_url();
   println!("static lib URL: {}", url);
 
-  let root = env::current_dir().unwrap();
+  let dir = static_lib_dir();
+  std::fs::create_dir_all(&dir).unwrap();
+  println!("cargo:rustc-link-search={}", dir.display());
 
-  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
-  let out_dir = env::var_os("OUT_DIR").unwrap();
-  let out_dir_abs = root.join(out_dir);
-
-  // This would be target/debug or target/release
-  let target_dir = out_dir_abs
-    .parent()
-    .unwrap()
-    .parent()
-    .unwrap()
-    .parent()
-    .unwrap();
-  let obj_dir = target_dir.join("gn_out").join("obj");
-  std::fs::create_dir_all(&obj_dir).unwrap();
-
-  println!("cargo:rustc-link-search={}", obj_dir.display());
-
-  let filename = obj_dir.join(static_lib_name);
-
+  let filename = static_lib_path();
   if filename.exists() {
     println!("static lib already exists {}", filename.display());
     println!("To re-download this file, it must be manually deleted.");
@@ -322,18 +324,7 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 // Download chromium's clang into OUT_DIR because Cargo will not allow us to
 // modify the source directory.
 fn clang_download() -> PathBuf {
-  let root = env::current_dir().unwrap();
-  // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
-  let out_dir = env::var_os("OUT_DIR").unwrap();
-  let clang_base_path = root
-    .join(out_dir)
-    .parent()
-    .unwrap()
-    .parent()
-    .unwrap()
-    .parent()
-    .unwrap()
-    .join("clang");
+  let clang_base_path = build_dir().join("clang");
   println!("clang_base_path {}", clang_base_path.display());
   let status = Command::new("python")
     .arg("./tools/clang/scripts/update.py")
