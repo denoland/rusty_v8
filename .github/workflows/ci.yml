@@ -171,9 +171,12 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Prepare binary publish
-        run: cp
-          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }}
-          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+        env:
+          SOURCE: target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }}
+          TARGET: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+        run: |
+          cp ${{ env.SOURCE }} ${{ env.TARGET }}
+          cp ${{ env.SOURCE }}.sha256sum ${{ env.TARGET }}.sha256sum
 
       - name: Binary publish
         uses: softprops/action-gh-release@v1
@@ -182,8 +185,11 @@ jobs:
           startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
         with:
-          files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+          files: |
+            ${{ env.TARGET }}
+            ${{ env.TARGET }}.sha256sum
 
       # TODO: add clang-format and maybe cpplint.
 

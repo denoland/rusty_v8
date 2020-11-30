@@ -57,6 +57,7 @@ bitflags = "1.2.1"
 [build-dependencies]
 cargo_gn = "0.0.15"
 which = "4.0.2"
+sha2 = "0.9.2"
 
 [dev-dependencies]
 trybuild = "1.0.35"
