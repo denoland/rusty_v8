@@ -57,7 +57,7 @@ pub enum MicrotasksPolicy {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,

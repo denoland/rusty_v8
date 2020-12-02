@@ -1746,6 +1746,9 @@ fn promise_hook() {
     promise: v8::Local<v8::Promise>,
     _parent: v8::Local<v8::Value>,
   ) {
+    // Check that PromiseHookType implements Clone and PartialEq.
+    #[allow(clippy::clone_on_copy)]
+    if type_.clone() == v8::PromiseHookType::Init {}
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
     let context = promise.creation_context(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
