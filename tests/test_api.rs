@@ -3832,8 +3832,6 @@ fn symbol() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
 
   let desc = v8::String::new(scope, "a description").unwrap();
 
@@ -3850,6 +3848,9 @@ fn symbol() {
   let s_pub2 = v8::Symbol::for_global(scope, desc);
   assert!(s_pub2 != s);
   assert!(s_pub == s_pub2);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
 
   let s = eval(scope, "Symbol.asyncIterator").unwrap();
   assert!(s == v8::Symbol::get_async_iterator(scope));
