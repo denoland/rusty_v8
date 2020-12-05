@@ -27,7 +27,8 @@ extern "C" {
 
   fn v8__FunctionTemplate__New(
     isolate: *mut Isolate,
-    callback: FunctionCallback,
+    fast_callback: Option<extern "C" fn(ApiObject, i32)>,
+    slow_callback: FunctionCallback,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -53,6 +54,9 @@ extern "C" {
     value: int,
   );
 }
+
+#[repr(C)]
+pub struct ApiObject(usize);
 
 impl Template {
   /// Adds a property to each instance created by this template.
@@ -80,7 +84,29 @@ impl FunctionTemplate {
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__FunctionTemplate__New(sd.get_isolate_ptr(), callback.map_fn_to())
+        v8__FunctionTemplate__New(
+          sd.get_isolate_ptr(),
+          None,
+          callback.map_fn_to(),
+        )
+      })
+    }
+    .unwrap()
+  }
+
+  /// Creates a fast function template.
+  pub fn new_fast<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    fast_callback: extern "C" fn(ApiObject, i32),
+    slow_callback: impl MapFnTo<FunctionCallback>,
+  ) -> Local<'s, FunctionTemplate> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__FunctionTemplate__New(
+          sd.get_isolate_ptr(),
+          Some(fast_callback),
+          slow_callback.map_fn_to(),
+        )
       })
     }
     .unwrap()
