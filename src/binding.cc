@@ -7,6 +7,7 @@
 #include "v8/include/v8-inspector.h"
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8-profiler.h"
+#include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8.h"
 #include "v8/src/execution/isolate-utils-inl.h"
 #include "v8/src/execution/isolate-utils.h"
