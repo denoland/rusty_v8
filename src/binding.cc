@@ -10,6 +10,7 @@
 #include "v8/include/v8.h"
 #include "v8/src/execution/isolate-utils-inl.h"
 #include "v8/src/execution/isolate-utils.h"
+#include "v8/src/flags/flags.h"
 #include "v8/src/objects/objects-inl.h"
 #include "v8/src/objects/objects.h"
 #include "v8/src/objects/smi.h"
@@ -89,8 +90,12 @@ v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
 }
 
 extern "C" {
-void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv) {
-  v8::V8::SetFlagsFromCommandLine(argc, argv, true);
+void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
+                                     const char* usage) {
+  namespace i = v8::internal;
+  using HelpOptions = i::FlagList::HelpOptions;
+  HelpOptions help_options = HelpOptions(HelpOptions::kExit, usage);
+  i::FlagList::SetFlagsFromCommandLine(argc, argv, true, help_options);
 }
 
 void v8__V8__SetFlagsFromString(const char* flags, size_t length) {

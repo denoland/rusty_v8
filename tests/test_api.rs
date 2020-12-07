@@ -1000,6 +1000,15 @@ fn set_flags_from_command_line() {
 }
 
 #[test]
+fn set_flags_from_command_line_with_usage() {
+  let r = v8::V8::set_flags_from_command_line_with_usage(
+    vec!["binaryname".to_string(), "--help".to_string()],
+    Some("Usage: binaryname --startup-src=file\n\n"),
+  );
+  assert_eq!(r, vec!["binaryname".to_string()]);
+}
+
+#[test]
 fn inspector_string_view() {
   let chars = b"Hello world!";
   let view = v8::inspector::StringView::from(&chars[..]);
