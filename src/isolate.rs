@@ -21,6 +21,7 @@ use std::any::TypeId;
 
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::fmt::{self, Debug, Formatter};
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -56,7 +57,7 @@ pub enum MicrotasksPolicy {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,
@@ -122,6 +123,7 @@ pub type NearHeapLimitCallback = extern "C" fn(
 /// get heap statistics from V8.
 // Must be >= sizeof(v8::HeapStatistics), see v8__HeapStatistics__CONSTRUCT().
 #[repr(C)]
+#[derive(Debug)]
 pub struct HeapStatistics([usize; 16]);
 
 extern "C" {
@@ -227,13 +229,14 @@ extern "C" {
   fn v8__HeapStatistics__does_zap_garbage(s: *const HeapStatistics) -> usize;
 }
 
-#[repr(C)]
 /// Isolate represents an isolated instance of the V8 engine.  V8 isolates have
 /// completely separate states.  Objects from one isolate must not be used in
 /// other isolates.  The embedder can create multiple isolates and use them in
 /// parallel in multiple threads.  An isolate can be entered by at most one
 /// thread at any given time.  The Locker/Unlocker API must be used to
 /// synchronize.
+#[repr(C)]
+#[derive(Debug)]
 pub struct Isolate(Opaque);
 
 impl Isolate {
@@ -625,13 +628,22 @@ impl IsolateAnnex {
   }
 }
 
+impl Debug for IsolateAnnex {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("IsolateAnnex")
+      .field("isolate", &self.isolate)
+      .field("isolate_mutex", &self.isolate_mutex)
+      .finish()
+  }
+}
+
 /// IsolateHandle is a thread-safe reference to an Isolate. It's main use is to
 /// terminate execution of a running isolate from another thread.
 ///
 /// It is created with Isolate::thread_safe_handle().
 ///
 /// IsolateHandle is Cloneable, Send, and Sync.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
 
 unsafe impl Send for IsolateHandle {}
@@ -734,6 +746,7 @@ impl IsolateHandle {
 }
 
 /// Same as Isolate but gets disposed when it goes out of scope.
+#[derive(Debug)]
 pub struct OwnedIsolate {
   cxx_isolate: NonNull<Isolate>,
 }

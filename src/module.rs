@@ -1,4 +1,6 @@
 use std::convert::TryInto;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
@@ -167,8 +169,9 @@ extern "C" {
   fn v8__Location__GetColumnNumber(this: *const Location) -> int;
 }
 
-#[repr(C)]
 /// A location in JavaScript source.
+#[repr(C)]
+#[derive(Debug)]
 pub struct Location([usize; 1]);
 
 impl Location {
@@ -369,5 +372,11 @@ impl Module {
       )
     }
     .into()
+  }
+}
+
+impl Hash for Module {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    state.write_i32(self.get_identity_hash());
   }
 }

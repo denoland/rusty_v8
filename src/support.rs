@@ -7,6 +7,7 @@ use std::convert::identity;
 use std::convert::AsMut;
 use std::convert::AsRef;
 use std::convert::TryFrom;
+use std::fmt::{self, Debug, Formatter};
 use std::hash::BuildHasher;
 use std::hash::Hasher;
 use std::marker::PhantomData;
@@ -40,6 +41,7 @@ pub type Opaque = [u8; 0];
 
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct UniquePtr<T: ?Sized>(Option<UniqueRef<T>>);
 
 impl<T: ?Sized> UniquePtr<T> {
@@ -100,6 +102,7 @@ impl<T> From<UniqueRef<T>> for UniquePtr<T> {
 
 /// Pointer to object allocated on the C++ heap. The pointer may not be null.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct UniqueRef<T: ?Sized>(NonNull<T>);
 
 impl<T> UniqueRef<T> {
@@ -194,7 +197,7 @@ where
 /// Private base type which is shared by the `SharedPtr` and `SharedRef`
 /// implementations.
 #[repr(C)]
-#[derive(Eq, PartialEq)]
+#[derive(Eq, Debug, PartialEq)]
 pub struct SharedPtrBase<T: Shared>([usize; 2], PhantomData<T>);
 
 unsafe impl<T: Shared + Sync> Send for SharedPtrBase<T> {}
@@ -214,6 +217,7 @@ impl<T: Shared> Drop for SharedPtrBase<T> {
 
 /// Wrapper around a C++ shared_ptr. A shared_ptr may be be null.
 #[repr(C)]
+#[derive(Debug)]
 pub struct SharedPtr<T: Shared>(SharedPtrBase<T>);
 
 impl<T: Shared> SharedPtr<T> {
@@ -280,6 +284,7 @@ impl<T: Shared> From<SharedRef<T>> for SharedPtr<T> {
 /// Wrapper around a C++ shared_ptr. The shared_ptr is assumed to contain a
 /// value and may not be null.
 #[repr(C)]
+#[derive(Debug)]
 pub struct SharedRef<T: Shared>(SharedPtrBase<T>);
 
 impl<T: Shared> SharedRef<T> {
@@ -423,6 +428,19 @@ impl<T: ?Sized + 'static> Allocation<T> {
   }
 }
 
+impl<T: Debug + ?Sized> Debug for Allocation<T> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Allocation::Arc(r) => f.debug_tuple("Arc").field(&r).finish(),
+      Allocation::Box(b) => f.debug_tuple("Box").field(&b).finish(),
+      Allocation::Other(_) => f.debug_tuple("Other").finish(),
+      Allocation::Rc(r) => f.debug_tuple("Rc").field(&r).finish(),
+      Allocation::Static(s) => f.debug_tuple("Static").field(&s).finish(),
+      Allocation::UniqueRef(u) => f.debug_tuple("UniqueRef").field(&u).finish(),
+    }
+  }
+}
+
 impl<T: ?Sized> Deref for Allocation<T> {
   type Target = T;
   fn deref(&self) -> &Self::Target {
@@ -477,13 +495,14 @@ impl From<Option<bool>> for MaybeBool {
   }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(transparent)]
 pub struct CxxVTable(pub *const Opaque);
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct RustVTable<DynT>(pub *const Opaque, pub PhantomData<DynT>);
 
+#[derive(Debug)]
 pub struct FieldOffset<F>(usize, PhantomData<F>);
 
 unsafe impl<F> Send for FieldOffset<F> where F: Send {}
@@ -560,7 +579,7 @@ impl BuildHasher for BuildTypeIdHasher {
 }
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Maybe<T> {
   has_value: bool,
   value: T,
@@ -588,7 +607,7 @@ where
 
 impl<T> UnitType for T where T: Copy + Sized {}
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct UnitValue<T>(PhantomData<T>)
 where
   Self: Sized;
@@ -622,7 +641,10 @@ where
   }
 }
 
+#[derive(Debug)]
 pub struct DefaultTag;
+
+#[derive(Debug)]
 pub struct IdenticalConversionTag;
 
 pub trait MapFnFrom<F, Tag = DefaultTag>

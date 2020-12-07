@@ -19,6 +19,7 @@ pub fn new_default_platform() -> UniquePtr<Platform> {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct Platform(Opaque);
 
 impl Drop for Platform {

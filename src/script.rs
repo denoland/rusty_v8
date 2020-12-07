@@ -13,6 +13,7 @@ use crate::Value;
 
 /// The origin, within a file, of a script.
 #[repr(C)]
+#[derive(Debug)]
 pub struct ScriptOrigin<'s>([usize; 7], PhantomData<&'s ()>);
 
 extern "C" {

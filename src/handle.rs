@@ -51,6 +51,7 @@ extern "C" {
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
 #[repr(C)]
+#[derive(Debug)]
 pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 
 impl<'s, T> Local<'s, T> {
@@ -118,6 +119,7 @@ impl<'s, T> Deref for Local<'s, T> {
 /// A global handle contains a reference to a storage cell within
 /// the V8 engine which holds an object value and which is updated by
 /// the garbage collector whenever the object is moved.
+#[derive(Debug)]
 pub struct Global<T> {
   data: NonNull<T>,
   isolate_handle: IsolateHandle,
@@ -300,7 +302,7 @@ where
   }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Debug, Clone)]
 pub struct HandleInfo<T> {
   data: NonNull<T>,
   host: HandleHost,
@@ -312,7 +314,7 @@ impl<T> HandleInfo<T> {
   }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Debug, Clone)]
 enum HandleHost {
   // Note: the `HandleHost::Scope` variant does not indicate that the handle
   // it applies to is not associated with an `Isolate`. It only means that

@@ -99,10 +99,11 @@ pub enum SideEffectType {
 #[derive(Default)]
 pub(crate) struct CFunction([usize; 2]);
 
-// Npte: the 'cb lifetime is required because the ReturnValue object must not
+// Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.
 #[repr(C)]
+#[derive(Debug)]
 pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
 
 /// In V8 ReturnValue<> has a type parameter, but
@@ -139,6 +140,7 @@ impl<'cb> ReturnValue<'cb> {
 /// including the receiver, the number and values of arguments, and
 /// the holder of the function.
 #[repr(C)]
+#[derive(Debug)]
 pub struct FunctionCallbackInfo {
   // The layout of this struct must match that of `class FunctionCallbackInfo`
   // as defined in v8.h.
@@ -150,12 +152,14 @@ pub struct FunctionCallbackInfo {
 /// The information passed to a property callback about the context
 /// of the property access.
 #[repr(C)]
+#[derive(Debug)]
 pub struct PropertyCallbackInfo {
   // The layout of this struct must match that of `class PropertyCallbackInfo`
   // as defined in v8.h.
   args: *mut Opaque,
 }
 
+#[derive(Debug)]
 pub struct FunctionCallbackArguments<'s> {
   info: *const FunctionCallbackInfo,
   phantom: PhantomData<&'s ()>,
@@ -200,6 +204,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 }
 
+#[derive(Debug)]
 pub struct PropertyCallbackArguments<'s> {
   info: *const PropertyCallbackInfo,
   phantom: PhantomData<&'s ()>,

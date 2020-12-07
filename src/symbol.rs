@@ -19,7 +19,7 @@ extern "C" {
 
 macro_rules! well_known {
   ($name:ident, $binding:ident) => {
-    pub fn $name<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Symbol> {
+    pub fn $name<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Symbol> {
       extern "C" {
         fn $binding(isolate: *mut Isolate) -> *const Symbol;
       }
@@ -32,7 +32,7 @@ impl Symbol {
   /// Create a symbol. If description is not empty, it will be used as the
   /// description.
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope<'s, ()>,
     description: Option<Local<String>>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -54,7 +54,7 @@ impl Symbol {
   /// To minimize the potential for clashes, use qualified descriptions as keys.
   /// Corresponds to v8::Symbol::For() in C++.
   pub fn for_global<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope<'s, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -68,7 +68,7 @@ impl Symbol {
   /// Returns the description string of the symbol, or undefined if none.
   pub fn description<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Symbol__Description(&*self)) }.unwrap()
   }

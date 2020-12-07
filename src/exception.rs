@@ -260,6 +260,7 @@ impl Message {
 
 /// Create new error objects by calling the corresponding error object
 /// constructor with the message.
+#[derive(Debug)]
 pub struct Exception;
 
 impl Exception {
