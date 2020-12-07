@@ -478,6 +478,16 @@ impl Value {
     }
   }
 
+  /// Convenience function not present in the original V8 API.
+  pub fn to_rust_string_lossy<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> std::string::String {
+    self
+      .to_string(scope)
+      .map_or_else(std::string::String::new, |s| s.to_rust_string_lossy(scope))
+  }
+
   pub fn to_detail_string<'s>(
     &self,
     scope: &mut HandleScope<'s>,

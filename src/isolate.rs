@@ -21,6 +21,7 @@ use std::any::TypeId;
 
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::fmt::{self, Debug, Formatter};
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -56,7 +57,7 @@ pub enum MicrotasksPolicy {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,
@@ -122,6 +123,7 @@ pub type NearHeapLimitCallback = extern "C" fn(
 /// get heap statistics from V8.
 // Must be >= sizeof(v8::HeapStatistics), see v8__HeapStatistics__CONSTRUCT().
 #[repr(C)]
+#[derive(Debug)]
 pub struct HeapStatistics([usize; 16]);
 
 extern "C" {
@@ -132,6 +134,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
@@ -186,6 +189,7 @@ extern "C" {
     isolate: *mut Isolate,
     function: *const Function,
   );
+  fn v8__Isolate__SetAllowAtomicsWait(isolate: *mut Isolate, allow: bool);
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
@@ -225,13 +229,14 @@ extern "C" {
   fn v8__HeapStatistics__does_zap_garbage(s: *const HeapStatistics) -> usize;
 }
 
-#[repr(C)]
 /// Isolate represents an isolated instance of the V8 engine.  V8 isolates have
 /// completely separate states.  Objects from one isolate must not be used in
 /// other isolates.  The embedder can create multiple isolates and use them in
 /// parallel in multiple threads.  An isolate can be entered by at most one
 /// thread at any given time.  The Locker/Unlocker API must be used to
 /// synchronize.
+#[repr(C)]
+#[derive(Debug)]
 pub struct Isolate(Opaque);
 
 impl Isolate {
@@ -388,6 +393,21 @@ impl Isolate {
     unsafe { v8__Isolate__Exit(self) }
   }
 
+  /// Clears the set of objects held strongly by the heap. This set of
+  /// objects are originally built when a WeakRef is created or
+  /// successfully dereferenced.
+  ///
+  /// This is invoked automatically after microtasks are run. See
+  /// MicrotasksPolicy for when microtasks are run.
+  ///
+  /// This needs to be manually invoked only if the embedder is manually
+  /// running microtasks via a custom MicrotaskQueue class's PerformCheckpoint.
+  /// In that case, it is the embedder's responsibility to make this call at a
+  /// time which does not interrupt synchronous ECMAScript code execution.
+  pub fn clear_kept_objects(&mut self) {
+    unsafe { v8__Isolate__ClearKeptObjects(self) }
+  }
+
   /// Optional notification that the system is running low on memory.
   /// V8 uses these notifications to attempt to free memory.
   pub fn low_memory_notification(&mut self) {
@@ -516,6 +536,13 @@ impl Isolate {
     unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
   }
 
+  /// Set whether calling Atomics.wait (a function that may block) is allowed in
+  /// this isolate. This can also be configured via
+  /// CreateParams::allow_atomics_wait.
+  pub fn set_allow_atomics_wait(&mut self, allow: bool) {
+    unsafe { v8__Isolate__SetAllowAtomicsWait(self, allow) }
+  }
+
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
@@ -601,13 +628,22 @@ impl IsolateAnnex {
   }
 }
 
+impl Debug for IsolateAnnex {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("IsolateAnnex")
+      .field("isolate", &self.isolate)
+      .field("isolate_mutex", &self.isolate_mutex)
+      .finish()
+  }
+}
+
 /// IsolateHandle is a thread-safe reference to an Isolate. It's main use is to
 /// terminate execution of a running isolate from another thread.
 ///
 /// It is created with Isolate::thread_safe_handle().
 ///
 /// IsolateHandle is Cloneable, Send, and Sync.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
 
 unsafe impl Send for IsolateHandle {}
@@ -710,6 +746,7 @@ impl IsolateHandle {
 }
 
 /// Same as Isolate but gets disposed when it goes out of scope.
+#[derive(Debug)]
 pub struct OwnedIsolate {
   cxx_isolate: NonNull<Isolate>,
 }

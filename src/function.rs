@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::ptr::null;
 
 use crate::scope::CallbackScope;
 use crate::support::MapFnFrom;
@@ -19,10 +20,6 @@ extern "C" {
   fn v8__Function__New(
     context: *const Context,
     callback: FunctionCallback,
-  ) -> *const Function;
-  fn v8__Function__NewWithData(
-    context: *const Context,
-    callback: FunctionCallback,
     data: *const Value,
   ) -> *const Function;
   fn v8__Function__Call(
@@ -32,6 +29,12 @@ extern "C" {
     argc: int,
     argv: *const *const Value,
   ) -> *const Value;
+  fn v8__Function__NewInstance(
+    this: *const Function,
+    context: *const Context,
+    argc: int,
+    argv: *const *const Value,
+  ) -> *const Object;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -60,10 +63,11 @@ extern "C" {
   fn v8__ReturnValue__Get(this: *const ReturnValue) -> *const Value;
 }
 
-// Npte: the 'cb lifetime is required because the ReturnValue object must not
+// Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.
 #[repr(C)]
+#[derive(Debug)]
 pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
 
 /// In V8 ReturnValue<> has a type parameter, but
@@ -100,6 +104,7 @@ impl<'cb> ReturnValue<'cb> {
 /// including the receiver, the number and values of arguments, and
 /// the holder of the function.
 #[repr(C)]
+#[derive(Debug)]
 pub struct FunctionCallbackInfo {
   // The layout of this struct must match that of `class FunctionCallbackInfo`
   // as defined in v8.h.
@@ -111,12 +116,14 @@ pub struct FunctionCallbackInfo {
 /// The information passed to a property callback about the context
 /// of the property access.
 #[repr(C)]
+#[derive(Debug)]
 pub struct PropertyCallbackInfo {
   // The layout of this struct must match that of `class PropertyCallbackInfo`
   // as defined in v8.h.
   args: *mut Opaque,
 }
 
+#[derive(Debug)]
 pub struct FunctionCallbackArguments<'s> {
   info: *const FunctionCallbackInfo,
   phantom: PhantomData<&'s ()>,
@@ -161,6 +168,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 }
 
+#[derive(Debug)]
 pub struct PropertyCallbackArguments<'s> {
   info: *const PropertyCallbackInfo,
   phantom: PhantomData<&'s ()>,
@@ -288,7 +296,11 @@ impl Function {
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Function__New(sd.get_current_context(), callback.map_fn_to())
+        v8__Function__New(
+          sd.get_current_context(),
+          callback.map_fn_to(),
+          null(),
+        )
       })
     }
   }
@@ -302,7 +314,7 @@ impl Function {
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Function__NewWithData(
+        v8__Function__New(
           sd.get_current_context(),
           callback.map_fn_to(),
           &*data,
@@ -323,6 +335,21 @@ impl Function {
     unsafe {
       scope.cast_local(|sd| {
         v8__Function__Call(self, sd.get_current_context(), &*recv, argc, argv)
+      })
+    }
+  }
+
+  pub fn new_instance<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    args: &[Local<Value>],
+  ) -> Option<Local<'s, Object>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Function__NewInstance(self, sd.get_current_context(), argc, argv)
       })
     }
   }

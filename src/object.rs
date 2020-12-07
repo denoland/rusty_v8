@@ -11,6 +11,7 @@ use crate::Local;
 use crate::Map;
 use crate::Name;
 use crate::Object;
+use crate::Private;
 use crate::PropertyAttribute;
 use crate::Value;
 use std::convert::TryFrom;
@@ -118,6 +119,27 @@ extern "C" {
     index: int,
     value: *const Value,
   );
+  fn v8__Object__GetPrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+  ) -> *const Value;
+  fn v8__Object__SetPrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+    value: *const Value,
+  ) -> MaybeBool;
+  fn v8__Object__DeletePrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+  ) -> MaybeBool;
+  fn v8__Object__HasPrivate(
+    this: *const Object,
+    context: *const Context,
+    key: *const Private,
+  ) -> MaybeBool;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -456,6 +478,73 @@ impl Object {
       }
     }
     false
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn get_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__GetPrivate(self, sd.get_current_context(), &*key)
+      })
+    }
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn set_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+    value: Local<Value>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetPrivate(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &*value,
+      )
+    }
+    .into()
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn delete_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__DeletePrivate(self, &*scope.get_current_context(), &*key)
+    }
+    .into()
+  }
+
+  /// Functionality for private properties.
+  /// This is an experimental feature, use at your own risk.
+  /// Note: Private properties are not inherited. Do not rely on this, since it
+  /// may change.
+  pub fn has_private<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Private>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__HasPrivate(self, &*scope.get_current_context(), &*key)
+    }
+    .into()
   }
 }
 

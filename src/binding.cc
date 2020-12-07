@@ -123,6 +123,10 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+void v8__Isolate__ClearKeptObjects(v8::Isolate* isolate) {
+  isolate->ClearKeptObjects();
+}
+
 void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
   isolate->LowMemoryNotification();
 }
@@ -247,6 +251,10 @@ bool v8__Isolate__IsExecutionTerminating(v8::Isolate* isolate) {
 
 void v8__Isolate__CancelTerminateExecution(v8::Isolate* isolate) {
   isolate->CancelTerminateExecution();
+}
+
+void v8__Isolate__SetAllowAtomicsWait(v8::Isolate* isolate, bool allow) {
+  isolate->SetAllowAtomicsWait(allow);
 }
 
 void v8__Isolate__CreateParams__CONSTRUCT(
@@ -722,18 +730,18 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
 }
 
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
-                                  const v8::String* description) {
-  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(description)));
+                                  const v8::String& description) {
+  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(&description)));
 }
 
 const v8::Symbol* v8__Symbol__For(v8::Isolate* isolate,
-                                  const v8::String* description) {
-  return local_to_ptr(v8::Symbol::For(isolate, ptr_to_local(description)));
+                                  const v8::String& description) {
+  return local_to_ptr(v8::Symbol::For(isolate, ptr_to_local(&description)));
 }
 
 const v8::Symbol* v8__Symbol__ForApi(v8::Isolate* isolate,
-                                     const v8::String* description) {
-  return local_to_ptr(v8::Symbol::ForApi(isolate, ptr_to_local(description)));
+                                     const v8::String& description) {
+  return local_to_ptr(v8::Symbol::ForApi(isolate, ptr_to_local(&description)));
 }
 
 #define V(NAME)                                                   \
@@ -759,13 +767,13 @@ const v8::Value* v8__Symbol__Description(const v8::Symbol& self) {
 }
 
 const v8::Private* v8__Private__New(v8::Isolate* isolate,
-                                    const v8::String* name) {
-  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(name)));
+                                    const v8::String& name) {
+  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(&name)));
 }
 
 const v8::Private* v8__Private__ForApi(v8::Isolate* isolate,
-                                       const v8::String* name) {
-  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(name)));
+                                       const v8::String& name) {
+  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(&name)));
 }
 
 const v8::Value* v8__Private__Name(const v8::Private& self) {
@@ -944,6 +952,40 @@ void v8__Object__SetInternalField(const v8::Object& self, int index,
   ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
 }
 
+const v8::Value* v8__Object__GetPrivate(const v8::Object& self,
+                                        const v8::Context& context,
+                                        const v8::Private& key) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->GetPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__SetPrivate(const v8::Object& self,
+                                 const v8::Context& context,
+                                 const v8::Private& key,
+                                 const v8::Value& value) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->SetPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key),
+                                      ptr_to_local(&value)));
+}
+
+MaybeBool v8__Object__DeletePrivate(const v8::Object& self,
+                                    const v8::Context& context,
+                                    const v8::Private& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->DeletePrivate(ptr_to_local(&context),
+                                         ptr_to_local(&key)));
+}
+
+MaybeBool v8__Object__HasPrivate(const v8::Object& self,
+                                 const v8::Context& context,
+                                 const v8::Private& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->HasPrivate(ptr_to_local(&context),
+                                      ptr_to_local(&key)));
+}
+
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }
@@ -1014,7 +1056,7 @@ const v8::BigInt* v8__BigInt__NewFromUnsigned(v8::Isolate* isolate,
 
 const v8::BigInt* v8__BigInt__NewFromWords(const v8::Context& context,
                                            int sign_bit, int word_count,
-                                           const uint64_t* words) {
+                                           const uint64_t words[]) {
   return maybe_local_to_ptr(v8::BigInt::NewFromWords(
       ptr_to_local(&context), sign_bit, word_count, words));
 }
@@ -1032,7 +1074,7 @@ int v8__BigInt__WordCount(const v8::BigInt& self) {
 }
 
 void v8__BigInt__ToWordsArray(const v8::BigInt& self, int* sign_bit,
-                              int* word_count, uint64_t* words) {
+                              int* word_count, uint64_t words[]) {
   ptr_to_local(&self)->ToWordsArray(sign_bit, word_count, words);
 }
 
@@ -1222,16 +1264,11 @@ const v8::StackTrace* v8__Exception__GetStackTrace(const v8::Value& exception) {
 }
 
 const v8::Function* v8__Function__New(const v8::Context& context,
-                                      v8::FunctionCallback callback) {
+                                      v8::FunctionCallback callback,
+                                      const v8::Value* maybe_data) {
   return maybe_local_to_ptr(
-      v8::Function::New(ptr_to_local(&context), callback));
-}
-
-const v8::Function* v8__Function__NewWithData(const v8::Context& context,
-                                              v8::FunctionCallback callback,
-                                              const v8::Value& data) {
-  return maybe_local_to_ptr(
-      v8::Function::New(ptr_to_local(&context), callback, ptr_to_local(&data)));
+      v8::Function::New(ptr_to_local(&context), callback,
+                        ptr_to_local(maybe_data)));
 }
 
 const v8::Value* v8__Function__Call(const v8::Function& self,
@@ -1240,6 +1277,14 @@ const v8::Value* v8__Function__Call(const v8::Function& self,
                                     const v8::Value* const argv[]) {
   return maybe_local_to_ptr(
       ptr_to_local(&self)->Call(ptr_to_local(&context), ptr_to_local(&recv),
+                                argc, const_ptr_array_to_local_array(argv)));
+}
+
+const v8::Object* v8__Function__NewInstance(const v8::Function& self,
+                                    const v8::Context& context, int argc,
+                                    const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->NewInstance(ptr_to_local(&context),
                                 argc, const_ptr_array_to_local_array(argv)));
 }
 

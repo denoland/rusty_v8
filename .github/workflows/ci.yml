@@ -69,7 +69,7 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           components: clippy, rustfmt
-          rust-version: 1.47.0
+          rust-version: 1.48.0
 
       - name: Install python
         uses: actions/setup-python@v1
@@ -91,8 +91,8 @@ jobs:
           sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
                      /lib/ld-linux-aarch64.so.1
 
-          echo "::set-env name=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER::/usr/bin/aarch64-linux-gnu-gcc-5"
-          echo "::set-env name=QEMU_LD_PREFIX::/usr/aarch64-linux-gnu"
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-5" >> ${GITHUB_ENV}
+          echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
       - name: Cache
         uses: actions/cache@v2
@@ -150,13 +150,12 @@ jobs:
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/" +
                  "$version/$basename.tar.gz"
-
           cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
           . $basename/sccache --start-server
+          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-          echo "::add-path::$(pwd)/$basename"
 
       - name: Test
         run:

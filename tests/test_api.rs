@@ -4,8 +4,10 @@
 extern crate lazy_static;
 
 use std::any::type_name;
+use std::collections::hash_map::DefaultHasher;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
+use std::hash::Hash;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -31,6 +33,7 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
+    v8::V8::set_flags_from_string("--expose_gc");
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
   }
@@ -705,11 +708,7 @@ fn try_catch_caught_lifetime() {
     (caught_exc, caught_msg)
   };
   // This should not crash.
-  assert!(caught_exc
-    .to_string(scope)
-    .unwrap()
-    .to_rust_string_lossy(scope)
-    .contains("DANG"));
+  assert!(caught_exc.to_rust_string_lossy(scope).contains("DANG"));
   assert!(caught_msg
     .get(scope)
     .to_rust_string_lossy(scope)
@@ -858,7 +857,9 @@ fn add_message_listener() {
     let frame = stack_trace.get_frame(scope, 0).unwrap();
     assert_eq!(1, frame.get_line_number());
     assert_eq!(1, frame.get_column());
-    assert_eq!(3, frame.get_script_id());
+    // Note: V8 flags like --expose_externalize_string and --expose_gc install
+    // scripts of their own and therefore affect the script id that we get.
+    assert_eq!(4, frame.get_script_id());
     assert!(frame.get_script_name(scope).is_none());
     assert!(frame.get_script_name_or_source_url(scope).is_none());
     assert!(frame.get_function_name(scope).is_none());
@@ -942,7 +943,6 @@ fn script_compile_and_run() {
     let script = v8::Script::compile(scope, source, None).unwrap();
     source.to_rust_string_lossy(scope);
     let result = script.run(scope).unwrap();
-    let result = result.to_string(scope).unwrap();
     assert_eq!(result.to_rust_string_lossy(scope), "Hello 13th planet");
   }
 }
@@ -1513,15 +1513,13 @@ fn promise_resolved() {
     resolver.resolve(scope, value.into());
     assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
     // Resolve again with different value, since promise is already in
     // `Fulfilled` state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.resolve(scope, value.into());
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
   }
 }
 
@@ -1544,15 +1542,13 @@ fn promise_rejected() {
     assert!(rejected.unwrap());
     assert_eq!(promise.state(), v8::PromiseState::Rejected);
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
     // Reject again with different value, since promise is already in `Rejected`
     // state it should be ignored.
     let value = v8::String::new(scope, "test2").unwrap();
     resolver.reject(scope, value.into());
     let result = promise.result(scope);
-    let result_str = result.to_string(scope).unwrap();
-    assert_eq!(result_str.to_rust_string_lossy(scope), "test".to_string());
+    assert_eq!(result.to_rust_string_lossy(scope), "test".to_string());
   }
 }
 #[test]
@@ -1657,9 +1653,8 @@ fn function() {
     let value = function
       .call(scope, recv, &[arg1.into(), arg2.into()])
       .unwrap();
-    let value_str = value.to_string(scope).unwrap();
-    let rust_str = value_str.to_rust_string_lossy(scope);
-    assert_eq!(rust_str, "Hello callback!".to_string());
+    let value_str = value.to_rust_string_lossy(scope);
+    assert_eq!(value_str, "Hello callback!".to_string());
     // create a function with associated data
     let true_data = v8::Boolean::new(scope, true);
     let function = v8::Function::new_with_data(
@@ -1674,6 +1669,25 @@ fn function() {
   }
 }
 
+#[test]
+fn constructor() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let array_name = v8::String::new(scope, "Array").unwrap();
+    let array_constructor = global.get(scope, array_name.into()).unwrap();
+    let array_constructor =
+      v8::Local::<v8::Function>::try_from(array_constructor).unwrap();
+    let array = array_constructor.new_instance(scope, &[]).unwrap();
+    v8::Local::<v8::Array>::try_from(array).unwrap();
+  }
+}
+
 extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let scope = &mut unsafe { v8::CallbackScope::new(&msg) };
   let event = msg.get_event();
@@ -1683,9 +1697,8 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   let value = msg.get_value().unwrap();
   {
     let scope = &mut v8::HandleScope::new(scope);
-    let value_str = value.to_string(scope).unwrap();
-    let rust_str = value_str.to_rust_string_lossy(scope);
-    assert_eq!(rust_str, "promise rejected".to_string());
+    let value_str = value.to_rust_string_lossy(scope);
+    assert_eq!(value_str, "promise rejected".to_string());
   }
 }
 
@@ -1739,6 +1752,9 @@ fn promise_hook() {
     promise: v8::Local<v8::Promise>,
     _parent: v8::Local<v8::Value>,
   ) {
+    // Check that PromiseHookType implements Clone and PartialEq.
+    #[allow(clippy::clone_on_copy)]
+    if type_.clone() == v8::PromiseHookType::Init {}
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
     let context = promise.creation_context(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -1780,6 +1796,38 @@ fn promise_hook() {
     let promise = v8::Local::<v8::Promise>::try_from(promise).unwrap();
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
+  }
+}
+
+#[test]
+fn allow_atomics_wait() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  for allow in &[false, true, false] {
+    let allow = *allow;
+    isolate.set_allow_atomics_wait(allow);
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source = r#"
+        const b = new SharedArrayBuffer(4);
+        const a = new Int32Array(b);
+        "timed-out" === Atomics.wait(a, 0, 0, 1);
+      "#;
+      let try_catch = &mut v8::TryCatch::new(scope);
+      let result = eval(try_catch, source);
+      if allow {
+        assert!(!try_catch.has_caught());
+        assert!(result.unwrap().is_true());
+      } else {
+        assert!(try_catch.has_caught());
+        let exc = try_catch.exception().unwrap();
+        let exc = exc.to_string(try_catch).unwrap();
+        let exc = exc.to_rust_string_lossy(try_catch);
+        assert!(exc.contains("Atomics.wait cannot be called in this context"));
+      }
+    }
   }
 }
 
@@ -1941,6 +1989,7 @@ fn module_evaluation() {
     assert!(module.is_source_text_module());
     assert!(!module.is_synthetic_module());
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
 
     let result = module
       .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
@@ -3162,7 +3211,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     &mut self,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!("send_notificatio message {}", message.unwrap().string());
+    println!("send_notification message {}", message.unwrap().string());
     self.count_send_notification += 1;
   }
   fn flush_protocol_notifications(&mut self) {
@@ -3394,7 +3443,6 @@ fn test_prototype_api() {
 
     let sub_gotten = obj.get(scope, key_local).unwrap();
     assert!(sub_gotten.is_string());
-    let sub_gotten = sub_gotten.to_string(scope).unwrap();
     assert_eq!(sub_gotten.to_rust_string_lossy(scope), "test_proto_value");
   }
   {
@@ -3793,8 +3841,6 @@ fn symbol() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
 
   let desc = v8::String::new(scope, "a description").unwrap();
 
@@ -3811,6 +3857,9 @@ fn symbol() {
   let s_pub2 = v8::Symbol::for_global(scope, desc);
   assert!(s_pub2 != s);
   assert!(s_pub == s_pub2);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
 
   let s = eval(scope, "Symbol.asyncIterator").unwrap();
   assert!(s == v8::Symbol::get_async_iterator(scope));
@@ -3838,6 +3887,23 @@ fn private() {
   let p_api2 = v8::Private::for_api(scope, Some(name));
   assert!(p_api2 != p);
   assert!(p_api == p_api2);
+
+  let object = v8::Object::new(scope);
+  let sentinel = v8::Object::new(scope).into();
+  assert!(!object.has_private(scope, p).unwrap());
+  assert!(object.get_private(scope, p).unwrap().is_undefined());
+  // True indicates that the operation didn't throw an
+  // exception, not that it found and deleted a key.
+  assert!(object.delete_private(scope, p).unwrap());
+  assert!(object.set_private(scope, p, sentinel).unwrap());
+  assert!(object.has_private(scope, p).unwrap());
+  assert!(object
+    .get_private(scope, p)
+    .unwrap()
+    .strict_equals(sentinel));
+  assert!(object.delete_private(scope, p).unwrap());
+  assert!(!object.has_private(scope, p).unwrap());
+  assert!(object.get_private(scope, p).unwrap().is_undefined());
 }
 
 #[test]
@@ -4211,4 +4277,32 @@ fn value_serializer_not_implemented() {
     scope.message().unwrap().get(scope).to_rust_string_lossy(scope),
     "Uncaught Error: Deno serializer: get_shared_array_buffer_id not implemented"
   );
+}
+
+#[test]
+fn clear_kept_objects() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let step1 = r#"
+    var weakrefs = [];
+    for (let i = 0; i < 424242; i++) weakrefs.push(new WeakRef({ i }));
+    gc();
+    if (weakrefs.some(w => !w.deref())) throw "fail";
+  "#;
+
+  let step2 = r#"
+    gc();
+    if (weakrefs.every(w => w.deref())) throw "fail";
+  "#;
+
+  eval(scope, step1).unwrap();
+  scope.clear_kept_objects();
+  eval(scope, step2).unwrap();
 }
