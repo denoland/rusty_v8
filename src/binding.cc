@@ -55,6 +55,9 @@ static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
               "SnapshotCreator size mismatch");
 
+static_assert(sizeof(v8::CFunction) == sizeof(size_t) * 2,
+              "CFunction size mismatch");
+
 static_assert(sizeof(three_pointers_t) == sizeof(v8_inspector::StringView),
               "StringView size mismatch");
 
