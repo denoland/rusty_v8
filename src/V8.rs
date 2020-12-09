@@ -11,7 +11,11 @@ use crate::support::UniqueRef;
 use crate::support::UnitType;
 
 extern "C" {
-  fn v8__V8__SetFlagsFromCommandLine(argc: *mut c_int, argv: *mut *mut c_char);
+  fn v8__V8__SetFlagsFromCommandLine(
+    argc: *mut c_int,
+    argv: *mut *mut c_char,
+    usage: *const c_char,
+  );
   fn v8__V8__SetFlagsFromString(flags: *const u8, length: usize);
   fn v8__V8__SetEntropySource(callback: EntropySource);
   fn v8__V8__GetVersion() -> *const c_char;
@@ -83,6 +87,12 @@ pub fn assert_initialized() {
 /// Returns a vector of command line arguments that V8 did not understand.
 /// TODO: Check whether this is safe to do after globally initializing v8.
 pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
+  set_flags_from_command_line_with_usage(args, None)
+}
+pub fn set_flags_from_command_line_with_usage(
+  args: Vec<String>,
+  usage: Option<&str>,
+) -> Vec<String> {
   // deno_set_v8_flags(int* argc, char** argv) mutates argc and argv to remove
   // flags that v8 understands.
 
@@ -102,8 +112,16 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
   // updates its value.
   let mut c_argv_len = c_argv.len() as c_int;
   // Let v8 parse the arguments it recognizes and remove them from c_argv.
+  let c_usage = match usage {
+    Some(str) => CString::new(str).unwrap().into_raw() as *const c_char,
+    None => std::ptr::null(),
+  };
   unsafe {
-    v8__V8__SetFlagsFromCommandLine(&mut c_argv_len, c_argv.as_mut_ptr())
+    v8__V8__SetFlagsFromCommandLine(
+      &mut c_argv_len,
+      c_argv.as_mut_ptr(),
+      c_usage,
+    );
   };
   // If c_argv_len was updated we have to change the length of c_argv to match.
   c_argv.truncate(c_argv_len as usize);
