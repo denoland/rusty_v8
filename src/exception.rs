@@ -87,7 +87,7 @@ impl StackTrace {
 }
 
 impl StackFrame {
-  /// Returns the number, 1-based, of the line for the associate function call.
+  /// Returns the number, 1-based, of the line for the associated function call.
   /// This method will return Message::kNoLineNumberInfo if it is unable to
   /// retrieve the line number, or if kLineNumber was not passed as an option
   /// when capturing the StackTrace.
