@@ -2293,7 +2293,7 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -2376,7 +2376,7 @@ fn external_references() {
   // the value 3.
   let startup_data = {
     let mut snapshot_creator =
-      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
+      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES), None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -2420,6 +2420,124 @@ fn external_references() {
 
       let result = eval(scope, "if(F() != 'Hello callback!') throw 'boom2'");
       assert!(result.is_some());
+    }
+  }
+}
+
+#[test]
+fn existing_blob() {
+  let _setup_guard = setup();
+  // First we create the snapshot, there is a single global variable 'a' set to
+  // the value 3.
+  let isolate_data_index;
+  let context_data_index;
+  let context_data_index_2;
+  let startup_data = {
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
+    // the scope type system.
+    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    {
+      // Check that the SnapshotCreator isolate has been set up correctly.
+      let _ = isolate.thread_safe_handle();
+
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+
+      let source = v8::String::new(scope, "a = 1 + 2").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      script.run(scope).unwrap();
+
+      snapshot_creator.set_default_context(context);
+
+      isolate_data_index =
+          snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
+      context_data_index =
+          snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
+      context_data_index_2 =
+          snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
+    }
+    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+    snapshot_creator
+        .create_blob(v8::FunctionCodeHandling::Clear)
+        .unwrap()
+  };
+  assert!(startup_data.len() > 0);
+  // Now we try to load up the snapshot and check that 'a' has the correct
+  // value, then update 'a' again.
+  let startup_data = {
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, Some(startup_data));
+    let isolate = &mut unsafe { snapshot_creator.get_owned_isolate() };
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source = v8::String::new(scope, "a++ === 3;").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      let result = script.run(scope).unwrap();
+      let true_val = v8::Boolean::new(scope, true).into();
+      assert!(result.same_value(true_val));
+
+      let isolate_data = scope
+          .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(isolate_data.unwrap() == v8::Number::new(scope, 1.0));
+      let no_data_err = scope
+          .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let context_data = scope
+          .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(context_data.unwrap() == v8::Number::new(scope, 2.0));
+      let no_data_err = scope
+          .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let bad_type_err = scope
+          .get_context_data_from_snapshot_once::<v8::Private>(
+            context_data_index_2,
+          );
+      assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
+
+      snapshot_creator
+          .create_blob(v8::FunctionCodeHandling::Clear)
+          .unwrap()
+    }
+  };
+  assert!(startup_data.len() > 0);
+  // Now we test that 'a' has the correct value after being snapshoted for a 2nd time
+  {
+    let params = v8::Isolate::create_params().snapshot_blob(startup_data);
+    let isolate = &mut v8::Isolate::new(params);
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source = v8::String::new(scope, "a === 4;").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      let result = script.run(scope).unwrap();
+      let true_val = v8::Boolean::new(scope, true).into();
+      assert!(result.same_value(true_val));
+
+      let isolate_data = scope
+          .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(isolate_data.unwrap() == v8::Number::new(scope, 1.0));
+      let no_data_err = scope
+          .get_isolate_data_from_snapshot_once::<v8::Value>(isolate_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let context_data = scope
+          .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(context_data.unwrap() == v8::Number::new(scope, 2.0));
+      let no_data_err = scope
+          .get_context_data_from_snapshot_once::<v8::Value>(context_data_index);
+      assert!(matches!(no_data_err, Err(v8::DataError::NoData { .. })));
+
+      let bad_type_err = scope
+          .get_context_data_from_snapshot_once::<v8::Private>(
+            context_data_index_2,
+          );
+      assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
     }
   }
 }
@@ -3584,7 +3702,7 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
