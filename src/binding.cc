@@ -1793,9 +1793,12 @@ v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
 
 void v8_inspector__V8Inspector__contextCreated(
     v8_inspector::V8Inspector* self, const v8::Context& context,
-    int contextGroupId, v8_inspector::StringView humanReadableName) {
-  self->contextCreated(v8_inspector::V8ContextInfo(
-      ptr_to_local(&context), contextGroupId, humanReadableName));
+    int contextGroupId, v8_inspector::StringView humanReadableName,
+    v8_inspector::StringView origin) {
+  auto context_info = v8_inspector::V8ContextInfo(
+      ptr_to_local(&context), contextGroupId, humanReadableName);
+  context_info.origin = origin;
+  self->contextCreated(context_info);
 }
 
 void v8_inspector__V8InspectorSession__DELETE(

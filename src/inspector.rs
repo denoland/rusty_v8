@@ -102,6 +102,7 @@ extern "C" {
     context: *const Context,
     contextGroupId: int,
     humanReadableName: StringView,
+    origin: StringView,
   );
 }
 
@@ -897,6 +898,7 @@ impl V8Inspector {
     context: Local<Context>,
     context_group_id: i32,
     human_readable_name: StringView,
+    origin: StringView,
   ) {
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
@@ -904,6 +906,7 @@ impl V8Inspector {
         &*context,
         context_group_id,
         human_readable_name,
+        origin,
       )
     }
   }
