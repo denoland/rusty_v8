@@ -92,14 +92,15 @@ For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
 not supported.
 
 The build depends on several binary tools: `gn`, `ninja` and a recent version
-of `clang` (V8 relies on bleeding edge features). Because these are not
-generally available they are automatically downloaded during the build by default.
-It should be possible to opt out of the gn and ninja download by specifying the
-`$GN` and `$NINJA` environmental variables. The clang download can be skipped by
-providing a `$CLANG_BASE_PATH` environmental variable pointing to a recent
-`llvm`/`clang` installation (currently LLVM v8.0+ or Apple clang v11.0+).
-You could also pass in additional arguments to `gn` by setting the `$GN_ARGS`
-environmental variable.
+of `clang` (V8 relies on bleeding edge features). The tools will automatically
+be downloaded, if they are not detected in the environment.
+
+Specifying the `$GN` and `$NINJA` environmental variables can be used to skip
+the download of gn and ninja. The clang download can be skipped by setting
+`$CLANG_BASE_PATH` to the directory containing recent `llvm`/`clang`
+binaries (currently LLVM v8.0+ or Apple clang v11.0+).
+
+Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental variable.
 
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
