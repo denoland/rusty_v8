@@ -287,8 +287,10 @@ fn print_link_flags() {
 }
 
 fn need_gn_ninja_download() -> bool {
-  !((which("ninja").is_ok() || env::var_os("NINJA").is_some())
-    && env::var_os("GN").is_some())
+  let has_ninja = which("ninja").is_ok() || env::var_os("NINJA").is_some();
+  let has_gn = which("gn").is_ok() || env::var_os("GN").is_some();
+
+  return !has_ninja || !has_gn;
 }
 
 // Chromiums gn arg clang_base_path is currently compatible with:
