@@ -97,8 +97,9 @@ be downloaded, if they are not detected in the environment.
 
 Specifying the `$GN` and `$NINJA` environmental variables can be used to skip
 the download of gn and ninja. The clang download can be skipped by setting
-`$CLANG_BASE_PATH` to the directory containing recent `llvm`/`clang`
-binaries (currently LLVM v8.0+ or Apple clang v11.0+).
+`$CLANG_BASE_PATH` to the directory containing a `llvm`/`clang` installation.
+V8 is known to rely on bleeding edge features, so LLVM v8.0+ or Apple clang 11.0+
+is recommended.
 
 Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental variable.
 
