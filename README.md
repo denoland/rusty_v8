@@ -91,9 +91,8 @@ install them.
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
 not supported.
 
-The build depends on several binary tools: `gn`, `ninja` and a recent version
-of `clang` (V8 relies on bleeding edge features). The tools will automatically
-be downloaded, if they are not detected in the environment.
+The build depends on several binary tools: `gn`, `ninja` and `clang`. The
+tools will automatically be downloaded, if they are not detected in the environment.
 
 Specifying the `$GN` and `$NINJA` environmental variables can be used to skip
 the download of gn and ninja. The clang download can be skipped by setting
