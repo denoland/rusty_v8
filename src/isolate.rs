@@ -271,6 +271,21 @@ impl Isolate {
     IsolateHandle::new(self)
   }
 
+  /// See [`IsolateHandle::terminate_execution`]
+  pub fn terminate_execution(&mut self) -> bool {
+    self.thread_safe_handle().terminate_execution()
+  }
+
+  /// See [`IsolateHandle::cancel_terminate_execution`]
+  pub fn cancel_terminate_execution(&mut self) -> bool {
+    self.thread_safe_handle().cancel_terminate_execution()
+  }
+
+  /// See [`IsolateHandle::is_execution_terminating`]
+  pub fn is_execution_terminating(&mut self) -> bool {
+    self.thread_safe_handle().is_execution_terminating()
+  }
+
   pub(crate) fn create_annex(
     &mut self,
     create_param_allocations: Box<dyn Any>,

@@ -731,6 +731,29 @@ fn throw_exception() {
 }
 
 #[test]
+fn isolate_termination_methods() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let handle = isolate.thread_safe_handle();
+  assert_eq!(false, isolate.terminate_execution());
+  assert_eq!(false, isolate.cancel_terminate_execution());
+  assert_eq!(false, isolate.is_execution_terminating());
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    data: *mut std::ffi::c_void,
+  ) {
+    assert_eq!(data, std::ptr::null_mut());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+  assert_eq!(
+    false,
+    handle.request_interrupt(callback, std::ptr::null_mut())
+  );
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn thread_safe_handle_drop_after_isolate() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new(Default::default());
