@@ -733,7 +733,7 @@ fn throw_exception() {
 #[test]
 fn isolate_termination_methods() {
   let _setup_guard = setup();
-  let mut isolate = v8::Isolate::new(Default::default());
+  let isolate = v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   assert_eq!(false, isolate.terminate_execution());
   assert_eq!(false, isolate.cancel_terminate_execution());
@@ -756,7 +756,7 @@ fn isolate_termination_methods() {
 #[test]
 fn thread_safe_handle_drop_after_isolate() {
   let _setup_guard = setup();
-  let mut isolate = v8::Isolate::new(Default::default());
+  let isolate = v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   // We can call it twice.
   let handle_ = isolate.thread_safe_handle();

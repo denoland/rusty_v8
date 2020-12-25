@@ -267,22 +267,22 @@ impl Isolate {
     CreateParams::default()
   }
 
-  pub fn thread_safe_handle(&mut self) -> IsolateHandle {
+  pub fn thread_safe_handle(&self) -> IsolateHandle {
     IsolateHandle::new(self)
   }
 
   /// See [`IsolateHandle::terminate_execution`]
-  pub fn terminate_execution(&mut self) -> bool {
+  pub fn terminate_execution(&self) -> bool {
     self.thread_safe_handle().terminate_execution()
   }
 
   /// See [`IsolateHandle::cancel_terminate_execution`]
-  pub fn cancel_terminate_execution(&mut self) -> bool {
+  pub fn cancel_terminate_execution(&self) -> bool {
     self.thread_safe_handle().cancel_terminate_execution()
   }
 
   /// See [`IsolateHandle::is_execution_terminating`]
-  pub fn is_execution_terminating(&mut self) -> bool {
+  pub fn is_execution_terminating(&self) -> bool {
     self.thread_safe_handle().is_execution_terminating()
   }
 
@@ -672,7 +672,7 @@ impl IsolateHandle {
     self.0.isolate
   }
 
-  fn new(isolate: &mut Isolate) -> Self {
+  fn new(isolate: &Isolate) -> Self {
     Self(isolate.get_annex_arc())
   }
 
