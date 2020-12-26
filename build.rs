@@ -1,6 +1,9 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
+use sha2::Digest;
+use sha2::Sha256;
 use std::env;
 use std::fs;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
@@ -114,6 +117,14 @@ fn build_v8() {
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   cargo_gn::build("rusty_v8", None);
+
+  let filename = static_lib_path();
+  let mut file = fs::File::open(&filename).expect("archive not found");
+  let mut hasher = Sha256::new();
+  io::copy(&mut file, &mut hasher).unwrap();
+  let hash = format!("{:x}", hasher.finalize());
+  let filename = format!("{}.sha256sum", filename.to_str().unwrap());
+  fs::write(&filename, hash).unwrap();
 }
 
 fn maybe_install_sysroot(arch: &str) {
