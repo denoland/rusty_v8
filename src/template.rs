@@ -6,16 +6,23 @@ use crate::data::Template;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
+use crate::CFunction;
+use crate::ConstructorBehavior;
 use crate::Context;
 use crate::Function;
+use crate::FunctionBuilder;
 use crate::FunctionCallback;
 use crate::HandleScope;
 use crate::Local;
 use crate::Object;
 use crate::PropertyAttribute;
+use crate::SideEffectType;
+use crate::Signature;
 use crate::String;
+use crate::Value;
 use crate::NONE;
 use std::convert::TryFrom;
+use std::ptr::null;
 
 extern "C" {
   fn v8__Template__Set(
@@ -28,6 +35,12 @@ extern "C" {
   fn v8__FunctionTemplate__New(
     isolate: *mut Isolate,
     callback: FunctionCallback,
+    data_or_null: *const Value,
+    signature_or_null: *const Signature,
+    length: i32,
+    constructor_behavior: ConstructorBehavior,
+    side_effect_type: SideEffectType,
+    c_function_or_null: *const CFunction,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -72,18 +85,51 @@ impl Template {
   }
 }
 
+impl<'s> FunctionBuilder<'s, FunctionTemplate> {
+  /// Set the function call signature. The default is no signature.
+  pub fn signature(mut self, signature: Local<'s, Signature>) -> Self {
+    self.signature = Some(signature);
+    self
+  }
+
+  /// Creates the function template.
+  pub fn build(
+    self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, FunctionTemplate> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__FunctionTemplate__New(
+          sd.get_isolate_ptr(),
+          self.callback,
+          self.data.map_or_else(null, |p| &*p),
+          self.signature.map_or_else(null, |p| &*p),
+          self.length,
+          self.constructor_behavior,
+          self.side_effect_type,
+          null(),
+        )
+      })
+    }
+    .unwrap()
+  }
+}
+
 impl FunctionTemplate {
+  /// Create a FunctionBuilder to configure a FunctionTemplate.
+  /// This is the same as FunctionBuilder::<FunctionTemplate>::new().
+  pub fn builder<'s>(
+    callback: impl MapFnTo<FunctionCallback>,
+  ) -> FunctionBuilder<'s, Self> {
+    FunctionBuilder::new(callback)
+  }
+
   /// Creates a function template.
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'s, FunctionTemplate> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__FunctionTemplate__New(sd.get_isolate_ptr(), callback.map_fn_to())
-      })
-    }
-    .unwrap()
+    Self::builder(callback).build(scope)
   }
 
   /// Returns the unique function instance in the current execution context.

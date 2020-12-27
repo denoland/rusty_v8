@@ -14,13 +14,17 @@ use crate::HandleScope;
 use crate::Local;
 use crate::Name;
 use crate::Object;
+use crate::Signature;
 use crate::Value;
 
 extern "C" {
   fn v8__Function__New(
     context: *const Context,
     callback: FunctionCallback,
-    data: *const Value,
+    data_or_null: *const Value,
+    length: i32,
+    constructor_behavior: ConstructorBehavior,
+    side_effect_type: SideEffectType,
   ) -> *const Function;
   fn v8__Function__Call(
     this: *const Function,
@@ -62,6 +66,38 @@ extern "C" {
   fn v8__ReturnValue__Set(this: *mut ReturnValue, value: *const Value);
   fn v8__ReturnValue__Get(this: *const ReturnValue) -> *const Value;
 }
+
+// Ad-libbed - V8 does not document ConstructorBehavior.
+/// ConstructorBehavior::Allow creates a regular API function.
+///
+/// ConstructorBehavior::Throw creates a "concise" API function, a function
+/// without a ".prototype" property, that is somewhat faster to create and has
+/// a smaller footprint. Functionally equivalent to ConstructorBehavior::Allow
+/// followed by a call to FunctionTemplate::RemovePrototype().
+#[repr(C)]
+pub enum ConstructorBehavior {
+  Throw,
+  Allow,
+}
+
+/// Options for marking whether callbacks may trigger JS-observable side
+/// effects. Side-effect-free callbacks are allowlisted during debug evaluation
+/// with throwOnSideEffect. It applies when calling a Function,
+/// FunctionTemplate, or an Accessor callback. For Interceptors, please see
+/// PropertyHandlerFlags's kHasNoSideEffect.
+/// Callbacks that only cause side effects to the receiver are allowlisted if
+/// invoked on receiver objects that are created within the same debug-evaluate
+/// call, as these objects are temporary and the side effect does not escape.
+#[repr(C)]
+pub enum SideEffectType {
+  HasSideEffect,
+  HasNoSideEffect,
+  HasSideEffectToReceiver,
+}
+
+#[repr(C)]
+#[derive(Default)]
+pub(crate) struct CFunction([usize; 2]);
 
 // Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
@@ -286,41 +322,96 @@ where
   }
 }
 
+/// A builder to construct the properties of a Function or FunctionTemplate.
+pub struct FunctionBuilder<'s, T> {
+  pub(crate) callback: FunctionCallback,
+  pub(crate) data: Option<Local<'s, Value>>,
+  pub(crate) signature: Option<Local<'s, Signature>>,
+  pub(crate) length: i32,
+  pub(crate) constructor_behavior: ConstructorBehavior,
+  pub(crate) side_effect_type: SideEffectType,
+  phantom: PhantomData<T>,
+}
+
+impl<'s, T> FunctionBuilder<'s, T> {
+  /// Create a new FunctionBuilder.
+  pub fn new(callback: impl MapFnTo<FunctionCallback>) -> Self {
+    Self {
+      callback: callback.map_fn_to(),
+      data: None,
+      signature: None,
+      length: 0,
+      constructor_behavior: ConstructorBehavior::Allow,
+      side_effect_type: SideEffectType::HasSideEffect,
+      phantom: PhantomData,
+    }
+  }
+
+  /// Set the associated data. The default is no associated data.
+  pub fn data(mut self, data: Local<'s, Value>) -> Self {
+    self.data = Some(data);
+    self
+  }
+
+  /// Set the function length. The default is 0.
+  pub fn length(mut self, length: i32) -> Self {
+    self.length = length;
+    self
+  }
+
+  /// Set the constructor behavior. The default is ConstructorBehavior::Allow.
+  pub fn constructor_behavior(
+    mut self,
+    constructor_behavior: ConstructorBehavior,
+  ) -> Self {
+    self.constructor_behavior = constructor_behavior;
+    self
+  }
+
+  /// Set the side effect type. The default is SideEffectType::HasSideEffect.
+  pub fn side_effect_type(mut self, side_effect_type: SideEffectType) -> Self {
+    self.side_effect_type = side_effect_type;
+    self
+  }
+}
+
+impl<'s> FunctionBuilder<'s, Function> {
+  /// Create the function in the current execution context.
+  pub fn build(
+    self,
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, Function>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Function__New(
+          sd.get_current_context(),
+          self.callback,
+          self.data.map_or_else(null, |p| &*p),
+          self.length,
+          self.constructor_behavior,
+          self.side_effect_type,
+        )
+      })
+    }
+  }
+}
+
 impl Function {
-  // TODO: add remaining arguments from C++
+  /// Create a FunctionBuilder to configure a Function.
+  /// This is the same as FunctionBuilder::<Function>::new().
+  pub fn builder<'s>(
+    callback: impl MapFnTo<FunctionCallback>,
+  ) -> FunctionBuilder<'s, Self> {
+    FunctionBuilder::new(callback)
+  }
+
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Function__New(
-          sd.get_current_context(),
-          callback.map_fn_to(),
-          null(),
-        )
-      })
-    }
-  }
-
-  /// Create a function in the current execution context
-  /// for a given FunctionCallback and associated data.
-  pub fn new_with_data<'s>(
-    scope: &mut HandleScope<'s>,
-    data: Local<Value>,
-    callback: impl MapFnTo<FunctionCallback>,
-  ) -> Option<Local<'s, Function>> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Function__New(
-          sd.get_current_context(),
-          callback.map_fn_to(),
-          &*data,
-        )
-      })
-    }
+    Self::builder(callback).build(scope)
   }
 
   pub fn call<'s>(

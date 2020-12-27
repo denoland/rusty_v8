@@ -24,7 +24,7 @@ extern "C" {
   ) -> *const Module;
 }
 
-/// Source code which can be then compiled to a UnboundScript or Script.
+/// Source code which can then be compiled to a UnboundScript or Script.
 #[repr(C)]
 #[derive(Debug)]
 pub struct Source([usize; 8]);

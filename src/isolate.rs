@@ -57,7 +57,7 @@ pub enum MicrotasksPolicy {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,
@@ -269,6 +269,21 @@ impl Isolate {
 
   pub fn thread_safe_handle(&mut self) -> IsolateHandle {
     IsolateHandle::new(self)
+  }
+
+  /// See [`IsolateHandle::terminate_execution`]
+  pub fn terminate_execution(&mut self) -> bool {
+    self.thread_safe_handle().terminate_execution()
+  }
+
+  /// See [`IsolateHandle::cancel_terminate_execution`]
+  pub fn cancel_terminate_execution(&mut self) -> bool {
+    self.thread_safe_handle().cancel_terminate_execution()
+  }
+
+  /// See [`IsolateHandle::is_execution_terminating`]
+  pub fn is_execution_terminating(&mut self) -> bool {
+    self.thread_safe_handle().is_execution_terminating()
   }
 
   pub(crate) fn create_annex(

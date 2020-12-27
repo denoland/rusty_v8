@@ -1,6 +1,6 @@
 [package]
 name = "rusty_v8"
-version = "0.13.0"
+version = "0.14.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -36,17 +36,20 @@ exclude = [
  "v8/docs/",
  "v8/samples/",
  "v8/test/",
- "v8/tools/",
+ "v8/tools/"
+]
+
+include = [
  # These files are required for the build.
- "!.gn",
- "!BUILD.gn",
- "!tools/clang/scripts/update.py",
- "!v8/test/torque/test-torque.tq",
- "!v8/tools/gen-postmortem-metadata.py",
- "!v8/tools/js2c.py",
- "!v8/tools/run.py",
- "!v8/tools/snapshot/asm_to_inline_asm.py",
- "!v8/tools/testrunner/utils/dump_build_config.py",
+ ".gn",
+ "BUILD.gn",
+ "tools/clang/scripts/update.py",
+ "v8/test/torque/test-torque.tq",
+ "v8/tools/gen-postmortem-metadata.py",
+ "v8/tools/js2c.py",
+ "v8/tools/run.py",
+ "v8/tools/snapshot/asm_to_inline_asm.py",
+ "v8/tools/testrunner/utils/dump_build_config.py",
 ]
 
 [dependencies]

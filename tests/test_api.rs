@@ -731,6 +731,29 @@ fn throw_exception() {
 }
 
 #[test]
+fn isolate_termination_methods() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let handle = isolate.thread_safe_handle();
+  assert_eq!(false, isolate.terminate_execution());
+  assert_eq!(false, isolate.cancel_terminate_execution());
+  assert_eq!(false, isolate.is_execution_terminating());
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    data: *mut std::ffi::c_void,
+  ) {
+    assert_eq!(data, std::ptr::null_mut());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+  assert_eq!(
+    false,
+    handle.request_interrupt(callback, std::ptr::null_mut())
+  );
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn thread_safe_handle_drop_after_isolate() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new(Default::default());
@@ -997,6 +1020,15 @@ fn set_flags_from_command_line() {
     r,
     vec!["binaryname".to_string(), "--should-be-ignored".to_string()]
   );
+}
+
+#[test]
+fn set_flags_from_command_line_with_usage() {
+  let r = v8::V8::set_flags_from_command_line_with_usage(
+    vec!["binaryname".to_string(), "--help".to_string()],
+    Some("Usage: binaryname --startup-src=file\n\n"),
+  );
+  assert_eq!(r, vec!["binaryname".to_string()]);
 }
 
 #[test]
@@ -1628,6 +1660,7 @@ fn function() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let recv: v8::Local<v8::Value> = global.into();
+
     // create function using template
     let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
     let function = fn_template
@@ -1639,6 +1672,7 @@ fn function() {
     function
       .call(scope, recv, &[])
       .expect("Function call failed");
+
     // create function without a template
     let function = v8::Function::new(scope, fn_callback2)
       .expect("Unable to create function");
@@ -1647,19 +1681,33 @@ fn function() {
     let value = function
       .call(scope, recv, &[arg1.into(), arg2.into()])
       .unwrap();
-    let value_str = value.to_rust_string_lossy(scope);
-    assert_eq!(value_str, "Hello callback!".to_string());
+    let value_str = value.to_string(scope).unwrap();
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "Hello callback!".to_string());
+
     // create a function with associated data
     let true_data = v8::Boolean::new(scope, true);
-    let function = v8::Function::new_with_data(
-      scope,
-      true_data.into(),
-      data_is_true_callback,
-    )
-    .expect("Unable to create function with data");
+    let function = v8::Function::builder(data_is_true_callback)
+      .data(true_data.into())
+      .build(scope)
+      .expect("Unable to create function with data");
     function
       .call(scope, recv, &[])
       .expect("Function call failed");
+
+    // create a prototype-less function that throws on new
+    let function = v8::Function::builder(fn_callback)
+      .length(42)
+      .constructor_behavior(v8::ConstructorBehavior::Throw)
+      .build(scope)
+      .unwrap();
+    let name = v8::String::new(scope, "f").unwrap();
+    global.set(scope, name.into(), function.into()).unwrap();
+    let result = eval(scope, "f.length").unwrap();
+    assert_eq!(42, result.integer_value(scope).unwrap());
+    let result = eval(scope, "f.prototype").unwrap();
+    assert!(result.is_undefined());
+    assert!(eval(scope, "new f()").is_none()); // throws
   }
 }
 
@@ -1746,6 +1794,9 @@ fn promise_hook() {
     promise: v8::Local<v8::Promise>,
     _parent: v8::Local<v8::Value>,
   ) {
+    // Check that PromiseHookType implements Clone and PartialEq.
+    #[allow(clippy::clone_on_copy)]
+    if type_.clone() == v8::PromiseHookType::Init {}
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
     let context = promise.creation_context(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -3202,7 +3253,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     &mut self,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!("send_notificatio message {}", message.unwrap().string());
+    println!("send_notification message {}", message.unwrap().string());
     self.count_send_notification += 1;
   }
   fn flush_protocol_notifications(&mut self) {
@@ -3832,8 +3883,6 @@ fn symbol() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
 
   let desc = v8::String::new(scope, "a description").unwrap();
 
@@ -3851,6 +3900,9 @@ fn symbol() {
   assert!(s_pub2 != s);
   assert!(s_pub == s_pub2);
 
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
   let s = eval(scope, "Symbol.asyncIterator").unwrap();
   assert!(s == v8::Symbol::get_async_iterator(scope));
 }
@@ -3860,8 +3912,6 @@ fn private() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
 
   let p = v8::Private::new(scope, None);
   assert!(p.name(scope) == v8::undefined(scope));
@@ -3877,6 +3927,9 @@ fn private() {
   let p_api2 = v8::Private::for_api(scope, Some(name));
   assert!(p_api2 != p);
   assert!(p_api == p_api2);
+
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
 
   let object = v8::Object::new(scope);
   let sentinel = v8::Object::new(scope).into();
