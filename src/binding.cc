@@ -22,7 +22,7 @@ static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
               "std::shared_ptr<v8::BackingStore> size mismatch");
 
-static_assert(sizeof(v8::ScriptOrigin) == sizeof(size_t) * 7,
+static_assert(sizeof(v8::ScriptOrigin) <= sizeof(size_t) * 8,
               "ScriptOrigin size mismatch");
 
 static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
@@ -36,7 +36,7 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
-static_assert(sizeof(v8::ScriptCompiler::Source) == sizeof(size_t) * 8,
+static_assert(sizeof(v8::ScriptCompiler::Source) <= sizeof(size_t) * 8,
               "Source size mismatch");
 
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
@@ -1555,19 +1555,18 @@ const v8::Value* v8__Script__Run(const v8::Script& script,
 }
 
 void v8__ScriptOrigin__CONSTRUCT(
+    v8::Isolate* isolate,
     uninit_t<v8::ScriptOrigin>* buf, const v8::Value& resource_name,
-    const v8::Integer& resource_line_offset,
-    const v8::Integer& resource_column_offset,
-    const v8::Boolean& resource_is_shared_cross_origin,
-    const v8::Integer& script_id, const v8::Value& source_map_url,
-    const v8::Boolean& resource_is_opaque, const v8::Boolean& is_wasm,
-    const v8::Boolean& is_module) {
+    int resource_line_offset, int resource_column_offset,
+    bool resource_is_shared_cross_origin, int script_id,
+    const v8::Value& source_map_url,
+    bool resource_is_opaque, bool is_wasm, bool is_module) {
   construct_in_place<v8::ScriptOrigin>(
-      buf, ptr_to_local(&resource_name), ptr_to_local(&resource_line_offset),
-      ptr_to_local(&resource_column_offset),
-      ptr_to_local(&resource_is_shared_cross_origin), ptr_to_local(&script_id),
-      ptr_to_local(&source_map_url), ptr_to_local(&resource_is_opaque),
-      ptr_to_local(&is_wasm), ptr_to_local(&is_module));
+      buf, isolate, ptr_to_local(&resource_name),
+      resource_line_offset, resource_column_offset,
+      resource_is_shared_cross_origin, script_id,
+      ptr_to_local(&source_map_url),
+      resource_is_opaque, is_wasm, is_module);
 }
 
 const v8::Value* v8__ScriptOrModule__GetResourceName(

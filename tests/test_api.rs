@@ -744,9 +744,24 @@ fn throw_exception() {
 fn isolate_termination_methods() {
   let _setup_guard = setup();
   let isolate = v8::Isolate::new(Default::default());
-  assert_eq!(false, isolate.is_execution_terminating());
-  assert_eq!(true, isolate.terminate_execution());
-  assert_eq!(true, isolate.cancel_terminate_execution());
+  let handle = isolate.thread_safe_handle();
+  drop(isolate);
+  assert_eq!(false, handle.terminate_execution());
+  assert_eq!(false, handle.cancel_terminate_execution());
+  assert_eq!(false, handle.is_execution_terminating());
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    data: *mut std::ffi::c_void,
+  ) {
+    assert_eq!(data, std::ptr::null_mut());
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+  assert_eq!(
+    false,
+    handle.request_interrupt(callback, std::ptr::null_mut())
+  );
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
 #[test]
@@ -971,16 +986,17 @@ fn script_origin() {
     let scope = &mut v8::ContextScope::new(scope, context);
 
     let resource_name = v8::String::new(scope, "foo.js").unwrap();
-    let resource_line_offset = v8::Integer::new(scope, 4);
-    let resource_column_offset = v8::Integer::new(scope, 5);
-    let resource_is_shared_cross_origin = v8::Boolean::new(scope, true);
-    let script_id = v8::Integer::new(scope, 123);
+    let resource_line_offset = 4;
+    let resource_column_offset = 5;
+    let resource_is_shared_cross_origin = true;
+    let script_id = 123;
     let source_map_url = v8::String::new(scope, "source_map_url").unwrap();
-    let resource_is_opaque = v8::Boolean::new(scope, true);
-    let is_wasm = v8::Boolean::new(scope, false);
-    let is_module = v8::Boolean::new(scope, false);
+    let resource_is_opaque = true;
+    let is_wasm = false;
+    let is_module = false;
 
     let script_origin = v8::ScriptOrigin::new(
+      scope,
       resource_name.into(),
       resource_line_offset,
       resource_column_offset,
@@ -1865,15 +1881,16 @@ fn mock_script_origin<'s>(
   resource_name_: &str,
 ) -> v8::ScriptOrigin<'s> {
   let resource_name = v8::String::new(scope, resource_name_).unwrap();
-  let resource_line_offset = v8::Integer::new(scope, 0);
-  let resource_column_offset = v8::Integer::new(scope, 0);
-  let resource_is_shared_cross_origin = v8::Boolean::new(scope, true);
-  let script_id = v8::Integer::new(scope, 123);
+  let resource_line_offset = 0;
+  let resource_column_offset = 0;
+  let resource_is_shared_cross_origin = true;
+  let script_id = 123;
   let source_map_url = v8::String::new(scope, "source_map_url").unwrap();
-  let resource_is_opaque = v8::Boolean::new(scope, true);
-  let is_wasm = v8::Boolean::new(scope, false);
-  let is_module = v8::Boolean::new(scope, true);
+  let resource_is_opaque = true;
+  let is_wasm = false;
+  let is_module = true;
   v8::ScriptOrigin::new(
+    scope,
     resource_name.into(),
     resource_line_offset,
     resource_column_offset,

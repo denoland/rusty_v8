@@ -170,6 +170,10 @@ struct CreateParamAllocations {
 
 pub(crate) mod raw {
   use super::*;
+  use crate::support::long;
+  use crate::support::Shared;
+  use crate::support::SharedPtrBase;
+  use crate::support::UniquePtr;
 
   #[repr(C)]
   #[derive(Debug)]
@@ -187,6 +191,10 @@ pub(crate) mod raw {
     pub only_terminate_in_safe_scope: bool,
     pub embedder_wrapper_type_index: int,
     pub embedder_wrapper_object_index: int,
+    pub cpp_heap_params: SharedPtr<CppHeapCreateParams>,
+    // This is an std::vector<std::string>. It's usually no bigger
+    // than three or four words but let's take a generous upper bound.
+    pub supported_import_assertions: [usize; 8],
   }
 
   extern "C" {
@@ -199,7 +207,7 @@ pub(crate) mod raw {
   impl Default for CreateParams {
     fn default() -> Self {
       let size = unsafe { v8__Isolate__CreateParams__SIZEOF() };
-      assert_eq!(size_of::<Self>(), size);
+      assert!(size <= size_of::<Self>());
       let mut buf = MaybeUninit::<Self>::uninit();
       unsafe { v8__Isolate__CreateParams__CONSTRUCT(&mut buf) };
       unsafe { buf.assume_init() }
@@ -228,7 +236,6 @@ pub(crate) mod raw {
     code_range_size_: usize,
     max_old_generation_size_: usize,
     max_young_generation_size_: usize,
-    max_zone_pool_size_: usize,
     initial_old_generation_size_: usize,
     initial_young_generation_size_: usize,
     stack_limit_: *mut u32,
@@ -255,6 +262,30 @@ pub(crate) mod raw {
           maximum_heap_size_in_bytes,
         )
       };
+    }
+  }
+
+  #[repr(C)]
+  #[derive(Debug)]
+  pub(crate) struct CppHeapCreateParams(Opaque);
+
+  impl Shared for CppHeapCreateParams {
+    fn clone(_: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
+      todo!()
+    }
+
+    fn from_unique_ptr(_: UniquePtr<Self>) -> SharedPtrBase<Self> {
+      todo!()
+    }
+
+    fn get(_: &SharedPtrBase<Self>) -> *const Self {
+      todo!()
+    }
+
+    fn reset(_: &mut SharedPtrBase<Self>) {}
+
+    fn use_count(_: &SharedPtrBase<Self>) -> long {
+      0
     }
   }
 }
