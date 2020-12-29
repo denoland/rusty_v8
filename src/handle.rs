@@ -409,6 +409,6 @@ impl HandleHost {
   }
 
   fn get_isolate_handle(self) -> IsolateHandle {
-    unsafe { self.get_isolate().as_mut().thread_safe_handle() }
+    unsafe { self.get_isolate().thread_safe_handle() }
   }
 }
