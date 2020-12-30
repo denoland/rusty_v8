@@ -1,10 +1,15 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+use crate::function::FunctionCallbackInfo;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
+use crate::scope::HandleScope;
 use crate::support::BuildTypeIdHasher;
 use crate::support::Opaque;
+use crate::support::UnitType;
+use crate::wasm::trampoline;
+use crate::wasm::WasmStreaming;
 use crate::Context;
 use crate::Function;
 use crate::Local;
@@ -190,6 +195,11 @@ extern "C" {
     function: *const Function,
   );
   fn v8__Isolate__SetAllowAtomicsWait(isolate: *mut Isolate, allow: bool);
+
+  fn v8__Isolate__SetWasmStreamingCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(*const FunctionCallbackInfo),
+  );
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
@@ -556,6 +566,20 @@ impl Isolate {
   /// CreateParams::allow_atomics_wait.
   pub fn set_allow_atomics_wait(&mut self, allow: bool) {
     unsafe { v8__Isolate__SetAllowAtomicsWait(self, allow) }
+  }
+
+  /// Embedder injection point for `WebAssembly.compileStreaming(source)`.
+  /// The expectation is that the embedder sets it at most once.
+  ///
+  /// The callback receives the source argument (string, Promise, etc.)
+  /// and an instance of [WasmStreaming]. The [WasmStreaming] instance
+  /// can outlive the callback and is used to feed data chunks to V8
+  /// asynchronously.
+  pub fn set_wasm_streaming_callback<F>(&mut self, _: F)
+  where
+    F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
+  {
+    unsafe { v8__Isolate__SetWasmStreamingCallback(self, trampoline::<F>()) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any
