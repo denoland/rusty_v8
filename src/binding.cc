@@ -266,6 +266,11 @@ void v8__Isolate__SetAllowAtomicsWait(v8::Isolate* isolate, bool allow) {
   isolate->SetAllowAtomicsWait(allow);
 }
 
+void v8__Isolate__SetWasmStreamingCallback(v8::Isolate* isolate,
+                                           v8::WasmStreamingCallback callback) {
+  isolate->SetWasmStreamingCallback(callback);
+}
+
 void v8__Isolate__CreateParams__CONSTRUCT(
     uninit_t<v8::Isolate::CreateParams>* buf) {
   construct_in_place<v8::Isolate::CreateParams>(buf);
@@ -2027,6 +2032,38 @@ MaybeBool v8__Module__SetSyntheticModuleExport(const v8::Module& self,
                                                const v8::Value* export_value) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetSyntheticModuleExport(
       isolate, ptr_to_local(export_name), ptr_to_local(export_value)));
+}
+
+struct WasmStreamingSharedPtr {
+  std::shared_ptr<v8::WasmStreaming> inner;
+};
+
+static_assert(sizeof(WasmStreamingSharedPtr) <= 2 * sizeof(void*),
+              "std::shared_ptr<v8::WasmStreaming> size mismatch");
+
+void v8__WasmStreaming__Unpack(v8::Isolate* isolate, const v8::Value& value,
+                               WasmStreamingSharedPtr* self) {
+  new(self) WasmStreamingSharedPtr();
+  self->inner = v8::WasmStreaming::Unpack(isolate, ptr_to_local(&value));
+}
+
+void v8__WasmStreaming__shared_ptr_DESTRUCT(WasmStreamingSharedPtr* self) {
+  self->~WasmStreamingSharedPtr();
+}
+
+void v8__WasmStreaming__OnBytesReceived(WasmStreamingSharedPtr* self,
+                                        const uint8_t* data,
+                                        size_t len) {
+  self->inner->OnBytesReceived(data, len);
+}
+
+void v8__WasmStreaming__Finish(WasmStreamingSharedPtr* self) {
+  self->inner->Finish();
+}
+
+void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
+                              const v8::Value* exception) {
+  self->inner->Abort(ptr_to_maybe_local(exception));
 }
 
 using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);

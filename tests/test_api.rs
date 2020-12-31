@@ -4,6 +4,7 @@
 extern crate lazy_static;
 
 use std::any::type_name;
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
@@ -4334,4 +4335,70 @@ fn clear_kept_objects() {
   eval(scope, step1).unwrap();
   scope.clear_kept_objects();
   eval(scope, step2).unwrap();
+}
+
+#[test]
+fn wasm_streaming_callback() {
+  thread_local! {
+    static WS: RefCell<Option<v8::WasmStreaming>> = RefCell::new(None);
+  }
+
+  let callback = |scope: &mut v8::HandleScope,
+                  url: v8::Local<v8::Value>,
+                  ws: v8::WasmStreaming| {
+    assert_eq!("https://example.com", url.to_rust_string_lossy(scope));
+    WS.with(|slot| assert!(slot.borrow_mut().replace(ws).is_none()));
+  };
+
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+  isolate.set_wasm_streaming_callback(callback);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let script = r#"
+    globalThis.result = null;
+    WebAssembly
+      .compileStreaming("https://example.com")
+      .then(result => globalThis.result = result);
+  "#;
+  eval(scope, script).unwrap();
+
+  let global = context.global(scope);
+  let name = v8::String::new(scope, "result").unwrap().into();
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  let mut ws = WS.with(|slot| slot.borrow_mut().take().unwrap());
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  // MVP of WASM modules: contains only the magic marker and the version (1).
+  ws.on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  ws.finish();
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  scope.perform_microtask_checkpoint();
+  assert!(global.get(scope, name).unwrap().is_wasm_module_object());
+
+  let script = r#"
+    globalThis.result = null;
+    WebAssembly
+      .compileStreaming("https://example.com")
+      .catch(result => globalThis.result = result);
+  "#;
+  eval(scope, script).unwrap();
+
+  let ws = WS.with(|slot| slot.borrow_mut().take().unwrap());
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  let exception = v8::Object::new(scope).into(); // Can be anything.
+  ws.abort(Some(exception));
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  scope.perform_microtask_checkpoint();
+  assert!(global.get(scope, name).unwrap().strict_equals(exception));
 }

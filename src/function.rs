@@ -166,7 +166,9 @@ pub struct FunctionCallbackArguments<'s> {
 }
 
 impl<'s> FunctionCallbackArguments<'s> {
-  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
+  pub(crate) fn from_function_callback_info(
+    info: *const FunctionCallbackInfo,
+  ) -> Self {
     Self {
       info,
       phantom: PhantomData,
