@@ -163,7 +163,7 @@ fn platform() -> &'static str {
 fn download_ninja_gn_binaries() {
   let target_dir = build_dir();
   let bin_dir = target_dir
-    .join("ninja_gn_binaries-20200827")
+    .join("ninja_gn_binaries-20210101")
     .join(platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");
