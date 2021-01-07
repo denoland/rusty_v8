@@ -89,6 +89,21 @@ pub fn assert_initialized() {
 pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
   set_flags_from_command_line_with_usage(args, None)
 }
+
+/// The example code below is here to avoid the V8 usage string and options
+/// that are printed to stdout by this function. Placing this here instead of
+/// in a test allows the output to be suppressed.
+///
+/// # Examples
+///
+/// ```
+///     use rusty_v8 as v8;
+///     let r = v8::V8::set_flags_from_command_line_with_usage(
+///       vec!["binaryname".to_string(), "--help".to_string()],
+///       Some("Usage: binaryname --startup-src=file\n\n"),
+///     );
+///     assert_eq!(r, vec!["binaryname".to_string()]);
+/// ```
 pub fn set_flags_from_command_line_with_usage(
   args: Vec<String>,
   usage: Option<&str>,
