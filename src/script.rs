@@ -10,6 +10,7 @@ use crate::Local;
 use crate::Script;
 use crate::String;
 use crate::Value;
+use crate::UnboundScript;
 
 /// The origin, within a file, of a script.
 #[repr(C)]
@@ -22,6 +23,9 @@ extern "C" {
     source: *const String,
     origin: *const ScriptOrigin,
   ) -> *const Script;
+  fn v8__Script__GetUnboundScript(
+    script: *const Script,
+  ) -> *const UnboundScript;
   fn v8__Script__Run(
     script: *const Script,
     context: *const Context,
@@ -56,6 +60,16 @@ impl Script {
           origin.map(|r| r as *const _).unwrap_or_else(null),
         )
       })
+    }
+  }
+
+  /// Returns the corresponding context-unbound script.
+  pub fn get_unbound_script<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, UnboundScript> {
+    unsafe {
+      scope.cast_local(|_| v8__Script__GetUnboundScript(self)).unwrap()
     }
   }
 

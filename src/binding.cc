@@ -1503,6 +1503,14 @@ const v8::Script* v8__Script__Compile(const v8::Context& context,
                           const_cast<v8::ScriptOrigin*>(&origin)));
 }
 
+const v8::UnboundScript* v8__Script__GetUnboundScript(const v8::Script& script) {
+  return local_to_ptr(ptr_to_local(&script)->GetUnboundScript());
+}
+
+const v8::Script* v8__UnboundScript__BindToCurrentContext(const v8::UnboundScript& unbound_script) {
+  return local_to_ptr(ptr_to_local(&unbound_script)->BindToCurrentContext());
+}
+
 const v8::Value* v8__Script__Run(const v8::Script& script,
                                  const v8::Context& context) {
   return maybe_local_to_ptr(ptr_to_local(&script)->Run(ptr_to_local(&context)));
