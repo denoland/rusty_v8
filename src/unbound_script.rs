@@ -10,17 +10,14 @@ extern "C" {
 }
 
 impl UnboundScript {
-    /// Binds the script to the currently entered context.
-    pub fn bind_to_current_context<'s>(
-      &self,
-      scope: &mut HandleScope<'s>,
-    ) -> Local<'s, Script> {
-      unsafe {
-        scope.cast_local(|_| {
-          v8__UnboundScript__BindToCurrentContext(
-            self
-          )
-        })
-      }.unwrap()
+  /// Binds the script to the currently entered context.
+  pub fn bind_to_current_context<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, Script> {
+    unsafe {
+      scope.cast_local(|_| v8__UnboundScript__BindToCurrentContext(self))
     }
+    .unwrap()
+  }
 }

@@ -4394,7 +4394,6 @@ fn wasm_streaming_callback() {
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
 }
 
-
 #[test]
 fn unbound_script_conversion() {
   let _setup_guard = setup();

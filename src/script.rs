@@ -9,8 +9,8 @@ use crate::Integer;
 use crate::Local;
 use crate::Script;
 use crate::String;
-use crate::Value;
 use crate::UnboundScript;
+use crate::Value;
 
 /// The origin, within a file, of a script.
 #[repr(C)]
@@ -69,7 +69,9 @@ impl Script {
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, UnboundScript> {
     unsafe {
-      scope.cast_local(|_| v8__Script__GetUnboundScript(self)).unwrap()
+      scope
+        .cast_local(|_| v8__Script__GetUnboundScript(self))
+        .unwrap()
     }
   }
 
