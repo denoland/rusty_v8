@@ -115,6 +115,10 @@ jobs:
             ${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
 
+      - name: Kill sccache cache
+        run: |
+          rm -fr target/sccache
+
         # It seems that the 'target' directory does not always get restored
         # from cache correctly on MacOS. In the build log we see the following:
         #
