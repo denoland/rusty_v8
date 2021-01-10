@@ -87,6 +87,7 @@ jobs:
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
       - name: Kill sccache cache
+        if: runner.os != 'windows'
         run: |
           rm -fr target/sccache
 
