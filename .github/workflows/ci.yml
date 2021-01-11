@@ -109,10 +109,10 @@ jobs:
             target/*/build
             target/*/deps
           key:
-            ${{ matrix.config.target }}-${{ matrix.config.variant }}-${{
+            a-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{
             hashFiles('./Cargo.lock', './v8/include/v8-version.h') }}
           restore-keys:
-            ${{ matrix.config.target }}-${{ matrix.config.variant }}-
+            a-${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
 
         # It seems that the 'target' directory does not always get restored
