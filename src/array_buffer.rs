@@ -104,7 +104,7 @@ extern "C" {
 #[derive(Debug)]
 pub struct Allocator(Opaque);
 
-/// A VTable for a Rust allocator.
+/// A wrapper around the V8 Allocator class.
 #[repr(C)]
 pub struct RustAllocatorVtable<T> {
   pub allocate: unsafe extern "C" fn (handle: &T, len: usize) -> *mut c_void,
@@ -143,13 +143,14 @@ pub fn new_default_allocator() -> UniqueRef<Allocator> {
   }
 }
 
-pub fn new_rust_allocator<T: Sized + Send + Sync + 'static>(handle: *const T, vtable: &'static RustAllocatorVtable<T>) -> UniqueRef<Allocator> {
-  unsafe {
-    UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewRustAllocator(
-      handle as *const c_void,
-      vtable as *const RustAllocatorVtable<T> as *const RustAllocatorVtable<c_void>
-    ))
-  }
+/// Creates an allocator managed by Rust code.
+/// 
+/// Marked `unsafe` because the caller must ensure that `handle` is valid and matches what `vtable` expects.
+pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(handle: *const T, vtable: &'static RustAllocatorVtable<T>) -> UniqueRef<Allocator> {
+  UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewRustAllocator(
+    handle as *const c_void,
+    vtable as *const RustAllocatorVtable<T> as *const RustAllocatorVtable<c_void>
+  ))
 }
 
 #[test]
@@ -175,7 +176,7 @@ fn test_rust_allocator() {
     reallocate,
     drop,
   };
-  new_rust_allocator(Arc::into_raw(retval.clone()), vtable);
+  unsafe { new_rust_allocator(Arc::into_raw(retval.clone()), vtable) };
   assert_eq!(retval.load(Ordering::SeqCst), 42);
   assert_eq!(Arc::strong_count(&retval), 1);
 }

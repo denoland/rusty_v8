@@ -4464,10 +4464,10 @@ fn run_with_rust_allocator() {
 
   let _setup_guard = setup();
   let create_params = v8::CreateParams::default()
-    .array_buffer_allocator(v8::new_rust_allocator(
+    .array_buffer_allocator(unsafe { v8::new_rust_allocator(
       Arc::into_raw(count.clone()),
       vtable,
-    ));
+    ) });
   let isolate = &mut v8::Isolate::new(create_params);
 
   {
