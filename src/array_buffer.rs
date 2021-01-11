@@ -107,10 +107,10 @@ pub struct Allocator(Opaque);
 /// A VTable for a Rust allocator.
 #[repr(C)]
 pub struct RustAllocatorVtable<T> {
-  pub allocate: unsafe extern "C" fn (handle: &T, len: usize),
-  pub allocate_uninitialized: unsafe extern "C" fn (handle: &T, len: usize),
+  pub allocate: unsafe extern "C" fn (handle: &T, len: usize) -> *mut c_void,
+  pub allocate_uninitialized: unsafe extern "C" fn (handle: &T, len: usize) -> *mut c_void,
   pub free: unsafe extern "C" fn (handle: &T, data: *mut c_void, len: usize),
-  pub reallocate: unsafe extern "C" fn (handle: &T, data: *mut c_void, old_length: usize, new_length: usize),
+  pub reallocate: unsafe extern "C" fn (handle: &T, data: *mut c_void, old_length: usize, new_length: usize) -> *mut c_void,
   pub drop: unsafe extern "C" fn (handle: *const T),
 }
 
@@ -157,10 +157,10 @@ fn test_rust_allocator() {
   use std::sync::Arc;
   use std::sync::atomic::{AtomicUsize, Ordering};
 
-  unsafe extern "C" fn allocate(_: &AtomicUsize, _: usize) { unimplemented!() }
-  unsafe extern "C" fn allocate_uninitialized(_: &AtomicUsize, _: usize) { unimplemented!() }
+  unsafe extern "C" fn allocate(_: &AtomicUsize, _: usize) -> *mut c_void { unimplemented!() }
+  unsafe extern "C" fn allocate_uninitialized(_: &AtomicUsize, _: usize) -> *mut c_void { unimplemented!() }
   unsafe extern "C" fn free(_: &AtomicUsize, _: *mut c_void, _: usize) { unimplemented!() }
-  unsafe extern "C" fn reallocate(_: &AtomicUsize, _: *mut c_void, _: usize, _: usize) { unimplemented!() }
+  unsafe extern "C" fn reallocate(_: &AtomicUsize, _: *mut c_void, _: usize, _: usize) -> *mut c_void { unimplemented!() }
   unsafe extern "C" fn drop(x: *const AtomicUsize) {
     let arc = Arc::from_raw(x);
     arc.store(42, Ordering::SeqCst);
