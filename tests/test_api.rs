@@ -4506,3 +4506,47 @@ fn run_with_rust_allocator() {
   let count_loaded = count.load(Ordering::SeqCst);
   assert_eq!(count_loaded, 0);
 }
+
+#[test]
+fn oom_callback() {
+  extern "C" {
+    fn setjmp(env: &mut [usize; 32]) -> i32;
+    fn longjmp(env: &[usize; 32], value: i32) -> !;
+  }
+
+  static mut JMPBUF: [usize; 32] = [0; 32];
+
+  extern "C" fn oom_callback(_: *const std::os::raw::c_char, _: bool) {
+    unsafe {
+      longjmp(&JMPBUF, 42);
+    }
+  }
+
+  let _setup_guard = setup();
+  let params = v8::CreateParams::default().heap_limits(0, 1048576 * 8);
+  let isolate = &mut v8::Isolate::new(params);
+  isolate.set_oom_error_handler(oom_callback);
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        let arr = [];
+        for(let i = 0;; i++) arr.push("aaa");
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+
+    unsafe {
+      let value = setjmp(&mut JMPBUF);
+      if value == 0 {
+        script.run(scope);
+      }
+      assert_eq!(value, 42);
+    }
+  }
+}
