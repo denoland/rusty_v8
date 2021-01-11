@@ -4486,8 +4486,7 @@ fn run_with_rust_allocator() {
     let source = v8::String::new(
       scope,
       r#"
-        let bufs = [];
-        for(let i = 0; i < 10; i++) bufs.push(new ArrayBuffer(1024 * i));
+        for(let i = 0; i < 10; i++) new ArrayBuffer(1024 * i);
         "OK";
       "#,
     )
@@ -4495,11 +4494,15 @@ fn run_with_rust_allocator() {
     let script = v8::Script::compile(scope, source, None).unwrap();
     let result = script.run(scope).unwrap();
     assert_eq!(result.to_rust_string_lossy(scope), "OK");
-
-    let mut stats = v8::HeapStatistics::default();
-    scope.get_heap_statistics(&mut stats);
-    let count_loaded = count.load(Ordering::SeqCst);
-    assert!(count_loaded > 0);
-    assert!(count_loaded < stats.external_memory());
   }
+  let mut stats = v8::HeapStatistics::default();
+  isolate.get_heap_statistics(&mut stats);
+  let count_loaded = count.load(Ordering::SeqCst);
+  assert!(count_loaded > 0);
+  assert!(count_loaded <= stats.external_memory());
+
+  // Force a GC.
+  isolate.low_memory_notification();
+  let count_loaded = count.load(Ordering::SeqCst);
+  assert_eq!(count_loaded, 0);
 }
