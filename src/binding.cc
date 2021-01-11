@@ -1111,46 +1111,45 @@ size_t v8__ArrayBufferView__CopyContents(const v8::ArrayBufferView& self,
 }
 
 struct RustAllocatorVtable {
-  void* (*allocate)(void *handle, size_t length);
-  void* (*allocate_uninitialized)(void *handle, size_t length);
-  void (*free)(void *handle, void *data, size_t length);
-  void* (*reallocate)(void *handle, void* data, size_t old_length, size_t new_length);
-  void (*drop)(void *handle);
+  void* (*allocate)(void* handle, size_t length);
+  void* (*allocate_uninitialized)(void* handle, size_t length);
+  void (*free)(void* handle, void* data, size_t length);
+  void* (*reallocate)(void* handle, void* data, size_t old_length,
+                      size_t new_length);
+  void (*drop)(void* handle);
 };
 
 class RustAllocator : public v8::ArrayBuffer::Allocator {
-  private:
-    void *handle;
-    const RustAllocatorVtable *vtable;
+ private:
+  void* handle;
+  const RustAllocatorVtable* vtable;
 
-  public:
-    RustAllocator(void *handle, const RustAllocatorVtable *vtable) {
-      this->handle = handle;
-      this->vtable = vtable;
-    }
+ public:
+  RustAllocator(void* handle, const RustAllocatorVtable* vtable) {
+    this->handle = handle;
+    this->vtable = vtable;
+  }
 
-    RustAllocator(const RustAllocator& that) = delete;
-    RustAllocator(RustAllocator&& that) = delete;
+  RustAllocator(const RustAllocator& that) = delete;
+  RustAllocator(RustAllocator&& that) = delete;
 
-    virtual ~RustAllocator() {
-      vtable->drop(handle);
-    }
-    
-    virtual void* Allocate(size_t length) {
-      return vtable->allocate(handle, length);
-    }
-  
-    virtual void* AllocateUninitialized(size_t length) {
-      return vtable->allocate_uninitialized(handle, length);
-    }
-  
-    virtual void Free(void* data, size_t length) {
-      vtable->free(handle, data, length);
-    }
+  virtual ~RustAllocator() { vtable->drop(handle); }
 
-    virtual void* Reallocate(void* data, size_t old_length, size_t new_length) {
-      return vtable->reallocate(handle, data, old_length, new_length);
-    }
+  virtual void* Allocate(size_t length) {
+    return vtable->allocate(handle, length);
+  }
+
+  virtual void* AllocateUninitialized(size_t length) {
+    return vtable->allocate_uninitialized(handle, length);
+  }
+
+  virtual void Free(void* data, size_t length) {
+    vtable->free(handle, data, length);
+  }
+
+  virtual void* Reallocate(void* data, size_t old_length, size_t new_length) {
+    return vtable->reallocate(handle, data, old_length, new_length);
+  }
 };
 
 v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
@@ -1158,9 +1157,7 @@ v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
 }
 
 v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewRustAllocator(
-  void *handle,
-  const RustAllocatorVtable *vtable
-) {
+    void* handle, const RustAllocatorVtable* vtable) {
   return new RustAllocator(handle, vtable);
 }
 

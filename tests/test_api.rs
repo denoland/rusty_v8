@@ -4430,7 +4430,10 @@ fn run_with_rust_allocator() {
     count.fetch_add(n, Ordering::SeqCst);
     Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut [u8] as *mut c_void
   }
-  unsafe extern "C" fn allocate_uninitialized(count: &AtomicUsize, n: usize) -> *mut c_void {
+  unsafe extern "C" fn allocate_uninitialized(
+    count: &AtomicUsize,
+    n: usize,
+  ) -> *mut c_void {
     count.fetch_add(n, Ordering::SeqCst);
     let mut store = Vec::with_capacity(n);
     store.set_len(n);
@@ -4440,9 +4443,15 @@ fn run_with_rust_allocator() {
     count.fetch_sub(n, Ordering::SeqCst);
     Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
   }
-  unsafe extern "C" fn reallocate(count: &AtomicUsize, prev: *mut c_void, oldlen: usize, newlen: usize) -> *mut c_void {
+  unsafe extern "C" fn reallocate(
+    count: &AtomicUsize,
+    prev: *mut c_void,
+    oldlen: usize,
+    newlen: usize,
+  ) -> *mut c_void {
     count.fetch_add(newlen.wrapping_sub(oldlen), Ordering::SeqCst);
-    let old_store = Box::from_raw(std::slice::from_raw_parts_mut(prev as *mut u8, oldlen));
+    let old_store =
+      Box::from_raw(std::slice::from_raw_parts_mut(prev as *mut u8, oldlen));
     let mut new_store = Vec::with_capacity(newlen);
     let copy_len = oldlen.min(newlen);
     new_store.extend_from_slice(&old_store[..copy_len]);
@@ -4453,21 +4462,21 @@ fn run_with_rust_allocator() {
     Arc::from_raw(count);
   }
 
-  let vtable: &'static v8::RustAllocatorVtable<AtomicUsize> = &v8::RustAllocatorVtable {
-    allocate,
-    allocate_uninitialized,
-    free,
-    reallocate,
-    drop,
-  };
+  let vtable: &'static v8::RustAllocatorVtable<AtomicUsize> =
+    &v8::RustAllocatorVtable {
+      allocate,
+      allocate_uninitialized,
+      free,
+      reallocate,
+      drop,
+    };
   let count = Arc::new(AtomicUsize::new(0));
 
   let _setup_guard = setup();
-  let create_params = v8::CreateParams::default()
-    .array_buffer_allocator(unsafe { v8::new_rust_allocator(
-      Arc::into_raw(count.clone()),
-      vtable,
-    ) });
+  let create_params =
+    v8::CreateParams::default().array_buffer_allocator(unsafe {
+      v8::new_rust_allocator(Arc::into_raw(count.clone()), vtable)
+    });
   let isolate = &mut v8::Isolate::new(create_params);
 
   {
@@ -4475,11 +4484,14 @@ fn run_with_rust_allocator() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(
-      scope, r#"
+      scope,
+      r#"
         let bufs = [];
         for(let i = 0; i < 10; i++) bufs.push(new ArrayBuffer(1024 * i));
         "OK";
-      "#).unwrap();
+      "#,
+    )
+    .unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     let result = script.run(scope).unwrap();
     assert_eq!(result.to_rust_string_lossy(scope), "OK");
