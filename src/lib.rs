@@ -67,6 +67,7 @@ mod support;
 mod symbol;
 mod template;
 mod typed_array;
+mod unbound_script;
 mod value;
 mod value_deserializer;
 mod value_serializer;

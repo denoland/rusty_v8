@@ -4393,3 +4393,31 @@ fn wasm_streaming_callback() {
   scope.perform_microtask_checkpoint();
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
 }
+
+#[test]
+fn unbound_script_conversion() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let unbound_script = {
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(scope, "'Hello ' + value").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    script.get_unbound_script(scope)
+  };
+
+  {
+    // Execute the script in another context.
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global_object = scope.get_current_context().global(scope);
+    let key = v8::String::new(scope, "value").unwrap();
+    let value = v8::String::new(scope, "world").unwrap();
+    global_object.set(scope, key.into(), value.into());
+
+    let script = unbound_script.bind_to_current_context(scope);
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "Hello world");
+  }
+}
