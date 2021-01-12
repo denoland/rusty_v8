@@ -41,13 +41,18 @@ jobs:
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
 
-          - os: ubuntu-latest-xl
-            target: aarch64-unknown-linux-gnu
-            variant: debug
-
-          - os: ubuntu-latest-xl
-            target: aarch64-unknown-linux-gnu
-            variant: release
+          # Disabled because an apparent sscache bug causes it to crash with the
+          # following error:
+          #   [rusty_v8 0.15.0] sccache: error : Invalid checksum
+          #   [rusty_v8 0.15.0] sccache: error : corrupt deflate stream
+          #
+          # - os: ubuntu-latest-xl
+          #   target: aarch64-unknown-linux-gnu
+          #   variant: debug
+          #
+          # - os: ubuntu-latest-xl
+          #   target: aarch64-unknown-linux-gnu
+          #   variant: release
 
     env:
       V8_FROM_SOURCE: true
