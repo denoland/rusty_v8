@@ -259,7 +259,7 @@ where
 
     use std::ffi::c_void;
 
-    // Dobule-box to get C-sized reference of Box<dyn HttpRequest>
+    // Double-box to get C-sized reference of Box<dyn HttpRequest>
     let request = Box::new(request);
 
     // Local scope for temporary handles.
