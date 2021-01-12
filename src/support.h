@@ -112,7 +112,7 @@ inline static MaybeBool maybe_to_maybe_bool(v8::Maybe<bool> maybe) {
 }
 
 inline static v8::Maybe<bool> maybe_bool_to_maybe(MaybeBool maybe) {
-  switch(maybe) {
+  switch (maybe) {
     case MaybeBool::JustTrue:
     case MaybeBool::JustFalse:
       return v8::Just<bool>(maybe == MaybeBool::JustTrue);
