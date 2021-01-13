@@ -1127,10 +1127,12 @@ class RustAllocator : public v8::ArrayBuffer::Allocator {
 
   RustAllocator(const RustAllocator& that) = delete;
   RustAllocator(RustAllocator&& that) = delete;
+  void operator=(const RustAllocator& that) = delete;
+  void operator=(RustAllocator&& that) = delete;
 
   virtual ~RustAllocator() { vtable->drop(handle); }
 
-  virtual void* Allocate(size_t length) {
+  void* Allocate(size_t length) final {
     return vtable->allocate(handle, length);
   }
 
