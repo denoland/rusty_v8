@@ -1136,15 +1136,15 @@ class RustAllocator : public v8::ArrayBuffer::Allocator {
     return vtable->allocate(handle, length);
   }
 
-  virtual void* AllocateUninitialized(size_t length) {
+  void* AllocateUninitialized(size_t length) final {
     return vtable->allocate_uninitialized(handle, length);
   }
 
-  virtual void Free(void* data, size_t length) {
+  void Free(void* data, size_t length) final {
     vtable->free(handle, data, length);
   }
 
-  virtual void* Reallocate(void* data, size_t old_length, size_t new_length) {
+  void* Reallocate(void* data, size_t old_length, size_t new_length) final {
     return vtable->reallocate(handle, data, old_length, new_length);
   }
 };
