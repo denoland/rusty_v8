@@ -4430,3 +4430,88 @@ fn unbound_script_conversion() {
     assert_eq!(result.to_rust_string_lossy(scope), "Hello world");
   }
 }
+
+#[test]
+fn run_with_rust_allocator() {
+  use std::sync::Arc;
+
+  unsafe extern "C" fn allocate(count: &AtomicUsize, n: usize) -> *mut c_void {
+    count.fetch_add(n, Ordering::SeqCst);
+    Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut [u8] as *mut c_void
+  }
+  unsafe extern "C" fn allocate_uninitialized(
+    count: &AtomicUsize,
+    n: usize,
+  ) -> *mut c_void {
+    count.fetch_add(n, Ordering::SeqCst);
+    let mut store = Vec::with_capacity(n);
+    store.set_len(n);
+    Box::into_raw(store.into_boxed_slice()) as *mut [u8] as *mut c_void
+  }
+  unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
+    count.fetch_sub(n, Ordering::SeqCst);
+    Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
+  }
+  unsafe extern "C" fn reallocate(
+    count: &AtomicUsize,
+    prev: *mut c_void,
+    oldlen: usize,
+    newlen: usize,
+  ) -> *mut c_void {
+    count.fetch_add(newlen.wrapping_sub(oldlen), Ordering::SeqCst);
+    let old_store =
+      Box::from_raw(std::slice::from_raw_parts_mut(prev as *mut u8, oldlen));
+    let mut new_store = Vec::with_capacity(newlen);
+    let copy_len = oldlen.min(newlen);
+    new_store.extend_from_slice(&old_store[..copy_len]);
+    new_store.resize(newlen, 0u8);
+    Box::into_raw(new_store.into_boxed_slice()) as *mut [u8] as *mut c_void
+  }
+  unsafe extern "C" fn drop(count: *const AtomicUsize) {
+    Arc::from_raw(count);
+  }
+
+  let vtable: &'static v8::RustAllocatorVtable<AtomicUsize> =
+    &v8::RustAllocatorVtable {
+      allocate,
+      allocate_uninitialized,
+      free,
+      reallocate,
+      drop,
+    };
+  let count = Arc::new(AtomicUsize::new(0));
+
+  let _setup_guard = setup();
+  let create_params =
+    v8::CreateParams::default().array_buffer_allocator(unsafe {
+      v8::new_rust_allocator(Arc::into_raw(count.clone()), vtable)
+    });
+  let isolate = &mut v8::Isolate::new(create_params);
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        for(let i = 0; i < 10; i++) new ArrayBuffer(1024 * i);
+        "OK";
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "OK");
+  }
+  let mut stats = v8::HeapStatistics::default();
+  isolate.get_heap_statistics(&mut stats);
+  let count_loaded = count.load(Ordering::SeqCst);
+  assert!(count_loaded > 0);
+  assert!(count_loaded <= stats.external_memory());
+
+  // Force a GC.
+  isolate.low_memory_notification();
+  let count_loaded = count.load(Ordering::SeqCst);
+  assert_eq!(count_loaded, 0);
+}

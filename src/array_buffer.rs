@@ -20,6 +20,10 @@ use crate::Local;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
+  fn v8__ArrayBuffer__Allocator__NewRustAllocator(
+    handle: *const c_void,
+    vtable: *const RustAllocatorVtable<c_void>,
+  ) -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
     isolate: *mut Isolate,
@@ -103,6 +107,22 @@ extern "C" {
 #[derive(Debug)]
 pub struct Allocator(Opaque);
 
+/// A wrapper around the V8 Allocator class.
+#[repr(C)]
+pub struct RustAllocatorVtable<T> {
+  pub allocate: unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
+  pub allocate_uninitialized:
+    unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
+  pub free: unsafe extern "C" fn(handle: &T, data: *mut c_void, len: usize),
+  pub reallocate: unsafe extern "C" fn(
+    handle: &T,
+    data: *mut c_void,
+    old_length: usize,
+    new_length: usize,
+  ) -> *mut c_void,
+  pub drop: unsafe extern "C" fn(handle: *const T),
+}
+
 impl Shared for Allocator {
   fn clone(ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
     unsafe { std__shared_ptr__v8__ArrayBuffer__Allocator__COPY(ptr) }
@@ -130,6 +150,65 @@ pub fn new_default_allocator() -> UniqueRef<Allocator> {
   unsafe {
     UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
   }
+}
+
+/// Creates an allocator managed by Rust code.
+///
+/// Marked `unsafe` because the caller must ensure that `handle` is valid and matches what `vtable` expects.
+pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
+  handle: *const T,
+  vtable: &'static RustAllocatorVtable<T>,
+) -> UniqueRef<Allocator> {
+  UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewRustAllocator(
+    handle as *const c_void,
+    vtable as *const RustAllocatorVtable<T>
+      as *const RustAllocatorVtable<c_void>,
+  ))
+}
+
+#[test]
+fn test_rust_allocator() {
+  use std::sync::atomic::{AtomicUsize, Ordering};
+  use std::sync::Arc;
+
+  unsafe extern "C" fn allocate(_: &AtomicUsize, _: usize) -> *mut c_void {
+    unimplemented!()
+  }
+  unsafe extern "C" fn allocate_uninitialized(
+    _: &AtomicUsize,
+    _: usize,
+  ) -> *mut c_void {
+    unimplemented!()
+  }
+  unsafe extern "C" fn free(_: &AtomicUsize, _: *mut c_void, _: usize) {
+    unimplemented!()
+  }
+  unsafe extern "C" fn reallocate(
+    _: &AtomicUsize,
+    _: *mut c_void,
+    _: usize,
+    _: usize,
+  ) -> *mut c_void {
+    unimplemented!()
+  }
+  unsafe extern "C" fn drop(x: *const AtomicUsize) {
+    let arc = Arc::from_raw(x);
+    arc.store(42, Ordering::SeqCst);
+  }
+
+  let retval = Arc::new(AtomicUsize::new(0));
+
+  let vtable: &'static RustAllocatorVtable<AtomicUsize> =
+    &RustAllocatorVtable {
+      allocate,
+      allocate_uninitialized,
+      free,
+      reallocate,
+      drop,
+    };
+  unsafe { new_rust_allocator(Arc::into_raw(retval.clone()), vtable) };
+  assert_eq!(retval.load(Ordering::SeqCst), 42);
+  assert_eq!(Arc::strong_count(&retval), 1);
 }
 
 #[test]
