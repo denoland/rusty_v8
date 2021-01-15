@@ -374,7 +374,7 @@ fn get_isolate_from_handle() {
     if let Some(expected_some) = expect_some {
       assert_eq!(maybe_ptr.is_some(), expected_some);
     }
-  };
+  }
 
   fn check_handle<'s, F, D>(
     scope: &mut v8::HandleScope<'s>,
@@ -393,7 +393,7 @@ fn get_isolate_from_handle() {
     let global = v8::Global::new(scope, local);
     let local2 = v8::Local::new(scope, &global);
     check_handle_helper(scope, expect_some, local2);
-  };
+  }
 
   fn check_eval<'s>(
     scope: &mut v8::HandleScope<'s>,
