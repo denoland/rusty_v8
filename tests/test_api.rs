@@ -156,6 +156,15 @@ fn test_string() {
     assert_eq!(15, local.length());
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
+    let mut vec = Vec::new();
+    vec.resize(17, 0);
+    let options = v8::WriteOptions::NO_NULL_TERMINATION;
+    let mut nchars = 0;
+    assert_eq!(
+      17,
+      local.write_utf8(scope, &mut vec, Some(&mut nchars), options)
+    );
+    assert_eq!(15, nchars);
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
