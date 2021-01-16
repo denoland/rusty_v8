@@ -720,7 +720,7 @@ macro_rules! impl_c_fn_from {
           F: UnitType + Fn($($ty),*) -> R,
         {
           (F::get())($($arg),*)
-        };
+        }
         c_fn::<F, R, $($ty),*>
       }
     }

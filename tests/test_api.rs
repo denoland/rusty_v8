@@ -374,7 +374,7 @@ fn get_isolate_from_handle() {
     if let Some(expected_some) = expect_some {
       assert_eq!(maybe_ptr.is_some(), expected_some);
     }
-  };
+  }
 
   fn check_handle<'s, F, D>(
     scope: &mut v8::HandleScope<'s>,
@@ -393,7 +393,7 @@ fn get_isolate_from_handle() {
     let global = v8::Global::new(scope, local);
     let local2 = v8::Local::new(scope, &global);
     check_handle_helper(scope, expect_some, local2);
-  };
+  }
 
   fn check_eval<'s>(
     scope: &mut v8::HandleScope<'s>,
@@ -4514,4 +4514,19 @@ fn run_with_rust_allocator() {
   isolate.low_memory_notification();
   let count_loaded = count.load(Ordering::SeqCst);
   assert_eq!(count_loaded, 0);
+}
+
+#[test]
+fn oom_callback() {
+  extern "C" fn oom_handler(_: *const std::os::raw::c_char, _: bool) {
+    unreachable!()
+  }
+
+  let _setup_guard = setup();
+  let params = v8::CreateParams::default().heap_limits(0, 1048576 * 8);
+  let isolate = &mut v8::Isolate::new(params);
+  isolate.set_oom_error_handler(oom_handler);
+
+  // Don't attempt to trigger the OOM callback since we don't have a safe way to
+  // recover from it.
 }

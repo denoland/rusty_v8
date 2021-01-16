@@ -245,6 +245,11 @@ void v8__Isolate__RemoveNearHeapLimitCallback(
   isolate->RemoveNearHeapLimitCallback(callback, heap_limit);
 }
 
+void v8__Isolate__SetOOMErrorHandler(v8::Isolate* isolate,
+                                     v8::OOMErrorCallback callback) {
+  isolate->SetOOMErrorHandler(callback);
+}
+
 const v8::Value* v8__Isolate__ThrowException(v8::Isolate* isolate,
                                              const v8::Value& exception) {
   return local_to_ptr(isolate->ThrowException(ptr_to_local(&exception)));

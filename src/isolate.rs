@@ -30,6 +30,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::os::raw::c_char;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::sync::Arc;
@@ -122,6 +123,9 @@ pub type NearHeapLimitCallback = extern "C" fn(
   initial_heap_limit: usize,
 ) -> usize;
 
+pub type OOMErrorCallback =
+  extern "C" fn(location: *const c_char, is_heap_oom: bool);
+
 /// Collection of V8 heap information.
 ///
 /// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
@@ -160,6 +164,10 @@ extern "C" {
     isolate: *mut Isolate,
     callback: NearHeapLimitCallback,
     heap_limit: usize,
+  );
+  fn v8__Isolate__SetOOMErrorHandler(
+    isolate: *mut Isolate,
+    callback: OOMErrorCallback,
   );
   fn v8__Isolate__SetPromiseHook(isolate: *mut Isolate, hook: PromiseHook);
   fn v8__Isolate__SetPromiseRejectCallback(
@@ -530,6 +538,10 @@ impl Isolate {
     unsafe {
       v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
     };
+  }
+
+  pub fn set_oom_error_handler(&mut self, callback: OOMErrorCallback) {
+    unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
   }
 
   /// Returns the policy controlling how Microtasks are invoked.
