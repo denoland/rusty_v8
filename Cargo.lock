@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "rusty_v8"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "bitflags",
  "cargo_gn",
