@@ -141,7 +141,7 @@ jobs:
           SCCACHE_CACHE_SIZE: 128M
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
-          $version = "0.2.12"
+          $version = "0.2.15"
           $platform =
             @{ "macOS"   = "x86_64-apple-darwin"
                "Linux"   = "x86_64-unknown-linux-musl"
