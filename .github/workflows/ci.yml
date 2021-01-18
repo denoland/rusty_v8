@@ -109,7 +109,7 @@ jobs:
             target/*/build
             target/*/deps
           key:
-            ${{ matrix.config.target }}-${{ matrix.config.variant }}-${{
+            ${{ matrix.config.target }}--${{ matrix.config.variant }}-${{
             hashFiles('./Cargo.lock', './v8/include/v8-version.h') }}
           restore-keys:
             ${{ matrix.config.target }}-${{ matrix.config.variant }}-
