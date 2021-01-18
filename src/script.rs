@@ -2,10 +2,9 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
-use crate::Boolean;
 use crate::Context;
 use crate::HandleScope;
-use crate::Integer;
+use crate::Isolate;
 use crate::Local;
 use crate::Script;
 use crate::String;
@@ -15,7 +14,7 @@ use crate::Value;
 /// The origin, within a file, of a script.
 #[repr(C)]
 #[derive(Debug)]
-pub struct ScriptOrigin<'s>([usize; 7], PhantomData<&'s ()>);
+pub struct ScriptOrigin<'s>([usize; 8], PhantomData<&'s ()>);
 
 extern "C" {
   fn v8__Script__Compile(
@@ -32,16 +31,17 @@ extern "C" {
   ) -> *const Value;
 
   fn v8__ScriptOrigin__CONSTRUCT(
+    isolate: *mut Isolate,
     buf: *mut MaybeUninit<ScriptOrigin>,
     resource_name: *const Value,
-    resource_line_offset: *const Integer,
-    resource_column_offset: *const Integer,
-    resource_is_shared_cross_origin: *const Boolean,
-    script_id: *const Integer,
+    resource_line_offset: i32,
+    resource_column_offset: i32,
+    resource_is_shared_cross_origin: bool,
+    script_id: i32,
     source_map_url: *const Value,
-    resource_is_opaque: *const Boolean,
-    is_wasm: *const Boolean,
-    is_module: *const Boolean,
+    resource_is_opaque: bool,
+    is_wasm: bool,
+    is_module: bool,
   );
 }
 
@@ -92,29 +92,31 @@ impl Script {
 impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
+    scope: &mut HandleScope<'s, ()>,
     resource_name: Local<'s, Value>,
-    resource_line_offset: Local<'s, Integer>,
-    resource_column_offset: Local<'s, Integer>,
-    resource_is_shared_cross_origin: Local<'s, Boolean>,
-    script_id: Local<'s, Integer>,
+    resource_line_offset: i32,
+    resource_column_offset: i32,
+    resource_is_shared_cross_origin: bool,
+    script_id: i32,
     source_map_url: Local<'s, Value>,
-    resource_is_opaque: Local<'s, Boolean>,
-    is_wasm: Local<'s, Boolean>,
-    is_module: Local<'s, Boolean>,
+    resource_is_opaque: bool,
+    is_wasm: bool,
+    is_module: bool,
   ) -> Self {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
       v8__ScriptOrigin__CONSTRUCT(
+        scope.get_isolate_ptr(),
         &mut buf,
         &*resource_name,
-        &*resource_line_offset,
-        &*resource_column_offset,
-        &*resource_is_shared_cross_origin,
-        &*script_id,
+        resource_line_offset,
+        resource_column_offset,
+        resource_is_shared_cross_origin,
+        script_id,
         &*source_map_url,
-        &*resource_is_opaque,
-        &*is_wasm,
-        &*is_module,
+        resource_is_opaque,
+        is_wasm,
+        is_module,
       );
       buf.assume_init()
     }

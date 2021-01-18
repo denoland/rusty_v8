@@ -108,17 +108,20 @@ fn execute_string(
 ) {
   let mut scope = v8::TryCatch::new(scope);
 
+  let filename = v8::String::new(&mut scope, filename).unwrap();
+  let undefined = v8::undefined(&mut scope);
   let script = v8::String::new(&mut scope, script).unwrap();
   let origin = v8::ScriptOrigin::new(
-    v8::String::new(&mut scope, filename).unwrap().into(),
-    v8::Integer::new(&mut scope, 0),
-    v8::Integer::new(&mut scope, 0),
-    v8::Boolean::new(&mut scope, false),
-    v8::Integer::new(&mut scope, 0),
-    v8::undefined(&mut scope).into(),
-    v8::Boolean::new(&mut scope, false),
-    v8::Boolean::new(&mut scope, false),
-    v8::Boolean::new(&mut scope, false),
+    &mut scope,
+    filename.into(),
+    0,
+    0,
+    false,
+    0,
+    undefined.into(),
+    false,
+    false,
+    false,
   );
 
   let script = if let Some(script) =
