@@ -3179,6 +3179,7 @@ struct ClientCounter {
   count_run_message_loop_on_pause: usize,
   count_quit_message_loop_on_pause: usize,
   count_run_if_waiting_for_debugger: usize,
+  count_generate_unique_id: i64,
 }
 
 impl ClientCounter {
@@ -3188,6 +3189,7 @@ impl ClientCounter {
       count_run_message_loop_on_pause: 0,
       count_quit_message_loop_on_pause: 0,
       count_run_if_waiting_for_debugger: 0,
+      count_generate_unique_id: 0,
     }
   }
 }
@@ -3213,6 +3215,11 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
   fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {
     assert_eq!(context_group_id, 1);
     self.count_run_message_loop_on_pause += 1;
+  }
+
+  fn generate_unique_id(&mut self) -> i64 {
+    self.count_generate_unique_id += 1;
+    self.count_generate_unique_id
   }
 }
 
@@ -3354,6 +3361,7 @@ fn inspector_schedule_pause_on_next_statement() {
   assert_eq!(client.count_run_message_loop_on_pause, 1);
   assert_eq!(client.count_quit_message_loop_on_pause, 0);
   assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+  assert_ne!(client.count_generate_unique_id, 0);
 }
 
 #[test]
