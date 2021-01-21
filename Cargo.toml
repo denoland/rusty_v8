@@ -31,6 +31,7 @@ exclude = [
  "buildtools/third_party/libc++/trunk/utils/",
  "buildtools/third_party/libc++/trunk/www/",
  "buildtools/third_party/libc++abi/trunk/test/",
+ "tools/clang",
  "v8/ChangeLog",
  "v8/benchmarks/",
  "v8/docs/",
