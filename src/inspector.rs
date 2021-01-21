@@ -47,6 +47,9 @@ extern "C" {
     buf: &mut std::mem::MaybeUninit<V8InspectorClient>,
   );
 
+  fn v8_inspector__V8InspectorClient__generateUniqueId(
+    this: &mut V8InspectorClient,
+  ) -> i64;
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
     this: &mut V8InspectorClient,
     context_group_id: int,
@@ -127,6 +130,13 @@ pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocol
   this: &mut Channel,
 ) {
   ChannelBase::dispatch_mut(this).flush_protocol_notifications()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__generateUniqueId(
+  this: &mut V8InspectorClient,
+) -> i64 {
+  V8InspectorClientBase::dispatch_mut(this).generate_unique_id()
 }
 
 #[no_mangle]
@@ -443,6 +453,10 @@ impl V8InspectorClient {
       )
     }
   }
+
+  pub fn generate_unique_id(&mut self) -> i64 {
+    unsafe { v8_inspector__V8InspectorClient__generateUniqueId(self) }
+  }
 }
 
 pub trait AsV8InspectorClient {
@@ -479,6 +493,10 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
   fn run_message_loop_on_pause(&mut self, context_group_id: i32) {}
   fn quit_message_loop_on_pause(&mut self) {}
   fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {}
+
+  fn generate_unique_id(&mut self) -> i64 {
+    0 // 0 = let V8 pick a unique id itself
+  }
 
   #[allow(clippy::too_many_arguments)]
   fn console_api_message(

@@ -1914,6 +1914,8 @@ void v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
   self->flushProtocolNotifications();
 }
 
+int64_t v8_inspector__V8InspectorClient__BASE__generateUniqueId(
+    v8_inspector::V8InspectorClient* self);
 void v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
     v8_inspector::V8InspectorClient* self, int contextGroupId);
 void v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
@@ -1932,6 +1934,9 @@ struct v8_inspector__V8InspectorClient__BASE
     : public v8_inspector::V8InspectorClient {
   using v8_inspector::V8InspectorClient::V8InspectorClient;
 
+  int64_t generateUniqueId() override {
+    return v8_inspector__V8InspectorClient__BASE__generateUniqueId(this);
+  }
   void runMessageLoopOnPause(int contextGroupId) override {
     v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
         this, contextGroupId);
@@ -1959,6 +1964,11 @@ extern "C" {
 void v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
     uninit_t<v8_inspector__V8InspectorClient__BASE>* buf) {
   construct_in_place<v8_inspector__V8InspectorClient__BASE>(buf);
+}
+
+int64_t v8_inspector__V8InspectorClient__generateUniqueId(
+    v8_inspector::V8InspectorClient* self) {
+  return self->generateUniqueId();
 }
 
 void v8_inspector__V8InspectorClient__runMessageLoopOnPause(
