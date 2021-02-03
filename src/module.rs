@@ -15,6 +15,7 @@ use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Module;
+use crate::FixedArray;
 use crate::String;
 use crate::Value;
 
@@ -85,6 +86,58 @@ where
   }
 }
 
+// System V AMD64 ABI: Local<Module> returned in a register.
+#[cfg(not(target_os = "windows"))]
+pub type ResolveModuleCallback<'a> = extern "C" fn(
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, FixedArray>,
+  Local<'a, Module>,
+) -> *const Module;
+
+// Windows x64 ABI: Local<Module> returned on the stack.
+#[cfg(target_os = "windows")]
+pub type ResolveModuleCallback<'a> = extern "C" fn(
+  *mut *const Module,
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, FixedArray>,
+  Local<'a, Module>,
+) -> *mut *const Module;
+
+impl<'a, F> MapFnFrom<F> for ResolveModuleCallback<'a>
+where
+  F: UnitType
+    + Fn(
+      Local<'a, Context>,
+      Local<'a, String>,
+      Local<'a, FixedArray>,
+      Local<'a, Module>,
+    ) -> Option<Local<'a, Module>>,
+{
+  #[cfg(not(target_os = "windows"))]
+  fn mapping() -> Self {
+    let f = |context, specifier, import_assertions, referrer| {
+      (F::get())(context, specifier, import_assertions, referrer)
+        .map(|r| -> *const Module { &*r })
+        .unwrap_or(null())
+    };
+    f.to_c_fn()
+  }
+
+  #[cfg(target_os = "windows")]
+  fn mapping() -> Self {
+    let f = |ret_ptr, context, specifier, import_assertions, referrer| {
+      let r = (F::get())(context, specifier, import_assertions, referrer)
+        .map(|r| -> *const Module { &*r })
+        .unwrap_or(null());
+      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
+      ret_ptr // Return stack pointer to the return value.
+    };
+    f.to_c_fn()
+  }
+}
+
 // System V AMD64 ABI: Local<Value> returned in a register.
 #[cfg(not(target_os = "windows"))]
 pub type SyntheticModuleEvaluationSteps<'a> =
@@ -145,6 +198,11 @@ extern "C" {
     this: *const Module,
     context: *const Context,
     cb: ResolveCallback,
+  ) -> MaybeBool;
+  fn v8__Module__InstantiateModuleNew(
+    this: *const Module,
+    context: *const Context,
+    cb: ResolveModuleCallback,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *const Module,
@@ -287,6 +345,21 @@ impl Module {
   ) -> Option<bool> {
     unsafe {
       v8__Module__InstantiateModule(
+        self,
+        &*scope.get_current_context(),
+        callback.map_fn_to(),
+      )
+    }
+    .into()
+  }
+
+  pub fn instantiate_module_new<'a>(
+    &self,
+    scope: &mut HandleScope,
+    callback: impl MapFnTo<ResolveModuleCallback<'a>>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Module__InstantiateModuleNew(
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),

@@ -43,6 +43,7 @@ mod exception;
 mod external;
 mod external_references;
 mod function;
+mod fixed_array;
 mod handle;
 mod isolate;
 mod isolate_create_params;

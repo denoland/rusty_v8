@@ -2053,6 +2053,65 @@ fn module_evaluation() {
   }
 }
 
+fn import_assertions_module_resolve_callback<'a>(
+  context: v8::Local<'a, v8::Context>,
+  specifier: v8::Local<'a, v8::String>,
+  import_assertions: v8::Local<'a, v8::FixedArray>,
+  _referrer: v8::Local<'a, v8::Module>,
+) -> Option<v8::Local<'a, v8::Module>> {
+  let scope = &mut unsafe { v8::CallbackScope::new(context) };
+
+  let a = import_assertions.get(scope, 0);
+  let first_assert = v8::Local::<v8::Value>::try_from(a).unwrap();
+  // let first_assert: v8::Value = .try_into().unwrap();
+  assert_eq!(first_assert.to_rust_string_lossy(scope), "json");
+
+  let origin = mock_script_origin(scope, "module.js");
+  let source = v8::script_compiler::Source::new(specifier, &origin);
+  let module = v8::script_compiler::compile_module(scope, source).unwrap();
+  Some(module)
+}
+
+#[test]
+fn import_assertions() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source_text = v8::String::new(
+      scope,
+      "import '{\"foo\": \"bar\"}' assert { type: \"json\" };",
+    )
+    .unwrap();
+    let origin = mock_script_origin(scope, "foo.js");
+    let source = v8::script_compiler::Source::new(source_text, &origin);
+
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
+    assert!(module.is_source_text_module());
+    assert!(!module.is_synthetic_module());
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
+
+    let result = module
+      .instantiate_module_new(scope, import_assertions_module_resolve_callback);
+    assert!(result.unwrap());
+    assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+
+    let result = module.evaluate(scope);
+    assert!(result.is_some());
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    // let result = eval(scope, "Object.expando").unwrap();
+    // assert!(result.is_number());
+    // let expected = v8::Number::new(scope, 10.);
+    // assert!(result.strict_equals(expected.into()));
+  }
+}
+
 #[test]
 fn primitive_array() {
   let _setup_guard = setup();

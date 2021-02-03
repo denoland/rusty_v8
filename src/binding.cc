@@ -614,6 +614,15 @@ const v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
   return local_to_ptr(v8::Boolean::New(isolate, value));
 }
 
+int v8__FixedArray__Length(const v8::FixedArray& self) {
+  return self.Length();
+}
+
+const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self,
+                                          v8::Isolate* isolate, int index) {
+  return local_to_ptr(ptr_to_local(&self)->Get(isolate, index));
+}
+
 const v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate,
                                                   int length) {
   return local_to_ptr(v8::PrimitiveArray::New(isolate, length));
@@ -2056,6 +2065,13 @@ int v8__Module__ScriptId(const v8::Module& self) {
 MaybeBool v8__Module__InstantiateModule(const v8::Module& self,
                                         const v8::Context& context,
                                         v8::Module::ResolveCallback cb) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb));
+}
+
+MaybeBool v8__Module__InstantiateModuleNew(const v8::Module& self,
+                                        const v8::Context& context,
+                                        v8::Module::ResolveModuleCallback cb) {
   return maybe_to_maybe_bool(
       ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb));
 }
