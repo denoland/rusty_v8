@@ -2091,11 +2091,9 @@ fn import_assertions() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let source_text = v8::String::new(
-      scope,
-      "import 'foo' assert { type: \"json\" };",
-    )
-    .unwrap();
+    let source_text =
+      v8::String::new(scope, "import 'foo' assert { type: \"json\" };")
+        .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
