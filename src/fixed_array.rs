@@ -1,17 +1,17 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
 use crate::support::int;
-use crate::HandleScope;
-use crate::Isolate;
-use crate::Local;
+use crate::Context;
 use crate::Data;
 use crate::FixedArray;
+use crate::HandleScope;
+use crate::Local;
 
 extern "C" {
   fn v8__FixedArray__Length(this: *const FixedArray) -> int;
 
   fn v8__FixedArray__Get(
     this: *const FixedArray,
-    isolate: *mut Isolate,
+    context: *const Context,
     index: int,
   ) -> *const Data;
 }
@@ -28,7 +28,7 @@ impl FixedArray {
   ) -> Local<'s, Data> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__FixedArray__Get(self, sd.get_isolate_ptr(), index as int)
+        v8__FixedArray__Get(self, sd.get_current_context(), index as int)
       })
     }
     .unwrap()

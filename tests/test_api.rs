@@ -34,7 +34,7 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
-    v8::V8::set_flags_from_string("--expose_gc");
+    v8::V8::set_flags_from_string("--expose_gc --harmony-import-assertions");
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
   }
@@ -2055,19 +2055,27 @@ fn module_evaluation() {
 
 fn import_assertions_module_resolve_callback<'a>(
   context: v8::Local<'a, v8::Context>,
-  specifier: v8::Local<'a, v8::String>,
+  _specifier: v8::Local<'a, v8::String>,
   import_assertions: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
 
-  let a = import_assertions.get(scope, 0);
-  let first_assert = v8::Local::<v8::Value>::try_from(a).unwrap();
-  // let first_assert: v8::Value = .try_into().unwrap();
-  assert_eq!(first_assert.to_rust_string_lossy(scope), "json");
+  // "type" keyword, value and source offset of assertion
+  assert_eq!(import_assertions.length(), 3);
+  let assert1 = import_assertions.get(scope, 0);
+  let assert1_val = v8::Local::<v8::Value>::try_from(assert1).unwrap();
+  assert_eq!(assert1_val.to_rust_string_lossy(scope), "type");
+  let assert2 = import_assertions.get(scope, 1);
+  let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
+  assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
+  let assert3 = import_assertions.get(scope, 2);
+  let assert3_val = v8::Local::<v8::Value>::try_from(assert3).unwrap();
+  assert_eq!(assert3_val.to_rust_string_lossy(scope), "22");
 
   let origin = mock_script_origin(scope, "module.js");
-  let source = v8::script_compiler::Source::new(specifier, &origin);
+  let src = v8::String::new(scope, "export const a = 'a';").unwrap();
+  let source = v8::script_compiler::Source::new(src, &origin);
   let module = v8::script_compiler::compile_module(scope, source).unwrap();
   Some(module)
 }
@@ -2076,6 +2084,8 @@ fn import_assertions_module_resolve_callback<'a>(
 fn import_assertions() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
+  // TODO(bartlomieju):
+  // isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
@@ -2083,7 +2093,7 @@ fn import_assertions() {
 
     let source_text = v8::String::new(
       scope,
-      "import '{\"foo\": \"bar\"}' assert { type: \"json\" };",
+      "import 'foo' assert { type: \"json\" };",
     )
     .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
@@ -2098,17 +2108,9 @@ fn import_assertions() {
 
     let result = module
       .instantiate_module_new(scope, import_assertions_module_resolve_callback);
+    eprintln!("result {:#?}", result);
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
-
-    let result = module.evaluate(scope);
-    assert!(result.is_some());
-    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
-
-    // let result = eval(scope, "Object.expando").unwrap();
-    // assert!(result.is_number());
-    // let expected = v8::Number::new(scope, 10.);
-    // assert!(result.strict_equals(expected.into()));
   }
 }
 

@@ -619,8 +619,8 @@ int v8__FixedArray__Length(const v8::FixedArray& self) {
 }
 
 const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self,
-                                          v8::Isolate* isolate, int index) {
-  return local_to_ptr(ptr_to_local(&self)->Get(isolate, index));
+                                    const v8::Context& context, int index) {
+  return local_to_ptr(ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
 const v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate,

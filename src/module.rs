@@ -11,11 +11,11 @@ use crate::support::MaybeBool;
 use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::Context;
+use crate::FixedArray;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Module;
-use crate::FixedArray;
 use crate::String;
 use crate::Value;
 
