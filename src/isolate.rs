@@ -11,6 +11,7 @@ use crate::support::UnitType;
 use crate::wasm::trampoline;
 use crate::wasm::WasmStreaming;
 use crate::Context;
+use crate::FixedArray;
 use crate::Function;
 use crate::Local;
 use crate::Message;
@@ -114,6 +115,32 @@ pub type HostImportModuleDynamicallyCallback = extern "C" fn(
   Local<String>,
 ) -> *mut Promise;
 
+/// HostImportModuleDynamicallyWithImportAssertionsCallback is called when we require the
+/// embedder to load a module. This is used as part of the dynamic
+/// import syntax.
+///
+/// The referrer contains metadata about the script/module that calls
+/// import.
+///
+/// The specifier is the name of the module that should be imported.
+///
+/// The embedder must compile, instantiate, evaluate the Module, and
+/// obtain it's namespace object.
+///
+/// The Promise returned from this function is forwarded to userland
+/// JavaScript. The embedder must resolve this promise with the module
+/// namespace object. In case of an exception, the embedder must reject
+/// this promise with the exception. If the promise creation itself
+/// fails (e.g. due to stack overflow), the embedder must propagate
+/// that exception by returning an empty MaybeLocal.
+pub type HostImportModuleDynamicallyWithImportAssertionsCallback =
+  extern "C" fn(
+    Local<Context>,
+    Local<ScriptOrModule>,
+    Local<String>,
+    Local<FixedArray>,
+  ) -> *mut Promise;
+
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
@@ -178,9 +205,13 @@ extern "C" {
     isolate: *mut Isolate,
     callback: HostInitializeImportMetaObjectCallback,
   );
-  fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
+  fn v8__Isolate__SetHostImportModuleDynamicallyCallback__DEPRECATED(
     isolate: *mut Isolate,
     callback: HostImportModuleDynamicallyCallback,
+  );
+  fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
+    isolate: *mut Isolate,
+    callback: HostImportModuleDynamicallyWithImportAssertionsCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -508,6 +539,19 @@ impl Isolate {
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
     callback: HostImportModuleDynamicallyCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetHostImportModuleDynamicallyCallback__DEPRECATED(
+        self, callback,
+      )
+    }
+  }
+
+  /// This specifies the callback called by the upcoming dynamic
+  /// import() language feature to load modules.
+  pub fn set_host_import_module_dynamically_callback_new(
+    &mut self,
+    callback: HostImportModuleDynamicallyWithImportAssertionsCallback,
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)

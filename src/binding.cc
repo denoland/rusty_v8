@@ -93,6 +93,32 @@ v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
   }
 }
 
+// This is an extern C calling convention compatible version of
+// v8::HostImportModuleDynamicallyWithImportAssertionsCallback
+typedef v8::Promise* (
+    *v8__HostImportModuleDynamicallyWithImportAssertionsCallback)(
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
+    v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions);
+
+v8::MaybeLocal<v8::Promise>
+HostImportModuleDynamicallyWithImportAssertionsCallback(
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
+    v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions) {
+  auto* isolate = context->GetIsolate();
+  void* d = isolate->GetData(SLOT_INTERNAL(isolate, kSlotDynamicImport));
+  auto* callback = reinterpret_cast<
+      v8__HostImportModuleDynamicallyWithImportAssertionsCallback>(d);
+  assert(callback != nullptr);
+  auto* promise_ptr = callback(context, referrer, specifier, import_assertions);
+  if (promise_ptr == nullptr) {
+    return v8::MaybeLocal<v8::Promise>();
+  } else {
+    return v8::MaybeLocal<v8::Promise>(ptr_to_local(promise_ptr));
+  }
+}
+
 extern "C" {
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
                                      const char* usage) {
@@ -220,12 +246,21 @@ void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
   isolate->SetHostInitializeImportMetaObjectCallback(callback);
 }
 
-void v8__Isolate__SetHostImportModuleDynamicallyCallback(
+void v8__Isolate__SetHostImportModuleDynamicallyCallback__DEPRECATED(
     v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
   isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
                    reinterpret_cast<void*>(callback));
   isolate->SetHostImportModuleDynamicallyCallback(
       HostImportModuleDynamicallyCallback);
+}
+
+void v8__Isolate__SetHostImportModuleDynamicallyCallback(
+    v8::Isolate* isolate,
+    v8__HostImportModuleDynamicallyWithImportAssertionsCallback callback) {
+  isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
+                   reinterpret_cast<void*>(callback));
+  isolate->SetHostImportModuleDynamicallyCallback(
+      HostImportModuleDynamicallyWithImportAssertionsCallback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
