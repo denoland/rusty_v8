@@ -30,13 +30,10 @@ impl FixedArray {
       return None;
     }
 
-    Some(
-      unsafe {
-        scope.cast_local(|sd| {
-          v8__FixedArray__Get(self, &*sd.get_current_context(), index as int)
-        })
-      }
-      .unwrap(),
-    )
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__FixedArray__Get(self, &*sd.get_current_context(), index as int)
+      })
+    }
   }
 }

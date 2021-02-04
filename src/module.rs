@@ -126,7 +126,7 @@ where
         .map(|r| -> *const Value { &*r })
         .unwrap_or(null());
       unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
-      ret_ptr // Return caller-allocated memory pointer to the return value.
+      ret_ptr // Return stack pointer to the return value.
     };
     f.to_c_fn()
   }
