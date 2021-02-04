@@ -945,8 +945,8 @@ fn set_host_initialize_import_meta_object_callback() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = mock_source(scope, "google.com", "import.meta;");
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
-    let result =
-      module.deprecated_instantiate_module(scope, unexpected_module_resolve_callback);
+    let result = module
+      .deprecated_instantiate_module(scope, unexpected_module_resolve_callback);
     assert!(result.is_some());
     let meta = module.evaluate(scope).unwrap();
     assert!(meta.is_object());
@@ -2037,8 +2037,10 @@ fn module_evaluation() {
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     module.hash(&mut DefaultHasher::new()); // Should not crash.
 
-    let result = module
-      .deprecated_instantiate_module(scope, compile_specifier_as_module_resolve_callback);
+    let result = module.deprecated_instantiate_module(
+      scope,
+      compile_specifier_as_module_resolve_callback,
+    );
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
 
@@ -2065,7 +2067,7 @@ fn import_assertions() {
     _referrer: v8::Local<'a, v8::Module>,
   ) -> Option<v8::Local<'a, v8::Module>> {
     let scope = &mut unsafe { v8::CallbackScope::new(context) };
-  
+
     // "type" keyword, value and source offset of assertion
     assert_eq!(import_assertions.length(), 3);
     let assert1 = import_assertions.get(scope, 0).unwrap();
@@ -2077,14 +2079,14 @@ fn import_assertions() {
     let assert3 = import_assertions.get(scope, 2).unwrap();
     let assert3_val = v8::Local::<v8::Value>::try_from(assert3).unwrap();
     assert_eq!(assert3_val.to_rust_string_lossy(scope), "27");
-  
+
     let origin = mock_script_origin(scope, "module.js");
     let src = v8::String::new(scope, "export const a = 'a';").unwrap();
     let source = v8::script_compiler::Source::new(src, &origin);
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     Some(module)
   }
-    
+
   extern "C" fn dynamic_import_cb(
     context: v8::Local<v8::Context>,
     _referrer: v8::Local<v8::ScriptOrModule>,
@@ -2104,19 +2106,18 @@ fn import_assertions() {
     std::ptr::null_mut()
   }
   isolate.set_host_import_module_dynamically_callback_new(dynamic_import_cb);
-  
+
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let source_text =
-      v8::String::new(
-        scope, 
-        "import 'foo.json' assert { type: \"json\" };\n\
-        import('foo.json', { assert: { type: 'json' } });"
-      )
-        .unwrap();
+    let source_text = v8::String::new(
+      scope,
+      "import 'foo.json' assert { type: \"json\" };\n\
+        import('foo.json', { assert: { type: 'json' } });",
+    )
+    .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, &origin);
 
@@ -2127,8 +2128,7 @@ fn import_assertions() {
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     module.hash(&mut DefaultHasher::new()); // Should not crash.
 
-    let result = module
-      .instantiate_module(scope, module_resolve_callback);
+    let result = module.instantiate_module(scope, module_resolve_callback);
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
