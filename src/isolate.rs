@@ -11,6 +11,7 @@ use crate::support::UnitType;
 use crate::wasm::trampoline;
 use crate::wasm::WasmStreaming;
 use crate::Context;
+use crate::FixedArray;
 use crate::Function;
 use crate::Local;
 use crate::Message;
@@ -90,7 +91,7 @@ pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
 
-/// HostImportModuleDynamicallyCallback is called when we require the
+/// HostImportModuleDynamicallyWithImportAssertionsCallback is called when we require the
 /// embedder to load a module. This is used as part of the dynamic
 /// import syntax.
 ///
@@ -108,11 +109,13 @@ pub type HostInitializeImportMetaObjectCallback =
 /// this promise with the exception. If the promise creation itself
 /// fails (e.g. due to stack overflow), the embedder must propagate
 /// that exception by returning an empty MaybeLocal.
-pub type HostImportModuleDynamicallyCallback = extern "C" fn(
-  Local<Context>,
-  Local<ScriptOrModule>,
-  Local<String>,
-) -> *mut Promise;
+pub type HostImportModuleDynamicallyWithImportAssertionsCallback =
+  extern "C" fn(
+    Local<Context>,
+    Local<ScriptOrModule>,
+    Local<String>,
+    Local<FixedArray>,
+  ) -> *mut Promise;
 
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
@@ -180,7 +183,7 @@ extern "C" {
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: HostImportModuleDynamicallyWithImportAssertionsCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -507,7 +510,7 @@ impl Isolate {
   /// import() language feature to load modules.
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: HostImportModuleDynamicallyWithImportAssertionsCallback,
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)

@@ -34,7 +34,7 @@ fn setup() -> SetupGuard {
   let mut g = INIT_LOCK.lock().unwrap();
   *g += 1;
   if *g == 1 {
-    v8::V8::set_flags_from_string("--expose_gc");
+    v8::V8::set_flags_from_string("--expose_gc --harmony-import-assertions");
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
   }
@@ -913,6 +913,7 @@ fn add_message_listener() {
 fn unexpected_module_resolve_callback<'a>(
   _context: v8::Local<'a, v8::Context>,
   _specifier: v8::Local<'a, v8::String>,
+  _import_assertions: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   unreachable!()
@@ -1980,6 +1981,7 @@ fn module_instantiation_failures1() {
       fn resolve_callback<'a>(
         context: v8::Local<'a, v8::Context>,
         _specifier: v8::Local<'a, v8::String>,
+        _import_assertions: v8::Local<'a, v8::FixedArray>,
         _referrer: v8::Local<'a, v8::Module>,
       ) -> Option<v8::Local<'a, v8::Module>> {
         let scope = &mut unsafe { v8::CallbackScope::new(context) };
@@ -2003,6 +2005,7 @@ fn module_instantiation_failures1() {
 fn compile_specifier_as_module_resolve_callback<'a>(
   context: v8::Local<'a, v8::Context>,
   specifier: v8::Local<'a, v8::String>,
+  _import_assertions: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
@@ -2050,6 +2053,85 @@ fn module_evaluation() {
     assert!(result.is_number());
     let expected = v8::Number::new(scope, 10.);
     assert!(result.strict_equals(expected.into()));
+  }
+}
+
+#[test]
+fn import_assertions() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  fn module_resolve_callback<'a>(
+    context: v8::Local<'a, v8::Context>,
+    _specifier: v8::Local<'a, v8::String>,
+    import_assertions: v8::Local<'a, v8::FixedArray>,
+    _referrer: v8::Local<'a, v8::Module>,
+  ) -> Option<v8::Local<'a, v8::Module>> {
+    let scope = &mut unsafe { v8::CallbackScope::new(context) };
+
+    // "type" keyword, value and source offset of assertion
+    assert_eq!(import_assertions.length(), 3);
+    let assert1 = import_assertions.get(scope, 0).unwrap();
+    let assert1_val = v8::Local::<v8::Value>::try_from(assert1).unwrap();
+    assert_eq!(assert1_val.to_rust_string_lossy(scope), "type");
+    let assert2 = import_assertions.get(scope, 1).unwrap();
+    let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
+    assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
+    let assert3 = import_assertions.get(scope, 2).unwrap();
+    let assert3_val = v8::Local::<v8::Value>::try_from(assert3).unwrap();
+    assert_eq!(assert3_val.to_rust_string_lossy(scope), "27");
+
+    let origin = mock_script_origin(scope, "module.js");
+    let src = v8::String::new(scope, "export const a = 'a';").unwrap();
+    let source = v8::script_compiler::Source::new(src, &origin);
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    Some(module)
+  }
+
+  extern "C" fn dynamic_import_cb(
+    context: v8::Local<v8::Context>,
+    _referrer: v8::Local<v8::ScriptOrModule>,
+    _specifier: v8::Local<v8::String>,
+    import_assertions: v8::Local<v8::FixedArray>,
+  ) -> *mut v8::Promise {
+    let scope = &mut unsafe { v8::CallbackScope::new(context) };
+    let scope = &mut v8::HandleScope::new(scope);
+    // "type" keyword, value
+    assert_eq!(import_assertions.length(), 2);
+    let assert1 = import_assertions.get(scope, 0).unwrap();
+    let assert1_val = v8::Local::<v8::Value>::try_from(assert1).unwrap();
+    assert_eq!(assert1_val.to_rust_string_lossy(scope), "type");
+    let assert2 = import_assertions.get(scope, 1).unwrap();
+    let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
+    assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
+    std::ptr::null_mut()
+  }
+  isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source_text = v8::String::new(
+      scope,
+      "import 'foo.json' assert { type: \"json\" };\n\
+        import('foo.json', { assert: { type: 'json' } });",
+    )
+    .unwrap();
+    let origin = mock_script_origin(scope, "foo.js");
+    let source = v8::script_compiler::Source::new(source_text, &origin);
+
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
+    assert!(module.is_source_text_module());
+    assert!(!module.is_synthetic_module());
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
+
+    let result = module.instantiate_module(scope, module_resolve_callback);
+    assert!(result.unwrap());
+    assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
 }
 
@@ -2550,6 +2632,7 @@ fn dynamic_import() {
     context: v8::Local<v8::Context>,
     _referrer: v8::Local<v8::ScriptOrModule>,
     specifier: v8::Local<v8::String>,
+    _import_assertions: v8::Local<v8::FixedArray>,
   ) -> *mut v8::Promise {
     let scope = &mut unsafe { v8::CallbackScope::new(context) };
     let scope = &mut v8::HandleScope::new(scope);

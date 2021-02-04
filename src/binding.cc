@@ -73,19 +73,24 @@ enum InternalSlots {
   (isolate->GetNumberOfDataSlots() - 1 - slot)
 
 // This is an extern C calling convention compatible version of
-// v8::HostImportModuleDynamicallyCallback
-typedef v8::Promise* (*v8__HostImportModuleDynamicallyCallback)(
+// v8::HostImportModuleDynamicallyWithImportAssertionsCallback
+typedef v8::Promise* (
+    *v8__HostImportModuleDynamicallyWithImportAssertionsCallback)(
     v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier);
+    v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions);
 
-v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
+v8::MaybeLocal<v8::Promise>
+HostImportModuleDynamicallyWithImportAssertionsCallback(
     v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier) {
+    v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions) {
   auto* isolate = context->GetIsolate();
   void* d = isolate->GetData(SLOT_INTERNAL(isolate, kSlotDynamicImport));
-  auto* callback = reinterpret_cast<v8__HostImportModuleDynamicallyCallback>(d);
+  auto* callback = reinterpret_cast<
+      v8__HostImportModuleDynamicallyWithImportAssertionsCallback>(d);
   assert(callback != nullptr);
-  auto* promise_ptr = callback(context, referrer, specifier);
+  auto* promise_ptr = callback(context, referrer, specifier, import_assertions);
   if (promise_ptr == nullptr) {
     return v8::MaybeLocal<v8::Promise>();
   } else {
@@ -221,11 +226,12 @@ void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
 }
 
 void v8__Isolate__SetHostImportModuleDynamicallyCallback(
-    v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
+    v8::Isolate* isolate,
+    v8__HostImportModuleDynamicallyWithImportAssertionsCallback callback) {
   isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
                    reinterpret_cast<void*>(callback));
   isolate->SetHostImportModuleDynamicallyCallback(
-      HostImportModuleDynamicallyCallback);
+      HostImportModuleDynamicallyWithImportAssertionsCallback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
@@ -612,6 +618,13 @@ const v8::Primitive* v8__Undefined(v8::Isolate* isolate) {
 
 const v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
   return local_to_ptr(v8::Boolean::New(isolate, value));
+}
+
+int v8__FixedArray__Length(const v8::FixedArray& self) { return self.Length(); }
+
+const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self,
+                                    const v8::Context& context, int index) {
+  return local_to_ptr(ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
 const v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate,
@@ -1560,18 +1573,15 @@ const v8::Value* v8__Script__Run(const v8::Script& script,
 }
 
 void v8__ScriptOrigin__CONSTRUCT(
-    v8::Isolate* isolate,
-    uninit_t<v8::ScriptOrigin>* buf, const v8::Value& resource_name,
-    int resource_line_offset, int resource_column_offset,
-    bool resource_is_shared_cross_origin, int script_id,
-    const v8::Value& source_map_url,
-    bool resource_is_opaque, bool is_wasm, bool is_module) {
+    v8::Isolate* isolate, uninit_t<v8::ScriptOrigin>* buf,
+    const v8::Value& resource_name, int resource_line_offset,
+    int resource_column_offset, bool resource_is_shared_cross_origin,
+    int script_id, const v8::Value& source_map_url, bool resource_is_opaque,
+    bool is_wasm, bool is_module) {
   construct_in_place<v8::ScriptOrigin>(
-      buf, isolate, ptr_to_local(&resource_name),
-      resource_line_offset, resource_column_offset,
-      resource_is_shared_cross_origin, script_id,
-      ptr_to_local(&source_map_url),
-      resource_is_opaque, is_wasm, is_module);
+      buf, isolate, ptr_to_local(&resource_name), resource_line_offset,
+      resource_column_offset, resource_is_shared_cross_origin, script_id,
+      ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
 }
 
 const v8::Value* v8__ScriptOrModule__GetResourceName(
@@ -2055,7 +2065,7 @@ int v8__Module__ScriptId(const v8::Module& self) {
 
 MaybeBool v8__Module__InstantiateModule(const v8::Module& self,
                                         const v8::Context& context,
-                                        v8::Module::ResolveCallback cb) {
+                                        v8::Module::ResolveModuleCallback cb) {
   return maybe_to_maybe_bool(
       ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb));
 }

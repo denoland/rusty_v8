@@ -356,6 +356,17 @@ impl_eq! { for Module }
 impl_partial_eq! { Data for Module use identity }
 impl_partial_eq! { Module for Module use identity }
 
+/// A fixed-sized array with elements of type Data.
+#[repr(C)]
+#[derive(Debug)]
+pub struct FixedArray(Opaque);
+
+impl_deref! { Data for FixedArray }
+impl_eq! { for FixedArray }
+impl_hash! { for FixedArray }
+impl_partial_eq! { Data for FixedArray use identity }
+impl_partial_eq! { FixedArray for FixedArray use identity }
+
 /// An array to hold Primitive values. This is used by the embedder to
 /// pass host defined options to the ScriptOptions during compilation.
 ///

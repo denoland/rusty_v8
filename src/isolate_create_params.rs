@@ -192,6 +192,7 @@ pub(crate) mod raw {
     pub embedder_wrapper_type_index: int,
     pub embedder_wrapper_object_index: int,
     pub cpp_heap_params: SharedPtr<CppHeapCreateParams>,
+    // NOTE(bartlomieju): this field is deprecated in V8 API.
     // This is an std::vector<std::string>. It's usually no bigger
     // than three or four words but let's take a generous upper bound.
     pub supported_import_assertions: [usize; 8],
