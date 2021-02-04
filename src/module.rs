@@ -20,7 +20,7 @@ use crate::String;
 use crate::Value;
 
 /// Called during Module::instantiate_module. Provided with arguments:
-/// (context, specifier, referrer). Return None on error.
+/// (context, specifier, import_assertions, referrer). Return None on error.
 ///
 /// Note: this callback has an unusual signature due to ABI incompatibilities
 /// between Rust and C++. However end users can implement the callback as
@@ -30,61 +30,13 @@ use crate::Value;
 ///   fn my_resolve_callback<'a>(
 ///      context: v8::Local<'a, v8::Context>,
 ///      specifier: v8::Local<'a, v8::String>,
+///      import_assertions: v8::Local<'a, v8::FixedArray>,
 ///      referrer: v8::Local<'a, v8::Module>,
 ///   ) -> Option<v8::Local<'a, v8::Module>> {
 ///      // ...
 ///      Some(resolved_module)
 ///   }
 /// ```
-
-// System V AMD64 ABI: Local<Module> returned in a register.
-#[cfg(not(target_os = "windows"))]
-pub type ResolveCallback<'a> = extern "C" fn(
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, Module>,
-) -> *const Module;
-
-// Windows x64 ABI: Local<Module> returned on the stack.
-#[cfg(target_os = "windows")]
-pub type ResolveCallback<'a> = extern "C" fn(
-  *mut *const Module,
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, Module>,
-) -> *mut *const Module;
-
-impl<'a, F> MapFnFrom<F> for ResolveCallback<'a>
-where
-  F: UnitType
-    + Fn(
-      Local<'a, Context>,
-      Local<'a, String>,
-      Local<'a, Module>,
-    ) -> Option<Local<'a, Module>>,
-{
-  #[cfg(not(target_os = "windows"))]
-  fn mapping() -> Self {
-    let f = |context, specifier, referrer| {
-      (F::get())(context, specifier, referrer)
-        .map(|r| -> *const Module { &*r })
-        .unwrap_or(null())
-    };
-    f.to_c_fn()
-  }
-
-  #[cfg(target_os = "windows")]
-  fn mapping() -> Self {
-    let f = |ret_ptr, context, specifier, referrer| {
-      let r = (F::get())(context, specifier, referrer)
-        .map(|r| -> *const Module { &*r })
-        .unwrap_or(null());
-      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
-      ret_ptr // Return stack pointer to the return value.
-    };
-    f.to_c_fn()
-  }
-}
 
 // System V AMD64 ABI: Local<Module> returned in a register.
 #[cfg(not(target_os = "windows"))]
@@ -174,7 +126,7 @@ where
         .map(|r| -> *const Value { &*r })
         .unwrap_or(null());
       unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
-      ret_ptr // Return stack pointer to the return value.
+      ret_ptr // Return caller-allocated memory pointer to the return value.
     };
     f.to_c_fn()
   }
