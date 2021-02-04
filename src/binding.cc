@@ -73,27 +73,6 @@ enum InternalSlots {
   (isolate->GetNumberOfDataSlots() - 1 - slot)
 
 // This is an extern C calling convention compatible version of
-// v8::HostImportModuleDynamicallyCallback
-typedef v8::Promise* (*v8__HostImportModuleDynamicallyCallback)(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier);
-
-v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier) {
-  auto* isolate = context->GetIsolate();
-  void* d = isolate->GetData(SLOT_INTERNAL(isolate, kSlotDynamicImport));
-  auto* callback = reinterpret_cast<v8__HostImportModuleDynamicallyCallback>(d);
-  assert(callback != nullptr);
-  auto* promise_ptr = callback(context, referrer, specifier);
-  if (promise_ptr == nullptr) {
-    return v8::MaybeLocal<v8::Promise>();
-  } else {
-    return v8::MaybeLocal<v8::Promise>(ptr_to_local(promise_ptr));
-  }
-}
-
-// This is an extern C calling convention compatible version of
 // v8::HostImportModuleDynamicallyWithImportAssertionsCallback
 typedef v8::Promise* (
     *v8__HostImportModuleDynamicallyWithImportAssertionsCallback)(
@@ -244,14 +223,6 @@ void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
 void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     v8::Isolate* isolate, v8::HostInitializeImportMetaObjectCallback callback) {
   isolate->SetHostInitializeImportMetaObjectCallback(callback);
-}
-
-void v8__Isolate__SetHostImportModuleDynamicallyCallback__DEPRECATED(
-    v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
-  isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
-                   reinterpret_cast<void*>(callback));
-  isolate->SetHostImportModuleDynamicallyCallback(
-      HostImportModuleDynamicallyCallback);
 }
 
 void v8__Isolate__SetHostImportModuleDynamicallyCallback(
@@ -2090,13 +2061,6 @@ int v8__Module__ScriptId(const v8::Module& self) {
   // TODO(bnoordhuis) Open V8 CL to mark Module::ScriptId() and
   // UnboundScript::GetId() const.
   return const_cast<v8::Module&>(self).ScriptId();
-}
-
-MaybeBool v8__Module__InstantiateModule__DEPRECATED(
-    const v8::Module& self, const v8::Context& context,
-    v8::Module::ResolveCallback cb) {
-  return maybe_to_maybe_bool(
-      ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb));
 }
 
 MaybeBool v8__Module__InstantiateModule(const v8::Module& self,

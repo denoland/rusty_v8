@@ -194,11 +194,6 @@ extern "C" {
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__ScriptId(this: *const Module) -> int;
-  fn v8__Module__InstantiateModule__DEPRECATED(
-    this: *const Module,
-    context: *const Context,
-    cb: ResolveCallback,
-  ) -> MaybeBool;
   fn v8__Module__InstantiateModule(
     this: *const Module,
     context: *const Context,
@@ -330,27 +325,6 @@ impl Module {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
-  }
-
-  /// Instantiates the module and its dependencies.
-  ///
-  /// Returns an empty Maybe<bool> if an exception occurred during
-  /// instantiation. (In the case where the callback throws an exception, that
-  /// exception is propagated.)
-  #[must_use]
-  pub fn deprecated_instantiate_module<'a>(
-    &self,
-    scope: &mut HandleScope,
-    callback: impl MapFnTo<ResolveCallback<'a>>,
-  ) -> Option<bool> {
-    unsafe {
-      v8__Module__InstantiateModule__DEPRECATED(
-        self,
-        &*scope.get_current_context(),
-        callback.map_fn_to(),
-      )
-    }
-    .into()
   }
 
   /// Instantiates the module and its dependencies.

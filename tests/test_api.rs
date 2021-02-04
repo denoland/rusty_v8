@@ -913,6 +913,7 @@ fn add_message_listener() {
 fn unexpected_module_resolve_callback<'a>(
   _context: v8::Local<'a, v8::Context>,
   _specifier: v8::Local<'a, v8::String>,
+  _import_assertions: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   unreachable!()
@@ -945,8 +946,8 @@ fn set_host_initialize_import_meta_object_callback() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = mock_source(scope, "google.com", "import.meta;");
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
-    let result = module
-      .deprecated_instantiate_module(scope, unexpected_module_resolve_callback);
+    let result =
+      module.instantiate_module(scope, unexpected_module_resolve_callback);
     assert!(result.is_some());
     let meta = module.evaluate(scope).unwrap();
     assert!(meta.is_object());
@@ -1980,6 +1981,7 @@ fn module_instantiation_failures1() {
       fn resolve_callback<'a>(
         context: v8::Local<'a, v8::Context>,
         _specifier: v8::Local<'a, v8::String>,
+        _import_assertions: v8::Local<'a, v8::FixedArray>,
         _referrer: v8::Local<'a, v8::Module>,
       ) -> Option<v8::Local<'a, v8::Module>> {
         let scope = &mut unsafe { v8::CallbackScope::new(context) };
@@ -1988,7 +1990,7 @@ fn module_instantiation_failures1() {
         scope.throw_exception(e.into());
         None
       }
-      let result = module.deprecated_instantiate_module(tc, resolve_callback);
+      let result = module.instantiate_module(tc, resolve_callback);
       assert!(result.is_none());
       assert!(tc.has_caught());
       assert!(tc
@@ -2003,6 +2005,7 @@ fn module_instantiation_failures1() {
 fn compile_specifier_as_module_resolve_callback<'a>(
   context: v8::Local<'a, v8::Context>,
   specifier: v8::Local<'a, v8::String>,
+  _import_assertions: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
@@ -2037,10 +2040,8 @@ fn module_evaluation() {
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     module.hash(&mut DefaultHasher::new()); // Should not crash.
 
-    let result = module.deprecated_instantiate_module(
-      scope,
-      compile_specifier_as_module_resolve_callback,
-    );
+    let result = module
+      .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
 
@@ -2105,7 +2106,7 @@ fn import_assertions() {
     assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
     std::ptr::null_mut()
   }
-  isolate.set_host_import_module_dynamically_callback_new(dynamic_import_cb);
+  isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2631,6 +2632,7 @@ fn dynamic_import() {
     context: v8::Local<v8::Context>,
     _referrer: v8::Local<v8::ScriptOrModule>,
     specifier: v8::Local<v8::String>,
+    _import_assertions: v8::Local<v8::FixedArray>,
   ) -> *mut v8::Promise {
     let scope = &mut unsafe { v8::CallbackScope::new(context) };
     let scope = &mut v8::HandleScope::new(scope);
@@ -3724,7 +3726,7 @@ fn module_snapshot() {
       let script_id = module.script_id();
       assert!(script_id.is_some());
 
-      let result = module.deprecated_instantiate_module(
+      let result = module.instantiate_module(
         scope,
         compile_specifier_as_module_resolve_callback,
       );
@@ -3922,7 +3924,7 @@ fn synthetic_module() {
   assert_eq!(module.get_status(), v8::ModuleStatus::Uninstantiated);
 
   module
-    .deprecated_instantiate_module(scope, unexpected_module_resolve_callback)
+    .instantiate_module(scope, unexpected_module_resolve_callback)
     .unwrap();
   assert_eq!(module.get_status(), v8::ModuleStatus::Instantiated);
 

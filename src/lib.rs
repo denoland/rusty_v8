@@ -93,7 +93,7 @@ pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;
 pub use isolate::HeapStatistics;
-pub use isolate::HostImportModuleDynamicallyCallback;
+pub use isolate::HostImportModuleDynamicallyWithImportAssertionsCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
