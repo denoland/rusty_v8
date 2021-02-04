@@ -946,7 +946,7 @@ fn set_host_initialize_import_meta_object_callback() {
     let source = mock_source(scope, "google.com", "import.meta;");
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     let result =
-      module.instantiate_module(scope, unexpected_module_resolve_callback);
+      module.deprecated_instantiate_module(scope, unexpected_module_resolve_callback);
     assert!(result.is_some());
     let meta = module.evaluate(scope).unwrap();
     assert!(meta.is_object());
@@ -1988,7 +1988,7 @@ fn module_instantiation_failures1() {
         scope.throw_exception(e.into());
         None
       }
-      let result = module.instantiate_module(tc, resolve_callback);
+      let result = module.deprecated_instantiate_module(tc, resolve_callback);
       assert!(result.is_none());
       assert!(tc.has_caught());
       assert!(tc
@@ -2038,7 +2038,7 @@ fn module_evaluation() {
     module.hash(&mut DefaultHasher::new()); // Should not crash.
 
     let result = module
-      .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
+      .deprecated_instantiate_module(scope, compile_specifier_as_module_resolve_callback);
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
 
@@ -2105,7 +2105,7 @@ fn import_assertions() {
     module.hash(&mut DefaultHasher::new()); // Should not crash.
 
     let result = module
-      .instantiate_module_new(scope, import_assertions_module_resolve_callback);
+      .instantiate_module(scope, import_assertions_module_resolve_callback);
     eprintln!("result {:#?}", result);
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
@@ -3702,7 +3702,7 @@ fn module_snapshot() {
       let script_id = module.script_id();
       assert!(script_id.is_some());
 
-      let result = module.instantiate_module(
+      let result = module.deprecated_instantiate_module(
         scope,
         compile_specifier_as_module_resolve_callback,
       );
@@ -3900,7 +3900,7 @@ fn synthetic_module() {
   assert_eq!(module.get_status(), v8::ModuleStatus::Uninstantiated);
 
   module
-    .instantiate_module(scope, unexpected_module_resolve_callback)
+    .deprecated_instantiate_module(scope, unexpected_module_resolve_callback)
     .unwrap();
   assert_eq!(module.get_status(), v8::ModuleStatus::Instantiated);
 

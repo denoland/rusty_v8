@@ -194,12 +194,12 @@ extern "C" {
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__ScriptId(this: *const Module) -> int;
-  fn v8__Module__InstantiateModule(
+  fn v8__Module__InstantiateModule__DEPRECATED(
     this: *const Module,
     context: *const Context,
     cb: ResolveCallback,
   ) -> MaybeBool;
-  fn v8__Module__InstantiateModuleNew(
+  fn v8__Module__InstantiateModule(
     this: *const Module,
     context: *const Context,
     cb: ResolveModuleCallback,
@@ -338,13 +338,13 @@ impl Module {
   /// instantiation. (In the case where the callback throws an exception, that
   /// exception is propagated.)
   #[must_use]
-  pub fn instantiate_module<'a>(
+  pub fn deprecated_instantiate_module<'a>(
     &self,
     scope: &mut HandleScope,
     callback: impl MapFnTo<ResolveCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Module__InstantiateModule(
+      v8__Module__InstantiateModule__DEPRECATED(
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),
@@ -353,13 +353,19 @@ impl Module {
     .into()
   }
 
-  pub fn instantiate_module_new<'a>(
+  /// Instantiates the module and its dependencies.
+  ///
+  /// Returns an empty Maybe<bool> if an exception occurred during
+  /// instantiation. (In the case where the callback throws an exception, that
+  /// exception is propagated.)
+  #[must_use]
+  pub fn instantiate_module<'a>(
     &self,
     scope: &mut HandleScope,
     callback: impl MapFnTo<ResolveModuleCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Module__InstantiateModuleNew(
+      v8__Module__InstantiateModule(
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),
