@@ -2063,13 +2063,13 @@ fn import_assertions_module_resolve_callback<'a>(
 
   // "type" keyword, value and source offset of assertion
   assert_eq!(import_assertions.length(), 3);
-  let assert1 = import_assertions.get(scope, 0);
+  let assert1 = import_assertions.get(scope, 0).unwrap();
   let assert1_val = v8::Local::<v8::Value>::try_from(assert1).unwrap();
   assert_eq!(assert1_val.to_rust_string_lossy(scope), "type");
-  let assert2 = import_assertions.get(scope, 1);
+  let assert2 = import_assertions.get(scope, 1).unwrap();
   let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
   assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
-  let assert3 = import_assertions.get(scope, 2);
+  let assert3 = import_assertions.get(scope, 2).unwrap();
   let assert3_val = v8::Local::<v8::Value>::try_from(assert3).unwrap();
   assert_eq!(assert3_val.to_rust_string_lossy(scope), "22");
 

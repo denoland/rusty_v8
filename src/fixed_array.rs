@@ -25,12 +25,18 @@ impl FixedArray {
     &self,
     scope: &mut HandleScope<'s>,
     index: usize,
-  ) -> Local<'s, Data> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__FixedArray__Get(self, &*sd.get_current_context(), index as int)
-      })
+  ) -> Option<Local<'s, Data>> {
+    if index >= self.length() {
+      return None;
     }
-    .unwrap()
+
+    Some(
+      unsafe {
+        scope.cast_local(|sd| {
+          v8__FixedArray__Get(self, &*sd.get_current_context(), index as int)
+        })
+      }
+      .unwrap(),
+    )
   }
 }
