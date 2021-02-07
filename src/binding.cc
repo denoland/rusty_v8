@@ -206,6 +206,11 @@ void v8__Isolate__RequestInterrupt(v8::Isolate* isolate,
   isolate->RequestInterrupt(callback, data);
 }
 
+void v8__Isolate__SetPrepareStackTraceCallback(
+    v8::Isolate* isolate, v8::PrepareStackTraceCallback callback) {
+  isolate->SetPrepareStackTraceCallback(callback);
+}
+
 void v8__Isolate__SetPromiseHook(v8::Isolate* isolate, v8::PromiseHook hook) {
   isolate->SetPromiseHook(hook);
 }

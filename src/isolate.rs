@@ -6,10 +6,14 @@ use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::scope::HandleScope;
 use crate::support::BuildTypeIdHasher;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
 use crate::support::Opaque;
+use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::wasm::trampoline;
 use crate::wasm::WasmStreaming;
+use crate::Array;
 use crate::Context;
 use crate::FixedArray;
 use crate::Function;
@@ -138,6 +142,23 @@ pub type OOMErrorCallback =
 #[derive(Debug)]
 pub struct HeapStatistics([usize; 16]);
 
+// Windows x64 ABI: MaybeLocal<Value> returned on the stack.
+#[cfg(target_os = "windows")]
+pub type PrepareStackTraceCallback<'s> = extern "C" fn(
+  *mut *const Value,
+  Local<'s, Context>,
+  Local<'s, Value>,
+  Local<'s, Array>,
+) -> *mut *const Value;
+
+// System V ABI: MaybeLocal<Value> returned in a register.
+#[cfg(not(target_os = "windows"))]
+pub type PrepareStackTraceCallback<'s> = extern "C" fn(
+  Local<'s, Context>,
+  Local<'s, Value>,
+  Local<'s, Array>,
+) -> *const Value;
+
 extern "C" {
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
@@ -171,6 +192,10 @@ extern "C" {
   fn v8__Isolate__SetOOMErrorHandler(
     isolate: *mut Isolate,
     callback: OOMErrorCallback,
+  );
+  fn v8__Isolate__SetPrepareStackTraceCallback(
+    isolate: *mut Isolate,
+    callback: PrepareStackTraceCallback,
   );
   fn v8__Isolate__SetPromiseHook(isolate: *mut Isolate, hook: PromiseHook);
   fn v8__Isolate__SetPromiseRejectCallback(
@@ -479,6 +504,26 @@ impl Isolate {
   /// The exception object will be passed to the callback.
   pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
     unsafe { v8__Isolate__AddMessageListener(self, callback) }
+  }
+
+  /// This specifies the callback called when the stack property of Error
+  /// is accessed.
+  ///
+  /// PrepareStackTraceCallback is called when the stack property of an error is
+  /// first accessed. The return value will be used as the stack value. If this
+  /// callback is registed, the |Error.prepareStackTrace| API will be disabled.
+  /// |sites| is an array of call sites, specified in
+  /// https://v8.dev/docs/stack-trace-api
+  pub fn set_prepare_stack_trace_callback<'s>(
+    &mut self,
+    callback: impl MapFnTo<PrepareStackTraceCallback<'s>>,
+  ) {
+    // Note: the C++ API returns a MaybeLocal but V8 asserts at runtime when
+    // it's empty. That is, you can't return None and that's why the Rust API
+    // expects Local<Value> instead of Option<Local<Value>>.
+    unsafe {
+      v8__Isolate__SetPrepareStackTraceCallback(self, callback.map_fn_to())
+    };
   }
 
   /// Set the PromiseHook callback for various promise lifecycle
@@ -898,5 +943,36 @@ impl Default for HeapStatistics {
       v8__HeapStatistics__CONSTRUCT(&mut s);
       s.assume_init()
     }
+  }
+}
+
+impl<'s, F> MapFnFrom<F> for PrepareStackTraceCallback<'s>
+where
+  F: UnitType
+    + Fn(
+      Local<'s, Context>,
+      Local<'s, Value>,
+      Local<'s, Array>,
+    ) -> Local<'s, Value>,
+{
+  // Windows x64 ABI: MaybeLocal<Value> returned on the stack.
+  #[cfg(target_os = "windows")]
+  fn mapping() -> Self {
+    let f = |ret_ptr, context, error, sites| {
+      let r = (F::get())(context, error, sites);
+      unsafe { std::ptr::write(ret_ptr, r) };
+      ret_ptr
+    };
+    f.to_c_fn()
+  }
+
+  // System V ABI: MaybeLocal<Value> returned in a register.
+  #[cfg(not(target_os = "windows"))]
+  fn mapping() -> Self {
+    let f = |context, error, sites| {
+      let r = (F::get())(context, error, sites);
+      &*r as *const _
+    };
+    f.to_c_fn()
   }
 }

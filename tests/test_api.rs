@@ -4638,3 +4638,82 @@ fn oom_callback() {
   // Don't attempt to trigger the OOM callback since we don't have a safe way to
   // recover from it.
 }
+
+#[test]
+fn prepare_stack_trace_callback() {
+  thread_local! {
+    static SITES: RefCell<Option<v8::Global<v8::Array>>> = RefCell::new(None);
+  }
+
+  let script = r#"
+    function g() { throw new Error("boom") }
+    function f() { g() }
+    try {
+      f()
+    } catch (e) {
+      e.stack
+    }
+  "#;
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_prepare_stack_trace_callback(callback);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let scope = &mut v8::TryCatch::new(scope);
+
+  let result = eval(scope, script).unwrap();
+  assert_eq!(Some(42), result.uint32_value(scope));
+
+  let sites = SITES.with(|slot| slot.borrow_mut().take()).unwrap();
+  let sites = v8::Local::new(scope, sites);
+  assert_eq!(3, sites.length());
+
+  let scripts = [
+    r#"
+      if ("g" !== site.getFunctionName()) throw "fail";
+      if (2 !== site.getLineNumber()) throw "fail";
+    "#,
+    r#"
+      if ("f" !== site.getFunctionName()) throw "fail";
+      if (3 !== site.getLineNumber()) throw "fail";
+    "#,
+    r#"
+      if (null !== site.getFunctionName()) throw "fail";
+      if (5 !== site.getLineNumber()) throw "fail";
+    "#,
+  ];
+
+  let global = context.global(scope);
+  let name = v8::String::new(scope, "site").unwrap().into();
+
+  for i in 0..3 {
+    let site = sites.get_index(scope, i).unwrap();
+    global.set(scope, name, site).unwrap();
+    let script = scripts[i as usize];
+    let result = eval(scope, script);
+    assert!(result.is_some());
+  }
+
+  fn callback<'s>(
+    context: v8::Local<'s, v8::Context>,
+    error: v8::Local<v8::Value>,
+    sites: v8::Local<v8::Array>,
+  ) -> v8::Local<'s, v8::Value> {
+    let scope = &mut unsafe { v8::CallbackScope::new(context) };
+
+    let message = v8::Exception::create_message(scope, error);
+    let actual = message.get(scope).to_rust_string_lossy(scope);
+    assert_eq!(actual, "Uncaught Error: boom");
+
+    SITES.with(|slot| {
+      let mut slot = slot.borrow_mut();
+      assert!(slot.is_none());
+      *slot = Some(v8::Global::new(scope, sites));
+    });
+
+    v8::Integer::new(scope, 42).into()
+  }
+}
