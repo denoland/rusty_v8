@@ -4,7 +4,6 @@ use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
-use crate::scope::HandleScope;
 use crate::support::BuildTypeIdHasher;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -14,9 +13,11 @@ use crate::support::UnitType;
 use crate::wasm::trampoline;
 use crate::wasm::WasmStreaming;
 use crate::Array;
+use crate::CallbackScope;
 use crate::Context;
 use crate::FixedArray;
 use crate::Function;
+use crate::HandleScope;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -950,7 +951,7 @@ impl<'s, F> MapFnFrom<F> for PrepareStackTraceCallback<'s>
 where
   F: UnitType
     + Fn(
-      Local<'s, Context>,
+      &mut HandleScope<'s>,
       Local<'s, Value>,
       Local<'s, Array>,
     ) -> Local<'s, Value>,
@@ -959,7 +960,8 @@ where
   #[cfg(target_os = "windows")]
   fn mapping() -> Self {
     let f = |ret_ptr, context, error, sites| {
-      let r = (F::get())(context, error, sites);
+      let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
+      let r = (F::get())(&mut scope, error, sites);
       unsafe { std::ptr::write(ret_ptr, r) };
       ret_ptr
     };
@@ -970,7 +972,8 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
-      let r = (F::get())(context, error, sites);
+      let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
+      let r = (F::get())(&mut scope, error, sites);
       &*r as *const _
     };
     f.to_c_fn()

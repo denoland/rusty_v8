@@ -4698,12 +4698,10 @@ fn prepare_stack_trace_callback() {
   }
 
   fn callback<'s>(
-    context: v8::Local<'s, v8::Context>,
+    scope: &mut v8::HandleScope<'s>,
     error: v8::Local<v8::Value>,
     sites: v8::Local<v8::Array>,
   ) -> v8::Local<'s, v8::Value> {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-
     let message = v8::Exception::create_message(scope, error);
     let actual = message.get(scope).to_rust_string_lossy(scope);
     assert_eq!(actual, "Uncaught Error: boom");
