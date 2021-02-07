@@ -962,7 +962,7 @@ where
     let f = |ret_ptr, context, error, sites| {
       let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
       let r = (F::get())(&mut scope, error, sites);
-      unsafe { std::ptr::write(ret_ptr, r) };
+      unsafe { std::ptr::write(ret_ptr, &*r as *const _) };
       ret_ptr
     };
     f.to_c_fn()
