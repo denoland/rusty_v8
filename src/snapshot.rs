@@ -121,7 +121,7 @@ impl SnapshotCreator {
   /// Set the default context to be included in the snapshot blob.
   /// The snapshot will not contain the global proxy, and we expect one or a
   /// global object template to create one, to be provided upon deserialization.
-  pub fn set_default_context<'s>(&mut self, context: Local<'s, Context>) {
+  pub fn set_default_context(&mut self, context: Local<Context>) {
     unsafe { v8__SnapshotCreator__SetDefaultContext(self, &*context) };
   }
 
