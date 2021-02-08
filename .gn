@@ -33,6 +33,4 @@ default_args = {
   v8_use_snapshot = true
   is_component_build = false
   symbol_level = 1
-
-  icu_use_data_file = false # Link icu data directly into binary
 }

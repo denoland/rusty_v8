@@ -4716,8 +4716,13 @@ fn prepare_stack_trace_callback() {
   }
 }
 
+const ICU_DATA: &[u8; 10413584] =
+  include_bytes!("../third_party/icu/common/icudtl.dat");
+
 #[test]
 fn icu_date() {
+  assert!(v8::icu::set_common_data(ICU_DATA).is_ok());
+
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
@@ -4736,6 +4741,8 @@ fn icu_date() {
 
 #[test]
 fn icu_format() {
+  assert!(v8::icu::set_common_data(ICU_DATA).is_ok());
+
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
