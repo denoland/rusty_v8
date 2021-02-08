@@ -56,7 +56,6 @@ libc = "0.2.80"
 bitflags = "1.2.1"
 
 [build-dependencies]
-cargo_gn = "0.0.15"
 which = "4.0.2"
 fslock = "0.1"
 

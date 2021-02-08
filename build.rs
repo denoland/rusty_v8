@@ -8,6 +8,8 @@ use std::process::exit;
 use std::process::Command;
 use which::which;
 
+mod cargo_gn;
+
 fn main() {
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
