@@ -367,7 +367,6 @@ fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
   }
 }
 
-#[derive(Clone, Debug)]
 struct Dirs {
   pub out: PathBuf,
   pub root: PathBuf,
@@ -412,12 +411,11 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
   // appears as if they're both on the same drive.
   use std::fs::remove_dir;
   use std::os::windows::fs::symlink_dir;
-  use std::path::{Component, Path};
 
   let get_prefix = |p: &Path| {
     p.components()
       .find_map(|c| match c {
-        Component::Prefix(p) => Some(p),
+        std::path::Component::Prefix(p) => Some(p),
         _ => None,
       })
       .map(|p| p.as_os_str().to_owned())
