@@ -36,7 +36,7 @@ extern "C" {
 pub fn set_common_data(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
-    udata_setCommonData_68(data.as_ptr(), &mut error_code as &mut i32);
+    udata_setCommonData_68(data.as_ptr(), &mut error_code);
   }
   if error_code == 0 {
     Ok(())
