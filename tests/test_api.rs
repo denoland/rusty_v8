@@ -4240,6 +4240,7 @@ fn value_serializer_and_deserializer_js_objects() {
     let name = v8::String::new(scope, "objects").unwrap();
     let objects: v8::Local<v8::Value> =
       value_deserializer.read_value(context).unwrap();
+    drop(value_deserializer);
 
     context.global(scope).set(scope, name.into(), objects);
 
@@ -4343,6 +4344,7 @@ fn value_serializer_and_deserializer_array_buffers() {
     let name = v8::String::new(scope, "objects").unwrap();
     let objects: v8::Local<v8::Value> =
       value_deserializer.read_value(context).unwrap();
+    drop(value_deserializer);
 
     context.global(scope).set(scope, name.into(), objects);
 
