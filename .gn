@@ -28,7 +28,6 @@ default_args = {
 
   # https://cs.chromium.org/chromium/src/docs/ccache_mac.md
   clang_use_chrome_plugins = false
-  v8_enable_i18n_support = false
   v8_monolithic = false
   v8_use_external_startup_data = false
   v8_use_snapshot = true

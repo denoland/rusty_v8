@@ -4715,3 +4715,59 @@ fn prepare_stack_trace_callback() {
     v8::Integer::new(scope, 42).into()
   }
 }
+
+const ICU_DATA: &[u8; 10413584] =
+  include_bytes!("../third_party/icu/common/icudtl.dat");
+
+#[test]
+fn icu_date() {
+  assert!(v8::icu::set_common_data(ICU_DATA).is_ok());
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      (new Date(Date.UTC(2020, 5, 26, 7, 0, 0))).toLocaleString("de-DE", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    "#;
+    let value = eval(scope, source).unwrap();
+    let date_de_val = v8::String::new(scope, "Freitag, 26. Juni 2020").unwrap();
+    assert!(value.is_string());
+    assert!(value.strict_equals(date_de_val.into()));
+  }
+}
+
+#[test]
+fn icu_set_common_data_fail() {
+  const BAD_DATA: &[u8; 3] = &[1, 2, 3];
+  assert!(v8::icu::set_common_data(BAD_DATA).is_err());
+}
+
+#[test]
+fn icu_format() {
+  assert!(v8::icu::set_common_data(ICU_DATA).is_ok());
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY" }).format(
+        1230000,
+      );
+    "#;
+    let value = eval(scope, source).unwrap();
+    let currency_jpy_val = v8::String::new(scope, "￥1,230,000").unwrap();
+    assert!(value.is_string());
+    assert!(value.strict_equals(currency_jpy_val.into()));
+  }
+}
