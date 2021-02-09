@@ -45,6 +45,7 @@ mod external_references;
 mod fixed_array;
 mod function;
 mod handle;
+pub mod icu;
 mod isolate;
 mod isolate_create_params;
 mod module;
