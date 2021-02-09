@@ -284,6 +284,8 @@ impl Module {
   /// Returns an empty Maybe<bool> if an exception occurred during
   /// instantiation. (In the case where the callback throws an exception, that
   /// exception is propagated.)
+  ///
+  /// NOTE: requires to set `--harmony-import-assertions` V8 flag.
   #[must_use]
   pub fn instantiate_module<'a>(
     &self,
