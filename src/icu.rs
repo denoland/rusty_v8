@@ -13,11 +13,13 @@ extern "C" {
 /// address to the start of the data, or (with the appropriate link options) pass in the pointer to
 /// the data that has been loaded from a dll by the operating system, as shown in this code:
 ///
+/// ```c++
 ///       extern const char U_IMPORT U_ICUDATA_ENTRY_POINT [];
 ///        // U_ICUDATA_ENTRY_POINT is same as entry point specified to pkgdata tool
 ///       UErrorCode  status = U_ZERO_ERROR;
 ///
 ///       udata_setCommonData(&U_ICUDATA_ENTRY_POINT, &status);
+/// ```
 ///
 /// It is important that the declaration be as above. The entry point must not be declared as an
 /// extern void*.
