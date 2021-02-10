@@ -44,6 +44,7 @@ exclude = [
  "!tools/clang/scripts/update.py",
  "!v8/test/torque/test-torque.tq",
  "!v8/tools/gen-postmortem-metadata.py",
+ "!v8/tools/gen-v8-gn.py",
  "!v8/tools/js2c.py",
  "!v8/tools/run.py",
  "!v8/tools/snapshot/asm_to_inline_asm.py",
