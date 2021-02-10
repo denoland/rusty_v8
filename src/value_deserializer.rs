@@ -261,7 +261,10 @@ pub trait ValueDeserializerHelper {
     .into()
   }
 
-  fn read_value(&mut self, context: Local<Context>) -> Option<Local<Value>> {
+  fn read_value<'s>(
+    &mut self,
+    context: Local<'s, Context>,
+  ) -> Option<Local<'s, Value>> {
     unsafe {
       Local::from_raw(v8__ValueDeserializer__ReadValue(
         self.get_cxx_value_deserializer(),
@@ -413,10 +416,10 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
     }
   }
 
-  pub fn read_value(
+  pub fn read_value<'t>(
     &mut self,
-    context: Local<Context>,
-  ) -> Option<Local<Value>> {
+    context: Local<'t, Context>,
+  ) -> Option<Local<'t, Value>> {
     (*self.value_deserializer_heap).read_value(context)
   }
 }
