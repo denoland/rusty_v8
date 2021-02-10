@@ -31,6 +31,8 @@ exclude = [
  "buildtools/third_party/libc++/trunk/utils/",
  "buildtools/third_party/libc++/trunk/www/",
  "buildtools/third_party/libc++abi/trunk/test/",
+ "third_party/icu/source/data/",
+ "third_party/icu/source/samples/",
  "tools/clang",
  "v8/ChangeLog",
  "v8/benchmarks/",
@@ -43,6 +45,7 @@ exclude = [
  # These files are required for the build.
  "!.gn",
  "!BUILD.gn",
+ "!third_party/icu/common/icudtl.dat",
  "!tools/clang/scripts/update.py",
  "!v8/test/torque/test-torque.tq",
  "!v8/tools/gen-postmortem-metadata.py",
