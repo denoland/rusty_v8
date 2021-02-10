@@ -24,4 +24,4 @@
 	url = https://chromium.googlesource.com/chromium/src/third_party/zlib.git
 [submodule "third_party/icu"]
 	path = third_party/icu
-	url = https://chromium.googlesource.com/chromium/deps/icu.git
+	url = https://github.com/denoland/icu.git
