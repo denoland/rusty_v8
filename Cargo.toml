@@ -80,6 +80,7 @@ fslock = "0.1"
 
 [dev-dependencies]
 trybuild = "1.0.35"
+align-data = "0.1.0"
 
 [[example]]
 name = "hello_world"
