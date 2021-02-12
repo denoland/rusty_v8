@@ -16,38 +16,38 @@ jobs:
       # e.g. a flaky test.
       # Don't fast-fail on tag build because publishing binaries shouldn't be
       # prevented if 'cargo publish' fails (which can be a false negative).
-      fail-fast:
-        ${{ github.event_name == 'pull_request' || (github.ref !=
-        'refs/heads/master' && !startsWith(github.ref, 'refs/tags/')) }}
+      fail-fast: false
+      #  ${{ github.event_name == 'pull_request' || (github.ref !=
+      #  'refs/heads/master' && !startsWith(github.ref, 'refs/tags/')) }}
       matrix:
         config:
-          - os: macOS-latest
-            target: x86_64-apple-darwin
-            variant: debug
+          #- os: macOS-latest
+          #  target: x86_64-apple-darwin
+          #  variant: debug
 
-          - os: macOS-latest
-            target: x86_64-apple-darwin
-            variant: release
+          #- os: macOS-latest
+          #  target: x86_64-apple-darwin
+          #  variant: release
 
-          - os: ubuntu-latest-xl
-            target: x86_64-unknown-linux-gnu
-            variant: debug
+          #- os: ubuntu-latest-xl
+          #  target: x86_64-unknown-linux-gnu
+          #  variant: debug
 
-          - os: ubuntu-latest-xl
-            target: x86_64-unknown-linux-gnu
-            variant: release
-
-          - os: ubuntu-latest-xl
-            target: x86_64-unknown-linux-musl
-            variant: debug
+          #- os: ubuntu-latest-xl
+          #  target: x86_64-unknown-linux-gnu
+          #  variant: release
 
           - os: ubuntu-latest-xl
             target: x86_64-unknown-linux-musl
+            variant: debug
+
+          - os: ubuntu-latest-xl
+            target: x86_64-unknown-linux-musl
             variant: release
 
-          - os: windows-2019
-            target: x86_64-pc-windows-msvc
-            variant: release # Note: we do not support windows debug builds.
+          #- os: windows-2019
+          #  target: x86_64-pc-windows-msvc
+          #  variant: release # Note: we do not support windows debug builds.
 
           # Disabled because an apparent sscache bug causes it to crash with the
           # following error:
