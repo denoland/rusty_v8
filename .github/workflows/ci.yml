@@ -37,6 +37,14 @@ jobs:
             target: x86_64-unknown-linux-gnu
             variant: release
 
+          - os: ubuntu-latest-xl
+            target: x86_64-unknown-linux-musl
+            variant: debug
+
+          - os: ubuntu-latest-xl
+            target: x86_64-unknown-linux-musl
+            variant: release
+
           - os: windows-2019
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -81,6 +89,13 @@ jobs:
         with:
           python-version: 2.7.x
           architecture: x64
+
+      - name: Install musl
+        if: matrix.config.target == 'x86_64-unknown-linux-musl'
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sudo apt update
+          sudo apt install -y musl-tools
 
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
