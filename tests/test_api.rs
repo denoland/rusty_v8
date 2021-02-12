@@ -1,8 +1,5 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
-
-#[macro_use]
-extern crate lazy_static;
-
+use lazy_static::lazy_static;
 use std::any::type_name;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -11,15 +8,10 @@ use std::ffi::c_void;
 use std::hash::Hash;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
 
 use rusty_v8 as v8;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
-
-lazy_static! {
-  static ref INIT_LOCK: Mutex<u32> = Mutex::new(0);
-}
 
 #[must_use]
 struct SetupGuard {}
@@ -31,13 +23,17 @@ impl Drop for SetupGuard {
 }
 
 fn setup() -> SetupGuard {
-  let mut g = INIT_LOCK.lock().unwrap();
-  *g += 1;
-  if *g == 1 {
+  static START: std::sync::Once = std::sync::Once::new();
+  START.call_once(|| {
+    assert!(v8::icu::set_common_data(align_data::include_aligned!(
+      align_data::Align16,
+      "../third_party/icu/common/icudtl.dat"
+    ))
+    .is_ok());
     v8::V8::set_flags_from_string("--expose_gc --harmony-import-assertions");
     v8::V8::initialize_platform(v8::new_default_platform().unwrap());
     v8::V8::initialize();
-  }
+  });
   SetupGuard {}
 }
 
@@ -4718,13 +4714,8 @@ fn prepare_stack_trace_callback() {
   }
 }
 
-const ICU_DATA: &[u8; 10413584] =
-  include_bytes!("../third_party/icu/common/icudtl.dat");
-
 #[test]
 fn icu_date() {
-  assert!(v8::icu::set_common_data(ICU_DATA).is_ok());
-
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
@@ -4748,14 +4739,11 @@ fn icu_date() {
 
 #[test]
 fn icu_set_common_data_fail() {
-  const BAD_DATA: &[u8; 3] = &[1, 2, 3];
-  assert!(v8::icu::set_common_data(BAD_DATA).is_err());
+  assert!(v8::icu::set_common_data(&[1, 2, 3]).is_err());
 }
 
 #[test]
 fn icu_format() {
-  assert!(v8::icu::set_common_data(ICU_DATA).is_ok());
-
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
@@ -4772,4 +4760,16 @@ fn icu_format() {
     assert!(value.is_string());
     assert!(value.strict_equals(currency_jpy_val.into()));
   }
+}
+
+#[test]
+fn icu_collator() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let source = v8::String::new(scope, "new Intl.Collator('en-US')").unwrap();
+  let script = v8::Script::compile(scope, source, None).unwrap();
+  assert!(script.run(scope).is_some());
 }
