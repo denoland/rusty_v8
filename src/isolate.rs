@@ -1,4 +1,4 @@
-// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
