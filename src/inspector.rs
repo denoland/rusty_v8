@@ -1,4 +1,4 @@
-// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 //! Bindings to the V8 Inspector API. Documentation for the V8 inspector API is
 //! very sparse, so here are a few references for the next sorry soul who has to

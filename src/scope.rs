@@ -1,4 +1,4 @@
-// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 //! This module's public API exports a number of 'scope' types.
 //!

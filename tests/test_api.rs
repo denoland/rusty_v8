@@ -1,4 +1,4 @@
-// Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use lazy_static::lazy_static;
 use std::any::type_name;
 use std::cell::RefCell;
