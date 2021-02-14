@@ -1952,8 +1952,18 @@ fn module_instantiation_failures1() {
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
-    assert_eq!(2, module.get_module_requests().length());
-    assert_eq!(2, module.get_module_requests_length());
+    let module_requests = module.get_module_requests();
+    assert_eq!(2, module_requests.length());
+    let mr1 = v8::Local::<v8::ModuleRequest>::try_from(
+      module_requests.get(scope, 0).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(0, mr1.get_import_assertions().length());
+    let mr2 = v8::Local::<v8::ModuleRequest>::try_from(
+      module_requests.get(scope, 1).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(0, mr2.get_import_assertions().length());
     assert!(module.script_id().is_some());
 
     assert_eq!(

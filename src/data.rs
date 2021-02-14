@@ -202,6 +202,7 @@ impl_from! { AccessorSignature for Data }
 impl_from! { Context for Data }
 impl_from! { Message for Data }
 impl_from! { Module for Data }
+impl_from! { ModuleRequest for Data }
 impl_from! { PrimitiveArray for Data }
 impl_from! { Private for Data }
 impl_from! { Script for Data }
@@ -372,6 +373,7 @@ impl_partial_eq! { FixedArray for FixedArray use identity }
 pub struct ModuleRequest(Opaque);
 
 impl_deref! { Data for ModuleRequest }
+impl_from! { Data for ModuleRequest }
 impl_eq! { for ModuleRequest }
 impl_hash! { for ModuleRequest }
 impl_partial_eq! { Data for ModuleRequest use identity }
