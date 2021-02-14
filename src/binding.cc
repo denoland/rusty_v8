@@ -2048,6 +2048,10 @@ const v8::String* v8__Module__GetModuleRequest(const v8::Module& self, int i) {
   return local_to_ptr(self.GetModuleRequest(i));
 }
 
+const v8::FixedArray* v8__Module__GetModuleRequests(const v8::Module& self) {
+  return local_to_ptr(self.GetModuleRequests());
+}
+
 void v8__Module__GetModuleRequestLocation(const v8::Module& self, int i,
                                           v8::Location* out) {
   *out = self.GetModuleRequestLocation(i);
@@ -2108,6 +2112,18 @@ MaybeBool v8__Module__SetSyntheticModuleExport(const v8::Module& self,
                                                const v8::Value* export_value) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetSyntheticModuleExport(
       isolate, ptr_to_local(export_name), ptr_to_local(export_value)));
+}
+
+const v8::String* v8__ModuleRequest__GetSpecifier(const v8::ModuleRequest& self) {
+  return local_to_ptr(self.GetSpecifier());
+}
+
+int v8__ModuleRequest__GetSourceOffset(const v8::ModuleRequest& self) {
+  return self.GetSourceOffset();
+}
+
+const v8::FixedArray* v8__ModuleRequest__GetImportAssertions(const v8::ModuleRequest& self) {
+  return local_to_ptr(self.GetImportAssertions());
 }
 
 struct WasmStreamingSharedPtr {

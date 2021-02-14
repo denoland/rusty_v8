@@ -202,6 +202,7 @@ impl_from! { AccessorSignature for Data }
 impl_from! { Context for Data }
 impl_from! { Message for Data }
 impl_from! { Module for Data }
+impl_from! { ModuleRequest for Data }
 impl_from! { PrimitiveArray for Data }
 impl_from! { Private for Data }
 impl_from! { Script for Data }
@@ -366,6 +367,17 @@ impl_eq! { for FixedArray }
 impl_hash! { for FixedArray }
 impl_partial_eq! { Data for FixedArray use identity }
 impl_partial_eq! { FixedArray for FixedArray use identity }
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct ModuleRequest(Opaque);
+
+impl_deref! { Data for ModuleRequest }
+impl_from! { Data for ModuleRequest }
+impl_eq! { for ModuleRequest }
+impl_hash! { for ModuleRequest }
+impl_partial_eq! { Data for ModuleRequest use identity }
+impl_partial_eq! { ModuleRequest for ModuleRequest use identity }
 
 /// An array to hold Primitive values. This is used by the embedder to
 /// pass host defined options to the ScriptOptions during compilation.
