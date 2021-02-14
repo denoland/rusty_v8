@@ -411,8 +411,7 @@ impl ModuleRequest {
   /// Returns the source code offset of this module request.
   /// Use Module::SourceOffsetToLocation to convert this to line/column numbers.
   pub fn get_source_offset(&self) -> int {
-    unsafe { Local::from_raw(v8__ModuleRequest__GetSourceOffset(self)) }
-      .unwrap()
+    unsafe { v8__ModuleRequest__GetSourceOffset(self) }
   }
 
   /// Contains the import assertions for this request in the form:
