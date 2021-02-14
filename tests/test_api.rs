@@ -1952,6 +1952,7 @@ fn module_instantiation_failures1() {
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    assert_eq!(2, module.get_module_requests().length());
     assert_eq!(2, module.get_module_requests_length());
     assert!(module.script_id().is_some());
 

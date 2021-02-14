@@ -16,6 +16,7 @@ use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Module;
+use crate::ModuleRequest;
 use crate::String;
 use crate::Value;
 
@@ -138,6 +139,7 @@ extern "C" {
   fn v8__Module__GetModuleRequestsLength(this: *const Module) -> int;
   fn v8__Module__GetModuleRequest(this: *const Module, i: int)
     -> *const String;
+  fn v8__Module__GetModuleRequests(this: *const Module) -> *const FixedArray;
   fn v8__Module__GetModuleRequestLocation(
     this: *const Module,
     i: int,
@@ -172,6 +174,13 @@ extern "C" {
   ) -> MaybeBool;
   fn v8__Location__GetLineNumber(this: *const Location) -> int;
   fn v8__Location__GetColumnNumber(this: *const Location) -> int;
+  fn v8__ModuleRequest__GetSpecifier(
+    this: *const ModuleRequest,
+  ) -> *const String;
+  fn v8__ModuleRequest__GetSourceOffset(this: *const ModuleRequest) -> int;
+  fn v8__ModuleRequest__GetImportAssertions(
+    this: *const ModuleRequest,
+  ) -> *const FixedArray;
 }
 
 /// A location in JavaScript source.
@@ -234,6 +243,11 @@ impl Module {
       Local::from_raw(v8__Module__GetModuleRequest(self, i.try_into().unwrap()))
     }
     .unwrap()
+  }
+
+  /// Returns the ModuleRequests for this module.
+  pub fn get_module_requests(&self) -> Local<FixedArray> {
+    unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
   }
 
   /// Returns the source location (line number and column number) of the ith
@@ -385,5 +399,36 @@ impl Module {
 impl Hash for Module {
   fn hash<H: Hasher>(&self, state: &mut H) {
     state.write_i32(self.get_identity_hash());
+  }
+}
+
+impl ModuleRequest {
+  /// Returns the module specifier for this ModuleRequest.
+  pub fn get_specifier(&self) -> Local<String> {
+    unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
+  }
+
+  /// Returns the source code offset of this module request.
+  /// Use Module::SourceOffsetToLocation to convert this to line/column numbers.
+  pub fn get_source_offset(&self) -> int {
+    unsafe { Local::from_raw(v8__ModuleRequest__GetSourceOffset(self)) }
+      .unwrap()
+  }
+
+  /// Contains the import assertions for this request in the form:
+  /// [key1, value1, source_offset1, key2, value2, source_offset2, ...].
+  /// The keys and values are of type v8::String, and the source offsets are of
+  /// type Int32. Use Module::SourceOffsetToLocation to convert the source
+  /// offsets to Locations with line/column numbers.
+  ///
+  /// All assertions present in the module request will be supplied in this
+  /// list, regardless of whether they are supported by the host. Per
+  /// https://tc39.es/proposal-import-assertions/#sec-hostgetsupportedimportassertions,
+  /// hosts are expected to ignore assertions that they do not support (as
+  /// opposed to, for example, triggering an error if an unsupported assertion is
+  /// present).
+  pub fn get_import_assertions(&self) -> Local<FixedArray> {
+    unsafe { Local::from_raw(v8__ModuleRequest__GetImportAssertions(self)) }
+      .unwrap()
   }
 }
