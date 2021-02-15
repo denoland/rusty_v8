@@ -289,7 +289,7 @@ impl Module {
     unsafe {
       v8__Module__SourceOffsetToLocation(
         self,
-        offset.unwrap(),
+        offset,
         &mut out,
       );
       out.assume_init()
