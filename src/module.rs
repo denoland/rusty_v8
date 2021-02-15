@@ -287,11 +287,7 @@ impl Module {
   pub fn source_offset_to_location(&self, offset: int) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
-      v8__Module__SourceOffsetToLocation(
-        self,
-        offset,
-        &mut out,
-      );
+      v8__Module__SourceOffsetToLocation(self, offset, &mut out);
       out.assume_init()
     }
   }
