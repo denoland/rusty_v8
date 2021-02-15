@@ -2057,6 +2057,11 @@ void v8__Module__GetModuleRequestLocation(const v8::Module& self, int i,
   *out = self.GetModuleRequestLocation(i);
 }
 
+void v8__Module__SourceOffsetToLocation(const v8::Module& self, int offset,
+                                        v8::Location* out) {
+  *out = self.SourceOffsetToLocation(offset);
+}
+
 const v8::Value* v8__Module__GetModuleNamespace(const v8::Module& self) {
   return local_to_ptr(ptr_to_local(&self)->GetModuleNamespace());
 }
