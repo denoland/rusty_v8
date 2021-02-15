@@ -1954,33 +1954,27 @@ fn module_instantiation_failures1() {
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
     let module_requests = module.get_module_requests();
     assert_eq!(2, module_requests.length());
+    assert!(module.script_id().is_some());
+
     let mr1 = v8::Local::<v8::ModuleRequest>::try_from(
       module_requests.get(scope, 0).unwrap(),
     )
     .unwrap();
+    assert_eq!("./foo.js", mr1.get_specifier().to_rust_string_lossy(scope));
+    let loc = module.source_offset_to_location(mr1.get_source_offset());
+    assert_eq!(0, loc.get_line_number());
+    assert_eq!(7, loc.get_column_number());
     assert_eq!(0, mr1.get_import_assertions().length());
+
     let mr2 = v8::Local::<v8::ModuleRequest>::try_from(
       module_requests.get(scope, 1).unwrap(),
     )
     .unwrap();
-    assert_eq!(0, mr2.get_import_assertions().length());
-    assert!(module.script_id().is_some());
-
-    assert_eq!(
-      "./foo.js",
-      module.get_module_request(0).to_rust_string_lossy(scope)
-    );
-    let loc = module.get_module_request_location(0);
-    assert_eq!(0, loc.get_line_number());
-    assert_eq!(7, loc.get_column_number());
-
-    assert_eq!(
-      "./bar.js",
-      module.get_module_request(1).to_rust_string_lossy(scope)
-    );
-    let loc = module.get_module_request_location(1);
+    assert_eq!("./bar.js", mr2.get_specifier().to_rust_string_lossy(scope));
+    let loc = module.source_offset_to_location(mr2.get_source_offset());
     assert_eq!(1, loc.get_line_number());
     assert_eq!(15, loc.get_column_number());
+    assert_eq!(0, mr2.get_import_assertions().length());
 
     // Instantiation should fail.
     {

@@ -145,6 +145,11 @@ extern "C" {
     i: int,
     out: *mut MaybeUninit<Location>,
   ) -> Location;
+  fn v8__Module__SourceOffsetToLocation(
+    this: *const Module,
+    offset: int,
+    out: *mut MaybeUninit<Location>,
+  ) -> Location;
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__ScriptId(this: *const Module) -> int;
@@ -228,6 +233,10 @@ impl Module {
   }
 
   /// Returns the number of modules requested by this module.
+  #[deprecated(
+    since = "0.18.2",
+    note = "Use Module::get_module_requests() and FixedArray::length()."
+  )]
   pub fn get_module_requests_length(&self) -> usize {
     unsafe { v8__Module__GetModuleRequestsLength(self) }
       .try_into()
@@ -236,6 +245,10 @@ impl Module {
 
   /// Returns the ith module specifier in this module.
   /// i must be < self.get_module_requests_length() and >= 0.
+  #[deprecated(
+    since = "0.18.2",
+    note = "Use Module::get_module_requests() and ModuleRequest::get_specifier()."
+  )]
   pub fn get_module_request(&self, i: usize) -> Local<String> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
@@ -252,12 +265,31 @@ impl Module {
 
   /// Returns the source location (line number and column number) of the ith
   /// module specifier's first occurrence in this module.
+  #[deprecated(
+    since = "0.18.2",
+    note = "Use Module::get_module_requests(), ModuleRequest::get_source_offset() and
+    Module::source_offset_to_location()."
+  )]
   pub fn get_module_request_location(&self, i: usize) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
       v8__Module__GetModuleRequestLocation(
         self,
         i.try_into().unwrap(),
+        &mut out,
+      );
+      out.assume_init()
+    }
+  }
+
+  /// For the given source text offset in this module, returns the corresponding
+  /// Location with line and column numbers.
+  pub fn source_offset_to_location(&self, offset: int) -> Location {
+    let mut out = MaybeUninit::<Location>::uninit();
+    unsafe {
+      v8__Module__SourceOffsetToLocation(
+        self,
+        offset.try_into().unwrap(),
         &mut out,
       );
       out.assume_init()
@@ -409,7 +441,7 @@ impl ModuleRequest {
   }
 
   /// Returns the source code offset of this module request.
-  /// Use Module::SourceOffsetToLocation to convert this to line/column numbers.
+  /// Use Module::source_offset_to_location to convert this to line/column numbers.
   pub fn get_source_offset(&self) -> int {
     unsafe { v8__ModuleRequest__GetSourceOffset(self) }
   }
@@ -417,7 +449,7 @@ impl ModuleRequest {
   /// Contains the import assertions for this request in the form:
   /// [key1, value1, source_offset1, key2, value2, source_offset2, ...].
   /// The keys and values are of type v8::String, and the source offsets are of
-  /// type Int32. Use Module::SourceOffsetToLocation to convert the source
+  /// type Int32. Use Module::source_offset_to_location to convert the source
   /// offsets to Locations with line/column numbers.
   ///
   /// All assertions present in the module request will be supplied in this
