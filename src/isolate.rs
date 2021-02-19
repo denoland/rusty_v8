@@ -282,6 +282,9 @@ extern "C" {
 /// parallel in multiple threads.  An isolate can be entered by at most one
 /// thread at any given time.  The Locker/Unlocker API must be used to
 /// synchronize.
+///
+/// rusty_v8 note: Unlike in the C++ API, the Isolate is entered when it is
+/// constructed and exited when dropped.
 #[repr(C)]
 #[derive(Debug)]
 pub struct Isolate(Opaque);
@@ -306,6 +309,9 @@ impl Isolate {
     let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(create_param_allocations);
+    unsafe {
+      owned_isolate.enter();
+    }
     owned_isolate
   }
 
@@ -442,8 +448,11 @@ impl Isolate {
   /// Sets this isolate as the entered one for the current thread.
   /// Saves the previously entered one (if any), so that it can be
   /// restored when exiting.  Re-entering an isolate is allowed.
-  pub(crate) fn enter_isolate(&mut self) {
-    unsafe { v8__Isolate__Enter(self) }
+  ///
+  /// rusty_v8 note: Unlike in the C++ API, the isolate is entered when it is
+  /// constructed and exited when dropped.
+  pub unsafe fn enter(&mut self) {
+    v8__Isolate__Enter(self)
   }
 
   /// Exits this isolate by restoring the previously entered one in the
@@ -451,8 +460,11 @@ impl Isolate {
   /// entered more than once.
   ///
   /// Requires: self == Isolate::GetCurrent().
-  pub(crate) fn exit_isolate(&mut self) {
-    unsafe { v8__Isolate__Exit(self) }
+  ///
+  /// rusty_v8 note: Unlike in the C++ API, the isolate is entered when it is
+  /// constructed and exited when dropped.
+  pub unsafe fn exit(&mut self) {
+    v8__Isolate__Exit(self)
   }
 
   /// Clears the set of objects held strongly by the heap. This set of
@@ -860,7 +872,10 @@ impl OwnedIsolate {
 
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
-    unsafe { self.cxx_isolate.as_mut().dispose() }
+    unsafe {
+      self.exit();
+      self.cxx_isolate.as_mut().dispose()
+    }
   }
 }
 
