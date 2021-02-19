@@ -33,10 +33,10 @@ V8 Version: 9.0.123
 
 V8 is very large and takes a long time to compile. Many users will prefer to use
 a prebuilt version of V8. We publish static libs for every version of rusty v8
-on [Github](https://github.com/denoland/rusty_v8/releases).
+on [GitHub](https://github.com/denoland/rusty_v8/releases).
 
 Binaries builds are turned on by default: `cargo build` will initiate a download
-from github to get the static lib. To disable this build using the
+from GitHub to get the static lib. To disable this build using the
 `V8_FROM_SOURCE` environmental variable.
 
 When making changes to rusty_v8 itself, it should be tested by build from
