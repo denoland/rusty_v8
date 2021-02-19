@@ -305,11 +305,12 @@ impl Exception {
     message: Local<String>,
     contructor: unsafe extern "C" fn(*const String) -> *const Value,
   ) -> Local<'s, Value> {
-    scope.enter_isolate();
-    let error =
-      unsafe { scope.cast_local(|_| (contructor)(&*message)) }.unwrap();
-    scope.exit_isolate();
-    error
+    unsafe {
+      scope.enter();
+      let error = scope.cast_local(|_| (contructor)(&*message)).unwrap();
+      scope.exit();
+      error
+    }
   }
 
   /// Creates an error message for the given exception.
