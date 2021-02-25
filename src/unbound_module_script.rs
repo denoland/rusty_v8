@@ -12,7 +12,7 @@ impl UnboundModuleScript {
   /// Creates and returns code cache for the specified unbound_module_script.
   /// This will return nullptr if the script cannot be serialized. The
   /// CachedData returned by this function should be owned by the caller.
-  pub fn create_code_cache<'s>(
+  pub fn create_code_cache(
     &self,
   ) -> Option<UniqueRef<CachedData<'static>>> {
     unsafe {
