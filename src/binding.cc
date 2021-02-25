@@ -345,6 +345,11 @@ v8::ScriptCompiler::CachedData* v8__ScriptCompiler__CachedData__NEW(
       data, length, v8::ScriptCompiler::CachedData::BufferNotOwned);
 }
 
+void v8__ScriptCompiler__CachedData__DELETE(
+    v8::ScriptCompiler::CachedData* self) {
+  delete self;
+}
+
 const v8::ScriptCompiler::CachedData* v8__ScriptCompiler__Source__GetCachedData(
     const v8::ScriptCompiler::Source* source) {
   return source->GetCachedData();
@@ -1583,6 +1588,17 @@ const v8::UnboundScript* v8__Script__GetUnboundScript(
 const v8::Script* v8__UnboundScript__BindToCurrentContext(
     const v8::UnboundScript& unbound_script) {
   return local_to_ptr(ptr_to_local(&unbound_script)->BindToCurrentContext());
+}
+
+v8::ScriptCompiler::CachedData* v8__UnboundScript__CreateCodeCache(
+    const v8::UnboundScript& unbound_script) {
+  return v8::ScriptCompiler::CreateCodeCache(ptr_to_local(&unbound_script));
+}
+
+v8::ScriptCompiler::CachedData* v8__UnboundModuleScript__CreateCodeCache(
+    const v8::UnboundModuleScript& unbound_module_script) {
+  return v8::ScriptCompiler::CreateCodeCache(
+      ptr_to_local(&unbound_module_script));
 }
 
 const v8::Value* v8__Script__Run(const v8::Script& script,

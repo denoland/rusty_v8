@@ -23,6 +23,7 @@ extern "C" {
     data: *const u8,
     length: i32,
   ) -> *mut CachedData<'a>;
+  fn v8__ScriptCompiler__CachedData__DELETE<'a>(this: *mut CachedData<'a>);
   fn v8__ScriptCompiler__CompileModule(
     isolate: *mut Isolate,
     source: *mut Source,
@@ -48,6 +49,14 @@ pub struct CachedData<'a> {
   rejected: bool,
   buffer_policy: BufferPolicy,
   _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a> Drop for CachedData<'a> {
+  fn drop(&mut self) {
+    unsafe {
+      v8__ScriptCompiler__CachedData__DELETE(self);
+    }
+  }
 }
 
 impl<'a> CachedData<'a> {
