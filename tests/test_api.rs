@@ -4782,3 +4782,102 @@ fn icu_collator() {
   let script = v8::Script::compile(scope, source, None).unwrap();
   assert!(script.run(scope).is_some());
 }
+
+fn create_module<'s>(
+  scope: &mut v8::HandleScope<'s, v8::Context>,
+  source: &str,
+  code_cache: Option<v8::UniqueRef<v8::CachedData>>,
+) -> v8::Local<'s, v8::Module> {
+  let source = v8::String::new(scope, source).unwrap();
+  let resource_name = v8::String::new(scope, "<resource>").unwrap();
+  let source_map_url = v8::undefined(scope);
+  let script_origin = v8::ScriptOrigin::new(
+    scope,
+    resource_name.into(),
+    0,
+    0,
+    false,
+    0,
+    source_map_url.into(),
+    false,
+    false,
+    true,
+  );
+  let source = match code_cache {
+    Some(x) => v8::script_compiler::Source::new_with_cached_data(
+      source,
+      &script_origin,
+      x,
+    ),
+    None => v8::script_compiler::Source::new(source, &script_origin),
+  };
+  let module = v8::script_compiler::compile_module(scope, source).unwrap();
+  module
+}
+
+fn create_unbound_module_script<'s>(
+  scope: &mut v8::HandleScope<'s, v8::Context>,
+  source: &str,
+  code_cache: Option<v8::UniqueRef<v8::CachedData>>,
+) -> v8::Local<'s, v8::UnboundModuleScript> {
+  let module = create_module(scope, source, code_cache);
+  module.get_unbound_module_script(scope)
+}
+
+#[test]
+fn unbound_module_script_conversion() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let mut scope = v8::ContextScope::new(scope, context);
+  create_unbound_module_script(&mut scope, "'Hello ' + value", None);
+}
+
+#[test]
+fn code_cache() {
+  fn resolve_callback<'a>(
+    _context: v8::Local<'a, v8::Context>,
+    _specifier: v8::Local<'a, v8::String>,
+    _import_assertions: v8::Local<'a, v8::FixedArray>,
+    _referrer: v8::Local<'a, v8::Module>,
+  ) -> Option<v8::Local<'a, v8::Module>> {
+    None
+  }
+
+  const CODE: &str = "export const hello = 'world';";
+  let _setup_guard = setup();
+
+  let code_cache = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let mut scope = v8::ContextScope::new(scope, context);
+    let unbound_module_script =
+      create_unbound_module_script(&mut scope, CODE, None);
+    unbound_module_script.create_code_cache().unwrap().to_vec()
+  };
+
+  {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let mut scope = v8::ContextScope::new(scope, context);
+    let module =
+      create_module(&mut scope, CODE, Some(v8::CachedData::new(&code_cache)));
+    let mut scope = v8::HandleScope::new(&mut scope);
+    module
+      .instantiate_module(&mut scope, resolve_callback)
+      .unwrap();
+    module.evaluate(&mut scope).unwrap();
+    let top =
+      v8::Local::<v8::Object>::try_from(module.get_module_namespace()).unwrap();
+
+    let key = v8::String::new(&mut scope, "hello").unwrap();
+    let value = v8::Local::<v8::String>::try_from(
+      top.get(&mut scope, key.into()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(&value.to_rust_string_lossy(&mut scope), "world");
+  }
+}

@@ -1,4 +1,4 @@
-use crate::script_compiler::CachedData;
+use crate::CachedData;
 use crate::Local;
 use crate::Script;
 use crate::UnboundScript;
