@@ -1669,9 +1669,12 @@ fn function() {
     let lhs = function.creation_context(scope).global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
-    function
+    let value = function
       .call(scope, recv, &[])
       .expect("Function call failed");
+    let value_str = value.to_string(scope).unwrap();
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "Hello callback!".to_string());
 
     // create function without a template
     let function = v8::Function::new(scope, fn_callback2)
@@ -1691,9 +1694,10 @@ fn function() {
       .data(true_data.into())
       .build(scope)
       .expect("Unable to create function with data");
-    function
+    let value = function
       .call(scope, recv, &[])
       .expect("Function call failed");
+    assert!(value.is_undefined());
 
     // create a prototype-less function that throws on new
     let function = v8::Function::builder(fn_callback)
