@@ -18,6 +18,7 @@ use crate::Local;
 use crate::Module;
 use crate::ModuleRequest;
 use crate::String;
+use crate::UnboundModuleScript;
 use crate::Value;
 
 /// Called during Module::instantiate_module. Provided with arguments:
@@ -177,6 +178,9 @@ extern "C" {
     export_name: *const String,
     export_value: *const Value,
   ) -> MaybeBool;
+  fn v8__Module__GetUnboundModuleScript(
+    this: *const Module,
+  ) -> *const UnboundModuleScript;
   fn v8__Location__GetLineNumber(this: *const Location) -> int;
   fn v8__Location__GetColumnNumber(this: *const Location) -> int;
   fn v8__ModuleRequest__GetSpecifier(
@@ -421,6 +425,17 @@ impl Module {
       )
     }
     .into()
+  }
+
+  pub fn get_unbound_module_script<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, UnboundModuleScript> {
+    unsafe {
+      scope
+        .cast_local(|_| v8__Module__GetUnboundModuleScript(self))
+        .unwrap()
+    }
   }
 }
 

@@ -329,13 +329,25 @@ void v8__Global__Reset(const v8::Data* data) {
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
     uninit_t<v8::ScriptCompiler::Source>* buf, const v8::String& source_string,
-    const v8::ScriptOrigin& origin) {
+    const v8::ScriptOrigin& origin,
+    v8::ScriptCompiler::CachedData* cached_data) {
   construct_in_place<v8::ScriptCompiler::Source>(
-      buf, ptr_to_local(&source_string), origin);
+      buf, ptr_to_local(&source_string), origin, cached_data);
 }
 
 void v8__ScriptCompiler__Source__DESTRUCT(v8::ScriptCompiler::Source* self) {
   self->~Source();
+}
+
+v8::ScriptCompiler::CachedData* v8__ScriptCompiler__CachedData__NEW(
+    const uint8_t* data, int length) {
+  return new v8::ScriptCompiler::CachedData(
+      data, length, v8::ScriptCompiler::CachedData::BufferNotOwned);
+}
+
+const v8::ScriptCompiler::CachedData* v8__ScriptCompiler__Source__GetCachedData(
+    const v8::ScriptCompiler::Source* source) {
+  return source->GetCachedData();
 }
 
 const v8::Module* v8__ScriptCompiler__CompileModule(
@@ -2119,7 +2131,13 @@ MaybeBool v8__Module__SetSyntheticModuleExport(const v8::Module& self,
       isolate, ptr_to_local(export_name), ptr_to_local(export_value)));
 }
 
-const v8::String* v8__ModuleRequest__GetSpecifier(const v8::ModuleRequest& self) {
+const v8::UnboundModuleScript* v8__Module__GetUnboundModuleScript(
+    const v8::Module& self) {
+  return local_to_ptr(ptr_to_local(&self)->GetUnboundModuleScript());
+}
+
+const v8::String* v8__ModuleRequest__GetSpecifier(
+    const v8::ModuleRequest& self) {
   return local_to_ptr(self.GetSpecifier());
 }
 
@@ -2127,7 +2145,8 @@ int v8__ModuleRequest__GetSourceOffset(const v8::ModuleRequest& self) {
   return self.GetSourceOffset();
 }
 
-const v8::FixedArray* v8__ModuleRequest__GetImportAssertions(const v8::ModuleRequest& self) {
+const v8::FixedArray* v8__ModuleRequest__GetImportAssertions(
+    const v8::ModuleRequest& self) {
   return local_to_ptr(self.GetImportAssertions());
 }
 
