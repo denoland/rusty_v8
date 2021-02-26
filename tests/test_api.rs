@@ -4858,26 +4858,23 @@ fn code_cache() {
     unbound_module_script.create_code_cache().unwrap().to_vec()
   };
 
-  {
-    let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let mut scope = v8::ContextScope::new(scope, context);
-    let module =
-      create_module(&mut scope, CODE, Some(v8::CachedData::new(&code_cache)));
-    let mut scope = v8::HandleScope::new(&mut scope);
-    module
-      .instantiate_module(&mut scope, resolve_callback)
-      .unwrap();
-    module.evaluate(&mut scope).unwrap();
-    let top =
-      v8::Local::<v8::Object>::try_from(module.get_module_namespace()).unwrap();
-
-    let key = v8::String::new(&mut scope, "hello").unwrap();
-    let value = v8::Local::<v8::String>::try_from(
-      top.get(&mut scope, key.into()).unwrap(),
-    )
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let mut scope = v8::ContextScope::new(scope, context);
+  let module =
+    create_module(&mut scope, CODE, Some(v8::CachedData::new(&code_cache)));
+  let mut scope = v8::HandleScope::new(&mut scope);
+  module
+    .instantiate_module(&mut scope, resolve_callback)
     .unwrap();
-    assert_eq!(&value.to_rust_string_lossy(&mut scope), "world");
-  }
+  module.evaluate(&mut scope).unwrap();
+  let top =
+    v8::Local::<v8::Object>::try_from(module.get_module_namespace()).unwrap();
+
+  let key = v8::String::new(&mut scope, "hello").unwrap();
+  let value =
+    v8::Local::<v8::String>::try_from(top.get(&mut scope, key.into()).unwrap())
+      .unwrap();
+  assert_eq!(&value.to_rust_string_lossy(&mut scope), "world");
 }
