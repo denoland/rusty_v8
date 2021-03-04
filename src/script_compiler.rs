@@ -109,7 +109,7 @@ impl Source {
         &mut buf,
         &*source_string,
         origin,
-        cached_data.into_raw(),
+        cached_data.into_raw(), // Source constructor takes ownership.
       );
       buf.assume_init()
     }
