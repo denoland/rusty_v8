@@ -64,6 +64,17 @@ static_assert(sizeof(v8::CFunction) == sizeof(size_t) * 2,
 static_assert(sizeof(three_pointers_t) == sizeof(v8_inspector::StringView),
               "StringView size mismatch");
 
+static_assert(sizeof(v8::ScriptCompiler::CachedData) == 24,
+              "CachedData size mismatch");
+static_assert(offsetof(v8::ScriptCompiler::CachedData, data) == 0,
+              "CachedData.data offset mismatch");
+static_assert(offsetof(v8::ScriptCompiler::CachedData, length) == 8,
+              "CachedData.length offset mismatch");
+static_assert(offsetof(v8::ScriptCompiler::CachedData, rejected) == 12,
+              "CachedData.rejected offset mismatch");
+static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 16,
+              "CachedData.buffer_policy offset mismatch");
+
 enum InternalSlots {
   kSlotDynamicImport = 0,
   kNumInternalSlots,
