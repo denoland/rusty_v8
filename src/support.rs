@@ -106,12 +106,12 @@ impl<T> From<UniqueRef<T>> for UniquePtr<T> {
 pub struct UniqueRef<T: ?Sized>(NonNull<T>);
 
 impl<T> UniqueRef<T> {
-  pub unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
+  pub(crate) unsafe fn try_from_raw(ptr: *mut T) -> Option<Self> {
     assert_unique_ptr_layout_compatible::<Self, T>();
     NonNull::new(ptr).map(Self)
   }
 
-  pub unsafe fn from_raw(ptr: *mut T) -> Self {
+  pub(crate) unsafe fn from_raw(ptr: *mut T) -> Self {
     assert_unique_ptr_layout_compatible::<Self, T>();
     Self::try_from_raw(ptr).unwrap()
   }
