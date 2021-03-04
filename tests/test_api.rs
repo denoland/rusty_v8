@@ -4787,6 +4787,7 @@ fn create_module<'s>(
   scope: &mut v8::HandleScope<'s, v8::Context>,
   source: &str,
   code_cache: Option<v8::UniqueRef<v8::CachedData>>,
+  options: v8::script_compiler::CompileOptions,
 ) -> v8::Local<'s, v8::Module> {
   let source = v8::String::new(scope, source).unwrap();
   let resource_name = v8::String::new(scope, "<resource>").unwrap();
@@ -4811,7 +4812,13 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, &script_origin),
   };
-  let module = v8::script_compiler::compile_module(scope, source).unwrap();
+  let module = v8::script_compiler::compile_module2(
+    scope,
+    source,
+    options,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
   module
 }
 
@@ -4820,7 +4827,12 @@ fn create_unbound_module_script<'s>(
   source: &str,
   code_cache: Option<v8::UniqueRef<v8::CachedData>>,
 ) -> v8::Local<'s, v8::UnboundModuleScript> {
-  let module = create_module(scope, source, code_cache);
+  let module = create_module(
+    scope,
+    source,
+    code_cache,
+    v8::script_compiler::CompileOptions::NoCompileOptions,
+  );
   module.get_unbound_module_script(scope)
 }
 
@@ -4862,8 +4874,12 @@ fn code_cache() {
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
   let mut scope = v8::ContextScope::new(scope, context);
-  let module =
-    create_module(&mut scope, CODE, Some(v8::CachedData::new(&code_cache)));
+  let module = create_module(
+    &mut scope,
+    CODE,
+    Some(v8::CachedData::new(&code_cache)),
+    v8::script_compiler::CompileOptions::ConsumeCodeCache,
+  );
   let mut scope = v8::HandleScope::new(&mut scope);
   module
     .instantiate_module(&mut scope, resolve_callback)
