@@ -64,7 +64,7 @@ static_assert(sizeof(v8::CFunction) == sizeof(size_t) * 2,
 static_assert(sizeof(three_pointers_t) == sizeof(v8_inspector::StringView),
               "StringView size mismatch");
 
-#if INTPTR_MAX == INT64_MAX
+#if INTPTR_MAX == INT64_MAX  // 64-bit platforms
 static_assert(sizeof(v8::ScriptCompiler::CachedData) == 24,
               "CachedData size mismatch");
 static_assert(offsetof(v8::ScriptCompiler::CachedData, data) == 0,
