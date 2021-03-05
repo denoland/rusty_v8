@@ -4894,3 +4894,68 @@ fn code_cache() {
       .unwrap();
   assert_eq!(&value.to_rust_string_lossy(&mut scope), "world");
 }
+
+#[test]
+fn eager_compile_script() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let code = v8::String::new(scope, "1 + 1").unwrap();
+  let source = v8::script_compiler::Source::new(code, None);
+  let script = v8::script_compiler::compile(
+    scope,
+    source,
+    v8::script_compiler::CompileOptions::EagerCompile,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
+  let ret = script.run(scope).unwrap();
+  assert_eq!(ret.uint32_value(scope).unwrap(), 2);
+}
+
+#[test]
+fn code_cache_script() {
+  const CODE: &str = "1 + 1";
+  let _setup_guard = setup();
+  let code_cache = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let code = v8::String::new(scope, CODE).unwrap();
+    let source = v8::script_compiler::Source::new(code, None);
+    let script = v8::script_compiler::compile_unbound_script(
+      scope,
+      source,
+      v8::script_compiler::CompileOptions::EagerCompile,
+      v8::script_compiler::NoCacheReason::NoReason,
+    )
+    .unwrap();
+    script.create_code_cache().unwrap().to_vec()
+  };
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let code = v8::String::new(scope, CODE).unwrap();
+  let source = v8::script_compiler::Source::new_with_cached_data(
+    code,
+    None,
+    v8::CachedData::new(&code_cache),
+  );
+  let script = v8::script_compiler::compile(
+    scope,
+    source,
+    v8::script_compiler::CompileOptions::ConsumeCodeCache,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
+  let ret = script.run(scope).unwrap();
+  assert_eq!(ret.uint32_value(scope).unwrap(), 2);
+}
