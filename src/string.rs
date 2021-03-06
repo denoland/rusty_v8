@@ -32,6 +32,12 @@ extern "C" {
     nchars_ref: *mut int,
     options: WriteOptions,
   ) -> int;
+
+  fn v8__String__NewExternalOneByteStatic(
+    isolate: *mut Isolate,
+    buffer: *const char,
+    length: int,
+  ) -> *const String;
 }
 
 #[repr(C)]
@@ -132,6 +138,28 @@ impl String {
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
+  }
+
+  // Creates a v8::String from a `&'static str`,
+  // must be Latin-1 or ASCII, not UTF-8 !
+  pub fn new_external_onebyte_static<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    value: &'static str,
+  ) -> Option<Local<'s, String>> {
+    let buffer: &[u8] = value.as_ref();
+    if buffer.is_empty() {
+      return None;
+    }
+    let buffer_len = buffer.len().try_into().ok()?;
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByteStatic(
+          sd.get_isolate_ptr(),
+          buffer.as_ptr() as *const char,
+          buffer_len,
+        )
+      })
+    }
   }
 
   /// Convenience function not present in the original V8 API.
