@@ -84,7 +84,7 @@ fn build_v8() {
   if !is_debug() {
     gn_args.push("v8_enable_handle_zapping=false".to_string());
   }
-  
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string())
