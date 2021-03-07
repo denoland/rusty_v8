@@ -4912,11 +4912,25 @@ fn external_strings() {
     assert!(maybe_value.is_some());
     // Check length
     assert!(json_external.length() == 16);
+    // Externality checks
+    assert!(json_external.is_external());
+    assert!(json_external.is_external_onebyte());
+    assert!(json_external.is_onebyte());
 
     // In & out
     let hello =
       v8::String::new_external_onebyte_static(scope, "hello world").unwrap();
     let rust_str = hello.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "hello world");
+    // Externality checks
+    assert!(hello.is_external());
+    assert!(hello.is_external_onebyte());
+    assert!(hello.is_onebyte());
+
+    // two-byte "internal" test
+    let gradients = v8::String::new(scope, "∇gradients").unwrap();
+    assert!(!gradients.is_external());
+    assert!(!gradients.is_external_onebyte());
+    assert!(!gradients.is_onebyte());
   }
 }
