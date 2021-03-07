@@ -175,7 +175,7 @@ impl String {
     // unsafe { v8__String__IsExternal(self) }
 
     // Fallback for now (though functionally identical)
-    return self.is_external_onebyte() || self.is_external_twobyte();
+    self.is_external_onebyte() || self.is_external_twobyte()
   }
 
   /// True if string is external & one-byte
