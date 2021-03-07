@@ -829,6 +829,11 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate *isolate,
   );
 }
 
+bool v8__String__IsExternal(const v8::String& self) { return self.IsExternal(); }
+bool v8__String__IsExternalOneByte(const v8::String& self) { return self.IsExternalOneByte(); }
+bool v8__String__IsExternalTwoByte(const v8::String& self) { return self.IsExternalTwoByte(); }
+bool v8__String__IsOneByte(const v8::String& self) { return self.IsOneByte(); }
+
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
                                   const v8::String& description) {
   return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(&description)));
