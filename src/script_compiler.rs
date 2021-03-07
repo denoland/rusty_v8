@@ -97,44 +97,33 @@ enum BufferPolicy {
 }
 
 impl Source {
-  pub fn new<'a, 'b, T>(source_string: Local<String>, origin: T) -> Self
-  where
-    'a: 'b,
-    T: Into<Option<&'b ScriptOrigin<'a>>>,
-  {
+  pub fn new(
+    source_string: Local<String>,
+    origin: Option<&ScriptOrigin>,
+  ) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__ScriptCompiler__Source__CONSTRUCT(
         &mut buf,
         &*source_string,
-        origin
-          .into()
-          .map(|x| x as *const _)
-          .unwrap_or(std::ptr::null()),
+        origin.map(|x| x as *const _).unwrap_or(std::ptr::null()),
         std::ptr::null_mut(),
       );
       buf.assume_init()
     }
   }
 
-  pub fn new_with_cached_data<'a, 'b, T>(
+  pub fn new_with_cached_data(
     source_string: Local<String>,
-    origin: T,
+    origin: Option<&ScriptOrigin>,
     cached_data: UniqueRef<CachedData>,
-  ) -> Self
-  where
-    'a: 'b,
-    T: Into<Option<&'b ScriptOrigin<'a>>>,
-  {
+  ) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__ScriptCompiler__Source__CONSTRUCT(
         &mut buf,
         &*source_string,
-        origin
-          .into()
-          .map(|x| x as *const _)
-          .unwrap_or(std::ptr::null()),
+        origin.map(|x| x as *const _).unwrap_or(std::ptr::null()),
         cached_data.into_raw(), // Source constructor takes ownership.
       );
       buf.assume_init()

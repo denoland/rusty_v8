@@ -1911,7 +1911,7 @@ fn mock_source<'s>(
 ) -> v8::script_compiler::Source {
   let source_str = v8::String::new(scope, source).unwrap();
   let script_origin = mock_script_origin(scope, resource_name);
-  v8::script_compiler::Source::new(source_str, &script_origin)
+  v8::script_compiler::Source::new(source_str, Some(&script_origin))
 }
 
 #[test]
@@ -1928,7 +1928,7 @@ fn script_compiler_source() {
     let script_origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(
       v8::String::new(scope, source).unwrap(),
-      &script_origin,
+      Some(&script_origin),
     );
 
     let result = v8::script_compiler::compile_module(scope, source);
@@ -1952,7 +1952,7 @@ fn module_instantiation_failures1() {
     )
     .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
-    let source = v8::script_compiler::Source::new(source_text, &origin);
+    let source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
@@ -2015,7 +2015,7 @@ fn compile_specifier_as_module_resolve_callback<'a>(
 ) -> Option<v8::Local<'a, v8::Module>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
   let origin = mock_script_origin(scope, "module.js");
-  let source = v8::script_compiler::Source::new(specifier, &origin);
+  let source = v8::script_compiler::Source::new(specifier, Some(&origin));
   let module = v8::script_compiler::compile_module(scope, source).unwrap();
   Some(module)
 }
@@ -2036,7 +2036,7 @@ fn module_evaluation() {
     )
     .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
-    let source = v8::script_compiler::Source::new(source_text, &origin);
+    let source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert!(module.script_id().is_some());
@@ -2088,7 +2088,7 @@ fn import_assertions() {
 
     let origin = mock_script_origin(scope, "module.js");
     let src = v8::String::new(scope, "export const a = 'a';").unwrap();
-    let source = v8::script_compiler::Source::new(src, &origin);
+    let source = v8::script_compiler::Source::new(src, Some(&origin));
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     Some(module)
   }
@@ -2125,7 +2125,7 @@ fn import_assertions() {
     )
     .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
-    let source = v8::script_compiler::Source::new(source_text, &origin);
+    let source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     assert!(module.script_id().is_some());
@@ -3723,7 +3723,7 @@ fn module_snapshot() {
       )
       .unwrap();
       let origin = mock_script_origin(scope, "foo.js");
-      let source = v8::script_compiler::Source::new(source_text, &origin);
+      let source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
       let module = v8::script_compiler::compile_module(scope, source).unwrap();
       assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
@@ -4807,10 +4807,10 @@ fn create_module<'s>(
   let source = match code_cache {
     Some(x) => v8::script_compiler::Source::new_with_cached_data(
       source,
-      &script_origin,
+      Some(&script_origin),
       x,
     ),
-    None => v8::script_compiler::Source::new(source, &script_origin),
+    None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
   let module = v8::script_compiler::compile_module2(
     scope,
