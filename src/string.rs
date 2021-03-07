@@ -38,6 +38,11 @@ extern "C" {
     buffer: *const char,
     length: int,
   ) -> *const String;
+  
+  fn v8__String__IsExternal(this: *const String) -> bool;
+  fn v8__String__IsExternalOneByte(this: *const String) -> bool;
+  fn v8__String__IsExternalTwoByte(this: *const String) -> bool;
+  fn v8__String__IsOneByte(this: *const String) -> bool;
 }
 
 #[repr(C)]
@@ -160,6 +165,35 @@ impl String {
         )
       })
     }
+  }
+  
+  /// True if string is external
+  pub fn is_external(&self) -> bool {
+    // TODO: re-enable on next v8-release
+    // Right now it fallbacks to Value::IsExternal, which is incorrect
+    // See: https://source.chromium.org/chromium/_/chromium/v8/v8.git/+/1dd8624b524d14076160c1743f7da0b20fbe68e0
+    // unsafe { v8__String__IsExternal(self) }
+    
+    // Fallback for now (though functionally identical)
+    return self.is_external_onebyte() || self.is_external_twobyte()
+  }
+  
+  /// True if string is external & one-byte
+  /// (e.g: created with new_external_onebyte_static)
+  pub fn is_external_onebyte(&self) -> bool {
+    unsafe { v8__String__IsExternalOneByte(self) }
+  }
+  
+  /// True if string is external & two-byte
+  /// NOTE: can't yet be created via rusty_v8
+  pub fn is_external_twobyte(&self) -> bool {
+    unsafe { v8__String__IsExternalTwoByte(self) }
+  }
+  
+  /// True if string is known to contain only one-byte data
+  /// doesn't read the string so can return false positives
+  pub fn is_onebyte(&self) -> bool {
+    unsafe { v8__String__IsExternalOneByte(self) }
   }
 
   /// Convenience function not present in the original V8 API.
