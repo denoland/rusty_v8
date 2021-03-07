@@ -353,10 +353,15 @@ void v8__Global__Reset(const v8::Data* data) {
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
     uninit_t<v8::ScriptCompiler::Source>* buf, const v8::String& source_string,
-    const v8::ScriptOrigin& origin,
+    const v8::ScriptOrigin* origin,
     v8::ScriptCompiler::CachedData* cached_data) {
-  construct_in_place<v8::ScriptCompiler::Source>(
-      buf, ptr_to_local(&source_string), origin, cached_data);
+  if (origin) {
+    construct_in_place<v8::ScriptCompiler::Source>(
+        buf, ptr_to_local(&source_string), *origin, cached_data);
+  } else {
+    construct_in_place<v8::ScriptCompiler::Source>(
+        buf, ptr_to_local(&source_string), cached_data);
+  }
 }
 
 void v8__ScriptCompiler__Source__DESTRUCT(v8::ScriptCompiler::Source* self) {
@@ -385,6 +390,25 @@ const v8::Module* v8__ScriptCompiler__CompileModule(
     v8::ScriptCompiler::NoCacheReason no_cache_reason) {
   v8::MaybeLocal<v8::Module> maybe_local = v8::ScriptCompiler::CompileModule(
       isolate, source, options, no_cache_reason);
+  return maybe_local_to_ptr(maybe_local);
+}
+
+const v8::Script* v8__ScriptCompiler__Compile(
+    const v8::Context* context, v8::ScriptCompiler::Source* source,
+    v8::ScriptCompiler::CompileOptions options,
+    v8::ScriptCompiler::NoCacheReason no_cache_reason) {
+  v8::MaybeLocal<v8::Script> maybe_local = v8::ScriptCompiler::Compile(
+      ptr_to_local(context), source, options, no_cache_reason);
+  return maybe_local_to_ptr(maybe_local);
+}
+
+const v8::UnboundScript* v8__ScriptCompiler__CompileUnboundScript(
+    v8::Isolate* isolate, v8::ScriptCompiler::Source* source,
+    v8::ScriptCompiler::CompileOptions options,
+    v8::ScriptCompiler::NoCacheReason no_cache_reason) {
+  v8::MaybeLocal<v8::UnboundScript> maybe_local =
+      v8::ScriptCompiler::CompileUnboundScript(isolate, source, options,
+                                               no_cache_reason);
   return maybe_local_to_ptr(maybe_local);
 }
 
