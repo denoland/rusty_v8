@@ -44,7 +44,7 @@ jobs:
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-latest' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
-          
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-latest' }}
             target: aarch64-unknown-linux-gnu
             variant: release
@@ -94,6 +94,9 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-5" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
+      - name: Write git_submodule_status.txt
+        run: git submodule status --recursive > git_submodule_status.txt
+
       - name: Cache
         uses: actions/cache@v2
         with:
@@ -109,10 +112,9 @@ jobs:
             target/*/build
             target/*/deps
           key:
-            ${{ matrix.config.target }}-${{ matrix.config.variant }}-${{
-            hashFiles('./Cargo.lock', './v8/include/v8-version.h') }}
+            cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys:
-            ${{ matrix.config.target }}-${{ matrix.config.variant }}-
+            cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
 
         # It seems that the 'target' directory does not always get restored
@@ -208,4 +210,6 @@ jobs:
 
       - name: Stop sccache
         if: always()
-        run: sccache --stop-server
+        run: |
+          sccache --show-stats
+          sccache --stop-server
