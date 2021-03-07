@@ -4959,3 +4959,41 @@ fn code_cache_script() {
   let ret = script.run(scope).unwrap();
   assert_eq!(ret.uint32_value(scope).unwrap(), 2);
 }
+
+#[test]
+fn external_strings() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Parse JSON from an external string
+  let json_static = "{\"a\": 1, \"b\": 2}";
+  let json_external =
+    v8::String::new_external_onebyte_static(scope, json_static).unwrap();
+  let maybe_value = v8::json::parse(scope, json_external);
+  assert!(maybe_value.is_some());
+  // Check length
+  assert!(json_external.length() == 16);
+  // Externality checks
+  assert!(json_external.is_external());
+  assert!(json_external.is_external_onebyte());
+  assert!(json_external.is_onebyte());
+
+  // In & out
+  let hello =
+    v8::String::new_external_onebyte_static(scope, "hello world").unwrap();
+  let rust_str = hello.to_rust_string_lossy(scope);
+  assert_eq!(rust_str, "hello world");
+  // Externality checks
+  assert!(hello.is_external());
+  assert!(hello.is_external_onebyte());
+  assert!(hello.is_onebyte());
+
+  // two-byte "internal" test
+  let gradients = v8::String::new(scope, "∇gradients").unwrap();
+  assert!(!gradients.is_external());
+  assert!(!gradients.is_external_onebyte());
+  assert!(!gradients.is_onebyte());
+}

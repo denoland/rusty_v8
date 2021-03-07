@@ -832,6 +832,32 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
+class ExternalStaticOneByteStringResource: public v8::String::ExternalOneByteStringResource {
+  public:
+    ExternalStaticOneByteStringResource(const char *data, int length):
+                                        _data(data), _length(length) {}
+    const char* data() const override { return _data; }
+    size_t length() const override { return _length; }
+
+  private:
+    const char* _data;
+    const int _length;
+};
+
+const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate *isolate,
+                                                      const char *data, int length) {
+  return maybe_local_to_ptr(
+    v8::String::NewExternalOneByte(
+      isolate, new ExternalStaticOneByteStringResource(data, length)
+    )
+  );
+}
+
+bool v8__String__IsExternal(const v8::String& self) { return self.IsExternal(); }
+bool v8__String__IsExternalOneByte(const v8::String& self) { return self.IsExternalOneByte(); }
+bool v8__String__IsExternalTwoByte(const v8::String& self) { return self.IsExternalTwoByte(); }
+bool v8__String__IsOneByte(const v8::String& self) { return self.IsOneByte(); }
+
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
                                   const v8::String& description) {
   return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(&description)));
