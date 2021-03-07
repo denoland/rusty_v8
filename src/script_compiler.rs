@@ -1,11 +1,11 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use std::{marker::PhantomData, mem::MaybeUninit};
 
-use crate::Isolate;
 use crate::Local;
 use crate::Module;
 use crate::ScriptOrigin;
 use crate::String;
+use crate::{Context, Isolate, Script, UnboundScript};
 use crate::{HandleScope, UniqueRef};
 
 extern "C" {
@@ -30,6 +30,18 @@ extern "C" {
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
   ) -> *const Module;
+  fn v8__ScriptCompiler__Compile(
+    context: *const Context,
+    source: *mut Source,
+    options: CompileOptions,
+    no_cache_reason: NoCacheReason,
+  ) -> *const Script;
+  fn v8__ScriptCompiler__CompileUnboundScript(
+    isolate: *mut Isolate,
+    source: *mut Source,
+    options: CompileOptions,
+    no_cache_reason: NoCacheReason,
+  ) -> *const UnboundScript;
 }
 
 /// Source code which can then be compiled to a UnboundScript or Script.
@@ -85,13 +97,16 @@ enum BufferPolicy {
 }
 
 impl Source {
-  pub fn new(source_string: Local<String>, origin: &ScriptOrigin) -> Self {
+  pub fn new(
+    source_string: Local<String>,
+    origin: Option<&ScriptOrigin>,
+  ) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__ScriptCompiler__Source__CONSTRUCT(
         &mut buf,
         &*source_string,
-        origin,
+        origin.map(|x| x as *const _).unwrap_or(std::ptr::null()),
         std::ptr::null_mut(),
       );
       buf.assume_init()
@@ -100,7 +115,7 @@ impl Source {
 
   pub fn new_with_cached_data(
     source_string: Local<String>,
-    origin: &ScriptOrigin,
+    origin: Option<&ScriptOrigin>,
     cached_data: UniqueRef<CachedData>,
   ) -> Self {
     let mut buf = MaybeUninit::<Self>::uninit();
@@ -108,7 +123,7 @@ impl Source {
       v8__ScriptCompiler__Source__CONSTRUCT(
         &mut buf,
         &*source_string,
-        origin,
+        origin.map(|x| x as *const _).unwrap_or(std::ptr::null()),
         cached_data.into_raw(), // Source constructor takes ownership.
       );
       buf.assume_init()
@@ -182,6 +197,42 @@ pub fn compile_module2<'s>(
   unsafe {
     scope.cast_local(|sd| {
       v8__ScriptCompiler__CompileModule(
+        sd.get_isolate_ptr(),
+        &mut source,
+        options,
+        no_cache_reason,
+      )
+    })
+  }
+}
+
+pub fn compile<'s>(
+  scope: &mut HandleScope<'s>,
+  mut source: Source,
+  options: CompileOptions,
+  no_cache_reason: NoCacheReason,
+) -> Option<Local<'s, Script>> {
+  unsafe {
+    scope.cast_local(|sd| {
+      v8__ScriptCompiler__Compile(
+        &*sd.get_current_context(),
+        &mut source,
+        options,
+        no_cache_reason,
+      )
+    })
+  }
+}
+
+pub fn compile_unbound_script<'s>(
+  scope: &mut HandleScope<'s>,
+  mut source: Source,
+  options: CompileOptions,
+  no_cache_reason: NoCacheReason,
+) -> Option<Local<'s, UnboundScript>> {
+  unsafe {
+    scope.cast_local(|sd| {
+      v8__ScriptCompiler__CompileUnboundScript(
         sd.get_isolate_ptr(),
         &mut source,
         options,
