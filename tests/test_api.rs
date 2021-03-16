@@ -2007,6 +2007,9 @@ fn module_instantiation_failures1() {
   }
 }
 
+// Clippy thinks the return value doesn't need to be an Option, it's unaware
+// of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
+#[allow(clippy::unnecessary_wraps)]
 fn compile_specifier_as_module_resolve_callback<'a>(
   context: v8::Local<'a, v8::Context>,
   specifier: v8::Local<'a, v8::String>,
@@ -2066,6 +2069,9 @@ fn import_assertions() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
 
+  // Clippy thinks the return value doesn't need to be an Option, it's unaware
+  // of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
+  #[allow(clippy::unnecessary_wraps)]
   fn module_resolve_callback<'a>(
     context: v8::Local<'a, v8::Context>,
     _specifier: v8::Local<'a, v8::String>,
@@ -3556,7 +3562,7 @@ fn take_heap_snapshot() {
       true
     });
     let s = std::str::from_utf8(&vec).unwrap();
-    assert!(s.find(r#""Eyecatcher""#).is_some());
+    assert!(s.contains("Eyecatcher"));
   }
 }
 
@@ -3875,6 +3881,9 @@ fn low_memory_notification() {
   isolate.low_memory_notification();
 }
 
+// Clippy thinks the return value doesn't need to be an Option, it's unaware
+// of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
+#[allow(clippy::unnecessary_wraps)]
 fn synthetic_evaluation_steps<'a>(
   context: v8::Local<'a, v8::Context>,
   module: v8::Local<v8::Module>,
