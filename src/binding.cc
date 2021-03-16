@@ -737,6 +737,14 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
 
+void v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self) {
+  ptr_to_local(&self)->Detach();
+}
+
+bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {
+  return ptr_to_local(&self)->IsDetachable();
+}
+
 void* v8__BackingStore__Data(const v8::BackingStore& self) {
   return self.Data();
 }

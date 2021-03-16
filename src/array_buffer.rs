@@ -33,6 +33,8 @@ extern "C" {
     isolate: *mut Isolate,
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const ArrayBuffer;
+  fn v8__ArrayBuffer__Detach(this: *const ArrayBuffer);
+  fn v8__ArrayBuffer__IsDetachable(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__ByteLength(this: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
     this: *const ArrayBuffer,
@@ -349,6 +351,23 @@ impl ArrayBuffer {
   /// Data length in bytes.
   pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBuffer__ByteLength(self) }
+  }
+
+  /// Returns true if this ArrayBuffer may be detached.
+  pub fn is_detachable(&self) -> bool {
+    unsafe { v8__ArrayBuffer__IsDetachable(self) }
+  }
+
+  /// Detaches this ArrayBuffer and all its views (typed arrays).
+  /// Detaching sets the byte length of the buffer and all typed arrays to zero,
+  /// preventing JavaScript from ever accessing underlying backing store.
+  /// ArrayBuffer should have been externalized and must be detachable.
+  pub fn detach(&self) {
+    // V8 terminates when the ArrayBuffer is not detachable. Non-detachable
+    // buffers are buffers that are in use by WebAssembly or asm.js.
+    if self.is_detachable() {
+      unsafe { v8__ArrayBuffer__Detach(self) }
+    }
   }
 
   /// Get a shared pointer to the backing store of this array buffer. This
