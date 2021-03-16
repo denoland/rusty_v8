@@ -439,6 +439,11 @@ fn array_buffer() {
     let ab = v8::ArrayBuffer::new(scope, 42);
     assert_eq!(42, ab.byte_length());
 
+    assert!(ab.is_detachable());
+    ab.detach();
+    assert_eq!(0, ab.byte_length());
+    ab.detach(); // Calling it twice should be a no-op.
+
     let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
     assert_eq!(84, bs.byte_length());
     assert_eq!(false, bs.is_shared());
