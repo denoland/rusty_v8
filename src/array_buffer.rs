@@ -418,4 +418,32 @@ impl ArrayBuffer {
       ))
     }
   }
+
+  /// Returns a new standalone BackingStore that is backed by the given buffer.
+  /// The returned BackingStore will not take ownership of the buffer, and will
+  /// thus not free the backing buffer on destruction. It is the callers'
+  /// responsibility to free the backing buffer after the BackingStore has been
+  /// destroyed.
+  ///
+  /// The result can be later passed to ArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  /// 
+  /// # Safety
+  ///
+  /// Behavior is undefined if the combination of data_ptr and byte_length do
+  /// not point to a valid [u8]. Behaviour is also undefined if 
+  /// backing_store_deleter_callback and deleter_data are not valid.
+  pub unsafe fn new_backing_store_from_raw_pointer(
+    data_ptr: *mut c_void,
+    byte_length: usize,
+    backing_store_deleter_callback: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> UniqueRef<BackingStore> {
+    UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
+      data_ptr,
+      byte_length,
+      backing_store_deleter_callback,
+      user_data,
+    ))
+  }
 }
