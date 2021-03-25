@@ -475,9 +475,9 @@ pub enum MaybeBool {
   Nothing = 2,
 }
 
-impl Into<Option<bool>> for MaybeBool {
-  fn into(self) -> Option<bool> {
-    match self {
+impl From<MaybeBool> for Option<bool> {
+  fn from(b: MaybeBool) -> Self {
+    match b {
       MaybeBool::JustFalse => Some(false),
       MaybeBool::JustTrue => Some(true),
       MaybeBool::Nothing => None,
@@ -585,10 +585,10 @@ pub struct Maybe<T> {
   value: T,
 }
 
-impl<T> Into<Option<T>> for Maybe<T> {
-  fn into(self) -> Option<T> {
-    if self.has_value {
-      Some(self.value)
+impl<T> From<Maybe<T>> for Option<T> {
+  fn from(maybe: Maybe<T>) -> Self {
+    if maybe.has_value {
+      Some(maybe.value)
     } else {
       None
     }

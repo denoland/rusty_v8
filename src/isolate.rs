@@ -131,7 +131,7 @@ pub type NearHeapLimitCallback = extern "C" fn(
   initial_heap_limit: usize,
 ) -> usize;
 
-pub type OOMErrorCallback =
+pub type OomErrorCallback =
   extern "C" fn(location: *const c_char, is_heap_oom: bool);
 
 /// Collection of V8 heap information.
@@ -192,7 +192,7 @@ extern "C" {
   );
   fn v8__Isolate__SetOOMErrorHandler(
     isolate: *mut Isolate,
-    callback: OOMErrorCallback,
+    callback: OomErrorCallback,
   );
   fn v8__Isolate__SetPrepareStackTraceCallback(
     isolate: *mut Isolate,
@@ -601,7 +601,7 @@ impl Isolate {
     };
   }
 
-  pub fn set_oom_error_handler(&mut self, callback: OOMErrorCallback) {
+  pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {
     unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
   }
 
