@@ -314,7 +314,7 @@ fn need_gn_ninja_download() -> bool {
   let has_ninja = which("ninja").is_ok() || env::var_os("NINJA").is_some();
   let has_gn = which("gn").is_ok() || env::var_os("GN").is_some();
 
-  return !has_ninja || !has_gn;
+  !has_ninja || !has_gn
 }
 
 // Chromiums gn arg clang_base_path is currently compatible with:
@@ -466,7 +466,7 @@ fn gn() -> String {
 
 type NinjaEnv = Vec<(String, String)>;
 
-fn ninja(gn_out_dir: &PathBuf, maybe_env: Option<NinjaEnv>) -> Command {
+fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let cmd_string = env::var("NINJA").unwrap_or_else(|_| "ninja".to_owned());
   let mut cmd = Command::new(cmd_string);
   cmd.arg("-C");
@@ -530,11 +530,7 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
 
 /// build.rs does not get re-run unless we tell cargo about what files we
 /// depend on. This outputs a bunch of rerun-if-changed lines to stdout.
-fn rerun_if_changed(
-  out_dir: &PathBuf,
-  maybe_env: Option<NinjaEnv>,
-  target: &str,
-) {
+fn rerun_if_changed(out_dir: &Path, maybe_env: Option<NinjaEnv>, target: &str) {
   let deps = ninja_get_deps(out_dir, maybe_env, target);
   for d in deps {
     let p = out_dir.join(d);
@@ -569,7 +565,7 @@ fn fail(s: &str) -> ! {
 }
 
 fn ninja_get_deps(
-  out_dir: &PathBuf,
+  out_dir: &Path,
   maybe_env: Option<NinjaEnv>,
   target: &str,
 ) -> HashSet<String> {
