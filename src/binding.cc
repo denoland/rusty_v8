@@ -1926,22 +1926,6 @@ v8::Platform* v8__platform__NewDefaultPlatform() {
 }
 
 void v8__Platform__DELETE(v8::Platform* self) { delete self; }
-void v8__Task__BASE__DELETE(v8::Task* self);
-void v8__Task__BASE__Run(v8::Task* self);
-
-struct v8__Task__BASE : public v8::Task {
-  using Task::Task;
-  void operator delete(void* ptr) noexcept {
-    v8__Task__BASE__DELETE(reinterpret_cast<v8::Task*>(ptr));
-  }
-  void Run() override { v8__Task__BASE__Run(this); }
-};
-
-void v8__Task__BASE__CONSTRUCT(uninit_t<v8__Task__BASE>* buf) {
-  construct_in_place<v8__Task__BASE>(buf);
-}
-void v8__Task__DELETE(v8::Task* self) { delete self; }
-void v8__Task__Run(v8::Task* self) { self->Run(); }
 
 void v8_inspector__V8Inspector__Channel__BASE__sendResponse(
     v8_inspector::V8Inspector::Channel* self, int callId,
