@@ -11,6 +11,8 @@ use std::process::Stdio;
 use which::which;
 
 fn main() {
+  println!("cargo:rerun-if-changed=src/binding.cc");
+
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
