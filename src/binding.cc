@@ -828,6 +828,14 @@ const v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate,
       v8::String::NewFromUtf8(isolate, data, new_type, length));
 }
 
+const v8::String* v8__String__NewFromOneByte(v8::Isolate* isolate,
+                                             const char* data,
+                                             v8::NewStringType new_type,
+                                             int length) {
+  return maybe_local_to_ptr(
+      v8::String::NewFromOneByte(isolate, data, new_type, length));
+}
+
 int v8__String__Length(const v8::String& self) { return self.Length(); }
 
 int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
