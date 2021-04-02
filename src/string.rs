@@ -22,7 +22,7 @@ extern "C" {
 
   fn v8__String__NewFromOneByte(
     isolate: *mut Isolate,
-    data: *const char,
+    data: *const u8,
     new_type: NewStringType,
     length: int,
   ) -> *const String;
@@ -122,7 +122,7 @@ impl String {
       scope.cast_local(|sd| {
         v8__String__NewFromOneByte(
           sd.get_isolate_ptr(),
-          buffer.as_ptr() as *const char,
+          buffer.as_ptr(),
           new_type,
           buffer.len() as int,
         )

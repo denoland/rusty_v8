@@ -829,11 +829,11 @@ const v8::String* v8__String__NewFromUtf8(v8::Isolate* isolate,
 }
 
 const v8::String* v8__String__NewFromOneByte(v8::Isolate* isolate,
-                                             const char* data,
+                                             const uint8_t* data,
                                              v8::NewStringType new_type,
                                              int length) {
-  return maybe_local_to_ptr(v8::String::NewFromOneByte(
-      isolate, reinterpret_cast<const uint8_t*>(data), new_type, length));
+  return maybe_local_to_ptr(
+      v8::String::NewFromOneByte(isolate, data, new_type, length));
 }
 
 int v8__String__Length(const v8::String& self) { return self.Length(); }
