@@ -20,6 +20,13 @@ extern "C" {
     length: int,
   ) -> *const String;
 
+  fn v8__String__NewFromOneByte(
+    isolate: *mut Isolate,
+    data: *const u8,
+    new_type: NewStringType,
+    length: int,
+  ) -> *const String;
+
   fn v8__String__Length(this: *const String) -> int;
 
   fn v8__String__Utf8Length(this: *const String, isolate: *mut Isolate) -> int;
@@ -81,6 +88,8 @@ impl String {
       .unwrap()
   }
 
+  /// Allocates a new string from UTF-8 data. Only returns an empty value when
+  /// length > kMaxLength
   pub fn new_from_utf8<'s>(
     scope: &mut HandleScope<'s, ()>,
     buffer: &[u8],
@@ -97,6 +106,25 @@ impl String {
           buffer.as_ptr() as *const char,
           new_type,
           buffer_len,
+        )
+      })
+    }
+  }
+
+  /// Allocates a new string from Latin-1 data.  Only returns an empty value when
+  /// length > kMaxLength.
+  pub fn new_from_one_byte<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: &[u8],
+    new_type: NewStringType,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewFromOneByte(
+          sd.get_isolate_ptr(),
+          buffer.as_ptr(),
+          new_type,
+          buffer.len() as int,
         )
       })
     }

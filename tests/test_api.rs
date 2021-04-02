@@ -177,6 +177,15 @@ fn test_string() {
     assert_eq!(0, local.utf8_length(scope));
     assert_eq!("", local.to_rust_string_lossy(scope));
   }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let local =
+      v8::String::new_from_one_byte(scope, b"foo", v8::NewStringType::Normal)
+        .unwrap();
+    assert_eq!(3, local.length());
+    assert_eq!(3, local.utf8_length(scope));
+    assert_eq!("foo", local.to_rust_string_lossy(scope));
+  }
 }
 
 #[test]
