@@ -954,18 +954,17 @@ fn set_host_initialize_import_meta_object_callback() {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
-    let source = mock_source(scope, "google.com", "import.meta;");
+    let source = mock_source(
+      scope,
+      "google.com",
+      "if (import.meta.foo != 'bar') throw 'bad'",
+    );
     let module = v8::script_compiler::compile_module(scope, source).unwrap();
     let result =
       module.instantiate_module(scope, unexpected_module_resolve_callback);
     assert!(result.is_some());
-    let meta = module.evaluate(scope).unwrap();
-    assert!(meta.is_object());
-    let meta = meta.to_object(scope).unwrap();
-    let key = v8::String::new(scope, "foo").unwrap();
-    let expected = v8::String::new(scope, "bar").unwrap();
-    let actual = meta.get(scope, key.into()).unwrap();
-    assert!(expected.strict_equals(actual));
+    module.evaluate(scope).unwrap();
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
   }
 }
