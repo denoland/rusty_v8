@@ -306,6 +306,10 @@ fn download_static_lib_binaries() {
 fn print_link_flags() {
   println!("cargo:rustc-link-lib=static=rusty_v8");
 
+  if cfg!(target_os = "linux") {
+    println!("cargo:rustc-link-lib=dylib=atomic");
+  }
+
   if cfg!(target_os = "windows") {
     println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
