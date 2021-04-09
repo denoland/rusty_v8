@@ -173,16 +173,12 @@ impl String {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
-  // Creates a v8::String from a `&'static str`,
+  // Creates a v8::String from a `&'static [u8]`,
   // must be Latin-1 or ASCII, not UTF-8 !
   pub fn new_external_onebyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
-    value: &'static str,
+    buffer: &'static [u8],
   ) -> Option<Local<'s, String>> {
-    let buffer: &[u8] = value.as_ref();
-    if buffer.is_empty() {
-      return None;
-    }
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
