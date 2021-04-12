@@ -71,15 +71,15 @@ exclude = [
 
 [dependencies]
 lazy_static = "1.4.0"
-libc = "0.2.80"
+libc = "0.2.93"
 bitflags = "1.2.1"
 
 [build-dependencies]
-which = "4.0.2"
-fslock = "0.1"
+which = "4.1.0"
+fslock = "0.1.6"
 
 [dev-dependencies]
-trybuild = "1.0.35"
+trybuild = "1.0.42"
 align-data = "0.1.0"
 
 [[example]]
