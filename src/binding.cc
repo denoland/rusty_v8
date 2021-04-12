@@ -1934,8 +1934,13 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
 }
 
 v8::Platform* v8__platform__NewDefaultPlatform() {
-  // TODO: support optional arguments.
+  // TODO(bnoordhuis) Support optional arguments.
   return v8::platform::NewDefaultPlatform().release();
+}
+
+v8::Platform* v8__platform__NewSingleThreadedDefaultPlatform() {
+  // TODO(bnoordhuis) Support optional arguments.
+  return v8::platform::NewSingleThreadedDefaultPlatform().release();
 }
 
 void v8__Platform__DELETE(v8::Platform* self) { delete self; }
