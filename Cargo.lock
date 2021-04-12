@@ -72,7 +72,7 @@ dependencies = [
 
 [[package]]
 name = "rusty_v8"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "align-data",
  "bitflags",
