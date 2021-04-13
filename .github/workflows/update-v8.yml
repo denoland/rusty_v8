@@ -1,0 +1,21 @@
+name: Update V8
+
+on:
+  schedule:
+    - cron:  '0 10 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 10
+          submodules: recursive
+      - uses: denoland/setup-deno@main
+        with:
+          deno-version: v1.x
+      - run: deno run -A ./tools/auto_update_v8.ts
+          
