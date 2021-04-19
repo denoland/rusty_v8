@@ -52,7 +52,7 @@ static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
               "TryCatch size mismatch");
 
-static_assert(sizeof(v8::Location) == sizeof(size_t) * 1,
+static_assert(sizeof(v8::Location) == sizeof(int) * 2,
               "Location size mismatch");
 
 static_assert(sizeof(v8::SnapshotCreator) == sizeof(size_t) * 1,
