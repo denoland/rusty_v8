@@ -50,6 +50,12 @@ extern "C" {
     this: *const FunctionTemplate,
     name: *const String,
   );
+  fn v8__FunctionTemplate__PrototypeTemplate(
+    this: *const FunctionTemplate,
+  ) -> *const ObjectTemplate;
+  fn v8__FunctionTemplate__InstanceTemplate(
+    this: *const FunctionTemplate,
+  ) -> *const ObjectTemplate;
 
   fn v8__ObjectTemplate__New(
     isolate: *mut Isolate,
@@ -149,6 +155,29 @@ impl FunctionTemplate {
   /// FunctionTemplate as its constructor.
   pub fn set_class_name(&self, name: Local<String>) {
     unsafe { v8__FunctionTemplate__SetClassName(self, &*name) };
+  }
+
+  /// A PrototypeTemplate is the template used to create the prototype object
+  /// of the function created by this template.
+  pub fn prototype_template<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, ObjectTemplate> {
+    unsafe {
+      scope.cast_local(|_| v8__FunctionTemplate__PrototypeTemplate(self))
+    }
+    .unwrap()
+  }
+
+  /// Get the InstanceTemplate.
+  pub fn instance_template<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, ObjectTemplate> {
+    unsafe {
+      scope.cast_local(|_| v8__FunctionTemplate__InstanceTemplate(self))
+    }
+    .unwrap()
   }
 }
 

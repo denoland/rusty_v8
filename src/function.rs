@@ -46,6 +46,9 @@ extern "C" {
   fn v8__FunctionCallbackInfo__This(
     this: *const FunctionCallbackInfo,
   ) -> *const Object;
+  fn v8__FunctionCallbackInfo__Holder(
+    this: *const FunctionCallbackInfo,
+  ) -> *const Object;
   fn v8__FunctionCallbackInfo__Length(this: *const FunctionCallbackInfo)
     -> int;
   fn v8__FunctionCallbackInfo__GetArgument(
@@ -60,6 +63,9 @@ extern "C" {
     this: *const PropertyCallbackInfo,
   ) -> *mut Value;
   fn v8__PropertyCallbackInfo__This(
+    this: *const PropertyCallbackInfo,
+  ) -> *const Object;
+  fn v8__PropertyCallbackInfo__Holder(
     this: *const PropertyCallbackInfo,
   ) -> *const Object;
 
@@ -182,6 +188,20 @@ impl<'s> FunctionCallbackArguments<'s> {
     }
   }
 
+  /// If the callback was created without a Signature, this is the same
+  /// value as This(). If there is a signature, and the signature didn't match
+  /// This() but one of its hidden prototypes, this will be the respective
+  /// hidden prototype.
+  ///
+  /// Note that this is not the prototype of This() on which the accessor
+  /// referencing this callback was found (which in V8 internally is often
+  /// referred to as holder [sic]).
+  pub fn holder(&self) -> Local<'s, Object> {
+    unsafe {
+      Local::from_raw(v8__FunctionCallbackInfo__Holder(self.info)).unwrap()
+    }
+  }
+
   /// Returns the data argument specified when creating the callback.
   pub fn data(&self) -> Option<Local<'s, Value>> {
     unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
@@ -262,6 +282,19 @@ impl<'s> PropertyCallbackArguments<'s> {
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
+    }
+  }
+
+  /// Returns the object in the prototype chain of the receiver that has the
+  /// interceptor. Suppose you have `x` and its prototype is `y`, and `y`
+  /// has an interceptor. Then `info.This()` is `x` and `info.Holder()` is `y`.
+  /// The Holder() could be a hidden object (the global object, rather
+  /// than the global proxy).
+  ///  
+  /// For security reasons, do not pass the object back into the runtime.
+  pub fn holder(&self) -> Local<'s, Object> {
+    unsafe {
+      Local::from_raw(v8__PropertyCallbackInfo__Holder(self.info)).unwrap()
     }
   }
 }

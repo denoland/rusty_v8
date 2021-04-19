@@ -655,6 +655,11 @@ const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
   return local_to_ptr(self.ToBoolean(isolate));
 }
 
+const v8::External* v8__Value__ToExternal(v8::Value& self,
+                                          v8::Isolate* isolate) {
+  return v8::External::Cast(&self);
+}
+
 void v8__Value__NumberValue(const v8::Value& self, const v8::Context& context,
                             v8::Maybe<double>* out) {
   *out = self.NumberValue(ptr_to_local(&context));
@@ -1507,6 +1512,15 @@ void v8__FunctionTemplate__SetClassName(const v8::FunctionTemplate& self,
   ptr_to_local(&self)->SetClassName(ptr_to_local(&name));
 }
 
+const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
+      const v8::FunctionTemplate& self) {
+  return local_to_ptr(ptr_to_local(&self)->PrototypeTemplate());
+}
+
+const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(const v8::FunctionTemplate& self) {
+  return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
+}
+
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
@@ -1520,6 +1534,11 @@ v8::Value* v8__FunctionCallbackInfo__GetReturnValue(
 const v8::Object* v8__FunctionCallbackInfo__This(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.This());
+}
+
+const v8::Object* v8__FunctionCallbackInfo__Holder(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Holder());
 }
 
 int v8__FunctionCallbackInfo__Length(
@@ -1857,6 +1876,11 @@ v8::Value* v8__PropertyCallbackInfo__GetReturnValue(
 const v8::Object* v8__PropertyCallbackInfo__This(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.This());
+}
+
+const v8::Object* v8__PropertyCallbackInfo__Holder(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Holder());
 }
 
 const v8::Proxy* v8__Proxy__New(const v8::Context& context,
