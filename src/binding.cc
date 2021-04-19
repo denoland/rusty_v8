@@ -1484,6 +1484,11 @@ const v8::Object* v8__Function__NewInstance(const v8::Function& self,
       ptr_to_local(&context), argc, const_ptr_array_to_local_array(argv)));
 }
 
+const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
+                                        const v8::FunctionTemplate& templ) {
+  return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(&templ)));
+}
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,

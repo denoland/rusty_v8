@@ -1278,6 +1278,43 @@ fn object_template_from_function_template() {
 }
 
 #[test]
+fn function_template_signature() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let templ0 = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let signature = v8::Signature::new(scope, templ0);
+    let templ1 = v8::FunctionTemplate::builder(fortytwo_callback)
+      .signature(signature)
+      .build(scope);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let scope = &mut v8::TryCatch::new(scope);
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "C").unwrap();
+    let value = templ0.get_function(scope).unwrap();
+    global.set(scope, name.into(), value.into()).unwrap();
+
+    let name = v8::String::new(scope, "f").unwrap();
+    let value = templ1.get_function(scope).unwrap();
+    global.set(scope, name.into(), value.into()).unwrap();
+
+    assert!(eval(scope, "f.call(new C)").is_some());
+    assert!(eval(scope, "f.call(new Object)").is_none());
+    assert!(scope.has_caught());
+    assert!(scope
+      .exception()
+      .unwrap()
+      .to_rust_string_lossy(scope)
+      .contains("Illegal invocation"));
+  }
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
