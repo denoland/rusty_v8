@@ -1485,8 +1485,8 @@ const v8::Object* v8__Function__NewInstance(const v8::Function& self,
 }
 
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
-                                        const v8::FunctionTemplate& templ) {
-  return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(&templ)));
+                                        const v8::FunctionTemplate* templ) {
+  return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
