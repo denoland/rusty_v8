@@ -31,7 +31,10 @@ extern "C" {
     value: *const Data,
     attr: PropertyAttribute,
   );
-
+  fn v8__Signature__New(
+    isolate: *mut Isolate,
+    templ: *const FunctionTemplate,
+  ) -> *const Signature;
   fn v8__FunctionTemplate__New(
     isolate: *mut Isolate,
     callback: FunctionCallback,
@@ -110,6 +113,24 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           null(),
         )
       })
+    }
+    .unwrap()
+  }
+}
+
+/// A Signature specifies which receiver is valid for a function.
+///
+/// A receiver matches a given signature if the receiver (or any of its
+/// hidden prototypes) was created from the signature's FunctionTemplate, or
+/// from a FunctionTemplate that inherits directly or indirectly from the
+/// signature's FunctionTemplate.
+impl Signature {
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    templ: Local<FunctionTemplate>,
+  ) -> Local<'s, Self> {
+    unsafe {
+      scope.cast_local(|sd| v8__Signature__New(sd.get_isolate_ptr(), &*templ))
     }
     .unwrap()
   }
