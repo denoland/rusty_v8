@@ -80,6 +80,13 @@ if (status.code == 1) {
     AUTOROLL_BRANCH,
   ]);
 } else {
-  console.log("Already open PR. Not creating a new PR.");
-  // TODO(lucacasonato): update the title of the open PR here
+  console.log("Already open PR. Editing existing PR.");
+  await run([
+    "gh",
+    "pr",
+    "edit",
+    AUTOROLL_BRANCH,
+    "--title",
+    `Rolling to V8 ${newVersion}`,
+  ]);
 }
