@@ -5020,6 +5020,40 @@ fn code_cache_script() {
 }
 
 #[test]
+fn compile_function_in_context() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let x = v8::Integer::new(scope, 42);
+  let y = v8::Integer::new(scope, 1337);
+
+  let argument = v8::String::new(scope, "x").unwrap();
+  let extension = v8::Object::new(scope);
+  let name = v8::String::new(scope, "y").unwrap();
+  extension.set(scope, name.into(), y.into()).unwrap();
+
+  let source = v8::String::new(scope, "return x * y").unwrap();
+  let source = v8::script_compiler::Source::new(source, None);
+  let function = v8::script_compiler::compile_function_in_context(
+    scope,
+    source,
+    &[argument],
+    &[extension],
+    v8::script_compiler::CompileOptions::NoCompileOptions,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
+
+  let undefined = v8::undefined(scope).into();
+  let result = function.call(scope, undefined, &[x.into()]).unwrap();
+  assert!(result.is_int32());
+  assert_eq!(42 * 1337, result.int32_value(scope).unwrap());
+}
+
+#[test]
 fn external_strings() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

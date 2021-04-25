@@ -402,6 +402,22 @@ const v8::Script* v8__ScriptCompiler__Compile(
   return maybe_local_to_ptr(maybe_local);
 }
 
+const v8::Function* v8__ScriptCompiler__CompileFunctionInContext(
+    const v8::Context* context, v8::ScriptCompiler::Source* source,
+    size_t arguments_count, const v8::String** arguments,
+    size_t context_extensions_count, const v8::Object** context_extensions,
+    v8::ScriptCompiler::CompileOptions options,
+    v8::ScriptCompiler::NoCacheReason no_cache_reason) {
+  return maybe_local_to_ptr(
+      v8::ScriptCompiler::CompileFunctionInContext(
+        ptr_to_local(context), source,
+        arguments_count,
+        reinterpret_cast<v8::Local<v8::String>*>(arguments),
+        context_extensions_count,
+        reinterpret_cast<v8::Local<v8::Object>*>(context_extensions),
+        options, no_cache_reason, nullptr));
+}
+
 const v8::UnboundScript* v8__ScriptCompiler__CompileUnboundScript(
     v8::Isolate* isolate, v8::ScriptCompiler::Source* source,
     v8::ScriptCompiler::CompileOptions options,
