@@ -23,5 +23,5 @@ jobs:
           git remote set-url origin https://${{ secrets.DENOBOT_PAT }}@github.com/denoland/rusty_v8.git
       - run: deno run -A ./tools/auto_update_v8.ts
         env:
-          GITHUB_TOKEN: ${{ secrets.DENOBOT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
