@@ -84,7 +84,7 @@ if (isPrOpen) {
     "gh",
     "pr",
     "edit",
-    AUTOROLL_BRANCH,
+    `denoland:${AUTOROLL_BRANCH}`,
     "--title",
     `Rolling to V8 ${newVersion}`,
   ]);
@@ -94,8 +94,9 @@ if (isPrOpen) {
     "gh",
     "pr",
     "create",
-    "--fill",
+    "--title",
+    `Rolling to V8 ${newVersion}`,
     "--head",
-    AUTOROLL_BRANCH,
+    `denoland:${AUTOROLL_BRANCH}`,
   ]);
 }
