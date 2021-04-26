@@ -28,7 +28,7 @@ const currentVersion = extractVersion();
 console.log(`Starting auto update. Currently on ${currentVersion}`);
 
 async function run(cmd: string[], cwd?: string) {
-  console.log("$", cmd);
+  console.log("$", ...cmd);
   const proc = Deno.run({ cmd, cwd });
   const status = await proc.status();
   if (!status.success) {
