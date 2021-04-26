@@ -63,7 +63,7 @@ await run(["git", "add", "v8", "README.md"]);
 await run(["git", "commit", "-m", `Rolling to V8 ${newVersion}`]);
 
 // Push to the `denoland/rusty_v8#autoroll`
-await run(["git", "push", "--force", "origin", `HEAD:${AUTOROLL_BRANCH}`]);
+await run(["git", "push", "origin", `+HEAD:${AUTOROLL_BRANCH}`]);
 
 const proc = Deno.run({
   cmd: ["gh", "pr", "view", AUTOROLL_BRANCH],
