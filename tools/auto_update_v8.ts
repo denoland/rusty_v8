@@ -36,7 +36,7 @@ async function run(cmd: string[], cwd?: string) {
 }
 
 // Update v8 submodule
-await run(["git", "fetch", `origin`], "./v8");
+await run(["git", "fetch", `origin`, V8_TRACKING_BRANCH], "./v8");
 await run(["git", "checkout", `origin/${V8_TRACKING_BRANCH}`], "./v8");
 
 const newVersion = extractVersion();
