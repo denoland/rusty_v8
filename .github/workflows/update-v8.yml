@@ -22,4 +22,6 @@ jobs:
           echo "GIT_USER=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
           git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/denoland/rusty_v8.git
       - run: deno run -A ./tools/auto_update_v8.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
