@@ -96,6 +96,8 @@ if (isPrOpen) {
     "create",
     "--title",
     `Rolling to V8 ${newVersion}`,
+    "--body",
+    "",
     "--head",
     `denoland:${AUTOROLL_BRANCH}`,
   ]);
