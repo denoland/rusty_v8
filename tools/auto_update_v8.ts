@@ -21,9 +21,7 @@ function extractVersion() {
   return `${major}.${minor}.${build}.${patch}`;
 }
 
-await run(["git", "branch", "-f", AUTOROLL_BRANCH, "origin/main"]);
-await run(["git", "checkout", AUTOROLL_BRANCH]);
-await run(["git", "reset", "origin/main", "--hard"]);
+await run(["git", "checkout", "origin/main"]);
 
 const currentVersion = extractVersion();
 console.log(`Starting auto update. Currently on ${currentVersion}`);
