@@ -14,8 +14,11 @@ jobs:
       - uses: denoland/setup-deno@main
         with:
           deno-version: v1.x
-      - run: |
+      - name: Setup Git user
+        run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          git config --local user.password ${{ secrets.GITHUB_TOKEN }}
+          echo "GIT_USER=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
       - run: deno run -A ./tools/auto_update_v8.ts
           
