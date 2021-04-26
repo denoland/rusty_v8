@@ -67,20 +67,14 @@ await run(["git", "commit", "-m", `Rolling to V8 ${newVersion}`]);
 await run(["git", "push", "origin", `+HEAD:refs/heads/${AUTOROLL_BRANCH}`]);
 
 const proc = Deno.run({
-  cmd: ["gh", "pr", "view", AUTOROLL_BRANCH],
+  cmd: ["gh", "pr", "view", AUTOROLL_BRANCH, "--json", "state"],
 });
 const status = await proc.status();
-if (status.code == 1) {
-  console.log("No PR open. Creating a new PR.");
-  await run([
-    "gh",
-    "pr",
-    "create",
-    "--fill",
-    "--head",
-    AUTOROLL_BRANCH,
-  ]);
-} else {
+const isPrOpen = status.success
+  ? JSON.parse(new TextDecoder().decode(await proc.output())).state === "OPEN"
+  : false;
+
+if (isPrOpen) {
   console.log("Already open PR. Editing existing PR.");
   await run([
     "gh",
@@ -89,5 +83,15 @@ if (status.code == 1) {
     AUTOROLL_BRANCH,
     "--title",
     `Rolling to V8 ${newVersion}`,
+  ]);
+} else {
+  console.log("No PR open. Creating a new PR.");
+  await run([
+    "gh",
+    "pr",
+    "create",
+    "--fill",
+    "--head",
+    AUTOROLL_BRANCH,
   ]);
 }
