@@ -11,9 +11,6 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v1
-        with:
-          fetch-depth: 10
-          submodules: recursive
       - uses: denoland/setup-deno@main
         with:
           deno-version: v1.x
