@@ -68,6 +68,7 @@ await run(["git", "push", "origin", `+HEAD:refs/heads/${AUTOROLL_BRANCH}`]);
 
 const proc = Deno.run({
   cmd: ["gh", "pr", "view", AUTOROLL_BRANCH, "--json", "state"],
+  stdout: "piped",
 });
 const status = await proc.status();
 const isPrOpen = status.success
