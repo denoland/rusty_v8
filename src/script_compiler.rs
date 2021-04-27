@@ -1,8 +1,10 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use std::{marker::PhantomData, mem::MaybeUninit};
 
+use crate::Function;
 use crate::Local;
 use crate::Module;
+use crate::Object;
 use crate::ScriptOrigin;
 use crate::String;
 use crate::{Context, Isolate, Script, UnboundScript};
@@ -36,6 +38,16 @@ extern "C" {
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
   ) -> *const Script;
+  fn v8__ScriptCompiler__CompileFunctionInContext(
+    context: *const Context,
+    source: *mut Source,
+    arguments_count: usize,
+    arguments: *const *const String,
+    context_extensions_count: usize,
+    context_extensions: *const *const Object,
+    options: CompileOptions,
+    no_cache_reason: NoCacheReason,
+  ) -> *const Function;
   fn v8__ScriptCompiler__CompileUnboundScript(
     isolate: *mut Isolate,
     source: *mut Source,
@@ -217,6 +229,32 @@ pub fn compile<'s>(
       v8__ScriptCompiler__Compile(
         &*sd.get_current_context(),
         &mut source,
+        options,
+        no_cache_reason,
+      )
+    })
+  }
+}
+
+pub fn compile_function_in_context<'s>(
+  scope: &mut HandleScope<'s>,
+  mut source: Source,
+  arguments: &[Local<String>],
+  context_extensions: &[Local<Object>],
+  options: CompileOptions,
+  no_cache_reason: NoCacheReason,
+) -> Option<Local<'s, Function>> {
+  let arguments = Local::slice_into_raw(arguments);
+  let context_extensions = Local::slice_into_raw(context_extensions);
+  unsafe {
+    scope.cast_local(|sd| {
+      v8__ScriptCompiler__CompileFunctionInContext(
+        &*sd.get_current_context(),
+        &mut source,
+        arguments.len(),
+        arguments.as_ptr(),
+        context_extensions.len(),
+        context_extensions.as_ptr(),
         options,
         no_cache_reason,
       )
