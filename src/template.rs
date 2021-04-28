@@ -6,6 +6,8 @@ use crate::data::Template;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
+use crate::AccessorNameGetterCallback;
+use crate::AccessorNameSetterCallback;
 use crate::CFunction;
 use crate::ConstructorBehavior;
 use crate::Context;
@@ -67,6 +69,17 @@ extern "C" {
   fn v8__ObjectTemplate__SetInternalFieldCount(
     this: *const ObjectTemplate,
     value: int,
+  );
+  fn v8__ObjectTemplate__SetAccessor(
+    this: *const ObjectTemplate,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+  );
+  fn v8__ObjectTemplate__SetAccessorWithSetter(
+    this: *const ObjectTemplate,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+    setter: AccessorNameSetterCallback,
   );
 }
 
@@ -226,6 +239,30 @@ impl ObjectTemplate {
         unsafe { v8__ObjectTemplate__SetInternalFieldCount(self, value) };
         true
       }
+    }
+  }
+
+  pub fn set_accessor(
+    &self,
+    key: Local<Name>,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+  ) {
+    unsafe { v8__ObjectTemplate__SetAccessor(self, &*key, getter.map_fn_to()) }
+  }
+
+  pub fn set_accessor_with_setter(
+    &self,
+    key: Local<Name>,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
+  ) {
+    unsafe {
+      v8__ObjectTemplate__SetAccessorWithSetter(
+        self,
+        &*key,
+        getter.map_fn_to(),
+        setter.map_fn_to(),
+      )
     }
   }
 }

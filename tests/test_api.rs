@@ -1315,6 +1315,81 @@ fn function_template_signature() {
 }
 
 #[test]
+fn object_template_set_accessor() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      rv.set(this.get_internal_field(scope, 0).unwrap());
+    };
+
+    let setter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  value: v8::Local<v8::Value>,
+                  args: v8::PropertyCallbackArguments| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      assert!(value.is_int32());
+      assert!(this.set_internal_field(0, value));
+    };
+
+    let key = v8::String::new(scope, "key").unwrap();
+    let name = v8::String::new(scope, "obj").unwrap();
+
+    // Lone getter
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_accessor(key.into(), getter);
+
+    let obj = templ.new_instance(scope).unwrap();
+    let int = v8::Integer::new(scope, 42);
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    assert!(eval(scope, "obj.key").unwrap().strict_equals(int.into()));
+
+    // Getter + setter
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_accessor_with_setter(key.into(), getter, setter);
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let new_int = v8::Integer::new(scope, 9);
+    eval(scope, "obj.key = 9");
+    assert!(obj
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .strict_equals(new_int.into()));
+    // Falls back on standard setter
+    assert!(eval(scope, "obj.key2 = null; obj.key2").unwrap().is_null());
+  }
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4352,7 +4427,7 @@ fn value_serializer_and_deserializer_js_objects() {
           } else {
             equal = equal && (item == objects[index]);
           }
-        }); 
+        });
         equal.toString()
       }
       "#,
