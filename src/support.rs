@@ -408,7 +408,7 @@ impl<T: ?Sized + 'static> Allocation<T> {
     value: Abstract,
     wrap: fn(Concrete) -> Self,
   ) -> Result<Self, Abstract> {
-    if Any::is::<Concrete>(&value) {
+    if <dyn Any>::is::<Concrete>(&value) {
       Ok(unsafe { Self::transmute_wrap(value, wrap) })
     } else {
       Err(value)
