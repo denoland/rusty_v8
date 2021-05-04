@@ -84,7 +84,7 @@ if (isPrOpen) {
     "gh",
     "pr",
     "edit",
-    `denoland:${AUTOROLL_BRANCH}`,
+    AUTOROLL_BRANCH,
     "--title",
     `Rolling to V8 ${newVersion}`,
   ]);
