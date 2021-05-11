@@ -971,6 +971,19 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
+void v8__ObjectTemplate__SetAccessor(const v8::ObjectTemplate& self,
+                                  const v8::Name& key,
+                                  v8::AccessorNameGetterCallback getter) {
+  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter);
+}
+
+void v8__ObjectTemplate__SetAccessorWithSetter(
+    const v8::ObjectTemplate& self, const v8::Name& key,
+    v8::AccessorNameGetterCallback getter,
+    v8::AccessorNameSetterCallback setter) {
+  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }

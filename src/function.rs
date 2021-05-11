@@ -213,7 +213,9 @@ pub struct PropertyCallbackArguments<'s> {
 }
 
 impl<'s> PropertyCallbackArguments<'s> {
-  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+  pub(crate) fn from_property_callback_info(
+    info: *const PropertyCallbackInfo,
+  ) -> Self {
     Self {
       info,
       phantom: PhantomData,
