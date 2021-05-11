@@ -18,7 +18,11 @@ static_library("rusty_v8") {
 }
 
 config("rusty_v8_config") {
-  configs = [ "//v8:external_config", "//v8:toolchain", "//v8:features" ]
+  configs = [
+    "//v8:external_config",
+    "//v8:toolchain",
+    "//v8:features",
+  ]
   cflags = []
 
   # We need these directories in the search path to be able to include some
@@ -41,11 +45,5 @@ config("rusty_v8_config") {
 
   if (is_debug && is_clang && !is_win) {
     cflags += [ "-glldb" ]
-  }
-
-  if (is_win) {
-    # The `/Zl` ("omit default library name") flag makes the compiler produce
-    # object files that can link with both the static and dynamic CRT.
-    cflags += [ "/Zl" ]
   }
 }
