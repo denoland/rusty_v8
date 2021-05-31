@@ -155,18 +155,20 @@ fn maybe_install_sysroot(arch: &str) {
 }
 
 fn platform() -> &'static str {
+  let target_os;
   #[cfg(target_os = "windows")]
   {
-    "win"
+    target_os = "win"
   }
   #[cfg(target_os = "linux")]
   {
-    "linux64"
+    target_os = "linux64"
   }
   #[cfg(target_os = "macos")]
   {
-    "mac"
+    target_os = "mac"
   }
+  return target_os;
 }
 
 fn download_ninja_gn_binaries() {
