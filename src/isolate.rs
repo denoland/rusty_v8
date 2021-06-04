@@ -857,6 +857,41 @@ impl IsolateHandle {
   }
 }
 
+#[repr(C)]
+/// v8::Locker is a scoped lock object. While it's active, i.e. between its
+/// construction and destruction, the current thread is allowed to use the locked
+/// isolate. V8 guarantees that an isolate can be locked by at most one thread at
+/// any time. In other words, the scope of a v8::Locker is a critical section.
+pub struct Locker {
+  has_lock: bool,
+  top_level: bool,
+  isolate: *mut Isolate,
+}
+
+extern "C" {
+  fn v8__Locker__CONSTRUCT(buf: *mut Locker, isolate: *mut Isolate);
+  fn v8__Locker__DESTRUCT(this: &mut Locker);
+}
+
+impl Drop for Locker {
+  fn drop(&mut self) {
+    unsafe { v8__Locker__DESTRUCT(self) }
+  }
+}
+
+pub struct LockedIsolate {
+  locker: Locker,
+}
+
+impl LockedIsolate {
+  pub fn unlock(&self) -> OwnedIsolate {
+    let cxx_isolate = NonNull::new(self.locker.isolate).unwrap();
+    OwnedIsolate { cxx_isolate }
+  }
+}
+
+unsafe impl Send for LockedIsolate {}
+
 /// Same as Isolate but gets disposed when it goes out of scope.
 #[derive(Debug)]
 pub struct OwnedIsolate {
@@ -867,6 +902,14 @@ impl OwnedIsolate {
   pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
     Self { cxx_isolate }
+  }
+  pub fn lock(&mut self) -> LockedIsolate {
+    let locker = Locker {
+      has_lock: true,
+      top_level: true,
+      isolate: unsafe { self.cxx_isolate.as_mut() },
+    };
+    LockedIsolate { locker }
   }
 }
 
