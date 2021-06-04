@@ -904,11 +904,13 @@ impl OwnedIsolate {
     Self { cxx_isolate }
   }
   pub fn lock(&mut self) -> LockedIsolate {
-    let locker = Locker {
+    let iso = unsafe { self.cxx_isolate.as_mut() };
+    let mut locker = Locker {
       has_lock: true,
       top_level: true,
-      isolate: unsafe { self.cxx_isolate.as_mut() },
+      isolate: iso,
     };
+    unsafe { v8__Locker__CONSTRUCT(&mut locker, iso) }
     LockedIsolate { locker }
   }
 }
