@@ -452,7 +452,6 @@ impl Isolate {
   /// rusty_v8 note: Unlike in the C++ API, the isolate is entered when it is
   /// constructed and exited when dropped.
   pub unsafe fn enter(&mut self) {
-    println!("enter++");
     v8__Isolate__Enter(self)
   }
 
@@ -465,7 +464,6 @@ impl Isolate {
   /// rusty_v8 note: Unlike in the C++ API, the isolate is entered when it is
   /// constructed and exited when dropped.
   pub unsafe fn exit(&mut self) {
-    println!("exit--");
     v8__Isolate__Exit(self)
   }
 
