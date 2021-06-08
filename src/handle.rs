@@ -125,6 +125,11 @@ pub struct Global<T> {
   isolate_handle: IsolateHandle,
 }
 
+
+// This is probably not safe because NonNull is explicitly !Send
+unsafe impl<T> Send for Global<T> where T: Send + Sync {}
+unsafe impl<T> Sync for Global<T> where T: Send + Sync {}
+
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
   pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {

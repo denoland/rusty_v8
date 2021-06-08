@@ -340,6 +340,14 @@ void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* buf, v8::Isolate* isolate) {
 }
 
 void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }
+bool v8__Locker__Is_Active(v8::Locker* self) { return self->IsActive(); }
+bool v8__Locker__Is_Locked(v8::Locker* self, v8::Isolate* isolate) { return self->IsLocked(isolate); }
+
+
+void v8__Unlocker__CONSTRUCT(uninit_t<v8::Unlocker>* buf, v8::Isolate* isolate) {
+  construct_in_place<v8::Unlocker>(buf, isolate);
+}
+void v8__Unlocker__DESTRUCT(v8::Unlocker* self) { self->~Unlocker(); }
 
 const v8::Data* v8__Local__New(v8::Isolate* isolate, const v8::Data& other) {
   return local_to_ptr(v8::Local<v8::Data>::New(isolate, ptr_to_local(&other)));

@@ -8,6 +8,7 @@ use std::ffi::c_void;
 use std::hash::Hash;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
 
 use rusty_v8 as v8;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
@@ -5166,26 +5167,44 @@ fn external_strings() {
   assert!(!gradients.is_onebyte());
 }
 
-/*
 #[test]
 fn locker_api() {
   let _setup_guard = setup();
-  let isolate = &mut v8::Isolate::new(Default::default());
+  let mut iso = v8::Isolate::new(Default::default());
+  let g1: v8::Global<v8::String>;
+  let mut g2: Option<v8::Global<v8::Integer>> = None;
+  let g3: v8::Global<v8::Integer>;
+  let g4: v8::Global<v8::Integer>;
+  let mut g5: Option<v8::Global<v8::Integer>> = None;
+  let g6;
   {
+    let isolate = &mut iso;
     let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-    let source = r#"
-      (new Date(Date.UTC(2020, 5, 26, 7, 0, 0))).toLocaleString("de-DE", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    "#;
-    let value = eval(scope, source).unwrap();
-    let date_de_val = v8::String::new(scope, "Freitag, 26. Juni 2020").unwrap();
-    assert!(value.is_string());
-    assert!(value.strict_equals(date_de_val.into()));
+    let l1 = v8::String::new(scope, "bla").unwrap();
+    let l2 = v8::Integer::new(scope, 123);
+    g1 = v8::Global::new(scope, l1);
+    g2.replace(v8::Global::new(scope, l2));
+    g3 = v8::Global::new(scope, g2.as_ref().unwrap());
+    g4 = v8::Global::new(scope, l2);
+    let l5 = v8::Integer::new(scope, 100);
+    g5.replace(v8::Global::new(scope, l5));
+    g6 = g1.clone();
   }
-}*/
+  let unlocked = v8::unlock(iso);
+  let handler = thread::spawn(move || {
+    let mut isolate = v8::lock(unlocked);
+    let scope = &mut v8::HandleScope::new(&mut isolate);
+    assert_eq!(g1.get(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g2.as_ref().unwrap().get(scope).value(), 123);
+    assert_eq!(g3.get(scope).value(), 123);
+    assert_eq!(g4.get(scope).value(), 123);
+    {
+      let num = g5.as_ref().unwrap().get(scope);
+      assert_eq!(num.value(), 100);
+    }
+    g5.take();
+    assert!(g6 == g1);
+    assert_eq!(g6.get(scope).to_rust_string_lossy(scope), "bla");
+  });
+  handler.join().unwrap();
+}
