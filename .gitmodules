@@ -1,6 +1,6 @@
 [submodule "v8"]
 	path = v8
-	url = https://chromium.googlesource.com/v8/v8
+	url = https://github.com/denoland/v8.git
 [submodule "build"]
 	path = build
 	url = https://github.com/denoland/chromium_build.git
