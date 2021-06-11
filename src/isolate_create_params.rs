@@ -174,10 +174,6 @@ fn create_param_defaults() {
 
 pub(crate) mod raw {
   use super::*;
-  use crate::support::long;
-  use crate::support::Shared;
-  use crate::support::SharedPtrBase;
-  use crate::support::UniquePtr;
 
   #[repr(C)]
   #[derive(Debug)]
