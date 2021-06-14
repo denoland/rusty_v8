@@ -23,6 +23,8 @@ default_args = {
   use_dummy_lastchange = true
   treat_warnings_as_errors = true
 
+  v8_enable_shared_ro_heap = false
+
   # TODO(ry) remove
   v8_imminent_deprecation_warnings = false
 
