@@ -143,15 +143,10 @@ impl CreateParams {
     self
   }
 
-  fn set_fallback_defaults(mut self) -> Self {
+  pub(crate) fn finalize(mut self) -> (raw::CreateParams, Box<dyn Any>) {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
     }
-    self
-  }
-
-  pub(crate) fn finalize(mut self) -> (raw::CreateParams, Box<dyn Any>) {
-    self = self.set_fallback_defaults();
     let Self { raw, allocations } = self;
     (raw, Box::new(allocations))
   }
@@ -168,12 +163,17 @@ struct CreateParamAllocations {
   external_references: Option<Allocation<[intptr_t]>>,
 }
 
+#[test]
+fn create_param_defaults() {
+  let params = CreateParams::default();
+  assert_eq!(params.raw.embedder_wrapper_type_index, -1);
+  assert_eq!(params.raw.embedder_wrapper_object_index, -1);
+  assert_eq!(params.raw.only_terminate_in_safe_scope, false);
+  assert_eq!(params.raw.allow_atomics_wait, true);
+}
+
 pub(crate) mod raw {
   use super::*;
-  use crate::support::long;
-  use crate::support::Shared;
-  use crate::support::SharedPtrBase;
-  use crate::support::UniquePtr;
 
   #[repr(C)]
   #[derive(Debug)]
@@ -191,7 +191,6 @@ pub(crate) mod raw {
     pub only_terminate_in_safe_scope: bool,
     pub embedder_wrapper_type_index: int,
     pub embedder_wrapper_object_index: int,
-    pub cpp_heap_params: SharedPtr<CppHeapCreateParams>,
     // NOTE(bartlomieju): this field is deprecated in V8 API.
     // This is an std::vector<std::string>. It's usually no bigger
     // than three or four words but let's take a generous upper bound.
@@ -263,30 +262,6 @@ pub(crate) mod raw {
           maximum_heap_size_in_bytes,
         )
       };
-    }
-  }
-
-  #[repr(C)]
-  #[derive(Debug)]
-  pub(crate) struct CppHeapCreateParams(Opaque);
-
-  impl Shared for CppHeapCreateParams {
-    fn clone(_: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
-      todo!()
-    }
-
-    fn from_unique_ptr(_: UniquePtr<Self>) -> SharedPtrBase<Self> {
-      todo!()
-    }
-
-    fn get(_: &SharedPtrBase<Self>) -> *const Self {
-      todo!()
-    }
-
-    fn reset(_: &mut SharedPtrBase<Self>) {}
-
-    fn use_count(_: &SharedPtrBase<Self>) -> long {
-      0
     }
   }
 }
