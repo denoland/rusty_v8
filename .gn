@@ -23,6 +23,10 @@ default_args = {
   use_dummy_lastchange = true
   treat_warnings_as_errors = true
 
+  # To avoid test failure:
+  # Fatal error in ../../../v8/src/heap/read-only-spaces.cc, line 69
+  # Check failed: read_only_blob_checksum_ == snapshot_checksum (<unprintable>
+  # vs. 604745897).
   v8_enable_shared_ro_heap = false
 
   # TODO(ry) remove
