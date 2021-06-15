@@ -1,5 +1,5 @@
 extern "C" {
-  fn udata_setCommonData_68(this: *const u8, error_code: *mut i32);
+  fn udata_setCommonData_69(this: *const u8, error_code: *mut i32);
 }
 
 /// This function bypasses the normal ICU data loading process and allows you to force ICU's system
@@ -38,7 +38,7 @@ extern "C" {
 pub fn set_common_data(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
-    udata_setCommonData_68(data.as_ptr(), &mut error_code);
+    udata_setCommonData_69(data.as_ptr(), &mut error_code);
   }
   if error_code == 0 {
     Ok(())
