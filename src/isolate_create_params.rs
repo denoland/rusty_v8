@@ -168,8 +168,8 @@ fn create_param_defaults() {
   let params = CreateParams::default();
   assert_eq!(params.raw.embedder_wrapper_type_index, -1);
   assert_eq!(params.raw.embedder_wrapper_object_index, -1);
-  assert_eq!(params.raw.only_terminate_in_safe_scope, false);
-  assert_eq!(params.raw.allow_atomics_wait, true);
+  assert!(!params.raw.only_terminate_in_safe_scope);
+  assert!(params.raw.allow_atomics_wait);
 }
 
 pub(crate) mod raw {
