@@ -525,12 +525,14 @@ impl<F> FieldOffset<F> {
     Self(field_addr - embedder_addr, PhantomData)
   }
 
+  #[allow(clippy::wrong_self_convention)]
   pub unsafe fn to_embedder<E>(self, field: &F) -> &E {
     (((field as *const _ as usize) - self.0) as *const E)
       .as_ref()
       .unwrap()
   }
 
+  #[allow(clippy::wrong_self_convention)]
   pub unsafe fn to_embedder_mut<E>(self, field: &mut F) -> &mut E {
     (((field as *mut _ as usize) - self.0) as *mut E)
       .as_mut()

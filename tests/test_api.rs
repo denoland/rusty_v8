@@ -455,18 +455,18 @@ fn array_buffer() {
 
     let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
     assert_eq!(84, bs.byte_length());
-    assert_eq!(false, bs.is_shared());
+    assert!(!bs.is_shared());
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(10, unique_bs.byte_length());
-    assert_eq!(false, unique_bs.is_shared());
+    assert!(!unique_bs.is_shared());
     assert_eq!(unique_bs[0].get(), 0);
     assert_eq!(unique_bs[9].get(), 9);
 
     let shared_bs_1 = unique_bs.make_shared();
     assert_eq!(10, shared_bs_1.byte_length());
-    assert_eq!(false, shared_bs_1.is_shared());
+    assert!(!shared_bs_1.is_shared());
     assert_eq!(shared_bs_1[0].get(), 0);
     assert_eq!(shared_bs_1[9].get(), 9);
 
@@ -756,9 +756,9 @@ fn isolate_termination_methods() {
   let isolate = v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   drop(isolate);
-  assert_eq!(false, handle.terminate_execution());
-  assert_eq!(false, handle.cancel_terminate_execution());
-  assert_eq!(false, handle.is_execution_terminating());
+  assert!(!handle.terminate_execution());
+  assert!(!handle.cancel_terminate_execution());
+  assert!(!handle.is_execution_terminating());
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
   extern "C" fn callback(
     _isolate: &mut v8::Isolate,
@@ -767,10 +767,7 @@ fn isolate_termination_methods() {
     assert_eq!(data, std::ptr::null_mut());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
-  assert_eq!(
-    false,
-    handle.request_interrupt(callback, std::ptr::null_mut())
-  );
+  assert!(!handle.request_interrupt(callback, std::ptr::null_mut()));
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
@@ -787,9 +784,9 @@ fn thread_safe_handle_drop_after_isolate() {
   // All methods on IsolateHandle should return false after the isolate is
   // dropped.
   drop(isolate);
-  assert_eq!(false, handle.terminate_execution());
-  assert_eq!(false, handle.cancel_terminate_execution());
-  assert_eq!(false, handle.is_execution_terminating());
+  assert!(!handle.terminate_execution());
+  assert!(!handle.cancel_terminate_execution());
+  assert!(!handle.is_execution_terminating());
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
   extern "C" fn callback(
     _isolate: &mut v8::Isolate,
@@ -798,10 +795,7 @@ fn thread_safe_handle_drop_after_isolate() {
     assert_eq!(data, std::ptr::null_mut());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
-  assert_eq!(
-    false,
-    handle.request_interrupt(callback, std::ptr::null_mut())
-  );
+  assert!(!handle.request_interrupt(callback, std::ptr::null_mut()));
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
@@ -901,10 +895,10 @@ fn add_message_listener() {
     assert!(frame.get_script_name(scope).is_none());
     assert!(frame.get_script_name_or_source_url(scope).is_none());
     assert!(frame.get_function_name(scope).is_none());
-    assert_eq!(false, frame.is_eval());
-    assert_eq!(false, frame.is_constructor());
-    assert_eq!(false, frame.is_wasm());
-    assert_eq!(true, frame.is_user_javascript());
+    assert!(!frame.is_eval());
+    assert!(!frame.is_constructor());
+    assert!(!frame.is_wasm());
+    assert!(frame.is_user_javascript());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
   }
   isolate.add_message_listener(check_message_0);
@@ -1190,7 +1184,7 @@ fn no_internal_field() {
     assert_eq!(0, object.internal_field_count());
     for index in &[0, 1, 1337] {
       assert!(object.get_internal_field(scope, *index).is_none());
-      assert_eq!(false, object.set_internal_field(*index, value));
+      assert!(!object.set_internal_field(*index, value));
       assert!(object.get_internal_field(scope, *index).is_none());
     }
   }
@@ -1219,7 +1213,7 @@ fn object_template() {
     assert!(value.is_undefined());
 
     let fortytwo = v8::Integer::new(scope, 42).into();
-    assert_eq!(true, object.set_internal_field(0, fortytwo));
+    assert!(object.set_internal_field(0, fortytwo));
     let value = object.get_internal_field(scope, 0).unwrap();
     assert!(value.same_value(fortytwo));
 
@@ -2837,11 +2831,11 @@ fn shared_array_buffer() {
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(bs.byte_length(), 10);
-    assert_eq!(bs.is_shared(), true);
+    assert!(bs.is_shared());
 
     let shared_bs_2 = bs.make_shared();
     assert_eq!(shared_bs_2.byte_length(), 10);
-    assert_eq!(shared_bs_2.is_shared(), true);
+    assert!(shared_bs_2.is_shared());
 
     let ab = v8::SharedArrayBuffer::with_backing_store(scope, &shared_bs_2);
     let shared_bs_3 = ab.get_backing_store();
@@ -4319,13 +4313,13 @@ fn value_serializer_and_deserializer() {
     let mut value_deserializer =
       Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
     assert_eq!(value_deserializer.read_header(context), Some(true));
-    assert_eq!(value_deserializer.read_double(&mut double), true);
-    assert_eq!(value_deserializer.read_uint32(&mut int32), true);
+    assert!(value_deserializer.read_double(&mut double));
+    assert!(value_deserializer.read_uint32(&mut int32));
 
-    assert_eq!(value_deserializer.read_uint32(&mut int32), false);
+    assert!(!value_deserializer.read_uint32(&mut int32));
   }
 
-  assert_eq!((double - 55.44).abs() < f64::EPSILON, true);
+  assert!((double - 55.44).abs() < f64::EPSILON);
   assert_eq!(int32, 22);
 }
 

@@ -209,7 +209,7 @@ pub fn initialize() {
 pub unsafe fn dispose() -> bool {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   assert_eq!(*global_state_guard, Initialized);
-  assert_eq!(v8__V8__Dispose(), true);
+  assert!(v8__V8__Dispose());
   *global_state_guard = Disposed;
   true
 }
