@@ -213,7 +213,7 @@ impl String {
     }
   }
 
-  /// Writes the contents of the string to an external buffer, as one-bit
+  /// Writes the contents of the string to an external buffer, as one-byte
   /// (Latin-1) characters.
   pub fn write_one_byte(
     &self,
