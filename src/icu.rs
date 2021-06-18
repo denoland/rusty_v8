@@ -35,7 +35,7 @@ extern "C" {
 /// This function has no effect on application (non ICU) data. See udata_setAppData() for similar
 /// functionality for application data.
 // TODO(ry) Map error code to something useful.
-pub fn set_common_data(data: &'static [u8]) -> Result<(), i32> {
+pub fn set_common_data_69(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
     udata_setCommonData_69(data.as_ptr(), &mut error_code);
