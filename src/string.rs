@@ -150,13 +150,14 @@ impl String {
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewFromOneByte(
           sd.get_isolate_ptr(),
           buffer.as_ptr(),
           new_type,
-          buffer.len() as int,
+          buffer_len,
         )
       })
     }
@@ -169,13 +170,14 @@ impl String {
     buffer: &[u16],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewFromTwoByte(
           sd.get_isolate_ptr(),
           buffer.as_ptr(),
           new_type,
-          buffer.len() as int,
+          buffer_len,
         )
       })
     }
