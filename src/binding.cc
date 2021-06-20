@@ -867,8 +867,8 @@ int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
 }
 
 int v8__String__Write(const v8::String& self, v8::Isolate* isolate,
-                          uint16_t* buffer, int start, int length,
-                          int options) {
+                      uint16_t* buffer, int start, int length,
+                      int options) {
   return self.Write(isolate, buffer, start, length, options);
 }
 
