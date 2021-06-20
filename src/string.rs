@@ -295,7 +295,7 @@ impl String {
       scope.cast_local(|sd| {
         v8__String__NewExternalTwoByteStatic(
           sd.get_isolate_ptr(),
-          buffer.as_ptr() as *const u16,
+          buffer.as_ptr(),
           buffer_len,
         )
       })
