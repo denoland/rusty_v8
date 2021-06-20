@@ -873,8 +873,8 @@ int v8__String__Write(const v8::String& self, v8::Isolate* isolate,
 }
 
 int v8__String__WriteOneByte(const v8::String& self, v8::Isolate* isolate,
-                          uint8_t* buffer, int start, int length,
-                          int options) {
+                             uint8_t* buffer, int start, int length,
+                             int options) {
   return self.WriteOneByte(isolate, buffer, start, length, options);
 }
 
