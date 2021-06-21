@@ -307,8 +307,14 @@ fn print_link_flags() {
   println!("cargo:rustc-link-lib=static=rusty_v8");
 
   if cfg!(target_os = "windows") {
-    println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
+    println!("cargo:rustc-link-lib=dylib=winmm");
+
+    // 'oldnames.lib' contains aliases that map posix names (e.g. `strdup`) to
+    // ANSI C names (`_strdup`). Note that 'oldnames.lib' is not an import
+    // library, there is no corresponding dynamic library 'oldnames.dll', but
+    // rustc requires the specified library type to be `dylib` regardless.
+    println!("cargo:rustc-link-lib=dylib=oldnames");
   }
 }
 
