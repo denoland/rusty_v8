@@ -27,9 +27,34 @@ extern "C" {
     length: int,
   ) -> *const String;
 
+  fn v8__String__NewFromTwoByte(
+    isolate: *mut Isolate,
+    data: *const u16,
+    new_type: NewStringType,
+    length: int,
+  ) -> *const String;
+
   fn v8__String__Length(this: *const String) -> int;
 
   fn v8__String__Utf8Length(this: *const String, isolate: *mut Isolate) -> int;
+
+  fn v8__String__Write(
+    this: *const String,
+    isolate: *mut Isolate,
+    buffer: *mut u16,
+    start: int,
+    length: int,
+    options: WriteOptions,
+  ) -> int;
+
+  fn v8__String__WriteOneByte(
+    this: *const String,
+    isolate: *mut Isolate,
+    buffer: *mut u8,
+    start: int,
+    length: int,
+    options: WriteOptions,
+  ) -> int;
 
   fn v8__String__WriteUtf8(
     this: *const String,
@@ -46,10 +71,17 @@ extern "C" {
     length: int,
   ) -> *const String;
 
+  fn v8__String__NewExternalTwoByteStatic(
+    isolate: *mut Isolate,
+    buffer: *const u16,
+    length: int,
+  ) -> *const String;
+
   fn v8__String__IsExternal(this: *const String) -> bool;
   fn v8__String__IsExternalOneByte(this: *const String) -> bool;
   fn v8__String__IsExternalTwoByte(this: *const String) -> bool;
   fn v8__String__IsOneByte(this: *const String) -> bool;
+  fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
 }
 
 #[repr(C)]
@@ -118,13 +150,34 @@ impl String {
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewFromOneByte(
           sd.get_isolate_ptr(),
           buffer.as_ptr(),
           new_type,
-          buffer.len() as int,
+          buffer_len,
+        )
+      })
+    }
+  }
+
+  /// Allocates a new string from UTF-16 data. Only returns an empty value when
+  /// length > kMaxLength.
+  pub fn new_from_two_byte<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: &[u16],
+    new_type: NewStringType,
+  ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len().try_into().ok()?;
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewFromTwoByte(
+          sd.get_isolate_ptr(),
+          buffer.as_ptr(),
+          new_type,
+          buffer_len,
         )
       })
     }
@@ -141,6 +194,49 @@ impl String {
     unsafe { v8__String__Utf8Length(self, scope) as usize }
   }
 
+  /// Writes the contents of the string to an external buffer, as 16-bit
+  /// (UTF-16) character codes.
+  pub fn write(
+    &self,
+    scope: &mut Isolate,
+    buffer: &mut [u16],
+    start: usize,
+    options: WriteOptions,
+  ) -> usize {
+    unsafe {
+      v8__String__Write(
+        self,
+        scope,
+        buffer.as_mut_ptr(),
+        start.try_into().unwrap_or(int::max_value()),
+        buffer.len().try_into().unwrap_or(int::max_value()),
+        options,
+      ) as usize
+    }
+  }
+
+  /// Writes the contents of the string to an external buffer, as one-byte
+  /// (Latin-1) characters.
+  pub fn write_one_byte(
+    &self,
+    scope: &mut Isolate,
+    buffer: &mut [u8],
+    start: usize,
+    options: WriteOptions,
+  ) -> usize {
+    unsafe {
+      v8__String__WriteOneByte(
+        self,
+        scope,
+        buffer.as_mut_ptr(),
+        start.try_into().unwrap_or(int::max_value()),
+        buffer.len().try_into().unwrap_or(int::max_value()),
+        options,
+      ) as usize
+    }
+  }
+
+  /// Writes the contents of the string to an external buffer, as UTF-8.
   pub fn write_utf8(
     &self,
     scope: &mut Isolate,
@@ -191,6 +287,23 @@ impl String {
     }
   }
 
+  // Creates a v8::String from a `&'static [u16]`.
+  pub fn new_external_twobyte_static<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: &'static [u16],
+  ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len().try_into().ok()?;
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalTwoByteStatic(
+          sd.get_isolate_ptr(),
+          buffer.as_ptr(),
+          buffer_len,
+        )
+      })
+    }
+  }
+
   /// True if string is external
   pub fn is_external(&self) -> bool {
     // TODO: re-enable on next v8-release
@@ -209,15 +322,26 @@ impl String {
   }
 
   /// True if string is external & two-byte
-  /// NOTE: can't yet be created via rusty_v8
+  /// (e.g: created with new_external_twobyte_static)
   pub fn is_external_twobyte(&self) -> bool {
     unsafe { v8__String__IsExternalTwoByte(self) }
   }
 
-  /// True if string is known to contain only one-byte data
-  /// doesn't read the string so can return false positives
+  /// True if string is known to contain only one-byte data.
+  /// Doesn't read the string so can return false positives.
+  ///
+  /// For a method that will not return false positives at the cost of
+  /// potentially reading the entire string, use [`contains_only_onebyte()`].
+  ///
+  /// [`contains_only_onebyte()`]: String::contains_only_onebyte
   pub fn is_onebyte(&self) -> bool {
     unsafe { v8__String__IsExternalOneByte(self) }
+  }
+
+  /// True if the string contains only one-byte data.
+  /// Will read the entire string in some cases.
+  pub fn contains_only_onebyte(&self) -> bool {
+    unsafe { v8__String__ContainsOnlyOneByte(self) }
   }
 
   /// Convenience function not present in the original V8 API.
