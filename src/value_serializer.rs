@@ -58,7 +58,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   MaybeBool::from(value_serializer_impl.write_host_object(
     scope,
     object,
-    &value_serializer_heap.cxx_value_serializer,
+    &mut value_serializer_heap.cxx_value_serializer,
   ))
 }
 
@@ -215,7 +215,7 @@ pub trait ValueSerializerImpl {
     &mut self,
     scope: &mut HandleScope<'s>,
     object: Local<'s, Object>,
-    value_serializer: &dyn ValueSerializerHelper,
+    value_serializer: &mut dyn ValueSerializerHelper,
   ) -> Option<bool> {
     let msg =
       String::new(scope, "Deno serializer: write_host_object not implemented")

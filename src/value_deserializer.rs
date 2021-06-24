@@ -35,9 +35,10 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
     &mut crate::scope::CallbackScope::new(value_deserializer_heap.context);
   let value_deserializer_impl =
     value_deserializer_heap.value_deserializer_impl.as_mut();
-  match value_deserializer_impl
-    .read_host_object(scope, &value_deserializer_heap.cxx_value_deserializer)
-  {
+  match value_deserializer_impl.read_host_object(
+    scope,
+    &mut value_deserializer_heap.cxx_value_deserializer,
+  ) {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
   }
@@ -153,7 +154,7 @@ pub trait ValueDeserializerImpl {
   fn read_host_object<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    value_deserializer: &dyn ValueDeserializerHelper,
+    value_deserializer: &mut dyn ValueDeserializerHelper,
   ) -> Option<Local<'s, Object>> {
     let msg =
       String::new(scope, "Deno deserializer: read_host_object not implemented")

@@ -4289,6 +4289,16 @@ impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
       ));
     Some((self.array_buffers.len() as u32) - 1)
   }
+
+  fn write_host_object<'s>(
+    &mut self,
+    _scope: &mut v8::HandleScope<'s>,
+    _object: v8::Local<'s, v8::Object>,
+    value_serializer: &mut dyn v8::ValueSerializerHelper,
+  ) -> Option<bool> {
+    value_serializer.write_uint64(1);
+    None
+  }
 }
 
 impl<'a> v8::ValueDeserializerImpl for Custom1Value<'a> {
@@ -4303,6 +4313,16 @@ impl<'a> v8::ValueDeserializerImpl for Custom1Value<'a> {
       scope,
       backing_store,
     ))
+  }
+
+  fn read_host_object<'s>(
+    &mut self,
+    _scope: &mut v8::HandleScope<'s>,
+    value_deserializer: &mut dyn v8::ValueDeserializerHelper,
+  ) -> Option<v8::Local<'s, v8::Object>> {
+    let mut value = 0;
+    value_deserializer.read_uint64(&mut value);
+    None
   }
 }
 
