@@ -2126,7 +2126,8 @@ void v8_inspector__V8Inspector__exceptionThrown(
     v8_inspector::V8StackTrace* stack_trace, int script_id) {
   self->exceptionThrown(ptr_to_local(&context), message,
     ptr_to_local(&exception), detailed_message, url, line_number,
-    column_number, static_cast<std::unique_ptr<V8StackTrace>>(stack_trace), script_id);
+    column_number, static_cast<std::unique_ptr<v8_inspector::V8StackTrace>>(stack_trace), 
+    script_id);
 }
 
 
