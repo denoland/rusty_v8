@@ -23,6 +23,7 @@ use crate::support::UniqueRef;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use crate::Value;
 use std::fmt::{self, Debug, Formatter};
 
 extern "C" {
@@ -106,6 +107,18 @@ extern "C" {
     contextGroupId: int,
     humanReadableName: StringView,
   );
+  fn v8_inspector__V8Inspector__exceptionThrown(
+    this: *mut V8Inspector,
+    context: *const Context,
+    message: StringView,
+    exception: *const Value,
+    detailed_message: StringView,
+    url: StringView,
+    line_number: unsigned,
+    column_number: unsigned,
+    stack_trace: UniquePtr<V8StackTrace>,
+    script_id: int,
+  ) -> unsigned;
 }
 
 #[no_mangle]
@@ -922,6 +935,35 @@ impl V8Inspector {
         &*context,
         context_group_id,
         human_readable_name,
+      )
+    }
+  }
+
+  #[allow(clippy::too_many_arguments)]
+  pub fn exception_thrown(
+    &mut self,
+    context: Local<Context>,
+    message: StringView,
+    exception: Local<Value>,
+    detailed_message: StringView,
+    url: StringView,
+    line_number: u32,
+    column_number: u32,
+    stack_trace: UniquePtr<V8StackTrace>,
+    script_id: i32,
+  ) -> u32 {
+    unsafe {
+      v8_inspector__V8Inspector__exceptionThrown(
+        self,
+        &*context,
+        message,
+        &*exception,
+        detailed_message,
+        url,
+        line_number,
+        column_number,
+        stack_trace,
+        script_id,
       )
     }
   }

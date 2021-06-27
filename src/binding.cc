@@ -2118,6 +2118,18 @@ void v8_inspector__V8Inspector__contextCreated(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
 
+void v8_inspector__V8Inspector__contextCreated(
+    v8_inspector::V8Inspector* self, const v8::Context& context,
+    v8_inspector::StringView message, const v8::Value& exception,
+    v8_inspector::StringView detailed_message, v8_inspector::StringView url,
+    unsigned line_number, unsigned column_number,
+    v8_inspector::V8StackTrace* stack_trace, int script_id) {
+  self->exceptionThrown(ptr_to_local(&context), message,
+    ptr_to_local(&exception), detailed_message, url, line_number, 
+    column_number, stack_trace, script_id);
+}
+
+
 void v8_inspector__V8InspectorSession__DELETE(
     v8_inspector::V8InspectorSession* self) {
   delete self;
