@@ -114,11 +114,11 @@ extern "C" {
     exception: *const Value,
     detailed_message: StringView,
     url: StringView,
-    line_number: unsigned,
-    column_number: unsigned,
+    line_number: u32,
+    column_number: u32,
     stack_trace: UniquePtr<V8StackTrace>,
     script_id: int,
-  ) -> unsigned;
+  ) -> u32;
 }
 
 #[no_mangle]

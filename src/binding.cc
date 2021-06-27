@@ -2118,7 +2118,7 @@ void v8_inspector__V8Inspector__contextCreated(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
 
-void v8_inspector__V8Inspector__exceptionThrown(
+unsigned v8_inspector__V8Inspector__exceptionThrown(
     v8_inspector::V8Inspector* self, const v8::Context& context,
     v8_inspector::StringView message, const v8::Value& exception,
     v8_inspector::StringView detailed_message, v8_inspector::StringView url,
