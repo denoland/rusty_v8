@@ -2124,7 +2124,7 @@ unsigned v8_inspector__V8Inspector__exceptionThrown(
     v8_inspector::StringView detailed_message, v8_inspector::StringView url,
     unsigned line_number, unsigned column_number,
     v8_inspector::V8StackTrace* stack_trace, int script_id) {
-  self->exceptionThrown(ptr_to_local(&context), message,
+  return self->exceptionThrown(ptr_to_local(&context), message,
     ptr_to_local(&exception), detailed_message, url, line_number,
     column_number, static_cast<std::unique_ptr<v8_inspector::V8StackTrace>>(stack_trace), 
     script_id);
