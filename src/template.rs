@@ -51,9 +51,22 @@ extern "C" {
     this: *const FunctionTemplate,
     context: *const Context,
   ) -> *const Function;
+  fn v8__FunctionTemplate__PrototypeTemplate(
+    this: *const FunctionTemplate,
+  ) -> *const ObjectTemplate;
   fn v8__FunctionTemplate__SetClassName(
     this: *const FunctionTemplate,
     name: *const String,
+  );
+  fn v8__FunctionTemplate__Inherit(
+    this: *const FunctionTemplate,
+    parent: *const FunctionTemplate,
+  );
+  fn v8__FunctionTemplate__ReadOnlyPrototype(
+    this: *const FunctionTemplate
+  );
+  fn v8__FunctionTemplate__RemovePrototype(
+    this: *const FunctionTemplate
   );
 
   fn v8__ObjectTemplate__New(
@@ -183,6 +196,34 @@ impl FunctionTemplate {
   /// FunctionTemplate as its constructor.
   pub fn set_class_name(&self, name: Local<String>) {
     unsafe { v8__FunctionTemplate__SetClassName(self, &*name) };
+  }
+
+  /// Returns the ObjectTemplate that is used by this
+  /// FunctionTemplate as a PrototypeTemplate
+  pub fn prototype_template<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, ObjectTemplate> {
+    unsafe {
+      scope.cast_local(|_sd| { 
+        v8__FunctionTemplate__PrototypeTemplate(self)
+      })
+    }
+    .unwrap()
+  }
+
+  /// Causes the function template to inherit from a parent function template. 
+  /// This means the function's prototype.__proto__ is set to the parent function's prototype.
+  pub fn inherit(&self, parent: Local<FunctionTemplate>) {
+    unsafe { v8__FunctionTemplate__Inherit(self, &*parent) };
+  }
+
+  /// Sets the ReadOnly flag in the attributes of the 'prototype' property 
+  /// of functions created from this FunctionTemplate to true.
+  pub fn read_only_prototype(&self) {
+    unsafe { v8__FunctionTemplate__ReadOnlyPrototype(self) };
+  }
+
+  /// Removes the prototype property from functions created from this FunctionTemplate.
+  pub fn remove_prototype(&self) {
+    unsafe { v8__FunctionTemplate__RemovePrototype(self) };
   }
 }
 

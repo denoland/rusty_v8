@@ -1582,6 +1582,26 @@ void v8__FunctionTemplate__SetClassName(const v8::FunctionTemplate& self,
   ptr_to_local(&self)->SetClassName(ptr_to_local(&name));
 }
 
+void v8__FunctionTemplate__Inherit(const v8::FunctionTemplate& self,
+                                   const v8::FunctionTemplate& parent) {
+  ptr_to_local(&self)->Inherit(ptr_to_local(&parent));
+}
+
+void v8__FunctionTemplate__ReadOnlyPrototype(const v8::FunctionTemplate& self) {
+  ptr_to_local(&self)->ReadOnlyPrototype();
+}
+
+void v8__FunctionTemplate__RemovePrototype(const v8::FunctionTemplate& self) {
+  ptr_to_local(&self)->RemovePrototype();
+}
+
+const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
+    const v8::FunctionTemplate& self) {
+
+  return local_to_ptr(
+      ptr_to_local(&self)->PrototypeTemplate());
+}
+
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
