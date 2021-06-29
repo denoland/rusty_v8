@@ -31,7 +31,9 @@ fn setup() -> SetupGuard {
     ))
     .is_ok());
     v8::V8::set_flags_from_string("--expose_gc --harmony-import-assertions");
-    v8::V8::initialize_platform(v8::new_default_platform().unwrap());
+    v8::V8::initialize_platform(
+      v8::new_default_platform(0, false).make_shared(),
+    );
     v8::V8::initialize();
   });
   SetupGuard {}

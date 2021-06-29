@@ -5,7 +5,7 @@ use rusty_v8 as v8;
 #[test]
 fn set_flags_from_string() {
   v8::V8::set_flags_from_string("--use_strict");
-  v8::V8::initialize_platform(v8::new_default_platform().unwrap());
+  v8::V8::initialize_platform(v8::new_default_platform(0, false).make_shared());
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);

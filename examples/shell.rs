@@ -2,7 +2,7 @@ use rusty_v8 as v8;
 
 fn main() {
   // Initialize V8.
-  let platform = v8::new_default_platform().unwrap();
+  let platform = v8::new_default_platform(0, false).make_shared();
   v8::V8::initialize_platform(platform);
   v8::V8::initialize();
 
@@ -79,11 +79,15 @@ fn run_main(
         let script: &str = &args[i + 1];
         skip_next = true;
 
-        // TODO: pump event loop (not implemented on rusty_v8?)
-        // while v8::Platform::pump_message_loop(&platform, isolate) {
-        //   // do nothing
-        // }
         execute_string(scope, script, "unnamed", false, true);
+
+        while v8::Platform::pump_message_loop(
+          &v8::V8::get_current_platform(),
+          scope,
+          false,
+        ) {
+          // do nothing
+        }
       }
       arg => {
         if arg.starts_with("--") {
@@ -94,6 +98,14 @@ fn run_main(
         // Use all other arguments as names of files to load and run.
         let script = std::fs::read_to_string(arg).expect("failed to read file");
         execute_string(scope, &script, arg, false, true);
+
+        while v8::Platform::pump_message_loop(
+          &v8::V8::get_current_platform(),
+          scope,
+          false,
+        ) {
+          // do nothing
+        }
       }
     }
   }
