@@ -1331,6 +1331,65 @@ fn function_template_signature() {
 }
 
 #[test]
+fn function_template_prototype() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let scope = &mut v8::TryCatch::new(scope);
+    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let prototype_templ = function_templ.prototype_template(scope);
+
+    let amount_name = v8::String::new(scope, "amount").unwrap();
+    let value = v8::Number::new(scope, 1.0);
+    let second_value = v8::Number::new(scope, 2.0);
+    let third_value = v8::Number::new(scope, 3.0);
+    prototype_templ.set(amount_name.into(), value.into());
+
+    let function = function_templ.get_function(scope).unwrap();
+    function.new_instance(scope, &[]);
+
+    let object1 = function.new_instance(scope, &[]).unwrap();
+    assert!(!object1.is_null_or_undefined());
+    let name = v8::String::new(scope, "ob1").unwrap();
+    context.global(scope).set(scope, name.into(), object1.into());
+
+    let actual_amount = eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    assert!(value.eq(&actual_amount));
+
+    let object2 = function.new_instance(scope, &[]).unwrap();
+    assert!(!object2.is_null_or_undefined());
+    let name = v8::String::new(scope, "ob2").unwrap();
+    context.global(scope).set(scope, name.into(), object2.into());
+
+    let actual_amount = eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    assert!(value.eq(&actual_amount));
+
+    eval(scope, "ob1.amount = 2").unwrap();
+
+    let actual_amount = eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    assert!(second_value.eq(&actual_amount));
+
+    // We need to get the prototype of the object to change it, it is not the same object as the prototype template!
+    object2.get_prototype(scope).unwrap().to_object(scope).unwrap().set(scope, amount_name.into(), third_value.into());
+
+    let actual_amount = eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    assert!(second_value.eq(&actual_amount));
+
+    let actual_amount = eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    assert!(third_value.eq(&actual_amount));
+  }
+}
+
+#[test]
 fn object_template_set_accessor() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
