@@ -2135,6 +2135,11 @@ v8_inspector::V8StackTrace* v8_inspector__V8Inspector__captureStackTrace(
   return self->captureStackTrace(full_stack).release();
 }
 
+v8_inspector::V8StackTrace* v8_inspector__V8Inspector__createStackTrace(
+    v8_inspector::V8Inspector* self, const v8::StackTrace& stack_trace) {
+  return self->createStackTrace(ptr_to_local(&stack_trace)).release();
+}
+
 void v8_inspector__V8InspectorSession__DELETE(
     v8_inspector::V8InspectorSession* self) {
   delete self;

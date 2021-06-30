@@ -23,6 +23,7 @@ use crate::support::UniqueRef;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use crate::StackTrace;
 use crate::Value;
 use std::fmt::{self, Debug, Formatter};
 
@@ -122,6 +123,10 @@ extern "C" {
   fn v8_inspector__V8Inspector__captureStackTrace(
     this: *mut V8Inspector,
     full_stack: bool,
+  ) -> *mut V8StackTrace;
+  fn v8_inspector__V8Inspector__createStackTrace(
+    this: *mut V8Inspector,
+    stack_trace: *const StackTrace,
   ) -> *mut V8StackTrace;
 }
 
@@ -979,6 +984,18 @@ impl V8Inspector {
     unsafe {
       NonNull::new_unchecked(v8_inspector__V8Inspector__captureStackTrace(
         self, full_stack,
+      ))
+    }
+  }
+
+  pub fn create_stack_trace(
+    &mut self,
+    stack_trace: Local<StackTrace>,
+  ) -> NonNull<V8StackTrace> {
+    unsafe {
+      NonNull::new_unchecked(v8_inspector__V8Inspector__createStackTrace(
+        self,
+        &*stack_trace,
       ))
     }
   }

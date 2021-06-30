@@ -3657,7 +3657,9 @@ fn inspector_exception_thrown() {
   let exception_msg =
     v8::String::new(&mut context_scope, "This is a test error").unwrap();
   let exception = v8::Exception::error(&mut context_scope, exception_msg);
-  let stack_trace = inspector.capture_stack_trace(false);
+  let stack_trace =
+    v8::Exception::get_stack_trace(&mut context_scope, exception).unwrap();
+  let stack_trace = inspector.create_stack_trace(stack_trace);
 
   let _id = inspector.exception_thrown(
     context,
