@@ -1355,36 +1355,50 @@ fn function_template_prototype() {
     let object1 = function.new_instance(scope, &[]).unwrap();
     assert!(!object1.is_null_or_undefined());
     let name = v8::String::new(scope, "ob1").unwrap();
-    context.global(scope).set(scope, name.into(), object1.into());
+    context
+      .global(scope)
+      .set(scope, name.into(), object1.into());
 
-    let actual_amount = eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
-    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    let actual_amount =
+      eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}", actual_amount.number_value(scope).unwrap());
     assert!(value.eq(&actual_amount));
 
     let object2 = function.new_instance(scope, &[]).unwrap();
     assert!(!object2.is_null_or_undefined());
     let name = v8::String::new(scope, "ob2").unwrap();
-    context.global(scope).set(scope, name.into(), object2.into());
+    context
+      .global(scope)
+      .set(scope, name.into(), object2.into());
 
-    let actual_amount = eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
-    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    let actual_amount =
+      eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}", actual_amount.number_value(scope).unwrap());
     assert!(value.eq(&actual_amount));
 
     eval(scope, "ob1.amount = 2").unwrap();
 
-    let actual_amount = eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
-    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    let actual_amount =
+      eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}", actual_amount.number_value(scope).unwrap());
     assert!(second_value.eq(&actual_amount));
 
     // We need to get the prototype of the object to change it, it is not the same object as the prototype template!
-    object2.get_prototype(scope).unwrap().to_object(scope).unwrap().set(scope, amount_name.into(), third_value.into());
+    object2
+      .get_prototype(scope)
+      .unwrap()
+      .to_object(scope)
+      .unwrap()
+      .set(scope, amount_name.into(), third_value.into());
 
-    let actual_amount = eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
-    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    let actual_amount =
+      eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}", actual_amount.number_value(scope).unwrap());
     assert!(second_value.eq(&actual_amount));
 
-    let actual_amount = eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
-    dbg!("{}",actual_amount.number_value(scope).unwrap());
+    let actual_amount =
+      eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
+    dbg!("{}", actual_amount.number_value(scope).unwrap());
     assert!(third_value.eq(&actual_amount));
   }
 }
