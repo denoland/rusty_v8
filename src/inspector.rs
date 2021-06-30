@@ -119,6 +119,10 @@ extern "C" {
     stack_trace: UniquePtr<V8StackTrace>,
     script_id: int,
   ) -> u32;
+  fn v8_inspector__V8Inspector__captureStackTrace(
+    this: *mut V8Inspector,
+    full_stack: bool,
+  ) -> *mut V8StackTrace;
 }
 
 #[no_mangle]
@@ -965,6 +969,17 @@ impl V8Inspector {
         stack_trace,
         script_id,
       )
+    }
+  }
+
+  pub fn capture_stack_trace(
+    &mut self,
+    full_stack: bool,
+  ) -> UniquePtr<V8StackTrace> {
+    unsafe {
+      UniquePtr::from_raw(v8_inspector__V8Inspector__captureStackTrace(
+        self, full_stack,
+      ))
     }
   }
 }

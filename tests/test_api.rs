@@ -3637,9 +3637,7 @@ fn inspector_exception_thrown() {
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
   let mut session = inspector.connect(1, &mut channel, state_view);
-  let message = String::from(
-    r#"{"id":1,"method":"Runtime.enable"}"#,
-  );
+  let message = String::from(r#"{"id":1,"method":"Runtime.enable"}"#);
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
   session.dispatch_protocol_message(string_view);
@@ -3656,9 +3654,10 @@ fn inspector_exception_thrown() {
   let url = "file://exception.js".to_string();
   let url = &url.into_bytes()[..];
   let url_string_view = StringView::from(url);
-  let exception_msg = v8::String::new(&mut context_scope, "This is a test error").unwrap();
+  let exception_msg =
+    v8::String::new(&mut context_scope, "This is a test error").unwrap();
   let exception = v8::Exception::error(&mut context_scope, exception_msg);
-  let stack_trace = v8::UniquePtr::from(V8StackTrace);
+  let stack_trace = inspector.capture_stack_trace(false);
 
   let id = inspector.exception_thrown(
     context,
@@ -3669,7 +3668,7 @@ fn inspector_exception_thrown() {
     1,
     1,
     stack_trace,
-    1
+    1,
   );
 
   eprintln!("id {}", id);

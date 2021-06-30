@@ -2130,6 +2130,10 @@ unsigned v8_inspector__V8Inspector__exceptionThrown(
     script_id);
 }
 
+v8_inspector::V8StackTrace* v8_inspector__V8Inspector__captureStackTrace(
+    v8_inspector::V8Inspector* self, bool full_stack) {
+  return self->captureStackTrace(full_stack).release();
+}
 
 void v8_inspector__V8InspectorSession__DELETE(
     v8_inspector::V8InspectorSession* self) {
