@@ -116,7 +116,7 @@ extern "C" {
     url: StringView,
     line_number: u32,
     column_number: u32,
-    stack_trace: UniquePtr<V8StackTrace>,
+    stack_trace: *mut V8StackTrace,
     script_id: int,
   ) -> u32;
   fn v8_inspector__V8Inspector__captureStackTrace(
@@ -953,7 +953,7 @@ impl V8Inspector {
     url: StringView,
     line_number: u32,
     column_number: u32,
-    stack_trace: UniquePtr<V8StackTrace>,
+    stack_trace: UniqueRef<V8StackTrace>,
     script_id: i32,
   ) -> u32 {
     unsafe {
@@ -966,7 +966,7 @@ impl V8Inspector {
         url,
         line_number,
         column_number,
-        stack_trace,
+        stack_trace.into_raw(),
         script_id,
       )
     }
@@ -975,9 +975,9 @@ impl V8Inspector {
   pub fn capture_stack_trace(
     &mut self,
     full_stack: bool,
-  ) -> UniquePtr<V8StackTrace> {
+  ) -> UniqueRef<V8StackTrace> {
     unsafe {
-      UniquePtr::from_raw(v8_inspector__V8Inspector__captureStackTrace(
+      UniqueRef::from_raw(v8_inspector__V8Inspector__captureStackTrace(
         self, full_stack,
       ))
     }
