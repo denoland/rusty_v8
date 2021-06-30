@@ -3659,7 +3659,7 @@ fn inspector_exception_thrown() {
   let exception = v8::Exception::error(&mut context_scope, exception_msg);
   let stack_trace = inspector.capture_stack_trace(false);
 
-  let id = inspector.exception_thrown(
+  let _id = inspector.exception_thrown(
     context,
     message_string_view,
     exception,
@@ -3671,9 +3671,10 @@ fn inspector_exception_thrown() {
     1,
   );
 
-  eprintln!("id {}", id);
-  eprintln!("{:#?}", channel.notifications);
-  assert_eq!(channel.count_send_notification, 1);
+  assert_eq!(channel.count_send_notification, 2);
+  let notification = channel.notifications.get(1).unwrap().clone();
+  let expected_notification = "{\"method\":\"Runtime.exceptionThrown\",\"params\":{\"timestamp\":0,\"exceptionDetails\":{\"exceptionId\":1,\"text\":\"test exception\",\"lineNumber\":0,\"columnNumber\":0,\"scriptId\":\"1\",\"url\":\"file://exception.js\",\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":\"Error: This is a test error\",\"objectId\":\"1.1.1\",\"preview\":{\"type\":\"object\",\"subtype\":\"error\",\"description\":\"Error: This is a test error\",\"overflow\":false,\"properties\":[{\"name\":\"stack\",\"type\":\"string\",\"value\":\"Error: This is a test error\"},{\"name\":\"message\",\"type\":\"string\",\"value\":\"This is a test error\"}]}},\"executionContextId\":1}}}";
+  assert_eq!(notification, expected_notification);
 }
 
 #[test]
