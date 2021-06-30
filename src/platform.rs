@@ -92,7 +92,7 @@ impl Platform {
   ) -> UniqueRef<Self> {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewDefaultPlatform(
-        std::cmp::min(thread_pool_size, 16) as i32,
+        thread_pool_size.min(16) as i32,
         idle_task_support,
       ))
     }

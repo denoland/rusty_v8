@@ -79,7 +79,7 @@ pub fn assert_initialized() {
   let global_state_guard = GLOBAL_STATE.lock().unwrap();
   match *global_state_guard {
     Initialized(_) => {}
-    _ => panic!("Invalid state"),
+    _ => panic!("Invalid global state"),
   };
 }
 
