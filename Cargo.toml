@@ -54,8 +54,6 @@ exclude = [
  "v8/samples/",
  "v8/test/",
  "v8/tools/",
- # ICU data files
- "*.dat",
  # These files are required for the build.
  "!.gn",
  "!BUILD.gn",
