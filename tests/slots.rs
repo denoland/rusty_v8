@@ -28,7 +28,9 @@ impl CoreIsolate {
   fn new(drop_count: Rc<AtomicUsize>) -> CoreIsolate {
     static START: Once = Once::new();
     START.call_once(|| {
-      v8::V8::initialize_platform(v8::new_default_platform().unwrap());
+      v8::V8::initialize_platform(
+        v8::new_default_platform(0, false).make_shared(),
+      );
       v8::V8::initialize();
     });
     let mut isolate = v8::Isolate::new(Default::default());

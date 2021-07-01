@@ -2028,17 +2028,63 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
-v8::Platform* v8__platform__NewDefaultPlatform() {
-  // TODO(bnoordhuis) Support optional arguments.
-  return v8::platform::NewDefaultPlatform().release();
+v8::Platform* v8__Platform__NewDefaultPlatform(int thread_pool_size,
+                                               bool idle_task_support) {
+  return v8::platform::NewDefaultPlatform(
+             thread_pool_size,
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
 }
 
-v8::Platform* v8__platform__NewSingleThreadedDefaultPlatform() {
-  // TODO(bnoordhuis) Support optional arguments.
-  return v8::platform::NewSingleThreadedDefaultPlatform().release();
+v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
+    bool idle_task_support) {
+  return v8::platform::NewSingleThreadedDefaultPlatform(
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
+}
+
+bool v8__Platform__PumpMessageLoop(v8::Platform* platform, v8::Isolate* isolate,
+                                   bool wait_for_work) {
+  return v8::platform::PumpMessageLoop(
+      platform, isolate,
+      wait_for_work ? v8::platform::MessageLoopBehavior::kWaitForWork
+                    : v8::platform::MessageLoopBehavior::kDoNotWait);
+}
+
+void v8__Platform__RunIdleTasks(v8::Platform* platform, v8::Isolate* isolate,
+                                double idle_time_in_seconds) {
+  v8::platform::RunIdleTasks(platform, isolate, idle_time_in_seconds);
 }
 
 void v8__Platform__DELETE(v8::Platform* self) { delete self; }
+
+two_pointers_t std__shared_ptr__v8__Platform__CONVERT__std__unique_ptr(
+    v8::Platform* unique_ptr) {
+  return make_pod<two_pointers_t>(std::shared_ptr<v8::Platform>(unique_ptr));
+}
+
+v8::Platform* std__shared_ptr__v8__Platform__get(
+    const std::shared_ptr<v8::Platform>& ptr) {
+  return ptr.get();
+}
+
+two_pointers_t std__shared_ptr__v8__Platform__COPY(
+    const std::shared_ptr<v8::Platform>& ptr) {
+  return make_pod<two_pointers_t>(ptr);
+}
+
+void std__shared_ptr__v8__Platform__reset(std::shared_ptr<v8::Platform>* ptr) {
+  ptr->reset();
+}
+
+long std__shared_ptr__v8__Platform__use_count(
+    const std::shared_ptr<v8::Platform>& ptr) {
+  return ptr.use_count();
+}
 
 void v8_inspector__V8Inspector__Channel__BASE__sendResponse(
     v8_inspector::V8Inspector::Channel* self, int callId,

@@ -19,7 +19,7 @@ fn set_entropy_source() {
     true
   });
 
-  v8::V8::initialize_platform(v8::new_default_platform().unwrap());
+  v8::V8::initialize_platform(v8::new_default_platform(0, false).make_shared());
   v8::V8::initialize();
 
   // Assumes that every isolate creates a PRNG from scratch, which is currently true.

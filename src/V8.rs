@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::vec::Vec;
 
 use crate::platform::Platform;
-use crate::support::UniqueRef;
+use crate::support::SharedRef;
 use crate::support::UnitType;
 
 extern "C" {
@@ -61,24 +61,26 @@ where
   }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 enum GlobalState {
   Uninitialized,
-  PlatformInitialized,
-  Initialized,
-  Disposed,
+  PlatformInitialized(SharedRef<Platform>),
+  Initialized(SharedRef<Platform>),
+  Disposed(SharedRef<Platform>),
   PlatformShutdown,
 }
 use GlobalState::*;
 
 lazy_static! {
-  static ref GLOBAL_STATE: Mutex<GlobalState> =
-    Mutex::new(GlobalState::Uninitialized);
+  static ref GLOBAL_STATE: Mutex<GlobalState> = Mutex::new(Uninitialized);
 }
 
 pub fn assert_initialized() {
   let global_state_guard = GLOBAL_STATE.lock().unwrap();
-  assert_eq!(*global_state_guard, Initialized);
+  match *global_state_guard {
+    Initialized(_) => {}
+    _ => panic!("Invalid global state"),
+  };
 }
 
 /// Pass the command line arguments to v8.
@@ -173,25 +175,41 @@ pub fn get_version() -> &'static str {
   c_str.to_str().unwrap()
 }
 
-// TODO: V8::InitializePlatform does not actually take a UniquePtr but rather
-// a raw pointer. This means that the Platform object is not released when
-// V8::ShutdownPlatform is called.
 /// Sets the v8::Platform to use. This should be invoked before V8 is
 /// initialized.
-pub fn initialize_platform(platform: UniqueRef<Platform>) {
+pub fn initialize_platform(platform: SharedRef<Platform>) {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
-  assert_eq!(*global_state_guard, Uninitialized);
-  unsafe { v8__V8__InitializePlatform(platform.into_raw()) };
-  *global_state_guard = PlatformInitialized;
+  *global_state_guard = match *global_state_guard {
+    Uninitialized => PlatformInitialized(platform.clone()),
+    _ => panic!("Invalid global state"),
+  };
+
+  {
+    unsafe {
+      v8__V8__InitializePlatform(&*platform as *const Platform as *mut _)
+    };
+  }
 }
 
 /// Initializes V8. This function needs to be called before the first Isolate
 /// is created. It always returns true.
 pub fn initialize() {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
-  assert_eq!(*global_state_guard, PlatformInitialized);
-  unsafe { v8__V8__Initialize() };
-  *global_state_guard = Initialized;
+  *global_state_guard = match *global_state_guard {
+    PlatformInitialized(ref platform) => Initialized(platform.clone()),
+    _ => panic!("Invalid global state"),
+  };
+  unsafe { v8__V8__Initialize() }
+}
+
+/// Sets the v8::Platform to use. This should be invoked before V8 is
+/// initialized.
+pub fn get_current_platform() -> SharedRef<Platform> {
+  let global_state_guard = GLOBAL_STATE.lock().unwrap();
+  match *global_state_guard {
+    Initialized(ref platform) => platform.clone(),
+    _ => panic!("Invalid global state"),
+  }
 }
 
 /// Releases any resources used by v8 and stops any utility threads
@@ -208,9 +226,11 @@ pub fn initialize() {
 /// to a crash.
 pub unsafe fn dispose() -> bool {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
-  assert_eq!(*global_state_guard, Initialized);
+  *global_state_guard = match *global_state_guard {
+    Initialized(ref platform) => Disposed(platform.clone()),
+    _ => panic!("Invalid global state"),
+  };
   assert!(v8__V8__Dispose());
-  *global_state_guard = Disposed;
   true
 }
 
@@ -218,7 +238,10 @@ pub unsafe fn dispose() -> bool {
 /// V8 was disposed.
 pub fn shutdown_platform() {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
-  assert_eq!(*global_state_guard, Disposed);
+  // First shutdown platform, then drop platform
   unsafe { v8__V8__ShutdownPlatform() };
-  *global_state_guard = PlatformShutdown;
+  *global_state_guard = match *global_state_guard {
+    Disposed(_) => PlatformShutdown,
+    _ => panic!("Invalid global state"),
+  };
 }

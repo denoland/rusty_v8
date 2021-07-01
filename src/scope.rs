@@ -1727,7 +1727,7 @@ mod tests {
   fn initialize_v8() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-      V8::initialize_platform(new_default_platform().unwrap());
+      V8::initialize_platform(new_default_platform(0, false).make_shared());
       V8::initialize();
     });
   }
