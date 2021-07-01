@@ -408,14 +408,12 @@ const v8::Function* v8__ScriptCompiler__CompileFunctionInContext(
     size_t context_extensions_count, const v8::Object** context_extensions,
     v8::ScriptCompiler::CompileOptions options,
     v8::ScriptCompiler::NoCacheReason no_cache_reason) {
-  return maybe_local_to_ptr(
-      v8::ScriptCompiler::CompileFunctionInContext(
-        ptr_to_local(context), source,
-        arguments_count,
-        reinterpret_cast<v8::Local<v8::String>*>(arguments),
-        context_extensions_count,
-        reinterpret_cast<v8::Local<v8::Object>*>(context_extensions),
-        options, no_cache_reason, nullptr));
+  return maybe_local_to_ptr(v8::ScriptCompiler::CompileFunctionInContext(
+      ptr_to_local(context), source, arguments_count,
+      reinterpret_cast<v8::Local<v8::String>*>(arguments),
+      context_extensions_count,
+      reinterpret_cast<v8::Local<v8::Object>*>(context_extensions), options,
+      no_cache_reason, nullptr));
 }
 
 const v8::UnboundScript* v8__ScriptCompiler__CompileUnboundScript(
@@ -867,8 +865,7 @@ int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
 }
 
 int v8__String__Write(const v8::String& self, v8::Isolate* isolate,
-                      uint16_t* buffer, int start, int length,
-                      int options) {
+                      uint16_t* buffer, int start, int length, int options) {
   return self.Write(isolate, buffer, start, length, options);
 }
 
@@ -904,8 +901,7 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
       isolate, new ExternalStaticOneByteStringResource(data, length)));
 }
 
-class ExternalStaticStringResource
-    : public v8::String::ExternalStringResource {
+class ExternalStaticStringResource : public v8::String::ExternalStringResource {
  public:
   ExternalStaticStringResource(const uint16_t* data, int length)
       : _data(data), _length(length) {}
@@ -934,7 +930,9 @@ bool v8__String__IsExternalTwoByte(const v8::String& self) {
   return self.IsExternalTwoByte();
 }
 bool v8__String__IsOneByte(const v8::String& self) { return self.IsOneByte(); }
-bool v8__String__ContainsOnlyOneByte(const v8::String& self) { return self.ContainsOnlyOneByte(); }
+bool v8__String__ContainsOnlyOneByte(const v8::String& self) {
+  return self.ContainsOnlyOneByte();
+}
 
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
                                   const v8::String& description) {
@@ -1013,8 +1011,8 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
 }
 
 void v8__ObjectTemplate__SetAccessor(const v8::ObjectTemplate& self,
-                                  const v8::Name& key,
-                                  v8::AccessorNameGetterCallback getter) {
+                                     const v8::Name& key,
+                                     v8::AccessorNameGetterCallback getter) {
   ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter);
 }
 
@@ -1597,9 +1595,7 @@ void v8__FunctionTemplate__RemovePrototype(const v8::FunctionTemplate& self) {
 
 const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
     const v8::FunctionTemplate& self) {
-
-  return local_to_ptr(
-      ptr_to_local(&self)->PrototypeTemplate());
+  return local_to_ptr(ptr_to_local(&self)->PrototypeTemplate());
 }
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
