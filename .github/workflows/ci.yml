@@ -190,12 +190,13 @@ jobs:
 
       # TODO: add clang-format and maybe cpplint.
 
-      # TODO(ry) It would be ideal to check that "cargo package" also runs and
-      # that the resulting package is less than 10 MB. However it seems to
-      # result in a complete V8 rebuild. For now just be careful not to manually
-      # check that "cargo package" is working when updating the build.
-      # - name: Package
-      #   run: cargo package -vv --locked
+      - name: Cargo Package
+        if: >-
+          github.repository == 'denoland/rusty_v8' &&
+          startsWith(matrix.config.target , 'x86_64') &&
+          matrix.config.variant == 'debug' &&
+          runner.os == 'Linux'
+        run: cargo package -vv --locked
 
       - name: Publish
         # Only publish on x64 linux when there's a git tag:
