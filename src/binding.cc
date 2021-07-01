@@ -2132,12 +2132,20 @@ unsigned v8_inspector__V8Inspector__exceptionThrown(
 
 v8_inspector::V8StackTrace* v8_inspector__V8Inspector__captureStackTrace(
     v8_inspector::V8Inspector* self, bool full_stack) {
-  return self->captureStackTrace(full_stack).release();
+  std::unique_ptr<v8_inspector::V8StackTrace> u = 
+    self->captureStackTrace(full_stack);
+  return u.release();
 }
 
 v8_inspector::V8StackTrace* v8_inspector__V8Inspector__createStackTrace(
     v8_inspector::V8Inspector* self, const v8::StackTrace& stack_trace) {
-  return self->createStackTrace(ptr_to_local(&stack_trace)).release();
+  std::unique_ptr<v8_inspector::V8StackTrace> u = 
+    self->createStackTrace(ptr_to_local(&stack_trace));
+  return u.release();
+}
+
+void v8_inspector__V8StackTrace__DELETE(v8_inspector::V8StackTrace* self) {
+  delete self;
 }
 
 void v8_inspector__V8InspectorSession__DELETE(

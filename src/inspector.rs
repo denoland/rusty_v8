@@ -128,6 +128,9 @@ extern "C" {
     this: *mut V8Inspector,
     stack_trace: *const StackTrace,
   ) -> *mut V8StackTrace;
+  fn v8_inspector__V8StackTrace__DELETE(
+    this: &mut V8StackTrace
+  );
 }
 
 #[no_mangle]
@@ -958,7 +961,7 @@ impl V8Inspector {
     url: StringView,
     line_number: u32,
     column_number: u32,
-    stack_trace: NonNull<V8StackTrace>,
+    stack_trace: UniqueRef<V8StackTrace>,
     script_id: i32,
   ) -> u32 {
     unsafe {
@@ -971,7 +974,7 @@ impl V8Inspector {
         url,
         line_number,
         column_number,
-        stack_trace.as_ptr(),
+        stack_trace.into_raw(),
         script_id,
       )
     }
@@ -980,9 +983,9 @@ impl V8Inspector {
   pub fn capture_stack_trace(
     &mut self,
     full_stack: bool,
-  ) -> NonNull<V8StackTrace> {
+  ) -> UniqueRef<V8StackTrace> {
     unsafe {
-      NonNull::new_unchecked(v8_inspector__V8Inspector__captureStackTrace(
+      UniqueRef::from_raw(v8_inspector__V8Inspector__captureStackTrace(
         self, full_stack,
       ))
     }
@@ -991,9 +994,9 @@ impl V8Inspector {
   pub fn create_stack_trace(
     &mut self,
     stack_trace: Local<StackTrace>,
-  ) -> NonNull<V8StackTrace> {
+  ) -> UniqueRef<V8StackTrace> {
     unsafe {
-      NonNull::new_unchecked(v8_inspector__V8Inspector__createStackTrace(
+      UniqueRef::from_raw(v8_inspector__V8Inspector__createStackTrace(
         self,
         &*stack_trace,
       ))
@@ -1011,6 +1014,12 @@ impl Drop for V8Inspector {
 #[derive(Debug)]
 pub struct V8StackTrace {
   _cxx_vtable: CxxVTable,
+}
+
+impl Drop for V8StackTrace {
+  fn drop(&mut self) {
+    unsafe { v8_inspector__V8StackTrace__DELETE(self) };
+  }
 }
 
 // TODO(bnoordhuis) This needs to be fleshed out more but that can wait
