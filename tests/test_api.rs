@@ -4726,6 +4726,7 @@ fn wasm_streaming_callback() {
       .then(result => globalThis.result = result);
   "#;
   eval(scope, script).unwrap();
+  assert!(scope.has_pending_background_tasks());
 
   let global = context.global(scope);
   let name = v8::String::new(scope, "result").unwrap().into();
@@ -4739,6 +4740,7 @@ fn wasm_streaming_callback() {
   assert!(global.get(scope, name).unwrap().is_null());
 
   ws.finish();
+  assert!(!scope.has_pending_background_tasks());
   assert!(global.get(scope, name).unwrap().is_null());
 
   scope.perform_microtask_checkpoint();
