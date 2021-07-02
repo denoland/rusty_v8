@@ -232,11 +232,11 @@ extern "C" {
     function: *const Function,
   );
   fn v8__Isolate__SetAllowAtomicsWait(isolate: *mut Isolate, allow: bool);
-
   fn v8__Isolate__SetWasmStreamingCallback(
     isolate: *mut Isolate,
     callback: extern "C" fn(*const FunctionCallbackInfo),
   );
+  fn v8__Isolate__HasPendingBackgroundTasks(isolate: *const Isolate) -> bool;
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
@@ -653,6 +653,13 @@ impl Isolate {
     F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
   {
     unsafe { v8__Isolate__SetWasmStreamingCallback(self, trampoline::<F>()) }
+  }
+
+  /// Returns true if there is ongoing background work within V8 that will
+  /// eventually post a foreground task, like asynchronous WebAssembly
+  /// compilation.
+  pub fn has_pending_background_tasks(&self) -> bool {
+    unsafe { v8__Isolate__HasPendingBackgroundTasks(self) }
   }
 
   /// Disposes the isolate.  The isolate must not be entered by any

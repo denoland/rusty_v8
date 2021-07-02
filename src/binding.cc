@@ -312,6 +312,10 @@ void v8__Isolate__SetWasmStreamingCallback(v8::Isolate* isolate,
   isolate->SetWasmStreamingCallback(callback);
 }
 
+bool v8__Isolate__HasPendingBackgroundTasks(v8::Isolate* isolate) {
+  return isolate->HasPendingBackgroundTasks();
+}
+
 void v8__Isolate__CreateParams__CONSTRUCT(
     uninit_t<v8::Isolate::CreateParams>* buf) {
   construct_in_place<v8::Isolate::CreateParams>(buf);
