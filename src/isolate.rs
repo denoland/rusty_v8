@@ -864,25 +864,129 @@ impl IsolateHandle {
   }
 }
 
+#[derive(Debug)]
+#[repr(C)]
+/// v8::Locker is a scoped lock object. While it's active, i.e. between its
+/// construction and destruction, the current thread is allowed to use the locked
+/// isolate. V8 guarantees that an isolate can be locked by at most one thread at
+/// any time. In other words, the scope of a v8::Locker is a critical section.
+pub struct Locker {
+  has_lock: bool,
+  top_level: bool,
+  isolate: *mut Isolate,
+}
+
+impl Locker {
+  pub fn new(isolate: *mut Isolate) -> Self {
+    Self {
+      has_lock: false,
+      top_level: true,
+      isolate,
+    }
+  }
+  pub fn unlock(&mut self) {
+    self.has_lock = false;
+  }
+  pub fn lock(&mut self) {
+    self.has_lock = true;
+  }
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct Unlocker {
+  isolate: *mut Isolate,
+}
+
+impl Unlocker {
+  pub fn new(isolate: *mut Isolate) -> Self {
+    Self {
+      isolate,
+    }
+  }
+}
+
+impl Drop for Locker {
+  fn drop(&mut self) {
+    unsafe {
+      println!("dropped the locker");
+      let iso = self.isolate.as_mut().unwrap();
+      iso.exit();
+      // iso.dispose();
+    }
+  }
+}
+
+extern "C" {
+  fn v8__Locker__CONSTRUCT(buf: *mut Locker, isolate: *mut Isolate);
+  fn v8__Locker__DESTRUCT(this: &mut Locker);
+  fn v8__Unlocker__CONSTRUCT(buf: *mut Unlocker, isolate: *mut Isolate);
+  fn v8__Unlocker__DESTRUCT(this: &mut Unlocker);
+}
+
+pub struct UnlockedIsolate {
+  cxx_isolate: NonNull<Isolate>,
+  locker: Locker,
+  unlocker: Unlocker,
+}
+
+pub fn lock(mut unlocked: UnlockedIsolate) -> OwnedIsolate {
+  unlocked.locker.unlock();
+  unsafe {
+    let iso = unlocked.cxx_isolate.as_mut();
+    v8__Unlocker__DESTRUCT(&mut unlocked.unlocker);
+    v8__Locker__CONSTRUCT(&mut unlocked.locker, iso);
+    iso.enter();
+  }
+  OwnedIsolate {
+    cxx_isolate: unlocked.cxx_isolate,
+    locker: unlocked.locker,
+    unlocker: unlocked.unlocker,
+  }
+}
+
+unsafe impl Send for UnlockedIsolate {}
+unsafe impl Sync for UnlockedIsolate {}
+
 /// Same as Isolate but gets disposed when it goes out of scope.
 #[derive(Debug)]
 pub struct OwnedIsolate {
   cxx_isolate: NonNull<Isolate>,
+  locker: Locker,
+  unlocker: Unlocker,
 }
 
 impl OwnedIsolate {
   pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
-    let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
-    Self { cxx_isolate }
+    let iso = NonNull::new(cxx_isolate).unwrap();
+    let mut locker = Locker::new(cxx_isolate);
+    let unlocker = Unlocker::new(cxx_isolate);
+    unsafe {
+      v8__Locker__CONSTRUCT(&mut locker, cxx_isolate);
+    }
+    Self {
+      cxx_isolate: iso,
+      locker,
+      unlocker,
+    }
   }
 }
 
-impl Drop for OwnedIsolate {
-  fn drop(&mut self) {
-    unsafe {
-      self.exit();
-      self.cxx_isolate.as_mut().dispose()
-    }
+pub fn unlock(mut owned: OwnedIsolate) -> UnlockedIsolate {
+  let OwnedIsolate {
+    cxx_isolate,
+    mut locker,
+    mut unlocker,
+  } = owned;
+  unsafe {
+    let iso = owned.cxx_isolate.as_mut();
+    iso.exit();
+    v8__Unlocker__CONSTRUCT(&mut unlocker, iso);
+  }
+  UnlockedIsolate {
+    unlocker,
+    locker,
+    cxx_isolate,
   }
 }
 
