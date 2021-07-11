@@ -829,6 +829,11 @@ fn terminate_execution() {
   let isolate = &mut v8::Isolate::new(Default::default());
   let (tx, rx) = std::sync::mpsc::channel::<bool>();
   let handle = isolate.thread_safe_handle();
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
   let t = std::thread::spawn(move || {
     // allow deno to boot and run
     std::thread::sleep(std::time::Duration::from_millis(300));
@@ -839,10 +844,7 @@ fn terminate_execution() {
     tx.send(false).ok();
   });
 
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-  // Rn an infinite loop, which should be terminated.
+  // Run an infinite loop, which should be terminated.
   let source = v8::String::new(scope, "for(;;) {}").unwrap();
   let r = v8::Script::compile(scope, source, None);
   let script = r.unwrap();
