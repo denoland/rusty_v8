@@ -1,0 +1,12 @@
+# Source: https://chromium.googlesource.com/chromium/src/tools/memory.git/+/7235d59a2b9a370731802970c0ea3fa1a4933289/tsan_v2/ignores.txt
+# This file was manually copied in rusty_v8 to not add a full git submodule in tools/memory.
+
+# The rules in this file are only applied at compile time. If you can modify the
+# source in question, consider function attributes to disable instrumentation.
+#
+# Please think twice before you add or remove these rules.
+# Data races should typically go to suppressions.txt.
+# See http://crbug.com/102327
+fun:*ThreadData*Initialize*
+# See http://crbug.com/172104
+fun:*v8*internal*ThreadEntry*

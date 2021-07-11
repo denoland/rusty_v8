@@ -1,0 +1,133 @@
+name: asan
+
+on: [ push, pull_request ]
+
+jobs:
+  build:
+    name: ${{ matrix.config.SANITIZER }} on ${{ matrix.target }}
+    if: |
+      github.event_name == 'push' ||
+      !startsWith(github.event.pull_request.head.label, 'denoland:')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        # When you update the OS, make sure to update $GITHUB_PATH with the new LLVM version.
+        os: [ ubuntu-latest ]
+        target: [ x86_64-unknown-linux-gnu ]
+        config:
+          - SANITIZER: asan
+            RUSTFLAGS: -Zsanitizer=address
+            GN_ARGS: is_asan=true
+          - SANITIZER: tsan
+            RUSTFLAGS: -Zsanitizer=thread
+            GN_ARGS: is_tsan=true v8_use_custom_libcxx=false
+          - SANITIZER: ubsan
+            RUSTFLAGS: '-Zsanitizer=address'
+            GN_ARGS: is_asan=true is_ubsan=true
+    env:
+      V8_FROM_SOURCE: true
+      LIB_NAME: 'librusty_v8'
+      LIB_EXT: 'a'
+      RUSTFLAGS: -g -D warnings ${{ matrix.config.RUSTFLAGS }}
+      RUSTDOCFLAGS: -g -D warnings ${{ matrix.config.RUSTFLAGS }}
+
+      # only needed by asan
+      ASAN_OPTIONS: detect_stack_use_after_return=1:detect_leaks=1
+
+      # Asan's leak detection occasionally complains
+      # about some small leaks if backtraces are captured,
+      # so ensure they're not
+      RUST_BACKTRACE: 0
+
+      # Compile V8 with the sanitizer flags. Always enable UBSan.
+      GN_ARGS: ${{ matrix.config.GN_ARGS }}
+
+      # Don't run tests in parallel
+      RUST_TEST_THREADS: 1
+
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - name: Install rust
+        uses: hecrj/setup-rust-action@v1
+        with:
+          components: rust-src
+          rust-version: nightly
+
+      - name: Install python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 2.7.x
+          architecture: x64
+
+      - name: Write git_submodule_status.txt
+        run: git submodule status --recursive > git_submodule_status.txt
+
+      - name: Add LLVM 11 tools to $PATH
+        # Note: this path should be updated when the LLVM tools are upgraded
+        run: echo /usr/lib/llvm-11/bin/ >> $GITHUB_PATH
+
+      - name: Check versions
+        run: echo $PATH; gcc --version; g++ --version; clang --version; clang++ --version; llvm-symbolizer --version; llvm-config --version
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          # Note: rusty_v8 targets always get get rebuilt, and their outputs
+          # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
+          # quite big, so we cache only those subdirectories of
+          # target/{debug|release} that contain the build output for crates that
+          # come from the registry. By additionally saving the sccache cache
+          # directory it's still possible to build v8 fast.
+          path: |-
+            target/sccache
+            target/*/.*
+            target/*/build
+            target/*/deps
+          key:
+            cargo-${{ matrix.target }}-${{ matrix.config.SANITIZER }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          restore-keys:
+            cargo-${{ matrix.target }}-${{ matrix.config.SANITIZER }}
+
+      - name: Install and start sccache
+        shell: pwsh
+        env:
+          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+          SCCACHE_CACHE_SIZE: 128M
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: |
+          $version = "0.2.12"
+          $platform =
+            @{ "macOS"   = "x86_64-apple-darwin"
+               "Linux"   = "x86_64-unknown-linux-musl"
+               "Windows" = "x86_64-pc-windows-msvc"
+             }.${{ runner.os }}
+          $basename = "sccache-$version-$platform"
+          $url = "https://github.com/mozilla/sccache/releases/download/" +
+                 "$version/$basename.tar.gz"
+          cd ~
+          curl -LO $url
+          tar -xzvf "$basename.tar.gz"
+          . $basename/sccache --start-server
+          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Test
+        run:
+          cargo test --release -vv --all-targets
+          --locked ${{ env.CARGO_VARIANT_FLAG }}
+          --target ${{ matrix.target }} ${{ matrix.config.CARGO_ARGS }}
+
+      - name: Stop sccache
+        if: always()
+        run: |
+          sccache --show-stats
+          sccache --stop-server
