@@ -151,6 +151,8 @@ impl<T> Global<T> {
   }
 }
 
+unsafe impl<T> Send for Global<T> {}
+
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();

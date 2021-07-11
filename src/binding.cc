@@ -339,6 +339,18 @@ void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
 
 void v8__HandleScope__DESTRUCT(v8::HandleScope* self) { self->~HandleScope(); }
 
+void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* buf, v8::Isolate* isolate) {
+  construct_in_place<v8::Locker>(buf, isolate);
+}
+
+void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }
+
+void v8__Unlocker__CONSTRUCT(uninit_t<v8::Unlocker>* buf, v8::Isolate* isolate) {
+  construct_in_place<v8::Unlocker>(buf, isolate);
+}
+
+void v8__Unlocker__DESTRUCT(v8::Unlocker* self) { self->~Unlocker(); }
+
 const v8::Data* v8__Local__New(v8::Isolate* isolate, const v8::Data& other) {
   return local_to_ptr(v8::Local<v8::Data>::New(isolate, ptr_to_local(&other)));
 }
