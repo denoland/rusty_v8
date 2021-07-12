@@ -3539,6 +3539,7 @@ struct ChannelCounter {
   base: v8::inspector::ChannelBase,
   count_send_response: usize,
   count_send_notification: usize,
+  notifications: Vec<String>,
   count_flush_protocol_notifications: usize,
 }
 
@@ -3548,6 +3549,7 @@ impl ChannelCounter {
       base: v8::inspector::ChannelBase::new::<Self>(),
       count_send_response: 0,
       count_send_notification: 0,
+      notifications: vec![],
       count_flush_protocol_notifications: 0,
     }
   }
@@ -3576,8 +3578,10 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     &mut self,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!("send_notification message {}", message.unwrap().string());
+    let msg = message.unwrap().string().to_string();
+    println!("send_notification message {}", msg);
     self.count_send_notification += 1;
+    self.notifications.push(msg);
   }
   fn flush_protocol_notifications(&mut self) {
     self.count_flush_protocol_notifications += 1;
@@ -3613,6 +3617,68 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 0);
   assert_eq!(channel.count_flush_protocol_notifications, 0);
+}
+
+#[test]
+fn inspector_exception_thrown() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let mut default_client = ClientCounter::new();
+  let mut inspector = V8Inspector::create(isolate, &mut default_client);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let mut context_scope = v8::ContextScope::new(scope, context);
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view);
+  let mut channel = ChannelCounter::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let mut session = inspector.connect(1, &mut channel, state_view);
+  let message = String::from(r#"{"id":1,"method":"Runtime.enable"}"#);
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  session.dispatch_protocol_message(string_view);
+  assert_eq!(channel.count_send_response, 1);
+  assert_eq!(channel.count_send_notification, 1);
+  assert_eq!(channel.count_flush_protocol_notifications, 0);
+
+  let message = "test exception".to_string();
+  let message = &message.into_bytes()[..];
+  let message_string_view = StringView::from(message);
+  let detailed_message = "detailed message".to_string();
+  let detailed_message = &detailed_message.into_bytes()[..];
+  let detailed_message_string_view = StringView::from(detailed_message);
+  let url = "file://exception.js".to_string();
+  let url = &url.into_bytes()[..];
+  let url_string_view = StringView::from(url);
+  let exception_msg =
+    v8::String::new(&mut context_scope, "This is a test error").unwrap();
+  let exception = v8::Exception::error(&mut context_scope, exception_msg);
+  let stack_trace =
+    v8::Exception::get_stack_trace(&mut context_scope, exception).unwrap();
+  let stack_trace = inspector.create_stack_trace(stack_trace);
+
+  let _id = inspector.exception_thrown(
+    context,
+    message_string_view,
+    exception,
+    detailed_message_string_view,
+    url_string_view,
+    1,
+    1,
+    stack_trace,
+    1,
+  );
+
+  assert_eq!(channel.count_send_notification, 2);
+  let notification = channel.notifications.get(1).unwrap().clone();
+  let expected_notification = "{\"method\":\"Runtime.exceptionThrown\",\"params\":{\"timestamp\":0,\"exceptionDetails\":{\"exceptionId\":1,\"text\":\"test exception\",\"lineNumber\":0,\"columnNumber\":0,\"scriptId\":\"1\",\"url\":\"file://exception.js\",\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":\"Error: This is a test error\",\"objectId\":\"1.1.1\",\"preview\":{\"type\":\"object\",\"subtype\":\"error\",\"description\":\"Error: This is a test error\",\"overflow\":false,\"properties\":[{\"name\":\"stack\",\"type\":\"string\",\"value\":\"Error: This is a test error\"},{\"name\":\"message\",\"type\":\"string\",\"value\":\"This is a test error\"}]}},\"executionContextId\":1}}}";
+  assert_eq!(notification, expected_notification);
 }
 
 #[test]
