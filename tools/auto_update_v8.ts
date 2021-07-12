@@ -1,4 +1,4 @@
-const V8_TRACKING_BRANCH = "9.1-lkgr";
+const V8_TRACKING_BRANCH = "9.2-lkgr";
 const AUTOROLL_BRANCH = "autoroll";
 
 function extractVersion() {
