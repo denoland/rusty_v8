@@ -83,6 +83,7 @@ pub mod script_compiler;
 // C++ namespace "v8::V8".
 #[allow(non_snake_case)]
 pub mod V8;
+pub mod wee8;
 
 pub use array_buffer::*;
 pub use bigint::*;
