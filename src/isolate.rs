@@ -905,7 +905,7 @@ impl Locker {
     let mut locker = Self {
       has_lock: false,
       top_level: true,
-      isolate: isolate,
+      isolate,
     };
     v8__Locker__CONSTRUCT(&mut locker, isolate);
     locker
@@ -937,7 +937,7 @@ pub struct Unlocker<'a> {
 impl<'a> Unlocker<'a> {
   pub(crate) unsafe fn new(cxx_isolate: *mut Isolate) -> Self {
     let mut locker = Self {
-      cxx_isolate: cxx_isolate,
+      cxx_isolate,
       _lifetime: PhantomData::default(),
     };
     // the unlocker will exit any scopes (including ContextScopes), so we must do the same.
@@ -1092,7 +1092,7 @@ impl OwnedIsolate {
     };
     Self {
       root_locker,
-      cxx_isolate: cxx_isolate,
+      cxx_isolate,
       skip_disposal: false,
     }
   }
