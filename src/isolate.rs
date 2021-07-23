@@ -885,11 +885,13 @@ impl IsolateHandle {
 }
 
 /// v8::Locker is a scoped lock object. While it's active, i.e. between its
-/// construction and destruction, the current thread is allowed to use the locked
-/// isolate. V8 guarantees that an isolate can be locked by at most one thread at
-/// any time. In other words, the scope of a v8::Locker is a critical section.
+/// construction and destruction, the current thread is allowed to use the
+/// locked isolate. V8 guarantees that an isolate can be locked by at most one
+/// thread at any time. In other words, the scope of a v8::Locker is a critical
+/// section.
 ///
-/// rusty_v8 note: The Locker lifecycle is managed while a LockedIsolate is borrowed from a SharedIsolate.
+/// rusty_v8 note: The Locker lifecycle is managed while a LockedIsolate is
+/// borrowed from a SharedIsolate.
 #[derive(Debug)]
 #[repr(C)]
 pub struct Locker {
@@ -920,13 +922,17 @@ impl Drop for Locker {
   }
 }
 
-/// The Unlocker object is intended for use in a long-running callback from V8, where you want to release the V8 lock for other threads to use.
-/// The v8::Locker is a recursive lock, i.e. you can lock more than once in a given thread.
-/// This can be useful if you have code that can be called either from code that holds the lock or from code that does not.
-/// The Unlocker is not recursive so you can not have several Unlockers on the stack at once, and you can not use an Unlocker in a thread that is not inside a Locker's scope.
-/// An unlocker will unlock several lockers if it has to and reinstate the correct depth of locking on its destruction
+/// The Unlocker object is intended for use in a long-running callback from V8,
+/// where you want to release the V8 lock for other threads to use. The
+/// v8::Locker is a recursive lock, i.e. you can lock more than once in a
+/// given thread. This can be useful if you have code that can be called
+/// either from code that holds the lock or from code that does not.
+/// The Unlocker is not recursive so you can not have several Unlockers on the
+/// stack at once, and you can not use an Unlocker in a thread that is not
+/// inside a Locker's scope. An unlocker will unlock several lockers if it has
+/// to and reinstate the correct depth of locking on its destruction
 ///
-/// rusty_v8 note: By the nature of Rust's rules, the Unlocker is an inherently unsafe feature to use.
+/// rusty_v8 note: By the nature of Rust's rules, the Unlocker is unsafe.
 #[derive(Debug)]
 #[repr(C)]
 pub struct Unlocker<'a> {
@@ -940,7 +946,7 @@ impl<'a> Unlocker<'a> {
       cxx_isolate,
       _lifetime: PhantomData::default(),
     };
-    // the unlocker will exit any scopes (including ContextScopes), so we must do the same.
+    // the unlocker will exit any scopes, we must do the same.
     (*cxx_isolate).exit();
     ScopeData::get_root_mut(&mut *cxx_isolate);
     // construct V8's native Unlocker instance
@@ -959,16 +965,18 @@ impl<'a> Drop for Unlocker<'a> {
   }
 }
 
-/// An entered isolate within a Locker's scope. Created when a SharedIsolate is borrowed.
-/// When dropped, the isolate is exited and the locker is deconstructed.
-/// This is similar to V8's Isolate::Scope, but a Locker is implicitly entered for the life of a LockedIsolate.
+/// An entered isolate within a Locker's scope. Created when a SharedIsolate is
+/// borrowed. When dropped, the isolate is exited and the locker is destroyed.
+/// This is similar to V8's Isolate::Scope, but a Locker is implicitly entered
+/// for the life of a LockedIsolate.
 pub struct LockedIsolate<'a> {
   cxx_isolate: &'a mut NonNull<Isolate>,
   locker: Locker,
 }
 
 impl<'a> LockedIsolate<'a> {
-  /// Creates a new Locker scope and enters the isolate within, returning a scoped LockedIsolate.
+  /// Creates a new Locker scope and enters the isolate within.
+  /// Returns a scoped LockedIsolate.
   pub(crate) fn new(cxx_isolate: &'a mut NonNull<Isolate>) -> Self {
     let locker = unsafe {
       let locker = Locker::new(cxx_isolate.as_ptr());
@@ -981,12 +989,15 @@ impl<'a> LockedIsolate<'a> {
     }
   }
 
-  /// Borrows a new Unlocker, temporarily releasing V8's lock on the current thread.
-  /// The Unlocker exits the LockedIsolate and signals to V8 that the isolates locked to this thread may be used elsewhere.
-  /// When the guard is dropped, the underlying Unlocker is destroyed and the isolate is re-entered.
+  /// Borrows a new Unlocker, temporarily releasing V8's lock on the current
+  /// thread. The Unlocker exits the LockedIsolate and signals to V8 that the
+  /// isolates locked to this thread may be used elsewhere. When the guard is
+  /// dropped, the underlying Unlocker is destroyed and the isolate is
+  /// re-entered.
   ///
-  /// This function is marked unsafe because Rust's rules allow you to interact with other LockedIsolates while an Unlocker is active, which is not allowed.
-  /// To make up for this limitation, the embedder should instead drop all active LockedIsolate references before doing long-lasting blocking work, re-entering afterwards.
+  /// This function is marked unsafe because Rust's rules allow you to interact
+  /// with other LockedIsolates while an Unlocker is active, which is not
+  /// allowed.
   pub unsafe fn unlock(&mut self) -> Unlocker<'_> {
     Unlocker::new(self.cxx_isolate.as_mut())
   }
@@ -1014,21 +1025,24 @@ impl<'a> AsMut<Isolate> for LockedIsolate<'a> {
 impl<'a> Drop for LockedIsolate<'a> {
   fn drop(&mut self) {
     // When a Locker is dropped, v8 automatically exits any active scopes.
-    // Resetting to the root scope exits any zombie scopes so that the next LockedIsolate can cleanly re-enter a context.
+    // Resetting to the root scope exits any zombie scopes so that the next
+    // LockedIsolate can cleanly re-enter a context.
     ScopeData::get_root_mut(self);
     unsafe { self.exit() }
   }
 }
 
-/// A reference to an Isolate that may be sent between threads and borrowed with a Locker before entering V8.
-/// May be created by calling Isolate::new_shared(params), or converted via SharedIsolate::from(OwnedIsolate).
+/// A reference to an Isolate that may be sent between threads and borrowed with
+/// a Locker before entering V8. May be created by calling
+/// Isolate::new_shared(params) or SharedIsolate::from(OwnedIsolate).
 #[derive(Debug)]
 pub struct SharedIsolate {
   cxx_isolate: NonNull<Isolate>,
   skip_disposal: bool,
 }
 
-// Because we only allow mutability through a borrowed LockedIsolate scope, we can safely send SharedIsolate across threads.
+// Because we only allow mutability through a borrowed LockedIsolate scope,
+// we can safely send SharedIsolate across threads.
 unsafe impl Send for SharedIsolate {}
 
 impl SharedIsolate {
@@ -1041,8 +1055,9 @@ impl SharedIsolate {
   }
 
   /// Borrows a LockedIsolate from the shared isolate reference.
-  /// A Locker is created for the lifetime of the LockedIsolate, and the native isolate is entered.
-  /// When the LockedIsolate is dropped, the isolate is and any entered scopes are exited, and the Locker is destroyed.
+  /// A Locker is created for the lifetime of the LockedIsolate, and the native
+  /// isolate is entered. When the LockedIsolate is dropped, the isolate is and
+  /// any entered scopes are exited, and the Locker is destroyed.
   pub fn lock(&mut self) -> LockedIsolate<'_> {
     LockedIsolate::new(&mut self.cxx_isolate)
   }
@@ -1058,9 +1073,11 @@ impl Deref for SharedIsolate {
 
 impl From<OwnedIsolate> for SharedIsolate {
   /// Performs a conversion from an OwnedIsolate to a SharedIsolate.
-  /// As the OwnedIsolate is dropped during conversion, active scopes and the native isolate are exited.
+  /// As the OwnedIsolate is dropped during conversion, active scopes and the
+  /// native isolate are exited.
   fn from(mut isolate: OwnedIsolate) -> Self {
-    // marking this as true will skip disposal of the native isolate, which is handed off to the SharedIsolate.
+    // marking this as true will skip disposal of the native isolate, which is
+    // handed off to the SharedIsolate.
     isolate.skip_disposal = true;
     SharedIsolate::new(isolate.cxx_isolate.as_ptr())
   }
@@ -1124,7 +1141,7 @@ impl DerefMut for OwnedIsolate {
 
 impl From<SharedIsolate> for OwnedIsolate {
   fn from(mut isolate: SharedIsolate) -> Self {
-    // keep the native isolate alive as we are just transferring it to a shared isolate instance.
+    // keep the native isolate alive and move it to the OwnedIsolate
     isolate.skip_disposal = true;
     // create a new OwnedIsolate with a fresh Locker instance
     let mut owned_isolate =
