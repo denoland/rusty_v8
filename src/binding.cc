@@ -162,6 +162,12 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+bool v8__Isolate__IsInUse(v8::Isolate* isolate) { return isolate->IsInUse(); }
+
+void v8__Isolate__DiscardThreadSpecificMetadata(v8::Isolate* isolate) {
+  isolate->DiscardThreadSpecificMetadata();
+}
+
 void v8__Isolate__ClearKeptObjects(v8::Isolate* isolate) {
   isolate->ClearKeptObjects();
 }
@@ -341,6 +347,10 @@ void v8__HandleScope__DESTRUCT(v8::HandleScope* self) { self->~HandleScope(); }
 
 void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* buf, v8::Isolate* isolate) {
   construct_in_place<v8::Locker>(buf, isolate);
+}
+
+bool v8__Locker__IsLocked(v8::Isolate* isolate) {
+  return v8::Locker::IsLocked(isolate);
 }
 
 void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }

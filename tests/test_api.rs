@@ -5339,6 +5339,7 @@ fn shared_isolate_global_context() {
   // test to creating a shared isolate from an existing OwnedIsolate
   let owned_isolate = v8::Isolate::new(Default::default());
   let mut isolate = v8::SharedIsolate::from(owned_isolate);
+  let isolate_handle = isolate.clone();
 
   let context = {
     let isolate = &mut isolate.lock();
@@ -5379,27 +5380,35 @@ fn shared_isolate_global_context() {
   t1.join().unwrap();
   t2.join().unwrap();
 
-  // test moving the shared isolate back into an owned one
-  let shared_isolate = Arc::try_unwrap(isolate_mutex)
-    .unwrap()
-    .into_inner()
-    .unwrap();
+  {
+    // test moving the shared isolate back into an owned one
+    let shared_isolate = Arc::try_unwrap(isolate_mutex)
+      .unwrap()
+      .into_inner()
+      .unwrap();
 
-  let isolate = &mut v8::OwnedIsolate::from(shared_isolate);
-  let scope = &mut v8::HandleScope::with_context(isolate, context);
-  let key = v8::String::new(scope, "a").unwrap();
-  let obj = scope
-    .get_current_context()
-    .global(scope)
-    .get(scope, key.into())
-    .unwrap()
-    .int32_value(scope)
-    .unwrap();
-  assert_eq!(obj, 2);
+    // test discarding thread specific metadata
+    shared_isolate.discard_thread_specific_metadata();
+
+    let isolate = &mut v8::OwnedIsolate::from(shared_isolate);
+    let scope = &mut v8::HandleScope::with_context(isolate, context);
+    let key = v8::String::new(scope, "a").unwrap();
+    let obj = scope
+      .get_current_context()
+      .global(scope)
+      .get(scope, key.into())
+      .unwrap()
+      .int32_value(scope)
+      .unwrap();
+    assert_eq!(obj, 2);
+  }
+
+  // ensure isolate is disposed
+  assert!(isolate_handle.is_disposed())
 }
 
 #[test]
-fn _shared_isolate_multiple_locks() {
+fn shared_isolate_multiple_locks() {
   let _setup_guard = setup();
   let mut shared_isolate1 = v8::Isolate::new_shared(Default::default());
   let mut shared_isolate2 = v8::Isolate::new_shared(Default::default());

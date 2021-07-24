@@ -217,6 +217,8 @@ extern "C" {
     callback: InterruptCallback,
     data: *mut c_void,
   );
+  fn v8__Isolate__IsInUse(isolate: *const Isolate) -> bool;
+  fn v8__Isolate__DiscardThreadSpecificMetadata(isolate: *const Isolate);
   fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
   fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
   fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
@@ -240,6 +242,7 @@ extern "C" {
   fn v8__Isolate__HasPendingBackgroundTasks(isolate: *const Isolate) -> bool;
 
   fn v8__Locker__CONSTRUCT(buf: *mut Locker, isolate: *mut Isolate);
+  fn v8__Locker__IsLocked(isolate: *mut Isolate) -> bool;
   fn v8__Locker__DESTRUCT(this: &mut Locker);
   fn v8__Unlocker__CONSTRUCT(buf: *mut Unlocker, isolate: *mut Isolate);
   fn v8__Unlocker__DESTRUCT(this: &mut Unlocker);
@@ -800,6 +803,41 @@ impl IsolateHandle {
     Self(isolate.get_annex_arc())
   }
 
+  /// Check if this isolate is in use. True if at least one thread Enter'ed
+  /// this isolate.
+  ///
+  /// Returns false if the underlying isolate has been disposed.
+  pub fn is_in_use(&self) -> bool {
+    let _lock = self.0.isolate_mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
+      false
+    } else {
+      unsafe { v8__Isolate__IsInUse(self.0.isolate) }
+    }
+  }
+
+  /// Returns whether or not the isolate is alive and locked by the current
+  /// thread. See `v8::Locker::is_locked()`.
+  ///
+  /// Returns false if the underlying isolate has been disposed.
+  pub fn is_locked(&self) -> bool {
+    let _lock = self.0.isolate_mutex.lock().unwrap();
+    if self.0.isolate.is_null() {
+      false
+    } else {
+      unsafe { Locker::is_locked(self.0.isolate) }
+    }
+  }
+
+  /// Returns whether or not the isolate has been disposed.
+  ///
+  /// This method can be used by any thread even if that thread has not
+  /// acquired the V8 lock with a Locker object.
+  pub fn is_disposed(&self) -> bool {
+    let _lock = self.0.isolate_mutex.lock().unwrap();
+    self.0.isolate.is_null()
+  }
+
   /// Forcefully terminate the current thread of JavaScript execution
   /// in the given isolate.
   ///
@@ -911,6 +949,12 @@ impl Locker {
     };
     v8__Locker__CONSTRUCT(&mut locker, isolate);
     locker
+  }
+
+  /// Returns whether or not the locker for a given isolate is locked by
+  /// the current thread.
+  pub unsafe fn is_locked(isolate: *mut Isolate) -> bool {
+    v8__Locker__IsLocked(isolate)
   }
 }
 
@@ -1038,6 +1082,7 @@ impl<'a> Drop for LockedIsolate<'a> {
 #[derive(Debug)]
 pub struct SharedIsolate {
   cxx_isolate: NonNull<Isolate>,
+  handle: IsolateHandle,
   skip_disposal: bool,
 }
 
@@ -1050,6 +1095,7 @@ impl SharedIsolate {
   pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
     Self {
       cxx_isolate: NonNull::new(cxx_isolate).unwrap(),
+      handle: IsolateHandle::new(unsafe { cxx_isolate.as_ref().unwrap() }),
       skip_disposal: false,
     }
   }
@@ -1061,13 +1107,27 @@ impl SharedIsolate {
   pub fn lock(&mut self) -> LockedIsolate<'_> {
     LockedIsolate::new(&mut self.cxx_isolate)
   }
+
+  /// Discards all V8 thread-specific data for the Isolate. Should be used
+  /// if a thread is terminating and it has used an Isolate that will outlive
+  /// the thread -- all thread-specific data for an Isolate is discarded when
+  /// an Isolate is disposed so this call is pointless if an Isolate is about
+  /// to be Disposed.  
+  ///
+  /// rusty_v8 note: This function must be called only while the Isolate is
+  /// not locked or entered by the current thread.
+  pub fn discard_thread_specific_metadata(&self) {
+    unsafe {
+      v8__Isolate__DiscardThreadSpecificMetadata(self.cxx_isolate.as_ref())
+    }
+  }
 }
 
 impl Deref for SharedIsolate {
-  type Target = Isolate;
+  type Target = IsolateHandle;
 
   fn deref(&self) -> &Self::Target {
-    unsafe { self.cxx_isolate.as_ref() }
+    &self.handle
   }
 }
 
