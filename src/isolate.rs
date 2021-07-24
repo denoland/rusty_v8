@@ -30,6 +30,8 @@ use crate::Value;
 use std::any::Any;
 use std::any::TypeId;
 
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
@@ -920,6 +922,20 @@ impl IsolateHandle {
       true
     }
   }
+
+  /// Discards all V8 thread-specific data for the Isolate. Should be used
+  /// if a thread is terminating and it has used an Isolate that will outlive
+  /// the thread -- all thread-specific data for an Isolate is discarded when
+  /// an Isolate is disposed so this call is pointless if an Isolate is about
+  /// to be Disposed.
+  ///
+  /// rusty_v8 note: This function must be called only while the Isolate is
+  /// not locked or entered by the current thread, so it is marked unsafe.
+  /// See [`SharedIsolate::discard_thread_specific_metadata`], where it is safe
+  /// to call it.
+  pub unsafe fn discard_thread_specific_metadata(&self) {
+    v8__Isolate__DiscardThreadSpecificMetadata(self.0.isolate)
+  }
 }
 
 /// v8::Locker is a scoped lock object. While it's active, i.e. between its
@@ -1112,14 +1128,9 @@ impl SharedIsolate {
   /// if a thread is terminating and it has used an Isolate that will outlive
   /// the thread -- all thread-specific data for an Isolate is discarded when
   /// an Isolate is disposed so this call is pointless if an Isolate is about
-  /// to be Disposed.  
-  ///
-  /// rusty_v8 note: This function must be called only while the Isolate is
-  /// not locked or entered by the current thread.
+  /// to be Disposed.
   pub fn discard_thread_specific_metadata(&self) {
-    unsafe {
-      v8__Isolate__DiscardThreadSpecificMetadata(self.cxx_isolate.as_ref())
-    }
+    unsafe { self.deref().discard_thread_specific_metadata() }
   }
 }
 
@@ -1128,6 +1139,18 @@ impl Deref for SharedIsolate {
 
   fn deref(&self) -> &Self::Target {
     &self.handle
+  }
+}
+
+impl Borrow<Isolate> for SharedIsolate {
+  fn borrow(&self) -> &Isolate {
+    unsafe { self.cxx_isolate.as_ref() }
+  }
+}
+
+impl BorrowMut<Isolate> for SharedIsolate {
+  fn borrow_mut(&mut self) -> &mut Isolate {
+    unsafe { self.cxx_isolate.as_mut() }
   }
 }
 
