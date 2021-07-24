@@ -121,6 +121,13 @@ impl<'s, T> Deref for Local<'s, T> {
 /// A global handle contains a reference to a storage cell within
 /// the V8 engine which holds an object value and which is updated by
 /// the garbage collector whenever the object is moved.
+///
+/// rusty_v8 note: Care must be taken to ensure the global handle is only used
+/// in contexts where the holding Isolate is locked and entered. Otherwise, a
+/// runtime assertion will be triggered, and the thread will panic. Unlike the
+/// V8 C++ API, Global handles are reset when dropped. Extra care must be taken
+/// to ensure Global handles are dropped while the associated Isolate is
+/// entered, or after the Isolate has been dropped and disposed.
 #[derive(Debug)]
 pub struct Global<T> {
   data: NonNull<T>,
@@ -128,7 +135,7 @@ pub struct Global<T> {
 }
 
 // Global is marked as Send + Sync, but care must be taken to ensure the holding
-// isolate is locked and active before accessing data.
+// isolate is locked and entered before interacting with it.
 unsafe impl<T> Send for Global<T> {}
 unsafe impl<T> Sync for Global<T> {}
 
