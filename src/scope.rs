@@ -93,13 +93,13 @@ use std::ptr::NonNull;
 
 use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
+use crate::isolate::{Entered, LockedIsolate};
 use crate::Context;
 use crate::Data;
 use crate::DataError;
 use crate::Handle;
 use crate::Isolate;
 use crate::Local;
-use crate::LockedIsolate;
 use crate::Message;
 use crate::Object;
 use crate::OwnedIsolate;
@@ -721,7 +721,7 @@ mod param {
     type NewScope = HandleScope<'s, ()>;
   }
 
-  impl<'s> NewHandleScope<'s> for LockedIsolate<'_> {
+  impl<'s> NewHandleScope<'s> for LockedIsolate<'_, Entered> {
     type NewScope = HandleScope<'s, ()>;
   }
 
@@ -765,7 +765,7 @@ mod param {
     }
   }
 
-  impl<'s> NewHandleScopeWithContext<'s> for LockedIsolate<'_> {
+  impl<'s> NewHandleScopeWithContext<'s> for LockedIsolate<'_, Entered> {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       &mut *self
     }
@@ -845,7 +845,7 @@ mod param {
     type NewScope = CallbackScope<'s, ()>;
   }
 
-  impl<'s> NewCallbackScope<'s> for &'s mut LockedIsolate<'_> {
+  impl<'s> NewCallbackScope<'s> for &'s mut LockedIsolate<'_, Entered> {
     type NewScope = CallbackScope<'s, ()>;
   }
 
@@ -902,7 +902,7 @@ mod getter {
     }
   }
 
-  impl<'s> GetIsolate<'s> for &'s mut LockedIsolate<'_> {
+  impl<'s> GetIsolate<'s> for &'s mut LockedIsolate<'_, Entered> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self
     }
@@ -968,7 +968,7 @@ mod getter {
     }
   }
 
-  impl GetScopeData for LockedIsolate<'_> {
+  impl GetScopeData for LockedIsolate<'_, Entered> {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self)
     }

@@ -7,7 +7,6 @@ use std::ops::Deref;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
-use crate::isolate::Locker;
 use crate::Data;
 use crate::HandleScope;
 use crate::Isolate;
@@ -357,7 +356,7 @@ impl From<&'_ IsolateHandle> for HandleHost {
     let isolate_ptr = unsafe { isolate_handle.get_isolate_ptr() };
     if isolate_ptr.is_null() {
       Self::DisposedIsolate
-    } else if !unsafe { Locker::is_locked(isolate_ptr) } {
+    } else if !isolate_handle.is_locked() {
       Self::NonActiveIsolate
     } else {
       Self::Isolate(NonNull::new(isolate_ptr).unwrap())
