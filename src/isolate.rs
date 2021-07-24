@@ -1129,8 +1129,8 @@ impl SharedIsolate {
   /// the thread -- all thread-specific data for an Isolate is discarded when
   /// an Isolate is disposed so this call is pointless if an Isolate is about
   /// to be Disposed.
-  pub fn discard_thread_specific_metadata(&self) {
-    unsafe { self.deref().discard_thread_specific_metadata() }
+  pub fn discard_thread_specific_metadata(&mut self) {
+    unsafe { self.handle.discard_thread_specific_metadata() }
   }
 }
 
