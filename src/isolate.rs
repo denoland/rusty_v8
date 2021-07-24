@@ -695,7 +695,7 @@ impl Isolate {
 
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
-    // methods on the isolate.
+    // methods on the isolate. This effectively marks the isolate as disposed.
     let annex = self.get_annex_mut();
     {
       let _lock = annex.isolate_mutex.lock().unwrap();

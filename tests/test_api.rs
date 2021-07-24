@@ -5383,7 +5383,7 @@ fn shared_isolate_global_context() {
 
   {
     // test moving the shared isolate back into an owned one
-    let shared_isolate = Arc::try_unwrap(isolate_mutex)
+    let mut shared_isolate = Arc::try_unwrap(isolate_mutex)
       .unwrap()
       .into_inner()
       .unwrap();
@@ -5477,4 +5477,52 @@ fn global_hash() {
 
   // should panic, hashing Global outside of active isolate
   assert!(global_ctx_2 == global_ctx);
+}
+
+#[test]
+fn shared_isolate_slots() {
+  #[derive(Clone)]
+  struct Ctx(v8::Global<v8::Context>, v8::Global<v8::Integer>);
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let ctx = {
+    let scope = &mut v8::HandleScope::new(&mut isolate);
+    let context = v8::Context::new(scope);
+    let value = v8::Integer::new(scope, 3);
+    Ctx(
+      v8::Global::new(scope, context),
+      v8::Global::new(scope, value),
+    )
+  };
+  isolate.set_slot(ctx);
+
+  let mut shared_isolate = v8::SharedIsolate::from(isolate);
+  {
+    let isolate = &mut shared_isolate.lock();
+    let ctx_new = {
+      let Ctx(context, value) = isolate
+        .get_slot::<Ctx>()
+        .cloned()
+        .expect("expected Ctx slot");
+      let scope = &mut v8::HandleScope::with_context(isolate, &context);
+      assert_eq!(scope.get_current_context(), &context);
+      let value = value.get(scope).int32_value(scope).unwrap();
+      assert_eq!(value, 3);
+      let value = v8::Integer::new(scope, value + 1);
+      let value_global = v8::Global::new(scope, value);
+      Ctx(context, value_global)
+    };
+    isolate.set_slot(ctx_new);
+  };
+  {
+    let isolate = &mut shared_isolate.lock();
+    let Ctx(context, value) = isolate
+      .get_slot::<Ctx>()
+      .cloned()
+      .expect("expected Ctx slot");
+    let scope = &mut v8::HandleScope::with_context(isolate, &context);
+    assert_eq!(scope.get_current_context(), &context);
+    let value = value.get(scope).int32_value(scope).unwrap();
+    assert_eq!(value, 4);
+  };
 }
