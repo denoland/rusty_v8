@@ -5350,13 +5350,14 @@ fn shared_isolate_global_context() {
     let key = v8::String::new(scope, "a").unwrap();
     let value = v8::Integer::new(scope, 0);
     context.global(scope).set(scope, key.into(), value.into());
-    context_global
+    Arc::new(context_global)
   };
 
   let isolate_mutex = Arc::new(Mutex::new(isolate));
 
   let isolate_mutex_t1 = isolate_mutex.clone();
   let context_t1 = context.clone();
+
   let t1 = std::thread::spawn(move || {
     let mut shared_isolate = isolate_mutex_t1.lock().unwrap();
     let isolate = &mut shared_isolate.lock();
@@ -5433,4 +5434,47 @@ fn shared_isolate_multiple_locks() {
   let script = v8::Script::compile(scope1, source, None).unwrap();
   let result = script.run(scope1).unwrap().int32_value(scope1).unwrap();
   assert_eq!(result, 3);
+}
+
+#[test]
+#[should_panic(expected = "Global dropped outside of locked isolate context")]
+fn global_drop_outside_isolate() {
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new_shared(Default::default());
+  let _global = {
+    let isolate = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    v8::Global::new(scope, context)
+  };
+  // should panic, global dropped outside of isolate scope
+}
+
+#[test]
+#[should_panic(expected = "attempt to access Handle outside of locked Isolate")]
+fn global_hash() {
+  use std::sync::Arc;
+  let _setup_guard = setup();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let (global_ctx, global_ctx_2) = {
+    let scope = &mut v8::HandleScope::new(&mut isolate);
+    let context = v8::Context::new(scope);
+    let ctx = v8::Global::new(scope, context);
+    (Arc::new(ctx.clone()), Arc::new(ctx))
+  };
+  let mut shared_isolate = v8::SharedIsolate::from(isolate);
+
+  {
+    // test equality within context
+    let isolate = &mut shared_isolate.lock();
+    let scope =
+      &mut v8::HandleScope::with_context(isolate, global_ctx.as_ref());
+    assert_eq!(scope.get_current_context(), global_ctx);
+    assert_eq!(global_ctx_2, global_ctx);
+    let fresh_ctx = v8::Context::new(scope);
+    assert_ne!(fresh_ctx, global_ctx);
+  }
+
+  // should panic, hashing Global outside of active isolate
+  assert!(global_ctx_2 == global_ctx);
 }

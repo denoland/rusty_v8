@@ -5,7 +5,9 @@ use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
+use std::sync::Arc;
 
+use crate::isolate::Locker;
 use crate::Data;
 use crate::HandleScope;
 use crate::Isolate;
@@ -125,6 +127,11 @@ pub struct Global<T> {
   isolate_handle: IsolateHandle,
 }
 
+// Global is marked as Send + Sync, but care must be taken to ensure the holding
+// isolate is locked and active before accessing data.
+unsafe impl<T> Send for Global<T> {}
+unsafe impl<T> Sync for Global<T> {}
+
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
   pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
@@ -151,8 +158,6 @@ impl<T> Global<T> {
   }
 }
 
-unsafe impl<T> Send for Global<T> {}
-
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();
@@ -162,14 +167,15 @@ impl<T> Clone for Global<T> {
 
 impl<T> Drop for Global<T> {
   fn drop(&mut self) {
-    unsafe {
-      if self.isolate_handle.get_isolate_ptr().is_null() {
-        // This `Global` handle is associated with an `Isolate` that has already
-        // been disposed.
-      } else {
-        // Destroy the storage cell that contains the contents of this Global.
-        v8__Global__Reset(self.data.cast().as_ptr())
+    let HandleInfo { data, host } = self.get_handle_info();
+    match host {
+      // This `Global` handle is associated with an `Isolate` that has already
+      // been disposed.
+      HandleHost::DisposedIsolate => {}
+      HandleHost::NonActiveIsolate => {
+        panic!("Global dropped outside of locked isolate context")
       }
+      _ => unsafe { v8__Global__Reset(data.cast().as_ptr()) },
     }
   }
 }
@@ -244,6 +250,13 @@ impl<'a, T> Handle for &'a Global<T> {
   }
 }
 
+impl<T> Handle for Arc<Global<T>> {
+  type Data = T;
+  fn get_handle_info(&self) -> HandleInfo<T> {
+    HandleInfo::new(self.data, (&self.isolate_handle).into())
+  }
+}
+
 impl<'s, T> Borrow<T> for Local<'s, T> {
   fn borrow(&self) -> &T {
     &**self
@@ -255,6 +268,8 @@ impl<T> Borrow<T> for Global<T> {
     let HandleInfo { data, host } = self.get_handle_info();
     if let HandleHost::DisposedIsolate = host {
       panic!("attempt to access Handle hosted by disposed Isolate");
+    } else if let HandleHost::NonActiveIsolate = host {
+      panic!("attempt to access Handle outside of locked Isolate")
     }
     unsafe { &*data.as_ptr() }
   }
@@ -271,12 +286,7 @@ impl<'s, T: Hash> Hash for Local<'s, T> {
 
 impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    unsafe {
-      if self.isolate_handle.get_isolate_ptr().is_null() {
-        panic!("can't hash Global after its host Isolate has been disposed");
-      }
-      self.data.as_ref().hash(state);
-    }
+    (self.borrow() as &T).hash(state);
   }
 }
 
@@ -325,6 +335,7 @@ enum HandleHost {
   // scope.
   Scope,
   Isolate(NonNull<Isolate>),
+  NonActiveIsolate,
   DisposedIsolate,
 }
 
@@ -336,9 +347,14 @@ impl From<&'_ mut Isolate> for HandleHost {
 
 impl From<&'_ IsolateHandle> for HandleHost {
   fn from(isolate_handle: &IsolateHandle) -> Self {
-    NonNull::new(unsafe { isolate_handle.get_isolate_ptr() })
-      .map(Self::Isolate)
-      .unwrap_or(Self::DisposedIsolate)
+    let isolate_ptr = unsafe { isolate_handle.get_isolate_ptr() };
+    if isolate_ptr.is_null() {
+      Self::DisposedIsolate
+    } else if !unsafe { Locker::is_locked(isolate_ptr) } {
+      Self::NonActiveIsolate
+    } else {
+      Self::Isolate(NonNull::new(isolate_ptr).unwrap())
+    }
   }
 }
 
@@ -378,9 +394,14 @@ impl HandleHost {
       // needs to be tightened up.
       (Self::Scope, Self::Isolate(_), _) => true,
       (Self::Isolate(_), Self::Scope, _) => true,
+      // Handles must be used within the scope of an active Locker and entered
+      // isolate. Attempting to use a handle otherwise is unsafe.
+      (Self::NonActiveIsolate, ..) | (_, Self::NonActiveIsolate, _) => {
+        panic!("attempt to access Handle outside of locked Isolate")
+      }
       // Handles hosted in an Isolate that has been disposed aren't good for
       // anything, even if a pair of handles used to to be hosted in the same
-      // now-disposed solate.
+      // now-disposed isolate.
       (Self::DisposedIsolate, ..) | (_, Self::DisposedIsolate, _) => {
         panic!("attempt to access Handle hosted by disposed Isolate")
       }
@@ -406,6 +427,7 @@ impl HandleHost {
     match self {
       Self::Scope => panic!("host Isolate for Handle not available"),
       Self::Isolate(ile) => ile,
+      Self::NonActiveIsolate => panic!("attempt to access non-entered Isolate"),
       Self::DisposedIsolate => panic!("attempt to access disposed Isolate"),
     }
   }
