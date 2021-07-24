@@ -895,6 +895,27 @@ impl IsolateHandle<UnlockedHandle> {
     }
     owned
   }
+
+  /// Borrows a LockedIsolate from the shared isolate reference.
+  /// A Locker is created for the lifetime of the LockedIsolate, and the native
+  /// isolate is entered. When the LockedIsolate is dropped, the isolate is and
+  /// any entered scopes are exited, and the Locker is destroyed.
+  pub fn lock(&mut self) -> LockedIsolate<'_> {
+    LockedIsolate::new(self.cxx_isolate.unwrap())
+  }
+
+  pub fn enter(&mut self) -> LockedIsolate<'_, Entered> {
+    LockedIsolate::new(self.cxx_isolate.unwrap()).enter()
+  }
+
+  /// Discards all V8 thread-specific data for the Isolate. Should be used
+  /// if a thread is terminating and it has used an Isolate that will outlive
+  /// the thread -- all thread-specific data for an Isolate is discarded when
+  /// an Isolate is disposed so this call is pointless if an Isolate is about
+  /// to be Disposed.
+  pub fn discard_thread_specific_metadata(&mut self) {
+    unsafe { self.handle.discard_thread_specific_metadata() }
+  }
 }
 
 impl Deref for IsolateHandle<UnlockedHandle> {
@@ -914,7 +935,7 @@ impl DerefMut for IsolateHandle<UnlockedHandle> {
 unsafe impl<T: IsolateHandleState> Send for IsolateHandle<T> {}
 unsafe impl Sync for IsolateHandle {}
 
-impl ThreadSafeHandle {
+impl IsolateHandle {
   // This function is marked unsafe because it must be called only with either
   // IsolateAnnex::mutex locked, or from the main thread associated with the V8
   // isolate.
@@ -1040,16 +1061,10 @@ impl ThreadSafeHandle {
     }
   }
 
-  /// Discards all V8 thread-specific data for the Isolate. Should be used
-  /// if a thread is terminating and it has used an Isolate that will outlive
-  /// the thread -- all thread-specific data for an Isolate is discarded when
-  /// an Isolate is disposed so this call is pointless if an Isolate is about
-  /// to be Disposed.
-  ///
-  /// rusty_v8 note: This function must be called only while the Isolate is
-  /// not locked or entered by the current thread, so it is marked unsafe.
-  /// See [`SharedIsolate::discard_thread_specific_metadata`], where it is safe
-  /// to call it.
+  /// This function must be called only while the Isolate is not locked or
+  /// entered by the current thread, so it is marked unsafe.
+  /// See [`IsolateHandle<UnlockedHandle>::discard_thread_specific_metadata`],
+  /// where it is safe to call it.
   pub unsafe fn discard_thread_specific_metadata(&self) {
     v8__Isolate__DiscardThreadSpecificMetadata(self.0.isolate)
   }
@@ -1227,29 +1242,6 @@ impl<'a> LockedIsolate<'a> {
   /// allowed.
   pub unsafe fn unlock(&mut self) -> Unlocker<'_> {
     Unlocker::new(self.state.0.as_mut())
-  }
-}
-
-impl UnlockedHandle {
-  /// Borrows a LockedIsolate from the shared isolate reference.
-  /// A Locker is created for the lifetime of the LockedIsolate, and the native
-  /// isolate is entered. When the LockedIsolate is dropped, the isolate is and
-  /// any entered scopes are exited, and the Locker is destroyed.
-  pub fn lock(&mut self) -> LockedIsolate<'_> {
-    LockedIsolate::new(self.cxx_isolate.unwrap())
-  }
-
-  pub fn enter(&mut self) -> LockedIsolate<'_, Entered> {
-    LockedIsolate::new(self.cxx_isolate.unwrap()).enter()
-  }
-
-  /// Discards all V8 thread-specific data for the Isolate. Should be used
-  /// if a thread is terminating and it has used an Isolate that will outlive
-  /// the thread -- all thread-specific data for an Isolate is discarded when
-  /// an Isolate is disposed so this call is pointless if an Isolate is about
-  /// to be Disposed.
-  pub fn discard_thread_specific_metadata(&mut self) {
-    unsafe { self.handle.discard_thread_specific_metadata() }
   }
 }
 
