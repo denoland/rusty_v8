@@ -49,8 +49,17 @@ jobs:
             target: aarch64-unknown-linux-gnu
             variant: release
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
+            target: armv7-unknown-linux-gnueabihf
+            variant: debug
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
+            target: armv7-unknown-linux-gnueabihf
+            variant: release
+
     env:
       V8_FROM_SOURCE: true
+      GN_ARGS: ${{ matrix.config.target == 'armv7-unknown-linux-gnueabihf' && 'v8_enable_shared_ro_heap=true' || '' }}
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
@@ -78,7 +87,7 @@ jobs:
           python-version: 2.7.x
           architecture: x64
 
-      - name: Install cross compilation toolchain
+      - name: Install cross compilation toolchain for aarch64
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
           rustup target add aarch64-unknown-linux-gnu
@@ -94,6 +103,23 @@ jobs:
 
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-5" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
+
+      - name: Install cross compilation toolchain for armv7
+        if: matrix.config.target == 'armv7-unknown-linux-gnueabihf'
+        run: |
+          rustup target add armv7-unknown-linux-gnueabihf
+
+          sudo apt update
+          sudo apt install -yq --no-install-suggests --no-install-recommends \
+            binfmt-support g++-5-arm-linux-gnueabihf g++-5-multilib \
+            gcc-5-arm-linux-gnueabihf libc6-armhf-cross qemu qemu-user \
+            qemu-user-binfmt
+
+          sudo ln -s /usr/arm-linux-gnueabihf/lib/ld-linux-armhf.so.3 \
+                     /lib/ld-linux-armhf.so.3
+
+          echo "CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=/usr/bin/arm-linux-gnueabihf-gcc-5" >> ${GITHUB_ENV}
+          echo "QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt

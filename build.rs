@@ -132,6 +132,12 @@ fn build_v8() {
       maybe_install_sysroot("arm64");
       maybe_install_sysroot("amd64");
     };
+    if target_triple == "armv7-unknown-linux-gnueabihf" {
+      gn_args.push(r#"target_cpu="arm""#.to_string());
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("arm");
+      maybe_install_sysroot("i386");
+    };
   }
 
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
