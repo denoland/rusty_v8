@@ -1160,6 +1160,22 @@ impl<'a> Drop for Unlocker<'a> {
 #[derive(Debug)]
 pub struct Locked(NonNull<Isolate>);
 
+impl Deref for Locked {
+  type Target = Isolate;
+
+  fn deref(&self) -> &Self::Target {
+    unsafe { self.0.as_ref() }
+  }
+}
+
+impl DerefMut for Locked {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { self.0.as_mut() }
+  }
+}
+
+impl LockedIsolateState for Locked {}
+
 #[derive(Debug)]
 pub struct Entered(NonNull<Isolate>);
 
@@ -1184,22 +1200,29 @@ impl DerefMut for Entered {
   }
 }
 
-/// An entered isolate within a Locker's scope. Created when a SharedIsolate is
+impl LockedIsolateState for Entered {}
+
+pub trait LockedIsolateState:
+  Deref<Target = Isolate> + DerefMut<Target = Isolate>
+{
+}
+
+/// An isolate within a Locker's scope. Created when a SharedIsolate is
 /// borrowed. When dropped, the isolate is exited and the locker is destroyed.
 /// This is similar to V8's Isolate::Scope, but a Locker is implicitly entered
 /// for the life of a LockedIsolate.
+/// todo: redo doc
 pub struct LockedIsolate<'a, State = Locked> {
-  //cxx_isolate: &'a mut NonNull<Isolate>,
   state: State,
   locker: std::rc::Rc<Locker>,
   _lifetime: PhantomData<&'a ()>,
 }
 
-impl Deref for LockedIsolate<'_, Entered> {
+impl<S: LockedIsolateState> Deref for LockedIsolate<'_, S> {
   type Target = Isolate;
 
   fn deref(&self) -> &Self::Target {
-    unsafe { self.state.0.as_ref() }
+    &self.state
   }
 }
 
@@ -1243,6 +1266,18 @@ impl<'a> LockedIsolate<'a> {
   pub unsafe fn unlock(&mut self) -> Unlocker<'_> {
     Unlocker::new(self.state.0.as_mut())
   }
+}
+
+pub trait IsolateScope: Deref<Target = Isolate> {
+  type State: LockedIsolateState;
+}
+
+impl IsolateScope for OwnedIsolate {
+  type State = Entered;
+}
+
+impl<S: LockedIsolateState> IsolateScope for LockedIsolate<'_, S> {
+  type State = S;
 }
 
 /// Same as Isolate but gets disposed when it goes out of scope.
@@ -1289,20 +1324,6 @@ impl OwnedIsolate {
     self.state = OwnedIsolateState::NotEntered(isolate);
     self.locker.take();
     IsolateHandle::new_unlocked(isolate.as_ptr())
-  }
-
-  pub fn into_locked(mut self) -> LockedIsolate<'static, Locked> {
-    let isolate = self.state.isolate_ptr();
-    self.state = OwnedIsolateState::NotEntered(isolate);
-    let locker = self
-      .locker
-      .take()
-      .expect("invariant: expected locker when converting to locked isolate");
-    LockedIsolate {
-      state: Locked(isolate),
-      locker: std::rc::Rc::new(locker),
-      _lifetime: PhantomData::default(),
-    }
   }
 }
 
