@@ -805,9 +805,13 @@ fn thread_safe_handle_drop_after_isolate() {
   // Check that handle is Send and Sync.
   fn f<S: Send + Sync>(_: S) {}
   f(handle_);
+  // Drop the Isolate
+  drop(isolate);
+  assert!(handle.is_disposed());
   // All methods on IsolateHandle should return false after the isolate is
   // dropped.
-  drop(isolate);
+  assert!(!handle.is_in_use());
+  assert!(!handle.is_locked());
   assert!(!handle.terminate_execution());
   assert!(!handle.cancel_terminate_execution());
   assert!(!handle.is_execution_terminating());
@@ -2654,7 +2658,6 @@ fn snapshot_creator() {
       context_data_index_2 =
         snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -2733,7 +2736,6 @@ fn external_references() {
 
       snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -3968,7 +3970,6 @@ fn module_snapshot() {
 
       snapshot_creator.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Keep)
       .unwrap()
@@ -5339,7 +5340,8 @@ fn shared_isolate_global_context() {
   // test to creating a shared isolate from an existing OwnedIsolate
   let owned_isolate = v8::Isolate::new(Default::default());
   let mut isolate = owned_isolate.into_unlocked();
-  let isolate_handle = isolate.thread_safe_handle();
+  // test clone isolatehandle as ThreadSafeHandle
+  let isolate_handle = isolate.clone();
   let context = {
     let isolate = &mut isolate.enter();
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5387,7 +5389,7 @@ fn shared_isolate_global_context() {
       .into_inner()
       .unwrap();
 
-    // test discarding thread specific metadata
+    // test discarding thread specific metadata (no observable change)
     shared_isolate.discard_thread_specific_metadata();
 
     let mut isolate = shared_isolate.into_owned();

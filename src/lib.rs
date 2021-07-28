@@ -99,6 +99,7 @@ pub use isolate::HostImportModuleDynamicallyWithImportAssertionsCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
 pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
+pub use isolate::LockedIsolate;
 pub use isolate::MessageCallback;
 pub use isolate::MicrotasksPolicy;
 pub use isolate::NearHeapLimitCallback;

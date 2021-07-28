@@ -178,7 +178,7 @@ impl<T> Drop for Global<T> {
       // This `Global` handle is associated with an `Isolate` that has already
       // been disposed.
       HandleHost::DisposedIsolate => {}
-      HandleHost::NonActiveIsolate => {
+      HandleHost::UnlockedIsolate => {
         panic!("Global dropped outside of locked isolate context")
       }
       _ => unsafe { v8__Global__Reset(data.cast().as_ptr()) },
@@ -274,7 +274,7 @@ impl<T> Borrow<T> for Global<T> {
     let HandleInfo { data, host } = self.get_handle_info();
     if let HandleHost::DisposedIsolate = host {
       panic!("attempt to access Handle hosted by disposed Isolate");
-    } else if let HandleHost::NonActiveIsolate = host {
+    } else if let HandleHost::UnlockedIsolate = host {
       panic!("attempt to access Handle outside of locked Isolate")
     }
     unsafe { &*data.as_ptr() }
@@ -341,7 +341,7 @@ enum HandleHost {
   // scope.
   Scope,
   Isolate(NonNull<Isolate>),
-  NonActiveIsolate,
+  UnlockedIsolate,
   DisposedIsolate,
 }
 
@@ -357,7 +357,7 @@ impl From<&'_ IsolateHandle> for HandleHost {
     if isolate_ptr.is_null() {
       Self::DisposedIsolate
     } else if !isolate_handle.is_locked() {
-      Self::NonActiveIsolate
+      Self::UnlockedIsolate
     } else {
       Self::Isolate(NonNull::new(isolate_ptr).unwrap())
     }
@@ -402,7 +402,7 @@ impl HandleHost {
       (Self::Isolate(_), Self::Scope, _) => true,
       // Handles must be used within the scope of an active Locker and entered
       // isolate. Attempting to use a handle otherwise is unsafe.
-      (Self::NonActiveIsolate, ..) | (_, Self::NonActiveIsolate, _) => {
+      (Self::UnlockedIsolate, ..) | (_, Self::UnlockedIsolate, _) => {
         panic!("attempt to access Handle outside of locked Isolate")
       }
       // Handles hosted in an Isolate that has been disposed aren't good for
@@ -433,7 +433,7 @@ impl HandleHost {
     match self {
       Self::Scope => panic!("host Isolate for Handle not available"),
       Self::Isolate(ile) => ile,
-      Self::NonActiveIsolate => panic!("attempt to access non-entered Isolate"),
+      Self::UnlockedIsolate => panic!("attempt to access non-entered Isolate"),
       Self::DisposedIsolate => panic!("attempt to access disposed Isolate"),
     }
   }

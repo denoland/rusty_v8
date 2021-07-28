@@ -181,7 +181,7 @@ impl SnapshotCreator {
   // revisited after the libdeno integration is complete.
   pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr, false);
+    let mut owned_isolate = OwnedIsolate::new_for_snapshot_creator(isolate_ptr);
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(Box::new(()));
     owned_isolate

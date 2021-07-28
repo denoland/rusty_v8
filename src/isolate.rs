@@ -35,8 +35,7 @@ use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
@@ -315,12 +314,9 @@ impl Isolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    let mut owned_isolate = OwnedIsolate::new(cxx_isolate, true);
+    let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(create_param_allocations);
-    unsafe {
-      owned_isolate.enter();
-    }
     owned_isolate
   }
 
@@ -779,21 +775,19 @@ impl Debug for IsolateAnnex {
   }
 }
 
-/// IsolateHandle is a thread-safe reference to an Isolate. It's main use is to
-/// terminate execution of a running isolate from another thread.
+/// IsolateHandle is a thread-safe reference to an [`Isolate`]. It comes in two
+/// types.
 ///
-/// It is created with Isolate::thread_safe_handle().
+/// The default, `ThreadSafeHandle`, is a clonable reference to an [`Isolate`]
+/// with guarded access to thread-safe functions. It is primarily used to
+/// terminate running V8 execution. See [`IsolateHandle<ThreadSafeHandle>`].
 ///
-/// IsolateHandle is Cloneable, Send, and Sync.
+/// An IsolateHandle may also hold a reference to an owned but unlocked Isolate.
+/// See [`IsolateHandle<UnlockedIsolate>`] for more information.
 #[derive(Clone, Debug)]
-pub struct IsolateHandle<State = ThreadSafeHandle>
-where
-  State: IsolateHandleState,
-{
+pub struct IsolateHandle<State = ThreadSafeHandle> {
   state: State,
 }
-
-pub type UnlockedIsolate = IsolateHandle<UnlockedHandle>;
 
 impl IsolateHandle {
   fn new_thread_safe(isolate: &Isolate) -> IsolateHandle {
@@ -802,10 +796,10 @@ impl IsolateHandle {
     }
   }
 
-  fn new_unlocked(isolate: *mut Isolate) -> IsolateHandle<UnlockedHandle> {
+  fn new_unlocked(isolate: *mut Isolate) -> IsolateHandle<Unlocked> {
     let cxx_isolate = std::ptr::NonNull::new(isolate).unwrap();
     IsolateHandle {
-      state: UnlockedHandle {
+      state: Unlocked {
         handle: Self::new_thread_safe(unsafe { cxx_isolate.as_ref() }),
         cxx_isolate: Some(cxx_isolate),
       },
@@ -813,38 +807,13 @@ impl IsolateHandle {
   }
 }
 
-// impl<T: IsolateHandleState> std::ops::Deref for IsolateHandle<T> {
-//   type Target = T;
-
-//   fn deref(&self) -> &Self::Target {
-//     &self.state
-//   }
-// }
-
-// impl<T: IsolateHandleState> std::ops::DerefMut for IsolateHandle<T> {
-//   fn deref_mut(&mut self) -> &mut Self::Target {
-//     &mut self.state
-//   }
-// }
-
-impl<T: IsolateHandleState> Drop for IsolateHandle<T> {
-  fn drop(&mut self) {
-    // dispose of the state before the locker
-    self.state.dispose();
-  }
-}
-
-pub trait IsolateHandleState {
-  fn dispose(&mut self) {}
-}
-
-#[doc(hidden)]
+/// A default thread-safe handle for an [`Isolate`]. It may be used to terminate
+/// running V8 execution from another thread, or inquiring on the state of the
+/// Isolate remotely. See [`IsolateHandle`] for more information.
 #[derive(Clone, Debug)]
 pub struct ThreadSafeHandle(Arc<IsolateAnnex>);
 
-impl IsolateHandleState for ThreadSafeHandle {}
-
-impl std::ops::Deref for IsolateHandle<ThreadSafeHandle> {
+impl Deref for IsolateHandle<ThreadSafeHandle> {
   type Target = ThreadSafeHandle;
 
   fn deref(&self) -> &Self::Target {
@@ -852,87 +821,15 @@ impl std::ops::Deref for IsolateHandle<ThreadSafeHandle> {
   }
 }
 
-impl std::ops::DerefMut for IsolateHandle {
+impl DerefMut for IsolateHandle {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.state
   }
 }
 
-#[derive(Debug)]
-pub struct UnlockedHandle {
-  cxx_isolate: Option<NonNull<Isolate>>,
-  handle: IsolateHandle,
-}
-
-impl Deref for UnlockedHandle {
-  type Target = IsolateHandle;
-
-  fn deref(&self) -> &Self::Target {
-    &self.handle
-  }
-}
-
-impl IsolateHandleState for UnlockedHandle {
-  fn dispose(&mut self) {
-    if let Some(mut ptr) = self.cxx_isolate {
-      unsafe { ptr.as_mut().dispose() }
-    }
-  }
-}
-
-impl IsolateHandle<UnlockedHandle> {
-  pub fn thread_safe_handle(&self) -> IsolateHandle {
-    self.state.handle.clone()
-  }
-
-  pub fn into_owned(mut self) -> OwnedIsolate {
-    let mut owned = OwnedIsolate::new(
-      unsafe { self.state.cxx_isolate.take().unwrap().as_mut() },
-      true,
-    );
-    unsafe {
-      owned.enter();
-    }
-    owned
-  }
-
-  /// Borrows a LockedIsolate from the shared isolate reference.
-  /// A Locker is created for the lifetime of the LockedIsolate, and the native
-  /// isolate is entered. When the LockedIsolate is dropped, the isolate is and
-  /// any entered scopes are exited, and the Locker is destroyed.
-  pub fn lock(&mut self) -> LockedIsolate<'_> {
-    LockedIsolate::new(self.cxx_isolate.unwrap())
-  }
-
-  pub fn enter(&mut self) -> LockedIsolate<'_, Entered> {
-    LockedIsolate::new(self.cxx_isolate.unwrap()).enter()
-  }
-
-  /// Discards all V8 thread-specific data for the Isolate. Should be used
-  /// if a thread is terminating and it has used an Isolate that will outlive
-  /// the thread -- all thread-specific data for an Isolate is discarded when
-  /// an Isolate is disposed so this call is pointless if an Isolate is about
-  /// to be Disposed.
-  pub fn discard_thread_specific_metadata(&mut self) {
-    unsafe { self.handle.discard_thread_specific_metadata() }
-  }
-}
-
-impl Deref for IsolateHandle<UnlockedHandle> {
-  type Target = UnlockedHandle;
-
-  fn deref(&self) -> &Self::Target {
-    &self.state
-  }
-}
-
-impl DerefMut for IsolateHandle<UnlockedHandle> {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.state
-  }
-}
-
-unsafe impl<T: IsolateHandleState> Send for IsolateHandle<T> {}
+/// All IsolateHandle instances may be sent between threads.
+unsafe impl<T> Send for IsolateHandle<T> {}
+/// The default [`IsolateHandle<ThreadSafeHandle>`] may be cloned and shared.
 unsafe impl Sync for IsolateHandle {}
 
 impl IsolateHandle {
@@ -957,7 +854,7 @@ impl IsolateHandle {
   }
 
   /// Returns whether or not the isolate is alive and locked by the current
-  /// thread. See `v8::Locker::is_locked()`.
+  /// thread. See [`Locker::is_locked()`].
   ///
   /// Returns false if the underlying isolate has been disposed.
   pub fn is_locked(&self) -> bool {
@@ -1060,13 +957,102 @@ impl IsolateHandle {
       true
     }
   }
+}
 
-  /// This function must be called only while the Isolate is not locked or
-  /// entered by the current thread, so it is marked unsafe.
-  /// See [`IsolateHandle<UnlockedHandle>::discard_thread_specific_metadata`],
-  /// where it is safe to call it.
-  pub unsafe fn discard_thread_specific_metadata(&self) {
-    v8__Isolate__DiscardThreadSpecificMetadata(self.0.isolate)
+/// A container for an Isolate which can be locked and sent between threads.
+/// See [`UnlockedIsolate`] for more info.
+#[derive(Debug)]
+pub struct Unlocked {
+  cxx_isolate: Option<NonNull<Isolate>>,
+  handle: IsolateHandle,
+}
+
+impl Deref for Unlocked {
+  type Target = IsolateHandle;
+
+  fn deref(&self) -> &Self::Target {
+    &self.handle
+  }
+}
+
+impl Drop for Unlocked {
+  fn drop(&mut self) {
+    if let Some(mut isolate) = self.cxx_isolate.take() {
+      unsafe { isolate.as_mut().dispose() }
+    }
+  }
+}
+
+/// An alias for [`IsolateHandle<UnlockedHandle>`].
+///
+/// It represents an Isolate not currently locked to any thread. It is free to
+/// move to another thread. An UnlockedIsolate must be Locked and Entered before
+/// using it to reference any V8 handles or scopes.
+pub type UnlockedIsolate = IsolateHandle<Unlocked>;
+
+impl Deref for IsolateHandle<Unlocked> {
+  type Target = Unlocked;
+
+  fn deref(&self) -> &Self::Target {
+    &self.state
+  }
+}
+
+impl DerefMut for IsolateHandle<Unlocked> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.state
+  }
+}
+
+impl IsolateHandle<Unlocked> {
+  /// Returns a new [`IsolateHandle`] which may be cloned between threads
+  /// and used to remotely terminate V8 execution.
+  ///
+  /// Note: This is the same as calling `clone()`, but an owned handle is
+  /// returned.
+  pub fn thread_safe_handle(&self) -> IsolateHandle {
+    self.state.handle.clone()
+  }
+
+  /// Borrows a LockedIsolate from the shared isolate reference.
+  /// A Locker is created for the lifetime of the LockedIsolate, and the native
+  /// isolate is entered. When the LockedIsolate is dropped, the isolate is and
+  /// any entered scopes are exited, and the Locker is destroyed.
+  pub fn lock(&mut self) -> LockedIsolate<'_> {
+    let isolate = self.state.cxx_isolate.unwrap();
+    let locker = unsafe { Locker::new(isolate.as_ptr()) };
+    LockedIsolate::new_locked(isolate, Some(locker))
+  }
+
+  /// Borrows a LockedIsolate from the UnlockedIsolate handle. The returned
+  /// Isolate reference is Locked and Entered. When dropped, the Isolate is
+  /// exited and the Locker is destroyed, returning ownership to this
+  /// UnlockedIsolate handle.
+  pub fn enter(&mut self) -> LockedIsolate<'_, Entered> {
+    let isolate = self.state.cxx_isolate.unwrap();
+    let locker = unsafe { Locker::new(isolate.as_ptr()) };
+    LockedIsolate::new_entered(isolate, Some(locker), true)
+  }
+
+  /// Converts the UnlockedHandle to an OwnedIsolate. The resulting isolate is
+  /// locked and entered, and will be disposed if dropped.
+  pub fn into_owned(mut self) -> OwnedIsolate {
+    OwnedIsolate::new(unsafe {
+      self.state.cxx_isolate.take().unwrap().as_mut()
+    })
+  }
+
+  /// Discards all V8 thread-specific data for the Isolate. Should be used
+  /// if a thread is terminating and it has used an Isolate that will outlive
+  /// the thread -- all thread-specific data for an Isolate is discarded when
+  /// an Isolate is disposed so this call is pointless if an Isolate is about
+  /// to be Disposed.
+  pub fn discard_thread_specific_metadata(&mut self) {
+    unsafe {
+      v8__Isolate__DiscardThreadSpecificMetadata(
+        self.state.cxx_isolate.unwrap().as_ptr(),
+      )
+    }
   }
 }
 
@@ -1157,6 +1143,8 @@ impl<'a> Drop for Unlocker<'a> {
   }
 }
 
+/// A state for [`LockedIsolate`] that indicates the Isolate is locked by the
+/// current thread.
 #[derive(Debug)]
 pub struct Locked(NonNull<Isolate>);
 
@@ -1176,13 +1164,31 @@ impl DerefMut for Locked {
 
 impl LockedIsolateState for Locked {}
 
+/// A state for [`LockedIsolate`] that indicates the Isolate is entered on the
+/// current thread. When dropped, the Isolate is exited.
 #[derive(Debug)]
-pub struct Entered(NonNull<Isolate>);
+pub struct Entered {
+  isolate: NonNull<Isolate>,
+  is_scoped: bool,
+}
+
+impl Entered {
+  /// Creates a new Entered isolate state. If |is_scoped| is true, the isolate
+  /// will be entered until the state is dropped.
+  pub(crate) fn new(mut isolate: NonNull<Isolate>, is_scoped: bool) -> Entered {
+    if is_scoped {
+      unsafe { isolate.as_mut().enter() }
+    }
+    Entered { isolate, is_scoped }
+  }
+}
 
 impl Drop for Entered {
   fn drop(&mut self) {
-    ScopeData::get_root_mut(unsafe { self.0.as_mut() });
-    unsafe { self.0.as_mut().exit() }
+    if self.is_scoped {
+      ScopeData::get_root_mut(unsafe { self.isolate.as_mut() });
+      unsafe { self.isolate.as_mut().exit() }
+    }
   }
 }
 
@@ -1190,32 +1196,40 @@ impl Deref for Entered {
   type Target = Isolate;
 
   fn deref(&self) -> &Self::Target {
-    unsafe { self.0.as_ref() }
+    unsafe { self.isolate.as_ref() }
   }
 }
 
 impl DerefMut for Entered {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.0.as_mut() }
+    unsafe { self.isolate.as_mut() }
   }
 }
 
 impl LockedIsolateState for Entered {}
 
+/// A trait enforcing that the state inside a LockedIsolate handle dereferences
+/// to an Isolate.
 pub trait LockedIsolateState:
   Deref<Target = Isolate> + DerefMut<Target = Isolate>
 {
 }
 
-/// An isolate within a Locker's scope. Created when a SharedIsolate is
-/// borrowed. When dropped, the isolate is exited and the locker is destroyed.
-/// This is similar to V8's Isolate::Scope, but a Locker is implicitly entered
-/// for the life of a LockedIsolate.
-/// todo: redo doc
+/// An [`Isolate`] within a Locker's scope. Can be obtained from a
+/// [`IsolateHandle<Unlocked>`] handle. The State type parameter comes in
+/// two variants:
+///
+/// 'Locked' isolates are pinned to the current thread. A [`Locker`] is created
+/// and destructed when the LockedIsolate is dropped. This is the default
+/// state for a LockedIsolate.
+///
+/// 'Entered' isolates may be used to create new [`HandleScope`]s. All scopes
+/// created while an Isolate is entered must be destroyed before the Isolate
+/// is exited, which occurs when the borrowed Entered context is dropped.
 pub struct LockedIsolate<'a, State = Locked> {
-  state: State,
-  locker: std::rc::Rc<Locker>,
-  _lifetime: PhantomData<&'a ()>,
+  pub(crate) state: State,
+  pub(crate) locker: Option<Locker>,
+  pub(crate) _lifetime: PhantomData<&'a ()>,
 }
 
 impl<S: LockedIsolateState> Deref for LockedIsolate<'_, S> {
@@ -1228,37 +1242,51 @@ impl<S: LockedIsolateState> Deref for LockedIsolate<'_, S> {
 
 impl DerefMut for LockedIsolate<'_, Entered> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.state.0.as_mut() }
+    unsafe { self.state.isolate.as_mut() }
   }
 }
 
 impl<'a> LockedIsolate<'a> {
-  /// Creates a new Locker scope and enters the isolate within.
-  /// Returns a scoped LockedIsolate.
-  pub(crate) fn new(cxx_isolate: NonNull<Isolate>) -> Self {
-    let locker = unsafe { Locker::new(cxx_isolate.as_ptr()) };
-    Self {
-      locker: std::rc::Rc::new(locker),
-      state: Locked(cxx_isolate),
-      _lifetime: PhantomData::default(),
+  pub(crate) fn new_locked(
+    isolate: NonNull<Isolate>,
+    locker: Option<Locker>,
+  ) -> LockedIsolate<'a, Locked> {
+    LockedIsolate {
+      state: Locked(isolate),
+      locker,
+      _lifetime: Default::default(),
     }
   }
 
-  pub fn enter(&mut self) -> LockedIsolate<'a, Entered> {
-    unsafe { self.state.0.as_mut().enter() }
+  pub(crate) fn new_entered(
+    isolate: NonNull<Isolate>,
+    locker: Option<Locker>,
+    is_scoped: bool,
+  ) -> LockedIsolate<'a, Entered> {
     LockedIsolate {
-      //cxx_isolate: self.cxx_isolate,
-      state: Entered(self.state.0),
-      locker: self.locker.clone(),
+      state: Entered::new(isolate, is_scoped),
+      locker,
+      _lifetime: Default::default(),
+    }
+  }
+}
+
+impl<'a> LockedIsolate<'a, Locked> {
+  /// Enters the inner Isolate and returns a borrowed `Entered` handle that may
+  /// be used  to create new [`HandleScope`]s. When dropped, the Isolate is
+  /// exited but still locked to the current thread until parent [`Locked`]
+  /// state is dropped.
+  pub fn enter(&mut self) -> LockedIsolate<'a, Entered> {
+    LockedIsolate {
+      state: Entered::new(self.state.0, true),
+      locker: None,
       _lifetime: PhantomData::default(),
     }
   }
 
   /// Borrows a new Unlocker, temporarily releasing V8's lock on the current
   /// thread. The Unlocker exits the LockedIsolate and signals to V8 that the
-  /// isolates locked to this thread may be used elsewhere. When the guard is
-  /// dropped, the underlying Unlocker is destroyed and the isolate is
-  /// re-entered.
+  /// isolates locked to this thread may be used elsewhere.
   ///
   /// This function is marked unsafe because Rust's rules allow you to interact
   /// with other LockedIsolates while an Unlocker is active, which is not
@@ -1267,6 +1295,8 @@ impl<'a> LockedIsolate<'a> {
     Unlocker::new(self.state.0.as_mut())
   }
 }
+
+//impl<'a> LockedIsolate<'a, Locked> {}
 
 pub trait IsolateScope: Deref<Target = Isolate> {
   type State: LockedIsolateState;
@@ -1280,60 +1310,81 @@ impl<S: LockedIsolateState> IsolateScope for LockedIsolate<'_, S> {
   type State = S;
 }
 
-/// Same as Isolate but gets disposed when it goes out of scope.
-#[derive(Debug)]
-enum OwnedIsolateState {
-  Entered(Entered),
-  NotEntered(NonNull<Isolate>),
-  Disposed,
-}
-
-impl OwnedIsolateState {
-  pub fn isolate_ptr(&self) -> NonNull<Isolate> {
-    match self {
-      OwnedIsolateState::Entered(entered) => entered.0,
-      OwnedIsolateState::NotEntered(ptr) => *ptr,
-      OwnedIsolateState::Disposed => {
-        panic!("OwnedIsolate accessed after disposal")
-      }
-    }
-  }
-}
-
+/// A container for an [`Isolate`] locked to the current thread and entered.
+/// When dropped, the Isolate is disposed.
 pub struct OwnedIsolate {
-  state: OwnedIsolateState,
+  state: Option<Entered>,
   locker: Option<Locker>,
+  // This exists for a case where a SnapshotCreator creates an OwnedIsolate
+  // reference that must not be disposed. SnapshotCreator manages the Isolate's
+  // lifecycle.
+  dispose_on_drop: bool,
 }
 
 impl OwnedIsolate {
-  pub(crate) fn new(cxx_isolate: *mut Isolate, create_locker: bool) -> Self {
+  /// Creates a new OwnedIsolate from a raw Isolate pointer. Creates a new
+  /// [`Locker`] and enters the Isolate.
+  pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
-    let root_locker = if create_locker {
-      Some(unsafe { Locker::new(cxx_isolate.as_ptr()) })
-    } else {
-      None
-    };
+    let root_locker = unsafe { Locker::new(cxx_isolate.as_ptr()) };
     Self {
-      state: OwnedIsolateState::Entered(Entered(cxx_isolate)),
-      locker: root_locker,
+      state: Some(Entered::new(cxx_isolate, true)),
+      locker: Some(root_locker),
+      dispose_on_drop: true,
     }
   }
 
+  // See above, this is used in [`SnapshotCreator::get_owned_isolate()`].
+  pub(crate) unsafe fn new_for_snapshot_creator(
+    cxx_isolate: *mut Isolate,
+  ) -> Self {
+    let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
+    let locker = Locker::new(cxx_isolate.as_ptr());
+    Self {
+      state: Some(Entered::new(cxx_isolate, true)),
+      locker: Some(locker),
+      dispose_on_drop: false,
+    }
+  }
+
+  /// Converts the OwnedIsolate to an [`UnlockedIsolate`].
+  /// The unlocked isolate may be sent between threads, and will be disposed
+  /// when dropped.
   pub fn into_unlocked(mut self) -> UnlockedIsolate {
-    let isolate = self.state.isolate_ptr();
-    self.state = OwnedIsolateState::NotEntered(isolate);
-    self.locker.take();
+    let isolate = self.state.take().unwrap().isolate;
+    {
+      // drop the previous state, we have to exit the isolate if it was entered
+      self.state.take();
+      // unlock the locker if we have one.
+      self.locker.take();
+    }
     IsolateHandle::new_unlocked(isolate.as_ptr())
+  }
+
+  /// Returns a reference to a [`LockedIsolate<'a, Entered>`] that isn't
+  /// actually unlocked or exited when it is dropped. Control returns to the
+  /// OwnedIsolate handle.
+  pub fn as_entered(&mut self) -> LockedIsolate<'_, Entered> {
+    LockedIsolate::new_entered(
+      self.state.as_ref().unwrap().isolate,
+      None,
+      false,
+    )
   }
 }
 
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
-    if let OwnedIsolateState::Entered(entered) = &mut self.state {
-      let Entered(mut cxx_isolate) = entered;
-      self.state = OwnedIsolateState::Disposed;
-      self.locker.take();
-      unsafe { cxx_isolate.as_mut().dispose() }
+    if let Some(entered) = &mut self.state {
+      let mut isolate = entered.isolate;
+      {
+        // if this isolate was entered, exit it and dispose.
+        self.state = None;
+        self.locker.take();
+      }
+      if self.dispose_on_drop {
+        unsafe { isolate.as_mut().dispose() }
+      }
     }
   }
 }
@@ -1341,13 +1392,25 @@ impl Drop for OwnedIsolate {
 impl Deref for OwnedIsolate {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe { self.state.isolate_ptr().as_ref() }
+    self.as_ref()
   }
 }
 
 impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.state.isolate_ptr().as_mut() }
+    self.as_mut()
+  }
+}
+
+impl AsRef<Isolate> for OwnedIsolate {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { self.state.as_ref().unwrap().isolate.as_ref() }
+  }
+}
+
+impl AsMut<Isolate> for OwnedIsolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    unsafe { self.state.as_mut().unwrap().isolate.as_mut() }
   }
 }
 
