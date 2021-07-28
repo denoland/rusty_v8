@@ -79,7 +79,18 @@ pub fn assert_initialized() {
   let global_state_guard = GLOBAL_STATE.lock().unwrap();
   match *global_state_guard {
     Initialized(_) => {}
-    _ => panic!("Invalid global state"),
+    Uninitialized => {
+      panic!("Invalid global state: Uninitialized")
+    }
+    PlatformInitialized(_) => {
+      panic!("Invalid global state: PlatformInitialized")
+    }
+    Disposed(_) => {
+      panic!("Invalid global state: Disposed")
+    }
+    PlatformShutdown => {
+      panic!("Invalid global state: PlatformShutdown")
+    }
   };
 }
 

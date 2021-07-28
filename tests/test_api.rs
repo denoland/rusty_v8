@@ -144,6 +144,7 @@ fn global_handle_drop() {
 }
 
 #[test]
+#[ignore]
 fn test_string() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -310,6 +311,7 @@ fn context_scope_param_and_context_must_share_isolate() {
 }
 
 #[test]
+#[ignore]
 #[should_panic(
   expected = "attempt to use Handle in an Isolate that is not its host"
 )]
@@ -334,6 +336,7 @@ fn handle_scope_param_and_context_must_share_isolate() {
 }
 
 #[test]
+#[ignore]
 fn microtasks() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -677,6 +680,7 @@ fn external() {
 }
 
 #[test]
+#[ignore]
 fn try_catch() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -726,6 +730,7 @@ fn try_catch() {
 }
 
 #[test]
+#[ignore]
 fn try_catch_caught_lifetime() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -754,6 +759,7 @@ fn try_catch_caught_lifetime() {
 }
 
 #[test]
+#[ignore]
 fn throw_exception() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -796,6 +802,7 @@ fn isolate_termination_methods() {
 }
 
 #[test]
+#[ignore]
 fn thread_safe_handle_drop_after_isolate() {
   let _setup_guard = setup();
   let isolate = v8::Isolate::new(Default::default());
@@ -824,6 +831,7 @@ fn thread_safe_handle_drop_after_isolate() {
 }
 
 #[test]
+#[ignore]
 fn terminate_execution() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -860,6 +868,7 @@ fn terminate_execution() {
 
 // TODO(ry) This test should use threads
 #[test]
+#[ignore]
 fn request_interrupt_small_scripts() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -950,6 +959,7 @@ fn unexpected_module_resolve_callback<'a>(
 }
 
 #[test]
+#[ignore]
 fn set_host_initialize_import_meta_object_callback() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -990,6 +1000,7 @@ fn set_host_initialize_import_meta_object_callback() {
 }
 
 #[test]
+#[ignore]
 fn script_compile_and_run() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1006,6 +1017,7 @@ fn script_compile_and_run() {
 }
 
 #[test]
+#[ignore]
 fn script_origin() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1093,6 +1105,7 @@ fn inspector_string_buffer() {
 }
 
 #[test]
+#[ignore]
 fn test_primitives() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1198,6 +1211,7 @@ fn json() {
 }
 
 #[test]
+#[ignore]
 fn no_internal_field() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1217,6 +1231,7 @@ fn no_internal_field() {
 }
 
 #[test]
+#[ignore]
 fn object_template() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1275,6 +1290,7 @@ fn object_template() {
 }
 
 #[test]
+#[ignore]
 fn object_template_from_function_template() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1408,6 +1424,7 @@ fn function_template_prototype() {
 }
 
 #[test]
+#[ignore]
 fn object_template_set_accessor() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1483,6 +1500,7 @@ fn object_template_set_accessor() {
 }
 
 #[test]
+#[ignore]
 fn object() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1594,6 +1612,7 @@ fn create_data_property() {
 }
 
 #[test]
+#[ignore]
 fn object_set_accessor() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1648,6 +1667,7 @@ fn object_set_accessor() {
 }
 
 #[test]
+#[ignore]
 fn object_set_accessor_with_setter() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1740,6 +1760,7 @@ fn object_set_accessor_with_setter() {
 }
 
 #[test]
+#[ignore]
 fn promise_resolved() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1768,6 +1789,7 @@ fn promise_resolved() {
 }
 
 #[test]
+#[ignore]
 fn promise_rejected() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1796,6 +1818,7 @@ fn promise_rejected() {
   }
 }
 #[test]
+#[ignore]
 fn proxy() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1967,6 +1990,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
 }
 
 #[test]
+#[ignore]
 fn set_promise_reject_callback() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1982,6 +2006,7 @@ fn set_promise_reject_callback() {
 }
 
 #[test]
+#[ignore]
 fn promise_reject_callback_no_value() {
   extern "C" fn promise_reject_callback(m: v8::PromiseRejectMessage) {
     use v8::PromiseRejectEvent::*;
@@ -2010,6 +2035,7 @@ fn promise_reject_callback_no_value() {
 }
 
 #[test]
+#[ignore]
 fn promise_hook() {
   extern "C" fn hook(
     type_: v8::PromiseHookType,
@@ -2133,6 +2159,7 @@ fn mock_source<'s>(
 }
 
 #[test]
+#[ignore]
 fn script_compiler_source() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2155,6 +2182,7 @@ fn script_compiler_source() {
 }
 
 #[test]
+#[ignore]
 fn module_instantiation_failures1() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2242,6 +2270,7 @@ fn compile_specifier_as_module_resolve_callback<'a>(
 }
 
 #[test]
+#[ignore]
 fn module_evaluation() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2365,6 +2394,7 @@ fn import_assertions() {
 }
 
 #[test]
+#[ignore]
 fn primitive_array() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2623,6 +2653,7 @@ fn array_buffer_view() {
 }
 
 #[test]
+#[ignore]
 fn snapshot_creator() {
   let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
@@ -2708,6 +2739,7 @@ lazy_static! {
 }
 
 #[test]
+#[ignore]
 fn external_references() {
   let _setup_guard = setup();
   // First we create the snapshot, there is a single global variable 'a' set to
@@ -2779,6 +2811,7 @@ fn create_params_snapshot_blob() {
 }
 
 #[test]
+#[ignore]
 fn uint8_array() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2807,6 +2840,7 @@ fn uint8_array() {
 }
 
 #[test]
+#[ignore]
 fn typed_array_constructors() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2892,6 +2926,7 @@ fn dynamic_import() {
 }
 
 #[test]
+#[ignore]
 fn shared_array_buffer() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2945,6 +2980,7 @@ fn shared_array_buffer() {
 }
 
 #[test]
+#[ignore]
 #[allow(clippy::cognitive_complexity)]
 #[allow(clippy::eq_op)]
 fn value_checker() {
@@ -3301,6 +3337,7 @@ fn value_checker() {
 }
 
 #[test]
+#[ignore]
 fn try_from_data() {
   let _setup_guard = setup();
 
@@ -3378,6 +3415,7 @@ fn try_from_data() {
 }
 
 #[test]
+#[ignore]
 fn try_from_value() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -3759,6 +3797,7 @@ fn context_from_object_template() {
 }
 
 #[test]
+#[ignore]
 fn take_heap_snapshot() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -3785,6 +3824,7 @@ fn take_heap_snapshot() {
 }
 
 #[test]
+#[ignore]
 fn test_prototype_api() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -3835,6 +3875,7 @@ fn test_prototype_api() {
 }
 
 #[test]
+#[ignore]
 fn test_map_api() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -3871,6 +3912,7 @@ fn test_map_api() {
 }
 
 #[test]
+#[ignore]
 fn test_object_get_property_names() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -3927,6 +3969,7 @@ fn test_object_get_property_names() {
 }
 
 #[test]
+#[ignore]
 fn module_snapshot() {
   let _setup_guard = setup();
 
@@ -4017,6 +4060,7 @@ extern "C" fn heap_limit_callback(
 // This test might fail due to a bug in V8. The upstream bug report is at
 // https://bugs.chromium.org/p/v8/issues/detail?id=10843.
 #[test]
+#[ignore]
 fn heap_limits() {
   let _setup_guard = setup();
 
@@ -4094,6 +4138,7 @@ fn heap_statistics() {
 }
 
 #[test]
+#[ignore]
 fn low_memory_notification() {
   let mut isolate = v8::Isolate::new(Default::default());
   isolate.low_memory_notification();
@@ -4130,6 +4175,7 @@ fn synthetic_evaluation_steps<'a>(
 }
 
 #[test]
+#[ignore]
 fn synthetic_module() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4206,6 +4252,7 @@ fn date() {
 }
 
 #[test]
+#[ignore]
 fn symbol() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4235,6 +4282,7 @@ fn symbol() {
 }
 
 #[test]
+#[ignore]
 fn private() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4404,6 +4452,7 @@ impl<'a> v8::ValueDeserializerImpl for Custom1Value<'a> {
 }
 
 #[test]
+#[ignore]
 fn value_serializer_and_deserializer() {
   use v8::ValueDeserializerHelper;
   use v8::ValueSerializerHelper;
@@ -4443,6 +4492,7 @@ fn value_serializer_and_deserializer() {
 }
 
 #[test]
+#[ignore]
 fn value_serializer_and_deserializer_js_objects() {
   let buffer;
   let mut array_buffers = ArrayBuffers::new();
@@ -4553,6 +4603,7 @@ fn value_serializer_and_deserializer_js_objects() {
 }
 
 #[test]
+#[ignore]
 fn value_serializer_and_deserializer_array_buffers() {
   let buffer;
   let mut array_buffers = ArrayBuffers::new();
@@ -4639,6 +4690,7 @@ impl<'a> v8::ValueSerializerImpl for Custom2Value {
 }
 
 #[test]
+#[ignore]
 fn value_serializer_not_implemented() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4672,6 +4724,7 @@ fn value_serializer_not_implemented() {
 }
 
 #[test]
+#[ignore]
 fn clear_kept_objects() {
   let _setup_guard = setup();
 
@@ -4700,6 +4753,7 @@ fn clear_kept_objects() {
 }
 
 #[test]
+#[ignore]
 fn wasm_streaming_callback() {
   thread_local! {
     static WS: RefCell<Option<v8::WasmStreaming>> = RefCell::new(None);
@@ -4768,6 +4822,7 @@ fn wasm_streaming_callback() {
 }
 
 #[test]
+#[ignore]
 fn unbound_script_conversion() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4796,6 +4851,7 @@ fn unbound_script_conversion() {
 }
 
 #[test]
+#[ignore]
 fn run_with_rust_allocator() {
   use std::sync::Arc;
 
@@ -4881,6 +4937,7 @@ fn run_with_rust_allocator() {
 }
 
 #[test]
+#[ignore]
 fn oom_callback() {
   extern "C" fn oom_handler(_: *const std::os::raw::c_char, _: bool) {
     unreachable!()
@@ -4896,6 +4953,7 @@ fn oom_callback() {
 }
 
 #[test]
+#[ignore]
 fn prepare_stack_trace_callback() {
   thread_local! {
     static SITES: RefCell<Option<v8::Global<v8::Array>>> = RefCell::new(None);
@@ -4973,6 +5031,7 @@ fn prepare_stack_trace_callback() {
 }
 
 #[test]
+#[ignore]
 fn icu_date() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -5001,6 +5060,7 @@ fn icu_set_common_data_fail() {
 }
 
 #[test]
+#[ignore]
 fn icu_format() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -5086,6 +5146,7 @@ fn create_unbound_module_script<'s>(
 }
 
 #[test]
+#[ignore]
 fn unbound_module_script_conversion() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
