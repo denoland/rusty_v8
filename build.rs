@@ -243,6 +243,8 @@ fn build_dir() -> PathBuf {
   );
   let out_dir_abs = root.join(out_dir);
 
+  println!("out_dir_abs={:?}", out_dir_abs);
+
   // This would be target/debug or target/release
   out_dir_abs
     .parent()
