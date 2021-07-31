@@ -2122,6 +2122,37 @@ void v8_inspector__V8Inspector__contextCreated(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
 
+unsigned v8_inspector__V8Inspector__exceptionThrown(
+    v8_inspector::V8Inspector* self, const v8::Context& context,
+    v8_inspector::StringView message, const v8::Value& exception,
+    v8_inspector::StringView detailed_message, v8_inspector::StringView url,
+    unsigned line_number, unsigned column_number,
+    v8_inspector::V8StackTrace* stack_trace, int script_id) {
+  return self->exceptionThrown(
+      ptr_to_local(&context), message, ptr_to_local(&exception),
+      detailed_message, url, line_number, column_number,
+      static_cast<std::unique_ptr<v8_inspector::V8StackTrace>>(stack_trace),
+      script_id);
+}
+
+v8_inspector::V8StackTrace* v8_inspector__V8Inspector__captureStackTrace(
+    v8_inspector::V8Inspector* self, bool full_stack) {
+  std::unique_ptr<v8_inspector::V8StackTrace> u =
+      self->captureStackTrace(full_stack);
+  return u.release();
+}
+
+v8_inspector::V8StackTrace* v8_inspector__V8Inspector__createStackTrace(
+    v8_inspector::V8Inspector* self, const v8::StackTrace& stack_trace) {
+  std::unique_ptr<v8_inspector::V8StackTrace> u =
+      self->createStackTrace(ptr_to_local(&stack_trace));
+  return u.release();
+}
+
+void v8_inspector__V8StackTrace__DELETE(v8_inspector::V8StackTrace* self) {
+  delete self;
+}
+
 void v8_inspector__V8InspectorSession__DELETE(
     v8_inspector::V8InspectorSession* self) {
   delete self;
