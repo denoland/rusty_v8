@@ -3585,6 +3585,68 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
 }
 
 #[test]
+fn inspector_can_dispatch_method() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let mut default_client = ClientCounter::new();
+  let mut inspector = V8Inspector::create(isolate, &mut default_client);
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let mut _scope = v8::ContextScope::new(scope, context);
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view);
+  let mut channel = ChannelCounter::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let mut session = inspector.connect(1, &mut channel, state_view);
+
+  let message = String::from("Runtime.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(session.can_dispatch_method(string_view));
+
+  let message = String::from("Debugger.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(session.can_dispatch_method(string_view));
+
+  let message = String::from("Profiler.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(session.can_dispatch_method(string_view));
+
+  let message = String::from("HeapProfiler.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(session.can_dispatch_method(string_view));
+
+  let message = String::from("Console.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(session.can_dispatch_method(string_view));
+
+  let message = String::from("Schema.getDomains");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(session.can_dispatch_method(string_view));
+
+  let message = String::from("Foo.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(!session.can_dispatch_method(string_view));
+
+  let message = String::from("Bar.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(!session.can_dispatch_method(string_view));
+}
+
+#[test]
 fn inspector_dispatch_protocol_message() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

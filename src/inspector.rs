@@ -598,6 +598,16 @@ impl Debug for V8InspectorClientBase {
 pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
+  // Taken directly from https://source.chromium.org/chromium/chromium/src/+/main:v8/src/inspector/v8-inspector-session-impl.cc;l=66;drc=87132919a42f0ddedee557145ee3d8336a8320c7
+  pub fn can_dispatch_method(&self, message: StringView) -> bool {
+    method.starts_with("Runtime.")
+      || method.starts_with("Debugger.")
+      || method.starts_with("Profiler.")
+      || method.starts_with("HeapProfiler.")
+      || method.starts_with("Console.")
+      || method.starts_with("Schema.")
+  }
+
   pub fn dispatch_protocol_message(&mut self, message: StringView) {
     unsafe {
       v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message)
