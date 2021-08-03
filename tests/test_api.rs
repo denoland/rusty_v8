@@ -3603,7 +3603,7 @@ fn inspector_can_dispatch_method() {
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(1, &mut channel, state_view);
+  let session = inspector.connect(1, &mut channel, state_view);
 
   let message = String::from("Runtime.enable");
   let message = &message.into_bytes()[..];
