@@ -93,7 +93,7 @@ use std::ptr::NonNull;
 
 use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
-use crate::isolate::{Entered, LockedIsolate};
+use crate::isolate::Locker;
 use crate::Context;
 use crate::Data;
 use crate::DataError;
@@ -102,7 +102,6 @@ use crate::Isolate;
 use crate::Local;
 use crate::Message;
 use crate::Object;
-use crate::OwnedIsolate;
 use crate::Primitive;
 use crate::PromiseRejectMessage;
 use crate::Value;
@@ -717,11 +716,11 @@ mod param {
     type NewScope = HandleScope<'s, ()>;
   }
 
-  impl<'s> NewHandleScope<'s> for OwnedIsolate {
+  impl<'s, P> NewHandleScope<'s> for Locker<P> {
     type NewScope = HandleScope<'s, ()>;
   }
 
-  impl<'s> NewHandleScope<'s> for LockedIsolate<'_, Entered> {
+  impl<'s, P> NewHandleScope<'s> for &'s mut Locker<P> {
     type NewScope = HandleScope<'s, ()>;
   }
 
@@ -759,15 +758,15 @@ mod param {
     }
   }
 
-  impl<'s> NewHandleScopeWithContext<'s> for OwnedIsolate {
+  impl<'s, P> NewHandleScopeWithContext<'s> for Locker<P> {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
-      &mut *self
+      &mut *self.get_isolate()
     }
   }
 
-  impl<'s> NewHandleScopeWithContext<'s> for LockedIsolate<'_, Entered> {
+  impl<'s, P> NewHandleScopeWithContext<'s> for &'s mut Locker<P> {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
-      &mut *self
+      &mut *self.get_isolate()
     }
   }
 
@@ -841,11 +840,11 @@ mod param {
     type NewScope = CallbackScope<'s, ()>;
   }
 
-  impl<'s> NewCallbackScope<'s> for &'s mut OwnedIsolate {
+  impl<'s, P> NewCallbackScope<'s> for &'s mut Locker<P> {
     type NewScope = CallbackScope<'s, ()>;
   }
 
-  impl<'s> NewCallbackScope<'s> for &'s mut LockedIsolate<'_, Entered> {
+  impl<'s, P> NewCallbackScope<'s> for Locker<P> {
     type NewScope = CallbackScope<'s, ()>;
   }
 
@@ -896,15 +895,15 @@ mod getter {
     }
   }
 
-  impl<'s> GetIsolate<'s> for &'s mut OwnedIsolate {
+  impl<'s, P> GetIsolate<'s> for Locker<P> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *self
+      &mut *self.get_isolate_ptr()
     }
   }
 
-  impl<'s> GetIsolate<'s> for &'s mut LockedIsolate<'_, Entered> {
+  impl<'s, P> GetIsolate<'s> for &'s mut Locker<P> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *self
+      &mut *self.get_isolate_ptr()
     }
   }
 
@@ -962,15 +961,15 @@ mod getter {
     }
   }
 
-  impl GetScopeData for OwnedIsolate {
+  impl<P> GetScopeData for Locker<P> {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
-      data::ScopeData::get_root_mut(self)
+      data::ScopeData::get_root_mut(self.get_isolate())
     }
   }
 
-  impl GetScopeData for LockedIsolate<'_, Entered> {
+  impl<P> GetScopeData for &'_ mut Locker<P> {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
-      data::ScopeData::get_root_mut(self)
+      data::ScopeData::get_root_mut(self.get_isolate())
     }
   }
 }
@@ -1730,6 +1729,7 @@ mod tests {
   use super::*;
   use crate::new_default_platform;
   use crate::Global;
+  use crate::IsolateHandle;
   use crate::V8;
   use std::any::type_name;
   use std::sync::Once;
@@ -1763,7 +1763,11 @@ mod tests {
   fn deref_types() {
     initialize_v8();
     let isolate = &mut Isolate::new(Default::default());
-    AssertTypeOf(isolate).is::<OwnedIsolate>();
+    AssertTypeOf(isolate).is::<Locker>();
+    let handle = &mut Isolate::new_handle(Default::default());
+    AssertTypeOf(handle).is::<IsolateHandle>();
+    let locker = &mut handle.lock();
+    AssertTypeOf(locker).is::<Locker<&'_ mut ()>>();
     let l1_hs = &mut HandleScope::new(isolate);
     AssertTypeOf(l1_hs).is::<HandleScope<()>>();
     let context = Context::new(l1_hs);
@@ -1866,11 +1870,11 @@ mod tests {
   #[test]
   fn new_scope_types() {
     initialize_v8();
-    let isolate = &mut Isolate::new(Default::default());
-    AssertTypeOf(isolate).is::<OwnedIsolate>();
+    let mut isolate = Isolate::new(Default::default());
+    AssertTypeOf(&isolate).is::<Locker>();
     let global_context: Global<Context>;
     {
-      let l1_hs = &mut HandleScope::new(isolate);
+      let l1_hs = &mut HandleScope::new(&mut isolate);
       AssertTypeOf(l1_hs).is::<HandleScope<()>>();
       let context = Context::new(l1_hs);
       global_context = Global::new(l1_hs, context);
@@ -1974,7 +1978,7 @@ mod tests {
       }
     }
     {
-      let l1_cbs = &mut unsafe { CallbackScope::new(&mut *isolate) };
+      let l1_cbs = &mut unsafe { CallbackScope::new(&mut isolate) };
       AssertTypeOf(l1_cbs).is::<CallbackScope<()>>();
       let context = Context::new(l1_cbs);
       AssertTypeOf(&ContextScope::new(l1_cbs, context))
@@ -1985,10 +1989,10 @@ mod tests {
       AssertTypeOf(&TryCatch::new(l1_cbs)).is::<TryCatch<HandleScope<()>>>();
     }
     {
-      AssertTypeOf(&HandleScope::with_context(isolate, &global_context))
+      AssertTypeOf(&HandleScope::with_context(&mut isolate, &global_context))
         .is::<HandleScope>();
-      AssertTypeOf(&HandleScope::with_context(isolate, global_context))
-        .is::<HandleScope>();
+      let scope = &HandleScope::with_context(&mut isolate, global_context);
+      AssertTypeOf(scope).is::<HandleScope>();
     }
   }
 }

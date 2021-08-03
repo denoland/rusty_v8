@@ -6,7 +6,10 @@ use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
 use std::sync::Arc;
+use std::sync::Weak;
 
+use crate::isolate::IsolateAnnex;
+use crate::isolate::Locker;
 use crate::Data;
 use crate::HandleScope;
 use crate::Isolate;
@@ -128,9 +131,9 @@ impl<'s, T> Deref for Local<'s, T> {
 /// to ensure Global handles are dropped while the associated Isolate is
 /// entered, or after the Isolate has been dropped and disposed.
 #[derive(Debug)]
-pub struct Global<T> {
+pub struct Global<T: 'static> {
   data: NonNull<T>,
-  isolate_handle: IsolateHandle,
+  isolate_handle: Weak<IsolateAnnex>,
 }
 
 // Global is marked as Send + Sync, but care must be taken to ensure the holding
@@ -152,7 +155,7 @@ impl<T> Global<T> {
     let data = data.cast().as_ptr();
     let data = v8__Global__New(isolate, data) as *const T;
     let data = NonNull::new_unchecked(data as *mut _);
-    let isolate_handle = (*isolate).thread_safe_handle();
+    let isolate_handle = (*isolate).get_annex_weak_ref();
     Self {
       data,
       isolate_handle,
@@ -161,6 +164,12 @@ impl<T> Global<T> {
 
   pub fn get<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::get(self, scope)
+  }
+}
+
+impl<T> Global<T> {
+  pub(crate) unsafe fn reset(this: *mut T) {
+    v8__Global__Reset(this.cast());
   }
 }
 
@@ -178,10 +187,13 @@ impl<T> Drop for Global<T> {
       // This `Global` handle is associated with an `Isolate` that has already
       // been disposed.
       HandleHost::DisposedIsolate => {}
-      HandleHost::UnlockedIsolate => {
-        panic!("Global dropped outside of locked isolate context")
+      HandleHost::UnlockedIsolate(annex) => {
+        annex
+          .upgrade()
+          .expect("invariant: expected annex for unlocked isolate")
+          .dispose_on_context_switch(self.data);
       }
-      _ => unsafe { v8__Global__Reset(data.cast().as_ptr()) },
+      _ => unsafe { Self::reset(data.as_ptr()) },
     }
   }
 }
@@ -242,21 +254,21 @@ impl<'a, 's: 'a, T> Handle for &'a Local<'s, T> {
   }
 }
 
-impl<T> Handle for Global<T> {
+impl<T: Sized> Handle for Global<T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
   }
 }
 
-impl<'a, T> Handle for &'a Global<T> {
+impl<'a, T: Sized> Handle for &'a Global<T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
   }
 }
 
-impl<T> Handle for Arc<Global<T>> {
+impl<T: Sized> Handle for Arc<Global<T>> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
@@ -274,7 +286,7 @@ impl<T> Borrow<T> for Global<T> {
     let HandleInfo { data, host } = self.get_handle_info();
     if let HandleHost::DisposedIsolate = host {
       panic!("attempt to access Handle hosted by disposed Isolate");
-    } else if let HandleHost::UnlockedIsolate = host {
+    } else if let HandleHost::UnlockedIsolate(_) = host {
       panic!("attempt to access Handle outside of locked Isolate")
     }
     unsafe { &*data.as_ptr() }
@@ -320,7 +332,7 @@ where
   }
 }
 
-#[derive(Copy, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct HandleInfo<T> {
   data: NonNull<T>,
   host: HandleHost,
@@ -332,7 +344,7 @@ impl<T> HandleInfo<T> {
   }
 }
 
-#[derive(Copy, Debug, Clone)]
+#[derive(Debug, Clone)]
 enum HandleHost {
   // Note: the `HandleHost::Scope` variant does not indicate that the handle
   // it applies to is not associated with an `Isolate`. It only means that
@@ -341,7 +353,7 @@ enum HandleHost {
   // scope.
   Scope,
   Isolate(NonNull<Isolate>),
-  UnlockedIsolate,
+  UnlockedIsolate(Weak<IsolateAnnex>),
   DisposedIsolate,
 }
 
@@ -357,9 +369,37 @@ impl From<&'_ IsolateHandle> for HandleHost {
     if isolate_ptr.is_null() {
       Self::DisposedIsolate
     } else if !isolate_handle.is_locked() {
-      Self::UnlockedIsolate
+      Self::UnlockedIsolate(unsafe {
+        isolate_ptr.as_ref().unwrap().get_annex_weak_ref()
+      })
     } else {
       Self::Isolate(NonNull::new(isolate_ptr).unwrap())
+    }
+  }
+}
+
+impl From<&'_ mut Locker> for HandleHost {
+  fn from(locker: &'_ mut Locker) -> Self {
+    Self::Isolate(NonNull::from(locker.get_isolate()))
+  }
+}
+
+impl From<&Weak<IsolateAnnex>> for HandleHost {
+  fn from(annex: &Weak<IsolateAnnex>) -> Self {
+    match annex.upgrade() {
+      Some(annex) => {
+        let isolate_ptr = unsafe { annex.get_isolate_ptr() };
+        if isolate_ptr.is_null() {
+          Self::DisposedIsolate
+        } else if unsafe { !Locker::is_locked(isolate_ptr) } {
+          Self::UnlockedIsolate(unsafe {
+            isolate_ptr.as_ref().unwrap().get_annex_weak_ref()
+          })
+        } else {
+          Self::Isolate(NonNull::new(isolate_ptr).unwrap())
+        }
+      }
+      None => Self::DisposedIsolate,
     }
   }
 }
@@ -402,7 +442,7 @@ impl HandleHost {
       (Self::Isolate(_), Self::Scope, _) => true,
       // Handles must be used within the scope of an active Locker and entered
       // isolate. Attempting to use a handle otherwise is unsafe.
-      (Self::UnlockedIsolate, ..) | (_, Self::UnlockedIsolate, _) => {
+      (Self::UnlockedIsolate(_), ..) | (_, Self::UnlockedIsolate(_), _) => {
         panic!("attempt to access Handle outside of locked Isolate")
       }
       // Handles hosted in an Isolate that has been disposed aren't good for
@@ -433,12 +473,12 @@ impl HandleHost {
     match self {
       Self::Scope => panic!("host Isolate for Handle not available"),
       Self::Isolate(ile) => ile,
-      Self::UnlockedIsolate => panic!("attempt to access non-entered Isolate"),
+      Self::UnlockedIsolate(_) => panic!("attempt to access unlocked Isolate"),
       Self::DisposedIsolate => panic!("attempt to access disposed Isolate"),
     }
   }
 
-  fn get_isolate_handle(self) -> IsolateHandle {
-    unsafe { self.get_isolate().as_ref() }.thread_safe_handle()
+  fn get_isolate_handle(self) -> Weak<IsolateAnnex> {
+    unsafe { self.get_isolate().as_ref() }.get_annex_weak_ref()
   }
 }
