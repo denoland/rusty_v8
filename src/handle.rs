@@ -155,7 +155,7 @@ impl<T> Global<T> {
     let data = data.cast().as_ptr();
     let data = v8__Global__New(isolate, data) as *const T;
     let data = NonNull::new_unchecked(data as *mut _);
-    let isolate_handle = (*isolate).get_annex_weak_ref();
+    let isolate_handle = (*isolate).get_annex_weak();
     Self {
       data,
       isolate_handle,
@@ -191,7 +191,7 @@ impl<T> Drop for Global<T> {
         annex
           .upgrade()
           .expect("invariant: expected annex for unlocked isolate")
-          .dispose_on_context_switch(self.data);
+          .mark_handle_data_for_disposal(self.data);
       }
       _ => unsafe { Self::reset(data.as_ptr()) },
     }
@@ -370,7 +370,7 @@ impl From<&'_ IsolateHandle> for HandleHost {
       Self::DisposedIsolate
     } else if !isolate_handle.is_locked() {
       Self::UnlockedIsolate(unsafe {
-        isolate_ptr.as_ref().unwrap().get_annex_weak_ref()
+        isolate_ptr.as_ref().unwrap().get_annex_weak()
       })
     } else {
       Self::Isolate(NonNull::new(isolate_ptr).unwrap())
@@ -393,7 +393,7 @@ impl From<&Weak<IsolateAnnex>> for HandleHost {
           Self::DisposedIsolate
         } else if unsafe { !Locker::is_locked(isolate_ptr) } {
           Self::UnlockedIsolate(unsafe {
-            isolate_ptr.as_ref().unwrap().get_annex_weak_ref()
+            isolate_ptr.as_ref().unwrap().get_annex_weak()
           })
         } else {
           Self::Isolate(NonNull::new(isolate_ptr).unwrap())
@@ -479,6 +479,6 @@ impl HandleHost {
   }
 
   fn get_isolate_handle(self) -> Weak<IsolateAnnex> {
-    unsafe { self.get_isolate().as_ref() }.get_annex_weak_ref()
+    unsafe { self.get_isolate().as_ref() }.get_annex_weak()
   }
 }
