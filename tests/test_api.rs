@@ -3608,42 +3608,42 @@ fn inspector_can_dispatch_method() {
   let message = String::from("Runtime.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(session.can_dispatch_method(string_view));
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("Debugger.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(session.can_dispatch_method(string_view));
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("Profiler.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(session.can_dispatch_method(string_view));
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("HeapProfiler.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(session.can_dispatch_method(string_view));
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("Console.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(session.can_dispatch_method(string_view));
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("Schema.getDomains");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(session.can_dispatch_method(string_view));
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("Foo.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(!session.can_dispatch_method(string_view));
+  assert!(!V8InspectorSession::can_dispatch_method(string_view));
 
   let message = String::from("Bar.enable");
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
-  assert!(!session.can_dispatch_method(string_view));
+  assert!(!V8InspectorSession::can_dispatch_method(string_view));
 }
 
 #[test]

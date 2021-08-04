@@ -599,7 +599,7 @@ pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
   // Taken directly from https://source.chromium.org/chromium/chromium/src/+/main:v8/src/inspector/v8-inspector-session-impl.cc;l=66;drc=87132919a42f0ddedee557145ee3d8336a8320c7
-  pub fn can_dispatch_method(&self, method: StringView) -> bool {
+  pub fn can_dispatch_method(method: StringView) -> bool {
     let m = method.to_string();
     m.starts_with("Runtime.")
       || m.starts_with("Debugger.")
