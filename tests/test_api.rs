@@ -4444,6 +4444,9 @@ fn value_serializer_and_deserializer() {
 
 #[test]
 fn value_serializer_and_deserializer_js_objects() {
+  use v8::ValueDeserializerHelper;
+  use v8::ValueSerializerHelper;
+
   let buffer;
   let mut array_buffers = ArrayBuffers::new();
   {
@@ -4466,6 +4469,7 @@ fn value_serializer_and_deserializer_js_objects() {
         44.444,
         99999.55434344,
         "test",
+        new String("test"),
         [1, 2, 3],
         {a: "tt", add: "tsqqqss"}
       ]"#,
@@ -4473,6 +4477,7 @@ fn value_serializer_and_deserializer_js_objects() {
     .unwrap();
     let mut value_serializer =
       Custom1Value::serializer(scope, &mut array_buffers);
+    value_serializer.write_header();
     assert_eq!(value_serializer.write_value(context, objects), Some(true));
 
     buffer = value_serializer.release();
@@ -4489,6 +4494,7 @@ fn value_serializer_and_deserializer_js_objects() {
 
     let mut value_deserializer =
       Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
+    assert_eq!(value_deserializer.read_header(context), Some(true));
     let name = v8::String::new(scope, "objects").unwrap();
     let objects: v8::Local<v8::Value> =
       value_deserializer.read_value(context).unwrap();
@@ -4509,6 +4515,7 @@ fn value_serializer_and_deserializer_js_objects() {
           44.444,
           99999.55434344,
           "test",
+          new String("test"),
           [1, 2, 3],
           {a: "tt", add: "tsqqqss"}
         ];
