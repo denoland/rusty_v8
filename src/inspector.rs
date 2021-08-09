@@ -82,6 +82,9 @@ extern "C" {
     break_reason: StringView,
     break_details: StringView,
   );
+  fn v8_inspector__V8InspectorSession__canDispatchMethod(
+    method: StringView,
+  ) -> bool;
 
   fn v8_inspector__StringBuffer__DELETE(this: &mut StringBuffer);
   fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView;
@@ -598,6 +601,10 @@ impl Debug for V8InspectorClientBase {
 pub struct V8InspectorSession(Opaque);
 
 impl V8InspectorSession {
+  pub fn can_dispatch_method(method: StringView) -> bool {
+    unsafe { v8_inspector__V8InspectorSession__canDispatchMethod(method) }
+  }
+
   pub fn dispatch_protocol_message(&mut self, message: StringView) {
     unsafe {
       v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message)

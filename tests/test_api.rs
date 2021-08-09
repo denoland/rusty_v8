@@ -3585,6 +3585,51 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
 }
 
 #[test]
+fn inspector_can_dispatch_method() {
+  use v8::inspector::*;
+
+  let message = String::from("Runtime.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("Debugger.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("Profiler.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("HeapProfiler.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("Console.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("Schema.getDomains");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("Foo.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(!V8InspectorSession::can_dispatch_method(string_view));
+
+  let message = String::from("Bar.enable");
+  let message = &message.into_bytes()[..];
+  let string_view = StringView::from(message);
+  assert!(!V8InspectorSession::can_dispatch_method(string_view));
+}
+
+#[test]
 fn inspector_dispatch_protocol_message() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

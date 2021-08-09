@@ -2122,6 +2122,11 @@ void v8_inspector__V8Inspector__contextCreated(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
 
+bool v8_inspector__V8InspectorSession__canDispatchMethod(
+    v8_inspector::StringView method) {
+  return v8_inspector::V8InspectorSession::canDispatchMethod(method);
+}
+
 void v8_inspector__V8InspectorSession__DELETE(
     v8_inspector::V8InspectorSession* self) {
   delete self;
