@@ -134,6 +134,10 @@ fn build_v8() {
     };
   }
 
+  if target_triple.starts_with("i686-") {
+    gn_args.push(r#"target_cpu="x86""#.to_string());
+  }
+
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
   let gn_out = maybe_gen(&gn_root, gn_args);
