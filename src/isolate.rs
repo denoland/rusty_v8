@@ -160,7 +160,7 @@ pub type PrepareStackTraceCallback<'s> = extern "C" fn(
   Local<'s, Array>,
 ) -> *const Value;
 
-// System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
 #[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
 #[repr(C)]
 pub struct PrepareStackTraceCallbackRet(*const Value);
@@ -1014,7 +1014,7 @@ where
     f.to_c_fn()
   }
 
-  // System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+  // System V i386 ABI: Local<Value> returned in hidden pointer (struct).
   #[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {

@@ -122,7 +122,7 @@ where
 pub type SyntheticModuleEvaluationSteps<'a> =
   extern "C" fn(Local<'a, Context>, Local<'a, Module>) -> *const Value;
 
-// System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
 #[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
 #[repr(C)]
 pub struct SyntheticModuleEvaluationStepsRet(*const Value);
