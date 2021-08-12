@@ -556,7 +556,6 @@ impl Hasher for TypeIdHasher {
     // `TypeId` values are actually 64-bit values which themselves come out of
     // some hash function, so it's unnecessary to shuffle their bits further.
     assert_eq!(size_of::<TypeId>(), size_of::<u64>());
-    assert_eq!(align_of::<TypeId>(), size_of::<u64>());
     let prev_state = self.state.replace(value);
     assert_eq!(prev_state, None);
   }
