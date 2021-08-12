@@ -2463,7 +2463,7 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
 
 // This is necessary for v8__internal__GetIsolateFromHeapObject() to be
 // reliable enough for our purposes.
-#if !(defined V8_SHARED_RO_HEAP or defined V8_COMPRESS_POINTERS)
+#if UINTPTR_MAX == 0xffffffffffffffff && !(defined V8_SHARED_RO_HEAP or defined V8_COMPRESS_POINTERS)
 #error V8 must be built with either the 'v8_enable_pointer_compression' or \
 'v8_enable_shared_ro_heap' feature enabled.
 #endif
