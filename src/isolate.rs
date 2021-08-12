@@ -152,13 +152,26 @@ pub type PrepareStackTraceCallback<'s> = extern "C" fn(
   Local<'s, Array>,
 ) -> *mut *const Value;
 
-// System V ABI: MaybeLocal<Value> returned in a register.
-#[cfg(not(target_os = "windows"))]
+// System V AMD64 ABI: MaybeLocal<Value> returned in a register.
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "64"))]
 pub type PrepareStackTraceCallback<'s> = extern "C" fn(
   Local<'s, Context>,
   Local<'s, Value>,
   Local<'s, Array>,
 ) -> *const Value;
+
+// System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+#[repr(C)]
+pub struct PrepareStackTraceCallbackRet(*const Value);
+
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+pub type PrepareStackTraceCallback<'s> =
+  extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Value>,
+    Local<'s, Array>,
+  ) -> PrepareStackTraceCallbackRet;
 
 extern "C" {
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
@@ -990,13 +1003,24 @@ where
     f.to_c_fn()
   }
 
-  // System V ABI: MaybeLocal<Value> returned in a register.
-  #[cfg(not(target_os = "windows"))]
+  // System V AMD64 ABI: MaybeLocal<Value> returned in a register.
+  #[cfg(all(not(target_os = "windows"), target_pointer_width = "64"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
       let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
       let r = (F::get())(&mut scope, error, sites);
       &*r as *const _
+    };
+    f.to_c_fn()
+  }
+
+  // System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+  #[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+  fn mapping() -> Self {
+    let f = |context, error, sites| {
+      let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
+      let r = (F::get())(&mut scope, error, sites);
+      PrepareStackTraceCallbackRet(&*r as *const _)
     };
     f.to_c_fn()
   }

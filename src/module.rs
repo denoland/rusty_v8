@@ -41,13 +41,26 @@ use crate::Value;
 /// ```
 
 // System V AMD64 ABI: Local<Module> returned in a register.
-#[cfg(not(target_os = "windows"))]
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "64"))]
 pub type ResolveModuleCallback<'a> = extern "C" fn(
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, FixedArray>,
   Local<'a, Module>,
 ) -> *const Module;
+
+// System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+#[repr(C)]
+pub struct ResolveModuleCallbackRet(*const Module);
+
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+pub type ResolveModuleCallback<'a> = extern "C" fn(
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, FixedArray>,
+  Local<'a, Module>,
+) -> ResolveModuleCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
@@ -69,12 +82,24 @@ where
       Local<'a, Module>,
     ) -> Option<Local<'a, Module>>,
 {
-  #[cfg(not(target_os = "windows"))]
+  #[cfg(all(not(target_os = "windows"), target_pointer_width = "64"))]
   fn mapping() -> Self {
     let f = |context, specifier, import_assertions, referrer| {
       (F::get())(context, specifier, import_assertions, referrer)
         .map(|r| -> *const Module { &*r })
         .unwrap_or(null())
+    };
+    f.to_c_fn()
+  }
+
+  #[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+  fn mapping() -> Self {
+    let f = |context, specifier, import_assertions, referrer| {
+      ResolveModuleCallbackRet(
+        (F::get())(context, specifier, import_assertions, referrer)
+          .map(|r| -> *const Module { &*r })
+          .unwrap_or(null()),
+      )
     };
     f.to_c_fn()
   }
@@ -93,9 +118,21 @@ where
 }
 
 // System V AMD64 ABI: Local<Value> returned in a register.
-#[cfg(not(target_os = "windows"))]
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "64"))]
 pub type SyntheticModuleEvaluationSteps<'a> =
   extern "C" fn(Local<'a, Context>, Local<'a, Module>) -> *const Value;
+
+// System V i386 ABI: Local<Module> returned in hidden pointer (struct).
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+#[repr(C)]
+pub struct SyntheticModuleEvaluationStepsRet(*const Value);
+
+#[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+pub type SyntheticModuleEvaluationSteps<'a> =
+  extern "C" fn(
+    Local<'a, Context>,
+    Local<'a, Module>,
+  ) -> SyntheticModuleEvaluationStepsRet;
 
 // Windows x64 ABI: Local<Value> returned on the stack.
 #[cfg(target_os = "windows")]
@@ -111,12 +148,24 @@ where
   F: UnitType
     + Fn(Local<'a, Context>, Local<'a, Module>) -> Option<Local<'a, Value>>,
 {
-  #[cfg(not(target_os = "windows"))]
+  #[cfg(all(not(target_os = "windows"), target_pointer_width = "64"))]
   fn mapping() -> Self {
     let f = |context, module| {
       (F::get())(context, module)
         .map(|r| -> *const Value { &*r })
         .unwrap_or(null())
+    };
+    f.to_c_fn()
+  }
+
+  #[cfg(all(not(target_os = "windows"), target_pointer_width = "32"))]
+  fn mapping() -> Self {
+    let f = |context, module| {
+      SyntheticModuleEvaluationStepsRet(
+        (F::get())(context, module)
+          .map(|r| -> *const Value { &*r })
+          .unwrap_or(null()),
+      )
     };
     f.to_c_fn()
   }
