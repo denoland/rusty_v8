@@ -132,6 +132,7 @@ fn build_v8() {
     if use_sysroot {
       gn_args.push("use_sysroot=true".to_string());
       maybe_install_sysroot("arm64");
+      maybe_install_sysroot("amd64");
     }
   } else if target_triple.starts_with("armv7-unknown-linux-gnueabi") {
     gn_args.push(r#"target_cpu="arm""#.to_string());
