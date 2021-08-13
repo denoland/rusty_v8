@@ -143,10 +143,9 @@ fn build_v8() {
       gn_args.push(r#"arm_float_abi="softfp""#.to_string());
     }
 
-    if use_sysroot {
-      gn_args.push("use_sysroot=true".to_string());
-      maybe_install_sysroot("arm");
-    }
+    // ignore use_sysroot to allow compilation on arm64
+    gn_args.push("use_sysroot=true".to_string());
+    maybe_install_sysroot("arm");
   } else if target_triple.starts_with("i686-") {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
