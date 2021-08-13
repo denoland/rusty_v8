@@ -124,17 +124,29 @@ fn build_v8() {
 
   let target_triple = env::var("TARGET").unwrap();
   // check if the target triple describes a non-native environment
-  if target_triple != env::var("HOST").unwrap() {
-    // cross-compilation setup
-    if target_triple == "aarch64-unknown-linux-gnu" {
-      gn_args.push(r#"target_cpu="arm64""#.to_string());
+  let use_sysroot = target_triple != env::var("HOST").unwrap();
+
+  if target_triple == "aarch64-unknown-linux-gnu" {
+    gn_args.push(r#"target_cpu="arm64""#.to_string());
+
+    if use_sysroot {
       gn_args.push("use_sysroot=true".to_string());
       maybe_install_sysroot("arm64");
-      maybe_install_sysroot("amd64");
-    };
-  }
+    }
+  } else if target_triple.starts_with("armv7-unknown-linux-gnueabi") {
+    gn_args.push(r#"target_cpu="arm""#.to_string());
 
-  if target_triple.starts_with("i686-") {
+    if target_triple.ends_with("hf") {
+      gn_args.push(r#"arm_float_abi="hard""#.to_string());
+    } else {
+      gn_args.push(r#"arm_float_abi="softfp""#.to_string());
+    }
+
+    if use_sysroot {
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("arm");
+    }
+  } else if target_triple.starts_with("i686-") {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
