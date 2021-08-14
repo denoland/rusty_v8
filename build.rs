@@ -143,6 +143,9 @@ fn build_v8() {
       gn_args.push(r#"arm_float_abi="softfp""#.to_string());
     }
 
+    // Build without debugging symbols because size is too large (like 600MB in release binary).
+    gn_args.push("symbol_level=0".to_string());
+
     // ignore use_sysroot to allow compilation on arm64
     gn_args.push("use_sysroot=true".to_string());
     maybe_install_sysroot("arm");
