@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::mem::MaybeUninit;
@@ -137,15 +136,7 @@ where
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
   fn v8__Module__GetException(this: *const Module) -> *const Value;
-  fn v8__Module__GetModuleRequestsLength(this: *const Module) -> int;
-  fn v8__Module__GetModuleRequest(this: *const Module, i: int)
-    -> *const String;
   fn v8__Module__GetModuleRequests(this: *const Module) -> *const FixedArray;
-  fn v8__Module__GetModuleRequestLocation(
-    this: *const Module,
-    i: int,
-    out: *mut MaybeUninit<Location>,
-  ) -> Location;
   fn v8__Module__SourceOffsetToLocation(
     this: *const Module,
     offset: int,
@@ -236,54 +227,9 @@ impl Module {
     unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
   }
 
-  /// Returns the number of modules requested by this module.
-  #[deprecated(
-    since = "0.18.2",
-    note = "Use Module::get_module_requests() and FixedArray::length()."
-  )]
-  pub fn get_module_requests_length(&self) -> usize {
-    unsafe { v8__Module__GetModuleRequestsLength(self) }
-      .try_into()
-      .unwrap()
-  }
-
-  /// Returns the ith module specifier in this module.
-  /// i must be < self.get_module_requests_length() and >= 0.
-  #[deprecated(
-    since = "0.18.2",
-    note = "Use Module::get_module_requests() and ModuleRequest::get_specifier()."
-  )]
-  pub fn get_module_request(&self, i: usize) -> Local<String> {
-    // Note: the returned value is not actually stored in a HandleScope,
-    // therefore we don't need a scope object here.
-    unsafe {
-      Local::from_raw(v8__Module__GetModuleRequest(self, i.try_into().unwrap()))
-    }
-    .unwrap()
-  }
-
   /// Returns the ModuleRequests for this module.
   pub fn get_module_requests(&self) -> Local<FixedArray> {
     unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
-  }
-
-  /// Returns the source location (line number and column number) of the ith
-  /// module specifier's first occurrence in this module.
-  #[deprecated(
-    since = "0.18.2",
-    note = "Use Module::get_module_requests(), ModuleRequest::get_source_offset() and
-    Module::source_offset_to_location()."
-  )]
-  pub fn get_module_request_location(&self, i: usize) -> Location {
-    let mut out = MaybeUninit::<Location>::uninit();
-    unsafe {
-      v8__Module__GetModuleRequestLocation(
-        self,
-        i.try_into().unwrap(),
-        &mut out,
-      );
-      out.assume_init()
-    }
   }
 
   /// For the given source text offset in this module, returns the corresponding
