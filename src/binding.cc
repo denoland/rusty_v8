@@ -2298,21 +2298,8 @@ const v8::Value* v8__Module__GetException(const v8::Module& self) {
   return local_to_ptr(self.GetException());
 }
 
-int v8__Module__GetModuleRequestsLength(const v8::Module& self) {
-  return self.GetModuleRequestsLength();
-}
-
-const v8::String* v8__Module__GetModuleRequest(const v8::Module& self, int i) {
-  return local_to_ptr(self.GetModuleRequest(i));
-}
-
 const v8::FixedArray* v8__Module__GetModuleRequests(const v8::Module& self) {
   return local_to_ptr(self.GetModuleRequests());
-}
-
-void v8__Module__GetModuleRequestLocation(const v8::Module& self, int i,
-                                          v8::Location* out) {
-  *out = self.GetModuleRequestLocation(i);
 }
 
 void v8__Module__SourceOffsetToLocation(const v8::Module& self, int offset,
