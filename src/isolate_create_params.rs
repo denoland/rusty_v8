@@ -13,7 +13,12 @@ use std::convert::TryFrom;
 use std::iter::once;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
+use std::os::raw::c_char;
 use std::ptr::null;
+
+/// Should return a pointer to memory that persists for the lifetime of the
+/// isolate.
+pub type CounterLookupCallback = extern "C" fn(name: *const c_char) -> *mut i32;
 
 /// Initial configuration parameters for a new Isolate.
 #[must_use]
@@ -24,6 +29,16 @@ pub struct CreateParams {
 }
 
 impl CreateParams {
+  /// Enables the host application to provide a mechanism for recording
+  /// statistics counters.
+  pub fn counter_lookup_callback(
+    mut self,
+    callback: CounterLookupCallback,
+  ) -> Self {
+    self.raw.counter_lookup_callback = Some(callback);
+    self
+  }
+
   /// Explicitly specify a startup snapshot blob.
   pub fn snapshot_blob(mut self, data: impl Allocated<[u8]>) -> Self {
     let data = Allocation::of(data);
@@ -181,7 +196,7 @@ pub(crate) mod raw {
     pub code_event_handler: *const Opaque, // JitCodeEventHandler
     pub constraints: ResourceConstraints,
     pub snapshot_blob: *const StartupData,
-    pub counter_lookup_callback: *const Opaque, // CounterLookupCallback
+    pub counter_lookup_callback: Option<CounterLookupCallback>,
     pub create_histogram_callback: *const Opaque, // CreateHistogramCallback
     pub add_histogram_sample_callback: *const Opaque, // AddHistogramSampleCallback
     pub array_buffer_allocator: *mut ArrayBufferAllocator,

@@ -3,11 +3,16 @@ use lazy_static::lazy_static;
 use std::any::type_name;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
+use std::ffi::CStr;
 use std::hash::Hash;
+use std::os::raw::c_char;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use rusty_v8 as v8;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
@@ -5353,4 +5358,53 @@ fn external_strings() {
   assert!(!gradients.is_external_twobyte());
   assert!(!gradients.is_onebyte());
   assert!(!gradients.contains_only_onebyte());
+}
+
+#[test]
+fn counter_lookup_callback() {
+  #[derive(Eq, PartialEq, Hash)]
+  struct Name(*const c_char);
+  struct Count(*mut i32);
+
+  unsafe impl Send for Name {}
+  unsafe impl Send for Count {}
+
+  lazy_static! {
+    static ref MAP: Arc<Mutex<HashMap<Name, Count>>> = Arc::default();
+  }
+
+  // |name| points to a static zero-terminated C string.
+  extern "C" fn callback(name: *const c_char) -> *mut i32 {
+    MAP
+      .lock()
+      .unwrap()
+      .entry(Name(name))
+      .or_insert_with(|| Count(Box::leak(Box::new(0))))
+      .0
+  }
+
+  let _setup_guard = setup();
+  let params = v8::CreateParams::default().counter_lookup_callback(callback);
+  let isolate = &mut v8::Isolate::new(params);
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let _ = eval(scope, "console.log(42);").unwrap();
+
+  let count = MAP
+    .lock()
+    .unwrap()
+    .iter()
+    .find_map(|(name, count)| {
+      let name = unsafe { CStr::from_ptr(name.0) };
+      // Note: counter names start with a "c:" prefix.
+      if "c:V8.TotalParseSize" == name.to_string_lossy() {
+        Some(unsafe { *count.0 })
+      } else {
+        None
+      }
+    })
+    .unwrap();
+
+  assert_ne!(count, 0);
 }
