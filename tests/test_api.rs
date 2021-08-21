@@ -5408,3 +5408,38 @@ fn counter_lookup_callback() {
 
   assert_ne!(count, 0);
 }
+
+#[test]
+fn test_fast_calls() {
+  #[rusty_v8::magic]
+  fn fast_fn(_receiver: v8::Local<v8::Value>, a: u32, b: u32) -> bool {
+    a == 1 && b == 2
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .fast_function(fast_fn)
+    .build(scope);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+
+  assert!(eval(scope, "func(1, 2)").is_some());
+  assert!(eval(scope, "func(1, 2)").is_some());
+}

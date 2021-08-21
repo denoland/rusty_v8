@@ -36,6 +36,7 @@ pub type intptr_t = isize;
 pub use std::os::raw::c_char as char;
 pub use std::os::raw::c_int as int;
 pub use std::os::raw::c_long as long;
+pub use std::os::raw::c_void as void;
 
 pub type Opaque = [u8; 0];
 

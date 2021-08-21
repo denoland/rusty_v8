@@ -9,6 +9,7 @@ use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::{int, Opaque};
 use crate::Context;
+use crate::FastFunctionInfo;
 use crate::Function;
 use crate::HandleScope;
 use crate::Local;
@@ -94,10 +95,6 @@ pub enum SideEffectType {
   HasNoSideEffect,
   HasSideEffectToReceiver,
 }
-
-#[repr(C)]
-#[derive(Default)]
-pub(crate) struct CFunction([usize; 2]);
 
 // Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
@@ -334,6 +331,7 @@ pub struct FunctionBuilder<'s, T> {
   pub(crate) length: i32,
   pub(crate) constructor_behavior: ConstructorBehavior,
   pub(crate) side_effect_type: SideEffectType,
+  pub(crate) fast_function: Option<Box<dyn FastFunctionInfo>>,
   phantom: PhantomData<T>,
 }
 
@@ -347,6 +345,7 @@ impl<'s, T> FunctionBuilder<'s, T> {
       length: 0,
       constructor_behavior: ConstructorBehavior::Allow,
       side_effect_type: SideEffectType::HasSideEffect,
+      fast_function: None,
       phantom: PhantomData,
     }
   }

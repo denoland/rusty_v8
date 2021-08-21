@@ -81,8 +81,17 @@ dependencies = [
  "fslock",
  "lazy_static",
  "libc",
+ "rusty_v8_derive",
  "trybuild",
  "which",
+]
+
+[[package]]
+name = "rusty_v8_derive"
+version = "0.0.1"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

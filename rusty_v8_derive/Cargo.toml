@@ -1,0 +1,13 @@
+[package]
+name = "rusty_v8_derive"
+version = "0.0.1"
+edition = "2018"
+description = "This crate provides macros for rusty_v8"
+license-file = "../LICENSE"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0", features = ["full", "extra-traits"] }
+quote = "1.0"

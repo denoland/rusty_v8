@@ -33,6 +33,8 @@ extern crate bitflags;
 extern crate lazy_static;
 extern crate libc;
 
+pub use rusty_v8_derive::magic;
+
 mod array_buffer;
 mod array_buffer_view;
 mod bigint;

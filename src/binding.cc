@@ -1561,16 +1561,41 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
+class RustyCFunctionInfo : public v8::CFunctionInfo {
+ public:
+  explicit RustyCFunctionInfo(v8::CTypeInfo return_info, std::vector<v8::CTypeInfo> args_info):
+    v8::CFunctionInfo(return_info, static_cast<unsigned int>(args_info.size()), args_info.data()), args_info_(args_info) {
+  }
+
+ private:
+  std::vector<v8::CTypeInfo> args_info_;
+};
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
     v8::SideEffectType side_effect_type,
-    const v8::CFunction* c_function_or_null) {
+    const void* fast_function_pointer,
+    size_t fast_function_args_len,
+    const v8::CTypeInfo::Type fast_function_args[],
+    v8::CTypeInfo::Type fast_function_return) {
+  v8::CFunction c_function;
+  if (fast_function_pointer) {
+    std::vector<v8::CTypeInfo> args_info{};
+    for (size_t i = 0; i < fast_function_args_len; i += 1) {
+      args_info.push_back(v8::CTypeInfo(fast_function_args[i]));
+    }
+    auto return_info = v8::CTypeInfo(fast_function_return);
+    auto c_function_info = new RustyCFunctionInfo(return_info, args_info);
+
+    c_function = v8::CFunction(fast_function_pointer, c_function_info);
+  }
+
   return local_to_ptr(v8::FunctionTemplate::New(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
-      side_effect_type, c_function_or_null));
+      side_effect_type, &c_function));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(

@@ -4,11 +4,10 @@ use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::isolate::Isolate;
-use crate::support::int;
 use crate::support::MapFnTo;
+use crate::support::{int, void};
 use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
-use crate::CFunction;
 use crate::ConstructorBehavior;
 use crate::Context;
 use crate::Function;
@@ -45,7 +44,10 @@ extern "C" {
     length: i32,
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
-    c_function_or_null: *const CFunction,
+    fast_function_pointer: *const void,
+    fast_function_args_len: usize,
+    fast_function_args: *const V8CType,
+    fast_function_return: V8CType,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -92,6 +94,29 @@ extern "C" {
   );
 }
 
+// https://github.com/v8/v8/blob/master/include/v8-fast-api-calls.h
+// Should match v8::CTypeInfo::Type enum
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum V8CType {
+  Void,
+  Bool,
+  Int32,
+  Uint32,
+  Int64,
+  Uint64,
+  Float32,
+  Float64,
+  V8Value,
+}
+
+#[doc(hidden)]
+pub trait FastFunctionInfo: 'static {
+  fn signature(&self) -> (&'static [V8CType], V8CType);
+  fn function(&self) -> *const void;
+}
+
 impl Template {
   /// Adds a property to each instance created by this template.
   pub fn set(&self, key: Local<Name>, value: Local<Data>) {
@@ -117,6 +142,11 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
     self
   }
 
+  pub fn fast_function<F: FastFunctionInfo>(mut self, f: F) -> Self {
+    self.fast_function = Some(Box::new(f));
+    self
+  }
+
   /// Creates the function template.
   pub fn build(
     self,
@@ -132,7 +162,19 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.length,
           self.constructor_behavior,
           self.side_effect_type,
-          null(),
+          self.fast_function.as_ref().map_or(null(), |f| f.function()),
+          self
+            .fast_function
+            .as_ref()
+            .map_or(0, |f| f.signature().0.len()),
+          self
+            .fast_function
+            .as_ref()
+            .map_or(null(), |f| f.signature().0.as_ptr()),
+          self
+            .fast_function
+            .as_ref()
+            .map_or(V8CType::Void, |f| f.signature().1),
         )
       })
     }
