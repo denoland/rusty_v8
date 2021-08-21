@@ -316,9 +316,18 @@ fn print_link_flags() {
   }
 }
 
+// Chromium depot_tools contains helpers
+// which delegate to the "relevant" `buildtools`
+// directory when invoked, so they don't count.
+fn not_in_depot_tools(p: PathBuf) -> bool {
+  !p.as_path().to_str().unwrap().contains("depot_tools")
+}
+
 fn need_gn_ninja_download() -> bool {
-  let has_ninja = which("ninja").is_ok() || env::var_os("NINJA").is_some();
-  let has_gn = which("gn").is_ok() || env::var_os("GN").is_some();
+  let has_ninja = which("ninja").map_or(false, not_in_depot_tools)
+    || env::var_os("NINJA").is_some();
+  let has_gn = which("gn").map_or(false, not_in_depot_tools)
+    || env::var_os("GN").is_some();
 
   !has_ninja || !has_gn
 }
