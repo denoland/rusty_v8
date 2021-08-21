@@ -320,7 +320,7 @@ fn print_link_flags() {
 // which delegate to the "relevant" `buildtools`
 // directory when invoked, so they don't count.
 fn not_in_depot_tools(p: PathBuf) -> bool {
-    !p.as_path().to_str().unwrap().contains("depot_tools")
+  !p.as_path().to_str().unwrap().contains("depot_tools")
 }
 
 fn need_gn_ninja_download() -> bool {
