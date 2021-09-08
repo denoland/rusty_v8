@@ -445,6 +445,7 @@ impl Isolate {
       .is_none()
   }
 
+  /// Removes the embedder data added with `set_slot()` and returns it if it exists.
   pub fn remove_slot<T: 'static>(&mut self) -> Option<T> {
     let b = self.get_annex_mut().slots.remove(&TypeId::of::<T>())?;
     let v: T = *b.downcast::<T>().unwrap();
