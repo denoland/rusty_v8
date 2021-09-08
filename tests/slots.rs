@@ -163,3 +163,19 @@ fn slots_layer2() {
   drop(es_isolate);
   assert_eq!(drop_count.load(Ordering::SeqCst), 2);
 }
+
+#[test]
+fn remove_slot() {
+  let drop_count = Rc::new(AtomicUsize::new(0));
+  let mut core_isolate = CoreIsolate::new(drop_count.clone());
+
+  let state = core_isolate.remove_slot::<CoreIsolateState>().unwrap();
+  drop(core_isolate);
+
+  // The state should not be dropped with the isolate because we own it now.
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+
+  // We're dropping it now on purpose.
+  drop(state);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+}
