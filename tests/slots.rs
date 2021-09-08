@@ -170,8 +170,7 @@ struct TestState(i32);
 
 #[test]
 fn slots_general_1() {
-  let drop_count = Rc::new(AtomicUsize::new(0));
-  let mut core_isolate = CoreIsolate::new(drop_count.clone());
+  let mut core_isolate = CoreIsolate::new(Rc::new(AtomicUsize::new(0)));
 
   // Set a value in the slots system.
   let first_add = core_isolate.set_slot::<TestState>(TestState(0));
