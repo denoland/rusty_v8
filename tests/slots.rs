@@ -163,3 +163,56 @@ fn slots_layer2() {
   drop(es_isolate);
   assert_eq!(drop_count.load(Ordering::SeqCst), 2);
 }
+
+// General test for the slots system, not specific for the Deno pattern.
+
+struct TestState(i32);
+
+#[test]
+fn slots_general_1() {
+  let mut core_isolate = CoreIsolate::new(Rc::new(AtomicUsize::new(0)));
+
+  // Set a value in the slots system.
+  let first_add = core_isolate.set_slot::<TestState>(TestState(0));
+
+  // Verify that this was the first time a value of this type was added.
+  assert!(first_add);
+
+  let second_add = core_isolate.set_slot::<TestState>(TestState(1));
+
+  // Verify that the set operation cause an existing value to be replaced and dropped.
+  assert!(!second_add);
+
+  // Increase the value stored.
+  core_isolate.get_slot_mut::<TestState>().unwrap().0 += 5;
+
+  // Verify the value has changed,
+  // and that it was really replaced (if it were not, the result would be 5).
+  assert_eq!(core_isolate.get_slot::<TestState>().unwrap().0, 6);
+
+  // Remove the value out of the slot.
+  let value = core_isolate.remove_slot::<TestState>().unwrap();
+
+  // Verify that we got the proper value.
+  assert_eq!(value.0, 6);
+
+  // Verify that the slot is empty now.
+  assert!(core_isolate.remove_slot::<TestState>().is_none());
+}
+
+#[test]
+fn slots_general_2() {
+  let drop_count = Rc::new(AtomicUsize::new(0));
+  let mut core_isolate = CoreIsolate::new(drop_count.clone());
+
+  let state: CoreIsolateState =
+    core_isolate.remove_slot::<CoreIsolateState>().unwrap();
+  drop(core_isolate);
+
+  // The state should not be dropped with the isolate because we own it now.
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+
+  // We're dropping it now on purpose.
+  drop(state);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+}

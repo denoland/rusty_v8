@@ -445,6 +445,13 @@ impl Isolate {
       .is_none()
   }
 
+  /// Removes the embedder data added with `set_slot()` and returns it if it exists.
+  pub fn remove_slot<T: 'static>(&mut self) -> Option<T> {
+    let b = self.get_annex_mut().slots.remove(&TypeId::of::<T>())?;
+    let v: T = *b.downcast::<T>().unwrap();
+    Some(v)
+  }
+
   /// Sets this isolate as the entered one for the current thread.
   /// Saves the previously entered one (if any), so that it can be
   /// restored when exiting.  Re-entering an isolate is allowed.
