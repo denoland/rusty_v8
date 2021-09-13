@@ -120,6 +120,10 @@ impl CompiledWasmModule {
   }
 }
 
+// TODO(andreubotella): Safety???
+unsafe impl Send for CompiledWasmModule {}
+unsafe impl Sync for CompiledWasmModule {}
+
 impl Drop for CompiledWasmModule {
   fn drop(&mut self) {
     unsafe { v8__CompiledWasmModule__DELETE(self.0) }
