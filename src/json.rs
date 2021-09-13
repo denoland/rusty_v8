@@ -33,7 +33,7 @@ pub fn parse<'s>(
 /// it as string if successful.
 pub fn stringify<'s>(
   scope: &mut HandleScope<'s>,
-  json_object: Local<'s, Value>,
+  json_object: Local<'_, Value>,
 ) -> Option<Local<'s, String>> {
   unsafe {
     scope.cast_local(|sd| {
