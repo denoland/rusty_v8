@@ -4,10 +4,12 @@ use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
 use crate::scope::CallbackScope;
 use crate::scope::HandleScope;
+use crate::support::Opaque;
 use crate::support::UnitType;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
+use crate::WasmModuleObject;
 use std::ptr::null;
 use std::ptr::null_mut;
 
@@ -62,6 +64,68 @@ impl Drop for WasmStreaming {
   }
 }
 
+impl WasmModuleObject {
+  /**
+   * Efficiently re-create a WasmModuleObject, without recompiling, from
+   * a CompiledWasmModule.
+   */
+  pub fn from_compiled_module<'s>(
+    scope: &mut HandleScope<'s>,
+    compiled_module: &CompiledWasmModule,
+  ) -> Option<Local<'s, WasmModuleObject>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__WasmModuleObject__FromCompiledModule(
+          sd.get_isolate_ptr(),
+          compiled_module.0,
+        )
+      })
+    }
+  }
+
+  /**
+   * Get the compiled module for this module object. The compiled module can be
+   * shared by several module objects.
+   */
+  pub fn get_compiled_module(&self) -> CompiledWasmModule {
+    let ptr = unsafe { v8__WasmModuleObject__GetCompiledModule(self) };
+    CompiledWasmModule(ptr)
+  }
+}
+
+// Type-erased v8::CompiledWasmModule. We need this because the C++
+// v8::CompiledWasmModule must be destructed because its private fields hold
+// pointers that must be freed, but v8::CompiledWasmModule itself doesn't have
+// a destructor. Therefore, in order to avoid memory leaks, the Rust-side
+// CompiledWasmModule must be a pointer to a C++ allocation of
+// v8::CompiledWasmModule.
+#[repr(C)]
+struct InternalCompiledWasmModule(Opaque);
+
+/// Wrapper around a compiled WebAssembly module, which is potentially shared by
+/// different WasmModuleObjects.
+pub struct CompiledWasmModule(*mut InternalCompiledWasmModule);
+
+impl CompiledWasmModule {
+  /**
+   * Get the (wasm-encoded) wire bytes that were used to compile this module.
+   */
+  pub fn get_wire_bytes_ref(&self) -> &[u8] {
+    use std::convert::TryInto;
+    let mut len = 0isize;
+    unsafe {
+      let ptr = v8__CompiledWasmModule__GetWireBytesRef(self.0, &mut len);
+      std::slice::from_raw_parts(ptr, len.try_into().unwrap())
+    }
+  }
+}
+
+impl Drop for CompiledWasmModule {
+  fn drop(&mut self) {
+    unsafe { v8__CompiledWasmModule__DELETE(self.0) }
+  }
+}
+
 pub(crate) fn trampoline<F>() -> extern "C" fn(*const FunctionCallbackInfo)
 where
   F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
@@ -102,4 +166,18 @@ extern "C" {
     this: *mut WasmStreamingSharedPtr,
     exception: *const Value,
   );
+
+  fn v8__WasmModuleObject__FromCompiledModule(
+    isolate: *mut Isolate,
+    compiled_module: *const InternalCompiledWasmModule,
+  ) -> *const WasmModuleObject;
+  fn v8__WasmModuleObject__GetCompiledModule(
+    this: *const WasmModuleObject,
+  ) -> *mut InternalCompiledWasmModule;
+
+  fn v8__CompiledWasmModule__GetWireBytesRef(
+    this: *mut InternalCompiledWasmModule,
+    length: *mut isize,
+  ) -> *const u8;
+  fn v8__CompiledWasmModule__DELETE(this: *mut InternalCompiledWasmModule);
 }

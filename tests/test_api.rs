@@ -5408,3 +5408,65 @@ fn counter_lookup_callback() {
 
   assert_ne!(count, 0);
 }
+
+#[test]
+fn compiled_wasm_module() {
+  let _setup_guard = setup();
+
+  let compiled_module = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let module: v8::Local<v8::WasmModuleObject> = eval(
+      scope,
+      r#"
+        new WebAssembly.Module(Uint8Array.from([
+          0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+          0x00, 0x07, 0x03, 0x66, 0x6F, 0x6F, 0x62, 0x61, 0x72
+        ]));
+      "#,
+    )
+    .unwrap()
+    .try_into()
+    .unwrap();
+
+    module.get_compiled_module()
+  };
+
+  assert_eq!(
+    compiled_module.get_wire_bytes_ref(),
+    &[
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x00, 0x07, 0x03, 0x66,
+      0x6F, 0x6F, 0x62, 0x61, 0x72
+    ]
+  );
+
+  {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let global = context.global(scope);
+
+    let module =
+      v8::WasmModuleObject::from_compiled_module(scope, &compiled_module)
+        .unwrap();
+
+    let key = v8::String::new(scope, "module").unwrap().into();
+    global.set(scope, key, module.into());
+
+    let foo_ab: v8::Local<v8::ArrayBuffer> =
+      eval(scope, "WebAssembly.Module.customSections(module, 'foo')[0]")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let foo_bs = foo_ab.get_backing_store();
+    let foo_section = unsafe {
+      std::slice::from_raw_parts(foo_bs.data() as *mut u8, foo_bs.byte_length())
+    };
+    assert_eq!(foo_section, b"bar");
+  }
+}

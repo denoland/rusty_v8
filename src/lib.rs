@@ -141,6 +141,7 @@ pub use value_deserializer::ValueDeserializerImpl;
 pub use value_serializer::ValueSerializer;
 pub use value_serializer::ValueSerializerHelper;
 pub use value_serializer::ValueSerializerImpl;
+pub use wasm::CompiledWasmModule;
 pub use wasm::WasmStreaming;
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
