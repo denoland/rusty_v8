@@ -1381,6 +1381,7 @@ impl_partial_eq! { Value for SymbolObject use identity }
 impl_partial_eq! { Object for SymbolObject use identity }
 impl_partial_eq! { SymbolObject for SymbolObject use identity }
 
+/// An instance of WebAssembly.Module.
 #[repr(C)]
 #[derive(Debug)]
 pub struct WasmModuleObject(Opaque);

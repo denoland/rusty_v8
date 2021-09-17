@@ -2747,3 +2747,28 @@ bool v8__ValueDeserializer__ReadRawBytes(v8::ValueDeserializer* self,
   return self->ReadRawBytes(length, data);
 }
 }  // extern "C"
+
+// v8::CompiledWasmModule
+
+extern "C" {
+const v8::WasmModuleObject* v8__WasmModuleObject__FromCompiledModule(v8::Isolate* isolate,
+                                                                     const v8::CompiledWasmModule* compiled_module) {
+  return maybe_local_to_ptr(v8::WasmModuleObject::FromCompiledModule(isolate, *compiled_module));
+}
+
+v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(const v8::WasmModuleObject* self) {
+  v8::CompiledWasmModule cwm = ptr_to_local(self)->GetCompiledModule();
+  return new v8::CompiledWasmModule(std::move(cwm));
+}
+
+const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(v8::CompiledWasmModule* self,
+                                                       size_t* length) {
+  v8::MemorySpan<const uint8_t> span = self->GetWireBytesRef();
+  *length = span.size();
+  return span.data();
+}
+
+void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
+  delete self;
+}
+}  // extern "C"
