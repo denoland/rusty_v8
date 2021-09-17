@@ -65,10 +65,8 @@ impl Drop for WasmStreaming {
 }
 
 impl WasmModuleObject {
-  /**
-   * Efficiently re-create a WasmModuleObject, without recompiling, from
-   * a CompiledWasmModule.
-   */
+  /// Efficiently re-create a WasmModuleObject, without recompiling, from
+  /// a CompiledWasmModule.
   pub fn from_compiled_module<'s>(
     scope: &mut HandleScope<'s>,
     compiled_module: &CompiledWasmModule,
@@ -83,10 +81,8 @@ impl WasmModuleObject {
     }
   }
 
-  /**
-   * Get the compiled module for this module object. The compiled module can be
-   * shared by several module objects.
-   */
+  /// Get the compiled module for this module object. The compiled module can be
+  /// shared by several module objects.
   pub fn get_compiled_module(&self) -> CompiledWasmModule {
     let ptr = unsafe { v8__WasmModuleObject__GetCompiledModule(self) };
     CompiledWasmModule(ptr)
@@ -107,9 +103,7 @@ struct InternalCompiledWasmModule(Opaque);
 pub struct CompiledWasmModule(*mut InternalCompiledWasmModule);
 
 impl CompiledWasmModule {
-  /**
-   * Get the (wasm-encoded) wire bytes that were used to compile this module.
-   */
+  /// Get the (wasm-encoded) wire bytes that were used to compile this module.
   pub fn get_wire_bytes_ref(&self) -> &[u8] {
     use std::convert::TryInto;
     let mut len = 0isize;
