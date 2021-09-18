@@ -4723,8 +4723,12 @@ fn value_serializer_not_implemented() {
   assert!(scope.stack_trace().is_some());
   assert!(scope.message().is_some());
   assert_eq!(
-    scope.message().unwrap().get(scope).to_rust_string_lossy(scope),
-    "Uncaught Error: Deno serializer: get_shared_array_buffer_id not implemented"
+    scope
+      .message()
+      .unwrap()
+      .get(scope)
+      .to_rust_string_lossy(scope),
+    "Uncaught Error: #<SharedArrayBuffer> could not be cloned."
   );
 }
 
