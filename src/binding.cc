@@ -2551,8 +2551,11 @@ struct v8__ValueSerializer__Delegate : public v8::ValueSerializer::Delegate {
       v8::Local<v8::SharedArrayBuffer> shared_array_buffer) override {
     uint32_t result = 0;
     if (!v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
-            this, isolate, shared_array_buffer, &result))
-      return v8::Nothing<uint32_t>();
+            this, isolate, shared_array_buffer, &result)) {
+      // Forward to the original method. It'll throw DataCloneError.
+      return v8::ValueSerializer::Delegate::GetSharedArrayBufferId(
+          isolate, shared_array_buffer);
+    }
     return v8::Just(result);
   }
 
