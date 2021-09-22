@@ -42,6 +42,13 @@ from github to get the static lib. To disable this build using the
 When making changes to rusty_v8 itself, it should be tested by build from
 source. The CI always builds from source.
 
+## The `V8_FORCE_DEBUG` environment variable
+
+By default `rusty_v8` will link against release builds of `v8`, if you want to
+use a debug build of `v8` set `V8_FORCE_DEBUG=true`.
+
+We default to release builds of `v8` due to performance & CI reasons in `deno`.
+
 ## The `RUSTY_V8_MIRROR` environment variable
 
 Tells the build script where to get binary builds from. Understands

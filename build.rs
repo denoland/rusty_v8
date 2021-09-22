@@ -206,14 +206,24 @@ fn static_lib_url() -> String {
     env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
   let version = env::var("CARGO_PKG_VERSION").unwrap();
   let target = env::var("TARGET").unwrap();
+
+  // Note: we always use the release build on windows.
   if cfg!(target_os = "windows") {
-    // Note: we always use the release build on windows.
-    format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target)
-  } else {
-    let profile = env::var("PROFILE").unwrap();
-    assert!(profile == "release" || profile == "debug");
-    format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target)
+    return format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target);
   }
+  // Use v8 in release mode unless $V8_FORCE_DEBUG=true
+  let profile = match env_bool("V8_FORCE_DEBUG") {
+    true => "debug",
+    _ => "release",
+  };
+  format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target)
+}
+
+fn env_bool(key: &str) -> bool {
+  matches!(
+    env::var(key).unwrap_or_default().as_str(),
+    "true" | "1" | "yes"
+  )
 }
 
 fn static_lib_name() -> &'static str {
