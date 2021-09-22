@@ -220,10 +220,10 @@ fn static_lib_url() -> String {
 }
 
 fn env_bool(key: &str) -> bool {
-  match env::var(key).unwrap_or_default().as_str() {
-    "true" | "1" | "yes" => true,
-    _ => false,
-  }
+  matches!(
+    env::var(key).unwrap_or_default().as_str(),
+    "true" | "1" | "yes"
+  )
 }
 
 fn static_lib_name() -> &'static str {
