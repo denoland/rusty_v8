@@ -1,4 +1,5 @@
 use crate::external_references::ExternalReferences;
+use crate::isolate::Locker;
 use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
@@ -7,7 +8,6 @@ use crate::Context;
 use crate::Data;
 use crate::Isolate;
 use crate::Local;
-use crate::OwnedIsolate;
 
 use std::borrow::Borrow;
 use std::convert::TryFrom;
@@ -101,13 +101,23 @@ impl SnapshotCreator {
     } else {
       std::ptr::null()
     };
-    unsafe {
+    let snapshot_creator = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
         external_references_ptr,
       );
       snapshot_creator.assume_init()
+    };
+    {
+      let isolate = unsafe {
+        v8__SnapshotCreator__GetIsolate(&snapshot_creator)
+          .as_mut()
+          .unwrap()
+      };
+      ScopeData::new_root(isolate);
+      isolate.create_annex(Box::new(()), true, false);
     }
+    snapshot_creator
   }
 }
 
@@ -153,6 +163,32 @@ impl SnapshotCreator {
     }
   }
 
+  pub unsafe fn get_isolate_ptr(&self) -> *mut Isolate {
+    v8__SnapshotCreator__GetIsolate(self)
+  }
+
+  /// Borrows the Isolate from the SnapshotCreator.
+  pub fn get_isolate(&mut self) -> Locker<&'_ mut ()> {
+    unsafe { Locker::new(self.get_isolate_ptr().as_mut().unwrap()) }
+  }
+
+  /// Borrows the Isolate from the SnapshotCreator, also returning a reference
+  /// to the SnapshotCreator.
+  pub fn get_isolate_and_handle(
+    &mut self,
+  ) -> (Locker<&'_ mut ()>, &mut SnapshotCreator) {
+    unsafe { (Locker::new(self.get_isolate_ptr().as_mut().unwrap()), self) }
+  }
+
+  /// Creates a snapshot data blob.
+  /// This must not be called from within a handle scope.
+  pub fn into_blob(
+    mut self,
+    function_code_handling: FunctionCodeHandling,
+  ) -> Option<StartupData> {
+    self.create_blob(function_code_handling)
+  }
+
   /// Creates a snapshot data blob.
   /// This must not be called from within a handle scope.
   pub fn create_blob(
@@ -172,18 +208,5 @@ impl SnapshotCreator {
       debug_assert!(blob.raw_size > 0);
       Some(blob)
     }
-  }
-
-  /// This is marked unsafe because it should be called at most once per
-  /// snapshot creator.
-  // TODO Because the SnapshotCreator creates its own isolate, we need a way to
-  // get an owned handle to it. This is a questionable design which ought to be
-  // revisited after the libdeno integration is complete.
-  pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
-    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(Box::new(()));
-    owned_isolate
   }
 }
