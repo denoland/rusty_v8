@@ -127,12 +127,10 @@ impl CompiledWasmModule {
   }
 
   pub fn source_url(&self) -> &str {
-    use std::convert::TryInto;
-    let mut len = 0isize;
+    let mut len = 0;
     unsafe {
       let ptr = v8__CompiledWasmModule__SourceUrl(self.0, &mut len);
-      let bytes =
-        std::slice::from_raw_parts(ptr as *const u8, len.try_into().unwrap());
+      let bytes = std::slice::from_raw_parts(ptr as *const u8, len);
       std::str::from_utf8_unchecked(bytes)
     }
   }
@@ -208,7 +206,7 @@ extern "C" {
   ) -> *const u8;
   fn v8__CompiledWasmModule__SourceUrl(
     this: *mut InternalCompiledWasmModule,
-    length: *mut isize,
+    length: *mut usize,
   ) -> *const char;
   fn v8__CompiledWasmModule__DELETE(this: *mut InternalCompiledWasmModule);
 }
