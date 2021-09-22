@@ -4802,22 +4802,12 @@ fn wasm_streaming_callback() {
   ws.on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
   assert!(global.get(scope, name).unwrap().is_null());
 
-  ws.set_url("https://example2.com");
-  assert!(global.get(scope, name).unwrap().is_null());
-
   ws.finish();
   assert!(!scope.has_pending_background_tasks());
   assert!(global.get(scope, name).unwrap().is_null());
 
   scope.perform_microtask_checkpoint();
-
-  let result = global.get(scope, name).unwrap();
-  assert!(result.is_wasm_module_object());
-
-  let wasm_module_object: v8::Local<v8::WasmModuleObject> =
-    result.try_into().unwrap();
-  let compiled_wasm_module = wasm_module_object.get_compiled_module();
-  assert_eq!(compiled_wasm_module.source_url(), "https://example2.com");
+  assert!(global.get(scope, name).unwrap().is_wasm_module_object());
 
   let script = r#"
     globalThis.result = null;
@@ -5456,7 +5446,6 @@ fn compiled_wasm_module() {
       0x6F, 0x6F, 0x62, 0x61, 0x72
     ]
   );
-  assert_eq!(compiled_module.source_url(), "wasm://wasm/3e495052");
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
