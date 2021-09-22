@@ -5479,10 +5479,10 @@ fn compiled_wasm_module() {
 #[test]
 fn shared_isolate_move() {
   let _setup_guard = setup();
-  let mut shared_isolate = v8::Isolate::new_handle(Default::default());
+  let mut isolate = v8::Isolate::new_handle(Default::default());
   {
-    let isolate = &mut shared_isolate.enter();
-    let scope = &mut v8::HandleScope::new(isolate);
+    let locker = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::new(locker);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "1 + 1").unwrap();
@@ -5492,8 +5492,8 @@ fn shared_isolate_move() {
   }
 
   std::thread::spawn(move || {
-    let isolate = &mut shared_isolate.enter();
-    let scope = &mut v8::HandleScope::new(isolate);
+    let locker = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::new(locker);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "2 + 2").unwrap();
@@ -5512,11 +5512,11 @@ fn shared_isolate_global_context() {
   let _setup_guard = setup();
 
   // test to creating a shared isolate from an existing OwnedIsolate
-  let mut handle = v8::Isolate::new_handle(Default::default());
+  let mut isolate = v8::Isolate::new_handle(Default::default());
 
   let context = {
-    let isolate = &mut handle.enter();
-    let scope = &mut v8::HandleScope::new(isolate);
+    let locker = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::new(locker);
     let context = v8::Context::new(scope);
     let context_global = v8::Global::new(scope, context);
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -5528,20 +5528,20 @@ fn shared_isolate_global_context() {
 
   let context_t1 = context.clone();
 
-  let mut isolate_t1 = handle.clone();
+  let mut isolate_t1 = isolate.clone();
   let t1 = std::thread::spawn(move || {
-    let isolate = &mut isolate_t1.enter();
-    let scope = &mut v8::HandleScope::with_context(isolate, context_t1);
+    let locker = &mut isolate_t1.lock();
+    let scope = &mut v8::HandleScope::with_context(locker, context_t1);
     let source = v8::String::new(scope, "a = (a || 0) + 1").unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.run(scope);
   });
 
-  let mut isolate_t2 = handle.clone();
+  let mut isolate_t2 = isolate.clone();
   let context_t2 = context.clone();
   let t2 = std::thread::spawn(move || {
-    let isolate = &mut isolate_t2.enter();
-    let scope = &mut v8::HandleScope::with_context(isolate, context_t2);
+    let locker = &mut isolate_t2.lock();
+    let scope = &mut v8::HandleScope::with_context(locker, context_t2);
     let source = v8::String::new(scope, "a = (a || 0) + 1").unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.run(scope);
@@ -5552,10 +5552,10 @@ fn shared_isolate_global_context() {
 
   {
     // test discarding thread specific metadata (no observable change)
-    handle.discard_thread_specific_metadata();
+    isolate.discard_thread_specific_metadata();
 
-    let isolate = &mut handle.enter();
-    let scope = &mut v8::HandleScope::with_context(isolate, context);
+    let locker = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::with_context(locker, context);
     let key = v8::String::new(scope, "a").unwrap();
     let obj = scope
       .get_current_context()
@@ -5571,17 +5571,17 @@ fn shared_isolate_global_context() {
 #[test]
 fn shared_isolate_multiple_locks() {
   let _setup_guard = setup();
-  let mut shared_isolate1 = v8::Isolate::new_handle(Default::default());
-  let mut shared_isolate2 = v8::Isolate::new_handle(Default::default());
+  let mut isolate1 = v8::Isolate::new_handle(Default::default());
+  let mut isolate2 = v8::Isolate::new_handle(Default::default());
 
-  let isolate1 = &mut shared_isolate1.enter();
-  let scope1 = &mut v8::HandleScope::new(isolate1);
+  let locker1 = &mut isolate1.lock();
+  let scope1 = &mut v8::HandleScope::new(locker1);
   let context1 = v8::Context::new(scope1);
   let scope1 = &mut v8::ContextScope::new(scope1, context1);
 
   {
-    let isolate2 = &mut shared_isolate2.enter();
-    let scope2 = &mut v8::HandleScope::new(isolate2);
+    let locker2 = &mut isolate2.lock();
+    let scope2 = &mut v8::HandleScope::new(locker2);
     let context2 = v8::Context::new(scope2);
     let scope2 = &mut v8::ContextScope::new(scope2, context2);
     let source = v8::String::new(scope2, "1 + 2").unwrap();
@@ -5603,8 +5603,8 @@ fn global_hash() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new_handle(Default::default());
   let (global_ctx, global_ctx_2) = {
-    let isolate = &mut isolate.enter();
-    let scope = &mut v8::HandleScope::new(isolate);
+    let locker = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::new(locker);
     let context = v8::Context::new(scope);
     let ctx = v8::Global::new(scope, context);
     (Arc::new(ctx.clone()), Arc::new(ctx))
@@ -5612,9 +5612,8 @@ fn global_hash() {
 
   {
     // test equality within context
-    let isolate = &mut isolate.enter();
-    let scope =
-      &mut v8::HandleScope::with_context(isolate, global_ctx.as_ref());
+    let locker = &mut isolate.lock();
+    let scope = &mut v8::HandleScope::with_context(locker, &*global_ctx);
     assert_eq!(scope.get_current_context(), global_ctx);
     assert_eq!(global_ctx_2, global_ctx);
     let fresh_ctx = v8::Context::new(scope);
@@ -5629,12 +5628,14 @@ fn global_hash() {
 fn shared_isolate_slots() {
   #[derive(Clone)]
   struct Ctx(v8::Global<v8::Context>, v8::Global<v8::Integer>);
+
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new_handle(Default::default());
+
   {
-    let isolate = &mut isolate.enter();
+    let locker = &mut isolate.lock();
     let ctx = {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = &mut v8::HandleScope::new(locker);
       let context = v8::Context::new(scope);
       let value = v8::Integer::new(scope, 3);
 
@@ -5643,17 +5644,17 @@ fn shared_isolate_slots() {
         v8::Global::new(scope, value),
       )
     };
-    isolate.set_slot(ctx);
-  };
+    locker.set_slot(ctx);
+  }
 
   {
-    let isolate = &mut isolate.enter();
+    let locker = &mut isolate.lock();
     let ctx_new = {
-      let Ctx(context, value) = isolate
+      let Ctx(context, value) = locker
         .get_slot::<Ctx>()
         .cloned()
         .expect("expected Ctx slot");
-      let scope = &mut v8::HandleScope::with_context(isolate, &context);
+      let scope = &mut v8::HandleScope::with_context(locker, &context);
       assert_eq!(scope.get_current_context(), &context);
       let value = value.get(scope).int32_value(scope).unwrap();
       assert_eq!(value, 3);
@@ -5661,17 +5662,18 @@ fn shared_isolate_slots() {
       let value_global = v8::Global::new(scope, value);
       Ctx(context, value_global)
     };
-    isolate.set_slot(ctx_new);
-  };
+    locker.set_slot(ctx_new);
+  }
+
   {
-    let isolate = &mut isolate.enter();
-    let Ctx(context, value) = isolate
+    let locker = &mut isolate.lock();
+    let Ctx(context, value) = locker
       .get_slot::<Ctx>()
       .cloned()
       .expect("expected Ctx slot");
-    let scope = &mut v8::HandleScope::with_context(isolate, &context);
+    let scope = &mut v8::HandleScope::with_context(locker, &context);
     assert_eq!(scope.get_current_context(), &context);
     let value = value.get(scope).int32_value(scope).unwrap();
     assert_eq!(value, 4);
-  };
+  }
 }
