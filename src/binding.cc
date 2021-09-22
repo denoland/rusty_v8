@@ -355,7 +355,8 @@ bool v8__Locker__IsLocked(v8::Isolate* isolate) {
 
 void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }
 
-void v8__Unlocker__CONSTRUCT(uninit_t<v8::Unlocker>* buf, v8::Isolate* isolate) {
+void v8__Unlocker__CONSTRUCT(uninit_t<v8::Unlocker>* buf,
+                             v8::Isolate* isolate) {
   construct_in_place<v8::Unlocker>(buf, isolate);
 }
 
