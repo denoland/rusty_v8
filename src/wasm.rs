@@ -4,6 +4,7 @@ use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
 use crate::scope::CallbackScope;
 use crate::scope::HandleScope;
+use crate::support::char;
 use crate::support::Opaque;
 use crate::support::UnitType;
 use crate::Isolate;
@@ -55,6 +56,18 @@ impl WasmStreaming {
   pub fn abort(mut self, exception: Option<Local<Value>>) {
     let exception = exception.map(|v| &*v as *const Value).unwrap_or(null());
     unsafe { v8__WasmStreaming__Abort(&mut self.0, exception) }
+  }
+
+  /// Sets the UTF-8 encoded source URL for the `Script` object. This must be
+  /// called before [`Self::finish()`].
+  pub fn set_url(&mut self, url: &str) {
+    unsafe {
+      v8__WasmStreaming__SetUrl(
+        &mut self.0,
+        url.as_ptr() as *const char,
+        url.len(),
+      )
+    }
   }
 }
 
@@ -112,6 +125,15 @@ impl CompiledWasmModule {
       std::slice::from_raw_parts(ptr, len.try_into().unwrap())
     }
   }
+
+  pub fn source_url(&self) -> &str {
+    let mut len = 0;
+    unsafe {
+      let ptr = v8__CompiledWasmModule__SourceUrl(self.0, &mut len);
+      let bytes = std::slice::from_raw_parts(ptr as *const u8, len);
+      std::str::from_utf8_unchecked(bytes)
+    }
+  }
 }
 
 // TODO(andreubotella): Safety???
@@ -164,6 +186,11 @@ extern "C" {
     this: *mut WasmStreamingSharedPtr,
     exception: *const Value,
   );
+  fn v8__WasmStreaming__SetUrl(
+    this: *mut WasmStreamingSharedPtr,
+    url: *const char,
+    len: usize,
+  );
 
   fn v8__WasmModuleObject__FromCompiledModule(
     isolate: *mut Isolate,
@@ -177,5 +204,9 @@ extern "C" {
     this: *mut InternalCompiledWasmModule,
     length: *mut isize,
   ) -> *const u8;
+  fn v8__CompiledWasmModule__SourceUrl(
+    this: *mut InternalCompiledWasmModule,
+    length: *mut usize,
+  ) -> *const char;
   fn v8__CompiledWasmModule__DELETE(this: *mut InternalCompiledWasmModule);
 }
