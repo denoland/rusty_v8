@@ -214,7 +214,7 @@ fn static_lib_url() -> String {
   // Use v8 in release mode unless $V8_FORCE_DEBUG=true
   let profile = match env::var("V8_FORCE_DEBUG").unwrap_or_default() == "true" {
     true => "debug",
-    _ => "release"
+    _ => "release",
   };
   format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target)
 }
