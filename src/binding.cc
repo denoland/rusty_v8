@@ -2414,6 +2414,11 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
   self->inner->Abort(ptr_to_maybe_local(exception));
 }
 
+void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self,
+                               const char* url, size_t len) {
+  self->inner->SetUrl(url, len);
+}
+
 using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);
 
 void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
@@ -2769,6 +2774,13 @@ const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(v8::CompiledWasmModule* s
   v8::MemorySpan<const uint8_t> span = self->GetWireBytesRef();
   *length = span.size();
   return span.data();
+}
+
+const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
+                                              size_t* length) {
+  const std::string& source_url = self->source_url();
+  *length = source_url.size();
+  return source_url.data();
 }
 
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
