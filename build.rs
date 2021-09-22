@@ -212,11 +212,18 @@ fn static_lib_url() -> String {
     return format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target);
   }
   // Use v8 in release mode unless $V8_FORCE_DEBUG=true
-  let profile = match env::var("V8_FORCE_DEBUG").unwrap_or_default() == "true" {
+  let profile = match env_bool("V8_FORCE_DEBUG") {
     true => "debug",
     _ => "release",
   };
   format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target)
+}
+
+fn env_bool(key: &str) -> bool {
+  match env::var(key).unwrap_or_default().as_str() {
+    "true" | "1" | "yes" => true,
+    _ => false,
+  }
 }
 
 fn static_lib_name() -> &'static str {
