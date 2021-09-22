@@ -716,11 +716,11 @@ mod param {
     type NewScope = HandleScope<'s, ()>;
   }
 
-  impl<'s, P> NewHandleScope<'s> for Locker<P> {
+  impl<'s> NewHandleScope<'s> for Locker {
     type NewScope = HandleScope<'s, ()>;
   }
 
-  impl<'s, P> NewHandleScope<'s> for &'s mut Locker<P> {
+  impl<'s> NewHandleScope<'s> for &'s mut Locker {
     type NewScope = HandleScope<'s, ()>;
   }
 
@@ -758,13 +758,13 @@ mod param {
     }
   }
 
-  impl<'s, P> NewHandleScopeWithContext<'s> for Locker<P> {
+  impl<'s> NewHandleScopeWithContext<'s> for Locker {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       &mut *self.get_isolate()
     }
   }
 
-  impl<'s, P> NewHandleScopeWithContext<'s> for &'s mut Locker<P> {
+  impl<'s> NewHandleScopeWithContext<'s> for &'s mut Locker {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       &mut *self.get_isolate()
     }
@@ -840,11 +840,11 @@ mod param {
     type NewScope = CallbackScope<'s, ()>;
   }
 
-  impl<'s, P> NewCallbackScope<'s> for &'s mut Locker<P> {
+  impl<'s> NewCallbackScope<'s> for &'s mut Locker {
     type NewScope = CallbackScope<'s, ()>;
   }
 
-  impl<'s, P> NewCallbackScope<'s> for Locker<P> {
+  impl<'s> NewCallbackScope<'s> for Locker {
     type NewScope = CallbackScope<'s, ()>;
   }
 
@@ -895,13 +895,13 @@ mod getter {
     }
   }
 
-  impl<'s, P> GetIsolate<'s> for Locker<P> {
+  impl<'s> GetIsolate<'s> for Locker {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self.get_isolate_ptr()
     }
   }
 
-  impl<'s, P> GetIsolate<'s> for &'s mut Locker<P> {
+  impl<'s> GetIsolate<'s> for &'s mut Locker {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self.get_isolate_ptr()
     }
@@ -961,13 +961,13 @@ mod getter {
     }
   }
 
-  impl<P> GetScopeData for Locker<P> {
+  impl GetScopeData for Locker {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self.get_isolate())
     }
   }
 
-  impl<P> GetScopeData for &'_ mut Locker<P> {
+  impl GetScopeData for &'_ mut Locker {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self.get_isolate())
     }
@@ -1767,7 +1767,7 @@ mod tests {
     let handle = &mut Isolate::new_handle(Default::default());
     AssertTypeOf(handle).is::<IsolateHandle>();
     let locker = &mut handle.lock();
-    AssertTypeOf(locker).is::<Locker<&'_ mut ()>>();
+    AssertTypeOf(locker).is::<Locker>();
     let l1_hs = &mut HandleScope::new(isolate);
     AssertTypeOf(l1_hs).is::<HandleScope<()>>();
     let context = Context::new(l1_hs);

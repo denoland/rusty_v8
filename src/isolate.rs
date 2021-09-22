@@ -35,7 +35,6 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -863,7 +862,7 @@ impl IsolateHandle {
 
   /// Borrows a new [`Locker`] reference for the Isolate. While Locked, the
   /// embedder is free to interact with an Isolate on the current thread.
-  pub fn lock(&mut self) -> Locker<&mut ()> {
+  pub fn lock(&mut self) -> Locker {
     unsafe { Locker::new(self.get_isolate_ptr().as_mut().unwrap()) }
   }
 
@@ -956,23 +955,21 @@ impl IsolateHandle {
 /// borrowed from a SharedIsolate.
 #[derive(Debug)]
 #[repr(C)]
-pub struct Locker<P = ()> {
+pub struct Locker {
   has_lock: bool,
   top_level: bool,
   isolate: *mut Isolate,
-  _owner: PhantomData<P>,
 }
 
-impl<P> Locker<P> {
+impl Locker {
   /// Creates a locker using the provided Isolate pointer.
-  pub(crate) unsafe fn new(isolate: &mut Isolate) -> Locker<P> {
+  pub(crate) unsafe fn new(isolate: &mut Isolate) -> Locker {
     let mut locker = Locker {
       has_lock: false,
       top_level: true,
       isolate,
-      _owner: PhantomData::<P>::default(),
     };
-    v8__Locker__CONSTRUCT((&mut locker as *mut Locker<P>).cast(), isolate);
+    v8__Locker__CONSTRUCT((&mut locker as *mut Locker).cast(), isolate);
 
     // clear the disposal queue
     isolate.get_annex_mut().dispose_marked_handles();
@@ -1001,7 +998,7 @@ impl Locker {
   }
 }
 
-impl<P> Drop for Locker<P> {
+impl Drop for Locker {
   fn drop(&mut self) {
     unsafe {
       let isolate = self.isolate.as_mut().unwrap();
@@ -1012,7 +1009,7 @@ impl<P> Drop for Locker<P> {
 
       isolate.exit();
       {
-        v8__Locker__DESTRUCT((self as *mut Locker<_>).cast());
+        v8__Locker__DESTRUCT(self);
         let should_dispose = isolate.get_annex().dispose_on_unlock;
         if should_dispose {
           isolate.drop_annex();
@@ -1022,7 +1019,7 @@ impl<P> Drop for Locker<P> {
   }
 }
 
-impl<P> Deref for Locker<P> {
+impl Deref for Locker {
   type Target = Isolate;
 
   fn deref(&self) -> &Self::Target {
@@ -1030,7 +1027,7 @@ impl<P> Deref for Locker<P> {
   }
 }
 
-impl<P> DerefMut for Locker<P> {
+impl DerefMut for Locker {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { self.isolate.as_mut().unwrap() }
   }

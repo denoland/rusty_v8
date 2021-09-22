@@ -168,15 +168,13 @@ impl SnapshotCreator {
   }
 
   /// Borrows the Isolate from the SnapshotCreator.
-  pub fn get_isolate(&mut self) -> Locker<&'_ mut ()> {
+  pub fn get_isolate(&mut self) -> Locker {
     unsafe { Locker::new(self.get_isolate_ptr().as_mut().unwrap()) }
   }
 
   /// Borrows the Isolate from the SnapshotCreator, also returning a reference
   /// to the SnapshotCreator.
-  pub fn get_isolate_and_handle(
-    &mut self,
-  ) -> (Locker<&'_ mut ()>, &mut SnapshotCreator) {
+  pub fn get_isolate_and_handle(&mut self) -> (Locker, &mut SnapshotCreator) {
     unsafe { (Locker::new(self.get_isolate_ptr().as_mut().unwrap()), self) }
   }
 
