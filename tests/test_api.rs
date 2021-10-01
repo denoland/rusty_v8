@@ -5513,10 +5513,8 @@ fn function_names() {
 
     let global = context.global(scope);
     global.set(scope, key.into(), func.into());
-    let is_42: v8::Local<v8::Boolean> = eval(scope, "magicFn() === 42")
-      .unwrap()
-      .try_into()
-      .unwrap();
+    let is_42: v8::Local<v8::Boolean> =
+      eval(scope, "magicFn() === 42").unwrap().try_into().unwrap();
     assert!(is_42.is_true());
     let js_str: v8::Local<v8::String> = eval(scope, "magicFn.toString()")
       .unwrap()
