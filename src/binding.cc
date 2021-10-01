@@ -1561,7 +1561,7 @@ const v8::Value* v8__Function__GetName(const v8::Function& self) {
 }
 
 void v8__Function_SetName(const v8::Function& self, const v8::String& name) {
-  return self.SetName(ptr_to_local(name));
+  return ptr_to_local(&self)->SetName(ptr_to_local(&name));
 }
 
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
