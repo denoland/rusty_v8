@@ -451,11 +451,11 @@ impl Function {
       })
     }
   }
-  
+
   pub fn get_name<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }
-  
+
   pub fn set_name(&self, name: Local<String>) {
     unsafe { v8__Function__SetName(self, &*name) }
   }
