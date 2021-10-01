@@ -5485,3 +5485,69 @@ fn compiled_wasm_module() {
     assert_eq!(foo_section, b"bar");
   }
 }
+
+#[test]
+fn function_names() {
+  // Setup isolate
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Rust function
+  fn callback(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    rv.set(v8::Integer::new(scope, 42).into())
+  }
+
+  // named v8 function
+  {
+    let key = v8::String::new(scope, "magicFn").unwrap();
+    let name = v8::String::new(scope, "fooBar").unwrap();
+    let tmpl = v8::FunctionTemplate::new(scope, callback);
+    let func = tmpl.get_function(scope).unwrap();
+    func.set_name(name);
+
+    let global = context.global(scope);
+    global.set(scope, key.into(), func.into());
+    let is_42: v8::Local<v8::Boolean> =
+      eval(scope, "magicFn() === 42").unwrap().try_into().unwrap();
+    assert!(is_42.is_true());
+    let js_str: v8::Local<v8::String> = eval(scope, "magicFn.toString()")
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert_eq!(
+      js_str.to_rust_string_lossy(scope),
+      "function fooBar() { [native code] }"
+    );
+    let v8_name = func.get_name(scope);
+    assert_eq!(v8_name.to_rust_string_lossy(scope), "fooBar");
+  }
+
+  // anon v8 function
+  {
+    let key = v8::String::new(scope, "anonFn").unwrap();
+    let tmpl = v8::FunctionTemplate::new(scope, callback);
+    let func = tmpl.get_function(scope).unwrap();
+
+    let global = context.global(scope);
+    global.set(scope, key.into(), func.into());
+    let is_42: v8::Local<v8::Boolean> =
+      eval(scope, "anonFn() === 42").unwrap().try_into().unwrap();
+    assert!(is_42.is_true());
+    let js_str: v8::Local<v8::String> = eval(scope, "anonFn.toString()")
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert_eq!(
+      js_str.to_rust_string_lossy(scope),
+      "function () { [native code] }"
+    );
+    let v8_name = func.get_name(scope);
+    assert_eq!(v8_name.to_rust_string_lossy(scope), "");
+  }
+}
