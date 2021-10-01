@@ -1560,7 +1560,7 @@ const v8::Value* v8__Function__GetName(const v8::Function& self) {
   return local_to_ptr(self.GetName());
 }
 
-void v8__Function_SetName(const v8::Function& self, const v8::String& name) {
+void v8__Function__SetName(const v8::Function& self, const v8::String& name) {
   return ptr_to_local(&self)->SetName(ptr_to_local(&name));
 }
 
