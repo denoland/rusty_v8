@@ -15,6 +15,7 @@ use crate::Local;
 use crate::Name;
 use crate::Object;
 use crate::Signature;
+use crate::String;
 use crate::Value;
 
 extern "C" {
@@ -39,6 +40,8 @@ extern "C" {
     argc: int,
     argv: *const *const Value,
   ) -> *const Object;
+  fn v8__Function__GetName(this: *const Function) -> *const String;
+  fn v8__Function__SetName(this: *const Function, name: *const String);
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -447,5 +450,13 @@ impl Function {
         v8__Function__NewInstance(self, sd.get_current_context(), argc, argv)
       })
     }
+  }
+  
+  pub fn get_name<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, String> {
+    unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
+  }
+  
+  pub fn set_name(&self, name: Local<String>) {
+    unsafe { v8__Function__SetName(self, &*name) }
   }
 }
