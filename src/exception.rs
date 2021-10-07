@@ -32,6 +32,10 @@ extern "C" {
   fn v8__Message__IsOpaque(this: *const Message) -> bool;
   fn v8__Message__GetStackTrace(this: *const Message) -> *const StackTrace;
 
+  fn v8__StackTrace__CurrentStackTrace(
+    isolate: *mut Isolate,
+    frame_limit: int,
+  ) -> *const StackTrace;
   fn v8__StackTrace__GetFrameCount(this: *const StackTrace) -> int;
   fn v8__StackTrace__GetFrame(
     this: *const StackTrace,
@@ -67,6 +71,18 @@ extern "C" {
 }
 
 impl StackTrace {
+  /// Grab a snapshot of the current JavaScript execution stack.
+  pub fn current_stack_trace<'s>(
+    scope: &mut HandleScope<'s>,
+    frame_limit: i32,
+  ) -> Option<Local<'s, StackTrace>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__StackTrace__CurrentStackTrace(sd.get_isolate_ptr(), frame_limit)
+      })
+    }
+  }
+
   /// Returns the number of StackFrames.
   pub fn get_frame_count(&self) -> usize {
     unsafe { v8__StackTrace__GetFrameCount(self) as usize }
