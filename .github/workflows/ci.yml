@@ -73,7 +73,7 @@ jobs:
           rust-version: 1.55.0
 
       - name: Install python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: 2.7.x
           architecture: x64
