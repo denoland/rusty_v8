@@ -99,7 +99,6 @@ pub fn set_flags_from_command_line(args: Vec<String>) -> Vec<String> {
 /// # Examples
 ///
 /// ```
-///     use rusty_v8 as v8;
 ///     let r = v8::V8::set_flags_from_command_line_with_usage(
 ///       vec!["binaryname".to_string(), "--help".to_string()],
 ///       Some("Usage: binaryname --startup-src=file\n\n"),

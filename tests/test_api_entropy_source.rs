@@ -1,7 +1,6 @@
 // Tests from the same file run in a single process. That's why this test
 // is in its own file, because changing the entropy source affects the
 // whole process.
-use rusty_v8 as v8;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 

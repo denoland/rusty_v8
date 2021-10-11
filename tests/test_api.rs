@@ -14,7 +14,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use rusty_v8 as v8;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
 

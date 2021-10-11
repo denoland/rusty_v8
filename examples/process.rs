@@ -1,4 +1,3 @@
-use rusty_v8 as v8;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 

@@ -1,5 +1,3 @@
-use rusty_v8 as v8;
-
 #[test]
 fn single_threaded_default_platform() {
   v8::V8::set_flags_from_string("--single_threaded");

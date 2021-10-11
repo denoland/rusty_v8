@@ -1,5 +1,3 @@
-use rusty_v8 as v8;
-
 #[test]
 fn atomics_pump_message_loop() {
   v8::V8::set_flags_from_string("--harmony-top-level-await --allow-natives-syntax --harmony-sharedarraybuffer");
