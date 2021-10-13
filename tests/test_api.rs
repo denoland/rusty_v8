@@ -116,17 +116,34 @@ fn global_handles() {
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    assert_eq!(g1.get(scope).to_rust_string_lossy(scope), "bla");
-    assert_eq!(g2.as_ref().unwrap().get(scope).value(), 123);
-    assert_eq!(g3.get(scope).value(), 123);
-    assert_eq!(g4.get(scope).value(), 123);
+    assert_eq!(g1.inner(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g2.as_ref().unwrap().inner(scope).value(), 123);
+    assert_eq!(g3.inner(scope).value(), 123);
+    assert_eq!(g4.inner(scope).value(), 123);
     {
-      let num = g5.as_ref().unwrap().get(scope);
+      let num = g5.as_ref().unwrap().inner(scope);
       assert_eq!(num.value(), 100);
     }
     g5.take();
     assert!(g6 == g1);
-    assert_eq!(g6.get(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g6.inner(scope).to_rust_string_lossy(scope), "bla");
+  }
+}
+
+#[test]
+fn local_handle_deref() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let key = v8::String::new(scope, "key").unwrap();
+  let obj: v8::Local<v8::Object> = v8::Object::new(scope);
+  obj.get(scope, key.into());
+  {
+    use v8::Handle;
+    obj.get(scope, key.into());
+    obj.inner(scope).get(scope, key.into());
   }
 }
 
