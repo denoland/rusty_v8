@@ -116,17 +116,17 @@ fn global_handles() {
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    assert_eq!(g1.inner(scope).to_rust_string_lossy(scope), "bla");
-    assert_eq!(g2.as_ref().unwrap().inner(scope).value(), 123);
-    assert_eq!(g3.inner(scope).value(), 123);
-    assert_eq!(g4.inner(scope).value(), 123);
+    assert_eq!(g1.open(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g2.as_ref().unwrap().open(scope).value(), 123);
+    assert_eq!(g3.open(scope).value(), 123);
+    assert_eq!(g4.open(scope).value(), 123);
     {
-      let num = g5.as_ref().unwrap().inner(scope);
+      let num = g5.as_ref().unwrap().open(scope);
       assert_eq!(num.value(), 100);
     }
     g5.take();
     assert!(g6 == g1);
-    assert_eq!(g6.inner(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g6.open(scope).to_rust_string_lossy(scope), "bla");
   }
 }
 
@@ -143,7 +143,7 @@ fn local_handle_deref() {
   {
     use v8::Handle;
     obj.get(scope, key.into());
-    obj.inner(scope).get(scope, key.into());
+    obj.open(scope).get(scope, key.into());
   }
 }
 

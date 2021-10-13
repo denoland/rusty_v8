@@ -146,8 +146,13 @@ impl<T> Global<T> {
     }
   }
 
-  pub fn inner<'a>(&'a self, scope: &mut Isolate) -> &'a T {
-    Handle::inner(self, scope)
+  pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
+    Handle::open(self, scope)
+  }
+
+  #[deprecated = "use Global::open() instead"]
+  pub fn get<'a>(&'a self, scope: &mut Isolate) -> &'a T {
+    Handle::open(self, scope)
   }
 }
 
@@ -186,7 +191,7 @@ pub trait Handle: Sized {
   /// This function panics in the following situations:
   /// - The handle is not hosted by the specified Isolate.
   /// - The Isolate that hosts this handle has been disposed.
-  fn inner<'a>(&'a self, isolate: &mut Isolate) -> &'a Self::Data {
+  fn open<'a>(&'a self, isolate: &mut Isolate) -> &'a Self::Data {
     let HandleInfo { data, host } = self.get_handle_info();
     host.assert_match_isolate(isolate);
     unsafe { &*data.as_ptr() }
