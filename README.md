@@ -82,6 +82,16 @@ for REL in v0.13.0 v0.12.0; do
 done
 ```
 
+## The `RUSTY_V8_ARCHIVE` environment variable
+
+Tell the build script to use a specific v8 library. This can be an URL
+or a path. This is useful when you have a prebuilt archive somewhere:
+
+```bash
+export RUSTY_V8_ARCHIVE=/path/to/custom_archive.a
+cargo build
+```
+
 ## Build V8 from Source
 
 Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
