@@ -13,6 +13,35 @@ use which::which;
 fn main() {
   println!("cargo:rerun-if-changed=src/binding.cc");
 
+  // These are all the environment variables that we check. This is
+  // probably more than what is needed, but missing an important
+  // variable can lead to broken links when switching rusty_v8
+  // versions.
+  let envs = vec![
+    "CARGO",
+    "CARGO_MANIFEST_DIR",
+    "CARGO_PKG_VERSION",
+    "CCACHE",
+    "CLANG_BASE_PATH",
+    "DENO_TRYBUILD",
+    "DOCS_RS",
+    "GN",
+    "GN_ARGS",
+    "HOST",
+    "NINJA",
+    "OUT_DIR",
+    "PROFILE",
+    "RUSTY_V8_ARCHIVE",
+    "RUSTY_V8_MIRROR",
+    "SCCACHE",
+    "TARGET",
+    "V8_FORCE_DEBUG",
+    "V8_FROM_SOURCE",
+  ];
+  for env in envs {
+    println!("cargo:rerun-if-env-changed={}", env);
+  }
+
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
@@ -313,11 +342,10 @@ fn download_static_lib_binaries() {
 
   let filename = static_lib_path();
   if filename.exists() {
-    println!("static lib already exists {}", filename.display());
-    println!("To re-download this file, it must be manually deleted.");
-  } else {
-    download_file(url, filename);
+    println!("Deleting old static lib {}", filename.display());
+    std::fs::remove_file(&filename).unwrap();
   }
+  download_file(url, filename);
 }
 
 fn print_link_flags() {
