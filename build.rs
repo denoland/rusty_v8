@@ -201,6 +201,9 @@ fn download_ninja_gn_binaries() {
 }
 
 fn static_lib_url() -> String {
+  if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
+    return custom_archive;
+  }
   let default_base = "https://github.com/denoland/rusty_v8/releases/download";
   let base =
     env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
