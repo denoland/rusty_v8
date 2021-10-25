@@ -281,9 +281,13 @@ impl Deref for BackingStore {
 
   /// Returns a [u8] slice refencing the data in the backing store.
   fn deref(&self) -> &Self::Target {
-    let data = self.data() as *mut Cell<u8>;
+    use std::ptr::NonNull;
+    // `self.data()` will return a null pointer if the backing store has
+    // length 0, and it's UB to create even an empty slice from a null pointer.
+    let data = NonNull::new(self.data() as *mut Cell<u8>)
+      .unwrap_or_else(NonNull::dangling);
     let len = self.byte_length();
-    unsafe { slice::from_raw_parts(data, len) }
+    unsafe { slice::from_raw_parts(data.as_ptr(), len) }
   }
 }
 
