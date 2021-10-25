@@ -627,6 +627,19 @@ fn array_buffer_with_shared_backing_store() {
   }
 }
 
+#[test]
+fn deref_empty_backing_store() {
+  // Test that the slice that results from derefing a backing store is not
+  // backed by a null pointer, since that would be UB.
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let backing_store = v8::ArrayBuffer::new_backing_store(isolate, 0);
+  let slice: &[std::cell::Cell<u8>] = &backing_store;
+  assert!(!slice.as_ptr().is_null());
+}
+
 fn eval<'s>(
   scope: &mut v8::HandleScope<'s>,
   code: &str,
