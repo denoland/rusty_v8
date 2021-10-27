@@ -853,7 +853,7 @@ mod tests {
 
   #[test]
   #[should_panic(expected = "assertion failed: \
-      `SharedPtr<rusty_v8::support::tests::MockSharedObj>` reference count \
+      `SharedPtr<v8::support::tests::MockSharedObj>` reference count \
       does not match expectation")]
   fn shared_ptr_use_count_assertion_failed() {
     let shared_ptr: SharedPtr<MockSharedObj> = Default::default();
@@ -862,7 +862,7 @@ mod tests {
 
   #[test]
   #[should_panic(expected = "assertion failed: \
-      `SharedRef<rusty_v8::support::tests::MockSharedObj>` reference count \
+      `SharedRef<v8::support::tests::MockSharedObj>` reference count \
       does not match expectation")]
   fn shared_ref_use_count_assertion_failed() {
     let shared_ref = SharedRef(MockSharedObj::SHARED_PTR_BASE_B);

@@ -1,8 +1,8 @@
 error[E0308]: mismatched types
- --> $DIR/object_without_context_scope.rs:7:33
+ --> $DIR/object_without_context_scope.rs:6:33
   |
-7 |   let _object = v8::Object::new(&mut scope);
-  |                                 ^^^^^^^^^^ expected struct `rusty_v8::Context`, found `()`
+6 |   let _object = v8::Object::new(&mut scope);
+  |                                 ^^^^^^^^^^ expected struct `v8::Context`, found `()`
   |
   = note: expected mutable reference `&mut HandleScope<'_>`
              found mutable reference `&mut HandleScope<'_, ()>`

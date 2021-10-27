@@ -3,7 +3,6 @@
 // layers: v8::Isolate -> CoreIsolate -> EsIsolate
 // This demonstrates how this can be done in a safe way.
 
-use rusty_v8 as v8;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::rc::Rc;

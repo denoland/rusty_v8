@@ -1,5 +1,5 @@
 [package]
-name = "rusty_v8"
+name = "v8"
 version = "0.32.0"
 description = "Rust bindings to V8"
 readme = "README.md"

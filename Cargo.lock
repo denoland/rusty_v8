@@ -73,19 +73,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusty_v8"
-version = "0.32.0"
-dependencies = [
- "align-data",
- "bitflags",
- "fslock",
- "lazy_static",
- "libc",
- "trybuild",
- "which",
-]
-
-[[package]]
 name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -170,6 +157,19 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
+
+[[package]]
+name = "v8"
+version = "0.32.0"
+dependencies = [
+ "align-data",
+ "bitflags",
+ "fslock",
+ "lazy_static",
+ "libc",
+ "trybuild",
+ "which",
+]
 
 [[package]]
 name = "which"
