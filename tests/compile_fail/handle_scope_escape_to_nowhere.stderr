@@ -1,10 +1,16 @@
 error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
- --> $DIR/handle_scope_escape_to_nowhere.rs:5:50
-  |
-5 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-  |                                                  ^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
-  |
-  = note: required by `EscapableHandleScope::<'s, 'e>::new`
+   --> $DIR/handle_scope_escape_to_nowhere.rs:5:50
+    |
+5   |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
+    |                                                  ^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
+    |
+note: required by `EscapableHandleScope::<'s, 'e>::new`
+   --> $DIR/scope.rs:303:3
+    |
+303 | /   pub fn new<P: param::NewEscapableHandleScope<'s, 'e>>(
+304 | |     param: &'s mut P,
+305 | |   ) -> P::NewScope {
+    | |__________________^
 
 error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
  --> $DIR/handle_scope_escape_to_nowhere.rs:5:20
