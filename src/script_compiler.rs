@@ -101,6 +101,7 @@ impl<'a> std::ops::Deref for CachedData<'a> {
   }
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Debug)]
 enum BufferPolicy {

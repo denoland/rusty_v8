@@ -3,7 +3,6 @@
 //! # Example
 //!
 //! ```rust
-//! //!
 //! let platform = v8::new_default_platform(0, false).make_shared();
 //! v8::V8::initialize_platform(platform);
 //! v8::V8::initialize();
@@ -24,13 +23,11 @@
 //! ```
 
 #![allow(clippy::missing_safety_doc)]
-#![allow(dead_code)]
 
 #[macro_use]
 extern crate bitflags;
 #[macro_use]
 extern crate lazy_static;
-extern crate libc;
 
 mod array_buffer;
 mod array_buffer_view;
