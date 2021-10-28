@@ -4,6 +4,7 @@ use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr::null_mut;
+use std::ptr::NonNull;
 use std::slice;
 
 use crate::support::long;
@@ -260,8 +261,12 @@ impl BackingStore {
   /// Return a pointer to the beginning of the memory block for this backing
   /// store. The pointer is only valid as long as this backing store object
   /// lives.
-  pub fn data(&self) -> *mut c_void {
-    unsafe { v8__BackingStore__Data(self as *const _ as *mut Self) }
+  ///
+  /// Might return `None` if the backing store has zero length.
+  pub fn data(&self) -> Option<NonNull<c_void>> {
+    let raw_ptr =
+      unsafe { v8__BackingStore__Data(self as *const _ as *mut Self) };
+    NonNull::new(raw_ptr)
   }
 
   /// The length (in bytes) of this backing store.
@@ -281,11 +286,12 @@ impl Deref for BackingStore {
 
   /// Returns a [u8] slice refencing the data in the backing store.
   fn deref(&self) -> &Self::Target {
-    use std::ptr::NonNull;
-    // `self.data()` will return a null pointer if the backing store has
-    // length 0, and it's UB to create even an empty slice from a null pointer.
-    let data = NonNull::new(self.data() as *mut Cell<u8>)
-      .unwrap_or_else(NonNull::dangling);
+    // We use a dangling pointer if `self.data()` returns None because it's UB
+    // to create even an empty slice from a null pointer.
+    let data = self
+      .data()
+      .unwrap_or_else(NonNull::dangling)
+      .cast::<Cell<u8>>();
     let len = self.byte_length();
     unsafe { slice::from_raw_parts(data.as_ptr(), len) }
   }
