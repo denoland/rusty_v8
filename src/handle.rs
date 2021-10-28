@@ -397,6 +397,7 @@ impl HandleHost {
     )
   }
 
+  #[allow(dead_code)]
   fn match_isolate(self, isolate: &mut Isolate) -> bool {
     self.match_host(isolate.into(), Some(isolate))
   }
@@ -413,6 +414,7 @@ impl HandleHost {
     }
   }
 
+  #[allow(dead_code)]
   fn get_isolate_handle(self) -> IsolateHandle {
     unsafe { self.get_isolate().as_ref() }.thread_safe_handle()
   }

@@ -150,11 +150,10 @@ extern "C" {
 /// The ValueDeserializerImpl trait allows for
 /// custom callback functions used by v8.
 pub trait ValueDeserializerImpl {
-  #[allow(unused_variables)]
   fn read_host_object<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    value_deserializer: &mut dyn ValueDeserializerHelper,
+    _value_deserializer: &mut dyn ValueDeserializerHelper,
   ) -> Option<Local<'s, Object>> {
     let msg =
       String::new(scope, "Deno deserializer: read_host_object not implemented")
@@ -164,11 +163,10 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  #[allow(unused_variables)]
   fn get_shared_array_buffer_from_id<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    transfer_id: u32,
+    _transfer_id: u32,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     let msg = String::new(
       scope,
@@ -180,11 +178,10 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  #[allow(unused_variables)]
   fn get_wasm_module_from_id<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    clone_id: u32,
+    _clone_id: u32,
   ) -> Option<Local<'s, WasmModuleObject>> {
     let msg = String::new(
       scope,
@@ -221,6 +218,7 @@ impl<'a, 's> ValueDeserializerHeap<'a, 's> {
   }
 
   /// Starting from 'this' pointer a ValueDeserializerHeap ref can be created
+  #[allow(dead_code)]
   pub unsafe fn dispatch(
     value_serializer_delegate: &'s CxxValueDeserializerDelegate,
   ) -> &Self {
