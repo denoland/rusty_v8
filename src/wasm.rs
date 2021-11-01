@@ -11,6 +11,8 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::WasmModuleObject;
+use std::ffi::c_void;
+use std::marker::PhantomData;
 use std::ptr::null;
 use std::ptr::null_mut;
 
@@ -32,13 +34,27 @@ struct WasmStreamingSharedPtr([*mut u8; 2]);
 /// object to the embedder such that the embedder can pass the
 /// input bytes for streaming compilation to V8.
 #[repr(C)]
-pub struct WasmStreaming(WasmStreamingSharedPtr);
+pub struct WasmStreaming {
+  inner: WasmStreamingSharedPtr,
+  compiled_module_bytes: Option<Vec<u8>>,
+}
 
 impl WasmStreaming {
+  fn from_raw(inner: WasmStreamingSharedPtr) -> Self {
+    Self {
+      inner,
+      compiled_module_bytes: None,
+    }
+  }
+
   /// Pass a new chunk of bytes to WebAssembly streaming compilation.
   pub fn on_bytes_received(&mut self, data: &[u8]) {
     unsafe {
-      v8__WasmStreaming__OnBytesReceived(&mut self.0, data.as_ptr(), data.len())
+      v8__WasmStreaming__OnBytesReceived(
+        &mut self.inner,
+        data.as_ptr(),
+        data.len(),
+      )
     }
   }
 
@@ -47,7 +63,8 @@ impl WasmStreaming {
   /// more bytes. Does not have to be called after [`Self::abort()`]
   /// has been called already.
   pub fn finish(mut self) {
-    unsafe { v8__WasmStreaming__Finish(&mut self.0) }
+    unsafe { v8__WasmStreaming__Finish(&mut self.inner) }
+    self.compiled_module_bytes.take();
   }
 
   /// Abort streaming compilation. If {exception} has a value, then the promise
@@ -55,7 +72,44 @@ impl WasmStreaming {
   /// {exception} does not have value, the promise does not get rejected.
   pub fn abort(mut self, exception: Option<Local<Value>>) {
     let exception = exception.map(|v| &*v as *const Value).unwrap_or(null());
-    unsafe { v8__WasmStreaming__Abort(&mut self.0, exception) }
+    unsafe { v8__WasmStreaming__Abort(&mut self.inner, exception) }
+    self.compiled_module_bytes.take();
+  }
+
+  /// Passes previously compiled module bytes. This must be called before
+  /// [`Self::on_bytes_received()`], [`Self::finish()`], or [`Self::abort()`].
+  /// Returns `Ok(())` if the module bytes can be used, `Err(data)` otherwise.
+  pub fn set_compiled_module_bytes(
+    &mut self,
+    data: Vec<u8>,
+  ) -> Result<(), Vec<u8>> {
+    // Returns true if the module bytes can be used, false otherwise
+    // The buffer passed via {data} and {len} is owned by the caller.
+    // If {SetCompiledModuleBytes} returns true, the buffer must remain
+    // valid until either [`Self::finish()`], or [`Self::abort()`]. completes.
+    if unsafe {
+      v8__WasmStreaming__SetCompiledModuleBytes(
+        &mut self.inner,
+        data.as_ptr(),
+        data.len(),
+      )
+    } {
+      self.compiled_module_bytes = Some(data);
+      Ok(())
+    } else {
+      Err(data)
+    }
+  }
+
+  /// Sets the client object that will receive streaming event notifications.
+  /// This must be called before [`Self::on_bytes_received()`], [`Self::finish()`],
+  /// or [`Self::abort()`].
+  pub fn set_client(&mut self, client: Box<dyn WasmStreamingClient>) {
+    // C++ side ~RustWasmStreamingClient() will call Rust__WasmStreamingClient__DROP()
+    let ptr = Box::into_raw(Box::new(client));
+    unsafe {
+      v8__WasmStreaming__SetClient(&mut self.inner, ptr as *mut c_void)
+    };
   }
 
   /// Sets the UTF-8 encoded source URL for the `Script` object. This must be
@@ -63,7 +117,7 @@ impl WasmStreaming {
   pub fn set_url(&mut self, url: &str) {
     unsafe {
       v8__WasmStreaming__SetUrl(
-        &mut self.0,
+        &mut self.inner,
         url.as_ptr() as *const char,
         url.len(),
       )
@@ -73,8 +127,15 @@ impl WasmStreaming {
 
 impl Drop for WasmStreaming {
   fn drop(&mut self) {
-    unsafe { v8__WasmStreaming__shared_ptr_DESTRUCT(&mut self.0) }
+    unsafe { v8__WasmStreaming__shared_ptr_DESTRUCT(&mut self.inner) }
   }
+}
+
+/// Client to receive streaming event notifications
+pub trait WasmStreamingClient {
+  /// Passes the fully compiled module to the client. This can be used to
+  /// implement code caching.
+  fn on_module_compiled(&mut self, compiled_module: CompiledWasmModule);
 }
 
 impl WasmModuleObject {
@@ -134,6 +195,40 @@ impl CompiledWasmModule {
       std::str::from_utf8_unchecked(bytes)
     }
   }
+
+  pub fn serialize(&self) -> OwnedBuffer {
+    let mut len = 0;
+    unsafe {
+      let data = v8__CompiledWasmModule__Serialize(self.0, &mut len);
+      OwnedBuffer {
+        data,
+        len,
+        phantom: PhantomData,
+      }
+    }
+  }
+}
+
+/// An owned byte buffer with associated size.
+pub struct OwnedBuffer {
+  data: *const u8,
+  len: usize,
+  phantom: PhantomData<[u8]>,
+}
+
+unsafe impl Send for OwnedBuffer {}
+unsafe impl Sync for OwnedBuffer {}
+
+impl AsRef<[u8]> for OwnedBuffer {
+  fn as_ref(&self) -> &[u8] {
+    unsafe { std::slice::from_raw_parts(self.data, self.len) }
+  }
+}
+
+impl Drop for OwnedBuffer {
+  fn drop(&mut self) {
+    unsafe { v8__OwnedBuffer__DELETE(self.data) }
+  }
 }
 
 // TODO(andreubotella): Safety???
@@ -164,7 +259,7 @@ where
       v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), data, &mut that)
     };
     let source = args.get(0);
-    (F::get())(scope, source, WasmStreaming(that));
+    (F::get())(scope, source, WasmStreaming::from_raw(that));
   }
   c_fn::<F>
 }
@@ -186,12 +281,20 @@ extern "C" {
     this: *mut WasmStreamingSharedPtr,
     exception: *const Value,
   );
+  fn v8__WasmStreaming__SetCompiledModuleBytes(
+    this: *mut WasmStreamingSharedPtr,
+    data: *const u8,
+    len: usize,
+  ) -> bool;
   fn v8__WasmStreaming__SetUrl(
     this: *mut WasmStreamingSharedPtr,
     url: *const char,
     len: usize,
   );
-
+  fn v8__WasmStreaming__SetClient(
+    this: *mut WasmStreamingSharedPtr,
+    rust_impl: *mut c_void,
+  );
   fn v8__WasmModuleObject__FromCompiledModule(
     isolate: *mut Isolate,
     compiled_module: *const InternalCompiledWasmModule,
@@ -208,5 +311,26 @@ extern "C" {
     this: *mut InternalCompiledWasmModule,
     length: *mut usize,
   ) -> *const char;
+  fn v8__CompiledWasmModule__Serialize(
+    this: *mut InternalCompiledWasmModule,
+    length: *mut usize,
+  ) -> *const u8;
+  fn v8__OwnedBuffer__DELETE(ptr: *const u8);
   fn v8__CompiledWasmModule__DELETE(this: *mut InternalCompiledWasmModule);
+}
+
+#[no_mangle]
+extern "C" fn Rust__WasmStreamingClient__DROP(rust_impl: *mut c_void) {
+  let rust_impl = rust_impl as *mut Box<dyn WasmStreamingClient>;
+  unsafe { Box::from_raw(rust_impl) };
+}
+
+#[no_mangle]
+extern "C" fn Rust__WasmStreamingClient__OnModuleCompiled(
+  rust_impl: *mut c_void,
+  compiled_module: *mut InternalCompiledWasmModule,
+) {
+  let rust_impl = rust_impl as *mut Box<dyn WasmStreamingClient>;
+  let rust_impl = unsafe { rust_impl.as_mut().unwrap() };
+  rust_impl.on_module_compiled(CompiledWasmModule(compiled_module));
 }

@@ -2390,7 +2390,27 @@ const v8::FixedArray* v8__ModuleRequest__GetImportAssertions(
     const v8::ModuleRequest& self) {
   return local_to_ptr(self.GetImportAssertions());
 }
+}
 
+extern "C" {
+void Rust__WasmStreamingClient__DROP(void*);
+void Rust__WasmStreamingClient__OnModuleCompiled(void*,
+                                                   v8::CompiledWasmModule*);
+}
+
+class RustWasmStreamingClient : public v8::WasmStreaming::Client {
+ public:
+  RustWasmStreamingClient(void* client_impl) : client_impl_(client_impl) {}
+  ~RustWasmStreamingClient() { Rust__WasmStreamingClient__DROP(client_impl_); }
+  void OnModuleCompiled(v8::CompiledWasmModule compiled_module) {
+    Rust__WasmStreamingClient__OnModuleCompiled(client_impl_, &compiled_module);
+  }
+
+ private:
+  void* client_impl_;
+};
+
+extern "C" {
 struct WasmStreamingSharedPtr {
   std::shared_ptr<v8::WasmStreaming> inner;
 };
@@ -2422,8 +2442,20 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
   self->inner->Abort(ptr_to_maybe_local(exception));
 }
 
-void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self,
-                               const char* url, size_t len) {
+bool v8__WasmStreaming__SetCompiledModuleBytes(WasmStreamingSharedPtr* self,
+                                               const uint8_t* data,
+                                               size_t len) {
+  return self->inner->SetCompiledModuleBytes(data, len);
+}
+
+void v8__WasmStreaming__SetClient(WasmStreamingSharedPtr* self,
+                                  void* client_impl) {
+  self->inner->SetClient(std::shared_ptr<v8::WasmStreaming::Client>(
+      new RustWasmStreamingClient(client_impl)));
+}
+
+void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
+                               size_t len) {
   self->inner->SetUrl(url, len);
 }
 
@@ -2790,6 +2822,15 @@ const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
   *length = source_url.size();
   return source_url.data();
 }
+
+const uint8_t* v8__CompiledWasmModule__Serialize(v8::CompiledWasmModule* self,
+                                                 size_t* length) {
+  v8::OwnedBuffer data = self->Serialize();
+  *length = data.size;
+  return data.buffer.release();
+}
+
+void v8__OwnedBuffer__DELETE(const uint8_t* ptr) { delete[] ptr; }
 
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
   delete self;

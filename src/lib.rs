@@ -139,6 +139,7 @@ pub use value_serializer::ValueSerializerHelper;
 pub use value_serializer::ValueSerializerImpl;
 pub use wasm::CompiledWasmModule;
 pub use wasm::WasmStreaming;
+pub use wasm::WasmStreamingClient;
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;
