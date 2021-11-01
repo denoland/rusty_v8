@@ -1901,6 +1901,21 @@ fn data_is_true_callback(
   assert!(data.is_true());
 }
 
+fn nested_builder<'a>(
+  scope: &mut v8::HandleScope<'a>,
+  args: v8::FunctionCallbackArguments<'a>,
+  _: v8::ReturnValue,
+) {
+  let arg0 = args.get(0);
+  v8::Function::builder(
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| {},
+  )
+  .data(arg0)
+  .build(scope);
+}
+
 #[test]
 fn function() {
   let _setup_guard = setup();
@@ -1912,6 +1927,9 @@ fn function() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let recv: v8::Local<v8::Value> = global.into();
+
+    // Just check that this compiles.
+    v8::Function::builder(nested_builder);
 
     // create function using template
     let fn_template = v8::FunctionTemplate::new(scope, fn_callback);

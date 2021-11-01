@@ -273,9 +273,10 @@ impl<'s> PropertyCallbackArguments<'s> {
 
 pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
 
-impl<F> MapFnFrom<F> for FunctionCallback
+impl<'a, F> MapFnFrom<F> for FunctionCallback
 where
-  F: UnitType + Fn(&mut HandleScope, FunctionCallbackArguments, ReturnValue),
+  F: UnitType
+    + Fn(&mut HandleScope<'a>, FunctionCallbackArguments<'a>, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
