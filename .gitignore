@@ -3,4 +3,6 @@
 
 /.vscode/
 /.idea/
+/.cache
 /target/
+/compile_commands.json
