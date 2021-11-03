@@ -554,9 +554,13 @@ fn generate_compdb(
 
   if let Ok(ninja_path) = env::var("NINJA") {
     let ninja_folder = Path::new(&ninja_path).parent().unwrap();
-    let mut new_path = env::var_os("PATH").unwrap();
-    new_path.push(":");
-    new_path.push(ninja_folder);
+    // Add `ninja_folder` to the PATH envvar.
+    let original_path = env::var_os("PATH").unwrap();
+    let new_path = env::join_paths(
+      env::split_paths(&original_path)
+        .chain(std::iter::once(ninja_folder.to_owned())),
+    )
+    .unwrap();
     cmd.env("PATH", new_path);
   }
 
