@@ -18,9 +18,6 @@ fn main() {
   // variable can lead to broken links when switching rusty_v8
   // versions.
   let envs = vec![
-    "CARGO",
-    "CARGO_MANIFEST_DIR",
-    "CARGO_PKG_VERSION",
     "CCACHE",
     "CLANG_BASE_PATH",
     "DENO_TRYBUILD",
@@ -30,11 +27,9 @@ fn main() {
     "HOST",
     "NINJA",
     "OUT_DIR",
-    "PROFILE",
     "RUSTY_V8_ARCHIVE",
     "RUSTY_V8_MIRROR",
     "SCCACHE",
-    "TARGET",
     "V8_FORCE_DEBUG",
     "V8_FROM_SOURCE",
   ];
