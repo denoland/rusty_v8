@@ -971,8 +971,9 @@ V(ToStringTag)
 V(Unscopables)
 #undef V
 
-const v8::Value* v8__Symbol__Description(const v8::Symbol& self) {
-  return local_to_ptr(ptr_to_local(&self)->Description());
+const v8::Value* v8__Symbol__Description(v8::Isolate* isolate,
+                                         const v8::Symbol& self) {
+  return local_to_ptr(ptr_to_local(&self)->Description(isolate));
 }
 
 const v8::Private* v8__Private__New(v8::Isolate* isolate,

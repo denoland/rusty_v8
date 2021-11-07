@@ -14,7 +14,10 @@ extern "C" {
     isolate: *mut Isolate,
     description: *const String,
   ) -> *const Symbol;
-  fn v8__Symbol__Description(this: *const Symbol) -> *const Value;
+  fn v8__Symbol__Description(
+    isolate: *mut Isolate,
+    this: *const Symbol,
+  ) -> *const Value;
 }
 
 macro_rules! well_known {
@@ -70,7 +73,11 @@ impl Symbol {
     &self,
     scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__Symbol__Description(&*self)) }.unwrap()
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Symbol__Description(sd.get_isolate_ptr(), &*self))
+    }
+    .unwrap()
   }
 
   well_known!(get_async_iterator, v8__Symbol__GetAsyncIterator);
