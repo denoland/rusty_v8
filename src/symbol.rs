@@ -15,8 +15,8 @@ extern "C" {
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__Description(
-    isolate: *mut Isolate,
     this: *const Symbol,
+    isolate: *mut Isolate,
   ) -> *const Value;
 }
 
@@ -75,7 +75,7 @@ impl Symbol {
   ) -> Local<'s, Value> {
     unsafe {
       scope
-        .cast_local(|sd| v8__Symbol__Description(sd.get_isolate_ptr(), &*self))
+        .cast_local(|sd| v8__Symbol__Description(&*self, sd.get_isolate_ptr()))
     }
     .unwrap()
   }
