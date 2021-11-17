@@ -70,7 +70,7 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           components: clippy, rustfmt
-          rust-version: 1.56.0
+          rust-version: 1.56.1
 
       - name: Install python
         uses: actions/setup-python@v2
