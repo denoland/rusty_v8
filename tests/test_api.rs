@@ -5527,7 +5527,10 @@ fn compiled_wasm_module() {
         .unwrap();
     let foo_bs = foo_ab.get_backing_store();
     let foo_section = unsafe {
-      std::slice::from_raw_parts(foo_bs.data() as *mut u8, foo_bs.byte_length())
+      std::slice::from_raw_parts(
+        foo_bs.data().unwrap().as_ptr() as *mut u8,
+        foo_bs.byte_length(),
+      )
     };
     assert_eq!(foo_section, b"bar");
   }
