@@ -466,12 +466,20 @@ impl Function {
   /// Get the (zero-indexed) column number of the function's definition, if available.
   pub fn get_script_column_number(&self) -> Option<int> {
     let ret = unsafe { v8__Function__GetScriptColumnNumber(self) };
-    if ret < 0 { None } else { Some(ret) }
+    if ret < 0 {
+      None
+    } else {
+      Some(ret)
+    }
   }
 
   /// Get the (zero-indexed) line number of the function's definition, if available.
   pub fn get_script_line_number(&self) -> Option<int> {
     let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
-    if ret < 0 { None } else { Some(ret) }
+    if ret < 0 {
+      None
+    } else {
+      Some(ret)
+    }
   }
 }

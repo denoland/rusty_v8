@@ -2022,10 +2022,7 @@ export function anotherFunctionG(a, b) {
       .try_into()
       .unwrap();
     // The column number is zero-indexed and indicates the position of the end of the name.
-    assert_eq!(
-      f_function_obj.get_script_column_number(),
-      Some(17)
-    );
+    assert_eq!(f_function_obj.get_script_column_number(), Some(17));
     // The line number is zero-indexed as well.
     assert_eq!(f_function_obj.get_script_line_number(), Some(0));
 
@@ -2035,10 +2032,7 @@ export function anotherFunctionG(a, b) {
       .unwrap()
       .try_into()
       .unwrap();
-    assert_eq!(
-      g_function_obj.get_script_column_number(),
-      Some(32),
-    );
+    assert_eq!(g_function_obj.get_script_column_number(), Some(32));
     assert_eq!(g_function_obj.get_script_line_number(), Some(4));
   }
 }
