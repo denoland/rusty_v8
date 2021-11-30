@@ -1570,8 +1570,7 @@ int v8__Function__GetScriptColumnNumber(const v8::Function& self) {
 }
 
 int v8__Function__GetScriptLineNumber(const v8::Function& self) {
-  int ret = ptr_to_local(&self)->GetScriptLineNumber();
-  return ret == v8::Function::kLineOffsetNotFound ? -1 : ret;
+  return ptr_to_local(&self)->GetScriptLineNumber();
 }
 
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
