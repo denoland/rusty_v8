@@ -1986,6 +1986,64 @@ fn function() {
 }
 
 #[test]
+fn function_column_and_line_numbers() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = mock_source(
+      scope,
+      "google.com",
+      r#"export function f(a, b) {
+  return a;
+}
+
+export function anotherFunctionG(a, b) {
+  return b;
+}"#,
+    );
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    let result =
+      module.instantiate_module(scope, unexpected_module_resolve_callback);
+    assert!(result.is_some());
+    module.evaluate(scope).unwrap();
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let namespace = module.get_module_namespace();
+    assert!(namespace.is_module_namespace_object());
+    let namespace_obj = namespace.to_object(scope).unwrap();
+
+    let f_str = v8::String::new(scope, "f").unwrap();
+    let f_function_obj: v8::Local<v8::Function> = namespace_obj
+      .get(scope, f_str.into())
+      .unwrap()
+      .try_into()
+      .unwrap();
+    // The column number is zero-indexed and indicates the position of the end of the name.
+    assert_eq!(
+      f_function_obj.get_script_column_number(),
+      Some("export function f".len() as i32),
+    );
+    // The line number is zero-indexed as well.
+    assert_eq!(f_function_obj.get_script_line_number(), Some(0));
+
+    let g_str = v8::String::new(scope, "anotherFunctionG").unwrap();
+    let g_function_obj: v8::Local<v8::Function> = namespace_obj
+      .get(scope, g_str.into())
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert_eq!(
+      g_function_obj.get_script_column_number(),
+      Some("export function anotherFunctionG".len() as i32),
+    );
+    assert_eq!(g_function_obj.get_script_line_number(), Some(4));
+  }
+}
+
+#[test]
 fn constructor() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
