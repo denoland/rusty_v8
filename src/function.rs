@@ -42,6 +42,8 @@ extern "C" {
   ) -> *const Object;
   fn v8__Function__GetName(this: *const Function) -> *const String;
   fn v8__Function__SetName(this: *const Function, name: *const String);
+  fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
+  fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -459,5 +461,15 @@ impl Function {
 
   pub fn set_name(&self, name: Local<String>) {
     unsafe { v8__Function__SetName(self, &*name) }
+  }
+
+  pub fn get_script_column_number(&self) -> Option<int> {
+    let ret = unsafe { v8__Function__GetScriptColumnNumber(self) };
+    if ret < 0 { None } else { Some(ret) }
+  }
+
+  pub fn get_script_line_number(&self) -> Option<int> {
+    let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
+    if ret < 0 { None } else { Some(ret) }
   }
 }

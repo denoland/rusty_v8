@@ -1565,6 +1565,16 @@ void v8__Function__SetName(const v8::Function& self, const v8::String& name) {
   return ptr_to_local(&self)->SetName(ptr_to_local(&name));
 }
 
+int v8__Function__GetScriptColumnNumber(const v8::Function& self) {
+  int ret = ptr_to_local(&self)->GetScriptColumnNumber();
+  return ret == v8::Function::kLineOffsetNotFound ? -1 : ret;
+}
+
+int v8__Function__GetScriptLineNumber(const v8::Function& self) {
+  int ret = ptr_to_local(&self)->GetScriptLineNumber();
+  return ret == v8::Function::kLineOffsetNotFound ? -1 : ret;
+}
+
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
                                         const v8::FunctionTemplate* templ) {
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
