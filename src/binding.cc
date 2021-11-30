@@ -1566,8 +1566,7 @@ void v8__Function__SetName(const v8::Function& self, const v8::String& name) {
 }
 
 int v8__Function__GetScriptColumnNumber(const v8::Function& self) {
-  int ret = ptr_to_local(&self)->GetScriptColumnNumber();
-  return ret == v8::Function::kLineOffsetNotFound ? -1 : ret;
+  return ptr_to_local(&self)->GetScriptColumnNumber();
 }
 
 int v8__Function__GetScriptLineNumber(const v8::Function& self) {
