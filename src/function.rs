@@ -473,4 +473,5 @@ impl Function {
   pub fn get_script_line_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
     (ret >= 0).then(|| ret as u32)
+  }
 }

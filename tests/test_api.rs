@@ -2034,6 +2034,13 @@ export function anotherFunctionG(a, b) {
       .unwrap();
     assert_eq!(g_function_obj.get_script_column_number(), Some(32));
     assert_eq!(g_function_obj.get_script_line_number(), Some(4));
+
+    let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+    let function = fn_template
+      .get_function(scope)
+      .expect("Unable to create function");
+    assert_eq!(function.get_script_column_number(), None);
+    assert_eq!(function.get_script_line_number(), None);
   }
 }
 
