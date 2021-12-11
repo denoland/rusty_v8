@@ -22,6 +22,7 @@ fn main() {
     "CLANG_BASE_PATH",
     "DENO_TRYBUILD",
     "DOCS_RS",
+    "GENERATE_COMPDB",
     "GN",
     "GN_ARGS",
     "HOST",
@@ -530,6 +531,37 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   cmd
 }
 
+fn generate_compdb(
+  gn_out_dir: &Path,
+  target: &str,
+  output_path: Option<&Path>,
+) {
+  let mut cmd = Command::new("python");
+  cmd.arg("tools/generate_compdb.py");
+  cmd.arg("-p");
+  cmd.arg(&gn_out_dir);
+  cmd.arg(target);
+  cmd.arg("-o");
+  cmd.arg(output_path.unwrap_or_else(|| Path::new("compile_commands.json")));
+  cmd.envs(env::vars());
+  cmd.stdout(Stdio::inherit());
+  cmd.stderr(Stdio::inherit());
+
+  if let Ok(ninja_path) = env::var("NINJA") {
+    let ninja_folder = Path::new(&ninja_path).parent().unwrap();
+    // Add `ninja_folder` to the PATH envvar.
+    let original_path = env::var_os("PATH").unwrap();
+    let new_path = env::join_paths(
+      env::split_paths(&original_path)
+        .chain(std::iter::once(ninja_folder.to_owned())),
+    )
+    .unwrap();
+    cmd.env("PATH", new_path);
+  }
+
+  run(&mut cmd, "python");
+}
+
 pub type GnArgs = Vec<String>;
 
 pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
@@ -568,6 +600,16 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
   let mut cmd = ninja(&gn_out_dir, maybe_env.clone());
   cmd.arg(target);
   run(&mut cmd, "ninja");
+
+  if let Some(compdb_env) = std::env::var_os("GENERATE_COMPDB") {
+    // Only use compdb_path if it's not empty.
+    let compdb_path = if !compdb_env.is_empty() {
+      Some(Path::new(&compdb_env))
+    } else {
+      None
+    };
+    generate_compdb(&gn_out_dir, target, compdb_path);
+  }
 
   rerun_if_changed(&gn_out_dir, maybe_env, target);
 

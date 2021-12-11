@@ -122,6 +122,28 @@ Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental variable
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
 
+## C++ IDE integration
+
+`rusty_v8` supports IDE integration for the C++ bindings through the use of the
+`clangd` language server, bringing features such as diagnostics, code completion
+and code navigations to your editor. [See the instructions for how to set it up
+with your favorite editor.](https://clangd.llvm.org/installation.html#editor-plugins)
+
+Before you can use `clangd` with `rusty_v8`, you must first generate the
+compilation database:
+
+```sh
+V8_FROM_SOURCE=1 GENERATE_COMPDB= cargo build
+```
+
+This will write the `clang` compilation database as the `compile_commands.json`
+file at the root of the project repository. You can pass a path to the
+`GENERATE_COMPDB` environment variable to change the location where the
+compilation database will be written.
+
+You must pass the `GENERATE_COMPDB` environment variable to regenerate the
+compilation database, it will not be regenerated automatically.
+
 ## FAQ
 
 **Building V8 takes over 30 minutes, this is too slow for me to use this crate.
