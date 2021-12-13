@@ -61,10 +61,13 @@ impl WasmStreaming {
   /// Sets the UTF-8 encoded source URL for the `Script` object. This must be
   /// called before [`Self::finish()`].
   pub fn set_url(&mut self, url: &str) {
+    // Although not documented, V8 requires the url to be null terminated.
+    // See https://chromium-review.googlesource.com/c/v8/v8/+/3289148.
+    let null_terminated_url = format!("{}\0", url);
     unsafe {
       v8__WasmStreaming__SetUrl(
         &mut self.0,
-        url.as_ptr() as *const char,
+        null_terminated_url.as_ptr() as *const char,
         url.len(),
       )
     }
