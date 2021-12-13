@@ -5660,3 +5660,18 @@ fn function_names() {
     assert_eq!(v8_name.to_rust_string_lossy(scope), "");
   }
 }
+
+// https://github.com/denoland/rusty_v8/issues/849
+#[test]
+fn backing_store_from_empty_boxed_slice() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(Box::new([]))
+    .make_shared();
+  let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
+}
