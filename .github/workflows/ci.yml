@@ -70,7 +70,7 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           components: clippy, rustfmt
-          rust-version: 1.56.1
+          rust-version: 1.57.0
 
       - name: Install python
         uses: actions/setup-python@v2
@@ -117,7 +117,6 @@ jobs:
           restore-keys:
             cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
-
         # It seems that the 'target' directory does not always get restored
         # from cache correctly on MacOS. In the build log we see the following:
         #
@@ -158,7 +157,6 @@ jobs:
           tar -xzvf "$basename.tar.gz"
           . $basename/sccache --start-server
           echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
 
       - name: Test
         run:

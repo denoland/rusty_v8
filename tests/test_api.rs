@@ -469,7 +469,7 @@ fn get_isolate_from_handle() {
   check_handle(scope, Some(true), |s| v8::String::new(s, "Words").unwrap());
   check_eval(scope, Some(true), "'Hello'");
   check_eval(scope, Some(true), "Symbol()");
-  check_handle(scope, Some(true), |s| v8::Object::new(s));
+  check_handle(scope, Some(true), v8::Object::new);
   check_eval(scope, Some(true), "this");
   check_handle(scope, Some(true), |s| s.get_current_context());
   check_eval(scope, Some(true), "({ foo: 'bar' })");

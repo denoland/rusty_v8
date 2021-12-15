@@ -111,7 +111,7 @@ use crate::Value;
 /// and run is compiled and run in this context.
 #[derive(Debug)]
 pub struct ContextScope<'s, P> {
-  data: NonNull<data::ScopeData>,
+  _data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut P>,
 }
 
@@ -146,7 +146,7 @@ impl<'s, P: param::NewContextScope<'s>> ContextScope<'s, P> {
 /// for which the handle scope has been deleted is undefined.
 #[derive(Debug)]
 pub struct HandleScope<'s, C = Context> {
-  data: NonNull<data::ScopeData>,
+  _data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut C>,
 }
 
@@ -293,7 +293,7 @@ impl<'s> HandleScope<'s> {
 // at all. These tests need to updated first.
 #[derive(Debug)]
 pub struct EscapableHandleScope<'s, 'e: 's, C = Context> {
-  data: NonNull<data::ScopeData>,
+  _data: NonNull<data::ScopeData>,
   _phantom:
     PhantomData<(&'s mut raw::HandleScope, &'e mut raw::EscapeSlot, &'s C)>,
 }
@@ -329,7 +329,7 @@ impl<'s, 'e: 's, C> EscapableHandleScope<'s, 'e, C> {
 /// An external exception handler.
 #[derive(Debug)]
 pub struct TryCatch<'s, P> {
-  data: NonNull<data::ScopeData>,
+  _data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut P>,
 }
 
@@ -508,7 +508,7 @@ where
 ///   - `&PromiseRejectMessage`
 #[derive(Debug)]
 pub struct CallbackScope<'s, C = Context> {
-  data: NonNull<data::ScopeData>,
+  _data: NonNull<data::ScopeData>,
   _phantom: PhantomData<&'s mut HandleScope<'s, C>>,
 }
 
@@ -1034,7 +1034,7 @@ pub(crate) mod data {
       self.new_scope_data_with(move |data| {
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::ContextScope {
-            raw_context_scope: raw::ContextScope::new(context),
+            _raw_context_scope: raw::ContextScope::new(context),
           }
         });
         data.context.set(Some(context.as_non_null()));
@@ -1446,7 +1446,7 @@ pub(crate) mod data {
   enum ScopeTypeSpecificData {
     None,
     ContextScope {
-      raw_context_scope: raw::ContextScope,
+      _raw_context_scope: raw::ContextScope,
     },
     HandleScope {
       raw_handle_scope: raw::HandleScope,

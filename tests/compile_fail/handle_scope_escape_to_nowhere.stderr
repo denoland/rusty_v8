@@ -2,7 +2,9 @@ error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandl
    --> $DIR/handle_scope_escape_to_nowhere.rs:5:50
     |
 5   |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-    |                                                  ^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
+    |                    ----------------------------- ^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
+    |                    |
+    |                    required by a bound introduced by this call
     |
 note: required by `EscapableHandleScope::<'s, 'e>::new`
    --> $DIR/scope.rs:303:3
