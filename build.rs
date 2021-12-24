@@ -120,16 +120,20 @@ fn build_v8() {
     gn_args.push("host_cpu=\"arm64\"".to_string())
   } 
 
-  if let Some(clang_base_path) = find_compatible_system_clang() {
+  if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") { 
+    gn_args.push(format!("clang_base_path={:?}", "third_party/llvm-build/Release+Asserts"));
+    gn_args.push("clang_use_chrome_plugins=false".to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+  } else if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
-    gn_args.push(format!("clang_base_path={:?}", "/home/divy/Desktop/gh/v8/v8/third_party/llvm-build/Release+Asserts"));
+    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
     // TODO: Dedupe this with the one from cc_wrapper()
     gn_args.push("treat_warnings_as_errors=false".to_string());
     // we can't use chromiums clang plugins with a system clang
     gn_args.push("clang_use_chrome_plugins=false".to_string());
   } else {
-    let _clang_base_path = clang_download();
-    gn_args.push(format!("clang_base_path={:?}", "/home/divy/Desktop/gh/v8/v8/third_party/llvm-build/Release+Asserts/"));
+    let clang_base_path = clang_download();
+    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
