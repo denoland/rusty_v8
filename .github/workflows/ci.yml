@@ -50,7 +50,7 @@ jobs:
             variant: release
 
     env:
-      V8_FROM_SOURCE: false
+      V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
@@ -158,16 +158,17 @@ jobs:
           . $basename/sccache --start-server
           echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Test
-        run:
-          cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
-          --target ${{ matrix.config.target }}
       - name: Install cross
         run: cargo install cross
 
       - name: Test (android-arm64)
         if: runner.os == 'Linux'
         run: ./tools/clang/scripts/update.py && V8_FROM_SOURCE=true cross test --target aarch64-linux-android -vv
+
+      - name: Test
+        run:
+          cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:
