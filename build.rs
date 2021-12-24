@@ -225,7 +225,7 @@ fn maybe_clone_repo(dest: &str, repo: &str) {
   if !Path::new(&dest).exists() {
     assert!(Command::new("git")
       .arg("clone")
-      .arg("--depth=1")
+      .arg("--depth=3")
       .arg(repo)
       .arg(dest)
       .status()
