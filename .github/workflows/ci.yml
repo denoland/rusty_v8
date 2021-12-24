@@ -167,7 +167,7 @@ jobs:
 
       - name: Test (android-arm64)
         if: runner.os == 'Linux'
-        run: ./tools/clang/scripts/update.py && cross test --target aarch64-linux-android -vv
+        run: ./tools/clang/scripts/update.py && V8_FROM_SOURCE=true cross test --target aarch64-linux-android -vv
 
       - name: Clippy
         run:
