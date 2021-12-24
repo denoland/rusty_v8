@@ -166,7 +166,7 @@ jobs:
         run: cargo install cross
 
       - name: Test (android-arm64)
-        if: runner.os == "Linux"
+        if: runner.os == 'Linux'
         run: ./tools/clang/scripts/update.py && cross test --target aarch64-linux-android -vv
 
       - name: Clippy
