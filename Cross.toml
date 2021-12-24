@@ -1,0 +1,4 @@
+[build.env]
+passthrough = [
+    "V8_FROM_SOURCE",
+]
