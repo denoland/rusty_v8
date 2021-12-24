@@ -857,6 +857,7 @@ fn thread_safe_handle_drop_after_isolate() {
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
+#[cfg(not(target_os = "android"))]
 #[test]
 fn terminate_execution() {
   let _setup_guard = setup();

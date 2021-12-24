@@ -57,6 +57,9 @@ fn main() {
     if env::var_os("V8_FROM_SOURCE").is_some() {
       build_v8()
     } else {
+      // println!("cargo:rustc-link-search=.");
+      // println!("cargo:rustc-link-lib=static=rusty_v8");
+      
       // utilize a lockfile to prevent linking of
       // only partially downloaded static library.
       let root = env::current_dir().unwrap();
@@ -115,18 +118,18 @@ fn build_v8() {
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string())
-  }
+  } 
 
   if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
-    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+    gn_args.push(format!("clang_base_path={:?}", "/home/divy/Desktop/gh/v8/v8/third_party/llvm-build/Release+Asserts"));
     // TODO: Dedupe this with the one from cc_wrapper()
     gn_args.push("treat_warnings_as_errors=false".to_string());
     // we can't use chromiums clang plugins with a system clang
     gn_args.push("clang_use_chrome_plugins=false".to_string());
   } else {
-    let clang_base_path = clang_download();
-    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+    let _clang_base_path = clang_download();
+    gn_args.push(format!("clang_base_path={:?}", "/home/divy/Desktop/gh/v8/v8/third_party/llvm-build/Release+Asserts/"));
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
@@ -151,12 +154,45 @@ fn build_v8() {
   // check if the target triple describes a non-native environment
   if target_triple != env::var("HOST").unwrap() {
     // cross-compilation setup
-    if target_triple == "aarch64-unknown-linux-gnu" {
+    if target_triple == "aarch64-unknown-linux-gnu" || target_triple == "aarch64-linux-android" {
       gn_args.push(r#"target_cpu="arm64""#.to_string());
       gn_args.push("use_sysroot=true".to_string());
       maybe_install_sysroot("arm64");
       maybe_install_sysroot("amd64");
     };
+
+    if target_triple == "aarch64-linux-android" {
+      gn_args.push("is_component_build=false".to_string());
+      gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
+      gn_args.push(r#"target_os="android""#.to_string());      
+    };
+
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
+
+    maybe_clone_repo(
+      "./third_party/android_ndk",
+      &format!("{}/android_ndk.git", CHROMIUM_URI),
+    );
+
+    // NDK 23 and above removes libgcc entirely.
+    // https://github.com/rust-lang/rust/pull/85806
+    checkout(
+      "./third_party/android_ndk",
+      "401019bf85744311b26c88ced255cd53401af8b7",
+    );
+
+    maybe_clone_repo(
+      "./third_party/android_platform",
+      &format!(
+        "{}/chromium/src/third_party/android_platform.git",
+        CHROMIUM_URI
+      ),
+    );
+    maybe_clone_repo(
+      "./third_party/catapult",
+      &format!("{}/catapult.git", CHROMIUM_URI),
+    );
   }
 
   if target_triple.starts_with("i686-") {
@@ -169,6 +205,29 @@ fn build_v8() {
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   build("rusty_v8", None);
+}
+
+fn checkout(dest: &str, tag: &str) {
+  assert!(Command::new("git")
+    .arg("checkout")
+    .arg(tag)
+    .current_dir(dest)
+    .status()
+    .unwrap()
+    .success());
+}
+
+fn maybe_clone_repo(dest: &str, repo: &str) {
+  if !Path::new(&dest).exists() {
+    assert!(Command::new("git")
+      .arg("clone")
+      .arg("--depth=1")
+      .arg(repo)
+      .arg(dest)
+      .status()
+      .unwrap()
+      .success());
+  }
 }
 
 fn maybe_install_sysroot(arch: &str) {

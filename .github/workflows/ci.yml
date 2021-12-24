@@ -50,7 +50,7 @@ jobs:
             variant: release
 
     env:
-      V8_FROM_SOURCE: true
+      V8_FROM_SOURCE: false
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
@@ -162,6 +162,11 @@ jobs:
         run:
           cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }}
+      - name: Install cross
+        run: cargo install cross
+
+      - name: Test (android-arm64)
+        run: cross test --target aarch64-linux-android -vv
 
       - name: Clippy
         run:

@@ -86,6 +86,7 @@ fslock = "0.1.6"
 [dev-dependencies]
 trybuild = "1.0.42"
 align-data = "0.1.0"
+flaky_test = "0.1.0"
 
 [[example]]
 name = "hello_world"

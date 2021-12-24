@@ -21,6 +21,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
+name = "flaky_test"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "479cde5eb168cf5a056dd98f311cbfab7494c216394e4fb9eba0336827a8db93"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "fslock"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -164,6 +175,7 @@ version = "0.37.0"
 dependencies = [
  "align-data",
  "bitflags",
+ "flaky_test",
  "fslock",
  "lazy_static",
  "libc",
