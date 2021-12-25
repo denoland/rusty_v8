@@ -14,4 +14,6 @@ RUN \
 	&& rm -rf /chromium_build \
 	&& rm -rf /var/lib/apt/lists/*
 
+RUN chmod +x /sccache-v0.2.15-x86_64-unknown-linux-musl/sccache
+
 ENV RUSTC_WRAPPER=/sccache-v0.2.15-x86_64-unknown-linux-musl/sccache
