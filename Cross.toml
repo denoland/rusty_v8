@@ -6,5 +6,6 @@ passthrough = [
     "V8_FROM_SOURCE",
     "SCCACHE_ERROR_LOG",
     "SCCACHE_LOG",
-    "SCCACHE_DIR"
+    "SCCACHE_DIR",
+    "SCCACHE_IDLE_TIMEOUT"
 ]
