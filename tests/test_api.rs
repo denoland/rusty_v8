@@ -857,6 +857,8 @@ fn thread_safe_handle_drop_after_isolate() {
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
+// QEMU doesn't like when we spawn threads
+// This works just fine on real hardware
 #[cfg(not(target_os = "android"))]
 #[test]
 fn terminate_execution() {
@@ -5530,7 +5532,7 @@ fn counter_lookup_callback() {
   assert_ne!(count, 0);
 }
 
-#[test]
+#[cfg(not(target_os = "android"))]
 fn compiled_wasm_module() {
   let _setup_guard = setup();
 
