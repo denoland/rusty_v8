@@ -5533,6 +5533,7 @@ fn counter_lookup_callback() {
 }
 
 #[cfg(not(target_os = "android"))]
+#[test]
 fn compiled_wasm_module() {
   let _setup_guard = setup();
 
