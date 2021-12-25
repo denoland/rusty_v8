@@ -160,6 +160,9 @@ jobs:
 
       - name: Install cross
         run: cargo install cross
+      
+      - name: Build cross docker image
+        run: docker build -t cross:aarch64-linux-android-0.2.1 .
 
       - name: Test (android-arm64)
         if: runner.os == 'Linux'
