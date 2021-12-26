@@ -1,9 +1,10 @@
+#![cfg(target_os = "android")]
+
 use pixels::Pixels;
 use pixels::SurfaceTexture;
 use std::cell::Cell;
 use winit::platform::run_return::EventLoopExtRunReturn;
 
-#[cfg(target_os = "android")]
 #[ndk_glue::main(
   backtrace = "on",
   logger(level = "debug", tag = "android_fractal")
@@ -140,9 +141,4 @@ unsafe fn get_backing_store_slice(
     &backing_store[byte_offset..byte_offset + byte_length];
   let bytes = cells as *const [u8];
   &*bytes
-}
-
-#[cfg(not(target_os = "android"))]
-fn main() {
-  println!("This example is only available on Android. Compile with `--target=aarch64-linux-android`");
 }
