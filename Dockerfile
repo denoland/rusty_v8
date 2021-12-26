@@ -17,3 +17,4 @@ RUN \
 RUN chmod +x /sccache-v0.2.15-x86_64-unknown-linux-musl/sccache
 
 ENV SCCACHE=/sccache-v0.2.15-x86_64-unknown-linux-musl/sccache
+ENV SCCACHE_DIR=./target/sccache

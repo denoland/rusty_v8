@@ -175,7 +175,6 @@ jobs:
 
       - name: Test
         env:
-          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
           SCCACHE_IDLE_TIMEOUT: 0
         run:
           ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
