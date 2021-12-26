@@ -121,7 +121,6 @@ pub struct CompiledWasmModule(*mut InternalCompiledWasmModule);
 impl CompiledWasmModule {
   /// Get the (wasm-encoded) wire bytes that were used to compile this module.
   pub fn get_wire_bytes_ref(&self) -> &[u8] {
-    use std::convert::TryInto;
     let mut len = 0isize;
     unsafe {
       let ptr = v8__CompiledWasmModule__GetWireBytesRef(self.0, &mut len);
