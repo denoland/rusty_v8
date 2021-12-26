@@ -57,9 +57,6 @@ fn main() {
     if env::var_os("V8_FROM_SOURCE").is_some() {
       build_v8()
     } else {
-      // println!("cargo:rustc-link-search=.");
-      // println!("cargo:rustc-link-lib=static=rusty_v8");
-
       // utilize a lockfile to prevent linking of
       // only partially downloaded static library.
       let root = env::current_dir().unwrap();

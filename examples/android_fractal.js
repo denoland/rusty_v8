@@ -1,3 +1,4 @@
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 function DrawFrame(frameLen) {
   const u8 = new Uint8Array(frameLen);
   const width = 800;
