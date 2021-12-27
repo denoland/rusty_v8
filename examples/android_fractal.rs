@@ -51,6 +51,10 @@ fn main() {
           event: winit::event::WindowEvent::CloseRequested,
           ..
         } => *control_flow = winit::event_loop::ControlFlow::Exit,
+        // Drawing on android must only happen before Event::Suspended and
+        // after Event::Resumed.
+        //
+        // https://github.com/rust-windowing/winit/issues/1588
         winit::event::Event::Resumed => {
           allowed = true;
         }
