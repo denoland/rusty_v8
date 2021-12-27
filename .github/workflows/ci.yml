@@ -75,9 +75,7 @@ jobs:
 
     steps:
       - name: Configure git
-        run: | 
-          git config --global core.symlinks true
-          git config --global http.postBuffer 1048576000
+        run: git config --global core.symlinks true
 
       - name: Clone repository
         uses: actions/checkout@v1
