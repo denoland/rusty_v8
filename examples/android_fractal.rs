@@ -94,11 +94,11 @@ fn execute_script(
     .expect("failed to compile script");
 
   if script.run(try_catch).is_none() {
-    let exception = try_catch.exception().unwrap();
-    let exception_string = exception
-      .to_string(try_catch)
-      .unwrap()
-      .to_rust_string_lossy(try_catch);
+    let exception_string = try_catch
+      .stack_trace()
+      .or_else(|| try_catch.exception())
+      .map(|value| value.to_rust_string_lossy(try_catch))
+      .unwrap_or_else(|| "no stack trace".into());
 
     panic!("{}", exception_string);
   }
@@ -119,11 +119,11 @@ fn draw(
   let ab = match draw_fn.call(try_catch, recv.into(), &[frame_len.into()]) {
     Some(ab) => ab,
     None => {
-      let exception = try_catch.exception().unwrap();
-      let exception_string = exception
-        .to_string(try_catch)
-        .unwrap()
-        .to_rust_string_lossy(try_catch);
+      let exception_string = try_catch
+        .stack_trace()
+        .or_else(|| try_catch.exception())
+        .map(|value| value.to_rust_string_lossy(try_catch))
+        .unwrap_or_else(|| "no stack trace".into());
 
       panic!("{}", exception_string);
     }
