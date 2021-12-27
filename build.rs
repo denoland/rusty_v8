@@ -117,14 +117,7 @@ fn build_v8() {
     gn_args.push("host_cpu=\"arm64\"".to_string())
   }
 
-  if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
-    gn_args.push(format!(
-      "clang_base_path={:?}",
-      "third_party/llvm-build/Release+Asserts"
-    ));
-    gn_args.push("clang_use_chrome_plugins=false".to_string());
-    gn_args.push("treat_warnings_as_errors=false".to_string());
-  } else if let Some(clang_base_path) = find_compatible_system_clang() {
+  if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
     // TODO: Dedupe this with the one from cc_wrapper()
@@ -132,8 +125,14 @@ fn build_v8() {
     // we can't use chromiums clang plugins with a system clang
     gn_args.push("clang_use_chrome_plugins=false".to_string());
   } else {
+    println!("using Chromiums clang");
     let clang_base_path = clang_download();
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+
+    if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
+      gn_args.push("clang_use_chrome_plugins=false".to_string());
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+    }
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
@@ -171,34 +170,34 @@ fn build_v8() {
       gn_args.push("is_component_build=false".to_string());
       gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
       gn_args.push(r#"target_os="android""#.to_string());
+
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
+
+      maybe_clone_repo(
+        "./third_party/android_ndk",
+        &format!("{}/android_ndk.git", CHROMIUM_URI),
+      );
+
+      // NDK 23 and above removes libgcc entirely.
+      // https://github.com/rust-lang/rust/pull/85806
+      checkout(
+        "./third_party/android_ndk",
+        "401019bf85744311b26c88ced255cd53401af8b7",
+      );
+
+      maybe_clone_repo(
+        "./third_party/android_platform",
+        &format!(
+          "{}/chromium/src/third_party/android_platform.git",
+          CHROMIUM_URI
+        ),
+      );
+      maybe_clone_repo(
+        "./third_party/catapult",
+        &format!("{}/catapult.git", CHROMIUM_URI),
+      );
     };
-
-    gn_args.push("treat_warnings_as_errors=false".to_string());
-    static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
-
-    maybe_clone_repo(
-      "./third_party/android_ndk",
-      &format!("{}/android_ndk.git", CHROMIUM_URI),
-    );
-
-    // NDK 23 and above removes libgcc entirely.
-    // https://github.com/rust-lang/rust/pull/85806
-    checkout(
-      "./third_party/android_ndk",
-      "401019bf85744311b26c88ced255cd53401af8b7",
-    );
-
-    maybe_clone_repo(
-      "./third_party/android_platform",
-      &format!(
-        "{}/chromium/src/third_party/android_platform.git",
-        CHROMIUM_URI
-      ),
-    );
-    maybe_clone_repo(
-      "./third_party/catapult",
-      &format!("{}/catapult.git", CHROMIUM_URI),
-    );
   }
 
   if target_triple.starts_with("i686-") {
@@ -452,6 +451,10 @@ fn is_compatible_clang_version(clang_path: &Path) -> bool {
 }
 
 fn find_compatible_system_clang() -> Option<PathBuf> {
+  if cfg!(target_os = "android") {
+    return None;
+  }
+
   if let Ok(p) = env::var("CLANG_BASE_PATH") {
     let base_path = Path::new(&p);
     let clang_path = base_path.join("bin").join("clang");
@@ -460,7 +463,6 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
     }
   }
 
-  println!("using Chromiums clang");
   None
 }
 
