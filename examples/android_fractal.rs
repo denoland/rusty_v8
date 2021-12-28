@@ -1,5 +1,9 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+
+// Don't run on non-Android targets.
 #![cfg(target_os = "android")]
+// Don't run this as a test in `--all-targets` mode.
+#![cfg(not(test))]
 
 use pixels::Pixels;
 use pixels::SurfaceTexture;
