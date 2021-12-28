@@ -172,19 +172,15 @@ fn build_v8() {
       gn_args.push(r#"target_os="android""#.to_string());
 
       gn_args.push("treat_warnings_as_errors=false".to_string());
-      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
-
-      maybe_clone_repo(
-        "./third_party/android_ndk",
-        &format!("{}/android_ndk.git", CHROMIUM_URI),
-      );
 
       // NDK 23 and above removes libgcc entirely.
       // https://github.com/rust-lang/rust/pull/85806
-      checkout(
+      maybe_clone_repo(
         "./third_party/android_ndk",
-        "401019bf85744311b26c88ced255cd53401af8b7",
+        "https://github.com/denoland/android_ndk.git",
       );
+
+      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
 
       maybe_clone_repo(
         "./third_party/android_platform",
@@ -212,21 +208,11 @@ fn build_v8() {
   build("rusty_v8", None);
 }
 
-fn checkout(dest: &str, tag: &str) {
-  assert!(Command::new("git")
-    .arg("checkout")
-    .arg(tag)
-    .current_dir(dest)
-    .status()
-    .unwrap()
-    .success());
-}
-
 fn maybe_clone_repo(dest: &str, repo: &str) {
   if !Path::new(&dest).exists() {
     assert!(Command::new("git")
       .arg("clone")
-      .arg("--depth=3")
+      .arg("--depth=1")
       .arg(repo)
       .arg(dest)
       .status()
