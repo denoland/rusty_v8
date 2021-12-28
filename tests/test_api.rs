@@ -5675,3 +5675,50 @@ fn backing_store_from_empty_boxed_slice() {
     .make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
 }
+
+#[test]
+fn current_stack_trace() {
+  // Setup isolate
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // A simple JS-facing function that returns its call depth, max of 5
+  fn call_depth(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    let stack = v8::StackTrace::current_stack_trace(scope, 5).unwrap();
+    let count = stack.get_frame_count();
+    rv.set(v8::Integer::new(scope, count as i32).into())
+  }
+
+  let key = v8::String::new(scope, "callDepth").unwrap();
+  let tmpl = v8::FunctionTemplate::new(scope, call_depth);
+  let func = tmpl.get_function(scope).unwrap();
+  let global = context.global(scope);
+  global.set(scope, key.into(), func.into());
+
+  let top_level = eval(scope, "callDepth()")
+    .unwrap()
+    .uint32_value(scope)
+    .unwrap();
+  assert_eq!(top_level, 1);
+
+  let nested = eval(scope, "(_ => (_ => callDepth())())()")
+    .unwrap()
+    .uint32_value(scope)
+    .unwrap();
+  assert_eq!(nested, 3);
+
+  let too_deep = eval(
+    scope,
+    "(_ => (_ => (_ => (_ => (_ => (_ => (_ => callDepth())())())())())())())()",
+  )
+  .unwrap()
+  .uint32_value(scope)
+  .unwrap();
+  assert_eq!(too_deep, 5);
+}
