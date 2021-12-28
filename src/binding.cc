@@ -1659,7 +1659,8 @@ const v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
 }
 
 // Note: StackTraceOptions is deprecated, kDetailed is always used
-const v8::StackTrace* v8__StackTrace__CurrentStackTrace(v8::Isolate* isolate, int frame_limit) {
+const v8::StackTrace* v8__StackTrace__CurrentStackTrace(v8::Isolate* isolate,
+                                                        int frame_limit) {
   return local_to_ptr(v8::StackTrace::CurrentStackTrace(isolate, frame_limit));
 }
 
