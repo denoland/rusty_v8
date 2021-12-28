@@ -4841,6 +4841,8 @@ fn value_serializer_not_implemented() {
   );
 }
 
+// Flaky on aarch64-qemu (Stack corruption).
+#[cfg(not(target_os = "android"))]
 #[test]
 fn clear_kept_objects() {
   let _setup_guard = setup();
