@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use std::convert::TryInto;
+
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::Context;
@@ -74,8 +76,9 @@ impl StackTrace {
   /// Grab a snapshot of the current JavaScript execution stack.
   pub fn current_stack_trace<'s>(
     scope: &mut HandleScope<'s>,
-    frame_limit: i32,
+    frame_limit: usize,
   ) -> Option<Local<'s, StackTrace>> {
+    let frame_limit = frame_limit.try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
         v8__StackTrace__CurrentStackTrace(sd.get_isolate_ptr(), frame_limit)
