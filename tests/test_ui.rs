@@ -1,5 +1,7 @@
 use std::env;
 
+// Don't run UI tests on emulated environment.
+#[cfg(not(target_os = "android"))]
 #[test]
 fn ui() {
   // This environment variable tells build.rs that we're running trybuild tests,

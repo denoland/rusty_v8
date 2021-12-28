@@ -84,7 +84,7 @@ which = "4.1.0"
 fslock = "0.1.6"
 
 [dev-dependencies]
-trybuild = "1.0.42"
+trybuild = "1.0.53"
 align-data = "0.1.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
