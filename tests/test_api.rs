@@ -4173,6 +4173,8 @@ extern "C" fn heap_limit_callback(
   current_heap_limit * 2 // Avoid V8 OOM.
 }
 
+// Flaky on Android QEMU in debug builds.
+#[cfg(not(target_os = "android"))]
 // This test might fail due to a bug in V8. The upstream bug report is at
 // https://bugs.chromium.org/p/v8/issues/detail?id=10843.
 #[test]
