@@ -58,12 +58,7 @@ jobs:
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
             target: aarch64-linux-android
-            variant: debug
-            cargo: cross
-
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
-            target: aarch64-linux-android
-            variant: release
+            variant: release # Note: v8 debug builds on QEMU is buggy.
             cargo: cross
 
     env:

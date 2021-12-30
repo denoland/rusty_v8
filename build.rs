@@ -103,6 +103,7 @@ fn build_v8() {
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if is_debug() && !cfg!(target_os = "windows") {
+    // Note: When building for Android aarch64-qemu, use release instead of debug.
     vec!["is_debug=true".to_string()]
   } else {
     vec!["is_debug=false".to_string()]
