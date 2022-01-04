@@ -1,3 +1,7 @@
+// This is flaky on cross (QEMU bug)
+// but otherwise works fine on real device.
+#![cfg(not(target_os = "android"))]
+
 use std::iter::repeat_with;
 use std::thread;
 

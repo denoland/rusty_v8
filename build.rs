@@ -103,6 +103,7 @@ fn build_v8() {
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if is_debug() && !cfg!(target_os = "windows") {
+    // Note: When building for Android aarch64-qemu, use release instead of debug.
     vec!["is_debug=true".to_string()]
   } else {
     vec!["is_debug=false".to_string()]
@@ -125,8 +126,14 @@ fn build_v8() {
     // we can't use chromiums clang plugins with a system clang
     gn_args.push("clang_use_chrome_plugins=false".to_string());
   } else {
+    println!("using Chromiums clang");
     let clang_base_path = clang_download();
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+
+    if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
+      gn_args.push("clang_use_chrome_plugins=false".to_string());
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+    }
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
@@ -151,11 +158,42 @@ fn build_v8() {
   // check if the target triple describes a non-native environment
   if target_triple != env::var("HOST").unwrap() {
     // cross-compilation setup
-    if target_triple == "aarch64-unknown-linux-gnu" {
+    if target_triple == "aarch64-unknown-linux-gnu"
+      || target_triple == "aarch64-linux-android"
+    {
       gn_args.push(r#"target_cpu="arm64""#.to_string());
       gn_args.push("use_sysroot=true".to_string());
       maybe_install_sysroot("arm64");
       maybe_install_sysroot("amd64");
+    };
+
+    if target_triple == "aarch64-linux-android" {
+      gn_args.push("is_component_build=false".to_string());
+      gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
+      gn_args.push(r#"target_os="android""#.to_string());
+
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+
+      // NDK 23 and above removes libgcc entirely.
+      // https://github.com/rust-lang/rust/pull/85806
+      maybe_clone_repo(
+        "./third_party/android_ndk",
+        "https://github.com/denoland/android_ndk.git",
+      );
+
+      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
+
+      maybe_clone_repo(
+        "./third_party/android_platform",
+        &format!(
+          "{}/chromium/src/third_party/android_platform.git",
+          CHROMIUM_URI
+        ),
+      );
+      maybe_clone_repo(
+        "./third_party/catapult",
+        &format!("{}/catapult.git", CHROMIUM_URI),
+      );
     };
   }
 
@@ -169,6 +207,19 @@ fn build_v8() {
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   build("rusty_v8", None);
+}
+
+fn maybe_clone_repo(dest: &str, repo: &str) {
+  if !Path::new(&dest).exists() {
+    assert!(Command::new("git")
+      .arg("clone")
+      .arg("--depth=1")
+      .arg(repo)
+      .arg(dest)
+      .status()
+      .unwrap()
+      .success());
+  }
 }
 
 fn maybe_install_sysroot(arch: &str) {
@@ -387,6 +438,10 @@ fn is_compatible_clang_version(clang_path: &Path) -> bool {
 }
 
 fn find_compatible_system_clang() -> Option<PathBuf> {
+  if cfg!(target_os = "android") {
+    return None;
+  }
+
   if let Ok(p) = env::var("CLANG_BASE_PATH") {
     let base_path = Path::new(&p);
     let clang_path = base_path.join("bin").join("clang");
@@ -395,7 +450,6 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
     }
   }
 
-  println!("using Chromiums clang");
   None
 }
 
