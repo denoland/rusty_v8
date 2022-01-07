@@ -13,6 +13,31 @@ use which::which;
 fn main() {
   println!("cargo:rerun-if-changed=src/binding.cc");
 
+  // These are all the environment variables that we check. This is
+  // probably more than what is needed, but missing an important
+  // variable can lead to broken links when switching rusty_v8
+  // versions.
+  let envs = vec![
+    "CCACHE",
+    "CLANG_BASE_PATH",
+    "DENO_TRYBUILD",
+    "DOCS_RS",
+    "GENERATE_COMPDB",
+    "GN",
+    "GN_ARGS",
+    "HOST",
+    "NINJA",
+    "OUT_DIR",
+    "RUSTY_V8_ARCHIVE",
+    "RUSTY_V8_MIRROR",
+    "SCCACHE",
+    "V8_FORCE_DEBUG",
+    "V8_FROM_SOURCE",
+  ];
+  for env in envs {
+    println!("cargo:rerun-if-env-changed={}", env);
+  }
+
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
@@ -78,6 +103,7 @@ fn build_v8() {
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if is_debug() && !cfg!(target_os = "windows") {
+    // Note: When building for Android aarch64-qemu, use release instead of debug.
     vec!["is_debug=true".to_string()]
   } else {
     vec!["is_debug=false".to_string()]
@@ -100,8 +126,14 @@ fn build_v8() {
     // we can't use chromiums clang plugins with a system clang
     gn_args.push("clang_use_chrome_plugins=false".to_string());
   } else {
+    println!("using Chromiums clang");
     let clang_base_path = clang_download();
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+
+    if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
+      gn_args.push("clang_use_chrome_plugins=false".to_string());
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+    }
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
@@ -126,11 +158,42 @@ fn build_v8() {
   // check if the target triple describes a non-native environment
   if target_triple != env::var("HOST").unwrap() {
     // cross-compilation setup
-    if target_triple == "aarch64-unknown-linux-gnu" {
+    if target_triple == "aarch64-unknown-linux-gnu"
+      || target_triple == "aarch64-linux-android"
+    {
       gn_args.push(r#"target_cpu="arm64""#.to_string());
       gn_args.push("use_sysroot=true".to_string());
       maybe_install_sysroot("arm64");
       maybe_install_sysroot("amd64");
+    };
+
+    if target_triple == "aarch64-linux-android" {
+      gn_args.push("is_component_build=false".to_string());
+      gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
+      gn_args.push(r#"target_os="android""#.to_string());
+
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+
+      // NDK 23 and above removes libgcc entirely.
+      // https://github.com/rust-lang/rust/pull/85806
+      maybe_clone_repo(
+        "./third_party/android_ndk",
+        "https://github.com/denoland/android_ndk.git",
+      );
+
+      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
+
+      maybe_clone_repo(
+        "./third_party/android_platform",
+        &format!(
+          "{}/chromium/src/third_party/android_platform.git",
+          CHROMIUM_URI
+        ),
+      );
+      maybe_clone_repo(
+        "./third_party/catapult",
+        &format!("{}/catapult.git", CHROMIUM_URI),
+      );
     };
   }
 
@@ -144,6 +207,19 @@ fn build_v8() {
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   build("rusty_v8", None);
+}
+
+fn maybe_clone_repo(dest: &str, repo: &str) {
+  if !Path::new(&dest).exists() {
+    assert!(Command::new("git")
+      .arg("clone")
+      .arg("--depth=1")
+      .arg(repo)
+      .arg(dest)
+      .status()
+      .unwrap()
+      .success());
+  }
 }
 
 fn maybe_install_sysroot(arch: &str) {
@@ -201,6 +277,9 @@ fn download_ninja_gn_binaries() {
 }
 
 fn static_lib_url() -> String {
+  if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
+    return custom_archive;
+  }
   let default_base = "https://github.com/denoland/rusty_v8/releases/download";
   let base =
     env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
@@ -310,11 +389,10 @@ fn download_static_lib_binaries() {
 
   let filename = static_lib_path();
   if filename.exists() {
-    println!("static lib already exists {}", filename.display());
-    println!("To re-download this file, it must be manually deleted.");
-  } else {
-    download_file(url, filename);
+    println!("Deleting old static lib {}", filename.display());
+    std::fs::remove_file(&filename).unwrap();
   }
+  download_file(url, filename);
 }
 
 fn print_link_flags() {
@@ -360,6 +438,10 @@ fn is_compatible_clang_version(clang_path: &Path) -> bool {
 }
 
 fn find_compatible_system_clang() -> Option<PathBuf> {
+  if cfg!(target_os = "android") {
+    return None;
+  }
+
   if let Ok(p) = env::var("CLANG_BASE_PATH") {
     let base_path = Path::new(&p);
     let clang_path = base_path.join("bin").join("clang");
@@ -368,7 +450,6 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
     }
   }
 
-  println!("using Chromiums clang");
   None
 }
 
@@ -504,6 +585,37 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   cmd
 }
 
+fn generate_compdb(
+  gn_out_dir: &Path,
+  target: &str,
+  output_path: Option<&Path>,
+) {
+  let mut cmd = Command::new("python");
+  cmd.arg("tools/generate_compdb.py");
+  cmd.arg("-p");
+  cmd.arg(&gn_out_dir);
+  cmd.arg(target);
+  cmd.arg("-o");
+  cmd.arg(output_path.unwrap_or_else(|| Path::new("compile_commands.json")));
+  cmd.envs(env::vars());
+  cmd.stdout(Stdio::inherit());
+  cmd.stderr(Stdio::inherit());
+
+  if let Ok(ninja_path) = env::var("NINJA") {
+    let ninja_folder = Path::new(&ninja_path).parent().unwrap();
+    // Add `ninja_folder` to the PATH envvar.
+    let original_path = env::var_os("PATH").unwrap();
+    let new_path = env::join_paths(
+      env::split_paths(&original_path)
+        .chain(std::iter::once(ninja_folder.to_owned())),
+    )
+    .unwrap();
+    cmd.env("PATH", new_path);
+  }
+
+  run(&mut cmd, "python");
+}
+
 pub type GnArgs = Vec<String>;
 
 pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
@@ -542,6 +654,16 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
   let mut cmd = ninja(&gn_out_dir, maybe_env.clone());
   cmd.arg(target);
   run(&mut cmd, "ninja");
+
+  if let Some(compdb_env) = std::env::var_os("GENERATE_COMPDB") {
+    // Only use compdb_path if it's not empty.
+    let compdb_path = if !compdb_env.is_empty() {
+      Some(Path::new(&compdb_env))
+    } else {
+      None
+    };
+    generate_compdb(&gn_out_dir, target, compdb_path);
+  }
 
   rerun_if_changed(&gn_out_dir, maybe_env, target);
 

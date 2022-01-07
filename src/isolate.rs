@@ -429,12 +429,14 @@ impl Isolate {
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given `slot`.
+  #[allow(dead_code)]
   fn get_data(&self, slot: u32) -> *mut c_void {
     unsafe { v8__Isolate__GetData(self, slot + Self::INTERNAL_SLOT_COUNT) }
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of 0 - `Isolate::get_number_of_data_slots() - 1`.
+  #[allow(dead_code)]
   fn get_number_of_data_slots(&self) -> u32 {
     unsafe {
       v8__Isolate__GetNumberOfDataSlots(self) - Self::INTERNAL_SLOT_COUNT

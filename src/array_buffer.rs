@@ -3,7 +3,9 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
+use std::ptr;
 use std::ptr::null_mut;
+use std::ptr::NonNull;
 use std::slice;
 
 use crate::support::long;
@@ -232,11 +234,12 @@ pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
 
 pub unsafe extern "C" fn backing_store_deleter_callback(
   data: *mut c_void,
-  _byte_length: usize,
+  byte_length: usize,
   _deleter_data: *mut c_void,
 ) {
-  let b = Box::from_raw(data);
-  drop(b)
+  let slice_ptr = ptr::slice_from_raw_parts_mut(data as *mut u8, byte_length);
+  let b = Box::from_raw(slice_ptr);
+  drop(b);
 }
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
@@ -260,8 +263,12 @@ impl BackingStore {
   /// Return a pointer to the beginning of the memory block for this backing
   /// store. The pointer is only valid as long as this backing store object
   /// lives.
-  pub fn data(&self) -> *mut c_void {
-    unsafe { v8__BackingStore__Data(self as *const _ as *mut Self) }
+  ///
+  /// Might return `None` if the backing store has zero length.
+  pub fn data(&self) -> Option<NonNull<c_void>> {
+    let raw_ptr =
+      unsafe { v8__BackingStore__Data(self as *const _ as *mut Self) };
+    NonNull::new(raw_ptr)
   }
 
   /// The length (in bytes) of this backing store.
@@ -281,9 +288,14 @@ impl Deref for BackingStore {
 
   /// Returns a [u8] slice refencing the data in the backing store.
   fn deref(&self) -> &Self::Target {
-    let data = self.data() as *mut Cell<u8>;
+    // We use a dangling pointer if `self.data()` returns None because it's UB
+    // to create even an empty slice from a null pointer.
+    let data = self
+      .data()
+      .unwrap_or_else(NonNull::dangling)
+      .cast::<Cell<u8>>();
     let len = self.byte_length();
-    unsafe { slice::from_raw_parts(data, len) }
+    unsafe { slice::from_raw_parts(data.as_ptr(), len) }
   }
 }
 

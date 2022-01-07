@@ -14,7 +14,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use rusty_v8 as v8;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
 
@@ -116,17 +115,34 @@ fn global_handles() {
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    assert_eq!(g1.get(scope).to_rust_string_lossy(scope), "bla");
-    assert_eq!(g2.as_ref().unwrap().get(scope).value(), 123);
-    assert_eq!(g3.get(scope).value(), 123);
-    assert_eq!(g4.get(scope).value(), 123);
+    assert_eq!(g1.open(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g2.as_ref().unwrap().open(scope).value(), 123);
+    assert_eq!(g3.open(scope).value(), 123);
+    assert_eq!(g4.open(scope).value(), 123);
     {
-      let num = g5.as_ref().unwrap().get(scope);
+      let num = g5.as_ref().unwrap().open(scope);
       assert_eq!(num.value(), 100);
     }
     g5.take();
     assert!(g6 == g1);
-    assert_eq!(g6.get(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(g6.open(scope).to_rust_string_lossy(scope), "bla");
+  }
+}
+
+#[test]
+fn local_handle_deref() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let key = v8::String::new(scope, "key").unwrap();
+  let obj: v8::Local<v8::Object> = v8::Object::new(scope);
+  obj.get(scope, key.into());
+  {
+    use v8::Handle;
+    obj.get(scope, key.into());
+    obj.open(scope).get(scope, key.into());
   }
 }
 
@@ -453,7 +469,7 @@ fn get_isolate_from_handle() {
   check_handle(scope, Some(true), |s| v8::String::new(s, "Words").unwrap());
   check_eval(scope, Some(true), "'Hello'");
   check_eval(scope, Some(true), "Symbol()");
-  check_handle(scope, Some(true), |s| v8::Object::new(s));
+  check_handle(scope, Some(true), v8::Object::new);
   check_eval(scope, Some(true), "this");
   check_handle(scope, Some(true), |s| s.get_current_context());
   check_eval(scope, Some(true), "({ foo: 'bar' })");
@@ -608,6 +624,19 @@ fn array_buffer_with_shared_backing_store() {
     drop(bs4);
     bs5.assert_use_count_eq(3);
   }
+}
+
+#[test]
+fn deref_empty_backing_store() {
+  // Test that the slice that results from derefing a backing store is not
+  // backed by a null pointer, since that would be UB.
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let backing_store = v8::ArrayBuffer::new_backing_store(isolate, 0);
+  let slice: &[std::cell::Cell<u8>] = &backing_store;
+  assert!(!slice.as_ptr().is_null());
 }
 
 fn eval<'s>(
@@ -826,6 +855,9 @@ fn thread_safe_handle_drop_after_isolate() {
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 0);
 }
 
+// QEMU doesn't like when we spawn threads
+// This works just fine on real hardware
+#[cfg(not(target_os = "android"))]
 #[test]
 fn terminate_execution() {
   let _setup_guard = setup();
@@ -1870,6 +1902,21 @@ fn data_is_true_callback(
   assert!(data.is_true());
 }
 
+fn nested_builder<'a>(
+  scope: &mut v8::HandleScope<'a>,
+  args: v8::FunctionCallbackArguments<'a>,
+  _: v8::ReturnValue,
+) {
+  let arg0 = args.get(0);
+  v8::Function::builder(
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| {},
+  )
+  .data(arg0)
+  .build(scope);
+}
+
 #[test]
 fn function() {
   let _setup_guard = setup();
@@ -1881,6 +1928,9 @@ fn function() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let recv: v8::Local<v8::Value> = global.into();
+
+    // Just check that this compiles.
+    v8::Function::builder(nested_builder);
 
     // create function using template
     let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
@@ -1933,6 +1983,65 @@ fn function() {
     let result = eval(scope, "f.prototype").unwrap();
     assert!(result.is_undefined());
     assert!(eval(scope, "new f()").is_none()); // throws
+  }
+}
+
+#[test]
+fn function_column_and_line_numbers() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = mock_source(
+      scope,
+      "google.com",
+      r#"export function f(a, b) {
+  return a;
+}
+
+export function anotherFunctionG(a, b) {
+  return b;
+}"#,
+    );
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    let result =
+      module.instantiate_module(scope, unexpected_module_resolve_callback);
+    assert!(result.is_some());
+    module.evaluate(scope).unwrap();
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let namespace = module.get_module_namespace();
+    assert!(namespace.is_module_namespace_object());
+    let namespace_obj = namespace.to_object(scope).unwrap();
+
+    let f_str = v8::String::new(scope, "f").unwrap();
+    let f_function_obj: v8::Local<v8::Function> = namespace_obj
+      .get(scope, f_str.into())
+      .unwrap()
+      .try_into()
+      .unwrap();
+    // The column number is zero-indexed and indicates the position of the end of the name.
+    assert_eq!(f_function_obj.get_script_column_number(), Some(17));
+    // The line number is zero-indexed as well.
+    assert_eq!(f_function_obj.get_script_line_number(), Some(0));
+
+    let g_str = v8::String::new(scope, "anotherFunctionG").unwrap();
+    let g_function_obj: v8::Local<v8::Function> = namespace_obj
+      .get(scope, g_str.into())
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert_eq!(g_function_obj.get_script_column_number(), Some(32));
+    assert_eq!(g_function_obj.get_script_line_number(), Some(4));
+
+    let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+    let function = fn_template
+      .get_function(scope)
+      .expect("Unable to create function");
+    assert_eq!(function.get_script_column_number(), None);
+    assert_eq!(function.get_script_line_number(), None);
   }
 }
 
@@ -4722,6 +4831,8 @@ fn value_serializer_not_implemented() {
   );
 }
 
+// Flaky on aarch64-qemu (Stack corruption).
+#[cfg(not(target_os = "android"))]
 #[test]
 fn clear_kept_objects() {
   let _setup_guard = setup();
@@ -5413,6 +5524,7 @@ fn counter_lookup_callback() {
   assert_ne!(count, 0);
 }
 
+#[cfg(not(target_os = "android"))]
 #[test]
 fn compiled_wasm_module() {
   let _setup_guard = setup();
@@ -5470,10 +5582,141 @@ fn compiled_wasm_module() {
         .unwrap();
     let foo_bs = foo_ab.get_backing_store();
     let foo_section = unsafe {
-      std::slice::from_raw_parts(foo_bs.data() as *mut u8, foo_bs.byte_length())
+      std::slice::from_raw_parts(
+        foo_bs.data().unwrap().as_ptr() as *mut u8,
+        foo_bs.byte_length(),
+      )
     };
     assert_eq!(foo_section, b"bar");
   }
+}
+
+#[test]
+fn function_names() {
+  // Setup isolate
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Rust function
+  fn callback(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    rv.set(v8::Integer::new(scope, 42).into())
+  }
+
+  // named v8 function
+  {
+    let key = v8::String::new(scope, "magicFn").unwrap();
+    let name = v8::String::new(scope, "fooBar").unwrap();
+    let tmpl = v8::FunctionTemplate::new(scope, callback);
+    let func = tmpl.get_function(scope).unwrap();
+    func.set_name(name);
+
+    let global = context.global(scope);
+    global.set(scope, key.into(), func.into());
+    let is_42: v8::Local<v8::Boolean> =
+      eval(scope, "magicFn() === 42").unwrap().try_into().unwrap();
+    assert!(is_42.is_true());
+    let js_str: v8::Local<v8::String> = eval(scope, "magicFn.toString()")
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert_eq!(
+      js_str.to_rust_string_lossy(scope),
+      "function fooBar() { [native code] }"
+    );
+    let v8_name = func.get_name(scope);
+    assert_eq!(v8_name.to_rust_string_lossy(scope), "fooBar");
+  }
+
+  // anon v8 function
+  {
+    let key = v8::String::new(scope, "anonFn").unwrap();
+    let tmpl = v8::FunctionTemplate::new(scope, callback);
+    let func = tmpl.get_function(scope).unwrap();
+
+    let global = context.global(scope);
+    global.set(scope, key.into(), func.into());
+    let is_42: v8::Local<v8::Boolean> =
+      eval(scope, "anonFn() === 42").unwrap().try_into().unwrap();
+    assert!(is_42.is_true());
+    let js_str: v8::Local<v8::String> = eval(scope, "anonFn.toString()")
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert_eq!(
+      js_str.to_rust_string_lossy(scope),
+      "function () { [native code] }"
+    );
+    let v8_name = func.get_name(scope);
+    assert_eq!(v8_name.to_rust_string_lossy(scope), "");
+  }
+}
+
+// https://github.com/denoland/rusty_v8/issues/849
+#[test]
+fn backing_store_from_empty_boxed_slice() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(Box::new([]))
+    .make_shared();
+  let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
+}
+
+#[test]
+fn current_stack_trace() {
+  // Setup isolate
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // A simple JS-facing function that returns its call depth, max of 5
+  fn call_depth(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    let stack = v8::StackTrace::current_stack_trace(scope, 5).unwrap();
+    let count = stack.get_frame_count();
+    rv.set(v8::Integer::new(scope, count as i32).into())
+  }
+
+  let key = v8::String::new(scope, "callDepth").unwrap();
+  let tmpl = v8::FunctionTemplate::new(scope, call_depth);
+  let func = tmpl.get_function(scope).unwrap();
+  let global = context.global(scope);
+  global.set(scope, key.into(), func.into());
+
+  let top_level = eval(scope, "callDepth()")
+    .unwrap()
+    .uint32_value(scope)
+    .unwrap();
+  assert_eq!(top_level, 1);
+
+  let nested = eval(scope, "(_ => (_ => callDepth())())()")
+    .unwrap()
+    .uint32_value(scope)
+    .unwrap();
+  assert_eq!(nested, 3);
+
+  let too_deep = eval(
+    scope,
+    "(_ => (_ => (_ => (_ => (_ => (_ => (_ => callDepth())())())())())())())()",
+  )
+  .unwrap()
+  .uint32_value(scope)
+  .unwrap();
+  assert_eq!(too_deep, 5);
 }
 
 #[test]
@@ -5656,7 +5899,7 @@ fn shared_isolate_slots() {
         .expect("expected Ctx slot");
       let scope = &mut v8::HandleScope::with_context(locker, &context);
       assert_eq!(scope.get_current_context(), &context);
-      let value = value.get(scope).int32_value(scope).unwrap();
+      let value = value.open(scope).int32_value(scope).unwrap();
       assert_eq!(value, 3);
       let value = v8::Integer::new(scope, value + 1);
       let value_global = v8::Global::new(scope, value);
@@ -5673,7 +5916,7 @@ fn shared_isolate_slots() {
       .expect("expected Ctx slot");
     let scope = &mut v8::HandleScope::with_context(locker, &context);
     assert_eq!(scope.get_current_context(), &context);
-    let value = value.get(scope).int32_value(scope).unwrap();
+    let value = value.open(scope).int32_value(scope).unwrap();
     assert_eq!(value, 4);
   }
 }

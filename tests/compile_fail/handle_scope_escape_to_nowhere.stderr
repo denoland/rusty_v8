@@ -1,19 +1,21 @@
-error[E0277]: the trait bound `Locker: rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
-   --> $DIR/handle_scope_escape_to_nowhere.rs:6:50
+error[E0277]: the trait bound `Locker: v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
+   --> tests/compile_fail/handle_scope_escape_to_nowhere.rs:5:50
     |
-6   |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-    |                                                  ^^^^^^^^^^^^ the trait `rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `Locker`
+5   |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
+    |                    ----------------------------- ^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `Locker`
+    |                    |
+    |                    required by a bound introduced by this call
     |
 note: required by `EscapableHandleScope::<'s, 'e>::new`
-   --> $DIR/scope.rs:303:3
+   --> src/scope.rs
     |
-303 | /   pub fn new<P: param::NewEscapableHandleScope<'s, 'e>>(
-304 | |     param: &'s mut P,
-305 | |   ) -> P::NewScope {
+    | /   pub fn new<P: param::NewEscapableHandleScope<'s, 'e>>(
+    | |     param: &'s mut P,
+    | |   ) -> P::NewScope {
     | |__________________^
 
-error[E0277]: the trait bound `Locker: rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
- --> $DIR/handle_scope_escape_to_nowhere.rs:6:20
+error[E0277]: the trait bound `Locker: v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
+ --> tests/compile_fail/handle_scope_escape_to_nowhere.rs:5:20
   |
-6 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `rusty_v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `Locker`
+5 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `Locker`

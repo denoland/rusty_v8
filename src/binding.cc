@@ -994,8 +994,9 @@ V(ToStringTag)
 V(Unscopables)
 #undef V
 
-const v8::Value* v8__Symbol__Description(const v8::Symbol& self) {
-  return local_to_ptr(ptr_to_local(&self)->Description());
+const v8::Value* v8__Symbol__Description(const v8::Symbol& self,
+                                         v8::Isolate* isolate) {
+  return local_to_ptr(ptr_to_local(&self)->Description(isolate));
 }
 
 const v8::Private* v8__Private__New(v8::Isolate* isolate,
@@ -1579,6 +1580,22 @@ const v8::Object* v8__Function__NewInstance(const v8::Function& self,
       ptr_to_local(&context), argc, const_ptr_array_to_local_array(argv)));
 }
 
+const v8::Value* v8__Function__GetName(const v8::Function& self) {
+  return local_to_ptr(self.GetName());
+}
+
+void v8__Function__SetName(const v8::Function& self, const v8::String& name) {
+  return ptr_to_local(&self)->SetName(ptr_to_local(&name));
+}
+
+int v8__Function__GetScriptColumnNumber(const v8::Function& self) {
+  return ptr_to_local(&self)->GetScriptColumnNumber();
+}
+
+int v8__Function__GetScriptLineNumber(const v8::Function& self) {
+  return ptr_to_local(&self)->GetScriptLineNumber();
+}
+
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
                                         const v8::FunctionTemplate* templ) {
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
@@ -1662,6 +1679,12 @@ void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
 
 const v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
   return local_to_ptr(self.Get());
+}
+
+// Note: StackTraceOptions is deprecated, kDetailed is always used
+const v8::StackTrace* v8__StackTrace__CurrentStackTrace(v8::Isolate* isolate,
+                                                        int frame_limit) {
+  return local_to_ptr(v8::StackTrace::CurrentStackTrace(isolate, frame_limit));
 }
 
 int v8__StackTrace__GetFrameCount(const v8::StackTrace& self) {

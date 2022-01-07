@@ -42,6 +42,7 @@ extern "C" {
   fn v8__Value__IsRegExp(this: *const Value) -> bool;
   fn v8__Value__IsAsyncFunction(this: *const Value) -> bool;
   fn v8__Value__IsGeneratorFunction(this: *const Value) -> bool;
+  #[allow(dead_code)]
   fn v8__Value__IsGeneratorObject(this: *const Value) -> bool;
   fn v8__Value__IsPromise(this: *const Value) -> bool;
   fn v8__Value__IsMap(this: *const Value) -> bool;

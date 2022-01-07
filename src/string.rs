@@ -77,9 +77,11 @@ extern "C" {
     length: int,
   ) -> *const String;
 
+  #[allow(dead_code)]
   fn v8__String__IsExternal(this: *const String) -> bool;
   fn v8__String__IsExternalOneByte(this: *const String) -> bool;
   fn v8__String__IsExternalTwoByte(this: *const String) -> bool;
+  #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
 }

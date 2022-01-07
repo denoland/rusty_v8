@@ -1,6 +1,5 @@
 // Tests from the same file run in a single process. That's why this test
 // is in its own file, because changing flags affects the whole process.
-use rusty_v8 as v8;
 
 #[test]
 fn set_flags_from_string() {

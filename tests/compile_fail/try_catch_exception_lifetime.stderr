@@ -1,11 +1,11 @@
 error[E0597]: `scope3` does not live long enough
-  --> $DIR/try_catch_exception_lifetime.rs:12:43
+  --> $DIR/try_catch_exception_lifetime.rs:11:43
    |
-10 |   let _exception = {
+9  |   let _exception = {
    |       ---------- borrow later stored here
-11 |     let mut scope3 = v8::HandleScope::new(&mut scope2);
-12 |     let mut scope4 = v8::HandleScope::new(&mut scope3);
+10 |     let mut scope3 = v8::HandleScope::new(&mut scope2);
+11 |     let mut scope4 = v8::HandleScope::new(&mut scope3);
    |                                           ^^^^^^^^^^^ borrowed value does not live long enough
 ...
-15 |   };
+14 |   };
    |   - `scope3` dropped here while still borrowed

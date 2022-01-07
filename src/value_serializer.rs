@@ -210,12 +210,11 @@ pub trait ValueSerializerImpl {
     message: Local<'s, String>,
   );
 
-  #[allow(unused_variables)]
   fn write_host_object<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    object: Local<'s, Object>,
-    value_serializer: &mut dyn ValueSerializerHelper,
+    _object: Local<'s, Object>,
+    _value_serializer: &mut dyn ValueSerializerHelper,
   ) -> Option<bool> {
     let msg =
       String::new(scope, "Deno serializer: write_host_object not implemented")
@@ -225,11 +224,10 @@ pub trait ValueSerializerImpl {
     None
   }
 
-  #[allow(unused_variables)]
   fn get_shared_array_buffer_id<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
-    shared_array_buffer: Local<'s, SharedArrayBuffer>,
+    _shared_array_buffer: Local<'s, SharedArrayBuffer>,
   ) -> Option<u32> {
     let msg = String::new(
       scope,
@@ -241,11 +239,10 @@ pub trait ValueSerializerImpl {
     None
   }
 
-  #[allow(unused_variables)]
   fn get_wasm_module_transfer_id(
     &mut self,
     scope: &mut HandleScope<'_>,
-    module: Local<WasmModuleObject>,
+    _module: Local<WasmModuleObject>,
   ) -> Option<u32> {
     let msg = String::new(
       scope,
@@ -283,6 +280,7 @@ impl<'a, 's> ValueSerializerHeap<'a, 's> {
   }
 
   /// Starting from 'this' pointer a ValueSerializerHeap ref can be created
+  #[allow(dead_code)]
   pub unsafe fn dispatch(
     value_serializer_delegate: &'s CxxValueSerializerDelegate,
   ) -> &Self {

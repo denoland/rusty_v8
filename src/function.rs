@@ -15,6 +15,7 @@ use crate::Local;
 use crate::Name;
 use crate::Object;
 use crate::Signature;
+use crate::String;
 use crate::Value;
 
 extern "C" {
@@ -39,6 +40,10 @@ extern "C" {
     argc: int,
     argv: *const *const Value,
   ) -> *const Object;
+  fn v8__Function__GetName(this: *const Function) -> *const String;
+  fn v8__Function__SetName(this: *const Function, name: *const String);
+  fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
+  fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -270,9 +275,10 @@ impl<'s> PropertyCallbackArguments<'s> {
 
 pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
 
-impl<F> MapFnFrom<F> for FunctionCallback
+impl<'a, F> MapFnFrom<F> for FunctionCallback
 where
-  F: UnitType + Fn(&mut HandleScope, FunctionCallbackArguments, ReturnValue),
+  F: UnitType
+    + Fn(&mut HandleScope<'a>, FunctionCallbackArguments<'a>, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
@@ -447,5 +453,25 @@ impl Function {
         v8__Function__NewInstance(self, sd.get_current_context(), argc, argv)
       })
     }
+  }
+
+  pub fn get_name<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, String> {
+    unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
+  }
+
+  pub fn set_name(&self, name: Local<String>) {
+    unsafe { v8__Function__SetName(self, &*name) }
+  }
+
+  /// Get the (zero-indexed) column number of the function's definition, if available.
+  pub fn get_script_column_number(&self) -> Option<u32> {
+    let ret = unsafe { v8__Function__GetScriptColumnNumber(self) };
+    (ret >= 0).then(|| ret as u32)
+  }
+
+  /// Get the (zero-indexed) line number of the function's definition, if available.
+  pub fn get_script_line_number(&self) -> Option<u32> {
+    let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
+    (ret >= 0).then(|| ret as u32)
   }
 }

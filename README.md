@@ -1,10 +1,10 @@
 # Rusty V8 Binding
 
-V8 Version: 9.4.146.17
+V8 Version: 9.8.177.5
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=main)](https://github.com/denoland/rusty_v8/actions)
-[![crates](https://img.shields.io/crates/v/rusty_v8.svg)](https://crates.io/crates/rusty_v8)
-[![docs](https://docs.rs/rusty_v8/badge.svg)](https://docs.rs/rusty_v8)
+[![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
+[![docs](https://docs.rs/v8/badge.svg)](https://docs.rs/v8)
 
 ## Goals
 
@@ -82,6 +82,16 @@ for REL in v0.13.0 v0.12.0; do
 done
 ```
 
+## The `RUSTY_V8_ARCHIVE` environment variable
+
+Tell the build script to use a specific v8 library. This can be an URL
+or a path. This is useful when you have a prebuilt archive somewhere:
+
+```bash
+export RUSTY_V8_ARCHIVE=/path/to/custom_archive.a
+cargo build
+```
+
 ## Build V8 from Source
 
 Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
@@ -111,6 +121,28 @@ Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental variable
 
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
+
+## C++ IDE integration
+
+`rusty_v8` supports IDE integration for the C++ bindings through the use of the
+`clangd` language server, bringing features such as diagnostics, code completion
+and code navigations to your editor. [See the instructions for how to set it up
+with your favorite editor.](https://clangd.llvm.org/installation.html#editor-plugins)
+
+Before you can use `clangd` with `rusty_v8`, you must first generate the
+compilation database:
+
+```sh
+V8_FROM_SOURCE=1 GENERATE_COMPDB= cargo build
+```
+
+This will write the `clang` compilation database as the `compile_commands.json`
+file at the root of the project repository. You can pass a path to the
+`GENERATE_COMPDB` environment variable to change the location where the
+compilation database will be written.
+
+You must pass the `GENERATE_COMPDB` environment variable to regenerate the
+compilation database, it will not be regenerated automatically.
 
 ## FAQ
 

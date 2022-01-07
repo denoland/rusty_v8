@@ -24,30 +24,42 @@ jobs:
           - os: macOS-latest
             target: x86_64-apple-darwin
             variant: debug
+            cargo: cargo
 
           - os: macOS-latest
             target: x86_64-apple-darwin
             variant: release
-
+            cargo: cargo
+          
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
+            cargo: cargo
 
           - os: windows-2019
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-latest-xl' || 'ubuntu-18.04' }}
+            target: aarch64-linux-android
+            variant: release # Note: v8 debug builds on QEMU is buggy.
+            cargo: cross
 
     env:
       V8_FROM_SOURCE: true
@@ -70,10 +82,10 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           components: clippy, rustfmt
-          rust-version: 1.55.0
+          rust-version: 1.57.0
 
       - name: Install python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: 2.7.x
           architecture: x64
@@ -117,7 +129,6 @@ jobs:
           restore-keys:
             cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
-
         # It seems that the 'target' directory does not always get restored
         # from cache correctly on MacOS. In the build log we see the following:
         #
@@ -159,15 +170,24 @@ jobs:
           . $basename/sccache --start-server
           echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Install cross
+        if: matrix.config.target == 'aarch64-linux-android'
+        run: cargo install cross
+      
+      - name: Build cross docker image
+        if: matrix.config.target == 'aarch64-linux-android'  
+        run: docker build -t cross:aarch64-linux-android-0.2.1 .
 
       - name: Test
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
         run:
-          cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:
-          cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          ${{ matrix.config.cargo }} clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt
