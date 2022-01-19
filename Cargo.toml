@@ -95,3 +95,9 @@ name = "shell"
 
 [[example]]
 name = "process"
+
+[workspace]
+members = [
+  "examples/android"
+]
+
