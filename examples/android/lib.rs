@@ -28,8 +28,7 @@ fn main() {
 
   let mut isolate = v8::Isolate::new(v8::CreateParams::default());
   let mut scope = v8::HandleScope::new(&mut isolate);
-  let source =
-    v8::String::new(&mut scope, include_str!("android_fractal.js")).unwrap();
+  let source = v8::String::new(&mut scope, include_str!("fractal.js")).unwrap();
 
   let context = v8::Context::new(&mut scope);
   let mut context_scope = v8::ContextScope::new(&mut scope, context);
