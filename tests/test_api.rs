@@ -1557,6 +1557,50 @@ fn object() {
 }
 
 #[test]
+fn map() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let map = v8::Map::new(scope);
+    assert_eq!(map.size(), 0);
+
+    let undefined = v8::undefined(scope).into();
+
+    {
+      let key = v8::Object::new(scope).into();
+      let value = v8::Integer::new(scope, 1337).into();
+      assert_eq!(map.has(scope, key), Some(false));
+      assert_eq!(map.get(scope, key), Some(undefined));
+      assert_eq!(map.set(scope, key, value), Some(map));
+
+      assert_eq!(map.has(scope, key), Some(true));
+      assert_eq!(map.size(), 1);
+      assert_eq!(map.get(scope, key), Some(value));
+    }
+
+    map.clear();
+    assert_eq!(map.size(), 0);
+
+    {
+      let key = v8::String::new(scope, "key").unwrap().into();
+      let value = v8::Integer::new(scope, 42).into();
+
+      assert_eq!(map.delete(scope, key), Some(false));
+
+      map.set(scope, key, value);
+      assert_eq!(map.size(), 1);
+
+      assert_eq!(map.delete(scope, key), Some(true));
+      assert_eq!(map.size(), 0);
+    }
+  }
+}
+
+#[test]
 fn array() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

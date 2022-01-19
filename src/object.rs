@@ -148,6 +148,29 @@ extern "C" {
     length: usize,
   ) -> *const Array;
   fn v8__Array__Length(array: *const Array) -> u32;
+  fn v8__Map__New(isolate: *mut Isolate) -> *const Map;
+  fn v8__Map__Clear(this: *const Map);
+  fn v8__Map__Get(
+    this: *const Map,
+    context: *const Context,
+    key: *const Value,
+  ) -> *const Value;
+  fn v8__Map__Set(
+    this: *const Map,
+    context: *const Context,
+    key: *const Value,
+    value: *const Value,
+  ) -> *const Map;
+  fn v8__Map__Has(
+    this: *const Map,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
+  fn v8__Map__Delete(
+    this: *const Map,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
   fn v8__Map__Size(map: *const Map) -> usize;
   fn v8__Map__As__Array(this: *const Map) -> *const Array;
 }
@@ -586,9 +609,59 @@ impl Array {
 }
 
 impl Map {
+  pub fn new<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Map> {
+    unsafe { scope.cast_local(|sd| v8__Map__New(sd.get_isolate_ptr())) }
+      .unwrap()
+  }
+
   pub fn size(&self) -> usize {
     unsafe { v8__Map__Size(self) }
   }
+
+  pub fn clear(&self) {
+    unsafe { v8__Map__Clear(self) }
+  }
+
+  pub fn get<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| v8__Map__Get(self, sd.get_current_context(), &*key))
+    }
+  }
+
+  pub fn set<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+    value: Local<Value>,
+  ) -> Option<Local<'s, Map>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Map__Set(self, sd.get_current_context(), &*key, &*value)
+      })
+    }
+  }
+
+  pub fn has(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Map__Has(self, &*scope.get_current_context(), &*key) }.into()
+  }
+
+  pub fn delete(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Map__Delete(self, &*scope.get_current_context(), &*key) }
+      .into()
+  }
+
   /// Returns an array of length size() * 2, where index N is the Nth key and
   /// index N + 1 is the Nth value.
   pub fn as_array<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Array> {
