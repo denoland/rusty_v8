@@ -1240,7 +1240,39 @@ const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
 
 void* v8__External__Value(const v8::External& self) { return self.Value(); }
 
+const v8::Map* v8__Map__New(v8::Isolate* isolate) {
+  return local_to_ptr(v8::Map::New(isolate));
+}
+
 size_t v8__Map__Size(const v8::Map& self) { return self.Size(); }
+
+void v8__Map__Clear(const v8::Map& self) {
+  return ptr_to_local(&self)->Clear();
+}
+
+const v8::Value* v8__Map__Get(const v8::Map& self, const v8::Context& context,
+                              const v8::Value& key) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->Get(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+v8::Map* v8__Map__Set(const v8::Map& self, const v8::Context& context,
+                      const v8::Value& key, const v8::Value& value) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->Set(
+      ptr_to_local(&context), ptr_to_local(&key), ptr_to_local(&value)));
+}
+
+MaybeBool v8__Map__Has(const v8::Map& self, const v8::Context& context,
+                       const v8::Value& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Has(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+MaybeBool v8__Map__Delete(const v8::Map& self, const v8::Context& context,
+                          const v8::Value& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Delete(ptr_to_local(&context), ptr_to_local(&key)));
+}
 
 const v8::Array* v8__Map__As__Array(const v8::Map& self) {
   return local_to_ptr(self.AsArray());
@@ -2437,8 +2469,8 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
   self->inner->Abort(ptr_to_maybe_local(exception));
 }
 
-void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self,
-                               const char* url, size_t len) {
+void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
+                               size_t len) {
   self->inner->SetUrl(url, len);
 }
 
@@ -2478,7 +2510,8 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
 
 // This is necessary for v8__internal__GetIsolateFromHeapObject() to be
 // reliable enough for our purposes.
-#if UINTPTR_MAX == 0xffffffffffffffff && !(defined V8_SHARED_RO_HEAP or defined V8_COMPRESS_POINTERS)
+#if UINTPTR_MAX == 0xffffffffffffffff && \
+    !(defined V8_SHARED_RO_HEAP or defined V8_COMPRESS_POINTERS)
 #error V8 must be built with either the 'v8_enable_pointer_compression' or \
 'v8_enable_shared_ro_heap' feature enabled.
 #endif
@@ -2782,18 +2815,20 @@ bool v8__ValueDeserializer__ReadRawBytes(v8::ValueDeserializer* self,
 // v8::CompiledWasmModule
 
 extern "C" {
-const v8::WasmModuleObject* v8__WasmModuleObject__FromCompiledModule(v8::Isolate* isolate,
-                                                                     const v8::CompiledWasmModule* compiled_module) {
-  return maybe_local_to_ptr(v8::WasmModuleObject::FromCompiledModule(isolate, *compiled_module));
+const v8::WasmModuleObject* v8__WasmModuleObject__FromCompiledModule(
+    v8::Isolate* isolate, const v8::CompiledWasmModule* compiled_module) {
+  return maybe_local_to_ptr(
+      v8::WasmModuleObject::FromCompiledModule(isolate, *compiled_module));
 }
 
-v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(const v8::WasmModuleObject* self) {
+v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(
+    const v8::WasmModuleObject* self) {
   v8::CompiledWasmModule cwm = ptr_to_local(self)->GetCompiledModule();
   return new v8::CompiledWasmModule(std::move(cwm));
 }
 
-const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(v8::CompiledWasmModule* self,
-                                                       size_t* length) {
+const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(
+    v8::CompiledWasmModule* self, size_t* length) {
   v8::MemorySpan<const uint8_t> span = self->GetWireBytesRef();
   *length = span.size();
   return span.data();
