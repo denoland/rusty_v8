@@ -1,0 +1,21 @@
+[package]
+name = "fractal"
+version = "0.38.0"
+description = "rusty_v8 android example"
+authors = ["the Deno authors"]
+license = "MIT"
+edition = "2021"
+repository = "https://github.com/denoland/rusty_v8"
+publish = false
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+v8 = { path = "../../" }
+winit = "0.26"
+pixels = "0.8.0"
+ndk = "0.3.0"
+ndk-glue = { version = "0.5.0", features = ["logger"] }
+
