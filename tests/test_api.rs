@@ -650,6 +650,16 @@ fn eval<'s>(
   r.map(|v| scope.escape(v))
 }
 
+/// Same as eval, but adds "'use strict';" before the code, so that it runs in
+/// strict mode.
+fn eval_strict<'s>(
+  scope: &mut v8::HandleScope<'s>,
+  code: &str,
+) -> Option<v8::Local<'s, v8::Value>> {
+  let strict_code = format!("'use strict';\n{}", code);
+  eval(scope, &strict_code)
+}
+
 #[test]
 fn external() {
   let _setup_guard = setup();
@@ -1553,6 +1563,29 @@ fn object() {
     assert!(!object.has(scope, n_unused).unwrap());
     assert!(object.delete(scope, n1.into()).unwrap());
     assert!(!object.has(scope, n1.into()).unwrap());
+
+    let global = context.global(scope);
+    let object_string = v8::String::new(scope, "object").unwrap().into();
+    global.set(scope, object_string, object.into());
+    assert!(object
+      .set_integrity_level(scope, v8::IntegrityLevel::Sealed)
+      .unwrap());
+    {
+      let scope = &mut v8::TryCatch::new(scope);
+      // Creating a new property fails (in strict mode).
+      eval_strict(scope, "object.c = 'foo';");
+      assert!(scope.has_caught());
+    }
+
+    assert!(object
+      .set_integrity_level(scope, v8::IntegrityLevel::Frozen)
+      .unwrap());
+    {
+      let scope = &mut v8::TryCatch::new(scope);
+      // Writing an existing property fails (in strict mode).
+      eval_strict(scope, "object.a = 'foo';");
+      assert!(scope.has_caught());
+    }
   }
 }
 
