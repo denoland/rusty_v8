@@ -650,16 +650,6 @@ fn eval<'s>(
   r.map(|v| scope.escape(v))
 }
 
-/// Same as eval, but adds "'use strict';" before the code, so that it runs in
-/// strict mode.
-fn eval_strict<'s>(
-  scope: &mut v8::HandleScope<'s>,
-  code: &str,
-) -> Option<v8::Local<'s, v8::Value>> {
-  let strict_code = format!("'use strict';\n{}", code);
-  eval(scope, &strict_code)
-}
-
 #[test]
 fn external() {
   let _setup_guard = setup();
@@ -1540,6 +1530,7 @@ fn object() {
     let null: v8::Local<v8::Value> = v8::null(scope).into();
     let n1: v8::Local<v8::Name> = v8::String::new(scope, "a").unwrap().into();
     let n2: v8::Local<v8::Name> = v8::String::new(scope, "b").unwrap().into();
+    let p = v8::String::new(scope, "p").unwrap().into();
     let v1: v8::Local<v8::Value> = v8::Number::new(scope, 1.0).into();
     let v2: v8::Local<v8::Value> = v8::Number::new(scope, 2.0).into();
     let object = v8::Object::with_prototype_and_properties(
@@ -1565,27 +1556,47 @@ fn object() {
     assert!(!object.has(scope, n1.into()).unwrap());
 
     let global = context.global(scope);
-    let object_string = v8::String::new(scope, "object").unwrap().into();
+    let object_string = v8::String::new(scope, "o").unwrap().into();
     global.set(scope, object_string, object.into());
+
+    let true_value = v8::Boolean::new(scope, true);
+    let false_value = v8::Boolean::new(scope, false);
+
+    assert_eq!(eval(scope, "Object.isExtensible(o)").unwrap(), true_value);
+    assert_eq!(eval(scope, "Object.isSealed(o)").unwrap(), false_value);
+    assert_eq!(eval(scope, "Object.isFrozen(o)").unwrap(), false_value);
+
     assert!(object
       .set_integrity_level(scope, v8::IntegrityLevel::Sealed)
       .unwrap());
-    {
-      let scope = &mut v8::TryCatch::new(scope);
-      // Creating a new property fails (in strict mode).
-      eval_strict(scope, "object.c = 'foo';");
-      assert!(scope.has_caught());
-    }
+
+    assert_eq!(eval(scope, "Object.isExtensible(o)").unwrap(), false_value);
+    assert_eq!(eval(scope, "Object.isSealed(o)").unwrap(), true_value);
+    assert_eq!(eval(scope, "Object.isFrozen(o)").unwrap(), false_value);
+    // Creating new properties is not allowed anymore
+    eval(scope, "o.p = true").unwrap();
+    assert!(!object.has(scope, p).unwrap());
+    // Deleting properties is not allowed anymore
+    eval(scope, "delete o.b").unwrap();
+    assert!(object.has(scope, n2.into()).unwrap());
+    // But we can still write new values.
+    assert_eq!(eval(scope, "o.b = true; o.b").unwrap(), true_value);
 
     assert!(object
       .set_integrity_level(scope, v8::IntegrityLevel::Frozen)
       .unwrap());
-    {
-      let scope = &mut v8::TryCatch::new(scope);
-      // Writing an existing property fails (in strict mode).
-      eval_strict(scope, "object.a = 'foo';");
-      assert!(scope.has_caught());
-    }
+
+    assert_eq!(eval(scope, "Object.isExtensible(o)").unwrap(), false_value);
+    assert_eq!(eval(scope, "Object.isSealed(o)").unwrap(), true_value);
+    assert_eq!(eval(scope, "Object.isFrozen(o)").unwrap(), true_value);
+    // Creating new properties is not allowed anymore
+    eval(scope, "o.p = true").unwrap();
+    assert!(!object.has(scope, p).unwrap());
+    // Deleting properties is not allowed anymore
+    eval(scope, "delete o.b").unwrap();
+    assert!(object.has(scope, n2.into()).unwrap());
+    // And we can also not write new values
+    assert_eq!(eval(scope, "o.b = false; o.b").unwrap(), true_value);
   }
 }
 
