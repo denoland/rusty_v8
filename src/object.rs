@@ -590,6 +590,7 @@ impl Object {
 
 /// Object integrity levels can be used to restrict what can be done to an
 /// object's properties.
+#[derive(Debug)]
 #[repr(C)]
 pub enum IntegrityLevel {
   /// Frozen objects are like Sealed objects, except all existing properties are
