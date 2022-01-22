@@ -673,6 +673,10 @@ const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
   return local_to_ptr(self.ToBoolean(isolate));
 }
 
+void v8__Value__InstanceOf(const v8::Value& self, const v8::Context& context, const v8::Object& object, v8::Maybe<bool>* out) {
+  *out = self.InstanceOf(ptr_to_local(&context), ptr_to_local(&object));
+}
+
 void v8__Value__NumberValue(const v8::Value& self, const v8::Context& context,
                             v8::Maybe<double>* out) {
   *out = self.NumberValue(ptr_to_local(&context));

@@ -5772,3 +5772,21 @@ fn current_stack_trace() {
   .unwrap();
   assert_eq!(too_deep, 5);
 }
+
+#[test]
+fn instance_of() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+  let global = context.global(&mut scope);
+  let array_name = v8::String::new(&mut scope, "Array").unwrap();
+  let array_constructor = global.get(&mut scope, array_name.into()).unwrap();
+  let array_constructor =
+    v8::Local::<v8::Object>::try_from(array_constructor).unwrap();
+  let array = v8::Array::new_with_elements(&mut scope, &[]);
+
+  assert!(array.instance_of(&mut scope, array_constructor).unwrap());
+}
