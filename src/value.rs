@@ -76,8 +76,7 @@ extern "C" {
     this: *const Value,
     context: *const Context,
     object: *const Object,
-    out: *mut Maybe<bool>,
-  );
+  ) -> bool;
   fn v8__Value__ToBigInt(
     this: *const Value,
     context: *const Context,
@@ -560,17 +559,10 @@ impl Value {
     &self,
     scope: &mut HandleScope<'s>,
     object: Local<Object>,
-  ) -> Option<bool> {
-    let mut out = Maybe::<bool>::default();
+  ) -> bool {
     unsafe {
-      v8__Value__InstanceOf(
-        self,
-        &*scope.get_current_context(),
-        &*object,
-        &mut out,
-      );
-    };
-    out.into()
+      v8__Value__InstanceOf(self, &*scope.get_current_context(), &*object)
+    }
   }
 
   pub fn number_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<f64> {
