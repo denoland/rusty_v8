@@ -5772,15 +5772,3 @@ fn current_stack_trace() {
   .unwrap();
   assert_eq!(too_deep, 5);
 }
-
-#[test]
-fn external_memory_limit() {
-  let _setup_guard = setup();
-
-  let mut isolate = v8::Isolate::new(Default::default());
-  isolate.adjust_amount_of_external_allocated_memory(10 << 20);
-  let mut s = v8::HeapStatistics::default();
-  isolate.get_heap_statistics(&mut s);
-
-  assert_eq!(s.external_memory(), 10 << 20);
-}
