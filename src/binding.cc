@@ -281,6 +281,11 @@ void v8__Isolate__RemoveNearHeapLimitCallback(
   isolate->RemoveNearHeapLimitCallback(callback, heap_limit);
 }
 
+int64_t v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
+    v8::Isolate* isolate, int64_t change_in_bytes) {
+  return isolate->AdjustAmountOfExternalAllocatedMemory(change_in_bytes);
+}
+
 void v8__Isolate__SetOOMErrorHandler(v8::Isolate* isolate,
                                      v8::OOMErrorCallback callback) {
   isolate->SetOOMErrorHandler(callback);
