@@ -73,7 +73,7 @@ extern "C" {
   fn v8__Value__StrictEquals(this: *const Value, that: *const Value) -> bool;
   fn v8__Value__SameValue(this: *const Value, that: *const Value) -> bool;
   fn v8__Value__InstanceOf(
-    this: *const Value,
+    this: *mut Value,
     context: *const Context,
     object: *const Object,
   ) -> bool;
@@ -556,7 +556,7 @@ impl Value {
   }
 
   pub fn instance_of<'s>(
-    &self,
+    &mut self,
     scope: &mut HandleScope<'s>,
     object: Local<Object>,
   ) -> bool {
