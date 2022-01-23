@@ -4,6 +4,7 @@ use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
+use std::ops::DerefMut;
 use std::ptr::NonNull;
 
 use crate::Data;
@@ -108,6 +109,12 @@ impl<'s, T> Deref for Local<'s, T> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_ref() }
+  }
+}
+
+impl<'s, T> DerefMut for Local<'s, T> {
+  fn deref_mut(&mut self) -> &mut T {
+    unsafe { self.0.as_mut() }
   }
 }
 
