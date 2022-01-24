@@ -1559,20 +1559,17 @@ fn object() {
     let object_string = v8::String::new(scope, "o").unwrap().into();
     global.set(scope, object_string, object.into());
 
-    let true_value = v8::Boolean::new(scope, true);
-    let false_value = v8::Boolean::new(scope, false);
-
-    assert_eq!(eval(scope, "Object.isExtensible(o)").unwrap(), true_value);
-    assert_eq!(eval(scope, "Object.isSealed(o)").unwrap(), false_value);
-    assert_eq!(eval(scope, "Object.isFrozen(o)").unwrap(), false_value);
+    assert!(eval(scope, "Object.isExtensible(o)").unwrap().is_true());
+    assert!(eval(scope, "Object.isSealed(o)").unwrap().is_false());
+    assert!(eval(scope, "Object.isFrozen(o)").unwrap().is_false());
 
     assert!(object
       .set_integrity_level(scope, v8::IntegrityLevel::Sealed)
       .unwrap());
 
-    assert_eq!(eval(scope, "Object.isExtensible(o)").unwrap(), false_value);
-    assert_eq!(eval(scope, "Object.isSealed(o)").unwrap(), true_value);
-    assert_eq!(eval(scope, "Object.isFrozen(o)").unwrap(), false_value);
+    assert!(eval(scope, "Object.isExtensible(o)").unwrap().is_false());
+    assert!(eval(scope, "Object.isSealed(o)").unwrap().is_true());
+    assert!(eval(scope, "Object.isFrozen(o)").unwrap().is_false());
     // Creating new properties is not allowed anymore
     eval(scope, "o.p = true").unwrap();
     assert!(!object.has(scope, p).unwrap());
@@ -1580,15 +1577,15 @@ fn object() {
     eval(scope, "delete o.b").unwrap();
     assert!(object.has(scope, n2.into()).unwrap());
     // But we can still write new values.
-    assert_eq!(eval(scope, "o.b = true; o.b").unwrap(), true_value);
+    assert!(eval(scope, "o.b = true; o.b").unwrap().is_true());
 
     assert!(object
       .set_integrity_level(scope, v8::IntegrityLevel::Frozen)
       .unwrap());
 
-    assert_eq!(eval(scope, "Object.isExtensible(o)").unwrap(), false_value);
-    assert_eq!(eval(scope, "Object.isSealed(o)").unwrap(), true_value);
-    assert_eq!(eval(scope, "Object.isFrozen(o)").unwrap(), true_value);
+    assert!(eval(scope, "Object.isExtensible(o)").unwrap().is_false());
+    assert!(eval(scope, "Object.isSealed(o)").unwrap().is_true());
+    assert!(eval(scope, "Object.isFrozen(o)").unwrap().is_true());
     // Creating new properties is not allowed anymore
     eval(scope, "o.p = true").unwrap();
     assert!(!object.has(scope, p).unwrap());
@@ -1596,7 +1593,7 @@ fn object() {
     eval(scope, "delete o.b").unwrap();
     assert!(object.has(scope, n2.into()).unwrap());
     // And we can also not write new values
-    assert_eq!(eval(scope, "o.b = false; o.b").unwrap(), true_value);
+    assert!(eval(scope, "o.b = false; o.b").unwrap().is_true());
   }
 }
 
