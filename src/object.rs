@@ -114,6 +114,11 @@ extern "C" {
     this: *const Object,
     index: int,
   ) -> *const Value;
+  fn v8__Object__SetIntegrityLevel(
+    this: *const Object,
+    context: *const Context,
+    level: IntegrityLevel,
+  ) -> MaybeBool;
   fn v8__Object__SetInternalField(
     this: *const Object,
     index: int,
@@ -487,6 +492,18 @@ impl Object {
     None
   }
 
+  /// Sets the integrity level of the object.
+  pub fn set_integrity_level(
+    &self,
+    scope: &mut HandleScope,
+    level: IntegrityLevel,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetIntegrityLevel(self, &*scope.get_current_context(), level)
+    }
+    .into()
+  }
+
   /// Sets the value in an internal field. Returns false when the index
   /// is out of bounds, true otherwise.
   pub fn set_internal_field(&self, index: usize, value: Local<Value>) -> bool {
@@ -569,6 +586,20 @@ impl Object {
     }
     .into()
   }
+}
+
+/// Object integrity levels can be used to restrict what can be done to an
+/// object's properties.
+#[derive(Debug)]
+#[repr(C)]
+pub enum IntegrityLevel {
+  /// Frozen objects are like Sealed objects, except all existing properties are
+  /// also made non-writable.
+  Frozen,
+  /// Sealed objects prevent addition of any new property on the object, makes
+  /// all existing properties non-configurable, meaning they cannot be deleted,
+  /// have their enumerability, configurability, or writability changed.
+  Sealed,
 }
 
 impl Array {

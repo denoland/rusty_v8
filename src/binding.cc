@@ -1175,6 +1175,18 @@ const v8::Value* v8__Object__GetInternalField(const v8::Object& self,
   return local_to_ptr(ptr_to_local(&self)->GetInternalField(index));
 }
 
+static_assert(static_cast<int>(v8::IntegrityLevel::kFrozen) == 0,
+              "v8::IntegrityLevel::kFrozen is not 0");
+static_assert(static_cast<int>(v8::IntegrityLevel::kSealed) == 1,
+              "v8::IntegrityLevel::kSealed is not 1");
+
+MaybeBool v8__Object__SetIntegrityLevel(const v8::Object& self,
+                                        const v8::Context& context,
+                                        v8::IntegrityLevel level) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->SetIntegrityLevel(ptr_to_local(&context), level));
+}
+
 void v8__Object__SetInternalField(const v8::Object& self, int index,
                                   const v8::Value& value) {
   ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
