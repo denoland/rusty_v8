@@ -143,8 +143,15 @@ impl Source {
     }
   }
 
-  pub fn get_cached_data(&self) -> &CachedData {
-    unsafe { &*v8__ScriptCompiler__Source__GetCachedData(self) }
+  pub fn get_cached_data(&self) -> Option<&CachedData> {
+    unsafe {
+      let cached_data = v8__ScriptCompiler__Source__GetCachedData(self);
+      if cached_data.is_null() {
+        None
+      } else {
+        Some(&*cached_data)
+      }
+    }
   }
 }
 
