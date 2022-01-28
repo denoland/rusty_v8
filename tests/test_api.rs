@@ -2348,6 +2348,8 @@ fn script_compiler_source() {
       Some(&script_origin),
     );
 
+    assert!(source.get_cached_data().is_none());
+
     let result = v8::script_compiler::compile_module(scope, source);
     assert!(result.is_some());
   }
