@@ -435,6 +435,10 @@ const v8::UnboundScript* v8__ScriptCompiler__CompileUnboundScript(
   return maybe_local_to_ptr(maybe_local);
 }
 
+uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
+  return v8::ScriptCompiler::CachedDataVersionTag();
+}
+
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
   return ptr_to_local(&self) == ptr_to_local(&other);
 }
@@ -1861,6 +1865,10 @@ v8::ScriptCompiler::CachedData* v8__UnboundModuleScript__CreateCodeCache(
     const v8::UnboundModuleScript& unbound_module_script) {
   return v8::ScriptCompiler::CreateCodeCache(
       ptr_to_local(&unbound_module_script));
+}
+
+v8::ScriptCompiler::CachedData* v8__Function__CreateCodeCache(const v8::Function& self) {
+  return v8::ScriptCompiler::CreateCodeCacheForFunction(ptr_to_local(&self));
 }
 
 const v8::Value* v8__Script__Run(const v8::Script& script,
