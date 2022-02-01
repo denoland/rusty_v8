@@ -80,7 +80,7 @@ extern "C" {
     attr: PropertyAttribute,
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(this: *const Object) -> int;
-  fn v8__Object__CreationContext(this: *const Object) -> *const Context;
+  fn v8__Object__GetCreationContext(this: *const Object) -> *const Context;
   fn v8__Object__GetOwnPropertyNames(
     this: *const Object,
     context: *const Context,
@@ -382,11 +382,11 @@ impl Object {
   }
 
   /// Returns the context in which the object was created.
-  pub fn creation_context<'s>(
+  pub fn get_creation_context<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-  ) -> Local<'s, Context> {
-    unsafe { scope.cast_local(|_| v8__Object__CreationContext(self)) }.unwrap()
+  ) -> Option<Local<'s, Context>> {
+    unsafe { scope.cast_local(|_| v8__Object__GetCreationContext(self)) }
   }
 
   /// This function has the same functionality as GetPropertyNames but the
