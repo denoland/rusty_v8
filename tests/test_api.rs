@@ -2348,6 +2348,8 @@ fn script_compiler_source() {
       Some(&script_origin),
     );
 
+    assert!(source.get_cached_data().is_none());
+
     let result = v8::script_compiler::compile_module(scope, source);
     assert!(result.is_some());
   }
@@ -5320,6 +5322,7 @@ fn create_module<'s>(
     false,
     true,
   );
+  let has_cache = code_cache.is_some();
   let source = match code_cache {
     Some(x) => v8::script_compiler::Source::new_with_cached_data(
       source,
@@ -5328,6 +5331,7 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
+  assert_eq!(source.get_cached_data().is_some(), has_cache);
   let module = v8::script_compiler::compile_module2(
     scope,
     source,
