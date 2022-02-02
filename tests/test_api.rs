@@ -5442,7 +5442,7 @@ fn function_code_cache() {
       v8::String::new(scope, CODE).unwrap(),
       None,
     );
-    let word = v8::String::new(scope, "word").unwrap().into();
+    let word = v8::String::new(scope, "word").unwrap();
     let function = v8::script_compiler::compile_function_in_context(
       scope,
       source,
@@ -5465,7 +5465,7 @@ fn function_code_cache() {
     None,
     code_cache,
   );
-  let word = v8::String::new(scope, "word").unwrap().into();
+  let word = v8::String::new(scope, "word").unwrap();
   let function = v8::script_compiler::compile_function_in_context(
     scope,
     source,
