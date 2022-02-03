@@ -1540,7 +1540,7 @@ fn object() {
       &[v1, v2],
     );
     assert!(!object.is_null_or_undefined());
-    let lhs = object.creation_context(scope).global(scope);
+    let lhs = object.get_creation_context(scope).unwrap().global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
 
@@ -1653,7 +1653,7 @@ fn array() {
     let s2 = v8::String::new(scope, "b").unwrap();
     let array = v8::Array::new(scope, 2);
     assert_eq!(array.length(), 2);
-    let lhs = array.creation_context(scope).global(scope);
+    let lhs = array.get_creation_context(scope).unwrap().global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
     array.set_index(scope, 0, s1.into());
@@ -2024,7 +2024,7 @@ fn function() {
     let function = fn_template
       .get_function(scope)
       .expect("Unable to create function");
-    let lhs = function.creation_context(scope).global(scope);
+    let lhs = function.get_creation_context(scope).unwrap().global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
     let value = function
@@ -2219,7 +2219,7 @@ fn promise_hook() {
     #[allow(clippy::clone_on_copy)]
     if type_.clone() == v8::PromiseHookType::Init {}
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
-    let context = promise.creation_context(scope);
+    let context = promise.get_creation_context(scope).unwrap();
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let name = v8::String::new(scope, "hook").unwrap();

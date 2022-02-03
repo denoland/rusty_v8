@@ -1130,8 +1130,8 @@ int v8__Object__GetIdentityHash(const v8::Object& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }
 
-const v8::Context* v8__Object__CreationContext(const v8::Object& self) {
-  return local_to_ptr(ptr_to_local(&self)->CreationContext());
+const v8::Context* v8__Object__GetCreationContext(const v8::Object& self) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetCreationContext());
 }
 
 const v8::Array* v8__Object__GetOwnPropertyNames(const v8::Object* self,

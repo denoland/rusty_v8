@@ -1,4 +1,4 @@
-const V8_TRACKING_BRANCH = "9.8-lkgr-denoland";
+const V8_TRACKING_BRANCH = "9.9-lkgr-denoland";
 const AUTOROLL_BRANCH = "autoroll";
 
 function extractVersion() {
