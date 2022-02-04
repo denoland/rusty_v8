@@ -54,6 +54,8 @@ extern "C" {
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
   ) -> *const UnboundScript;
+
+  fn v8__ScriptCompiler__CachedDataVersionTag() -> u32;
 }
 
 /// Source code which can then be compiled to a UnboundScript or Script.
@@ -85,12 +87,21 @@ impl<'a> Drop for CachedData<'a> {
 
 impl<'a> CachedData<'a> {
   pub fn new(data: &'a [u8]) -> UniqueRef<Self> {
-    unsafe {
+    let cached_data = unsafe {
       UniqueRef::from_raw(v8__ScriptCompiler__CachedData__NEW(
         data.as_ptr(),
         data.len() as i32,
       ))
-    }
+    };
+    debug_assert_eq!(
+      cached_data.buffer_policy(),
+      crate::script_compiler::BufferPolicy::BufferNotOwned
+    );
+    cached_data
+  }
+
+  pub(crate) fn buffer_policy(&self) -> BufferPolicy {
+    self.buffer_policy
   }
 }
 
@@ -103,8 +114,8 @@ impl<'a> std::ops::Deref for CachedData<'a> {
 
 #[allow(dead_code)]
 #[repr(C)]
-#[derive(Debug)]
-enum BufferPolicy {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum BufferPolicy {
   BufferNotOwned = 0,
   BufferOwned,
 }
@@ -286,4 +297,23 @@ pub fn compile_unbound_script<'s>(
       )
     })
   }
+}
+
+/// Return a version tag for CachedData for the current V8 version & flags.
+///
+/// This value is meant only for determining whether a previously generated
+/// CachedData instance is still valid; the tag has no other meaing.
+///
+/// Background: The data carried by CachedData may depend on the exact V8
+/// version number or current compiler flags. This means that when persisting
+/// CachedData, the embedder must take care to not pass in data from another V8
+/// version, or the same version with different features enabled.
+///
+/// The easiest way to do so is to clear the embedder's cache on any such
+/// change.
+///
+/// Alternatively, this tag can be stored alongside the cached data and compared
+/// when it is being used.
+pub fn cached_data_version_tag() -> u32 {
+  unsafe { v8__ScriptCompiler__CachedDataVersionTag() }
 }

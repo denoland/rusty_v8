@@ -13,8 +13,16 @@ impl UnboundModuleScript {
   /// This will return nullptr if the script cannot be serialized. The
   /// CachedData returned by this function should be owned by the caller.
   pub fn create_code_cache(&self) -> Option<UniqueRef<CachedData<'static>>> {
-    unsafe {
+    let code_cache = unsafe {
       UniqueRef::try_from_raw(v8__UnboundModuleScript__CreateCodeCache(self))
+    };
+    #[cfg(debug_assertions)]
+    if let Some(code_cache) = &code_cache {
+      debug_assert_eq!(
+        code_cache.buffer_policy(),
+        crate::script_compiler::BufferPolicy::BufferOwned
+      );
     }
+    code_cache
   }
 }

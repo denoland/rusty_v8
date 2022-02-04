@@ -5367,6 +5367,19 @@ fn unbound_module_script_conversion() {
 }
 
 #[test]
+fn cached_data_version_tag() {
+  // The value is unpredictable/unstable, as it is generated from a combined
+  // hash of the V8 version number and select configuration flags. This test
+  // asserts that it returns the same value twice in a row (the value ought to
+  // be stable for a given v8 build), which also verifies the binding does not
+  // result in a crash.
+  assert_eq!(
+    v8::script_compiler::cached_data_version_tag(),
+    v8::script_compiler::cached_data_version_tag()
+  );
+}
+
+#[test]
 fn code_cache() {
   fn resolve_callback<'a>(
     _context: v8::Local<'a, v8::Context>,
@@ -5413,6 +5426,60 @@ fn code_cache() {
     v8::Local::<v8::String>::try_from(top.get(&mut scope, key.into()).unwrap())
       .unwrap();
   assert_eq!(&value.to_rust_string_lossy(&mut scope), "world");
+}
+
+#[test]
+fn function_code_cache() {
+  const CODE: &str = "return word.split('').reverse().join('');";
+  let _setup_guard = setup();
+
+  let code_cache = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::script_compiler::Source::new(
+      v8::String::new(scope, CODE).unwrap(),
+      None,
+    );
+    let word = v8::String::new(scope, "word").unwrap();
+    let function = v8::script_compiler::compile_function_in_context(
+      scope,
+      source,
+      &[word],
+      &[],
+      v8::script_compiler::CompileOptions::EagerCompile,
+      v8::script_compiler::NoCacheReason::NoReason,
+    )
+    .unwrap();
+    function.create_code_cache().unwrap()
+  };
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let source = v8::script_compiler::Source::new_with_cached_data(
+    v8::String::new(scope, CODE).unwrap(),
+    None,
+    code_cache,
+  );
+  let word = v8::String::new(scope, "word").unwrap();
+  let function = v8::script_compiler::compile_function_in_context(
+    scope,
+    source,
+    &[word],
+    &[],
+    v8::script_compiler::CompileOptions::EagerCompile,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
+
+  let input = v8::String::new(scope, "input").unwrap().into();
+  let expected = v8::String::new(scope, "tupni").unwrap();
+  let undefined = v8::undefined(scope).into();
+  assert_eq!(expected, function.call(scope, undefined, &[input]).unwrap());
 }
 
 #[test]
