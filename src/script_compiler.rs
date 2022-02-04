@@ -87,12 +87,21 @@ impl<'a> Drop for CachedData<'a> {
 
 impl<'a> CachedData<'a> {
   pub fn new(data: &'a [u8]) -> UniqueRef<Self> {
-    unsafe {
+    let cached_data = unsafe {
       UniqueRef::from_raw(v8__ScriptCompiler__CachedData__NEW(
         data.as_ptr(),
         data.len() as i32,
       ))
-    }
+    };
+    debug_assert_eq!(
+      cached_data.buffer_policy(),
+      crate::script_compiler::BufferPolicy::BufferNotOwned
+    );
+    cached_data
+  }
+
+  pub(crate) fn buffer_policy(&self) -> BufferPolicy {
+    self.buffer_policy
   }
 }
 
@@ -105,8 +114,8 @@ impl<'a> std::ops::Deref for CachedData<'a> {
 
 #[allow(dead_code)]
 #[repr(C)]
-#[derive(Debug)]
-enum BufferPolicy {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum BufferPolicy {
   BufferNotOwned = 0,
   BufferOwned,
 }
