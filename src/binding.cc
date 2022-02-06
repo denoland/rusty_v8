@@ -156,6 +156,10 @@ v8::Isolate* v8__Isolate__New(const v8::Isolate::CreateParams& params) {
   return v8::Isolate::New(params);
 }
 
+v8::Isolate* v8__Isolate__GetCurrent() {
+  return v8::Isolate::GetCurrent();
+}
+
 void v8__Isolate__Dispose(v8::Isolate* isolate) { isolate->Dispose(); }
 
 void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }

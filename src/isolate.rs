@@ -162,6 +162,7 @@ pub type PrepareStackTraceCallback<'s> = extern "C" fn(
 
 extern "C" {
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
+  fn v8__Isolate__GetCurrent() -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
   fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
   fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
@@ -319,6 +320,9 @@ impl Isolate {
     owned_isolate
   }
 
+  pub unsafe fn get_current() -> OwnedIsolate {
+    OwnedIsolate::new(v8__Isolate__GetCurrent())
+  }
   /// Initial configuration parameters for a new Isolate.
   pub fn create_params() -> CreateParams {
     CreateParams::default()
