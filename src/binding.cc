@@ -281,6 +281,11 @@ void v8__Isolate__RemoveNearHeapLimitCallback(
   isolate->RemoveNearHeapLimitCallback(callback, heap_limit);
 }
 
+int64_t v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
+    v8::Isolate* isolate, int64_t change_in_bytes) {
+  return isolate->AdjustAmountOfExternalAllocatedMemory(change_in_bytes);
+}
+
 void v8__Isolate__SetOOMErrorHandler(v8::Isolate* isolate,
                                      v8::OOMErrorCallback callback) {
   isolate->SetOOMErrorHandler(callback);
@@ -428,6 +433,10 @@ const v8::UnboundScript* v8__ScriptCompiler__CompileUnboundScript(
       v8::ScriptCompiler::CompileUnboundScript(isolate, source, options,
                                                no_cache_reason);
   return maybe_local_to_ptr(maybe_local);
+}
+
+uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
+  return v8::ScriptCompiler::CachedDataVersionTag();
 }
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
@@ -1126,8 +1135,8 @@ int v8__Object__GetIdentityHash(const v8::Object& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }
 
-const v8::Context* v8__Object__CreationContext(const v8::Object& self) {
-  return local_to_ptr(ptr_to_local(&self)->CreationContext());
+const v8::Context* v8__Object__GetCreationContext(const v8::Object& self) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetCreationContext());
 }
 
 const v8::Array* v8__Object__GetOwnPropertyNames(const v8::Object* self,
@@ -1173,6 +1182,18 @@ int v8__Object__InternalFieldCount(const v8::Object& self) {
 const v8::Value* v8__Object__GetInternalField(const v8::Object& self,
                                               int index) {
   return local_to_ptr(ptr_to_local(&self)->GetInternalField(index));
+}
+
+static_assert(static_cast<int>(v8::IntegrityLevel::kFrozen) == 0,
+              "v8::IntegrityLevel::kFrozen is not 0");
+static_assert(static_cast<int>(v8::IntegrityLevel::kSealed) == 1,
+              "v8::IntegrityLevel::kSealed is not 1");
+
+MaybeBool v8__Object__SetIntegrityLevel(const v8::Object& self,
+                                        const v8::Context& context,
+                                        v8::IntegrityLevel level) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->SetIntegrityLevel(ptr_to_local(&context), level));
 }
 
 void v8__Object__SetInternalField(const v8::Object& self, int index,
@@ -1849,6 +1870,10 @@ v8::ScriptCompiler::CachedData* v8__UnboundModuleScript__CreateCodeCache(
     const v8::UnboundModuleScript& unbound_module_script) {
   return v8::ScriptCompiler::CreateCodeCache(
       ptr_to_local(&unbound_module_script));
+}
+
+v8::ScriptCompiler::CachedData* v8__Function__CreateCodeCache(const v8::Function& self) {
+  return v8::ScriptCompiler::CreateCodeCacheForFunction(ptr_to_local(&self));
 }
 
 const v8::Value* v8__Script__Run(const v8::Script& script,

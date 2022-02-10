@@ -194,6 +194,10 @@ extern "C" {
     isolate: *mut Isolate,
     callback: OomErrorCallback,
   );
+  fn v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
+    isolate: *mut Isolate,
+    change_in_bytes: i64,
+  ) -> i64;
   fn v8__Isolate__SetPrepareStackTraceCallback(
     isolate: *mut Isolate,
     callback: PrepareStackTraceCallback,
@@ -608,6 +612,22 @@ impl Isolate {
     unsafe {
       v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
     };
+  }
+
+  /// Adjusts the amount of registered external memory. Used to give V8 an
+  /// indication of the amount of externally allocated memory that is kept
+  /// alive by JavaScript objects. V8 uses this to decide when to perform
+  /// global garbage collections. Registering externally allocated memory
+  /// will trigger global garbage collections more often than it would
+  /// otherwise in an attempt to garbage collect the JavaScript objects
+  /// that keep the externally allocated memory alive.
+  pub fn adjust_amount_of_external_allocated_memory(
+    &mut self,
+    change_in_bytes: i64,
+  ) -> i64 {
+    unsafe {
+      v8__Isolate__AdjustAmountOfExternalAllocatedMemory(self, change_in_bytes)
+    }
   }
 
   pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {

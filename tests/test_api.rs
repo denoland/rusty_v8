@@ -1530,6 +1530,7 @@ fn object() {
     let null: v8::Local<v8::Value> = v8::null(scope).into();
     let n1: v8::Local<v8::Name> = v8::String::new(scope, "a").unwrap().into();
     let n2: v8::Local<v8::Name> = v8::String::new(scope, "b").unwrap().into();
+    let p = v8::String::new(scope, "p").unwrap().into();
     let v1: v8::Local<v8::Value> = v8::Number::new(scope, 1.0).into();
     let v2: v8::Local<v8::Value> = v8::Number::new(scope, 2.0).into();
     let object = v8::Object::with_prototype_and_properties(
@@ -1539,7 +1540,7 @@ fn object() {
       &[v1, v2],
     );
     assert!(!object.is_null_or_undefined());
-    let lhs = object.creation_context(scope).global(scope);
+    let lhs = object.get_creation_context(scope).unwrap().global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
 
@@ -1553,6 +1554,46 @@ fn object() {
     assert!(!object.has(scope, n_unused).unwrap());
     assert!(object.delete(scope, n1.into()).unwrap());
     assert!(!object.has(scope, n1.into()).unwrap());
+
+    let global = context.global(scope);
+    let object_string = v8::String::new(scope, "o").unwrap().into();
+    global.set(scope, object_string, object.into());
+
+    assert!(eval(scope, "Object.isExtensible(o)").unwrap().is_true());
+    assert!(eval(scope, "Object.isSealed(o)").unwrap().is_false());
+    assert!(eval(scope, "Object.isFrozen(o)").unwrap().is_false());
+
+    assert!(object
+      .set_integrity_level(scope, v8::IntegrityLevel::Sealed)
+      .unwrap());
+
+    assert!(eval(scope, "Object.isExtensible(o)").unwrap().is_false());
+    assert!(eval(scope, "Object.isSealed(o)").unwrap().is_true());
+    assert!(eval(scope, "Object.isFrozen(o)").unwrap().is_false());
+    // Creating new properties is not allowed anymore
+    eval(scope, "o.p = true").unwrap();
+    assert!(!object.has(scope, p).unwrap());
+    // Deleting properties is not allowed anymore
+    eval(scope, "delete o.b").unwrap();
+    assert!(object.has(scope, n2.into()).unwrap());
+    // But we can still write new values.
+    assert!(eval(scope, "o.b = true; o.b").unwrap().is_true());
+
+    assert!(object
+      .set_integrity_level(scope, v8::IntegrityLevel::Frozen)
+      .unwrap());
+
+    assert!(eval(scope, "Object.isExtensible(o)").unwrap().is_false());
+    assert!(eval(scope, "Object.isSealed(o)").unwrap().is_true());
+    assert!(eval(scope, "Object.isFrozen(o)").unwrap().is_true());
+    // Creating new properties is not allowed anymore
+    eval(scope, "o.p = true").unwrap();
+    assert!(!object.has(scope, p).unwrap());
+    // Deleting properties is not allowed anymore
+    eval(scope, "delete o.b").unwrap();
+    assert!(object.has(scope, n2.into()).unwrap());
+    // And we can also not write new values
+    assert!(eval(scope, "o.b = false; o.b").unwrap().is_true());
   }
 }
 
@@ -1612,7 +1653,7 @@ fn array() {
     let s2 = v8::String::new(scope, "b").unwrap();
     let array = v8::Array::new(scope, 2);
     assert_eq!(array.length(), 2);
-    let lhs = array.creation_context(scope).global(scope);
+    let lhs = array.get_creation_context(scope).unwrap().global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
     array.set_index(scope, 0, s1.into());
@@ -1983,7 +2024,7 @@ fn function() {
     let function = fn_template
       .get_function(scope)
       .expect("Unable to create function");
-    let lhs = function.creation_context(scope).global(scope);
+    let lhs = function.get_creation_context(scope).unwrap().global(scope);
     let rhs = context.global(scope);
     assert!(lhs.strict_equals(rhs.into()));
     let value = function
@@ -2178,7 +2219,7 @@ fn promise_hook() {
     #[allow(clippy::clone_on_copy)]
     if type_.clone() == v8::PromiseHookType::Init {}
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
-    let context = promise.creation_context(scope);
+    let context = promise.get_creation_context(scope).unwrap();
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
     let name = v8::String::new(scope, "hook").unwrap();
@@ -2306,6 +2347,8 @@ fn script_compiler_source() {
       v8::String::new(scope, source).unwrap(),
       Some(&script_origin),
     );
+
+    assert!(source.get_cached_data().is_none());
 
     let result = v8::script_compiler::compile_module(scope, source);
     assert!(result.is_some());
@@ -5279,6 +5322,7 @@ fn create_module<'s>(
     false,
     true,
   );
+  let has_cache = code_cache.is_some();
   let source = match code_cache {
     Some(x) => v8::script_compiler::Source::new_with_cached_data(
       source,
@@ -5287,6 +5331,7 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
+  assert_eq!(source.get_cached_data().is_some(), has_cache);
   let module = v8::script_compiler::compile_module2(
     scope,
     source,
@@ -5319,6 +5364,19 @@ fn unbound_module_script_conversion() {
   let context = v8::Context::new(scope);
   let mut scope = v8::ContextScope::new(scope, context);
   create_unbound_module_script(&mut scope, "'Hello ' + value", None);
+}
+
+#[test]
+fn cached_data_version_tag() {
+  // The value is unpredictable/unstable, as it is generated from a combined
+  // hash of the V8 version number and select configuration flags. This test
+  // asserts that it returns the same value twice in a row (the value ought to
+  // be stable for a given v8 build), which also verifies the binding does not
+  // result in a crash.
+  assert_eq!(
+    v8::script_compiler::cached_data_version_tag(),
+    v8::script_compiler::cached_data_version_tag()
+  );
 }
 
 #[test]
@@ -5368,6 +5426,60 @@ fn code_cache() {
     v8::Local::<v8::String>::try_from(top.get(&mut scope, key.into()).unwrap())
       .unwrap();
   assert_eq!(&value.to_rust_string_lossy(&mut scope), "world");
+}
+
+#[test]
+fn function_code_cache() {
+  const CODE: &str = "return word.split('').reverse().join('');";
+  let _setup_guard = setup();
+
+  let code_cache = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::script_compiler::Source::new(
+      v8::String::new(scope, CODE).unwrap(),
+      None,
+    );
+    let word = v8::String::new(scope, "word").unwrap();
+    let function = v8::script_compiler::compile_function_in_context(
+      scope,
+      source,
+      &[word],
+      &[],
+      v8::script_compiler::CompileOptions::EagerCompile,
+      v8::script_compiler::NoCacheReason::NoReason,
+    )
+    .unwrap();
+    function.create_code_cache().unwrap()
+  };
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let source = v8::script_compiler::Source::new_with_cached_data(
+    v8::String::new(scope, CODE).unwrap(),
+    None,
+    code_cache,
+  );
+  let word = v8::String::new(scope, "word").unwrap();
+  let function = v8::script_compiler::compile_function_in_context(
+    scope,
+    source,
+    &[word],
+    &[],
+    v8::script_compiler::CompileOptions::EagerCompile,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
+
+  let input = v8::String::new(scope, "input").unwrap().into();
+  let expected = v8::String::new(scope, "tupni").unwrap();
+  let undefined = v8::undefined(scope).into();
+  assert_eq!(expected, function.call(scope, undefined, &[input]).unwrap());
 }
 
 #[test]

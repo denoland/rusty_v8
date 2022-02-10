@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::ptr::null;
 
 use crate::scope::CallbackScope;
+use crate::script_compiler::CachedData;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::ToCFn;
@@ -16,6 +17,7 @@ use crate::Name;
 use crate::Object;
 use crate::Signature;
 use crate::String;
+use crate::UniqueRef;
 use crate::Value;
 
 extern "C" {
@@ -44,6 +46,10 @@ extern "C" {
   fn v8__Function__SetName(this: *const Function, name: *const String);
   fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
   fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
+
+  fn v8__Function__CreateCodeCache(
+    script: *const Function,
+  ) -> *mut CachedData<'static>;
 
   fn v8__FunctionCallbackInfo__GetReturnValue(
     info: *const FunctionCallbackInfo,
@@ -473,5 +479,21 @@ impl Function {
   pub fn get_script_line_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
     (ret >= 0).then(|| ret as u32)
+  }
+
+  /// Creates and returns code cache for the specified unbound_script.
+  /// This will return nullptr if the script cannot be serialized. The
+  /// CachedData returned by this function should be owned by the caller.
+  pub fn create_code_cache(&self) -> Option<UniqueRef<CachedData<'static>>> {
+    let code_cache =
+      unsafe { UniqueRef::try_from_raw(v8__Function__CreateCodeCache(self)) };
+    #[cfg(debug_assertions)]
+    if let Some(code_cache) = &code_cache {
+      debug_assert_eq!(
+        code_cache.buffer_policy(),
+        crate::script_compiler::BufferPolicy::BufferOwned
+      );
+    }
+    code_cache
   }
 }
