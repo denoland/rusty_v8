@@ -112,12 +112,6 @@ impl<'s, T> Deref for Local<'s, T> {
   }
 }
 
-impl<'s, T> DerefMut for Local<'s, T> {
-  fn deref_mut(&mut self) -> &mut T {
-    unsafe { self.0.as_mut() }
-  }
-}
-
 /// An object reference that is independent of any handle scope. Where
 /// a Local handle only lives as long as the HandleScope in which it was
 /// allocated, a global handle remains valid until it is explicitly
