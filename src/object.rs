@@ -99,6 +99,11 @@ extern "C" {
     context: *const Context,
     index: u32,
   ) -> MaybeBool;
+  fn v8__Object__HasOwnProperty(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
   fn v8__Object__Delete(
     this: *const Object,
     context: *const Context,
@@ -443,6 +448,16 @@ impl Object {
     index: u32,
   ) -> Option<bool> {
     unsafe { v8__Object__HasIndex(self, &*scope.get_current_context(), index) }
+      .into()
+  }
+  
+  /// HasOwnProperty() is like JavaScript's Object.prototype.hasOwnProperty().
+  pub fn has_own_property<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Object__HasOwnProperty(self, &*scope.get_current_context(), &*key) }
       .into()
   }
 
