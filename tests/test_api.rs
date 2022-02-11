@@ -2086,7 +2086,7 @@ fn function() {
     let function = v8::Function::builder(fn_callback_new).build(scope).unwrap();
     let name = v8::String::new(scope, "f2").unwrap();
     global.set(scope, name.into(), function.into()).unwrap();
-    assert!(!eval(scope, "new f2()").is_none());
+    assert!(eval(scope, "new f2()").is_some());
   }
 }
 
