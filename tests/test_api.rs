@@ -5898,7 +5898,7 @@ fn instance_of() {
   let array_constructor = global.get(&mut scope, array_name.into()).unwrap();
   let array_constructor =
     v8::Local::<v8::Object>::try_from(array_constructor).unwrap();
-  let mut array: v8::Local<v8::Value> =
+  let array: v8::Local<v8::Value> =
     v8::Array::new_with_elements(&mut scope, &[]).into();
 
   assert!(array.instance_of(&mut scope, array_constructor).unwrap());
