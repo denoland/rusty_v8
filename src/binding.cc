@@ -685,7 +685,7 @@ const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
 void v8__Value__InstanceOf(const v8::Value& self, const v8::Context& context,
                            const v8::Object& object, v8::Maybe<bool>* out) {
   v8::Value* self_non_const = const_cast<v8::Value*>(&self);
-  *out = self_non_const.InstanceOf(ptr_to_local(&context), ptr_to_local(&object));
+  *out = self_non_const->InstanceOf(ptr_to_local(&context), ptr_to_local(&object));
 }
 
 void v8__Value__NumberValue(const v8::Value& self, const v8::Context& context,

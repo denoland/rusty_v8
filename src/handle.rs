@@ -4,7 +4,6 @@ use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use std::ptr::NonNull;
 
 use crate::Data;
