@@ -1949,6 +1949,18 @@ fn fn_callback(
   rv.set(s.into());
 }
 
+fn fn_callback_new(
+  scope: &mut v8::HandleScope,
+  args: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue,
+) {
+  assert_eq!(args.length(), 0);
+  assert!(!args.new_target().is_undefined());
+  let s = v8::Boolean::new(scope, false);
+  assert!(rv.get(scope).is_undefined());
+  rv.set(s.into());
+}
+
 fn fn_callback2(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
@@ -2070,6 +2082,11 @@ fn function() {
     let result = eval(scope, "f.prototype").unwrap();
     assert!(result.is_undefined());
     assert!(eval(scope, "new f()").is_none()); // throws
+
+    let function = v8::Function::builder(fn_callback_new).build(scope).unwrap();
+    let name = v8::String::new(scope, "f2").unwrap();
+    global.set(scope, name.into(), function.into()).unwrap();
+    assert!(!eval(scope, "new f2()").is_none());
   }
 }
 

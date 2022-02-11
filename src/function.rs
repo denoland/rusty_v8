@@ -66,6 +66,9 @@ extern "C" {
   fn v8__FunctionCallbackInfo__Data(
     this: *const FunctionCallbackInfo,
   ) -> *const Value;
+  fn v8__FunctionCallbackInfo__NewTarget(
+    this: *const FunctionCallbackInfo,
+  ) -> *const Value;
 
   fn v8__PropertyCallbackInfo__GetReturnValue(
     this: *const PropertyCallbackInfo,
@@ -213,6 +216,13 @@ impl<'s> FunctionCallbackArguments<'s> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self.info, i))
         .unwrap()
+    }
+  }
+
+  /// For construct calls, this returns the "new.target" value.
+  pub fn new_target(&self) -> Local<'s, Value> {
+    unsafe {
+      Local::from_raw(v8__FunctionCallbackInfo__NewTarget(self.info)).unwrap()
     }
   }
 }
