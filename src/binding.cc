@@ -1714,6 +1714,11 @@ const v8::Value* v8__FunctionCallbackInfo__Data(
   return local_to_ptr(self.Data());
 }
 
+const v8::Value* v8__FunctionCallbackInfo__NewTarget(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.NewTarget());
+}
+
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
                           const v8::Value& value) {
   self->Set(ptr_to_local(&value));
