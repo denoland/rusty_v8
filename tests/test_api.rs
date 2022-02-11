@@ -2094,7 +2094,7 @@ fn function() {
     let key = v8::String::new(scope, "works").unwrap();
     let value = f2.get(scope, key.into()).unwrap();
     assert!(value.is_boolean());
-    assert_eq!(value.boolean_value(scope), true);
+    assert!(value.boolean_value(scope));
   }
 }
 
