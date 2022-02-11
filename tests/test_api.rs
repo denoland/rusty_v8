@@ -1550,10 +1550,13 @@ fn object() {
     assert_ne!(id, 0);
 
     assert!(object.has(scope, n1.into()).unwrap());
-    let n_unused = v8::String::new(scope, "unused").unwrap().into();
-    assert!(!object.has(scope, n_unused).unwrap());
+    assert!(object.has_own_property(scope, n1).unwrap());
+    let n_unused = v8::String::new(scope, "unused").unwrap();
+    assert!(!object.has(scope, n_unused.into()).unwrap());
+    assert!(!object.has_own_property(scope, n_unused.into()).unwrap());
     assert!(object.delete(scope, n1.into()).unwrap());
     assert!(!object.has(scope, n1.into()).unwrap());
+    assert!(!object.has_own_property(scope, n1).unwrap());
 
     let global = context.global(scope);
     let object_string = v8::String::new(scope, "o").unwrap().into();
