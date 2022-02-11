@@ -1955,10 +1955,13 @@ fn fn_callback_new(
   mut rv: v8::ReturnValue,
 ) {
   assert_eq!(args.length(), 0);
-  assert!(!args.new_target().is_undefined());
-  let s = v8::Boolean::new(scope, false);
+  assert!(args.new_target().is_object());
+  let recv = args.this();
+  let key = v8::String::new(scope, "works").unwrap();
+  let value = v8::Boolean::new(scope, true);
+  assert!(recv.set(scope, key.into(), value.into()).unwrap());
   assert!(rv.get(scope).is_undefined());
-  rv.set(s.into());
+  rv.set(recv.into());
 }
 
 fn fn_callback2(
@@ -2086,7 +2089,12 @@ fn function() {
     let function = v8::Function::builder(fn_callback_new).build(scope).unwrap();
     let name = v8::String::new(scope, "f2").unwrap();
     global.set(scope, name.into(), function.into()).unwrap();
-    assert!(eval(scope, "new f2()").is_some());
+    let f2: v8::Local<v8::Object> =
+      eval(scope, "new f2()").unwrap().try_into().unwrap();
+    let key = v8::String::new(scope, "works").unwrap();
+    let value = f2.get(scope, key.into()).unwrap();
+    assert!(value.is_boolean());
+    assert_eq!(value.boolean_value(scope), true);
   }
 }
 
