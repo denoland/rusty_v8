@@ -72,7 +72,12 @@ extern "C" {
   fn v8__Value__IsModuleNamespaceObject(this: *const Value) -> bool;
   fn v8__Value__StrictEquals(this: *const Value, that: *const Value) -> bool;
   fn v8__Value__SameValue(this: *const Value, that: *const Value) -> bool;
-
+  fn v8__Value__InstanceOf(
+    this: *const Value,
+    context: *const Context,
+    object: *const Object,
+    out: *mut Maybe<bool>,
+  );
   fn v8__Value__ToBigInt(
     this: *const Value,
     context: *const Context,
@@ -549,6 +554,23 @@ impl Value {
       scope.cast_local(|sd| v8__Value__ToBoolean(self, sd.get_isolate_ptr()))
     }
     .unwrap()
+  }
+
+  pub fn instance_of<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    object: Local<Object>,
+  ) -> Option<bool> {
+    let mut out = Maybe::<bool>::default();
+    unsafe {
+      v8__Value__InstanceOf(
+        self,
+        &*scope.get_current_context(),
+        &*object,
+        &mut out,
+      );
+    }
+    out.into()
   }
 
   pub fn number_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<f64> {
