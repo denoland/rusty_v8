@@ -102,7 +102,7 @@ extern "C" {
   fn v8__Object__HasOwnProperty(
     this: *const Object,
     context: *const Context,
-    key: *const Value,
+    key: *const Name,
   ) -> MaybeBool;
   fn v8__Object__Delete(
     this: *const Object,
@@ -455,7 +455,7 @@ impl Object {
   pub fn has_own_property<'s>(
     &self,
     scope: &mut HandleScope<'s>,
-    key: Local<Value>,
+    key: Local<Name>,
   ) -> Option<bool> {
     unsafe {
       v8__Object__HasOwnProperty(self, &*scope.get_current_context(), &*key)

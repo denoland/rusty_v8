@@ -1159,9 +1159,9 @@ MaybeBool v8__Object__HasIndex(const v8::Object& self,
 }
 
 MaybeBool v8__Object__HasOwnProperty(const v8::Object& self, const v8::Context& context,
-                          const v8::Value& key) {
+                          const v8::Name& key) {
   return maybe_to_maybe_bool(
-      ptr_to_local(&self)->HasOwnProperty(ptr_to_local(&context), ptr_to_local(&key).As<v8::Name>()));
+      ptr_to_local(&self)->HasOwnProperty(ptr_to_local(&context), ptr_to_local(&key)));
 }
 
 MaybeBool v8__Object__Delete(const v8::Object& self, const v8::Context& context,
