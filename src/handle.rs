@@ -135,7 +135,9 @@ impl<T> Global<T> {
 
   /// Implementation helper function that contains the code that can be shared
   /// between `Global::new()` and `Global::clone()`.
-  unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
+  ///
+  /// Also allows to create a `Global` from raw pointer.
+  pub unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     let data = v8__Global__New(isolate, data) as *const T;
     let data = NonNull::new_unchecked(data as *mut _);
@@ -144,6 +146,16 @@ impl<T> Global<T> {
       data,
       isolate_handle,
     }
+  }
+
+  /// Consume this `Global` and return underlying pointer.
+  ///
+  /// Useful for applications which require to keep the same size of `Global`
+  /// as in V8 API.
+  ///
+  /// You can later turn returned pointer into `Global` by using [`Global::new_raw`].
+  pub fn into_raw(self) -> NonNull<T> {
+    self.data
   }
 
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {

@@ -127,6 +127,14 @@ fn global_handles() {
     assert!(g6 == g1);
     assert_eq!(g6.open(scope).to_rust_string_lossy(scope), "bla");
   }
+  {
+    let g1_copy = g1.clone();
+    let g1_ptr = g1_copy.into_raw();
+    let g1_reconstructed = unsafe {
+      v8::Global::new_raw(scope, g1_ptr)
+    };
+    assert_eq!(g1, g1_reconstructed);
+  }
 }
 
 #[test]
