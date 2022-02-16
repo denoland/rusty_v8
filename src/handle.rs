@@ -129,7 +129,7 @@ impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
   pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
-  host.assert_match_isolate(isolate);
+    host.assert_match_isolate(isolate);
     unsafe { Self::from_raw(isolate, data) }
   }
 

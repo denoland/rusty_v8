@@ -130,8 +130,10 @@ fn global_handles() {
   {
     let g1_copy = g1.clone();
     let g1_ptr = g1_copy.into_raw();
+    use std::ops::DerefMut;
+    let i = isolate.deref_mut();
     let g1_reconstructed = unsafe {
-      v8::Global::from_raw(*isolate as *mut _, g1_ptr)
+      v8::Global::from_raw(i as *mut _, g1_ptr)
     };
     assert_eq!(g1, g1_reconstructed);
   }
