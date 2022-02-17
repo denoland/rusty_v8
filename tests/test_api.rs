@@ -128,13 +128,8 @@ fn global_handles() {
     assert_eq!(g6.open(scope).to_rust_string_lossy(scope), "bla");
   }
   {
-    let g1_copy = g1.clone();
-    let g1_ptr = g1_copy.into_raw();
-    use std::ops::DerefMut;
-    let i = isolate.deref_mut();
-    let g1_reconstructed = unsafe {
-      v8::Global::from_raw(i as *mut _, g1_ptr)
-    };
+    let g1_ptr = g1.clone().into_raw();
+    let g1_reconstructed = unsafe { v8::Global::from_raw(isolate, g1_ptr) };
     assert_eq!(g1, g1_reconstructed);
   }
 }

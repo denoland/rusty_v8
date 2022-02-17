@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::marker::PhantomData;
+use std::mem::forget;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
@@ -133,11 +134,9 @@ impl<T> Global<T> {
     unsafe { Self::from_raw(isolate, data) }
   }
 
-  /// Implementation helper function that contains the code that can be shared
-  /// between `Global::new()` and `Global::clone()`.
-  ///
-  /// Also allows to create a `Global` from raw pointer.
-  pub unsafe fn from_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
+  /// Converts a raw pointer created with [`Global::into_raw()`] back to its
+  /// original `Global`.
+  pub unsafe fn from_raw(isolate: &mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     let data = v8__Global__New(isolate, data) as *const T;
     let data = NonNull::new_unchecked(data as *mut _);
@@ -148,14 +147,16 @@ impl<T> Global<T> {
     }
   }
 
-  /// Consume this `Global` and return underlying pointer.
+  /// Consume this `Global` and return the underlying raw pointer.
   ///
-  /// Useful for applications which require to keep the same size of `Global`
-  /// as in V8 API.
-  ///
-  /// You can later turn returned pointer into `Global` by using [`Global::from_raw`].
+  /// The returned raw pointer must be converted back into a `Global` by using
+  /// [`Global::from_raw`], otherwise the V8 value referenced by this global
+  /// handle will be pinned on the V8 heap permanently and never get garbage
+  /// collected.
   pub fn into_raw(self) -> NonNull<T> {
-    self.data
+    let data = self.data;
+    forget(self);
+    data
   }
 
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
