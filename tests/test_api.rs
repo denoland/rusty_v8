@@ -2963,6 +2963,9 @@ fn external_references() {
       pointer: external_ptr,
     },
   ]);
+  // TODO(piscisaureus): leaking the `ExternalReferences` collection shouldn't
+  // be necessary, as long as the reference remains valid for the lifetime of
+  // the `SnapshotCreator` and `Isolate` that uses it.
   let refs: &'static v8::ExternalReferences = Box::leak(Box::new(refs));
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
