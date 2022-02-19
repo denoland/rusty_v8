@@ -3,15 +3,17 @@ use crate::support::intptr_t;
 use crate::AccessorNameGetterCallback;
 use crate::FunctionCallback;
 use crate::MessageCallback;
+use std::os::raw::c_void;
 
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
   pub function: FunctionCallback,
   pub getter: AccessorNameGetterCallback<'s>,
   pub message: MessageCallback,
+  pub pointer: *mut c_void,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExternalReferences {
   null_terminated: Vec<intptr_t>,
 }
