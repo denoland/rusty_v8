@@ -1946,6 +1946,22 @@ fn proxy() {
   }
 }
 
+fn fn_callback_external(
+  scope: &mut v8::HandleScope,
+  args: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue,
+) {
+  assert_eq!(args.length(), 0);
+  let data = args.data().unwrap();
+  let external = v8::Local::<v8::External>::try_from(data).unwrap();
+  let data =
+    unsafe { std::slice::from_raw_parts(external.value() as *mut u8, 5) };
+  assert_eq!(&[0, 1, 2, 3, 4], data);
+  let s = v8::String::new(scope, "Hello callback!").unwrap();
+  assert!(rv.get(scope).is_undefined());
+  rv.set(s.into());
+}
+
 fn fn_callback(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
@@ -2934,21 +2950,33 @@ fn snapshot_creator() {
   }
 }
 
-lazy_static! {
-  static ref EXTERNAL_REFERENCES: v8::ExternalReferences =
-    v8::ExternalReferences::new(&[v8::ExternalReference {
-      function: fn_callback.map_fn_to()
-    }]);
-}
-
 #[test]
 fn external_references() {
   let _setup_guard = setup();
+  // Allocate externals for the test.
+  let external_ptr = Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice())
+    as *mut [u8] as *mut c_void;
+  // Push them to the external reference table.
+  let refs = v8::ExternalReferences::new(&[
+    v8::ExternalReference {
+      function: fn_callback.map_fn_to(),
+    },
+    v8::ExternalReference {
+      function: fn_callback_external.map_fn_to(),
+    },
+    v8::ExternalReference {
+      pointer: external_ptr,
+    },
+  ]);
+  // TODO(piscisaureus): leaking the `ExternalReferences` collection shouldn't
+  // be necessary. The reference needs to remain valid for the lifetime of the
+  // `SnapshotCreator` or `Isolate` that uses it, which would be the case here
+  // even without leaking.
+  let refs: &'static v8::ExternalReferences = Box::leak(Box::new(refs));
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator =
-      v8::SnapshotCreator::new(Some(&EXTERNAL_REFERENCES));
+    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs));
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -2958,7 +2986,10 @@ fn external_references() {
       let scope = &mut v8::ContextScope::new(scope, context);
 
       // create function using template
-      let fn_template = v8::FunctionTemplate::new(scope, fn_callback);
+      let external = v8::External::new(scope, external_ptr);
+      let fn_template = v8::FunctionTemplate::builder(fn_callback_external)
+        .data(external.into())
+        .build(scope);
       let function = fn_template
         .get_function(scope)
         .expect("Unable to create function");
@@ -2980,7 +3011,7 @@ fn external_references() {
   {
     let params = v8::Isolate::create_params()
       .snapshot_blob(startup_data)
-      .external_references(&**EXTERNAL_REFERENCES);
+      .external_references(&**refs);
     let isolate = &mut v8::Isolate::new(params);
     {
       let scope = &mut v8::HandleScope::new(isolate);
