@@ -3138,6 +3138,31 @@ fn typed_array_constructors() {
 
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
+
+  // TypedArray::max_length() ought to be >= 2^30 < 2^32
+  assert!(((2 << 30)..(2 << 32)).contains(&v8::TypedArray::max_length()));
+
+  // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
+  // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
+  {
+    let scope = &mut v8::TryCatch::new(scope);
+    let _ = eval(
+      scope,
+      &format!("new Uint8Array({})", v8::TypedArray::max_length()),
+    )
+    .unwrap();
+    assert!(!scope.has_caught());
+  }
+
+  {
+    let scope = &mut v8::TryCatch::new(scope);
+    eval(
+      scope,
+      &format!("new Uint8Array({})", v8::TypedArray::max_length() + 1),
+    );
+    // Array is too big (> max_length) - expecting this threw a RangeError
+    assert!(scope.has_caught());
+  }
 }
 
 #[test]
