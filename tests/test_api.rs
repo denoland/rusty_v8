@@ -236,6 +236,31 @@ fn test_string() {
     assert_eq!(4, local.utf8_length(scope));
     assert_eq!("🦕", local.to_rust_string_lossy(scope));
   }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let buffer = (0..v8::String::max_length() / 4)
+      .map(|_| '\u{10348}') // UTF8: 0xF0 0x90 0x8D 0x88
+      .collect::<String>();
+    let local = v8::String::new_from_utf8(
+      scope,
+      buffer.as_bytes(),
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    // U+10348 is 2 UTF-16 code units, which is the unit of v8::String.length().
+    assert_eq!(v8::String::max_length() / 2, local.length());
+    assert_eq!(buffer, local.to_rust_string_lossy(scope));
+
+    let too_long = (0..(v8::String::max_length() / 4) + 1)
+      .map(|_| '\u{10348}') // UTF8: 0xF0 0x90 0x8D 0x88
+      .collect::<String>();
+    let none = v8::String::new_from_utf8(
+      scope,
+      too_long.as_bytes(),
+      v8::NewStringType::Normal,
+    );
+    assert!(none.is_none());
+  }
 }
 
 #[test]
@@ -3113,6 +3138,31 @@ fn typed_array_constructors() {
 
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
+
+  // TypedArray::max_length() ought to be >= 2^30 < 2^32
+  assert!(((2 << 30)..(2 << 32)).contains(&v8::TypedArray::max_length()));
+
+  // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
+  // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
+  {
+    let scope = &mut v8::TryCatch::new(scope);
+    let _ = eval(
+      scope,
+      &format!("new Uint8Array({})", v8::TypedArray::max_length()),
+    )
+    .unwrap();
+    assert!(!scope.has_caught());
+  }
+
+  {
+    let scope = &mut v8::TryCatch::new(scope);
+    eval(
+      scope,
+      &format!("new Uint8Array({})", v8::TypedArray::max_length() + 1),
+    );
+    // Array is too big (> max_length) - expecting this threw a RangeError
+    assert!(scope.has_caught());
+  }
 }
 
 #[test]

@@ -11,6 +11,8 @@ use crate::Local;
 use crate::String;
 
 extern "C" {
+  fn v8__String__kMaxLength() -> libc::size_t;
+
   fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
 
   fn v8__String__NewFromUtf8(
@@ -115,6 +117,13 @@ bitflags! {
 }
 
 impl String {
+  /// The maximum length (in bytes) of a buffer that a v8::String can be built
+  /// from. Attempting to create a v8::String from a larger buffer will result
+  /// in None being returned.
+  pub fn max_length() -> usize {
+    unsafe { v8__String__kMaxLength() }
+  }
+
   pub fn empty<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, String> {
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.

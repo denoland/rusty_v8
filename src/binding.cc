@@ -457,6 +457,8 @@ bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
   return self.IsFunctionTemplate();
 }
 
+size_t v8__TypedArray__kMaxLength() { return v8::TypedArray::kMaxLength; }
+
 bool v8__Value__IsUndefined(const v8::Value& self) {
   return self.IsUndefined();
 }
@@ -848,6 +850,8 @@ long std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
 int v8__Name__GetIdentityHash(const v8::Name& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }
+
+size_t v8__String__kMaxLength() { return v8::String::kMaxLength; }
 
 const v8::String* v8__String__Empty(v8::Isolate* isolate) {
   return local_to_ptr(v8::String::Empty(isolate));
