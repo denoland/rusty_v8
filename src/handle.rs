@@ -131,12 +131,12 @@ impl<T> Global<T> {
   pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(isolate);
-    unsafe { Self::from_raw(isolate, data) }
+    unsafe { Self::new_raw(isolate, data) }
   }
 
-  /// Converts a raw pointer created with [`Global::into_raw()`] back to its
-  /// original `Global`.
-  pub unsafe fn from_raw(isolate: &mut Isolate, data: NonNull<T>) -> Self {
+  /// Implementation helper function that contains the code that can be shared
+  /// between `Global::new()` and `Global::clone()`.
+  unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     let data = v8__Global__New(isolate, data) as *const T;
     let data = NonNull::new_unchecked(data as *mut _);
@@ -159,6 +159,16 @@ impl<T> Global<T> {
     data
   }
 
+  /// Converts a raw pointer created with [`Global::into_raw()`] back to its
+  /// original `Global`.
+  pub unsafe fn from_raw(isolate: &mut Isolate, data: NonNull<T>) -> Self {
+    let isolate_handle = isolate.thread_safe_handle();
+    Self {
+      data,
+      isolate_handle,
+    }
+  }
+
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::open(self, scope)
   }
@@ -172,7 +182,7 @@ impl<T> Global<T> {
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();
-    unsafe { Self::from_raw(host.get_isolate().as_mut(), data) }
+    unsafe { Self::new_raw(host.get_isolate().as_mut(), data) }
   }
 }
 
