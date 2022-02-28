@@ -90,6 +90,13 @@ extern "C" {
     getter: AccessorNameGetterCallback,
     setter: AccessorNameSetterCallback,
   );
+  fn v8__ObjectTemplate__SetAccessorProperty(
+    this: *const ObjectTemplate,
+    key: *const Name,
+    getter: *const FunctionTemplate,
+    setter: *const FunctionTemplate,
+    attr: PropertyAttribute,
+  );
 }
 
 impl Template {
@@ -300,6 +307,30 @@ impl ObjectTemplate {
         &*key,
         getter.map_fn_to(),
         setter.map_fn_to(),
+      )
+    }
+  }
+
+  /// Sets an [accessor property](https://tc39.es/ecma262/#sec-property-attributes)
+  /// on the object template.
+  ///
+  /// # Panics
+  ///
+  /// Panics if both `getter` and `setter` are `None`.
+  pub fn set_accessor_property(
+    &self,
+    key: Local<Name>,
+    getter: Option<Local<FunctionTemplate>>,
+    setter: Option<Local<FunctionTemplate>>,
+    attr: PropertyAttribute,
+  ) {
+    assert!(!getter.is_none() || !setter.is_none());
+
+    unsafe {
+      let getter = getter.map_or_else(std::ptr::null, |v| &*v);
+      let setter = setter.map_or_else(std::ptr::null, |v| &*v);
+      v8__ObjectTemplate__SetAccessorProperty(
+        self, &*key, &*getter, &*setter, attr,
       )
     }
   }
