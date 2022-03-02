@@ -324,7 +324,7 @@ impl ObjectTemplate {
     setter: Option<Local<FunctionTemplate>>,
     attr: PropertyAttribute,
   ) {
-    assert!(!getter.is_none() || !setter.is_none());
+    assert!(getter.is_some() || setter.is_some());
 
     unsafe {
       let getter = getter.map_or_else(std::ptr::null, |v| &*v);
