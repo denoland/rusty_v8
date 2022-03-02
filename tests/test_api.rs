@@ -1546,6 +1546,54 @@ fn object_template_set_accessor() {
       .strict_equals(new_int.into()));
     // Falls back on standard setter
     assert!(eval(scope, "obj.key2 = null; obj.key2").unwrap().is_null());
+
+    // Accessor property
+    let getter = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    fn property_setter(
+      scope: &mut v8::HandleScope,
+      args: v8::FunctionCallbackArguments,
+      _: v8::ReturnValue,
+    ) {
+      let this = args.this();
+      let ret = v8::Integer::new(scope, 69);
+      assert!(this.set_internal_field(0, ret.into()));
+    }
+
+    let setter = v8::FunctionTemplate::new(scope, property_setter);
+
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+
+    // Getter
+    let key = v8::String::new(scope, "key1").unwrap();
+    templ.set_accessor_property(
+      key.into(),
+      Some(getter),
+      None,
+      v8::PropertyAttribute::default(),
+    );
+
+    // Setter
+    let key = v8::String::new(scope, "key2").unwrap();
+    templ.set_accessor_property(
+      key.into(),
+      None,
+      Some(setter),
+      v8::PropertyAttribute::default(),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    let int = v8::Integer::new(scope, 42);
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    assert!(eval(scope, "obj.key1").unwrap().strict_equals(int.into()));
+    assert!(eval(scope, "obj.key2 = 123; obj.key2")
+      .unwrap()
+      .is_undefined());
   }
 }
 

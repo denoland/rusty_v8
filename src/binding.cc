@@ -1047,6 +1047,12 @@ void v8__ObjectTemplate__SetAccessorWithSetter(
   ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
 }
 
+void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
+                                     const v8::Name& key,
+                                     v8::FunctionTemplate& getter, v8::FunctionTemplate& setter, v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessorProperty(ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
