@@ -368,14 +368,10 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
     let mut value_deserializer_heap = Box::pin(ValueDeserializerHeap {
       value_deserializer_impl,
       cxx_value_deserializer: CxxValueDeserializer {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       cxx_value_deserializer_delegate: CxxValueDeserializerDelegate {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       context: scope.get_current_context(),
     });

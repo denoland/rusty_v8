@@ -410,14 +410,10 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     let mut value_serializer_heap = Box::pin(ValueSerializerHeap {
       value_serializer_impl,
       cxx_value_serializer: CxxValueSerializer {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       cxx_value_serializer_delegate: CxxValueSerializerDelegate {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       buffer_size: 0,
       context: scope.get_current_context(),

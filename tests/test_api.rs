@@ -8,6 +8,7 @@ use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::hash::Hash;
+use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -156,6 +157,7 @@ fn global_handle_drop() {
   let _setup_guard = setup();
 
   // Global 'g1' will be dropped _after_ the Isolate has been disposed.
+  #[allow(clippy::needless_late_init)]
   let _g1: v8::Global<v8::String>;
 
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -5239,7 +5241,7 @@ fn run_with_rust_allocator() {
     n: usize,
   ) -> *mut c_void {
     count.fetch_add(n, Ordering::SeqCst);
-    let mut store = Vec::with_capacity(n);
+    let mut store: Vec<MaybeUninit<u8>> = Vec::with_capacity(n);
     store.set_len(n);
     Box::into_raw(store.into_boxed_slice()) as *mut [u8] as *mut c_void
   }

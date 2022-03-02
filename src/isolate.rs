@@ -371,7 +371,7 @@ impl Isolate {
   fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
     let annex_ptr = self.get_annex();
     let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
-    Arc::into_raw(annex_arc.clone());
+    let _ = Arc::into_raw(annex_arc.clone());
     annex_arc
   }
 
