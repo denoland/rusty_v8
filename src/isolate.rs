@@ -15,6 +15,7 @@ use crate::wasm::WasmStreaming;
 use crate::Array;
 use crate::CallbackScope;
 use crate::Context;
+use crate::Data;
 use crate::FixedArray;
 use crate::Function;
 use crate::HandleScope;
@@ -23,7 +24,6 @@ use crate::Message;
 use crate::Module;
 use crate::Object;
 use crate::Promise;
-use crate::ScriptOrModule;
 use crate::String;
 use crate::Value;
 
@@ -96,7 +96,7 @@ pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
 
-/// HostImportModuleDynamicallyWithImportAssertionsCallback is called when we require the
+/// HostImportModuleDynamicallyCallback is called when we require the
 /// embedder to load a module. This is used as part of the dynamic
 /// import syntax.
 ///
@@ -114,13 +114,13 @@ pub type HostInitializeImportMetaObjectCallback =
 /// this promise with the exception. If the promise creation itself
 /// fails (e.g. due to stack overflow), the embedder must propagate
 /// that exception by returning an empty MaybeLocal.
-pub type HostImportModuleDynamicallyWithImportAssertionsCallback =
-  extern "C" fn(
-    Local<Context>,
-    Local<ScriptOrModule>,
-    Local<String>,
-    Local<FixedArray>,
-  ) -> *mut Promise;
+pub type HostImportModuleDynamicallyCallback = extern "C" fn(
+  Local<Context>,
+  Local<Data>,
+  Local<Value>,
+  Local<String>,
+  Local<FixedArray>,
+) -> *mut Promise;
 
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
@@ -213,7 +213,7 @@ extern "C" {
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
-    callback: HostImportModuleDynamicallyWithImportAssertionsCallback,
+    callback: HostImportModuleDynamicallyCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -581,7 +581,7 @@ impl Isolate {
   /// import() language feature to load modules.
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
-    callback: HostImportModuleDynamicallyWithImportAssertionsCallback,
+    callback: HostImportModuleDynamicallyCallback,
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)

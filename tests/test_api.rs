@@ -2644,7 +2644,8 @@ fn import_assertions() {
 
   extern "C" fn dynamic_import_cb(
     context: v8::Local<v8::Context>,
-    _referrer: v8::Local<v8::ScriptOrModule>,
+    _host_defined_options: v8::Local<v8::Data>,
+    _resource_name: v8::Local<v8::Value>,
     _specifier: v8::Local<v8::String>,
     import_assertions: v8::Local<v8::FixedArray>,
   ) -> *mut v8::Promise {
@@ -3224,7 +3225,8 @@ fn dynamic_import() {
 
   extern "C" fn dynamic_import_cb(
     context: v8::Local<v8::Context>,
-    _referrer: v8::Local<v8::ScriptOrModule>,
+    _host_defined_options: v8::Local<v8::Data>,
+    _resource_name: v8::Local<v8::Value>,
     specifier: v8::Local<v8::String>,
     _import_assertions: v8::Local<v8::FixedArray>,
   ) -> *mut v8::Promise {
@@ -5607,7 +5609,7 @@ fn function_code_cache() {
       None,
     );
     let word = v8::String::new(scope, "word").unwrap();
-    let function = v8::script_compiler::compile_function_in_context(
+    let function = v8::script_compiler::compile_function(
       scope,
       source,
       &[word],
@@ -5630,7 +5632,7 @@ fn function_code_cache() {
     code_cache,
   );
   let word = v8::String::new(scope, "word").unwrap();
-  let function = v8::script_compiler::compile_function_in_context(
+  let function = v8::script_compiler::compile_function(
     scope,
     source,
     &[word],
@@ -5712,7 +5714,7 @@ fn code_cache_script() {
 }
 
 #[test]
-fn compile_function_in_context() {
+fn compile_function() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -5729,7 +5731,7 @@ fn compile_function_in_context() {
 
   let source = v8::String::new(scope, "return x * y").unwrap();
   let source = v8::script_compiler::Source::new(source, None);
-  let function = v8::script_compiler::compile_function_in_context(
+  let function = v8::script_compiler::compile_function(
     scope,
     source,
     &[argument],

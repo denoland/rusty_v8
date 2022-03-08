@@ -39,7 +39,7 @@ fn set_entropy_source() {
   unsafe {
     v8::V8::dispose();
   }
-  v8::V8::shutdown_platform();
+  v8::V8::dispose_platform();
 
   // All runs should have produced the same value.
   assert_eq!(results.len(), N);

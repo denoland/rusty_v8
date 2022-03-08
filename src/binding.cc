@@ -98,24 +98,22 @@ enum InternalSlots {
   (isolate->GetNumberOfDataSlots() - 1 - slot)
 
 // This is an extern C calling convention compatible version of
-// v8::HostImportModuleDynamicallyWithImportAssertionsCallback
-typedef v8::Promise* (
-    *v8__HostImportModuleDynamicallyWithImportAssertionsCallback)(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier,
+// v8::HostImportModuleDynamicallyCallback
+typedef v8::Promise* (*v8__HostImportModuleDynamicallyCallback)(
+    v8::Local<v8::Context> context, v8::Local<v8::Data> host_defined_options,
+    v8::Local<v8::Value> resource_name, v8::Local<v8::String> specifier,
     v8::Local<v8::FixedArray> import_assertions);
 
-v8::MaybeLocal<v8::Promise>
-HostImportModuleDynamicallyWithImportAssertionsCallback(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer,
-    v8::Local<v8::String> specifier,
+v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
+    v8::Local<v8::Context> context, v8::Local<v8::Data> host_defined_options,
+    v8::Local<v8::Value> resource_name, v8::Local<v8::String> specifier,
     v8::Local<v8::FixedArray> import_assertions) {
   auto* isolate = context->GetIsolate();
   void* d = isolate->GetData(SLOT_INTERNAL(isolate, kSlotDynamicImport));
-  auto* callback = reinterpret_cast<
-      v8__HostImportModuleDynamicallyWithImportAssertionsCallback>(d);
+  auto* callback = reinterpret_cast<v8__HostImportModuleDynamicallyCallback>(d);
   assert(callback != nullptr);
-  auto* promise_ptr = callback(context, referrer, specifier, import_assertions);
+  auto* promise_ptr = callback(context, host_defined_options, resource_name,
+                               specifier, import_assertions);
   if (promise_ptr == nullptr) {
     return v8::MaybeLocal<v8::Promise>();
   } else {
@@ -150,7 +148,7 @@ void v8__V8__Initialize() { v8::V8::Initialize(); }
 
 bool v8__V8__Dispose() { return v8::V8::Dispose(); }
 
-void v8__V8__ShutdownPlatform() { v8::V8::ShutdownPlatform(); }
+void v8__V8__DisposePlatform() { v8::V8::DisposePlatform(); }
 
 v8::Isolate* v8__Isolate__New(const v8::Isolate::CreateParams& params) {
   return v8::Isolate::New(params);
@@ -256,12 +254,11 @@ void v8__Isolate__SetHostInitializeImportMetaObjectCallback(
 }
 
 void v8__Isolate__SetHostImportModuleDynamicallyCallback(
-    v8::Isolate* isolate,
-    v8__HostImportModuleDynamicallyWithImportAssertionsCallback callback) {
+    v8::Isolate* isolate, v8__HostImportModuleDynamicallyCallback callback) {
   isolate->SetData(SLOT_INTERNAL(isolate, kSlotDynamicImport),
                    reinterpret_cast<void*>(callback));
   isolate->SetHostImportModuleDynamicallyCallback(
-      HostImportModuleDynamicallyWithImportAssertionsCallback);
+      HostImportModuleDynamicallyCallback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
@@ -411,18 +408,18 @@ const v8::Script* v8__ScriptCompiler__Compile(
   return maybe_local_to_ptr(maybe_local);
 }
 
-const v8::Function* v8__ScriptCompiler__CompileFunctionInContext(
+const v8::Function* v8__ScriptCompiler__CompileFunction(
     const v8::Context* context, v8::ScriptCompiler::Source* source,
     size_t arguments_count, const v8::String** arguments,
     size_t context_extensions_count, const v8::Object** context_extensions,
     v8::ScriptCompiler::CompileOptions options,
     v8::ScriptCompiler::NoCacheReason no_cache_reason) {
-  return maybe_local_to_ptr(v8::ScriptCompiler::CompileFunctionInContext(
+  return maybe_local_to_ptr(v8::ScriptCompiler::CompileFunction(
       ptr_to_local(context), source, arguments_count,
       reinterpret_cast<v8::Local<v8::String>*>(arguments),
       context_extensions_count,
       reinterpret_cast<v8::Local<v8::Object>*>(context_extensions), options,
-      no_cache_reason, nullptr));
+      no_cache_reason));
 }
 
 const v8::UnboundScript* v8__ScriptCompiler__CompileUnboundScript(
@@ -687,7 +684,8 @@ const v8::Boolean* v8__Value__ToBoolean(const v8::Value& self,
 void v8__Value__InstanceOf(const v8::Value& self, const v8::Context& context,
                            const v8::Object& object, v8::Maybe<bool>* out) {
   v8::Value* self_non_const = const_cast<v8::Value*>(&self);
-  *out = self_non_const->InstanceOf(ptr_to_local(&context), ptr_to_local(&object));
+  *out =
+      self_non_const->InstanceOf(ptr_to_local(&context), ptr_to_local(&object));
 }
 
 void v8__Value__NumberValue(const v8::Value& self, const v8::Context& context,
@@ -1048,9 +1046,12 @@ void v8__ObjectTemplate__SetAccessorWithSetter(
 }
 
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
-                                     const v8::Name& key,
-                                     v8::FunctionTemplate& getter, v8::FunctionTemplate& setter, v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetAccessorProperty(ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
+                                             const v8::Name& key,
+                                             v8::FunctionTemplate& getter,
+                                             v8::FunctionTemplate& setter,
+                                             v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessorProperty(
+      ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
 }
 
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
@@ -1174,10 +1175,11 @@ MaybeBool v8__Object__HasIndex(const v8::Object& self,
       ptr_to_local(&self)->Has(ptr_to_local(&context), index));
 }
 
-MaybeBool v8__Object__HasOwnProperty(const v8::Object& self, const v8::Context& context,
-                          const v8::Name& key) {
-  return maybe_to_maybe_bool(
-      ptr_to_local(&self)->HasOwnProperty(ptr_to_local(&context), ptr_to_local(&key)));
+MaybeBool v8__Object__HasOwnProperty(const v8::Object& self,
+                                     const v8::Context& context,
+                                     const v8::Name& key) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->HasOwnProperty(
+      ptr_to_local(&context), ptr_to_local(&key)));
 }
 
 MaybeBool v8__Object__Delete(const v8::Object& self, const v8::Context& context,
@@ -1894,7 +1896,8 @@ v8::ScriptCompiler::CachedData* v8__UnboundModuleScript__CreateCodeCache(
       ptr_to_local(&unbound_module_script));
 }
 
-v8::ScriptCompiler::CachedData* v8__Function__CreateCodeCache(const v8::Function& self) {
+v8::ScriptCompiler::CachedData* v8__Function__CreateCodeCache(
+    const v8::Function& self) {
   return v8::ScriptCompiler::CreateCodeCacheForFunction(ptr_to_local(&self));
 }
 
@@ -1920,9 +1923,9 @@ const v8::Value* v8__ScriptOrModule__GetResourceName(
   return local_to_ptr(ptr_to_local(&self)->GetResourceName());
 }
 
-const v8::PrimitiveArray* v8__ScriptOrModule__GetHostDefinedOptions(
+const v8::Data* v8__ScriptOrModule__HostDefinedOptions(
     const v8::ScriptOrModule& self) {
-  return local_to_ptr(ptr_to_local(&self)->GetHostDefinedOptions());
+  return local_to_ptr(ptr_to_local(&self)->HostDefinedOptions());
 }
 
 const v8::SharedArrayBuffer* v8__SharedArrayBuffer__New__with_byte_length(
