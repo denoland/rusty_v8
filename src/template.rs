@@ -174,12 +174,25 @@ impl FunctionTemplate {
     FunctionBuilder::new(callback)
   }
 
+  pub fn builder_raw<'s>(
+    callback: FunctionCallback,
+  ) -> FunctionBuilder<'s, Self> {
+    FunctionBuilder::new_raw(callback)
+  }
+
   /// Creates a function template.
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder(callback).build(scope)
+  }
+
+  pub fn new_raw<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    callback: FunctionCallback,
+  ) -> Local<'s, FunctionTemplate> {
+    Self::builder_raw(callback).build(scope)
   }
 
   /// Returns the unique function instance in the current execution context.
