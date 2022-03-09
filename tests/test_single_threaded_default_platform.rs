@@ -18,5 +18,5 @@ fn single_threaded_default_platform() {
   }
 
   unsafe { v8::V8::dispose() };
-  v8::V8::shutdown_platform();
+  v8::V8::dispose_platform();
 }

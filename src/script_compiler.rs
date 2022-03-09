@@ -38,7 +38,7 @@ extern "C" {
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
   ) -> *const Script;
-  fn v8__ScriptCompiler__CompileFunctionInContext(
+  fn v8__ScriptCompiler__CompileFunction(
     context: *const Context,
     source: *mut Source,
     arguments_count: usize,
@@ -255,7 +255,7 @@ pub fn compile<'s>(
   }
 }
 
-pub fn compile_function_in_context<'s>(
+pub fn compile_function<'s>(
   scope: &mut HandleScope<'s>,
   mut source: Source,
   arguments: &[Local<String>],
@@ -267,7 +267,7 @@ pub fn compile_function_in_context<'s>(
   let context_extensions = Local::slice_into_raw(context_extensions);
   unsafe {
     scope.cast_local(|sd| {
-      v8__ScriptCompiler__CompileFunctionInContext(
+      v8__ScriptCompiler__CompileFunction(
         &*sd.get_current_context(),
         &mut source,
         arguments.len(),

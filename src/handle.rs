@@ -172,11 +172,6 @@ impl<T> Global<T> {
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::open(self, scope)
   }
-
-  #[deprecated = "use Global::open() instead"]
-  pub fn get<'a>(&'a self, scope: &mut Isolate) -> &'a T {
-    Handle::open(self, scope)
-  }
 }
 
 impl<T> Clone for Global<T> {
