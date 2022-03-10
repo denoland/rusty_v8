@@ -2148,8 +2148,36 @@ fn function() {
     let rust_str = value_str.to_rust_string_lossy(scope);
     assert_eq!(rust_str, "Hello callback!".to_string());
 
+    // create function using template from a raw ptr
+    let fn_template =
+      v8::FunctionTemplate::new_raw(scope, fn_callback.map_fn_to());
+    let function = fn_template
+      .get_function(scope)
+      .expect("Unable to create function");
+    let lhs = function.get_creation_context(scope).unwrap().global(scope);
+    let rhs = context.global(scope);
+    assert!(lhs.strict_equals(rhs.into()));
+    let value = function
+      .call(scope, recv, &[])
+      .expect("Function call failed");
+    let value_str = value.to_string(scope).unwrap();
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "Hello callback!".to_string());
+
     // create function without a template
     let function = v8::Function::new(scope, fn_callback2)
+      .expect("Unable to create function");
+    let arg1 = v8::String::new(scope, "arg1").unwrap();
+    let arg2 = v8::Integer::new(scope, 2);
+    let value = function
+      .call(scope, recv, &[arg1.into(), arg2.into()])
+      .unwrap();
+    let value_str = value.to_string(scope).unwrap();
+    let rust_str = value_str.to_rust_string_lossy(scope);
+    assert_eq!(rust_str, "Hello callback!".to_string());
+
+    // create function without a template from a raw ptr
+    let function = v8::Function::new_raw(scope, fn_callback2.map_fn_to())
       .expect("Unable to create function");
     let arg1 = v8::String::new(scope, "arg1").unwrap();
     let arg2 = v8::Integer::new(scope, 2);
@@ -2163,6 +2191,17 @@ fn function() {
     // create a function with associated data
     let true_data = v8::Boolean::new(scope, true);
     let function = v8::Function::builder(data_is_true_callback)
+      .data(true_data.into())
+      .build(scope)
+      .expect("Unable to create function with data");
+    let value = function
+      .call(scope, recv, &[])
+      .expect("Function call failed");
+    assert!(value.is_undefined());
+
+    // create a function with associated data from a raw ptr
+    let true_data = v8::Boolean::new(scope, true);
+    let function = v8::Function::builder_raw(data_is_true_callback.map_fn_to())
       .data(true_data.into())
       .build(scope)
       .expect("Unable to create function with data");
