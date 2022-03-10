@@ -30,7 +30,7 @@ impl Drop for SetupGuard {
 fn setup() -> SetupGuard {
   static START: std::sync::Once = std::sync::Once::new();
   START.call_once(|| {
-    assert!(v8::icu::set_common_data_69(align_data::include_aligned!(
+    assert!(v8::icu::set_common_data_70(align_data::include_aligned!(
       align_data::Align16,
       "../third_party/icu/common/icudtl.dat"
     ))
@@ -5432,7 +5432,7 @@ fn icu_date() {
 
 #[test]
 fn icu_set_common_data_fail() {
-  assert!(v8::icu::set_common_data_69(&[1, 2, 3]).is_err());
+  assert!(v8::icu::set_common_data_70(&[1, 2, 3]).is_err());
 }
 
 #[test]
