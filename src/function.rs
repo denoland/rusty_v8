@@ -362,8 +362,12 @@ pub struct FunctionBuilder<'s, T> {
 impl<'s, T> FunctionBuilder<'s, T> {
   /// Create a new FunctionBuilder.
   pub fn new(callback: impl MapFnTo<FunctionCallback>) -> Self {
+    Self::new_raw(callback.map_fn_to())
+  }
+
+  pub fn new_raw(callback: FunctionCallback) -> Self {
     Self {
-      callback: callback.map_fn_to(),
+      callback,
       data: None,
       signature: None,
       length: 0,
@@ -431,6 +435,12 @@ impl Function {
     FunctionBuilder::new(callback)
   }
 
+  pub fn builder_raw<'s>(
+    callback: FunctionCallback,
+  ) -> FunctionBuilder<'s, Self> {
+    FunctionBuilder::new_raw(callback)
+  }
+
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   pub fn new<'s>(
@@ -438,6 +448,13 @@ impl Function {
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
     Self::builder(callback).build(scope)
+  }
+
+  pub fn new_raw<'s>(
+    scope: &mut HandleScope<'s>,
+    callback: FunctionCallback,
+  ) -> Option<Local<'s, Function>> {
+    Self::builder_raw(callback).build(scope)
   }
 
   pub fn call<'s>(
