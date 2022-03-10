@@ -12,6 +12,7 @@ use which::which;
 
 fn main() {
   println!("cargo:rerun-if-changed=src/binding.cc");
+  println!("cargo:rerun-if-changed=build.rs");
 
   // These are all the environment variables that we check. This is
   // probably more than what is needed, but missing an important
@@ -108,6 +109,10 @@ fn build_v8() {
   } else {
     vec!["is_debug=false".to_string()]
   };
+
+  if cfg!(not(feature = "use_custom_libcxx")) {
+    gn_args.push("use_custom_libcxx=false".to_string());
+  }
 
   if !is_debug() {
     gn_args.push("v8_enable_handle_zapping=false".to_string());
@@ -397,6 +402,28 @@ fn download_static_lib_binaries() {
 
 fn print_link_flags() {
   println!("cargo:rustc-link-lib=static=rusty_v8");
+
+  let should_dyn_link_libcxx = cfg!(not(feature = "use_custom_libcxx"))
+    || env::var("GN_ARGS").map_or(false, |gn_args| {
+      gn_args
+        .split_whitespace()
+        .any(|ba| ba == "use_custom_libcxx=false")
+    });
+
+  if should_dyn_link_libcxx {
+    // Based on https://github.com/alexcrichton/cc-rs/blob/fba7feded71ee4f63cfe885673ead6d7b4f2f454/src/lib.rs#L2462
+    let target = env::var("TARGET").unwrap();
+    if target.contains("apple")
+      || target.contains("freebsd")
+      || target.contains("openbsd")
+    {
+      println!("cargo:rustc-link-lib=dylib=c++");
+    } else if target.contains("linux") {
+      println!("cargo:rustc-link-lib=dylib=stdc++");
+    } else if target.contains("android") {
+      println!("cargo:rustc-link-lib=dylib=c++_shared");
+    }
+  }
 
   if cfg!(target_os = "windows") {
     println!("cargo:rustc-link-lib=dylib=winmm");
