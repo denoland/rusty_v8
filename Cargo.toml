@@ -42,6 +42,7 @@ exclude = [
  "third_party/icu/android_small/",
  "third_party/icu/cast/",
  "third_party/icu/chromeos/",
+ "third_party/icu/common/icudtl.dat",
  "third_party/icu/common/icudtb.dat",
  "third_party/icu/flutter/",
  "third_party/icu/ios/",
