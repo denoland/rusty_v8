@@ -12,7 +12,6 @@ use which::which;
 
 fn main() {
   println!("cargo:rerun-if-changed=src/binding.cc");
-  println!("cargo:rerun-if-changed=build.rs");
 
   // These are all the environment variables that we check. This is
   // probably more than what is needed, but missing an important
