@@ -430,4 +430,22 @@ impl ArrayBuffer {
       ))
     }
   }
+
+  /// Returns a new standalone BackingStore backed by given ptr.
+  ///
+  /// SAFETY: This API consumes raw pointers so is inherently
+  /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
+  pub unsafe fn new_backing_store_from_ptr(
+    data_ptr: *mut c_void,
+    byte_length: usize,
+    deleter_callback: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> UniqueRef<BackingStore> {
+    UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
+      data_ptr,
+      byte_length,
+      deleter_callback,
+      deleter_data,
+    ))
+  }
 }

@@ -513,6 +513,14 @@ fn get_isolate_from_handle() {
   check_eval(scope, Some(false), "3.3 / 3.3");
 }
 
+pub unsafe extern "C" fn backing_store_deleter_callback(
+  _data: *mut c_void,
+  _byte_length: usize,
+  _deleter_data: *mut c_void,
+) {
+  // no-op
+}
+
 #[test]
 fn array_buffer() {
   let _setup_guard = setup();
@@ -533,6 +541,20 @@ fn array_buffer() {
     let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
     assert_eq!(84, bs.byte_length());
     assert!(!bs.is_shared());
+
+    let data: &[u8] = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    let unique_bs = unsafe {
+      v8::ArrayBuffer::new_backing_store_from_ptr(
+        data.as_ptr() as *mut c_void,
+        data.len(),
+        backing_store_deleter_callback,
+        std::ptr::null_mut(),
+      )
+    };
+    assert_eq!(10, unique_bs.byte_length());
+    assert!(!unique_bs.is_shared());
+    assert_eq!(unique_bs[0].get(), 0);
+    assert_eq!(unique_bs[9].get(), 9);
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
