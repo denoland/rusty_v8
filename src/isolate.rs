@@ -4,7 +4,6 @@ use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
-use crate::support::BuildTypeIdHasher;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::Opaque;
@@ -29,14 +28,21 @@ use crate::Value;
 
 use std::any::Any;
 use std::any::TypeId;
-
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
+use std::hash::BuildHasher;
+use std::hash::Hasher;
+use std::mem::align_of;
+use std::mem::forget;
+use std::mem::needs_drop;
+use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::os::raw::c_char;
+use std::ptr;
+use std::ptr::drop_in_place;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::sync::Arc;
@@ -420,16 +426,20 @@ impl Isolate {
 
   /// Get a reference to embedder data added with `set_slot()`.
   pub fn get_slot<T: 'static>(&self) -> Option<&T> {
-    let b = self.get_annex().slots.get(&TypeId::of::<T>())?;
-    let r = <dyn Any>::downcast_ref::<T>(&**b).unwrap();
-    Some(r)
+    self
+      .get_annex()
+      .slots
+      .get(&TypeId::of::<T>())
+      .map(|slot| unsafe { slot.get::<T>() })
   }
 
   /// Get a mutable reference to embedder data added with `set_slot()`.
   pub fn get_slot_mut<T: 'static>(&mut self) -> Option<&mut T> {
-    let b = self.get_annex_mut().slots.get_mut(&TypeId::of::<T>())?;
-    let r = <dyn Any>::downcast_mut::<T>(&mut **b).unwrap();
-    Some(r)
+    self
+      .get_annex_mut()
+      .slots
+      .get_mut(&TypeId::of::<T>())
+      .map(|slot| unsafe { slot.get_mut::<T>() })
   }
 
   /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
@@ -447,15 +457,17 @@ impl Isolate {
     self
       .get_annex_mut()
       .slots
-      .insert(Any::type_id(&value), Box::new(value))
+      .insert(TypeId::of::<T>(), RawSlot::new(value))
       .is_none()
   }
 
   /// Removes the embedder data added with `set_slot()` and returns it if it exists.
   pub fn remove_slot<T: 'static>(&mut self) -> Option<T> {
-    let b = self.get_annex_mut().slots.remove(&TypeId::of::<T>())?;
-    let v: T = *b.downcast::<T>().unwrap();
-    Some(v)
+    self
+      .get_annex_mut()
+      .slots
+      .remove(&TypeId::of::<T>())
+      .map(|slot| unsafe { slot.into_inner::<T>() })
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -750,7 +762,7 @@ impl Isolate {
 
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
-  slots: HashMap<TypeId, Box<dyn Any>, BuildTypeIdHasher>,
+  slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -1028,5 +1040,130 @@ where
       &*r as *const _
     };
     f.to_c_fn()
+  }
+}
+
+/// A special hasher that is optimized for hashing `std::any::TypeId` values.
+/// It can't be used for anything else.
+#[derive(Clone, Default)]
+pub(crate) struct TypeIdHasher {
+  state: Option<u64>,
+}
+
+impl Hasher for TypeIdHasher {
+  fn write(&mut self, _bytes: &[u8]) {
+    panic!("TypeIdHasher::write() called unexpectedly");
+  }
+
+  #[inline]
+  fn write_u64(&mut self, value: u64) {
+    // `TypeId` values are actually 64-bit values which themselves come out of
+    // some hash function, so it's unnecessary to shuffle their bits further.
+    assert_eq!(size_of::<TypeId>(), size_of::<u64>());
+    assert_eq!(align_of::<TypeId>(), size_of::<u64>());
+    let prev_state = self.state.replace(value);
+    debug_assert_eq!(prev_state, None);
+  }
+
+  #[inline]
+  fn finish(&self) -> u64 {
+    self.state.unwrap()
+  }
+}
+
+/// Factory for instances of `TypeIdHasher`. This is the type that one would
+/// pass to the constructor of some map/set type in order to make it use
+/// `TypeIdHasher` instead of the default hasher implementation.
+#[derive(Copy, Clone, Default)]
+pub(crate) struct BuildTypeIdHasher;
+
+impl BuildHasher for BuildTypeIdHasher {
+  type Hasher = TypeIdHasher;
+
+  #[inline]
+  fn build_hasher(&self) -> Self::Hasher {
+    Default::default()
+  }
+}
+
+struct RawSlot {
+  data: RawSlotData,
+  dtor: Option<RawSlotDtor>,
+}
+
+type RawSlotData = MaybeUninit<[usize; 1]>;
+type RawSlotDtor = unsafe fn(&mut RawSlotData) -> ();
+
+impl RawSlot {
+  #[inline]
+  pub fn new<T: 'static>(value: T) -> Self {
+    if Self::needs_box::<T>() {
+      Self::new_internal(Box::new(value))
+    } else {
+      Self::new_internal(value)
+    }
+  }
+
+  #[inline]
+  pub unsafe fn get<T: 'static>(&self) -> &T {
+    if Self::needs_box::<T>() {
+      &*(self.data.as_ptr() as *const Box<T>)
+    } else {
+      &*(self.data.as_ptr() as *const T)
+    }
+  }
+
+  #[inline]
+  pub unsafe fn get_mut<T: 'static>(&mut self) -> &mut T {
+    if Self::needs_box::<T>() {
+      &mut *(self.data.as_mut_ptr() as *mut Box<T>)
+    } else {
+      &mut *(self.data.as_mut_ptr() as *mut T)
+    }
+  }
+
+  #[inline]
+  pub unsafe fn into_inner<T: 'static>(self) -> T {
+    let value = if Self::needs_box::<T>() {
+      *std::ptr::read(self.data.as_ptr() as *mut Box<T>)
+    } else {
+      std::ptr::read(self.data.as_ptr() as *mut T)
+    };
+    forget(self);
+    value
+  }
+
+  const fn needs_box<T: 'static>() -> bool {
+    size_of::<T>() > size_of::<RawSlotData>()
+      || align_of::<T>() > align_of::<RawSlotData>()
+  }
+
+  #[inline]
+  fn new_internal<B: 'static>(value: B) -> Self {
+    assert!(!Self::needs_box::<B>());
+    let mut self_ = Self {
+      data: RawSlotData::zeroed(),
+      dtor: None,
+    };
+    unsafe {
+      ptr::write(self_.data.as_mut_ptr() as *mut B, value);
+    }
+    if needs_drop::<B>() {
+      self_.dtor.replace(Self::drop_internal::<B>);
+    };
+    self_
+  }
+
+  unsafe fn drop_internal<B: 'static>(data: &mut RawSlotData) {
+    assert!(!Self::needs_box::<B>());
+    drop_in_place(data.as_mut_ptr() as *mut B);
+  }
+}
+
+impl Drop for RawSlot {
+  fn drop(&mut self) {
+    if let Some(dtor) = self.dtor {
+      unsafe { dtor(&mut self.data) };
+    }
   }
 }
