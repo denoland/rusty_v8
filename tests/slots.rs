@@ -215,3 +215,32 @@ fn slots_general_2() {
   drop(state);
   assert_eq!(drop_count.load(Ordering::SeqCst), 1);
 }
+
+// This struct is too large to be stored in the slot by value, so it should
+// automatically and transparently get boxed and unboxed.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct TestData([u64; 4]);
+
+#[test]
+fn slots_auto_boxing() {
+  let mut core_isolate = CoreIsolate::new(Default::default());
+
+  // Create a slot which contains `TestData` by value.
+  let value1 = TestData([1, 2, 3, 4]);
+  assert!(core_isolate.set_slot(value1));
+
+  // Create another slot which contains a `Box<TestData>`. This should not
+  // overwrite or conflict with the unboxed slot created above.
+  let value2 = Box::new(TestData([5, 6, 7, 8]));
+  assert!(core_isolate.set_slot(value2.clone()));
+
+  // Verify that the `Testdata` slot exists and contains the expected value.
+  assert_eq!(Some(&value1), core_isolate.get_slot::<TestData>());
+  assert_eq!(Some(value1), core_isolate.remove_slot::<TestData>());
+  assert_eq!(None, core_isolate.get_slot::<TestData>());
+
+  // Verify the contents of the `Box<Testdata>` slot.
+  assert_eq!(Some(&value2), core_isolate.get_slot::<Box<TestData>>());
+  assert_eq!(Some(value2), core_isolate.remove_slot::<Box<TestData>>());
+  assert_eq!(None, core_isolate.get_slot::<Box<TestData>>());
+}
