@@ -513,7 +513,7 @@ fn get_isolate_from_handle() {
   check_eval(scope, Some(false), "3.3 / 3.3");
 }
 
-pub unsafe extern "C" fn backing_store_deleter_callback(
+pub extern "C" fn backing_store_deleter_callback(
   _data: *mut c_void,
   _byte_length: usize,
   _deleter_data: *mut c_void,
