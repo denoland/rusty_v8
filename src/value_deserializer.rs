@@ -40,7 +40,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
     &mut value_deserializer_heap.cxx_value_deserializer,
   ) {
     None => std::ptr::null(),
-    Some(x) => x.as_non_null().as_ptr(),
+    Some(x) => x as *const _,
   }
 }
 
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFr
     .get_shared_array_buffer_from_id(scope, transfer_id)
   {
     None => std::ptr::null(),
-    Some(x) => x.as_non_null().as_ptr(),
+    Some(x) => x as *const _,
   }
 }
 
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
     value_deserializer_heap.value_deserializer_impl.as_mut();
   match value_deserializer_impl.get_wasm_module_from_id(scope, clone_id) {
     None => std::ptr::null(),
-    Some(x) => x.as_non_null().as_ptr(),
+    Some(x) => x as *const _,
   }
 }
 
@@ -265,7 +265,7 @@ pub trait ValueDeserializerHelper {
     context: Local<'s, Context>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
-      Local::from_raw(v8__ValueDeserializer__ReadValue(
+      crate::handle::local_from_raw(v8__ValueDeserializer__ReadValue(
         self.get_cxx_value_deserializer(),
         context,
       ))

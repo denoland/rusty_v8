@@ -23,7 +23,7 @@ impl ScriptOrModule {
     // the related `ScriptOrModule` object.
     unsafe {
       let ptr = v8__ScriptOrModule__GetResourceName(self);
-      Local::from_raw(ptr).unwrap()
+      crate::handle::local_from_raw(ptr).unwrap()
     }
   }
 
@@ -35,7 +35,7 @@ impl ScriptOrModule {
     // bound to the related `ScriptOrModule` object.
     unsafe {
       let ptr = v8__ScriptOrModule__HostDefinedOptions(self);
-      Local::from_raw(ptr).unwrap()
+      crate::handle::local_from_raw(ptr).unwrap()
     }
   }
 }

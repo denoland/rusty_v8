@@ -192,13 +192,16 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// Returns the receiver. This corresponds to the "this" value.
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
-      Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
+      crate::handle::local_from_raw(v8__FunctionCallbackInfo__This(self.info))
+        .unwrap()
     }
   }
 
   /// Returns the data argument specified when creating the callback.
   pub fn data(&self) -> Option<Local<'s, Value>> {
-    unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
+    unsafe {
+      crate::handle::local_from_raw(v8__FunctionCallbackInfo__Data(self.info))
+    }
   }
 
   /// The number of available arguments.
@@ -214,15 +217,20 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// out of bounds.
   pub fn get(&self, i: int) -> Local<'s, Value> {
     unsafe {
-      Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self.info, i))
-        .unwrap()
+      crate::handle::local_from_raw(v8__FunctionCallbackInfo__GetArgument(
+        self.info, i,
+      ))
+      .unwrap()
     }
   }
 
   /// For construct calls, this returns the "new.target" value.
   pub fn new_target(&self) -> Local<'s, Value> {
     unsafe {
-      Local::from_raw(v8__FunctionCallbackInfo__NewTarget(self.info)).unwrap()
+      crate::handle::local_from_raw(v8__FunctionCallbackInfo__NewTarget(
+        self.info,
+      ))
+      .unwrap()
     }
   }
 }
@@ -284,7 +292,8 @@ impl<'s> PropertyCallbackArguments<'s> {
   /// ```
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
-      Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
+      crate::handle::local_from_raw(v8__PropertyCallbackInfo__This(self.info))
+        .unwrap()
     }
   }
 }
@@ -463,7 +472,7 @@ impl Function {
     recv: Local<Value>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Value>> {
-    let args = Local::slice_into_raw(args);
+    let args = crate::handle::local_slice_into_raw(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
     unsafe {
@@ -478,7 +487,7 @@ impl Function {
     scope: &mut HandleScope<'s>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Object>> {
-    let args = Local::slice_into_raw(args);
+    let args = crate::handle::local_slice_into_raw(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
     unsafe {

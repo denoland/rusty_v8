@@ -206,8 +206,10 @@ pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 
 impl<'msg> PromiseRejectMessage<'msg> {
   pub fn get_promise(&self) -> Local<'msg, Promise> {
-    unsafe { Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)) }
-      .unwrap()
+    unsafe {
+      crate::handle::local_from_raw(v8__PromiseRejectMessage__GetPromise(self))
+    }
+    .unwrap()
   }
 
   pub fn get_event(&self) -> PromiseRejectEvent {
@@ -215,6 +217,8 @@ impl<'msg> PromiseRejectMessage<'msg> {
   }
 
   pub fn get_value(&self) -> Option<Local<'msg, Value>> {
-    unsafe { Local::from_raw(v8__PromiseRejectMessage__GetValue(self)) }
+    unsafe {
+      crate::handle::local_from_raw(v8__PromiseRejectMessage__GetValue(self))
+    }
   }
 }

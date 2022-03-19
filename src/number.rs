@@ -72,7 +72,7 @@ impl Integer {
     static ZERO_SMI: usize = 0;
     let zero_raw = &ZERO_SMI as *const _ as *mut Self;
     let zero_nn = unsafe { NonNull::new_unchecked(zero_raw) };
-    let zero_local = unsafe { Local::from_non_null(zero_nn) };
+    let zero_local = unsafe { crate::handle::local_from_non_null(zero_nn) };
     debug_assert_eq!(Layout::new::<usize>(), Layout::new::<Local<Self>>());
     debug_assert_eq!(zero_local.value(), 0);
     zero_local

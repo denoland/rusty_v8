@@ -14,7 +14,11 @@ use std::ops::Deref;
 
 use crate::support::int;
 use crate::support::Opaque;
+use crate::Global;
+use crate::Handle;
 use crate::Local;
+use crate::LocalTrait;
+use crate::LocalTrait2;
 
 extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
@@ -63,6 +67,44 @@ impl Data {
   /// Returns true if this data is a `FunctionTemplate.`
   pub fn is_function_template(&self) -> bool {
     unsafe { v8__Data__IsFunctionTemplate(self) }
+  }
+}
+
+macro_rules! impl_local {
+  { for $type:ident } => {
+    impl LocalTrait for $type {}
+
+    impl<Rhs> PartialEq<Global<Rhs>> for $type
+    where
+      for<'s> &'s Self: Handle,
+      for<'s> Global<Rhs>: PartialEq<&'s $type>,
+    {
+      fn eq(&self, other: &Global<Rhs>) -> bool {
+        other == &self
+      }
+    }
+
+    impl<'s, Rhs> PartialEq<Global<Rhs>> for &'s $type
+    where
+      Self: Handle,
+      Global<Rhs>: PartialEq<&'s $type>,
+    {
+      fn eq(&self, other: &Global<Rhs>) -> bool {
+        other == self
+      }
+    }
+
+    impl<'s, Rhs> PartialEq<&'s Rhs> for $type
+    where
+      Rhs: PartialEq<$type>
+    {
+      fn eq(&self, other: &&'s Rhs) -> bool {
+        *other ==   self
+      }
+    }
+
+
+
   }
 }
 
@@ -117,6 +159,19 @@ macro_rules! impl_hash {
   };
 }
 
+macro_rules! impl_partial_eq_ref {
+  { $rhs:ident for $type:ident } => {
+
+
+    //impl<'s> PartialEq<Global<$rhs>> for &'s $type {
+    //  fn eq(&self, other: &Global<$rhs>) -> bool {
+    //    other.eq(*self)
+    //  }
+    //}
+
+  }
+}
+
 macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
     impl<'s> PartialEq<$rhs> for $type {
@@ -126,6 +181,7 @@ macro_rules! impl_partial_eq {
         unsafe { v8__Data__EQ(a, b) }
       }
     }
+    impl_partial_eq_ref!($rhs for $type);
   };
   { $rhs:ident for $type:ident use strict_equals } => {
     impl<'s> PartialEq<$rhs> for $type {
@@ -135,6 +191,7 @@ macro_rules! impl_partial_eq {
         unsafe { v8__Value__StrictEquals(a, b) }
       }
     }
+    impl_partial_eq_ref!($rhs for $type);
   };
   { $rhs:ident for $type:ident use same_value_zero } => {
     impl<'s> PartialEq<$rhs> for $type {
@@ -149,6 +206,7 @@ macro_rules! impl_partial_eq {
         }
       }
     }
+    impl_partial_eq_ref!($rhs for $type);
   };
 }
 
@@ -196,8 +254,12 @@ impl Error for DataError {}
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
 #[derive(Debug)]
-pub struct Data(Opaque);
+pub struct Data(Opaque)
+where
+  Self: LocalTrait,
+  for<'s> &'s Self: LocalTrait2<Data = Self>;
 
+impl_local! { for Data }
 impl_from! { AccessorSignature for Data }
 impl_from! { Context for Data }
 impl_from! { Message for Data }
@@ -263,6 +325,8 @@ impl_partial_eq! { AccessorSignature for Data use identity }
 impl_partial_eq! { Context for Data use identity }
 impl_partial_eq! { Message for Data use identity }
 impl_partial_eq! { Module for Data use identity }
+impl_partial_eq! { ModuleRequest for Data use identity }
+impl_partial_eq! { FixedArray for Data use identity }
 impl_partial_eq! { PrimitiveArray for Data use identity }
 impl_partial_eq! { Private for Data use identity }
 impl_partial_eq! { Script for Data use identity }
@@ -317,6 +381,7 @@ impl_partial_eq! { Symbol for Data use identity }
 #[derive(Debug)]
 pub struct AccessorSignature(Opaque);
 
+impl_local! { for AccessorSignature }
 impl_deref! { Data for AccessorSignature }
 impl_eq! { for AccessorSignature }
 impl_hash! { for AccessorSignature }
@@ -329,6 +394,7 @@ impl_partial_eq! { AccessorSignature for AccessorSignature use identity }
 #[derive(Debug)]
 pub struct Context(Opaque);
 
+impl_local! { for Context }
 impl_deref! { Data for Context }
 impl_eq! { for Context }
 impl_hash! { for Context }
@@ -340,6 +406,7 @@ impl_partial_eq! { Context for Context use identity }
 #[derive(Debug)]
 pub struct Message(Opaque);
 
+impl_local! { for Message }
 impl_deref! { Data for Message }
 impl_eq! { for Message }
 impl_hash! { for Message }
@@ -351,6 +418,7 @@ impl_partial_eq! { Message for Message use identity }
 #[derive(Debug)]
 pub struct Module(Opaque);
 
+impl_local! { for Module }
 impl_deref! { Data for Module }
 impl_try_from! { Data for Module if d => d.is_module() }
 impl_eq! { for Module }
@@ -360,8 +428,12 @@ impl_partial_eq! { Module for Module use identity }
 /// A fixed-sized array with elements of type Data.
 #[repr(C)]
 #[derive(Debug)]
-pub struct FixedArray(Opaque);
+pub struct FixedArray(Opaque)
+where
+  Self: LocalTrait,
+  for<'s> &'s Self: LocalTrait2<Data = Self>;
 
+impl_local! { for FixedArray }
 impl_deref! { Data for FixedArray }
 impl_eq! { for FixedArray }
 impl_hash! { for FixedArray }
@@ -372,6 +444,7 @@ impl_partial_eq! { FixedArray for FixedArray use identity }
 #[derive(Debug)]
 pub struct ModuleRequest(Opaque);
 
+impl_local! { for ModuleRequest }
 impl_deref! { Data for ModuleRequest }
 impl_from! { Data for ModuleRequest }
 impl_eq! { for ModuleRequest }
@@ -388,6 +461,7 @@ impl_partial_eq! { ModuleRequest for ModuleRequest use identity }
 #[derive(Debug)]
 pub struct PrimitiveArray(Opaque);
 
+impl_local! { for PrimitiveArray }
 impl_deref! { Data for PrimitiveArray }
 impl_eq! { for PrimitiveArray }
 impl_hash! { for PrimitiveArray }
@@ -401,6 +475,7 @@ impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
 #[derive(Debug)]
 pub struct Private(Opaque);
 
+impl_local! { for Private }
 impl_deref! { Data for Private }
 impl_try_from! { Data for Private if d => d.is_private() }
 impl_eq! { for Private }
@@ -414,6 +489,7 @@ impl_partial_eq! { Private for Private use identity }
 #[derive(Debug)]
 pub struct Script(Opaque);
 
+impl_local! { for Script }
 impl_deref! { Data for Script }
 impl_eq! { for Script }
 impl_hash! { for Script }
@@ -428,6 +504,7 @@ impl_partial_eq! { Script for Script use identity }
 #[derive(Debug)]
 pub struct ScriptOrModule(Opaque);
 
+impl_local! { for ScriptOrModule }
 impl_deref! { Data for ScriptOrModule }
 impl_eq! { for ScriptOrModule }
 impl_hash! { for ScriptOrModule }
@@ -444,6 +521,7 @@ impl_partial_eq! { ScriptOrModule for ScriptOrModule use identity }
 #[derive(Debug)]
 pub struct Signature(Opaque);
 
+impl_local! { for Signature }
 impl_deref! { Data for Signature }
 impl_eq! { for Signature }
 impl_hash! { for Signature }
@@ -455,6 +533,7 @@ impl_partial_eq! { Signature for Signature use identity }
 #[derive(Debug)]
 pub struct StackFrame(Opaque);
 
+impl_local! { for StackFrame }
 impl_deref! { Data for StackFrame }
 impl_eq! { for StackFrame }
 impl_hash! { for StackFrame }
@@ -468,6 +547,7 @@ impl_partial_eq! { StackFrame for StackFrame use identity }
 #[derive(Debug)]
 pub struct StackTrace(Opaque);
 
+impl_local! { for StackTrace }
 impl_deref! { Data for StackTrace }
 impl_eq! { for StackTrace }
 impl_hash! { for StackTrace }
@@ -479,6 +559,7 @@ impl_partial_eq! { StackTrace for StackTrace use identity }
 #[derive(Debug)]
 pub struct Template(Opaque);
 
+impl_local! { for Template }
 impl_deref! { Data for Template }
 impl_from! { FunctionTemplate for Template }
 impl_from! { ObjectTemplate for Template }
@@ -598,6 +679,7 @@ impl_partial_eq! { ObjectTemplate for Template use identity }
 #[derive(Debug)]
 pub struct FunctionTemplate(Opaque);
 
+impl_local! { for FunctionTemplate }
 impl_deref! { Template for FunctionTemplate }
 impl_try_from! { Data for FunctionTemplate if d => d.is_function_template() }
 impl_eq! { for FunctionTemplate }
@@ -612,8 +694,12 @@ impl_partial_eq! { FunctionTemplate for FunctionTemplate use identity }
 /// created from the ObjectTemplate.
 #[repr(C)]
 #[derive(Debug)]
-pub struct ObjectTemplate(Opaque);
+pub struct ObjectTemplate(Opaque)
+where
+  Self: LocalTrait,
+  for<'s> &'s Self: LocalTrait2<Data = Self>;
 
+impl_local! { for ObjectTemplate }
 impl_deref! { Template for ObjectTemplate }
 impl_try_from! { Data for ObjectTemplate if d => d.is_object_template() }
 impl_eq! { for ObjectTemplate }
@@ -627,6 +713,7 @@ impl_partial_eq! { ObjectTemplate for ObjectTemplate use identity }
 #[derive(Debug)]
 pub struct UnboundModuleScript(Opaque);
 
+impl_local! { for UnboundModuleScript }
 impl_deref! { Data for UnboundModuleScript }
 impl_eq! { for UnboundModuleScript }
 impl_hash! { for UnboundModuleScript }
@@ -638,6 +725,7 @@ impl_partial_eq! { UnboundModuleScript for UnboundModuleScript use identity }
 #[derive(Debug)]
 pub struct UnboundScript(Opaque);
 
+impl_local! { for UnboundScript }
 impl_deref! { Data for UnboundScript }
 impl_eq! { for UnboundScript }
 impl_hash! { for UnboundScript }
@@ -647,8 +735,12 @@ impl_partial_eq! { UnboundScript for UnboundScript use identity }
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
 #[derive(Debug)]
-pub struct Value(Opaque);
+pub struct Value(Opaque)
+where
+  Self: LocalTrait,
+  for<'s> Local<'s, Self>: LocalTrait2<Data = Self>;
 
+impl_local! { for Value }
 impl_deref! { Data for Value }
 // TODO: Also implement `TryFrom<Data>` for all subtypes of `Value`,
 // so a `Local<Data>` can be directly cast to any `Local` with a JavaScript
@@ -752,6 +844,7 @@ impl_partial_eq! { Uint32 for Value use same_value_zero }
 #[derive(Debug)]
 pub struct External(Opaque);
 
+impl_local! { for External }
 impl_deref! { Value for External }
 impl_try_from! { Value for External if v => v.is_external() }
 impl_eq! { for External }
@@ -765,6 +858,7 @@ impl_partial_eq! { External for External use identity }
 #[derive(Debug)]
 pub struct Object(Opaque);
 
+impl_local! { for Object }
 impl_deref! { Value for Object }
 impl_try_from! { Value for Object if v => v.is_object() }
 impl_from! { Array for Object }
@@ -840,6 +934,7 @@ impl_partial_eq! { WasmModuleObject for Object use identity }
 #[derive(Debug)]
 pub struct Array(Opaque);
 
+impl_local! { for Array }
 impl_deref! { Object for Array }
 impl_try_from! { Value for Array if v => v.is_array() }
 impl_try_from! { Object for Array if v => v.is_array() }
@@ -855,6 +950,7 @@ impl_partial_eq! { Array for Array use identity }
 #[derive(Debug)]
 pub struct ArrayBuffer(Opaque);
 
+impl_local! { for ArrayBuffer }
 impl_deref! { Object for ArrayBuffer }
 impl_try_from! { Value for ArrayBuffer if v => v.is_array_buffer() }
 impl_try_from! { Object for ArrayBuffer if v => v.is_array_buffer() }
@@ -871,6 +967,7 @@ impl_partial_eq! { ArrayBuffer for ArrayBuffer use identity }
 #[derive(Debug)]
 pub struct ArrayBufferView(Opaque);
 
+impl_local! { for ArrayBufferView }
 impl_deref! { Object for ArrayBufferView }
 impl_try_from! { Value for ArrayBufferView if v => v.is_array_buffer_view() }
 impl_try_from! { Object for ArrayBufferView if v => v.is_array_buffer_view() }
@@ -912,6 +1009,7 @@ impl_partial_eq! { Uint8ClampedArray for ArrayBufferView use identity }
 #[derive(Debug)]
 pub struct DataView(Opaque);
 
+impl_local! { for DataView }
 impl_deref! { ArrayBufferView for DataView }
 impl_try_from! { Value for DataView if v => v.is_data_view() }
 impl_try_from! { Object for DataView if v => v.is_data_view() }
@@ -930,6 +1028,7 @@ impl_partial_eq! { DataView for DataView use identity }
 #[derive(Debug)]
 pub struct TypedArray(Opaque);
 
+impl_local! { for TypedArray }
 impl_deref! { ArrayBufferView for TypedArray }
 impl_try_from! { Value for TypedArray if v => v.is_typed_array() }
 impl_try_from! { Object for TypedArray if v => v.is_typed_array() }
@@ -969,6 +1068,7 @@ impl_partial_eq! { Uint8ClampedArray for TypedArray use identity }
 #[derive(Debug)]
 pub struct BigInt64Array(Opaque);
 
+impl_local! { for BigInt64Array }
 impl_deref! { TypedArray for BigInt64Array }
 impl_try_from! { Value for BigInt64Array if v => v.is_big_int64_array() }
 impl_try_from! { Object for BigInt64Array if v => v.is_big_int64_array() }
@@ -988,6 +1088,7 @@ impl_partial_eq! { BigInt64Array for BigInt64Array use identity }
 #[derive(Debug)]
 pub struct BigUint64Array(Opaque);
 
+impl_local! { for BigUint64Array }
 impl_deref! { TypedArray for BigUint64Array }
 impl_try_from! { Value for BigUint64Array if v => v.is_big_uint64_array() }
 impl_try_from! { Object for BigUint64Array if v => v.is_big_uint64_array() }
@@ -1007,6 +1108,7 @@ impl_partial_eq! { BigUint64Array for BigUint64Array use identity }
 #[derive(Debug)]
 pub struct Float32Array(Opaque);
 
+impl_local! { for Float32Array }
 impl_deref! { TypedArray for Float32Array }
 impl_try_from! { Value for Float32Array if v => v.is_float32_array() }
 impl_try_from! { Object for Float32Array if v => v.is_float32_array() }
@@ -1026,6 +1128,7 @@ impl_partial_eq! { Float32Array for Float32Array use identity }
 #[derive(Debug)]
 pub struct Float64Array(Opaque);
 
+impl_local! { for Float64Array }
 impl_deref! { TypedArray for Float64Array }
 impl_try_from! { Value for Float64Array if v => v.is_float64_array() }
 impl_try_from! { Object for Float64Array if v => v.is_float64_array() }
@@ -1045,6 +1148,7 @@ impl_partial_eq! { Float64Array for Float64Array use identity }
 #[derive(Debug)]
 pub struct Int16Array(Opaque);
 
+impl_local! { for Int16Array }
 impl_deref! { TypedArray for Int16Array }
 impl_try_from! { Value for Int16Array if v => v.is_int16_array() }
 impl_try_from! { Object for Int16Array if v => v.is_int16_array() }
@@ -1064,6 +1168,7 @@ impl_partial_eq! { Int16Array for Int16Array use identity }
 #[derive(Debug)]
 pub struct Int32Array(Opaque);
 
+impl_local! { for Int32Array }
 impl_deref! { TypedArray for Int32Array }
 impl_try_from! { Value for Int32Array if v => v.is_int32_array() }
 impl_try_from! { Object for Int32Array if v => v.is_int32_array() }
@@ -1083,6 +1188,7 @@ impl_partial_eq! { Int32Array for Int32Array use identity }
 #[derive(Debug)]
 pub struct Int8Array(Opaque);
 
+impl_local! { for Int8Array }
 impl_deref! { TypedArray for Int8Array }
 impl_try_from! { Value for Int8Array if v => v.is_int8_array() }
 impl_try_from! { Object for Int8Array if v => v.is_int8_array() }
@@ -1102,6 +1208,7 @@ impl_partial_eq! { Int8Array for Int8Array use identity }
 #[derive(Debug)]
 pub struct Uint16Array(Opaque);
 
+impl_local! { for Uint16Array }
 impl_deref! { TypedArray for Uint16Array }
 impl_try_from! { Value for Uint16Array if v => v.is_uint16_array() }
 impl_try_from! { Object for Uint16Array if v => v.is_uint16_array() }
@@ -1121,6 +1228,7 @@ impl_partial_eq! { Uint16Array for Uint16Array use identity }
 #[derive(Debug)]
 pub struct Uint32Array(Opaque);
 
+impl_local! { for Uint32Array }
 impl_deref! { TypedArray for Uint32Array }
 impl_try_from! { Value for Uint32Array if v => v.is_uint32_array() }
 impl_try_from! { Object for Uint32Array if v => v.is_uint32_array() }
@@ -1140,6 +1248,7 @@ impl_partial_eq! { Uint32Array for Uint32Array use identity }
 #[derive(Debug)]
 pub struct Uint8Array(Opaque);
 
+impl_local! { for Uint8Array }
 impl_deref! { TypedArray for Uint8Array }
 impl_try_from! { Value for Uint8Array if v => v.is_uint8_array() }
 impl_try_from! { Object for Uint8Array if v => v.is_uint8_array() }
@@ -1159,6 +1268,7 @@ impl_partial_eq! { Uint8Array for Uint8Array use identity }
 #[derive(Debug)]
 pub struct Uint8ClampedArray(Opaque);
 
+impl_local! { for Uint8ClampedArray }
 impl_deref! { TypedArray for Uint8ClampedArray }
 impl_try_from! { Value for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_try_from! { Object for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
@@ -1178,6 +1288,7 @@ impl_partial_eq! { Uint8ClampedArray for Uint8ClampedArray use identity }
 #[derive(Debug)]
 pub struct BigIntObject(Opaque);
 
+impl_local! { for BigIntObject }
 impl_deref! { Object for BigIntObject }
 impl_try_from! { Value for BigIntObject if v => v.is_big_int_object() }
 impl_try_from! { Object for BigIntObject if v => v.is_big_int_object() }
@@ -1193,6 +1304,7 @@ impl_partial_eq! { BigIntObject for BigIntObject use identity }
 #[derive(Debug)]
 pub struct BooleanObject(Opaque);
 
+impl_local! { for BooleanObject }
 impl_deref! { Object for BooleanObject }
 impl_try_from! { Value for BooleanObject if v => v.is_boolean_object() }
 impl_try_from! { Object for BooleanObject if v => v.is_boolean_object() }
@@ -1208,6 +1320,7 @@ impl_partial_eq! { BooleanObject for BooleanObject use identity }
 #[derive(Debug)]
 pub struct Date(Opaque);
 
+impl_local! { for Date }
 impl_deref! { Object for Date }
 impl_try_from! { Value for Date if v => v.is_date() }
 impl_try_from! { Object for Date if v => v.is_date() }
@@ -1223,6 +1336,7 @@ impl_partial_eq! { Date for Date use identity }
 #[derive(Debug)]
 pub struct Function(Opaque);
 
+impl_local! { for Function }
 impl_deref! { Object for Function }
 impl_try_from! { Value for Function if v => v.is_function() }
 impl_try_from! { Object for Function if v => v.is_function() }
@@ -1238,6 +1352,7 @@ impl_partial_eq! { Function for Function use identity }
 #[derive(Debug)]
 pub struct Map(Opaque);
 
+impl_local! { for Map }
 impl_deref! { Object for Map }
 impl_try_from! { Value for Map if v => v.is_map() }
 impl_try_from! { Object for Map if v => v.is_map() }
@@ -1253,6 +1368,7 @@ impl_partial_eq! { Map for Map use identity }
 #[derive(Debug)]
 pub struct NumberObject(Opaque);
 
+impl_local! { for NumberObject }
 impl_deref! { Object for NumberObject }
 impl_try_from! { Value for NumberObject if v => v.is_number_object() }
 impl_try_from! { Object for NumberObject if v => v.is_number_object() }
@@ -1268,6 +1384,7 @@ impl_partial_eq! { NumberObject for NumberObject use identity }
 #[derive(Debug)]
 pub struct Promise(Opaque);
 
+impl_local! { for Promise }
 impl_deref! { Object for Promise }
 impl_try_from! { Value for Promise if v => v.is_promise() }
 impl_try_from! { Object for Promise if v => v.is_promise() }
@@ -1282,6 +1399,7 @@ impl_partial_eq! { Promise for Promise use identity }
 #[derive(Debug)]
 pub struct PromiseResolver(Opaque);
 
+impl_local! { for PromiseResolver }
 impl_deref! { Object for PromiseResolver }
 impl_eq! { for PromiseResolver }
 impl_hash! { for PromiseResolver }
@@ -1296,6 +1414,7 @@ impl_partial_eq! { PromiseResolver for PromiseResolver use identity }
 #[derive(Debug)]
 pub struct Proxy(Opaque);
 
+impl_local! { for Proxy }
 impl_deref! { Object for Proxy }
 impl_try_from! { Value for Proxy if v => v.is_proxy() }
 impl_try_from! { Object for Proxy if v => v.is_proxy() }
@@ -1311,6 +1430,7 @@ impl_partial_eq! { Proxy for Proxy use identity }
 #[derive(Debug)]
 pub struct RegExp(Opaque);
 
+impl_local! { for RegExp }
 impl_deref! { Object for RegExp }
 impl_try_from! { Value for RegExp if v => v.is_reg_exp() }
 impl_try_from! { Object for RegExp if v => v.is_reg_exp() }
@@ -1326,6 +1446,7 @@ impl_partial_eq! { RegExp for RegExp use identity }
 #[derive(Debug)]
 pub struct Set(Opaque);
 
+impl_local! { for Set }
 impl_deref! { Object for Set }
 impl_try_from! { Value for Set if v => v.is_set() }
 impl_try_from! { Object for Set if v => v.is_set() }
@@ -1341,6 +1462,7 @@ impl_partial_eq! { Set for Set use identity }
 #[derive(Debug)]
 pub struct SharedArrayBuffer(Opaque);
 
+impl_local! { for SharedArrayBuffer }
 impl_deref! { Object for SharedArrayBuffer }
 impl_try_from! { Value for SharedArrayBuffer if v => v.is_shared_array_buffer() }
 impl_try_from! { Object for SharedArrayBuffer if v => v.is_shared_array_buffer() }
@@ -1356,6 +1478,7 @@ impl_partial_eq! { SharedArrayBuffer for SharedArrayBuffer use identity }
 #[derive(Debug)]
 pub struct StringObject(Opaque);
 
+impl_local! { for StringObject }
 impl_deref! { Object for StringObject }
 impl_try_from! { Value for StringObject if v => v.is_string_object() }
 impl_try_from! { Object for StringObject if v => v.is_string_object() }
@@ -1371,6 +1494,7 @@ impl_partial_eq! { StringObject for StringObject use identity }
 #[derive(Debug)]
 pub struct SymbolObject(Opaque);
 
+impl_local! { for SymbolObject }
 impl_deref! { Object for SymbolObject }
 impl_try_from! { Value for SymbolObject if v => v.is_symbol_object() }
 impl_try_from! { Object for SymbolObject if v => v.is_symbol_object() }
@@ -1386,6 +1510,7 @@ impl_partial_eq! { SymbolObject for SymbolObject use identity }
 #[derive(Debug)]
 pub struct WasmModuleObject(Opaque);
 
+impl_local! { for WasmModuleObject }
 impl_deref! { Object for WasmModuleObject }
 impl_try_from! { Value for WasmModuleObject if v => v.is_wasm_module_object() }
 impl_try_from! { Object for WasmModuleObject if v => v.is_wasm_module_object() }
@@ -1401,6 +1526,7 @@ impl_partial_eq! { WasmModuleObject for WasmModuleObject use identity }
 #[derive(Debug)]
 pub struct Primitive(Opaque);
 
+impl_local! { for Primitive }
 impl_deref! { Value for Primitive }
 impl_try_from! { Value for Primitive if v => v.is_null_or_undefined() || v.is_boolean() || v.is_name() || v.is_number() || v.is_big_int() }
 impl_from! { BigInt for Primitive }
@@ -1431,6 +1557,7 @@ impl_partial_eq! { Uint32 for Primitive use same_value_zero }
 #[derive(Debug)]
 pub struct BigInt(Opaque);
 
+impl_local! { for BigInt }
 impl_deref! { Primitive for BigInt }
 impl_try_from! { Value for BigInt if v => v.is_big_int() }
 impl_try_from! { Primitive for BigInt if v => v.is_big_int() }
@@ -1446,6 +1573,7 @@ impl_partial_eq! { BigInt for BigInt use strict_equals }
 #[derive(Debug)]
 pub struct Boolean(Opaque);
 
+impl_local! { for Boolean }
 impl_deref! { Primitive for Boolean }
 impl_try_from! { Value for Boolean if v => v.is_boolean() }
 impl_try_from! { Primitive for Boolean if v => v.is_boolean() }
@@ -1461,6 +1589,7 @@ impl_partial_eq! { Boolean for Boolean use identity }
 #[derive(Debug)]
 pub struct Name(Opaque);
 
+impl_local! { for Name }
 impl_deref! { Primitive for Name }
 impl_try_from! { Value for Name if v => v.is_name() }
 impl_try_from! { Primitive for Name if v => v.is_name() }
@@ -1479,6 +1608,7 @@ impl_partial_eq! { Symbol for Name use identity }
 #[derive(Debug)]
 pub struct String(Opaque);
 
+impl_local! { for String }
 impl_deref! { Name for String }
 impl_try_from! { Value for String if v => v.is_string() }
 impl_try_from! { Primitive for String if v => v.is_string() }
@@ -1495,6 +1625,7 @@ impl_partial_eq! { String for String use strict_equals }
 #[derive(Debug)]
 pub struct Symbol(Opaque);
 
+impl_local! { for Symbol }
 impl_deref! { Name for Symbol }
 impl_try_from! { Value for Symbol if v => v.is_symbol() }
 impl_try_from! { Primitive for Symbol if v => v.is_symbol() }
@@ -1512,6 +1643,7 @@ impl_partial_eq! { Symbol for Symbol use identity }
 #[derive(Debug)]
 pub struct Number(Opaque);
 
+impl_local! { for Number }
 impl_deref! { Primitive for Number }
 impl_try_from! { Value for Number if v => v.is_number() }
 impl_try_from! { Primitive for Number if v => v.is_number() }
@@ -1532,6 +1664,7 @@ impl_partial_eq! { Uint32 for Number use same_value_zero }
 #[derive(Debug)]
 pub struct Integer(Opaque);
 
+impl_local! { for Integer }
 impl_deref! { Number for Integer }
 impl_try_from! { Value for Integer if v => v.is_int32() || v.is_uint32() }
 impl_try_from! { Primitive for Integer if v => v.is_int32() || v.is_uint32() }
@@ -1552,6 +1685,7 @@ impl_partial_eq! { Uint32 for Integer use strict_equals }
 #[derive(Debug)]
 pub struct Int32(Opaque);
 
+impl_local! { for Int32 }
 impl_deref! { Integer for Int32 }
 impl_try_from! { Value for Int32 if v => v.is_int32() }
 impl_try_from! { Primitive for Int32 if v => v.is_int32() }
@@ -1570,6 +1704,7 @@ impl_partial_eq! { Int32 for Int32 use strict_equals }
 #[derive(Debug)]
 pub struct Uint32(Opaque);
 
+impl_local! { for Uint32 }
 impl_deref! { Integer for Uint32 }
 impl_try_from! { Value for Uint32 if v => v.is_uint32() }
 impl_try_from! { Primitive for Uint32 if v => v.is_uint32() }

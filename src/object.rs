@@ -204,8 +204,8 @@ impl Object {
     values: &[Local<Value>],
   ) -> Local<'s, Object> {
     assert_eq!(names.len(), values.len());
-    let names = Local::slice_into_raw(names);
-    let values = Local::slice_into_raw(values);
+    let names = crate::handle::local_slice_into_raw(names);
+    let values = crate::handle::local_slice_into_raw(values);
     unsafe {
       scope.cast_local(|sd| {
         v8__Object__New__with_prototype_and_properties(
@@ -638,7 +638,7 @@ impl Array {
     if elements.is_empty() {
       return Self::new(scope, 0);
     }
-    let elements = Local::slice_into_raw(elements);
+    let elements = crate::handle::local_slice_into_raw(elements);
     unsafe {
       scope.cast_local(|sd| {
         v8__Array__New_with_elements(

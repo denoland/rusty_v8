@@ -224,12 +224,16 @@ impl Module {
   pub fn get_exception(&self) -> Local<Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
-    unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
+    unsafe { crate::handle::local_from_raw(v8__Module__GetException(self)) }
+      .unwrap()
   }
 
   /// Returns the ModuleRequests for this module.
   pub fn get_module_requests(&self) -> Local<FixedArray> {
-    unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
+    unsafe {
+      crate::handle::local_from_raw(v8__Module__GetModuleRequests(self))
+    }
+    .unwrap()
   }
 
   /// For the given source text offset in this module, returns the corresponding
@@ -268,7 +272,10 @@ impl Module {
   pub fn get_module_namespace(&self) -> Local<Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
-    unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
+    unsafe {
+      crate::handle::local_from_raw(v8__Module__GetModuleNamespace(self))
+        .unwrap()
+    }
   }
 
   /// Instantiates the module and its dependencies.
@@ -332,7 +339,7 @@ impl Module {
     export_names: &[Local<String>],
     evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
   ) -> Local<'s, Module> {
-    let export_names = Local::slice_into_raw(export_names);
+    let export_names = crate::handle::local_slice_into_raw(export_names);
     let export_names_len = export_names.len();
     let export_names = export_names.as_ptr();
     unsafe {
@@ -394,7 +401,10 @@ impl Hash for Module {
 impl ModuleRequest {
   /// Returns the module specifier for this ModuleRequest.
   pub fn get_specifier(&self) -> Local<String> {
-    unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
+    unsafe {
+      crate::handle::local_from_raw(v8__ModuleRequest__GetSpecifier(self))
+    }
+    .unwrap()
   }
 
   /// Returns the source code offset of this module request.
@@ -416,7 +426,11 @@ impl ModuleRequest {
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
   pub fn get_import_assertions(&self) -> Local<FixedArray> {
-    unsafe { Local::from_raw(v8__ModuleRequest__GetImportAssertions(self)) }
-      .unwrap()
+    unsafe {
+      crate::handle::local_from_raw(v8__ModuleRequest__GetImportAssertions(
+        self,
+      ))
+    }
+    .unwrap()
   }
 }

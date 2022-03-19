@@ -263,8 +263,9 @@ pub fn compile_function<'s>(
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'s, Function>> {
-  let arguments = Local::slice_into_raw(arguments);
-  let context_extensions = Local::slice_into_raw(context_extensions);
+  let arguments = crate::handle::local_slice_into_raw(arguments);
+  let context_extensions =
+    crate::handle::local_slice_into_raw(context_extensions);
   unsafe {
     scope.cast_local(|sd| {
       v8__ScriptCompiler__CompileFunction(

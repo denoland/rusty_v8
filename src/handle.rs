@@ -1,10 +1,8 @@
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::hash::Hasher;
-use std::marker::PhantomData;
+use std::intrinsics::transmute;
 use std::mem::forget;
-use std::mem::transmute;
-use std::ops::Deref;
 use std::ptr::NonNull;
 
 use crate::Data;
@@ -51,21 +49,34 @@ extern "C" {
 /// Note: Local handles in Rusty V8 differ from the V8 C++ API in that they are
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
-#[repr(C)]
-#[derive(Debug)]
-pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 
-impl<'s, T> Local<'s, T> {
-  /// Construct a new Local from an existing Handle.
-  pub fn new(
+pub type Local<'s, T> = &'s T;
+
+pub unsafe fn local_from_raw<'s, T>(ptr: *const T) -> Option<Local<'s, T>> {
+  NonNull::new(ptr as *mut T).map(|nn| local_from_non_null(nn))
+}
+
+pub unsafe fn local_from_non_null<'s, T>(nn: NonNull<T>) -> Local<'s, T> {
+  nn.as_ref()
+}
+
+pub fn local_slice_into_raw<'a, 's: 'a, T>(
+  slice: &'a [&'s T],
+) -> &'a [*const T] {
+  unsafe { &*(slice as *const [&'s T] as *const [*const T]) }
+}
+
+pub trait LocalTrait: Sized {
+  fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
-    handle: impl Handle<Data = T>,
-  ) -> Self {
+    handle: impl Handle<Data = Self>,
+  ) -> Local<'s, Self> {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(scope);
     unsafe {
       scope.cast_local(|sd| {
-        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr()) as *const T
+        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr())
+          as *const Self
       })
     }
     .unwrap()
@@ -73,43 +84,48 @@ impl<'s, T> Local<'s, T> {
 
   /// Create a local handle by downcasting from one of its super types.
   /// This function is unsafe because the cast is unchecked.
-  pub unsafe fn cast<A>(other: Local<'s, A>) -> Self
+  unsafe fn cast<'s, A: LocalTrait>(other: Local<'s, A>) -> Local<'s, Self>
   where
     Local<'s, A>: From<Self>,
   {
     transmute(other)
   }
 
-  pub(crate) unsafe fn from_raw(ptr: *const T) -> Option<Self> {
-    NonNull::new(ptr as *mut _).map(|nn| Self::from_non_null(nn))
-  }
-
-  pub(crate) unsafe fn from_non_null(nn: NonNull<T>) -> Self {
-    Self(nn, PhantomData)
-  }
-
-  pub(crate) fn as_non_null(self) -> NonNull<T> {
-    self.0
-  }
-
-  pub(crate) fn slice_into_raw(slice: &[Self]) -> &[*const T] {
-    unsafe { &*(slice as *const [Self] as *const [*const T]) }
+  fn as_non_null(&self) -> NonNull<Self> {
+    NonNull::from(self)
   }
 }
 
-impl<'s, T> Copy for Local<'s, T> {}
+pub trait LocalTrait2: Sized {
+  type Data: LocalTrait;
 
-impl<'s, T> Clone for Local<'s, T> {
-  fn clone(&self) -> Self {
-    *self
+  fn new<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    handle: impl Handle<Data = Self::Data>,
+  ) -> Local<'s, Self::Data> {
+    let HandleInfo { data, host } = handle.get_handle_info();
+    host.assert_match_isolate(scope);
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr())
+          as *const Self::Data
+      })
+    }
+    .unwrap()
+  }
+
+  /// Create a local handle by downcasting from one of its super types.
+  /// This function is unsafe because the cast is unchecked.
+  unsafe fn cast<A: LocalTrait>(other: Local<A>) -> Local<Self::Data>
+  where
+    A: From<Self::Data>,
+  {
+    transmute(other)
   }
 }
 
-impl<'s, T> Deref for Local<'s, T> {
-  type Target = T;
-  fn deref(&self) -> &T {
-    unsafe { self.0.as_ref() }
-  }
+impl<'s, T: LocalTrait> LocalTrait2 for Local<'s, T> {
+  type Data = T;
 }
 
 /// An object reference that is independent of any handle scope. Where
@@ -237,14 +253,7 @@ pub trait Handle: Sized {
   }
 }
 
-impl<'s, T> Handle for Local<'s, T> {
-  type Data = T;
-  fn get_handle_info(&self) -> HandleInfo<T> {
-    HandleInfo::new(self.as_non_null(), HandleHost::Scope)
-  }
-}
-
-impl<'a, 's: 'a, T> Handle for &'a Local<'s, T> {
+impl<'s, T: LocalTrait> Handle for Local<'s, T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.as_non_null(), HandleHost::Scope)
@@ -265,11 +274,13 @@ impl<'a, T> Handle for &'a Global<T> {
   }
 }
 
+/*
 impl<'s, T> Borrow<T> for Local<'s, T> {
   fn borrow(&self) -> &T {
     &**self
   }
 }
+*/
 
 impl<T> Borrow<T> for Global<T> {
   fn borrow(&self) -> &T {
@@ -281,14 +292,15 @@ impl<T> Borrow<T> for Global<T> {
   }
 }
 
-impl<'s, T> Eq for Local<'s, T> where T: Eq {}
 impl<T> Eq for Global<T> where T: Eq {}
 
+/*
 impl<'s, T: Hash> Hash for Local<'s, T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     (&**self).hash(state)
   }
 }
+*/
 
 impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
@@ -298,18 +310,6 @@ impl<T: Hash> Hash for Global<T> {
       }
       self.data.as_ref().hash(state);
     }
-  }
-}
-
-impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Local<'s, T>
-where
-  T: PartialEq<Rhs::Data>,
-{
-  fn eq(&self, other: &Rhs) -> bool {
-    let i1 = self.get_handle_info();
-    let i2 = other.get_handle_info();
-    i1.host.match_host(i2.host, None)
-      && unsafe { i1.data.as_ref() == i2.data.as_ref() }
   }
 }
 

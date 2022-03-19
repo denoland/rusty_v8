@@ -16,6 +16,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
+use v8::LocalTrait2;
 use v8::MapFnTo;
 
 #[must_use]
@@ -71,8 +72,8 @@ fn handle_scope_numbers() {
       assert_eq!(l1.value(), -123);
       assert_eq!(l2.value(), 456);
       assert_eq!(l3.value(), 78.9);
-      assert_eq!(v8::Number::value(&l1), -123f64);
-      assert_eq!(v8::Number::value(&l2), 456f64);
+      assert_eq!(v8::Number::value(l1), -123f64);
+      assert_eq!(v8::Number::value(l2), 456f64);
     }
   }
 }
@@ -1454,7 +1455,7 @@ fn function_template_prototype() {
     let actual_amount =
       eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
     dbg!("{}", actual_amount.number_value(scope).unwrap());
-    assert!(second_value.eq(&actual_amount));
+    assert!(second_value.eq(actual_amount));
 
     // We need to get the prototype of the object to change it, it is not the same object as the prototype template!
     object2
@@ -4813,7 +4814,7 @@ impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
     self
       .array_buffers
       .push(v8::SharedArrayBuffer::get_backing_store(
-        &shared_array_buffer,
+        shared_array_buffer,
       ));
     Some((self.array_buffers.len() as u32) - 1)
   }

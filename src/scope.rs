@@ -99,6 +99,7 @@ use crate::DataError;
 use crate::Handle;
 use crate::Isolate;
 use crate::Local;
+use crate::LocalTrait;
 use crate::Message;
 use crate::Object;
 use crate::OwnedIsolate;
@@ -181,7 +182,7 @@ impl<'s> HandleScope<'s> {
   /// on the top of the stack if no JavaScript is running.
   pub fn get_current_context(&self) -> Local<'s, Context> {
     let context_ptr = data::ScopeData::get(self).get_current_context();
-    unsafe { Local::from_raw(context_ptr) }.unwrap()
+    unsafe { crate::handle::local_from_raw(context_ptr) }.unwrap()
   }
 
   /// Returns either the last context entered through V8's C++ API, or the
@@ -193,7 +194,7 @@ impl<'s> HandleScope<'s> {
     let isolate_ptr = data.get_isolate_ptr();
     let context_ptr =
       unsafe { raw::v8__Isolate__GetEnteredOrMicrotaskContext(isolate_ptr) };
-    unsafe { Local::from_raw(context_ptr) }.unwrap()
+    unsafe { crate::handle::local_from_raw(context_ptr) }.unwrap()
   }
 }
 
@@ -221,7 +222,7 @@ impl<'s> HandleScope<'s, ()> {
     &mut self,
     f: impl FnOnce(&mut data::ScopeData) -> *const T,
   ) -> Option<Local<'s, T>> {
-    Local::from_raw(f(data::ScopeData::get_mut(self)))
+    crate::handle::local_from_raw(f(data::ScopeData::get_mut(self)))
   }
 
   pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
@@ -1095,7 +1096,8 @@ pub(crate) mod data {
               as *const Context;
           let local_context_nn =
             NonNull::new_unchecked(local_context_ptr as *mut _);
-          let local_context = Local::from_non_null(local_context_nn);
+          let local_context =
+            crate::handle::local_from_non_null(local_context_nn);
           // Initialize the `raw::ContextScope`. This enters the context too.
           debug_assert!(raw_context_scope.is_none());
           ptr::write(
@@ -1580,11 +1582,12 @@ mod raw {
     {
       assert_eq!(Layout::new::<Self>(), Layout::new::<Local<T>>());
       unsafe {
-        let undefined = Local::<Value>::from_non_null(self.0.cast());
+        let undefined =
+          crate::handle::local_from_non_null::<Value>(self.0.cast());
         debug_assert!(undefined.is_undefined());
         let value_address = *(&*value as *const T as *const Address);
         ptr::write(self.0.as_ptr(), value_address);
-        Local::from_non_null(self.0.cast())
+        crate::handle::local_from_non_null(self.0.cast())
       }
     }
   }
