@@ -12,13 +12,12 @@ use std::hash::Hasher;
 use std::mem::transmute;
 use std::ops::Deref;
 
+use crate::handle::GarbageCollected;
 use crate::support::int;
 use crate::support::Opaque;
 use crate::Global;
 use crate::Handle;
 use crate::Local;
-use crate::LocalTrait;
-use crate::LocalTrait2;
 
 extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
@@ -72,7 +71,7 @@ impl Data {
 
 macro_rules! impl_local {
   { for $type:ident } => {
-    impl LocalTrait for $type {}
+    impl GarbageCollected for $type {}
 
     impl<Rhs> PartialEq<Global<Rhs>> for $type
     where
@@ -102,9 +101,6 @@ macro_rules! impl_local {
         *other ==   self
       }
     }
-
-
-
   }
 }
 
@@ -123,7 +119,7 @@ macro_rules! impl_from {
   { $source:ident for $type:ident } => {
     impl<'s> From<Local<'s, $source>> for Local<'s, $type> {
       fn from(l: Local<'s, $source>) -> Self {
-        unsafe { transmute(l) }
+        l
       }
     }
   };
@@ -159,19 +155,6 @@ macro_rules! impl_hash {
   };
 }
 
-macro_rules! impl_partial_eq_ref {
-  { $rhs:ident for $type:ident } => {
-
-
-    //impl<'s> PartialEq<Global<$rhs>> for &'s $type {
-    //  fn eq(&self, other: &Global<$rhs>) -> bool {
-    //    other.eq(*self)
-    //  }
-    //}
-
-  }
-}
-
 macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
     impl<'s> PartialEq<$rhs> for $type {
@@ -181,7 +164,6 @@ macro_rules! impl_partial_eq {
         unsafe { v8__Data__EQ(a, b) }
       }
     }
-    impl_partial_eq_ref!($rhs for $type);
   };
   { $rhs:ident for $type:ident use strict_equals } => {
     impl<'s> PartialEq<$rhs> for $type {
@@ -191,7 +173,6 @@ macro_rules! impl_partial_eq {
         unsafe { v8__Value__StrictEquals(a, b) }
       }
     }
-    impl_partial_eq_ref!($rhs for $type);
   };
   { $rhs:ident for $type:ident use same_value_zero } => {
     impl<'s> PartialEq<$rhs> for $type {
@@ -206,7 +187,6 @@ macro_rules! impl_partial_eq {
         }
       }
     }
-    impl_partial_eq_ref!($rhs for $type);
   };
 }
 
@@ -254,10 +234,7 @@ impl Error for DataError {}
 /// The superclass of objects that can reside on V8's heap.
 #[repr(C)]
 #[derive(Debug)]
-pub struct Data(Opaque)
-where
-  Self: LocalTrait,
-  for<'s> &'s Self: LocalTrait2<Data = Self>;
+pub struct Data(Opaque);
 
 impl_local! { for Data }
 impl_from! { AccessorSignature for Data }
@@ -428,10 +405,7 @@ impl_partial_eq! { Module for Module use identity }
 /// A fixed-sized array with elements of type Data.
 #[repr(C)]
 #[derive(Debug)]
-pub struct FixedArray(Opaque)
-where
-  Self: LocalTrait,
-  for<'s> &'s Self: LocalTrait2<Data = Self>;
+pub struct FixedArray(Opaque);
 
 impl_local! { for FixedArray }
 impl_deref! { Data for FixedArray }
@@ -446,7 +420,6 @@ pub struct ModuleRequest(Opaque);
 
 impl_local! { for ModuleRequest }
 impl_deref! { Data for ModuleRequest }
-impl_from! { Data for ModuleRequest }
 impl_eq! { for ModuleRequest }
 impl_hash! { for ModuleRequest }
 impl_partial_eq! { Data for ModuleRequest use identity }
@@ -694,10 +667,7 @@ impl_partial_eq! { FunctionTemplate for FunctionTemplate use identity }
 /// created from the ObjectTemplate.
 #[repr(C)]
 #[derive(Debug)]
-pub struct ObjectTemplate(Opaque)
-where
-  Self: LocalTrait,
-  for<'s> &'s Self: LocalTrait2<Data = Self>;
+pub struct ObjectTemplate(Opaque);
 
 impl_local! { for ObjectTemplate }
 impl_deref! { Template for ObjectTemplate }
@@ -735,10 +705,7 @@ impl_partial_eq! { UnboundScript for UnboundScript use identity }
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
 #[derive(Debug)]
-pub struct Value(Opaque)
-where
-  Self: LocalTrait,
-  for<'s> Local<'s, Self>: LocalTrait2<Data = Self>;
+pub struct Value(Opaque);
 
 impl_local! { for Value }
 impl_deref! { Data for Value }

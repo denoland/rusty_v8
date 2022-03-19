@@ -263,8 +263,7 @@ where
 
     // Local scope for temporary handles.
     let scope = &mut self.context_scope;
-
-    let request_template = v8::Local::new(scope, &self.request_template);
+    let request_template = self.request_template.open(scope);
     let result = request_template.new_instance(scope).unwrap();
 
     let external = v8::External::new(
@@ -324,8 +323,10 @@ where
     scope: &mut v8::HandleScope,
     request: v8::Local<'a, v8::Object>,
   ) -> *mut Box<dyn HttpRequest> {
+    use v8::NewLocal;
+
     let external = request.get_internal_field(scope, 0).unwrap();
-    let external = unsafe { v8::Local::<v8::External>::cast(external) };
+    let external = unsafe { v8::External::cast(external) };
     external.value() as *mut Box<dyn HttpRequest>
   }
 

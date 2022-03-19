@@ -472,7 +472,7 @@ impl Function {
     recv: Local<Value>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Value>> {
-    let args = crate::handle::local_slice_into_raw(args);
+    let args = crate::handle::as_slice_of_raw_ptrs(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
     unsafe {
@@ -487,7 +487,7 @@ impl Function {
     scope: &mut HandleScope<'s>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Object>> {
-    let args = crate::handle::local_slice_into_raw(args);
+    let args = crate::handle::as_slice_of_raw_ptrs(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
     unsafe {

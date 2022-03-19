@@ -339,17 +339,15 @@ impl Module {
     export_names: &[Local<String>],
     evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
   ) -> Local<'s, Module> {
-    let export_names = crate::handle::local_slice_into_raw(export_names);
-    let export_names_len = export_names.len();
-    let export_names = export_names.as_ptr();
+    let export_names = crate::handle::as_slice_of_raw_ptrs(export_names);
     unsafe {
       scope
         .cast_local(|sd| {
           v8__Module__CreateSyntheticModule(
             sd.get_isolate_ptr(),
             &*module_name,
-            export_names_len,
-            export_names,
+            export_names.len(),
+            export_names.as_ptr(),
             evaluation_steps.map_fn_to(),
           )
         })

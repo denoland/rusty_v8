@@ -1,5 +1,4 @@
 use std::alloc::Layout;
-use std::ptr::NonNull;
 
 use crate::HandleScope;
 use crate::Integer;
@@ -71,10 +70,9 @@ impl Integer {
     // catch it.
     static ZERO_SMI: usize = 0;
     let zero_raw = &ZERO_SMI as *const _ as *mut Self;
-    let zero_nn = unsafe { NonNull::new_unchecked(zero_raw) };
-    let zero_local = unsafe { crate::handle::local_from_non_null(zero_nn) };
+    let zero_handle = unsafe { &*zero_raw };
     debug_assert_eq!(Layout::new::<usize>(), Layout::new::<Local<Self>>());
-    debug_assert_eq!(zero_local.value(), 0);
-    zero_local
+    debug_assert_eq!(zero_handle.value(), 0);
+    zero_handle
   }
 }

@@ -50,82 +50,57 @@ extern "C" {
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
 
+#[doc(hidden)]
+pub trait GarbageCollected: Sized + 'static {}
+
 pub type Local<'s, T> = &'s T;
 
-pub unsafe fn local_from_raw<'s, T>(ptr: *const T) -> Option<Local<'s, T>> {
-  NonNull::new(ptr as *mut T).map(|nn| local_from_non_null(nn))
+pub trait NewLocal<'s, T>
+where
+  T: GarbageCollected,
+{
+  #[allow(clippy::new_ret_no_self)]
+  fn new(
+    scope: &mut HandleScope<'s, ()>,
+    handle: impl Handle<Data = T>,
+  ) -> &'s T {
+    let HandleInfo { data, host } = handle.get_handle_info();
+    host.assert_match_isolate(scope);
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr()) as *const _
+      })
+    }
+    .unwrap()
+  }
+
+  /// Create a local handle by downcasting from one of its super types.
+  /// This function is unsafe because the cast is unchecked.
+  unsafe fn cast<A: 's>(other: Local<'s, A>) -> &'s T
+  where
+    Local<'s, A>: From<Local<'s, T>>,
+  {
+    transmute(other)
+  }
+
+  unsafe fn from_raw(ptr: *const T) -> Option<Local<'s, T>> {
+    NonNull::new(ptr as *mut T).map(|nn| nn.as_ref())
+  }
 }
 
-pub unsafe fn local_from_non_null<'s, T>(nn: NonNull<T>) -> Local<'s, T> {
-  nn.as_ref()
+impl<'s, T> NewLocal<'s, T> for T where T: GarbageCollected {}
+impl<'s, T> NewLocal<'s, T> for &'s T where T: GarbageCollected {}
+
+pub(crate) unsafe fn local_from_raw<'s, T>(
+  ptr: *const T,
+) -> Option<Local<'s, T>> {
+  NonNull::new(ptr as *mut T).map(|nn| nn.as_ref())
 }
 
-pub fn local_slice_into_raw<'a, 's: 'a, T>(
+pub(crate) fn as_slice_of_raw_ptrs<'a, 's: 'a, T>(
   slice: &'a [&'s T],
 ) -> &'a [*const T] {
-  unsafe { &*(slice as *const [&'s T] as *const [*const T]) }
-}
-
-pub trait LocalTrait: Sized {
-  fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
-    handle: impl Handle<Data = Self>,
-  ) -> Local<'s, Self> {
-    let HandleInfo { data, host } = handle.get_handle_info();
-    host.assert_match_isolate(scope);
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr())
-          as *const Self
-      })
-    }
-    .unwrap()
-  }
-
-  /// Create a local handle by downcasting from one of its super types.
-  /// This function is unsafe because the cast is unchecked.
-  unsafe fn cast<'s, A: LocalTrait>(other: Local<'s, A>) -> Local<'s, Self>
-  where
-    Local<'s, A>: From<Self>,
-  {
-    transmute(other)
-  }
-
-  fn as_non_null(&self) -> NonNull<Self> {
-    NonNull::from(self)
-  }
-}
-
-pub trait LocalTrait2: Sized {
-  type Data: LocalTrait;
-
-  fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
-    handle: impl Handle<Data = Self::Data>,
-  ) -> Local<'s, Self::Data> {
-    let HandleInfo { data, host } = handle.get_handle_info();
-    host.assert_match_isolate(scope);
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr())
-          as *const Self::Data
-      })
-    }
-    .unwrap()
-  }
-
-  /// Create a local handle by downcasting from one of its super types.
-  /// This function is unsafe because the cast is unchecked.
-  unsafe fn cast<A: LocalTrait>(other: Local<A>) -> Local<Self::Data>
-  where
-    A: From<Self::Data>,
-  {
-    transmute(other)
-  }
-}
-
-impl<'s, T: LocalTrait> LocalTrait2 for Local<'s, T> {
-  type Data = T;
+  unsafe { transmute(slice) }
 }
 
 /// An object reference that is independent of any handle scope. Where
@@ -253,10 +228,10 @@ pub trait Handle: Sized {
   }
 }
 
-impl<'s, T: LocalTrait> Handle for Local<'s, T> {
+impl<'s, T: GarbageCollected> Handle for Local<'s, T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
-    HandleInfo::new(self.as_non_null(), HandleHost::Scope)
+    HandleInfo::new(NonNull::from(*self), HandleHost::Scope)
   }
 }
 
@@ -327,8 +302,8 @@ where
 
 #[derive(Copy, Debug, Clone)]
 pub struct HandleInfo<T> {
-  data: NonNull<T>,
-  host: HandleHost,
+  pub(crate) data: NonNull<T>,
+  pub(crate) host: HandleHost,
 }
 
 impl<T> HandleInfo<T> {
@@ -338,7 +313,7 @@ impl<T> HandleInfo<T> {
 }
 
 #[derive(Copy, Debug, Clone)]
-enum HandleHost {
+pub(crate) enum HandleHost {
   // Note: the `HandleHost::Scope` variant does not indicate that the handle
   // it applies to is not associated with an `Isolate`. It only means that
   // the handle is a `Local` handle that was unable to provide a pointer to
@@ -420,7 +395,7 @@ impl HandleHost {
     self.match_host(isolate.into(), Some(isolate))
   }
 
-  fn assert_match_isolate(self, isolate: &mut Isolate) {
+  pub(crate) fn assert_match_isolate(self, isolate: &mut Isolate) {
     self.assert_match_host(isolate.into(), Some(isolate))
   }
 

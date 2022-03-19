@@ -93,13 +93,13 @@ use std::ptr::NonNull;
 
 use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
+use crate::handle::local_from_raw;
 use crate::Context;
 use crate::Data;
 use crate::DataError;
 use crate::Handle;
 use crate::Isolate;
 use crate::Local;
-use crate::LocalTrait;
 use crate::Message;
 use crate::Object;
 use crate::OwnedIsolate;
@@ -222,7 +222,7 @@ impl<'s> HandleScope<'s, ()> {
     &mut self,
     f: impl FnOnce(&mut data::ScopeData) -> *const T,
   ) -> Option<Local<'s, T>> {
-    crate::handle::local_from_raw(f(data::ScopeData::get_mut(self)))
+    local_from_raw(f(data::ScopeData::get_mut(self)))
   }
 
   pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
@@ -1038,7 +1038,7 @@ pub(crate) mod data {
             _raw_context_scope: raw::ContextScope::new(context),
           }
         });
-        data.context.set(Some(context.as_non_null()));
+        data.context.set(Some(NonNull::from(context)));
       })
     }
 
@@ -1096,8 +1096,7 @@ pub(crate) mod data {
               as *const Context;
           let local_context_nn =
             NonNull::new_unchecked(local_context_ptr as *mut _);
-          let local_context =
-            crate::handle::local_from_non_null(local_context_nn);
+          let local_context = local_context_nn.as_ref();
           // Initialize the `raw::ContextScope`. This enters the context too.
           debug_assert!(raw_context_scope.is_none());
           ptr::write(
@@ -1161,9 +1160,7 @@ pub(crate) mod data {
     ) -> &'s mut Self {
       self.new_scope_data_with(|data| {
         debug_assert!(data.scope_type_specific_data.is_none());
-        data
-          .context
-          .set(maybe_current_context.map(|cx| cx.as_non_null()));
+        data.context.set(maybe_current_context.map(NonNull::from));
       })
     }
 
@@ -1521,7 +1518,7 @@ mod raw {
     pub fn new(context: Local<Context>) -> Self {
       unsafe { v8__Context__Enter(&*context) };
       Self {
-        entered_context: context.as_non_null(),
+        entered_context: NonNull::from(context),
       }
     }
   }
@@ -1582,12 +1579,11 @@ mod raw {
     {
       assert_eq!(Layout::new::<Self>(), Layout::new::<Local<T>>());
       unsafe {
-        let undefined =
-          crate::handle::local_from_non_null::<Value>(self.0.cast());
+        let undefined = self.0.cast::<Value>().as_ref();
         debug_assert!(undefined.is_undefined());
         let value_address = *(&*value as *const T as *const Address);
         ptr::write(self.0.as_ptr(), value_address);
-        crate::handle::local_from_non_null(self.0.cast())
+        self.0.cast().as_ref()
       }
     }
   }
