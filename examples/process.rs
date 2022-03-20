@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use v8::Handle;
 
 #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
@@ -323,10 +324,8 @@ where
     scope: &mut v8::HandleScope,
     request: v8::Local<'a, v8::Object>,
   ) -> *mut Box<dyn HttpRequest> {
-    use v8::NewLocal;
-
     let external = request.get_internal_field(scope, 0).unwrap();
-    let external = unsafe { v8::External::cast(external) };
+    let external = unsafe { v8::Local::<v8::External>::cast(external) };
     external.value() as *mut Box<dyn HttpRequest>
   }
 

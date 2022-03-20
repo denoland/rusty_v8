@@ -12,7 +12,7 @@ use std::hash::Hasher;
 use std::mem::transmute;
 use std::ops::Deref;
 
-use crate::handle::GarbageCollected;
+use crate::handle::V8HeapObject;
 use crate::support::int;
 use crate::support::Opaque;
 use crate::Global;
@@ -71,7 +71,7 @@ impl Data {
 
 macro_rules! impl_local {
   { for $type:ident } => {
-    impl GarbageCollected for $type {}
+    impl V8HeapObject for $type {}
 
     impl<Rhs> PartialEq<Global<Rhs>> for $type
     where

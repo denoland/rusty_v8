@@ -49,32 +49,10 @@ extern "C" {
 /// Note: Local handles in Rusty V8 differ from the V8 C++ API in that they are
 /// never empty. In situations where empty handles are needed, use
 /// Option<Local>.
-
-#[doc(hidden)]
-pub trait GarbageCollected: Sized + 'static {}
-
 pub type Local<'s, T> = &'s T;
 
-pub trait NewLocal<'s, T>
-where
-  T: GarbageCollected,
-{
-  /// Create a local handle by downcasting from one of its super types.
-  /// This function is unsafe because the cast is unchecked.
-  unsafe fn cast<A: 's>(other: Local<'s, A>) -> &'s T
-  where
-    Local<'s, A>: From<Local<'s, T>>,
-  {
-    transmute(other)
-  }
-
-  unsafe fn from_raw(ptr: *const T) -> Option<Local<'s, T>> {
-    NonNull::new(ptr as *mut T).map(|nn| nn.as_ref())
-  }
-}
-
-impl<'s, T> NewLocal<'s, T> for T where T: GarbageCollected {}
-impl<'s, T> NewLocal<'s, T> for &'s T where T: GarbageCollected {}
+#[doc(hidden)]
+pub trait V8HeapObject: Sized + 'static {}
 
 pub(crate) unsafe fn local_from_raw<'s, T>(
   ptr: *const T,
@@ -197,11 +175,11 @@ pub trait Handle {
     .into()
   }
 
-  /// Casts a handle from another handle with a different payload type.
+  /// Casts a local handle from one of its super types.
   /// No type checking is performed, therefore this function is unstafe.
   unsafe fn cast<'s, A>(other_handle: &'s A) -> &'s Self::Target
   where
-    A: GarbageCollected,
+    A: V8HeapObject,
     &'s A: From<&'s Self::Target>,
   {
     transmute(other_handle)
@@ -246,7 +224,7 @@ pub trait Handle {
   fn get_handle_info(&self) -> HandleInfo<Self::Target>;
 }
 
-impl<'s, T> Handle for Local<'s, T> {
+impl<'s, T: V8HeapObject> Handle for Local<'s, T> {
   type Target = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(NonNull::from(*self), HandleHost::Scope)
@@ -267,14 +245,6 @@ impl<'a, T> Handle for &'a Global<T> {
   }
 }
 
-/*
-impl<'s, T> Borrow<T> for Local<'s, T> {
-  fn borrow(&self) -> &T {
-    &**self
-  }
-}
-*/
-
 impl<T> Borrow<T> for Global<T> {
   fn borrow(&self) -> &T {
     let HandleInfo { data, host } = self.get_handle_info();
@@ -286,14 +256,6 @@ impl<T> Borrow<T> for Global<T> {
 }
 
 impl<T> Eq for Global<T> where T: Eq {}
-
-/*
-impl<'s, T: Hash> Hash for Local<'s, T> {
-  fn hash<H: Hasher>(&self, state: &mut H) {
-    (&**self).hash(state)
-  }
-}
-*/
 
 impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
