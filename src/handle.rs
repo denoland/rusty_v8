@@ -11,7 +11,7 @@ use crate::Isolate;
 use crate::IsolateHandle;
 
 extern "C" {
-  fn v8__Local__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
+  fn v8__Local__New(isolate: *mut Isolate, data: *const Data) -> *const Data;
   fn v8__Global__New(isolate: *mut Isolate, data: *const Data) -> *const Data;
   fn v8__Global__Reset(data: *const Data);
 }
@@ -158,12 +158,12 @@ pub trait Handle {
   /// and is completely independent of the source handle.
   fn new<'s>(
     scope: &'_ mut HandleScope<'s, ()>,
-    other_handle: impl Handle<Target = Self::Target>,
+    other: impl Handle<Target = Self::Target>,
   ) -> Self
   where
     Self: From<&'s Self::Target> + 's,
   {
-    let HandleInfo { data, host } = other_handle.get_handle_info();
+    let HandleInfo { data, host } = other.get_handle_info();
     host.assert_match_isolate(scope);
     unsafe {
       scope.cast_local(|sd| {
@@ -177,12 +177,12 @@ pub trait Handle {
 
   /// Casts a local handle from one of its super types.
   /// No type checking is performed, therefore this function is unstafe.
-  unsafe fn cast<'s, A>(other_handle: &'s A) -> &'s Self::Target
+  unsafe fn cast<'s, A>(other: &'s A) -> &'s Self::Target
   where
     A: V8HeapObject,
     &'s A: From<&'s Self::Target>,
   {
-    transmute(other_handle)
+    transmute(other)
   }
 
   /// Returns a reference to the V8 heap object that this handle represents.
@@ -255,8 +255,6 @@ impl<T> Borrow<T> for Global<T> {
   }
 }
 
-impl<T> Eq for Global<T> where T: Eq {}
-
 impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     unsafe {
@@ -268,7 +266,14 @@ impl<T: Hash> Hash for Global<T> {
   }
 }
 
-impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Global<T>
+impl<T> Eq for Global<T>
+where
+  Global<T>: PartialEq<Global<T>>,
+  T: Eq,
+{
+}
+
+/*impl<T, Rhs: Handle> PartialEq<Rhs> for Global<T>
 where
   T: PartialEq<Rhs::Target>,
 {
@@ -278,7 +283,20 @@ where
     i1.host.match_host(i2.host, None)
       && unsafe { i1.data.as_ref() == i2.data.as_ref() }
   }
-}
+}*/
+
+/*
+impl<'s, Rhs: Handle> PartialEq<Rhs> for Local<'s, Rhs::Target>
+where
+  Rhs::Target: PartialEq<Rhs::Target>,
+{
+  fn eq(&self, other: &Rhs) -> bool {
+    let i1 = self.get_handle_info();
+    let i2 = other.get_handle_info();
+    i1.host.match_host(i2.host, None)
+      && unsafe { i1.data.as_ref() == i2.data.as_ref() }
+  }
+}*/
 
 #[derive(Copy, Debug, Clone)]
 pub struct HandleInfo<T> {
@@ -363,7 +381,7 @@ impl HandleHost {
     }
   }
 
-  fn assert_match_host(self, other: Self, scope_opt: Option<&mut Isolate>) {
+  pub fn assert_match_host(self, other: Self, scope_opt: Option<&mut Isolate>) {
     assert!(
       self.match_host(other, scope_opt),
       "attempt to use Handle in an Isolate that is not its host"

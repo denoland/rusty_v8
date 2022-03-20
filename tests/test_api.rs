@@ -1432,7 +1432,7 @@ fn function_template_prototype() {
     let actual_amount =
       eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
     dbg!("{}", actual_amount.number_value(scope).unwrap());
-    assert!(value.eq(&actual_amount));
+    assert!(value.eq(actual_amount));
 
     let object2 = function.new_instance(scope, &[]).unwrap();
     assert!(!object2.is_null_or_undefined());
@@ -1442,7 +1442,7 @@ fn function_template_prototype() {
     let actual_amount =
       eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
     dbg!("{}", actual_amount.number_value(scope).unwrap());
-    assert!(value.eq(&actual_amount));
+    assert!(value.eq(actual_amount));
 
     eval(scope, "ob1.amount = 2").unwrap();
 
@@ -1462,12 +1462,12 @@ fn function_template_prototype() {
     let actual_amount =
       eval(scope, "ob1.amount").unwrap().to_number(scope).unwrap();
     dbg!("{}", actual_amount.number_value(scope).unwrap());
-    assert!(second_value.eq(&actual_amount));
+    assert!(second_value.eq(actual_amount));
 
     let actual_amount =
       eval(scope, "ob2.amount").unwrap().to_number(scope).unwrap();
     dbg!("{}", actual_amount.number_value(scope).unwrap());
-    assert!(third_value.eq(&actual_amount));
+    assert!(third_value.eq(actual_amount));
   }
 }
 
