@@ -171,10 +171,13 @@ impl<'s> HandleScope<'s> {
     param: &'s mut P,
     context: H,
   ) -> Self {
-    let context = context.open(param.get_isolate_mut());
+    let context_handle = context.get_handle_info();
+    context_handle
+      .host
+      .assert_match_isolate(param.get_isolate_mut());
     param
       .get_scope_data_mut()
-      .new_handle_scope_data_with_context(context)
+      .new_handle_scope_data_with_context(context_handle.data)
       .as_scope()
   }
 
@@ -1084,11 +1087,10 @@ pub(crate) mod data {
 
     pub(super) fn new_handle_scope_data_with_context(
       &mut self,
-      context_ref: &Context,
+      context_nn: NonNull<Context>,
     ) -> &mut Self {
       self.new_handle_scope_data_with(
         move |isolate, context_data, raw_context_scope| unsafe {
-          let context_nn = NonNull::from(context_ref);
           // Copy the `Context` reference to a new local handle to enure that it
           // cannot get garbage collected until after this scope is dropped.
           let local_context_ptr =

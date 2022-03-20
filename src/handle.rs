@@ -123,10 +123,6 @@ impl<T> Global<T> {
       isolate_handle,
     }
   }
-
-  pub fn open<'s>(&'s self, scope: &'_ mut Isolate) -> &'s T {
-    Handle::open(self, scope)
-  }
 }
 
 impl<T> Clone for Global<T> {
@@ -187,15 +183,21 @@ pub trait Handle {
 
   /// Returns a reference to the V8 heap object that this handle represents.
   /// The handle does not get cloned, nor is it converted to a `Local` handle.
+  /// TODO(piscisaureus): its lifetime should be bound to a scope or isolate,
+  /// because this is the only way we can guarantee that the pointer does not
+  /// become invalid.
   ///
   /// # Panics
   ///
   /// This function panics in the following situations:
   /// - The handle is not hosted by the specified Isolate.
   /// - The Isolate that hosts this handle has been disposed.
-  fn open<'s>(&'s self, isolate: &'_ mut Isolate) -> &'s Self::Target {
+  fn open<'r, 'global: 'r, 'scope: 'r>(
+    &'global self,
+    scope: &'_ mut HandleScope<'scope, ()>,
+  ) -> &'r Self::Target {
     let HandleInfo { data, host } = self.get_handle_info();
-    host.assert_match_isolate(isolate);
+    host.assert_match_isolate(scope);
     unsafe { data.as_ref() }
   }
 
@@ -211,7 +213,9 @@ pub trait Handle {
   /// # Panics
   ///
   /// This function panics if the `Isolate` that hosts the handle has been
-  /// disposed.
+  /// disposed. However, after `open_unchecked()` returns no furher checks will
+  /// be make The user has to make sure that the isolate remains alive as long
+  /// as the returned reference exists, otherwise it'll be undefined behavior.
   unsafe fn open_unchecked(&self) -> &Self::Target {
     let HandleInfo { data, host } = self.get_handle_info();
     if let HandleHost::DisposedIsolate = host {
