@@ -1,0 +1,10 @@
+error[E0499]: cannot borrow `*scope1` as mutable more than once at a time
+  --> tests/compile_fail/handle_open_lifetime_1.rs:18:25
+   |
+14 |     let scope2 = &mut v8::HandleScope::new(scope1);
+   |                                            ------ first mutable borrow occurs here
+...
+18 |   let _ = v8::undefined(scope1);
+   |                         ^^^^^^ second mutable borrow occurs here
+19 |   assert_eq!(global, local);
+   |   ------------------------- first borrow later used here

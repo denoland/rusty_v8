@@ -1,0 +1,10 @@
+error[E0505]: cannot move out of `global1` because it is borrowed
+  --> tests/compile_fail/handle_open_lifetime_2.rs:12:8
+   |
+10 |   let local2 = v8::Handle::open(&global1, scope);
+   |                                 -------- borrow of `global1` occurs here
+11 |
+12 |   drop(global1);
+   |        ^^^^^^^ move out of `global1` occurs here
+13 |   let _global2 = v8::Global::new(scope, local2);
+   |                                         ------ borrow later used here
