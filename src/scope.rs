@@ -166,15 +166,15 @@ impl<'s> HandleScope<'s> {
   /// usually this will be a `Global<Context>`.
   pub fn with_context<
     P: param::NewHandleScopeWithContext<'s>,
-    H: Handle<Data = Context>,
+    H: Handle<Target = Context>,
   >(
     param: &'s mut P,
     context: H,
   ) -> Self {
-    let context_ref = context.open(param.get_isolate_mut());
+    let context = context.open(param.get_isolate_mut());
     param
       .get_scope_data_mut()
-      .new_handle_scope_data_with_context(context_ref)
+      .new_handle_scope_data_with_context(context)
       .as_scope()
   }
 

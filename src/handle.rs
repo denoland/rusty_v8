@@ -59,21 +59,6 @@ pub trait NewLocal<'s, T>
 where
   T: GarbageCollected,
 {
-  #[allow(clippy::new_ret_no_self)]
-  fn new(
-    scope: &mut HandleScope<'s, ()>,
-    handle: impl Handle<Data = T>,
-  ) -> &'s T {
-    let HandleInfo { data, host } = handle.get_handle_info();
-    host.assert_match_isolate(scope);
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr()) as *const _
-      })
-    }
-    .unwrap()
-  }
-
   /// Create a local handle by downcasting from one of its super types.
   /// This function is unsafe because the cast is unchecked.
   unsafe fn cast<A: 's>(other: Local<'s, A>) -> &'s T
@@ -119,7 +104,7 @@ pub struct Global<T> {
 
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
-  pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
+  pub fn new(isolate: &mut Isolate, handle: impl Handle<Target = T>) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(isolate);
     unsafe { Self::new_raw(isolate, data) }
@@ -129,6 +114,7 @@ impl<T> Global<T> {
   /// between `Global::new()` and `Global::clone()`.
   unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
+
     let data = v8__Global__New(isolate, data) as *const T;
     let data = NonNull::new_unchecked(data as *mut _);
     let isolate_handle = (*isolate).thread_safe_handle();
@@ -160,7 +146,7 @@ impl<T> Global<T> {
     }
   }
 
-  pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
+  pub fn open<'s>(&'s self, scope: &'_ mut Isolate) -> &'s T {
     Handle::open(self, scope)
   }
 }
@@ -186,11 +172,40 @@ impl<T> Drop for Global<T> {
   }
 }
 
-pub trait Handle: Sized {
-  type Data;
+pub trait Handle {
+  type Target: Sized;
 
-  #[doc(hidden)]
-  fn get_handle_info(&self) -> HandleInfo<Self::Data>;
+  /// Creates a new local handle with the same value in it as an existing
+  /// handle. The returned local handle gets added to the active HandleScope,
+  /// and is completely independent of the source handle.
+  fn new<'s>(
+    scope: &'_ mut HandleScope<'s, ()>,
+    other_handle: impl Handle<Target = Self::Target>,
+  ) -> Self
+  where
+    Self: From<&'s Self::Target> + 's,
+  {
+    let HandleInfo { data, host } = other_handle.get_handle_info();
+    host.assert_match_isolate(scope);
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Local__New(sd.get_isolate_ptr(), data.cast().as_ptr())
+          as *const Self::Target
+      })
+    }
+    .unwrap()
+    .into()
+  }
+
+  /// Casts a handle from another handle with a different payload type.
+  /// No type checking is performed, therefore this function is unstafe.
+  unsafe fn cast<'s, A>(other_handle: &'s A) -> &'s Self::Target
+  where
+    A: GarbageCollected,
+    &'s A: From<&'s Self::Target>,
+  {
+    transmute(other_handle)
+  }
 
   /// Returns a reference to the V8 heap object that this handle represents.
   /// The handle does not get cloned, nor is it converted to a `Local` handle.
@@ -200,10 +215,10 @@ pub trait Handle: Sized {
   /// This function panics in the following situations:
   /// - The handle is not hosted by the specified Isolate.
   /// - The Isolate that hosts this handle has been disposed.
-  fn open<'a>(&'a self, isolate: &mut Isolate) -> &'a Self::Data {
+  fn open<'s>(&'s self, isolate: &'_ mut Isolate) -> &'s Self::Target {
     let HandleInfo { data, host } = self.get_handle_info();
     host.assert_match_isolate(isolate);
-    unsafe { &*data.as_ptr() }
+    unsafe { data.as_ref() }
   }
 
   /// Reads the inner value contained in this handle, _without_ verifying that
@@ -219,31 +234,34 @@ pub trait Handle: Sized {
   ///
   /// This function panics if the `Isolate` that hosts the handle has been
   /// disposed.
-  unsafe fn get_unchecked(&self) -> &Self::Data {
+  unsafe fn open_unchecked(&self) -> &Self::Target {
     let HandleInfo { data, host } = self.get_handle_info();
     if let HandleHost::DisposedIsolate = host {
       panic!("attempt to access Handle hosted by disposed Isolate");
     }
-    &*data.as_ptr()
+    data.as_ref()
   }
+
+  #[doc(hidden)]
+  fn get_handle_info(&self) -> HandleInfo<Self::Target>;
 }
 
 impl<'s, T: GarbageCollected> Handle for Local<'s, T> {
-  type Data = T;
+  type Target = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(NonNull::from(*self), HandleHost::Scope)
   }
 }
 
 impl<T> Handle for Global<T> {
-  type Data = T;
+  type Target = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
   }
 }
 
 impl<'a, T> Handle for &'a Global<T> {
-  type Data = T;
+  type Target = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
   }
@@ -290,7 +308,7 @@ impl<T: Hash> Hash for Global<T> {
 
 impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Global<T>
 where
-  T: PartialEq<Rhs::Data>,
+  T: PartialEq<Rhs::Target>,
 {
   fn eq(&self, other: &Rhs) -> bool {
     let i1 = self.get_handle_info();

@@ -15,8 +15,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use v8::Handle;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
-use v8::{MapFnTo, NewLocal};
+use v8::MapFnTo;
 
 #[must_use]
 struct SetupGuard {}
@@ -2513,7 +2514,7 @@ fn module_instantiation_failures1() {
     assert!(module.script_id().is_some());
 
     let mr1 = module_requests.get(scope, 0).unwrap();
-    let mr1 = unsafe { v8::ModuleRequest::cast(mr1) };
+    let mr1 = unsafe { v8::Local::<v8::ModuleRequest>::cast(mr1) };
     assert_eq!("./foo.js", mr1.get_specifier().to_rust_string_lossy(scope));
     let loc = module.source_offset_to_location(mr1.get_source_offset());
     assert_eq!(0, loc.get_line_number());
@@ -2521,7 +2522,7 @@ fn module_instantiation_failures1() {
     assert_eq!(0, mr1.get_import_assertions().length());
 
     let mr2 = module_requests.get(scope, 1).unwrap();
-    let mr2 = unsafe { v8::ModuleRequest::cast(mr2) };
+    let mr2 = unsafe { v8::Local::<v8::ModuleRequest>::cast(mr2) };
     assert_eq!("./bar.js", mr2.get_specifier().to_rust_string_lossy(scope));
     let loc = module.source_offset_to_location(mr2.get_source_offset());
     assert_eq!(1, loc.get_line_number());
@@ -5357,7 +5358,7 @@ fn prepare_stack_trace_callback() {
   assert_eq!(Some(42), result.uint32_value(scope));
 
   let sites = SITES.with(|slot| slot.borrow_mut().take()).unwrap();
-  let sites = v8::Local::new(scope, sites);
+  let sites = v8::Local::<v8::Array>::new(scope, sites);
   assert_eq!(3, sites.length());
 
   let scripts = [
