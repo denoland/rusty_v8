@@ -246,7 +246,7 @@ pub trait Handle {
   fn get_handle_info(&self) -> HandleInfo<Self::Target>;
 }
 
-impl<'s, T: GarbageCollected> Handle for Local<'s, T> {
+impl<'s, T> Handle for Local<'s, T> {
   type Target = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(NonNull::from(*self), HandleHost::Scope)
