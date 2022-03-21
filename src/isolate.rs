@@ -430,7 +430,7 @@ impl Isolate {
       .get_annex()
       .slots
       .get(&TypeId::of::<T>())
-      .map(|slot| unsafe { slot.get::<T>() })
+      .map(|slot| unsafe { slot.borrow::<T>() })
   }
 
   /// Get a mutable reference to embedder data added with `set_slot()`.
@@ -439,7 +439,7 @@ impl Isolate {
       .get_annex_mut()
       .slots
       .get_mut(&TypeId::of::<T>())
-      .map(|slot| unsafe { slot.get_mut::<T>() })
+      .map(|slot| unsafe { slot.borrow_mut::<T>() })
   }
 
   /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
@@ -1044,7 +1044,8 @@ where
 }
 
 /// A special hasher that is optimized for hashing `std::any::TypeId` values.
-/// It can't be used for anything else.
+/// `TypeId` values are actually 64-bit values which themselves come out of some
+/// hash function, so it's unnecessary to shuffle their bits any further.
 #[derive(Clone, Default)]
 pub(crate) struct TypeIdHasher {
   state: Option<u64>,
@@ -1086,12 +1087,17 @@ impl BuildHasher for BuildTypeIdHasher {
   }
 }
 
+const _: () = {
+  assert!(size_of::<TypeId>() == size_of::<u64>());
+  assert!(align_of::<TypeId>() == size_of::<u64>());
+};
+
 struct RawSlot {
   data: RawSlotData,
   dtor: Option<RawSlotDtor>,
 }
 
-type RawSlotData = MaybeUninit<[usize; 1]>;
+type RawSlotData = MaybeUninit<usize>;
 type RawSlotDtor = unsafe fn(&mut RawSlotData) -> ();
 
 impl RawSlot {
@@ -1104,8 +1110,11 @@ impl RawSlot {
     }
   }
 
+  // SAFETY: a valid value of type `T` must haven been stored in the slot
+  // earlier. There is no verification that the type param provided by the
+  // caller is correct.
   #[inline]
-  pub unsafe fn get<T: 'static>(&self) -> &T {
+  pub unsafe fn borrow<T: 'static>(&self) -> &T {
     if Self::needs_box::<T>() {
       &*(self.data.as_ptr() as *const Box<T>)
     } else {
@@ -1113,8 +1122,9 @@ impl RawSlot {
     }
   }
 
+  // Safety: see [`RawSlot::borrow`].
   #[inline]
-  pub unsafe fn get_mut<T: 'static>(&mut self) -> &mut T {
+  pub unsafe fn borrow_mut<T: 'static>(&mut self) -> &mut T {
     if Self::needs_box::<T>() {
       &mut *(self.data.as_mut_ptr() as *mut Box<T>)
     } else {
@@ -1122,6 +1132,7 @@ impl RawSlot {
     }
   }
 
+  // Safety: see [`RawSlot::borrow`].
   #[inline]
   pub unsafe fn into_inner<T: 'static>(self) -> T {
     let value = if Self::needs_box::<T>() {
@@ -1154,6 +1165,7 @@ impl RawSlot {
     self_
   }
 
+  // SAFETY: a valid value of type `T` or `Box<T>` must be stored in the slot.
   unsafe fn drop_internal<B: 'static>(data: &mut RawSlotData) {
     assert!(!Self::needs_box::<B>());
     drop_in_place(data.as_mut_ptr() as *mut B);
