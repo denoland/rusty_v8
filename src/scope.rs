@@ -1961,7 +1961,8 @@ mod tests {
     {
       AssertTypeOf(&HandleScope::with_context(isolate, &global_context))
         .is::<HandleScope>();
-      AssertTypeOf(&HandleScope::with_context(isolate, global_context))
+      let local_context = unsafe { Handle::open_unchecked(&global_context) };
+      AssertTypeOf(&HandleScope::with_context(isolate, local_context))
         .is::<HandleScope>();
     }
   }

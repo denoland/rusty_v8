@@ -147,7 +147,7 @@ impl<T> Drop for Global<T> {
 }
 
 pub trait Handle {
-  type Target: Sized;
+  type Target;
 
   /// Creates a new local handle with the same value in it as an existing
   /// handle. The returned local handle gets added to the active HandleScope,
@@ -242,7 +242,7 @@ impl<T> Handle for Global<T> {
   }
 }
 
-impl<'a, T> Handle for &'a Global<T> {
+impl<'s, T> Handle for &'s Global<T> {
   type Target = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
@@ -277,31 +277,6 @@ where
 {
 }
 
-/*impl<T, Rhs: Handle> PartialEq<Rhs> for Global<T>
-where
-  T: PartialEq<Rhs::Target>,
-{
-  fn eq(&self, other: &Rhs) -> bool {
-    let i1 = self.get_handle_info();
-    let i2 = other.get_handle_info();
-    i1.host.match_host(i2.host, None)
-      && unsafe { i1.data.as_ref() == i2.data.as_ref() }
-  }
-}*/
-
-/*
-impl<'s, Rhs: Handle> PartialEq<Rhs> for Local<'s, Rhs::Target>
-where
-  Rhs::Target: PartialEq<Rhs::Target>,
-{
-  fn eq(&self, other: &Rhs) -> bool {
-    let i1 = self.get_handle_info();
-    let i2 = other.get_handle_info();
-    i1.host.match_host(i2.host, None)
-      && unsafe { i1.data.as_ref() == i2.data.as_ref() }
-  }
-}*/
-
 #[derive(Copy, Debug, Clone)]
 pub struct HandleInfo<T> {
   pub(crate) data: NonNull<T>,
@@ -318,9 +293,8 @@ impl<T> HandleInfo<T> {
 pub(crate) enum HandleHost {
   // Note: the `HandleHost::Scope` variant does not indicate that the handle
   // it applies to is not associated with an `Isolate`. It only means that
-  // the handle is a `Local` handle that was unable to provide a pointer to
-  // the `Isolate` that hosts it (the handle) and the currently entered
-  // scope.
+  // the handle is a `Local` handle that was unable to provide a concrete
+  // pointer to the `Isolate` it belongs to.
   Scope,
   Isolate(NonNull<Isolate>),
   DisposedIsolate,
