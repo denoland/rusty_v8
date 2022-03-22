@@ -513,14 +513,6 @@ fn get_isolate_from_handle() {
   check_eval(scope, Some(false), "3.3 / 3.3");
 }
 
-pub extern "C" fn backing_store_deleter_callback(
-  _data: *mut c_void,
-  _byte_length: usize,
-  _deleter_data: *mut c_void,
-) {
-  // no-op
-}
-
 #[test]
 fn array_buffer() {
   let _setup_guard = setup();
@@ -542,11 +534,33 @@ fn array_buffer() {
     assert_eq!(84, bs.byte_length());
     assert!(!bs.is_shared());
 
-    let data: &[u8] = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    // SAFETY: Manually deallocating memory once V8 calls the
+    // deleter callback.
+    unsafe extern "C" fn backing_store_deleter_callback(
+      data: *mut c_void,
+      byte_length: usize,
+      deleter_data: *mut c_void,
+    ) {
+      let slice = std::slice::from_raw_parts(data as *const u8, byte_length);
+      assert_eq!(slice, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      assert_eq!(byte_length, 10);
+      assert_eq!(deleter_data, std::ptr::null_mut());
+      let layout = std::alloc::Layout::new::<[u8; 10]>();
+      std::alloc::dealloc(data as *mut u8, layout);
+    }
+
+    // SAFETY: Manually allocating memory so that it will be only
+    // deleted when V8 calls deleter callback.
+    let data = unsafe {
+      let layout = std::alloc::Layout::new::<[u8; 10]>();
+      let ptr = std::alloc::alloc(layout);
+      (ptr as *mut [u8; 10]).write([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      ptr as *mut c_void
+    };
     let unique_bs = unsafe {
       v8::ArrayBuffer::new_backing_store_from_ptr(
-        data.as_ptr() as *mut c_void,
-        data.len(),
+        data,
+        10,
         backing_store_deleter_callback,
         std::ptr::null_mut(),
       )
