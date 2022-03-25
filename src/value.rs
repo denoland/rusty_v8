@@ -1,3 +1,6 @@
+use std::num::NonZeroI32;
+
+use crate::support::int;
 use crate::support::Maybe;
 use crate::BigInt;
 use crate::Boolean;
@@ -68,6 +71,7 @@ extern "C" {
   fn v8__Value__IsDataView(this: *const Value) -> bool;
   fn v8__Value__IsSharedArrayBuffer(this: *const Value) -> bool;
   fn v8__Value__IsProxy(this: *const Value) -> bool;
+  fn v8__Value__IsWasmMemoryObject(this: *const Value) -> bool;
   fn v8__Value__IsWasmModuleObject(this: *const Value) -> bool;
   fn v8__Value__IsModuleNamespaceObject(this: *const Value) -> bool;
   fn v8__Value__StrictEquals(this: *const Value, that: *const Value) -> bool;
@@ -137,6 +141,7 @@ extern "C" {
   );
   fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
     -> bool;
+  fn v8__Value__GetHash(this: *const Value) -> int;
 }
 
 impl Value {
@@ -415,6 +420,11 @@ impl Value {
     unsafe { v8__Value__IsProxy(self) }
   }
 
+  /// Returns true if this value is a WasmMemoryObject.
+  pub fn is_wasm_memory_object(&self) -> bool {
+    unsafe { v8__Value__IsWasmMemoryObject(self) }
+  }
+
   /// Returns true if this value is a WasmModuleObject.
   pub fn is_wasm_module_object(&self) -> bool {
     unsafe { v8__Value__IsWasmModuleObject(self) }
@@ -607,5 +617,14 @@ impl Value {
 
   pub fn boolean_value<'s>(&self, scope: &mut HandleScope<'s, ()>) -> bool {
     unsafe { v8__Value__BooleanValue(self, scope.get_isolate_ptr()) }
+  }
+
+  /// Returns the V8 hash value for this value. The current implementation
+  /// uses a hidden property to store the identity hash on some object types.
+  ///
+  /// The return value will never be 0. Also, it is not guaranteed to be
+  /// unique.
+  pub fn get_hash(&self) -> NonZeroI32 {
+    unsafe { NonZeroI32::new_unchecked(v8__Value__GetHash(self)) }
   }
 }
