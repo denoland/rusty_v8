@@ -141,7 +141,7 @@ extern "C" {
   );
   fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
     -> bool;
-  fn v8__internal__Object__GetHash(this: *const Value) -> int;
+  fn v8__Value__GetHash(this: *const Value) -> int;
 }
 
 impl Value {
@@ -625,6 +625,6 @@ impl Value {
   /// The return value will never be 0. Also, it is not guaranteed to be
   /// unique.
   pub fn get_hash(&self) -> NonZeroI32 {
-    unsafe { NonZeroI32::new_unchecked(v8__internal__Object__GetHash(self)) }
+    unsafe { NonZeroI32::new_unchecked(v8__Value__GetHash(self)) }
   }
 }

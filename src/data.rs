@@ -140,6 +140,7 @@ macro_rules! impl_try_from {
     impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
       type Error = DataError;
       fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
+        // Not dead: `cast()` is sometimes used in the $check expression.
         #[allow(dead_code)]
         fn cast<T>(l: Local<$source>) -> Local<T> {
           unsafe { transmute(l) }

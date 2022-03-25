@@ -385,7 +385,6 @@ impl Object {
   ///
   /// The return value will never be 0. Also, it is not guaranteed to be
   /// unique.
-  #[doc(hidden)]
   pub fn get_identity_hash(&self) -> NonZeroI32 {
     unsafe { NonZeroI32::new_unchecked(v8__Object__GetIdentityHash(self)) }
   }

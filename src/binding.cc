@@ -2625,7 +2625,7 @@ v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
              : nullptr;
 }
 
-int v8__internal__Object__GetHash(const v8::Value& data) {
+int v8__Value__GetHash(const v8::Value& data) {
   namespace i = v8::internal;
   i::Object object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;
