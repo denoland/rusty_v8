@@ -1,4 +1,4 @@
-// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+// Copyright 2019-2022 the Deno authors. All rights reserved. MIT license.
 
 use std::any::type_name;
 use std::convert::From;
@@ -13,7 +13,6 @@ use std::mem::transmute;
 use std::ops::Deref;
 
 use crate::handle::V8HeapObject;
-use crate::support::int;
 use crate::support::Opaque;
 use crate::Global;
 use crate::Handle;
@@ -21,31 +20,50 @@ use crate::Local;
 
 extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
-  fn v8__Data__IsValue(this: *const Data) -> bool;
-  fn v8__Data__IsModule(this: *const Data) -> bool;
-  fn v8__Data__IsPrivate(this: *const Data) -> bool;
-  fn v8__Data__IsObjectTemplate(this: *const Data) -> bool;
+  fn v8__Data__IsBigInt(this: *const Data) -> bool;
+  fn v8__Data__IsBoolean(this: *const Data) -> bool;
+  fn v8__Data__IsContext(this: *const Data) -> bool;
+  fn v8__Data__IsFixedArray(this: *const Data) -> bool;
   fn v8__Data__IsFunctionTemplate(this: *const Data) -> bool;
-
-  fn v8__internal__Object__GetHash(this: *const Data) -> int;
+  fn v8__Data__IsModule(this: *const Data) -> bool;
+  fn v8__Data__IsModuleRequest(this: *const Data) -> bool;
+  fn v8__Data__IsName(this: *const Data) -> bool;
+  fn v8__Data__IsNumber(this: *const Data) -> bool;
+  fn v8__Data__IsObjectTemplate(this: *const Data) -> bool;
+  fn v8__Data__IsPrimitive(this: *const Data) -> bool;
+  fn v8__Data__IsPrivate(this: *const Data) -> bool;
+  fn v8__Data__IsString(this: *const Data) -> bool;
+  fn v8__Data__IsSymbol(this: *const Data) -> bool;
+  fn v8__Data__IsValue(this: *const Data) -> bool;
 
   fn v8__Value__SameValue(this: *const Value, other: *const Value) -> bool;
   fn v8__Value__StrictEquals(this: *const Value, other: *const Value) -> bool;
 }
 
 impl Data {
-  /// Returns the V8 hash value for this value. The current implementation
-  /// uses a hidden property to store the identity hash on some object types.
-  ///
-  /// The return value will never be 0. Also, it is not guaranteed to be
-  /// unique.
-  pub fn get_hash(&self) -> int {
-    unsafe { v8__internal__Object__GetHash(self) }
+  /// Returns true if this data is a `BigInt`.
+  pub fn is_big_int(&self) -> bool {
+    unsafe { v8__Data__IsBigInt(self) }
   }
 
-  /// Returns true if this data is a `Value`.
-  pub fn is_value(&self) -> bool {
-    unsafe { v8__Data__IsValue(self) }
+  /// Returns true if this data is a `Boolean`.
+  pub fn is_boolean(&self) -> bool {
+    unsafe { v8__Data__IsBoolean(self) }
+  }
+
+  /// Returns true if this data is a `Context`.
+  pub fn is_context(&self) -> bool {
+    unsafe { v8__Data__IsContext(self) }
+  }
+
+  /// Returns true if this data is a `FixedArray`.
+  pub fn is_fixed_array(&self) -> bool {
+    unsafe { v8__Data__IsFixedArray(self) }
+  }
+
+  /// Returns true if this data is a `FunctionTemplate`.
+  pub fn is_function_template(&self) -> bool {
+    unsafe { v8__Data__IsFunctionTemplate(self) }
   }
 
   /// Returns true if this data is a `Module`.
@@ -53,19 +71,49 @@ impl Data {
     unsafe { v8__Data__IsModule(self) }
   }
 
+  /// Returns true if this data is a `ModuleRequest`.
+  pub fn is_module_request(&self) -> bool {
+    unsafe { v8__Data__IsModuleRequest(self) }
+  }
+
+  /// Returns true if this data is a `Name`.
+  pub fn is_name(&self) -> bool {
+    unsafe { v8__Data__IsName(self) }
+  }
+
+  /// Returns true if this data is a `Number`.
+  pub fn is_number(&self) -> bool {
+    unsafe { v8__Data__IsNumber(self) }
+  }
+
+  /// Returns true if this data is a `ObjectTemplate`.
+  pub fn is_object_template(&self) -> bool {
+    unsafe { v8__Data__IsObjectTemplate(self) }
+  }
+
+  /// Returns true if this data is a `Primitive`.
+  pub fn is_primitive(&self) -> bool {
+    unsafe { v8__Data__IsPrimitive(self) }
+  }
+
   /// Returns true if this data is a `Private`.
   pub fn is_private(&self) -> bool {
     unsafe { v8__Data__IsPrivate(self) }
   }
 
-  /// Returns true if this data is an `ObjectTemplate`
-  pub fn is_object_template(&self) -> bool {
-    unsafe { v8__Data__IsObjectTemplate(self) }
+  /// Returns true if this data is a `String`.
+  pub fn is_string(&self) -> bool {
+    unsafe { v8__Data__IsString(self) }
   }
 
-  /// Returns true if this data is a `FunctionTemplate.`
-  pub fn is_function_template(&self) -> bool {
-    unsafe { v8__Data__IsFunctionTemplate(self) }
+  /// Returns true if this data is a `Symbol`.
+  pub fn is_symbol(&self) -> bool {
+    unsafe { v8__Data__IsSymbol(self) }
+  }
+
+  /// Returns true if this data is a `Value`.
+  pub fn is_value(&self) -> bool {
+    unsafe { v8__Data__IsValue(self) }
   }
 }
 
@@ -154,6 +202,11 @@ macro_rules! impl_try_from {
     impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
       type Error = DataError;
       fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
+        // Not dead: `cast()` is sometimes used in the $check expression.
+        #[allow(dead_code)]
+        fn cast<T>(l: Local<$source>) -> Local<T> {
+          unsafe { transmute(l) }
+        }
         match l {
           $value if $check => Ok(unsafe { transmute(l) }),
           _ => Err(DataError::bad_type::<$target, $source>())
@@ -170,10 +223,10 @@ macro_rules! impl_eq {
 }
 
 macro_rules! impl_hash {
-  { for $type:ident } => {
+  { for $type:ident use $method:ident } => {
     impl Hash for $type {
       fn hash<H: Hasher>(&self, state: &mut H) {
-        self.get_hash().hash(state)
+        self.$method().hash(state)
       }
     }
   };
@@ -198,6 +251,7 @@ macro_rules! impl_partial_eq {
       }
     }
   };
+
   { $rhs:ident for $type:ident use same_value_zero } => {
     impl PartialEq<$rhs> for $type {
       fn eq(&self, other: &$rhs) -> bool {
@@ -261,21 +315,16 @@ define_type! {
 }
 impl_from! { AccessorSignature for Data }
 impl_from! { Context for Data }
-impl_from! { Message for Data }
+impl_from! { FixedArray for Data }
 impl_from! { Module for Data }
 impl_from! { ModuleRequest for Data }
 impl_from! { PrimitiveArray for Data }
 impl_from! { Private for Data }
-impl_from! { Script for Data }
-impl_from! { ScriptOrModule for Data }
 impl_from! { Signature for Data }
-impl_from! { StackFrame for Data }
-impl_from! { StackTrace for Data }
 impl_from! { Template for Data }
 impl_from! { FunctionTemplate for Data }
 impl_from! { ObjectTemplate for Data }
 impl_from! { UnboundModuleScript for Data }
-impl_from! { UnboundScript for Data }
 impl_from! { Value for Data }
 impl_from! { External for Data }
 impl_from! { Object for Data }
@@ -309,6 +358,7 @@ impl_from! { Set for Data }
 impl_from! { SharedArrayBuffer for Data }
 impl_from! { StringObject for Data }
 impl_from! { SymbolObject for Data }
+impl_from! { WasmMemoryObject for Data }
 impl_from! { WasmModuleObject for Data }
 impl_from! { Primitive for Data }
 impl_from! { BigInt for Data }
@@ -322,22 +372,17 @@ impl_from! { Int32 for Data }
 impl_from! { Uint32 for Data }
 impl_partial_eq! { AccessorSignature for Data use identity }
 impl_partial_eq! { Context for Data use identity }
-impl_partial_eq! { Message for Data use identity }
+impl_partial_eq! { FixedArray for Data use identity }
 impl_partial_eq! { Module for Data use identity }
 impl_partial_eq! { ModuleRequest for Data use identity }
 impl_partial_eq! { FixedArray for Data use identity }
 impl_partial_eq! { PrimitiveArray for Data use identity }
 impl_partial_eq! { Private for Data use identity }
-impl_partial_eq! { Script for Data use identity }
-impl_partial_eq! { ScriptOrModule for Data use identity }
 impl_partial_eq! { Signature for Data use identity }
-impl_partial_eq! { StackFrame for Data use identity }
-impl_partial_eq! { StackTrace for Data use identity }
 impl_partial_eq! { Template for Data use identity }
 impl_partial_eq! { FunctionTemplate for Data use identity }
 impl_partial_eq! { ObjectTemplate for Data use identity }
 impl_partial_eq! { UnboundModuleScript for Data use identity }
-impl_partial_eq! { UnboundScript for Data use identity }
 impl_partial_eq! { External for Data use identity }
 impl_partial_eq! { Object for Data use identity }
 impl_partial_eq! { Array for Data use identity }
@@ -370,6 +415,7 @@ impl_partial_eq! { Set for Data use identity }
 impl_partial_eq! { SharedArrayBuffer for Data use identity }
 impl_partial_eq! { StringObject for Data use identity }
 impl_partial_eq! { SymbolObject for Data use identity }
+impl_partial_eq! { WasmMemoryObject for Data use identity }
 impl_partial_eq! { WasmModuleObject for Data use identity }
 impl_partial_eq! { Boolean for Data use identity }
 impl_partial_eq! { Symbol for Data use identity }
@@ -381,7 +427,6 @@ define_type! {
 }
 impl_deref! { Data for AccessorSignature }
 impl_eq! { for AccessorSignature }
-impl_hash! { for AccessorSignature }
 impl_partial_eq! { Data for AccessorSignature use identity }
 impl_partial_eq! { AccessorSignature for AccessorSignature use identity }
 
@@ -391,19 +436,25 @@ define_type! {
   Context
 }
 impl_deref! { Data for Context }
+impl_try_from! { Data for Context if v => v.is_context() }
 impl_eq! { for Context }
-impl_hash! { for Context }
 impl_partial_eq! { Data for Context use identity }
 impl_partial_eq! { Context for Context use identity }
 
-define_type! {
+/// A fixed-sized array with elements of type Data.
+#[repr(C)]
+#[derive(Debug)]
+pub struct FixedArray(Opaque);
+
+impl_deref! { Data for FixedArray }
+impl_try_from! { Data for FixedArray if v => v.is_fixed_array() }
+impl_partial_eq! { Data for FixedArray use identity }
+impl_partial_eq! { FixedArray for FixedArray use identity }
+
   /// An error message.
   Message
 }
-impl_deref! { Data for Message }
 impl_eq! { for Message }
-impl_hash! { for Message }
-impl_partial_eq! { Data for Message use identity }
 impl_partial_eq! { Message for Message use identity }
 
 define_type! {
@@ -411,26 +462,31 @@ define_type! {
   Module
 }
 impl_deref! { Data for Module }
-impl_try_from! { Data for Module if d => d.is_module() }
+impl_try_from! { Data for Module if v => v.is_module() }
 impl_eq! { for Module }
+impl_hash! { for Module use get_identity_hash }
 impl_partial_eq! { Data for Module use identity }
 impl_partial_eq! { Module for Module use identity }
 
 define_type! {
-  /// A fixed-sized array with elements of type Data.
-  FixedArray
+/// A fixed-sized array with elements of type Data.
+#[repr(C)]
+#[derive(Debug)]
+pub struct FixedArray(Opaque);
+
 }
+
+
+#[repr(C)]
 impl_deref! { Data for FixedArray }
+impl_try_from! { Data for FixedArray if v => v.is_fixed_array() }
 impl_eq! { for FixedArray }
-impl_hash! { for FixedArray }
 impl_partial_eq! { Data for FixedArray use identity }
 impl_partial_eq! { FixedArray for FixedArray use identity }
 
-define_type! { ModuleRequest }
-
 impl_deref! { Data for ModuleRequest }
+impl_try_from! { Data for ModuleRequest if v => v.is_module_request() }
 impl_eq! { for ModuleRequest }
-impl_hash! { for ModuleRequest }
 impl_partial_eq! { Data for ModuleRequest use identity }
 impl_partial_eq! { ModuleRequest for ModuleRequest use identity }
 
@@ -444,7 +500,6 @@ define_type! {
 }
 impl_deref! { Data for PrimitiveArray }
 impl_eq! { for PrimitiveArray }
-impl_hash! { for PrimitiveArray }
 impl_partial_eq! { Data for PrimitiveArray use identity }
 impl_partial_eq! { PrimitiveArray for PrimitiveArray use identity }
 
@@ -455,9 +510,8 @@ define_type! {
   Private
 }
 impl_deref! { Data for Private }
-impl_try_from! { Data for Private if d => d.is_private() }
+impl_try_from! { Data for Private if v => v.is_private() }
 impl_eq! { for Private }
-impl_hash! { for Private }
 impl_partial_eq! { Data for Private use identity }
 impl_partial_eq! { Private for Private use identity }
 
@@ -466,10 +520,7 @@ define_type! {
   /// script was compiled.
   Script
 }
-impl_deref! { Data for Script }
 impl_eq! { for Script }
-impl_hash! { for Script }
-impl_partial_eq! { Data for Script use identity }
 impl_partial_eq! { Script for Script use identity }
 
 define_type! {
@@ -479,10 +530,7 @@ define_type! {
   /// HostImportModuleDynamicallyCallback for module loading.
   ScriptOrModule
 }
-impl_deref! { Data for ScriptOrModule }
 impl_eq! { for ScriptOrModule }
-impl_hash! { for ScriptOrModule }
-impl_partial_eq! { Data for ScriptOrModule use identity }
 impl_partial_eq! { ScriptOrModule for ScriptOrModule use identity }
 
 define_type! {
@@ -496,7 +544,6 @@ define_type! {
 }
 impl_deref! { Data for Signature }
 impl_eq! { for Signature }
-impl_hash! { for Signature }
 impl_partial_eq! { Data for Signature use identity }
 impl_partial_eq! { Signature for Signature use identity }
 
@@ -504,10 +551,7 @@ define_type! {
   /// A single JavaScript stack frame.
   StackFrame
 }
-impl_deref! { Data for StackFrame }
 impl_eq! { for StackFrame }
-impl_hash! { for StackFrame }
-impl_partial_eq! { Data for StackFrame use identity }
 impl_partial_eq! { StackFrame for StackFrame use identity }
 
 define_type! {
@@ -516,10 +560,7 @@ define_type! {
   /// execution continues.
   StackTrace
 }
-impl_deref! { Data for StackTrace }
 impl_eq! { for StackTrace }
-impl_hash! { for StackTrace }
-impl_partial_eq! { Data for StackTrace use identity }
 impl_partial_eq! { StackTrace for StackTrace use identity }
 
 define_type! {
@@ -527,10 +568,10 @@ define_type! {
   Template
 }
 impl_deref! { Data for Template }
+impl_try_from! { Data for Template if v => v.is_function_template() || v.is_object_template() }
 impl_from! { FunctionTemplate for Template }
 impl_from! { ObjectTemplate for Template }
 impl_eq! { for Template }
-impl_hash! { for Template }
 impl_partial_eq! { Data for Template use identity }
 impl_partial_eq! { Template for Template use identity }
 impl_partial_eq! { FunctionTemplate for Template use identity }
@@ -544,8 +585,8 @@ define_type! {
   /// temporary functions that can be collected using Scripts is
   /// preferred.
   ///
-  /// Any modification of a FunctionTemplate after first instantiation will
-  /// trigger a crash.
+/// Any modification of a FunctionTemplate after first instantiation will trigger
+/// a crash.
   ///
   /// A FunctionTemplate can have properties, these properties are added to the
   /// function object when it is created.
@@ -645,9 +686,9 @@ define_type! {
   FunctionTemplate
 }
 impl_deref! { Template for FunctionTemplate }
-impl_try_from! { Data for FunctionTemplate if d => d.is_function_template() }
+impl_try_from! { Data for FunctionTemplate if v => v.is_function_template() }
+impl_try_from! { Template for FunctionTemplate if v => v.is_function_template() }
 impl_eq! { for FunctionTemplate }
-impl_hash! { for FunctionTemplate }
 impl_partial_eq! { Data for FunctionTemplate use identity }
 impl_partial_eq! { Template for FunctionTemplate use identity }
 impl_partial_eq! { FunctionTemplate for FunctionTemplate use identity }
@@ -660,9 +701,9 @@ define_type! {
   ObjectTemplate
 }
 impl_deref! { Template for ObjectTemplate }
-impl_try_from! { Data for ObjectTemplate if d => d.is_object_template() }
+impl_try_from! { Data for ObjectTemplate if v => v.is_object_template() }
+impl_try_from! { Template for ObjectTemplate if v => v.is_object_template() }
 impl_eq! { for ObjectTemplate }
-impl_hash! { for ObjectTemplate }
 impl_partial_eq! { Data for ObjectTemplate use identity }
 impl_partial_eq! { Template for ObjectTemplate use identity }
 impl_partial_eq! { ObjectTemplate for ObjectTemplate use identity }
@@ -673,7 +714,6 @@ define_type! {
 }
 impl_deref! { Data for UnboundModuleScript }
 impl_eq! { for UnboundModuleScript }
-impl_hash! { for UnboundModuleScript }
 impl_partial_eq! { Data for UnboundModuleScript use identity }
 impl_partial_eq! { UnboundModuleScript for UnboundModuleScript use identity }
 
@@ -681,10 +721,7 @@ define_type! {
   /// A compiled JavaScript script, not yet tied to a Context.
   UnboundScript
 }
-impl_deref! { Data for UnboundScript }
 impl_eq! { for UnboundScript }
-impl_hash! { for UnboundScript }
-impl_partial_eq! { Data for UnboundScript use identity }
 impl_partial_eq! { UnboundScript for UnboundScript use identity }
 
 define_type! {
@@ -692,12 +729,7 @@ define_type! {
   Value
 }
 impl_deref! { Data for Value }
-// TODO: Also implement `TryFrom<Data>` for all subtypes of `Value`,
-// so a `Local<Data>` can be directly cast to any `Local` with a JavaScript
-// value type in it. We need this to make certain APIs work, such as
-// `scope.get_context_data_from_snapshot_once::<v8::Number>()` and
-// `scope.get_isolate_data_from_snapshot_once::<v8::Number>()`.
-impl_try_from! { Data for Value if d => d.is_value() }
+impl_try_from! { Data for Value if v => v.is_value() }
 impl_from! { External for Value }
 impl_from! { Object for Value }
 impl_from! { Array for Value }
@@ -730,6 +762,7 @@ impl_from! { Set for Value }
 impl_from! { SharedArrayBuffer for Value }
 impl_from! { StringObject for Value }
 impl_from! { SymbolObject for Value }
+impl_from! { WasmMemoryObject for Value }
 impl_from! { WasmModuleObject for Value }
 impl_from! { Primitive for Value }
 impl_from! { BigInt for Value }
@@ -742,7 +775,7 @@ impl_from! { Integer for Value }
 impl_from! { Int32 for Value }
 impl_from! { Uint32 for Value }
 impl_eq! { for Value }
-impl_hash! { for Value }
+impl_hash! { for Value use get_hash }
 impl_partial_eq! { Value for Value use same_value_zero }
 impl_partial_eq! { External for Value use identity }
 impl_partial_eq! { Object for Value use identity }
@@ -776,6 +809,7 @@ impl_partial_eq! { Set for Value use identity }
 impl_partial_eq! { SharedArrayBuffer for Value use identity }
 impl_partial_eq! { StringObject for Value use identity }
 impl_partial_eq! { SymbolObject for Value use identity }
+impl_partial_eq! { WasmMemoryObject for Value use identity }
 impl_partial_eq! { WasmModuleObject for Value use identity }
 impl_partial_eq! { Primitive for Value use same_value_zero }
 impl_partial_eq! { BigInt for Value use same_value_zero }
@@ -794,9 +828,10 @@ define_type! {
   External
 }
 impl_deref! { Value for External }
+impl_try_from! { Data for External if v => v.is_value() && cast::<Value>(v).is_external() }
 impl_try_from! { Value for External if v => v.is_external() }
 impl_eq! { for External }
-impl_hash! { for External }
+impl_hash! { for External use get_hash }
 impl_partial_eq! { Data for External use identity }
 impl_partial_eq! { Value for External use identity }
 impl_partial_eq! { External for External use identity }
@@ -806,6 +841,7 @@ define_type! {
   Object
 }
 impl_deref! { Value for Object }
+impl_try_from! { Data for Object if v => v.is_value() && cast::<Value>(v).is_object() }
 impl_try_from! { Value for Object if v => v.is_object() }
 impl_from! { Array for Object }
 impl_from! { ArrayBuffer for Object }
@@ -837,9 +873,10 @@ impl_from! { Set for Object }
 impl_from! { SharedArrayBuffer for Object }
 impl_from! { StringObject for Object }
 impl_from! { SymbolObject for Object }
+impl_from! { WasmMemoryObject for Object }
 impl_from! { WasmModuleObject for Object }
 impl_eq! { for Object }
-impl_hash! { for Object }
+impl_hash! { for Object use get_identity_hash }
 impl_partial_eq! { Data for Object use identity }
 impl_partial_eq! { Value for Object use identity }
 impl_partial_eq! { Object for Object use identity }
@@ -873,6 +910,7 @@ impl_partial_eq! { Set for Object use identity }
 impl_partial_eq! { SharedArrayBuffer for Object use identity }
 impl_partial_eq! { StringObject for Object use identity }
 impl_partial_eq! { SymbolObject for Object use identity }
+impl_partial_eq! { WasmMemoryObject for Object use identity }
 impl_partial_eq! { WasmModuleObject for Object use identity }
 
 define_type! {
@@ -880,10 +918,11 @@ define_type! {
   Array
 }
 impl_deref! { Object for Array }
+impl_try_from! { Data for Array if v => v.is_value() && cast::<Value>(v).is_array() }
 impl_try_from! { Value for Array if v => v.is_array() }
 impl_try_from! { Object for Array if v => v.is_array() }
 impl_eq! { for Array }
-impl_hash! { for Array }
+impl_hash! { for Array use get_identity_hash }
 impl_partial_eq! { Data for Array use identity }
 impl_partial_eq! { Value for Array use identity }
 impl_partial_eq! { Object for Array use identity }
@@ -894,10 +933,11 @@ define_type! {
   ArrayBuffer
 }
 impl_deref! { Object for ArrayBuffer }
+impl_try_from! { Data for ArrayBuffer if v => v.is_value() && cast::<Value>(v).is_array_buffer() }
 impl_try_from! { Value for ArrayBuffer if v => v.is_array_buffer() }
 impl_try_from! { Object for ArrayBuffer if v => v.is_array_buffer() }
 impl_eq! { for ArrayBuffer }
-impl_hash! { for ArrayBuffer }
+impl_hash! { for ArrayBuffer use get_identity_hash }
 impl_partial_eq! { Data for ArrayBuffer use identity }
 impl_partial_eq! { Value for ArrayBuffer use identity }
 impl_partial_eq! { Object for ArrayBuffer use identity }
@@ -909,6 +949,7 @@ define_type! {
   ArrayBufferView
 }
 impl_deref! { Object for ArrayBufferView }
+impl_try_from! { Data for ArrayBufferView if v => v.is_value() && cast::<Value>(v).is_array_buffer_view() }
 impl_try_from! { Value for ArrayBufferView if v => v.is_array_buffer_view() }
 impl_try_from! { Object for ArrayBufferView if v => v.is_array_buffer_view() }
 impl_from! { DataView for ArrayBufferView }
@@ -925,7 +966,7 @@ impl_from! { Uint32Array for ArrayBufferView }
 impl_from! { Uint8Array for ArrayBufferView }
 impl_from! { Uint8ClampedArray for ArrayBufferView }
 impl_eq! { for ArrayBufferView }
-impl_hash! { for ArrayBufferView }
+impl_hash! { for ArrayBufferView use get_identity_hash }
 impl_partial_eq! { Data for ArrayBufferView use identity }
 impl_partial_eq! { Value for ArrayBufferView use identity }
 impl_partial_eq! { Object for ArrayBufferView use identity }
@@ -949,11 +990,12 @@ define_type! {
   DataView
 }
 impl_deref! { ArrayBufferView for DataView }
+impl_try_from! { Data for DataView if v => v.is_value() && cast::<Value>(v).is_data_view() }
 impl_try_from! { Value for DataView if v => v.is_data_view() }
 impl_try_from! { Object for DataView if v => v.is_data_view() }
 impl_try_from! { ArrayBufferView for DataView if v => v.is_data_view() }
 impl_eq! { for DataView }
-impl_hash! { for DataView }
+impl_hash! { for DataView use get_identity_hash }
 impl_partial_eq! { Data for DataView use identity }
 impl_partial_eq! { Value for DataView use identity }
 impl_partial_eq! { Object for DataView use identity }
@@ -966,6 +1008,7 @@ define_type! {
   TypedArray
 }
 impl_deref! { ArrayBufferView for TypedArray }
+impl_try_from! { Data for TypedArray if v => v.is_value() && cast::<Value>(v).is_typed_array() }
 impl_try_from! { Value for TypedArray if v => v.is_typed_array() }
 impl_try_from! { Object for TypedArray if v => v.is_typed_array() }
 impl_try_from! { ArrayBufferView for TypedArray if v => v.is_typed_array() }
@@ -981,7 +1024,7 @@ impl_from! { Uint32Array for TypedArray }
 impl_from! { Uint8Array for TypedArray }
 impl_from! { Uint8ClampedArray for TypedArray }
 impl_eq! { for TypedArray }
-impl_hash! { for TypedArray }
+impl_hash! { for TypedArray use get_identity_hash }
 impl_partial_eq! { Data for TypedArray use identity }
 impl_partial_eq! { Value for TypedArray use identity }
 impl_partial_eq! { Object for TypedArray use identity }
@@ -1004,12 +1047,13 @@ define_type! {
   BigInt64Array
 }
 impl_deref! { TypedArray for BigInt64Array }
+impl_try_from! { Data for BigInt64Array if v => v.is_value() && cast::<Value>(v).is_big_int64_array() }
 impl_try_from! { Value for BigInt64Array if v => v.is_big_int64_array() }
 impl_try_from! { Object for BigInt64Array if v => v.is_big_int64_array() }
 impl_try_from! { ArrayBufferView for BigInt64Array if v => v.is_big_int64_array() }
 impl_try_from! { TypedArray for BigInt64Array if v => v.is_big_int64_array() }
 impl_eq! { for BigInt64Array }
-impl_hash! { for BigInt64Array }
+impl_hash! { for BigInt64Array use get_identity_hash }
 impl_partial_eq! { Data for BigInt64Array use identity }
 impl_partial_eq! { Value for BigInt64Array use identity }
 impl_partial_eq! { Object for BigInt64Array use identity }
@@ -1022,12 +1066,13 @@ define_type! {
   BigUint64Array
 }
 impl_deref! { TypedArray for BigUint64Array }
+impl_try_from! { Data for BigUint64Array if v => v.is_value() && cast::<Value>(v).is_big_uint64_array() }
 impl_try_from! { Value for BigUint64Array if v => v.is_big_uint64_array() }
 impl_try_from! { Object for BigUint64Array if v => v.is_big_uint64_array() }
 impl_try_from! { ArrayBufferView for BigUint64Array if v => v.is_big_uint64_array() }
 impl_try_from! { TypedArray for BigUint64Array if v => v.is_big_uint64_array() }
 impl_eq! { for BigUint64Array }
-impl_hash! { for BigUint64Array }
+impl_hash! { for BigUint64Array use get_identity_hash }
 impl_partial_eq! { Data for BigUint64Array use identity }
 impl_partial_eq! { Value for BigUint64Array use identity }
 impl_partial_eq! { Object for BigUint64Array use identity }
@@ -1040,12 +1085,13 @@ define_type! {
   Float32Array
 }
 impl_deref! { TypedArray for Float32Array }
+impl_try_from! { Data for Float32Array if v => v.is_value() && cast::<Value>(v).is_float32_array() }
 impl_try_from! { Value for Float32Array if v => v.is_float32_array() }
 impl_try_from! { Object for Float32Array if v => v.is_float32_array() }
 impl_try_from! { ArrayBufferView for Float32Array if v => v.is_float32_array() }
 impl_try_from! { TypedArray for Float32Array if v => v.is_float32_array() }
 impl_eq! { for Float32Array }
-impl_hash! { for Float32Array }
+impl_hash! { for Float32Array use get_identity_hash }
 impl_partial_eq! { Data for Float32Array use identity }
 impl_partial_eq! { Value for Float32Array use identity }
 impl_partial_eq! { Object for Float32Array use identity }
@@ -1058,12 +1104,13 @@ define_type! {
   Float64Array
 }
 impl_deref! { TypedArray for Float64Array }
+impl_try_from! { Data for Float64Array if v => v.is_value() && cast::<Value>(v).is_float64_array() }
 impl_try_from! { Value for Float64Array if v => v.is_float64_array() }
 impl_try_from! { Object for Float64Array if v => v.is_float64_array() }
 impl_try_from! { ArrayBufferView for Float64Array if v => v.is_float64_array() }
 impl_try_from! { TypedArray for Float64Array if v => v.is_float64_array() }
 impl_eq! { for Float64Array }
-impl_hash! { for Float64Array }
+impl_hash! { for Float64Array use get_identity_hash }
 impl_partial_eq! { Data for Float64Array use identity }
 impl_partial_eq! { Value for Float64Array use identity }
 impl_partial_eq! { Object for Float64Array use identity }
@@ -1076,12 +1123,13 @@ define_type! {
   Int16Array
 }
 impl_deref! { TypedArray for Int16Array }
+impl_try_from! { Data for Int16Array if v => v.is_value() && cast::<Value>(v).is_int16_array() }
 impl_try_from! { Value for Int16Array if v => v.is_int16_array() }
 impl_try_from! { Object for Int16Array if v => v.is_int16_array() }
 impl_try_from! { ArrayBufferView for Int16Array if v => v.is_int16_array() }
 impl_try_from! { TypedArray for Int16Array if v => v.is_int16_array() }
 impl_eq! { for Int16Array }
-impl_hash! { for Int16Array }
+impl_hash! { for Int16Array use get_identity_hash }
 impl_partial_eq! { Data for Int16Array use identity }
 impl_partial_eq! { Value for Int16Array use identity }
 impl_partial_eq! { Object for Int16Array use identity }
@@ -1094,12 +1142,13 @@ define_type! {
   Int32Array
 }
 impl_deref! { TypedArray for Int32Array }
+impl_try_from! { Data for Int32Array if v => v.is_value() && cast::<Value>(v).is_int32_array() }
 impl_try_from! { Value for Int32Array if v => v.is_int32_array() }
 impl_try_from! { Object for Int32Array if v => v.is_int32_array() }
 impl_try_from! { ArrayBufferView for Int32Array if v => v.is_int32_array() }
 impl_try_from! { TypedArray for Int32Array if v => v.is_int32_array() }
 impl_eq! { for Int32Array }
-impl_hash! { for Int32Array }
+impl_hash! { for Int32Array use get_identity_hash }
 impl_partial_eq! { Data for Int32Array use identity }
 impl_partial_eq! { Value for Int32Array use identity }
 impl_partial_eq! { Object for Int32Array use identity }
@@ -1112,12 +1161,13 @@ define_type! {
   Int8Array
 }
 impl_deref! { TypedArray for Int8Array }
+impl_try_from! { Data for Int8Array if v => v.is_value() && cast::<Value>(v).is_int8_array() }
 impl_try_from! { Value for Int8Array if v => v.is_int8_array() }
 impl_try_from! { Object for Int8Array if v => v.is_int8_array() }
 impl_try_from! { ArrayBufferView for Int8Array if v => v.is_int8_array() }
 impl_try_from! { TypedArray for Int8Array if v => v.is_int8_array() }
 impl_eq! { for Int8Array }
-impl_hash! { for Int8Array }
+impl_hash! { for Int8Array use get_identity_hash }
 impl_partial_eq! { Data for Int8Array use identity }
 impl_partial_eq! { Value for Int8Array use identity }
 impl_partial_eq! { Object for Int8Array use identity }
@@ -1130,12 +1180,13 @@ define_type! {
   Uint16Array
 }
 impl_deref! { TypedArray for Uint16Array }
+impl_try_from! { Data for Uint16Array if v => v.is_value() && cast::<Value>(v).is_uint16_array() }
 impl_try_from! { Value for Uint16Array if v => v.is_uint16_array() }
 impl_try_from! { Object for Uint16Array if v => v.is_uint16_array() }
 impl_try_from! { ArrayBufferView for Uint16Array if v => v.is_uint16_array() }
 impl_try_from! { TypedArray for Uint16Array if v => v.is_uint16_array() }
 impl_eq! { for Uint16Array }
-impl_hash! { for Uint16Array }
+impl_hash! { for Uint16Array use get_identity_hash }
 impl_partial_eq! { Data for Uint16Array use identity }
 impl_partial_eq! { Value for Uint16Array use identity }
 impl_partial_eq! { Object for Uint16Array use identity }
@@ -1148,12 +1199,13 @@ define_type! {
   Uint32Array
 }
 impl_deref! { TypedArray for Uint32Array }
+impl_try_from! { Data for Uint32Array if v => v.is_value() && cast::<Value>(v).is_uint32_array() }
 impl_try_from! { Value for Uint32Array if v => v.is_uint32_array() }
 impl_try_from! { Object for Uint32Array if v => v.is_uint32_array() }
 impl_try_from! { ArrayBufferView for Uint32Array if v => v.is_uint32_array() }
 impl_try_from! { TypedArray for Uint32Array if v => v.is_uint32_array() }
 impl_eq! { for Uint32Array }
-impl_hash! { for Uint32Array }
+impl_hash! { for Uint32Array use get_identity_hash }
 impl_partial_eq! { Data for Uint32Array use identity }
 impl_partial_eq! { Value for Uint32Array use identity }
 impl_partial_eq! { Object for Uint32Array use identity }
@@ -1166,12 +1218,13 @@ define_type! {
   Uint8Array
 }
 impl_deref! { TypedArray for Uint8Array }
+impl_try_from! { Data for Uint8Array if v => v.is_value() && cast::<Value>(v).is_uint8_array() }
 impl_try_from! { Value for Uint8Array if v => v.is_uint8_array() }
 impl_try_from! { Object for Uint8Array if v => v.is_uint8_array() }
 impl_try_from! { ArrayBufferView for Uint8Array if v => v.is_uint8_array() }
 impl_try_from! { TypedArray for Uint8Array if v => v.is_uint8_array() }
 impl_eq! { for Uint8Array }
-impl_hash! { for Uint8Array }
+impl_hash! { for Uint8Array use get_identity_hash }
 impl_partial_eq! { Data for Uint8Array use identity }
 impl_partial_eq! { Value for Uint8Array use identity }
 impl_partial_eq! { Object for Uint8Array use identity }
@@ -1184,12 +1237,13 @@ define_type! {
   Uint8ClampedArray
 }
 impl_deref! { TypedArray for Uint8ClampedArray }
+impl_try_from! { Data for Uint8ClampedArray if v => v.is_value() && cast::<Value>(v).is_uint8_clamped_array() }
 impl_try_from! { Value for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_try_from! { Object for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_try_from! { ArrayBufferView for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_try_from! { TypedArray for Uint8ClampedArray if v => v.is_uint8_clamped_array() }
 impl_eq! { for Uint8ClampedArray }
-impl_hash! { for Uint8ClampedArray }
+impl_hash! { for Uint8ClampedArray use get_identity_hash }
 impl_partial_eq! { Data for Uint8ClampedArray use identity }
 impl_partial_eq! { Value for Uint8ClampedArray use identity }
 impl_partial_eq! { Object for Uint8ClampedArray use identity }
@@ -1202,10 +1256,11 @@ define_type! {
   BigIntObject
 }
 impl_deref! { Object for BigIntObject }
+impl_try_from! { Data for BigIntObject if v => v.is_value() && cast::<Value>(v).is_big_int_object() }
 impl_try_from! { Value for BigIntObject if v => v.is_big_int_object() }
 impl_try_from! { Object for BigIntObject if v => v.is_big_int_object() }
 impl_eq! { for BigIntObject }
-impl_hash! { for BigIntObject }
+impl_hash! { for BigIntObject use get_identity_hash }
 impl_partial_eq! { Data for BigIntObject use identity }
 impl_partial_eq! { Value for BigIntObject use identity }
 impl_partial_eq! { Object for BigIntObject use identity }
@@ -1216,10 +1271,11 @@ define_type! {
   BooleanObject
 }
 impl_deref! { Object for BooleanObject }
+impl_try_from! { Data for BooleanObject if v => v.is_value() && cast::<Value>(v).is_boolean_object() }
 impl_try_from! { Value for BooleanObject if v => v.is_boolean_object() }
 impl_try_from! { Object for BooleanObject if v => v.is_boolean_object() }
 impl_eq! { for BooleanObject }
-impl_hash! { for BooleanObject }
+impl_hash! { for BooleanObject use get_identity_hash }
 impl_partial_eq! { Data for BooleanObject use identity }
 impl_partial_eq! { Value for BooleanObject use identity }
 impl_partial_eq! { Object for BooleanObject use identity }
@@ -1230,10 +1286,11 @@ define_type! {
   Date
 }
 impl_deref! { Object for Date }
+impl_try_from! { Data for Date if v => v.is_value() && cast::<Value>(v).is_date() }
 impl_try_from! { Value for Date if v => v.is_date() }
 impl_try_from! { Object for Date if v => v.is_date() }
 impl_eq! { for Date }
-impl_hash! { for Date }
+impl_hash! { for Date use get_identity_hash }
 impl_partial_eq! { Data for Date use identity }
 impl_partial_eq! { Value for Date use identity }
 impl_partial_eq! { Object for Date use identity }
@@ -1244,10 +1301,11 @@ define_type! {
   Function
 }
 impl_deref! { Object for Function }
+impl_try_from! { Data for Function if v => v.is_value() && cast::<Value>(v).is_function() }
 impl_try_from! { Value for Function if v => v.is_function() }
 impl_try_from! { Object for Function if v => v.is_function() }
 impl_eq! { for Function }
-impl_hash! { for Function }
+impl_hash! { for Function use get_identity_hash }
 impl_partial_eq! { Data for Function use identity }
 impl_partial_eq! { Value for Function use identity }
 impl_partial_eq! { Object for Function use identity }
@@ -1258,10 +1316,11 @@ define_type! {
   Map
 }
 impl_deref! { Object for Map }
+impl_try_from! { Data for Map if v => v.is_value() && cast::<Value>(v).is_map() }
 impl_try_from! { Value for Map if v => v.is_map() }
 impl_try_from! { Object for Map if v => v.is_map() }
 impl_eq! { for Map }
-impl_hash! { for Map }
+impl_hash! { for Map use get_identity_hash }
 impl_partial_eq! { Data for Map use identity }
 impl_partial_eq! { Value for Map use identity }
 impl_partial_eq! { Object for Map use identity }
@@ -1272,10 +1331,11 @@ define_type! {
   NumberObject
 }
 impl_deref! { Object for NumberObject }
+impl_try_from! { Data for NumberObject if v => v.is_value() && cast::<Value>(v).is_number_object() }
 impl_try_from! { Value for NumberObject if v => v.is_number_object() }
 impl_try_from! { Object for NumberObject if v => v.is_number_object() }
 impl_eq! { for NumberObject }
-impl_hash! { for NumberObject }
+impl_hash! { for NumberObject use get_identity_hash }
 impl_partial_eq! { Data for NumberObject use identity }
 impl_partial_eq! { Value for NumberObject use identity }
 impl_partial_eq! { Object for NumberObject use identity }
@@ -1286,10 +1346,11 @@ define_type! {
   Promise
 }
 impl_deref! { Object for Promise }
+impl_try_from! { Data for Promise if v => v.is_value() && cast::<Value>(v).is_promise() }
 impl_try_from! { Value for Promise if v => v.is_promise() }
 impl_try_from! { Object for Promise if v => v.is_promise() }
 impl_eq! { for Promise }
-impl_hash! { for Promise }
+impl_hash! { for Promise use get_identity_hash }
 impl_partial_eq! { Data for Promise use identity }
 impl_partial_eq! { Value for Promise use identity }
 impl_partial_eq! { Object for Promise use identity }
@@ -1298,7 +1359,7 @@ impl_partial_eq! { Promise for Promise use identity }
 define_type! { PromiseResolver }
 impl_deref! { Object for PromiseResolver }
 impl_eq! { for PromiseResolver }
-impl_hash! { for PromiseResolver }
+impl_hash! { for PromiseResolver use get_identity_hash }
 impl_partial_eq! { Data for PromiseResolver use identity }
 impl_partial_eq! { Value for PromiseResolver use identity }
 impl_partial_eq! { Object for PromiseResolver use identity }
@@ -1310,10 +1371,11 @@ define_type! {
   Proxy
 }
 impl_deref! { Object for Proxy }
+impl_try_from! { Data for Proxy if v => v.is_value() && cast::<Value>(v).is_proxy() }
 impl_try_from! { Value for Proxy if v => v.is_proxy() }
 impl_try_from! { Object for Proxy if v => v.is_proxy() }
 impl_eq! { for Proxy }
-impl_hash! { for Proxy }
+impl_hash! { for Proxy use get_identity_hash }
 impl_partial_eq! { Data for Proxy use identity }
 impl_partial_eq! { Value for Proxy use identity }
 impl_partial_eq! { Object for Proxy use identity }
@@ -1324,10 +1386,11 @@ define_type! {
   RegExp
 }
 impl_deref! { Object for RegExp }
+impl_try_from! { Data for RegExp if v => v.is_value() && cast::<Value>(v).is_reg_exp() }
 impl_try_from! { Value for RegExp if v => v.is_reg_exp() }
 impl_try_from! { Object for RegExp if v => v.is_reg_exp() }
 impl_eq! { for RegExp }
-impl_hash! { for RegExp }
+impl_hash! { for RegExp use get_identity_hash }
 impl_partial_eq! { Data for RegExp use identity }
 impl_partial_eq! { Value for RegExp use identity }
 impl_partial_eq! { Object for RegExp use identity }
@@ -1338,10 +1401,11 @@ define_type! {
   Set
 }
 impl_deref! { Object for Set }
+impl_try_from! { Data for Set if v => v.is_value() && cast::<Value>(v).is_set() }
 impl_try_from! { Value for Set if v => v.is_set() }
 impl_try_from! { Object for Set if v => v.is_set() }
 impl_eq! { for Set }
-impl_hash! { for Set }
+impl_hash! { for Set use get_identity_hash }
 impl_partial_eq! { Data for Set use identity }
 impl_partial_eq! { Value for Set use identity }
 impl_partial_eq! { Object for Set use identity }
@@ -1352,10 +1416,11 @@ define_type! {
   SharedArrayBuffer
 }
 impl_deref! { Object for SharedArrayBuffer }
+impl_try_from! { Data for SharedArrayBuffer if v => v.is_value() && cast::<Value>(v).is_shared_array_buffer() }
 impl_try_from! { Value for SharedArrayBuffer if v => v.is_shared_array_buffer() }
 impl_try_from! { Object for SharedArrayBuffer if v => v.is_shared_array_buffer() }
 impl_eq! { for SharedArrayBuffer }
-impl_hash! { for SharedArrayBuffer }
+impl_hash! { for SharedArrayBuffer use get_identity_hash }
 impl_partial_eq! { Data for SharedArrayBuffer use identity }
 impl_partial_eq! { Value for SharedArrayBuffer use identity }
 impl_partial_eq! { Object for SharedArrayBuffer use identity }
@@ -1366,10 +1431,11 @@ define_type! {
   StringObject
 }
 impl_deref! { Object for StringObject }
+impl_try_from! { Data for StringObject if v => v.is_value() && cast::<Value>(v).is_string_object() }
 impl_try_from! { Value for StringObject if v => v.is_string_object() }
 impl_try_from! { Object for StringObject if v => v.is_string_object() }
 impl_eq! { for StringObject }
-impl_hash! { for StringObject }
+impl_hash! { for StringObject use get_identity_hash }
 impl_partial_eq! { Data for StringObject use identity }
 impl_partial_eq! { Value for StringObject use identity }
 impl_partial_eq! { Object for StringObject use identity }
@@ -1380,24 +1446,40 @@ define_type! {
   SymbolObject
 }
 impl_deref! { Object for SymbolObject }
+impl_try_from! { Data for SymbolObject if v => v.is_value() && cast::<Value>(v).is_symbol_object() }
 impl_try_from! { Value for SymbolObject if v => v.is_symbol_object() }
 impl_try_from! { Object for SymbolObject if v => v.is_symbol_object() }
 impl_eq! { for SymbolObject }
-impl_hash! { for SymbolObject }
+impl_hash! { for SymbolObject use get_identity_hash }
 impl_partial_eq! { Data for SymbolObject use identity }
 impl_partial_eq! { Value for SymbolObject use identity }
 impl_partial_eq! { Object for SymbolObject use identity }
 impl_partial_eq! { SymbolObject for SymbolObject use identity }
 
 define_type! {
-  /// An instance of WebAssembly.Module.
+#[repr(C)]
+#[derive(Debug)]
+pub struct WasmMemoryObject(Opaque);
+
+impl_deref! { Object for WasmMemoryObject }
+impl_try_from! { Data for WasmMemoryObject if v => v.is_value() && cast::<Value>(v).is_wasm_memory_object() }
+impl_try_from! { Value for WasmMemoryObject if v => v.is_wasm_memory_object() }
+impl_try_from! { Object for WasmMemoryObject if v => v.is_wasm_memory_object() }
+impl_eq! { for WasmMemoryObject }
+impl_hash! { for WasmMemoryObject use get_identity_hash }
+impl_partial_eq! { Data for WasmMemoryObject use identity }
+impl_partial_eq! { Value for WasmMemoryObject use identity }
+impl_partial_eq! { Object for WasmMemoryObject use identity }
+impl_partial_eq! { WasmMemoryObject for WasmMemoryObject use identity }
+
   WasmModuleObject
 }
 impl_deref! { Object for WasmModuleObject }
+impl_try_from! { Data for WasmModuleObject if v => v.is_value() && cast::<Value>(v).is_wasm_module_object() }
 impl_try_from! { Value for WasmModuleObject if v => v.is_wasm_module_object() }
 impl_try_from! { Object for WasmModuleObject if v => v.is_wasm_module_object() }
 impl_eq! { for WasmModuleObject }
-impl_hash! { for WasmModuleObject }
+impl_hash! { for WasmModuleObject use get_identity_hash }
 impl_partial_eq! { Data for WasmModuleObject use identity }
 impl_partial_eq! { Value for WasmModuleObject use identity }
 impl_partial_eq! { Object for WasmModuleObject use identity }
@@ -1408,7 +1490,8 @@ define_type! {
   Primitive
 }
 impl_deref! { Value for Primitive }
-impl_try_from! { Value for Primitive if v => v.is_null_or_undefined() || v.is_boolean() || v.is_name() || v.is_number() || v.is_big_int() }
+impl_try_from! { Data for Primitive if v => v.is_primitive() }
+impl_try_from! { Value for Primitive if v => v.is_primitive() }
 impl_from! { BigInt for Primitive }
 impl_from! { Boolean for Primitive }
 impl_from! { Name for Primitive }
@@ -1419,7 +1502,7 @@ impl_from! { Integer for Primitive }
 impl_from! { Int32 for Primitive }
 impl_from! { Uint32 for Primitive }
 impl_eq! { for Primitive }
-impl_hash! { for Primitive }
+impl_hash! { for Primitive use get_hash }
 impl_partial_eq! { Value for Primitive use same_value_zero }
 impl_partial_eq! { Primitive for Primitive use same_value_zero }
 impl_partial_eq! { BigInt for Primitive use same_value_zero }
@@ -1437,10 +1520,11 @@ define_type! {
   BigInt
 }
 impl_deref! { Primitive for BigInt }
+impl_try_from! { Data for BigInt if v => v.is_big_int() }
 impl_try_from! { Value for BigInt if v => v.is_big_int() }
 impl_try_from! { Primitive for BigInt if v => v.is_big_int() }
 impl_eq! { for BigInt }
-impl_hash! { for BigInt }
+impl_hash! { for BigInt use get_hash }
 impl_partial_eq! { Value for BigInt use same_value_zero }
 impl_partial_eq! { Primitive for BigInt use same_value_zero }
 impl_partial_eq! { BigInt for BigInt use strict_equals }
@@ -1451,10 +1535,11 @@ define_type! {
   Boolean
 }
 impl_deref! { Primitive for Boolean }
+impl_try_from! { Data for Boolean if v => v.is_boolean() }
 impl_try_from! { Value for Boolean if v => v.is_boolean() }
 impl_try_from! { Primitive for Boolean if v => v.is_boolean() }
 impl_eq! { for Boolean }
-impl_hash! { for Boolean }
+impl_hash! { for Boolean use get_hash }
 impl_partial_eq! { Data for Boolean use identity }
 impl_partial_eq! { Value for Boolean use identity }
 impl_partial_eq! { Primitive for Boolean use identity }
@@ -1465,12 +1550,13 @@ define_type! {
   Name
 }
 impl_deref! { Primitive for Name }
+impl_try_from! { Data for Name if v => v.is_name() }
 impl_try_from! { Value for Name if v => v.is_name() }
 impl_try_from! { Primitive for Name if v => v.is_name() }
 impl_from! { String for Name }
 impl_from! { Symbol for Name }
 impl_eq! { for Name }
-impl_hash! { for Name }
+impl_hash! { for Name use get_identity_hash }
 impl_partial_eq! { Value for Name use same_value_zero }
 impl_partial_eq! { Primitive for Name use same_value_zero }
 impl_partial_eq! { Name for Name use strict_equals }
@@ -1482,11 +1568,12 @@ define_type! {
   String
 }
 impl_deref! { Name for String }
+impl_try_from! { Data for String if v => v.is_string() }
 impl_try_from! { Value for String if v => v.is_string() }
 impl_try_from! { Primitive for String if v => v.is_string() }
 impl_try_from! { Name for String if v => v.is_string() }
 impl_eq! { for String }
-impl_hash! { for String }
+impl_hash! { for String use get_identity_hash }
 impl_partial_eq! { Value for String use same_value_zero }
 impl_partial_eq! { Primitive for String use same_value_zero }
 impl_partial_eq! { Name for String use strict_equals }
@@ -1497,11 +1584,12 @@ define_type! {
   Symbol
 }
 impl_deref! { Name for Symbol }
+impl_try_from! { Data for Symbol if v => v.is_symbol() }
 impl_try_from! { Value for Symbol if v => v.is_symbol() }
 impl_try_from! { Primitive for Symbol if v => v.is_symbol() }
 impl_try_from! { Name for Symbol if v => v.is_symbol() }
 impl_eq! { for Symbol }
-impl_hash! { for Symbol }
+impl_hash! { for Symbol use get_identity_hash }
 impl_partial_eq! { Data for Symbol use identity }
 impl_partial_eq! { Value for Symbol use identity }
 impl_partial_eq! { Primitive for Symbol use identity }
@@ -1513,13 +1601,14 @@ define_type! {
   Number
 }
 impl_deref! { Primitive for Number }
+impl_try_from! { Data for Number if v => v.is_number() }
 impl_try_from! { Value for Number if v => v.is_number() }
 impl_try_from! { Primitive for Number if v => v.is_number() }
 impl_from! { Integer for Number }
 impl_from! { Int32 for Number }
 impl_from! { Uint32 for Number }
 impl_eq! { for Number }
-impl_hash! { for Number }
+impl_hash! { for Number use get_hash }
 impl_partial_eq! { Value for Number use same_value_zero }
 impl_partial_eq! { Primitive for Number use same_value_zero }
 impl_partial_eq! { Number for Number use same_value_zero }
@@ -1532,13 +1621,14 @@ define_type! {
   Integer
 }
 impl_deref! { Number for Integer }
+impl_try_from! { Data for Integer if v => v.is_number() && (cast::<Number>(v).is_int32() || cast::<Number>(v).is_uint32()) }
 impl_try_from! { Value for Integer if v => v.is_int32() || v.is_uint32() }
 impl_try_from! { Primitive for Integer if v => v.is_int32() || v.is_uint32() }
 impl_try_from! { Number for Integer if v => v.is_int32() || v.is_uint32() }
 impl_from! { Int32 for Integer }
 impl_from! { Uint32 for Integer }
 impl_eq! { for Integer }
-impl_hash! { for Integer }
+impl_hash! { for Integer use get_hash }
 impl_partial_eq! { Value for Integer use same_value_zero }
 impl_partial_eq! { Primitive for Integer use same_value_zero }
 impl_partial_eq! { Number for Integer use same_value_zero }
@@ -1551,12 +1641,13 @@ define_type! {
   Int32
 }
 impl_deref! { Integer for Int32 }
+impl_try_from! { Data for Int32 if v => v.is_number() && cast::<Number>(v).is_int32() }
 impl_try_from! { Value for Int32 if v => v.is_int32() }
 impl_try_from! { Primitive for Int32 if v => v.is_int32() }
 impl_try_from! { Number for Int32 if v => v.is_int32() }
 impl_try_from! { Integer for Int32 if v => v.is_int32() }
 impl_eq! { for Int32 }
-impl_hash! { for Int32 }
+impl_hash! { for Int32 use get_hash }
 impl_partial_eq! { Value for Int32 use same_value_zero }
 impl_partial_eq! { Primitive for Int32 use same_value_zero }
 impl_partial_eq! { Number for Int32 use same_value_zero }
@@ -1568,12 +1659,13 @@ define_type! {
   Uint32
 }
 impl_deref! { Integer for Uint32 }
+impl_try_from! { Data for Uint32 if v => v.is_number() && cast::<Number>(v).is_uint32() }
 impl_try_from! { Value for Uint32 if v => v.is_uint32() }
 impl_try_from! { Primitive for Uint32 if v => v.is_uint32() }
 impl_try_from! { Number for Uint32 if v => v.is_uint32() }
 impl_try_from! { Integer for Uint32 if v => v.is_uint32() }
 impl_eq! { for Uint32 }
-impl_hash! { for Uint32 }
+impl_hash! { for Uint32 use get_hash }
 impl_partial_eq! { Value for Uint32 use same_value_zero }
 impl_partial_eq! { Primitive for Uint32 use same_value_zero }
 impl_partial_eq! { Number for Uint32 use same_value_zero }

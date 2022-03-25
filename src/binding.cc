@@ -10,6 +10,8 @@
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8-profiler.h"
 #include "v8/include/v8.h"
+#include "v8/src/api/api-inl.h"
+#include "v8/src/api/api.h"
 #include "v8/src/execution/isolate-utils-inl.h"
 #include "v8/src/execution/isolate-utils.h"
 #include "v8/src/flags/flags.h"
@@ -436,25 +438,63 @@ uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
   return v8::ScriptCompiler::CachedDataVersionTag();
 }
 
+size_t v8__TypedArray__kMaxLength() { return v8::TypedArray::kMaxLength; }
+
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
   return ptr_to_local(&self) == ptr_to_local(&other);
 }
 
-bool v8__Data__IsValue(const v8::Data& self) { return self.IsValue(); }
+bool v8__Data__IsBigInt(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsBigInt();
+}
 
-bool v8__Data__IsModule(const v8::Data& self) { return self.IsModule(); }
+bool v8__Data__IsBoolean(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsBoolean();
+}
 
-bool v8__Data__IsPrivate(const v8::Data& self) { return self.IsPrivate(); }
+bool v8__Data__IsContext(const v8::Data& self) { return self.IsContext(); }
 
-bool v8__Data__IsObjectTemplate(const v8::Data& self) {
-  return self.IsObjectTemplate();
+bool v8__Data__IsFixedArray(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsFixedArray();
 }
 
 bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
   return self.IsFunctionTemplate();
 }
 
-size_t v8__TypedArray__kMaxLength() { return v8::TypedArray::kMaxLength; }
+bool v8__Data__IsModule(const v8::Data& self) { return self.IsModule(); }
+
+bool v8__Data__IsModuleRequest(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsModuleRequest();
+}
+
+bool v8__Data__IsName(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsName();
+}
+
+bool v8__Data__IsNumber(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsNumber();
+}
+
+bool v8__Data__IsObjectTemplate(const v8::Data& self) {
+  return self.IsObjectTemplate();
+}
+
+bool v8__Data__IsPrimitive(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsPrimitive() && !self.IsPrivate();
+}
+
+bool v8__Data__IsPrivate(const v8::Data& self) { return self.IsPrivate(); }
+
+bool v8__Data__IsString(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsString();
+}
+
+bool v8__Data__IsSymbol(const v8::Data& self) {
+  return v8::Utils::OpenHandle(&self)->IsPublicSymbol();
+}
+
+bool v8__Data__IsValue(const v8::Data& self) { return self.IsValue(); }
 
 bool v8__Value__IsUndefined(const v8::Value& self) {
   return self.IsUndefined();
@@ -622,6 +662,10 @@ bool v8__Value__IsProxy(const v8::Value& self) { return self.IsProxy(); }
 
 bool v8__Value__IsWasmModuleObject(const v8::Value& self) {
   return self.IsWasmModuleObject();
+}
+
+bool v8__Value__IsWasmMemoryObject(const v8::Value& self) {
+  return self.IsWasmMemoryObject();
 }
 
 bool v8__Value__IsModuleNamespaceObject(const v8::Value& self) {
@@ -2581,7 +2625,7 @@ v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
              : nullptr;
 }
 
-int v8__internal__Object__GetHash(const v8::Data& data) {
+int v8__Value__GetHash(const v8::Value& data) {
   namespace i = v8::internal;
   i::Object object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;

@@ -1619,7 +1619,8 @@ fn object() {
     let object_ = v8::Object::new(scope);
     assert!(!object_.is_null_or_undefined());
     let id = object_.get_identity_hash();
-    assert_ne!(id, 0);
+    assert_eq!(id, object_.get_hash());
+    assert_ne!(id, v8::Object::new(scope).get_hash());
 
     assert!(object.has(scope, n1).unwrap());
     assert!(object.has_own_property(scope, n1).unwrap());
@@ -2862,7 +2863,6 @@ fn get_hash() {
     let pri1 = primitives1.get_index(scope, i).unwrap();
     let pri2 = primitives2.get_index(scope, i).unwrap();
     let hash = pri1.get_hash();
-    assert_ne!(hash, 0);
     assert_eq!(hash, pri2.get_hash());
     if let Ok(name) = v8::Local::<v8::Name>::try_from(pri1) {
       assert_eq!(hash, name.get_identity_hash());
@@ -2909,7 +2909,6 @@ fn get_hash() {
     for i in 0..len {
       let val = objects.get_index(scope, i).unwrap();
       let hash = val.get_hash();
-      assert_ne!(hash, 0);
       let obj = v8::Local::<v8::Object>::try_from(val).unwrap();
       assert_eq!(hash, obj.get_identity_hash());
       if !hashes.insert(hash) {

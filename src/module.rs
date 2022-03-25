@@ -1,6 +1,5 @@
-use std::hash::Hash;
-use std::hash::Hasher;
 use std::mem::MaybeUninit;
+use std::num::NonZeroI32;
 use std::ptr::null;
 
 use crate::support::int;
@@ -246,11 +245,13 @@ impl Module {
     }
   }
 
-  /// The `Module` specific equivalent of `Data::get_hash()`.
-  /// This function is kept around for testing purposes only.
-  #[doc(hidden)]
-  pub fn get_identity_hash(&self) -> int {
-    unsafe { v8__Module__GetIdentityHash(self) }
+  /// Returns the V8 hash value for this value. The current implementation
+  /// uses a hidden property to store the identity hash.
+  ///
+  /// The return value will never be 0. Also, it is not guaranteed to be
+  /// unique.
+  pub fn get_identity_hash(&self) -> NonZeroI32 {
+    unsafe { NonZeroI32::new_unchecked(v8__Module__GetIdentityHash(self)) }
   }
 
   /// Returns the underlying script's id.
@@ -387,12 +388,6 @@ impl Module {
         .cast_local(|_| v8__Module__GetUnboundModuleScript(self))
         .unwrap()
     }
-  }
-}
-
-impl Hash for Module {
-  fn hash<H: Hasher>(&self, state: &mut H) {
-    state.write_i32(self.get_identity_hash());
   }
 }
 
