@@ -454,10 +454,6 @@ impl Value {
   ///   - It considers `NaN` equal to `NaN` (unlike `strict_equals()`).
   ///   - It considers `-0` equal to `0` (unlike `same_value()`).
   pub fn same_value_zero(&self, that: Local<Value>) -> bool {
-    // The SMI representation of zero is also zero. In debug builds, double
-    // check this, so in the unlikely event that V8 changes its internal
-    // representation of SMIs such that this invariant no longer holds, we'd
-    // catch it.
     self.same_value(that) || {
       let zero = Integer::zero().into();
       self.strict_equals(zero) && that.strict_equals(zero)

@@ -270,13 +270,6 @@ impl<T: Hash> Hash for Global<T> {
   }
 }
 
-impl<T> Eq for Global<T>
-where
-  Global<T>: PartialEq<Global<T>>,
-  T: Eq,
-{
-}
-
 #[derive(Copy, Debug, Clone)]
 pub struct HandleInfo<T> {
   pub(crate) data: NonNull<T>,
