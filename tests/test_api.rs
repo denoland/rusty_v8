@@ -6127,8 +6127,7 @@ fn test_uncaught_exception_callback() {
   let context = v8::Context::new(&mut scope);
   let scope = &mut v8::ContextScope::new(&mut scope, context);
   let global = context.global(scope);
-  let result =
-    eval(scope, "function boom() { throw new Error('foo') }").unwrap();
+  let _ = eval(scope, "function boom() { throw new Error('foo') }").unwrap();
   let key = v8::String::new(scope, "boom").unwrap();
   let boom = global.get(scope, key.into()).unwrap();
   let boom = v8::Local::<v8::Function>::try_from(boom).unwrap();
