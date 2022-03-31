@@ -140,6 +140,9 @@ pub type NearHeapLimitCallback = extern "C" fn(
 pub type OomErrorCallback =
   extern "C" fn(location: *const c_char, is_heap_oom: bool);
 
+pub type AbortOnUncaughtExceptionCallback =
+  extern "C" fn(isolate: &mut Isolate) -> bool;
+
 /// Collection of V8 heap information.
 ///
 /// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
@@ -199,6 +202,10 @@ extern "C" {
   fn v8__Isolate__SetOOMErrorHandler(
     isolate: *mut Isolate,
     callback: OomErrorCallback,
+  );
+  fn v8__Isolate__SetAbortOnUncaughtExceptionCallback(
+    isolate: *mut Isolate,
+    callback: AbortOnUncaughtExceptionCallback,
   );
   fn v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
     isolate: *mut Isolate,
@@ -644,6 +651,22 @@ impl Isolate {
 
   pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {
     unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
+  }
+
+  /// Custom callback used by embedders to help V8 determine if it
+  /// should abort when it throws and no internal handler is
+  /// predicted to catch the exception.
+  ///
+  /// If –abort-on-uncaught-exception is used on the command line,
+  /// then V8 will abort if either:
+  ///
+  /// - no custom callback is set.
+  /// - the custom callback returns false.
+  pub fn set_abort_on_uncaught_exception_callback(
+    &mut self,
+    callback: AbortOnUncaughtExceptionCallback,
+  ) {
+    unsafe { v8__Isolate__SetAbortOnUncaughtExceptionCallback(self, callback) };
   }
 
   /// Returns the policy controlling how Microtasks are invoked.

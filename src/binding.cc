@@ -295,6 +295,11 @@ const v8::Value* v8__Isolate__ThrowException(v8::Isolate* isolate,
   return local_to_ptr(isolate->ThrowException(ptr_to_local(&exception)));
 }
 
+void v8__Isolate__SetAbortOnUncaughtExceptionCallback(
+    v8::Isolate* isolate, v8::Isolate::AbortOnUncaughtExceptionCallback callback) {
+  isolate->SetAbortOnUncaughtExceptionCallback(callback);
+}
+
 void v8__Isolate__TerminateExecution(v8::Isolate* isolate) {
   isolate->TerminateExecution();
 }

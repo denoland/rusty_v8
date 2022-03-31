@@ -35,7 +35,9 @@ fn setup() -> SetupGuard {
       "../third_party/icu/common/icudtl.dat"
     ))
     .is_ok());
-    v8::V8::set_flags_from_string("--expose_gc --harmony-import-assertions");
+    v8::V8::set_flags_from_string(
+      "--expose_gc --harmony-import-assertions --abort-on-uncaught-exception ",
+    );
     v8::V8::initialize_platform(
       v8::new_default_platform(0, false).make_shared(),
     );
@@ -6106,4 +6108,31 @@ fn instance_of() {
     v8::Array::new_with_elements(&mut scope, &[]).into();
 
   assert!(array.instance_of(&mut scope, array_constructor).unwrap());
+}
+
+#[test]
+fn test_uncaught_exception_callback() {
+  let _setup_guard = setup();
+  static COUNTER: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn uncaught_exception_callback(
+    _isolate: &mut v8::Isolate,
+  ) -> bool {
+    COUNTER.fetch_add(1, Ordering::SeqCst);
+    false
+  }
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.set_abort_on_uncaught_exception_callback(uncaught_exception_callback);
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  let global = context.global(scope);
+  let result =
+    eval(scope, "function boom() { throw new Error('foo') }").unwrap();
+  let key = v8::String::new(scope, "boom").unwrap();
+  let boom = global.get(scope, key.into()).unwrap();
+  let boom = v8::Local::<v8::Function>::try_from(boom).unwrap();
+  let recv = v8::undefined(scope);
+  let _ = boom.call(scope, recv.into(), &[]);
+  assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
