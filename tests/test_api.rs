@@ -534,6 +534,42 @@ fn array_buffer() {
     assert_eq!(84, bs.byte_length());
     assert!(!bs.is_shared());
 
+    // SAFETY: Manually deallocating memory once V8 calls the
+    // deleter callback.
+    unsafe extern "C" fn backing_store_deleter_callback(
+      data: *mut c_void,
+      byte_length: usize,
+      deleter_data: *mut c_void,
+    ) {
+      let slice = std::slice::from_raw_parts(data as *const u8, byte_length);
+      assert_eq!(slice, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      assert_eq!(byte_length, 10);
+      assert_eq!(deleter_data, std::ptr::null_mut());
+      let layout = std::alloc::Layout::new::<[u8; 10]>();
+      std::alloc::dealloc(data as *mut u8, layout);
+    }
+
+    // SAFETY: Manually allocating memory so that it will be only
+    // deleted when V8 calls deleter callback.
+    let data = unsafe {
+      let layout = std::alloc::Layout::new::<[u8; 10]>();
+      let ptr = std::alloc::alloc(layout);
+      (ptr as *mut [u8; 10]).write([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      ptr as *mut c_void
+    };
+    let unique_bs = unsafe {
+      v8::ArrayBuffer::new_backing_store_from_ptr(
+        data,
+        10,
+        backing_store_deleter_callback,
+        std::ptr::null_mut(),
+      )
+    };
+    assert_eq!(10, unique_bs.byte_length());
+    assert!(!unique_bs.is_shared());
+    assert_eq!(unique_bs[0].get(), 0);
+    assert_eq!(unique_bs[9].get(), 9);
+
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(10, unique_bs.byte_length());
