@@ -10,6 +10,17 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Once;
 
+fn setup() {
+  static START: Once = Once::new();
+  START.call_once(|| {
+    v8::V8::set_flags_from_string("--expose_gc");
+    v8::V8::initialize_platform(
+      v8::new_default_platform(0, false).make_shared(),
+    );
+    v8::V8::initialize();
+  });
+}
+
 struct CoreIsolate(v8::OwnedIsolate);
 
 struct CoreIsolateState {
@@ -25,13 +36,7 @@ impl Drop for CoreIsolateState {
 
 impl CoreIsolate {
   fn new(drop_count: Rc<AtomicUsize>) -> CoreIsolate {
-    static START: Once = Once::new();
-    START.call_once(|| {
-      v8::V8::initialize_platform(
-        v8::new_default_platform(0, false).make_shared(),
-      );
-      v8::V8::initialize();
-    });
+    setup();
     let mut isolate = v8::Isolate::new(Default::default());
     let state = CoreIsolateState { drop_count, i: 0 };
     isolate.set_slot(state);
@@ -243,4 +248,48 @@ fn slots_auto_boxing() {
   assert_eq!(Some(&value2), core_isolate.get_slot::<Box<TestData>>());
   assert_eq!(Some(value2), core_isolate.remove_slot::<Box<TestData>>());
   assert_eq!(None, core_isolate.get_slot::<Box<TestData>>());
+}
+
+#[test]
+fn context_slots() {
+  setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+
+  assert!(context.set_slot(scope, TestState(0)));
+  assert!(!context.set_slot(scope, TestState(1)));
+
+  context.get_slot_mut::<TestState>(scope).unwrap().0 += 5;
+  assert_eq!(context.get_slot::<TestState>(scope).unwrap().0, 6);
+
+  let value = context.remove_slot::<TestState>(scope).unwrap();
+  assert_eq!(value.0, 6);
+  assert!(context.remove_slot::<TestState>(scope).is_none());
+}
+
+#[test]
+fn dropped_context_slots() {
+  // Test that context slots are dropped when the context is GC'd.
+  use std::cell::Cell;
+
+  struct DropMarker(Rc<Cell<bool>>);
+  impl Drop for DropMarker {
+    fn drop(&mut self) {
+      println!("Dropping the drop marker");
+      self.0.set(true);
+    }
+  }
+
+  let mut isolate = CoreIsolate::new(Default::default());
+  let dropped = Rc::new(Cell::new(false));
+  {
+    let scope = &mut v8::HandleScope::new(isolate.deref_mut());
+    let context = v8::Context::new(scope);
+
+    context.set_slot(scope, DropMarker(dropped.clone()));
+  }
+
+  assert!(isolate.execute("gc()"));
+  assert!(dropped.get());
 }
