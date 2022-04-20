@@ -570,8 +570,29 @@ fn array_buffer() {
     assert_eq!(unique_bs[0].get(), 0);
     assert_eq!(unique_bs[9].get(), 9);
 
+    // From Box<[u8]>
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
+    assert_eq!(10, unique_bs.byte_length());
+    assert!(!unique_bs.is_shared());
+    assert_eq!(unique_bs[0].get(), 0);
+    assert_eq!(unique_bs[9].get(), 9);
+
+    let shared_bs_1 = unique_bs.make_shared();
+    assert_eq!(10, shared_bs_1.byte_length());
+    assert!(!shared_bs_1.is_shared());
+    assert_eq!(shared_bs_1[0].get(), 0);
+    assert_eq!(shared_bs_1[9].get(), 9);
+
+    let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
+    let shared_bs_2 = ab.get_backing_store();
+    assert_eq!(10, shared_bs_2.byte_length());
+    assert_eq!(shared_bs_2[0].get(), 0);
+    assert_eq!(shared_bs_2[9].get(), 9);
+
+    // From Vec<u8>
+    let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    let unique_bs = v8::ArrayBuffer::new_backing_store_from_vec(data);
     assert_eq!(10, unique_bs.byte_length());
     assert!(!unique_bs.is_shared());
     assert_eq!(unique_bs[0].get(), 0);
@@ -6075,6 +6096,20 @@ fn backing_store_from_empty_boxed_slice() {
 
   let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(Box::new([]))
     .make_shared();
+  let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
+}
+
+#[test]
+fn backing_store_from_empty_vec() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  let store =
+    v8::ArrayBuffer::new_backing_store_from_vec(Vec::new()).make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
 }
 
