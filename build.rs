@@ -484,7 +484,7 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path {}", clang_base_path.display());
-  let status = Command::new("python")
+  let status = Command::new("python3")
     .arg("./tools/clang/scripts/update.py")
     .arg("--output-dir")
     .arg(&clang_base_path)
