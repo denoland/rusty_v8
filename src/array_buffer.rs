@@ -247,7 +247,7 @@ pub unsafe extern "C" fn vec_deleter_callback(
   byte_length: usize,
   deleter_data: *mut c_void,
 ) {
-  let capacity: usize = std::mem::transmute(deleter_data);
+  let capacity = deleter_data as usize;
   drop(Vec::from_raw_parts(data as *mut u8, byte_length, capacity))
 }
 
