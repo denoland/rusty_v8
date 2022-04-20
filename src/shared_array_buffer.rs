@@ -3,7 +3,8 @@
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
-use crate::array_buffer::backing_store_deleter_callback;
+use crate::array_buffer::boxed_slice_deleter_callback;
+use crate::array_buffer::vec_deleter_callback;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::BackingStore;
@@ -123,7 +124,30 @@ impl SharedArrayBuffer {
       UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
         data_ptr,
         byte_length,
-        backing_store_deleter_callback,
+        boxed_slice_deleter_callback,
+        null_mut(),
+      ))
+    }
+  }
+
+  /// Returns a new standalone BackingStore that takes over the ownership of
+  /// the given buffer.
+  ///
+  /// The destructor of the BackingStore frees owned buffer memory.
+  ///
+  /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  pub fn new_backing_store_from_vec(
+    mut data: Vec<u8>,
+  ) -> UniqueRef<BackingStore> {
+    let byte_length = data.len();
+    let data_ptr = data.as_mut_ptr() as *mut c_void;
+    std::mem::forget(data);
+    unsafe {
+      UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        vec_deleter_callback,
         null_mut(),
       ))
     }
