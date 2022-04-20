@@ -459,7 +459,7 @@ impl ArrayBuffer {
         data_ptr,
         byte_length,
         vec_deleter_callback,
-        capacity as *c_void,
+        capacity as *mut c_void,
       ))
     }
   }
