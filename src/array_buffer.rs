@@ -2,7 +2,6 @@
 
 use std::cell::Cell;
 use std::ffi::c_void;
-use std::mem;
 use std::ops::Deref;
 use std::ptr;
 use std::ptr::null_mut;
@@ -246,13 +245,10 @@ pub unsafe extern "C" fn boxed_slice_deleter_callback(
 pub unsafe extern "C" fn vec_deleter_callback(
   data: *mut c_void,
   byte_length: usize,
-  _deleter_data: *mut c_void,
+  deleter_data: *mut c_void,
 ) {
-  drop(Vec::from_raw_parts(
-    data as *mut u8,
-    byte_length,
-    byte_length,
-  ))
+  let capacity: usize = std::mem::transmute(deleter_data);
+  drop(Vec::from_raw_parts(data as *mut u8, byte_length, capacity))
 }
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
@@ -455,14 +451,15 @@ impl ArrayBuffer {
     mut data: Vec<u8>,
   ) -> UniqueRef<BackingStore> {
     let byte_length = data.len();
+    let capacity = data.capacity();
     let data_ptr = data.as_mut_ptr() as *mut c_void;
-    mem::forget(data);
+    std::mem::forget(data);
     unsafe {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
         data_ptr,
         byte_length,
         vec_deleter_callback,
-        null_mut(),
+        capacity as *c_void,
       ))
     }
   }
