@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "support.h"
+#include "unicode/locid.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
@@ -2943,4 +2944,17 @@ const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
   delete self;
 }
+
+
 }  // extern "C"
+
+// icu
+
+extern "C" {
+
+const char* GetDefaultLocale() {
+  const icu_70::Locale default_locale = icu::Locale::getDefault();
+  return default_locale.getName();
+}
+
+} // extern "C"

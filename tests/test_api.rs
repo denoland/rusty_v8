@@ -6178,3 +6178,11 @@ fn instance_of() {
 
   assert!(array.instance_of(&mut scope, array_constructor).unwrap());
 }
+
+#[test]
+fn get_default_locale() {
+  let default_locale = v8::icu::get_default_locale().unwrap();
+  // assert_eq!(default_locale, b"")
+  let default_locale_str = std::str::from_utf8(&default_locale);
+  assert_eq!(default_locale_str, Ok(""))
+}

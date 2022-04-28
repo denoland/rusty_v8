@@ -1,5 +1,8 @@
+use std::{ffi::CStr, os::raw::c_char};
+
 extern "C" {
   fn udata_setCommonData_70(this: *const u8, error_code: *mut i32);
+  fn GetDefaultLocale() -> *const c_char;
 }
 
 /// This function bypasses the normal ICU data loading process and allows you to force ICU's system
@@ -45,4 +48,8 @@ pub fn set_common_data_70(data: &'static [u8]) -> Result<(), i32> {
   } else {
     Err(error_code)
   }
+}
+
+pub fn get_default_locale() -> Result<&'static [u8], std::str::Utf8Error> {
+  unsafe { Ok(CStr::from_ptr(GetDefaultLocale()).to_bytes()) }
 }
