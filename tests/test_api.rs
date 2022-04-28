@@ -6182,8 +6182,8 @@ fn instance_of() {
 
 #[test]
 fn get_default_locale() {
-  env::set_var("LC_ALL", "fr_FR");
+  env::set_var("LC_ALL", "nb_NO");
   let default_locale = v8::icu::get_default_locale();
   let default_locale_str = std::str::from_utf8(&default_locale).unwrap();
-  assert_eq!(default_locale_str, "fr_FR")
+  assert_eq!(default_locale_str, "nb_NO")
 }
