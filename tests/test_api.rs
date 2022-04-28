@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::convert::{Into, TryFrom, TryInto};
+use std::env;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::hash::Hash;
@@ -14,7 +15,6 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::env;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
