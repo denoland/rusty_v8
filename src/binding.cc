@@ -2953,7 +2953,7 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 extern "C" {
 
 const char* GetDefaultLocale() {
-  const icu_70::Locale default_locale = icu::Locale::getDefault();
+  const icu_70::Locale& default_locale = icu::Locale::getDefault();
   return default_locale.getName();
 }
 

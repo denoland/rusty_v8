@@ -50,6 +50,6 @@ pub fn set_common_data_70(data: &'static [u8]) -> Result<(), i32> {
   }
 }
 
-pub fn get_default_locale() -> Result<&'static [u8], std::str::Utf8Error> {
-  unsafe { Ok(CStr::from_ptr(GetDefaultLocale()).to_bytes()) }
+pub fn get_default_locale() -> &'static [u8] {
+  unsafe { CStr::from_ptr(GetDefaultLocale()).to_bytes() }
 }

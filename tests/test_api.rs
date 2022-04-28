@@ -14,6 +14,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::env;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -6181,8 +6182,8 @@ fn instance_of() {
 
 #[test]
 fn get_default_locale() {
-  let default_locale = v8::icu::get_default_locale().unwrap();
-  // assert_eq!(default_locale, b"")
-  let default_locale_str = std::str::from_utf8(&default_locale);
-  assert_eq!(default_locale_str, Ok(""))
+  env::set_var("LC_ALL", "fr_FR");
+  let default_locale = v8::icu::get_default_locale();
+  let default_locale_str = std::str::from_utf8(&default_locale).unwrap();
+  assert_eq!(default_locale_str, "fr_FR")
 }
