@@ -1058,7 +1058,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::HandleScope {
-            raw_handle_scope: raw::HandleScope::uninit(),
+            raw_handle_scope: unsafe { raw::HandleScope::uninit() },
             raw_context_scope: None,
           }
         });
@@ -1118,7 +1118,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::EscapableHandleScope {
-            raw_handle_scope: raw::HandleScope::uninit(),
+            raw_handle_scope: unsafe { raw::HandleScope::uninit() },
             raw_escape_slot: Some(raw::EscapeSlot::new(isolate)),
           }
         });
@@ -1140,7 +1140,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::TryCatch {
-            raw_try_catch: raw::TryCatch::uninit(),
+            raw_try_catch: unsafe { raw::TryCatch::uninit() },
           }
         });
         match &mut data.scope_type_specific_data {
@@ -1536,8 +1536,11 @@ mod raw {
 
   impl HandleScope {
     /// Creates an uninitialized `HandleScope`.
-    pub fn uninit() -> Self {
-      Self(unsafe { MaybeUninit::uninit().assume_init() })
+    ///
+    /// This function is marked unsafe because the caller must ensure that the
+    /// returned value isn't dropped before `init()` has been called.
+    pub unsafe fn uninit() -> Self {
+      Self(MaybeUninit::uninit().assume_init())
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
@@ -1591,8 +1594,11 @@ mod raw {
 
   impl TryCatch {
     /// Creates an uninitialized `TryCatch`.
-    pub fn uninit() -> Self {
-      Self(unsafe { MaybeUninit::uninit().assume_init() })
+    ///
+    /// This function is marked unsafe because the caller must ensure that the
+    /// returned value isn't dropped before `init()` has been called.
+    pub unsafe fn uninit() -> Self {
+      Self(MaybeUninit::uninit().assume_init())
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
