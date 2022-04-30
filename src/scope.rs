@@ -1058,7 +1058,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::HandleScope {
-            raw_handle_scope: unsafe { raw::HandleScope::uninit() },
+            raw_handle_scope: raw::HandleScope::uninit(),
             raw_context_scope: None,
           }
         });
@@ -1118,7 +1118,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::EscapableHandleScope {
-            raw_handle_scope: unsafe { raw::HandleScope::uninit() },
+            raw_handle_scope: raw::HandleScope::uninit(),
             raw_escape_slot: Some(raw::EscapeSlot::new(isolate)),
           }
         });
@@ -1140,7 +1140,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::TryCatch {
-            raw_try_catch: unsafe { raw::TryCatch::uninit() },
+            raw_try_catch: raw::TryCatch::uninit(),
           }
         });
         match &mut data.scope_type_specific_data {
@@ -1532,16 +1532,12 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct HandleScope([usize; 3]);
+  pub(super) struct HandleScope([MaybeUninit<usize>; 3]);
 
   impl HandleScope {
-    /// This function is marked unsafe because the caller must ensure that the
-    /// returned value isn't dropped before `init()` has been called.
-    pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 3]`.
-      #[allow(clippy::uninit_assumed_init)]
-      Self(MaybeUninit::uninit().assume_init())
+    /// Creates an uninitialized `HandleScope`.
+    pub fn uninit() -> Self {
+      Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
@@ -1591,16 +1587,12 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct TryCatch([usize; 6]);
+  pub(super) struct TryCatch([MaybeUninit<usize>; 6]);
 
   impl TryCatch {
-    /// This function is marked unsafe because the caller must ensure that the
-    /// returned value isn't dropped before `init()` has been called.
-    pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 6]`.
-      #[allow(clippy::uninit_assumed_init)]
-      Self(MaybeUninit::uninit().assume_init())
+    /// Creates an uninitialized `TryCatch`.
+    pub fn uninit() -> Self {
+      Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
