@@ -53,33 +53,40 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  if !(is_trybuild || is_cargo_doc | is_rls) {
-    if env::var_os("V8_FROM_SOURCE").is_some() {
-      build_v8()
-    } else {
-      // utilize a lockfile to prevent linking of
-      // only partially downloaded static library.
-      let root = env::current_dir().unwrap();
-      let out_dir = env::var_os("OUT_DIR").unwrap();
-      let lockfilepath = root
-        .join(out_dir)
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("lib_download.fslock");
-      println!("download lockfile: {:?}", &lockfilepath);
-      let mut lockfile = LockFile::open(&lockfilepath)
-        .expect("Couldn't open lib download lockfile.");
-      lockfile.lock().expect("Couldn't get lock");
-      download_static_lib_binaries();
-      lockfile.unlock().expect("Couldn't unlock lockfile");
-    }
+  // Early exit
+  if is_cargo_doc || is_rls {
+    return;
   }
 
-  if !(is_cargo_doc || is_rls) {
-    print_link_flags()
+  print_link_flags();
+
+  // Don't attempt rebuild but link
+  if is_trybuild {
+    return;
   }
+
+  // Build from source
+  if env::var_os("V8_FROM_SOURCE").is_some() {
+    return build_v8();
+  }
+
+  // utilize a lockfile to prevent linking of
+  // only partially downloaded static library.
+  let root = env::current_dir().unwrap();
+  let out_dir = env::var_os("OUT_DIR").unwrap();
+  let lockfilepath = root
+    .join(out_dir)
+    .parent()
+    .unwrap()
+    .parent()
+    .unwrap()
+    .join("lib_download.fslock");
+  println!("download lockfile: {:?}", &lockfilepath);
+  let mut lockfile = LockFile::open(&lockfilepath)
+    .expect("Couldn't open lib download lockfile.");
+  lockfile.lock().expect("Couldn't get lock");
+  download_static_lib_binaries();
+  lockfile.unlock().expect("Couldn't unlock lockfile");
 }
 
 fn build_v8() {
@@ -320,6 +327,12 @@ fn static_lib_path() -> PathBuf {
   static_lib_dir().join(static_lib_name())
 }
 
+fn static_checksum_path() -> PathBuf {
+  let mut t = static_lib_path();
+  t.set_extension("sum");
+  t
+}
+
 fn static_lib_dir() -> PathBuf {
   build_dir().join("gn_out").join("obj")
 }
@@ -351,6 +364,17 @@ fn download_file(url: String, filename: PathBuf) {
     return;
   }
 
+  // tmp file to download to so we don't clobber the existing one
+  let tmpfile = {
+    let mut t = filename.clone();
+    t.set_extension("tmp");
+    t
+  };
+  if tmpfile.exists() {
+    println!("Deleting old tmpfile {}", tmpfile.display());
+    std::fs::remove_file(&tmpfile).unwrap();
+  }
+
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
   println!("Downloading {}", url);
@@ -359,7 +383,7 @@ fn download_file(url: String, filename: PathBuf) {
     .arg("--url")
     .arg(&url)
     .arg("--filename")
-    .arg(&filename)
+    .arg(&tmpfile)
     .status();
 
   // Python is only a required dependency for `V8_FROM_SOURCE` builds.
@@ -372,15 +396,23 @@ fn download_file(url: String, filename: PathBuf) {
         .arg("-L")
         .arg("-s")
         .arg("-o")
-        .arg(&filename)
+        .arg(&tmpfile)
         .arg(&url)
         .status()
         .unwrap()
     }
   };
 
+  // Assert DL was successful
   assert!(status.success());
+  assert!(tmpfile.exists());
+
+  // Write checksum (i.e url) & move file
+  std::fs::write(static_checksum_path(), url).unwrap();
+  std::fs::rename(&tmpfile, &filename).unwrap();
   assert!(filename.exists());
+  assert!(static_checksum_path().exists());
+  assert!(!tmpfile.exists());
 }
 
 fn download_static_lib_binaries() {
@@ -391,12 +423,12 @@ fn download_static_lib_binaries() {
   std::fs::create_dir_all(&dir).unwrap();
   println!("cargo:rustc-link-search={}", dir.display());
 
-  let filename = static_lib_path();
-  if filename.exists() {
-    println!("Deleting old static lib {}", filename.display());
-    std::fs::remove_file(&filename).unwrap();
-  }
-  download_file(url, filename);
+  // Checksum (i.e: url) to avoid redownloads
+  match std::fs::read_to_string(static_checksum_path()) {
+    Ok(c) if c == static_lib_url() => return,
+    _ => {}
+  };
+  download_file(url, static_lib_path());
 }
 
 fn print_link_flags() {
