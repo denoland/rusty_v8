@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
@@ -374,6 +375,14 @@ impl Isolate {
     }
   }
 
+  pub(crate) fn get_finalizer_map(&self) -> &FinalizerMap {
+    &self.get_annex().finalizer_map
+  }
+
+  pub(crate) fn get_finalizer_map_mut(&mut self) -> &mut FinalizerMap {
+    &mut self.get_annex_mut().finalizer_map
+  }
+
   fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
     let annex_ptr = self.get_annex();
     let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
@@ -722,9 +731,18 @@ impl Isolate {
     annex.create_param_allocations = Box::new(());
     annex.slots.clear();
 
+    let finalizers = annex.finalizer_map.take_map();
+
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
     self.set_data(0, null_mut());
+
+    // Call any remaining finalizers. Their corresponding weak pointers are now
+    // emptied because the isolate pointer has been set to null above (although
+    // the actual objects might not have been GC'd).
+    for (_, finalizer) in finalizers {
+      finalizer(self);
+    }
 
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
@@ -763,6 +781,7 @@ impl Isolate {
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
+  finalizer_map: FinalizerMap,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -782,6 +801,7 @@ impl IsolateAnnex {
     Self {
       create_param_allocations,
       slots: HashMap::default(),
+      finalizer_map: FinalizerMap::default(),
       isolate,
       isolate_mutex: Mutex::new(()),
     }

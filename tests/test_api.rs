@@ -136,6 +136,39 @@ fn global_handles() {
 }
 
 #[test]
+fn global_from_into_raw() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let (raw, weak) = {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+    let global = v8::Global::new(scope, local);
+
+    let weak = v8::Weak::new(scope, &global);
+    let raw = global.into_raw();
+    (raw, weak)
+  };
+
+  eval(scope, "gc()").unwrap();
+  assert!(!weak.is_empty());
+
+  {
+    let reconstructed = unsafe { v8::Global::from_raw(scope, raw) };
+
+    let global_from_weak = weak.to_global(scope).unwrap();
+    assert_eq!(global_from_weak, reconstructed);
+  }
+
+  eval(scope, "gc()").unwrap();
+  assert!(weak.is_empty());
+}
+
+#[test]
 fn local_handle_deref() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -6177,4 +6210,319 @@ fn instance_of() {
     v8::Array::new_with_elements(&mut scope, &[]).into();
 
   assert!(array.instance_of(&mut scope, array_constructor).unwrap());
+}
+
+#[test]
+fn weak_handle() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let weak = {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+
+    let weak = v8::Weak::new(scope, &local);
+    assert!(!weak.is_empty());
+    assert_eq!(weak, local);
+    assert_eq!(weak.to_local(scope), Some(local));
+
+    weak
+  };
+
+  let scope = &mut v8::HandleScope::new(scope);
+
+  eval(scope, "gc()").unwrap();
+
+  assert!(weak.is_empty());
+  assert_eq!(weak.to_local(scope), None);
+}
+
+#[test]
+fn finalizers() {
+  use std::cell::Cell;
+  use std::ops::Deref;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // The finalizer for a dropped Weak is never called.
+  {
+    {
+      let scope = &mut v8::HandleScope::new(scope);
+      let local = v8::Object::new(scope);
+      let _ =
+        v8::Weak::with_finalizer(scope, &local, Box::new(|_| unreachable!()));
+    }
+
+    let scope = &mut v8::HandleScope::new(scope);
+    eval(scope, "gc()").unwrap();
+  }
+
+  let finalizer_called = Rc::new(Cell::new(false));
+  let weak = {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+
+    // We use a channel to send data into the finalizer without having to worry
+    // about lifetimes.
+    let (tx, rx) = std::sync::mpsc::sync_channel::<(
+      Rc<v8::Weak<v8::Object>>,
+      Rc<Cell<bool>>,
+    )>(1);
+
+    let weak = Rc::new(v8::Weak::with_finalizer(
+      scope,
+      &local,
+      Box::new(move |_| {
+        let (weak, finalizer_called) = rx.try_recv().unwrap();
+        finalizer_called.set(true);
+        assert!(weak.is_empty());
+      }),
+    ));
+
+    tx.send((weak.clone(), finalizer_called.clone())).unwrap();
+
+    assert!(!weak.is_empty());
+    assert_eq!(weak.deref(), &local);
+    assert_eq!(weak.to_local(scope), Some(local));
+
+    weak
+  };
+
+  let scope = &mut v8::HandleScope::new(scope);
+  eval(scope, "gc()").unwrap();
+  assert!(weak.is_empty());
+  assert!(finalizer_called.get());
+}
+
+#[test]
+fn weak_from_global() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = {
+    let scope = &mut v8::HandleScope::new(scope);
+    let object = v8::Object::new(scope);
+    v8::Global::new(scope, object)
+  };
+
+  let weak = v8::Weak::new(scope, &global);
+  assert!(!weak.is_empty());
+  assert_eq!(weak.to_global(scope).unwrap(), global);
+
+  drop(global);
+  eval(scope, "gc()").unwrap();
+  assert!(weak.is_empty());
+}
+
+#[test]
+fn weak_after_dropping_isolate() {
+  use std::cell::Cell;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let finalized = Rc::new(Cell::new(false));
+
+  let (tx, rx) = std::sync::mpsc::channel::<Arc<v8::Weak<v8::Object>>>();
+
+  let (global, weak) = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let global = {
+      let object = v8::Object::new(scope);
+      v8::Global::new(scope, object)
+    };
+    let weak = v8::Weak::with_finalizer(
+      scope,
+      &global,
+      Box::new({
+        let finalized = finalized.clone();
+        move |_| {
+          finalized.set(true);
+          let weak = rx.recv().unwrap();
+          assert!(weak.is_empty());
+        }
+      }),
+    );
+    assert!(!weak.is_empty());
+
+    let weak = Arc::new(weak);
+    tx.send(weak.clone()).unwrap();
+
+    // We don't do anything with `global` in the outer scope; we return it so
+    // it's kept alive after the isolate is dropped.
+    (global, weak)
+  };
+
+  assert!(weak.is_empty());
+  assert!(finalized.get());
+
+  println!("{:?}", global);
+}
+
+#[test]
+fn weak_from_into_raw() {
+  use std::cell::Cell;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let finalizer_called = Rc::new(Cell::new(false));
+
+  assert_eq!(v8::Weak::<v8::Object>::empty(scope).into_raw(), None);
+  assert!(unsafe { v8::Weak::<v8::Object>::from_raw(scope, None) }.is_empty());
+
+  // regular back and forth
+  {
+    finalizer_called.take();
+    let (weak1, weak2) = {
+      let scope = &mut v8::HandleScope::new(scope);
+      let local = v8::Object::new(scope);
+      let weak = v8::Weak::new(scope, &local);
+      let weak_with_finalizer = v8::Weak::with_finalizer(
+        scope,
+        &local,
+        Box::new({
+          let finalizer_called = finalizer_called.clone();
+          move |_| {
+            finalizer_called.set(true);
+          }
+        }),
+      );
+      let raw1 = weak.into_raw();
+      let raw2 = weak_with_finalizer.into_raw();
+      assert!(raw1.is_some());
+      assert!(raw2.is_some());
+      let weak1 = unsafe { v8::Weak::from_raw(scope, raw1) };
+      let weak2 = unsafe { v8::Weak::from_raw(scope, raw2) };
+      assert_eq!(weak1.to_local(scope), Some(local));
+      assert_eq!(weak2.to_local(scope), Some(local));
+      assert!(!finalizer_called.get());
+      (weak1, weak2)
+    };
+    eval(scope, "gc()").unwrap();
+    assert!(weak1.is_empty());
+    assert!(weak2.is_empty());
+    assert!(finalizer_called.get());
+  }
+
+  // into_raw from a GC'd pointer
+  {
+    let weak = {
+      let scope = &mut v8::HandleScope::new(scope);
+      let local = v8::Object::new(scope);
+      v8::Weak::new(scope, &local)
+    };
+    assert!(!weak.is_empty());
+    eval(scope, "gc()").unwrap();
+    assert!(weak.is_empty());
+    assert_eq!(weak.into_raw(), None);
+  }
+
+  // It's fine if there's a GC while the Weak is leaked.
+  {
+    finalizer_called.take();
+    let (weak, weak_with_finalizer) = {
+      let scope = &mut v8::HandleScope::new(scope);
+      let local = v8::Object::new(scope);
+      let weak = v8::Weak::new(scope, &local);
+      let weak_with_finalizer = v8::Weak::with_finalizer(
+        scope,
+        &local,
+        Box::new({
+          let finalizer_called = finalizer_called.clone();
+          move |_| {
+            finalizer_called.set(true);
+          }
+        }),
+      );
+      (weak, weak_with_finalizer)
+    };
+    assert!(!weak.is_empty());
+    assert!(!weak_with_finalizer.is_empty());
+    assert!(!finalizer_called.get());
+    let raw1 = weak.into_raw();
+    let raw2 = weak_with_finalizer.into_raw();
+    assert!(raw1.is_some());
+    assert!(raw2.is_some());
+    eval(scope, "gc()").unwrap();
+    assert!(finalizer_called.get());
+    let weak1 = unsafe { v8::Weak::from_raw(scope, raw1) };
+    let weak2 = unsafe { v8::Weak::from_raw(scope, raw2) };
+    assert!(weak1.is_empty());
+    assert!(weak2.is_empty());
+  }
+
+  // Leaking a Weak will not crash the isolate.
+  {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+    v8::Weak::new(scope, local).into_raw();
+    v8::Weak::with_finalizer(scope, local, Box::new(|_| {})).into_raw();
+    eval(scope, "gc()").unwrap();
+  }
+  eval(scope, "gc()").unwrap();
+}
+
+#[test]
+fn drop_weak_from_raw_in_finalizer() {
+  use std::cell::Cell;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let weak_ptr = Rc::new(Cell::new(None));
+  let finalized = Rc::new(Cell::new(false));
+
+  {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+    let weak = v8::Weak::with_finalizer(
+      scope,
+      &local,
+      Box::new({
+        let weak_ptr = weak_ptr.clone();
+        let finalized = finalized.clone();
+        move |isolate| {
+          let weak_ptr = weak_ptr.get().unwrap();
+          let weak: v8::Weak<v8::Object> =
+            unsafe { v8::Weak::from_raw(isolate, Some(weak_ptr)) };
+          drop(weak);
+          finalized.set(true);
+        }
+      }),
+    );
+    weak_ptr.set(weak.into_raw());
+  }
+
+  assert!(!finalized.get());
+  eval(scope, "gc()").unwrap();
+  assert!(finalized.get());
 }

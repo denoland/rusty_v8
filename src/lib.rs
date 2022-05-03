@@ -90,6 +90,7 @@ pub use function::*;
 pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;
+pub use handle::Weak;
 pub use isolate::HeapStatistics;
 pub use isolate::HostImportModuleDynamicallyCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
