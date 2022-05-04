@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "support.h"
+#include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
@@ -92,6 +93,7 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 12,
 
 enum InternalSlots {
   kSlotDynamicImport = 0,
+  kSlotCreateShadowRealmContext = 1,
   kNumInternalSlots,
 };
 #define SLOT_NUM_EXTERNAL(isolate) \
@@ -120,6 +122,25 @@ v8::MaybeLocal<v8::Promise> HostImportModuleDynamicallyCallback(
     return v8::MaybeLocal<v8::Promise>();
   } else {
     return v8::MaybeLocal<v8::Promise>(ptr_to_local(promise_ptr));
+  }
+}
+
+typedef v8::Context* (*v8__HostCreateShadowRealmContextCallback)(
+    v8::Local<v8::Context> initiator_context);
+
+v8::MaybeLocal<v8::Context> HostCreateShadowRealmContextCallback(
+    v8::Local<v8::Context> initiator_context) {
+  auto* isolate = initiator_context->GetIsolate();
+  void* d =
+      isolate->GetData(SLOT_INTERNAL(isolate, kSlotCreateShadowRealmContext));
+  auto* callback =
+      reinterpret_cast<v8__HostCreateShadowRealmContextCallback>(d);
+  assert(callback != nullptr);
+  auto* context_ptr = callback(initiator_context);
+  if (context_ptr == nullptr) {
+    return v8::MaybeLocal<v8::Context>();
+  } else {
+    return v8::MaybeLocal<v8::Context>(ptr_to_local(context_ptr));
   }
 }
 
@@ -261,6 +282,14 @@ void v8__Isolate__SetHostImportModuleDynamicallyCallback(
                    reinterpret_cast<void*>(callback));
   isolate->SetHostImportModuleDynamicallyCallback(
       HostImportModuleDynamicallyCallback);
+}
+
+void v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    v8::Isolate* isolate, v8__HostCreateShadowRealmContextCallback callback) {
+  isolate->SetData(SLOT_INTERNAL(isolate, kSlotCreateShadowRealmContext),
+                   reinterpret_cast<void*>(callback));
+  isolate->SetHostCreateShadowRealmContextCallback(
+      HostCreateShadowRealmContextCallback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,

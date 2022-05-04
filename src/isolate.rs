@@ -129,6 +129,19 @@ pub type HostImportModuleDynamicallyCallback = extern "C" fn(
   Local<FixedArray>,
 ) -> *mut Promise;
 
+/// `HostCreateShadowRealmContextCallback` is called each time a `ShadowRealm`
+/// is being constructed. You can use [`HandleScope::get_current_context`] to
+/// get the [`Context`] in which the constructor is being run.
+///
+/// The method combines [`Context`] creation and the implementation-defined
+/// abstract operation `HostInitializeShadowRealm` into one.
+///
+/// The embedder should use [`Context::new`] to create a new context. If the
+/// creation fails, the embedder must propagate that exception by returning
+/// [`None`].
+pub type HostCreateShadowRealmContextCallback =
+  for<'s> fn(scope: &mut HandleScope<'s>) -> Option<Local<'s, Context>>;
+
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
@@ -221,6 +234,10 @@ extern "C" {
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
     callback: HostImportModuleDynamicallyCallback,
+  );
+  fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(initiator_context: Local<Context>) -> *mut Context,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -606,6 +623,35 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
+    }
+  }
+
+  /// This specifies the callback called by the upcoming `ShadowRealm`
+  /// construction language feature to retrieve host created globals.
+  pub fn set_host_create_shadow_realm_context_callback(
+    &mut self,
+    callback: HostCreateShadowRealmContextCallback,
+  ) {
+    extern "C" fn rust_shadow_realm_callback(
+      initiator_context: Local<Context>,
+    ) -> *mut Context {
+      let mut scope = unsafe { CallbackScope::new(initiator_context) };
+      let callback = scope
+        .get_slot::<HostCreateShadowRealmContextCallback>()
+        .unwrap();
+      let context = callback(&mut scope);
+      context
+        .map(|l| l.as_non_null().as_ptr())
+        .unwrap_or_else(null_mut)
+    }
+    let slot_didnt_exist_before = self.set_slot(callback);
+    if slot_didnt_exist_before {
+      unsafe {
+        v8__Isolate__SetHostCreateShadowRealmContextCallback(
+          self,
+          rust_shadow_realm_callback,
+        )
+      }
     }
   }
 
