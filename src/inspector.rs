@@ -279,7 +279,7 @@ impl ChannelBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    // TODO: the call to base() creates a reference to uninitialized memory (UB)
+    // TODO(y21): the call to base() creates a reference to uninitialized memory (UB)
     // fixing this requires changes in the ChannelImpl trait, namely ChannelImpl::base() can't take &self
     let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
