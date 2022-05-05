@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::isolate::Isolate;
 use crate::Context;
+use crate::Function;
 use crate::HandleScope;
 use crate::Local;
 use crate::Object;
@@ -15,6 +16,13 @@ extern "C" {
     global_object: *const Value,
   ) -> *const Context;
   fn v8__Context__Global(this: *const Context) -> *const Object;
+  fn v8__Context__SetPromiseHooks(
+    this: *const Context,
+    init_hook: *const Function,
+    before_hook: *const Function,
+    after_hook: *const Function,
+    resolve_hook: *const Function,
+  );
 }
 
 impl Context {
@@ -57,5 +65,23 @@ impl Context {
     scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
+  }
+
+  pub fn set_promise_hooks(
+    &self,
+    init_hook: Local<Function>,
+    before_hook: Local<Function>,
+    after_hook: Local<Function>,
+    resolve_hook: Local<Function>,
+  ) {
+    unsafe {
+      v8__Context__SetPromiseHooks(
+        self,
+        &*init_hook,
+        &*before_hook,
+        &*after_hook,
+        &*resolve_hook,
+      )
+    }
   }
 }

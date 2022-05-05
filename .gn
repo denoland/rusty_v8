@@ -36,6 +36,7 @@ default_args = {
   clang_use_chrome_plugins = false
   v8_monolithic = false
   v8_enable_snapshot_compression = false
+  v8_enable_javascript_promise_hooks = true
   v8_use_external_startup_data = false
   v8_use_snapshot = true
   is_component_build = false
