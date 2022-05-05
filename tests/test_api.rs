@@ -6063,18 +6063,11 @@ fn compiled_wasm_module() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let module: v8::Local<v8::WasmModuleObject> = eval(
-      scope,
-      r#"
-        new WebAssembly.Module(Uint8Array.from([
-          0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-          0x00, 0x07, 0x03, 0x66, 0x6F, 0x6F, 0x62, 0x61, 0x72
-        ]));
-      "#,
-    )
-    .unwrap()
-    .try_into()
-    .unwrap();
+    let wire_bytes = &[
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x00, 0x07, 0x03, 0x66,
+      0x6F, 0x6F, 0x62, 0x61, 0x72,
+    ];
+    let module = v8::WasmModuleObject::compile(scope, wire_bytes).unwrap();
 
     module.get_compiled_module()
   };

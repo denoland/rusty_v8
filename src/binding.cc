@@ -2938,6 +2938,13 @@ v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(
   return new v8::CompiledWasmModule(std::move(cwm));
 }
 
+const v8::WasmModuleObject* v8__WasmModuleObject__Compile(
+    v8::Isolate* isolate, uint8_t* wire_bytes_data, size_t length) {
+  MemorySpan<uint8_t> wire_bytes(wire_bytes_data, length);
+  return maybe_local_to_ptr(
+      v8::WasmModuleObject::Compile(isolate, *wire_bytes));
+}
+
 const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(
     v8::CompiledWasmModule* self, size_t* length) {
   v8::MemorySpan<const uint8_t> span = self->GetWireBytesRef();
