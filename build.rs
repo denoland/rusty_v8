@@ -706,10 +706,12 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
 pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
   let gn_out_dir = get_dirs(None).out.join("gn_out");
 
+  rerun_if_changed(&gn_out_dir, maybe_env.clone(), target);
+
   // This helps Rust source files locate the snapshot, source map etc.
   println!("cargo:rustc-env=GN_OUT_DIR={}", gn_out_dir.display());
 
-  let mut cmd = ninja(&gn_out_dir, maybe_env.clone());
+  let mut cmd = ninja(&gn_out_dir, maybe_env);
   cmd.arg(target);
   run(&mut cmd, "ninja");
 
@@ -722,8 +724,6 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
     };
     generate_compdb(&gn_out_dir, target, compdb_path);
   }
-
-  rerun_if_changed(&gn_out_dir, maybe_env, target);
 
   // TODO This is not sufficent. We need to use "gn desc" to query the target
   // and figure out what else we need to add to the link.
@@ -790,13 +790,7 @@ fn ninja_get_deps(
   let stdout = String::from_utf8(output.stdout).unwrap();
   let deps_files = parse_ninja_deps(&stdout);
 
-  // TODO(ry) There's probably a simpler way to union two HashSet<String>
-  // objects.
-  let mut out = HashSet::<String>::new();
-  for x in graph_files.union(&deps_files) {
-    out.insert(x.to_string());
-  }
-  out
+  graph_files.union(&deps_files).map(String::from).collect()
 }
 
 pub fn parse_ninja_deps(s: &str) -> HashSet<String> {
@@ -816,7 +810,6 @@ pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
   let mut out = HashSet::new();
   // This is extremely hacky and likely to break.
   for line in s.lines() {
-    //println!("line {}", line);
     if line.starts_with('\"')
       && line.contains("label=")
       && !line.contains("shape=")
@@ -827,7 +820,6 @@ pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
         continue;
       }
       out.insert(filename.to_string());
-      println!("filename {}", filename);
     }
   }
   out

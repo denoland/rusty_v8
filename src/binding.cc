@@ -1584,6 +1584,18 @@ const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
       ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
 }
 
+void v8__Context__SetPromiseHooks(v8::Context& self,
+                                  v8::Function& init_hook,
+                                  v8::Function& before_hook,
+                                  v8::Function& after_hook,
+                                  v8::Function& resolve_hook) {
+  ptr_to_local(&self)->SetPromiseHooks(
+    ptr_to_local(&init_hook),
+    ptr_to_local(&before_hook),
+    ptr_to_local(&after_hook),
+    ptr_to_local(&resolve_hook));
+}
+
 const v8::String* v8__Message__Get(const v8::Message& self) {
   return local_to_ptr(self.Get());
 }
@@ -2948,6 +2960,13 @@ v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(
     const v8::WasmModuleObject* self) {
   v8::CompiledWasmModule cwm = ptr_to_local(self)->GetCompiledModule();
   return new v8::CompiledWasmModule(std::move(cwm));
+}
+
+const v8::WasmModuleObject* v8__WasmModuleObject__Compile(
+    v8::Isolate* isolate, uint8_t* wire_bytes_data, size_t length) {
+  v8::MemorySpan<const uint8_t> wire_bytes(wire_bytes_data, length);
+  return maybe_local_to_ptr(
+      v8::WasmModuleObject::Compile(isolate, wire_bytes));
 }
 
 const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(
