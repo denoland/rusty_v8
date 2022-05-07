@@ -232,7 +232,7 @@ pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
   deleter_data: *mut c_void,
 );
 
-pub unsafe extern "C" fn backing_store_deleter_callback(
+pub unsafe extern "C" fn boxed_slice_deleter_callback(
   data: *mut c_void,
   byte_length: usize,
   _deleter_data: *mut c_void,
@@ -240,6 +240,15 @@ pub unsafe extern "C" fn backing_store_deleter_callback(
   let slice_ptr = ptr::slice_from_raw_parts_mut(data as *mut u8, byte_length);
   let b = Box::from_raw(slice_ptr);
   drop(b);
+}
+
+pub unsafe extern "C" fn vec_deleter_callback(
+  data: *mut c_void,
+  byte_length: usize,
+  deleter_data: *mut c_void,
+) {
+  let capacity = deleter_data as usize;
+  drop(Vec::from_raw_parts(data as *mut u8, byte_length, capacity))
 }
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
@@ -425,8 +434,32 @@ impl ArrayBuffer {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
         data_ptr,
         byte_length,
-        backing_store_deleter_callback,
+        boxed_slice_deleter_callback,
         null_mut(),
+      ))
+    }
+  }
+
+  /// Returns a new standalone BackingStore that takes over the ownership of
+  /// the given buffer.
+  ///
+  /// The destructor of the BackingStore frees owned buffer memory.
+  ///
+  /// The result can be later passed to ArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  pub fn new_backing_store_from_vec(
+    mut data: Vec<u8>,
+  ) -> UniqueRef<BackingStore> {
+    let byte_length = data.len();
+    let capacity = data.capacity();
+    let data_ptr = data.as_mut_ptr() as *mut c_void;
+    std::mem::forget(data);
+    unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        vec_deleter_callback,
+        capacity as *mut c_void,
       ))
     }
   }
