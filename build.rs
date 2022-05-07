@@ -790,13 +790,7 @@ fn ninja_get_deps(
   let stdout = String::from_utf8(output.stdout).unwrap();
   let deps_files = parse_ninja_deps(&stdout);
 
-  // TODO(ry) There's probably a simpler way to union two HashSet<String>
-  // objects.
-  let mut out = HashSet::<String>::new();
-  for x in graph_files.union(&deps_files) {
-    out.insert(x.to_string());
-  }
-  out
+  graph_files.union(&deps_files).map(String::from).collect()
 }
 
 pub fn parse_ninja_deps(s: &str) -> HashSet<String> {
@@ -827,7 +821,6 @@ pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
         continue;
       }
       out.insert(filename.to_string());
-      println!("filename {}", filename);
     }
   }
   out
