@@ -120,7 +120,7 @@ impl Context {
     if num_data_fields <= Self::ANNEX_SLOT {
       let annex = Box::new(ContextAnnex {
         slots: Default::default(),
-        // To be replaced
+        // Gets replaced later in the method.
         self_weak: Weak::empty(isolate),
       });
       let annex_ptr = Box::into_raw(annex);
@@ -132,23 +132,25 @@ impl Context {
         )
       };
 
-      // Make sure to drop the annex after the pointer is dropped by creating a
+      // Make sure to drop the annex after the context is dropped, by creating a
       // weak handle with a finalizer that drops the annex, and storing the weak
       // in the annex itself.
       let weak = {
         // SAFETY: `self` can only have been derived from a `Local` or `Global`,
         // and assuming the caller is only using safe code, the `Local` or
         // `Global` must still be alive, so `self_ref_handle` won't outlive it.
-        // We check above that `isolate` is the context's isolate.
+        // We also check above that `isolate` is the context's isolate.
         let self_ref_handle = unsafe { UnsafeRefHandle::new(self, isolate) };
 
         Weak::with_finalizer(
           isolate,
           self_ref_handle,
           Box::new(move |_| {
-            // SAFETY: The Context has been dropped, so there's no living
-            // reference to the annex. And since the finalizer is only called
-            // once, the annex can't have been dropped before.
+            // SAFETY: The lifetimes of references to the annex returned by this
+            // method are always tied to the context, and because this is the
+            // context's finalizer, we know there are no living references to
+            // the annex. And since the finalizer is only called once, the annex
+            // can't have been dropped before.
             let _ = unsafe { Box::from_raw(annex_ptr) };
           }),
         )
