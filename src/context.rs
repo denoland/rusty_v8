@@ -131,6 +131,10 @@ impl Context {
           annex_ptr as *mut _,
         )
       };
+      assert_eq!(
+        unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as c_int,
+        Self::ANNEX_SLOT + 1
+      );
 
       // Make sure to drop the annex after the context is dropped, by creating a
       // weak handle with a finalizer that drops the annex, and storing the weak
