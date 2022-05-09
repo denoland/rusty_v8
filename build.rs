@@ -217,6 +217,7 @@ fn build_v8() {
   let gn_out = maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
+  print_gn_args(&gn_out);
   build("rusty_v8", None);
 }
 
@@ -675,6 +676,16 @@ fn generate_compdb(
 }
 
 pub type GnArgs = Vec<String>;
+
+fn print_gn_args(gn_out_dir: &Path) {
+  assert!(Command::new(gn())
+    .arg("args")
+    .arg(&gn_out_dir)
+    .arg("--list")
+    .status()
+    .unwrap()
+    .success());
+}
 
 pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
   let dirs = get_dirs(Some(manifest_dir));
