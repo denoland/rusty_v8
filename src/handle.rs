@@ -486,10 +486,12 @@ impl<T> Weak<T> {
 
   /// Create a weak handle with a finalization callback installed.
   ///
-  /// Unlike in C++, this Rust API does guarantee that any finalizers whose
-  /// corresponding `Weak` is still alive will have been called when the isolate
-  /// is dropped. Other than that, there is still no guarantee as to when it
-  /// will be invoked.
+  /// There is no guarantee as to *when* the finalization callback will be
+  /// invoked. However, unlike the C++ API, this API guarantees that when an
+  /// isolate is destroyed, any finalizers that haven't been called yet will be
+  /// run, unless a [`Global`] reference is keeping the object alive. Other than
+  /// that, there is still no guarantee as to when the finalizers will be
+  /// called.
   ///
   /// The callback does not have access to the inner value, because it has
   /// already been collected by the time it runs.
@@ -865,9 +867,7 @@ impl FinalizerMap {
     id
   }
 
-  pub(crate) fn take_map(
-    &mut self,
-  ) -> std::collections::HashMap<FinalizerId, Box<dyn FnOnce(&mut Isolate)>> {
-    std::mem::take(&mut self.map)
+  pub(crate) fn is_empty(&self) -> bool {
+    self.map.is_empty()
   }
 }

@@ -718,6 +718,15 @@ impl Isolate {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
+    // If there are finalizers left to call, we trigger GC to try and call as
+    // many of them as possible.
+    if !self.get_annex().finalizer_map.is_empty() {
+      // A low memory notification triggers a synchronous GC, which means
+      // finalizers will be called during the course of the call, rather than at
+      // some later point.
+      self.low_memory_notification();
+    }
+
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.
@@ -731,18 +740,9 @@ impl Isolate {
     annex.create_param_allocations = Box::new(());
     annex.slots.clear();
 
-    let finalizers = annex.finalizer_map.take_map();
-
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
     self.set_data(0, null_mut());
-
-    // Call any remaining finalizers. Their corresponding weak pointers are now
-    // emptied because the isolate pointer has been set to null above (although
-    // the actual objects might not have been GC'd).
-    for (_, finalizer) in finalizers {
-      finalizer(self);
-    }
 
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.

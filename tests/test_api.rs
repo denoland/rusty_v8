@@ -6423,55 +6423,6 @@ fn weak_from_global() {
 }
 
 #[test]
-fn weak_after_dropping_isolate() {
-  use std::cell::Cell;
-  use std::rc::Rc;
-
-  let _setup_guard = setup();
-
-  let finalized = Rc::new(Cell::new(false));
-
-  let (tx, rx) = std::sync::mpsc::channel::<Arc<v8::Weak<v8::Object>>>();
-
-  let (global, weak) = {
-    let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    let global = {
-      let object = v8::Object::new(scope);
-      v8::Global::new(scope, object)
-    };
-    let weak = v8::Weak::with_finalizer(
-      scope,
-      &global,
-      Box::new({
-        let finalized = finalized.clone();
-        move |_| {
-          finalized.set(true);
-          let weak = rx.recv().unwrap();
-          assert!(weak.is_empty());
-        }
-      }),
-    );
-    assert!(!weak.is_empty());
-
-    let weak = Arc::new(weak);
-    tx.send(weak.clone()).unwrap();
-
-    // We don't do anything with `global` in the outer scope; we return it so
-    // it's kept alive after the isolate is dropped.
-    (global, weak)
-  };
-
-  assert!(weak.is_empty());
-  assert!(finalized.get());
-
-  println!("{:?}", global);
-}
-
-#[test]
 fn weak_from_into_raw() {
   use std::cell::Cell;
   use std::rc::Rc;
@@ -6619,4 +6570,73 @@ fn drop_weak_from_raw_in_finalizer() {
   assert!(!finalized.get());
   eval(scope, "gc()").unwrap();
   assert!(finalized.get());
+}
+
+#[test]
+fn finalizer_on_global_object() {
+  use std::cell::Cell;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let weak;
+  let finalized = Rc::new(Cell::new(false));
+
+  {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let global_object = context.global(scope);
+    weak = v8::Weak::with_finalizer(
+      scope,
+      global_object,
+      Box::new({
+        let finalized = finalized.clone();
+        move |_| finalized.set(true)
+      }),
+    );
+  }
+
+  assert!(finalized.get());
+  drop(weak);
+}
+
+#[test]
+fn finalizer_on_kept_global() {
+  // If a global is kept alive after an isolate is dropped, any finalizers won't
+  // be called.
+
+  use std::cell::Cell;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let global;
+  let weak;
+  let finalized = Rc::new(Cell::new(false));
+
+  {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let object = v8::Object::new(scope);
+    global = v8::Global::new(scope, &object);
+    weak = v8::Weak::with_finalizer(
+      scope,
+      &object,
+      Box::new({
+        let finalized = finalized.clone();
+        move |_| finalized.set(true)
+      }),
+    )
+  }
+
+  assert!(weak.is_empty());
+  assert!(!finalized.get());
+  drop(weak);
+  drop(global);
 }
