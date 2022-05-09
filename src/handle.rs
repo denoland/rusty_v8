@@ -725,12 +725,10 @@ impl<T> Weak<T> {
       let ptr = v8__WeakCallbackInfo__GetParameter(wci);
       &*(ptr as *mut WeakData<T>)
     };
-    let finalizer_id = weak_data.finalizer_id.unwrap();
-    if let Some(finalizer) =
+    let finalizer: Option<Box<dyn FnOnce(&mut Isolate)>> = {
+      let finalizer_id = weak_data.finalizer_id.unwrap();
       isolate.get_finalizer_map_mut().map.remove(&finalizer_id)
-    {
-      finalizer(isolate);
-    }
+    };
 
     if weak_data.weak_dropped.get() {
       // SAFETY: If weak_dropped is true, the corresponding Weak has been dropped,
@@ -738,6 +736,10 @@ impl<T> Weak<T> {
       let _ = unsafe {
         Box::from_raw(weak_data as *const WeakData<T> as *mut WeakData<T>)
       };
+    }
+
+    if let Some(finalizer) = finalizer {
+      finalizer(isolate);
     }
   }
 }
