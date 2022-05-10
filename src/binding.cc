@@ -1790,6 +1790,11 @@ const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
   return local_to_ptr(ptr_to_local(&self)->PrototypeTemplate());
 }
 
+const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
+    const v8::FunctionTemplate& self) {
+  return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
+}
+
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
