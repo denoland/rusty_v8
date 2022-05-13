@@ -54,6 +54,9 @@ extern "C" {
   fn v8__FunctionTemplate__PrototypeTemplate(
     this: *const FunctionTemplate,
   ) -> *const ObjectTemplate;
+  fn v8__FunctionTemplate__InstanceTemplate(
+    this: *const FunctionTemplate,
+  ) -> *const ObjectTemplate;
   fn v8__FunctionTemplate__SetClassName(
     this: *const FunctionTemplate,
     name: *const String,
@@ -222,6 +225,18 @@ impl FunctionTemplate {
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__PrototypeTemplate(self))
+    }
+    .unwrap()
+  }
+
+  /// Returns the object template that is used for instances created when this function
+  /// template is called as a constructor.
+  pub fn instance_template<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, ObjectTemplate> {
+    unsafe {
+      scope.cast_local(|_sd| v8__FunctionTemplate__InstanceTemplate(self))
     }
     .unwrap()
   }

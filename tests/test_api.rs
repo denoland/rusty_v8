@@ -1567,6 +1567,42 @@ fn function_template_prototype() {
 }
 
 #[test]
+fn instance_template_with_internal_field() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  pub fn constructor_callback(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+  ) {
+    let this = args.this();
+    assert!(this.set_internal_field(0, v8::Integer::new(scope, 42).into()));
+    retval.set(this.into())
+  }
+
+  let function_templ = v8::FunctionTemplate::new(scope, constructor_callback);
+  let instance_templ = function_templ.instance_template(scope);
+  instance_templ.set_internal_field_count(1);
+
+  let name = v8::String::new(scope, "WithInternalField").unwrap();
+  let val = function_templ.get_function(scope).unwrap();
+  context.global(scope).set(scope, name.into(), val.into());
+
+  let new_instance = eval(scope, "new WithInternalField()").unwrap();
+  let internal_field = new_instance
+    .to_object(scope)
+    .unwrap()
+    .get_internal_field(scope, 0)
+    .unwrap();
+
+  assert_eq!(internal_field.integer_value(scope).unwrap(), 42);
+}
+
+#[test]
 fn object_template_set_accessor() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
