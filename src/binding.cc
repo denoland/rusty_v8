@@ -354,9 +354,33 @@ const v8::Data* v8__Global__New(v8::Isolate* isolate, const v8::Data& other) {
   return make_pod<v8::Data*>(std::move(global));
 }
 
+const v8::Data* v8__Global__NewWeak(
+    v8::Isolate* isolate, const v8::Data& other, void* parameter,
+    v8::WeakCallbackInfo<void>::Callback callback) {
+  auto global = v8::Global<v8::Data>(isolate, ptr_to_local(&other));
+  global.SetWeak(parameter, callback, v8::WeakCallbackType::kParameter);
+  return make_pod<v8::Data*>(std::move(global));
+}
+
 void v8__Global__Reset(const v8::Data* data) {
   auto global = ptr_to_global(data);
   global.Reset();
+}
+
+v8::Isolate* v8__WeakCallbackInfo__GetIsolate(
+    const v8::WeakCallbackInfo<void>* self) {
+  return self->GetIsolate();
+}
+
+void* v8__WeakCallbackInfo__GetParameter(
+    const v8::WeakCallbackInfo<void>* self) {
+  return self->GetParameter();
+}
+
+void v8__WeakCallbackInfo__SetSecondPassCallback(
+    const v8::WeakCallbackInfo<void>* self,
+    v8::WeakCallbackInfo<void>::Callback callback) {
+  self->SetSecondPassCallback(callback);
 }
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
@@ -1750,6 +1774,11 @@ void v8__FunctionTemplate__RemovePrototype(const v8::FunctionTemplate& self) {
 const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
     const v8::FunctionTemplate& self) {
   return local_to_ptr(ptr_to_local(&self)->PrototypeTemplate());
+}
+
+const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
+    const v8::FunctionTemplate& self) {
+  return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
 }
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(

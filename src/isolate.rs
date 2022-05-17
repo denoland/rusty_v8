@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
@@ -374,6 +375,14 @@ impl Isolate {
     }
   }
 
+  pub(crate) fn get_finalizer_map(&self) -> &FinalizerMap {
+    &self.get_annex().finalizer_map
+  }
+
+  pub(crate) fn get_finalizer_map_mut(&mut self) -> &mut FinalizerMap {
+    &mut self.get_annex_mut().finalizer_map
+  }
+
   fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
     let annex_ptr = self.get_annex();
     let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
@@ -709,6 +718,15 @@ impl Isolate {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
+    // If there are finalizers left to call, we trigger GC to try and call as
+    // many of them as possible.
+    if !self.get_annex().finalizer_map.is_empty() {
+      // A low memory notification triggers a synchronous GC, which means
+      // finalizers will be called during the course of the call, rather than at
+      // some later point.
+      self.low_memory_notification();
+    }
+
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.
@@ -763,6 +781,7 @@ impl Isolate {
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
+  finalizer_map: FinalizerMap,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -782,6 +801,7 @@ impl IsolateAnnex {
     Self {
       create_param_allocations,
       slots: HashMap::default(),
+      finalizer_map: FinalizerMap::default(),
       isolate,
       isolate_mutex: Mutex::new(()),
     }

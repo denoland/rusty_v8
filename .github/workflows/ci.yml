@@ -41,7 +41,7 @@ jobs:
             variant: release
             cargo: cargo
 
-          - os: windows-2019-3xl
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2019-xxl' || 'windows-2019-3xl' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
             cargo: cargo
@@ -77,7 +77,7 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           components: clippy, rustfmt
-          rust-version: 1.59.0
+          rust-version: 1.60.0
 
       - name: Install python
         uses: actions/setup-python@v2
