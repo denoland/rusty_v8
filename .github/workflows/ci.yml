@@ -41,7 +41,7 @@ jobs:
             variant: release
             cargo: cargo
 
-          - os: windows-2019
+          - os: windows-2019-3xl
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
             cargo: cargo
