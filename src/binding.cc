@@ -286,7 +286,7 @@ int64_t v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
 }
 
 void v8__Isolate__SetOOMErrorHandler(v8::Isolate* isolate,
-                                     v8::OOMErrorCallback callback) {
+                                     v8::LegacyOOMErrorCallback callback) {
   isolate->SetOOMErrorHandler(callback);
 }
 
@@ -2272,12 +2272,14 @@ v8_inspector::V8Inspector* v8_inspector__V8Inspector__create(
   return u.release();
 }
 
+// TODO(ry) pass client_is_trusted through
 v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
     v8_inspector::V8Inspector* self, int context_group_id,
     v8_inspector::V8Inspector::Channel* channel,
     v8_inspector::StringView state) {
   std::unique_ptr<v8_inspector::V8InspectorSession> u =
-      self->connect(context_group_id, channel, state);
+      self->connect(context_group_id, channel, state,
+                    v8_inspector::V8Inspector::kFullyTrusted);
   return u.release();
 }
 
