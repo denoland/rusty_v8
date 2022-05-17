@@ -46,16 +46,6 @@ jobs:
             variant: release # Note: we do not support windows debug builds.
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
-            target: aarch64-unknown-linux-gnu
-            variant: debug
-            cargo: cargo
-
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
-            target: aarch64-unknown-linux-gnu
-            variant: release
-            cargo: cargo
-
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
