@@ -269,7 +269,8 @@ impl ChannelBase {
 
   fn get_cxx_base_offset() -> FieldOffset<Channel> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+    let base = unsafe { addr_of!((*buf.as_ptr()).cxx_base) };
+    FieldOffset::from_ptrs(buf.as_ptr(), base)
   }
 
   fn get_offset_within_embedder<T>() -> FieldOffset<Self>
@@ -278,6 +279,8 @@ impl ChannelBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
+    // TODO(y21): the call to base() creates a reference to uninitialized memory (UB)
+    // fixing this requires changes in the ChannelImpl trait, namely ChannelImpl::base() can't take &self
     let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
@@ -532,7 +535,8 @@ impl V8InspectorClientBase {
 
   fn get_cxx_base_offset() -> FieldOffset<V8InspectorClient> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+    let base = unsafe { addr_of!((*buf.as_ptr()).cxx_base) };
+    FieldOffset::from_ptrs(buf.as_ptr(), base)
   }
 
   fn get_offset_within_embedder<T>() -> FieldOffset<Self>
@@ -668,6 +672,7 @@ use std::iter::ExactSizeIterator;
 use std::iter::IntoIterator;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::ptr::addr_of;
 use std::ptr::null;
 use std::ptr::NonNull;
 use std::slice;
