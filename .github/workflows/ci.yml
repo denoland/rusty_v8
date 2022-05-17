@@ -41,7 +41,7 @@ jobs:
             variant: release
             cargo: cargo
 
-          - os: windows-2019
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2019-xxl' || 'windows-2019' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
             cargo: cargo
