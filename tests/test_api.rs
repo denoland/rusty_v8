@@ -3222,7 +3222,7 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -3253,6 +3253,26 @@ fn snapshot_creator() {
       .unwrap()
   };
   assert!(startup_data.len() > 0);
+  let startup_data = {
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, Some(startup_data));
+    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    {
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+
+      let source = v8::String::new(scope, "b = 2 + 3").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      script.run(scope).unwrap();
+
+      snapshot_creator.set_default_context(context);
+    }
+
+    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
   // Now we try to load up the snapshot and check that 'a' has the correct
   // value.
   {
@@ -3263,6 +3283,12 @@ fn snapshot_creator() {
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       let source = v8::String::new(scope, "a === 3").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      let result = script.run(scope).unwrap();
+      let true_val = v8::Boolean::new(scope, true).into();
+      assert!(result.same_value(true_val));
+
+      let source = v8::String::new(scope, "b === 5").unwrap();
       let script = v8::Script::compile(scope, source, None).unwrap();
       let result = script.run(scope).unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
@@ -3317,7 +3343,7 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs));
+    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs), None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -4618,7 +4644,7 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
