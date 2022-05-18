@@ -2873,7 +2873,7 @@ fn get_hash() {
     }
     let map =
       once((v8::Global::new(scope, pri1), i)).collect::<HashMap<_, _>>();
-    assert_eq!(map[&*pri2], i);
+    assert_eq!(map[pri2], i);
   }
 
   assert_eq!(name_count, 3);
