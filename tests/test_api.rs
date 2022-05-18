@@ -30,7 +30,7 @@ impl Drop for SetupGuard {
 fn setup() -> SetupGuard {
   static START: std::sync::Once = std::sync::Once::new();
   START.call_once(|| {
-    assert!(v8::icu::set_common_data_70(align_data::include_aligned!(
+    assert!(v8::icu::set_common_data_71(align_data::include_aligned!(
       align_data::Align16,
       "../third_party/icu/common/icudtl.dat"
     ))
@@ -4280,7 +4280,12 @@ fn inspector_dispatch_protocol_message() {
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(1, &mut channel, state_view);
+  let mut session = inspector.connect(
+    1,
+    &mut channel,
+    state_view,
+    V8InspectorClientTrustLevel::Untrusted,
+  );
   let message = String::from(
     r#"{"id":1,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#,
   );
@@ -4308,7 +4313,12 @@ fn inspector_schedule_pause_on_next_statement() {
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(1, &mut channel, state_view);
+  let mut session = inspector.connect(
+    1,
+    &mut channel,
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
@@ -5697,7 +5707,7 @@ fn icu_date() {
 
 #[test]
 fn icu_set_common_data_fail() {
-  assert!(v8::icu::set_common_data_70(&[1, 2, 3]).is_err());
+  assert!(v8::icu::set_common_data_71(&[1, 2, 3]).is_err());
 }
 
 #[test]
@@ -6110,7 +6120,7 @@ fn counter_lookup_callback() {
     .find_map(|(name, count)| {
       let name = unsafe { CStr::from_ptr(name.0) };
       // Note: counter names start with a "c:" prefix.
-      if "c:V8.TotalParseSize" == name.to_string_lossy() {
+      if "c:V8.CompilationCacheMisses" == name.to_string_lossy() {
         Some(unsafe { *count.0 })
       } else {
         None

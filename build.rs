@@ -132,7 +132,6 @@ fn build_v8() {
   if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
-    // TODO: Dedupe this with the one from cc_wrapper()
     gn_args.push("treat_warnings_as_errors=false".to_string());
     // we can't use chromiums clang plugins with a system clang
     gn_args.push("clang_use_chrome_plugins=false".to_string());
@@ -217,7 +216,6 @@ fn build_v8() {
   let gn_out = maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
-  print_gn_args(&gn_out);
   build("rusty_v8", None);
 }
 
@@ -264,7 +262,7 @@ fn platform() -> &'static str {
 fn download_ninja_gn_binaries() {
   let target_dir = build_dir();
   let bin_dir = target_dir
-    .join("ninja_gn_binaries-20210101")
+    .join("ninja_gn_binaries-20220517")
     .join(platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");
@@ -461,6 +459,16 @@ fn print_link_flags() {
     println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
   }
+
+  if cfg!(target_env = "msvc") {
+    // On Windows, including libcpmt[d]/msvcprt[d] explicitly links the C++
+    // standard library, which libc++ needs for exception_ptr internals.
+    if cfg!(target_feature = "crt-static") {
+      println!("cargo:rustc-link-lib=libcpmt");
+    } else {
+      println!("cargo:rustc-link-lib=dylib=msvcprt");
+    }
+  }
 }
 
 // Chromium depot_tools contains helpers
@@ -530,11 +538,6 @@ fn clang_download() -> PathBuf {
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
   gn_args.push(format!("cc_wrapper={:?}", sccache_path));
-  // Disable treat_warnings_as_errors until this sccache bug is fixed:
-  // https://github.com/mozilla/sccache/issues/264
-  if cfg!(target_os = "windows") {
-    gn_args.push("treat_warnings_as_errors=false".to_string());
-  }
 }
 
 struct Dirs {
@@ -676,16 +679,6 @@ fn generate_compdb(
 }
 
 pub type GnArgs = Vec<String>;
-
-fn print_gn_args(gn_out_dir: &Path) {
-  assert!(Command::new(gn())
-    .arg("args")
-    .arg(&gn_out_dir)
-    .arg("--list")
-    .status()
-    .unwrap()
-    .success());
-}
 
 pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
   let dirs = get_dirs(Some(manifest_dir));
