@@ -103,8 +103,8 @@ impl SnapshotCreator {
     } else {
       std::ptr::null()
     };
-    let existing_blob_ptr = if let Some(er) = existing_blob {
-      &er
+    let existing_blob_ptr = if let Some(startup_data) = existing_blob {
+      &startup_data
     } else {
       std::ptr::null()
     };

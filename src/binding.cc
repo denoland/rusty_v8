@@ -2329,7 +2329,7 @@ void v8__Proxy__Revoke(const v8::Proxy& self) { ptr_to_local(&self)->Revoke(); }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>* buf,
                                     const intptr_t* external_references,
-                                    StartupData* existing_blob) {
+                                    v8::StartupData* existing_blob) {
   construct_in_place<v8::SnapshotCreator>(buf, external_references, existing_blob);
 }
 
