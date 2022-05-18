@@ -4727,9 +4727,8 @@ fn heap_limits() {
         "hello 🦕 world"
           .repeat(10)
           .split("🦕")
-          .map((s) => s.split(""))
-          .shift()
-      "#,
+          .map((s) => s.repeat(100).split("o"))
+        "#,
     )
     .unwrap();
     if test_state.near_heap_limit_callback_calls > 0 {
