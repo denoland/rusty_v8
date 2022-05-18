@@ -1584,6 +1584,10 @@ const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
       ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
 }
 
+const v8::Object* v8__Context__GetExtrasBindingObject(v8::Context& self) {
+  return local_to_ptr(ptr_to_local(&self)->GetExtrasBindingObject());
+}
+
 void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,
                                   v8::Function& before_hook,
                                   v8::Function& after_hook,

@@ -2553,6 +2553,19 @@ fn promise_hook() {
 }
 
 #[test]
+fn context_get_extras_binding_object() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let extras_binding = context.get_extras_binding_object(scope);
+    assert!(extras_binding.is_object());
+  }
+}
+
+#[test]
 fn context_promise_hooks() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

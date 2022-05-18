@@ -16,6 +16,8 @@ extern "C" {
     global_object: *const Value,
   ) -> *const Context;
   fn v8__Context__Global(this: *const Context) -> *const Object;
+  fn v8__Context__GetExtrasBindingObject(this: *const Context)
+    -> *const Object;
   fn v8__Context__SetPromiseHooks(
     this: *const Context,
     init_hook: *const Function,
@@ -48,6 +50,14 @@ impl Context {
       })
     }
     .unwrap()
+  }
+
+  pub fn get_extras_binding_object<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, Object> {
+    unsafe { scope.cast_local(|_| v8__Context__GetExtrasBindingObject(self)) }
+      .unwrap()
   }
 
   /// Returns the global proxy object.
