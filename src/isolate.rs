@@ -138,7 +138,7 @@ pub type NearHeapLimitCallback = extern "C" fn(
   initial_heap_limit: usize,
 ) -> usize;
 
-pub type OomErrorCallback =
+pub type LegacyOomErrorCallback =
   extern "C" fn(location: *const c_char, is_heap_oom: bool);
 
 /// Collection of V8 heap information.
@@ -199,7 +199,7 @@ extern "C" {
   );
   fn v8__Isolate__SetOOMErrorHandler(
     isolate: *mut Isolate,
-    callback: OomErrorCallback,
+    callback: LegacyOomErrorCallback,
   );
   fn v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
     isolate: *mut Isolate,
@@ -651,7 +651,7 @@ impl Isolate {
     }
   }
 
-  pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {
+  pub fn set_oom_error_handler(&mut self, callback: LegacyOomErrorCallback) {
     unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
   }
 

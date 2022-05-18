@@ -286,7 +286,7 @@ int64_t v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
 }
 
 void v8__Isolate__SetOOMErrorHandler(v8::Isolate* isolate,
-                                     v8::OOMErrorCallback callback) {
+                                     v8::LegacyOOMErrorCallback callback) {
   isolate->SetOOMErrorHandler(callback);
 }
 
@@ -827,7 +827,7 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_byte_length(
 }
 
 v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
-    void* data, size_t byte_length, v8::BackingStoreDeleterCallback deleter,
+    void* data, size_t byte_length, v8::BackingStore::DeleterCallback deleter,
     void* deleter_data) {
   std::unique_ptr<v8::BackingStore> u = v8::ArrayBuffer::NewBackingStore(
       data, byte_length, deleter, deleter_data);
@@ -1584,16 +1584,13 @@ const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
       ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
 }
 
-void v8__Context__SetPromiseHooks(v8::Context& self,
-                                  v8::Function& init_hook,
+void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,
                                   v8::Function& before_hook,
                                   v8::Function& after_hook,
                                   v8::Function& resolve_hook) {
   ptr_to_local(&self)->SetPromiseHooks(
-    ptr_to_local(&init_hook),
-    ptr_to_local(&before_hook),
-    ptr_to_local(&after_hook),
-    ptr_to_local(&resolve_hook));
+      ptr_to_local(&init_hook), ptr_to_local(&before_hook),
+      ptr_to_local(&after_hook), ptr_to_local(&resolve_hook));
 }
 
 const v8::String* v8__Message__Get(const v8::Message& self) {
@@ -2041,7 +2038,7 @@ v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
 }
 
 v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(
-    void* data, size_t byte_length, v8::BackingStoreDeleterCallback deleter,
+    void* data, size_t byte_length, v8::BackingStore::DeleterCallback deleter,
     void* deleter_data) {
   std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(
       data, byte_length, deleter, deleter_data);
@@ -2303,10 +2300,10 @@ v8_inspector::V8Inspector* v8_inspector__V8Inspector__create(
 
 v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
     v8_inspector::V8Inspector* self, int context_group_id,
-    v8_inspector::V8Inspector::Channel* channel,
-    v8_inspector::StringView state) {
+    v8_inspector::V8Inspector::Channel* channel, v8_inspector::StringView state,
+    v8_inspector::V8Inspector::ClientTrustLevel client_trust_level) {
   std::unique_ptr<v8_inspector::V8InspectorSession> u =
-      self->connect(context_group_id, channel, state);
+      self->connect(context_group_id, channel, state, client_trust_level);
   return u.release();
 }
 
@@ -2970,8 +2967,7 @@ v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(
 const v8::WasmModuleObject* v8__WasmModuleObject__Compile(
     v8::Isolate* isolate, uint8_t* wire_bytes_data, size_t length) {
   v8::MemorySpan<const uint8_t> wire_bytes(wire_bytes_data, length);
-  return maybe_local_to_ptr(
-      v8::WasmModuleObject::Compile(isolate, wire_bytes));
+  return maybe_local_to_ptr(v8::WasmModuleObject::Compile(isolate, wire_bytes));
 }
 
 const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(

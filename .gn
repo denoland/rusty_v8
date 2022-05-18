@@ -29,9 +29,6 @@ default_args = {
   # vs. 604745897).
   v8_enable_shared_ro_heap = false
 
-  # TODO(ry) remove
-  v8_imminent_deprecation_warnings = false
-
   # https://cs.chromium.org/chromium/src/docs/ccache_mac.md
   clang_use_chrome_plugins = false
   v8_monolithic = false

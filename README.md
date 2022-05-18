@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 10.0.139.17
+V8 Version: 10.3.174.3
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=main)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
