@@ -293,3 +293,29 @@ fn dropped_context_slots() {
   assert!(isolate.execute("gc()"));
   assert!(dropped.get());
 }
+
+#[test]
+fn clear_all_context_slots() {
+  setup();
+
+  let mut snapshot_creator = v8::SnapshotCreator::new(None);
+  let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+
+  {
+    let scope = &mut v8::HandleScope::new(&mut isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context.clone());
+
+    context.set_slot(scope, TestState(0));
+    context.clear_all_slots(scope);
+    assert!(context.get_slot::<TestState>(scope).is_none());
+
+    snapshot_creator.set_default_context(context.clone());
+  }
+
+  std::mem::forget(isolate);
+
+  snapshot_creator
+    .create_blob(v8::FunctionCodeHandling::Keep)
+    .unwrap();
+}

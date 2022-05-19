@@ -15,7 +15,7 @@ use libc::c_int;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::ptr::null;
+use std::ptr::{null, null_mut};
 
 extern "C" {
   fn v8__Context__New(
@@ -109,7 +109,8 @@ impl Context {
   fn get_annex_mut<'a>(
     &'a self,
     isolate: &'a mut Isolate,
-  ) -> &'a mut ContextAnnex {
+    create_if_not_present: bool,
+  ) -> Option<&'a mut ContextAnnex> {
     assert!(
       std::ptr::eq(isolate, unsafe { v8__Context__GetIsolate(self) }),
       "attempted to use Context slots with the wrong Isolate"
@@ -117,65 +118,74 @@ impl Context {
 
     let num_data_fields =
       unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as c_int;
-    if num_data_fields <= Self::ANNEX_SLOT {
-      let annex = Box::new(ContextAnnex {
-        slots: Default::default(),
-        // Gets replaced later in the method.
-        self_weak: Weak::empty(isolate),
-      });
-      let annex_ptr = Box::into_raw(annex);
-      unsafe {
-        v8__Context__SetAlignedPointerInEmbedderData(
-          self,
-          Self::ANNEX_SLOT,
-          annex_ptr as *mut _,
-        )
-      };
-      assert_eq!(
-        unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as c_int,
-        Self::ANNEX_SLOT + 1
-      );
-
-      // Make sure to drop the annex after the context is dropped, by creating a
-      // weak handle with a finalizer that drops the annex, and storing the weak
-      // in the annex itself.
-      let weak = {
-        // SAFETY: `self` can only have been derived from a `Local` or `Global`,
-        // and assuming the caller is only using safe code, the `Local` or
-        // `Global` must still be alive, so `self_ref_handle` won't outlive it.
-        // We also check above that `isolate` is the context's isolate.
-        let self_ref_handle = unsafe { UnsafeRefHandle::new(self, isolate) };
-
-        Weak::with_finalizer(
-          isolate,
-          self_ref_handle,
-          Box::new(move |_| {
-            // SAFETY: The lifetimes of references to the annex returned by this
-            // method are always tied to the context, and because this is the
-            // context's finalizer, we know there are no living references to
-            // the annex. And since the finalizer is only called once, the annex
-            // can't have been dropped before.
-            let _ = unsafe { Box::from_raw(annex_ptr) };
-          }),
-        )
-      };
-
-      // SAFETY: This reference doesn't outlive the Context, so it can't outlive
-      // the annex itself. Also, any mutations or accesses to the annex after
-      // its creation require a mutable reference to the context's isolate, but
-      // such a mutable reference is consumed by this reference during its
-      // lifetime.
-      let annex_mut = unsafe { &mut *annex_ptr };
-      annex_mut.self_weak = weak;
-      annex_mut
-    } else {
+    if num_data_fields > Self::ANNEX_SLOT {
       let annex_ptr = unsafe {
         v8__Context__GetAlignedPointerFromEmbedderData(self, Self::ANNEX_SLOT)
-          as *mut _
-      };
-      // SAFETY: Same as above.
-      unsafe { &mut *annex_ptr }
+      } as *mut ContextAnnex;
+      if !annex_ptr.is_null() {
+        // SAFETY: This reference doesn't outlive the Context, so it can't outlive
+        // the annex itself. Also, any mutations or accesses to the annex after
+        // its creation require a mutable reference to the context's isolate, but
+        // such a mutable reference is consumed by this reference during its
+        // lifetime.
+        return Some(unsafe { &mut *annex_ptr });
+      }
     }
+
+    if !create_if_not_present {
+      return None;
+    }
+
+    let annex = Box::new(ContextAnnex {
+      slots: Default::default(),
+      // Gets replaced later in the method.
+      self_weak: Weak::empty(isolate),
+    });
+    let annex_ptr = Box::into_raw(annex);
+    unsafe {
+      v8__Context__SetAlignedPointerInEmbedderData(
+        self,
+        Self::ANNEX_SLOT,
+        annex_ptr as *mut _,
+      )
+    };
+    assert!(
+      unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as c_int
+        > Self::ANNEX_SLOT
+    );
+
+    // Make sure to drop the annex after the context is dropped, by creating a
+    // weak handle with a finalizer that drops the annex, and storing the weak
+    // in the annex itself.
+    let weak = {
+      // SAFETY: `self` can only have been derived from a `Local` or `Global`,
+      // and assuming the caller is only using safe code, the `Local` or
+      // `Global` must still be alive, so `self_ref_handle` won't outlive it.
+      // We also check above that `isolate` is the context's isolate.
+      let self_ref_handle = unsafe { UnsafeRefHandle::new(self, isolate) };
+
+      Weak::with_finalizer(
+        isolate,
+        self_ref_handle,
+        Box::new(move |_| {
+          // SAFETY: The lifetimes of references to the annex returned by this
+          // method are always tied to the context, and because this is the
+          // context's finalizer, we know there are no living references to
+          // the annex. And since the finalizer is only called once, the annex
+          // can't have been dropped before.
+          let _ = unsafe { Box::from_raw(annex_ptr) };
+        }),
+      )
+    };
+
+    // SAFETY: This reference doesn't outlive the Context, so it can't outlive
+    // the annex itself. Also, any mutations or accesses to the annex after
+    // its creation require a mutable reference to the context's isolate, but
+    // such a mutable reference is consumed by this reference during its
+    // lifetime.
+    let annex_mut = unsafe { &mut *annex_ptr };
+    annex_mut.self_weak = weak;
+    Some(annex_mut)
   }
 
   /// Get a reference to embedder data added with [`Self::set_slot()`].
@@ -183,15 +193,15 @@ impl Context {
     &'a self,
     isolate: &'a mut Isolate,
   ) -> Option<&'a T> {
-    self
-      .get_annex_mut(isolate)
-      .slots
-      .get(&TypeId::of::<T>())
-      .map(|slot| {
+    if let Some(annex) = self.get_annex_mut(isolate, false) {
+      annex.slots.get(&TypeId::of::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
         unsafe { slot.borrow::<T>() }
       })
+    } else {
+      None
+    }
   }
 
   /// Get a mutable reference to embedder data added with [`Self::set_slot()`].
@@ -199,15 +209,15 @@ impl Context {
     &'a self,
     isolate: &'a mut Isolate,
   ) -> Option<&'a mut T> {
-    self
-      .get_annex_mut(isolate)
-      .slots
-      .get_mut(&TypeId::of::<T>())
-      .map(|slot| {
-        // SAFETY: `Self::set_slot` guarantees that only values of type T will
-        // be stored with T's TypeId as their key.
+    if let Some(annex) = self.get_annex_mut(isolate, false) {
+      annex.slots.get_mut(&TypeId::of::<T>()).map(|slot| {
+        // SAFETY: `Self::set_slot` guarantees that only values of type T will be
+        // stored with T's TypeId as their key.
         unsafe { slot.borrow_mut::<T>() }
       })
+    } else {
+      None
+    }
   }
 
   /// Use with [`Context::get_slot`] and [`Context::get_slot_mut`] to associate
@@ -227,7 +237,8 @@ impl Context {
     value: T,
   ) -> bool {
     self
-      .get_annex_mut(isolate)
+      .get_annex_mut(isolate, true)
+      .unwrap()
       .slots
       .insert(TypeId::of::<T>(), RawSlot::new(value))
       .is_none()
@@ -239,15 +250,36 @@ impl Context {
     &'a self,
     isolate: &'a mut Isolate,
   ) -> Option<T> {
-    self
-      .get_annex_mut(isolate)
-      .slots
-      .remove(&TypeId::of::<T>())
-      .map(|slot| {
-        // SAFETY: `Self::set_slot` guarantees that only values of type T will
-        // be stored with T's TypeId as their key.
+    if let Some(annex) = self.get_annex_mut(isolate, false) {
+      annex.slots.remove(&TypeId::of::<T>()).map(|slot| {
+        // SAFETY: `Self::set_slot` guarantees that only values of type T will be
+        // stored with T's TypeId as their key.
         unsafe { slot.into_inner::<T>() }
       })
+    } else {
+      None
+    }
+  }
+
+  /// Removes all embedder data added with [`Self::set_slot()`], and
+  /// deletes any internal state needed to keep track of such slots.
+  ///
+  /// This is needed to make a snapshot with
+  /// [`SnapshotCreator`](crate::SnapshotCreator), since the internal embedder
+  /// state uses [`Weak`] handles, which cannot be alive at the time of
+  /// snapshotting.
+  pub fn clear_all_slots<'a>(&'a self, isolate: &'a mut Isolate) {
+    if let Some(annex_mut) = self.get_annex_mut(isolate, false) {
+      let annex_ptr = annex_mut as *mut ContextAnnex;
+      let _ = unsafe { Box::from_raw(annex_ptr) };
+      unsafe {
+        v8__Context__SetAlignedPointerInEmbedderData(
+          self,
+          Self::ANNEX_SLOT,
+          null_mut(),
+        )
+      };
+    }
   }
 }
 
