@@ -4012,8 +4012,13 @@ fn typed_array_constructors() {
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
 
-  // TypedArray::max_length() ought to be >= 2^30 < 2^32
+  // TypedArray::max_length() ought to be >= 2^30 < 2^32 in 64 bits
+  #[cfg(target_pointer_width = "64")]
   assert!(((2 << 30)..(2 << 32)).contains(&v8::TypedArray::max_length()));
+
+  // TypedArray::max_length() ought to be >= 2^28 < 2^30 in 32 bits
+  #[cfg(target_pointer_width = "32")]
+  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::max_length()));
 
   // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.

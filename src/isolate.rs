@@ -195,12 +195,18 @@ pub type PrepareStackTraceCallback<'s> = extern "C" fn(
 ) -> *mut *const Value;
 
 // System V ABI: MaybeLocal<Value> returned in a register.
+// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
 #[cfg(not(target_os = "windows"))]
-pub type PrepareStackTraceCallback<'s> = extern "C" fn(
-  Local<'s, Context>,
-  Local<'s, Value>,
-  Local<'s, Array>,
-) -> *const Value;
+#[repr(C)]
+pub struct PrepareStackTraceCallbackRet(*const Value);
+
+#[cfg(not(target_os = "windows"))]
+pub type PrepareStackTraceCallback<'s> =
+  extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Value>,
+    Local<'s, Array>,
+  ) -> PrepareStackTraceCallbackRet;
 
 extern "C" {
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
@@ -1228,13 +1234,13 @@ where
     f.to_c_fn()
   }
 
-  // System V ABI: MaybeLocal<Value> returned in a register.
+  // System V ABI
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
       let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
       let r = (F::get())(&mut scope, error, sites);
-      &*r as *const _
+      PrepareStackTraceCallbackRet(&*r as *const _)
     };
     f.to_c_fn()
   }
@@ -1282,7 +1288,7 @@ impl BuildHasher for BuildTypeIdHasher {
 
 const _: () = {
   assert!(size_of::<TypeId>() == size_of::<u64>());
-  assert!(align_of::<TypeId>() == size_of::<u64>());
+  assert!(align_of::<TypeId>() == align_of::<u64>());
 };
 
 pub(crate) struct RawSlot {
