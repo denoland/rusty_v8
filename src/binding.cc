@@ -1122,6 +1122,10 @@ void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
       ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
 }
 
+void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
+  return ptr_to_local(&self)->SetImmutableProto();
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
