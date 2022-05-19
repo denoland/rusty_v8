@@ -102,6 +102,7 @@ extern "C" {
     context_group_id: int,
     channel: *mut Channel,
     state: StringView,
+    client_trust_level: V8InspectorClientTrustLevel,
   ) -> *mut V8InspectorSession;
   fn v8_inspector__V8Inspector__contextCreated(
     this: *mut V8Inspector,
@@ -881,6 +882,13 @@ fn string_view_display() {
   assert_eq!("ØÞ", format!("{}", StringView::from(&[216u8, 222u8][..])));
 }
 
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[repr(C)]
+pub enum V8InspectorClientTrustLevel {
+  Untrusted = 0,
+  FullyTrusted = 1,
+}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct V8Inspector(Opaque);
@@ -906,6 +914,7 @@ impl V8Inspector {
     context_group_id: i32,
     channel: &mut T,
     state: StringView,
+    client_trust_level: V8InspectorClientTrustLevel,
   ) -> UniqueRef<V8InspectorSession>
   where
     T: AsChannel,
@@ -916,6 +925,7 @@ impl V8Inspector {
         context_group_id,
         channel.as_channel_mut(),
         state,
+        client_trust_level,
       ))
     }
   }
