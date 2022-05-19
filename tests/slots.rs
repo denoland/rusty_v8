@@ -304,13 +304,13 @@ fn clear_all_context_slots() {
   {
     let scope = &mut v8::HandleScope::new(&mut isolate);
     let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context.clone());
+    let scope = &mut v8::ContextScope::new(scope, context);
 
     context.set_slot(scope, TestState(0));
     context.clear_all_slots(scope);
     assert!(context.get_slot::<TestState>(scope).is_none());
 
-    snapshot_creator.set_default_context(context.clone());
+    snapshot_creator.set_default_context(context);
   }
 
   std::mem::forget(isolate);
