@@ -1457,6 +1457,36 @@ fn object_template_from_function_template() {
 }
 
 #[test]
+fn object_template_immutable_proto() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let object_templ = v8::ObjectTemplate::new(scope);
+    object_templ.set_immutable_proto();
+    let context = v8::Context::new_from_template(scope, object_templ);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      {
+        let r = 0;
+
+        try {
+          Object.setPrototypeOf(globalThis, {});
+        } catch {
+          r = 42;
+        }
+
+        String(r);
+      }
+    "#;
+    let actual = eval(scope, source).unwrap();
+    let expected = v8::String::new(scope, "42").unwrap();
+
+    assert!(actual == expected);
+  }
+}
+
+#[test]
 fn function_template_signature() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
