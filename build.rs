@@ -129,6 +129,35 @@ fn build_v8() {
     gn_args.push("host_cpu=\"arm64\"".to_string())
   }
 
+  let target = env::var("TARGET").unwrap();
+  if cfg!(target_os = "macos") && target.contains("apple-ios") {
+    // Gn configurations for iOS: https://v8.dev/docs/cross-compile-ios
+    let arch = {
+      if target.starts_with("aarch64") {
+        "arm64"
+      } else {
+        "x64"
+      }
+    };
+
+    let ios_deployment_target =
+      env::var("IOS_DEPLOYMENT_TARGET").unwrap_or("10".to_string());
+
+    gn_args.push("target_os = \"ios\"".to_string());
+    gn_args.push(format!("target_cpu = \"{}\"", arch));
+    gn_args.push(format!("v8_target_cpu = \"{}\"", arch));
+    gn_args.push(format!("ios_deployment_target = {}", ios_deployment_target));
+    gn_args.push("enable_ios_bitcode = true".to_string());
+    gn_args.push("is_component_build = false".to_string());
+    gn_args.push("use_custom_libcxx = false".to_string());
+    gn_args.push("use_xcode_clang = true".to_string());
+    gn_args.push("v8_enable_i18n_support = false".to_string());
+    gn_args.push("v8_monolithic = true".to_string());
+    gn_args.push("v8_use_external_startup_data = false".to_string());
+    gn_args.push("v8_enable_pointer_compression = false".to_string());
+    gn_args.push("v8_enable_shared_ro_heap = true".to_string());
+  }
+
   if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));

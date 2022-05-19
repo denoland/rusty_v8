@@ -29,6 +29,30 @@ jobs:
             target: x86_64-apple-darwin
             variant: release
 
+          - os: macOS-latest
+            target: aarch64-apple-ios-sim
+            variant: debug
+
+          - os: macOS-latest
+            target: aarch64-apple-ios-sim
+            variant: release
+
+          - os: macOS-latest
+            target: x86_64-apple-ios
+            variant: debug
+
+          - os: macOS-latest
+            target: x86_64-apple-ios
+            variant: release
+
+          - os: macOS-latest
+            target: aarch64-apple-ios
+            variant: debug
+
+          - os: macOS-latest
+            target: aarch64-apple-ios
+            variant: release
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
@@ -94,6 +118,21 @@ jobs:
 
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
+
+      - name: Install cross compilation toolchain for iOS simulator (arm64)
+        if: matrix.config.target == 'aarch64-apple-ios-sim'
+        run: |
+          rustup target add aarch64-apple-ios-sim
+
+      - name: Install cross compilation toolchain for iOS simulator (x86_64)
+        if: matrix.config.target == 'x86_64-apple-ios'
+        run: |
+          rustup target add x86_64-apple-ios
+
+      - name: Install cross compilation toolchain for iOS device (arm64)
+        if: matrix.config.target == 'aarch64-apple-ios'
+        run: |
+          rustup target add aarch64-apple-ios
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
