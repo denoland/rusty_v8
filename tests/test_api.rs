@@ -3264,7 +3264,11 @@ fn snapshot_creator() {
       let source = v8::String::new(scope, "b = 2 + 3").unwrap();
       let script = v8::Script::compile(scope, source, None).unwrap();
       script.run(scope).unwrap();
-
+    }
+    {
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      // isolate.context_dis
+      let context = v8::Context::new(scope);
       snapshot_creator.set_default_context(context);
     }
 
