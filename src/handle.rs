@@ -215,6 +215,30 @@ impl<T> Drop for Global<T> {
   }
 }
 
+/// An implementation of [`Handle`] that can be constructed unsafely from a
+/// reference.
+pub(crate) struct UnsafeRefHandle<'a, T> {
+  reference: &'a T,
+  isolate_handle: IsolateHandle,
+}
+impl<'a, T> UnsafeRefHandle<'a, T> {
+  /// Constructs an `UnsafeRefHandle`.
+  ///
+  /// # Safety
+  ///
+  /// `reference` must be derived from a [`Local`] or [`Global`] handle, and its
+  /// lifetime must not outlive that handle. Furthermore, `isolate` must be the
+  /// isolate associated with the handle (for [`Local`], the current isolate;
+  /// for [`Global`], the isolate you would pass to the [`Global::open()`]
+  /// method).
+  pub unsafe fn new(reference: &'a T, isolate: &mut Isolate) -> Self {
+    UnsafeRefHandle {
+      reference,
+      isolate_handle: isolate.thread_safe_handle(),
+    }
+  }
+}
+
 pub trait Handle: Sized {
   type Data;
 
@@ -282,6 +306,26 @@ impl<'a, T> Handle for &'a Global<T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
+  }
+}
+
+impl<'a, T> Handle for UnsafeRefHandle<'a, T> {
+  type Data = T;
+  fn get_handle_info(&self) -> HandleInfo<T> {
+    HandleInfo::new(
+      NonNull::from(self.reference),
+      (&self.isolate_handle).into(),
+    )
+  }
+}
+
+impl<'a, T> Handle for &'a UnsafeRefHandle<'_, T> {
+  type Data = T;
+  fn get_handle_info(&self) -> HandleInfo<T> {
+    HandleInfo::new(
+      NonNull::from(self.reference),
+      (&self.isolate_handle).into(),
+    )
   }
 }
 
