@@ -177,6 +177,10 @@ jobs:
         run: cp
           target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }}
           target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+      
+      # TODO(andreubotella): Remove before merging the PR.
+      - name: Log binary size
+        run: ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
 
       - name: Binary publish
         # TODO(ry): use version instead of commit hash once #139 is fixed.

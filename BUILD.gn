@@ -10,10 +10,6 @@ static_library("rusty_v8") {
     "//v8:v8_libbase",
     "//v8:v8_libplatform",
   ]
-  configs -= [
-    "//build/config/compiler:default_init_stack_vars",
-    "//build/config/compiler:thin_archive",
-  ]
   configs += [ ":rusty_v8_config" ]
 }
 
