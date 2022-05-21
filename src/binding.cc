@@ -1151,6 +1151,10 @@ void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
       ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
 }
 
+void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
+  return ptr_to_local(&self)->SetImmutableProto();
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
@@ -1605,6 +1609,20 @@ v8::Isolate* v8__Context__GetIsolate(const v8::Context& self) {
 
 const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
+}
+
+uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
+  return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
+}
+
+void* v8__Context__GetAlignedPointerFromEmbedderData(const v8::Context& self,
+                                                     int index) {
+  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index);
+}
+
+void v8__Context__SetAlignedPointerInEmbedderData(v8::Context& self, int index,
+                                                  void* value) {
+  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value);
 }
 
 const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,

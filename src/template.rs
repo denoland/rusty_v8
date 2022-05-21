@@ -100,6 +100,7 @@ extern "C" {
     setter: *const FunctionTemplate,
     attr: PropertyAttribute,
   );
+  fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 }
 
 impl Template {
@@ -361,5 +362,11 @@ impl ObjectTemplate {
         self, &*key, &*getter, &*setter, attr,
       )
     }
+  }
+
+  /// Makes the ObjectTemplate for an immutable prototype exotic object,
+  /// with an immutable proto.
+  pub fn set_immutable_proto(&self) {
+    unsafe { v8__ObjectTemplate__SetImmutableProto(self) };
   }
 }

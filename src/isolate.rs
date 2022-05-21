@@ -1154,7 +1154,7 @@ const _: () = {
   assert!(align_of::<TypeId>() == size_of::<u64>());
 };
 
-struct RawSlot {
+pub(crate) struct RawSlot {
   data: RawSlotData,
   dtor: Option<RawSlotDtor>,
 }
