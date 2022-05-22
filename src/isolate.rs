@@ -235,9 +235,18 @@ extern "C" {
     isolate: *mut Isolate,
     callback: HostImportModuleDynamicallyCallback,
   );
+  #[cfg(not(target_os = "windows"))]
   fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
     isolate: *mut Isolate,
     callback: extern "C" fn(initiator_context: Local<Context>) -> *mut Context,
+  );
+  #[cfg(target_os = "windows")]
+  fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(
+      rv: *mut *mut Context,
+      initiator_context: Local<Context>,
+    ) -> *mut *mut Context,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -632,6 +641,7 @@ impl Isolate {
     &mut self,
     callback: HostCreateShadowRealmContextCallback,
   ) {
+    #[inline]
     extern "C" fn rust_shadow_realm_callback(
       initiator_context: Local<Context>,
     ) -> *mut Context {
@@ -644,13 +654,33 @@ impl Isolate {
         .map(|l| l.as_non_null().as_ptr())
         .unwrap_or_else(null_mut)
     }
+
+    // Windows x64 ABI: MaybeLocal<Context> must be returned on the stack.
+    #[cfg(target_os = "windows")]
+    extern "C" fn rust_shadow_realm_callback_windows(
+      rv: *mut *mut Context,
+      initiator_context: Local<Context>,
+    ) -> *mut *mut Context {
+      let ret = rust_shadow_realm_callback(initiator_context);
+      unsafe {
+        rv.write(ret);
+      }
+      rv
+    }
+
     let slot_didnt_exist_before = self.set_slot(callback);
     if slot_didnt_exist_before {
       unsafe {
+        #[cfg(target_os = "windows")]
+        v8__Isolate__SetHostCreateShadowRealmContextCallback(
+          self,
+          rust_shadow_realm_callback_windows,
+        );
+        #[cfg(not(target_os = "windows"))]
         v8__Isolate__SetHostCreateShadowRealmContextCallback(
           self,
           rust_shadow_realm_callback,
-        )
+        );
       }
     }
   }
