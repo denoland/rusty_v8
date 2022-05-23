@@ -97,9 +97,7 @@ cargo build
 Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
 source.
 
-The build scripts on Python 2.7, not Python 3. [Do not open issues with us
-regarding Python 3; it is a non-trivial problem that must be fixed in
-Chromium.](https://bugs.chromium.org/p/chromium/issues/detail?id=942720).
+The build scripts require Python 3 to be available as `python` in your `PATH`.
 
 For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
