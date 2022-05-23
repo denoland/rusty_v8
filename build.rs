@@ -832,6 +832,7 @@ pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
 #[cfg(test)]
 mod test {
   use super::*;
+
   const MOCK_GRAPH: &str = r#"
 digraph ninja {
 rankdir="LR"

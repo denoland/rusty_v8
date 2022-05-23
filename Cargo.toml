@@ -89,7 +89,9 @@ which = "4.2.5"
 
 [dev-dependencies]
 align-data = "0.1.0"
+fslock = "0.1.8"
 trybuild = "1.0.61"
+which = "4.2.5"
 
 [[example]]
 name = "hello_world"
@@ -99,6 +101,10 @@ name = "shell"
 
 [[example]]
 name = "process"
+
+[[test]]
+name = "buid"
+path = "build.rs"
 
 [workspace]
 members = ["examples/android"]
