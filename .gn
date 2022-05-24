@@ -17,27 +17,26 @@ check_targets = []
 secondary_source = "//v8/"
 
 default_args = {
+  clang_use_chrome_plugins = false
+  is_component_build = false
   linux_use_bundled_binutils = false
-  use_sysroot = false
-
   use_dummy_lastchange = true
-  treat_warnings_as_errors = true
+  use_sysroot = false
+  win_crt_flavor_agnostic = true
+
+  # Minimize size of debuginfo in distributed static library.
+  no_inline_line_tables = true
+  symbol_level = 1
+
+  v8_enable_snapshot_compression = false
+  v8_enable_javascript_promise_hooks = true
+  v8_promise_internal_field_count = 1
+  v8_use_external_startup_data = false
+  v8_use_snapshot = true
 
   # To avoid test failure:
   # Fatal error in ../../../v8/src/heap/read-only-spaces.cc, line 69
   # Check failed: read_only_blob_checksum_ == snapshot_checksum (<unprintable>
   # vs. 604745897).
   v8_enable_shared_ro_heap = false
-
-  # https://cs.chromium.org/chromium/src/docs/ccache_mac.md
-  clang_use_chrome_plugins = false
-  v8_monolithic = false
-  v8_enable_snapshot_compression = false
-  v8_enable_javascript_promise_hooks = true
-  v8_promise_internal_field_count = 1
-  v8_use_external_startup_data = false
-  v8_use_snapshot = true
-  is_component_build = false
-  win_crt_flavor_agnostic = true
-  symbol_level = 1
 }

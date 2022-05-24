@@ -42,8 +42,4 @@ config("rusty_v8_config") {
       "-fansi-escape-codes",
     ]
   }
-
-  if (is_debug && is_clang && !is_win) {
-    cflags += [ "-glldb" ]
-  }
 }
