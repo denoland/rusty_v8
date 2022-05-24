@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "support.h"
+#include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
@@ -261,6 +262,11 @@ void v8__Isolate__SetHostImportModuleDynamicallyCallback(
                    reinterpret_cast<void*>(callback));
   isolate->SetHostImportModuleDynamicallyCallback(
       HostImportModuleDynamicallyCallback);
+}
+
+void v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    v8::Isolate* isolate, v8::HostCreateShadowRealmContextCallback callback) {
+  isolate->SetHostCreateShadowRealmContextCallback(callback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
