@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "support.h"
+#include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
@@ -261,6 +262,11 @@ void v8__Isolate__SetHostImportModuleDynamicallyCallback(
                    reinterpret_cast<void*>(callback));
   isolate->SetHostImportModuleDynamicallyCallback(
       HostImportModuleDynamicallyCallback);
+}
+
+void v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    v8::Isolate* isolate, v8::HostCreateShadowRealmContextCallback callback) {
+  isolate->SetHostCreateShadowRealmContextCallback(callback);
 }
 
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
@@ -1122,6 +1128,10 @@ void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
       ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
 }
 
+void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
+  return ptr_to_local(&self)->SetImmutableProto();
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
@@ -1578,10 +1588,28 @@ const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
 
+uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
+  return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
+}
+
+void* v8__Context__GetAlignedPointerFromEmbedderData(const v8::Context& self,
+                                                     int index) {
+  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index);
+}
+
+void v8__Context__SetAlignedPointerInEmbedderData(v8::Context& self, int index,
+                                                  void* value) {
+  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value);
+}
+
 const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
                                                      size_t index) {
   return maybe_local_to_ptr(
       ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
+}
+
+const v8::Object* v8__Context__GetExtrasBindingObject(v8::Context& self) {
+  return local_to_ptr(ptr_to_local(&self)->GetExtrasBindingObject());
 }
 
 void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,

@@ -35,7 +35,9 @@ fn setup() -> SetupGuard {
       "../third_party/icu/common/icudtl.dat"
     ))
     .is_ok());
-    v8::V8::set_flags_from_string("--expose_gc --harmony-import-assertions");
+    v8::V8::set_flags_from_string(
+      "--expose_gc --harmony-import-assertions --harmony-shadow-realm",
+    );
     v8::V8::initialize_platform(
       v8::new_default_platform(0, false).make_shared(),
     );
@@ -1457,6 +1459,36 @@ fn object_template_from_function_template() {
 }
 
 #[test]
+fn object_template_immutable_proto() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let object_templ = v8::ObjectTemplate::new(scope);
+    object_templ.set_immutable_proto();
+    let context = v8::Context::new_from_template(scope, object_templ);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = r#"
+      {
+        let r = 0;
+
+        try {
+          Object.setPrototypeOf(globalThis, {});
+        } catch {
+          r = 42;
+        }
+
+        String(r);
+      }
+    "#;
+    let actual = eval(scope, source).unwrap();
+    let expected = v8::String::new(scope, "42").unwrap();
+
+    assert!(actual == expected);
+  }
+}
+
+#[test]
 fn function_template_signature() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -2549,6 +2581,19 @@ fn promise_hook() {
     let promise = v8::Local::<v8::Promise>::try_from(promise).unwrap();
     assert!(!promise.has_handler());
     assert_eq!(promise.state(), v8::PromiseState::Pending);
+  }
+}
+
+#[test]
+fn context_get_extras_binding_object() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let extras_binding = context.get_extras_binding_object(scope);
+    assert!(extras_binding.is_object());
   }
 }
 
@@ -6684,4 +6729,77 @@ fn finalizer_on_kept_global() {
   assert!(!finalized.get());
   drop(weak);
   drop(global);
+}
+
+#[test]
+fn host_create_shadow_realm_context_callback() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let tc_scope = &mut v8::TryCatch::new(scope);
+    assert!(eval(tc_scope, "new ShadowRealm()").is_none());
+    assert!(tc_scope.has_caught());
+  }
+
+  struct CheckData {
+    callback_called: bool,
+    main_context: v8::Global<v8::Context>,
+  }
+
+  let main_context = v8::Global::new(scope, context);
+  scope.set_slot(CheckData {
+    callback_called: false,
+    main_context,
+  });
+
+  scope.set_host_create_shadow_realm_context_callback(|scope| {
+    let main_context = {
+      let data = scope.get_slot_mut::<CheckData>().unwrap();
+      data.callback_called = true;
+      data.main_context.clone()
+    };
+    assert_eq!(scope.get_current_context(), main_context);
+
+    // Can't return None without throwing.
+    let message = v8::String::new(scope, "Unsupported").unwrap();
+    let exception = v8::Exception::type_error(scope, message);
+    scope.throw_exception(exception);
+    None
+  });
+
+  {
+    let tc_scope = &mut v8::TryCatch::new(scope);
+    assert!(eval(tc_scope, "new ShadowRealm()").is_none());
+    assert!(tc_scope.has_caught());
+    assert!(tc_scope.get_slot::<CheckData>().unwrap().callback_called);
+  }
+
+  scope.set_host_create_shadow_realm_context_callback(|scope| {
+    let main_context = {
+      let data = scope.get_slot_mut::<CheckData>().unwrap();
+      data.callback_called = true;
+      data.main_context.clone()
+    };
+    assert_eq!(scope.get_current_context(), main_context);
+
+    let new_context = v8::Context::new(scope);
+    {
+      let scope = &mut v8::ContextScope::new(scope, new_context);
+      let global = new_context.global(scope);
+      let key = v8::String::new(scope, "test").unwrap();
+      let value = v8::Integer::new(scope, 42);
+      global.set(scope, key.into(), value.into()).unwrap();
+    }
+    Some(new_context)
+  });
+
+  let value =
+    eval(scope, "new ShadowRealm().evaluate(`globalThis.test`)").unwrap();
+  assert_eq!(value.uint32_value(scope), Some(42));
+  assert!(scope.get_slot::<CheckData>().unwrap().callback_called);
 }
