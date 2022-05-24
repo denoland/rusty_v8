@@ -25,8 +25,10 @@ default_args = {
   win_crt_flavor_agnostic = true
 
   # Minimize size of debuginfo in distributed static library.
+  line_tables_only = true
   no_inline_line_tables = true
   symbol_level = 1
+  use_debug_fission = false
 
   v8_enable_snapshot_compression = false
   v8_enable_javascript_promise_hooks = true

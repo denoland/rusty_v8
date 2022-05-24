@@ -875,4 +875,10 @@ edge [fontsize=10]
     assert!(files.contains("../../../example/src/count_bytes.py"));
     assert!(!files.contains("obj/hello/hello.o"));
   }
+
+  #[test]
+  fn test_static_lib_size() {
+    let static_lib_size = std::fs::metadata(static_lib_path()).unwrap().len();
+    assert!(static_lib_size <= 200u64 << 20); // No more than 200 MiB.
+  }
 }
