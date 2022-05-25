@@ -116,7 +116,10 @@ impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
   #[inline(always)]
-  pub fn new(external_references: Option<&'static ExternalReferences>, existing_blob: Option<&StartupData>) -> Self {
+  pub fn new(
+    external_references: Option<&'static ExternalReferences>,
+    existing_blob: Option<&StartupData>,
+  ) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
       er.as_ptr()
