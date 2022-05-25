@@ -11,6 +11,8 @@ use std::process::Stdio;
 use which::which;
 
 fn main() {
+  println!("cargo:rerun-if-changed=.gn");
+  println!("cargo:rerun-if-changed=BUILD.gn");
   println!("cargo:rerun-if-changed=src/binding.cc");
 
   // These are all the environment variables that we check. This is
@@ -120,10 +122,6 @@ fn build_v8() {
     gn_args.push("use_custom_libcxx=false".to_string());
   }
 
-  if !is_debug() {
-    gn_args.push("v8_enable_handle_zapping=false".to_string());
-  }
-
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string())
@@ -133,15 +131,12 @@ fn build_v8() {
     println!("clang_base_path {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
     gn_args.push("treat_warnings_as_errors=false".to_string());
-    // we can't use chromiums clang plugins with a system clang
-    gn_args.push("clang_use_chrome_plugins=false".to_string());
   } else {
     println!("using Chromiums clang");
     let clang_base_path = clang_download();
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
 
     if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
-      gn_args.push("clang_use_chrome_plugins=false".to_string());
       gn_args.push("treat_warnings_as_errors=false".to_string());
     }
   }
@@ -178,7 +173,6 @@ fn build_v8() {
     };
 
     if target_triple == "aarch64-linux-android" {
-      gn_args.push("is_component_build=false".to_string());
       gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
       gn_args.push(r#"target_os="android""#.to_string());
 
@@ -832,6 +826,7 @@ pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
 #[cfg(test)]
 mod test {
   use super::*;
+
   const MOCK_GRAPH: &str = r#"
 digraph ninja {
 rankdir="LR"
@@ -879,5 +874,11 @@ edge [fontsize=10]
     assert!(files.contains("../../../example/src/input.txt"));
     assert!(files.contains("../../../example/src/count_bytes.py"));
     assert!(!files.contains("obj/hello/hello.o"));
+  }
+
+  #[test]
+  fn test_static_lib_size() {
+    let static_lib_size = std::fs::metadata(static_lib_path()).unwrap().len();
+    assert!(static_lib_size <= 200u64 << 20); // No more than 200 MiB.
   }
 }
