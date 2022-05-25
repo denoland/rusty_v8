@@ -53,6 +53,26 @@ pub struct StartupData {
   raw_size: int,
 }
 
+impl From<Box<[u8]>> for StartupData {
+  fn from(slice: Box<[u8]>) -> Self {
+    let mut data: Vec<u8> = vec![];
+    data.copy_from_slice(&slice);
+    StartupData {
+      data: data.as_ptr() as *const char,
+      raw_size: data.len() as int,
+    }
+  }
+}
+
+impl From<&[u8]> for StartupData {
+  fn from(slice: &[u8]) -> Self {
+    StartupData {
+      data: slice.as_ptr() as *const char,
+      raw_size: slice.len() as int,
+    }
+  }
+}
+
 impl Deref for StartupData {
   type Target = [u8];
   fn deref(&self) -> &Self::Target {
