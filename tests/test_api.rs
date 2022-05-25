@@ -3268,6 +3268,26 @@ fn snapshot_creator() {
   let context_data_index_2;
   let startup_data = {
     let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    {
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+
+      let source = v8::String::new(scope, "b = 2 + 3").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      script.run(scope).unwrap();
+      snapshot_creator.set_default_context(context);
+    }
+
+    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+
+  let startup_data = {
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, Some(&startup_data));
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -3298,30 +3318,6 @@ fn snapshot_creator() {
       .unwrap()
   };
   assert!(startup_data.len() > 0);
-  let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, Some(startup_data));
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
-      let context = v8::Context::new(scope);
-      let scope = &mut v8::ContextScope::new(scope, context);
-
-      let source = v8::String::new(scope, "b = 2 + 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      script.run(scope).unwrap();
-    }
-    {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
-      // isolate.context_dis
-      let context = v8::Context::new(scope);
-      snapshot_creator.set_default_context(context);
-    }
-
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
-    snapshot_creator
-      .create_blob(v8::FunctionCodeHandling::Clear)
-      .unwrap()
-  };
   // Now we try to load up the snapshot and check that 'a' has the correct
   // value.
   {

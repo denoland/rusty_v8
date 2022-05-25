@@ -95,7 +95,7 @@ pub struct SnapshotCreator([usize; 1]);
 impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  pub fn new(external_references: Option<&'static ExternalReferences>, existing_blob: Option<StartupData>) -> Self {
+  pub fn new(external_references: Option<&'static ExternalReferences>, existing_blob: Option<&StartupData>) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
       er.as_ptr()
@@ -103,7 +103,7 @@ impl SnapshotCreator {
       std::ptr::null()
     };
     let existing_blob_ptr = if let Some(startup_data) = existing_blob {
-      &startup_data
+      startup_data
     } else {
       std::ptr::null()
     };
