@@ -2232,6 +2232,11 @@ void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator* self,
   self->SetDefaultContext(ptr_to_local(&context), SerializeInternalFields);
 }
 
+size_t v8__SnapshotCreator__AddContext(v8::SnapshotCreator* self,
+                                       const v8::Context& context) {
+  return self->AddContext(ptr_to_local(&context), SerializeInternalFields);
+}
+
 size_t v8__SnapshotCreator__AddData_to_isolate(v8::SnapshotCreator* self,
                                                const v8::Data& data) {
   return self->AddData(ptr_to_local(&data));
