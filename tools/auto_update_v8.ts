@@ -1,5 +1,5 @@
 const V8_TRACKING_BRANCH = "10.3-lkgr-denoland";
-const AUTOROLL_BRANCH = "autoroll";
+const AUTOROLL_BRANCH = "autoroll2";
 
 function extractVersion() {
   const MAJOR_PREFIX = "#define V8_MAJOR_VERSION ";
