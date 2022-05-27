@@ -32,6 +32,10 @@ extern "C" {
     this: *mut SnapshotCreator,
     context: *const Context,
   );
+  fn v8__SnapshotCreator__AddContext(
+    this: *mut SnapshotCreator,
+    context: *const Context,
+  ) -> usize;
   fn v8__SnapshotCreator__AddData_to_isolate(
     this: *mut SnapshotCreator,
     data: *const Data,
@@ -155,6 +159,14 @@ impl SnapshotCreator {
   #[inline(always)]
   pub fn set_default_context(&mut self, context: Local<Context>) {
     unsafe { v8__SnapshotCreator__SetDefaultContext(self, &*context) };
+  }
+
+  /// Add additional context to be included in the snapshot blob.
+  /// The snapshot will include the global proxy.
+  ///
+  /// Returns the index of the context in the snapshot blob.
+  pub fn add_context(&mut self, context: Local<Context>) -> usize {
+    unsafe { v8__SnapshotCreator__AddContext(self, &*context) }
   }
 
   /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
