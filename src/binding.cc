@@ -1621,6 +1621,13 @@ void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,
       ptr_to_local(&after_hook), ptr_to_local(&resolve_hook));
 }
 
+const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate, 
+                                             size_t context_snapshot_index) {
+  v8::MaybeLocal<v8::Context> maybe_local = v8::Context::FromSnapshot(
+      isolate, context_snapshot_index);
+  return maybe_local_to_ptr(maybe_local);
+}
+
 const v8::String* v8__Message__Get(const v8::Message& self) {
   return local_to_ptr(self.Get());
 }

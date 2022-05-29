@@ -44,6 +44,10 @@ extern "C" {
     index: c_int,
     value: *mut c_void,
   );
+  fn v8__Context__FromSnapshot(
+    isolate: *mut Isolate,
+    context_snapshot_index: usize,
+  ) -> *const Context;
 }
 
 impl Context {
@@ -289,6 +293,20 @@ impl Context {
           null_mut(),
         )
       };
+    }
+  }
+
+  /// Create a new context from a (non-default) context snapshot. There
+  /// is no way to provide a global object template since we do not create
+  /// a new global object from template, but we can reuse a global object.
+  pub fn from_snapshot<'a>(
+    scope: &'a mut HandleScope,
+    context_snapshot_index: usize,
+  ) -> Option<Local<'a, Context>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Context__FromSnapshot(sd.get_isolate_mut(), context_snapshot_index)
+      })
     }
   }
 }
