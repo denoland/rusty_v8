@@ -3577,6 +3577,77 @@ fn snapshot_creator() {
 }
 
 #[test]
+fn snapshot_creator_multiple_contexts() {
+  let _setup_guard = setup();
+  let startup_data = {
+    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    {
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source =
+        v8::String::new(scope, "var f = function() { return 1; }").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      script.run(scope).unwrap();
+      snapshot_creator.set_default_context(context);
+    }
+    {
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let source =
+        v8::String::new(scope, "var f = function() { return 2; }").unwrap();
+      let script = v8::Script::compile(scope, source, None).unwrap();
+      script.run(scope).unwrap();
+      assert_eq!(0, snapshot_creator.add_context(context));
+    }
+    {
+      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let context = v8::Context::new(scope);
+      assert_eq!(1, snapshot_creator.add_context(context));
+    }
+
+    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+
+  let params = v8::Isolate::create_params().snapshot_blob(startup_data);
+  let isolate = &mut v8::Isolate::new(params);
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(scope, "f()").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    let one_val = v8::Number::new(scope, 1.0).into();
+    assert!(result.same_value(one_val));
+  }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::from_snapshot(scope, 0).unwrap();
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(scope, "f()").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    let two_val = v8::Number::new(scope, 2.0).into();
+    assert!(result.same_value(two_val));
+  }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::from_snapshot(scope, 1).unwrap();
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(scope, "this.f").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert!(result.is_undefined());
+  }
+}
+
+#[test]
 fn external_references() {
   let _setup_guard = setup();
   // Allocate externals for the test.
