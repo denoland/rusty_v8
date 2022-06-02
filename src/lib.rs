@@ -124,6 +124,7 @@ pub use script::ScriptOrigin;
 pub use script_compiler::CachedData;
 pub use snapshot::FunctionCodeHandling;
 pub use snapshot::SnapshotCreator;
+pub use snapshot::NewSnapshotCreator;
 pub use snapshot::StartupData;
 pub use string::NewStringType;
 pub use string::WriteOptions;

@@ -3267,10 +3267,10 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::NewSnapshotCreator::new(None, None);
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let mut isolate = snapshot_creator.get_isolate();
+      let scope = &mut v8::HandleScope::new(isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3280,7 +3280,6 @@ fn snapshot_creator() {
       snapshot_creator.set_default_context(context);
     }
 
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -3288,15 +3287,13 @@ fn snapshot_creator() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::SnapshotCreator::new(None, Some(&startup_data));
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    {
+      v8::NewSnapshotCreator::new(None, Some(&startup_data));
+      {
+      let mut isolate = snapshot_creator.get_isolate();
       // Check that the SnapshotCreator isolate has been set up correctly.
       let _ = isolate.thread_safe_handle();
 
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3313,7 +3310,6 @@ fn snapshot_creator() {
       context_data_index_2 =
         snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()

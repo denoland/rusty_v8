@@ -13,6 +13,7 @@ use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
+use std::ops::DerefMut;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
@@ -223,9 +224,141 @@ impl SnapshotCreator {
   // revisited after the libdeno integration is complete.
   pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
+    // FIXME(bartlomieju): return regular Isolate instead of OwnedIsolate
     let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(Box::new(()));
     owned_isolate
+  }
+}
+
+
+/// Helper class to create a snapshot data blob.
+#[derive(Debug)]
+pub struct NewSnapshotCreator {
+  inner: SnapshotCreator,
+  isolate: Option<OwnedIsolate>,
+}
+
+impl NewSnapshotCreator {
+  /// Create and enter an isolate, and set it up for serialization.
+  /// The isolate is created from scratch.
+  pub fn new(
+    external_references: Option<&'static ExternalReferences>,
+    existing_blob: Option<&StartupData>,
+  ) -> Self {
+    let mut snapshot_creator_inner: MaybeUninit<SnapshotCreator> =
+      MaybeUninit::uninit();
+    let external_references_ptr = if let Some(er) = external_references {
+      er.as_ptr()
+    } else {
+      std::ptr::null()
+    };
+    let existing_blob_ptr = if let Some(startup_data) = existing_blob {
+      startup_data
+    } else {
+      std::ptr::null()
+    };
+    let mut snapshot_creator_inner = unsafe {
+      v8__SnapshotCreator__CONSTRUCT(
+        &mut snapshot_creator_inner,
+        external_references_ptr,
+        existing_blob_ptr,
+      );
+      snapshot_creator_inner.assume_init()
+    };
+
+    let isolate = unsafe {
+      let isolate_ptr =
+        v8__SnapshotCreator__GetIsolate(&mut snapshot_creator_inner);
+      // FIXME(bartlomieju): return regular Isolate instead of OwnedIsolate
+      let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
+      ScopeData::new_root(&mut owned_isolate);
+      owned_isolate.create_annex(Box::new(()));
+      owned_isolate
+    };
+
+    Self {
+      inner: snapshot_creator_inner,
+      isolate: Some(isolate),
+    }
+  }
+}
+
+impl Drop for NewSnapshotCreator {
+  fn drop(&mut self) {
+    std::mem::forget(self.isolate.take().unwrap());
+    unsafe { v8__SnapshotCreator__DESTRUCT(&mut self.inner) };
+  }
+}
+
+impl NewSnapshotCreator {
+  /// Set the default context to be included in the snapshot blob.
+  /// The snapshot will not contain the global proxy, and we expect one or a
+  /// global object template to create one, to be provided upon deserialization.
+  pub fn set_default_context(&mut self, context: Local<Context>) {
+    unsafe { v8__SnapshotCreator__SetDefaultContext(&mut self.inner, &*context) };
+  }
+
+  /// Add additional context to be included in the snapshot blob.
+  /// The snapshot will include the global proxy.
+  ///
+  /// Returns the index of the context in the snapshot blob.
+  pub fn add_context(&mut self, context: Local<Context>) -> usize {
+    unsafe { v8__SnapshotCreator__AddContext(&mut self.inner, &*context) }
+  }
+
+  /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is created
+  /// from an existing snapshot.
+  pub fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    unsafe { v8__SnapshotCreator__AddData_to_isolate(&mut self.inner, &*data.into()) }
+  }
+
+  /// Attach arbitrary `v8::Data` to the context snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is
+  /// created from an existing snapshot.
+  pub fn add_context_data<T>(
+    &mut self,
+    context: Local<Context>,
+    data: Local<T>,
+  ) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    unsafe {
+      v8__SnapshotCreator__AddData_to_context(&mut self.inner, &*context, &*data.into())
+    }
+  }
+
+  /// Creates a snapshot data blob.
+  /// This must not be called from within a handle scope.
+  pub fn create_blob(
+    &mut self,
+    function_code_handling: FunctionCodeHandling,
+  ) -> Option<StartupData> {
+    {
+      ScopeData::get_root_mut(self.isolate.as_deref_mut().unwrap());
+    }
+    let blob =
+      unsafe { v8__SnapshotCreator__CreateBlob(&mut self.inner, function_code_handling) };
+    if blob.data.is_null() {
+      debug_assert!(blob.raw_size == 0);
+      None
+    } else {
+      debug_assert!(blob.raw_size > 0);
+      Some(blob)
+    }
+  }
+
+  /// This is marked unsafe because it should be called at most once per
+  /// snapshot creator.
+  pub fn get_isolate(&mut self) -> &mut Isolate {
+    self.isolate.as_deref_mut().unwrap()
   }
 }
