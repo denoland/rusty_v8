@@ -105,6 +105,7 @@ use crate::OwnedIsolate;
 use crate::Primitive;
 use crate::PromiseRejectMessage;
 use crate::Value;
+use crate::NewSnapshotCreator;
 
 /// Stack-allocated class which sets the execution context for all operations
 /// executed within a local scope. After entering a context, all code compiled
@@ -720,6 +721,10 @@ mod param {
     type NewScope = HandleScope<'s, ()>;
   }
 
+  impl<'s> NewHandleScope<'s> for NewSnapshotCreator {
+    type NewScope = HandleScope<'s, ()>;
+  }
+
   impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s>
     for ContextScope<'p, P>
   {
@@ -942,6 +947,12 @@ mod getter {
   }
 
   impl GetScopeData for OwnedIsolate {
+    fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
+      data::ScopeData::get_root_mut(self)
+    }
+  }
+  
+  impl GetScopeData for NewSnapshotCreator {
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self)
     }

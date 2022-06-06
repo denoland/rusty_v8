@@ -356,9 +356,22 @@ impl NewSnapshotCreator {
     }
   }
 
-  /// This is marked unsafe because it should be called at most once per
-  /// snapshot creator.
-  pub fn get_isolate(&mut self) -> &mut Isolate {
+  // /// This is marked unsafe because it should be called at most once per
+  // /// snapshot creator.
+  // pub fn get_isolate(&mut self) -> &mut Isolate {
+  //   self.isolate.as_deref_mut().unwrap()
+  // }
+}
+
+impl Deref for NewSnapshotCreator {
+  type Target = Isolate;
+  fn deref(&self) -> &Self::Target {
+    self.isolate.as_deref().unwrap()
+  }
+}
+
+impl DerefMut for NewSnapshotCreator {
+  fn deref_mut(&mut self) -> &mut Self::Target {
     self.isolate.as_deref_mut().unwrap()
   }
 }
