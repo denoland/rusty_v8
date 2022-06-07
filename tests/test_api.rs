@@ -3486,10 +3486,7 @@ fn snapshot_creator() {
       let scope = &mut v8::HandleScope::new(&mut isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
-
-      let source = v8::String::new(scope, "b = 2 + 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      script.run(scope).unwrap();
+      eval(scope, "b = 2 + 3").unwrap();
       snapshot_creator.set_default_context(context);
     }
 
@@ -3512,10 +3509,7 @@ fn snapshot_creator() {
       let scope = &mut v8::HandleScope::new(&mut isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
-
-      let source = v8::String::new(scope, "a = 1 + 2").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      script.run(scope).unwrap();
+      eval(scope, "a = 1 + 2").unwrap();
 
       snapshot_creator.set_default_context(context);
 
@@ -3541,15 +3535,11 @@ fn snapshot_creator() {
       let scope = &mut v8::HandleScope::new(isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
-      let source = v8::String::new(scope, "a === 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "a === 3").unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
 
-      let source = v8::String::new(scope, "b === 5").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "b === 5").unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
 
@@ -5232,14 +5222,10 @@ fn module_snapshot() {
 
       let true_val = v8::Boolean::new(scope, true).into();
 
-      let source = v8::String::new(scope, "a === 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "a === 3").unwrap();
       assert!(result.same_value(true_val));
 
-      let source = v8::String::new(scope, "b === 42").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "a === 42").unwrap();
       assert!(result.same_value(true_val));
     }
   }
