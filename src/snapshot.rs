@@ -3,12 +3,15 @@ use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
 use crate::support::intptr_t;
+use crate::support::Allocated;
+use crate::support::CharArray;
 use crate::Context;
 use crate::Data;
 use crate::Isolate;
 use crate::Local;
 use crate::OwnedIsolate;
 
+use std::any::Any;
 use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
@@ -45,7 +48,6 @@ extern "C" {
     context: *const Context,
     data: *const Data,
   ) -> usize;
-  fn v8__StartupData__DESTRUCT(this: *mut StartupData);
 }
 
 // TODO(piscisaureus): merge this struct with
@@ -57,23 +59,18 @@ pub struct StartupData {
   raw_size: int,
 }
 
-impl From<Box<[u8]>> for StartupData {
-  fn from(slice: Box<[u8]>) -> Self {
-    let mut data: Vec<u8> = vec![];
-    data.copy_from_slice(&slice);
-    StartupData {
+impl StartupData {
+  pub fn from_static(data: &'static [u8]) -> Self {
+    Self {
       data: data.as_ptr() as *const char,
-      raw_size: data.len() as int,
+      raw_size: i32::try_from(data.len()).unwrap(),
     }
   }
 }
 
-impl From<&[u8]> for StartupData {
-  fn from(slice: &[u8]) -> Self {
-    StartupData {
-      data: slice.as_ptr() as *const char,
-      raw_size: slice.len() as int,
-    }
+impl From<&'static [u8]> for StartupData {
+  fn from(data: &'static [u8]) -> Self {
+    Self::from_static(data)
   }
 }
 
@@ -98,9 +95,51 @@ impl Borrow<[u8]> for StartupData {
   }
 }
 
-impl Drop for StartupData {
-  fn drop(&mut self) {
-    unsafe { v8__StartupData__DESTRUCT(self) }
+/// A `StartupData` object that owns the data it references, which is kept in a
+/// char array allocated in C++. This is what V8 returns when calling
+/// `SnapshotCreator::CreateBlob()`.
+pub struct OwnedStartupData {
+  inner: StartupData,
+  _owner: Box<dyn Any>,
+}
+
+impl OwnedStartupData {
+  pub fn new<T>(owned_data: T) -> Self
+  where
+    T: Deref<Target = [u8]> + 'static,
+  {
+    let inner = {
+      let slice = owned_data.deref();
+      let data = slice.as_ptr() as *const char;
+      let raw_size = int::try_from(slice.len()).unwrap();
+      StartupData { data, raw_size }
+    };
+    Self {
+      inner,
+      _owner: Box::new(owned_data),
+    }
+  }
+
+  fn from_raw_char_array(raw: StartupData) -> Self {
+    let char_array = unsafe { CharArray::from_ptr(raw.data) };
+    Self {
+      inner: raw,
+      _owner: Box::new(char_array),
+    }
+  }
+}
+
+impl Deref for OwnedStartupData {
+  type Target = StartupData;
+
+  fn deref(&self) -> &Self::Target {
+    &self.inner
+  }
+}
+
+impl Borrow<[u8]> for OwnedStartupData {
+  fn borrow(&self) -> &[u8] {
+    &**self
   }
 }
 
@@ -122,7 +161,7 @@ impl SnapshotCreator {
   #[inline(always)]
   pub fn new(
     external_references: Option<&'static ExternalReferences>,
-    existing_blob: Option<&StartupData>,
+    existing_blob: Option<impl Allocated<[u8]>>,
   ) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
@@ -205,7 +244,7 @@ impl SnapshotCreator {
   pub fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,
-  ) -> Option<StartupData> {
+  ) -> Option<OwnedStartupData> {
     {
       let isolate = unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) };
       ScopeData::get_root_mut(isolate);
@@ -217,7 +256,10 @@ impl SnapshotCreator {
       None
     } else {
       debug_assert!(blob.raw_size > 0);
-      Some(blob)
+      // Wrap the returned blob in a `OwnedStartupData`, which has a drop
+      // handler that will release the heap allocated `char[]` buffer that holds
+      // the snapshot blob returned by `v8::SnapshotCreator::CreateBlob()`.
+      Some(OwnedStartupData::from_raw_char_array(blob))
     }
   }
 

@@ -1682,10 +1682,10 @@ void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,
       ptr_to_local(&after_hook), ptr_to_local(&resolve_hook));
 }
 
-const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate, 
+const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
                                              size_t context_snapshot_index) {
-  v8::MaybeLocal<v8::Context> maybe_local = v8::Context::FromSnapshot(
-      isolate, context_snapshot_index);
+  v8::MaybeLocal<v8::Context> maybe_local =
+      v8::Context::FromSnapshot(isolate, context_snapshot_index);
   return maybe_local_to_ptr(maybe_local);
 }
 
@@ -2337,14 +2337,13 @@ void v8__Proxy__Revoke(const v8::Proxy& self) { ptr_to_local(&self)->Revoke(); }
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>* buf,
                                     const intptr_t* external_references,
                                     v8::StartupData* existing_blob) {
-  construct_in_place<v8::SnapshotCreator>(buf, external_references, existing_blob);
+  construct_in_place<v8::SnapshotCreator>(buf, external_references,
+                                          existing_blob);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
   self->~SnapshotCreator();
 }
-
-void v8__StartupData__DESTRUCT(v8::StartupData* self) { delete[] self->data; }
 
 v8::Isolate* v8__SnapshotCreator__GetIsolate(const v8::SnapshotCreator& self) {
   // `v8::SnapshotCreator::GetIsolate()` is not declared as a const method, but
@@ -3160,4 +3159,7 @@ const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
   delete self;
 }
+
+void char__DELETE_ARRAY(const char* ptr[]) { delete[] ptr; }
+
 }  // extern "C"

@@ -5225,7 +5225,7 @@ fn module_snapshot() {
       let result = eval(scope, "a === 3").unwrap();
       assert!(result.same_value(true_val));
 
-      let result = eval(scope, "a === 42").unwrap();
+      let result = eval(scope, "b === 42").unwrap();
       assert!(result.same_value(true_val));
     }
   }
