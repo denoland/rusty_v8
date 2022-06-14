@@ -100,6 +100,8 @@ pub use isolate::IsolateHandle;
 pub use isolate::MessageCallback;
 pub use isolate::MicrotasksPolicy;
 pub use isolate::NearHeapLimitCallback;
+pub use isolate::OomDetails;
+pub use isolate::OomErrorCallback;
 pub use isolate::OwnedIsolate;
 pub use isolate::PromiseHook;
 pub use isolate::PromiseHookType;

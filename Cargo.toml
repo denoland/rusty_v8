@@ -103,7 +103,7 @@ name = "shell"
 name = "process"
 
 [[test]]
-name = "buid"
+name = "build"
 path = "build.rs"
 
 [workspace]

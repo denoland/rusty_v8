@@ -5636,7 +5636,10 @@ fn run_with_rust_allocator() {
 
 #[test]
 fn oom_callback() {
-  extern "C" fn oom_handler(_: *const std::os::raw::c_char, _: bool) {
+  extern "C" fn oom_handler(
+    _: *const std::os::raw::c_char,
+    _: &v8::OomDetails,
+  ) {
     unreachable!()
   }
 
