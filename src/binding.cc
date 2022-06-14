@@ -292,7 +292,7 @@ int64_t v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
 }
 
 void v8__Isolate__SetOOMErrorHandler(v8::Isolate* isolate,
-                                     v8::LegacyOOMErrorCallback callback) {
+                                     v8::OOMErrorCallback callback) {
   isolate->SetOOMErrorHandler(callback);
 }
 
