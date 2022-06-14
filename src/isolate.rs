@@ -153,8 +153,8 @@ pub type NearHeapLimitCallback = extern "C" fn(
 
 #[repr(C)]
 pub struct OomDetails {
-  is_heap_oom: bool,
-  detail: *const c_char,
+  pub is_heap_oom: bool,
+  pub detail: *const c_char,
 }
 
 pub type OomErrorCallback =
