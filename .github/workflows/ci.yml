@@ -1,14 +1,13 @@
 name: ci
 
-on: 
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+on: [push, pull_request]
 
 jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
+    if: |
+      github.event_name == 'push' ||
+      !startsWith(github.event.pull_request.head.label, 'denoland:')
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:

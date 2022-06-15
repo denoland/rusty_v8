@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
-      - name: Fetch origin/main
-        run: git fetch origin main
       - uses: denoland/setup-deno@main
         with:
           deno-version: v1.x
@@ -26,4 +24,4 @@ jobs:
           git remote set-url origin https://${{ secrets.DENOBOT_PAT }}@github.com/denoland/rusty_v8.git
       - run: deno run -A ./tools/auto_update_v8.ts
         env:
-          GITHUB_TOKEN: ${{ secrets.DENOBOT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
