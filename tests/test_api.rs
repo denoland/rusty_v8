@@ -2244,11 +2244,11 @@ fn fn_callback2(
 }
 
 fn fortytwo_callback(
-  scope: &mut v8::HandleScope,
+  _: &mut v8::HandleScope,
   _: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  rv.set(v8::Integer::new(scope, 42).into());
+  rv.set_int32(42);
 }
 
 fn data_is_true_callback(
