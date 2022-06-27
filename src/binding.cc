@@ -1846,6 +1846,35 @@ void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
   self->Set(ptr_to_local(&value));
 }
 
+void v8__ReturnValue__Set__Int32(v8::ReturnValue<v8::Value>* self, int32_t i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__Set__Uint32(v8::ReturnValue<v8::Value>* self,
+                                  uint32_t i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__Set__Double(v8::ReturnValue<v8::Value>* self, double i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__Set__Bool(v8::ReturnValue<v8::Value>* self, bool value) {
+  self->Set(value);
+}
+
+void v8__ReturnValue__SetNull(v8::ReturnValue<v8::Value>* self) {
+  self->SetNull();
+}
+
+void v8__ReturnValue__SetUndefined(v8::ReturnValue<v8::Value>* self) {
+  self->SetUndefined();
+}
+
+void v8__ReturnValue__SetEmptyString(v8::ReturnValue<v8::Value>* self) {
+  self->SetEmptyString();
+}
+
 const v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
   return local_to_ptr(self.Get());
 }
