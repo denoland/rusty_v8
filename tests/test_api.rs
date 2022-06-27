@@ -2244,11 +2244,11 @@ fn fn_callback2(
 }
 
 fn fortytwo_callback(
-  scope: &mut v8::HandleScope,
+  _: &mut v8::HandleScope,
   _: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue,
 ) {
-  rv.set(v8::Integer::new(scope, 42).into());
+  rv.set_int32(42);
 }
 
 fn data_is_true_callback(
@@ -2275,6 +2275,155 @@ fn nested_builder<'a>(
   )
   .data(arg0)
   .build(scope);
+}
+
+#[test]
+fn return_value() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let recv: v8::Local<v8::Value> = global.into();
+
+    // set_int32
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_int32(69);
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_int32());
+      assert_eq!(value.int32_value(scope).unwrap(), 69);
+    }
+
+    // set_uint32
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_uint32(69);
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_uint32());
+      assert_eq!(value.uint32_value(scope).unwrap(), 69);
+    }
+
+    // set_null
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_null();
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_null());
+    }
+
+    // set_undefined
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_undefined();
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_undefined());
+    }
+
+    // set_double
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_double(69.420);
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_number());
+      assert_eq!(value.number_value(scope).unwrap(), 69.420);
+    }
+
+    // set_empty_string
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_empty_string();
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_string());
+      assert_eq!(value.to_rust_string_lossy(scope), "");
+    }
+  }
 }
 
 #[test]
