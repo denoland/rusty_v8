@@ -17,8 +17,10 @@ static_library("rusty_v8") {
   configs += [
     ":rusty_v8_config",
     "//buildtools/third_party/libc++:config",
-    "//buildtools/third_party/libunwind:libunwind_config",
   ]
+  if (!is_win) {
+    configs += [ "//buildtools/third_party/libunwind:libunwind_config" ]
+  }
 }
 
 config("rusty_v8_config") {
