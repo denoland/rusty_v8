@@ -132,8 +132,10 @@ pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
 /// and for our purposes we currently don't need
 /// other types. So for now it's a simplified version.
 impl<'cb> ReturnValue<'cb> {
-  pub fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
-    let slot = unsafe { v8__FunctionCallbackInfo__GetReturnValue(info) };
+  pub unsafe fn from_function_callback_info(
+    info: *const FunctionCallbackInfo,
+  ) -> Self {
+    let slot = v8__FunctionCallbackInfo__GetReturnValue(info);
     Self(slot, PhantomData)
   }
 
@@ -329,7 +331,7 @@ where
     let f = |info: *const FunctionCallbackInfo| {
       let scope = &mut unsafe { CallbackScope::new(&*info) };
       let args = FunctionCallbackArguments::from_function_callback_info(info);
-      let rv = ReturnValue::from_function_callback_info(info);
+      let rv = unsafe { ReturnValue::from_function_callback_info(info) };
       (F::get())(scope, args, rv);
     };
     f.to_c_fn()
