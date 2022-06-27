@@ -330,7 +330,8 @@ where
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
       let scope = &mut unsafe { CallbackScope::new(&*info) };
-      let args = FunctionCallbackArguments::from_function_callback_info(info);
+      let args =
+        unsafe { FunctionCallbackArguments::from_function_callback_info(info) };
       let rv = unsafe { ReturnValue::from_function_callback_info(info) };
       (F::get())(scope, args, rv);
     };

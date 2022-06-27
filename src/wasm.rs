@@ -173,7 +173,8 @@ where
     F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
   {
     let scope = &mut unsafe { CallbackScope::new(&*info) };
-    let args = FunctionCallbackArguments::from_function_callback_info(info);
+    let args =
+      unsafe { FunctionCallbackArguments::from_function_callback_info(info) };
     let data = args.data().unwrap(); // Always present.
     let data = &*data as *const Value;
     let zero = null_mut();
