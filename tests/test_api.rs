@@ -2290,7 +2290,8 @@ fn function_builder_raw() {
 
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
       let scope = unsafe { &mut v8::CallbackScope::new(&*info) };
-      let args = v8::FunctionCallbackArguments::from_function_callback_info(info);
+      let args =
+        v8::FunctionCallbackArguments::from_function_callback_info(info);
       assert!(args.length() == 1);
       assert!(args.get(0).is_string());
 
