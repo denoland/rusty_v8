@@ -211,7 +211,7 @@ pub struct FunctionCallbackArguments<'s> {
 }
 
 impl<'s> FunctionCallbackArguments<'s> {
-  pub fn from_function_callback_info(
+  pub unsafe fn from_function_callback_info(
     info: *const FunctionCallbackInfo,
   ) -> Self {
     Self {
