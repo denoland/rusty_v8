@@ -14,7 +14,11 @@ static_library("rusty_v8") {
     "//build/config/compiler:default_init_stack_vars",
     "//build/config/compiler:thin_archive",
   ]
-  configs += [ ":rusty_v8_config" ]
+  configs += [
+    ":rusty_v8_config",
+    "//buildtools/third_party/libc++:config",
+    "//buildtools/third_party/libunwind:libunwind_config",
+  ]
 }
 
 config("rusty_v8_config") {
