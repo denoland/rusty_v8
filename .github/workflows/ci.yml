@@ -1,11 +1,12 @@
 name: ci
 
-on: 
+on:
   push:
     branches: [main]
     tags: ["**"]
   pull_request:
     branches: [main]
+    types: [labeled, opened, synchronize, reopened]
 
 jobs:
   build:
@@ -19,8 +20,9 @@ jobs:
       # Don't fast-fail on tag build because publishing binaries shouldn't be
       # prevented if 'cargo publish' fails (which can be a false negative).
       fail-fast:
-        ${{ github.event_name == 'pull_request' || (github.ref !=
-        'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')) }}
+        ${{ (github.event_name == 'pull_request' || (github.ref !=
+        'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))) &&
+        !contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
       matrix:
         config:
           - os: macOS-latest
