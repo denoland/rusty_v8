@@ -2278,6 +2278,42 @@ fn nested_builder<'a>(
 }
 
 #[test]
+fn function_builder_raw() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let recv: v8::Local<v8::Value> = global.into();
+
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let scope = unsafe { &mut v8::CallbackScope::new(&*info) };
+      let args = unsafe {
+        v8::FunctionCallbackArguments::from_function_callback_info(info)
+      };
+      assert!(args.length() == 1);
+      assert!(args.get(0).is_string());
+
+      let mut rv =
+        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      rv.set(
+        v8::String::new(scope, "Hello from function!")
+          .unwrap()
+          .into(),
+      );
+    }
+    let func = v8::Function::new_raw(scope, callback).unwrap();
+
+    let arg0 = v8::String::new(scope, "Hello").unwrap();
+    let value = func.call(scope, recv, &[arg0.into()]).unwrap();
+    assert!(value.is_string());
+    assert_eq!(value.to_rust_string_lossy(scope), "Hello from function!");
+  }
+}
+
+#[test]
 fn return_value() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
