@@ -1863,10 +1863,6 @@ void v8__ReturnValue__Set__Double(v8::ReturnValue<v8::Value>* self, double i) {
   self->Set(i);
 }
 
-void v8__ReturnValue__Set__Bool(v8::ReturnValue<v8::Value>* self, bool value) {
-  self->Set(value);
-}
-
 void v8__ReturnValue__SetNull(v8::ReturnValue<v8::Value>* self) {
   self->SetNull();
 }
