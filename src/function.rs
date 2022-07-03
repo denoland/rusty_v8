@@ -78,6 +78,7 @@ extern "C" {
   ) -> *const Object;
 
   fn v8__ReturnValue__Set(this: *mut ReturnValue, value: *const Value);
+  fn v8__ReturnValue__Set__Bool(this: *mut ReturnValue, value: bool);
   fn v8__ReturnValue__Set__Int32(this: *mut ReturnValue, value: i32);
   fn v8__ReturnValue__Set__Uint32(this: *mut ReturnValue, value: u32);
   fn v8__ReturnValue__Set__Double(this: *mut ReturnValue, value: f64);
@@ -146,6 +147,10 @@ impl<'cb> ReturnValue<'cb> {
 
   pub fn set(&mut self, value: Local<Value>) {
     unsafe { v8__ReturnValue__Set(&mut *self, &*value) }
+  }
+
+  pub fn set_bool(&mut self, value: bool) {
+    unsafe { v8__ReturnValue__Set__Bool(&mut *self, value) }
   }
 
   pub fn set_int32(&mut self, value: i32) {

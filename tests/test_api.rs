@@ -2324,6 +2324,29 @@ fn return_value() {
     let global = context.global(scope);
     let recv: v8::Local<v8::Value> = global.into();
 
+    // set_bool
+    {
+      let template = v8::FunctionTemplate::new(
+        scope,
+        |scope: &mut v8::HandleScope,
+        args: v8::FunctionCallbackArguments,
+        mut rv: v8::ReturnValue| {
+          assert_eq!(args.length(), 0);
+          assert!(rv.get(scope).is_undefined());
+          rv.set_bool(false);
+        },
+      );
+
+      let function = template
+        .get_function(scope)
+        .expect("Unable to create function");
+      let value = function
+        .call(scope, recv, &[])
+        .expect("Function call failed");
+      assert!(value.is_boolean());
+      assert!(!value.is_true());
+    }
+
     // set_int32
     {
       let template = v8::FunctionTemplate::new(

@@ -1846,6 +1846,10 @@ void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
   self->Set(ptr_to_local(&value));
 }
 
+void v8__ReturnValue__Set__Bool(v8::ReturnValue<v8::Value>* self, bool i) {
+  self->Set(i);
+}
+
 void v8__ReturnValue__Set__Int32(v8::ReturnValue<v8::Value>* self, int32_t i) {
   self->Set(i);
 }
