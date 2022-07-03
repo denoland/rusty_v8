@@ -2329,8 +2329,8 @@ fn return_value() {
       let template = v8::FunctionTemplate::new(
         scope,
         |scope: &mut v8::HandleScope,
-        args: v8::FunctionCallbackArguments,
-        mut rv: v8::ReturnValue| {
+         args: v8::FunctionCallbackArguments,
+         mut rv: v8::ReturnValue| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_bool(false);
