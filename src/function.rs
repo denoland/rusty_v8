@@ -117,10 +117,6 @@ pub enum SideEffectType {
   HasSideEffectToReceiver,
 }
 
-#[repr(C)]
-#[derive(Default)]
-pub(crate) struct CFunction([usize; 2]);
-
 // Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.

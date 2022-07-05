@@ -1,14 +1,19 @@
+use libc::c_void;
+
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
+use crate::fast_api::CFunction;
+use crate::fast_api::CType;
+use crate::fast_api::CTypeInfo;
+use crate::fast_api::FastFunction;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
 use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
-use crate::CFunction;
 use crate::ConstructorBehavior;
 use crate::Context;
 use crate::Function;
@@ -144,6 +149,36 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.constructor_behavior,
           self.side_effect_type,
           null(),
+        )
+      })
+    }
+    .unwrap()
+  }
+
+  pub fn build_fast(
+    self,
+    scope: &mut HandleScope<'s, ()>,
+    fast_function: impl FastFunction,
+  ) -> Local<'s, FunctionTemplate> {
+    unsafe {
+      let args = CTypeInfo::new_from_slice(fast_function.args());
+      let ret = CTypeInfo::new(fast_function.return_type());
+      let c_fn = CFunction::new(
+        fast_function.raw(),
+        args.as_ptr(),
+        fast_function.args().len(),
+        ret.as_ptr(),
+      );
+      scope.cast_local(|sd| {
+        v8__FunctionTemplate__New(
+          sd.get_isolate_ptr(),
+          self.callback,
+          self.data.map_or_else(null, |p| &*p),
+          self.signature.map_or_else(null, |p| &*p),
+          self.length,
+          ConstructorBehavior::Throw,
+          self.side_effect_type,
+          c_fn.as_ptr() as _,
         )
       })
     }

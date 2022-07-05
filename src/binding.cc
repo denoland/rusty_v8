@@ -1760,6 +1760,36 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
+v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
+  std::unique_ptr<v8::CTypeInfo> u = std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
+  return u.release();
+}
+
+v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len, v8::CTypeInfo::Type* ty) {
+  std::vector<v8::CTypeInfo> v{};
+  for (size_t i = 0; i < len; i += 1) {
+    v.push_back(v8::CTypeInfo(ty[i]));
+  }
+  auto const p = v.data();
+  auto deleter = [v = std::move(v)](v8::CTypeInfo*) {};
+  auto u = std::unique_ptr<v8::CTypeInfo[], decltype(deleter)>{p, std::move(deleter)};
+  return u.release();
+}
+
+v8::CFunction* v8__CFunction__New(void* func_ptr, const v8::CTypeInfo& return_info,
+                                   unsigned int args_len,
+                                   v8::CTypeInfo* args_info) {
+  auto c_function_info = v8::CFunctionInfo(return_info, args_len, args_info);
+  // print pointer value of c_function_info
+  printf("%p\n", &c_function_info);
+  std::cout << (int) c_function_info.ArgumentCount()  << std::endl;
+  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, &c_function_info));
+  // Leak c_function_info to avoid it being freed.
+  std::unique_ptr<v8::CFunctionInfo> c_function_info_leak = std::make_unique<v8::CFunctionInfo>(c_function_info);
+  c_function_info_leak.release();
+  return c_function.release();
+}
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
