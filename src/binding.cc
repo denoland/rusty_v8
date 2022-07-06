@@ -1765,10 +1765,23 @@ v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
   return u.release();
 }
 
-v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len, v8::CTypeInfo::Type* ty) {
+v8::CTypeInfo* v8__CTypeInfo__New__Sequence(v8::CTypeInfo::Type ty,
+                                            v8::CTypeInfo::SequenceType sequence_type) {
+  std::unique_ptr<v8::CTypeInfo> u = std::make_unique<v8::CTypeInfo>(
+    v8::CTypeInfo(ty, sequence_type));
+  return u.release();
+}
+
+struct CTypeSequenceType {
+  v8::CTypeInfo::Type c_type;
+  v8::CTypeInfo::SequenceType sequence_type;
+};
+
+v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len, 
+  CTypeSequenceType* ty) {
   v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
   for (size_t i = 0; i < len; i += 1) {
-    v[i] = v8::CTypeInfo(ty[i]);
+    v[i] = v8::CTypeInfo(ty[i].c_type, ty[i].sequence_type);
   }
   return v;
 }

@@ -14,7 +14,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use v8::fast_api::{CType, FastFunction};
+use v8::fast_api;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -7019,22 +7019,29 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32) -> u32 {
+  fn fast_fn(a: u32, b: u32, data: *const u32, len: usize) -> u32 {
     unsafe { WHO = "fast" };
-    a + b
+    assert_eq!(len, 2);
+    let array = unsafe { std::slice::from_raw_parts(data, len) };
+    a + b + array[0] + array[1]
   }
 
   pub struct FastTest;
-  impl FastFunction for FastTest {
-    fn args(&self) -> &'static [CType] {
-      &[CType::Uint32, CType::Uint32]
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::Uint32,
+        fast_api::Type::Uint32,
+        fast_api::Type::Sequence(fast_api::CType::Uint32),
+        fast_api::Type::Uint32,
+      ]
     }
 
-    fn return_type(&self) -> CType {
-      CType::Uint32
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
     }
 
-    type Signature = fn(a: u32, b: u32) -> u32;
+    type Signature = fn(a: u32, b: u32, data: *const u32, len: usize) -> u32;
     fn function(&self) -> Self::Signature {
       fast_fn
     }
@@ -7064,16 +7071,17 @@ fn test_fast_calls() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y) { return func(x, y); }
+  function f(x, y, data, len) { return func(x, y, data, len); }
   %PrepareFunctionForOptimization(f);
-  f(1, 2);
+  const arr = [3, 4];
+  f(1, 2, arr, arr.length);
 "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
-    f(1, 2);
+    f(1, 2, arr, arr.length);
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
