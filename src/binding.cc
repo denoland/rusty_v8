@@ -1766,27 +1766,20 @@ v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
 }
 
 v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len, v8::CTypeInfo::Type* ty) {
-  std::vector<v8::CTypeInfo> v{};
+  v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
   for (size_t i = 0; i < len; i += 1) {
-    v.push_back(v8::CTypeInfo(ty[i]));
+    v[i] = v8::CTypeInfo(ty[i]);
   }
-  auto const p = v.data();
-  auto deleter = [v = std::move(v)](v8::CTypeInfo*) {};
-  auto u = std::unique_ptr<v8::CTypeInfo[], decltype(deleter)>{p, std::move(deleter)};
-  return u.release();
+  return v;
 }
 
 v8::CFunction* v8__CFunction__New(void* func_ptr, const v8::CTypeInfo& return_info,
                                    unsigned int args_len,
                                    v8::CTypeInfo* args_info) {
   auto c_function_info = v8::CFunctionInfo(return_info, args_len, args_info);
-  // print pointer value of c_function_info
-  printf("%p\n", &c_function_info);
-  std::cout << (int) c_function_info.ArgumentCount()  << std::endl;
-  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, &c_function_info));
-  // Leak c_function_info to avoid it being freed.
   std::unique_ptr<v8::CFunctionInfo> c_function_info_leak = std::make_unique<v8::CFunctionInfo>(c_function_info);
-  c_function_info_leak.release();
+  auto a = c_function_info_leak.release();
+  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, a));
   return c_function.release();
 }
 

@@ -1,12 +1,9 @@
-use libc::c_void;
-
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::fast_api::CFunction;
-use crate::fast_api::CType;
 use crate::fast_api::CTypeInfo;
 use crate::fast_api::FastFunction;
 use crate::isolate::Isolate;

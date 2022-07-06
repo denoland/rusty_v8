@@ -1,7 +1,7 @@
-use std::ptr::NonNull;
-
-use crate::{support::Opaque, UniqueRef};
+use crate::support::Opaque;
 use libc::c_void;
+use std::mem::transmute_copy;
+use std::ptr::NonNull;
 
 extern "C" {
   fn v8__CTypeInfo__New(ty: CType) -> *mut CTypeInfo;
@@ -42,8 +42,8 @@ impl CFunction {
 pub struct CTypeInfo(Opaque);
 
 impl CTypeInfo {
-  pub(crate) unsafe fn new(ty: CType) -> NonNull<CTypeInfo> {
-    NonNull::new_unchecked(v8__CTypeInfo__New(ty))
+  pub(crate) fn new(ty: CType) -> NonNull<CTypeInfo> {
+    unsafe { NonNull::new_unchecked(v8__CTypeInfo__New(ty)) }
   }
 
   pub(crate) fn new_from_slice(types: &[CType]) -> NonNull<CTypeInfo> {
@@ -56,6 +56,7 @@ impl CTypeInfo {
   }
 }
 
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum CType {
   Void = 0,
@@ -79,6 +80,6 @@ pub trait FastFunction {
   }
   fn function(&self) -> Self::Signature;
   fn raw(&self) -> *const c_void {
-    &self.function() as *const _ as *const c_void
+    unsafe { transmute_copy(&self.function()) }
   }
 }
