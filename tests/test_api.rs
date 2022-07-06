@@ -7019,11 +7019,11 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32, data: *const u32, len: usize) -> u32 {
+  fn fast_fn(a: u32, b: u32, data: *const u32, len: u32) -> u32 {
     unsafe { WHO = "fast" };
-    assert_eq!(len, 2);
-    let array = unsafe { std::slice::from_raw_parts(data, len) };
-    a + b + array[0] + array[1]
+    assert_eq!(len, 1);
+    let array = unsafe { std::slice::from_raw_parts(data, len as usize) };
+    a + b + array[0]
   }
 
   pub struct FastTest;
@@ -7032,8 +7032,7 @@ fn test_fast_calls() {
       &[
         fast_api::Type::Uint32,
         fast_api::Type::Uint32,
-        fast_api::Type::Sequence(fast_api::CType::Uint32),
-        fast_api::Type::Uint32,
+        fast_api::Type::ArrayBuffer(fast_api::CType::Uint32)
       ]
     }
 
@@ -7041,7 +7040,7 @@ fn test_fast_calls() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(a: u32, b: u32, data: *const u32, len: usize) -> u32;
+    type Signature = fn(a: u32, b: u32, data: *const u32, len: u32) -> u32;
     fn function(&self) -> Self::Signature {
       fast_fn
     }
@@ -7071,17 +7070,17 @@ fn test_fast_calls() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y, data, len) { return func(x, y, data, len); }
+  function f(x, y, data) { return func(x, y, data); }
   %PrepareFunctionForOptimization(f);
-  const arr = [3, 4];
-  f(1, 2, arr, arr.length);
+  const arr = new Uint32Array([3]);
+  f(1, 2, arr.buffer);
 "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
-    f(1, 2, arr, arr.length);
+    f(1, 2, arr);
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
