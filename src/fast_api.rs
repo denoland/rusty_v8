@@ -5,13 +5,9 @@ use std::ptr::NonNull;
 
 extern "C" {
   fn v8__CTypeInfo__New(ty: CType) -> *mut CTypeInfo;
-  fn v8__CTypeInfo__New__Sequence(
-    ty: CType,
-    sequence_type: SequenceType,
-  ) -> *mut CTypeInfo;
   fn v8__CTypeInfo__New__From__Slice(
     len: usize,
-    tys: *const CTypeSequenceType,
+    tys: *const CTypeSequenceInfo,
   ) -> *mut CTypeInfo;
   fn v8__CFunction__New(
     func_ptr: *const c_void,
@@ -50,35 +46,19 @@ impl CTypeInfo {
     unsafe { NonNull::new_unchecked(v8__CTypeInfo__New(ty)) }
   }
 
-  pub(crate) fn new_sequence(
-    ty: CType,
-    sequence_type: SequenceType,
-  ) -> NonNull<CTypeInfo> {
-    assert_ne!(
-      sequence_type,
-      SequenceType::Scalar,
-      "Use CTypeInfo::new instead"
-    );
-    unsafe {
-      NonNull::new_unchecked(v8__CTypeInfo__New__Sequence(ty, sequence_type))
-    }
-  }
-
   pub(crate) fn new_from_slice(types: &[Type]) -> NonNull<CTypeInfo> {
     let mut structs = vec![];
 
-    for type_ in types {
-      structs.push(type_.into_struct())
+    for type_ in types.iter() {
+      structs.push(type_.into())
     }
 
-    let ptr = unsafe {
+    unsafe {
       NonNull::new_unchecked(v8__CTypeInfo__New__From__Slice(
         structs.len(),
         structs.as_ptr(),
       ))
-    };
-    std::mem::forget(structs);
-    ptr
+    }
   }
 }
 
@@ -119,37 +99,35 @@ pub enum Type {
   Float32,
   Float64,
   V8Value,
-  Sequence(CType),
-  TypedArray(CType),
-  ArrayBuffer(CType),
 }
 
-impl Type {
-  fn into_struct(self) -> CTypeSequenceType {
-    let (c_type, sequence_type) = match self {
-      Self::Void => (CType::Void, SequenceType::Scalar),
-      Self::Bool => (CType::Bool, SequenceType::Scalar),
-      Self::Int32 => (CType::Int32, SequenceType::Scalar),
-      Self::Uint32 => (CType::Uint32, SequenceType::Scalar),
-      Self::Int64 => (CType::Int64, SequenceType::Scalar),
-      Self::Uint64 => (CType::Uint64, SequenceType::Scalar),
-      Self::Float32 => (CType::Float32, SequenceType::Scalar),
-      Self::Float64 => (CType::Float64, SequenceType::Scalar),
-      Self::V8Value => (CType::V8Value, SequenceType::Scalar),
-      Self::Sequence(c_type) => (c_type, SequenceType::IsSequence),
-      Self::TypedArray(c_type) => (c_type, SequenceType::IsTypedArray),
-      Self::ArrayBuffer(c_type) => (c_type, SequenceType::IsArrayBuffer),
-    };
+impl From<&Type> for CType {
+  fn from(ty: &Type) -> CType {
+    match ty {
+      Type::Void => CType::Void,
+      Type::Bool => CType::Bool,
+      Type::Int32 => CType::Int32,
+      Type::Uint32 => CType::Uint32,
+      Type::Int64 => CType::Int64,
+      Type::Uint64 => CType::Uint64,
+      Type::Float32 => CType::Float32,
+      Type::Float64 => CType::Float64,
+      Type::V8Value => CType::V8Value,
+    }
+  }
+}
 
-    CTypeSequenceType {
-      c_type,
-      sequence_type,
+impl From<&Type> for CTypeSequenceInfo {
+  fn from(ty: &Type) -> CTypeSequenceInfo {
+    CTypeSequenceInfo {
+      c_type: ty.into(),
+      sequence_type: SequenceType::Scalar,
     }
   }
 }
 
 #[repr(C)]
-struct CTypeSequenceType {
+struct CTypeSequenceInfo {
   c_type: CType,
   sequence_type: SequenceType,
 }

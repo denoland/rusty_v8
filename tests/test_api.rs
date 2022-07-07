@@ -7019,28 +7019,22 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32, data: *const u32, len: u32) -> u32 {
+  fn fast_fn(a: u32, b: u32) -> u32 {
     unsafe { WHO = "fast" };
-    assert_eq!(len, 1);
-    let array = unsafe { std::slice::from_raw_parts(data, len as usize) };
-    a + b + array[0]
+    a + b
   }
 
   pub struct FastTest;
   impl fast_api::FastFunction for FastTest {
     fn args(&self) -> &'static [fast_api::Type] {
-      &[
-        fast_api::Type::Uint32,
-        fast_api::Type::Uint32,
-        fast_api::Type::ArrayBuffer(fast_api::CType::Uint32)
-      ]
+      &[fast_api::Type::Uint32, fast_api::Type::Uint32]
     }
 
     fn return_type(&self) -> fast_api::CType {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(a: u32, b: u32, data: *const u32, len: u32) -> u32;
+    type Signature = fn(a: u32, b: u32) -> u32;
     fn function(&self) -> Self::Signature {
       fast_fn
     }
@@ -7070,17 +7064,16 @@ fn test_fast_calls() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y, data) { return func(x, y, data); }
+  function f(x, y) { return func(x, y); }
   %PrepareFunctionForOptimization(f);
-  const arr = new Uint32Array([3]);
-  f(1, 2, arr.buffer);
+  f(1, 2);
 "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
-    f(1, 2, arr);
+    f(1, 2);
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });

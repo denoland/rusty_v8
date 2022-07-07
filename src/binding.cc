@@ -1765,13 +1765,6 @@ v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
   return u.release();
 }
 
-v8::CTypeInfo* v8__CTypeInfo__New__Sequence(v8::CTypeInfo::Type ty,
-                                            v8::CTypeInfo::SequenceType sequence_type) {
-  std::unique_ptr<v8::CTypeInfo> u = std::make_unique<v8::CTypeInfo>(
-    v8::CTypeInfo(ty, sequence_type));
-  return u.release();
-}
-
 struct CTypeSequenceType {
   v8::CTypeInfo::Type c_type;
   v8::CTypeInfo::SequenceType sequence_type;
