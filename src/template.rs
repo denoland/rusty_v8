@@ -172,7 +172,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.callback,
           self.data.map_or_else(null, |p| &*p),
           self.signature.map_or_else(null, |p| &*p),
-          1,
+          self.length,
           ConstructorBehavior::Throw,
           self.side_effect_type,
           c_fn.as_ptr() as _,
