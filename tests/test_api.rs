@@ -37,7 +37,7 @@ fn setup() -> SetupGuard {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
+      "--expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --turbofan --no-always-turbofan",
     );
     v8::V8::initialize_platform(
       v8::new_default_platform(0, false).make_shared(),
@@ -7082,11 +7082,13 @@ fn test_fast_calls() {
 #[test]
 fn test_fast_calls_sequence() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32, data: *const u32, len: u32) -> u32 {
+  static mut SLOW_CALL_COUNT: usize = 0;
+  static mut FAST_CALL_COUNT: usize = 0;
+  fn fast_fn(a: u32, b: u32, array: v8::Local<v8::Array>) -> u32 {
     unsafe { WHO = "fast" };
-    assert_eq!(len, 1);
-    let array = unsafe { std::slice::from_raw_parts(data, len as usize) };
-    a + b + array[0]
+    unsafe { FAST_CALL_COUNT += 1};
+    assert_eq!(array.length(), 2);
+    a + b
   }
 
   pub struct FastTest;
@@ -7095,7 +7097,7 @@ fn test_fast_calls_sequence() {
       &[
         fast_api::Type::Uint32,
         fast_api::Type::Uint32,
-        fast_api::Type::TypedArray(fast_api::CType::Uint32),
+        fast_api::Type::Sequence(fast_api::CType::Void),
       ]
     }
 
@@ -7103,7 +7105,7 @@ fn test_fast_calls_sequence() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(a: u32, b: u32, data: *const u32, len: u32) -> u32;
+    type Signature = fn(a: u32, b: u32, array: v8::Local<v8::Array>) -> u32;
     fn function(&self) -> Self::Signature {
       fast_fn
     }
@@ -7115,6 +7117,7 @@ fn test_fast_calls_sequence() {
     mut rv: v8::ReturnValue,
   ) {
     unsafe { WHO = "slow" };
+    unsafe { SLOW_CALL_COUNT += 1};
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
@@ -7135,7 +7138,7 @@ fn test_fast_calls_sequence() {
   let source = r#"
   function f(x, y, data) { return func(x, y, data); }
   %PrepareFunctionForOptimization(f);
-  const arr = new Uint32Array([3]);
+  const arr = [3, 4];
   f(1, 2, arr);
 "#;
   eval(scope, source).unwrap();
@@ -7146,5 +7149,8 @@ fn test_fast_calls_sequence() {
     f(1, 2, arr);
   "#;
   eval(scope, source).unwrap();
+  unsafe {
+    eprintln!("slow count {} fast count {}", SLOW_CALL_COUNT, FAST_CALL_COUNT);
+  };
   assert_eq!("fast", unsafe { WHO });
 }
