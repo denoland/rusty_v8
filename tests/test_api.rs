@@ -7095,7 +7095,7 @@ fn test_fast_calls_sequence() {
       &[
         fast_api::Type::Uint32,
         fast_api::Type::Uint32,
-        fast_api::Type::ArrayBuffer(fast_api::CType::Uint32),
+        fast_api::Type::TypedArray(fast_api::CType::Uint32),
       ]
     }
 
