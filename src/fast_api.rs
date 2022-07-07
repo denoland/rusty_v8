@@ -9,13 +9,20 @@ extern "C" {
     len: usize,
     tys: *const CTypeSequenceInfo,
   ) -> *mut CTypeInfo;
-  fn v8__CFunction__New(
-    func_ptr: *const c_void,
+  fn v8__CFunctionInfo__New(
     return_info: *const CTypeInfo,
     args_len: usize,
     args_info: *const CTypeInfo,
+  ) -> *mut CFunctionInfo;
+  fn v8__CFunction__New(
+    func_ptr: *const c_void,
+    info: *const CFunctionInfo,
   ) -> *mut CFunction;
 }
+
+#[repr(C)]
+#[derive(Default)]
+pub struct CFunctionInfo(Opaque);
 
 #[repr(C)]
 #[derive(Default)]
@@ -28,12 +35,8 @@ impl CFunction {
     args_len: usize,
     return_type: *const CTypeInfo,
   ) -> NonNull<CFunction> {
-    NonNull::new_unchecked(v8__CFunction__New(
-      func_ptr,
-      return_type,
-      args_len,
-      args,
-    ))
+    let info = v8__CFunctionInfo__New(return_type, args_len, args);
+    NonNull::new_unchecked(v8__CFunction__New(func_ptr, info))
   }
 }
 

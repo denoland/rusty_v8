@@ -1779,14 +1779,16 @@ v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
   return v;
 }
 
-v8::CFunction* v8__CFunction__New(void* func_ptr, const v8::CTypeInfo& return_info,
+v8::CFunction* v8__CFunction__New(void* func_ptr, const v8::CFunctionInfo* info) {
+  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, info));
+  return c_function.release();
+}
+
+v8::CFunctionInfo* v8__CFunctionInfo__New(const v8::CTypeInfo& return_info,
                                    unsigned int args_len,
                                    v8::CTypeInfo* args_info) {
-  auto c_function_info = v8::CFunctionInfo(return_info, args_len, args_info);
-  std::unique_ptr<v8::CFunctionInfo> c_function_info_leak = std::make_unique<v8::CFunctionInfo>(c_function_info);
-  auto a = c_function_info_leak.release();
-  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, a));
-  return c_function.release();
+  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(v8::CFunctionInfo(return_info, args_len, args_info));
+  return info.release();
 }
 
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
