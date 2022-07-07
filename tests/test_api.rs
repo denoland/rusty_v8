@@ -14,6 +14,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
+use v8::fast_api;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -36,7 +37,7 @@ fn setup() -> SetupGuard {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--expose_gc --harmony-import-assertions --harmony-shadow-realm",
+      "--expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
       v8::new_default_platform(0, false).make_shared(),
@@ -7013,4 +7014,67 @@ fn host_create_shadow_realm_context_callback() {
     eval(scope, "new ShadowRealm().evaluate(`globalThis.test`)").unwrap();
   assert_eq!(value.uint32_value(scope), Some(42));
   assert!(scope.get_slot::<CheckData>().unwrap().callback_called);
+}
+
+#[test]
+fn test_fast_calls() {
+  static mut WHO: &str = "none";
+  fn fast_fn(a: u32, b: u32) -> u32 {
+    unsafe { WHO = "fast" };
+    a + b
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::Uint32, fast_api::Type::Uint32]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(a: u32, b: u32) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(x, y) { return func(x, y); }
+  %PrepareFunctionForOptimization(f);
+  f(1, 2);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(1, 2);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
 }

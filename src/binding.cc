@@ -1760,6 +1760,37 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
+v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
+  std::unique_ptr<v8::CTypeInfo> u = std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
+  return u.release();
+}
+
+struct CTypeSequenceType {
+  v8::CTypeInfo::Type c_type;
+  v8::CTypeInfo::SequenceType sequence_type;
+};
+
+v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len, 
+  CTypeSequenceType* ty) {
+  v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
+  for (size_t i = 0; i < len; i += 1) {
+    v[i] = v8::CTypeInfo(ty[i].c_type, ty[i].sequence_type);
+  }
+  return v;
+}
+
+v8::CFunction* v8__CFunction__New(void* func_ptr, const v8::CFunctionInfo* info) {
+  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, info));
+  return c_function.release();
+}
+
+v8::CFunctionInfo* v8__CFunctionInfo__New(const v8::CTypeInfo& return_info,
+                                   unsigned int args_len,
+                                   v8::CTypeInfo* args_info) {
+  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(v8::CFunctionInfo(return_info, args_len, args_info));
+  return info.release();
+}
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,

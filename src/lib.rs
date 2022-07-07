@@ -38,6 +38,7 @@ mod date;
 mod exception;
 mod external;
 mod external_references;
+pub mod fast_api;
 mod fixed_array;
 mod function;
 mod handle;
