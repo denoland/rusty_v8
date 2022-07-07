@@ -37,7 +37,7 @@ fn setup() -> SetupGuard {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --turbofan --no-always-turbofan",
+      "--expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
       v8::new_default_platform(0, false).make_shared(),
