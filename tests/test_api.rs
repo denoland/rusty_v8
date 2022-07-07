@@ -7084,17 +7084,18 @@ fn test_fast_calls_sequence() {
   static mut WHO: &str = "none";
   static mut SLOW_CALL_COUNT: usize = 0;
   static mut FAST_CALL_COUNT: usize = 0;
-  fn fast_fn(a: u32, b: u32, array: v8::Local<v8::Array>) -> u32 {
+  fn fast_fn(receiver: v8::Local<v8::Object>, a: u32, b: u32, array: v8::Local<v8::Array>) -> u32 {
     unsafe { WHO = "fast" };
     unsafe { FAST_CALL_COUNT += 1};
     assert_eq!(array.length(), 2);
-    a + b
+    a + b + array.length()
   }
 
   pub struct FastTest;
   impl fast_api::FastFunction for FastTest {
     fn args(&self) -> &'static [fast_api::Type] {
       &[
+        fast_api::Type::V8Value,
         fast_api::Type::Uint32,
         fast_api::Type::Uint32,
         fast_api::Type::Sequence(fast_api::CType::Void),
@@ -7105,7 +7106,7 @@ fn test_fast_calls_sequence() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(a: u32, b: u32, array: v8::Local<v8::Array>) -> u32;
+    type Signature = fn(receiver: v8::Local<v8::Object>, a: u32, b: u32, array: v8::Local<v8::Array>) -> u32;
     fn function(&self) -> Self::Signature {
       fast_fn
     }
