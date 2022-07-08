@@ -1532,15 +1532,14 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct HandleScope([usize; 3]);
+  pub(super) struct HandleScope([MaybeUninit<usize>; 3]);
 
   impl HandleScope {
+    /// Creates an uninitialized `HandleScope`.
+    ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 3]`.
-      #[allow(clippy::uninit_assumed_init)]
       Self(MaybeUninit::uninit().assume_init())
     }
 
@@ -1591,15 +1590,14 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct TryCatch([usize; 6]);
+  pub(super) struct TryCatch([MaybeUninit<usize>; 6]);
 
   impl TryCatch {
+    /// Creates an uninitialized `TryCatch`.
+    ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 6]`.
-      #[allow(clippy::uninit_assumed_init)]
       Self(MaybeUninit::uninit().assume_init())
     }
 

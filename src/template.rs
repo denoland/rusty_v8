@@ -54,6 +54,9 @@ extern "C" {
   fn v8__FunctionTemplate__PrototypeTemplate(
     this: *const FunctionTemplate,
   ) -> *const ObjectTemplate;
+  fn v8__FunctionTemplate__InstanceTemplate(
+    this: *const FunctionTemplate,
+  ) -> *const ObjectTemplate;
   fn v8__FunctionTemplate__SetClassName(
     this: *const FunctionTemplate,
     name: *const String,
@@ -97,6 +100,7 @@ extern "C" {
     setter: *const FunctionTemplate,
     attr: PropertyAttribute,
   );
+  fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 }
 
 impl Template {
@@ -226,6 +230,18 @@ impl FunctionTemplate {
     .unwrap()
   }
 
+  /// Returns the object template that is used for instances created when this function
+  /// template is called as a constructor.
+  pub fn instance_template<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, ObjectTemplate> {
+    unsafe {
+      scope.cast_local(|_sd| v8__FunctionTemplate__InstanceTemplate(self))
+    }
+    .unwrap()
+  }
+
   /// Causes the function template to inherit from a parent function template.
   /// This means the function's prototype.__proto__ is set to the parent function's prototype.
   pub fn inherit(&self, parent: Local<FunctionTemplate>) {
@@ -346,5 +362,11 @@ impl ObjectTemplate {
         self, &*key, &*getter, &*setter, attr,
       )
     }
+  }
+
+  /// Makes the ObjectTemplate for an immutable prototype exotic object,
+  /// with an immutable proto.
+  pub fn set_immutable_proto(&self) {
+    unsafe { v8__ObjectTemplate__SetImmutableProto(self) };
   }
 }

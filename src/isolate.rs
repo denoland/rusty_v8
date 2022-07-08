@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
@@ -128,6 +129,19 @@ pub type HostImportModuleDynamicallyCallback = extern "C" fn(
   Local<FixedArray>,
 ) -> *mut Promise;
 
+/// `HostCreateShadowRealmContextCallback` is called each time a `ShadowRealm`
+/// is being constructed. You can use [`HandleScope::get_current_context`] to
+/// get the [`Context`] in which the constructor is being run.
+///
+/// The method combines [`Context`] creation and the implementation-defined
+/// abstract operation `HostInitializeShadowRealm` into one.
+///
+/// The embedder should use [`Context::new`] to create a new context. If the
+/// creation fails, the embedder must propagate that exception by returning
+/// [`None`].
+pub type HostCreateShadowRealmContextCallback =
+  for<'s> fn(scope: &mut HandleScope<'s>) -> Option<Local<'s, Context>>;
+
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
@@ -137,8 +151,14 @@ pub type NearHeapLimitCallback = extern "C" fn(
   initial_heap_limit: usize,
 ) -> usize;
 
+#[repr(C)]
+pub struct OomDetails {
+  pub is_heap_oom: bool,
+  pub detail: *const c_char,
+}
+
 pub type OomErrorCallback =
-  extern "C" fn(location: *const c_char, is_heap_oom: bool);
+  extern "C" fn(location: *const c_char, details: &OomDetails);
 
 /// Collection of V8 heap information.
 ///
@@ -220,6 +240,19 @@ extern "C" {
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
     callback: HostImportModuleDynamicallyCallback,
+  );
+  #[cfg(not(target_os = "windows"))]
+  fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(initiator_context: Local<Context>) -> *mut Context,
+  );
+  #[cfg(target_os = "windows")]
+  fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(
+      rv: *mut *mut Context,
+      initiator_context: Local<Context>,
+    ) -> *mut *mut Context,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -372,6 +405,14 @@ impl Isolate {
     unsafe {
       &mut *(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *mut IsolateAnnex)
     }
+  }
+
+  pub(crate) fn get_finalizer_map(&self) -> &FinalizerMap {
+    &self.get_annex().finalizer_map
+  }
+
+  pub(crate) fn get_finalizer_map_mut(&mut self) -> &mut FinalizerMap {
+    &mut self.get_annex_mut().finalizer_map
   }
 
   fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
@@ -600,6 +641,56 @@ impl Isolate {
     }
   }
 
+  /// This specifies the callback called by the upcoming `ShadowRealm`
+  /// construction language feature to retrieve host created globals.
+  pub fn set_host_create_shadow_realm_context_callback(
+    &mut self,
+    callback: HostCreateShadowRealmContextCallback,
+  ) {
+    #[inline]
+    extern "C" fn rust_shadow_realm_callback(
+      initiator_context: Local<Context>,
+    ) -> *mut Context {
+      let mut scope = unsafe { CallbackScope::new(initiator_context) };
+      let callback = scope
+        .get_slot::<HostCreateShadowRealmContextCallback>()
+        .unwrap();
+      let context = callback(&mut scope);
+      context
+        .map(|l| l.as_non_null().as_ptr())
+        .unwrap_or_else(null_mut)
+    }
+
+    // Windows x64 ABI: MaybeLocal<Context> must be returned on the stack.
+    #[cfg(target_os = "windows")]
+    extern "C" fn rust_shadow_realm_callback_windows(
+      rv: *mut *mut Context,
+      initiator_context: Local<Context>,
+    ) -> *mut *mut Context {
+      let ret = rust_shadow_realm_callback(initiator_context);
+      unsafe {
+        rv.write(ret);
+      }
+      rv
+    }
+
+    let slot_didnt_exist_before = self.set_slot(callback);
+    if slot_didnt_exist_before {
+      unsafe {
+        #[cfg(target_os = "windows")]
+        v8__Isolate__SetHostCreateShadowRealmContextCallback(
+          self,
+          rust_shadow_realm_callback_windows,
+        );
+        #[cfg(not(target_os = "windows"))]
+        v8__Isolate__SetHostCreateShadowRealmContextCallback(
+          self,
+          rust_shadow_realm_callback,
+        );
+      }
+    }
+  }
+
   /// Add a callback to invoke in case the heap size is close to the heap limit.
   /// If multiple callbacks are added, only the most recently added callback is
   /// invoked.
@@ -709,6 +800,15 @@ impl Isolate {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
+    // If there are finalizers left to call, we trigger GC to try and call as
+    // many of them as possible.
+    if !self.get_annex().finalizer_map.is_empty() {
+      // A low memory notification triggers a synchronous GC, which means
+      // finalizers will be called during the course of the call, rather than at
+      // some later point.
+      self.low_memory_notification();
+    }
+
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.
@@ -763,6 +863,7 @@ impl Isolate {
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
+  finalizer_map: FinalizerMap,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -782,6 +883,7 @@ impl IsolateAnnex {
     Self {
       create_param_allocations,
       slots: HashMap::default(),
+      finalizer_map: FinalizerMap::default(),
       isolate,
       isolate_mutex: Mutex::new(()),
     }
@@ -1088,7 +1190,7 @@ const _: () = {
   assert!(align_of::<TypeId>() == size_of::<u64>());
 };
 
-struct RawSlot {
+pub(crate) struct RawSlot {
   data: RawSlotData,
   dtor: Option<RawSlotDtor>,
 }

@@ -3,6 +3,7 @@ use std::{ffi::CStr, os::raw::c_char};
 extern "C" {
   fn udata_setCommonData_70(this: *const u8, error_code: *mut i32);
   fn GetDefaultLocale() -> *const c_char;
+  fn udata_setCommonData_71(this: *const u8, error_code: *mut i32);
 }
 
 /// This function bypasses the normal ICU data loading process and allows you to force ICU's system
@@ -38,10 +39,10 @@ extern "C" {
 /// This function has no effect on application (non ICU) data. See udata_setAppData() for similar
 /// functionality for application data.
 // TODO(ry) Map error code to something useful.
-pub fn set_common_data_70(data: &'static [u8]) -> Result<(), i32> {
+pub fn set_common_data_71(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
-    udata_setCommonData_70(data.as_ptr(), &mut error_code);
+    udata_setCommonData_71(data.as_ptr(), &mut error_code);
   }
   if error_code == 0 {
     Ok(())

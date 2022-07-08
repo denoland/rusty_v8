@@ -5,6 +5,7 @@
 
 #include "support.h"
 #include "unicode/locid.h"
+#include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
@@ -264,6 +265,11 @@ void v8__Isolate__SetHostImportModuleDynamicallyCallback(
       HostImportModuleDynamicallyCallback);
 }
 
+void v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    v8::Isolate* isolate, v8::HostCreateShadowRealmContextCallback callback) {
+  isolate->SetHostCreateShadowRealmContextCallback(callback);
+}
+
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
                                      v8::MessageCallback callback) {
   return isolate->AddMessageListener(callback);
@@ -355,9 +361,33 @@ const v8::Data* v8__Global__New(v8::Isolate* isolate, const v8::Data& other) {
   return make_pod<v8::Data*>(std::move(global));
 }
 
+const v8::Data* v8__Global__NewWeak(
+    v8::Isolate* isolate, const v8::Data& other, void* parameter,
+    v8::WeakCallbackInfo<void>::Callback callback) {
+  auto global = v8::Global<v8::Data>(isolate, ptr_to_local(&other));
+  global.SetWeak(parameter, callback, v8::WeakCallbackType::kParameter);
+  return make_pod<v8::Data*>(std::move(global));
+}
+
 void v8__Global__Reset(const v8::Data* data) {
   auto global = ptr_to_global(data);
   global.Reset();
+}
+
+v8::Isolate* v8__WeakCallbackInfo__GetIsolate(
+    const v8::WeakCallbackInfo<void>* self) {
+  return self->GetIsolate();
+}
+
+void* v8__WeakCallbackInfo__GetParameter(
+    const v8::WeakCallbackInfo<void>* self) {
+  return self->GetParameter();
+}
+
+void v8__WeakCallbackInfo__SetSecondPassCallback(
+    const v8::WeakCallbackInfo<void>* self,
+    v8::WeakCallbackInfo<void>::Callback callback) {
+  self->SetSecondPassCallback(callback);
 }
 
 void v8__ScriptCompiler__Source__CONSTRUCT(
@@ -804,7 +834,7 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_byte_length(
 }
 
 v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
-    void* data, size_t byte_length, v8::BackingStoreDeleterCallback deleter,
+    void* data, size_t byte_length, v8::BackingStore::DeleterCallback deleter,
     void* deleter_data) {
   std::unique_ptr<v8::BackingStore> u = v8::ArrayBuffer::NewBackingStore(
       data, byte_length, deleter, deleter_data);
@@ -1097,6 +1127,10 @@ void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
                                              v8::PropertyAttribute attr) {
   ptr_to_local(&self)->SetAccessorProperty(
       ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
+}
+
+void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
+  return ptr_to_local(&self)->SetImmutableProto();
 }
 
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
@@ -1555,10 +1589,37 @@ const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
 
+uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
+  return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
+}
+
+void* v8__Context__GetAlignedPointerFromEmbedderData(const v8::Context& self,
+                                                     int index) {
+  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index);
+}
+
+void v8__Context__SetAlignedPointerInEmbedderData(v8::Context& self, int index,
+                                                  void* value) {
+  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value);
+}
+
 const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
                                                      size_t index) {
   return maybe_local_to_ptr(
       ptr_to_local(&self)->GetDataFromSnapshotOnce<v8::Data>(index));
+}
+
+const v8::Object* v8__Context__GetExtrasBindingObject(v8::Context& self) {
+  return local_to_ptr(ptr_to_local(&self)->GetExtrasBindingObject());
+}
+
+void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,
+                                  v8::Function& before_hook,
+                                  v8::Function& after_hook,
+                                  v8::Function& resolve_hook) {
+  ptr_to_local(&self)->SetPromiseHooks(
+      ptr_to_local(&init_hook), ptr_to_local(&before_hook),
+      ptr_to_local(&after_hook), ptr_to_local(&resolve_hook));
 }
 
 const v8::String* v8__Message__Get(const v8::Message& self) {
@@ -1741,6 +1802,11 @@ const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
   return local_to_ptr(ptr_to_local(&self)->PrototypeTemplate());
 }
 
+const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
+    const v8::FunctionTemplate& self) {
+  return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
+}
+
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.GetIsolate();
@@ -1779,6 +1845,35 @@ const v8::Value* v8__FunctionCallbackInfo__NewTarget(
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
                           const v8::Value& value) {
   self->Set(ptr_to_local(&value));
+}
+
+void v8__ReturnValue__Set__Bool(v8::ReturnValue<v8::Value>* self, bool i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__Set__Int32(v8::ReturnValue<v8::Value>* self, int32_t i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__Set__Uint32(v8::ReturnValue<v8::Value>* self,
+                                  uint32_t i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__Set__Double(v8::ReturnValue<v8::Value>* self, double i) {
+  self->Set(i);
+}
+
+void v8__ReturnValue__SetNull(v8::ReturnValue<v8::Value>* self) {
+  self->SetNull();
+}
+
+void v8__ReturnValue__SetUndefined(v8::ReturnValue<v8::Value>* self) {
+  self->SetUndefined();
+}
+
+void v8__ReturnValue__SetEmptyString(v8::ReturnValue<v8::Value>* self) {
+  self->SetEmptyString();
 }
 
 const v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
@@ -2001,7 +2096,7 @@ v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
 }
 
 v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(
-    void* data, size_t byte_length, v8::BackingStoreDeleterCallback deleter,
+    void* data, size_t byte_length, v8::BackingStore::DeleterCallback deleter,
     void* deleter_data) {
   std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(
       data, byte_length, deleter, deleter_data);
@@ -2263,10 +2358,10 @@ v8_inspector::V8Inspector* v8_inspector__V8Inspector__create(
 
 v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
     v8_inspector::V8Inspector* self, int context_group_id,
-    v8_inspector::V8Inspector::Channel* channel,
-    v8_inspector::StringView state) {
+    v8_inspector::V8Inspector::Channel* channel, v8_inspector::StringView state,
+    v8_inspector::V8Inspector::ClientTrustLevel client_trust_level) {
   std::unique_ptr<v8_inspector::V8InspectorSession> u =
-      self->connect(context_group_id, channel, state);
+      self->connect(context_group_id, channel, state, client_trust_level);
   return u.release();
 }
 
@@ -2927,6 +3022,12 @@ v8::CompiledWasmModule* v8__WasmModuleObject__GetCompiledModule(
   return new v8::CompiledWasmModule(std::move(cwm));
 }
 
+const v8::WasmModuleObject* v8__WasmModuleObject__Compile(
+    v8::Isolate* isolate, uint8_t* wire_bytes_data, size_t length) {
+  v8::MemorySpan<const uint8_t> wire_bytes(wire_bytes_data, length);
+  return maybe_local_to_ptr(v8::WasmModuleObject::Compile(isolate, wire_bytes));
+}
+
 const uint8_t* v8__CompiledWasmModule__GetWireBytesRef(
     v8::CompiledWasmModule* self, size_t* length) {
   v8::MemorySpan<const uint8_t> span = self->GetWireBytesRef();
@@ -2953,7 +3054,7 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 extern "C" {
 
 const char* GetDefaultLocale() {
-  const icu_70::Locale& default_locale = icu::Locale::getDefault();
+  const icu_71::Locale& default_locale = icu::Locale::getDefault();
   return default_locale.getName();
 }
 

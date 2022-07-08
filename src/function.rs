@@ -78,6 +78,14 @@ extern "C" {
   ) -> *const Object;
 
   fn v8__ReturnValue__Set(this: *mut ReturnValue, value: *const Value);
+  fn v8__ReturnValue__Set__Bool(this: *mut ReturnValue, value: bool);
+  fn v8__ReturnValue__Set__Int32(this: *mut ReturnValue, value: i32);
+  fn v8__ReturnValue__Set__Uint32(this: *mut ReturnValue, value: u32);
+  fn v8__ReturnValue__Set__Double(this: *mut ReturnValue, value: f64);
+  fn v8__ReturnValue__SetNull(this: *mut ReturnValue);
+  fn v8__ReturnValue__SetUndefined(this: *mut ReturnValue);
+  fn v8__ReturnValue__SetEmptyString(this: *mut ReturnValue);
+
   fn v8__ReturnValue__Get(this: *const ReturnValue) -> *const Value;
 }
 
@@ -125,8 +133,10 @@ pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
 /// and for our purposes we currently don't need
 /// other types. So for now it's a simplified version.
 impl<'cb> ReturnValue<'cb> {
-  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
-    let slot = unsafe { v8__FunctionCallbackInfo__GetReturnValue(info) };
+  pub unsafe fn from_function_callback_info(
+    info: *const FunctionCallbackInfo,
+  ) -> Self {
+    let slot = v8__FunctionCallbackInfo__GetReturnValue(info);
     Self(slot, PhantomData)
   }
 
@@ -135,10 +145,36 @@ impl<'cb> ReturnValue<'cb> {
     Self(slot, PhantomData)
   }
 
-  // NOTE: simplest setter, possibly we'll need to add
-  // more setters specialized per type
   pub fn set(&mut self, value: Local<Value>) {
     unsafe { v8__ReturnValue__Set(&mut *self, &*value) }
+  }
+
+  pub fn set_bool(&mut self, value: bool) {
+    unsafe { v8__ReturnValue__Set__Bool(&mut *self, value) }
+  }
+
+  pub fn set_int32(&mut self, value: i32) {
+    unsafe { v8__ReturnValue__Set__Int32(&mut *self, value) }
+  }
+
+  pub fn set_uint32(&mut self, value: u32) {
+    unsafe { v8__ReturnValue__Set__Uint32(&mut *self, value) }
+  }
+
+  pub fn set_double(&mut self, value: f64) {
+    unsafe { v8__ReturnValue__Set__Double(&mut *self, value) }
+  }
+
+  pub fn set_null(&mut self) {
+    unsafe { v8__ReturnValue__SetNull(&mut *self) }
+  }
+
+  pub fn set_undefined(&mut self) {
+    unsafe { v8__ReturnValue__SetUndefined(&mut *self) }
+  }
+
+  pub fn set_empty_string(&mut self) {
+    unsafe { v8__ReturnValue__SetEmptyString(&mut *self) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
@@ -180,7 +216,7 @@ pub struct FunctionCallbackArguments<'s> {
 }
 
 impl<'s> FunctionCallbackArguments<'s> {
-  pub(crate) fn from_function_callback_info(
+  pub unsafe fn from_function_callback_info(
     info: *const FunctionCallbackInfo,
   ) -> Self {
     Self {
@@ -299,8 +335,9 @@ where
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
       let scope = &mut unsafe { CallbackScope::new(&*info) };
-      let args = FunctionCallbackArguments::from_function_callback_info(info);
-      let rv = ReturnValue::from_function_callback_info(info);
+      let args =
+        unsafe { FunctionCallbackArguments::from_function_callback_info(info) };
+      let rv = unsafe { ReturnValue::from_function_callback_info(info) };
       (F::get())(scope, args, rv);
     };
     f.to_c_fn()

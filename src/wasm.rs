@@ -103,6 +103,22 @@ impl WasmModuleObject {
     let ptr = unsafe { v8__WasmModuleObject__GetCompiledModule(self) };
     CompiledWasmModule(ptr)
   }
+
+  /// Compile a Wasm module from the provided uncompiled bytes.
+  pub fn compile<'s>(
+    scope: &mut HandleScope<'s>,
+    wire_bytes: &[u8],
+  ) -> Option<Local<'s, WasmModuleObject>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__WasmModuleObject__Compile(
+          sd.get_isolate_ptr(),
+          wire_bytes.as_ptr(),
+          wire_bytes.len(),
+        )
+      })
+    }
+  }
 }
 
 // Type-erased v8::CompiledWasmModule. We need this because the C++
@@ -157,7 +173,8 @@ where
     F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
   {
     let scope = &mut unsafe { CallbackScope::new(&*info) };
-    let args = FunctionCallbackArguments::from_function_callback_info(info);
+    let args =
+      unsafe { FunctionCallbackArguments::from_function_callback_info(info) };
     let data = args.data().unwrap(); // Always present.
     let data = &*data as *const Value;
     let zero = null_mut();
@@ -201,6 +218,11 @@ extern "C" {
   fn v8__WasmModuleObject__GetCompiledModule(
     this: *const WasmModuleObject,
   ) -> *mut InternalCompiledWasmModule;
+  fn v8__WasmModuleObject__Compile(
+    isolate: *mut Isolate,
+    wire_bytes_data: *const u8,
+    length: usize,
+  ) -> *mut WasmModuleObject;
 
   fn v8__CompiledWasmModule__GetWireBytesRef(
     this: *mut InternalCompiledWasmModule,
