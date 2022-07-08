@@ -1,7 +1,6 @@
 use std::{ffi::CStr, os::raw::c_char};
 
 extern "C" {
-  fn udata_setCommonData_70(this: *const u8, error_code: *mut i32);
   fn GetDefaultLocale() -> *const c_char;
   fn udata_setCommonData_71(this: *const u8, error_code: *mut i32);
 }
