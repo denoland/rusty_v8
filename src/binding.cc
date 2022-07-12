@@ -246,6 +246,11 @@ void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
   isolate->SetPromiseRejectCallback(callback);
 }
 
+void v8__Isolate__SetWasmAsyncResolvePromiseCallback(
+  v8::Isolate* isolate, v8::WasmAsyncResolvePromiseCallback callback) {
+  isolate->SetWasmAsyncResolvePromiseCallback(callback);
+}
+
 void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     v8::Isolate* isolate, bool capture, int frame_limit) {
   isolate->SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
