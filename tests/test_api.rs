@@ -71,9 +71,13 @@ fn handle_scope_numbers() {
     {
       let scope2 = &mut v8::HandleScope::new(scope1);
       let l3 = v8::Number::new(scope2, 78.9);
+      let l4 = v8::Local::<v8::Int32>::try_from(l1).unwrap();
+      let l5 = v8::Local::<v8::Uint32>::try_from(l2).unwrap();
       assert_eq!(l1.value(), -123);
       assert_eq!(l2.value(), 456);
       assert_eq!(l3.value(), 78.9);
+      assert_eq!(l4.value(), -123);
+      assert_eq!(l5.value(), 456);
       assert_eq!(v8::Number::value(&l1), -123f64);
       assert_eq!(v8::Number::value(&l2), 456f64);
     }

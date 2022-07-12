@@ -1418,6 +1418,10 @@ const v8::Integer* v8__Integer__NewFromUnsigned(v8::Isolate* isolate,
 
 int64_t v8__Integer__Value(const v8::Integer& self) { return self.Value(); }
 
+uint32_t v8__Uint32__Value(const v8::Uint32& self) { return self.Value(); }
+
+int32_t v8__Int32__Value(const v8::Int32& self) { return self.Value(); }
+
 const v8::BigInt* v8__BigInt__New(v8::Isolate* isolate, int64_t value) {
   return local_to_ptr(v8::BigInt::New(isolate, value));
 }
