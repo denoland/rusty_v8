@@ -5699,10 +5699,9 @@ fn wasm_streaming_callback() {
 
   ws.finish();
   assert!(!scope.has_pending_background_tasks());
-  assert!(global.get(scope, name).unwrap().is_null());
 
-  scope.perform_microtask_checkpoint();
-
+  // We did not set wasm resolve callback so V8 uses the default one that
+  // runs microtasks automatically.
   let result = global.get(scope, name).unwrap();
   assert!(result.is_wasm_module_object());
 
@@ -5724,9 +5723,8 @@ fn wasm_streaming_callback() {
 
   let exception = v8::Object::new(scope).into(); // Can be anything.
   ws.abort(Some(exception));
-  assert!(global.get(scope, name).unwrap().is_null());
-
-  scope.perform_microtask_checkpoint();
+  // We did not set wasm resolve callback so V8 uses the default one that
+  // runs microtasks automatically.
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
 }
 
