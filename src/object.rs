@@ -1,3 +1,5 @@
+use libc::c_void;
+
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
@@ -120,6 +122,15 @@ extern "C" {
     this: *const Object,
     index: int,
   ) -> *const Value;
+  fn v8__Object__GetAlignedPointerFromInternalField(
+    this: *const Object,
+    index: int,
+  ) -> *const c_void;
+  fn v8__Object__SetAlignedPointerInInternalField(
+    this: *const Object,
+    index: int,
+    value: *const c_void,
+  );
   fn v8__Object__SetIntegrityLevel(
     this: *const Object,
     context: *const Context,
@@ -510,6 +521,27 @@ impl Object {
       }
     }
     None
+  }
+
+  /// Gets a 2-byte-aligned native pointer from an internal field.
+  ///
+  /// # Safety
+  /// This field must have been set by SetAlignedPointerInInternalField, everything else leads to undefined behavior.
+  pub unsafe fn get_aligned_pointer_from_internal_field(
+    &self,
+    index: i32,
+  ) -> *const c_void {
+    v8__Object__GetAlignedPointerFromInternalField(self, index)
+  }
+
+  /// Sets a 2-byte-aligned native pointer in an internal field.
+  /// To retrieve such a field, GetAlignedPointerFromInternalField must be used.
+  pub fn set_aligned_pointer_in_internal_field(
+    &self,
+    index: i32,
+    value: *const c_void,
+  ) {
+    unsafe { v8__Object__SetAlignedPointerInInternalField(self, index, value) }
   }
 
   /// Sets the integrity level of the object.

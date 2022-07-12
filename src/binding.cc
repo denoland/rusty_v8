@@ -1160,6 +1160,16 @@ const v8::Value* v8__Object__GetIndex(const v8::Object& self,
       ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
+void* v8__Object__GetAlignedPointerFromInternalField(const v8::Object& self,
+                                                      int index) {
+  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index);
+}
+
+void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
+                                                   int index, void* value) {
+  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
+}
+
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototype());
 }
