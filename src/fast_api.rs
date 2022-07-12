@@ -102,6 +102,9 @@ pub enum Type {
   Float32,
   Float64,
   V8Value,
+  Sequence(CType),
+  TypedArray(CType),
+  ArrayBuffer(CType),
 }
 
 impl From<&Type> for CType {
@@ -116,6 +119,20 @@ impl From<&Type> for CType {
       Type::Float32 => CType::Float32,
       Type::Float64 => CType::Float64,
       Type::V8Value => CType::V8Value,
+      Type::Sequence(ty) => *ty,
+      Type::TypedArray(ty) => *ty,
+      Type::ArrayBuffer(ty) => *ty,
+    }
+  }
+}
+
+impl From<&Type> for SequenceType {
+  fn from(ty: &Type) -> SequenceType {
+    match ty {
+      Type::Sequence(_) => SequenceType::IsSequence,
+      Type::TypedArray(_) => SequenceType::IsTypedArray,
+      Type::ArrayBuffer(_) => SequenceType::IsArrayBuffer,
+      _ => SequenceType::Scalar,
     }
   }
 }
@@ -124,7 +141,7 @@ impl From<&Type> for CTypeSequenceInfo {
   fn from(ty: &Type) -> CTypeSequenceInfo {
     CTypeSequenceInfo {
       c_type: ty.into(),
-      sequence_type: SequenceType::Scalar,
+      sequence_type: ty.into(),
     }
   }
 }

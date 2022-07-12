@@ -7078,3 +7078,170 @@ fn test_fast_calls() {
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
 }
+
+#[test]
+fn test_fast_calls_sequence() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    a: u32,
+    b: u32,
+    array: v8::Local<v8::Array>,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    assert_eq!(array.length(), 2);
+    a + b + array.length()
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::Uint32,
+        fast_api::Type::Uint32,
+        fast_api::Type::Sequence(fast_api::CType::Void),
+      ]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(
+      receiver: v8::Local<v8::Object>,
+      a: u32,
+      b: u32,
+      array: v8::Local<v8::Array>,
+    ) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(x, y, data) { return func(x, y, data); }
+  %PrepareFunctionForOptimization(f);
+  const arr = [3, 4];
+  f(1, 2, arr);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(1, 2, arr);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
+
+#[repr(C)]
+pub struct FastApiArrayBuffer {
+  byte_length: usize,
+  data: *mut u32,
+}
+
+#[test]
+fn test_fast_calls_arraybuffer() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    a: u32,
+    b: u32,
+    data: *const FastApiArrayBuffer,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    let buf =
+      unsafe { std::slice::from_raw_parts((*data).data, (*data).byte_length) };
+    a + b + buf[0]
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::Uint32,
+        fast_api::Type::Uint32,
+        fast_api::Type::TypedArray(fast_api::CType::Uint32),
+      ]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(
+      receiver: v8::Local<v8::Object>,
+      a: u32,
+      b: u32,
+      data: *const FastApiArrayBuffer,
+    ) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(x, y, data) { return func(x, y, data); }
+  %PrepareFunctionForOptimization(f);
+  const arr = new Uint32Array([3, 4]);
+  f(1, 2, arr);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(1, 2, arr);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
