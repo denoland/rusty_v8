@@ -536,6 +536,7 @@ impl Object {
 
   /// Sets a 2-byte-aligned native pointer in an internal field.
   /// To retrieve such a field, GetAlignedPointerFromInternalField must be used.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
   pub fn set_aligned_pointer_in_internal_field(
     &self,
     index: i32,
