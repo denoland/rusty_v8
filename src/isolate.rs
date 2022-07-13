@@ -1,3 +1,4 @@
+use crate::PromiseResolver;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
 use crate::handle::FinalizerMap;
@@ -91,6 +92,20 @@ pub type PromiseHook =
   extern "C" fn(PromiseHookType, Local<Promise>, Local<Value>);
 
 pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub enum WasmAsyncSuccess {
+  Success,
+  Fail,
+}
+pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
+  *const Isolate,
+  Local<Context>,
+  Local<PromiseResolver>,
+  Local<Value>,
+  WasmAsyncSuccess,
+);
 
 /// HostInitializeImportMetaObjectCallback is called the first time import.meta
 /// is accessed for a module. Subsequent access will reuse the same value.
@@ -232,6 +247,10 @@ extern "C" {
   fn v8__Isolate__SetPromiseRejectCallback(
     isolate: *mut Isolate,
     callback: PromiseRejectCallback,
+  );
+  fn v8__Isolate__SetWasmAsyncResolvePromiseCallback(
+    isolate: *mut Isolate,
+    callback: WasmAsyncResolvePromiseCallback,
   );
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     isolate: *mut Isolate,
@@ -619,6 +638,14 @@ impl Isolate {
   ) {
     unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
   }
+
+  pub fn set_wasm_async_resolve_promise_callback(
+    &mut self,
+    callback: WasmAsyncResolvePromiseCallback,
+  ) {
+    unsafe { v8__Isolate__SetWasmAsyncResolvePromiseCallback(self, callback) }
+  }
+
   /// This specifies the callback called by the upcoming importa.meta
   /// language feature to retrieve host-defined meta data for a module.
   pub fn set_host_initialize_import_meta_object_callback(
