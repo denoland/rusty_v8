@@ -48,6 +48,7 @@ extern "C" {
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
     c_function_or_null: *const CFunction,
+    c_function_overload_length: i32,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -146,6 +147,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.constructor_behavior,
           self.side_effect_type,
           null(),
+          0,
         )
       })
     }
@@ -176,6 +178,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           ConstructorBehavior::Throw,
           self.side_effect_type,
           c_fn.as_ptr() as _,
+          1,
         )
       })
     }
