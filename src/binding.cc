@@ -246,6 +246,11 @@ void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
   isolate->SetPromiseRejectCallback(callback);
 }
 
+void v8__Isolate__SetWasmAsyncResolvePromiseCallback(
+  v8::Isolate* isolate, v8::WasmAsyncResolvePromiseCallback callback) {
+  isolate->SetWasmAsyncResolvePromiseCallback(callback);
+}
+
 void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     v8::Isolate* isolate, bool capture, int frame_limit) {
   isolate->SetCaptureStackTraceForUncaughtExceptions(capture, frame_limit);
@@ -1160,6 +1165,16 @@ const v8::Value* v8__Object__GetIndex(const v8::Object& self,
       ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
+void* v8__Object__GetAlignedPointerFromInternalField(const v8::Object& self,
+                                                      int index) {
+  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index);
+}
+
+void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
+                                                   int index, void* value) {
+  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
+}
+
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototype());
 }
@@ -1417,6 +1432,10 @@ const v8::Integer* v8__Integer__NewFromUnsigned(v8::Isolate* isolate,
 }
 
 int64_t v8__Integer__Value(const v8::Integer& self) { return self.Value(); }
+
+uint32_t v8__Uint32__Value(const v8::Uint32& self) { return self.Value(); }
+
+int32_t v8__Int32__Value(const v8::Int32& self) { return self.Value(); }
 
 const v8::BigInt* v8__BigInt__New(v8::Isolate* isolate, int64_t value) {
   return local_to_ptr(v8::BigInt::New(isolate, value));

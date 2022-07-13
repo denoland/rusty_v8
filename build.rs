@@ -210,7 +210,18 @@ fn build_v8() {
   let gn_out = maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
+  print_gn_args(&gn_out);
   build("rusty_v8", None);
+}
+
+fn print_gn_args(gn_out_dir: &Path) {
+  assert!(Command::new(gn())
+    .arg("args")
+    .arg(&gn_out_dir)
+    .arg("--list")
+    .status()
+    .unwrap()
+    .success());
 }
 
 fn maybe_clone_repo(dest: &str, repo: &str) {

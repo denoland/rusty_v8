@@ -2,10 +2,12 @@ use std::alloc::Layout;
 use std::ptr::NonNull;
 
 use crate::HandleScope;
+use crate::Int32;
 use crate::Integer;
 use crate::Isolate;
 use crate::Local;
 use crate::Number;
+use crate::Uint32;
 
 extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *const Number;
@@ -16,6 +18,8 @@ extern "C" {
     value: u32,
   ) -> *const Integer;
   fn v8__Integer__Value(this: *const Integer) -> i64;
+  fn v8__Uint32__Value(this: *const Uint32) -> u32;
+  fn v8__Int32__Value(this: *const Int32) -> i32;
 }
 
 impl Number {
@@ -76,5 +80,17 @@ impl Integer {
     debug_assert_eq!(Layout::new::<usize>(), Layout::new::<Local<Self>>());
     debug_assert_eq!(zero_local.value(), 0);
     zero_local
+  }
+}
+
+impl Uint32 {
+  pub fn value(&self) -> u32 {
+    unsafe { v8__Uint32__Value(self) }
+  }
+}
+
+impl Int32 {
+  pub fn value(&self) -> i32 {
+    unsafe { v8__Int32__Value(self) }
   }
 }

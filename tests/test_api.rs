@@ -71,9 +71,13 @@ fn handle_scope_numbers() {
     {
       let scope2 = &mut v8::HandleScope::new(scope1);
       let l3 = v8::Number::new(scope2, 78.9);
+      let l4 = v8::Local::<v8::Int32>::try_from(l1).unwrap();
+      let l5 = v8::Local::<v8::Uint32>::try_from(l2).unwrap();
       assert_eq!(l1.value(), -123);
       assert_eq!(l2.value(), 456);
       assert_eq!(l3.value(), 78.9);
+      assert_eq!(l4.value(), -123);
+      assert_eq!(l5.value(), 456);
       assert_eq!(v8::Number::value(&l1), -123f64);
       assert_eq!(v8::Number::value(&l2), 456f64);
     }
@@ -5699,10 +5703,9 @@ fn wasm_streaming_callback() {
 
   ws.finish();
   assert!(!scope.has_pending_background_tasks());
-  assert!(global.get(scope, name).unwrap().is_null());
 
-  scope.perform_microtask_checkpoint();
-
+  // We did not set wasm resolve callback so V8 uses the default one that
+  // runs microtasks automatically.
   let result = global.get(scope, name).unwrap();
   assert!(result.is_wasm_module_object());
 
@@ -5724,9 +5727,8 @@ fn wasm_streaming_callback() {
 
   let exception = v8::Object::new(scope).into(); // Can be anything.
   ws.abort(Some(exception));
-  assert!(global.get(scope, name).unwrap().is_null());
-
-  scope.perform_microtask_checkpoint();
+  // We did not set wasm resolve callback so V8 uses the default one that
+  // runs microtasks automatically.
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
 }
 
@@ -7074,6 +7076,265 @@ fn test_fast_calls() {
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
     f(1, 2);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
+
+#[test]
+fn test_fast_calls_sequence() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    a: u32,
+    b: u32,
+    array: v8::Local<v8::Array>,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    assert_eq!(array.length(), 2);
+    a + b + array.length()
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::Uint32,
+        fast_api::Type::Uint32,
+        fast_api::Type::Sequence(fast_api::CType::Void),
+      ]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(
+      receiver: v8::Local<v8::Object>,
+      a: u32,
+      b: u32,
+      array: v8::Local<v8::Array>,
+    ) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(x, y, data) { return func(x, y, data); }
+  %PrepareFunctionForOptimization(f);
+  const arr = [3, 4];
+  f(1, 2, arr);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(1, 2, arr);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
+
+#[repr(C)]
+pub struct FastApiArrayBuffer {
+  byte_length: usize,
+  data: *mut u32,
+}
+
+#[test]
+fn test_fast_calls_arraybuffer() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    a: u32,
+    b: u32,
+    data: *const FastApiArrayBuffer,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    let buf =
+      unsafe { std::slice::from_raw_parts((*data).data, (*data).byte_length) };
+    a + b + buf[0]
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::Uint32,
+        fast_api::Type::Uint32,
+        fast_api::Type::TypedArray(fast_api::CType::Uint32),
+      ]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(
+      receiver: v8::Local<v8::Object>,
+      a: u32,
+      b: u32,
+      data: *const FastApiArrayBuffer,
+    ) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(x, y, data) { return func(x, y, data); }
+  %PrepareFunctionForOptimization(f);
+  const arr = new Uint32Array([3, 4]);
+  f(1, 2, arr);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(1, 2, arr);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
+
+#[test]
+fn test_fast_calls_reciever() {
+  const V8_WRAPPER_TYPE_INDEX: i32 = 0;
+  const V8_WRAPPER_OBJECT_INDEX: i32 = 1;
+
+  static mut WHO: &str = "none";
+  fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
+    unsafe {
+      WHO = "fast";
+      let embedder_obj =
+        recv.get_aligned_pointer_from_internal_field(V8_WRAPPER_OBJECT_INDEX);
+
+      let i = *(embedder_obj as *const u32);
+      assert_eq!(i, 69);
+      i
+    }
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::V8Value]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(receiver: v8::Local<v8::Object>) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(
+    v8::CreateParams::default().embedder_wrapper_type_info_offsets(
+      V8_WRAPPER_TYPE_INDEX,
+      V8_WRAPPER_OBJECT_INDEX,
+    ),
+  );
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let object_template = v8::ObjectTemplate::new(scope);
+  assert!(object_template
+    .set_internal_field_count((V8_WRAPPER_OBJECT_INDEX + 1) as usize));
+
+  let obj = object_template.new_instance(scope).unwrap();
+  let embedder_obj = Box::into_raw(Box::new(69u32));
+  obj.set_aligned_pointer_in_internal_field(
+    V8_WRAPPER_OBJECT_INDEX,
+    embedder_obj as _,
+  );
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "method").unwrap();
+  let value = template.get_function(scope).unwrap();
+  obj.set(scope, name.into(), value.into()).unwrap();
+
+  let obj_str = v8::String::new(scope, "obj").unwrap();
+  let global = context.global(scope);
+  global.set(scope, obj_str.into(), obj.into()).unwrap();
+
+  let source = r#"
+  function f() { return obj.method(); }
+  %PrepareFunctionForOptimization(f);
+  f();
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f();
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
