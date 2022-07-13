@@ -1,6 +1,5 @@
 use crate::support::Opaque;
 use libc::c_void;
-use std::mem::transmute_copy;
 use std::ptr::NonNull;
 
 extern "C" {
@@ -153,15 +152,11 @@ struct CTypeSequenceInfo {
 }
 
 pub trait FastFunction {
-  type Signature;
   fn args(&self) -> &'static [Type] {
     &[]
   }
   fn return_type(&self) -> CType {
     CType::Void
   }
-  fn function(&self) -> Self::Signature;
-  fn raw(&self) -> *const c_void {
-    unsafe { transmute_copy(&self.function()) }
-  }
+  fn function(&self) -> *const c_void;
 }

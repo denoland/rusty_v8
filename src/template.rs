@@ -47,8 +47,8 @@ extern "C" {
     length: i32,
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
-    c_function_or_null: *const CFunction,
-    c_function_overload_length: i32,
+    c_function1: *const CFunction,
+    c_function2: *const CFunction,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -147,7 +147,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.constructor_behavior,
           self.side_effect_type,
           null(),
-          0,
+          null(),
         )
       })
     }
@@ -157,17 +157,33 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   pub fn build_fast(
     self,
     scope: &mut HandleScope<'s, ()>,
-    fast_function: impl FastFunction,
+    overload1: &dyn FastFunction,
+    overload2: Option<&dyn FastFunction>,
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
-      let args = CTypeInfo::new_from_slice(fast_function.args());
-      let ret = CTypeInfo::new(fast_function.return_type());
-      let c_fn = CFunction::new(
-        fast_function.raw(),
+      let args = CTypeInfo::new_from_slice(overload1.args());
+      let ret = CTypeInfo::new(overload1.return_type());
+      let c_fn1 = CFunction::new(
+        overload1.function(),
         args.as_ptr(),
-        fast_function.args().len(),
+        overload1.args().len(),
         ret.as_ptr(),
       );
+
+      let c_fn2 = match overload2 {
+        Some(overload) => {
+          let args = CTypeInfo::new_from_slice(overload.args());
+          let ret = CTypeInfo::new(overload.return_type());
+          CFunction::new(
+            overload.function(),
+            args.as_ptr(),
+            overload.args().len(),
+            ret.as_ptr(),
+          )
+          .as_ptr()
+        }
+        None => null(),
+      };
       scope.cast_local(|sd| {
         v8__FunctionTemplate__New(
           sd.get_isolate_ptr(),
@@ -177,8 +193,8 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.length,
           ConstructorBehavior::Throw,
           self.side_effect_type,
-          c_fn.as_ptr() as _,
-          1,
+          c_fn1.as_ptr(),
+          c_fn2,
         )
       })
     }

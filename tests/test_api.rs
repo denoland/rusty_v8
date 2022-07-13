@@ -7036,9 +7036,8 @@ fn test_fast_calls() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(a: u32, b: u32) -> u32;
-    fn function(&self) -> Self::Signature {
-      fast_fn
+    fn function(&self) -> *const c_void {
+      fast_fn as _
     }
   }
 
@@ -7060,7 +7059,7 @@ fn test_fast_calls() {
   let global = context.global(scope);
 
   let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -7110,14 +7109,8 @@ fn test_fast_calls_sequence() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(
-      receiver: v8::Local<v8::Object>,
-      a: u32,
-      b: u32,
-      array: v8::Local<v8::Array>,
-    ) -> u32;
-    fn function(&self) -> Self::Signature {
-      fast_fn
+    fn function(&self) -> *const c_void {
+      fast_fn as _
     }
   }
 
@@ -7139,7 +7132,7 @@ fn test_fast_calls_sequence() {
   let global = context.global(scope);
 
   let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -7197,14 +7190,8 @@ fn test_fast_calls_arraybuffer() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(
-      receiver: v8::Local<v8::Object>,
-      a: u32,
-      b: u32,
-      data: *const FastApiArrayBuffer,
-    ) -> u32;
-    fn function(&self) -> Self::Signature {
-      fast_fn
+    fn function(&self) -> *const c_void {
+      fast_fn as _
     }
   }
 
@@ -7226,7 +7213,7 @@ fn test_fast_calls_arraybuffer() {
   let global = context.global(scope);
 
   let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -7276,9 +7263,8 @@ fn test_fast_calls_reciever() {
       fast_api::CType::Uint32
     }
 
-    type Signature = fn(receiver: v8::Local<v8::Object>) -> u32;
-    fn function(&self) -> Self::Signature {
-      fast_fn
+    fn function(&self) -> *const c_void {
+      fast_fn as _
     }
   }
 
@@ -7314,7 +7300,7 @@ fn test_fast_calls_reciever() {
   );
 
   let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
 
   let name = v8::String::new(scope, "method").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -7338,4 +7324,100 @@ fn test_fast_calls_reciever() {
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
+}
+
+#[test]
+fn test_fast_calls_overload() {
+  static mut WHO: &str = "none";
+  fn fast_fn(_recv: v8::Local<v8::Object>, data: *const FastApiArrayBuffer) {
+    unsafe { WHO = "fast_buf" };
+    let buf =
+      unsafe { std::slice::from_raw_parts((*data).data, (*data).byte_length) };
+    assert_eq!(buf.len(), 2);
+    assert_eq!(buf[0], 6);
+    assert_eq!(buf[1], 9);
+  }
+
+  fn fast_fn2(_recv: v8::Local<v8::Object>, data: v8::Local<v8::Array>) {
+    unsafe { WHO = "fast_array" };
+    assert_eq!(data.length(), 2);
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::TypedArray(fast_api::CType::Uint32),
+      ]
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn as _
+    }
+  }
+
+  pub struct FastTest2;
+  impl fast_api::FastFunction for FastTest2 {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::Sequence(fast_api::CType::Void),
+      ]
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn2 as _
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template = v8::FunctionTemplate::builder(slow_fn).build_fast(
+    scope,
+    &FastTest,
+    Some(&FastTest2),
+  );
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(data) { return func(data); }
+  %PrepareFunctionForOptimization(f);
+  const arr = [6, 9];
+  const buf = new Uint32Array(arr);
+  f(buf);
+  f(arr);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(buf);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast_buf", unsafe { WHO });
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f(arr);
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast_array", unsafe { WHO });
 }

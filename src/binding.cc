@@ -1819,15 +1819,24 @@ const v8::FunctionTemplate* v8__FunctionTemplate__New(
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
     v8::SideEffectType side_effect_type,
-    const v8::CFunction* c_function_or_null, int c_function_overload_length) {
+    const v8::CFunction* c_function1, const v8::CFunction* c_function2) {
+  
+  auto overload = v8::MemorySpan<const v8::CFunction>{};
+  // Support upto 2 overloads. V8 requires TypedArray to have a
+  // v8::Array overload.
+  if (c_function1) {
+    if (c_function2 == nullptr) {
+      overload = v8::MemorySpan<const v8::CFunction>{c_function1, 1};
+    } else {
+      const v8::CFunction o[] = {*c_function1, *c_function2};
+      overload = v8::MemorySpan<const v8::CFunction>{o, 2};
+    }
+  }
   return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
       side_effect_type,
-      c_function_or_null
-          ? v8::MemorySpan<const v8::CFunction>{c_function_or_null,
-                                                c_function_overload_length}
-          : v8::MemorySpan<const v8::CFunction>{}));
+      overload));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(
