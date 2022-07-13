@@ -1796,11 +1796,12 @@ const v8::FunctionTemplate* v8__FunctionTemplate__New(
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
     v8::SideEffectType side_effect_type,
-    const v8::CFunction* c_function_or_null) {
-  return local_to_ptr(v8::FunctionTemplate::New(
+    const v8::CFunction* c_function_or_null
+    int c_function_overload_length) {
+  return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
-      side_effect_type, c_function_or_null));
+      side_effect_type, c_function_or_null ? {c_function_or_null, c_function_overload_length}: {}));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(
