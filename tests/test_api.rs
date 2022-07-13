@@ -7247,3 +7247,95 @@ fn test_fast_calls_arraybuffer() {
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
 }
+
+#[test]
+fn test_fast_calls_reciever() {
+  const V8_WRAPPER_TYPE_INDEX: i32 = 0;
+  const V8_WRAPPER_OBJECT_INDEX: i32 = 1;
+
+  static mut WHO: &str = "none";
+  fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
+    unsafe {
+      WHO = "fast";
+      let embedder_obj =
+        recv.get_aligned_pointer_from_internal_field(V8_WRAPPER_OBJECT_INDEX);
+
+      let i = *(embedder_obj as *const u32);
+      assert_eq!(i, 69);
+      i
+    }
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::V8Value]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    type Signature = fn(receiver: v8::Local<v8::Object>) -> u32;
+    fn function(&self) -> Self::Signature {
+      fast_fn
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(
+    v8::CreateParams::default().embedder_wrapper_type_info_offsets(
+      V8_WRAPPER_TYPE_INDEX,
+      V8_WRAPPER_OBJECT_INDEX,
+    ),
+  );
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let object_template = v8::ObjectTemplate::new(scope);
+  assert!(object_template
+    .set_internal_field_count((V8_WRAPPER_OBJECT_INDEX + 1) as usize));
+
+  let obj = object_template.new_instance(scope).unwrap();
+  let embedder_obj = Box::into_raw(Box::new(69u32));
+  obj.set_aligned_pointer_in_internal_field(
+    V8_WRAPPER_OBJECT_INDEX,
+    embedder_obj as _,
+  );
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, FastTest);
+
+  let name = v8::String::new(scope, "method").unwrap();
+  let value = template.get_function(scope).unwrap();
+  obj.set(scope, name.into(), value.into()).unwrap();
+
+  let obj_str = v8::String::new(scope, "obj").unwrap();
+  let global = context.global(scope);
+  global.set(scope, obj_str.into(), obj.into()).unwrap();
+
+  let source = r#"
+  function f() { return obj.method(); }
+  %PrepareFunctionForOptimization(f);
+  f();
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f();
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
