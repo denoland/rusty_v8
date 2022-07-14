@@ -1,9 +1,11 @@
+use libc::c_void;
+
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
-use crate::fast_api::CFunction;
+use crate::fast_api::CFunctionInfo;
 use crate::fast_api::CTypeInfo;
 use crate::fast_api::FastFunction;
 use crate::isolate::Isolate;
@@ -47,8 +49,10 @@ extern "C" {
     length: i32,
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
-    c_function1: *const CFunction,
-    c_function2: *const CFunction,
+    func_ptr1: *const c_void,
+    c_function1: *const CFunctionInfo,
+    func_ptr2: *const c_void,
+    c_function2: *const CFunctionInfo,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -148,6 +152,8 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.side_effect_type,
           null(),
           null(),
+          null(),
+          null(),
         )
       })
     }
@@ -163,24 +169,15 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
     unsafe {
       let args = CTypeInfo::new_from_slice(overload1.args());
       let ret = CTypeInfo::new(overload1.return_type());
-      let c_fn1 = CFunction::new(
-        overload1.function(),
-        args.as_ptr(),
-        overload1.args().len(),
-        ret.as_ptr(),
-      );
+      let c_fn1 =
+        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr());
 
       let c_fn2 = match overload2 {
         Some(overload) => {
           let args = CTypeInfo::new_from_slice(overload.args());
           let ret = CTypeInfo::new(overload.return_type());
-          CFunction::new(
-            overload.function(),
-            args.as_ptr(),
-            overload.args().len(),
-            ret.as_ptr(),
-          )
-          .as_ptr()
+          CFunctionInfo::new(args.as_ptr(), overload.args().len(), ret.as_ptr())
+            .as_ptr()
         }
         None => null(),
       };
@@ -193,7 +190,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.length,
           ConstructorBehavior::Throw,
           self.side_effect_type,
+          overload1.function(),
           c_fn1.as_ptr(),
+          overload2.map_or(null(), |f| f.function()),
           c_fn2,
         )
       })

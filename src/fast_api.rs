@@ -13,10 +13,6 @@ extern "C" {
     args_len: usize,
     args_info: *const CTypeInfo,
   ) -> *mut CFunctionInfo;
-  fn v8__CFunction__New(
-    func_ptr: *const c_void,
-    info: *const CFunctionInfo,
-  ) -> *mut CFunction;
 }
 
 #[repr(C)]
@@ -27,15 +23,13 @@ pub struct CFunctionInfo(Opaque);
 #[derive(Default)]
 pub struct CFunction(Opaque);
 
-impl CFunction {
+impl CFunctionInfo {
   pub(crate) unsafe fn new(
-    func_ptr: *const c_void,
     args: *const CTypeInfo,
     args_len: usize,
     return_type: *const CTypeInfo,
-  ) -> NonNull<CFunction> {
-    let info = v8__CFunctionInfo__New(return_type, args_len, args);
-    NonNull::new_unchecked(v8__CFunction__New(func_ptr, info))
+  ) -> NonNull<CFunctionInfo> {
+    NonNull::new_unchecked(v8__CFunctionInfo__New(return_type, args_len, args))
   }
 }
 
