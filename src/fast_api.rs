@@ -1,6 +1,10 @@
 use crate::support::Opaque;
 use libc::c_void;
-use std::ptr::NonNull;
+use std::{
+  mem::align_of,
+  ops::Index,
+  ptr::{self, NonNull},
+};
 
 extern "C" {
   fn v8__CTypeInfo__New(ty: CType) -> *mut CTypeInfo;
@@ -143,6 +147,43 @@ impl From<&Type> for CTypeSequenceInfo {
 struct CTypeSequenceInfo {
   c_type: CType,
   sequence_type: SequenceType,
+}
+
+// https://source.chromium.org/chromium/chromium/src/+/main:v8/include/v8-fast-api-calls.h;l=336
+#[repr(C)]
+pub struct FastApiTypedArray<T: Default> {
+  pub byte_length: usize,
+  // This pointer should include the typed array offset applied.
+  // It's not guaranteed that it's aligned to sizeof(T), it's only
+  // guaranteed that it's 4-byte aligned, so for 8-byte types we need to
+  // provide a special implementation for reading from it, which hides
+  // the possibly unaligned read in the `get` method.
+  data: *mut T,
+}
+
+impl<T: Default> FastApiTypedArray<T> {
+  #[inline]
+  pub fn get(&self, index: usize) -> T {
+    debug_assert!(index < self.byte_length);
+    let mut t: T = Default::default();
+    unsafe {
+      ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
+    }
+    t
+  }
+
+  #[inline]
+  pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
+    if (self.data as usize) % align_of::<T>() != 0 {
+      return None;
+    }
+    Some(unsafe {
+      std::slice::from_raw_parts_mut(
+        self.data,
+        self.byte_length / align_of::<T>(),
+      )
+    })
+  }
 }
 
 pub trait FastFunction {

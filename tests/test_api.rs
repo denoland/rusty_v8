@@ -7154,12 +7154,6 @@ fn test_fast_calls_sequence() {
   assert_eq!("fast", unsafe { WHO });
 }
 
-#[repr(C)]
-pub struct FastApiArrayBuffer {
-  byte_length: usize,
-  data: *mut u32,
-}
-
 #[test]
 fn test_fast_calls_arraybuffer() {
   static mut WHO: &str = "none";
@@ -7167,12 +7161,10 @@ fn test_fast_calls_arraybuffer() {
     _recv: v8::Local<v8::Object>,
     a: u32,
     b: u32,
-    data: *const FastApiArrayBuffer,
+    data: *const fast_api::FastApiTypedArray<u32>,
   ) -> u32 {
     unsafe { WHO = "fast" };
-    let buf =
-      unsafe { std::slice::from_raw_parts((*data).data, (*data).byte_length) };
-    a + b + buf[0]
+    a + b + unsafe { &*data }.get(0)
   }
 
   pub struct FastTest;
@@ -7329,13 +7321,15 @@ fn test_fast_calls_reciever() {
 #[test]
 fn test_fast_calls_overload() {
   static mut WHO: &str = "none";
-  fn fast_fn(_recv: v8::Local<v8::Object>, data: *const FastApiArrayBuffer) {
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    data: *const fast_api::FastApiTypedArray<u32>,
+  ) {
     unsafe { WHO = "fast_buf" };
-    let buf =
-      unsafe { std::slice::from_raw_parts((*data).data, (*data).byte_length) };
-    assert_eq!(buf.len(), 2);
-    assert_eq!(buf[0], 6);
-    assert_eq!(buf[1], 9);
+    let buf = unsafe { &*data };
+    assert_eq!(buf.byte_length, 2);
+    assert_eq!(buf.get(0), 6);
+    assert_eq!(buf.get(1), 9);
   }
 
   fn fast_fn2(_recv: v8::Local<v8::Object>, data: v8::Local<v8::Array>) {
