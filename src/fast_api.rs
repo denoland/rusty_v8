@@ -2,7 +2,6 @@ use crate::support::Opaque;
 use libc::c_void;
 use std::{
   mem::align_of,
-  ops::Index,
   ptr::{self, NonNull},
 };
 
