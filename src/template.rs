@@ -1,9 +1,11 @@
+use libc::c_void;
+
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
-use crate::fast_api::CFunction;
+use crate::fast_api::CFunctionInfo;
 use crate::fast_api::CTypeInfo;
 use crate::fast_api::FastFunction;
 use crate::isolate::Isolate;
@@ -47,7 +49,10 @@ extern "C" {
     length: i32,
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
-    c_function_or_null: *const CFunction,
+    func_ptr1: *const c_void,
+    c_function1: *const CFunctionInfo,
+    func_ptr2: *const c_void,
+    c_function2: *const CFunctionInfo,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -146,6 +151,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.constructor_behavior,
           self.side_effect_type,
           null(),
+          null(),
+          null(),
+          null(),
         )
       })
     }
@@ -155,17 +163,24 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   pub fn build_fast(
     self,
     scope: &mut HandleScope<'s, ()>,
-    fast_function: impl FastFunction,
+    overload1: &dyn FastFunction,
+    overload2: Option<&dyn FastFunction>,
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
-      let args = CTypeInfo::new_from_slice(fast_function.args());
-      let ret = CTypeInfo::new(fast_function.return_type());
-      let c_fn = CFunction::new(
-        fast_function.raw(),
-        args.as_ptr(),
-        fast_function.args().len(),
-        ret.as_ptr(),
-      );
+      let args = CTypeInfo::new_from_slice(overload1.args());
+      let ret = CTypeInfo::new(overload1.return_type());
+      let c_fn1 =
+        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr());
+
+      let c_fn2 = match overload2 {
+        Some(overload) => {
+          let args = CTypeInfo::new_from_slice(overload.args());
+          let ret = CTypeInfo::new(overload.return_type());
+          CFunctionInfo::new(args.as_ptr(), overload.args().len(), ret.as_ptr())
+            .as_ptr()
+        }
+        None => null(),
+      };
       scope.cast_local(|sd| {
         v8__FunctionTemplate__New(
           sd.get_isolate_ptr(),
@@ -175,7 +190,10 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.length,
           ConstructorBehavior::Throw,
           self.side_effect_type,
-          c_fn.as_ptr() as _,
+          overload1.function(),
+          c_fn1.as_ptr(),
+          overload2.map_or(null(), |f| f.function()),
+          c_fn2,
         )
       })
     }

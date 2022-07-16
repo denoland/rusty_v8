@@ -247,7 +247,7 @@ void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
 }
 
 void v8__Isolate__SetWasmAsyncResolvePromiseCallback(
-  v8::Isolate* isolate, v8::WasmAsyncResolvePromiseCallback callback) {
+    v8::Isolate* isolate, v8::WasmAsyncResolvePromiseCallback callback) {
   isolate->SetWasmAsyncResolvePromiseCallback(callback);
 }
 
@@ -1166,12 +1166,12 @@ const v8::Value* v8__Object__GetIndex(const v8::Object& self,
 }
 
 void* v8__Object__GetAlignedPointerFromInternalField(const v8::Object& self,
-                                                      int index) {
+                                                     int index) {
   return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index);
 }
 
 void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
-                                                   int index, void* value) {
+                                                  int index, void* value) {
   ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
 }
 
@@ -1780,7 +1780,8 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
 }
 
 v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
-  std::unique_ptr<v8::CTypeInfo> u = std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
+  std::unique_ptr<v8::CTypeInfo> u =
+      std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
   return u.release();
 }
 
@@ -1789,8 +1790,8 @@ struct CTypeSequenceType {
   v8::CTypeInfo::SequenceType sequence_type;
 };
 
-v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len, 
-  CTypeSequenceType* ty) {
+v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
+                                               CTypeSequenceType* ty) {
   v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
   for (size_t i = 0; i < len; i += 1) {
     v[i] = v8::CTypeInfo(ty[i].c_type, ty[i].sequence_type);
@@ -1798,15 +1799,11 @@ v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
   return v;
 }
 
-v8::CFunction* v8__CFunction__New(void* func_ptr, const v8::CFunctionInfo* info) {
-  std::unique_ptr<v8::CFunction> c_function = std::make_unique<v8::CFunction>(v8::CFunction(func_ptr, info));
-  return c_function.release();
-}
-
 v8::CFunctionInfo* v8__CFunctionInfo__New(const v8::CTypeInfo& return_info,
-                                   unsigned int args_len,
-                                   v8::CTypeInfo* args_info) {
-  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(v8::CFunctionInfo(return_info, args_len, args_info));
+                                          unsigned int args_len,
+                                          v8::CTypeInfo* args_info) {
+  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(
+      v8::CFunctionInfo(return_info, args_len, args_info));
   return info.release();
 }
 
@@ -1814,12 +1811,26 @@ const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
-    v8::SideEffectType side_effect_type,
-    const v8::CFunction* c_function_or_null) {
-  return local_to_ptr(v8::FunctionTemplate::New(
+    v8::SideEffectType side_effect_type, void* func_ptr1,
+    const v8::CFunctionInfo* c_function_info1, void* func_ptr2,
+    const v8::CFunctionInfo* c_function_info2) {
+  auto overload = v8::MemorySpan<const v8::CFunction>{};
+  // Support upto 2 overloads. V8 requires TypedArray to have a
+  // v8::Array overload.
+  if (func_ptr1) {
+    if (func_ptr2 == nullptr) {
+      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1)};
+      overload = v8::MemorySpan<const v8::CFunction>{o, 1};
+    } else {
+      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1),
+                                 v8::CFunction(func_ptr2, c_function_info2)};
+      overload = v8::MemorySpan<const v8::CFunction>{o, 2};
+    }
+  }
+  return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
-      side_effect_type, c_function_or_null));
+      side_effect_type, overload));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(
