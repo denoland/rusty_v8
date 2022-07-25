@@ -748,7 +748,7 @@ fn rerun_if_changed(out_dir: &Path, maybe_env: Option<NinjaEnv>, target: &str) {
   let deps = ninja_get_deps(out_dir, maybe_env, target);
   for d in deps {
     let p = out_dir.join(d);
-    assert!(p.exists());
+    assert!(p.exists(), "Path doesn't exist: {:?}", p);
     println!("cargo:rerun-if-changed={}", p.display());
   }
 }
