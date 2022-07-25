@@ -37,7 +37,7 @@ fn setup() -> SetupGuard {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
+      "--no_freeze_flags_after_init --expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
       v8::new_default_platform(0, false).make_shared(),
@@ -5703,6 +5703,13 @@ fn wasm_streaming_callback() {
 
   ws.finish();
   assert!(!scope.has_pending_background_tasks());
+  assert!(global.get(scope, name).unwrap().is_null());
+
+  while v8::Platform::pump_message_loop(
+    &v8::V8::get_current_platform(),
+    scope,
+    false, // don't block if there are no tasks
+  ) {}
 
   // We did not set wasm resolve callback so V8 uses the default one that
   // runs microtasks automatically.
@@ -5729,6 +5736,11 @@ fn wasm_streaming_callback() {
   ws.abort(Some(exception));
   // We did not set wasm resolve callback so V8 uses the default one that
   // runs microtasks automatically.
+  while v8::Platform::pump_message_loop(
+    &v8::V8::get_current_platform(),
+    scope,
+    false, // don't block if there are no tasks
+  ) {}
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
 }
 
