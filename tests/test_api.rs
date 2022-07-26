@@ -7235,8 +7235,13 @@ fn test_fast_calls_typedarray() {
     data: *const fast_api::FastApiTypedArray<u8>,
   ) -> u32 {
     unsafe { WHO = "fast" };
-    let sum = unsafe { &*data }.get(0) + unsafe { &*data }.get(1) +
-      unsafe { &*data }.get(2);
+    let first = unsafe { &*data }.get(0);
+    let second = unsafe { &*data }.get(1);
+    let third = unsafe { &*data }.get(2);
+    assert_eq!(first, 4);
+    assert_eq!(second, 5);
+    assert_eq!(third, 6);
+    let sum = first + second + third;
     sum.into()
   }
 
@@ -7282,9 +7287,9 @@ fn test_fast_calls_typedarray() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y, data) { return func(x, y, data); }
+  function f(data) { return func(data); }
   %PrepareFunctionForOptimization(f);
-  const arr = new Uint8Array([1, 2, 3]);
+  const arr = new Uint8Array([4, 5, 6]);
   f(arr);
 "#;
   eval(scope, source).unwrap();
@@ -7293,7 +7298,7 @@ fn test_fast_calls_typedarray() {
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
     const result = f(arr);
-    if (result != 6) {
+    if (result != 15) {
       throw new Error("wrong result");
     }
   "#;
