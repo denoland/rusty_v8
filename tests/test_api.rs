@@ -7228,6 +7228,85 @@ fn test_fast_calls_arraybuffer() {
 }
 
 #[test]
+fn test_fast_calls_typedarray() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    data: *const fast_api::FastApiTypedArray<u8>,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    let first = unsafe { &*data }.get(0);
+    let second = unsafe { &*data }.get(1);
+    let third = unsafe { &*data }.get(2);
+    assert_eq!(first, 4);
+    assert_eq!(second, 5);
+    assert_eq!(third, 6);
+    let sum = first + second + third;
+    sum.into()
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[
+        fast_api::Type::V8Value,
+        fast_api::Type::TypedArray(fast_api::CType::Uint8),
+      ]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn as _
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(data) { return func(data); }
+  %PrepareFunctionForOptimization(f);
+  const arr = new Uint8Array([4, 5, 6]);
+  f(arr);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    const result = f(arr);
+    if (result != 15) {
+      throw new Error("wrong result");
+    }
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
+
+#[test]
 fn test_fast_calls_reciever() {
   const V8_WRAPPER_TYPE_INDEX: i32 = 0;
   const V8_WRAPPER_OBJECT_INDEX: i32 = 1;

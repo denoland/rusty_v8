@@ -78,6 +78,7 @@ pub enum SequenceType {
 pub enum CType {
   Void = 0,
   Bool,
+  Uint8,
   Int32,
   Uint32,
   Int64,
