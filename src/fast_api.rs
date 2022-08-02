@@ -75,6 +75,7 @@ pub enum SequenceType {
 
 #[derive(Clone, Copy)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum CType {
   Void = 0,
   Bool,
@@ -85,9 +86,15 @@ pub enum CType {
   Float32,
   Float64,
   V8Value,
+  // https://github.com/v8/v8/blob/492a32943bc34a527f42df2ae15a77154b16cc84/include/v8-fast-api-calls.h#L264-L267
+  // kCallbackOptionsType is not part of the Type enum
+  // because it is only used internally. Use value 255 that is larger
+  // than any valid Type enum.
+  CallbackOptions = 255,
 }
 
 #[derive(Clone, Copy)]
+#[non_exhaustive]
 pub enum Type {
   Void,
   Bool,
@@ -98,6 +105,7 @@ pub enum Type {
   Float32,
   Float64,
   V8Value,
+  CallbackOptions,
   Sequence(CType),
   TypedArray(CType),
   ArrayBuffer(CType),
@@ -115,6 +123,7 @@ impl From<&Type> for CType {
       Type::Float32 => CType::Float32,
       Type::Float64 => CType::Float64,
       Type::V8Value => CType::V8Value,
+      Type::CallbackOptions => CType::CallbackOptions,
       Type::Sequence(ty) => *ty,
       Type::TypedArray(ty) => *ty,
       Type::ArrayBuffer(ty) => *ty,
@@ -146,6 +155,36 @@ impl From<&Type> for CTypeSequenceInfo {
 struct CTypeSequenceInfo {
   c_type: CType,
   sequence_type: SequenceType,
+}
+
+#[repr(C)]
+pub union FastApiCallbackData {
+  /// `data_ptr` allows for default constructing FastApiCallbackOptions.
+  pub data_ptr: *mut c_void,
+  /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
+  pub data: crate::Value,
+}
+
+/// A struct which may be passed to a fast call callback, like so
+/// ```c
+/// void FastMethodWithOptions(int param, FastApiCallbackOptions& options);
+/// ```
+#[repr(C)]
+
+pub struct FastApiCallbackOptions {
+  /// If the callback wants to signal an error condition or to perform an
+  /// allocation, it must set options.fallback to true and do an early return
+  /// from the fast method. Then V8 checks the value of options.fallback and if
+  /// it's true, falls back to executing the SlowCallback, which is capable of
+  /// reporting the error (either by throwing a JS exception or logging to the
+  /// console) or doing the allocation. It's the embedder's responsibility to
+  /// ensure that the fast callback is idempotent up to the point where error and
+  /// fallback conditions are checked, because otherwise executing the slow
+  /// callback might produce visible side-effects twice.
+  pub fallback: bool,
+  pub data: FastApiCallbackData,
+  /// When called from WebAssembly, a view of the calling module's memory.
+  pub wasm_memory: *const FastApiTypedArray<u8>,
 }
 
 // https://source.chromium.org/chromium/chromium/src/+/main:v8/include/v8-fast-api-calls.h;l=336
