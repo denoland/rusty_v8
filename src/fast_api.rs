@@ -170,7 +170,6 @@ pub union FastApiCallbackData {
 /// void FastMethodWithOptions(int param, FastApiCallbackOptions& options);
 /// ```
 #[repr(C)]
-
 pub struct FastApiCallbackOptions {
   /// If the callback wants to signal an error condition or to perform an
   /// allocation, it must set options.fallback to true and do an early return
