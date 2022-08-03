@@ -670,7 +670,7 @@ impl_partial_eq! { UnboundScript for UnboundScript use identity }
 
 /// The superclass of all JavaScript values and objects.
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Value(Opaque);
 
 impl_deref! { Data for Value }
