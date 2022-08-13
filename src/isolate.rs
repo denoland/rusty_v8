@@ -100,7 +100,7 @@ pub enum WasmAsyncSuccess {
   Fail,
 }
 pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
-  *const Isolate,
+  *mut Isolate,
   Local<Context>,
   Local<PromiseResolver>,
   Local<Value>,

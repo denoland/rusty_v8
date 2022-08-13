@@ -107,6 +107,7 @@ pub use isolate::OwnedIsolate;
 pub use isolate::PromiseHook;
 pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
+pub use isolate::WasmAsyncSuccess;
 pub use isolate_create_params::CreateParams;
 pub use module::*;
 pub use object::*;
