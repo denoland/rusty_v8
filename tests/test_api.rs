@@ -4845,15 +4845,27 @@ fn test_object_get_property_names() {
     proto_obj.set(scope, js_proto_test_str, js_null);
     obj.set_prototype(scope, proto_obj.into());
 
-    let own_props = obj.get_own_property_names(scope).unwrap();
+    let own_props = obj
+      .get_own_property_names(
+        scope,
+        v8::GetPropertyNamesArgsBuilder::new().build(),
+      )
+      .unwrap();
     assert_eq!(own_props.length(), 1);
     assert!(own_props.get_index(scope, 0).unwrap() == js_test_str);
 
-    let proto_props = proto_obj.get_own_property_names(scope).unwrap();
+    let proto_props = proto_obj
+      .get_own_property_names(
+        scope,
+        v8::GetPropertyNamesArgsBuilder::new().build(),
+      )
+      .unwrap();
     assert_eq!(proto_props.length(), 1);
     assert!(proto_props.get_index(scope, 0).unwrap() == js_proto_test_str);
 
-    let all_props = obj.get_property_names(scope).unwrap();
+    let all_props = obj
+      .get_property_names(scope, v8::GetPropertyNamesArgsBuilder::new().build())
+      .unwrap();
     js_sort_fn.call(scope, all_props.into(), &[]).unwrap();
     assert_eq!(all_props.length(), 2);
     assert!(all_props.get_index(scope, 0).unwrap() == js_proto_test_str);
@@ -4865,9 +4877,133 @@ fn test_object_get_property_names() {
     obj.set(scope, js_test_str, js_null);
     obj.set(scope, js_test_symbol, js_null);
 
-    let own_props = obj.get_own_property_names(scope).unwrap();
+    let own_props = obj
+      .get_own_property_names(
+        scope,
+        v8::GetPropertyNamesArgsBuilder::new().build(),
+      )
+      .unwrap();
     assert_eq!(own_props.length(), 1);
     assert!(own_props.get_index(scope, 0).unwrap() == js_test_str);
+  }
+
+  {
+    let obj = v8::Object::new(scope);
+    obj.set(scope, js_test_str, js_null);
+    obj.set(scope, js_test_symbol, js_null);
+
+    let own_props = obj
+      .get_property_names(
+        scope,
+        v8::GetPropertyNamesArgs {
+          mode: v8::KeyCollectionMode::IncludePrototypes,
+          property_filter: v8::ONLY_ENUMERABLE | v8::SKIP_SYMBOLS,
+          index_filter: v8::IndexFilter::IncludeIndices,
+          key_conversion: v8::KeyConversionMode::KeepNumbers,
+        },
+      )
+      .unwrap();
+    assert_eq!(own_props.length(), 1);
+    assert!(own_props.get_index(scope, 0).unwrap() == js_test_str);
+  }
+
+  {
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let val = eval(scope, "({ 'a': 3, 2: 'b', '7': 'c' })").unwrap();
+    let obj = val.to_object(scope).unwrap();
+
+    {
+      let own_props = obj
+        .get_own_property_names(
+          scope,
+          v8::GetPropertyNamesArgsBuilder::new().build(),
+        )
+        .unwrap();
+
+      assert_eq!(own_props.length(), 3);
+
+      assert!(own_props.get_index(scope, 0).unwrap().is_number());
+      assert_eq!(
+        own_props.get_index(scope, 0).unwrap(),
+        v8::Integer::new(scope, 2)
+      );
+
+      assert!(own_props.get_index(scope, 1).unwrap().is_number());
+      assert_eq!(
+        own_props.get_index(scope, 1).unwrap(),
+        v8::Integer::new(scope, 7)
+      );
+
+      assert!(own_props.get_index(scope, 2).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 2).unwrap(),
+        v8::String::new(scope, "a").unwrap()
+      );
+    }
+
+    {
+      let own_props = obj
+        .get_own_property_names(
+          scope,
+          v8::GetPropertyNamesArgsBuilder::new()
+            .key_conversion(v8::KeyConversionMode::ConvertToString)
+            .build(),
+        )
+        .unwrap();
+
+      assert_eq!(own_props.length(), 3);
+
+      assert!(own_props.get_index(scope, 0).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 0).unwrap(),
+        v8::String::new(scope, "2").unwrap()
+      );
+
+      assert!(own_props.get_index(scope, 1).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 1).unwrap(),
+        v8::String::new(scope, "7").unwrap()
+      );
+
+      assert!(own_props.get_index(scope, 2).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 2).unwrap(),
+        v8::String::new(scope, "a").unwrap()
+      );
+    }
+
+    {
+      let own_props = obj
+        .get_property_names(
+          scope,
+          v8::GetPropertyNamesArgsBuilder::new()
+            .key_conversion(v8::KeyConversionMode::ConvertToString)
+            .build(),
+        )
+        .unwrap();
+
+      assert_eq!(own_props.length(), 3);
+
+      assert!(own_props.get_index(scope, 0).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 0).unwrap(),
+        v8::String::new(scope, "2").unwrap()
+      );
+
+      assert!(own_props.get_index(scope, 1).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 1).unwrap(),
+        v8::String::new(scope, "7").unwrap()
+      );
+
+      assert!(own_props.get_index(scope, 2).unwrap().is_string());
+      assert_eq!(
+        own_props.get_index(scope, 2).unwrap(),
+        v8::String::new(scope, "a").unwrap()
+      );
+    }
   }
 }
 
