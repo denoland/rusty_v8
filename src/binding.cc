@@ -22,6 +22,11 @@
 
 using namespace support;
 
+template<typename T>
+constexpr size_t align_to(size_t size) {
+    return (size + sizeof(T) - 1) & ~(sizeof(T) - 1);
+}
+
 static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
               "std::shared_ptr<v8::BackingStore> size mismatch");
@@ -40,7 +45,7 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
-static_assert(sizeof(v8::ScriptCompiler::Source) <= sizeof(size_t) * 8,
+static_assert(sizeof(v8::ScriptCompiler::Source) == align_to<size_t>(sizeof(size_t) * 6 + sizeof(int) * 3),
               "Source size mismatch");
 
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
