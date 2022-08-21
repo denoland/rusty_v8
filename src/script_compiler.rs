@@ -1,4 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+use std::os::raw::c_int;
 use std::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::Function;
@@ -61,7 +62,17 @@ extern "C" {
 /// Source code which can then be compiled to a UnboundScript or Script.
 #[repr(C)]
 #[derive(Debug)]
-pub struct Source([usize; 8]);
+pub struct Source {
+  _source_string: usize,
+  _resource_name: usize,
+  _resource_line_offset: c_int,
+  _resource_column_offset: c_int,
+  _resource_options: c_int,
+  _source_map_url: usize,
+  _host_defined_options: usize,
+  _cached_data: usize,
+  _consume_cache_task: usize,
+}
 
 /// Compilation data that the embedder can cache and pass back to speed up future
 /// compilations. The data is produced if the CompilerOptions passed to the compilation
