@@ -52,7 +52,7 @@ console.log(`Updated to version ${newVersion}`);
 // Update version in readme
 let readme = Deno.readTextFileSync("README.md");
 readme = readme.replace(
-  `V8 Version: ${currentVersion}`,
+  /V8 Version: .*$/,
   `V8 Version: ${newVersion}`,
 );
 Deno.writeTextFileSync("README.md", readme);
