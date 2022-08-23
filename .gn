@@ -30,7 +30,10 @@ default_args = {
   symbol_level = 1
   use_debug_fission = false
 
+  # Deno does its own snapshot compression using lz4 and zstd.
+  v8_use_zlib = false
   v8_enable_snapshot_compression = false
+
   v8_enable_javascript_promise_hooks = true
   v8_promise_internal_field_count = 1
   v8_use_external_startup_data = false
