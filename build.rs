@@ -397,6 +397,7 @@ fn download_file(url: String, filename: PathBuf) {
       println!("Python downloader failed, trying with curl.");
       Command::new("curl")
         .arg("-L")
+        .arg("-f")
         .arg("-s")
         .arg("-o")
         .arg(&tmpfile)
