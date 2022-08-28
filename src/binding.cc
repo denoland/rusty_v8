@@ -1129,6 +1129,29 @@ void v8__ObjectTemplate__SetAccessorWithSetter(
   ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
 }
 
+void v8__ObjectTemplate__SetNamedPropertyHandler(const v8::ObjectTemplate& self,
+    v8::GenericNamedPropertyGetterCallback getter) {
+  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(getter));
+}
+
+void v8__ObjectTemplate__SetNamedPropertyHandlerWithSetter(const v8::ObjectTemplate& self,
+    v8::GenericNamedPropertyGetterCallback getter,
+    v8::GenericNamedPropertySetterCallback setter) {
+  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(getter, setter));
+}
+
+
+void v8__ObjectTemplate__SetIndexedPropertyHandler(const v8::ObjectTemplate& self,
+    v8::IndexedPropertyGetterCallback getter) {
+  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyGetterCallback(getter));
+}
+
+void v8__ObjectTemplate__SetIndexedPropertyHandlerWithSetter(const v8::ObjectTemplate& self,
+    v8::IndexedPropertyGetterCallback getter,
+    v8::IndexedPropertySetterCallback setter) {
+  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(getter, setter));
+}
+
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
                                              const v8::Name& key,
                                              v8::FunctionTemplate& getter,

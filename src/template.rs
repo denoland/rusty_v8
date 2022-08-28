@@ -19,6 +19,8 @@ use crate::Function;
 use crate::FunctionBuilder;
 use crate::FunctionCallback;
 use crate::HandleScope;
+use crate::IndexedPropertyGetterCallback;
+use crate::IndexedPropertySetterCallback;
 use crate::Local;
 use crate::Object;
 use crate::PropertyAttribute;
@@ -107,6 +109,29 @@ extern "C" {
     setter: *const FunctionTemplate,
     attr: PropertyAttribute,
   );
+
+  fn v8__ObjectTemplate__SetNamedPropertyHandler(
+    this: *const ObjectTemplate,
+    getter: AccessorNameGetterCallback,
+  );
+
+  fn v8__ObjectTemplate__SetNamedPropertyHandlerWithSetter(
+    this: *const ObjectTemplate,
+    getter: AccessorNameGetterCallback,
+    setter: AccessorNameSetterCallback,
+  );
+
+  fn v8__ObjectTemplate__SetIndexedPropertyHandler(
+    this: *const ObjectTemplate,
+    getter: IndexedPropertyGetterCallback,
+  );
+
+  fn v8__ObjectTemplate__SetIndexedPropertyHandlerWithSetter(
+    this: *const ObjectTemplate,
+    getter: IndexedPropertyGetterCallback,
+    setter: IndexedPropertySetterCallback,
+  );
+
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 }
 
@@ -384,6 +409,54 @@ impl ObjectTemplate {
       v8__ObjectTemplate__SetAccessorWithSetter(
         self,
         &*key,
+        getter.map_fn_to(),
+        setter.map_fn_to(),
+      )
+    }
+  }
+
+  //Re uses the AccessorNameGetterCallback to avoid implementation conflicts since the declaration for
+  //GenericNamedPropertyGetterCallback and  AccessorNameGetterCallback are the same
+  pub fn set_named_property_handler(
+    &self,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+  ) {
+    unsafe {
+      v8__ObjectTemplate__SetNamedPropertyHandler(self, getter.map_fn_to())
+    }
+  }
+
+  pub fn set_named_property_handler_with_setter(
+    &self,
+    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
+  ) {
+    unsafe {
+      v8__ObjectTemplate__SetNamedPropertyHandlerWithSetter(
+        self,
+        getter.map_fn_to(),
+        setter.map_fn_to(),
+      )
+    }
+  }
+
+  pub fn set_indexed_property_handler(
+    &self,
+    getter: impl for<'s> MapFnTo<IndexedPropertyGetterCallback<'s>>,
+  ) {
+    unsafe {
+      v8__ObjectTemplate__SetIndexedPropertyHandler(self, getter.map_fn_to())
+    }
+  }
+
+  pub fn set_indexed_property_handler_with_setter(
+    &self,
+    getter: impl for<'s> MapFnTo<IndexedPropertyGetterCallback<'s>>,
+    setter: impl for<'s> MapFnTo<IndexedPropertySetterCallback<'s>>,
+  ) {
+    unsafe {
+      v8__ObjectTemplate__SetIndexedPropertyHandlerWithSetter(
+        self,
         getter.map_fn_to(),
         setter.map_fn_to(),
       )

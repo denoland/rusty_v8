@@ -381,6 +381,46 @@ where
   }
 }
 
+/// IndexedPropertyGetterCallback is used as callback functions when registering a named handler
+/// particular property. See Object and ObjectTemplate's method SetHandler.
+pub type IndexedPropertyGetterCallback<'s> =
+  extern "C" fn(u32, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedPropertyGetterCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, u32, PropertyCallbackArguments, ReturnValue),
+{
+  fn mapping() -> Self {
+    let f = |index: u32, info: *const PropertyCallbackInfo| {
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, index, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+pub type IndexedPropertySetterCallback<'s> =
+  extern "C" fn(u32, Local<'s, Value>, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedPropertySetterCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, u32, Local<Value>, PropertyCallbackArguments),
+{
+  fn mapping() -> Self {
+    let f =
+      |index: u32, value: Local<Value>, info: *const PropertyCallbackInfo| {
+        let scope = &mut unsafe { CallbackScope::new(&*info) };
+        let args = PropertyCallbackArguments::from_property_callback_info(info);
+        (F::get())(scope, index, value, args);
+      };
+    f.to_c_fn()
+  }
+}
+
 /// A builder to construct the properties of a Function or FunctionTemplate.
 pub struct FunctionBuilder<'s, T> {
   pub(crate) callback: FunctionCallback,
