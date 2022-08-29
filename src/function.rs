@@ -9,12 +9,15 @@ use crate::support::MapFnTo;
 use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::{int, Opaque};
+use crate::Array;
+use crate::Boolean;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
 use crate::Local;
 use crate::Name;
 use crate::Object;
+use crate::PropertyAttribute;
 use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
@@ -181,6 +184,47 @@ impl<'cb> ReturnValue<'cb> {
   }
 }
 
+pub struct PropertyAttributeReturnValue<'cb>(ReturnValue<'cb>);
+
+impl<'cb> PropertyAttributeReturnValue<'cb> {
+  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+    Self(ReturnValue::from_property_callback_info(info))
+  }
+
+  pub fn set(&mut self, value: PropertyAttribute) {
+    let value = unsafe { *(&value as *const _ as *const u32) };
+    self.0.set_int32(value as i32)
+  }
+}
+
+pub struct BooleanReturnValue<'cb>(ReturnValue<'cb>);
+
+impl<'cb> BooleanReturnValue<'cb> {
+  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+    Self(ReturnValue::from_property_callback_info(info))
+  }
+
+  pub fn set(&mut self, value: Local<Boolean>) {
+    self.0.set(value.into())
+  }
+
+  pub fn set_bool(&mut self, value: bool) {
+    self.0.set_bool(value)
+  }
+}
+
+pub struct ArrayReturnValue<'cb>(ReturnValue<'cb>);
+
+impl<'cb> ArrayReturnValue<'cb> {
+  fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
+    Self(ReturnValue::from_property_callback_info(info))
+  }
+
+  pub fn set(&mut self, value: Local<Array>) {
+    self.0.set(value.into())
+  }
+}
+
 /// The argument information given to function call callbacks.  This
 /// class provides access to information about the context of the call,
 /// including the receiver, the number and values of arguments, and
@@ -205,6 +249,21 @@ pub struct PropertyCallbackInfo {
   args: *mut Opaque,
 }
 
+#[repr(C)]
+#[derive(Debug)]
+pub struct IntegerPropertyCallbackInfo(PropertyCallbackInfo);
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct BooleanPropertyCallbackInfo(PropertyCallbackInfo);
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct ArrayPropertyCallbackInfo(PropertyCallbackInfo);
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct PropertyAttributePropertyCallbackInfo(PropertyCallbackInfo);
 #[derive(Debug)]
 pub struct FunctionCallbackArguments<'s> {
   info: *const FunctionCallbackInfo,
@@ -381,6 +440,79 @@ where
   }
 }
 
+pub type GenericNamedPropertyQueryCallback<'s> =
+  extern "C" fn(Local<'s, Name>, *const PropertyAttributePropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for GenericNamedPropertyQueryCallback<'_>
+where
+  F: UnitType
+    + Fn(
+      &mut HandleScope,
+      Local<Name>,
+      PropertyCallbackArguments,
+      PropertyAttributeReturnValue,
+    ),
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>,
+             info: *const PropertyAttributePropertyCallbackInfo| {
+      let info = info as *const PropertyCallbackInfo;
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = PropertyAttributeReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+//Should return a Boolean
+pub type GenericNamedPropertyDeleterCallback<'s> =
+  extern "C" fn(Local<'s, Name>, *const BooleanPropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for GenericNamedPropertyDeleterCallback<'_>
+where
+  F: UnitType
+    + Fn(
+      &mut HandleScope,
+      Local<Name>,
+      PropertyCallbackArguments,
+      BooleanReturnValue,
+    ),
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>, info: *const BooleanPropertyCallbackInfo| {
+      let info = info as *const PropertyCallbackInfo;
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = BooleanReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+//Should return an Array in Return Value
+pub type PropertyEnumeratorCallback<'s> =
+  extern "C" fn(*const ArrayPropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for PropertyEnumeratorCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, PropertyCallbackArguments, ArrayReturnValue),
+{
+  fn mapping() -> Self {
+    let f = |info: *const ArrayPropertyCallbackInfo| {
+      let info = info as *const PropertyCallbackInfo;
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ArrayReturnValue::from_property_callback_info(info);
+      (F::get())(scope, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
 /// IndexedPropertyGetterCallback is used as callback functions when registering a named handler
 /// particular property. See Object and ObjectTemplate's method SetHandler.
 pub type IndexedPropertyGetterCallback<'s> =
@@ -417,6 +549,52 @@ where
         let args = PropertyCallbackArguments::from_property_callback_info(info);
         (F::get())(scope, index, value, args);
       };
+    f.to_c_fn()
+  }
+}
+
+pub type IndexedPropertyQueryCallback<'s> =
+  extern "C" fn(u32, *const PropertyAttributePropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedPropertyQueryCallback<'_>
+where
+  F: UnitType
+    + Fn(
+      &mut HandleScope,
+      u32,
+      PropertyCallbackArguments,
+      PropertyAttributeReturnValue,
+    ),
+{
+  fn mapping() -> Self {
+    let f = |index: u32, info: *const PropertyAttributePropertyCallbackInfo| {
+      let info = info as *const PropertyCallbackInfo;
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = PropertyAttributeReturnValue::from_property_callback_info(info);
+      (F::get())(scope, index, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+//Should return a Boolean
+pub type IndexedPropertyDeleterCallback<'s> =
+  extern "C" fn(u32, *const BooleanPropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedPropertyDeleterCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, u32, PropertyCallbackArguments, BooleanReturnValue),
+{
+  fn mapping() -> Self {
+    let f = |index: u32, info: *const BooleanPropertyCallbackInfo| {
+      let info = info as *const PropertyCallbackInfo;
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = BooleanReturnValue::from_property_callback_info(info);
+      (F::get())(scope, index, args, rv);
+    };
     f.to_c_fn()
   }
 }

@@ -18,12 +18,17 @@ use crate::Context;
 use crate::Function;
 use crate::FunctionBuilder;
 use crate::FunctionCallback;
+use crate::GenericNamedPropertyDeleterCallback;
+use crate::GenericNamedPropertyQueryCallback;
 use crate::HandleScope;
+use crate::IndexedPropertyDeleterCallback;
 use crate::IndexedPropertyGetterCallback;
+use crate::IndexedPropertyQueryCallback;
 use crate::IndexedPropertySetterCallback;
 use crate::Local;
 use crate::Object;
 use crate::PropertyAttribute;
+use crate::PropertyEnumeratorCallback;
 use crate::SideEffectType;
 use crate::Signature;
 use crate::String;
@@ -112,27 +117,205 @@ extern "C" {
 
   fn v8__ObjectTemplate__SetNamedPropertyHandler(
     this: *const ObjectTemplate,
-    getter: AccessorNameGetterCallback,
-  );
-
-  fn v8__ObjectTemplate__SetNamedPropertyHandlerWithSetter(
-    this: *const ObjectTemplate,
-    getter: AccessorNameGetterCallback,
-    setter: AccessorNameSetterCallback,
+    getter: Option<AccessorNameGetterCallback>,
+    setter: Option<AccessorNameSetterCallback>,
+    query: Option<GenericNamedPropertyQueryCallback>,
+    deleter: Option<GenericNamedPropertyDeleterCallback>,
+    enumerator: Option<PropertyEnumeratorCallback>,
+    descriptor: Option<AccessorNameGetterCallback>,
+    data_or_null: *const Value,
   );
 
   fn v8__ObjectTemplate__SetIndexedPropertyHandler(
     this: *const ObjectTemplate,
-    getter: IndexedPropertyGetterCallback,
-  );
-
-  fn v8__ObjectTemplate__SetIndexedPropertyHandlerWithSetter(
-    this: *const ObjectTemplate,
-    getter: IndexedPropertyGetterCallback,
-    setter: IndexedPropertySetterCallback,
+    getter: Option<IndexedPropertyGetterCallback>,
+    setter: Option<IndexedPropertySetterCallback>,
+    query: Option<IndexedPropertyQueryCallback>,
+    deleter: Option<IndexedPropertyDeleterCallback>,
+    enumerator: Option<PropertyEnumeratorCallback>,
+    descriptor: Option<IndexedPropertyGetterCallback>,
+    data_or_null: *const Value,
   );
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
+}
+
+
+#[derive(Default)]
+pub struct NamedPropertyHandlerConfiguration<'s> {
+  pub(crate) getter: Option<AccessorNameGetterCallback<'s>>,
+  pub(crate) setter: Option<AccessorNameSetterCallback<'s>>,
+  pub(crate) query: Option<GenericNamedPropertyQueryCallback<'s>>,
+  pub(crate) deleter: Option<GenericNamedPropertyDeleterCallback<'s>>,
+  pub(crate) enumerator: Option<PropertyEnumeratorCallback<'s>>,
+  pub(crate) descriptor: Option<AccessorNameGetterCallback<'s>>,
+  pub(crate) data: Option<Local<'s, Value>>,
+}
+
+impl<'s> NamedPropertyHandlerConfiguration<'s> {
+  pub fn new() -> Self {
+    Self {
+      getter: None,
+      setter: None,
+      query: None,
+      deleter: None,
+      enumerator: None,
+      descriptor: None,
+      data: None,
+    }
+  }
+
+  pub fn is_some(&self) -> bool {
+    self.getter.is_some()
+      || self.setter.is_some()
+      || self.query.is_some()
+      || self.deleter.is_some()
+      || self.enumerator.is_some()
+      || self.descriptor.is_some()
+  }
+
+  pub fn getter(
+    mut self,
+    getter: impl MapFnTo<AccessorNameGetterCallback<'s>>,
+  ) -> Self {
+    self.getter = Some(getter.map_fn_to());
+    self
+  }
+
+  pub fn setter(
+    mut self,
+    setter: impl MapFnTo<AccessorNameSetterCallback<'s>>,
+  ) -> Self {
+    self.setter = Some(setter.map_fn_to());
+    self
+  }
+
+  pub fn query(
+    mut self,
+    query: impl MapFnTo<GenericNamedPropertyQueryCallback<'s>>,
+  ) -> Self {
+    self.query = Some(query.map_fn_to());
+    self
+  }
+
+  pub fn deleter(
+    mut self,
+    deleter: impl MapFnTo<GenericNamedPropertyDeleterCallback<'s>>,
+  ) -> Self {
+    self.deleter = Some(deleter.map_fn_to());
+    self
+  }
+
+  pub fn enumerator(
+    mut self,
+    enumerator: impl MapFnTo<PropertyEnumeratorCallback<'s>>,
+  ) -> Self {
+    self.enumerator = Some(enumerator.map_fn_to());
+    self
+  }
+
+  pub fn descriptor(
+    mut self,
+    descriptor: impl MapFnTo<AccessorNameGetterCallback<'s>>,
+  ) -> Self {
+    self.descriptor = Some(descriptor.map_fn_to());
+    self
+  }
+
+  /// Set the associated data. The default is no associated data.
+  pub fn data(mut self, data: Local<'s, Value>) -> Self {
+    self.data = Some(data);
+    self
+  }
+}
+
+
+#[derive(Default)]
+pub struct IndexedPropertyHandlerConfiguration<'s> {
+  pub(crate) getter: Option<IndexedPropertyGetterCallback<'s>>,
+  pub(crate) setter: Option<IndexedPropertySetterCallback<'s>>,
+  pub(crate) query: Option<IndexedPropertyQueryCallback<'s>>,
+  pub(crate) deleter: Option<IndexedPropertyDeleterCallback<'s>>,
+  pub(crate) enumerator: Option<PropertyEnumeratorCallback<'s>>,
+  pub(crate) descriptor: Option<IndexedPropertyGetterCallback<'s>>,
+  pub(crate) data: Option<Local<'s, Value>>,
+}
+
+impl<'s> IndexedPropertyHandlerConfiguration<'s> {
+  pub fn new() -> Self {
+    Self {
+      getter: None,
+      setter: None,
+      query: None,
+      deleter: None,
+      enumerator: None,
+      descriptor: None,
+      data: None,
+    }
+  }
+
+  pub fn is_some(&self) -> bool {
+    self.getter.is_some()
+      || self.setter.is_some()
+      || self.query.is_some()
+      || self.deleter.is_some()
+      || self.enumerator.is_some()
+      || self.descriptor.is_some()
+  }
+
+  pub fn getter(
+    mut self,
+    getter: impl MapFnTo<IndexedPropertyGetterCallback<'s>>,
+  ) -> Self {
+    self.getter = Some(getter.map_fn_to());
+    self
+  }
+
+  pub fn setter(
+    mut self,
+    setter: impl MapFnTo<IndexedPropertySetterCallback<'s>>,
+  ) -> Self {
+    self.setter = Some(setter.map_fn_to());
+    self
+  }
+
+  pub fn query(
+    mut self,
+    query: impl MapFnTo<IndexedPropertyQueryCallback<'s>>,
+  ) -> Self {
+    self.query = Some(query.map_fn_to());
+    self
+  }
+
+  pub fn deleter(
+    mut self,
+    deleter: impl MapFnTo<IndexedPropertyDeleterCallback<'s>>,
+  ) -> Self {
+    self.deleter = Some(deleter.map_fn_to());
+    self
+  }
+
+  pub fn enumerator(
+    mut self,
+    enumerator: impl MapFnTo<PropertyEnumeratorCallback<'s>>,
+  ) -> Self {
+    self.enumerator = Some(enumerator.map_fn_to());
+    self
+  }
+
+  pub fn descriptor(
+    mut self,
+    descriptor: impl MapFnTo<IndexedPropertyGetterCallback<'s>>,
+  ) -> Self {
+    self.descriptor = Some(descriptor.map_fn_to());
+    self
+  }
+
+  /// Set the associated data. The default is no associated data.
+  pub fn data(mut self, data: Local<'s, Value>) -> Self {
+    self.data = Some(data);
+    self
+  }
 }
 
 impl Template {
@@ -419,46 +602,38 @@ impl ObjectTemplate {
   //GenericNamedPropertyGetterCallback and  AccessorNameGetterCallback are the same
   pub fn set_named_property_handler(
     &self,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    configuration: NamedPropertyHandlerConfiguration,
   ) {
+    assert!(configuration.is_some());
     unsafe {
-      v8__ObjectTemplate__SetNamedPropertyHandler(self, getter.map_fn_to())
-    }
-  }
-
-  pub fn set_named_property_handler_with_setter(
-    &self,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
-    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
-  ) {
-    unsafe {
-      v8__ObjectTemplate__SetNamedPropertyHandlerWithSetter(
+      v8__ObjectTemplate__SetNamedPropertyHandler(
         self,
-        getter.map_fn_to(),
-        setter.map_fn_to(),
+        configuration.getter,
+        configuration.setter,
+        configuration.query,
+        configuration.deleter,
+        configuration.enumerator,
+        configuration.descriptor,
+        configuration.data.map_or_else(null, |p| &*p),
       )
     }
   }
 
   pub fn set_indexed_property_handler(
     &self,
-    getter: impl for<'s> MapFnTo<IndexedPropertyGetterCallback<'s>>,
+    configuration: IndexedPropertyHandlerConfiguration,
   ) {
+    assert!(configuration.is_some());
     unsafe {
-      v8__ObjectTemplate__SetIndexedPropertyHandler(self, getter.map_fn_to())
-    }
-  }
-
-  pub fn set_indexed_property_handler_with_setter(
-    &self,
-    getter: impl for<'s> MapFnTo<IndexedPropertyGetterCallback<'s>>,
-    setter: impl for<'s> MapFnTo<IndexedPropertySetterCallback<'s>>,
-  ) {
-    unsafe {
-      v8__ObjectTemplate__SetIndexedPropertyHandlerWithSetter(
+      v8__ObjectTemplate__SetIndexedPropertyHandler(
         self,
-        getter.map_fn_to(),
-        setter.map_fn_to(),
+        configuration.getter,
+        configuration.setter,
+        configuration.query,
+        configuration.deleter,
+        configuration.enumerator,
+        configuration.descriptor,
+        configuration.data.map_or_else(null, |p| &*p),
       )
     }
   }

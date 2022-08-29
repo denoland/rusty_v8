@@ -22,9 +22,9 @@
 
 using namespace support;
 
-template<typename T>
+template <typename T>
 constexpr size_t align_to(size_t size) {
-    return (size + sizeof(T) - 1) & ~(sizeof(T) - 1);
+  return (size + sizeof(T) - 1) & ~(sizeof(T) - 1);
 }
 
 static_assert(sizeof(two_pointers_t) ==
@@ -45,7 +45,8 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
-static_assert(sizeof(v8::ScriptCompiler::Source) == align_to<size_t>(sizeof(size_t) * 6 + sizeof(int) * 3),
+static_assert(sizeof(v8::ScriptCompiler::Source) ==
+                  align_to<size_t>(sizeof(size_t) * 6 + sizeof(int) * 3),
               "Source size mismatch");
 
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
@@ -1129,27 +1130,31 @@ void v8__ObjectTemplate__SetAccessorWithSetter(
   ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
 }
 
-void v8__ObjectTemplate__SetNamedPropertyHandler(const v8::ObjectTemplate& self,
-    v8::GenericNamedPropertyGetterCallback getter) {
-  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(getter));
-}
-
-void v8__ObjectTemplate__SetNamedPropertyHandlerWithSetter(const v8::ObjectTemplate& self,
+void v8__ObjectTemplate__SetNamedPropertyHandler(
+    const v8::ObjectTemplate& self,
     v8::GenericNamedPropertyGetterCallback getter,
-    v8::GenericNamedPropertySetterCallback setter) {
-  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(getter, setter));
+    v8::GenericNamedPropertySetterCallback setter,
+    v8::GenericNamedPropertyQueryCallback query,
+    v8::GenericNamedPropertyDeleterCallback deleter,
+    v8::GenericNamedPropertyEnumeratorCallback enumerator,
+    v8::GenericNamedPropertyDescriptorCallback descriptor,
+    const v8::Value* data_or_null) {
+  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(
+      getter, setter, query, deleter, enumerator, nullptr, descriptor,
+      ptr_to_local(data_or_null)));
 }
 
-
-void v8__ObjectTemplate__SetIndexedPropertyHandler(const v8::ObjectTemplate& self,
-    v8::IndexedPropertyGetterCallback getter) {
-  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyGetterCallback(getter));
-}
-
-void v8__ObjectTemplate__SetIndexedPropertyHandlerWithSetter(const v8::ObjectTemplate& self,
-    v8::IndexedPropertyGetterCallback getter,
-    v8::IndexedPropertySetterCallback setter) {
-  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(getter, setter));
+void v8__ObjectTemplate__SetIndexedPropertyHandler(
+    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallback getter,
+    v8::IndexedPropertySetterCallback setter,
+    v8::IndexedPropertyQueryCallback query,
+    v8::IndexedPropertyDeleterCallback deleter,
+    v8::IndexedPropertyEnumeratorCallback enumerator,
+    v8::IndexedPropertyDescriptorCallback descriptor,
+    const v8::Value* data_or_null) {
+  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
+      getter, setter, query, deleter, enumerator, nullptr, descriptor,
+      ptr_to_local(data_or_null)));
 }
 
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
