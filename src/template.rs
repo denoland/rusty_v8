@@ -140,7 +140,6 @@ extern "C" {
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 }
 
-
 #[derive(Default)]
 pub struct NamedPropertyHandlerConfiguration<'s> {
   pub(crate) getter: Option<AccessorNameGetterCallback<'s>>,
@@ -228,7 +227,6 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
     self
   }
 }
-
 
 #[derive(Default)]
 pub struct IndexedPropertyHandlerConfiguration<'s> {
