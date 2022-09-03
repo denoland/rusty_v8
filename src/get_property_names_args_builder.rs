@@ -78,7 +78,12 @@ impl GetPropertyNamesArgsBuilder {
   }
 
   pub fn build(&self) -> GetPropertyNamesArgs {
-    Default::default()
+    GetPropertyNamesArgs {
+      mode: self.mode,
+      property_filter: self.property_filter,
+      index_filter: self.index_filter,
+      key_conversion: self.key_conversion,
+    }
   }
 
   pub fn mode(
