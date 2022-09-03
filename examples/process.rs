@@ -358,7 +358,9 @@ where
       .to_object(scope)
       .unwrap();
 
-    let props = output.get_property_names(scope).unwrap();
+    let props = output
+      .get_property_names(scope, v8::GetPropertyNamesArgsBuilder::new().build())
+      .unwrap();
     for i in 0..props.length() {
       let key = props.get_index(scope, i).unwrap();
       let value = output.get(scope, key).unwrap();
