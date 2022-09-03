@@ -43,6 +43,17 @@ pub struct GetPropertyNamesArgs {
   pub key_conversion: KeyConversionMode,
 }
 
+impl Default for GetPropertyNamesArgs {
+  fn default() -> Self {
+    GetPropertyNamesArgs {
+      mode: KeyCollectionMode::IncludePrototypes,
+      property_filter: ONLY_ENUMERABLE | SKIP_SYMBOLS,
+      index_filter: IndexFilter::IncludeIndices,
+      key_conversion: KeyConversionMode::KeepNumbers,
+    }
+  }
+}
+
 pub struct GetPropertyNamesArgsBuilder {
   mode: KeyCollectionMode,
   property_filter: PropertyFilter,
@@ -67,12 +78,7 @@ impl GetPropertyNamesArgsBuilder {
   }
 
   pub fn build(&self) -> GetPropertyNamesArgs {
-    GetPropertyNamesArgs {
-      mode: self.mode,
-      property_filter: self.property_filter,
-      index_filter: self.index_filter,
-      key_conversion: self.key_conversion,
-    }
+    Default::default()
   }
 
   pub fn mode(

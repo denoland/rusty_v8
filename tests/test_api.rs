@@ -4846,26 +4846,18 @@ fn test_object_get_property_names() {
     obj.set_prototype(scope, proto_obj.into());
 
     let own_props = obj
-      .get_own_property_names(
-        scope,
-        v8::GetPropertyNamesArgsBuilder::new().build(),
-      )
+      .get_own_property_names(scope, Default::default())
       .unwrap();
     assert_eq!(own_props.length(), 1);
     assert!(own_props.get_index(scope, 0).unwrap() == js_test_str);
 
     let proto_props = proto_obj
-      .get_own_property_names(
-        scope,
-        v8::GetPropertyNamesArgsBuilder::new().build(),
-      )
+      .get_own_property_names(scope, Default::default())
       .unwrap();
     assert_eq!(proto_props.length(), 1);
     assert!(proto_props.get_index(scope, 0).unwrap() == js_proto_test_str);
 
-    let all_props = obj
-      .get_property_names(scope, v8::GetPropertyNamesArgsBuilder::new().build())
-      .unwrap();
+    let all_props = obj.get_property_names(scope, Default::default()).unwrap();
     js_sort_fn.call(scope, all_props.into(), &[]).unwrap();
     assert_eq!(all_props.length(), 2);
     assert!(all_props.get_index(scope, 0).unwrap() == js_proto_test_str);
@@ -4878,10 +4870,7 @@ fn test_object_get_property_names() {
     obj.set(scope, js_test_symbol, js_null);
 
     let own_props = obj
-      .get_own_property_names(
-        scope,
-        v8::GetPropertyNamesArgsBuilder::new().build(),
-      )
+      .get_own_property_names(scope, Default::default())
       .unwrap();
     assert_eq!(own_props.length(), 1);
     assert!(own_props.get_index(scope, 0).unwrap() == js_test_str);
@@ -4916,10 +4905,7 @@ fn test_object_get_property_names() {
 
     {
       let own_props = obj
-        .get_own_property_names(
-          scope,
-          v8::GetPropertyNamesArgsBuilder::new().build(),
-        )
+        .get_own_property_names(scope, Default::default())
         .unwrap();
 
       assert_eq!(own_props.length(), 3);
