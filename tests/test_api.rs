@@ -1391,7 +1391,7 @@ fn object_template() {
     let object_templ = v8::ObjectTemplate::new(scope);
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8::String::new(scope, "f").unwrap();
-    let attr = v8::READ_ONLY + v8::DONT_ENUM + v8::DONT_DELETE;
+    let attr = v8::READ_ONLY | v8::DONT_ENUM | v8::DONT_DELETE;
     object_templ.set_internal_field_count(1);
     object_templ.set_with_attr(name.into(), function_templ.into(), attr);
     let context = v8::Context::new(scope);
