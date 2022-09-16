@@ -6679,6 +6679,26 @@ fn backing_store_from_empty_vec() {
 }
 
 #[test]
+fn backing_store_data() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  let v = vec![1, 2, 3, 4, 5];
+  let len = v.len();
+  let store = v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
+  let buf = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
+  assert_eq!(buf.byte_length(), len);
+  assert_eq!(
+    unsafe { std::slice::from_raw_parts_mut(buf.data() as *mut u8, len) },
+    &[1, 2, 3, 4, 5]
+  );
+}
+
+#[test]
 fn current_stack_trace() {
   // Setup isolate
   let isolate = &mut v8::Isolate::new(Default::default());
