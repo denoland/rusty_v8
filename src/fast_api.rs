@@ -1,4 +1,6 @@
 use crate::support::Opaque;
+use crate::Local;
+use crate::Value;
 use libc::c_void;
 use std::{
   mem::align_of,
@@ -159,11 +161,11 @@ struct CTypeSequenceInfo {
 }
 
 #[repr(C)]
-pub union FastApiCallbackData {
+pub union FastApiCallbackData<'a> {
   /// `data_ptr` allows for default constructing FastApiCallbackOptions.
   pub data_ptr: *mut c_void,
   /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
-  pub data: crate::Value,
+  pub data: Local<'a, Value>,
 }
 
 /// A struct which may be passed to a fast call callback, like so
@@ -171,7 +173,7 @@ pub union FastApiCallbackData {
 /// void FastMethodWithOptions(int param, FastApiCallbackOptions& options);
 /// ```
 #[repr(C)]
-pub struct FastApiCallbackOptions {
+pub struct FastApiCallbackOptions<'a> {
   /// If the callback wants to signal an error condition or to perform an
   /// allocation, it must set options.fallback to true and do an early return
   /// from the fast method. Then V8 checks the value of options.fallback and if
@@ -182,7 +184,7 @@ pub struct FastApiCallbackOptions {
   /// fallback conditions are checked, because otherwise executing the slow
   /// callback might produce visible side-effects twice.
   pub fallback: bool,
-  pub data: FastApiCallbackData,
+  pub data: FastApiCallbackData<'a>,
   /// When called from WebAssembly, a view of the calling module's memory.
   pub wasm_memory: *const FastApiTypedArray<u8>,
 }
