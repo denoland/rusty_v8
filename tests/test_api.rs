@@ -7650,7 +7650,7 @@ fn test_fast_calls_overload() {
 }
 
 #[test]
-fn test_fast_calls_callback_options() {
+fn test_fast_calls_callback_options_fallback() {
   static mut WHO: &str = "none";
   fn fast_fn(
     _recv: v8::Local<v8::Object>,
@@ -7717,4 +7717,74 @@ fn test_fast_calls_callback_options() {
 "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
+}
+
+#[test]
+fn test_fast_calls_callback_options_data() {
+  static mut DATA: bool = false;
+  unsafe fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    options: *mut fast_api::FastApiCallbackOptions,
+  ) {
+    let options = &mut *options;
+    if !options.data.data.is_external() {
+      options.fallback = true;
+      return;
+    }
+
+    let data = v8::Local::<v8::External>::cast(options.data.data);
+    let data = &mut *(data.value() as *mut bool);
+    *data = true;
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::V8Value, fast_api::Type::CallbackOptions]
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn as _
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    rv.set(v8::Boolean::new(scope, false).into());
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+  let external =
+    v8::External::new(scope, unsafe { &mut DATA as *mut bool as *mut c_void });
+
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .data(external.into())
+    .build_fast(scope, &FastTest, None);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f() { return func(); }
+  %PrepareFunctionForOptimization(f);
+  f();
+"#;
+  eval(scope, source).unwrap();
+  assert!(unsafe { !DATA });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    f();
+  "#;
+  eval(scope, source).unwrap();
+  assert!(unsafe { DATA });
 }
