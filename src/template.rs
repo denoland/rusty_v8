@@ -18,12 +18,8 @@ use crate::Context;
 use crate::Function;
 use crate::FunctionBuilder;
 use crate::FunctionCallback;
-use crate::GenericNamedPropertyDeleterCallback;
-use crate::GenericNamedPropertyQueryCallback;
 use crate::HandleScope;
-use crate::IndexedPropertyDeleterCallback;
 use crate::IndexedPropertyGetterCallback;
-use crate::IndexedPropertyQueryCallback;
 use crate::IndexedPropertySetterCallback;
 use crate::Local;
 use crate::Object;
@@ -119,8 +115,8 @@ extern "C" {
     this: *const ObjectTemplate,
     getter: Option<AccessorNameGetterCallback>,
     setter: Option<AccessorNameSetterCallback>,
-    query: Option<GenericNamedPropertyQueryCallback>,
-    deleter: Option<GenericNamedPropertyDeleterCallback>,
+    query: Option<AccessorNameGetterCallback>,
+    deleter: Option<AccessorNameGetterCallback>,
     enumerator: Option<PropertyEnumeratorCallback>,
     descriptor: Option<AccessorNameGetterCallback>,
     data_or_null: *const Value,
@@ -130,8 +126,8 @@ extern "C" {
     this: *const ObjectTemplate,
     getter: Option<IndexedPropertyGetterCallback>,
     setter: Option<IndexedPropertySetterCallback>,
-    query: Option<IndexedPropertyQueryCallback>,
-    deleter: Option<IndexedPropertyDeleterCallback>,
+    query: Option<IndexedPropertyGetterCallback>,
+    deleter: Option<IndexedPropertyGetterCallback>,
     enumerator: Option<PropertyEnumeratorCallback>,
     descriptor: Option<IndexedPropertyGetterCallback>,
     data_or_null: *const Value,
@@ -144,8 +140,8 @@ extern "C" {
 pub struct NamedPropertyHandlerConfiguration<'s> {
   pub(crate) getter: Option<AccessorNameGetterCallback<'s>>,
   pub(crate) setter: Option<AccessorNameSetterCallback<'s>>,
-  pub(crate) query: Option<GenericNamedPropertyQueryCallback<'s>>,
-  pub(crate) deleter: Option<GenericNamedPropertyDeleterCallback<'s>>,
+  pub(crate) query: Option<AccessorNameGetterCallback<'s>>,
+  pub(crate) deleter: Option<AccessorNameGetterCallback<'s>>,
   pub(crate) enumerator: Option<PropertyEnumeratorCallback<'s>>,
   pub(crate) descriptor: Option<AccessorNameGetterCallback<'s>>,
   pub(crate) data: Option<Local<'s, Value>>,
@@ -189,22 +185,29 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  // Intercepts all requests that query the attributes of the property,
+  // e.g., getOwnPropertyDescriptor(), propertyIsEnumerable(), and defineProperty()
+  // Use ReturnValue.set_int32(value) to set the property attributes. The value is an interger encoding a v8::PropertyAttribute.
   pub fn query(
     mut self,
-    query: impl MapFnTo<GenericNamedPropertyQueryCallback<'s>>,
+    query: impl MapFnTo<AccessorNameGetterCallback<'s>>,
   ) -> Self {
     self.query = Some(query.map_fn_to());
     self
   }
-
+  // Interceptor for delete requests on an object.
+  // Use ReturnValue.set_bool to indicate whether the request was intercepted or not. If the deleter successfully intercepts the request,
+  // i.e., if the request should not be further executed, call info.GetReturnValue().Set(value) with a boolean value.
+  // The value is used as the return value of delete.
   pub fn deleter(
     mut self,
-    deleter: impl MapFnTo<GenericNamedPropertyDeleterCallback<'s>>,
+    deleter: impl MapFnTo<AccessorNameGetterCallback<'s>>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
     self
   }
-
+  // Returns an array containing the names of the properties the named property getter intercepts.
+  // use ReturnValue.set with a v8::Array
   pub fn enumerator(
     mut self,
     enumerator: impl MapFnTo<PropertyEnumeratorCallback<'s>>,
@@ -232,8 +235,8 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 pub struct IndexedPropertyHandlerConfiguration<'s> {
   pub(crate) getter: Option<IndexedPropertyGetterCallback<'s>>,
   pub(crate) setter: Option<IndexedPropertySetterCallback<'s>>,
-  pub(crate) query: Option<IndexedPropertyQueryCallback<'s>>,
-  pub(crate) deleter: Option<IndexedPropertyDeleterCallback<'s>>,
+  pub(crate) query: Option<IndexedPropertyGetterCallback<'s>>,
+  pub(crate) deleter: Option<IndexedPropertyGetterCallback<'s>>,
   pub(crate) enumerator: Option<PropertyEnumeratorCallback<'s>>,
   pub(crate) descriptor: Option<IndexedPropertyGetterCallback<'s>>,
   pub(crate) data: Option<Local<'s, Value>>,
@@ -279,7 +282,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn query(
     mut self,
-    query: impl MapFnTo<IndexedPropertyQueryCallback<'s>>,
+    query: impl MapFnTo<IndexedPropertyGetterCallback<'s>>,
   ) -> Self {
     self.query = Some(query.map_fn_to());
     self
@@ -287,7 +290,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn deleter(
     mut self,
-    deleter: impl MapFnTo<IndexedPropertyDeleterCallback<'s>>,
+    deleter: impl MapFnTo<IndexedPropertyGetterCallback<'s>>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
     self

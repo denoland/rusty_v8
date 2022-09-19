@@ -1799,12 +1799,13 @@ fn object_template_set_named_property_handler() {
     let query = |scope: &mut v8::HandleScope,
                  key: v8::Local<v8::Name>,
                  args: v8::PropertyCallbackArguments,
-                 mut rv: v8::PropertyAttributeReturnValue| {
+                 mut rv: v8::ReturnValue| {
       let this = args.this();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
-      rv.set(v8::READ_ONLY);
+      //PropertyAttribute::READ_ONLY
+      rv.set_int32(1);
       let expected_value = v8::Integer::new(scope, 42);
       assert!(this
         .get_internal_field(scope, 0)
@@ -1814,7 +1815,7 @@ fn object_template_set_named_property_handler() {
     let deleter = |scope: &mut v8::HandleScope,
                    key: v8::Local<v8::Name>,
                    _args: v8::PropertyCallbackArguments,
-                   mut rv: v8::BooleanReturnValue| {
+                   mut rv: v8::ReturnValue| {
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
@@ -1823,7 +1824,7 @@ fn object_template_set_named_property_handler() {
 
     let enumerator = |scope: &mut v8::HandleScope,
                       args: v8::PropertyCallbackArguments,
-                      mut rv: v8::ArrayReturnValue| {
+                      mut rv: v8::ReturnValue| {
       let this = args.this();
       //Validate is the current object
       let expected_value = v8::Integer::new(scope, 42);
@@ -1834,7 +1835,7 @@ fn object_template_set_named_property_handler() {
 
       let key = v8::String::new(scope, "key").unwrap();
       let result = v8::Array::new_with_elements(scope, &[key.into()]);
-      rv.set(result);
+      rv.set(result.into());
     };
 
     let name = v8::String::new(scope, "obj").unwrap();
@@ -1964,7 +1965,7 @@ fn object_template_set_indexed_property_handler() {
   let deleter = |_scope: &mut v8::HandleScope,
                  index: u32,
                  _args: v8::PropertyCallbackArguments,
-                 mut rv: v8::BooleanReturnValue| {
+                 mut rv: v8::ReturnValue| {
     assert_eq!(index, 37);
 
     rv.set_bool(false);
@@ -1972,7 +1973,7 @@ fn object_template_set_indexed_property_handler() {
 
   let enumerator = |scope: &mut v8::HandleScope,
                     args: v8::PropertyCallbackArguments,
-                    mut rv: v8::ArrayReturnValue| {
+                    mut rv: v8::ReturnValue| {
     let this = args.this();
     //Validate is the current object
     let expected_value = v8::Integer::new(scope, 42);
@@ -1983,7 +1984,7 @@ fn object_template_set_indexed_property_handler() {
 
     let key = v8::Integer::new(scope, 37);
     let result = v8::Array::new_with_elements(scope, &[key.into()]);
-    rv.set(result);
+    rv.set(result.into());
   };
 
   let name = v8::String::new(scope, "obj").unwrap();
