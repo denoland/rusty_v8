@@ -52,12 +52,12 @@ impl Default for PropertyAttribute {
   }
 }
 
-impl std::ops::Add for PropertyAttribute {
+impl std::ops::BitOr for PropertyAttribute {
   type Output = Self;
 
-  fn add(self, Self(rhs): Self) -> Self {
+  fn bitor(self, Self(rhs): Self) -> Self {
     let Self(lhs) = self;
-    Self(lhs + rhs)
+    Self(lhs | rhs)
   }
 }
 
@@ -84,9 +84,15 @@ fn test_attr() {
   assert!(DONT_DELETE.is_dont_delete());
 
   assert_eq!(NONE, Default::default());
-  assert_eq!(READ_ONLY, NONE + READ_ONLY);
+  assert_eq!(READ_ONLY, NONE | READ_ONLY);
 
-  let attr = READ_ONLY + DONT_ENUM;
+  let attr = READ_ONLY | DONT_ENUM;
+  assert!(!attr.is_none());
+  assert!(attr.is_read_only());
+  assert!(attr.is_dont_enum());
+  assert!(!attr.is_dont_delete());
+
+  let attr = READ_ONLY | READ_ONLY | DONT_ENUM;
   assert!(!attr.is_none());
   assert!(attr.is_read_only());
   assert!(attr.is_dont_enum());

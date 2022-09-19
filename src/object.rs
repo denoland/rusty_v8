@@ -8,13 +8,18 @@ use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
 use crate::Array;
 use crate::Context;
+use crate::GetPropertyNamesArgs;
 use crate::HandleScope;
+use crate::IndexFilter;
+use crate::KeyCollectionMode;
+use crate::KeyConversionMode;
 use crate::Local;
 use crate::Map;
 use crate::Name;
 use crate::Object;
 use crate::Private;
 use crate::PropertyAttribute;
+use crate::PropertyFilter;
 use crate::Value;
 use std::convert::TryFrom;
 use std::num::NonZeroI32;
@@ -87,10 +92,16 @@ extern "C" {
   fn v8__Object__GetOwnPropertyNames(
     this: *const Object,
     context: *const Context,
+    filter: PropertyFilter,
+    key_conversion: KeyConversionMode,
   ) -> *const Array;
   fn v8__Object__GetPropertyNames(
     this: *const Object,
     context: *const Context,
+    mode: KeyCollectionMode,
+    property_filter: PropertyFilter,
+    index_filter: IndexFilter,
+    key_conversion: KeyConversionMode,
   ) -> *const Array;
   fn v8__Object__Has(
     this: *const Object,
@@ -414,10 +425,16 @@ impl Object {
   pub fn get_own_property_names<'s>(
     &self,
     scope: &mut HandleScope<'s>,
+    args: GetPropertyNamesArgs,
   ) -> Option<Local<'s, Array>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Object__GetOwnPropertyNames(self, sd.get_current_context())
+        v8__Object__GetOwnPropertyNames(
+          self,
+          sd.get_current_context(),
+          args.property_filter,
+          args.key_conversion,
+        )
       })
     }
   }
@@ -429,10 +446,18 @@ impl Object {
   pub fn get_property_names<'s>(
     &self,
     scope: &mut HandleScope<'s>,
+    args: GetPropertyNamesArgs,
   ) -> Option<Local<'s, Array>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Object__GetPropertyNames(self, sd.get_current_context())
+        v8__Object__GetPropertyNames(
+          self,
+          sd.get_current_context(),
+          args.mode,
+          args.property_filter,
+          args.index_filter,
+          args.key_conversion,
+        )
       })
     }
   }

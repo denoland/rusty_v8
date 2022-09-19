@@ -855,6 +855,10 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
 
+void* v8__ArrayBuffer__Data(const v8::ArrayBuffer& self) {
+  return ptr_to_local(&self)->Data();
+}
+
 void v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self) {
   ptr_to_local(&self)->Detach();
 }
@@ -1277,16 +1281,48 @@ const v8::Context* v8__Object__GetCreationContext(const v8::Object& self) {
   return maybe_local_to_ptr(ptr_to_local(&self)->GetCreationContext());
 }
 
-const v8::Array* v8__Object__GetOwnPropertyNames(const v8::Object* self,
-                                                 const v8::Context* context) {
-  return maybe_local_to_ptr(
-      ptr_to_local(self)->GetOwnPropertyNames(ptr_to_local(context)));
+// v8::PropertyFilter
+static_assert(v8::ALL_PROPERTIES == 0, "v8::ALL_PROPERTIES is not 0");
+static_assert(v8::ONLY_WRITABLE == 1, "v8::ONLY_WRITABLE is not 1");
+static_assert(v8::ONLY_ENUMERABLE == 2, "v8::ONLY_ENUMERABLE is not 2");
+static_assert(v8::ONLY_CONFIGURABLE == 4, "v8::ONLY_CONFIGURABLE is not 4");
+static_assert(v8::SKIP_STRINGS == 8, "v8::SKIP_STRINGS is not 8");
+static_assert(v8::SKIP_SYMBOLS == 16, "v8::SKIP_SYMBOLS is not 16");
+
+// v8::KeyConversionMode
+static_assert(static_cast<int>(v8::KeyConversionMode::kConvertToString) == 0,
+              "v8::KeyConversionMode::kConvertToString is not 0");
+static_assert(static_cast<int>(v8::KeyConversionMode::kKeepNumbers) == 1,
+              "v8::KeyConversionMode::kKeepNumbers is not 1");
+static_assert(static_cast<int>(v8::KeyConversionMode::kNoNumbers) == 2,
+              "v8::KeyConversionMode::kNoNumbers is not 2");
+
+// v8::KeyCollectionMode
+static_assert(static_cast<int>(v8::KeyCollectionMode::kOwnOnly) == 0,
+              "v8::KeyCollectionMode::kOwnOnly is not 0");
+static_assert(static_cast<int>(v8::KeyCollectionMode::kIncludePrototypes) == 1,
+              "v8::KeyCollectionMode::kIncludePrototypes is not 1");
+
+// v8::IndexFilter
+static_assert(static_cast<int>(v8::IndexFilter::kIncludeIndices) == 0,
+              "v8::IndexFilter::kIncludeIndices is not 0");
+static_assert(static_cast<int>(v8::IndexFilter::kSkipIndices) == 1,
+              "v8::IndexFilter::kSkipIndices is not 1");
+
+const v8::Array* v8__Object__GetOwnPropertyNames(
+    const v8::Object* self, const v8::Context* context,
+    v8::PropertyFilter filter, v8::KeyConversionMode key_conversion) {
+  return maybe_local_to_ptr(ptr_to_local(self)->GetOwnPropertyNames(
+      ptr_to_local(context), filter, key_conversion));
 }
 
-const v8::Array* v8__Object__GetPropertyNames(const v8::Object* self,
-                                              const v8::Context* context) {
-  return maybe_local_to_ptr(
-      ptr_to_local(self)->GetPropertyNames(ptr_to_local(context)));
+const v8::Array* v8__Object__GetPropertyNames(
+    const v8::Object* self, const v8::Context* context,
+    v8::KeyCollectionMode mode, v8::PropertyFilter property_filter,
+    v8::IndexFilter index_filter, v8::KeyConversionMode key_conversion) {
+  return maybe_local_to_ptr(ptr_to_local(self)->GetPropertyNames(
+      ptr_to_local(context), mode, property_filter, index_filter,
+      key_conversion));
 }
 
 MaybeBool v8__Object__Has(const v8::Object& self, const v8::Context& context,

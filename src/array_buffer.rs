@@ -36,6 +36,7 @@ extern "C" {
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const ArrayBuffer;
   fn v8__ArrayBuffer__Detach(this: *const ArrayBuffer);
+  fn v8__ArrayBuffer__Data(this: *const ArrayBuffer) -> *mut c_void;
   fn v8__ArrayBuffer__IsDetachable(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__ByteLength(this: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
@@ -389,6 +390,13 @@ impl ArrayBuffer {
     if self.is_detachable() {
       unsafe { v8__ArrayBuffer__Detach(self) }
     }
+  }
+
+  /// More efficient shortcut for GetBackingStore()->Data().
+  /// The returned pointer is valid as long as the ArrayBuffer is alive.
+  #[inline]
+  pub fn data(&self) -> *mut c_void {
+    unsafe { v8__ArrayBuffer__Data(self) }
   }
 
   /// Get a shared pointer to the backing store of this array buffer. This
