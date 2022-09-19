@@ -204,12 +204,6 @@ fn build_v8() {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
-  // Ensure allocation of typed arrays and arraybuffers always goes through
-  // the embedder's ArrayBufferAllocator, otherwise small buffers get moved
-  // around by the garbage collector but embedders normally want them to have
-  // fixed addresses.
-  gn_args.push(r#"v8_typed_array_max_size_in_heap=0"#.into());
-
   let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
 
   let gn_out = maybe_gen(&gn_root, gn_args);
