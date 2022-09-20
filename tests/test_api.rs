@@ -7560,7 +7560,7 @@ fn test_fast_calls_overload() {
   ) {
     unsafe { WHO = "fast_buf" };
     let buf = unsafe { &*data };
-    assert_eq!(buf.byte_length, 2);
+    assert_eq!(buf.length, 2);
     assert_eq!(buf.get(0), 6);
     assert_eq!(buf.get(1), 9);
   }
