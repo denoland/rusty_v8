@@ -106,5 +106,10 @@ name = "process"
 name = "build"
 path = "build.rs"
 
+[[bench]]
+name = "function"
+path = "benches/function.rs"
+harness = false
+
 [workspace]
 members = ["examples/android"]
