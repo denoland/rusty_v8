@@ -205,7 +205,7 @@ pub struct FastApiTypedArray<T: Default> {
 impl<T: Default> FastApiTypedArray<T> {
   #[inline]
   pub fn get(&self, index: usize) -> T {
-    debug_assert!(index < self.byte_length);
+    debug_assert!(index < self.length);
     let mut t: T = Default::default();
     unsafe {
       ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
