@@ -192,7 +192,8 @@ pub struct FastApiCallbackOptions<'a> {
 // https://source.chromium.org/chromium/chromium/src/+/main:v8/include/v8-fast-api-calls.h;l=336
 #[repr(C)]
 pub struct FastApiTypedArray<T: Default> {
-  pub byte_length: usize,
+  /// Returns the length in number of elements.
+  pub length: usize,
   // This pointer should include the typed array offset applied.
   // It's not guaranteed that it's aligned to sizeof(T), it's only
   // guaranteed that it's 4-byte aligned, so for 8-byte types we need to
@@ -204,7 +205,7 @@ pub struct FastApiTypedArray<T: Default> {
 impl<T: Default> FastApiTypedArray<T> {
   #[inline]
   pub fn get(&self, index: usize) -> T {
-    debug_assert!(index < self.byte_length);
+    debug_assert!(index < self.length);
     let mut t: T = Default::default();
     unsafe {
       ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
@@ -217,12 +218,7 @@ impl<T: Default> FastApiTypedArray<T> {
     if (self.data as usize) % align_of::<T>() != 0 {
       return None;
     }
-    Some(unsafe {
-      std::slice::from_raw_parts_mut(
-        self.data,
-        self.byte_length / align_of::<T>(),
-      )
-    })
+    Some(unsafe { std::slice::from_raw_parts_mut(self.data, self.length) })
   }
 }
 
