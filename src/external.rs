@@ -16,6 +16,7 @@ extern "C" {
 }
 
 impl External {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: *mut c_void,
@@ -26,6 +27,7 @@ impl External {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn value(&self) -> *mut c_void {
     unsafe { v8__External__Value(self) }
   }

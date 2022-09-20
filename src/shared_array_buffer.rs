@@ -45,6 +45,7 @@ impl SharedArrayBuffer {
   /// Allocated memory will be owned by a created SharedArrayBuffer and
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     byte_length: usize,
@@ -59,6 +60,7 @@ impl SharedArrayBuffer {
     }
   }
 
+  #[inline(always)]
   pub fn with_backing_store<'s>(
     scope: &mut HandleScope<'s>,
     backing_store: &SharedRef<BackingStore>,
@@ -75,6 +77,7 @@ impl SharedArrayBuffer {
   }
 
   /// Data length in bytes.
+  #[inline(always)]
   pub fn byte_length(&self) -> usize {
     unsafe { v8__SharedArrayBuffer__ByteLength(self) }
   }
@@ -83,6 +86,7 @@ impl SharedArrayBuffer {
   /// pointer coordinates the lifetime management of the internal storage
   /// with any live ArrayBuffers on the heap, even across isolates. The embedder
   /// should not attempt to manage lifetime of the storage through other means.
+  #[inline(always)]
   pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
     unsafe { v8__SharedArrayBuffer__GetBackingStore(self) }
   }
@@ -94,6 +98,7 @@ impl SharedArrayBuffer {
   /// If the allocator returns nullptr, then the function may cause GCs in the
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
+  #[inline(always)]
   pub fn new_backing_store(
     scope: &mut Isolate,
     byte_length: usize,
@@ -115,6 +120,7 @@ impl SharedArrayBuffer {
   ///
   /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  #[inline(always)]
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
@@ -137,6 +143,7 @@ impl SharedArrayBuffer {
   ///
   /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  #[inline(always)]
   pub fn new_backing_store_from_vec(
     mut data: Vec<u8>,
   ) -> UniqueRef<BackingStore> {

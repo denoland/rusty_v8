@@ -18,6 +18,7 @@ extern "C" {
 }
 
 impl Proxy {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     target: Local<Object>,
@@ -30,6 +31,7 @@ impl Proxy {
     }
   }
 
+  #[inline(always)]
   pub fn get_handler<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -37,6 +39,7 @@ impl Proxy {
     unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(&*self)) }.unwrap()
   }
 
+  #[inline(always)]
   pub fn get_target<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -44,10 +47,12 @@ impl Proxy {
     unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(&*self)) }.unwrap()
   }
 
+  #[inline(always)]
   pub fn is_revoked(&self) -> bool {
     unsafe { v8__Proxy__IsRevoked(self) }
   }
 
+  #[inline(always)]
   pub fn revoke(&self) {
     unsafe { v8__Proxy__Revoke(self) };
   }

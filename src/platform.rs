@@ -58,6 +58,7 @@ pub struct Platform(Opaque);
 /// If |idle_task_support| is enabled then the platform will accept idle
 /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
 /// calling v8::platform::RunIdleTasks to process the idle tasks.
+#[inline(always)]
 pub fn new_default_platform(
   thread_pool_size: u32,
   idle_task_support: bool,
@@ -71,6 +72,7 @@ pub fn new_default_platform(
 /// If |idle_task_support| is enabled then the platform will accept idle
 /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
 /// calling v8::platform::RunIdleTasks to process the idle tasks.
+#[inline(always)]
 pub fn new_single_threaded_default_platform(
   idle_task_support: bool,
 ) -> UniqueRef<Platform> {
@@ -86,6 +88,7 @@ impl Platform {
   /// If |idle_task_support| is enabled then the platform will accept idle
   /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
   /// calling v8::platform::RunIdleTasks to process the idle tasks.
+  #[inline(always)]
   pub fn new(
     thread_pool_size: u32,
     idle_task_support: bool,
@@ -104,6 +107,7 @@ impl Platform {
   /// If |idle_task_support| is enabled then the platform will accept idle
   /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
   /// calling v8::platform::RunIdleTasks to process the idle tasks.
+  #[inline(always)]
   pub fn new_single_threaded(idle_task_support: bool) -> UniqueRef<Self> {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewSingleThreadedDefaultPlatform(
@@ -121,6 +125,7 @@ impl Platform {
   /// PumpMessageLoop is nested within another call to PumpMessageLoop, only
   /// nestable tasks may run. Otherwise, any task may run. Unless requested through
   /// the |wait_for_work| parameter, this call does not block if no task is pending.
+  #[inline(always)]
   pub fn pump_message_loop(
     platform: &SharedRef<Self>,
     isolate: &mut Isolate,
@@ -139,6 +144,7 @@ impl Platform {
   ///
   /// The caller has to make sure that this is called from the right thread.
   /// This call does not block if no task is pending.
+  #[inline(always)]
   pub fn run_idle_tasks(
     platform: &SharedRef<Self>,
     isolate: &mut Isolate,

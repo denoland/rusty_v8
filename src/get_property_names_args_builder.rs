@@ -68,6 +68,7 @@ impl Default for GetPropertyNamesArgsBuilder {
 }
 
 impl GetPropertyNamesArgsBuilder {
+  #[inline(always)]
   pub fn new() -> Self {
     Self {
       mode: KeyCollectionMode::IncludePrototypes,
@@ -77,6 +78,7 @@ impl GetPropertyNamesArgsBuilder {
     }
   }
 
+  #[inline(always)]
   pub fn build(&self) -> GetPropertyNamesArgs {
     GetPropertyNamesArgs {
       mode: self.mode,
@@ -86,6 +88,7 @@ impl GetPropertyNamesArgsBuilder {
     }
   }
 
+  #[inline(always)]
   pub fn mode(
     &mut self,
     mode: KeyCollectionMode,
@@ -94,6 +97,7 @@ impl GetPropertyNamesArgsBuilder {
     self
   }
 
+  #[inline(always)]
   pub fn property_filter(
     &mut self,
     property_filter: PropertyFilter,
@@ -102,6 +106,7 @@ impl GetPropertyNamesArgsBuilder {
     self
   }
 
+  #[inline(always)]
   pub fn index_filter(
     &mut self,
     index_filter: IndexFilter,
@@ -110,6 +115,7 @@ impl GetPropertyNamesArgsBuilder {
     self
   }
 
+  #[inline(always)]
   pub fn key_conversion(
     &mut self,
     key_conversion: KeyConversionMode,

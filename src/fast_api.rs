@@ -29,6 +29,7 @@ pub struct CFunctionInfo(Opaque);
 pub struct CFunction(Opaque);
 
 impl CFunctionInfo {
+  #[inline(always)]
   pub(crate) unsafe fn new(
     args: *const CTypeInfo,
     args_len: usize,
@@ -43,6 +44,7 @@ impl CFunctionInfo {
 pub struct CTypeInfo(Opaque);
 
 impl CTypeInfo {
+  #[inline(always)]
   pub(crate) fn new(ty: CType) -> NonNull<CTypeInfo> {
     unsafe { NonNull::new_unchecked(v8__CTypeInfo__New(ty)) }
   }
@@ -202,7 +204,7 @@ pub struct FastApiTypedArray<T: Default> {
 }
 
 impl<T: Default> FastApiTypedArray<T> {
-  #[inline]
+  #[inline(always)]
   pub fn get(&self, index: usize) -> T {
     debug_assert!(index < self.byte_length);
     let mut t: T = Default::default();
@@ -212,7 +214,7 @@ impl<T: Default> FastApiTypedArray<T> {
     t
   }
 
-  #[inline]
+  #[inline(always)]
   pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
     if (self.data as usize) % align_of::<T>() != 0 {
       return None;
