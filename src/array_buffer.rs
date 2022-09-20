@@ -292,11 +292,9 @@ impl BackingStore {
 
   /// Indicates whether the backing store was created for an ArrayBuffer or
   /// a SharedArrayBuffer.
+  #[inline(always)]
   pub fn is_shared(&self) -> bool {
-    #[inline(always)]
-    unsafe {
-      v8__BackingStore__IsShared(self)
-    }
+    unsafe { v8__BackingStore__IsShared(self) }
   }
 }
 
