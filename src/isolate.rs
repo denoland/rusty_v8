@@ -1,6 +1,7 @@
 use crate::PromiseResolver;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::handle::FinalizerCallback;
 use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
@@ -886,6 +887,13 @@ impl Isolate {
     // Clear slots and drop owned objects that were taken out of `CreateParams`.
     annex.create_param_allocations = Box::new(());
     annex.slots.clear();
+
+    // Run through any remaining guaranteed finalizers.
+    for finalizer in annex.finalizer_map.drain() {
+      if let FinalizerCallback::Guaranteed(callback) = finalizer {
+        callback();
+      }
+    }
 
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
