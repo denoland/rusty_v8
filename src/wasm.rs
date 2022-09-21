@@ -36,6 +36,7 @@ pub struct WasmStreaming(WasmStreamingSharedPtr);
 
 impl WasmStreaming {
   /// Pass a new chunk of bytes to WebAssembly streaming compilation.
+  #[inline(always)]
   pub fn on_bytes_received(&mut self, data: &[u8]) {
     unsafe {
       v8__WasmStreaming__OnBytesReceived(&mut self.0, data.as_ptr(), data.len())
@@ -46,6 +47,7 @@ impl WasmStreaming {
   /// [`Self::on_bytes_received()`] to tell V8 that there will be no
   /// more bytes. Does not have to be called after [`Self::abort()`]
   /// has been called already.
+  #[inline(always)]
   pub fn finish(mut self) {
     unsafe { v8__WasmStreaming__Finish(&mut self.0) }
   }
@@ -53,6 +55,7 @@ impl WasmStreaming {
   /// Abort streaming compilation. If {exception} has a value, then the promise
   /// associated with streaming compilation is rejected with that value. If
   /// {exception} does not have value, the promise does not get rejected.
+  #[inline(always)]
   pub fn abort(mut self, exception: Option<Local<Value>>) {
     let exception = exception.map(|v| &*v as *const Value).unwrap_or(null());
     unsafe { v8__WasmStreaming__Abort(&mut self.0, exception) }
@@ -60,6 +63,7 @@ impl WasmStreaming {
 
   /// Sets the UTF-8 encoded source URL for the `Script` object. This must be
   /// called before [`Self::finish()`].
+  #[inline(always)]
   pub fn set_url(&mut self, url: &str) {
     // Although not documented, V8 requires the url to be null terminated.
     // See https://chromium-review.googlesource.com/c/v8/v8/+/3289148.
@@ -83,6 +87,7 @@ impl Drop for WasmStreaming {
 impl WasmModuleObject {
   /// Efficiently re-create a WasmModuleObject, without recompiling, from
   /// a CompiledWasmModule.
+  #[inline(always)]
   pub fn from_compiled_module<'s>(
     scope: &mut HandleScope<'s>,
     compiled_module: &CompiledWasmModule,
@@ -99,12 +104,14 @@ impl WasmModuleObject {
 
   /// Get the compiled module for this module object. The compiled module can be
   /// shared by several module objects.
+  #[inline(always)]
   pub fn get_compiled_module(&self) -> CompiledWasmModule {
     let ptr = unsafe { v8__WasmModuleObject__GetCompiledModule(self) };
     CompiledWasmModule(ptr)
   }
 
   /// Compile a Wasm module from the provided uncompiled bytes.
+  #[inline(always)]
   pub fn compile<'s>(
     scope: &mut HandleScope<'s>,
     wire_bytes: &[u8],
@@ -136,6 +143,7 @@ pub struct CompiledWasmModule(*mut InternalCompiledWasmModule);
 
 impl CompiledWasmModule {
   /// Get the (wasm-encoded) wire bytes that were used to compile this module.
+  #[inline(always)]
   pub fn get_wire_bytes_ref(&self) -> &[u8] {
     let mut len = 0isize;
     unsafe {
@@ -144,6 +152,7 @@ impl CompiledWasmModule {
     }
   }
 
+  #[inline(always)]
   pub fn source_url(&self) -> &str {
     let mut len = 0;
     unsafe {

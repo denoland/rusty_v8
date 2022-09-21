@@ -12,6 +12,7 @@ extern "C" {
 
 /// An instance of the built-in Date constructor (ECMA-262, 15.9).
 impl Date {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     value: f64,
@@ -23,6 +24,7 @@ impl Date {
 
   /// A specialization of Value::NumberValue that is more efficient
   /// because we know the structure of this object.
+  #[inline(always)]
   pub fn value_of(&self) -> f64 {
     unsafe { v8__Date__ValueOf(self) }
   }

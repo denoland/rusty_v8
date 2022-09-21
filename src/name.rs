@@ -15,6 +15,7 @@ impl Name {
   ///
   /// The return value will never be 0. Also, it is not guaranteed to be
   /// unique.
+  #[inline(always)]
   pub fn get_identity_hash(&self) -> NonZeroI32 {
     unsafe { NonZeroI32::new_unchecked(v8__Name__GetIdentityHash(self)) }
   }

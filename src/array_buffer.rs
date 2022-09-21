@@ -151,6 +151,7 @@ impl Shared for Allocator {
 }
 
 /// malloc/free based convenience allocator.
+#[inline(always)]
 pub fn new_default_allocator() -> UniqueRef<Allocator> {
   unsafe {
     UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
@@ -160,6 +161,7 @@ pub fn new_default_allocator() -> UniqueRef<Allocator> {
 /// Creates an allocator managed by Rust code.
 ///
 /// Marked `unsafe` because the caller must ensure that `handle` is valid and matches what `vtable` expects.
+#[inline(always)]
 pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
   handle: *const T,
   vtable: &'static RustAllocatorVtable<T>,
@@ -275,6 +277,7 @@ impl BackingStore {
   /// lives.
   ///
   /// Might return `None` if the backing store has zero length.
+  #[inline(always)]
   pub fn data(&self) -> Option<NonNull<c_void>> {
     let raw_ptr =
       unsafe { v8__BackingStore__Data(self as *const _ as *mut Self) };
@@ -282,12 +285,14 @@ impl BackingStore {
   }
 
   /// The length (in bytes) of this backing store.
+  #[inline(always)]
   pub fn byte_length(&self) -> usize {
     unsafe { v8__BackingStore__ByteLength(self) }
   }
 
   /// Indicates whether the backing store was created for an ArrayBuffer or
   /// a SharedArrayBuffer.
+  #[inline(always)]
   pub fn is_shared(&self) -> bool {
     unsafe { v8__BackingStore__IsShared(self) }
   }
@@ -340,6 +345,7 @@ impl ArrayBuffer {
   /// Allocated memory will be owned by a created ArrayBuffer and
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     byte_length: usize,
@@ -355,6 +361,7 @@ impl ArrayBuffer {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn with_backing_store<'s>(
     scope: &mut HandleScope<'s>,
     backing_store: &SharedRef<BackingStore>,
@@ -371,11 +378,13 @@ impl ArrayBuffer {
   }
 
   /// Data length in bytes.
+  #[inline(always)]
   pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBuffer__ByteLength(self) }
   }
 
   /// Returns true if this ArrayBuffer may be detached.
+  #[inline(always)]
   pub fn is_detachable(&self) -> bool {
     unsafe { v8__ArrayBuffer__IsDetachable(self) }
   }
@@ -384,6 +393,7 @@ impl ArrayBuffer {
   /// Detaching sets the byte length of the buffer and all typed arrays to zero,
   /// preventing JavaScript from ever accessing underlying backing store.
   /// ArrayBuffer should have been externalized and must be detachable.
+  #[inline(always)]
   pub fn detach(&self) {
     // V8 terminates when the ArrayBuffer is not detachable. Non-detachable
     // buffers are buffers that are in use by WebAssembly or asm.js.
@@ -394,7 +404,7 @@ impl ArrayBuffer {
 
   /// More efficient shortcut for GetBackingStore()->Data().
   /// The returned pointer is valid as long as the ArrayBuffer is alive.
-  #[inline]
+  #[inline(always)]
   pub fn data(&self) -> *mut c_void {
     unsafe { v8__ArrayBuffer__Data(self) }
   }
@@ -403,6 +413,7 @@ impl ArrayBuffer {
   /// pointer coordinates the lifetime management of the internal storage
   /// with any live ArrayBuffers on the heap, even across isolates. The embedder
   /// should not attempt to manage lifetime of the storage through other means.
+  #[inline(always)]
   pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
     unsafe { v8__ArrayBuffer__GetBackingStore(self) }
   }
@@ -414,6 +425,7 @@ impl ArrayBuffer {
   /// If the allocator returns nullptr, then the function may cause GCs in the
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
+  #[inline(always)]
   pub fn new_backing_store(
     scope: &mut Isolate,
     byte_length: usize,
@@ -433,6 +445,7 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  #[inline(always)]
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
@@ -455,6 +468,7 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  #[inline(always)]
   pub fn new_backing_store_from_vec(
     mut data: Vec<u8>,
   ) -> UniqueRef<BackingStore> {
@@ -476,6 +490,7 @@ impl ArrayBuffer {
   ///
   /// SAFETY: This API consumes raw pointers so is inherently
   /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
+  #[inline(always)]
   pub unsafe fn new_backing_store_from_ptr(
     data_ptr: *mut c_void,
     byte_length: usize,

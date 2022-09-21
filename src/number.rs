@@ -23,6 +23,7 @@ extern "C" {
 }
 
 impl Number {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: f64,
@@ -33,12 +34,14 @@ impl Number {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn value(&self) -> f64 {
     unsafe { v8__Number__Value(self) }
   }
 }
 
 impl Integer {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: i32,
@@ -49,6 +52,7 @@ impl Integer {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn new_from_unsigned<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: u32,
@@ -61,6 +65,7 @@ impl Integer {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn value(&self) -> i64 {
     unsafe { v8__Integer__Value(self) }
   }
@@ -68,6 +73,7 @@ impl Integer {
   /// Internal helper function to produce a handle containing a SMI zero value,
   /// without the need for the caller to provide (or have entered) a
   /// `HandleScope`.
+  #[inline(always)]
   pub(crate) fn zero<'s>() -> Local<'s, Integer> {
     // The SMI representation of zero is also zero. In debug builds, double
     // check this, so in the unlikely event that V8 changes its internal
@@ -84,12 +90,14 @@ impl Integer {
 }
 
 impl Uint32 {
+  #[inline(always)]
   pub fn value(&self) -> u32 {
     unsafe { v8__Uint32__Value(self) }
   }
 }
 
 impl Int32 {
+  #[inline(always)]
   pub fn value(&self) -> i32 {
     unsafe { v8__Int32__Value(self) }
   }

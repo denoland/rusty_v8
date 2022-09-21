@@ -12,6 +12,7 @@ impl TypedArray {
   /// The maximum length (in bytes) of the buffer backing a v8::TypedArray
   /// instance. Attempting to create a v8::ArrayBuffer from a larger buffer will
   /// result in a fatal error.
+  #[inline(always)]
   pub fn max_length() -> usize {
     unsafe { v8__TypedArray__kMaxLength() }
   }
@@ -21,6 +22,7 @@ macro_rules! typed_array {
   ($name:ident, $func:ident) => {
     use crate::$name;
     impl $name {
+      #[inline(always)]
       pub fn new<'s>(
         scope: &mut HandleScope<'s>,
         buf: Local<ArrayBuffer>,

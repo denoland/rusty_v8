@@ -16,35 +16,42 @@ pub const SKIP_SYMBOLS: PropertyFilter = PropertyFilter(16);
 
 impl PropertyFilter {
   /// Test if all property filters are set.
+  #[inline(always)]
   pub fn is_all_properties(&self) -> bool {
     *self == ALL_PROPERTIES
   }
 
   /// Test if the only-writable property filter is set.
+  #[inline(always)]
   pub fn is_only_writable(&self) -> bool {
     self.has(ONLY_WRITABLE)
   }
 
   /// Test if the only-enumerable property filter is set.
+  #[inline(always)]
   pub fn is_only_enumerable(&self) -> bool {
     self.has(ONLY_ENUMERABLE)
   }
 
   /// Test if the only-configurable property filter is set.
+  #[inline(always)]
   pub fn is_only_configurable(&self) -> bool {
     self.has(ONLY_CONFIGURABLE)
   }
 
   /// Test if the skip-strings property filter is set.
+  #[inline(always)]
   pub fn is_skip_strings(&self) -> bool {
     self.has(SKIP_STRINGS)
   }
 
   /// Test if the skip-symbols property filter is set.
+  #[inline(always)]
   pub fn is_skip_symbols(&self) -> bool {
     self.has(SKIP_SYMBOLS)
   }
 
+  #[inline(always)]
   fn has(&self, that: Self) -> bool {
     let Self(lhs) = self;
     let Self(rhs) = that;
