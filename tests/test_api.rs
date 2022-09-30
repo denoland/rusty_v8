@@ -5,7 +5,6 @@ use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::convert::{Into, TryFrom, TryInto};
-use std::env;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::hash::Hash;
@@ -6610,10 +6609,9 @@ fn instance_of() {
 
 #[test]
 fn get_default_locale() {
-  env::set_var("LC_ALL", "nb_NO");
+  v8::icu::set_default_locale("nb_NO");
   let default_locale = v8::icu::get_default_locale();
   let default_locale_str = std::str::from_utf8(&default_locale).unwrap();
-
   assert_eq!(default_locale_str, "nb_NO")
 }
 

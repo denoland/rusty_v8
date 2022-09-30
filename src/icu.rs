@@ -1,7 +1,8 @@
-use std::{ffi::CStr, os::raw::c_char};
+use std::{ffi::CStr, ffi::CString, os::raw::c_char};
 
 extern "C" {
   fn GetDefaultLocale() -> *const c_char;
+  fn SetDefaultLocale(locale: *const c_char);
   fn udata_setCommonData_71(this: *const u8, error_code: *mut i32);
 }
 
@@ -52,4 +53,11 @@ pub fn set_common_data_71(data: &'static [u8]) -> Result<(), i32> {
 
 pub fn get_default_locale() -> &'static [u8] {
   unsafe { CStr::from_ptr(GetDefaultLocale()).to_bytes() }
+}
+
+pub fn set_default_locale(locale: &str) {
+  unsafe {
+    let c_str = CString::new(locale).expect("Invalid locale");
+    SetDefaultLocale(c_str.as_ptr());
+  }
 }

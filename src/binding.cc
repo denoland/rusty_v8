@@ -3058,4 +3058,9 @@ const char* GetDefaultLocale() {
   return default_locale.getName();
 }
 
+void SetDefaultLocale(const char* locale) {
+  UErrorCode status = U_ZERO_ERROR;
+  icu::Locale::setDefault(icu::Locale(locale), status);
+}
+
 } // extern "C"
