@@ -3158,6 +3158,7 @@ void icu_get_default_locale(char* output) {
   const icu_71::Locale& default_locale = icu::Locale::getDefault();
   UErrorCode status = U_ZERO_ERROR;
   auto tag = default_locale.toLanguageTag<std::string>(status);
+  assert(tag.size() < 1023);
   std::copy(tag.begin(), tag.end(), output);
   output[tag.size()] = '\0';
 }
