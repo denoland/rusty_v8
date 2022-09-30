@@ -5,6 +5,7 @@
 
 #include "support.h"
 #include "unicode/locid.h"
+#include "unicode/uloc.h"
 #include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
@@ -3148,20 +3149,21 @@ const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
   delete self;
 }
-
-
 }  // extern "C"
 
 // icu
 
 extern "C" {
 
-const char* GetDefaultLocale() {
+void icu_get_default_locale(char* output) {
   const icu_71::Locale& default_locale = icu::Locale::getDefault();
-  return default_locale.getName();
+  UErrorCode status = U_ZERO_ERROR;
+  auto tag = default_locale.toLanguageTag<std::string>(status);
+  std::copy(tag.begin(), tag.end(), output);
+  output[tag.size()] = '\0';
 }
 
-void SetDefaultLocale(const char* locale) {
+void icu_set_default_locale(const char* locale) {
   UErrorCode status = U_ZERO_ERROR;
   icu::Locale::setDefault(icu::Locale(locale), status);
 }

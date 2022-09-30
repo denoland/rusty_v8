@@ -6767,9 +6767,8 @@ fn instance_of() {
 #[test]
 fn get_default_locale() {
   v8::icu::set_default_locale("nb_NO");
-  let default_locale = v8::icu::get_default_locale();
-  let default_locale_str = std::str::from_utf8(&default_locale).unwrap();
-  assert_eq!(default_locale_str, "nb_NO")
+  let default_locale = v8::icu::get_language_tag();
+  assert_eq!(default_locale, "nb-NO");
 }
 
 #[test]

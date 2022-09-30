@@ -1,8 +1,8 @@
 use std::{ffi::CStr, ffi::CString, os::raw::c_char};
 
 extern "C" {
-  fn GetDefaultLocale() -> *const c_char;
-  fn SetDefaultLocale(locale: *const c_char);
+  fn icu_get_default_locale(output: *mut c_char);
+  fn icu_set_default_locale(locale: *const c_char);
   fn udata_setCommonData_71(this: *const u8, error_code: *mut i32);
 }
 
@@ -52,13 +52,20 @@ pub fn set_common_data_71(data: &'static [u8]) -> Result<(), i32> {
   }
 }
 
-pub fn get_default_locale() -> &'static [u8] {
-  unsafe { CStr::from_ptr(GetDefaultLocale()).to_bytes() }
+/// Returns BCP47 language tag.
+pub fn get_language_tag() -> String {
+  let mut output = vec![0; 1024];
+  unsafe {
+    icu_get_default_locale(output.as_mut_ptr());
+    let bytes = CStr::from_ptr(output.as_ptr()).to_bytes();
+    let str = std::str::from_utf8(bytes).unwrap();
+    str.to_owned()
+  }
 }
 
 pub fn set_default_locale(locale: &str) {
   unsafe {
     let c_str = CString::new(locale).expect("Invalid locale");
-    SetDefaultLocale(c_str.as_ptr());
+    icu_set_default_locale(c_str.as_ptr());
   }
 }
