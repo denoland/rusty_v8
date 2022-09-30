@@ -19,9 +19,6 @@
 [submodule "buildtools"]
 	path = buildtools
 	url = https://github.com/denoland/chromium_buildtools.git
-[submodule "third_party/zlib"]
-	path = third_party/zlib
-	url = https://chromium.googlesource.com/chromium/src/third_party/zlib.git
 [submodule "third_party/icu"]
 	path = third_party/icu
 	url = https://github.com/denoland/icu.git

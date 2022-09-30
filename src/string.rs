@@ -120,10 +120,12 @@ impl String {
   /// The maximum length (in bytes) of a buffer that a v8::String can be built
   /// from. Attempting to create a v8::String from a larger buffer will result
   /// in None being returned.
+  #[inline(always)]
   pub fn max_length() -> usize {
     unsafe { v8__String__kMaxLength() }
   }
 
+  #[inline(always)]
   pub fn empty<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, String> {
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
@@ -133,6 +135,7 @@ impl String {
 
   /// Allocates a new string from UTF-8 data. Only returns an empty value when
   /// length > kMaxLength
+  #[inline(always)]
   pub fn new_from_utf8<'s>(
     scope: &mut HandleScope<'s, ()>,
     buffer: &[u8],
@@ -156,6 +159,7 @@ impl String {
 
   /// Allocates a new string from Latin-1 data.  Only returns an empty value when
   /// length > kMaxLength.
+  #[inline(always)]
   pub fn new_from_one_byte<'s>(
     scope: &mut HandleScope<'s, ()>,
     buffer: &[u8],
@@ -176,6 +180,7 @@ impl String {
 
   /// Allocates a new string from UTF-16 data. Only returns an empty value when
   /// length > kMaxLength.
+  #[inline(always)]
   pub fn new_from_two_byte<'s>(
     scope: &mut HandleScope<'s, ()>,
     buffer: &[u16],
@@ -195,18 +200,21 @@ impl String {
   }
 
   /// Returns the number of characters (UTF-16 code units) in this string.
+  #[inline(always)]
   pub fn length(&self) -> usize {
     unsafe { v8__String__Length(self) as usize }
   }
 
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
+  #[inline(always)]
   pub fn utf8_length(&self, scope: &mut Isolate) -> usize {
     unsafe { v8__String__Utf8Length(self, scope) as usize }
   }
 
   /// Writes the contents of the string to an external buffer, as 16-bit
   /// (UTF-16) character codes.
+  #[inline(always)]
   pub fn write(
     &self,
     scope: &mut Isolate,
@@ -228,6 +236,7 @@ impl String {
 
   /// Writes the contents of the string to an external buffer, as one-byte
   /// (Latin-1) characters.
+  #[inline(always)]
   pub fn write_one_byte(
     &self,
     scope: &mut Isolate,
@@ -248,6 +257,7 @@ impl String {
   }
 
   /// Writes the contents of the string to an external buffer, as UTF-8.
+  #[inline(always)]
   pub fn write_utf8(
     &self,
     scope: &mut Isolate,
@@ -273,6 +283,7 @@ impl String {
   }
 
   // Convenience function not present in the original V8 API.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: &str,
@@ -282,6 +293,7 @@ impl String {
 
   // Creates a v8::String from a `&'static [u8]`,
   // must be Latin-1 or ASCII, not UTF-8 !
+  #[inline(always)]
   pub fn new_external_onebyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
     buffer: &'static [u8],
@@ -299,6 +311,7 @@ impl String {
   }
 
   // Creates a v8::String from a `&'static [u16]`.
+  #[inline(always)]
   pub fn new_external_twobyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
     buffer: &'static [u16],
@@ -316,6 +329,7 @@ impl String {
   }
 
   /// True if string is external
+  #[inline(always)]
   pub fn is_external(&self) -> bool {
     // TODO: re-enable on next v8-release
     // Right now it fallbacks to Value::IsExternal, which is incorrect
@@ -328,12 +342,14 @@ impl String {
 
   /// True if string is external & one-byte
   /// (e.g: created with new_external_onebyte_static)
+  #[inline(always)]
   pub fn is_external_onebyte(&self) -> bool {
     unsafe { v8__String__IsExternalOneByte(self) }
   }
 
   /// True if string is external & two-byte
   /// (e.g: created with new_external_twobyte_static)
+  #[inline(always)]
   pub fn is_external_twobyte(&self) -> bool {
     unsafe { v8__String__IsExternalTwoByte(self) }
   }
@@ -345,17 +361,20 @@ impl String {
   /// potentially reading the entire string, use [`contains_only_onebyte()`].
   ///
   /// [`contains_only_onebyte()`]: String::contains_only_onebyte
+  #[inline(always)]
   pub fn is_onebyte(&self) -> bool {
     unsafe { v8__String__IsExternalOneByte(self) }
   }
 
   /// True if the string contains only one-byte data.
   /// Will read the entire string in some cases.
+  #[inline(always)]
   pub fn contains_only_onebyte(&self) -> bool {
     unsafe { v8__String__ContainsOnlyOneByte(self) }
   }
 
   /// Convenience function not present in the original V8 API.
+  #[inline(always)]
   pub fn to_rust_string_lossy(
     &self,
     scope: &mut Isolate,

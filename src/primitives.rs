@@ -11,15 +11,18 @@ extern "C" {
   fn v8__Boolean__New(isolate: *mut Isolate, value: bool) -> *const Boolean;
 }
 
+#[inline(always)]
 pub fn null<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Primitive> {
   unsafe { scope.cast_local(|sd| v8__Null(sd.get_isolate_ptr())) }.unwrap()
 }
 
+#[inline(always)]
 pub fn undefined<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Primitive> {
   unsafe { scope.cast_local(|sd| v8__Undefined(sd.get_isolate_ptr())) }.unwrap()
 }
 
 impl Boolean {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: bool,

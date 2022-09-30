@@ -21,6 +21,7 @@ pub struct ExternalReferences {
 unsafe impl Sync for ExternalReferences {}
 
 impl ExternalReferences {
+  #[inline(always)]
   pub fn new(refs: &[ExternalReference]) -> Self {
     let null_terminated = refs
       .iter()
@@ -30,6 +31,7 @@ impl ExternalReferences {
     Self { null_terminated }
   }
 
+  #[inline(always)]
   pub fn as_ptr(&self) -> *const intptr_t {
     self.null_terminated.as_ptr()
   }

@@ -77,6 +77,7 @@ pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 
 impl<'s, T> Local<'s, T> {
   /// Construct a new Local from an existing Handle.
+  #[inline(always)]
   pub fn new(
     scope: &mut HandleScope<'s, ()>,
     handle: impl Handle<Data = T>,
@@ -93,6 +94,7 @@ impl<'s, T> Local<'s, T> {
 
   /// Create a local handle by downcasting from one of its super types.
   /// This function is unsafe because the cast is unchecked.
+  #[inline(always)]
   pub unsafe fn cast<A>(other: Local<'s, A>) -> Self
   where
     Local<'s, A>: From<Self>,
@@ -100,18 +102,22 @@ impl<'s, T> Local<'s, T> {
     transmute(other)
   }
 
+  #[inline(always)]
   pub(crate) unsafe fn from_raw(ptr: *const T) -> Option<Self> {
     NonNull::new(ptr as *mut _).map(|nn| Self::from_non_null(nn))
   }
 
+  #[inline(always)]
   pub(crate) unsafe fn from_non_null(nn: NonNull<T>) -> Self {
     Self(nn, PhantomData)
   }
 
+  #[inline(always)]
   pub(crate) fn as_non_null(self) -> NonNull<T> {
     self.0
   }
 
+  #[inline(always)]
   pub(crate) fn slice_into_raw(slice: &[Self]) -> &[*const T] {
     unsafe { &*(slice as *const [Self] as *const [*const T]) }
   }
@@ -148,6 +154,7 @@ pub struct Global<T> {
 
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
+  #[inline(always)]
   pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(isolate);
@@ -156,6 +163,7 @@ impl<T> Global<T> {
 
   /// Implementation helper function that contains the code that can be shared
   /// between `Global::new()` and `Global::clone()`.
+  #[inline(always)]
   unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     let data = v8__Global__New(isolate, data) as *const T;
@@ -173,6 +181,7 @@ impl<T> Global<T> {
   /// [`Global::from_raw`], otherwise the V8 value referenced by this global
   /// handle will be pinned on the V8 heap permanently and never get garbage
   /// collected.
+  #[inline(always)]
   pub fn into_raw(self) -> NonNull<T> {
     let data = self.data;
     forget(self);
@@ -181,6 +190,7 @@ impl<T> Global<T> {
 
   /// Converts a raw pointer created with [`Global::into_raw()`] back to its
   /// original `Global`.
+  #[inline(always)]
   pub unsafe fn from_raw(isolate: &mut Isolate, data: NonNull<T>) -> Self {
     let isolate_handle = isolate.thread_safe_handle();
     Self {
@@ -189,6 +199,7 @@ impl<T> Global<T> {
     }
   }
 
+  #[inline(always)]
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::open(self, scope)
   }
@@ -231,6 +242,7 @@ impl<'a, T> UnsafeRefHandle<'a, T> {
   /// isolate associated with the handle (for [`Local`], the current isolate;
   /// for [`Global`], the isolate you would pass to the [`Global::open()`]
   /// method).
+  #[inline(always)]
   pub unsafe fn new(reference: &'a T, isolate: &mut Isolate) -> Self {
     UnsafeRefHandle {
       reference,

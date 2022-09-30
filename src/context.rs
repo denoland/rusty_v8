@@ -50,6 +50,7 @@ impl Context {
   const ANNEX_SLOT: c_int = 1;
 
   /// Creates a new context.
+  #[inline(always)]
   pub fn new<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Context> {
     // TODO: optional arguments;
     unsafe {
@@ -61,6 +62,7 @@ impl Context {
 
   /// Creates a new context using the object template as the template for
   /// the global object.
+  #[inline(always)]
   pub fn new_from_template<'s>(
     scope: &mut HandleScope<'s, ()>,
     templ: Local<ObjectTemplate>,
@@ -73,6 +75,7 @@ impl Context {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn get_extras_binding_object<'s>(
     &self,
     scope: &mut HandleScope<'s, ()>,
@@ -91,6 +94,7 @@ impl Context {
   /// Please note that changes to global proxy object prototype most probably
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
+  #[inline(always)]
   pub fn global<'s>(
     &self,
     scope: &mut HandleScope<'s, ()>,
@@ -98,6 +102,7 @@ impl Context {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
+  #[inline(always)]
   pub fn set_promise_hooks(
     &self,
     init_hook: Local<Function>,
@@ -116,6 +121,7 @@ impl Context {
     }
   }
 
+  #[inline]
   fn get_annex_mut<'a>(
     &'a self,
     isolate: &'a mut Isolate,
@@ -199,6 +205,7 @@ impl Context {
   }
 
   /// Get a reference to embedder data added with [`Self::set_slot()`].
+  #[inline(always)]
   pub fn get_slot<'a, T: 'static>(
     &'a self,
     isolate: &'a mut Isolate,
@@ -215,6 +222,7 @@ impl Context {
   }
 
   /// Get a mutable reference to embedder data added with [`Self::set_slot()`].
+  #[inline(always)]
   pub fn get_slot_mut<'a, T: 'static>(
     &'a self,
     isolate: &'a mut Isolate,
@@ -241,6 +249,7 @@ impl Context {
   /// Returns true if value was set without replacing an existing value.
   ///
   /// The value will be dropped when the context is garbage collected.
+  #[inline(always)]
   pub fn set_slot<'a, T: 'static>(
     &'a self,
     isolate: &'a mut Isolate,
@@ -256,6 +265,7 @@ impl Context {
 
   /// Removes the embedder data added with [`Self::set_slot()`] and returns it
   /// if it exists.
+  #[inline(always)]
   pub fn remove_slot<'a, T: 'static>(
     &'a self,
     isolate: &'a mut Isolate,
@@ -278,6 +288,7 @@ impl Context {
   /// [`SnapshotCreator`](crate::SnapshotCreator), since the internal embedder
   /// state uses [`Weak`] handles, which cannot be alive at the time of
   /// snapshotting.
+  #[inline(always)]
   pub fn clear_all_slots<'a>(&'a self, isolate: &'a mut Isolate) {
     if let Some(annex_mut) = self.get_annex_mut(isolate, false) {
       let annex_ptr = annex_mut as *mut ContextAnnex;

@@ -24,7 +24,6 @@ fn main() {
     "CLANG_BASE_PATH",
     "DENO_TRYBUILD",
     "DOCS_RS",
-    "GENERATE_COMPDB",
     "GN",
     "GN_ARGS",
     "HOST",
@@ -210,7 +209,18 @@ fn build_v8() {
   let gn_out = maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
+  print_gn_args(&gn_out);
   build("rusty_v8", None);
+}
+
+fn print_gn_args(gn_out_dir: &Path) {
+  assert!(Command::new(gn())
+    .arg("args")
+    .arg(&gn_out_dir)
+    .arg("--list")
+    .status()
+    .unwrap()
+    .success());
 }
 
 fn maybe_clone_repo(dest: &str, repo: &str) {
@@ -229,12 +239,12 @@ fn maybe_clone_repo(dest: &str, repo: &str) {
 fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{}-sysroot", arch);
   if !PathBuf::from(sysroot_path).is_dir() {
-    let status = Command::new("python")
+    assert!(Command::new("python")
       .arg("./build/linux/sysroot_scripts/install-sysroot.py")
       .arg(format!("--arch={}", arch))
       .status()
-      .unwrap_or_else(|_| panic!("sysroot download failed: {}", arch));
-    assert!(status.success());
+      .unwrap()
+      .success());
   }
 }
 
@@ -266,13 +276,13 @@ fn download_ninja_gn_binaries() {
   let ninja = ninja.with_extension("exe");
 
   if !gn.exists() || !ninja.exists() {
-    let status = Command::new("python")
+    assert!(Command::new("python")
       .arg("./tools/ninja_gn_binaries.py")
       .arg("--dir")
       .arg(&target_dir)
       .status()
-      .expect("ninja_gn_binaries.py download failed");
-    assert!(status.success());
+      .unwrap()
+      .success());
   }
   assert!(gn.exists());
   assert!(ninja.exists());
@@ -387,6 +397,7 @@ fn download_file(url: String, filename: PathBuf) {
       println!("Python downloader failed, trying with curl.");
       Command::new("curl")
         .arg("-L")
+        .arg("-f")
         .arg("-s")
         .arg("-o")
         .arg(&tmpfile)
@@ -519,13 +530,13 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path {}", clang_base_path.display());
-  let status = Command::new("python")
+  assert!(Command::new("python")
     .arg("./tools/clang/scripts/update.py")
     .arg("--output-dir")
     .arg(&clang_base_path)
     .status()
-    .expect("clang download failed");
-  assert!(status.success());
+    .unwrap()
+    .success());
   assert!(clang_base_path.exists());
   clang_base_path
 }
@@ -641,37 +652,6 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   cmd
 }
 
-fn generate_compdb(
-  gn_out_dir: &Path,
-  target: &str,
-  output_path: Option<&Path>,
-) {
-  let mut cmd = Command::new("python");
-  cmd.arg("tools/generate_compdb.py");
-  cmd.arg("-p");
-  cmd.arg(&gn_out_dir);
-  cmd.arg(target);
-  cmd.arg("-o");
-  cmd.arg(output_path.unwrap_or_else(|| Path::new("compile_commands.json")));
-  cmd.envs(env::vars());
-  cmd.stdout(Stdio::inherit());
-  cmd.stderr(Stdio::inherit());
-
-  if let Ok(ninja_path) = env::var("NINJA") {
-    let ninja_folder = Path::new(&ninja_path).parent().unwrap();
-    // Add `ninja_folder` to the PATH envvar.
-    let original_path = env::var_os("PATH").unwrap();
-    let new_path = env::join_paths(
-      env::split_paths(&original_path)
-        .chain(std::iter::once(ninja_folder.to_owned())),
-    )
-    .unwrap();
-    cmd.env("PATH", new_path);
-  }
-
-  run(&mut cmd, "python");
-}
-
 pub type GnArgs = Vec<String>;
 
 pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
@@ -688,15 +668,17 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
       dirs.root.display(),
       gn_out_dir.display()
     );
-    let mut cmd = Command::new(gn());
-    cmd.arg(format!("--root={}", dirs.root.display()));
-    cmd.arg("gen");
-    cmd.arg(&gn_out_dir);
-    cmd.arg("--args=".to_owned() + &args);
-    cmd.stdout(Stdio::inherit());
-    cmd.stderr(Stdio::inherit());
-    cmd.envs(env::vars());
-    run(&mut cmd, "gn gen");
+    assert!(Command::new(gn())
+      .arg(format!("--root={}", dirs.root.display()))
+      .arg("gen")
+      .arg(&gn_out_dir)
+      .arg("--args=".to_owned() + &args)
+      .stdout(Stdio::inherit())
+      .stderr(Stdio::inherit())
+      .envs(env::vars())
+      .status()
+      .unwrap()
+      .success());
   }
   gn_out_dir
 }
@@ -709,19 +691,11 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
   // This helps Rust source files locate the snapshot, source map etc.
   println!("cargo:rustc-env=GN_OUT_DIR={}", gn_out_dir.display());
 
-  let mut cmd = ninja(&gn_out_dir, maybe_env);
-  cmd.arg(target);
-  run(&mut cmd, "ninja");
-
-  if let Some(compdb_env) = std::env::var_os("GENERATE_COMPDB") {
-    // Only use compdb_path if it's not empty.
-    let compdb_path = if !compdb_env.is_empty() {
-      Some(Path::new(&compdb_env))
-    } else {
-      None
-    };
-    generate_compdb(&gn_out_dir, target, compdb_path);
-  }
+  assert!(ninja(&gn_out_dir, maybe_env)
+    .arg(target)
+    .status()
+    .unwrap()
+    .success());
 
   // TODO This is not sufficent. We need to use "gn desc" to query the target
   // and figure out what else we need to add to the link.
@@ -737,34 +711,9 @@ fn rerun_if_changed(out_dir: &Path, maybe_env: Option<NinjaEnv>, target: &str) {
   let deps = ninja_get_deps(out_dir, maybe_env, target);
   for d in deps {
     let p = out_dir.join(d);
-    assert!(p.exists());
+    assert!(p.exists(), "Path doesn't exist: {:?}", p);
     println!("cargo:rerun-if-changed={}", p.display());
   }
-}
-
-fn run(cmd: &mut Command, program: &str) {
-  use std::io::ErrorKind;
-  println!("running: {:?}", cmd);
-  let status = match cmd.status() {
-    Ok(status) => status,
-    Err(ref e) if e.kind() == ErrorKind::NotFound => {
-      fail(&format!(
-        "failed to execute command: {}\nis `{}` not installed?",
-        e, program
-      ));
-    }
-    Err(e) => fail(&format!("failed to execute command: {}", e)),
-  };
-  if !status.success() {
-    fail(&format!(
-      "command did not execute successfully, got: {}",
-      status
-    ));
-  }
-}
-
-fn fail(s: &str) -> ! {
-  panic!("\n{}\n\nbuild script failed, must exit now", s)
 }
 
 fn ninja_get_deps(

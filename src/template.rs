@@ -1,14 +1,18 @@
+use libc::c_void;
+
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
+use crate::fast_api::CFunctionInfo;
+use crate::fast_api::CTypeInfo;
+use crate::fast_api::FastFunction;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
 use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
-use crate::CFunction;
 use crate::ConstructorBehavior;
 use crate::Context;
 use crate::Function;
@@ -45,7 +49,10 @@ extern "C" {
     length: i32,
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
-    c_function_or_null: *const CFunction,
+    func_ptr1: *const c_void,
+    c_function1: *const CFunctionInfo,
+    func_ptr2: *const c_void,
+    c_function2: *const CFunctionInfo,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -105,12 +112,14 @@ extern "C" {
 
 impl Template {
   /// Adds a property to each instance created by this template.
+  #[inline(always)]
   pub fn set(&self, key: Local<Name>, value: Local<Data>) {
     self.set_with_attr(key, value, NONE)
   }
 
   /// Adds a property to each instance created by this template with
   /// the specified property attributes.
+  #[inline(always)]
   pub fn set_with_attr(
     &self,
     key: Local<Name>,
@@ -123,12 +132,14 @@ impl Template {
 
 impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   /// Set the function call signature. The default is no signature.
+  #[inline(always)]
   pub fn signature(mut self, signature: Local<'s, Signature>) -> Self {
     self.signature = Some(signature);
     self
   }
 
   /// Creates the function template.
+  #[inline(always)]
   pub fn build(
     self,
     scope: &mut HandleScope<'s, ()>,
@@ -144,6 +155,49 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.constructor_behavior,
           self.side_effect_type,
           null(),
+          null(),
+          null(),
+          null(),
+        )
+      })
+    }
+    .unwrap()
+  }
+
+  pub fn build_fast(
+    self,
+    scope: &mut HandleScope<'s, ()>,
+    overload1: &dyn FastFunction,
+    overload2: Option<&dyn FastFunction>,
+  ) -> Local<'s, FunctionTemplate> {
+    unsafe {
+      let args = CTypeInfo::new_from_slice(overload1.args());
+      let ret = CTypeInfo::new(overload1.return_type());
+      let c_fn1 =
+        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr());
+
+      let c_fn2 = match overload2 {
+        Some(overload) => {
+          let args = CTypeInfo::new_from_slice(overload.args());
+          let ret = CTypeInfo::new(overload.return_type());
+          CFunctionInfo::new(args.as_ptr(), overload.args().len(), ret.as_ptr())
+            .as_ptr()
+        }
+        None => null(),
+      };
+      scope.cast_local(|sd| {
+        v8__FunctionTemplate__New(
+          sd.get_isolate_ptr(),
+          self.callback,
+          self.data.map_or_else(null, |p| &*p),
+          self.signature.map_or_else(null, |p| &*p),
+          self.length,
+          ConstructorBehavior::Throw,
+          self.side_effect_type,
+          overload1.function(),
+          c_fn1.as_ptr(),
+          overload2.map_or(null(), |f| f.function()),
+          c_fn2,
         )
       })
     }
@@ -158,6 +212,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
 /// from a FunctionTemplate that inherits directly or indirectly from the
 /// signature's FunctionTemplate.
 impl Signature {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     templ: Local<FunctionTemplate>,
@@ -172,12 +227,14 @@ impl Signature {
 impl FunctionTemplate {
   /// Create a FunctionBuilder to configure a FunctionTemplate.
   /// This is the same as FunctionBuilder::<FunctionTemplate>::new().
+  #[inline(always)]
   pub fn builder<'s>(
     callback: impl MapFnTo<FunctionCallback>,
   ) -> FunctionBuilder<'s, Self> {
     FunctionBuilder::new(callback)
   }
 
+  #[inline(always)]
   pub fn builder_raw<'s>(
     callback: FunctionCallback,
   ) -> FunctionBuilder<'s, Self> {
@@ -185,6 +242,7 @@ impl FunctionTemplate {
   }
 
   /// Creates a function template.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     callback: impl MapFnTo<FunctionCallback>,
@@ -192,6 +250,7 @@ impl FunctionTemplate {
     Self::builder(callback).build(scope)
   }
 
+  #[inline(always)]
   pub fn new_raw<'s>(
     scope: &mut HandleScope<'s, ()>,
     callback: FunctionCallback,
@@ -200,6 +259,7 @@ impl FunctionTemplate {
   }
 
   /// Returns the unique function instance in the current execution context.
+  #[inline(always)]
   pub fn get_function<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -214,12 +274,14 @@ impl FunctionTemplate {
   /// Set the class name of the FunctionTemplate. This is used for
   /// printing objects created with the function created from the
   /// FunctionTemplate as its constructor.
+  #[inline(always)]
   pub fn set_class_name(&self, name: Local<String>) {
     unsafe { v8__FunctionTemplate__SetClassName(self, &*name) };
   }
 
   /// Returns the ObjectTemplate that is used by this
   /// FunctionTemplate as a PrototypeTemplate
+  #[inline(always)]
   pub fn prototype_template<'s>(
     &self,
     scope: &mut HandleScope<'s, ()>,
@@ -232,6 +294,7 @@ impl FunctionTemplate {
 
   /// Returns the object template that is used for instances created when this function
   /// template is called as a constructor.
+  #[inline(always)]
   pub fn instance_template<'s>(
     &self,
     scope: &mut HandleScope<'s, ()>,
@@ -244,17 +307,20 @@ impl FunctionTemplate {
 
   /// Causes the function template to inherit from a parent function template.
   /// This means the function's prototype.__proto__ is set to the parent function's prototype.
+  #[inline(always)]
   pub fn inherit(&self, parent: Local<FunctionTemplate>) {
     unsafe { v8__FunctionTemplate__Inherit(self, &*parent) };
   }
 
   /// Sets the ReadOnly flag in the attributes of the 'prototype' property
   /// of functions created from this FunctionTemplate to true.
+  #[inline(always)]
   pub fn read_only_prototype(&self) {
     unsafe { v8__FunctionTemplate__ReadOnlyPrototype(self) };
   }
 
   /// Removes the prototype property from functions created from this FunctionTemplate.
+  #[inline(always)]
   pub fn remove_prototype(&self) {
     unsafe { v8__FunctionTemplate__RemovePrototype(self) };
   }
@@ -262,6 +328,7 @@ impl FunctionTemplate {
 
 impl ObjectTemplate {
   /// Creates an object template.
+  #[inline(always)]
   pub fn new<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|sd| {
@@ -272,6 +339,7 @@ impl ObjectTemplate {
   }
 
   /// Creates an object template from a function template.
+  #[inline(always)]
   pub fn new_from_template<'s>(
     scope: &mut HandleScope<'s, ()>,
     templ: Local<FunctionTemplate>,
@@ -284,6 +352,7 @@ impl ObjectTemplate {
   }
 
   /// Creates a new instance of this object template.
+  #[inline(always)]
   pub fn new_instance<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -297,6 +366,7 @@ impl ObjectTemplate {
 
   /// Gets the number of internal fields for objects generated from
   /// this template.
+  #[inline(always)]
   pub fn internal_field_count(&self) -> usize {
     let count = unsafe { v8__ObjectTemplate__InternalFieldCount(self) };
     usize::try_from(count).expect("bad internal field count") // Can't happen.
@@ -304,6 +374,7 @@ impl ObjectTemplate {
 
   /// Sets the number of internal fields for objects generated from
   /// this template.
+  #[inline(always)]
   pub fn set_internal_field_count(&self, value: usize) -> bool {
     // The C++ API takes an i32 but trying to set a value < 0
     // results in unpredictable behavior, hence we disallow it.
@@ -316,6 +387,7 @@ impl ObjectTemplate {
     }
   }
 
+  #[inline(always)]
   pub fn set_accessor(
     &self,
     key: Local<Name>,
@@ -324,6 +396,7 @@ impl ObjectTemplate {
     unsafe { v8__ObjectTemplate__SetAccessor(self, &*key, getter.map_fn_to()) }
   }
 
+  #[inline(always)]
   pub fn set_accessor_with_setter(
     &self,
     key: Local<Name>,
@@ -346,6 +419,7 @@ impl ObjectTemplate {
   /// # Panics
   ///
   /// Panics if both `getter` and `setter` are `None`.
+  #[inline(always)]
   pub fn set_accessor_property(
     &self,
     key: Local<Name>,
@@ -366,6 +440,7 @@ impl ObjectTemplate {
 
   /// Makes the ObjectTemplate for an immutable prototype exotic object,
   /// with an immutable proto.
+  #[inline(always)]
   pub fn set_immutable_proto(&self) {
     unsafe { v8__ObjectTemplate__SetImmutableProto(self) };
   }

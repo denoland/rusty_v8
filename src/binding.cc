@@ -23,6 +23,11 @@
 
 using namespace support;
 
+template <typename T>
+constexpr size_t align_to(size_t size) {
+  return (size + sizeof(T) - 1) & ~(sizeof(T) - 1);
+}
+
 static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
               "std::shared_ptr<v8::BackingStore> size mismatch");
@@ -41,7 +46,8 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
-static_assert(sizeof(v8::ScriptCompiler::Source) <= sizeof(size_t) * 8,
+static_assert(sizeof(v8::ScriptCompiler::Source) ==
+                  align_to<size_t>(sizeof(size_t) * 6 + sizeof(int) * 3),
               "Source size mismatch");
 
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
@@ -245,6 +251,11 @@ void v8__Isolate__SetPromiseHook(v8::Isolate* isolate, v8::PromiseHook hook) {
 void v8__Isolate__SetPromiseRejectCallback(v8::Isolate* isolate,
                                            v8::PromiseRejectCallback callback) {
   isolate->SetPromiseRejectCallback(callback);
+}
+
+void v8__Isolate__SetWasmAsyncResolvePromiseCallback(
+    v8::Isolate* isolate, v8::WasmAsyncResolvePromiseCallback callback) {
+  isolate->SetWasmAsyncResolvePromiseCallback(callback);
 }
 
 void v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
@@ -845,6 +856,10 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
 
+void* v8__ArrayBuffer__Data(const v8::ArrayBuffer& self) {
+  return ptr_to_local(&self)->Data();
+}
+
 void v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self) {
   ptr_to_local(&self)->Detach();
 }
@@ -1161,6 +1176,16 @@ const v8::Value* v8__Object__GetIndex(const v8::Object& self,
       ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
+void* v8__Object__GetAlignedPointerFromInternalField(const v8::Object& self,
+                                                     int index) {
+  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index);
+}
+
+void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
+                                                  int index, void* value) {
+  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
+}
+
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototype());
 }
@@ -1230,16 +1255,48 @@ const v8::Context* v8__Object__GetCreationContext(const v8::Object& self) {
   return maybe_local_to_ptr(ptr_to_local(&self)->GetCreationContext());
 }
 
-const v8::Array* v8__Object__GetOwnPropertyNames(const v8::Object* self,
-                                                 const v8::Context* context) {
-  return maybe_local_to_ptr(
-      ptr_to_local(self)->GetOwnPropertyNames(ptr_to_local(context)));
+// v8::PropertyFilter
+static_assert(v8::ALL_PROPERTIES == 0, "v8::ALL_PROPERTIES is not 0");
+static_assert(v8::ONLY_WRITABLE == 1, "v8::ONLY_WRITABLE is not 1");
+static_assert(v8::ONLY_ENUMERABLE == 2, "v8::ONLY_ENUMERABLE is not 2");
+static_assert(v8::ONLY_CONFIGURABLE == 4, "v8::ONLY_CONFIGURABLE is not 4");
+static_assert(v8::SKIP_STRINGS == 8, "v8::SKIP_STRINGS is not 8");
+static_assert(v8::SKIP_SYMBOLS == 16, "v8::SKIP_SYMBOLS is not 16");
+
+// v8::KeyConversionMode
+static_assert(static_cast<int>(v8::KeyConversionMode::kConvertToString) == 0,
+              "v8::KeyConversionMode::kConvertToString is not 0");
+static_assert(static_cast<int>(v8::KeyConversionMode::kKeepNumbers) == 1,
+              "v8::KeyConversionMode::kKeepNumbers is not 1");
+static_assert(static_cast<int>(v8::KeyConversionMode::kNoNumbers) == 2,
+              "v8::KeyConversionMode::kNoNumbers is not 2");
+
+// v8::KeyCollectionMode
+static_assert(static_cast<int>(v8::KeyCollectionMode::kOwnOnly) == 0,
+              "v8::KeyCollectionMode::kOwnOnly is not 0");
+static_assert(static_cast<int>(v8::KeyCollectionMode::kIncludePrototypes) == 1,
+              "v8::KeyCollectionMode::kIncludePrototypes is not 1");
+
+// v8::IndexFilter
+static_assert(static_cast<int>(v8::IndexFilter::kIncludeIndices) == 0,
+              "v8::IndexFilter::kIncludeIndices is not 0");
+static_assert(static_cast<int>(v8::IndexFilter::kSkipIndices) == 1,
+              "v8::IndexFilter::kSkipIndices is not 1");
+
+const v8::Array* v8__Object__GetOwnPropertyNames(
+    const v8::Object* self, const v8::Context* context,
+    v8::PropertyFilter filter, v8::KeyConversionMode key_conversion) {
+  return maybe_local_to_ptr(ptr_to_local(self)->GetOwnPropertyNames(
+      ptr_to_local(context), filter, key_conversion));
 }
 
-const v8::Array* v8__Object__GetPropertyNames(const v8::Object* self,
-                                              const v8::Context* context) {
-  return maybe_local_to_ptr(
-      ptr_to_local(self)->GetPropertyNames(ptr_to_local(context)));
+const v8::Array* v8__Object__GetPropertyNames(
+    const v8::Object* self, const v8::Context* context,
+    v8::KeyCollectionMode mode, v8::PropertyFilter property_filter,
+    v8::IndexFilter index_filter, v8::KeyConversionMode key_conversion) {
+  return maybe_local_to_ptr(ptr_to_local(self)->GetPropertyNames(
+      ptr_to_local(context), mode, property_filter, index_filter,
+      key_conversion));
 }
 
 MaybeBool v8__Object__Has(const v8::Object& self, const v8::Context& context,
@@ -1418,6 +1475,10 @@ const v8::Integer* v8__Integer__NewFromUnsigned(v8::Isolate* isolate,
 }
 
 int64_t v8__Integer__Value(const v8::Integer& self) { return self.Value(); }
+
+uint32_t v8__Uint32__Value(const v8::Uint32& self) { return self.Value(); }
+
+int32_t v8__Int32__Value(const v8::Int32& self) { return self.Value(); }
 
 const v8::BigInt* v8__BigInt__New(v8::Isolate* isolate, int64_t value) {
   return local_to_ptr(v8::BigInt::New(isolate, value));
@@ -1761,16 +1822,58 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
+v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
+  std::unique_ptr<v8::CTypeInfo> u =
+      std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
+  return u.release();
+}
+
+struct CTypeSequenceType {
+  v8::CTypeInfo::Type c_type;
+  v8::CTypeInfo::SequenceType sequence_type;
+};
+
+v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
+                                               CTypeSequenceType* ty) {
+  v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
+  for (size_t i = 0; i < len; i += 1) {
+    v[i] = v8::CTypeInfo(ty[i].c_type, ty[i].sequence_type);
+  }
+  return v;
+}
+
+v8::CFunctionInfo* v8__CFunctionInfo__New(const v8::CTypeInfo& return_info,
+                                          unsigned int args_len,
+                                          v8::CTypeInfo* args_info) {
+  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(
+      v8::CFunctionInfo(return_info, args_len, args_info));
+  return info.release();
+}
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
-    v8::SideEffectType side_effect_type,
-    const v8::CFunction* c_function_or_null) {
-  return local_to_ptr(v8::FunctionTemplate::New(
+    v8::SideEffectType side_effect_type, void* func_ptr1,
+    const v8::CFunctionInfo* c_function_info1, void* func_ptr2,
+    const v8::CFunctionInfo* c_function_info2) {
+  auto overload = v8::MemorySpan<const v8::CFunction>{};
+  // Support upto 2 overloads. V8 requires TypedArray to have a
+  // v8::Array overload.
+  if (func_ptr1) {
+    if (func_ptr2 == nullptr) {
+      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1)};
+      overload = v8::MemorySpan<const v8::CFunction>{o, 1};
+    } else {
+      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1),
+                                 v8::CFunction(func_ptr2, c_function_info2)};
+      overload = v8::MemorySpan<const v8::CFunction>{o, 2};
+    }
+  }
+  return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
-      side_effect_type, c_function_or_null));
+      side_effect_type, overload));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(

@@ -1,6 +1,6 @@
 [package]
 name = "v8"
-version = "0.44.3"
+version = "0.51.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -105,6 +105,11 @@ name = "process"
 [[test]]
 name = "build"
 path = "build.rs"
+
+[[bench]]
+name = "function"
+path = "benches/function.rs"
+harness = false
 
 [workspace]
 members = ["examples/android"]
