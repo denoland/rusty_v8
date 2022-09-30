@@ -5,7 +5,6 @@
 
 #include "support.h"
 #include "unicode/locid.h"
-#include "unicode/uloc.h"
 #include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
