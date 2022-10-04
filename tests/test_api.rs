@@ -3480,7 +3480,7 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None);
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
     {
       let scope = &mut v8::HandleScope::new(&mut isolate);
@@ -3498,7 +3498,7 @@ fn snapshot_creator() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::SnapshotCreator::new(None, Some(&startup_data));
+      v8::SnapshotCreator::from_existing_snapshot(startup_data, None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -3570,7 +3570,7 @@ fn snapshot_creator() {
 fn snapshot_creator_multiple_contexts() {
   let _setup_guard = setup();
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None);
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
     {
       let mut scope = v8::HandleScope::new(&mut isolate);
@@ -3607,7 +3607,7 @@ fn snapshot_creator_multiple_contexts() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::SnapshotCreator::new(None, Some(&startup_data));
+      v8::SnapshotCreator::from_existing_snapshot(startup_data, None);
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
     {
       let scope = &mut v8::HandleScope::new(&mut isolate);
@@ -3744,7 +3744,7 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs), None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs));
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
@@ -5167,7 +5167,7 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+    let mut snapshot_creator = v8::SnapshotCreator::new(None);
     // TODO(ry) this shouldn't be necessary. workaround unfinished business in
     // the scope type system.
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };

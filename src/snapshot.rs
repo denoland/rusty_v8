@@ -1,27 +1,28 @@
 use crate::external_references::ExternalReferences;
+use crate::isolate_create_params::raw;
 use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
 use crate::support::intptr_t;
 use crate::support::Allocated;
-use crate::support::CharArray;
+use crate::support::Allocation;
 use crate::Context;
 use crate::Data;
 use crate::Isolate;
 use crate::Local;
 use crate::OwnedIsolate;
 
-use std::any::Any;
 use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
+use std::ptr::null;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
     buf: *mut MaybeUninit<SnapshotCreator>,
     external_references: *const intptr_t,
-    existing_blob: *const StartupData,
+    existing_blob: *const raw::StartupData,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
@@ -48,6 +49,7 @@ extern "C" {
     context: *const Context,
     data: *const Data,
   ) -> usize;
+  fn v8__StartupData__DESTRUCT(this: *mut StartupData);
 }
 
 // TODO(piscisaureus): merge this struct with
@@ -59,18 +61,9 @@ pub struct StartupData {
   raw_size: int,
 }
 
-impl StartupData {
-  pub fn from_static(data: &'static [u8]) -> Self {
-    Self {
-      data: data.as_ptr() as *const char,
-      raw_size: i32::try_from(data.len()).unwrap(),
-    }
-  }
-}
-
-impl From<&'static [u8]> for StartupData {
-  fn from(data: &'static [u8]) -> Self {
-    Self::from_static(data)
+impl Drop for StartupData {
+  fn drop(&mut self) {
+    unsafe { v8__StartupData__DESTRUCT(self) }
   }
 }
 
@@ -95,54 +88,6 @@ impl Borrow<[u8]> for StartupData {
   }
 }
 
-/// A `StartupData` object that owns the data it references, which is kept in a
-/// char array allocated in C++. This is what V8 returns when calling
-/// `SnapshotCreator::CreateBlob()`.
-pub struct OwnedStartupData {
-  inner: StartupData,
-  _owner: Box<dyn Any>,
-}
-
-impl OwnedStartupData {
-  pub fn new<T>(owned_data: T) -> Self
-  where
-    T: Deref<Target = [u8]> + 'static,
-  {
-    let inner = {
-      let slice = owned_data.deref();
-      let data = slice.as_ptr() as *const char;
-      let raw_size = int::try_from(slice.len()).unwrap();
-      StartupData { data, raw_size }
-    };
-    Self {
-      inner,
-      _owner: Box::new(owned_data),
-    }
-  }
-
-  fn from_raw_char_array(raw: StartupData) -> Self {
-    let char_array = unsafe { CharArray::from_ptr(raw.data) };
-    Self {
-      inner: raw,
-      _owner: Box::new(char_array),
-    }
-  }
-}
-
-impl Deref for OwnedStartupData {
-  type Target = StartupData;
-
-  fn deref(&self) -> &Self::Target {
-    &self.inner
-  }
-}
-
-impl Borrow<[u8]> for OwnedStartupData {
-  fn borrow(&self) -> &[u8] {
-    &**self
-  }
-}
-
 #[repr(C)]
 #[derive(Debug)]
 pub enum FunctionCodeHandling {
@@ -159,9 +104,26 @@ impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
   #[inline(always)]
-  pub fn new(
+  pub fn new(external_references: Option<&'static ExternalReferences>) -> Self {
+    Self::new_impl(external_references, None::<&[u8]>)
+  }
+
+  /// Create and enter an isolate, and set it up for serialization.
+  /// The isolate is created from scratch.
+  #[inline(always)]
+  pub fn from_existing_snapshot(
+    existing_snapshot_blob: impl Allocated<[u8]>,
     external_references: Option<&'static ExternalReferences>,
-    existing_blob: Option<impl Allocated<[u8]>>,
+  ) -> Self {
+    Self::new_impl(external_references, Some(existing_snapshot_blob))
+  }
+
+  /// Create and enter an isolate, and set it up for serialization.
+  /// The isolate is created from scratch.
+  #[inline(always)]
+  fn new_impl(
+    external_references: Option<&'static ExternalReferences>,
+    existing_snapshot_blob: Option<impl Allocated<[u8]>>,
   ) -> Self {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
@@ -169,19 +131,39 @@ impl SnapshotCreator {
     } else {
       std::ptr::null()
     };
-    let existing_blob_ptr = if let Some(startup_data) = existing_blob {
-      startup_data
+
+    let snapshot_blob_ptr;
+    let snapshot_allocations;
+    if let Some(snapshot_blob) = existing_snapshot_blob {
+      let data = Allocation::of(snapshot_blob);
+      let header = Allocation::of(raw::StartupData::boxed_header(&data));
+      snapshot_blob_ptr = &*header as *const _;
+      snapshot_allocations = Some((header, data));
     } else {
-      std::ptr::null()
-    };
-    unsafe {
+      snapshot_blob_ptr = null();
+      snapshot_allocations = None;
+    }
+
+    let snapshot_creator = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
         external_references_ptr,
-        existing_blob_ptr,
+        snapshot_blob_ptr,
       );
       snapshot_creator.assume_init()
+    };
+
+    // Store any owned buffers that need to live as long as the SnapshotCreator
+    // itself in the Isolate's annex (this is where we would put the
+    // IsolateCreateParams if this was a normal isolate.)
+    {
+      let isolate =
+        unsafe { &mut *(v8__SnapshotCreator__GetIsolate(&snapshot_creator)) };
+      ScopeData::new_root(isolate);
+      isolate.create_annex(Box::new(snapshot_allocations));
     }
+
+    snapshot_creator
   }
 }
 
@@ -244,7 +226,7 @@ impl SnapshotCreator {
   pub fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,
-  ) -> Option<OwnedStartupData> {
+  ) -> Option<StartupData> {
     {
       let isolate = unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) };
       ScopeData::get_root_mut(isolate);
@@ -256,10 +238,7 @@ impl SnapshotCreator {
       None
     } else {
       debug_assert!(blob.raw_size > 0);
-      // Wrap the returned blob in a `OwnedStartupData`, which has a drop
-      // handler that will release the heap allocated `char[]` buffer that holds
-      // the snapshot blob returned by `v8::SnapshotCreator::CreateBlob()`.
-      Some(OwnedStartupData::from_raw_char_array(blob))
+      Some(blob)
     }
   }
 
@@ -271,9 +250,7 @@ impl SnapshotCreator {
   #[inline(always)]
   pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
     let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(Box::new(()));
+    let owned_isolate = OwnedIsolate::new(isolate_ptr);
     owned_isolate
   }
 }

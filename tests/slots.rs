@@ -298,7 +298,7 @@ fn dropped_context_slots() {
 fn clear_all_context_slots() {
   setup();
 
-  let mut snapshot_creator = v8::SnapshotCreator::new(None, None);
+  let mut snapshot_creator = v8::SnapshotCreator::new(None);
   let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
 
   {

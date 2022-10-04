@@ -2345,6 +2345,8 @@ void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
   self->~SnapshotCreator();
 }
 
+void v8__StartupData__DESTRUCT(v8::StartupData* self) { delete[] self->data; }
+
 v8::Isolate* v8__SnapshotCreator__GetIsolate(const v8::SnapshotCreator& self) {
   // `v8::SnapshotCreator::GetIsolate()` is not declared as a const method, but
   // this appears to be a mistake.
@@ -3159,7 +3161,4 @@ const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
   delete self;
 }
-
-void char__DELETE_ARRAY(const char* ptr[]) { delete[] ptr; }
-
 }  // extern "C"

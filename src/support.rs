@@ -365,29 +365,6 @@ fn assert_shared_ptr_use_count_eq<T: Shared>(
   );
 }
 
-extern "C" {
-  fn char__DELETE_ARRAY(ptr: *const char);
-}
-
-/// Wrapper around a C++ heap allocated `const char*` array. This wrapper calls
-/// `delete[]` in C++ when it is dropped.
-#[repr(transparent)]
-pub struct CharArray(*const char);
-
-impl CharArray {
-  pub unsafe fn from_ptr(ptr: *const char) -> Self {
-    Self(ptr)
-  }
-}
-
-impl Drop for CharArray {
-  fn drop(&mut self) {
-    if !self.0.is_null() {
-      unsafe { char__DELETE_ARRAY(self.0) };
-    }
-  }
-}
-
 /// A trait for values with static lifetimes that are allocated at a fixed
 /// address in memory. Practically speaking, that means they're either a
 /// `&'static` reference, or they're heap-allocated in a `Arc`, `Box`, `Rc`,
