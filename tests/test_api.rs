@@ -1763,6 +1763,305 @@ fn object_template_set_accessor() {
 }
 
 #[test]
+fn object_template_set_named_property_handler() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      rv.set(this.get_internal_field(scope, 0).unwrap());
+    };
+
+    let setter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  value: v8::Local<v8::Value>,
+                  args: v8::PropertyCallbackArguments| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      assert!(value.is_int32());
+      assert!(this.set_internal_field(0, value));
+    };
+
+    let query = |scope: &mut v8::HandleScope,
+                 key: v8::Local<v8::Name>,
+                 args: v8::PropertyCallbackArguments,
+                 mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+      //PropertyAttribute::READ_ONLY
+      rv.set_int32(1);
+      let expected_value = v8::Integer::new(scope, 42);
+      assert!(this
+        .get_internal_field(scope, 0)
+        .unwrap()
+        .strict_equals(expected_value.into()));
+    };
+    let deleter = |scope: &mut v8::HandleScope,
+                   key: v8::Local<v8::Name>,
+                   _args: v8::PropertyCallbackArguments,
+                   mut rv: v8::ReturnValue| {
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      rv.set_bool(true);
+    };
+
+    let enumerator = |scope: &mut v8::HandleScope,
+                      args: v8::PropertyCallbackArguments,
+                      mut rv: v8::ReturnValue| {
+      let this = args.this();
+      //Validate is the current object
+      let expected_value = v8::Integer::new(scope, 42);
+      assert!(this
+        .get_internal_field(scope, 0)
+        .unwrap()
+        .strict_equals(expected_value.into()));
+
+      let key = v8::String::new(scope, "key").unwrap();
+      let result = v8::Array::new_with_elements(scope, &[key.into()]);
+      rv.set(result.into());
+    };
+
+    let name = v8::String::new(scope, "obj").unwrap();
+
+    // Lone getter
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new().getter(getter),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    let int = v8::Integer::new(scope, 42);
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    assert!(eval(scope, "obj.key").unwrap().strict_equals(int.into()));
+
+    // Getter + setter + deleter
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new()
+        .getter(getter)
+        .setter(setter)
+        .deleter(deleter),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let new_int = v8::Integer::new(scope, 9);
+    eval(scope, "obj.key = 9");
+    assert!(obj
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .strict_equals(new_int.into()));
+
+    assert!(eval(scope, "delete obj.key").unwrap().boolean_value(scope));
+
+    // query descriptor
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new().query(query),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let result =
+      eval(scope, "Object.getOwnPropertyDescriptor(obj, 'key')").unwrap();
+    let object = result.to_object(scope).unwrap();
+    let key = v8::String::new(scope, "writable").unwrap();
+    let value = object.get(scope, key.into()).unwrap();
+
+    let non_writable = v8::Boolean::new(scope, false);
+    assert!(value.strict_equals(non_writable.into()));
+
+    //enumerator
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new().enumerator(enumerator),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let arr = v8::Local::<v8::Array>::try_from(
+      eval(scope, "Object.keys(obj)").unwrap(),
+    )
+    .unwrap();
+    assert_eq!(arr.length(), 1);
+    let index = v8::Integer::new(scope, 0);
+    let result = arr.get(scope, index.into()).unwrap();
+    let expected = v8::String::new(scope, "key").unwrap();
+    assert!(expected.strict_equals(result))
+  }
+}
+
+#[test]
+fn object_template_set_indexed_property_handler() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let getter = |scope: &mut v8::HandleScope,
+                index: u32,
+                args: v8::PropertyCallbackArguments,
+                mut rv: v8::ReturnValue| {
+    let this = args.this();
+    let expected_index = 37;
+    assert!(index.eq(&expected_index));
+    rv.set(this.get_internal_field(scope, 0).unwrap());
+  };
+
+  let setter = |_scope: &mut v8::HandleScope,
+                index: u32,
+                value: v8::Local<v8::Value>,
+                args: v8::PropertyCallbackArguments| {
+    let this = args.this();
+
+    assert_eq!(index, 37);
+
+    assert!(value.is_int32());
+    assert!(this.set_internal_field(0, value));
+  };
+
+  let deleter = |_scope: &mut v8::HandleScope,
+                 index: u32,
+                 _args: v8::PropertyCallbackArguments,
+                 mut rv: v8::ReturnValue| {
+    assert_eq!(index, 37);
+
+    rv.set_bool(false);
+  };
+
+  let enumerator = |scope: &mut v8::HandleScope,
+                    args: v8::PropertyCallbackArguments,
+                    mut rv: v8::ReturnValue| {
+    let this = args.this();
+    //Validate is the current object
+    let expected_value = v8::Integer::new(scope, 42);
+    assert!(this
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .strict_equals(expected_value.into()));
+
+    let key = v8::Integer::new(scope, 37);
+    let result = v8::Array::new_with_elements(scope, &[key.into()]);
+    rv.set(result.into());
+  };
+
+  let name = v8::String::new(scope, "obj").unwrap();
+
+  // Lone getter
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_internal_field_count(1);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new().getter(getter),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  let int = v8::Integer::new(scope, 42);
+  obj.set_internal_field(0, int.into());
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+  assert!(eval(scope, "obj[37]").unwrap().strict_equals(int.into()));
+
+  // Getter + setter + deleter
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_internal_field_count(1);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new()
+      .getter(getter)
+      .setter(setter)
+      .deleter(deleter),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  obj.set_internal_field(0, int.into());
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+  let new_int = v8::Integer::new(scope, 9);
+  eval(scope, "obj[37] = 9");
+  assert!(obj
+    .get_internal_field(scope, 0)
+    .unwrap()
+    .strict_equals(new_int.into()));
+
+  assert!(!eval(scope, "delete obj[37]").unwrap().boolean_value(scope));
+
+  //Enumerator
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_internal_field_count(1);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new()
+      .getter(getter)
+      .enumerator(enumerator),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  obj.set_internal_field(0, int.into());
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+
+  let value = eval(
+    scope,
+    "
+    let value = -1;
+    for (const i in obj) {
+      value = obj[i];
+   }
+   value
+   ",
+  )
+  .unwrap();
+
+  assert!(value.strict_equals(int.into()));
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
