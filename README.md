@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 10.0.139.6
+V8 Version: 10.7.193.13
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=main)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
@@ -97,9 +97,7 @@ cargo build
 Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
 source.
 
-The build scripts on Python 2.7, not Python 3. [Do not open issues with us
-regarding Python 3; it is a non-trivial problem that must be fixed in
-Chromium.](https://bugs.chromium.org/p/chromium/issues/detail?id=942720).
+The build scripts require Python 3 to be available as `python` in your `PATH`.
 
 For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
@@ -121,28 +119,6 @@ Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental variable
 
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
-
-## C++ IDE integration
-
-`rusty_v8` supports IDE integration for the C++ bindings through the use of the
-`clangd` language server, bringing features such as diagnostics, code completion
-and code navigations to your editor. [See the instructions for how to set it up
-with your favorite editor.](https://clangd.llvm.org/installation.html#editor-plugins)
-
-Before you can use `clangd` with `rusty_v8`, you must first generate the
-compilation database:
-
-```sh
-V8_FROM_SOURCE=1 GENERATE_COMPDB= cargo build
-```
-
-This will write the `clang` compilation database as the `compile_commands.json`
-file at the root of the project repository. You can pass a path to the
-`GENERATE_COMPDB` environment variable to change the location where the
-compilation database will be written.
-
-You must pass the `GENERATE_COMPDB` environment variable to regenerate the
-compilation database, it will not be regenerated automatically.
 
 ## FAQ
 

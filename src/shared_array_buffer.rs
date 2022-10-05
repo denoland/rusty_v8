@@ -3,7 +3,8 @@
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
-use crate::array_buffer::backing_store_deleter_callback;
+use crate::array_buffer::boxed_slice_deleter_callback;
+use crate::array_buffer::vec_deleter_callback;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::BackingStore;
@@ -44,6 +45,7 @@ impl SharedArrayBuffer {
   /// Allocated memory will be owned by a created SharedArrayBuffer and
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     byte_length: usize,
@@ -58,6 +60,7 @@ impl SharedArrayBuffer {
     }
   }
 
+  #[inline(always)]
   pub fn with_backing_store<'s>(
     scope: &mut HandleScope<'s>,
     backing_store: &SharedRef<BackingStore>,
@@ -74,6 +77,7 @@ impl SharedArrayBuffer {
   }
 
   /// Data length in bytes.
+  #[inline(always)]
   pub fn byte_length(&self) -> usize {
     unsafe { v8__SharedArrayBuffer__ByteLength(self) }
   }
@@ -82,6 +86,7 @@ impl SharedArrayBuffer {
   /// pointer coordinates the lifetime management of the internal storage
   /// with any live ArrayBuffers on the heap, even across isolates. The embedder
   /// should not attempt to manage lifetime of the storage through other means.
+  #[inline(always)]
   pub fn get_backing_store(&self) -> SharedRef<BackingStore> {
     unsafe { v8__SharedArrayBuffer__GetBackingStore(self) }
   }
@@ -93,6 +98,7 @@ impl SharedArrayBuffer {
   /// If the allocator returns nullptr, then the function may cause GCs in the
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
+  #[inline(always)]
   pub fn new_backing_store(
     scope: &mut Isolate,
     byte_length: usize,
@@ -114,6 +120,7 @@ impl SharedArrayBuffer {
   ///
   /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  #[inline(always)]
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
@@ -123,7 +130,31 @@ impl SharedArrayBuffer {
       UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
         data_ptr,
         byte_length,
-        backing_store_deleter_callback,
+        boxed_slice_deleter_callback,
+        null_mut(),
+      ))
+    }
+  }
+
+  /// Returns a new standalone BackingStore that takes over the ownership of
+  /// the given buffer.
+  ///
+  /// The destructor of the BackingStore frees owned buffer memory.
+  ///
+  /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
+  /// to the buffer must not be passed again to any V8 API function.
+  #[inline(always)]
+  pub fn new_backing_store_from_vec(
+    mut data: Vec<u8>,
+  ) -> UniqueRef<BackingStore> {
+    let byte_length = data.len();
+    let data_ptr = data.as_mut_ptr() as *mut c_void;
+    std::mem::forget(data);
+    unsafe {
+      UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        vec_deleter_callback,
         null_mut(),
       ))
     }

@@ -179,6 +179,7 @@ impl<'s> HandleScope<'s> {
 
   /// Returns the context of the currently running JavaScript, or the context
   /// on the top of the stack if no JavaScript is running.
+  #[inline(always)]
   pub fn get_current_context(&self) -> Local<'s, Context> {
     let context_ptr = data::ScopeData::get(self).get_current_context();
     unsafe { Local::from_raw(context_ptr) }.unwrap()
@@ -205,6 +206,7 @@ impl<'s> HandleScope<'s, ()> {
   /// JavaScript operations.
   ///
   /// This function always returns the `undefined` value.
+  #[inline(always)]
   pub fn throw_exception(
     &mut self,
     exception: Local<Value>,
@@ -217,6 +219,7 @@ impl<'s> HandleScope<'s, ()> {
     .unwrap()
   }
 
+  #[inline(always)]
   pub(crate) unsafe fn cast_local<T>(
     &mut self,
     f: impl FnOnce(&mut data::ScopeData) -> *const T,
@@ -224,6 +227,7 @@ impl<'s> HandleScope<'s, ()> {
     Local::from_raw(f(data::ScopeData::get_mut(self)))
   }
 
+  #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
     data::ScopeData::get(self).get_isolate_ptr()
   }
@@ -342,6 +346,7 @@ impl<'s, P: param::NewTryCatch<'s>> TryCatch<'s, P> {
 
 impl<'s, P> TryCatch<'s, P> {
   /// Returns true if an exception has been caught by this try/catch block.
+  #[inline(always)]
   pub fn has_caught(&self) -> bool {
     unsafe { raw::v8__TryCatch__HasCaught(self.get_raw()) }
   }
@@ -352,6 +357,7 @@ impl<'s, P> TryCatch<'s, P> {
   /// cleanup needed and then return. If CanContinue returns false and
   /// HasTerminated returns true, it is possible to call
   /// CancelTerminateExecution in order to continue calling into the engine.
+  #[inline(always)]
   pub fn can_continue(&self) -> bool {
     unsafe { raw::v8__TryCatch__CanContinue(self.get_raw()) }
   }
@@ -366,11 +372,13 @@ impl<'s, P> TryCatch<'s, P> {
   /// If such an exception has been thrown, HasTerminated will return true,
   /// indicating that it is possible to call CancelTerminateExecution in order
   /// to continue calling into the engine.
+  #[inline(always)]
   pub fn has_terminated(&self) -> bool {
     unsafe { raw::v8__TryCatch__HasTerminated(self.get_raw()) }
   }
 
   /// Returns true if verbosity is enabled.
+  #[inline(always)]
   pub fn is_verbose(&self) -> bool {
     unsafe { raw::v8__TryCatch__IsVerbose(self.get_raw()) }
   }
@@ -381,6 +389,7 @@ impl<'s, P> TryCatch<'s, P> {
   /// handler are not reported. Call SetVerbose with true on an
   /// external exception handler to have exceptions caught by the
   /// handler reported as if they were not caught.
+  #[inline(always)]
   pub fn set_verbose(&mut self, value: bool) {
     unsafe { raw::v8__TryCatch__SetVerbose(self.get_raw_mut(), value) };
   }
@@ -388,6 +397,7 @@ impl<'s, P> TryCatch<'s, P> {
   /// Set whether or not this TryCatch should capture a Message object
   /// which holds source information about where the exception
   /// occurred. True by default.
+  #[inline(always)]
   pub fn set_capture_message(&mut self, value: bool) {
     unsafe { raw::v8__TryCatch__SetCaptureMessage(self.get_raw_mut(), value) };
   }
@@ -401,14 +411,17 @@ impl<'s, P> TryCatch<'s, P> {
   /// another exception is thrown the previously caught exception will just be
   /// overwritten. However, it is often a good idea since it makes it easier
   /// to determine which operation threw a given exception.
+  #[inline(always)]
   pub fn reset(&mut self) {
     unsafe { raw::v8__TryCatch__Reset(self.get_raw_mut()) };
   }
 
+  #[inline(always)]
   fn get_raw(&self) -> &raw::TryCatch {
     data::ScopeData::get(self).get_try_catch()
   }
 
+  #[inline(always)]
   fn get_raw_mut(&mut self) -> &mut raw::TryCatch {
     data::ScopeData::get_mut(self).get_try_catch_mut()
   }
@@ -1532,15 +1545,14 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct HandleScope([usize; 3]);
+  pub(super) struct HandleScope([MaybeUninit<usize>; 3]);
 
   impl HandleScope {
+    /// Creates an uninitialized `HandleScope`.
+    ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 3]`.
-      #[allow(clippy::uninit_assumed_init)]
       Self(MaybeUninit::uninit().assume_init())
     }
 
@@ -1591,15 +1603,14 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct TryCatch([usize; 6]);
+  pub(super) struct TryCatch([MaybeUninit<usize>; 6]);
 
   impl TryCatch {
+    /// Creates an uninitialized `TryCatch`.
+    ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 6]`.
-      #[allow(clippy::uninit_assumed_init)]
       Self(MaybeUninit::uninit().assume_init())
     }
 

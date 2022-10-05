@@ -1,4 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+use std::os::raw::c_int;
 use std::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::Function;
@@ -61,7 +62,17 @@ extern "C" {
 /// Source code which can then be compiled to a UnboundScript or Script.
 #[repr(C)]
 #[derive(Debug)]
-pub struct Source([usize; 8]);
+pub struct Source {
+  _source_string: usize,
+  _resource_name: usize,
+  _resource_line_offset: c_int,
+  _resource_column_offset: c_int,
+  _resource_options: c_int,
+  _source_map_url: usize,
+  _host_defined_options: usize,
+  _cached_data: usize,
+  _consume_cache_task: usize,
+}
 
 /// Compilation data that the embedder can cache and pass back to speed up future
 /// compilations. The data is produced if the CompilerOptions passed to the compilation
@@ -100,6 +111,7 @@ impl<'a> CachedData<'a> {
     cached_data
   }
 
+  #[inline(always)]
   pub(crate) fn buffer_policy(&self) -> BufferPolicy {
     self.buffer_policy
   }
@@ -121,6 +133,7 @@ pub(crate) enum BufferPolicy {
 }
 
 impl Source {
+  #[inline(always)]
   pub fn new(
     source_string: Local<String>,
     origin: Option<&ScriptOrigin>,
@@ -137,6 +150,7 @@ impl Source {
     }
   }
 
+  #[inline(always)]
   pub fn new_with_cached_data(
     source_string: Local<String>,
     origin: Option<&ScriptOrigin>,
@@ -154,6 +168,7 @@ impl Source {
     }
   }
 
+  #[inline(always)]
   pub fn get_cached_data(&self) -> Option<&CachedData> {
     unsafe {
       let cached_data = v8__ScriptCompiler__Source__GetCachedData(self);
@@ -206,6 +221,7 @@ pub enum NoCacheReason {
 ///
 /// Corresponds to the ParseModule abstract operation in the ECMAScript
 /// specification.
+#[inline(always)]
 pub fn compile_module<'s>(
   scope: &mut HandleScope<'s>,
   source: Source,
@@ -219,6 +235,7 @@ pub fn compile_module<'s>(
 }
 
 /// Same as compile_module with more options.
+#[inline(always)]
 pub fn compile_module2<'s>(
   scope: &mut HandleScope<'s>,
   mut source: Source,
@@ -237,6 +254,7 @@ pub fn compile_module2<'s>(
   }
 }
 
+#[inline(always)]
 pub fn compile<'s>(
   scope: &mut HandleScope<'s>,
   mut source: Source,
@@ -255,6 +273,7 @@ pub fn compile<'s>(
   }
 }
 
+#[inline(always)]
 pub fn compile_function<'s>(
   scope: &mut HandleScope<'s>,
   mut source: Source,
@@ -281,6 +300,7 @@ pub fn compile_function<'s>(
   }
 }
 
+#[inline(always)]
 pub fn compile_unbound_script<'s>(
   scope: &mut HandleScope<'s>,
   mut source: Source,
@@ -314,6 +334,7 @@ pub fn compile_unbound_script<'s>(
 ///
 /// Alternatively, this tag can be stored alongside the cached data and compared
 /// when it is being used.
+#[inline(always)]
 pub fn cached_data_version_tag() -> u32 {
   unsafe { v8__ScriptCompiler__CachedDataVersionTag() }
 }

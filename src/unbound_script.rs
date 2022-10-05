@@ -15,6 +15,7 @@ extern "C" {
 
 impl UnboundScript {
   /// Binds the script to the currently entered context.
+  #[inline(always)]
   pub fn bind_to_current_context<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -28,6 +29,7 @@ impl UnboundScript {
   /// Creates and returns code cache for the specified unbound_script.
   /// This will return nullptr if the script cannot be serialized. The
   /// CachedData returned by this function should be owned by the caller.
+  #[inline(always)]
   pub fn create_code_cache(&self) -> Option<UniqueRef<CachedData<'static>>> {
     let code_cache = unsafe {
       UniqueRef::try_from_raw(v8__UnboundScript__CreateCodeCache(self))

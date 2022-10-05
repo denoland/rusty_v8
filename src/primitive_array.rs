@@ -29,6 +29,7 @@ extern "C" {
 }
 
 impl PrimitiveArray {
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     length: usize,
@@ -41,10 +42,12 @@ impl PrimitiveArray {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn length(&self) -> usize {
     unsafe { v8__PrimitiveArray__Length(self) as usize }
   }
 
+  #[inline(always)]
   pub fn set<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -61,6 +64,7 @@ impl PrimitiveArray {
     }
   }
 
+  #[inline(always)]
   pub fn get<'s>(
     &self,
     scope: &mut HandleScope<'s>,

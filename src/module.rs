@@ -1,6 +1,5 @@
-use std::hash::Hash;
-use std::hash::Hasher;
 use std::mem::MaybeUninit;
+use std::num::NonZeroI32;
 use std::ptr::null;
 
 use crate::support::int;
@@ -216,11 +215,13 @@ pub enum ModuleStatus {
 
 impl Module {
   /// Returns the module's current status.
+  #[inline(always)]
   pub fn get_status(&self) -> ModuleStatus {
     unsafe { v8__Module__GetStatus(self) }
   }
 
   /// For a module in kErrored status, this returns the corresponding exception.
+  #[inline(always)]
   pub fn get_exception(&self) -> Local<Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
@@ -228,12 +229,14 @@ impl Module {
   }
 
   /// Returns the ModuleRequests for this module.
+  #[inline(always)]
   pub fn get_module_requests(&self) -> Local<FixedArray> {
     unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
   }
 
   /// For the given source text offset in this module, returns the corresponding
   /// Location with line and column numbers.
+  #[inline(always)]
   pub fn source_offset_to_location(&self, offset: int) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
@@ -242,16 +245,20 @@ impl Module {
     }
   }
 
-  /// The `Module` specific equivalent of `Data::get_hash()`.
-  /// This function is kept around for testing purposes only.
-  #[doc(hidden)]
-  pub fn get_identity_hash(&self) -> int {
-    unsafe { v8__Module__GetIdentityHash(self) }
+  /// Returns the V8 hash value for this value. The current implementation
+  /// uses a hidden property to store the identity hash.
+  ///
+  /// The return value will never be 0. Also, it is not guaranteed to be
+  /// unique.
+  #[inline(always)]
+  pub fn get_identity_hash(&self) -> NonZeroI32 {
+    unsafe { NonZeroI32::new_unchecked(v8__Module__GetIdentityHash(self)) }
   }
 
   /// Returns the underlying script's id.
   ///
   /// The module must be a SourceTextModule and must not have an Errored status.
+  #[inline(always)]
   pub fn script_id(&self) -> Option<int> {
     if !self.is_source_text_module() {
       return None;
@@ -265,6 +272,7 @@ impl Module {
   /// Returns the namespace object of this module.
   ///
   /// The module's status must be at least kInstantiated.
+  #[inline(always)]
   pub fn get_module_namespace(&self) -> Local<Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
@@ -279,6 +287,7 @@ impl Module {
   ///
   /// NOTE: requires to set `--harmony-import-assertions` V8 flag.
   #[must_use]
+  #[inline(always)]
   pub fn instantiate_module<'a>(
     &self,
     scope: &mut HandleScope,
@@ -301,6 +310,7 @@ impl Module {
   /// kErrored and propagate the thrown exception (which is then also available
   /// via |GetException|).
   #[must_use]
+  #[inline(always)]
   pub fn evaluate<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -312,11 +322,13 @@ impl Module {
   }
 
   /// Returns whether the module is a SourceTextModule.
+  #[inline(always)]
   pub fn is_source_text_module(&self) -> bool {
     unsafe { v8__Module__IsSourceTextModule(&*self) }
   }
 
   /// Returns whether the module is a SyntheticModule.
+  #[inline(always)]
   pub fn is_synthetic_module(&self) -> bool {
     unsafe { v8__Module__IsSyntheticModule(&*self) }
   }
@@ -326,6 +338,7 @@ impl Module {
   /// export_names must not contain duplicates.
   /// module_name is used solely for logging/debugging and doesn't affect module
   /// behavior.
+  #[inline(always)]
   pub fn create_synthetic_module<'s, 'a>(
     scope: &mut HandleScope<'s>,
     module_name: Local<String>,
@@ -356,6 +369,7 @@ impl Module {
   /// of the export_names that were passed in that create_synthetic_module call.
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
+  #[inline(always)]
   pub fn set_synthetic_module_export(
     &self,
     scope: &mut HandleScope,
@@ -373,6 +387,7 @@ impl Module {
     .into()
   }
 
+  #[inline(always)]
   pub fn get_unbound_module_script<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -385,20 +400,16 @@ impl Module {
   }
 }
 
-impl Hash for Module {
-  fn hash<H: Hasher>(&self, state: &mut H) {
-    state.write_i32(self.get_identity_hash());
-  }
-}
-
 impl ModuleRequest {
   /// Returns the module specifier for this ModuleRequest.
+  #[inline(always)]
   pub fn get_specifier(&self) -> Local<String> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
   }
 
   /// Returns the source code offset of this module request.
   /// Use Module::source_offset_to_location to convert this to line/column numbers.
+  #[inline(always)]
   pub fn get_source_offset(&self) -> int {
     unsafe { v8__ModuleRequest__GetSourceOffset(self) }
   }
@@ -415,6 +426,7 @@ impl ModuleRequest {
   /// hosts are expected to ignore assertions that they do not support (as
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
+  #[inline(always)]
   pub fn get_import_assertions(&self) -> Local<FixedArray> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetImportAssertions(self)) }
       .unwrap()

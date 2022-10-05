@@ -78,6 +78,14 @@ extern "C" {
   ) -> *const Object;
 
   fn v8__ReturnValue__Set(this: *mut ReturnValue, value: *const Value);
+  fn v8__ReturnValue__Set__Bool(this: *mut ReturnValue, value: bool);
+  fn v8__ReturnValue__Set__Int32(this: *mut ReturnValue, value: i32);
+  fn v8__ReturnValue__Set__Uint32(this: *mut ReturnValue, value: u32);
+  fn v8__ReturnValue__Set__Double(this: *mut ReturnValue, value: f64);
+  fn v8__ReturnValue__SetNull(this: *mut ReturnValue);
+  fn v8__ReturnValue__SetUndefined(this: *mut ReturnValue);
+  fn v8__ReturnValue__SetEmptyString(this: *mut ReturnValue);
+
   fn v8__ReturnValue__Get(this: *const ReturnValue) -> *const Value;
 }
 
@@ -109,10 +117,6 @@ pub enum SideEffectType {
   HasSideEffectToReceiver,
 }
 
-#[repr(C)]
-#[derive(Default)]
-pub(crate) struct CFunction([usize; 2]);
-
 // Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
 // is derived.
@@ -125,25 +129,64 @@ pub struct ReturnValue<'cb>(*mut Value, PhantomData<&'cb ()>);
 /// and for our purposes we currently don't need
 /// other types. So for now it's a simplified version.
 impl<'cb> ReturnValue<'cb> {
-  fn from_function_callback_info(info: *const FunctionCallbackInfo) -> Self {
-    let slot = unsafe { v8__FunctionCallbackInfo__GetReturnValue(info) };
+  #[inline(always)]
+  pub unsafe fn from_function_callback_info(
+    info: *const FunctionCallbackInfo,
+  ) -> Self {
+    let slot = v8__FunctionCallbackInfo__GetReturnValue(info);
     Self(slot, PhantomData)
   }
 
+  #[inline(always)]
   fn from_property_callback_info(info: *const PropertyCallbackInfo) -> Self {
     let slot = unsafe { v8__PropertyCallbackInfo__GetReturnValue(info) };
     Self(slot, PhantomData)
   }
 
-  // NOTE: simplest setter, possibly we'll need to add
-  // more setters specialized per type
+  #[inline(always)]
   pub fn set(&mut self, value: Local<Value>) {
     unsafe { v8__ReturnValue__Set(&mut *self, &*value) }
+  }
+
+  #[inline(always)]
+  pub fn set_bool(&mut self, value: bool) {
+    unsafe { v8__ReturnValue__Set__Bool(&mut *self, value) }
+  }
+
+  #[inline(always)]
+  pub fn set_int32(&mut self, value: i32) {
+    unsafe { v8__ReturnValue__Set__Int32(&mut *self, value) }
+  }
+
+  #[inline(always)]
+  pub fn set_uint32(&mut self, value: u32) {
+    unsafe { v8__ReturnValue__Set__Uint32(&mut *self, value) }
+  }
+
+  #[inline(always)]
+  pub fn set_double(&mut self, value: f64) {
+    unsafe { v8__ReturnValue__Set__Double(&mut *self, value) }
+  }
+
+  #[inline(always)]
+  pub fn set_null(&mut self) {
+    unsafe { v8__ReturnValue__SetNull(&mut *self) }
+  }
+
+  #[inline(always)]
+  pub fn set_undefined(&mut self) {
+    unsafe { v8__ReturnValue__SetUndefined(&mut *self) }
+  }
+
+  #[inline(always)]
+  pub fn set_empty_string(&mut self) {
+    unsafe { v8__ReturnValue__SetEmptyString(&mut *self) }
   }
 
   /// Getter. Creates a new Local<> so it comes with a certain performance
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
+  #[inline(always)]
   pub fn get<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__ReturnValue__Get(self)) }.unwrap()
   }
@@ -180,7 +223,8 @@ pub struct FunctionCallbackArguments<'s> {
 }
 
 impl<'s> FunctionCallbackArguments<'s> {
-  pub(crate) fn from_function_callback_info(
+  #[inline(always)]
+  pub unsafe fn from_function_callback_info(
     info: *const FunctionCallbackInfo,
   ) -> Self {
     Self {
@@ -190,6 +234,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 
   /// Returns the receiver. This corresponds to the "this" value.
+  #[inline(always)]
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
@@ -197,11 +242,13 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 
   /// Returns the data argument specified when creating the callback.
+  #[inline(always)]
   pub fn data(&self) -> Option<Local<'s, Value>> {
     unsafe { Local::from_raw(v8__FunctionCallbackInfo__Data(self.info)) }
   }
 
   /// The number of available arguments.
+  #[inline(always)]
   pub fn length(&self) -> int {
     unsafe {
       let length = (*self.info).length;
@@ -212,6 +259,7 @@ impl<'s> FunctionCallbackArguments<'s> {
 
   /// Accessor for the available arguments. Returns `undefined` if the index is
   /// out of bounds.
+  #[inline(always)]
   pub fn get(&self, i: int) -> Local<'s, Value> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__GetArgument(self.info, i))
@@ -220,6 +268,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 
   /// For construct calls, this returns the "new.target" value.
+  #[inline(always)]
   pub fn new_target(&self) -> Local<'s, Value> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__NewTarget(self.info)).unwrap()
@@ -234,6 +283,7 @@ pub struct PropertyCallbackArguments<'s> {
 }
 
 impl<'s> PropertyCallbackArguments<'s> {
+  #[inline(always)]
   pub(crate) fn from_property_callback_info(
     info: *const PropertyCallbackInfo,
   ) -> Self {
@@ -282,6 +332,7 @@ impl<'s> PropertyCallbackArguments<'s> {
   ///
   ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
   /// ```
+  #[inline(always)]
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__This(self.info)).unwrap()
@@ -299,8 +350,9 @@ where
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
       let scope = &mut unsafe { CallbackScope::new(&*info) };
-      let args = FunctionCallbackArguments::from_function_callback_info(info);
-      let rv = ReturnValue::from_function_callback_info(info);
+      let args =
+        unsafe { FunctionCallbackArguments::from_function_callback_info(info) };
+      let rv = unsafe { ReturnValue::from_function_callback_info(info) };
       (F::get())(scope, args, rv);
     };
     f.to_c_fn()
@@ -348,6 +400,66 @@ where
   }
 }
 
+//Should return an Array in Return Value
+pub type PropertyEnumeratorCallback<'s> =
+  extern "C" fn(*const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for PropertyEnumeratorCallback<'_>
+where
+  F: UnitType + Fn(&mut HandleScope, PropertyCallbackArguments, ReturnValue),
+{
+  fn mapping() -> Self {
+    let f = |info: *const PropertyCallbackInfo| {
+      let info = info as *const PropertyCallbackInfo;
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+/// IndexedPropertyGetterCallback is used as callback functions when registering a named handler
+/// particular property. See Object and ObjectTemplate's method SetHandler.
+pub type IndexedPropertyGetterCallback<'s> =
+  extern "C" fn(u32, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedPropertyGetterCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, u32, PropertyCallbackArguments, ReturnValue),
+{
+  fn mapping() -> Self {
+    let f = |index: u32, info: *const PropertyCallbackInfo| {
+      let scope = &mut unsafe { CallbackScope::new(&*info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, index, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+pub type IndexedPropertySetterCallback<'s> =
+  extern "C" fn(u32, Local<'s, Value>, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedPropertySetterCallback<'_>
+where
+  F: UnitType
+    + Fn(&mut HandleScope, u32, Local<Value>, PropertyCallbackArguments),
+{
+  fn mapping() -> Self {
+    let f =
+      |index: u32, value: Local<Value>, info: *const PropertyCallbackInfo| {
+        let scope = &mut unsafe { CallbackScope::new(&*info) };
+        let args = PropertyCallbackArguments::from_property_callback_info(info);
+        (F::get())(scope, index, value, args);
+      };
+    f.to_c_fn()
+  }
+}
+
 /// A builder to construct the properties of a Function or FunctionTemplate.
 pub struct FunctionBuilder<'s, T> {
   pub(crate) callback: FunctionCallback,
@@ -361,10 +473,12 @@ pub struct FunctionBuilder<'s, T> {
 
 impl<'s, T> FunctionBuilder<'s, T> {
   /// Create a new FunctionBuilder.
+  #[inline(always)]
   pub fn new(callback: impl MapFnTo<FunctionCallback>) -> Self {
     Self::new_raw(callback.map_fn_to())
   }
 
+  #[inline(always)]
   pub fn new_raw(callback: FunctionCallback) -> Self {
     Self {
       callback,
@@ -378,18 +492,21 @@ impl<'s, T> FunctionBuilder<'s, T> {
   }
 
   /// Set the associated data. The default is no associated data.
+  #[inline(always)]
   pub fn data(mut self, data: Local<'s, Value>) -> Self {
     self.data = Some(data);
     self
   }
 
   /// Set the function length. The default is 0.
+  #[inline(always)]
   pub fn length(mut self, length: i32) -> Self {
     self.length = length;
     self
   }
 
   /// Set the constructor behavior. The default is ConstructorBehavior::Allow.
+  #[inline(always)]
   pub fn constructor_behavior(
     mut self,
     constructor_behavior: ConstructorBehavior,
@@ -399,6 +516,7 @@ impl<'s, T> FunctionBuilder<'s, T> {
   }
 
   /// Set the side effect type. The default is SideEffectType::HasSideEffect.
+  #[inline(always)]
   pub fn side_effect_type(mut self, side_effect_type: SideEffectType) -> Self {
     self.side_effect_type = side_effect_type;
     self
@@ -407,6 +525,7 @@ impl<'s, T> FunctionBuilder<'s, T> {
 
 impl<'s> FunctionBuilder<'s, Function> {
   /// Create the function in the current execution context.
+  #[inline(always)]
   pub fn build(
     self,
     scope: &mut HandleScope<'s>,
@@ -429,12 +548,14 @@ impl<'s> FunctionBuilder<'s, Function> {
 impl Function {
   /// Create a FunctionBuilder to configure a Function.
   /// This is the same as FunctionBuilder::<Function>::new().
+  #[inline(always)]
   pub fn builder<'s>(
     callback: impl MapFnTo<FunctionCallback>,
   ) -> FunctionBuilder<'s, Self> {
     FunctionBuilder::new(callback)
   }
 
+  #[inline(always)]
   pub fn builder_raw<'s>(
     callback: FunctionCallback,
   ) -> FunctionBuilder<'s, Self> {
@@ -443,6 +564,7 @@ impl Function {
 
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
     callback: impl MapFnTo<FunctionCallback>,
@@ -450,6 +572,7 @@ impl Function {
     Self::builder(callback).build(scope)
   }
 
+  #[inline(always)]
   pub fn new_raw<'s>(
     scope: &mut HandleScope<'s>,
     callback: FunctionCallback,
@@ -457,6 +580,7 @@ impl Function {
     Self::builder_raw(callback).build(scope)
   }
 
+  #[inline(always)]
   pub fn call<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -473,6 +597,7 @@ impl Function {
     }
   }
 
+  #[inline(always)]
   pub fn new_instance<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -488,21 +613,25 @@ impl Function {
     }
   }
 
+  #[inline(always)]
   pub fn get_name<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }
 
+  #[inline(always)]
   pub fn set_name(&self, name: Local<String>) {
     unsafe { v8__Function__SetName(self, &*name) }
   }
 
   /// Get the (zero-indexed) column number of the function's definition, if available.
+  #[inline(always)]
   pub fn get_script_column_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptColumnNumber(self) };
     (ret >= 0).then(|| ret as u32)
   }
 
   /// Get the (zero-indexed) line number of the function's definition, if available.
+  #[inline(always)]
   pub fn get_script_line_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
     (ret >= 0).then(|| ret as u32)
@@ -511,6 +640,7 @@ impl Function {
   /// Creates and returns code cache for the specified unbound_script.
   /// This will return nullptr if the script cannot be serialized. The
   /// CachedData returned by this function should be owned by the caller.
+  #[inline(always)]
   pub fn create_code_cache(&self) -> Option<UniqueRef<CachedData<'static>>> {
     let code_cache =
       unsafe { UniqueRef::try_from_raw(v8__Function__CreateCodeCache(self)) };
