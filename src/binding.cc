@@ -3154,13 +3154,14 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 
 extern "C" {
 
-void icu_get_default_locale(char* output) {
+size_t icu_get_default_locale(char* output, size_t output_len) {
   const icu_71::Locale& default_locale = icu::Locale::getDefault();
+  icu_71::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
   UErrorCode status = U_ZERO_ERROR;
-  auto tag = default_locale.toLanguageTag<std::string>(status);
-  assert(tag.size() < 1023);
-  std::copy(tag.begin(), tag.end(), output);
-  output[tag.size()] = '\0';
+  default_locale.toLanguageTag(sink, status);
+  assert(status == U_ZERO_ERROR);
+  assert(!sink.Overflowed());
+  return sink.NumberOfBytesAppended();
 }
 
 void icu_set_default_locale(const char* locale) {
@@ -3168,4 +3169,4 @@ void icu_set_default_locale(const char* locale) {
   icu::Locale::setDefault(icu::Locale(locale), status);
 }
 
-} // extern "C"
+}  // extern "C"
