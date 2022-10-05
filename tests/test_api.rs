@@ -554,6 +554,15 @@ fn get_isolate_from_handle() {
 }
 
 #[test]
+fn handles_from_isolate() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let _ = v8::null(isolate);
+  let _ = v8::undefined(isolate);
+  let _ = v8::Boolean::new(isolate, true);
+}
+
+#[test]
 fn array_buffer() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());

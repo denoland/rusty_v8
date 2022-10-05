@@ -12,6 +12,7 @@ use crate::support::{int, Opaque};
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
+use crate::Isolate;
 use crate::Local;
 use crate::Name;
 use crate::Object;
@@ -69,6 +70,9 @@ extern "C" {
   fn v8__FunctionCallbackInfo__NewTarget(
     this: *const FunctionCallbackInfo,
   ) -> *const Value;
+  fn v8__FunctionCallbackInfo__GetIsolate(
+    this: *const FunctionCallbackInfo,
+  ) -> *mut Isolate;
 
   fn v8__PropertyCallbackInfo__GetReturnValue(
     this: *const PropertyCallbackInfo,
@@ -231,6 +235,11 @@ impl<'s> FunctionCallbackArguments<'s> {
       info,
       phantom: PhantomData,
     }
+  }
+
+  #[inline(always)]
+  pub unsafe fn get_isolate(&self) -> &mut Isolate {
+    &mut *v8__FunctionCallbackInfo__GetIsolate(self.info)
   }
 
   /// Returns the receiver. This corresponds to the "this" value.

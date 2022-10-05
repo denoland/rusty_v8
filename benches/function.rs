@@ -90,36 +90,74 @@ fn main() {
     global.set(scope, name.into(), value.into()).unwrap();
   }
 
+  {
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let scope = unsafe { &mut v8::CallbackScope::new(&*info) };
+      let mut rv =
+        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      rv.set(v8::undefined(scope).into());
+    }
+    let func = v8::Function::new_raw(scope, callback).unwrap();
+    let name = v8::String::new(scope, "undefined_from_scope").unwrap();
+    global.set(scope, name.into(), func.into()).unwrap();
+  }
+
+  {
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let mut rv =
+        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      let info = unsafe {
+        v8::FunctionCallbackArguments::from_function_callback_info(info)
+      };
+      rv.set(v8::undefined(unsafe { info.get_isolate() }).into());
+    }
+    let func = v8::Function::new_raw(scope, callback).unwrap();
+    let name = v8::String::new(scope, "undefined_from_isolate").unwrap();
+    global.set(scope, name.into(), func.into()).unwrap();
+  }
+
   let runs = 100_000_000;
 
-  for x in [
-    "new_",
-    "new_raw",
-    "new_set_uint32",
-    "new_raw_set_uint32",
-    "new_fast",
+  for (group_name, benches) in [
+    (
+      "function_overhead",
+      &[
+        "new_",
+        "new_raw",
+        "new_set_uint32",
+        "new_raw_set_uint32",
+        "new_fast",
+      ][..],
+    ),
+    (
+      "primitives",
+      &["undefined_from_scope", "undefined_from_isolate"][..],
+    ),
   ] {
-    let code = format!(
-      "
-          function bench() {{ return {}(); }};
-          runs = {};
-          start = Date.now();
-          for (i = 0; i < runs; i++) bench();
-          Date.now() - start;
-        ",
-      x, runs
-    );
+    println!("Running {} ...", group_name);
+    for x in benches {
+      let code = format!(
+        "
+            function bench() {{ return {}(); }};
+            runs = {};
+            start = Date.now();
+            for (i = 0; i < runs; i++) bench();
+            Date.now() - start;
+          ",
+        x, runs
+      );
 
-    let r = eval(scope, &code).unwrap();
-    let number = r.to_number(scope).unwrap();
-    let total_ms = number.number_value(scope).unwrap();
-    let total_ns = 1e6 * total_ms;
-    let ns_per_run = total_ns / (runs as f64);
-    let mops_per_sec = (runs as f64) / (total_ms / 1000.0) / 1e6;
-    println!(
-      "{:.1} ns per run {:.1} million ops/sec → {}",
-      ns_per_run, mops_per_sec, x
-    );
+      let r = eval(scope, &code).unwrap();
+      let number = r.to_number(scope).unwrap();
+      let total_ms = number.number_value(scope).unwrap();
+      let total_ns = 1e6 * total_ms;
+      let ns_per_run = total_ns / (runs as f64);
+      let mops_per_sec = (runs as f64) / (total_ms / 1000.0) / 1e6;
+      println!(
+        "  {:.1} ns per run {:.1} million ops/sec → {}",
+        ns_per_run, mops_per_sec, x
+      );
+    }
   }
 }
 
