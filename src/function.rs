@@ -238,7 +238,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   }
 
   #[inline(always)]
-  pub unsafe fn get_isolate(&self) -> &mut Isolate {
+  pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
     &mut *v8__FunctionCallbackInfo__GetIsolate(self.info)
   }
 

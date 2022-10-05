@@ -106,7 +106,7 @@ fn main() {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
       let mut rv =
         unsafe { v8::ReturnValue::from_function_callback_info(info) };
-      let info = unsafe {
+      let mut info = unsafe {
         v8::FunctionCallbackArguments::from_function_callback_info(info)
       };
       rv.set(v8::undefined(unsafe { info.get_isolate() }).into());
