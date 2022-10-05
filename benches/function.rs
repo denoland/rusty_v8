@@ -1,6 +1,10 @@
 use std::os::raw::c_void;
 
 fn main() {
+  // Skip running benchmarks in debug or CI.
+  if cfg!(debug_assertions) || std::env::var("CI").is_ok() {
+    return;
+  }
   v8::V8::set_flags_from_string(
     "--turbo_fast_api_calls --allow_natives_syntax",
   );
