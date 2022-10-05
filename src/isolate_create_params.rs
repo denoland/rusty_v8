@@ -237,7 +237,7 @@ pub(crate) mod raw {
   }
 
   impl StartupData {
-    pub fn boxed_header(data: &Allocation<[u8]>) -> Box<Self> {
+    pub(crate) fn boxed_header(data: &Allocation<[u8]>) -> Box<Self> {
       Box::new(Self {
         data: &data[0] as *const _ as *const char,
         raw_size: int::try_from(data.len()).unwrap(),
