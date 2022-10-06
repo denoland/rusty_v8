@@ -108,6 +108,11 @@ impl<'s, T> Local<'s, T> {
   }
 
   #[inline(always)]
+  pub(crate) unsafe fn from_raw_unchecked(ptr: *const T) -> Self {
+    Self(NonNull::new_unchecked(ptr as *mut _), PhantomData)
+  }
+
+  #[inline(always)]
   pub(crate) unsafe fn from_non_null(nn: NonNull<T>) -> Self {
     Self(nn, PhantomData)
   }

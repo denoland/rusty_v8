@@ -1123,6 +1123,18 @@ impl DerefMut for OwnedIsolate {
   }
 }
 
+impl AsMut<Isolate> for OwnedIsolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
+impl AsMut<Isolate> for Isolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
 impl HeapStatistics {
   #[inline(always)]
   pub fn total_heap_size(&self) -> usize {
