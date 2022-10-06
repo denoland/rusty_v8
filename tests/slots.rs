@@ -327,7 +327,7 @@ fn clear_all_context_slots() {
   setup();
 
   let mut snapshot_creator = v8::SnapshotCreator::new(None);
-  let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+  let mut isolate = snapshot_creator.get_owned_isolate();
 
   {
     let scope = &mut v8::HandleScope::new(&mut isolate);
@@ -341,9 +341,7 @@ fn clear_all_context_slots() {
     snapshot_creator.set_default_context(context);
   }
 
-  std::mem::forget(isolate);
-
   snapshot_creator
-    .create_blob(v8::FunctionCodeHandling::Keep)
+    .create_blob(isolate, v8::FunctionCodeHandling::Keep)
     .unwrap();
 }
