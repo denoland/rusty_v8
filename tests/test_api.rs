@@ -7417,45 +7417,45 @@ fn isolate_data_fields() {
     fizz: &'static str,
   }
 
-  let mut some_data1 = Box::new(SomeData {
+  let some_data1 = Box::new(SomeData {
     foo: "foo",
     bar: "",
     fizz: "",
   });
-  let mut some_data2 = Box::new(SomeData {
+  let some_data2 = Box::new(SomeData {
     foo: "",
     bar: "bar",
     fizz: "",
   });
-  let mut some_data3 = Box::new(SomeData {
+  let some_data3 = Box::new(SomeData {
     foo: "",
     bar: "",
     fizz: "fizz",
   });
   unsafe {
-    isolate.set_data(1, &mut some_data1 as *mut _ as *mut c_void);
-    isolate.set_data(2, &mut some_data2 as *mut _ as *mut c_void);
-    isolate.set_data(3, &mut some_data3 as *mut _ as *mut c_void);
+    isolate.set_data(1, Box::into_raw(some_data1) as *mut _ as *mut c_void);
+    isolate.set_data(2, Box::into_raw(some_data2) as *mut _ as *mut c_void);
+    isolate.set_data(3, Box::into_raw(some_data3) as *mut _ as *mut c_void);
   }
 
   {
     let data_some_data1 = isolate.get_data(1) as *mut SomeData;
     let data_some_data1 = unsafe { &mut *data_some_data1 };
-    assert_eq!(data_some_data1.foo, some_data1.foo);
-    assert_eq!(data_some_data1.bar, some_data1.bar);
-    assert_eq!(data_some_data1.fizz, some_data1.fizz);
+    assert_eq!(data_some_data1.foo, "foo");
+    assert_eq!(data_some_data1.bar, "");
+    assert_eq!(data_some_data1.fizz, "");
 
     let data_some_data2 = isolate.get_data(2) as *mut SomeData;
     let data_some_data2 = unsafe { &mut *data_some_data2 };
-    assert_eq!(data_some_data2.foo, some_data2.foo);
-    assert_eq!(data_some_data2.bar, some_data2.bar);
-    assert_eq!(data_some_data2.fizz, some_data2.fizz);
+    assert_eq!(data_some_data2.foo, "");
+    assert_eq!(data_some_data2.bar, "bar");
+    assert_eq!(data_some_data2.fizz, "");
 
     let data_some_data3 = isolate.get_data(3) as *mut SomeData;
     let data_some_data3 = unsafe { &mut *data_some_data3 };
-    assert_eq!(data_some_data3.bar, some_data3.bar);
-    assert_eq!(data_some_data3.bar, some_data3.bar);
-    assert_eq!(data_some_data3.fizz, some_data3.fizz);
+    assert_eq!(data_some_data3.foo, "");
+    assert_eq!(data_some_data3.bar, "");
+    assert_eq!(data_some_data3.fizz, "fizz");
   }
 }
 
