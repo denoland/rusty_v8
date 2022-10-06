@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 use std::default::Default;
 use std::mem::forget;
+use std::mem::MaybeUninit;
 use std::slice;
 
 use crate::support::char;
@@ -262,6 +263,28 @@ impl String {
     &self,
     scope: &mut Isolate,
     buffer: &mut [u8],
+    nchars_ref: Option<&mut usize>,
+    options: WriteOptions,
+  ) -> usize {
+    unsafe {
+      // SAFETY:
+      // We assume that v8 will overwrite the buffer without de-initializing any byte in it.
+      // So the type casting of the buffer is safe.
+
+      let buffer = {
+        let len = buffer.len();
+        let data = buffer.as_mut_ptr().cast();
+        slice::from_raw_parts_mut(data, len)
+      };
+      self.write_utf8_uninit(scope, buffer, nchars_ref, options)
+    }
+  }
+
+  /// Writes the contents of the string to an external buffer, as UTF-8.
+  pub fn write_utf8_uninit(
+    &self,
+    scope: &mut Isolate,
+    buffer: &mut [MaybeUninit<u8>],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
   ) -> usize {
