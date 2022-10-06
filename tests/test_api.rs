@@ -7488,6 +7488,60 @@ fn finalizer_on_kept_global() {
 }
 
 #[test]
+fn isolate_data_fields() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  struct SomeData {
+    foo: &'static str,
+    bar: &'static str,
+    fizz: &'static str,
+  }
+
+  let some_data1 = Box::new(SomeData {
+    foo: "foo",
+    bar: "",
+    fizz: "",
+  });
+  let some_data2 = Box::new(SomeData {
+    foo: "",
+    bar: "bar",
+    fizz: "",
+  });
+  let some_data3 = Box::new(SomeData {
+    foo: "",
+    bar: "",
+    fizz: "fizz",
+  });
+  unsafe {
+    isolate.set_data(1, Box::into_raw(some_data1) as *mut _ as *mut c_void);
+    isolate.set_data(2, Box::into_raw(some_data2) as *mut _ as *mut c_void);
+    isolate.set_data(3, Box::into_raw(some_data3) as *mut _ as *mut c_void);
+  }
+
+  {
+    let data_some_data1 = isolate.get_data(1) as *mut SomeData;
+    let data_some_data1 = unsafe { &mut *data_some_data1 };
+    assert_eq!(data_some_data1.foo, "foo");
+    assert_eq!(data_some_data1.bar, "");
+    assert_eq!(data_some_data1.fizz, "");
+
+    let data_some_data2 = isolate.get_data(2) as *mut SomeData;
+    let data_some_data2 = unsafe { &mut *data_some_data2 };
+    assert_eq!(data_some_data2.foo, "");
+    assert_eq!(data_some_data2.bar, "bar");
+    assert_eq!(data_some_data2.fizz, "");
+
+    let data_some_data3 = isolate.get_data(3) as *mut SomeData;
+    let data_some_data3 = unsafe { &mut *data_some_data3 };
+    assert_eq!(data_some_data3.foo, "");
+    assert_eq!(data_some_data3.bar, "");
+    assert_eq!(data_some_data3.fizz, "fizz");
+  }
+}
+
+#[test]
 fn host_create_shadow_realm_context_callback() {
   let _setup_guard = setup();
 
