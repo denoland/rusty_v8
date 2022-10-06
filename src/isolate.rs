@@ -452,12 +452,14 @@ impl Isolate {
   /// between 0 and `Isolate::get_number_of_data_slots()`.
   #[inline(always)]
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
+    assert!(slot + Self::INTERNAL_SLOT_COUNT < 4);
     v8__Isolate__SetData(self, slot + Self::INTERNAL_SLOT_COUNT, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given `slot`.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
+    assert!(slot + Self::INTERNAL_SLOT_COUNT < 4);
     unsafe { v8__Isolate__GetData(self, slot + Self::INTERNAL_SLOT_COUNT) }
   }
 

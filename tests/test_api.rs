@@ -7406,6 +7406,35 @@ fn finalizer_on_kept_global() {
 }
 
 #[test]
+fn isolate_data_fields() {
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  struct SomeData1 {
+    foo: &'static str,
+  }
+
+  struct SomeData2 {
+    bar: &'static str,
+  }
+
+  let mut some_data1 = Box::new(SomeData1 { foo: "foo" });
+  let mut some_data2 = Box::new(SomeData2 { bar: "bar" });
+  unsafe {
+    isolate.set_data(2, &mut some_data1 as *mut _ as *mut c_void);
+    isolate.set_data(3, &mut some_data2 as *mut _ as *mut c_void);
+  }
+
+  {
+    let data_some_data1 = isolate.get_data(2) as *mut SomeData1;
+    let data_some_data1 = unsafe { &mut *data_some_data1 };
+    assert_eq!(data_some_data1.foo, some_data1.foo);
+    let data_some_data2 = isolate.get_data(3) as *mut SomeData2;
+    let data_some_data2 = unsafe { &mut *data_some_data2 };
+    assert_eq!(data_some_data2.bar, some_data2.bar);
+  }
+}
+
+#[test]
 fn host_create_shadow_realm_context_callback() {
   let _setup_guard = setup();
 
