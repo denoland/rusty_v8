@@ -1,4 +1,8 @@
+use crate::ExternalReferences;
+use crate::FunctionCodeHandling;
 use crate::PromiseResolver;
+use crate::SnapshotCreator;
+use crate::StartupData;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
 use crate::handle::FinalizerCallback;
@@ -376,6 +380,14 @@ impl Isolate {
       owned_isolate.enter();
     }
     owned_isolate
+  }
+
+  #[allow(clippy::new_ret_no_self)]
+  pub fn snapshot_creator(external_references: Option<&'static ExternalReferences>) -> OwnedIsolate {
+    let mut snapshot_creator = SnapshotCreator::new(external_references);
+    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    isolate.set_slot(snapshot_creator);
+    isolate
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -934,6 +946,80 @@ impl Isolate {
     let arg = &mut callback as *mut F as *mut c_void;
     unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
   }
+
+  /// Set the default context to be included in the snapshot blob.
+  /// The snapshot will not contain the global proxy, and we expect one or a
+  /// global object template to create one, to be provided upon deserialization.
+  /// 
+  /// Panics
+  /// 
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn set_default_context(&mut self, context: Local<Context>) {
+    let snapshot_creator = self
+      .get_slot_mut::<SnapshotCreator>()
+      .unwrap();
+    snapshot_creator.set_default_context(context);
+  }
+
+  /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is created
+  /// from an existing snapshot.
+  /// 
+  /// Panics
+  /// 
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    let snapshot_creator = self
+      .get_slot_mut::<SnapshotCreator>()
+      .unwrap();
+    snapshot_creator.add_isolate_data(data)
+  }
+
+  /// Attach arbitrary `v8::Data` to the context snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is
+  /// created from an existing snapshot.
+  /// 
+  /// Panics
+  /// 
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_context_data<T>(
+    &mut self,
+    context: Local<Context>,
+    data: Local<T>,
+  ) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    let snapshot_creator = self
+      .get_slot_mut::<SnapshotCreator>()
+      .unwrap();
+    snapshot_creator.add_context_data(context, data)
+  }
+
+  /// Creates a snapshot data blob.
+  /// This must not be called from within a handle scope.
+  /// 
+  /// Panics
+  /// 
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn create_blob(
+    &mut self,
+    function_code_handling: FunctionCodeHandling,
+  ) -> Option<StartupData> {
+    let snapshot_creator = self
+      .get_slot_mut::<SnapshotCreator>()
+      .unwrap();
+    snapshot_creator.create_blob(function_code_handling)
+  }
 }
 
 pub(crate) struct IsolateAnnex {
@@ -1105,7 +1191,15 @@ impl Drop for OwnedIsolate {
   fn drop(&mut self) {
     unsafe {
       self.exit();
-      self.cxx_isolate.as_mut().dispose()
+      self.cxx_isolate.as_mut().dispose();
+      let maybe_snapshot_creator = self
+        .get_annex_mut()
+        .slots
+        .remove(&TypeId::of::<SnapshotCreator>());
+      if let Some(snapshot_creator) = maybe_snapshot_creator {
+        std::mem::forget(self);
+        drop(snapshot_creator);
+      }
     }
   }
 }
