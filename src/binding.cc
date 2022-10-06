@@ -1135,33 +1135,6 @@ void v8__ObjectTemplate__SetAccessorWithSetter(
   ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
 }
 
-void v8__ObjectTemplate__SetNamedPropertyHandler(
-    const v8::ObjectTemplate& self,
-    v8::GenericNamedPropertyGetterCallback getter,
-    v8::GenericNamedPropertySetterCallback setter,
-    v8::GenericNamedPropertyQueryCallback query,
-    v8::GenericNamedPropertyDeleterCallback deleter,
-    v8::GenericNamedPropertyEnumeratorCallback enumerator,
-    v8::GenericNamedPropertyDescriptorCallback descriptor,
-    const v8::Value* data_or_null) {
-  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(
-      getter, setter, query, deleter, enumerator, nullptr, descriptor,
-      ptr_to_local(data_or_null)));
-}
-
-void v8__ObjectTemplate__SetIndexedPropertyHandler(
-    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallback getter,
-    v8::IndexedPropertySetterCallback setter,
-    v8::IndexedPropertyQueryCallback query,
-    v8::IndexedPropertyDeleterCallback deleter,
-    v8::IndexedPropertyEnumeratorCallback enumerator,
-    v8::IndexedPropertyDescriptorCallback descriptor,
-    const v8::Value* data_or_null) {
-  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
-      getter, setter, query, deleter, enumerator, nullptr, descriptor,
-      ptr_to_local(data_or_null)));
-}
-
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
                                              const v8::Name& key,
                                              v8::FunctionTemplate& getter,
