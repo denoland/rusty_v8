@@ -7163,6 +7163,75 @@ fn finalizers() {
 }
 
 #[test]
+fn guaranteed_finalizers() {
+  // Test that guaranteed finalizers behave the same as regular finalizers for
+  // everything except being guaranteed.
+
+  use std::cell::Cell;
+  use std::ops::Deref;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // The finalizer for a dropped Weak is never called.
+  {
+    {
+      let scope = &mut v8::HandleScope::new(scope);
+      let local = v8::Object::new(scope);
+      let _ = v8::Weak::with_guaranteed_finalizer(
+        scope,
+        &local,
+        Box::new(|| unreachable!()),
+      );
+    }
+
+    let scope = &mut v8::HandleScope::new(scope);
+    eval(scope, "gc()").unwrap();
+  }
+
+  let finalizer_called = Rc::new(Cell::new(false));
+  let weak = {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+
+    // We use a channel to send data into the finalizer without having to worry
+    // about lifetimes.
+    let (tx, rx) = std::sync::mpsc::sync_channel::<(
+      Rc<v8::Weak<v8::Object>>,
+      Rc<Cell<bool>>,
+    )>(1);
+
+    let weak = Rc::new(v8::Weak::with_guaranteed_finalizer(
+      scope,
+      &local,
+      Box::new(move || {
+        let (weak, finalizer_called) = rx.try_recv().unwrap();
+        finalizer_called.set(true);
+        assert!(weak.is_empty());
+      }),
+    ));
+
+    tx.send((weak.clone(), finalizer_called.clone())).unwrap();
+
+    assert!(!weak.is_empty());
+    assert_eq!(weak.deref(), &local);
+    assert_eq!(weak.to_local(scope), Some(local));
+
+    weak
+  };
+
+  let scope = &mut v8::HandleScope::new(scope);
+  eval(scope, "gc()").unwrap();
+  assert!(weak.is_empty());
+  assert!(finalizer_called.get());
+}
+
+#[test]
 fn weak_from_global() {
   let _setup_guard = setup();
 
@@ -7369,8 +7438,8 @@ fn finalizer_on_global_object() {
 
 #[test]
 fn finalizer_on_kept_global() {
-  // If a global is kept alive after an isolate is dropped, any finalizers won't
-  // be called.
+  // If a global is kept alive after an isolate is dropped, regular finalizers
+  // won't be called, but guaranteed ones will.
 
   use std::cell::Cell;
   use std::rc::Rc;
@@ -7378,8 +7447,10 @@ fn finalizer_on_kept_global() {
   let _setup_guard = setup();
 
   let global;
-  let weak;
-  let finalized = Rc::new(Cell::new(false));
+  let weak1;
+  let weak2;
+  let regular_finalized = Rc::new(Cell::new(false));
+  let guaranteed_finalized = Rc::new(Cell::new(false));
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
@@ -7389,19 +7460,30 @@ fn finalizer_on_kept_global() {
 
     let object = v8::Object::new(scope);
     global = v8::Global::new(scope, &object);
-    weak = v8::Weak::with_finalizer(
+    weak1 = v8::Weak::with_finalizer(
       scope,
       &object,
       Box::new({
-        let finalized = finalized.clone();
+        let finalized = regular_finalized.clone();
         move |_| finalized.set(true)
       }),
-    )
+    );
+    weak2 = v8::Weak::with_guaranteed_finalizer(
+      scope,
+      &object,
+      Box::new({
+        let guaranteed_finalized = guaranteed_finalized.clone();
+        move || guaranteed_finalized.set(true)
+      }),
+    );
   }
 
-  assert!(weak.is_empty());
-  assert!(!finalized.get());
-  drop(weak);
+  assert!(weak1.is_empty());
+  assert!(weak2.is_empty());
+  assert!(!regular_finalized.get());
+  assert!(guaranteed_finalized.get());
+  drop(weak1);
+  drop(weak2);
   drop(global);
 }
 

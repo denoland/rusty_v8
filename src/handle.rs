@@ -558,7 +558,22 @@ impl<T> Weak<T> {
   ) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(isolate);
-    let finalizer_id = isolate.get_finalizer_map_mut().add(finalizer);
+    let finalizer_id = isolate
+      .get_finalizer_map_mut()
+      .add(FinalizerCallback::Regular(finalizer));
+    Self::new_raw(isolate, data, Some(finalizer_id))
+  }
+
+  pub fn with_guaranteed_finalizer(
+    isolate: &mut Isolate,
+    handle: impl Handle<Data = T>,
+    finalizer: Box<dyn FnOnce()>,
+  ) -> Self {
+    let HandleInfo { data, host } = handle.get_handle_info();
+    host.assert_match_isolate(isolate);
+    let finalizer_id = isolate
+      .get_finalizer_map_mut()
+      .add(FinalizerCallback::Guaranteed(finalizer));
     Self::new_raw(isolate, data, Some(finalizer_id))
   }
 
@@ -608,13 +623,17 @@ impl<T> Weak<T> {
     &self,
     finalizer: Box<dyn FnOnce(&mut Isolate)>,
   ) -> Self {
-    self.clone_raw(Some(finalizer))
+    self.clone_raw(Some(FinalizerCallback::Regular(finalizer)))
   }
 
-  fn clone_raw(
+  pub fn clone_with_guaranteed_finalizer(
     &self,
-    finalizer: Option<Box<dyn FnOnce(&mut Isolate)>>,
+    finalizer: Box<dyn FnOnce()>,
   ) -> Self {
+    self.clone_raw(Some(FinalizerCallback::Guaranteed(finalizer)))
+  }
+
+  fn clone_raw(&self, finalizer: Option<FinalizerCallback>) -> Self {
     if let Some(data) = self.get_pointer() {
       // SAFETY: We're in the isolate's thread, because Weak<T> isn't Send or
       // Sync.
@@ -781,7 +800,7 @@ impl<T> Weak<T> {
       let ptr = v8__WeakCallbackInfo__GetParameter(wci);
       &*(ptr as *mut WeakData<T>)
     };
-    let finalizer: Option<Box<dyn FnOnce(&mut Isolate)>> = {
+    let finalizer: Option<FinalizerCallback> = {
       let finalizer_id = weak_data.finalizer_id.unwrap();
       isolate.get_finalizer_map_mut().map.remove(&finalizer_id)
     };
@@ -794,8 +813,10 @@ impl<T> Weak<T> {
       };
     }
 
-    if let Some(finalizer) = finalizer {
-      finalizer(isolate);
+    match finalizer {
+      Some(FinalizerCallback::Regular(finalizer)) => finalizer(isolate),
+      Some(FinalizerCallback::Guaranteed(finalizer)) => finalizer(),
+      None => {}
     }
   }
 }
@@ -907,17 +928,19 @@ struct WeakCallbackInfo(Opaque);
 
 type FinalizerId = usize;
 
+pub(crate) enum FinalizerCallback {
+  Regular(Box<dyn FnOnce(&mut Isolate)>),
+  Guaranteed(Box<dyn FnOnce()>),
+}
+
 #[derive(Default)]
 pub(crate) struct FinalizerMap {
-  map: std::collections::HashMap<FinalizerId, Box<dyn FnOnce(&mut Isolate)>>,
+  map: std::collections::HashMap<FinalizerId, FinalizerCallback>,
   next_id: FinalizerId,
 }
 
 impl FinalizerMap {
-  pub(crate) fn add(
-    &mut self,
-    finalizer: Box<dyn FnOnce(&mut Isolate)>,
-  ) -> FinalizerId {
+  fn add(&mut self, finalizer: FinalizerCallback) -> FinalizerId {
     let id = self.next_id;
     // TODO: Overflow.
     self.next_id += 1;
@@ -927,5 +950,11 @@ impl FinalizerMap {
 
   pub(crate) fn is_empty(&self) -> bool {
     self.map.is_empty()
+  }
+
+  pub(crate) fn drain(
+    &mut self,
+  ) -> impl Iterator<Item = FinalizerCallback> + '_ {
+    self.map.drain().map(|(_, finalizer)| finalizer)
   }
 }

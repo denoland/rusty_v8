@@ -295,6 +295,34 @@ fn dropped_context_slots() {
 }
 
 #[test]
+fn dropped_context_slots_on_kept_context() {
+  use std::cell::Cell;
+
+  struct DropMarker(Rc<Cell<bool>>);
+  impl Drop for DropMarker {
+    fn drop(&mut self) {
+      println!("Dropping the drop marker");
+      self.0.set(true);
+    }
+  }
+
+  let mut isolate = CoreIsolate::new(Default::default());
+  let dropped = Rc::new(Cell::new(false));
+  let _global_context;
+  {
+    let scope = &mut v8::HandleScope::new(isolate.deref_mut());
+    let context = v8::Context::new(scope);
+
+    context.set_slot(scope, DropMarker(dropped.clone()));
+
+    _global_context = v8::Global::new(scope, context);
+  }
+
+  drop(isolate);
+  assert!(dropped.get());
+}
+
+#[test]
 fn clear_all_context_slots() {
   setup();
 
