@@ -7407,30 +7407,55 @@ fn finalizer_on_kept_global() {
 
 #[test]
 fn isolate_data_fields() {
+  let _setup_guard = setup();
+
   let mut isolate = v8::Isolate::new(Default::default());
 
-  struct SomeData1 {
+  struct SomeData {
     foo: &'static str,
-  }
-
-  struct SomeData2 {
     bar: &'static str,
+    fizz: &'static str,
   }
 
-  let mut some_data1 = Box::new(SomeData1 { foo: "foo" });
-  let mut some_data2 = Box::new(SomeData2 { bar: "bar" });
+  let mut some_data1 = Box::new(SomeData {
+    foo: "foo",
+    bar: "",
+    fizz: "",
+  });
+  let mut some_data2 = Box::new(SomeData {
+    foo: "",
+    bar: "bar",
+    fizz: "",
+  });
+  let mut some_data3 = Box::new(SomeData {
+    foo: "",
+    bar: "",
+    fizz: "fizz",
+  });
   unsafe {
-    isolate.set_data(2, &mut some_data1 as *mut _ as *mut c_void);
-    isolate.set_data(3, &mut some_data2 as *mut _ as *mut c_void);
+    isolate.set_data(1, &mut some_data1 as *mut _ as *mut c_void);
+    isolate.set_data(2, &mut some_data2 as *mut _ as *mut c_void);
+    isolate.set_data(3, &mut some_data3 as *mut _ as *mut c_void);
   }
 
   {
-    let data_some_data1 = isolate.get_data(2) as *mut SomeData1;
+    let data_some_data1 = isolate.get_data(1) as *mut SomeData;
     let data_some_data1 = unsafe { &mut *data_some_data1 };
     assert_eq!(data_some_data1.foo, some_data1.foo);
-    let data_some_data2 = isolate.get_data(3) as *mut SomeData2;
+    assert_eq!(data_some_data1.bar, some_data1.bar);
+    assert_eq!(data_some_data1.fizz, some_data1.fizz);
+
+    let data_some_data2 = isolate.get_data(2) as *mut SomeData;
     let data_some_data2 = unsafe { &mut *data_some_data2 };
+    assert_eq!(data_some_data2.foo, some_data2.foo);
     assert_eq!(data_some_data2.bar, some_data2.bar);
+    assert_eq!(data_some_data2.fizz, some_data2.fizz);
+
+    let data_some_data3 = isolate.get_data(3) as *mut SomeData;
+    let data_some_data3 = unsafe { &mut *data_some_data3 };
+    assert_eq!(data_some_data3.bar, some_data3.bar);
+    assert_eq!(data_some_data3.bar, some_data3.bar);
+    assert_eq!(data_some_data3.fizz, some_data3.fizz);
   }
 }
 

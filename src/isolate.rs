@@ -450,16 +450,19 @@ impl Isolate {
 
   /// Associate embedder-specific data with the isolate. `slot` has to be
   /// between 0 and `Isolate::get_number_of_data_slots()`.
+  ///
+  /// 0-indexed slot is used internally by rusty_v8, so users have 3 slots
+  /// left to use.
   #[inline(always)]
   pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    assert!(slot + Self::INTERNAL_SLOT_COUNT < 4);
+    assert!(slot < 4);
     v8__Isolate__SetData(self, slot + Self::INTERNAL_SLOT_COUNT, ptr)
   }
 
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given `slot`.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
-    assert!(slot + Self::INTERNAL_SLOT_COUNT < 4);
+    assert!(slot < 4);
     unsafe { v8__Isolate__GetData(self, slot + Self::INTERNAL_SLOT_COUNT) }
   }
 
