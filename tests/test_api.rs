@@ -1763,6 +1763,305 @@ fn object_template_set_accessor() {
 }
 
 #[test]
+fn object_template_set_named_property_handler() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      rv.set(this.get_internal_field(scope, 0).unwrap());
+    };
+
+    let setter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  value: v8::Local<v8::Value>,
+                  args: v8::PropertyCallbackArguments| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      assert!(value.is_int32());
+      assert!(this.set_internal_field(0, value));
+    };
+
+    let query = |scope: &mut v8::HandleScope,
+                 key: v8::Local<v8::Name>,
+                 args: v8::PropertyCallbackArguments,
+                 mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+      //PropertyAttribute::READ_ONLY
+      rv.set_int32(1);
+      let expected_value = v8::Integer::new(scope, 42);
+      assert!(this
+        .get_internal_field(scope, 0)
+        .unwrap()
+        .strict_equals(expected_value.into()));
+    };
+    let deleter = |scope: &mut v8::HandleScope,
+                   key: v8::Local<v8::Name>,
+                   _args: v8::PropertyCallbackArguments,
+                   mut rv: v8::ReturnValue| {
+      let expected_key = v8::String::new(scope, "key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      rv.set_bool(true);
+    };
+
+    let enumerator = |scope: &mut v8::HandleScope,
+                      args: v8::PropertyCallbackArguments,
+                      mut rv: v8::ReturnValue| {
+      let this = args.this();
+      //Validate is the current object
+      let expected_value = v8::Integer::new(scope, 42);
+      assert!(this
+        .get_internal_field(scope, 0)
+        .unwrap()
+        .strict_equals(expected_value.into()));
+
+      let key = v8::String::new(scope, "key").unwrap();
+      let result = v8::Array::new_with_elements(scope, &[key.into()]);
+      rv.set(result.into());
+    };
+
+    let name = v8::String::new(scope, "obj").unwrap();
+
+    // Lone getter
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new().getter(getter),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    let int = v8::Integer::new(scope, 42);
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    assert!(eval(scope, "obj.key").unwrap().strict_equals(int.into()));
+
+    // Getter + setter + deleter
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new()
+        .getter(getter)
+        .setter(setter)
+        .deleter(deleter),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let new_int = v8::Integer::new(scope, 9);
+    eval(scope, "obj.key = 9");
+    assert!(obj
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .strict_equals(new_int.into()));
+
+    assert!(eval(scope, "delete obj.key").unwrap().boolean_value(scope));
+
+    // query descriptor
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new().query(query),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let result =
+      eval(scope, "Object.getOwnPropertyDescriptor(obj, 'key')").unwrap();
+    let object = result.to_object(scope).unwrap();
+    let key = v8::String::new(scope, "writable").unwrap();
+    let value = object.get(scope, key.into()).unwrap();
+
+    let non_writable = v8::Boolean::new(scope, false);
+    assert!(value.strict_equals(non_writable.into()));
+
+    //enumerator
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    templ.set_named_property_handler(
+      v8::NamedPropertyHandlerConfiguration::new().enumerator(enumerator),
+    );
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let arr = v8::Local::<v8::Array>::try_from(
+      eval(scope, "Object.keys(obj)").unwrap(),
+    )
+    .unwrap();
+    assert_eq!(arr.length(), 1);
+    let index = v8::Integer::new(scope, 0);
+    let result = arr.get(scope, index.into()).unwrap();
+    let expected = v8::String::new(scope, "key").unwrap();
+    assert!(expected.strict_equals(result))
+  }
+}
+
+#[test]
+fn object_template_set_indexed_property_handler() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let getter = |scope: &mut v8::HandleScope,
+                index: u32,
+                args: v8::PropertyCallbackArguments,
+                mut rv: v8::ReturnValue| {
+    let this = args.this();
+    let expected_index = 37;
+    assert!(index.eq(&expected_index));
+    rv.set(this.get_internal_field(scope, 0).unwrap());
+  };
+
+  let setter = |_scope: &mut v8::HandleScope,
+                index: u32,
+                value: v8::Local<v8::Value>,
+                args: v8::PropertyCallbackArguments| {
+    let this = args.this();
+
+    assert_eq!(index, 37);
+
+    assert!(value.is_int32());
+    assert!(this.set_internal_field(0, value));
+  };
+
+  let deleter = |_scope: &mut v8::HandleScope,
+                 index: u32,
+                 _args: v8::PropertyCallbackArguments,
+                 mut rv: v8::ReturnValue| {
+    assert_eq!(index, 37);
+
+    rv.set_bool(false);
+  };
+
+  let enumerator = |scope: &mut v8::HandleScope,
+                    args: v8::PropertyCallbackArguments,
+                    mut rv: v8::ReturnValue| {
+    let this = args.this();
+    //Validate is the current object
+    let expected_value = v8::Integer::new(scope, 42);
+    assert!(this
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .strict_equals(expected_value.into()));
+
+    let key = v8::Integer::new(scope, 37);
+    let result = v8::Array::new_with_elements(scope, &[key.into()]);
+    rv.set(result.into());
+  };
+
+  let name = v8::String::new(scope, "obj").unwrap();
+
+  // Lone getter
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_internal_field_count(1);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new().getter(getter),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  let int = v8::Integer::new(scope, 42);
+  obj.set_internal_field(0, int.into());
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+  assert!(eval(scope, "obj[37]").unwrap().strict_equals(int.into()));
+
+  // Getter + setter + deleter
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_internal_field_count(1);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new()
+      .getter(getter)
+      .setter(setter)
+      .deleter(deleter),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  obj.set_internal_field(0, int.into());
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+  let new_int = v8::Integer::new(scope, 9);
+  eval(scope, "obj[37] = 9");
+  assert!(obj
+    .get_internal_field(scope, 0)
+    .unwrap()
+    .strict_equals(new_int.into()));
+
+  assert!(!eval(scope, "delete obj[37]").unwrap().boolean_value(scope));
+
+  //Enumerator
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_internal_field_count(1);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new()
+      .getter(getter)
+      .enumerator(enumerator),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  obj.set_internal_field(0, int.into());
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+
+  let value = eval(
+    scope,
+    "
+    let value = -1;
+    for (const i in obj) {
+      value = obj[i];
+   }
+   value
+   ",
+  )
+  .unwrap();
+
+  assert!(value.strict_equals(int.into()));
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -6930,6 +7229,13 @@ fn instance_of() {
 }
 
 #[test]
+fn get_default_locale() {
+  v8::icu::set_default_locale("nb_NO");
+  let default_locale = v8::icu::get_language_tag();
+  assert_eq!(default_locale, "nb-NO");
+}
+
+#[test]
 fn weak_handle() {
   let _setup_guard = setup();
 
@@ -7000,6 +7306,75 @@ fn finalizers() {
       scope,
       &local,
       Box::new(move |_| {
+        let (weak, finalizer_called) = rx.try_recv().unwrap();
+        finalizer_called.set(true);
+        assert!(weak.is_empty());
+      }),
+    ));
+
+    tx.send((weak.clone(), finalizer_called.clone())).unwrap();
+
+    assert!(!weak.is_empty());
+    assert_eq!(weak.deref(), &local);
+    assert_eq!(weak.to_local(scope), Some(local));
+
+    weak
+  };
+
+  let scope = &mut v8::HandleScope::new(scope);
+  eval(scope, "gc()").unwrap();
+  assert!(weak.is_empty());
+  assert!(finalizer_called.get());
+}
+
+#[test]
+fn guaranteed_finalizers() {
+  // Test that guaranteed finalizers behave the same as regular finalizers for
+  // everything except being guaranteed.
+
+  use std::cell::Cell;
+  use std::ops::Deref;
+  use std::rc::Rc;
+
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // The finalizer for a dropped Weak is never called.
+  {
+    {
+      let scope = &mut v8::HandleScope::new(scope);
+      let local = v8::Object::new(scope);
+      let _ = v8::Weak::with_guaranteed_finalizer(
+        scope,
+        &local,
+        Box::new(|| unreachable!()),
+      );
+    }
+
+    let scope = &mut v8::HandleScope::new(scope);
+    eval(scope, "gc()").unwrap();
+  }
+
+  let finalizer_called = Rc::new(Cell::new(false));
+  let weak = {
+    let scope = &mut v8::HandleScope::new(scope);
+    let local = v8::Object::new(scope);
+
+    // We use a channel to send data into the finalizer without having to worry
+    // about lifetimes.
+    let (tx, rx) = std::sync::mpsc::sync_channel::<(
+      Rc<v8::Weak<v8::Object>>,
+      Rc<Cell<bool>>,
+    )>(1);
+
+    let weak = Rc::new(v8::Weak::with_guaranteed_finalizer(
+      scope,
+      &local,
+      Box::new(move || {
         let (weak, finalizer_called) = rx.try_recv().unwrap();
         finalizer_called.set(true);
         assert!(weak.is_empty());
@@ -7228,8 +7603,8 @@ fn finalizer_on_global_object() {
 
 #[test]
 fn finalizer_on_kept_global() {
-  // If a global is kept alive after an isolate is dropped, any finalizers won't
-  // be called.
+  // If a global is kept alive after an isolate is dropped, regular finalizers
+  // won't be called, but guaranteed ones will.
 
   use std::cell::Cell;
   use std::rc::Rc;
@@ -7237,8 +7612,10 @@ fn finalizer_on_kept_global() {
   let _setup_guard = setup();
 
   let global;
-  let weak;
-  let finalized = Rc::new(Cell::new(false));
+  let weak1;
+  let weak2;
+  let regular_finalized = Rc::new(Cell::new(false));
+  let guaranteed_finalized = Rc::new(Cell::new(false));
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
@@ -7248,20 +7625,85 @@ fn finalizer_on_kept_global() {
 
     let object = v8::Object::new(scope);
     global = v8::Global::new(scope, &object);
-    weak = v8::Weak::with_finalizer(
+    weak1 = v8::Weak::with_finalizer(
       scope,
       &object,
       Box::new({
-        let finalized = finalized.clone();
+        let finalized = regular_finalized.clone();
         move |_| finalized.set(true)
       }),
-    )
+    );
+    weak2 = v8::Weak::with_guaranteed_finalizer(
+      scope,
+      &object,
+      Box::new({
+        let guaranteed_finalized = guaranteed_finalized.clone();
+        move || guaranteed_finalized.set(true)
+      }),
+    );
   }
 
-  assert!(weak.is_empty());
-  assert!(!finalized.get());
-  drop(weak);
+  assert!(weak1.is_empty());
+  assert!(weak2.is_empty());
+  assert!(!regular_finalized.get());
+  assert!(guaranteed_finalized.get());
+  drop(weak1);
+  drop(weak2);
   drop(global);
+}
+
+#[test]
+fn isolate_data_fields() {
+  let _setup_guard = setup();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  struct SomeData {
+    foo: &'static str,
+    bar: &'static str,
+    fizz: &'static str,
+  }
+
+  let some_data1 = Box::new(SomeData {
+    foo: "foo",
+    bar: "",
+    fizz: "",
+  });
+  let some_data2 = Box::new(SomeData {
+    foo: "",
+    bar: "bar",
+    fizz: "",
+  });
+  let some_data3 = Box::new(SomeData {
+    foo: "",
+    bar: "",
+    fizz: "fizz",
+  });
+  unsafe {
+    isolate.set_data(1, Box::into_raw(some_data1) as *mut _ as *mut c_void);
+    isolate.set_data(2, Box::into_raw(some_data2) as *mut _ as *mut c_void);
+    isolate.set_data(3, Box::into_raw(some_data3) as *mut _ as *mut c_void);
+  }
+
+  {
+    let data_some_data1 = isolate.get_data(1) as *mut SomeData;
+    let data_some_data1 = unsafe { &mut *data_some_data1 };
+    assert_eq!(data_some_data1.foo, "foo");
+    assert_eq!(data_some_data1.bar, "");
+    assert_eq!(data_some_data1.fizz, "");
+
+    let data_some_data2 = isolate.get_data(2) as *mut SomeData;
+    let data_some_data2 = unsafe { &mut *data_some_data2 };
+    assert_eq!(data_some_data2.foo, "");
+    assert_eq!(data_some_data2.bar, "bar");
+    assert_eq!(data_some_data2.fizz, "");
+
+    let data_some_data3 = isolate.get_data(3) as *mut SomeData;
+    let data_some_data3 = unsafe { &mut *data_some_data3 };
+    assert_eq!(data_some_data3.foo, "");
+    assert_eq!(data_some_data3.bar, "");
+    assert_eq!(data_some_data3.fizz, "fizz");
+  }
 }
 
 #[test]

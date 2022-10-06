@@ -184,10 +184,10 @@ impl Context {
       // We also check above that `isolate` is the context's isolate.
       let self_ref_handle = unsafe { UnsafeRefHandle::new(self, isolate) };
 
-      Weak::with_finalizer(
+      Weak::with_guaranteed_finalizer(
         isolate,
         self_ref_handle,
-        Box::new(move |_| {
+        Box::new(move || {
           // SAFETY: The lifetimes of references to the annex returned by this
           // method are always tied to the context, and because this is the
           // context's finalizer, we know there are no living references to

@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "support.h"
+#include "unicode/locid.h"
 #include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
@@ -1132,6 +1133,33 @@ void v8__ObjectTemplate__SetAccessorWithSetter(
     v8::AccessorNameGetterCallback getter,
     v8::AccessorNameSetterCallback setter) {
   ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
+}
+
+void v8__ObjectTemplate__SetNamedPropertyHandler(
+    const v8::ObjectTemplate& self,
+    v8::GenericNamedPropertyGetterCallback getter,
+    v8::GenericNamedPropertySetterCallback setter,
+    v8::GenericNamedPropertyQueryCallback query,
+    v8::GenericNamedPropertyDeleterCallback deleter,
+    v8::GenericNamedPropertyEnumeratorCallback enumerator,
+    v8::GenericNamedPropertyDescriptorCallback descriptor,
+    const v8::Value* data_or_null) {
+  ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(
+      getter, setter, query, deleter, enumerator, nullptr, descriptor,
+      ptr_to_local(data_or_null)));
+}
+
+void v8__ObjectTemplate__SetIndexedPropertyHandler(
+    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallback getter,
+    v8::IndexedPropertySetterCallback setter,
+    v8::IndexedPropertyQueryCallback query,
+    v8::IndexedPropertyDeleterCallback deleter,
+    v8::IndexedPropertyEnumeratorCallback enumerator,
+    v8::IndexedPropertyDescriptorCallback descriptor,
+    const v8::Value* data_or_null) {
+  ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
+      getter, setter, query, deleter, enumerator, nullptr, descriptor,
+      ptr_to_local(data_or_null)));
 }
 
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
@@ -3161,4 +3189,25 @@ const char* v8__CompiledWasmModule__SourceUrl(v8::CompiledWasmModule* self,
 void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
   delete self;
 }
+}  // extern "C"
+
+// icu
+
+extern "C" {
+
+size_t icu_get_default_locale(char* output, size_t output_len) {
+  const icu_71::Locale& default_locale = icu::Locale::getDefault();
+  icu_71::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
+  UErrorCode status = U_ZERO_ERROR;
+  default_locale.toLanguageTag(sink, status);
+  assert(status == U_ZERO_ERROR);
+  assert(!sink.Overflowed());
+  return sink.NumberOfBytesAppended();
+}
+
+void icu_set_default_locale(const char* locale) {
+  UErrorCode status = U_ZERO_ERROR;
+  icu::Locale::setDefault(icu::Locale(locale), status);
+}
+
 }  // extern "C"
