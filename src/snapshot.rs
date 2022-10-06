@@ -109,7 +109,7 @@ impl SnapshotCreator {
     } else {
       std::ptr::null()
     };
-    let mut snapshot_creator_inner = unsafe {
+    let snapshot_creator_inner = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator_inner,
         external_references_ptr,
@@ -119,7 +119,7 @@ impl SnapshotCreator {
 
     let isolate = unsafe {
       let isolate_ptr =
-        v8__SnapshotCreator__GetIsolate(snapshot_creator_inner);
+        v8__SnapshotCreator__GetIsolate(&snapshot_creator_inner);
       let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
       ScopeData::new_root(&mut owned_isolate);
       owned_isolate.create_annex(Box::new(()));
