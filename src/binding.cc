@@ -9,6 +9,7 @@
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
+#include "v8/include/v8-internal.h"
 #include "v8/include/v8-platform.h"
 #include "v8/include/v8-profiler.h"
 #include "v8/include/v8.h"
@@ -99,6 +100,9 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 12,
 #endif
 
 extern "C" {
+const extern size_t v8__internal__Internals__kIsolateEmbedderDataOffset =
+    v8::internal::Internals::kIsolateEmbedderDataOffset;
+
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
                                      const char* usage) {
   namespace i = v8::internal;
@@ -157,14 +161,6 @@ const v8::Context* v8__Isolate__GetCurrentContext(v8::Isolate* isolate) {
 const v8::Context* v8__Isolate__GetEnteredOrMicrotaskContext(
     v8::Isolate* isolate) {
   return local_to_ptr(isolate->GetEnteredOrMicrotaskContext());
-}
-
-void v8__Isolate__SetData(v8::Isolate* isolate, uint32_t slot, void* data) {
-  isolate->SetData(slot, data);
-}
-
-void* v8__Isolate__GetData(v8::Isolate* isolate, uint32_t slot) {
-  return isolate->GetData(slot);
 }
 
 uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
