@@ -3475,15 +3475,13 @@ fn import_assertions() {
     Some(module)
   }
 
-  extern "C" fn dynamic_import_cb(
-    context: v8::Local<v8::Context>,
-    _host_defined_options: v8::Local<v8::Data>,
-    _resource_name: v8::Local<v8::Value>,
-    _specifier: v8::Local<v8::String>,
-    import_assertions: v8::Local<v8::FixedArray>,
-  ) -> *mut v8::Promise {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
+  fn dynamic_import_cb<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    _specifier: v8::Local<'s, v8::String>,
+    import_assertions: v8::Local<'s, v8::FixedArray>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
     // "type" keyword, value
     assert_eq!(import_assertions.length(), 2);
     let assert1 = import_assertions.get(scope, 0).unwrap();
@@ -3492,7 +3490,7 @@ fn import_assertions() {
     let assert2 = import_assertions.get(scope, 1).unwrap();
     let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
     assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
-    std::ptr::null_mut()
+    None
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
@@ -4059,22 +4057,20 @@ fn dynamic_import() {
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn dynamic_import_cb(
-    context: v8::Local<v8::Context>,
-    _host_defined_options: v8::Local<v8::Data>,
-    _resource_name: v8::Local<v8::Value>,
-    specifier: v8::Local<v8::String>,
-    _import_assertions: v8::Local<v8::FixedArray>,
-  ) -> *mut v8::Promise {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
+  fn dynamic_import_cb<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    specifier: v8::Local<'s, v8::String>,
+    _import_assertions: v8::Local<'s, v8::FixedArray>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
     assert!(
       specifier.strict_equals(v8::String::new(scope, "bar.js").unwrap().into())
     );
     let e = v8::String::new(scope, "boom").unwrap();
     scope.throw_exception(e.into());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    std::ptr::null_mut()
+    None
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 

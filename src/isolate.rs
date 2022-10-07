@@ -1,4 +1,3 @@
-use crate::PromiseResolver;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
 use crate::handle::FinalizerCallback;
@@ -26,6 +25,7 @@ use crate::Message;
 use crate::Module;
 use crate::Object;
 use crate::Promise;
+use crate::PromiseResolver;
 use crate::String;
 use crate::Value;
 
@@ -119,31 +119,157 @@ pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
 pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
 
-/// HostImportModuleDynamicallyCallback is called when we require the
-/// embedder to load a module. This is used as part of the dynamic
-/// import syntax.
+/// HostImportModuleDynamicallyCallback is called when we require the embedder
+/// to load a module. This is used as part of the dynamic import syntax.
 ///
-/// The referrer contains metadata about the script/module that calls
-/// import.
+/// The referrer contains metadata about the script/module that calls import.
 ///
 /// The specifier is the name of the module that should be imported.
 ///
-/// The embedder must compile, instantiate, evaluate the Module, and
-/// obtain it's namespace object.
+/// The import_assertions are import assertions for this request in the form:
+/// [key1, value1, key2, value2, ...] where the keys and values are of type
+/// v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
+/// returned from ModuleRequest::GetImportAssertions(), this array does not
+/// contain the source Locations of the assertions.
 ///
-/// The Promise returned from this function is forwarded to userland
-/// JavaScript. The embedder must resolve this promise with the module
-/// namespace object. In case of an exception, the embedder must reject
-/// this promise with the exception. If the promise creation itself
-/// fails (e.g. due to stack overflow), the embedder must propagate
-/// that exception by returning an empty MaybeLocal.
-pub type HostImportModuleDynamicallyCallback = extern "C" fn(
-  Local<Context>,
-  Local<Data>,
-  Local<Value>,
-  Local<String>,
-  Local<FixedArray>,
-) -> *mut Promise;
+/// The embedder must compile, instantiate, evaluate the Module, and obtain its
+/// namespace object.
+///
+/// The Promise returned from this function is forwarded to userland JavaScript.
+/// The embedder must resolve this promise with the module namespace object. In
+/// case of an exception, the embedder must reject this promise with the
+/// exception. If the promise creation itself fails (e.g. due to stack
+/// overflow), the embedder must propagate that exception by returning an empty
+/// MaybeLocal.
+///
+/// # Example
+///
+/// ```
+/// fn host_import_module_dynamically_callback_example<'s>(
+///   scope: &mut v8::HandleScope<'s>,
+///   host_defined_options: v8::Local<'s, v8::Data>,
+///   resource_name: v8::Local<'s, v8::Value>,
+///   specifier: v8::Local<'s, v8::String>,
+///   import_assertions: v8::Local<'s, v8::FixedArray>,
+/// ) -> Option<v8::Local<'s, v8::Promise>> {
+///   todo!()
+/// }
+/// ```
+pub trait HostImportModuleDynamicallyCallback:
+  UnitType
+  + for<'s> FnOnce(
+    &mut HandleScope<'s>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> Option<Local<'s, Promise>>
+{
+  fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback;
+}
+
+#[cfg(target_family = "unix")]
+pub(crate) type RawHostImportModuleDynamicallyCallback =
+  for<'s> extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> *mut Promise;
+
+#[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+pub type RawHostImportModuleDynamicallyCallback =
+  for<'s> extern "C" fn(
+    *mut *mut Promise,
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> *mut *mut Promise;
+
+impl<F> HostImportModuleDynamicallyCallback for F
+where
+  F: UnitType
+    + for<'s> FnOnce(
+      &mut HandleScope<'s>,
+      Local<'s, Data>,
+      Local<'s, Value>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>>,
+{
+  #[inline(always)]
+  fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback {
+    #[inline(always)]
+    fn scope_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>> {
+      let scope = &mut unsafe { CallbackScope::new(context) };
+      (F::get())(
+        scope,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_assertions,
+      )
+    }
+
+    #[cfg(target_family = "unix")]
+    #[inline(always)]
+    extern "C" fn abi_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> *mut Promise {
+      scope_adapter::<F>(
+        context,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_assertions,
+      )
+      .map(|return_value| return_value.as_non_null().as_ptr())
+      .unwrap_or_else(null_mut)
+    }
+
+    #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+    #[inline(always)]
+    extern "C" fn abi_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      return_value: *mut *mut Promise,
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> *mut *mut Promise {
+      unsafe {
+        std::ptr::write(
+          return_value,
+          scope_adapter::<F>(
+            context,
+            host_defined_options,
+            resource_name,
+            specifier,
+            import_assertions,
+          )
+          .map(|return_value| return_value.as_non_null().as_ptr())
+          .unwrap_or_else(null_mut),
+        );
+        return_value
+      }
+    }
+
+    abi_adapter::<F>
+  }
+}
 
 /// `HostCreateShadowRealmContextCallback` is called each time a `ShadowRealm`
 /// is being constructed. You can use [`HandleScope::get_current_context`] to
@@ -265,7 +391,7 @@ extern "C" {
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: RawHostImportModuleDynamicallyCallback,
   );
   #[cfg(not(target_os = "windows"))]
   fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
@@ -698,10 +824,13 @@ impl Isolate {
   #[inline(always)]
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: impl HostImportModuleDynamicallyCallback,
   ) {
     unsafe {
-      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
+      v8__Isolate__SetHostImportModuleDynamicallyCallback(
+        self,
+        callback.to_c_fn(),
+      )
     }
   }
 
