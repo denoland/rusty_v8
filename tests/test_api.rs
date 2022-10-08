@@ -7498,57 +7498,25 @@ fn finalizer_on_kept_global() {
 }
 
 #[test]
-fn isolate_data_fields() {
+fn isolate_data_slots() {
   let _setup_guard = setup();
-
   let mut isolate = v8::Isolate::new(Default::default());
 
-  struct SomeData {
-    foo: &'static str,
-    bar: &'static str,
-    fizz: &'static str,
-  }
+  assert_eq!(isolate.get_number_of_data_slots(), 2);
 
-  let some_data1 = Box::new(SomeData {
-    foo: "foo",
-    bar: "",
-    fizz: "",
-  });
-  let some_data2 = Box::new(SomeData {
-    foo: "",
-    bar: "bar",
-    fizz: "",
-  });
-  let some_data3 = Box::new(SomeData {
-    foo: "",
-    bar: "",
-    fizz: "fizz",
-  });
-  unsafe {
-    isolate.set_data(1, Box::into_raw(some_data1) as *mut _ as *mut c_void);
-    isolate.set_data(2, Box::into_raw(some_data2) as *mut _ as *mut c_void);
-    isolate.set_data(3, Box::into_raw(some_data3) as *mut _ as *mut c_void);
-  }
+  let expected0 = "Bla";
+  isolate.set_data(0, &expected0 as *const _ as *mut &str as *mut c_void);
 
-  {
-    let data_some_data1 = isolate.get_data(1) as *mut SomeData;
-    let data_some_data1 = unsafe { &mut *data_some_data1 };
-    assert_eq!(data_some_data1.foo, "foo");
-    assert_eq!(data_some_data1.bar, "");
-    assert_eq!(data_some_data1.fizz, "");
+  let expected1 = 123.456f64;
+  isolate.set_data(1, &expected1 as *const _ as *mut f64 as *mut c_void);
 
-    let data_some_data2 = isolate.get_data(2) as *mut SomeData;
-    let data_some_data2 = unsafe { &mut *data_some_data2 };
-    assert_eq!(data_some_data2.foo, "");
-    assert_eq!(data_some_data2.bar, "bar");
-    assert_eq!(data_some_data2.fizz, "");
+  let actual0 = isolate.get_data(0) as *mut &str;
+  let actual0 = unsafe { *actual0 };
+  assert_eq!(actual0, expected0);
 
-    let data_some_data3 = isolate.get_data(3) as *mut SomeData;
-    let data_some_data3 = unsafe { &mut *data_some_data3 };
-    assert_eq!(data_some_data3.foo, "");
-    assert_eq!(data_some_data3.bar, "");
-    assert_eq!(data_some_data3.fizz, "fizz");
-  }
+  let actual1 = isolate.get_data(1) as *mut f64;
+  let actual1 = unsafe { *actual1 };
+  assert_eq!(actual1, expected1);
 }
 
 #[test]
