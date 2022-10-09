@@ -7627,7 +7627,7 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32) -> u32 {
+  fn fast_fn(_recv: v8::Local<v8::Object>, a: u32, b: u32) -> u32 {
     unsafe { WHO = "fast" };
     a + b
   }
@@ -7635,7 +7635,8 @@ fn test_fast_calls() {
   pub struct FastTest;
   impl fast_api::FastFunction for FastTest {
     fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::Uint32, fast_api::Type::Uint32]
+      use fast_api::Type::*;
+      &[V8Value, Uint32, Uint32]
     }
 
     fn return_type(&self) -> fast_api::CType {
@@ -7649,11 +7650,13 @@ fn test_fast_calls() {
 
   fn slow_fn(
     scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
+    args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
   ) {
     unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
+    let a = args.get(0).uint32_value(scope).unwrap();
+    let b = args.get(1).uint32_value(scope).unwrap();
+    rv.set_uint32(a + b);
   }
 
   let _setup_guard = setup();
@@ -7671,16 +7674,16 @@ fn test_fast_calls() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y) { return func(x, y); }
-  %PrepareFunctionForOptimization(f);
-  f(1, 2);
-"#;
+    function f(x, y) { return func(x, y); }
+    %PrepareFunctionForOptimization(f);
+    if (42 !== f(19, 23)) throw "unexpected";
+  "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
-    f(1, 2);
+    if (42 !== f(19, 23)) throw "unexpected";
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
