@@ -61,8 +61,8 @@ pub fn get_language_tag() -> String {
       output.capacity()
     );
     output.set_len(len);
+    String::from_utf8_unchecked(output)
   }
-  String::from_utf8(output).unwrap()
 }
 
 pub fn set_default_locale(locale: &str) {
