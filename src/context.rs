@@ -310,7 +310,11 @@ impl Context {
     slot: i32,
     data: *mut c_void,
   ) {
-    v8__Context__SetAlignedPointerInEmbedderData(self, slot + Self::INTERNAL_SLOT_COUNT, data)
+    v8__Context__SetAlignedPointerInEmbedderData(
+      self,
+      slot + Self::INTERNAL_SLOT_COUNT,
+      data,
+    )
   }
 
   #[inline(always)]
@@ -318,7 +322,12 @@ impl Context {
     &self,
     slot: i32,
   ) -> *mut c_void {
-    unsafe { v8__Context__GetAlignedPointerFromEmbedderData(self, slot + Self::INTERNAL_SLOT_COUNT) }
+    unsafe {
+      v8__Context__GetAlignedPointerFromEmbedderData(
+        self,
+        slot + Self::INTERNAL_SLOT_COUNT,
+      )
+    }
   }
 }
 
