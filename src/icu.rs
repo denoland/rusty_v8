@@ -58,7 +58,7 @@ pub fn get_language_tag() -> String {
   unsafe {
     let len = icu_get_default_locale(
       output.as_mut_ptr().cast::<c_char>(),
-      output.capacity()
+      output.capacity(),
     );
     output.set_len(len);
     String::from_utf8_unchecked(output)
