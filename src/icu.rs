@@ -54,11 +54,15 @@ pub fn set_common_data_71(data: &'static [u8]) -> Result<(), i32> {
 
 /// Returns BCP47 language tag.
 pub fn get_language_tag() -> String {
-  let mut output = [0u8; 1024];
-  let len = unsafe {
-    icu_get_default_locale(output.as_mut_ptr() as *mut c_char, output.len())
-  };
-  std::str::from_utf8(&output[..len]).unwrap().to_owned()
+  let mut output = Vec::<u8>::with_capacity(1024);
+  unsafe {
+    let len = icu_get_default_locale(
+      output.spare_capacity_mut().as_mut_ptr().cast::<c_char>(),
+      output.capacity()
+    );
+    output.set_len(len);
+  }
+  String::from_utf8(output).unwrap()
 }
 
 pub fn set_default_locale(locale: &str) {
