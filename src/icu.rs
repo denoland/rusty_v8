@@ -57,7 +57,7 @@ pub fn get_language_tag() -> String {
   let mut output = Vec::<u8>::with_capacity(1024);
   unsafe {
     let len = icu_get_default_locale(
-      output.spare_capacity_mut().as_mut_ptr().cast::<c_char>(),
+      output.as_mut_ptr().cast::<c_char>(),
       output.capacity()
     );
     output.set_len(len);
