@@ -591,7 +591,7 @@ impl Isolate {
   }
 
   #[inline(always)]
-  pub(crate) fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
+  fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
     let annex_ptr =
       self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
     assert!(!annex_ptr.is_null());
