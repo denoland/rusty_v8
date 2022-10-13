@@ -118,7 +118,7 @@ impl SnapshotCreator {
     let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(Box::new(()));
-    owned_isolate.set_slot(snapshot_creator);
+    owned_isolate.set_snapshot_creator(snapshot_creator);
     owned_isolate
   }
 }
