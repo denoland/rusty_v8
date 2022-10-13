@@ -103,17 +103,22 @@ pub(crate) struct SnapshotCreator([usize; 1]);
 impl SnapshotCreator {
   /// Create an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
-  pub fn new(external_references: Option<&'static ExternalReferences>) -> Self {
+  #[inline(always)]
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(
+    external_references: Option<&'static ExternalReferences>,
+  ) -> OwnedIsolate {
     Self::new_impl(external_references, None::<&[u8]>)
   }
 
   /// Create an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
   #[inline(always)]
+  #[allow(clippy::new_ret_no_self)]
   pub fn from_existing_snapshot(
     existing_snapshot_blob: impl Allocated<[u8]>,
     external_references: Option<&'static ExternalReferences>,
-  ) -> Self {
+  ) -> OwnedIsolate {
     Self::new_impl(external_references, Some(existing_snapshot_blob))
   }
 
@@ -144,7 +149,7 @@ impl SnapshotCreator {
       snapshot_allocations = None;
     }
 
-    let mut snapshot_creator = unsafe {
+    let snapshot_creator = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
         external_references_ptr,

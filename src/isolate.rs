@@ -549,13 +549,10 @@ impl Isolate {
     existing_snapshot_blob: impl Allocated<[u8]>,
     external_references: Option<&'static ExternalReferences>,
   ) -> OwnedIsolate {
-    let mut snapshot_creator = SnapshotCreator::from_existing_snapshot(
+    SnapshotCreator::from_existing_snapshot(
       existing_snapshot_blob,
       external_references,
-    );
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    isolate.set_slot(snapshot_creator);
-    isolate
+    )
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -1140,6 +1137,20 @@ impl Isolate {
   pub fn set_default_context(&mut self, context: Local<Context>) {
     let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
     snapshot_creator.set_default_context(context);
+  }
+
+  /// Add additional context to be included in the snapshot blob.
+  /// The snapshot will include the global proxy.
+  ///
+  /// Returns the index of the context in the snapshot blob.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_context(&mut self, context: Local<Context>) -> usize {
+    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
+    snapshot_creator.add_context(context)
   }
 
   /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
