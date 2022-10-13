@@ -95,22 +95,31 @@ impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
   #[inline(always)]
+  #[allow(clippy::new_ret_no_self)]
   pub(crate) fn new(
     external_references: Option<&'static ExternalReferences>,
-  ) -> Self {
+  ) -> OwnedIsolate {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
       er.as_ptr()
     } else {
       std::ptr::null()
     };
-    unsafe {
+    let snapshot_creator = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
         external_references_ptr,
       );
       snapshot_creator.assume_init()
-    }
+    };
+
+    let isolate_ptr =
+      unsafe { v8__SnapshotCreator__GetIsolate(&snapshot_creator) };
+    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
+    ScopeData::new_root(&mut owned_isolate);
+    owned_isolate.create_annex(Box::new(()));
+    owned_isolate.set_slot(snapshot_creator);
+    owned_isolate
   }
 }
 
@@ -175,16 +184,5 @@ impl SnapshotCreator {
       debug_assert!(blob.raw_size > 0);
       Some(blob)
     }
-  }
-
-  /// This is marked unsafe because it should be called at most once per
-  /// snapshot creator.
-  #[inline(always)]
-  pub(crate) unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
-    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(Box::new(()));
-    owned_isolate
   }
 }

@@ -540,10 +540,7 @@ impl Isolate {
   pub fn snapshot_creator(
     external_references: Option<&'static ExternalReferences>,
   ) -> OwnedIsolate {
-    let mut snapshot_creator = SnapshotCreator::new(external_references);
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    isolate.set_slot(snapshot_creator);
-    isolate
+    SnapshotCreator::new(external_references)
   }
 
   /// Initial configuration parameters for a new Isolate.
