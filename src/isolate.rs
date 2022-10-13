@@ -1339,7 +1339,7 @@ impl Drop for OwnedIsolate {
     unsafe {
       let snapshot_creator = self.remove_slot::<SnapshotCreator>();
       assert!(
-        snapshot_creator.is_none(), 
+        snapshot_creator.is_none(),
         "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
       );
       self.exit();
