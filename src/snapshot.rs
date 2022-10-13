@@ -20,32 +20,32 @@ use std::ptr::null;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
-    buf: *mut MaybeUninit<SnapshotCreatorInner>,
+    buf: *mut MaybeUninit<SnapshotCreator>,
     external_references: *const intptr_t,
     existing_blob: *const raw::StartupData,
   );
-  fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreatorInner);
+  fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
-    this: *const SnapshotCreatorInner,
+    this: *const SnapshotCreator,
   ) -> *mut Isolate;
   fn v8__SnapshotCreator__CreateBlob(
-    this: *mut SnapshotCreatorInner,
+    this: *mut SnapshotCreator,
     function_code_handling: FunctionCodeHandling,
   ) -> StartupData;
   fn v8__SnapshotCreator__SetDefaultContext(
-    this: *mut SnapshotCreatorInner,
+    this: *mut SnapshotCreator,
     context: *const Context,
   );
   fn v8__SnapshotCreator__AddContext(
-    this: *mut SnapshotCreatorInner,
+    this: *mut SnapshotCreator,
     context: *const Context,
   ) -> usize;
   fn v8__SnapshotCreator__AddData_to_isolate(
-    this: *mut SnapshotCreatorInner,
+    this: *mut SnapshotCreator,
     data: *const Data,
   ) -> usize;
   fn v8__SnapshotCreator__AddData_to_context(
-    this: *mut SnapshotCreatorInner,
+    this: *mut SnapshotCreator,
     context: *const Context,
     data: *const Data,
   ) -> usize;
@@ -98,14 +98,7 @@ pub enum FunctionCodeHandling {
 /// Helper class to create a snapshot data blob.
 #[repr(C)]
 #[derive(Debug)]
-struct SnapshotCreatorInner([usize; 1]);
-
-/// Helper class to create a snapshot data blob.
-#[derive(Debug)]
-pub struct SnapshotCreator {
-  inner: SnapshotCreatorInner,
-  isolate: Option<OwnedIsolate>,
-}
+pub struct SnapshotCreator([usize; 1]);
 
 impl SnapshotCreator {
   /// Create an isolate, and set it up for serialization.
@@ -131,7 +124,7 @@ impl SnapshotCreator {
     external_references: Option<&'static ExternalReferences>,
     existing_snapshot_blob: Option<impl Allocated<[u8]>>,
   ) -> Self {
-    let mut snapshot_creator_inner: MaybeUninit<SnapshotCreatorInner> =
+    let mut snapshot_creator: MaybeUninit<SnapshotCreator> =
       MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
       er.as_ptr()
@@ -151,36 +144,22 @@ impl SnapshotCreator {
       snapshot_allocations = None;
     }
 
-    let mut snapshot_creator_inner = unsafe {
+    let mut snapshot_creator = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
-        &mut snapshot_creator_inner,
+        &mut snapshot_creator,
         external_references_ptr,
         snapshot_blob_ptr,
       );
-      snapshot_creator_inner.assume_init()
+      snapshot_creator.assume_init()
     };
 
-    let isolate = unsafe {
-      let isolate_ptr = v8__SnapshotCreator__GetIsolate(snapshot_creator_inner);
-      let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-      ScopeData::new_root(&mut owned_isolate);
-      owned_isolate.create_annex(Box::new(snapshot_allocations));
-      owned_isolate
-    };
-
-    Self {
-      inner: snapshot_creator_inner,
-      isolate: Some(isolate),
-    }
+    snapshot_creator
   }
 }
 
 impl Drop for SnapshotCreator {
   fn drop(&mut self) {
-    // `SnapshotCreatorInner` owns the isolate and will drop it when calling
-    // `v8__SnapshotCreator__DESTRUCT()`, so let's just forget it here.
-    std::mem::forget(self.isolate.take().unwrap());
-    unsafe { v8__SnapshotCreator__DESTRUCT(&mut self.inner) };
+    unsafe { v8__SnapshotCreator__DESTRUCT(self) };
   }
 }
 
@@ -191,7 +170,7 @@ impl SnapshotCreator {
   #[inline(always)]
   pub fn set_default_context(&mut self, context: Local<Context>) {
     unsafe {
-      v8__SnapshotCreator__SetDefaultContext(&mut self.inner, &*context)
+      v8__SnapshotCreator__SetDefaultContext(self, &*context)
     };
   }
 
@@ -201,7 +180,7 @@ impl SnapshotCreator {
   /// Returns the index of the context in the snapshot blob.
   #[inline(always)]
   pub fn add_context(&mut self, context: Local<Context>) -> usize {
-    unsafe { v8__SnapshotCreator__AddContext(&mut self.inner, &*context) }
+    unsafe { v8__SnapshotCreator__AddContext(self, &*context) }
   }
 
   /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
@@ -214,7 +193,7 @@ impl SnapshotCreator {
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
     unsafe {
-      v8__SnapshotCreator__AddData_to_isolate(&mut self.inner, &*data.into())
+      v8__SnapshotCreator__AddData_to_isolate(self, &*data.into())
     }
   }
 
@@ -233,7 +212,7 @@ impl SnapshotCreator {
   {
     unsafe {
       v8__SnapshotCreator__AddData_to_context(
-        &mut self.inner,
+        self,
         &*context,
         &*data.into(),
       )
@@ -258,10 +237,17 @@ impl SnapshotCreator {
     }
   }
 
-  /// This method panics if called more than once.
+  /// This is marked unsafe because it should be called at most once per
+  /// snapshot creator.
+  // TODO Because the SnapshotCreator creates its own isolate, we need a way to
+  // get an owned handle to it. This is a questionable design which ought to be
+  // revisited after the libdeno integration is complete.
   #[inline(always)]
-  pub fn get_owned_isolate(&mut self) -> OwnedIsolate {
-    assert!(self.isolate.is_some(), "Isolate has already been taken");
-    self.isolate.take().unwrap()
+  pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
+    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
+    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
+    ScopeData::new_root(&mut owned_isolate);
+    owned_isolate.create_annex(Box::new(()));
+    owned_isolate
   }
 }
