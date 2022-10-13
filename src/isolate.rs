@@ -1042,9 +1042,7 @@ impl Isolate {
     unsafe { v8__Isolate__HasPendingBackgroundTasks(self) }
   }
 
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  unsafe fn dispose(&mut self) {
+  unsafe fn clear_scope_and_annex(&mut self) {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
@@ -1080,7 +1078,11 @@ impl Isolate {
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
     self.set_data(0, null_mut());
+  }
 
+  /// Disposes the isolate.  The isolate must not be entered by any
+  /// thread to be disposable.
+  unsafe fn dispose(&mut self) {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
     v8__Isolate__Dispose(self)
@@ -1340,6 +1342,7 @@ impl Drop for OwnedIsolate {
         "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
       );
       self.exit();
+      self.cxx_isolate.as_mut().clear_scope_and_annex();
       self.cxx_isolate.as_mut().dispose();
     }
   }
@@ -1383,10 +1386,11 @@ impl OwnedIsolate {
     function_code_handling: FunctionCodeHandling,
   ) -> Option<StartupData> {
     let mut snapshot_creator = self.remove_slot::<SnapshotCreator>().unwrap();
-    {
-      ScopeData::get_root_mut(&mut self);
-      std::mem::forget(self);
-    }
+    ScopeData::get_root_mut(&mut self);
+    unsafe { self.cxx_isolate.as_mut().clear_scope_and_annex() };
+    // The isolate is owned by the snapshot creator; we need to forget it
+    // here as the snapshot creator will drop it when running the destructor.
+    std::mem::forget(self);
     snapshot_creator.create_blob(function_code_handling)
   }
 }
