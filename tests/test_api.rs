@@ -554,6 +554,15 @@ fn get_isolate_from_handle() {
 }
 
 #[test]
+fn handles_from_isolate() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let _ = v8::null(isolate);
+  let _ = v8::undefined(isolate);
+  let _ = v8::Boolean::new(isolate, true);
+}
+
+#[test]
 fn array_buffer() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -3466,15 +3475,13 @@ fn import_assertions() {
     Some(module)
   }
 
-  extern "C" fn dynamic_import_cb(
-    context: v8::Local<v8::Context>,
-    _host_defined_options: v8::Local<v8::Data>,
-    _resource_name: v8::Local<v8::Value>,
-    _specifier: v8::Local<v8::String>,
-    import_assertions: v8::Local<v8::FixedArray>,
-  ) -> *mut v8::Promise {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
+  fn dynamic_import_cb<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    _specifier: v8::Local<'s, v8::String>,
+    import_assertions: v8::Local<'s, v8::FixedArray>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
     // "type" keyword, value
     assert_eq!(import_assertions.length(), 2);
     let assert1 = import_assertions.get(scope, 0).unwrap();
@@ -3483,7 +3490,7 @@ fn import_assertions() {
     let assert2 = import_assertions.get(scope, 1).unwrap();
     let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
     assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
-    std::ptr::null_mut()
+    None
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
@@ -4172,8 +4179,13 @@ fn typed_array_constructors() {
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
 
-  // TypedArray::max_length() ought to be >= 2^30 < 2^32
+  // TypedArray::max_length() ought to be >= 2^30 < 2^32 in 64 bits
+  #[cfg(target_pointer_width = "64")]
   assert!(((2 << 30)..(2 << 32)).contains(&v8::TypedArray::max_length()));
+
+  // TypedArray::max_length() ought to be >= 2^28 < 2^30 in 32 bits
+  #[cfg(target_pointer_width = "32")]
+  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::max_length()));
 
   // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
@@ -4205,22 +4217,20 @@ fn dynamic_import() {
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn dynamic_import_cb(
-    context: v8::Local<v8::Context>,
-    _host_defined_options: v8::Local<v8::Data>,
-    _resource_name: v8::Local<v8::Value>,
-    specifier: v8::Local<v8::String>,
-    _import_assertions: v8::Local<v8::FixedArray>,
-  ) -> *mut v8::Promise {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
+  fn dynamic_import_cb<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    specifier: v8::Local<'s, v8::String>,
+    _import_assertions: v8::Local<'s, v8::FixedArray>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
     assert!(
       specifier.strict_equals(v8::String::new(scope, "bar.js").unwrap().into())
     );
     let e = v8::String::new(scope, "boom").unwrap();
     scope.throw_exception(e.into());
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-    std::ptr::null_mut()
+    None
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
@@ -7641,57 +7651,25 @@ fn finalizer_on_kept_global() {
 }
 
 #[test]
-fn isolate_data_fields() {
+fn isolate_data_slots() {
   let _setup_guard = setup();
-
   let mut isolate = v8::Isolate::new(Default::default());
 
-  struct SomeData {
-    foo: &'static str,
-    bar: &'static str,
-    fizz: &'static str,
-  }
+  assert_eq!(isolate.get_number_of_data_slots(), 2);
 
-  let some_data1 = Box::new(SomeData {
-    foo: "foo",
-    bar: "",
-    fizz: "",
-  });
-  let some_data2 = Box::new(SomeData {
-    foo: "",
-    bar: "bar",
-    fizz: "",
-  });
-  let some_data3 = Box::new(SomeData {
-    foo: "",
-    bar: "",
-    fizz: "fizz",
-  });
-  unsafe {
-    isolate.set_data(1, Box::into_raw(some_data1) as *mut _ as *mut c_void);
-    isolate.set_data(2, Box::into_raw(some_data2) as *mut _ as *mut c_void);
-    isolate.set_data(3, Box::into_raw(some_data3) as *mut _ as *mut c_void);
-  }
+  let expected0 = "Bla";
+  isolate.set_data(0, &expected0 as *const _ as *mut &str as *mut c_void);
 
-  {
-    let data_some_data1 = isolate.get_data(1) as *mut SomeData;
-    let data_some_data1 = unsafe { &mut *data_some_data1 };
-    assert_eq!(data_some_data1.foo, "foo");
-    assert_eq!(data_some_data1.bar, "");
-    assert_eq!(data_some_data1.fizz, "");
+  let expected1 = 123.456f64;
+  isolate.set_data(1, &expected1 as *const _ as *mut f64 as *mut c_void);
 
-    let data_some_data2 = isolate.get_data(2) as *mut SomeData;
-    let data_some_data2 = unsafe { &mut *data_some_data2 };
-    assert_eq!(data_some_data2.foo, "");
-    assert_eq!(data_some_data2.bar, "bar");
-    assert_eq!(data_some_data2.fizz, "");
+  let actual0 = isolate.get_data(0) as *mut &str;
+  let actual0 = unsafe { *actual0 };
+  assert_eq!(actual0, expected0);
 
-    let data_some_data3 = isolate.get_data(3) as *mut SomeData;
-    let data_some_data3 = unsafe { &mut *data_some_data3 };
-    assert_eq!(data_some_data3.foo, "");
-    assert_eq!(data_some_data3.bar, "");
-    assert_eq!(data_some_data3.fizz, "fizz");
-  }
+  let actual1 = isolate.get_data(1) as *mut f64;
+  let actual1 = unsafe { *actual1 };
+  assert_eq!(actual1, expected1);
 }
 
 #[test]
@@ -7770,7 +7748,7 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32) -> u32 {
+  fn fast_fn(_recv: v8::Local<v8::Object>, a: u32, b: u32) -> u32 {
     unsafe { WHO = "fast" };
     a + b
   }
@@ -7778,7 +7756,8 @@ fn test_fast_calls() {
   pub struct FastTest;
   impl fast_api::FastFunction for FastTest {
     fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::Uint32, fast_api::Type::Uint32]
+      use fast_api::Type::*;
+      &[V8Value, Uint32, Uint32]
     }
 
     fn return_type(&self) -> fast_api::CType {
@@ -7792,11 +7771,13 @@ fn test_fast_calls() {
 
   fn slow_fn(
     scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
+    args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
   ) {
     unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
+    let a = args.get(0).uint32_value(scope).unwrap();
+    let b = args.get(1).uint32_value(scope).unwrap();
+    rv.set_uint32(a + b);
   }
 
   let _setup_guard = setup();
@@ -7814,16 +7795,16 @@ fn test_fast_calls() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y) { return func(x, y); }
-  %PrepareFunctionForOptimization(f);
-  f(1, 2);
-"#;
+    function f(x, y) { return func(x, y); }
+    %PrepareFunctionForOptimization(f);
+    if (42 !== f(19, 23)) throw "unexpected";
+  "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
-    f(1, 2);
+    if (42 !== f(19, 23)) throw "unexpected";
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });

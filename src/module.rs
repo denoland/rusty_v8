@@ -38,14 +38,18 @@ use crate::Value;
 ///   }
 /// ```
 
-// System V AMD64 ABI: Local<Module> returned in a register.
+// System V ABI
+#[cfg(not(target_os = "windows"))]
+#[repr(C)]
+pub struct ResolveModuleCallbackRet(*const Module);
+
 #[cfg(not(target_os = "windows"))]
 pub type ResolveModuleCallback<'a> = extern "C" fn(
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, FixedArray>,
   Local<'a, Module>,
-) -> *const Module;
+) -> ResolveModuleCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
@@ -70,9 +74,11 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, specifier, import_assertions, referrer| {
-      (F::get())(context, specifier, import_assertions, referrer)
-        .map(|r| -> *const Module { &*r })
-        .unwrap_or(null())
+      ResolveModuleCallbackRet(
+        (F::get())(context, specifier, import_assertions, referrer)
+          .map(|r| -> *const Module { &*r })
+          .unwrap_or(null()),
+      )
     };
     f.to_c_fn()
   }
@@ -90,10 +96,17 @@ where
   }
 }
 
-// System V AMD64 ABI: Local<Value> returned in a register.
+// System V ABI.
+#[cfg(not(target_os = "windows"))]
+#[repr(C)]
+pub struct SyntheticModuleEvaluationStepsRet(*const Value);
+
 #[cfg(not(target_os = "windows"))]
 pub type SyntheticModuleEvaluationSteps<'a> =
-  extern "C" fn(Local<'a, Context>, Local<'a, Module>) -> *const Value;
+  extern "C" fn(
+    Local<'a, Context>,
+    Local<'a, Module>,
+  ) -> SyntheticModuleEvaluationStepsRet;
 
 // Windows x64 ABI: Local<Value> returned on the stack.
 #[cfg(target_os = "windows")]
@@ -112,9 +125,11 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, module| {
-      (F::get())(context, module)
-        .map(|r| -> *const Value { &*r })
-        .unwrap_or(null())
+      SyntheticModuleEvaluationStepsRet(
+        (F::get())(context, module)
+          .map(|r| -> *const Value { &*r })
+          .unwrap_or(null()),
+      )
     };
     f.to_c_fn()
   }
@@ -139,8 +154,8 @@ extern "C" {
   fn v8__Module__SourceOffsetToLocation(
     this: *const Module,
     offset: int,
-    out: *mut MaybeUninit<Location>,
-  ) -> Location;
+    out: *mut Location,
+  );
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__ScriptId(this: *const Module) -> int;
@@ -240,7 +255,7 @@ impl Module {
   pub fn source_offset_to_location(&self, offset: int) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
-      v8__Module__SourceOffsetToLocation(self, offset, &mut out);
+      v8__Module__SourceOffsetToLocation(self, offset, out.as_mut_ptr());
       out.assume_init()
     }
   }

@@ -1,4 +1,3 @@
-use crate::PromiseResolver;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
 use crate::handle::FinalizerCallback;
@@ -26,6 +25,7 @@ use crate::Message;
 use crate::Module;
 use crate::Object;
 use crate::Promise;
+use crate::PromiseResolver;
 use crate::String;
 use crate::Value;
 
@@ -119,31 +119,157 @@ pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
 pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
 
-/// HostImportModuleDynamicallyCallback is called when we require the
-/// embedder to load a module. This is used as part of the dynamic
-/// import syntax.
+/// HostImportModuleDynamicallyCallback is called when we require the embedder
+/// to load a module. This is used as part of the dynamic import syntax.
 ///
-/// The referrer contains metadata about the script/module that calls
-/// import.
+/// The referrer contains metadata about the script/module that calls import.
 ///
 /// The specifier is the name of the module that should be imported.
 ///
-/// The embedder must compile, instantiate, evaluate the Module, and
-/// obtain it's namespace object.
+/// The import_assertions are import assertions for this request in the form:
+/// [key1, value1, key2, value2, ...] where the keys and values are of type
+/// v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
+/// returned from ModuleRequest::GetImportAssertions(), this array does not
+/// contain the source Locations of the assertions.
 ///
-/// The Promise returned from this function is forwarded to userland
-/// JavaScript. The embedder must resolve this promise with the module
-/// namespace object. In case of an exception, the embedder must reject
-/// this promise with the exception. If the promise creation itself
-/// fails (e.g. due to stack overflow), the embedder must propagate
-/// that exception by returning an empty MaybeLocal.
-pub type HostImportModuleDynamicallyCallback = extern "C" fn(
-  Local<Context>,
-  Local<Data>,
-  Local<Value>,
-  Local<String>,
-  Local<FixedArray>,
-) -> *mut Promise;
+/// The embedder must compile, instantiate, evaluate the Module, and obtain its
+/// namespace object.
+///
+/// The Promise returned from this function is forwarded to userland JavaScript.
+/// The embedder must resolve this promise with the module namespace object. In
+/// case of an exception, the embedder must reject this promise with the
+/// exception. If the promise creation itself fails (e.g. due to stack
+/// overflow), the embedder must propagate that exception by returning an empty
+/// MaybeLocal.
+///
+/// # Example
+///
+/// ```
+/// fn host_import_module_dynamically_callback_example<'s>(
+///   scope: &mut v8::HandleScope<'s>,
+///   host_defined_options: v8::Local<'s, v8::Data>,
+///   resource_name: v8::Local<'s, v8::Value>,
+///   specifier: v8::Local<'s, v8::String>,
+///   import_assertions: v8::Local<'s, v8::FixedArray>,
+/// ) -> Option<v8::Local<'s, v8::Promise>> {
+///   todo!()
+/// }
+/// ```
+pub trait HostImportModuleDynamicallyCallback:
+  UnitType
+  + for<'s> FnOnce(
+    &mut HandleScope<'s>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> Option<Local<'s, Promise>>
+{
+  fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback;
+}
+
+#[cfg(target_family = "unix")]
+pub(crate) type RawHostImportModuleDynamicallyCallback =
+  for<'s> extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> *mut Promise;
+
+#[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+pub type RawHostImportModuleDynamicallyCallback =
+  for<'s> extern "C" fn(
+    *mut *mut Promise,
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> *mut *mut Promise;
+
+impl<F> HostImportModuleDynamicallyCallback for F
+where
+  F: UnitType
+    + for<'s> FnOnce(
+      &mut HandleScope<'s>,
+      Local<'s, Data>,
+      Local<'s, Value>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>>,
+{
+  #[inline(always)]
+  fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback {
+    #[inline(always)]
+    fn scope_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>> {
+      let scope = &mut unsafe { CallbackScope::new(context) };
+      (F::get())(
+        scope,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_assertions,
+      )
+    }
+
+    #[cfg(target_family = "unix")]
+    #[inline(always)]
+    extern "C" fn abi_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> *mut Promise {
+      scope_adapter::<F>(
+        context,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_assertions,
+      )
+      .map(|return_value| return_value.as_non_null().as_ptr())
+      .unwrap_or_else(null_mut)
+    }
+
+    #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+    #[inline(always)]
+    extern "C" fn abi_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      return_value: *mut *mut Promise,
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> *mut *mut Promise {
+      unsafe {
+        std::ptr::write(
+          return_value,
+          scope_adapter::<F>(
+            context,
+            host_defined_options,
+            resource_name,
+            specifier,
+            import_assertions,
+          )
+          .map(|return_value| return_value.as_non_null().as_ptr())
+          .unwrap_or_else(null_mut),
+        );
+        return_value
+      }
+    }
+
+    abi_adapter::<F>
+  }
+}
 
 /// `HostCreateShadowRealmContextCallback` is called each time a `ShadowRealm`
 /// is being constructed. You can use [`HandleScope::get_current_context`] to
@@ -195,18 +321,24 @@ pub type PrepareStackTraceCallback<'s> = extern "C" fn(
 ) -> *mut *const Value;
 
 // System V ABI: MaybeLocal<Value> returned in a register.
+// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
 #[cfg(not(target_os = "windows"))]
-pub type PrepareStackTraceCallback<'s> = extern "C" fn(
-  Local<'s, Context>,
-  Local<'s, Value>,
-  Local<'s, Array>,
-) -> *const Value;
+#[repr(C)]
+pub struct PrepareStackTraceCallbackRet(*const Value);
+
+#[cfg(not(target_os = "windows"))]
+pub type PrepareStackTraceCallback<'s> =
+  extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Value>,
+    Local<'s, Array>,
+  ) -> PrepareStackTraceCallbackRet;
 
 extern "C" {
+  static v8__internal__Internals__kIsolateEmbedderDataOffset: usize;
+
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
-  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
-  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
@@ -259,7 +391,7 @@ extern "C" {
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: RawHostImportModuleDynamicallyCallback,
   );
   #[cfg(not(target_os = "windows"))]
   fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
@@ -353,9 +485,30 @@ extern "C" {
 pub struct Isolate(Opaque);
 
 impl Isolate {
+  // Total number of isolate data slots provided by V8.
+  const EMBEDDER_DATA_SLOT_COUNT: u32 = 4;
+
+  // Byte offset inside `Isolate` where the isolate data slots are stored. This
+  // should be the same as the value of `kIsolateEmbedderDataOffset` which is
+  // defined in `v8-internal.h`.
+  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 23]>();
+
+  // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
   const CURRENT_SCOPE_DATA_SLOT: u32 = 1;
-  const INTERNAL_SLOT_COUNT: u32 = 2;
+  const INTERNAL_DATA_SLOT_COUNT: u32 = 2;
+
+  #[inline(always)]
+  fn assert_embedder_data_slot_count_and_offset_correct(&self) {
+    assert_eq!(
+      unsafe { v8__Isolate__GetNumberOfDataSlots(self) },
+      Self::EMBEDDER_DATA_SLOT_COUNT
+    );
+    assert_eq!(
+      unsafe { v8__internal__Internals__kIsolateEmbedderDataOffset },
+      Self::EMBEDDER_DATA_OFFSET
+    );
+  }
 
   /// Creates a new isolate.  Does not change the currently entered
   /// isolate.
@@ -370,6 +523,7 @@ impl Isolate {
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
     let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
+    owned_isolate.assert_embedder_data_slot_count_and_offset_correct();
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(create_param_allocations);
     unsafe {
@@ -413,25 +567,24 @@ impl Isolate {
   ) {
     let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
     let annex_ptr = Arc::into_raw(annex_arc);
-    unsafe {
-      assert!(v8__Isolate__GetData(self, Self::ANNEX_SLOT).is_null());
-      v8__Isolate__SetData(self, Self::ANNEX_SLOT, annex_ptr as *mut c_void);
-    };
+    assert!(self.get_data_internal(Self::ANNEX_SLOT).is_null());
+    self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
   #[inline(always)]
   fn get_annex(&self) -> &IsolateAnnex {
-    unsafe {
-      &*(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *const _
-        as *const IsolateAnnex)
-    }
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *const IsolateAnnex;
+    assert!(!annex_ptr.is_null());
+    unsafe { &*annex_ptr }
   }
 
   #[inline(always)]
   fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
-    unsafe {
-      &mut *(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *mut IsolateAnnex)
-    }
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    assert!(!annex_ptr.is_null());
+    unsafe { &mut *annex_ptr }
   }
 
   pub(crate) fn get_finalizer_map(&self) -> &FinalizerMap {
@@ -449,37 +602,51 @@ impl Isolate {
     annex_arc
   }
 
-  /// Associate embedder-specific data with the isolate. `slot` has to be
-  /// between 0 and `Isolate::get_number_of_data_slots()`.
-  ///
-  /// 0-indexed slot is used internally by rusty_v8, so users have 3 slots
-  /// left to use.
-  #[inline(always)]
-  pub unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    assert!(slot < 4);
-    v8__Isolate__SetData(self, slot + Self::INTERNAL_SLOT_COUNT, ptr)
-  }
-
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given `slot`.
   pub fn get_data(&self, slot: u32) -> *mut c_void {
-    assert!(slot < 4);
-    unsafe { v8__Isolate__GetData(self, slot + Self::INTERNAL_SLOT_COUNT) }
+    self.get_data_internal(Self::INTERNAL_DATA_SLOT_COUNT + slot)
+  }
+
+  /// Associate embedder-specific data with the isolate. `slot` has to be
+  /// between 0 and `Isolate::get_number_of_data_slots()`.
+  #[inline(always)]
+  pub fn set_data(&mut self, slot: u32, data: *mut c_void) {
+    self.set_data_internal(Self::INTERNAL_DATA_SLOT_COUNT + slot, data)
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
-  /// are in the range of 0 - `Isolate::get_number_of_data_slots() - 1`.
+  /// are in the range of `0 <= n < Isolate::get_number_of_data_slots()`.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    unsafe {
-      v8__Isolate__GetNumberOfDataSlots(self) - Self::INTERNAL_SLOT_COUNT
-    }
+    Self::EMBEDDER_DATA_SLOT_COUNT - Self::INTERNAL_DATA_SLOT_COUNT
+  }
+
+  #[inline(always)]
+  pub(crate) fn get_data_internal(&self, slot: u32) -> *mut c_void {
+    let slots = unsafe {
+      let p = self as *const Self as *const u8;
+      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
+      let p = p as *const [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
+      &*p
+    };
+    slots[slot as usize]
+  }
+
+  #[inline(always)]
+  pub(crate) fn set_data_internal(&mut self, slot: u32, data: *mut c_void) {
+    let slots = unsafe {
+      let p = self as *mut Self as *mut u8;
+      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
+      let p = p as *mut [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
+      &mut *p
+    };
+    slots[slot as usize] = data;
   }
 
   /// Returns a pointer to the `ScopeData` struct for the current scope.
   #[inline(always)]
   pub(crate) fn get_current_scope_data(&self) -> Option<NonNull<ScopeData>> {
-    let scope_data_ptr =
-      unsafe { v8__Isolate__GetData(self, Self::CURRENT_SCOPE_DATA_SLOT) };
+    let scope_data_ptr = self.get_data_internal(Self::CURRENT_SCOPE_DATA_SLOT);
     NonNull::new(scope_data_ptr).map(NonNull::cast)
   }
 
@@ -493,9 +660,7 @@ impl Isolate {
       .map(NonNull::cast)
       .map(NonNull::as_ptr)
       .unwrap_or_else(null_mut);
-    unsafe {
-      v8__Isolate__SetData(self, Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr)
-    };
+    self.set_data_internal(Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr);
   }
 
   /// Get a reference to embedder data added with `set_slot()`.
@@ -692,10 +857,13 @@ impl Isolate {
   #[inline(always)]
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: impl HostImportModuleDynamicallyCallback,
   ) {
     unsafe {
-      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
+      v8__Isolate__SetHostImportModuleDynamicallyCallback(
+        self,
+        callback.to_c_fn(),
+      )
     }
   }
 
@@ -1123,6 +1291,18 @@ impl DerefMut for OwnedIsolate {
   }
 }
 
+impl AsMut<Isolate> for OwnedIsolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
+impl AsMut<Isolate> for Isolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
 impl HeapStatistics {
   #[inline(always)]
   pub fn total_heap_size(&self) -> usize {
@@ -1228,13 +1408,13 @@ where
     f.to_c_fn()
   }
 
-  // System V ABI: MaybeLocal<Value> returned in a register.
+  // System V ABI
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
       let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
       let r = (F::get())(&mut scope, error, sites);
-      &*r as *const _
+      PrepareStackTraceCallbackRet(&*r as *const _)
     };
     f.to_c_fn()
   }
@@ -1282,7 +1462,7 @@ impl BuildHasher for BuildTypeIdHasher {
 
 const _: () = {
   assert!(size_of::<TypeId>() == size_of::<u64>());
-  assert!(align_of::<TypeId>() == size_of::<u64>());
+  assert!(align_of::<TypeId>() == align_of::<u64>());
 };
 
 pub(crate) struct RawSlot {
