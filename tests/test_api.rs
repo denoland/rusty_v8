@@ -3788,7 +3788,7 @@ fn snapshot_creator() {
   let startup_data = {
     let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "b = 2 + 3").unwrap();
@@ -3802,7 +3802,7 @@ fn snapshot_creator() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::Isolate::snapshot_from_existing_snapshot(startup_data, None);
+      v8::Isolate::snapshot_creator_from_existing_snapshot(startup_data, None);
     {
       // Check that the SnapshotCreator isolate has been set up correctly.
       let _ = snapshot_creator.thread_safe_handle();
@@ -3905,7 +3905,7 @@ fn snapshot_creator_multiple_contexts() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::Isolate::snapshot_from_existing_snapshot(startup_data, None);
+      v8::Isolate::snapshot_creator_from_existing_snapshot(startup_data, None);
     {
       let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
