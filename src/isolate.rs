@@ -1121,7 +1121,7 @@ impl Isolate {
   /// The snapshot will not contain the global proxy, and we expect one or a
   /// global object template to create one, to be provided upon deserialization.
   ///
-  /// Panics
+  /// # Panics
   ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
@@ -1135,7 +1135,7 @@ impl Isolate {
   /// deserialization. This data does not survive when a new snapshot is created
   /// from an existing snapshot.
   ///
-  /// Panics
+  /// # Panics
   ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
@@ -1152,7 +1152,7 @@ impl Isolate {
   /// deserialization. This data does not survive when a new snapshot is
   /// created from an existing snapshot.
   ///
-  /// Panics
+  /// # Panics
   ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
@@ -1337,18 +1337,13 @@ impl OwnedIsolate {
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
     unsafe {
-      let maybe_snapshot_creator = self
-        .get_annex_mut()
-        .slots
-        .remove(&TypeId::of::<SnapshotCreator>());
-
-      if let Some(snapshot_creator) = maybe_snapshot_creator {
-        std::mem::forget(self.cxx_isolate);
-        drop(snapshot_creator);
-      } else {
-        self.exit();
-        self.cxx_isolate.as_mut().dispose();
-      }
+      let snapshot_creator = self.remove_slot::<SnapshotCreator>();
+      assert!(
+        snapshot_creator.is_none(), 
+        "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
+      );
+      self.exit();
+      self.cxx_isolate.as_mut().dispose();
     }
   }
 }
@@ -1382,7 +1377,7 @@ impl OwnedIsolate {
   /// Creates a snapshot data blob.
   /// This must not be called from within a handle scope.
   ///
-  /// Panics
+  /// # Panics
   ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
