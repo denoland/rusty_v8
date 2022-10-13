@@ -164,10 +164,6 @@ impl SnapshotCreator {
     &mut self,
     function_code_handling: FunctionCodeHandling,
   ) -> Option<StartupData> {
-    {
-      let isolate = unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) };
-      ScopeData::get_root_mut(isolate);
-    }
     let blob =
       unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {

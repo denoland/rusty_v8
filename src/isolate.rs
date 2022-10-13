@@ -383,7 +383,9 @@ impl Isolate {
   }
 
   #[allow(clippy::new_ret_no_self)]
-  pub fn snapshot_creator(external_references: Option<&'static ExternalReferences>) -> OwnedIsolate {
+  pub fn snapshot_creator(
+    external_references: Option<&'static ExternalReferences>,
+  ) -> OwnedIsolate {
     let mut snapshot_creator = SnapshotCreator::new(external_references);
     let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
     isolate.set_slot(snapshot_creator);
@@ -950,15 +952,13 @@ impl Isolate {
   /// Set the default context to be included in the snapshot blob.
   /// The snapshot will not contain the global proxy, and we expect one or a
   /// global object template to create one, to be provided upon deserialization.
-  /// 
+  ///
   /// Panics
-  /// 
+  ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn set_default_context(&mut self, context: Local<Context>) {
-    let snapshot_creator = self
-      .get_slot_mut::<SnapshotCreator>()
-      .unwrap();
+    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
     snapshot_creator.set_default_context(context);
   }
 
@@ -966,18 +966,16 @@ impl Isolate {
   /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
   /// deserialization. This data does not survive when a new snapshot is created
   /// from an existing snapshot.
-  /// 
+  ///
   /// Panics
-  /// 
+  ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
-    let snapshot_creator = self
-      .get_slot_mut::<SnapshotCreator>()
-      .unwrap();
+    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
     snapshot_creator.add_isolate_data(data)
   }
 
@@ -985,9 +983,9 @@ impl Isolate {
   /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
   /// deserialization. This data does not survive when a new snapshot is
   /// created from an existing snapshot.
-  /// 
+  ///
   /// Panics
-  /// 
+  ///
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn add_context_data<T>(
@@ -998,27 +996,8 @@ impl Isolate {
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
-    let snapshot_creator = self
-      .get_slot_mut::<SnapshotCreator>()
-      .unwrap();
+    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
     snapshot_creator.add_context_data(context, data)
-  }
-
-  /// Creates a snapshot data blob.
-  /// This must not be called from within a handle scope.
-  /// 
-  /// Panics
-  /// 
-  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
-  #[inline(always)]
-  pub fn create_blob(
-    &mut self,
-    function_code_handling: FunctionCodeHandling,
-  ) -> Option<StartupData> {
-    let snapshot_creator = self
-      .get_slot_mut::<SnapshotCreator>()
-      .unwrap();
-    snapshot_creator.create_blob(function_code_handling)
   }
 }
 
@@ -1190,15 +1169,17 @@ impl OwnedIsolate {
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
     unsafe {
-      self.exit();
-      self.cxx_isolate.as_mut().dispose();
       let maybe_snapshot_creator = self
         .get_annex_mut()
         .slots
         .remove(&TypeId::of::<SnapshotCreator>());
+
       if let Some(snapshot_creator) = maybe_snapshot_creator {
         std::mem::forget(self);
         drop(snapshot_creator);
+      } else {
+        self.exit();
+        self.cxx_isolate.as_mut().dispose();
       }
     }
   }
@@ -1226,6 +1207,27 @@ impl AsMut<Isolate> for OwnedIsolate {
 impl AsMut<Isolate> for Isolate {
   fn as_mut(&mut self) -> &mut Isolate {
     self
+  }
+}
+
+impl OwnedIsolate {
+  /// Creates a snapshot data blob.
+  /// This must not be called from within a handle scope.
+  ///
+  /// Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn create_blob(
+    mut self,
+    function_code_handling: FunctionCodeHandling,
+  ) -> Option<StartupData> {
+    let mut snapshot_creator = self.remove_slot::<SnapshotCreator>().unwrap();
+    {
+      ScopeData::get_root_mut(&mut self);
+      std::mem::forget(self);
+    }
+    snapshot_creator.create_blob(function_code_handling)
   }
 }
 
