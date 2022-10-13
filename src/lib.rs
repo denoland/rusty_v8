@@ -131,7 +131,6 @@ pub use scope::TryCatch;
 pub use script::ScriptOrigin;
 pub use script_compiler::CachedData;
 pub use snapshot::FunctionCodeHandling;
-pub use snapshot::SnapshotCreator;
 pub use snapshot::StartupData;
 pub use string::NewStringType;
 pub use string::WriteOptions;

@@ -6,6 +6,7 @@ use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
+use crate::snapshot::SnapshotCreator;
 use crate::support::Allocated;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -29,7 +30,6 @@ use crate::Module;
 use crate::Object;
 use crate::Promise;
 use crate::PromiseResolver;
-use crate::SnapshotCreator;
 use crate::StartupData;
 use crate::String;
 use crate::Value;
@@ -541,10 +541,7 @@ impl Isolate {
   pub fn snapshot_creator(
     external_references: Option<&'static ExternalReferences>,
   ) -> OwnedIsolate {
-    let mut snapshot_creator = SnapshotCreator::new(external_references);
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
-    isolate.set_slot(snapshot_creator);
-    isolate
+    SnapshotCreator::new(external_references)
   }
 
   #[allow(clippy::new_ret_no_self)]
