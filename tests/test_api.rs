@@ -3786,45 +3786,43 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    let mut isolate = snapshot_creator.get_owned_isolate();
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
       let scope = &mut v8::HandleScope::new(&mut isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "b = 2 + 3").unwrap();
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
 
     snapshot_creator
-      .create_blob(isolate, v8::FunctionCodeHandling::Clear)
+      .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::SnapshotCreator::from_existing_snapshot(startup_data, None);
-    let mut isolate = snapshot_creator.get_owned_isolate();
+      v8::Isolate::snapshot_from_existing_snapshot(startup_data, None);
     {
       // Check that the SnapshotCreator isolate has been set up correctly.
-      let _ = isolate.thread_safe_handle();
+      let _ = snapshot_creator.thread_safe_handle();
 
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "a = 1 + 2").unwrap();
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
 
-      isolate_data_index =
-        snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
-      context_data_index =
-        snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
-      context_data_index_2 =
-        snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
+      let n1 = v8::Number::new(scope, 1.0);
+      let n2 = v8::Number::new(scope, 2.0);
+      let n3 = v8::Number::new(scope, 3.0);
+      isolate_data_index = scope.add_isolate_data(n1);
+      context_data_index = scope.add_context_data(context, n2);
+      context_data_index_2 = scope.add_context_data(context, n3);
     }
     snapshot_creator
-      .create_blob(isolate, v8::FunctionCodeHandling::Clear)
+      .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
   assert!(startup_data.len() > 0);
@@ -3872,10 +3870,9 @@ fn snapshot_creator() {
 fn snapshot_creator_multiple_contexts() {
   let _setup_guard = setup();
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    let mut isolate = snapshot_creator.get_owned_isolate();
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
-      let mut scope = v8::HandleScope::new(&mut isolate);
+      let mut scope = v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(&mut scope);
       let scope = &mut v8::ContextScope::new(&mut scope, context);
       eval(scope, "globalThis.__bootstrap = { defaultContextProp: 1};")
@@ -3886,10 +3883,10 @@ fn snapshot_creator_multiple_contexts() {
         let one_val = v8::Number::new(scope, 1.0).into();
         assert!(value.same_value(one_val));
       }
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "globalThis.__bootstrap = { context0Prop: 2 };").unwrap();
@@ -3898,20 +3895,19 @@ fn snapshot_creator_multiple_contexts() {
         let two_val = v8::Number::new(scope, 2.0).into();
         assert!(value.same_value(two_val));
       }
-      assert_eq!(0, snapshot_creator.add_context(context));
+      assert_eq!(0, scope.add_context(context));
     }
 
     snapshot_creator
-      .create_blob(isolate, v8::FunctionCodeHandling::Clear)
+      .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::SnapshotCreator::from_existing_snapshot(startup_data, None);
-    let mut isolate = snapshot_creator.get_owned_isolate();
+      v8::Isolate::snapshot_from_existing_snapshot(startup_data, None);
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
       {
@@ -3931,10 +3927,10 @@ fn snapshot_creator_multiple_contexts() {
         let three_val = v8::Number::new(scope, 3.0).into();
         assert!(value.same_value(three_val));
       }
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::from_snapshot(scope, 0).unwrap();
       let scope = &mut v8::ContextScope::new(scope, context);
       {
@@ -3954,10 +3950,10 @@ fn snapshot_creator_multiple_contexts() {
         let four_val = v8::Number::new(scope, 4.0).into();
         assert!(value.same_value(four_val));
       }
-      assert_eq!(snapshot_creator.add_context(context), 0);
+      assert_eq!(scope.add_context(context), 0);
     }
     snapshot_creator
-      .create_blob(isolate, v8::FunctionCodeHandling::Clear)
+      .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
   {
@@ -4044,10 +4040,9 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs));
-    let mut isolate = snapshot_creator.get_owned_isolate();
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(Some(refs));
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -4064,10 +4059,10 @@ fn external_references() {
       let key = v8::String::new(scope, "F").unwrap();
       global.set(scope, key.into(), function.into());
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
     snapshot_creator
-      .create_blob(isolate, v8::FunctionCodeHandling::Clear)
+      .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
   assert!(startup_data.len() > 0);
@@ -5467,10 +5462,9 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    let mut isolate = snapshot_creator.get_owned_isolate();
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5502,10 +5496,10 @@ fn module_snapshot() {
       assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
       assert_eq!(script_id, module.script_id());
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
     snapshot_creator
-      .create_blob(isolate, v8::FunctionCodeHandling::Keep)
+      .create_blob(v8::FunctionCodeHandling::Keep)
       .unwrap()
   };
   assert!(startup_data.len() > 0);

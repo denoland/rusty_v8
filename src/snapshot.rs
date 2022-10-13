@@ -161,8 +161,7 @@ impl SnapshotCreator {
     };
 
     let isolate = unsafe {
-      let isolate_ptr =
-        v8__SnapshotCreator__GetIsolate(snapshot_creator_inner);
+      let isolate_ptr = v8__SnapshotCreator__GetIsolate(snapshot_creator_inner);
       let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
       ScopeData::new_root(&mut owned_isolate);
       owned_isolate.create_annex(Box::new(snapshot_allocations));
@@ -246,16 +245,10 @@ impl SnapshotCreator {
   #[inline(always)]
   pub fn create_blob(
     &mut self,
-    isolate: OwnedIsolate,
     function_code_handling: FunctionCodeHandling,
   ) -> Option<StartupData> {
-    assert!(self.isolate.replace(isolate).is_none());
-    {
-      ScopeData::get_root_mut(self.isolate.as_deref_mut().unwrap());
-    }
-    let blob = unsafe {
-      v8__SnapshotCreator__CreateBlob(&mut self.inner, function_code_handling)
-    };
+    let blob =
+      unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {
       debug_assert!(blob.raw_size == 0);
       None
