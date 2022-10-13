@@ -1343,7 +1343,7 @@ impl Drop for OwnedIsolate {
         .remove(&TypeId::of::<SnapshotCreator>());
 
       if let Some(snapshot_creator) = maybe_snapshot_creator {
-        std::mem::forget(self);
+        std::mem::forget(self.cxx_isolate);
         drop(snapshot_creator);
       } else {
         self.exit();
