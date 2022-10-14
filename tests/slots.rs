@@ -326,22 +326,18 @@ fn dropped_context_slots_on_kept_context() {
 fn clear_all_context_slots() {
   setup();
 
-  let mut snapshot_creator = v8::SnapshotCreator::new(None);
-  let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+  let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
 
   {
-    let scope = &mut v8::HandleScope::new(&mut isolate);
+    let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
     context.set_slot(scope, TestState(0));
     context.clear_all_slots(scope);
     assert!(context.get_slot::<TestState>(scope).is_none());
-
-    snapshot_creator.set_default_context(context);
+    scope.set_default_context(context);
   }
-
-  std::mem::forget(isolate);
 
   snapshot_creator
     .create_blob(v8::FunctionCodeHandling::Keep)

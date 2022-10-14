@@ -3786,32 +3786,41 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
-      // Check that the SnapshotCreator isolate has been set up correctly.
-      let _ = isolate.thread_safe_handle();
-
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
-
-      let source = v8::String::new(scope, "a = 1 + 2").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      script.run(scope).unwrap();
-
-      snapshot_creator.set_default_context(context);
-
-      isolate_data_index =
-        snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
-      context_data_index =
-        snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
-      context_data_index_2 =
-        snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
+      eval(scope, "b = 2 + 3").unwrap();
+      scope.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
+
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+
+  let startup_data = {
+    let mut snapshot_creator =
+      v8::Isolate::snapshot_creator_from_existing_snapshot(startup_data, None);
+    {
+      // Check that the SnapshotCreator isolate has been set up correctly.
+      let _ = snapshot_creator.thread_safe_handle();
+
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      eval(scope, "a = 1 + 2").unwrap();
+
+      scope.set_default_context(context);
+
+      let n1 = v8::Number::new(scope, 1.0);
+      let n2 = v8::Number::new(scope, 2.0);
+      let n3 = v8::Number::new(scope, 3.0);
+      isolate_data_index = scope.add_isolate_data(n1);
+      context_data_index = scope.add_context_data(context, n2);
+      context_data_index_2 = scope.add_context_data(context, n3);
+    }
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -3826,9 +3835,11 @@ fn snapshot_creator() {
       let scope = &mut v8::HandleScope::new(isolate);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
-      let source = v8::String::new(scope, "a === 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "a === 3").unwrap();
+      let true_val = v8::Boolean::new(scope, true).into();
+      assert!(result.same_value(true_val));
+
+      let result = eval(scope, "b === 5").unwrap();
       let true_val = v8::Boolean::new(scope, true).into();
       assert!(result.same_value(true_val));
 
@@ -3851,6 +3862,154 @@ fn snapshot_creator() {
           context_data_index_2,
         );
       assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
+    }
+  }
+}
+
+#[test]
+fn snapshot_creator_multiple_contexts() {
+  let _setup_guard = setup();
+  let startup_data = {
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
+    {
+      let mut scope = v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::new(&mut scope);
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      eval(scope, "globalThis.__bootstrap = { defaultContextProp: 1};")
+        .unwrap();
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp").unwrap();
+        let one_val = v8::Number::new(scope, 1.0).into();
+        assert!(value.same_value(one_val));
+      }
+      scope.set_default_context(context);
+    }
+    {
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      eval(scope, "globalThis.__bootstrap = { context0Prop: 2 };").unwrap();
+      {
+        let value = eval(scope, "globalThis.__bootstrap.context0Prop").unwrap();
+        let two_val = v8::Number::new(scope, 2.0).into();
+        assert!(value.same_value(two_val));
+      }
+      assert_eq!(0, scope.add_context(context));
+    }
+
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+
+  let startup_data = {
+    let mut snapshot_creator =
+      v8::Isolate::snapshot_creator_from_existing_snapshot(startup_data, None);
+    {
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp").unwrap();
+        let one_val = v8::Number::new(scope, 1.0).into();
+        assert!(value.same_value(one_val));
+      }
+      {
+        let value = eval(scope, "globalThis.__bootstrap.context0Prop").unwrap();
+        assert!(value.is_undefined());
+      }
+      {
+        eval(scope, "globalThis.__bootstrap.defaultContextProp2 = 3;").unwrap();
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp2").unwrap();
+        let three_val = v8::Number::new(scope, 3.0).into();
+        assert!(value.same_value(three_val));
+      }
+      scope.set_default_context(context);
+    }
+    {
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::from_snapshot(scope, 0).unwrap();
+      let scope = &mut v8::ContextScope::new(scope, context);
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp").unwrap();
+        assert!(value.is_undefined());
+      }
+      {
+        let value = eval(scope, "globalThis.__bootstrap.context0Prop").unwrap();
+        let two_val = v8::Number::new(scope, 2.0).into();
+        assert!(value.same_value(two_val));
+      }
+      {
+        eval(scope, "globalThis.__bootstrap.context0Prop2 = 4;").unwrap();
+        let value =
+          eval(scope, "globalThis.__bootstrap.context0Prop2").unwrap();
+        let four_val = v8::Number::new(scope, 4.0).into();
+        assert!(value.same_value(four_val));
+      }
+      assert_eq!(scope.add_context(context), 0);
+    }
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+  {
+    let params = v8::Isolate::create_params().snapshot_blob(startup_data);
+    let isolate = &mut v8::Isolate::new(params);
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope);
+      let scope = &mut v8::ContextScope::new(scope, context);
+      {
+        let value = eval(scope, "globalThis.__bootstrap.context0Prop").unwrap();
+        assert!(value.is_undefined());
+      }
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.context0Prop2").unwrap();
+        assert!(value.is_undefined());
+      }
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp").unwrap();
+        let one_val = v8::Number::new(scope, 1.0).into();
+        assert!(value.same_value(one_val));
+      }
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp2").unwrap();
+        let three_val = v8::Number::new(scope, 3.0).into();
+        assert!(value.same_value(three_val));
+      }
+    }
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::from_snapshot(scope, 0).unwrap();
+      let scope = &mut v8::ContextScope::new(scope, context);
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp").unwrap();
+        assert!(value.is_undefined());
+      }
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.defaultContextProp2").unwrap();
+        assert!(value.is_undefined());
+      }
+      {
+        let value = eval(scope, "globalThis.__bootstrap.context0Prop").unwrap();
+        let two_val = v8::Number::new(scope, 2.0).into();
+        assert!(value.same_value(two_val));
+      }
+      {
+        let value =
+          eval(scope, "globalThis.__bootstrap.context0Prop2").unwrap();
+        let four_val = v8::Number::new(scope, 4.0).into();
+        assert!(value.same_value(four_val));
+      }
     }
   }
 }
@@ -3881,12 +4040,9 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs));
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(Some(refs));
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3903,9 +4059,8 @@ fn external_references() {
       let key = v8::String::new(scope, "F").unwrap();
       global.set(scope, key.into(), function.into());
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -5307,12 +5462,9 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5344,9 +5496,8 @@ fn module_snapshot() {
       assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
       assert_eq!(script_id, module.script_id());
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Keep)
       .unwrap()
@@ -5362,14 +5513,10 @@ fn module_snapshot() {
 
       let true_val = v8::Boolean::new(scope, true).into();
 
-      let source = v8::String::new(scope, "a === 3").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "a === 3").unwrap();
       assert!(result.same_value(true_val));
 
-      let source = v8::String::new(scope, "b === 42").unwrap();
-      let script = v8::Script::compile(scope, source, None).unwrap();
-      let result = script.run(scope).unwrap();
+      let result = eval(scope, "b === 42").unwrap();
       assert!(result.same_value(true_val));
     }
   }
@@ -7595,7 +7742,7 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(a: u32, b: u32) -> u32 {
+  fn fast_fn(_recv: v8::Local<v8::Object>, a: u32, b: u32) -> u32 {
     unsafe { WHO = "fast" };
     a + b
   }
@@ -7603,7 +7750,8 @@ fn test_fast_calls() {
   pub struct FastTest;
   impl fast_api::FastFunction for FastTest {
     fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::Uint32, fast_api::Type::Uint32]
+      use fast_api::Type::*;
+      &[V8Value, Uint32, Uint32]
     }
 
     fn return_type(&self) -> fast_api::CType {
@@ -7617,11 +7765,13 @@ fn test_fast_calls() {
 
   fn slow_fn(
     scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
+    args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
   ) {
     unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
+    let a = args.get(0).uint32_value(scope).unwrap();
+    let b = args.get(1).uint32_value(scope).unwrap();
+    rv.set_uint32(a + b);
   }
 
   let _setup_guard = setup();
@@ -7639,16 +7789,16 @@ fn test_fast_calls() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(x, y) { return func(x, y); }
-  %PrepareFunctionForOptimization(f);
-  f(1, 2);
-"#;
+    function f(x, y) { return func(x, y); }
+    %PrepareFunctionForOptimization(f);
+    if (42 !== f(19, 23)) throw "unexpected";
+  "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
     %OptimizeFunctionOnNextCall(f);
-    f(1, 2);
+    if (42 !== f(19, 23)) throw "unexpected";
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
