@@ -3786,15 +3786,12 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
       // Check that the SnapshotCreator isolate has been set up correctly.
-      let _ = isolate.thread_safe_handle();
+      let _ = snapshot_creator.thread_safe_handle();
 
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3802,16 +3799,15 @@ fn snapshot_creator() {
       let script = v8::Script::compile(scope, source, None).unwrap();
       script.run(scope).unwrap();
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
 
-      isolate_data_index =
-        snapshot_creator.add_isolate_data(v8::Number::new(scope, 1.0));
-      context_data_index =
-        snapshot_creator.add_context_data(context, v8::Number::new(scope, 2.0));
-      context_data_index_2 =
-        snapshot_creator.add_context_data(context, v8::Number::new(scope, 3.0));
+      let n1 = v8::Number::new(scope, 1.0);
+      let n2 = v8::Number::new(scope, 2.0);
+      let n3 = v8::Number::new(scope, 3.0);
+      isolate_data_index = scope.add_isolate_data(n1);
+      context_data_index = scope.add_context_data(context, n2);
+      context_data_index_2 = scope.add_context_data(context, n3);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -3881,12 +3877,9 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(Some(refs));
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(Some(refs));
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3903,9 +3896,8 @@ fn external_references() {
       let key = v8::String::new(scope, "F").unwrap();
       global.set(scope, key.into(), function.into());
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
@@ -5307,12 +5299,9 @@ fn module_snapshot() {
   let _setup_guard = setup();
 
   let startup_data = {
-    let mut snapshot_creator = v8::SnapshotCreator::new(None);
-    // TODO(ry) this shouldn't be necessary. workaround unfinished business in
-    // the scope type system.
-    let mut isolate = unsafe { snapshot_creator.get_owned_isolate() };
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5344,9 +5333,8 @@ fn module_snapshot() {
       assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
       assert_eq!(script_id, module.script_id());
 
-      snapshot_creator.set_default_context(context);
+      scope.set_default_context(context);
     }
-    std::mem::forget(isolate); // TODO(ry) this shouldn't be necessary.
     snapshot_creator
       .create_blob(v8::FunctionCodeHandling::Keep)
       .unwrap()

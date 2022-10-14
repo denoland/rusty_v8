@@ -89,26 +89,37 @@ pub enum FunctionCodeHandling {
 /// Helper class to create a snapshot data blob.
 #[repr(C)]
 #[derive(Debug)]
-pub struct SnapshotCreator([usize; 1]);
+pub(crate) struct SnapshotCreator([usize; 1]);
 
 impl SnapshotCreator {
   /// Create and enter an isolate, and set it up for serialization.
   /// The isolate is created from scratch.
   #[inline(always)]
-  pub fn new(external_references: Option<&'static ExternalReferences>) -> Self {
+  #[allow(clippy::new_ret_no_self)]
+  pub(crate) fn new(
+    external_references: Option<&'static ExternalReferences>,
+  ) -> OwnedIsolate {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
     let external_references_ptr = if let Some(er) = external_references {
       er.as_ptr()
     } else {
       std::ptr::null()
     };
-    unsafe {
+    let snapshot_creator = unsafe {
       v8__SnapshotCreator__CONSTRUCT(
         &mut snapshot_creator,
         external_references_ptr,
       );
       snapshot_creator.assume_init()
-    }
+    };
+
+    let isolate_ptr =
+      unsafe { v8__SnapshotCreator__GetIsolate(&snapshot_creator) };
+    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
+    ScopeData::new_root(&mut owned_isolate);
+    owned_isolate.create_annex(Box::new(()));
+    owned_isolate.set_snapshot_creator(snapshot_creator);
+    owned_isolate
   }
 }
 
@@ -123,7 +134,7 @@ impl SnapshotCreator {
   /// The snapshot will not contain the global proxy, and we expect one or a
   /// global object template to create one, to be provided upon deserialization.
   #[inline(always)]
-  pub fn set_default_context(&mut self, context: Local<Context>) {
+  pub(crate) fn set_default_context(&mut self, context: Local<Context>) {
     unsafe { v8__SnapshotCreator__SetDefaultContext(self, &*context) };
   }
 
@@ -132,7 +143,7 @@ impl SnapshotCreator {
   /// deserialization. This data does not survive when a new snapshot is created
   /// from an existing snapshot.
   #[inline(always)]
-  pub fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
+  pub(crate) fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
@@ -144,7 +155,7 @@ impl SnapshotCreator {
   /// deserialization. This data does not survive when a new snapshot is
   /// created from an existing snapshot.
   #[inline(always)]
-  pub fn add_context_data<T>(
+  pub(crate) fn add_context_data<T>(
     &mut self,
     context: Local<Context>,
     data: Local<T>,
@@ -160,14 +171,10 @@ impl SnapshotCreator {
   /// Creates a snapshot data blob.
   /// This must not be called from within a handle scope.
   #[inline(always)]
-  pub fn create_blob(
+  pub(crate) fn create_blob(
     &mut self,
     function_code_handling: FunctionCodeHandling,
   ) -> Option<StartupData> {
-    {
-      let isolate = unsafe { &mut *v8__SnapshotCreator__GetIsolate(self) };
-      ScopeData::get_root_mut(isolate);
-    }
     let blob =
       unsafe { v8__SnapshotCreator__CreateBlob(self, function_code_handling) };
     if blob.data.is_null() {
@@ -177,19 +184,5 @@ impl SnapshotCreator {
       debug_assert!(blob.raw_size > 0);
       Some(blob)
     }
-  }
-
-  /// This is marked unsafe because it should be called at most once per
-  /// snapshot creator.
-  // TODO Because the SnapshotCreator creates its own isolate, we need a way to
-  // get an owned handle to it. This is a questionable design which ought to be
-  // revisited after the libdeno integration is complete.
-  #[inline(always)]
-  pub unsafe fn get_owned_isolate(&mut self) -> OwnedIsolate {
-    let isolate_ptr = v8__SnapshotCreator__GetIsolate(self);
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(Box::new(()));
-    owned_isolate
   }
 }
