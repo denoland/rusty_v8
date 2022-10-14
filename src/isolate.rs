@@ -7,6 +7,7 @@ use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::snapshot::SnapshotCreator;
+use crate::support::Allocated;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::Opaque;
@@ -541,6 +542,17 @@ impl Isolate {
     external_references: Option<&'static ExternalReferences>,
   ) -> OwnedIsolate {
     SnapshotCreator::new(external_references)
+  }
+
+  #[allow(clippy::new_ret_no_self)]
+  pub fn snapshot_creator_from_existing_snapshot(
+    existing_snapshot_blob: impl Allocated<[u8]>,
+    external_references: Option<&'static ExternalReferences>,
+  ) -> OwnedIsolate {
+    SnapshotCreator::from_existing_snapshot(
+      existing_snapshot_blob,
+      external_references,
+    )
   }
 
   /// Initial configuration parameters for a new Isolate.
@@ -1144,6 +1156,24 @@ impl Isolate {
     snapshot_creator.set_default_context(context);
   }
 
+  /// Add additional context to be included in the snapshot blob.
+  /// The snapshot will include the global proxy.
+  ///
+  /// Returns the index of the context in the snapshot blob.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_context(&mut self, context: Local<Context>) -> usize {
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
+    snapshot_creator.add_context(context)
+  }
+
   /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
   /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
   /// deserialization. This data does not survive when a new snapshot is created
@@ -1412,7 +1442,6 @@ impl OwnedIsolate {
   ) -> Option<StartupData> {
     let mut snapshot_creator =
       self.get_annex_mut().maybe_snapshot_creator.take().unwrap();
-    ScopeData::get_root_mut(&mut self);
     unsafe { self.cxx_isolate.as_mut().clear_scope_and_annex() };
     // The isolate is owned by the snapshot creator; we need to forget it
     // here as the snapshot creator will drop it when running the destructor.

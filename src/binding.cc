@@ -1670,6 +1670,13 @@ void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function& init_hook,
       ptr_to_local(&after_hook), ptr_to_local(&resolve_hook));
 }
 
+const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
+                                             size_t context_snapshot_index) {
+  v8::MaybeLocal<v8::Context> maybe_local =
+      v8::Context::FromSnapshot(isolate, context_snapshot_index);
+  return maybe_local_to_ptr(maybe_local);
+}
+
 const v8::String* v8__Message__Get(const v8::Message& self) {
   return local_to_ptr(self.Get());
 }
@@ -2316,8 +2323,10 @@ bool v8__Proxy__IsRevoked(const v8::Proxy& self) {
 void v8__Proxy__Revoke(const v8::Proxy& self) { ptr_to_local(&self)->Revoke(); }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>* buf,
-                                    const intptr_t* external_references) {
-  construct_in_place<v8::SnapshotCreator>(buf, external_references);
+                                    const intptr_t* external_references,
+                                    v8::StartupData* existing_blob) {
+  construct_in_place<v8::SnapshotCreator>(buf, external_references,
+                                          existing_blob);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
@@ -2349,6 +2358,11 @@ v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
 void v8__SnapshotCreator__SetDefaultContext(v8::SnapshotCreator* self,
                                             const v8::Context& context) {
   self->SetDefaultContext(ptr_to_local(&context), SerializeInternalFields);
+}
+
+size_t v8__SnapshotCreator__AddContext(v8::SnapshotCreator* self,
+                                       const v8::Context& context) {
+  return self->AddContext(ptr_to_local(&context), SerializeInternalFields);
 }
 
 size_t v8__SnapshotCreator__AddData_to_isolate(v8::SnapshotCreator* self,
