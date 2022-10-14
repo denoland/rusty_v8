@@ -105,7 +105,7 @@ impl SnapshotCreator {
   /// The isolate is created from scratch.
   #[inline(always)]
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(
+  pub(crate) fn new(
     external_references: Option<&'static ExternalReferences>,
   ) -> OwnedIsolate {
     Self::new_impl(external_references, None::<&[u8]>)
@@ -115,7 +115,7 @@ impl SnapshotCreator {
   /// The isolate is created from scratch.
   #[inline(always)]
   #[allow(clippy::new_ret_no_self)]
-  pub fn from_existing_snapshot(
+  pub(crate) fn from_existing_snapshot(
     existing_snapshot_blob: impl Allocated<[u8]>,
     external_references: Option<&'static ExternalReferences>,
   ) -> OwnedIsolate {
@@ -163,7 +163,7 @@ impl SnapshotCreator {
     let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(Box::new(snapshot_allocations));
-    owned_isolate.set_slot(snapshot_creator);
+    owned_isolate.set_snapshot_creator(snapshot_creator);
     owned_isolate
   }
 }

@@ -610,6 +610,17 @@ impl Isolate {
     unsafe { &mut *annex_ptr }
   }
 
+  pub(crate) fn set_snapshot_creator(
+    &mut self,
+    snapshot_creator: SnapshotCreator,
+  ) {
+    let prev = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .replace(snapshot_creator);
+    assert!(prev.is_none());
+  }
+
   pub(crate) fn get_finalizer_map(&self) -> &FinalizerMap {
     &self.get_annex().finalizer_map
   }
@@ -1054,9 +1065,7 @@ impl Isolate {
     unsafe { v8__Isolate__HasPendingBackgroundTasks(self) }
   }
 
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  unsafe fn dispose(&mut self) {
+  unsafe fn clear_scope_and_annex(&mut self) {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
@@ -1092,7 +1101,11 @@ impl Isolate {
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
     self.set_data(0, null_mut());
+  }
 
+  /// Disposes the isolate.  The isolate must not be entered by any
+  /// thread to be disposable.
+  unsafe fn dispose(&mut self) {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
     v8__Isolate__Dispose(self)
@@ -1135,7 +1148,11 @@ impl Isolate {
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn set_default_context(&mut self, context: Local<Context>) {
-    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
     snapshot_creator.set_default_context(context);
   }
 
@@ -1149,7 +1166,11 @@ impl Isolate {
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn add_context(&mut self, context: Local<Context>) -> usize {
-    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
     snapshot_creator.add_context(context)
   }
 
@@ -1166,7 +1187,11 @@ impl Isolate {
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
-    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
     snapshot_creator.add_isolate_data(data)
   }
 
@@ -1187,7 +1212,11 @@ impl Isolate {
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
-    let snapshot_creator = self.get_slot_mut::<SnapshotCreator>().unwrap();
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
     snapshot_creator.add_context_data(context, data)
   }
 }
@@ -1196,6 +1225,7 @@ pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
   finalizer_map: FinalizerMap,
+  maybe_snapshot_creator: Option<SnapshotCreator>,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -1216,6 +1246,7 @@ impl IsolateAnnex {
       create_param_allocations,
       slots: HashMap::default(),
       finalizer_map: FinalizerMap::default(),
+      maybe_snapshot_creator: None,
       isolate,
       isolate_mutex: Mutex::new(()),
     }
@@ -1360,12 +1391,13 @@ impl OwnedIsolate {
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
     unsafe {
-      let snapshot_creator = self.remove_slot::<SnapshotCreator>();
+      let snapshot_creator = self.get_annex_mut().maybe_snapshot_creator.take();
       assert!(
         snapshot_creator.is_none(),
         "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
       );
       self.exit();
+      self.cxx_isolate.as_mut().clear_scope_and_annex();
       self.cxx_isolate.as_mut().dispose();
     }
   }
@@ -1408,11 +1440,12 @@ impl OwnedIsolate {
     mut self,
     function_code_handling: FunctionCodeHandling,
   ) -> Option<StartupData> {
-    let mut snapshot_creator = self.remove_slot::<SnapshotCreator>().unwrap();
-    {
-      ScopeData::get_root_mut(&mut self);
-      std::mem::forget(self);
-    }
+    let mut snapshot_creator =
+      self.get_annex_mut().maybe_snapshot_creator.take().unwrap();
+    unsafe { self.cxx_isolate.as_mut().clear_scope_and_annex() };
+    // The isolate is owned by the snapshot creator; we need to forget it
+    // here as the snapshot creator will drop it when running the destructor.
+    std::mem::forget(self);
     snapshot_creator.create_blob(function_code_handling)
   }
 }
