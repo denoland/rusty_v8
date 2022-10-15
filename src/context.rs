@@ -330,7 +330,7 @@ impl Context {
       v8__Context__GetAlignedPointerFromEmbedderData(
         self,
         slot + Self::INTERNAL_SLOT_COUNT,
-      )    
+      )
     }
   }
 
