@@ -829,11 +829,7 @@ bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {
 }
 
 bool v8__ArrayBuffer__WasDetached(const v8::ArrayBuffer& self) {
-  /// v8 does not provide a direct way to check if an ArrayBuffer
-  /// is already detached. Instead, we use JSArrayBufferView->WasDetached
-  return v8::Utils::OpenHandle(
-             local_to_ptr(v8::Uint8Array::New(ptr_to_local(&self), 0, 0)))
-      ->WasDetached();
+  return v8::Utils::OpenHandle(&self)->was_detached();
 }
 
 void* v8__BackingStore__Data(const v8::BackingStore& self) {
