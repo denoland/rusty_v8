@@ -828,6 +828,10 @@ bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {
   return ptr_to_local(&self)->IsDetachable();
 }
 
+bool v8__ArrayBuffer__WasDetached(const v8::ArrayBuffer& self) {
+  return v8::Utils::OpenHandle(&self)->was_detached();
+}
+
 void* v8__BackingStore__Data(const v8::BackingStore& self) {
   return self.Data();
 }

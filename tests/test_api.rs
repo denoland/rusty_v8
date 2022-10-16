@@ -573,11 +573,19 @@ fn array_buffer() {
 
     let ab = v8::ArrayBuffer::new(scope, 42);
     assert_eq!(42, ab.byte_length());
-
+    assert!(!ab.was_detached());
     assert!(ab.is_detachable());
+
     ab.detach();
     assert_eq!(0, ab.byte_length());
+    assert!(ab.was_detached());
     ab.detach(); // Calling it twice should be a no-op.
+
+    // detecting if it was detached on a zero-length ArrayBuffer should work
+    let empty_ab = v8::ArrayBuffer::new(scope, 0);
+    assert!(!empty_ab.was_detached());
+    empty_ab.detach();
+    assert!(empty_ab.was_detached());
 
     let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
     assert_eq!(84, bs.byte_length());
