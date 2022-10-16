@@ -38,6 +38,7 @@ extern "C" {
   fn v8__ArrayBuffer__Detach(this: *const ArrayBuffer);
   fn v8__ArrayBuffer__Data(this: *const ArrayBuffer) -> *mut c_void;
   fn v8__ArrayBuffer__IsDetachable(this: *const ArrayBuffer) -> bool;
+  fn v8__ArrayBuffer__WasDetached(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__ByteLength(this: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
     this: *const ArrayBuffer,
@@ -387,6 +388,15 @@ impl ArrayBuffer {
   #[inline(always)]
   pub fn is_detachable(&self) -> bool {
     unsafe { v8__ArrayBuffer__IsDetachable(self) }
+  }
+
+  /// Returns true if this ArrayBuffer was detached.
+  #[inline(always)]
+  pub fn was_detached(&self) -> bool {
+    if self.byte_length() != 0 {
+      return false;
+    }
+    unsafe { v8__ArrayBuffer__WasDetached(self) }
   }
 
   /// Detaches this ArrayBuffer and all its views (typed arrays).
