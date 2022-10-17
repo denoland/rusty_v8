@@ -7,6 +7,7 @@ use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::snapshot::SnapshotCreator;
+use crate::support::int;
 use crate::support::Allocated;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -340,7 +341,7 @@ pub type PrepareStackTraceCallback<'s> =
   ) -> PrepareStackTraceCallbackRet;
 
 extern "C" {
-  static v8__internal__Internals__kIsolateEmbedderDataOffset: usize;
+  static v8__internal__Internals__kIsolateEmbedderDataOffset: int;
 
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
@@ -510,7 +511,7 @@ impl Isolate {
       Self::EMBEDDER_DATA_SLOT_COUNT
     );
     assert_eq!(
-      unsafe { v8__internal__Internals__kIsolateEmbedderDataOffset },
+      unsafe { v8__internal__Internals__kIsolateEmbedderDataOffset } as usize,
       Self::EMBEDDER_DATA_OFFSET
     );
   }
