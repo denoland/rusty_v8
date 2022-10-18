@@ -52,6 +52,7 @@ extern "C" {
 
 impl Context {
   const ANNEX_SLOT: c_int = 1;
+  const INTERNAL_SLOT_COUNT: c_int = 1;
 
   /// Creates a new context.
   #[inline(always)]
@@ -304,6 +305,32 @@ impl Context {
           null_mut(),
         )
       };
+    }
+  }
+
+  #[inline(always)]
+  pub unsafe fn set_aligned_pointer_in_embedder_data(
+    &self,
+    slot: i32,
+    data: *mut c_void,
+  ) {
+    v8__Context__SetAlignedPointerInEmbedderData(
+      self,
+      slot + Self::INTERNAL_SLOT_COUNT,
+      data,
+    )
+  }
+
+  #[inline(always)]
+  pub fn get_aligned_pointer_from_embedder_data(
+    &self,
+    slot: i32,
+  ) -> *mut c_void {
+    unsafe {
+      v8__Context__GetAlignedPointerFromEmbedderData(
+        self,
+        slot + Self::INTERNAL_SLOT_COUNT,
+      )
     }
   }
 

@@ -7675,6 +7675,46 @@ fn isolate_data_slots() {
 }
 
 #[test]
+fn context_embedder_data() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let global_context;
+
+  let expected0 = "Bla";
+  let expected1 = 123.456f64;
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+
+    unsafe {
+      context.set_aligned_pointer_in_embedder_data(
+        0,
+        &expected0 as *const _ as *mut &str as *mut c_void,
+      );
+      context.set_aligned_pointer_in_embedder_data(
+        1,
+        &expected1 as *const _ as *mut f64 as *mut c_void,
+      );
+    }
+
+    global_context = v8::Global::new(scope, context);
+  }
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = global_context.open(scope);
+    let actual0 =
+      context.get_aligned_pointer_from_embedder_data(0) as *mut &str;
+    let actual0 = unsafe { *actual0 };
+    assert_eq!(actual0, expected0);
+
+    let actual1 = context.get_aligned_pointer_from_embedder_data(1) as *mut f64;
+    let actual1 = unsafe { *actual1 };
+    assert_eq!(actual1, expected1);
+  }
+}
+
+#[test]
 fn host_create_shadow_realm_context_callback() {
   let _setup_guard = setup();
 
