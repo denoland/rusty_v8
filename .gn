@@ -30,6 +30,7 @@ default_args = {
   symbol_level = 1
   use_debug_fission = false
 
+  v8_enable_sandbox = false
   v8_enable_snapshot_compression = false
   v8_enable_javascript_promise_hooks = true
   v8_promise_internal_field_count = 1
