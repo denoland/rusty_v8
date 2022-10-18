@@ -1923,6 +1923,11 @@ const v8::Object* v8__FunctionCallbackInfo__This(
   return local_to_ptr(self.This());
 }
 
+const v8::Object* v8__FunctionCallbackInfo__This(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Callee());
+}
+
 int v8__FunctionCallbackInfo__Length(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return self.Length();

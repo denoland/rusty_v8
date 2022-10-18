@@ -58,6 +58,9 @@ extern "C" {
   fn v8__FunctionCallbackInfo__This(
     this: *const FunctionCallbackInfo,
   ) -> *const Object;
+  fn v8__FunctionCallbackInfo__Callee(
+    callee: *const FunctionCallbackInfo,
+  ) -> *const Function;
   fn v8__FunctionCallbackInfo__Length(this: *const FunctionCallbackInfo)
     -> int;
   fn v8__FunctionCallbackInfo__GetArgument(
@@ -247,6 +250,14 @@ impl<'s> FunctionCallbackArguments<'s> {
   pub fn this(&self) -> Local<'s, Object> {
     unsafe {
       Local::from_raw(v8__FunctionCallbackInfo__This(self.info)).unwrap()
+    }
+  }
+
+  /// Returns the callee function.
+  #[inline(always)]
+  pub fn callee(&self) -> Local<'s, Function> {
+    unsafe {
+      Local::from_raw(v8__FunctionCallbackInfo__Callee(self.info)).unwrap()
     }
   }
 
