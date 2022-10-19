@@ -181,15 +181,14 @@ where
   where
     F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
   {
-    let scope = &mut unsafe { CallbackScope::new(&*info) };
-    let args =
-      unsafe { FunctionCallbackArguments::from_function_callback_info(info) };
-    let data = args.data().unwrap(); // Always present.
-    let data = &*data as *const Value;
+    let info = unsafe { &*info };
+    let scope = &mut unsafe { CallbackScope::new(info) };
+    let args = FunctionCallbackArguments::from_function_callback_info(info);
+    let data = args.data();
     let zero = null_mut();
     let mut that = WasmStreamingSharedPtr([zero, zero]);
     unsafe {
-      v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), data, &mut that)
+      v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), &*data, &mut that)
     };
     let source = args.get(0);
     (F::get())(scope, source, WasmStreaming(that));

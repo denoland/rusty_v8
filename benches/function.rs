@@ -31,9 +31,9 @@ fn main() {
   }
   {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
-      let scope = unsafe { &mut v8::CallbackScope::new(&*info) };
-      let mut rv =
-        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      let info = unsafe { &*info };
+      let scope = unsafe { &mut v8::CallbackScope::new(info) };
+      let mut rv = v8::ReturnValue::from_function_callback_info(info);
       rv.set(v8::Integer::new(scope, 42).into());
     }
     let func = v8::Function::new_raw(scope, callback).unwrap();
@@ -42,8 +42,8 @@ fn main() {
   }
   {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
-      let mut rv =
-        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      let info = unsafe { &*info };
+      let mut rv = v8::ReturnValue::from_function_callback_info(info);
       rv.set_uint32(42);
     }
     let func = v8::Function::new_raw(scope, callback).unwrap();
@@ -96,9 +96,9 @@ fn main() {
 
   {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
-      let scope = unsafe { &mut v8::CallbackScope::new(&*info) };
-      let mut rv =
-        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      let info = unsafe { &*info };
+      let scope = unsafe { &mut v8::CallbackScope::new(info) };
+      let mut rv = v8::ReturnValue::from_function_callback_info(info);
       rv.set(v8::undefined(scope).into());
     }
     let func = v8::Function::new_raw(scope, callback).unwrap();
@@ -108,12 +108,11 @@ fn main() {
 
   {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
-      let mut rv =
-        unsafe { v8::ReturnValue::from_function_callback_info(info) };
-      let mut info = unsafe {
-        v8::FunctionCallbackArguments::from_function_callback_info(info)
-      };
-      rv.set(v8::undefined(unsafe { info.get_isolate() }).into());
+      let info = unsafe { &*info };
+      let mut rv = v8::ReturnValue::from_function_callback_info(info);
+      let mut args =
+        v8::FunctionCallbackArguments::from_function_callback_info(info);
+      rv.set(v8::undefined(unsafe { args.get_isolate() }).into());
     }
     let func = v8::Function::new_raw(scope, callback).unwrap();
     let name = v8::String::new(scope, "undefined_from_isolate").unwrap();

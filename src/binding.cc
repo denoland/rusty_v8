@@ -100,7 +100,7 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 12,
 #endif
 
 extern "C" {
-const extern size_t v8__internal__Internals__kIsolateEmbedderDataOffset =
+const extern int v8__internal__Internals__kIsolateEmbedderDataOffset =
     v8::internal::Internals::kIsolateEmbedderDataOffset;
 
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
@@ -1908,39 +1908,15 @@ const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
   return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
 }
 
-v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return self.GetIsolate();
-}
+const extern int v8__FunctionCallbackInfo__kArgsLength =
+    v8::FunctionCallbackInfo<v8::Value>::kArgsLength;
 
-v8::Value* v8__FunctionCallbackInfo__GetReturnValue(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return make_pod<v8::Value*>(self.GetReturnValue());
-}
+const extern int v8__PropertyCallbackInfo__kArgsLength =
+    v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
 
-const v8::Object* v8__FunctionCallbackInfo__This(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.This());
-}
-
-int v8__FunctionCallbackInfo__Length(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return self.Length();
-}
-
-const v8::Value* v8__FunctionCallbackInfo__GetArgument(
-    const v8::FunctionCallbackInfo<v8::Value>& self, int i) {
-  return local_to_ptr(self[i]);
-}
-
-const v8::Value* v8__FunctionCallbackInfo__Data(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.Data());
-}
-
-const v8::Value* v8__FunctionCallbackInfo__NewTarget(
-    const v8::FunctionCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.NewTarget());
+bool v8__PropertyCallbackInfo__ShouldThrowOnError(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return self.ShouldThrowOnError();
 }
 
 void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
@@ -2288,21 +2264,6 @@ const v8::Promise* v8__PromiseRejectMessage__GetPromise(
 const v8::Value* v8__PromiseRejectMessage__GetValue(
     const v8::PromiseRejectMessage& self) {
   return local_to_ptr(self.GetValue());
-}
-
-v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
-    const v8::PropertyCallbackInfo<v8::Value>& self) {
-  return self.GetIsolate();
-}
-
-v8::Value* v8__PropertyCallbackInfo__GetReturnValue(
-    const v8::PropertyCallbackInfo<v8::Value>& self) {
-  return make_pod<v8::Value*>(self.GetReturnValue());
-}
-
-const v8::Object* v8__PropertyCallbackInfo__This(
-    const v8::PropertyCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.This());
 }
 
 const v8::Proxy* v8__Proxy__New(const v8::Context& context,

@@ -1634,6 +1634,10 @@ fn instance_template_with_internal_field() {
     mut retval: v8::ReturnValue,
   ) {
     let this = args.this();
+
+    assert_eq!(args.holder(), this);
+    assert!(args.data().is_undefined());
+
     assert!(this.set_internal_field(0, v8::Integer::new(scope, 42).into()));
     retval.set(this.into())
   }
@@ -1671,6 +1675,10 @@ fn object_template_set_accessor() {
                   mut rv: v8::ReturnValue| {
       let this = args.this();
 
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
@@ -1682,6 +1690,10 @@ fn object_template_set_accessor() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments| {
       let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -1737,6 +1749,10 @@ fn object_template_set_accessor() {
       _: v8::ReturnValue,
     ) {
       let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+
       let ret = v8::Integer::new(scope, 69);
       assert!(this.set_internal_field(0, ret.into()));
     }
@@ -1794,6 +1810,10 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue| {
       let this = args.this();
 
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
@@ -1805,6 +1825,10 @@ fn object_template_set_named_property_handler() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments| {
       let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -1818,6 +1842,10 @@ fn object_template_set_named_property_handler() {
                  args: v8::PropertyCallbackArguments,
                  mut rv: v8::ReturnValue| {
       let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -1843,7 +1871,12 @@ fn object_template_set_named_property_handler() {
                       args: v8::PropertyCallbackArguments,
                       mut rv: v8::ReturnValue| {
       let this = args.this();
-      //Validate is the current object
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
+      // Validate is the current object.
       let expected_value = v8::Integer::new(scope, 42);
       assert!(this
         .get_internal_field(scope, 0)
@@ -1962,6 +1995,11 @@ fn object_template_set_indexed_property_handler() {
                 args: v8::PropertyCallbackArguments,
                 mut rv: v8::ReturnValue| {
     let this = args.this();
+
+    assert_eq!(args.holder(), this);
+    assert!(args.data().is_undefined());
+    assert!(!args.should_throw_on_error());
+
     let expected_index = 37;
     assert!(index.eq(&expected_index));
     rv.set(this.get_internal_field(scope, 0).unwrap());
@@ -1972,6 +2010,10 @@ fn object_template_set_indexed_property_handler() {
                 value: v8::Local<v8::Value>,
                 args: v8::PropertyCallbackArguments| {
     let this = args.this();
+
+    assert_eq!(args.holder(), this);
+    assert!(args.data().is_undefined());
+    assert!(!args.should_throw_on_error());
 
     assert_eq!(index, 37);
 
@@ -1992,7 +2034,12 @@ fn object_template_set_indexed_property_handler() {
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue| {
     let this = args.this();
-    //Validate is the current object
+
+    assert_eq!(args.holder(), this);
+    assert!(args.data().is_undefined());
+    assert!(!args.should_throw_on_error());
+
+    // Validate is the current object.
     let expected_value = v8::Integer::new(scope, 42);
     assert!(this
       .get_internal_field(scope, 0)
@@ -2295,6 +2342,10 @@ fn object_set_accessor() {
                   mut rv: v8::ReturnValue| {
       let this = args.this();
 
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
       let expected_key = v8::String::new(scope, "getter_key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
@@ -2349,6 +2400,10 @@ fn object_set_accessor_with_setter() {
                   mut rv: v8::ReturnValue| {
       let this = args.this();
 
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
       let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
@@ -2369,7 +2424,12 @@ fn object_set_accessor_with_setter() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments| {
       println!("setter called");
+
       let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
 
       let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2507,7 +2567,7 @@ fn fn_callback_external(
   mut rv: v8::ReturnValue,
 ) {
   assert_eq!(args.length(), 0);
-  let data = args.data().unwrap();
+  let data = args.data();
   let external = v8::Local::<v8::External>::try_from(data).unwrap();
   let data =
     unsafe { std::slice::from_raw_parts(external.value() as *mut u8, 5) };
@@ -2578,8 +2638,6 @@ fn data_is_true_callback(
   _rv: v8::ReturnValue,
 ) {
   let data = args.data();
-  assert!(data.is_some());
-  let data = data.unwrap();
   assert!(data.is_true());
 }
 
@@ -2610,15 +2668,14 @@ fn function_builder_raw() {
     let recv: v8::Local<v8::Value> = global.into();
 
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
-      let scope = unsafe { &mut v8::CallbackScope::new(&*info) };
-      let args = unsafe {
-        v8::FunctionCallbackArguments::from_function_callback_info(info)
-      };
+      let info = unsafe { &*info };
+      let scope = unsafe { &mut v8::CallbackScope::new(info) };
+      let args =
+        v8::FunctionCallbackArguments::from_function_callback_info(info);
       assert!(args.length() == 1);
       assert!(args.get(0).is_string());
 
-      let mut rv =
-        unsafe { v8::ReturnValue::from_function_callback_info(info) };
+      let mut rv = v8::ReturnValue::from_function_callback_info(info);
       rv.set(
         v8::String::new(scope, "Hello from function!")
           .unwrap()

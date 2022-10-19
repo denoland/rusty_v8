@@ -903,13 +903,13 @@ mod getter {
 
   impl<'s> GetIsolate<'s> for &'s FunctionCallbackInfo {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *raw::v8__FunctionCallbackInfo__GetIsolate(self)
+      &mut *self.get_isolate_ptr()
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s PropertyCallbackInfo {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *raw::v8__PropertyCallbackInfo__GetIsolate(self)
+      &mut *self.get_isolate_ptr()
     }
   }
 
@@ -1733,12 +1733,6 @@ mod raw {
     pub(super) fn v8__Message__GetIsolate(this: *const Message)
       -> *mut Isolate;
     pub(super) fn v8__Object__GetIsolate(this: *const Object) -> *mut Isolate;
-    pub(super) fn v8__FunctionCallbackInfo__GetIsolate(
-      this: *const FunctionCallbackInfo,
-    ) -> *mut Isolate;
-    pub(super) fn v8__PropertyCallbackInfo__GetIsolate(
-      this: *const PropertyCallbackInfo,
-    ) -> *mut Isolate;
   }
 }
 
