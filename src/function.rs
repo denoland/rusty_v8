@@ -59,7 +59,7 @@ extern "C" {
     this: *const FunctionCallbackInfo,
   ) -> *const Object;
   fn v8__FunctionCallbackInfo__Callee(
-    callee: *const FunctionCallbackInfo,
+    this: *const FunctionCallbackInfo,
   ) -> *const Function;
   fn v8__FunctionCallbackInfo__Length(this: *const FunctionCallbackInfo)
     -> int;
