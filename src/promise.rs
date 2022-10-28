@@ -67,18 +67,21 @@ pub enum PromiseState {
 
 impl Promise {
   /// Returns the value of the [[PromiseState]] field.
+  #[inline(always)]
   pub fn state(&self) -> PromiseState {
     unsafe { v8__Promise__State(&*self) }
   }
 
   /// Returns true if the promise has at least one derived promise, and
   /// therefore resolve/reject handlers (including default handler).
+  #[inline(always)]
   pub fn has_handler(&self) -> bool {
     unsafe { v8__Promise__HasHandler(&*self) }
   }
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
+  #[inline(always)]
   pub fn result<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Promise__Result(&*self)) }.unwrap()
   }
@@ -86,6 +89,7 @@ impl Promise {
   /// Register a rejection handler with a promise.
   ///
   /// See `Self::then2`.
+  #[inline(always)]
   pub fn catch<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -101,6 +105,7 @@ impl Promise {
   /// Register a resolution handler with a promise.
   ///
   /// See `Self::then2`.
+  #[inline(always)]
   pub fn then<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -117,6 +122,7 @@ impl Promise {
   /// The handler is given the respective resolution/rejection value as
   /// an argument. If the promise is already resolved/rejected, the handler is
   /// invoked at the end of turn.
+  #[inline(always)]
   pub fn then2<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -138,6 +144,7 @@ impl Promise {
 
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, PromiseResolver>> {
@@ -148,6 +155,7 @@ impl PromiseResolver {
   }
 
   /// Extract the associated promise.
+  #[inline(always)]
   pub fn get_promise<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -158,6 +166,7 @@ impl PromiseResolver {
 
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
+  #[inline(always)]
   pub fn resolve(
     &self,
     scope: &mut HandleScope,
@@ -175,6 +184,7 @@ impl PromiseResolver {
 
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
+  #[inline(always)]
   pub fn reject(
     &self,
     scope: &mut HandleScope,
@@ -205,15 +215,18 @@ pub enum PromiseRejectEvent {
 pub struct PromiseRejectMessage<'msg>([usize; 3], PhantomData<&'msg ()>);
 
 impl<'msg> PromiseRejectMessage<'msg> {
+  #[inline(always)]
   pub fn get_promise(&self) -> Local<'msg, Promise> {
     unsafe { Local::from_raw(v8__PromiseRejectMessage__GetPromise(self)) }
       .unwrap()
   }
 
+  #[inline(always)]
   pub fn get_event(&self) -> PromiseRejectEvent {
     unsafe { v8__PromiseRejectMessage__GetEvent(self) }
   }
 
+  #[inline(always)]
   pub fn get_value(&self) -> Option<Local<'msg, Value>> {
     unsafe { Local::from_raw(v8__PromiseRejectMessage__GetValue(self)) }
   }

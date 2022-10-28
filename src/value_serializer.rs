@@ -15,6 +15,7 @@ use std::alloc::dealloc;
 use std::alloc::realloc;
 use std::alloc::Layout;
 use std::mem::MaybeUninit;
+use std::ptr::addr_of;
 
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
@@ -274,9 +275,9 @@ impl<'a, 's> ValueSerializerHeap<'a, 's> {
   fn get_cxx_value_serializer_delegate_offset(
   ) -> FieldOffset<CxxValueSerializerDelegate> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe {
-      &(*buf.as_ptr()).cxx_value_serializer_delegate
-    })
+    let delegate =
+      unsafe { addr_of!((*buf.as_ptr()).cxx_value_serializer_delegate) };
+    FieldOffset::from_ptrs(buf.as_ptr(), delegate)
   }
 
   /// Starting from 'this' pointer a ValueSerializerHeap ref can be created
@@ -410,14 +411,10 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     let mut value_serializer_heap = Box::pin(ValueSerializerHeap {
       value_serializer_impl,
       cxx_value_serializer: CxxValueSerializer {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       cxx_value_serializer_delegate: CxxValueSerializerDelegate {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       buffer_size: 0,
       context: scope.get_current_context(),

@@ -1,13 +1,16 @@
 name: ci
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+    tags: ["**"]
+  pull_request:
+    branches: [main]
+    types: [labeled, opened, synchronize, reopened]
 
 jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
-    if: |
-      github.event_name == 'push' ||
-      !startsWith(github.event.pull_request.head.label, 'denoland:')
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
@@ -17,49 +20,38 @@ jobs:
       # Don't fast-fail on tag build because publishing binaries shouldn't be
       # prevented if 'cargo publish' fails (which can be a false negative).
       fail-fast:
-        ${{ github.event_name == 'pull_request' || (github.ref !=
-        'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')) }}
+        ${{ (github.event_name == 'pull_request' || (github.ref !=
+        'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))) &&
+        !contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
       matrix:
         config:
           - os: macOS-latest
             target: x86_64-apple-darwin
             variant: debug
-            cargo: cargo
 
           - os: macOS-latest
             target: x86_64-apple-darwin
             variant: release
-            cargo: cargo
-          
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
-            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
-            cargo: cargo
 
-          - os: windows-2019
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2019-xxl' || 'windows-2019' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
-            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
-            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
-            cargo: cargo
-
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
-            target: aarch64-linux-android
-            variant: release # Note: v8 debug builds on QEMU is buggy.
-            cargo: cross
 
     env:
       V8_FROM_SOURCE: true
@@ -73,7 +65,7 @@ jobs:
         run: git config --global core.symlinks true
 
       - name: Clone repository
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
         with:
           fetch-depth: 10
           submodules: recursive
@@ -82,12 +74,12 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           components: clippy, rustfmt
-          rust-version: 1.57.0
+          rust-version: 1.60.0
 
       - name: Install python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
-          python-version: 2.7.x
+          python-version: 3.10.x
           architecture: x64
 
       - name: Install cross compilation toolchain
@@ -170,24 +162,16 @@ jobs:
           . $basename/sccache --start-server
           echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Install cross
-        if: matrix.config.target == 'aarch64-linux-android'
-        run: cargo install cross
-      
-      - name: Build cross docker image
-        if: matrix.config.target == 'aarch64-linux-android'  
-        run: docker build -t cross:aarch64-linux-android-0.2.1 .
-
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
         run:
-          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:
-          ${{ matrix.config.cargo }} clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt

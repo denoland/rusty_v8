@@ -22,7 +22,7 @@ extern "C" {
   fn v8__V8__InitializePlatform(platform: *mut Platform);
   fn v8__V8__Initialize();
   fn v8__V8__Dispose() -> bool;
-  fn v8__V8__ShutdownPlatform();
+  fn v8__V8__DisposePlatform();
 }
 
 /// EntropySource is used as a callback function when v8 needs a source
@@ -234,13 +234,16 @@ pub unsafe fn dispose() -> bool {
 }
 
 /// Clears all references to the v8::Platform. This should be invoked after
-/// V8 was disposed.
-pub fn shutdown_platform() {
+/// V8 was disposed. If it is called if V8 is not disposed, it will panic.
+pub fn dispose_platform() {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
-  // First shutdown platform, then drop platform
-  unsafe { v8__V8__ShutdownPlatform() };
+  // First check that the global state is disposed. If it is we dispose the
+  // platform. We then drop the platform.
   *global_state_guard = match *global_state_guard {
-    Disposed(_) => PlatformShutdown,
+    Disposed(_) => {
+      unsafe { v8__V8__DisposePlatform() };
+      PlatformShutdown
+    }
     _ => panic!("Invalid global state"),
   };
 }

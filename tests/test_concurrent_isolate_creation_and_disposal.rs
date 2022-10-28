@@ -1,6 +1,6 @@
 // This is flaky on cross (QEMU bug)
 // but otherwise works fine on real device.
-#![cfg(not(target_os = "android"))]
+#![cfg(not(target_arch = "aarch64"))]
 
 use std::iter::repeat_with;
 use std::thread;
@@ -28,5 +28,5 @@ fn concurrent_isolate_creation_and_disposal() {
   }
 
   unsafe { v8::V8::dispose() };
-  v8::V8::shutdown_platform();
+  v8::V8::dispose_platform();
 }

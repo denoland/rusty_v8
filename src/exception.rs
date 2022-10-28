@@ -74,6 +74,7 @@ extern "C" {
 
 impl StackTrace {
   /// Grab a snapshot of the current JavaScript execution stack.
+  #[inline(always)]
   pub fn current_stack_trace<'s>(
     scope: &mut HandleScope<'s>,
     frame_limit: usize,
@@ -87,11 +88,13 @@ impl StackTrace {
   }
 
   /// Returns the number of StackFrames.
+  #[inline(always)]
   pub fn get_frame_count(&self) -> usize {
     unsafe { v8__StackTrace__GetFrameCount(self) as usize }
   }
 
   /// Returns a StackFrame at a particular index.
+  #[inline(always)]
   pub fn get_frame<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -110,6 +113,7 @@ impl StackFrame {
   /// This method will return Message::kNoLineNumberInfo if it is unable to
   /// retrieve the line number, or if kLineNumber was not passed as an option
   /// when capturing the StackTrace.
+  #[inline(always)]
   pub fn get_line_number(&self) -> usize {
     unsafe { v8__StackFrame__GetLineNumber(self) as usize }
   }
@@ -119,6 +123,7 @@ impl StackFrame {
   /// This method will return Message::kNoColumnInfo if it is unable to retrieve
   /// the column number, or if kColumnOffset was not passed as an option when
   /// capturing the StackTrace.
+  #[inline(always)]
   pub fn get_column(&self) -> usize {
     unsafe { v8__StackFrame__GetColumn(self) as usize }
   }
@@ -127,12 +132,14 @@ impl StackFrame {
   /// This method will return Message::kNoScriptIdInfo if it is unable to
   /// retrieve the script id, or if kScriptId was not passed as an option when
   /// capturing the StackTrace.
+  #[inline(always)]
   pub fn get_script_id(&self) -> usize {
     unsafe { v8__StackFrame__GetScriptId(self) as usize }
   }
 
   /// Returns the name of the resource that contains the script for the
   /// function for this StackFrame.
+  #[inline(always)]
   pub fn get_script_name<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -144,6 +151,7 @@ impl StackFrame {
   /// function for this StackFrame or sourceURL value if the script name
   /// is undefined and its source ends with //# sourceURL=... string or
   /// deprecated //@ sourceURL=... string.
+  #[inline(always)]
   pub fn get_script_name_or_source_url<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -154,6 +162,7 @@ impl StackFrame {
   }
 
   /// Returns the name of the function associated with this stack frame.
+  #[inline(always)]
   pub fn get_function_name<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -163,28 +172,33 @@ impl StackFrame {
 
   /// Returns whether or not the associated function is compiled via a call to
   /// eval().
+  #[inline(always)]
   pub fn is_eval(&self) -> bool {
     unsafe { v8__StackFrame__IsEval(self) }
   }
 
   /// Returns whether or not the associated function is called as a
   /// constructor via "new".
+  #[inline(always)]
   pub fn is_constructor(&self) -> bool {
     unsafe { v8__StackFrame__IsConstructor(self) }
   }
 
   /// Returns whether or not the associated functions is defined in wasm.
+  #[inline(always)]
   pub fn is_wasm(&self) -> bool {
     unsafe { v8__StackFrame__IsWasm(self) }
   }
 
   /// Returns whether or not the associated function is defined by the user.
+  #[inline(always)]
   pub fn is_user_javascript(&self) -> bool {
     unsafe { v8__StackFrame__IsUserJavaScript(self) }
   }
 }
 
 impl Message {
+  #[inline(always)]
   pub fn get<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Message__Get(self)) }.unwrap()
   }
@@ -192,6 +206,7 @@ impl Message {
   /// Exception stack trace. By default stack traces are not captured for
   /// uncaught exceptions. SetCaptureStackTraceForUncaughtExceptions allows
   /// to change this option.
+  #[inline(always)]
   pub fn get_stack_trace<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -199,6 +214,7 @@ impl Message {
     unsafe { scope.cast_local(|_| v8__Message__GetStackTrace(self)) }
   }
 
+  #[inline(always)]
   pub fn get_source_line<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -212,6 +228,7 @@ impl Message {
 
   /// Returns the resource name for the script from where the function causing
   /// the error originates.
+  #[inline(always)]
   pub fn get_script_resource_name<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -220,6 +237,7 @@ impl Message {
   }
 
   /// Returns the number, 1-based, of the line where the error occurred.
+  #[inline(always)]
   pub fn get_line_number(&self, scope: &mut HandleScope) -> Option<usize> {
     let i = unsafe {
       v8__Message__GetLineNumber(self, &*scope.get_current_context())
@@ -233,45 +251,53 @@ impl Message {
 
   /// Returns the index within the script of the first character where
   /// the error occurred.
+  #[inline(always)]
   pub fn get_start_position(&self) -> int {
     unsafe { v8__Message__GetStartPosition(self) }
   }
 
   /// Returns the index within the script of the last character where
   /// the error occurred.
+  #[inline(always)]
   pub fn get_end_position(&self) -> int {
     unsafe { v8__Message__GetEndPosition(self) }
   }
 
   /// Returns the Wasm function index where the error occurred. Returns -1 if
   /// message is not from a Wasm script.
+  #[inline(always)]
   pub fn get_wasm_function_index(&self) -> int {
     unsafe { v8__Message__GetWasmFunctionIndex(self) }
   }
 
   /// Returns the error level of the message.
+  #[inline(always)]
   pub fn error_level(&self) -> int {
     unsafe { v8__Message__ErrorLevel(self) }
   }
 
   /// Returns the index within the line of the first character where
   /// the error occurred.
+  #[inline(always)]
   pub fn get_start_column(&self) -> usize {
     unsafe { v8__Message__GetStartColumn(self) as usize }
   }
 
   /// Returns the index within the line of the last character where
   /// the error occurred.
+  #[inline(always)]
   pub fn get_end_column(&self) -> usize {
     unsafe { v8__Message__GetEndColumn(self) as usize }
   }
 
   /// Passes on the value set by the embedder when it fed the script from which
   /// this Message was generated to V8.
+  #[inline(always)]
   pub fn is_shared_cross_origin(&self) -> bool {
     unsafe { v8__Message__IsSharedCrossOrigin(self) }
   }
 
+  #[inline(always)]
   pub fn is_opaque(&self) -> bool {
     unsafe { v8__Message__IsOpaque(self) }
   }
@@ -283,6 +309,7 @@ impl Message {
 pub struct Exception;
 
 impl Exception {
+  #[inline(always)]
   pub fn error<'s>(
     scope: &mut HandleScope<'s>,
     message: Local<String>,
@@ -290,6 +317,7 @@ impl Exception {
     Self::new_error_with(scope, message, v8__Exception__Error)
   }
 
+  #[inline(always)]
   pub fn range_error<'s>(
     scope: &mut HandleScope<'s>,
     message: Local<String>,
@@ -297,6 +325,7 @@ impl Exception {
     Self::new_error_with(scope, message, v8__Exception__RangeError)
   }
 
+  #[inline(always)]
   pub fn reference_error<'s>(
     scope: &mut HandleScope<'s>,
     message: Local<String>,
@@ -304,6 +333,7 @@ impl Exception {
     Self::new_error_with(scope, message, v8__Exception__ReferenceError)
   }
 
+  #[inline(always)]
   pub fn syntax_error<'s>(
     scope: &mut HandleScope<'s>,
     message: Local<String>,
@@ -311,6 +341,7 @@ impl Exception {
     Self::new_error_with(scope, message, v8__Exception__SyntaxError)
   }
 
+  #[inline(always)]
   pub fn type_error<'s>(
     scope: &mut HandleScope<'s>,
     message: Local<String>,
@@ -319,6 +350,7 @@ impl Exception {
   }
 
   /// Internal helper to make the above error constructors less repetitive.
+  #[inline(always)]
   fn new_error_with<'s>(
     scope: &mut HandleScope<'s>,
     message: Local<String>,
@@ -335,6 +367,7 @@ impl Exception {
   /// Creates an error message for the given exception.
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
+  #[inline(always)]
   pub fn create_message<'s>(
     scope: &mut HandleScope<'s>,
     exception: Local<Value>,
@@ -349,6 +382,7 @@ impl Exception {
 
   /// Returns the original stack trace that was captured at the creation time
   /// of a given exception, or an empty handle if not available.
+  #[inline(always)]
   pub fn get_stack_trace<'s>(
     scope: &mut HandleScope<'s>,
     exception: Local<Value>,

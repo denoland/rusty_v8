@@ -22,6 +22,7 @@ extern "C" {
 
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
+  #[inline(always)]
   pub fn buffer<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -30,11 +31,13 @@ impl ArrayBufferView {
   }
 
   /// Size of a view in bytes.
+  #[inline(always)]
   pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBufferView__ByteLength(self) }
   }
 
   /// Byte offset in |Buffer|.
+  #[inline(always)]
   pub fn byte_offset(&self) -> usize {
     unsafe { v8__ArrayBufferView__ByteOffset(self) }
   }
@@ -43,6 +46,7 @@ impl ArrayBufferView {
   /// memory without additional overhead that calling ArrayBufferView::Buffer
   /// might incur.
   /// Returns the number of bytes actually written.
+  #[inline(always)]
   pub fn copy_contents(&self, dest: &mut [u8]) -> usize {
     unsafe {
       v8__ArrayBufferView__CopyContents(

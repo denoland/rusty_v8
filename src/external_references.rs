@@ -3,15 +3,17 @@ use crate::support::intptr_t;
 use crate::AccessorNameGetterCallback;
 use crate::FunctionCallback;
 use crate::MessageCallback;
+use std::os::raw::c_void;
 
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
   pub function: FunctionCallback,
   pub getter: AccessorNameGetterCallback<'s>,
   pub message: MessageCallback,
+  pub pointer: *mut c_void,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExternalReferences {
   null_terminated: Vec<intptr_t>,
 }
@@ -19,6 +21,7 @@ pub struct ExternalReferences {
 unsafe impl Sync for ExternalReferences {}
 
 impl ExternalReferences {
+  #[inline(always)]
   pub fn new(refs: &[ExternalReference]) -> Self {
     let null_terminated = refs
       .iter()
@@ -28,6 +31,7 @@ impl ExternalReferences {
     Self { null_terminated }
   }
 
+  #[inline(always)]
   pub fn as_ptr(&self) -> *const intptr_t {
     self.null_terminated.as_ptr()
   }

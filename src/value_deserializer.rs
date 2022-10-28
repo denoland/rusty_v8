@@ -17,6 +17,7 @@ use crate::support::MaybeBool;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
+use std::ptr::addr_of;
 
 // Must be == sizeof(v8::ValueDeserializer::Delegate),
 // see v8__ValueDeserializer__Delegate__CONSTRUCT().
@@ -212,9 +213,9 @@ impl<'a, 's> ValueDeserializerHeap<'a, 's> {
   fn get_cxx_value_deserializer_delegate_offset(
   ) -> FieldOffset<CxxValueDeserializerDelegate> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe {
-      &(*buf.as_ptr()).cxx_value_deserializer_delegate
-    })
+    let delegate =
+      unsafe { addr_of!((*buf.as_ptr()).cxx_value_deserializer_delegate) };
+    FieldOffset::from_ptrs(buf.as_ptr(), delegate)
   }
 
   /// Starting from 'this' pointer a ValueDeserializerHeap ref can be created
@@ -368,14 +369,10 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
     let mut value_deserializer_heap = Box::pin(ValueDeserializerHeap {
       value_deserializer_impl,
       cxx_value_deserializer: CxxValueDeserializer {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       cxx_value_deserializer_delegate: CxxValueDeserializerDelegate {
-        _cxx_vtable: CxxVTable {
-          0: std::ptr::null(),
-        },
+        _cxx_vtable: CxxVTable(std::ptr::null()),
       },
       context: scope.get_current_context(),
     });

@@ -1,5 +1,9 @@
+use std::{ffi::CString, os::raw::c_char};
+
 extern "C" {
-  fn udata_setCommonData_69(this: *const u8, error_code: *mut i32);
+  fn icu_get_default_locale(output: *mut c_char, output_len: usize) -> usize;
+  fn icu_set_default_locale(locale: *const c_char);
+  fn udata_setCommonData_71(this: *const u8, error_code: *mut i32);
 }
 
 /// This function bypasses the normal ICU data loading process and allows you to force ICU's system
@@ -35,14 +39,31 @@ extern "C" {
 /// This function has no effect on application (non ICU) data. See udata_setAppData() for similar
 /// functionality for application data.
 // TODO(ry) Map error code to something useful.
-pub fn set_common_data_69(data: &'static [u8]) -> Result<(), i32> {
+#[inline(always)]
+pub fn set_common_data_71(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
-    udata_setCommonData_69(data.as_ptr(), &mut error_code);
+    udata_setCommonData_71(data.as_ptr(), &mut error_code);
   }
   if error_code == 0 {
     Ok(())
   } else {
     Err(error_code)
+  }
+}
+
+/// Returns BCP47 language tag.
+pub fn get_language_tag() -> String {
+  let mut output = [0u8; 1024];
+  let len = unsafe {
+    icu_get_default_locale(output.as_mut_ptr() as *mut c_char, output.len())
+  };
+  std::str::from_utf8(&output[..len]).unwrap().to_owned()
+}
+
+pub fn set_default_locale(locale: &str) {
+  unsafe {
+    let c_str = CString::new(locale).expect("Invalid locale");
+    icu_set_default_locale(c_str.as_ptr());
   }
 }
