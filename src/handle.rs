@@ -151,6 +151,9 @@ impl<'s, T> Deref for Local<'s, T> {
 /// A global handle contains a reference to a storage cell within
 /// the V8 engine which holds an object value and which is updated by
 /// the garbage collector whenever the object is moved.
+/// 
+/// You can create a `v8::Local` out of `v8::Global` using 
+/// `v8::Local::new(scope, global_handle)`.
 #[derive(Debug)]
 pub struct Global<T> {
   data: NonNull<T>,
