@@ -677,7 +677,7 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
       .stderr(Stdio::inherit())
       .envs(env::vars())
       .status()
-      .unwrap()
+      .expect("Coud not run `gn`")
       .success());
   }
   gn_out_dir
