@@ -3,7 +3,7 @@ use crate::support::intptr_t;
 use crate::AccessorNameGetterCallback;
 use crate::FunctionCallback;
 use crate::MessageCallback;
-use std::os::raw::c_void;
+use std::ffi::c_void;
 
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
