@@ -351,7 +351,7 @@ impl<'a, T> Handle for &'a UnsafeRefHandle<'_, T> {
 
 impl<'s, T> Borrow<T> for Local<'s, T> {
   fn borrow(&self) -> &T {
-    &**self
+    self
   }
 }
 
@@ -370,7 +370,7 @@ impl<T> Eq for Global<T> where T: Eq {}
 
 impl<'s, T: Hash> Hash for Local<'s, T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    (&**self).hash(state)
+    (**self).hash(state)
   }
 }
 
@@ -397,7 +397,7 @@ where
   }
 }
 
-impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Global<T>
+impl<T, Rhs: Handle> PartialEq<Rhs> for Global<T>
 where
   T: PartialEq<Rhs::Data>,
 {

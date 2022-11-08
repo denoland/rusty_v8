@@ -810,14 +810,14 @@ impl Function {
   #[inline(always)]
   pub fn get_script_column_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptColumnNumber(self) };
-    (ret >= 0).then(|| ret as u32)
+    (ret >= 0).then_some(ret as u32)
   }
 
   /// Get the (zero-indexed) line number of the function's definition, if available.
   #[inline(always)]
   pub fn get_script_line_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
-    (ret >= 0).then(|| ret as u32)
+    (ret >= 0).then_some(ret as u32)
   }
 
   /// Creates and returns code cache for the specified unbound_script.

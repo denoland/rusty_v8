@@ -36,7 +36,7 @@ impl Proxy {
     &self,
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(self)) }.unwrap()
   }
 
   #[inline(always)]
@@ -44,7 +44,7 @@ impl Proxy {
     &self,
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(self)) }.unwrap()
   }
 
   #[inline(always)]
