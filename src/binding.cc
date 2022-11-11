@@ -820,8 +820,10 @@ void* v8__ArrayBuffer__Data(const v8::ArrayBuffer& self) {
   return ptr_to_local(&self)->Data();
 }
 
-void v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self) {
-  ptr_to_local(&self)->Detach();
+MaybeBool v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self, 
+  const v8::Value* key) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->Detach(
+      ptr_to_local(key)));
 }
 
 bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {

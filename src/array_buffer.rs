@@ -9,6 +9,7 @@ use std::ptr::NonNull;
 use std::slice;
 
 use crate::support::long;
+use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::support::Shared;
 use crate::support::SharedPtrBase;
@@ -19,6 +20,7 @@ use crate::ArrayBuffer;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::Value;
 
 extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
@@ -35,7 +37,10 @@ extern "C" {
     isolate: *mut Isolate,
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const ArrayBuffer;
-  fn v8__ArrayBuffer__Detach(this: *const ArrayBuffer);
+  fn v8__ArrayBuffer__Detach(
+    this: *const ArrayBuffer,
+    key: *const Value,
+  ) -> MaybeBool;
   fn v8__ArrayBuffer__Data(this: *const ArrayBuffer) -> *mut c_void;
   fn v8__ArrayBuffer__IsDetachable(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__WasDetached(this: *const ArrayBuffer) -> bool;
@@ -402,13 +407,17 @@ impl ArrayBuffer {
   /// Detaches this ArrayBuffer and all its views (typed arrays).
   /// Detaching sets the byte length of the buffer and all typed arrays to zero,
   /// preventing JavaScript from ever accessing underlying backing store.
-  /// ArrayBuffer should have been externalized and must be detachable.
+  /// ArrayBuffer should have been externalized and must be detachable. Returns
+  /// `None` if the key didn't pass the [[ArrayBufferDetachKey]] check,
+  /// and `Some(true)` otherwise.
   #[inline(always)]
-  pub fn detach(&self) {
+  pub fn detach(&self, key: Local<Value>) -> Option<bool> {
     // V8 terminates when the ArrayBuffer is not detachable. Non-detachable
     // buffers are buffers that are in use by WebAssembly or asm.js.
     if self.is_detachable() {
-      unsafe { v8__ArrayBuffer__Detach(self) }
+      unsafe { v8__ArrayBuffer__Detach(self, &*key) }.into()
+    } else {
+      Some(true)
     }
   }
 
