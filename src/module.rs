@@ -13,12 +13,12 @@ use crate::FixedArray;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::Message;
 use crate::Module;
 use crate::ModuleRequest;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
-use crate::Message;
 
 /// Called during Module::instantiate_module. Provided with arguments:
 /// (context, specifier, import_assertions, referrer). Return None on error.
@@ -201,7 +201,7 @@ extern "C" {
     isolate: *const Isolate,
     out_vec: *mut StalledTopLevelAwaitMessage,
     vec_len: usize,
-  ) -> MaybeBool;
+  ) -> usize;
 }
 
 #[repr(C)]
@@ -432,39 +432,37 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message(&self, scope: &mut HandleScope) -> Vec<(Local<Module>, Local<Message>)> {
+  pub fn get_stalled_top_level_await_message(
+    &self,
+    scope: &mut HandleScope,
+  ) -> Vec<(Local<Module>, Local<Message>)> {
     let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
-    for i in 0..16 {
-        out_vec.push(StalledTopLevelAwaitMessage {
-            module: std::ptr::null(),
-            message: std::ptr::null(),
-        });
+    for _i in 0..16 {
+      out_vec.push(StalledTopLevelAwaitMessage {
+        module: std::ptr::null(),
+        message: std::ptr::null(),
+      });
     }
 
-    let mut len = out_vec.len();
-    eprintln!("len: {}", len);
-    
-    unsafe {
+    let returned_len = unsafe {
       v8__Module__GetStalledTopLevelAwaitMessage(
         &*self,
         scope.get_isolate_ptr(),
         out_vec.as_mut_ptr(),
-        len
-      );
-    }
+        out_vec.len(),
+      )
+    };
 
-    eprintln!("len: {}", len);
-    let mut ret_vec = Vec::with_capacity(len);
-    for index in 0..len {
+    let mut ret_vec = Vec::with_capacity(returned_len);
+    for index in 0..returned_len {
       let item = &out_vec[index];
-      unsafe { 
+      unsafe {
         ret_vec.push((
-          Local::from_raw(item.module).unwrap(), 
-          Local::from_raw(item.message).unwrap()
+          Local::from_raw(item.module).unwrap(),
+          Local::from_raw(item.message).unwrap(),
         ));
       }
     }
-    drop(out_vec);
     ret_vec
   }
 }

@@ -3515,11 +3515,9 @@ fn module_stalled_top_level_await() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let source_text = v8::String::new(
-      scope,
-      "await new Promise((_resolve, _reject) => {});",
-    )
-    .unwrap();
+    let source_text =
+      v8::String::new(scope, "await new Promise((_resolve, _reject) => {});")
+        .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
     let source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
@@ -3544,6 +3542,27 @@ fn module_stalled_top_level_await() {
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let stalled = module.get_stalled_top_level_await_message(scope);
     assert_eq!(stalled.len(), 1);
+    let (_module, message) = stalled[0];
+    let message_str = message.get(scope);
+    assert_eq!(
+      message_str.to_rust_string_lossy(scope),
+      "Top-level await promise never resolved"
+    );
+    assert_eq!(Some(1), message.get_line_number(scope));
+    assert_eq!(
+      message
+        .get_script_resource_name(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "foo.js"
+    );
+    assert_eq!(
+      message
+        .get_source_line(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "await new Promise((_resolve, _reject) => {});"
+    );
   }
 }
 
