@@ -195,6 +195,10 @@ extern "C" {
   fn v8__ModuleRequest__GetImportAssertions(
     this: *const ModuleRequest,
   ) -> *const FixedArray;
+  fn v8__Module__GetStalledTopLevelAwaitMessage(
+    this: *const Module,
+    isolate: *const Isolate,
+  ) -> MaybeBool;
 }
 
 /// A location in JavaScript source.
@@ -411,6 +415,20 @@ impl Module {
       scope
         .cast_local(|_| v8__Module__GetUnboundModuleScript(self))
         .unwrap()
+    }
+  }
+
+  /// Search the modules requested directly or indirectly by the module for
+  /// any top-level await that has not yet resolved. If there is any, the
+  /// returned vector contains a tuple of the unresolved module and a message
+  /// with the pending top-level await.
+  /// An embedder may call this before exiting to improve error messages.
+  pub fn get_stalled_top_level_await_message(&self, scope: &mut HandleScope) {
+    unsafe {
+      v8__Module__GetStalledTopLevelAwaitMessage(
+        self,
+        scope.get_isolate_ptr(),
+      )
     }
   }
 }

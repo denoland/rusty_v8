@@ -2690,6 +2690,11 @@ const v8::UnboundModuleScript* v8__Module__GetUnboundModuleScript(
   return local_to_ptr(ptr_to_local(&self)->GetUnboundModuleScript());
 }
 
+std::vector<std::tuple<const v8::Module*, const v8::Message*>> v8__Module__GetStalledTopLevelAwaitMessage(
+    const v8::Module& self, v8::Isolate* isolate,) {
+  return self->GetStalledTopLevelAwaitMessage(isolate);
+}
+
 const v8::String* v8__ModuleRequest__GetSpecifier(
     const v8::ModuleRequest& self) {
   return local_to_ptr(self.GetSpecifier());

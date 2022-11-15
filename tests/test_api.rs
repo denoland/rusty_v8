@@ -3507,6 +3507,46 @@ fn module_evaluation() {
 }
 
 #[test]
+fn module_stalled_top_level_await() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source_text = v8::String::new(
+      scope,
+      "await new Promise((_resolve, _reject) => {});",
+    )
+    .unwrap();
+    let origin = mock_script_origin(scope, "foo.js");
+    let source = v8::script_compiler::Source::new(source_text, Some(&origin));
+
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
+    assert!(module.is_source_text_module());
+    assert!(!module.is_synthetic_module());
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
+
+    let result = module
+      .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
+    assert!(result.unwrap());
+    assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+
+    let result = module.evaluate(scope);
+    assert!(result.is_some());
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let promise: v8::Local<v8::Promise> = result.unwrap().try_into().unwrap();
+    scope.perform_microtask_checkpoint();
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let stalled = module.get_stalled_top_level_await_message(scope);
+  }
+}
+
+#[test]
 fn import_assertions() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
