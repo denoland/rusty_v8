@@ -3543,6 +3543,7 @@ fn module_stalled_top_level_await() {
     scope.perform_microtask_checkpoint();
     assert_eq!(promise.state(), v8::PromiseState::Pending);
     let stalled = module.get_stalled_top_level_await_message(scope);
+    assert_eq!(stalled.len(), 1);
   }
 }
 

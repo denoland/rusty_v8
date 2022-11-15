@@ -18,6 +18,7 @@ use crate::ModuleRequest;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
+use crate::Message;
 
 /// Called during Module::instantiate_module. Provided with arguments:
 /// (context, specifier, import_assertions, referrer). Return None on error.
@@ -205,8 +206,8 @@ extern "C" {
 
 #[repr(C)]
 pub struct StalledTopLevelAwaitMessage {
-  pub module: *const v8::Module,
-  pub message: *const v8::Message,
+  pub module: *const Module,
+  pub message: *const Message,
 }
 
 /// A location in JavaScript source.
@@ -432,22 +433,38 @@ impl Module {
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
   pub fn get_stalled_top_level_await_message(&self, scope: &mut HandleScope) -> Vec<(Local<Module>, Local<Message>)> {
-    let out_vec : Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
+    let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
+    for i in 0..16 {
+        out_vec.push(StalledTopLevelAwaitMessage {
+            module: std::ptr::null(),
+            message: std::ptr::null(),
+        });
+    }
+
+    let mut len = out_vec.len();
+    eprintln!("len: {}", len);
+    
     unsafe {
       v8__Module__GetStalledTopLevelAwaitMessage(
-        self,
+        &*self,
         scope.get_isolate_ptr(),
         out_vec.as_mut_ptr(),
-        out_vec.len()
+        len
       );
     }
 
-    let ret_vec = Vec::with_capacity(out_vec.len());
-    for item in out_vec {
+    eprintln!("len: {}", len);
+    let mut ret_vec = Vec::with_capacity(len);
+    for index in 0..len {
+      let item = &out_vec[index];
       unsafe { 
-        ret_vec.push((Local::from_raw(item.module), Local::from_raw(item.message)));
+        ret_vec.push((
+          Local::from_raw(item.module).unwrap(), 
+          Local::from_raw(item.message).unwrap()
+        ));
       }
     }
+    drop(out_vec);
     ret_vec
   }
 }

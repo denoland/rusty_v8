@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <iostream>
 
 #include "support.h"
@@ -2698,16 +2699,17 @@ struct StalledTopLevelAwaitMessage {
 
 void v8__Module__GetStalledTopLevelAwaitMessage(
     const v8::Module& self, v8::Isolate* isolate,
-    const StalledTopLevelAwaitMessage* out_vec, size_t* out_len) {
+    StalledTopLevelAwaitMessage* out_vec, size_t* out_len) {
   auto messages = ptr_to_local(&self)->GetStalledTopLevelAwaitMessage(isolate);
   auto len = std::min(messages.size(), *out_len);
-  for (size_t i = 0; i < len; i += 1) {
-    auto stalled_message = StalledTopLevelAwaitMessage {
-      .module = local_to_ptr(std::get<0>(messages[i])),
-      .message = local_to_ptr(std::get<1>(messages[i])),
-    };
-    *out_vec[i] = stalled_message;
-  }
+  printf("len: %zu", len);
+  // for (size_t i = 0; i < len; i += 1) {
+  //   StalledTopLevelAwaitMessage stalled_message;
+  //   stalled_message.module = local_to_ptr(std::get<0>(messages[i]));
+  //   stalled_message.message = local_to_ptr(std::get<1>(messages[i]));
+  //   out_vec[i] = stalled_message;
+  // }
+  // *out_len = len;
 }
 
 const v8::String* v8__ModuleRequest__GetSpecifier(
