@@ -454,8 +454,7 @@ impl Module {
     };
 
     let mut ret_vec = Vec::with_capacity(returned_len);
-    for index in 0..returned_len {
-      let item = &out_vec[index];
+    for item in out_vec.iter().take(returned_len) {
       unsafe {
         ret_vec.push((
           Local::from_raw(item.module).unwrap(),
