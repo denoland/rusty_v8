@@ -198,7 +198,15 @@ extern "C" {
   fn v8__Module__GetStalledTopLevelAwaitMessage(
     this: *const Module,
     isolate: *const Isolate,
+    out_vec: *mut StalledTopLevelAwaitMessage,
+    vec_len: usize,
   ) -> MaybeBool;
+}
+
+#[repr(C)]
+pub struct StalledTopLevelAwaitMessage {
+  pub module: *const v8::Module,
+  pub message: *const v8::Message,
 }
 
 /// A location in JavaScript source.
@@ -423,13 +431,24 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message(&self, scope: &mut HandleScope) {
+  pub fn get_stalled_top_level_await_message(&self, scope: &mut HandleScope) -> Vec<(Local<Module>, Local<Message>)> {
+    let out_vec : Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
     unsafe {
       v8__Module__GetStalledTopLevelAwaitMessage(
         self,
         scope.get_isolate_ptr(),
-      )
+        out_vec.as_mut_ptr(),
+        out_vec.len()
+      );
     }
+
+    let ret_vec = Vec::with_capacity(out_vec.len());
+    for item in out_vec {
+      unsafe { 
+        ret_vec.push((Local::from_raw(item.module), Local::from_raw(item.message)));
+      }
+    }
+    ret_vec
   }
 }
 
