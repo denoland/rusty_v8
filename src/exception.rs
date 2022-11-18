@@ -75,15 +75,16 @@ extern "C" {
 impl StackTrace {
   /// Grab a snapshot of the current JavaScript execution stack.
   #[inline(always)]
-  pub fn current_stack_trace<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn current_stack_trace(
+    isolate: &mut Isolate,
     frame_limit: usize,
-  ) -> Option<Local<'s, StackTrace>> {
+  ) -> Option<Local<StackTrace>> {
     let frame_limit = frame_limit.try_into().ok()?;
     unsafe {
-      scope.cast_local(|sd| {
-        v8__StackTrace__CurrentStackTrace(sd.get_isolate_ptr(), frame_limit)
-      })
+      Local::from_raw(v8__StackTrace__CurrentStackTrace(
+        isolate as *mut Isolate,
+        frame_limit,
+      ))
     }
   }
 
@@ -95,15 +96,17 @@ impl StackTrace {
 
   /// Returns a StackFrame at a particular index.
   #[inline(always)]
-  pub fn get_frame<'s>(
+  pub fn get_frame(
     &self,
-    scope: &mut HandleScope<'s>,
+    isolate: &mut Isolate,
     index: usize,
-  ) -> Option<Local<'s, StackFrame>> {
+  ) -> Option<Local<StackFrame>> {
     unsafe {
-      scope.cast_local(|sd| {
-        v8__StackTrace__GetFrame(self, sd.get_isolate_ptr(), index as u32)
-      })
+      Local::from_raw(v8__StackTrace__GetFrame(
+        self,
+        isolate as *mut Isolate,
+        index as u32,
+      ))
     }
   }
 }
@@ -152,13 +155,8 @@ impl StackFrame {
   /// is undefined and its source ends with //# sourceURL=... string or
   /// deprecated //@ sourceURL=... string.
   #[inline(always)]
-  pub fn get_script_name_or_source_url<'s>(
-    &self,
-    scope: &mut HandleScope<'s>,
-  ) -> Option<Local<'s, String>> {
-    unsafe {
-      scope.cast_local(|_| v8__StackFrame__GetScriptNameOrSourceURL(self))
-    }
+  pub fn get_script_name_or_source_url(&self) -> Option<Local<String>> {
+    unsafe { Local::from_raw(v8__StackFrame__GetScriptNameOrSourceURL(self)) }
   }
 
   /// Returns the name of the function associated with this stack frame.
