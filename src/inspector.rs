@@ -110,6 +110,10 @@ extern "C" {
     contextGroupId: int,
     humanReadableName: StringView,
   );
+  fn v8_inspector__V8Inspector__contextDestroyed(
+    this: *mut V8Inspector,
+    context: *const Context,
+  );
 }
 
 #[no_mangle]
@@ -946,6 +950,10 @@ impl V8Inspector {
         human_readable_name,
       )
     }
+  }
+
+  pub fn context_destroyed(&mut self, context: Local<Context>) {
+    unsafe { v8_inspector__V8Inspector__contextDestroyed(self, &*context) }
   }
 }
 

@@ -2444,6 +2444,11 @@ void v8_inspector__V8Inspector__contextCreated(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
 
+void v8_inspector__V8Inspector__contextDestroyed(
+    v8_inspector::V8Inspector* self, const v8::Context& context) {
+  self->contextDestroyed(ptr_to_local(&context));
+}
+
 bool v8_inspector__V8InspectorSession__canDispatchMethod(
     v8_inspector::StringView method) {
   return v8_inspector::V8InspectorSession::canDispatchMethod(method);
