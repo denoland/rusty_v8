@@ -8,22 +8,23 @@ V8 Version: 10.9.194.1
 
 ## Goals
 
-1. Provide high quality Rust bindings to [V8's C++
-   API](https://cs.chromium.org/chromium/src/v8/include/v8.h). The API should
-   match the original API as closely as possible.
+1. Provide high quality Rust bindings to
+   [V8's C++ API](https://cs.chromium.org/chromium/src/v8/include/v8.h). The API
+   should match the original API as closely as possible.
 
 2. Do not introduce additional call overhead. (For example, previous attempts at
    Rust V8 bindings forced the use of Persistent handles.)
 
 3. Do not rely on a binary `libv8.a` built outside of cargo. V8 is a very large
    project (over 600,000 lines of C++) which often takes 30 minutes to compile.
-   Furthermore, V8 relies on Chromium's bespoke build system (gn + ninja) which is
-   not easy to use outside of Chromium. For this reason many attempts to bind to V8
-   rely on pre-built binaries that are built separately from the binding itself.
-   While this is simple, it makes upgrading V8 difficult, it makes CI difficult, it
-   makes producing builds with different configurations difficult, and it is a
-   security concern since binary blobs can hide malicious code. For this reason we
-   believe it is imperative to build V8 from source code during "cargo build".
+   Furthermore, V8 relies on Chromium's bespoke build system (gn + ninja) which
+   is not easy to use outside of Chromium. For this reason many attempts to bind
+   to V8 rely on pre-built binaries that are built separately from the binding
+   itself. While this is simple, it makes upgrading V8 difficult, it makes CI
+   difficult, it makes producing builds with different configurations difficult,
+   and it is a security concern since binary blobs can hide malicious code. For
+   this reason we believe it is imperative to build V8 from source code during
+   "cargo build".
 
 4. Publish the crate on crates.io and allow docs.rs to generate documentation.
    Due to the complexity and size of V8's build, this is nontrivial. For example
@@ -51,12 +52,12 @@ We default to release builds of `v8` due to performance & CI reasons in `deno`.
 
 ## The `RUSTY_V8_MIRROR` environment variable
 
-Tells the build script where to get binary builds from. Understands
-`http://` and `https://` URLs, and file paths. The default is
+Tells the build script where to get binary builds from. Understands `http://`
+and `https://` URLs, and file paths. The default is
 https://github.com/denoland/rusty_v8/releases/download.
 
-File-based mirrors are good for using cached downloads. First, point
-the environment variable to a suitable location:
+File-based mirrors are good for using cached downloads. First, point the
+environment variable to a suitable location:
 
     # you might want to add this to your .bashrc
     $ export RUSTY_V8_MIRROR=$HOME/.cache/rusty_v8
@@ -84,8 +85,8 @@ done
 
 ## The `RUSTY_V8_ARCHIVE` environment variable
 
-Tell the build script to use a specific v8 library. This can be an URL
-or a path. This is useful when you have a prebuilt archive somewhere:
+Tell the build script to use a specific v8 library. This can be an URL or a
+path. This is useful when you have a prebuilt archive somewhere:
 
 ```bash
 export RUSTY_V8_ARCHIVE=/path/to/custom_archive.a
@@ -99,6 +100,8 @@ source.
 
 The build scripts require Python 3 to be available as `python` in your `PATH`.
 
+The build also requires `curl` to be installed on your system.
+
 For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
 install them.
@@ -106,16 +109,17 @@ install them.
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
 not supported.
 
-The build depends on several binary tools: `gn`, `ninja` and `clang`. The
-tools will automatically be downloaded, if they are not detected in the environment.
+The build depends on several binary tools: `gn`, `ninja` and `clang`. The tools
+will automatically be downloaded, if they are not detected in the environment.
 
 Specifying the `$GN` and `$NINJA` environmental variables can be used to skip
 the download of gn and ninja. The clang download can be skipped by setting
-`$CLANG_BASE_PATH` to the directory containing a `llvm`/`clang` installation.
-V8 is known to rely on bleeding edge features, so LLVM v8.0+ or Apple clang 11.0+
+`$CLANG_BASE_PATH` to the directory containing a `llvm`/`clang` installation. V8
+is known to rely on bleeding edge features, so LLVM v8.0+ or Apple clang 11.0+
 is recommended.
 
-Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental variable.
+Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental
+variable.
 
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
@@ -135,8 +139,7 @@ these really necessary?**
 In order to build V8 from source code, we must provide a certain directory
 structure with some git submodules from Chromium. We welcome any simplifications
 to the code base, but this is a structure we have found after many failed
-attempts that carefully balances the requirements of cargo crates and
-GN/Ninja.
+attempts that carefully balances the requirements of cargo crates and GN/Ninja.
 
 **V8 has a very large API with hundreds of methods. Why don't you automate the
 generation of this binding code?**
