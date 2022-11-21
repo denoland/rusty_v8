@@ -835,6 +835,11 @@ bool v8__ArrayBuffer__WasDetached(const v8::ArrayBuffer& self) {
   return v8::Utils::OpenHandle(&self)->was_detached();
 }
 
+void v8__ArrayBuffer__SetDetachKey(const v8::ArrayBuffer& self,
+                                   const v8::Value* key) {
+  return ptr_to_local(&self)->SetDetachKey(ptr_to_local(key));
+}
+
 void* v8__BackingStore__Data(const v8::BackingStore& self) {
   return self.Data();
 }

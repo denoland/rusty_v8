@@ -8524,3 +8524,50 @@ fn test_fast_calls_callback_options_data() {
   eval(scope, source).unwrap();
   assert!(unsafe { DATA });
 }
+
+#[test]
+fn test_detach_key() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Object detach key
+  {
+    let detach_key = eval(scope, "({})").unwrap();
+    assert!(detach_key.is_object());
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(detach_key);
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert!(!buffer.was_detached());
+    assert_eq!(buffer.detach(detach_key), Some(true));
+    assert!(buffer.was_detached());
+  }
+
+  // External detach key
+  {
+    let mut rust_detach_key = Box::new(42usize);
+    let v8_detach_key = v8::External::new(
+      scope,
+      &mut *rust_detach_key as *mut usize as *mut c_void,
+    );
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(v8_detach_key.into());
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert!(!buffer.was_detached());
+    assert_eq!(buffer.detach(v8_detach_key.into()), Some(true));
+    assert!(buffer.was_detached());
+  }
+
+  // Undefined detach key
+  {
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(v8::undefined(scope).into());
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), Some(true));
+    assert!(buffer.was_detached());
+  }
+}
