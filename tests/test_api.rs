@@ -5143,6 +5143,7 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 0);
   assert_eq!(channel.count_flush_protocol_notifications, 0);
+  inspector.context_destroyed(context);
 }
 
 #[test]
