@@ -2740,6 +2740,11 @@ void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
   self->inner->SetUrl(url, len);
 }
 
+const v8::ArrayBuffer* v8__WasmMemoryObject__Buffer(
+    const v8::WasmMemoryObject& self) {
+  return local_to_ptr(ptr_to_local(&self)->Buffer());
+}
+
 using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);
 
 void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
