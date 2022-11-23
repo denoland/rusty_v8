@@ -3507,6 +3507,66 @@ fn module_evaluation() {
 }
 
 #[test]
+fn module_stalled_top_level_await() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source_text =
+      v8::String::new(scope, "await new Promise((_resolve, _reject) => {});")
+        .unwrap();
+    let origin = mock_script_origin(scope, "foo.js");
+    let source = v8::script_compiler::Source::new(source_text, Some(&origin));
+
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
+    assert!(module.is_source_text_module());
+    assert!(!module.is_synthetic_module());
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
+
+    let result = module
+      .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
+    assert!(result.unwrap());
+    assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+
+    let result = module.evaluate(scope);
+    assert!(result.is_some());
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let promise: v8::Local<v8::Promise> = result.unwrap().try_into().unwrap();
+    scope.perform_microtask_checkpoint();
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let stalled = module.get_stalled_top_level_await_message(scope);
+    assert_eq!(stalled.len(), 1);
+    let (_module, message) = stalled[0];
+    let message_str = message.get(scope);
+    assert_eq!(
+      message_str.to_rust_string_lossy(scope),
+      "Top-level await promise never resolved"
+    );
+    assert_eq!(Some(1), message.get_line_number(scope));
+    assert_eq!(
+      message
+        .get_script_resource_name(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "foo.js"
+    );
+    assert_eq!(
+      message
+        .get_source_line(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "await new Promise((_resolve, _reject) => {});"
+    );
+  }
+}
+
+#[test]
 fn import_assertions() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -5083,6 +5143,7 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 0);
   assert_eq!(channel.count_flush_protocol_notifications, 0);
+  inspector.context_destroyed(context);
 }
 
 #[test]
@@ -8463,6 +8524,53 @@ fn test_fast_calls_callback_options_data() {
   "#;
   eval(scope, source).unwrap();
   assert!(unsafe { DATA });
+}
+
+#[test]
+fn test_detach_key() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Object detach key
+  {
+    let detach_key = eval(scope, "({})").unwrap();
+    assert!(detach_key.is_object());
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(detach_key);
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert!(!buffer.was_detached());
+    assert_eq!(buffer.detach(detach_key), Some(true));
+    assert!(buffer.was_detached());
+  }
+
+  // External detach key
+  {
+    let mut rust_detach_key = Box::new(42usize);
+    let v8_detach_key = v8::External::new(
+      scope,
+      &mut *rust_detach_key as *mut usize as *mut c_void,
+    );
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(v8_detach_key.into());
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert!(!buffer.was_detached());
+    assert_eq!(buffer.detach(v8_detach_key.into()), Some(true));
+    assert!(buffer.was_detached());
+  }
+
+  // Undefined detach key
+  {
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(v8::undefined(scope).into());
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), Some(true));
+    assert!(buffer.was_detached());
+  }
 }
 
 #[test]
