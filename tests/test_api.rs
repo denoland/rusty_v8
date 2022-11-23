@@ -8464,3 +8464,73 @@ fn test_fast_calls_callback_options_data() {
   eval(scope, source).unwrap();
   assert!(unsafe { DATA });
 }
+
+#[test]
+fn test_fast_calls_onebytestring() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    data: *const fast_api::FastApiOneByteString,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    let data = unsafe { &*data }.as_str();
+    assert_eq!("hello", data);
+    data.len() as u32
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::V8Value, fast_api::Type::SeqOneByteString]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn as _
+    }
+  }
+
+  fn slow_fn(
+    _: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    _: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(data) { return func(data); }
+  %PrepareFunctionForOptimization(f);
+  const str = "hello";
+  f(str);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    const result = f(str);
+    if (result != 5) {
+      throw new Error("wrong result");
+    }
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
