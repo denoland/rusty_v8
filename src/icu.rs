@@ -1,8 +1,10 @@
-use std::{ffi::CString, os::raw::c_char};
+use crate::support::char;
+
+use std::ffi::CString;
 
 extern "C" {
-  fn icu_get_default_locale(output: *mut c_char, output_len: usize) -> usize;
-  fn icu_set_default_locale(locale: *const c_char);
+  fn icu_get_default_locale(output: *mut char, output_len: usize) -> usize;
+  fn icu_set_default_locale(locale: *const char);
   fn udata_setCommonData_71(this: *const u8, error_code: *mut i32);
 }
 
@@ -56,7 +58,7 @@ pub fn set_common_data_71(data: &'static [u8]) -> Result<(), i32> {
 pub fn get_language_tag() -> String {
   let mut output = [0u8; 1024];
   let len = unsafe {
-    icu_get_default_locale(output.as_mut_ptr() as *mut c_char, output.len())
+    icu_get_default_locale(output.as_mut_ptr() as *mut char, output.len())
   };
   std::str::from_utf8(&output[..len]).unwrap().to_owned()
 }

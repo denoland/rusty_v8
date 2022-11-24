@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cell::Cell;
+use std::ffi::c_void;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::marker::PhantomData;
@@ -7,8 +8,6 @@ use std::mem::forget;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
-
-use libc::c_void;
 
 use crate::support::Opaque;
 use crate::Data;

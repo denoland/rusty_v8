@@ -1189,7 +1189,6 @@ dependencies = [
  "bitflags",
  "fslock",
  "lazy_static",
- "libc",
  "trybuild",
  "which",
 ]
