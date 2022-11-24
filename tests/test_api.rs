@@ -6496,7 +6496,7 @@ fn run_with_rust_allocator() {
   }
   unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
     count.fetch_sub(n, Ordering::SeqCst);
-    Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
   }
   unsafe extern "C" fn reallocate(
     count: &AtomicUsize,
