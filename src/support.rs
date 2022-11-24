@@ -30,6 +30,11 @@ use std::time::Instant;
 #[allow(non_camel_case_types)]
 pub type intptr_t = isize;
 
+// TODO use libc::size_t when stable.
+// https://doc.rust-lang.org/1.7.0/libc/type.size_t.html
+#[allow(non_camel_case_types)]
+pub type size_t = usize;
+
 pub use std::os::raw::c_char as char;
 pub use std::os::raw::c_int as int;
 pub use std::os::raw::c_long as long;

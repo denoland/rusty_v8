@@ -7,9 +7,11 @@ use crate::scope::HandleScope;
 use crate::support::char;
 use crate::support::Opaque;
 use crate::support::UnitType;
+use crate::ArrayBuffer;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
+use crate::WasmMemoryObject;
 use crate::WasmModuleObject;
 use std::ptr::null;
 use std::ptr::null_mut;
@@ -173,6 +175,14 @@ impl Drop for CompiledWasmModule {
   }
 }
 
+impl WasmMemoryObject {
+  /// Returns underlying ArrayBuffer.
+  #[inline(always)]
+  pub fn buffer(&self) -> Local<ArrayBuffer> {
+    unsafe { Local::from_raw(v8__WasmMemoryObject__Buffer(self)) }.unwrap()
+  }
+}
+
 pub(crate) fn trampoline<F>() -> extern "C" fn(*const FunctionCallbackInfo)
 where
   F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
@@ -241,4 +251,8 @@ extern "C" {
     length: *mut usize,
   ) -> *const char;
   fn v8__CompiledWasmModule__DELETE(this: *mut InternalCompiledWasmModule);
+
+  fn v8__WasmMemoryObject__Buffer(
+    this: *const WasmMemoryObject,
+  ) -> *mut ArrayBuffer;
 }

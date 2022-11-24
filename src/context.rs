@@ -3,6 +3,7 @@ use crate::handle::UnsafeRefHandle;
 use crate::isolate::BuildTypeIdHasher;
 use crate::isolate::Isolate;
 use crate::isolate::RawSlot;
+use crate::support::int;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
@@ -11,7 +12,6 @@ use crate::Object;
 use crate::ObjectTemplate;
 use crate::Value;
 use crate::Weak;
-use libc::c_int;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -37,11 +37,11 @@ extern "C" {
   fn v8__Context__GetNumberOfEmbedderDataFields(this: *const Context) -> u32;
   fn v8__Context__GetAlignedPointerFromEmbedderData(
     this: *const Context,
-    index: c_int,
+    index: int,
   ) -> *mut c_void;
   fn v8__Context__SetAlignedPointerInEmbedderData(
     this: *const Context,
-    index: c_int,
+    index: int,
     value: *mut c_void,
   );
   fn v8__Context__FromSnapshot(
@@ -51,8 +51,8 @@ extern "C" {
 }
 
 impl Context {
-  const ANNEX_SLOT: c_int = 1;
-  const INTERNAL_SLOT_COUNT: c_int = 1;
+  const ANNEX_SLOT: int = 1;
+  const INTERNAL_SLOT_COUNT: int = 1;
 
   /// Creates a new context.
   #[inline(always)]
@@ -138,7 +138,7 @@ impl Context {
     );
 
     let num_data_fields =
-      unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as c_int;
+      unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as int;
     if num_data_fields > Self::ANNEX_SLOT {
       let annex_ptr = unsafe {
         v8__Context__GetAlignedPointerFromEmbedderData(self, Self::ANNEX_SLOT)
@@ -171,7 +171,7 @@ impl Context {
       )
     };
     assert!(
-      unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as c_int
+      unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as int
         > Self::ANNEX_SLOT
     );
 

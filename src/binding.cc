@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <iostream>
 
 #include "support.h"
@@ -820,8 +821,10 @@ void* v8__ArrayBuffer__Data(const v8::ArrayBuffer& self) {
   return ptr_to_local(&self)->Data();
 }
 
-void v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self) {
-  ptr_to_local(&self)->Detach();
+MaybeBool v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self, 
+  const v8::Value* key) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->Detach(
+      ptr_to_local(key)));
 }
 
 bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {
@@ -829,7 +832,12 @@ bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {
 }
 
 bool v8__ArrayBuffer__WasDetached(const v8::ArrayBuffer& self) {
-  return v8::Utils::OpenHandle(&self)->was_detached();
+  return ptr_to_local(&self)->WasDetached();
+}
+
+void v8__ArrayBuffer__SetDetachKey(const v8::ArrayBuffer& self,
+                                   const v8::Value* key) {
+  return ptr_to_local(&self)->SetDetachKey(ptr_to_local(key));
 }
 
 void* v8__BackingStore__Data(const v8::BackingStore& self) {
@@ -2441,6 +2449,11 @@ void v8_inspector__V8Inspector__contextCreated(
       ptr_to_local(&context), contextGroupId, humanReadableName));
 }
 
+void v8_inspector__V8Inspector__contextDestroyed(
+    v8_inspector::V8Inspector* self, const v8::Context& context) {
+  self->contextDestroyed(ptr_to_local(&context));
+}
+
 bool v8_inspector__V8InspectorSession__canDispatchMethod(
     v8_inspector::StringView method) {
   return v8_inspector::V8InspectorSession::canDispatchMethod(method);
@@ -2688,6 +2701,26 @@ const v8::UnboundModuleScript* v8__Module__GetUnboundModuleScript(
   return local_to_ptr(ptr_to_local(&self)->GetUnboundModuleScript());
 }
 
+struct StalledTopLevelAwaitMessage {
+  const v8::Module* module;
+  const v8::Message* message;
+};
+
+
+size_t v8__Module__GetStalledTopLevelAwaitMessage(
+    const v8::Module& self, v8::Isolate* isolate,
+    StalledTopLevelAwaitMessage* out_vec, size_t out_len) {
+  auto messages = ptr_to_local(&self)->GetStalledTopLevelAwaitMessage(isolate);
+  auto len = std::min(messages.size(), out_len);
+  for (size_t i = 0; i < len; i += 1) {
+    StalledTopLevelAwaitMessage stalled_message;
+    stalled_message.module = local_to_ptr(std::get<0>(messages[i]));
+    stalled_message.message = local_to_ptr(std::get<1>(messages[i]));
+    out_vec[i] = stalled_message;
+  }
+  return len;
+}
+
 const v8::String* v8__ModuleRequest__GetSpecifier(
     const v8::ModuleRequest& self) {
   return local_to_ptr(self.GetSpecifier());
@@ -2736,6 +2769,11 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
 void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
                                size_t len) {
   self->inner->SetUrl(url, len);
+}
+
+const v8::ArrayBuffer* v8__WasmMemoryObject__Buffer(
+    const v8::WasmMemoryObject& self) {
+  return local_to_ptr(ptr_to_local(&self)->Buffer());
 }
 
 using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);
