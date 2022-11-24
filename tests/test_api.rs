@@ -7275,8 +7275,14 @@ fn backing_store_data() {
   let store = v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
   let buf = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
   assert_eq!(buf.byte_length(), len);
+  assert!(buf.data().is_some());
   assert_eq!(
-    unsafe { std::slice::from_raw_parts_mut(buf.data() as *mut u8, len) },
+    unsafe {
+      std::slice::from_raw_parts_mut(
+        buf.data().unwrap().cast::<u8>().as_ptr(),
+        len,
+      )
+    },
     &[1, 2, 3, 4, 5]
   );
 }
