@@ -431,8 +431,9 @@ impl ArrayBuffer {
   /// More efficient shortcut for GetBackingStore()->Data().
   /// The returned pointer is valid as long as the ArrayBuffer is alive.
   #[inline(always)]
-  pub fn data(&self) -> *mut c_void {
-    unsafe { v8__ArrayBuffer__Data(self) }
+  pub fn data(&self) -> Option<NonNull<c_void>> {
+    let raw_ptr = unsafe { v8__ArrayBuffer__Data(self) };
+    NonNull::new(raw_ptr)
   }
 
   /// Get a shared pointer to the backing store of this array buffer. This
