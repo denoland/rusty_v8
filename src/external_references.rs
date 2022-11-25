@@ -40,12 +40,12 @@ impl ExternalReferences {
 impl std::ops::Deref for ExternalReferences {
   type Target = [intptr_t];
   fn deref(&self) -> &Self::Target {
-    &*self.null_terminated
+    &self.null_terminated
   }
 }
 
 impl std::borrow::Borrow<[intptr_t]> for ExternalReferences {
   fn borrow(&self) -> &[intptr_t] {
-    &**self
+    self
   }
 }

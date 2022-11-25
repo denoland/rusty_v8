@@ -61,6 +61,6 @@ impl Private {
   /// Returns the print name string of the private symbol, or undefined if none.
   #[inline(always)]
   pub fn name<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__Private__Name(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Private__Name(self)) }.unwrap()
   }
 }

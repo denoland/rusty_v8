@@ -85,7 +85,7 @@ impl BigInt {
   #[inline(always)]
   pub fn u64_value(&self) -> (u64, bool) {
     let mut lossless = MaybeUninit::uninit();
-    let v = unsafe { v8__BigInt__Uint64Value(&*self, lossless.as_mut_ptr()) };
+    let v = unsafe { v8__BigInt__Uint64Value(self, lossless.as_mut_ptr()) };
     let lossless = unsafe { lossless.assume_init() };
     (v, lossless)
   }
@@ -95,7 +95,7 @@ impl BigInt {
   #[inline(always)]
   pub fn i64_value(&self) -> (i64, bool) {
     let mut lossless = MaybeUninit::uninit();
-    let v = unsafe { v8__BigInt__Int64Value(&*self, lossless.as_mut_ptr()) };
+    let v = unsafe { v8__BigInt__Int64Value(self, lossless.as_mut_ptr()) };
     let lossless = unsafe { lossless.assume_init() };
     (v, lossless)
   }
@@ -104,7 +104,7 @@ impl BigInt {
   /// `to_words_array`.
   #[inline(always)]
   pub fn word_count(&self) -> usize {
-    unsafe { v8__BigInt__WordCount(&*self) as usize }
+    unsafe { v8__BigInt__WordCount(self) as usize }
   }
 
   /// Converts this BigInt to a (sign_bit, words) pair. `sign_bit` will be true
@@ -119,7 +119,7 @@ impl BigInt {
     let mut word_count = words.len() as int;
     unsafe {
       v8__BigInt__ToWordsArray(
-        &*self,
+        self,
         sign_bit.as_mut_ptr(),
         &mut word_count,
         words.as_mut_ptr(),

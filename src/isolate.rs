@@ -62,7 +62,7 @@ use std::sync::Mutex;
 ///               Isolate::PerformMicrotaskCheckpoint() method;
 ///   - auto: microtasks are invoked when the script call depth decrements
 ///           to zero.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum MicrotasksPolicy {
   Explicit = 0,
@@ -84,7 +84,7 @@ pub enum MicrotasksPolicy {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,
@@ -100,7 +100,7 @@ pub type PromiseHook =
 
 pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum WasmAsyncSuccess {
   Success,

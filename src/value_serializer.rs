@@ -389,7 +389,7 @@ impl<'a, 's> ValueSerializerHelper for ValueSerializerHeap<'a, 's> {
 
 impl<'a, 's> ValueSerializerHelper for ValueSerializer<'a, 's> {
   fn get_cxx_value_serializer(&mut self) -> &mut CxxValueSerializer {
-    &mut (*self.value_serializer_heap).cxx_value_serializer
+    &mut self.value_serializer_heap.cxx_value_serializer
   }
 }
 
@@ -421,16 +421,18 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     });
 
     unsafe {
-      v8__ValueSerializer__Delegate__CONSTRUCT(core::mem::transmute(
-        &mut (*value_serializer_heap).cxx_value_serializer_delegate,
-      ));
+      v8__ValueSerializer__Delegate__CONSTRUCT(
+        &mut value_serializer_heap.cxx_value_serializer_delegate
+          as *mut CxxValueSerializerDelegate
+          as *mut std::mem::MaybeUninit<CxxValueSerializerDelegate>,
+      );
 
       v8__ValueSerializer__CONSTRUCT(
-        core::mem::transmute(
-          &mut (*value_serializer_heap).cxx_value_serializer,
-        ),
+        &mut value_serializer_heap.cxx_value_serializer
+          as *mut CxxValueSerializer
+          as *mut std::mem::MaybeUninit<CxxValueSerializer>,
         scope.get_isolate_ptr(),
-        &mut (*value_serializer_heap).cxx_value_serializer_delegate,
+        &mut value_serializer_heap.cxx_value_serializer_delegate,
       );
     };
 
@@ -446,14 +448,14 @@ impl<'a, 's> ValueSerializer<'a, 's> {
       let mut size: usize = 0;
       let mut ptr: *mut u8 = &mut 0;
       v8__ValueSerializer__Release(
-        &mut (*self.value_serializer_heap).cxx_value_serializer,
+        &mut self.value_serializer_heap.cxx_value_serializer,
         &mut ptr,
         &mut size,
       );
       Vec::from_raw_parts(
         ptr as *mut u8,
         size,
-        (*self.value_serializer_heap).buffer_size,
+        self.value_serializer_heap.buffer_size,
       )
     }
   }
@@ -463,6 +465,6 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     context: Local<Context>,
     value: Local<Value>,
   ) -> Option<bool> {
-    (*self.value_serializer_heap).write_value(context, value)
+    self.value_serializer_heap.write_value(context, value)
   }
 }

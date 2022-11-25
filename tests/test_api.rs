@@ -5770,7 +5770,9 @@ fn synthetic_evaluation_steps<'a>(
     let scope = &mut v8::TryCatch::new(scope);
     let name = v8::String::new(scope, "does not exist").unwrap();
     let value = v8::undefined(scope).into();
-    assert!(module.set_synthetic_module_export(scope, name, value) == None);
+    assert!(module
+      .set_synthetic_module_export(scope, name, value)
+      .is_none());
     assert!(scope.has_caught());
     scope.reset();
   }
@@ -6282,7 +6284,7 @@ impl<'a> Custom2Value {
   }
 }
 
-impl<'a> v8::ValueSerializerImpl for Custom2Value {
+impl v8::ValueSerializerImpl for Custom2Value {
   #[allow(unused_variables)]
   fn throw_data_clone_error<'s>(
     &mut self,
@@ -6496,7 +6498,7 @@ fn run_with_rust_allocator() {
   }
   unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
     count.fetch_sub(n, Ordering::SeqCst);
-    Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
   }
   unsafe extern "C" fn reallocate(
     count: &AtomicUsize,
@@ -7373,7 +7375,7 @@ fn weak_handle() {
     let scope = &mut v8::HandleScope::new(scope);
     let local = v8::Object::new(scope);
 
-    let weak = v8::Weak::new(scope, &local);
+    let weak = v8::Weak::new(scope, local);
     assert!(!weak.is_empty());
     assert_eq!(weak, local);
     assert_eq!(weak.to_local(scope), Some(local));
@@ -7408,7 +7410,7 @@ fn finalizers() {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
       let _ =
-        v8::Weak::with_finalizer(scope, &local, Box::new(|_| unreachable!()));
+        v8::Weak::with_finalizer(scope, local, Box::new(|_| unreachable!()));
     }
 
     let scope = &mut v8::HandleScope::new(scope);
@@ -7429,7 +7431,7 @@ fn finalizers() {
 
     let weak = Rc::new(v8::Weak::with_finalizer(
       scope,
-      &local,
+      local,
       Box::new(move |_| {
         let (weak, finalizer_called) = rx.try_recv().unwrap();
         finalizer_called.set(true);
@@ -7475,7 +7477,7 @@ fn guaranteed_finalizers() {
       let local = v8::Object::new(scope);
       let _ = v8::Weak::with_guaranteed_finalizer(
         scope,
-        &local,
+        local,
         Box::new(|| unreachable!()),
       );
     }
@@ -7498,7 +7500,7 @@ fn guaranteed_finalizers() {
 
     let weak = Rc::new(v8::Weak::with_guaranteed_finalizer(
       scope,
-      &local,
+      local,
       Box::new(move || {
         let (weak, finalizer_called) = rx.try_recv().unwrap();
         finalizer_called.set(true);
@@ -7568,10 +7570,10 @@ fn weak_from_into_raw() {
     let (weak1, weak2) = {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
-      let weak = v8::Weak::new(scope, &local);
+      let weak = v8::Weak::new(scope, local);
       let weak_with_finalizer = v8::Weak::with_finalizer(
         scope,
-        &local,
+        local,
         Box::new({
           let finalizer_called = finalizer_called.clone();
           move |_| {
@@ -7601,7 +7603,7 @@ fn weak_from_into_raw() {
     let weak = {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
-      v8::Weak::new(scope, &local)
+      v8::Weak::new(scope, local)
     };
     assert!(!weak.is_empty());
     eval(scope, "gc()").unwrap();
@@ -7615,10 +7617,10 @@ fn weak_from_into_raw() {
     let (weak, weak_with_finalizer) = {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
-      let weak = v8::Weak::new(scope, &local);
+      let weak = v8::Weak::new(scope, local);
       let weak_with_finalizer = v8::Weak::with_finalizer(
         scope,
-        &local,
+        local,
         Box::new({
           let finalizer_called = finalizer_called.clone();
           move |_| {
@@ -7674,7 +7676,7 @@ fn drop_weak_from_raw_in_finalizer() {
     let local = v8::Object::new(scope);
     let weak = v8::Weak::with_finalizer(
       scope,
-      &local,
+      local,
       Box::new({
         let weak_ptr = weak_ptr.clone();
         let finalized = finalized.clone();
@@ -7749,10 +7751,10 @@ fn finalizer_on_kept_global() {
     let scope = &mut v8::ContextScope::new(scope, context);
 
     let object = v8::Object::new(scope);
-    global = v8::Global::new(scope, &object);
+    global = v8::Global::new(scope, object);
     weak1 = v8::Weak::with_finalizer(
       scope,
-      &object,
+      object,
       Box::new({
         let finalized = regular_finalized.clone();
         move |_| finalized.set(true)
@@ -7760,7 +7762,7 @@ fn finalizer_on_kept_global() {
     );
     weak2 = v8::Weak::with_guaranteed_finalizer(
       scope,
-      &object,
+      object,
       Box::new({
         let guaranteed_finalized = guaranteed_finalized.clone();
         move || guaranteed_finalized.set(true)

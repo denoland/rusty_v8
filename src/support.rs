@@ -152,25 +152,25 @@ impl<T: ?Sized> DerefMut for UniqueRef<T> {
 
 impl<T: ?Sized> AsRef<T> for UniqueRef<T> {
   fn as_ref(&self) -> &T {
-    &**self
+    self
   }
 }
 
 impl<T: ?Sized> AsMut<T> for UniqueRef<T> {
   fn as_mut(&mut self) -> &mut T {
-    &mut **self
+    self
   }
 }
 
 impl<T: ?Sized> Borrow<T> for UniqueRef<T> {
   fn borrow(&self) -> &T {
-    &**self
+    self
   }
 }
 
 impl<T: ?Sized> BorrowMut<T> for UniqueRef<T> {
   fn borrow_mut(&mut self) -> &mut T {
-    &mut **self
+    self
   }
 }
 
@@ -324,13 +324,13 @@ impl<T: Shared> Deref for SharedRef<T> {
 
 impl<T: Shared> AsRef<T> for SharedRef<T> {
   fn as_ref(&self) -> &T {
-    &**self
+    self
   }
 }
 
 impl<T: Shared> Borrow<T> for SharedRef<T> {
   fn borrow(&self) -> &T {
-    &**self
+    self
   }
 }
 
@@ -452,25 +452,25 @@ impl<T: ?Sized> Deref for Allocation<T> {
       Self::Box(v) => v.borrow(),
       Self::Rc(v) => v.borrow(),
       Self::UniqueRef(v) => v.borrow(),
-      Self::Other(v) => (&**v).borrow(),
+      Self::Other(v) => (**v).borrow(),
     }
   }
 }
 
 impl<T: ?Sized> AsRef<T> for Allocation<T> {
   fn as_ref(&self) -> &T {
-    &**self
+    self
   }
 }
 
 impl<T: ?Sized> Borrow<T> for Allocation<T> {
   fn borrow(&self) -> &T {
-    &**self
+    self
   }
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MaybeBool {
   JustFalse = 0,
   JustTrue = 1,
@@ -855,7 +855,7 @@ mod tests {
 
   impl Borrow<TestObj> for TestObjRef {
     fn borrow(&self) -> &TestObj {
-      &**self
+      self
     }
   }
 

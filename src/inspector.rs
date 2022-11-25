@@ -822,7 +822,7 @@ impl fmt::Display for CharacterArray<'_, u8> {
 
 impl fmt::Display for CharacterArray<'_, u16> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str(&string::String::from_utf16_lossy(&*self))
+    f.write_str(&string::String::from_utf16_lossy(self))
   }
 }
 
