@@ -446,7 +446,7 @@ impl Module {
 
     let returned_len = unsafe {
       v8__Module__GetStalledTopLevelAwaitMessage(
-        &*self,
+        self,
         scope.get_isolate_ptr(),
         out_vec.as_mut_ptr(),
         out_vec.len(),

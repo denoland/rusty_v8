@@ -378,14 +378,16 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
     });
 
     unsafe {
-      v8__ValueDeserializer__Delegate__CONSTRUCT(core::mem::transmute(
-        &mut value_deserializer_heap.cxx_value_deserializer_delegate,
-      ));
+      v8__ValueDeserializer__Delegate__CONSTRUCT(
+        &mut value_deserializer_heap.cxx_value_deserializer_delegate
+          as *mut CxxValueDeserializerDelegate
+          as *mut std::mem::MaybeUninit<CxxValueDeserializerDelegate>,
+      );
 
       v8__ValueDeserializer__CONSTRUCT(
-        core::mem::transmute(
-          &mut value_deserializer_heap.cxx_value_deserializer,
-        ),
+        &mut value_deserializer_heap.cxx_value_deserializer
+          as *mut CxxValueDeserializer
+          as *mut std::mem::MaybeUninit<CxxValueDeserializer>,
         scope.get_isolate_ptr(),
         data.as_ptr(),
         data.len(),

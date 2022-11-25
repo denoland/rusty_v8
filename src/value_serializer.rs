@@ -421,14 +421,16 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     });
 
     unsafe {
-      v8__ValueSerializer__Delegate__CONSTRUCT(core::mem::transmute(
-        &mut value_serializer_heap.cxx_value_serializer_delegate,
-      ));
+      v8__ValueSerializer__Delegate__CONSTRUCT(
+        &mut value_serializer_heap.cxx_value_serializer_delegate
+          as *mut CxxValueSerializerDelegate
+          as *mut std::mem::MaybeUninit<CxxValueSerializerDelegate>,
+      );
 
       v8__ValueSerializer__CONSTRUCT(
-        core::mem::transmute(
-          &mut value_serializer_heap.cxx_value_serializer,
-        ),
+        &mut value_serializer_heap.cxx_value_serializer
+          as *mut CxxValueSerializer
+          as *mut std::mem::MaybeUninit<CxxValueSerializer>,
         scope.get_isolate_ptr(),
         &mut value_serializer_heap.cxx_value_serializer_delegate,
       );
