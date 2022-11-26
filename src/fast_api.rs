@@ -1,8 +1,8 @@
 use crate::support::Opaque;
 use crate::Local;
 use crate::Value;
-use libc::c_void;
 use std::{
+  ffi::c_void,
   mem::align_of,
   ptr::{self, NonNull},
 };
@@ -65,7 +65,7 @@ impl CTypeInfo {
   }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum SequenceType {
   Scalar,

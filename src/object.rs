@@ -1,5 +1,3 @@
-use libc::c_void;
-
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
@@ -22,6 +20,7 @@ use crate::PropertyAttribute;
 use crate::PropertyFilter;
 use crate::Value;
 use std::convert::TryFrom;
+use std::ffi::c_void;
 use std::num::NonZeroI32;
 
 extern "C" {

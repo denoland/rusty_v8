@@ -110,6 +110,10 @@ extern "C" {
     contextGroupId: int,
     humanReadableName: StringView,
   );
+  fn v8_inspector__V8Inspector__contextDestroyed(
+    this: *mut V8Inspector,
+    context: *const Context,
+  );
 }
 
 #[no_mangle]
@@ -818,7 +822,7 @@ impl fmt::Display for CharacterArray<'_, u8> {
 
 impl fmt::Display for CharacterArray<'_, u16> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str(&string::String::from_utf16_lossy(&*self))
+    f.write_str(&string::String::from_utf16_lossy(self))
   }
 }
 
@@ -946,6 +950,10 @@ impl V8Inspector {
         human_readable_name,
       )
     }
+  }
+
+  pub fn context_destroyed(&mut self, context: Local<Context>) {
+    unsafe { v8_inspector__V8Inspector__contextDestroyed(self, &*context) }
   }
 }
 

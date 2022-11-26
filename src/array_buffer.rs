@@ -41,6 +41,7 @@ extern "C" {
     this: *const ArrayBuffer,
     key: *const Value,
   ) -> MaybeBool;
+  fn v8__ArrayBuffer__SetDetachKey(this: *const ArrayBuffer, key: *const Value);
   fn v8__ArrayBuffer__Data(this: *const ArrayBuffer) -> *mut c_void;
   fn v8__ArrayBuffer__IsDetachable(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__WasDetached(this: *const ArrayBuffer) -> bool;
@@ -408,7 +409,7 @@ impl ArrayBuffer {
   /// Detaching sets the byte length of the buffer and all typed arrays to zero,
   /// preventing JavaScript from ever accessing underlying backing store.
   /// ArrayBuffer should have been externalized and must be detachable. Returns
-  /// `None` if the key didn't pass the [[ArrayBufferDetachKey]] check,
+  /// `None` if the key didn't pass the `[[ArrayBufferDetachKey]]` check,
   /// and `Some(true)` otherwise.
   #[inline(always)]
   pub fn detach(&self, key: Local<Value>) -> Option<bool> {
@@ -421,11 +422,18 @@ impl ArrayBuffer {
     }
   }
 
+  /// Sets the `[[ArrayBufferDetachKey]]`.
+  #[inline(always)]
+  pub fn set_detach_key(&self, key: Local<Value>) {
+    unsafe { v8__ArrayBuffer__SetDetachKey(self, &*key) };
+  }
+
   /// More efficient shortcut for GetBackingStore()->Data().
   /// The returned pointer is valid as long as the ArrayBuffer is alive.
   #[inline(always)]
-  pub fn data(&self) -> *mut c_void {
-    unsafe { v8__ArrayBuffer__Data(self) }
+  pub fn data(&self) -> Option<NonNull<c_void>> {
+    let raw_ptr = unsafe { v8__ArrayBuffer__Data(self) };
+    NonNull::new(raw_ptr)
   }
 
   /// Get a shared pointer to the backing store of this array buffer. This

@@ -77,8 +77,7 @@ impl Symbol {
     scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Value> {
     unsafe {
-      scope
-        .cast_local(|sd| v8__Symbol__Description(&*self, sd.get_isolate_ptr()))
+      scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))
     }
     .unwrap()
   }

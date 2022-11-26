@@ -57,7 +57,7 @@ extern "C" {
   ) -> PromiseRejectEvent;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(C)]
 pub enum PromiseState {
   Pending,
@@ -69,21 +69,21 @@ impl Promise {
   /// Returns the value of the [[PromiseState]] field.
   #[inline(always)]
   pub fn state(&self) -> PromiseState {
-    unsafe { v8__Promise__State(&*self) }
+    unsafe { v8__Promise__State(self) }
   }
 
   /// Returns true if the promise has at least one derived promise, and
   /// therefore resolve/reject handlers (including default handler).
   #[inline(always)]
   pub fn has_handler(&self) -> bool {
-    unsafe { v8__Promise__HasHandler(&*self) }
+    unsafe { v8__Promise__HasHandler(self) }
   }
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
   #[inline(always)]
   pub fn result<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__Promise__Result(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Promise__Result(self)) }.unwrap()
   }
 
   /// Register a rejection handler with a promise.
@@ -97,7 +97,7 @@ impl Promise {
   ) -> Option<Local<'s, Promise>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Promise__Catch(&*self, sd.get_current_context(), &*handler)
+        v8__Promise__Catch(self, sd.get_current_context(), &*handler)
       })
     }
   }
@@ -113,7 +113,7 @@ impl Promise {
   ) -> Option<Local<'s, Promise>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Promise__Then(&*self, sd.get_current_context(), &*handler)
+        v8__Promise__Then(self, sd.get_current_context(), &*handler)
       })
     }
   }
@@ -132,7 +132,7 @@ impl Promise {
     unsafe {
       scope.cast_local(|sd| {
         v8__Promise__Then2(
-          &*self,
+          self,
           sd.get_current_context(),
           &*on_fulfilled,
           &*on_rejected,
@@ -160,7 +160,7 @@ impl PromiseResolver {
     &self,
     scope: &mut HandleScope<'s>,
   ) -> Local<'s, Promise> {
-    unsafe { scope.cast_local(|_| v8__Promise__Resolver__GetPromise(&*self)) }
+    unsafe { scope.cast_local(|_| v8__Promise__Resolver__GetPromise(self)) }
       .unwrap()
   }
 
@@ -174,7 +174,7 @@ impl PromiseResolver {
   ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Resolve(
-        &*self,
+        self,
         &*scope.get_current_context(),
         &*value,
       )
@@ -192,7 +192,7 @@ impl PromiseResolver {
   ) -> Option<bool> {
     unsafe {
       v8__Promise__Resolver__Reject(
-        &*self,
+        self,
         &*scope.get_current_context(),
         &*value,
       )
@@ -201,7 +201,7 @@ impl PromiseResolver {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum PromiseRejectEvent {
   PromiseRejectWithNoHandler,
