@@ -4425,6 +4425,25 @@ fn shared_array_buffer() {
 }
 
 #[test]
+fn typeof_checker() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let value_1 = eval(scope, "").unwrap();
+  let type_of = value_1.type_of(scope);
+  let value_2 = eval(scope, "").unwrap();
+  let type_of_2 = value_2.type_of(scope);
+  assert_eq!(type_of, type_of_2);
+  let value_3 = eval(scope,"1").unwrap();
+  let type_of_3 = value_3.type_of(scope);
+  assert_ne!(type_of_2, type_of_3);
+}
+
+#[test]
 #[allow(clippy::cognitive_complexity)]
 #[allow(clippy::eq_op)]
 fn value_checker() {
@@ -4459,6 +4478,7 @@ fn value_checker() {
     assert!(value != v8::Integer::new(scope, 0));
     assert!(value.to_boolean(scope) == v8::Boolean::new(scope, false));
     assert!(!value.boolean_value(scope));
+
 
     let value = eval(scope, "true").unwrap();
     assert!(value.is_boolean());
