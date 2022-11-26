@@ -142,7 +142,7 @@ extern "C" {
   fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
     -> bool;
   fn v8__Value__GetHash(this: *const Value) -> int;
-  fn v8__Value__TypeOf(this: *const Value, isolate: *mut Isolate) -> String;
+  fn v8__Value__TypeOf(this: *const Value, isolate: *mut Isolate) -> *const String;
 }
 
 impl Value {
@@ -705,7 +705,9 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn type_of<'s>(&self, scope: &mut HandleScope<'s, ()>) -> String {
-    unsafe { v8__Value__TypeOf(self, scope.get_isolate_ptr()) }
+  pub fn type_of<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, String> {
+    unsafe { 
+      scope.cast_local(|sd| v8__Value__TypeOf(self, sd.get_isolate_ptr())) 
+    }.unwrap()
   }
 }

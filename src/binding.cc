@@ -759,6 +759,10 @@ bool v8__Value__BooleanValue(const v8::Value& self, v8::Isolate* isolate) {
   return self.BooleanValue(isolate);
 }
 
+const v8::String* v8__Value__TypeOf(v8::Value& self, v8::Isolate* isolate) {
+  return local_to_ptr(self.TypeOf(isolate));
+}
+
 const v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
