@@ -109,6 +109,7 @@ extern "C" {
     context: *const Context,
     contextGroupId: int,
     humanReadableName: StringView,
+    auxData: StringView,
   );
   fn v8_inspector__V8Inspector__contextDestroyed(
     this: *mut V8Inspector,
@@ -941,6 +942,7 @@ impl V8Inspector {
     context: Local<Context>,
     context_group_id: i32,
     human_readable_name: StringView,
+    aux_data: StringView,
   ) {
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
@@ -948,6 +950,7 @@ impl V8Inspector {
         &*context,
         context_group_id,
         human_readable_name,
+        aux_data,
       )
     }
   }
