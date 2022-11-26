@@ -5124,7 +5124,8 @@ fn inspector_dispatch_protocol_message() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, name_view);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
@@ -5171,7 +5172,8 @@ fn inspector_schedule_pause_on_next_statement() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, name_view);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
 
   // In order for schedule_pause_on_next_statement to work, it seems you need
   // to first enable the debugger.
@@ -5265,7 +5267,9 @@ fn inspector_console_api_message() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, name_view);
+  let aux_data = b"{\"isDefault\": true}";
+  let aux_data_view = StringView::from(&aux_data[..]);
+  inspector.context_created(context, 1, name_view, aux_data_view);
 
   let source = r#"
     console.log("one");

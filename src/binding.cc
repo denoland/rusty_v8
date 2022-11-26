@@ -2444,9 +2444,12 @@ v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
 
 void v8_inspector__V8Inspector__contextCreated(
     v8_inspector::V8Inspector* self, const v8::Context& context,
-    int contextGroupId, v8_inspector::StringView humanReadableName) {
-  self->contextCreated(v8_inspector::V8ContextInfo(
-      ptr_to_local(&context), contextGroupId, humanReadableName));
+    int contextGroupId, v8_inspector::StringView humanReadableName,
+    v8_inspector::StringView auxData) {
+  v8_inspector::V8ContextInfo info(
+      ptr_to_local(&context), contextGroupId, humanReadableName);
+  info.auxData = auxData;
+  self->contextCreated(info);
 }
 
 void v8_inspector__V8Inspector__contextDestroyed(
