@@ -4438,7 +4438,7 @@ fn typeof_checker() {
   let value_2 = eval(scope, "").unwrap();
   let type_of_2 = value_2.type_of(scope);
   assert_eq!(type_of, type_of_2);
-  let value_3 = eval(scope,"1").unwrap();
+  let value_3 = eval(scope, "1").unwrap();
   let type_of_3 = value_3.type_of(scope);
   assert_ne!(type_of_2, type_of_3);
 }
@@ -4478,7 +4478,6 @@ fn value_checker() {
     assert!(value != v8::Integer::new(scope, 0));
     assert!(value.to_boolean(scope) == v8::Boolean::new(scope, false));
     assert!(!value.boolean_value(scope));
-
 
     let value = eval(scope, "true").unwrap();
     assert!(value.is_boolean());
