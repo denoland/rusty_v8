@@ -6269,6 +6269,15 @@ fn value_serializer_not_implemented() {
   );
 }
 
+#[test]
+fn memory_pressure_notification() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.memory_pressure_notification(v8::MemoryPressureLevel::Moderate);
+  isolate.memory_pressure_notification(v8::MemoryPressureLevel::Critical);
+  isolate.memory_pressure_notification(v8::MemoryPressureLevel::None);
+}
+
 // Flaky on aarch64-qemu (Stack corruption).
 #[cfg(not(target_os = "android"))]
 #[test]

@@ -70,6 +70,18 @@ pub enum MicrotasksPolicy {
   Auto = 2,
 }
 
+/// Memory pressure level for the MemoryPressureNotification.
+/// None hints V8 that there is no memory pressure.
+/// Moderate hints V8 to speed up incremental garbage collection at the cost
+/// of higher latency due to garbage collection pauses.
+/// Critical hints V8 to free memory as soon as possible. Garbage collection
+/// pauses at this level will be large.
+pub enum MemoryPressureLevel {
+  None = 0,
+  Moderate = 1,
+  Critical = 2,
+}
+
 /// PromiseHook with type Init is called when a new promise is
 /// created. When a new promise is created as part of the chain in the
 /// case of Promise.then or in the intermediate promises created by
@@ -348,6 +360,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
@@ -770,6 +783,15 @@ impl Isolate {
   #[inline(always)]
   pub unsafe fn exit(&mut self) {
     v8__Isolate__Exit(self)
+  }
+
+  /// Optional notification that the system is running low on memory.
+  /// V8 uses these notifications to guide heuristics.
+  /// It is allowed to call this function from another thread while
+  /// the isolate is executing long running JavaScript code.
+  #[inline(always)]
+  pub fn memory_pressure_notification(&mut self, level: MemoryPressureLevel) {
+    unsafe { v8__Isolate__MemoryPressureNotification(self, level as u8) }
   }
 
   /// Clears the set of objects held strongly by the heap. This set of
