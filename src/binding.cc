@@ -143,7 +143,7 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
 void v8__Isolate__MemoryPressureNotification(v8::Isolate* isolate,
-                                             MemoryPressureLevel level) {
+                                             v8::MemoryPressureLevel level) {
   isolate->MemoryPressureNotification(level);
 }
 
