@@ -17,7 +17,7 @@ fn main() {
   let context_scope = &mut v8::ContextScope::new(handle_scope, context);
   let scope = &mut v8::HandleScope::new(context_scope);
 
-  run_main(scope, &*args, &mut run_shell_flag);
+  run_main(scope, &args, &mut run_shell_flag);
 
   if run_shell_flag {
     run_shell(scope);

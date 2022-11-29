@@ -142,6 +142,10 @@ extern "C" {
   fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
     -> bool;
   fn v8__Value__GetHash(this: *const Value) -> int;
+  fn v8__Value__TypeOf(
+    this: *const Value,
+    isolate: *mut Isolate,
+  ) -> *const String;
 }
 
 impl Value {
@@ -701,5 +705,16 @@ impl Value {
   #[inline(always)]
   pub fn get_hash(&self) -> NonZeroI32 {
     unsafe { NonZeroI32::new_unchecked(v8__Value__GetHash(self)) }
+  }
+
+  #[inline(always)]
+  pub fn type_of<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, String> {
+    unsafe {
+      scope.cast_local(|sd| v8__Value__TypeOf(self, sd.get_isolate_ptr()))
+    }
+    .unwrap()
   }
 }

@@ -1,8 +1,15 @@
 error[E0308]: mismatched types
- --> $DIR/object_without_context_scope.rs:6:33
-  |
-6 |   let _object = v8::Object::new(&mut scope);
-  |                                 ^^^^^^^^^^ expected struct `v8::Context`, found `()`
-  |
-  = note: expected mutable reference `&mut HandleScope<'_>`
-             found mutable reference `&mut HandleScope<'_, ()>`
+   --> tests/compile_fail/object_without_context_scope.rs:6:33
+    |
+6   |   let _object = v8::Object::new(&mut scope);
+    |                 --------------- ^^^^^^^^^^ expected struct `v8::Context`, found `()`
+    |                 |
+    |                 arguments to this function are incorrect
+    |
+    = note: expected mutable reference `&mut HandleScope<'_>`
+               found mutable reference `&mut HandleScope<'_, ()>`
+note: associated function defined here
+   --> src/object.rs
+    |
+    |   pub fn new<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Object> {
+    |          ^^^

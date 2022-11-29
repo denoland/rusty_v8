@@ -6,13 +6,14 @@ use std::slice;
 
 use crate::support::char;
 use crate::support::int;
+use crate::support::size_t;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::String;
 
 extern "C" {
-  fn v8__String__kMaxLength() -> libc::size_t;
+  fn v8__String__kMaxLength() -> size_t;
 
   fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
 

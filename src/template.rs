@@ -1,5 +1,3 @@
-use libc::c_void;
-
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
@@ -31,6 +29,7 @@ use crate::String;
 use crate::Value;
 use crate::NONE;
 use std::convert::TryFrom;
+use std::ffi::c_void;
 use std::ptr::null;
 
 extern "C" {

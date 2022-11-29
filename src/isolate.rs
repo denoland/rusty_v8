@@ -7,6 +7,7 @@ use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::snapshot::SnapshotCreator;
+use crate::support::char;
 use crate::support::int;
 use crate::support::Allocated;
 use crate::support::MapFnFrom;
@@ -49,7 +50,6 @@ use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::os::raw::c_char;
 use std::ptr;
 use std::ptr::drop_in_place;
 use std::ptr::null_mut;
@@ -62,7 +62,7 @@ use std::sync::Mutex;
 ///               Isolate::PerformMicrotaskCheckpoint() method;
 ///   - auto: microtasks are invoked when the script call depth decrements
 ///           to zero.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum MicrotasksPolicy {
   Explicit = 0,
@@ -96,7 +96,7 @@ pub enum MemoryPressureLevel {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,
@@ -112,7 +112,7 @@ pub type PromiseHook =
 
 pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum WasmAsyncSuccess {
   Success,
@@ -314,11 +314,11 @@ pub type NearHeapLimitCallback = extern "C" fn(
 #[repr(C)]
 pub struct OomDetails {
   pub is_heap_oom: bool,
-  pub detail: *const c_char,
+  pub detail: *const char,
 }
 
 pub type OomErrorCallback =
-  extern "C" fn(location: *const c_char, details: &OomDetails);
+  extern "C" fn(location: *const char, details: &OomDetails);
 
 /// Collection of V8 heap information.
 ///

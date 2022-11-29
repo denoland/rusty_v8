@@ -216,7 +216,7 @@ fn build_v8() {
 fn print_gn_args(gn_out_dir: &Path) {
   assert!(Command::new(gn())
     .arg("args")
-    .arg(&gn_out_dir)
+    .arg(gn_out_dir)
     .arg("--list")
     .status()
     .unwrap()
@@ -643,7 +643,7 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let cmd_string = env::var("NINJA").unwrap_or_else(|_| "ninja".to_owned());
   let mut cmd = Command::new(cmd_string);
   cmd.arg("-C");
-  cmd.arg(&gn_out_dir);
+  cmd.arg(gn_out_dir);
   if let Some(env) = maybe_env {
     for item in env {
       cmd.env(item.0, item.1);
@@ -677,7 +677,7 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
       .stderr(Stdio::inherit())
       .envs(env::vars())
       .status()
-      .unwrap()
+      .expect("Coud not run `gn`")
       .success());
   }
   gn_out_dir

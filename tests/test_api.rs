@@ -576,15 +576,16 @@ fn array_buffer() {
     assert!(!ab.was_detached());
     assert!(ab.is_detachable());
 
-    ab.detach();
+    let key = v8::undefined(scope);
+    assert!(ab.detach(key.into()).unwrap());
     assert_eq!(0, ab.byte_length());
     assert!(ab.was_detached());
-    ab.detach(); // Calling it twice should be a no-op.
+    assert!(ab.detach(key.into()).unwrap()); // Calling it twice should be a no-op.
 
     // detecting if it was detached on a zero-length ArrayBuffer should work
     let empty_ab = v8::ArrayBuffer::new(scope, 0);
     assert!(!empty_ab.was_detached());
-    empty_ab.detach();
+    assert!(empty_ab.detach(key.into()).unwrap());
     assert!(empty_ab.was_detached());
 
     let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
@@ -3506,6 +3507,66 @@ fn module_evaluation() {
 }
 
 #[test]
+fn module_stalled_top_level_await() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let source_text =
+      v8::String::new(scope, "await new Promise((_resolve, _reject) => {});")
+        .unwrap();
+    let origin = mock_script_origin(scope, "foo.js");
+    let source = v8::script_compiler::Source::new(source_text, Some(&origin));
+
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    assert!(module.script_id().is_some());
+    assert!(module.is_source_text_module());
+    assert!(!module.is_synthetic_module());
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    module.hash(&mut DefaultHasher::new()); // Should not crash.
+
+    let result = module
+      .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
+    assert!(result.unwrap());
+    assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+
+    let result = module.evaluate(scope);
+    assert!(result.is_some());
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let promise: v8::Local<v8::Promise> = result.unwrap().try_into().unwrap();
+    scope.perform_microtask_checkpoint();
+    assert_eq!(promise.state(), v8::PromiseState::Pending);
+    let stalled = module.get_stalled_top_level_await_message(scope);
+    assert_eq!(stalled.len(), 1);
+    let (_module, message) = stalled[0];
+    let message_str = message.get(scope);
+    assert_eq!(
+      message_str.to_rust_string_lossy(scope),
+      "Top-level await promise never resolved"
+    );
+    assert_eq!(Some(1), message.get_line_number(scope));
+    assert_eq!(
+      message
+        .get_script_resource_name(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "foo.js"
+    );
+    assert_eq!(
+      message
+        .get_source_line(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "await new Promise((_resolve, _reject) => {});"
+    );
+  }
+}
+
+#[test]
 fn import_assertions() {
   let _setup_guard = setup();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4364,6 +4425,25 @@ fn shared_array_buffer() {
 }
 
 #[test]
+fn typeof_checker() {
+  let _setup_guard = setup();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let value_1 = eval(scope, "").unwrap();
+  let type_of = value_1.type_of(scope);
+  let value_2 = eval(scope, "").unwrap();
+  let type_of_2 = value_2.type_of(scope);
+  assert_eq!(type_of, type_of_2);
+  let value_3 = eval(scope, "1").unwrap();
+  let type_of_3 = value_3.type_of(scope);
+  assert_ne!(type_of_2, type_of_3);
+}
+
+#[test]
 #[allow(clippy::cognitive_complexity)]
 #[allow(clippy::eq_op)]
 fn value_checker() {
@@ -5063,7 +5143,8 @@ fn inspector_dispatch_protocol_message() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, name_view);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
   let mut channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
@@ -5082,6 +5163,7 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(channel.count_send_response, 1);
   assert_eq!(channel.count_send_notification, 0);
   assert_eq!(channel.count_flush_protocol_notifications, 0);
+  inspector.context_destroyed(context);
 }
 
 #[test]
@@ -5109,7 +5191,8 @@ fn inspector_schedule_pause_on_next_statement() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, name_view);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
 
   // In order for schedule_pause_on_next_statement to work, it seems you need
   // to first enable the debugger.
@@ -5203,7 +5286,9 @@ fn inspector_console_api_message() {
 
   let name = b"";
   let name_view = StringView::from(&name[..]);
-  inspector.context_created(context, 1, name_view);
+  let aux_data = b"{\"isDefault\": true}";
+  let aux_data_view = StringView::from(&aux_data[..]);
+  inspector.context_created(context, 1, name_view, aux_data_view);
 
   let source = r#"
     console.log("one");
@@ -5708,7 +5793,9 @@ fn synthetic_evaluation_steps<'a>(
     let scope = &mut v8::TryCatch::new(scope);
     let name = v8::String::new(scope, "does not exist").unwrap();
     let value = v8::undefined(scope).into();
-    assert!(module.set_synthetic_module_export(scope, name, value) == None);
+    assert!(module
+      .set_synthetic_module_export(scope, name, value)
+      .is_none());
     assert!(scope.has_caught());
     scope.reset();
   }
@@ -6220,7 +6307,7 @@ impl<'a> Custom2Value {
   }
 }
 
-impl<'a> v8::ValueSerializerImpl for Custom2Value {
+impl v8::ValueSerializerImpl for Custom2Value {
   #[allow(unused_variables)]
   fn throw_data_clone_error<'s>(
     &mut self,
@@ -6443,7 +6530,7 @@ fn run_with_rust_allocator() {
   }
   unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
     count.fetch_sub(n, Ordering::SeqCst);
-    Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
   }
   unsafe extern "C" fn reallocate(
     count: &AtomicUsize,
@@ -7222,8 +7309,14 @@ fn backing_store_data() {
   let store = v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
   let buf = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
   assert_eq!(buf.byte_length(), len);
+  assert!(buf.data().is_some());
   assert_eq!(
-    unsafe { std::slice::from_raw_parts_mut(buf.data() as *mut u8, len) },
+    unsafe {
+      std::slice::from_raw_parts_mut(
+        buf.data().unwrap().cast::<u8>().as_ptr(),
+        len,
+      )
+    },
     &[1, 2, 3, 4, 5]
   );
 }
@@ -7314,7 +7407,7 @@ fn weak_handle() {
     let scope = &mut v8::HandleScope::new(scope);
     let local = v8::Object::new(scope);
 
-    let weak = v8::Weak::new(scope, &local);
+    let weak = v8::Weak::new(scope, local);
     assert!(!weak.is_empty());
     assert_eq!(weak, local);
     assert_eq!(weak.to_local(scope), Some(local));
@@ -7349,7 +7442,7 @@ fn finalizers() {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
       let _ =
-        v8::Weak::with_finalizer(scope, &local, Box::new(|_| unreachable!()));
+        v8::Weak::with_finalizer(scope, local, Box::new(|_| unreachable!()));
     }
 
     let scope = &mut v8::HandleScope::new(scope);
@@ -7370,7 +7463,7 @@ fn finalizers() {
 
     let weak = Rc::new(v8::Weak::with_finalizer(
       scope,
-      &local,
+      local,
       Box::new(move |_| {
         let (weak, finalizer_called) = rx.try_recv().unwrap();
         finalizer_called.set(true);
@@ -7416,7 +7509,7 @@ fn guaranteed_finalizers() {
       let local = v8::Object::new(scope);
       let _ = v8::Weak::with_guaranteed_finalizer(
         scope,
-        &local,
+        local,
         Box::new(|| unreachable!()),
       );
     }
@@ -7439,7 +7532,7 @@ fn guaranteed_finalizers() {
 
     let weak = Rc::new(v8::Weak::with_guaranteed_finalizer(
       scope,
-      &local,
+      local,
       Box::new(move || {
         let (weak, finalizer_called) = rx.try_recv().unwrap();
         finalizer_called.set(true);
@@ -7509,10 +7602,10 @@ fn weak_from_into_raw() {
     let (weak1, weak2) = {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
-      let weak = v8::Weak::new(scope, &local);
+      let weak = v8::Weak::new(scope, local);
       let weak_with_finalizer = v8::Weak::with_finalizer(
         scope,
-        &local,
+        local,
         Box::new({
           let finalizer_called = finalizer_called.clone();
           move |_| {
@@ -7542,7 +7635,7 @@ fn weak_from_into_raw() {
     let weak = {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
-      v8::Weak::new(scope, &local)
+      v8::Weak::new(scope, local)
     };
     assert!(!weak.is_empty());
     eval(scope, "gc()").unwrap();
@@ -7556,10 +7649,10 @@ fn weak_from_into_raw() {
     let (weak, weak_with_finalizer) = {
       let scope = &mut v8::HandleScope::new(scope);
       let local = v8::Object::new(scope);
-      let weak = v8::Weak::new(scope, &local);
+      let weak = v8::Weak::new(scope, local);
       let weak_with_finalizer = v8::Weak::with_finalizer(
         scope,
-        &local,
+        local,
         Box::new({
           let finalizer_called = finalizer_called.clone();
           move |_| {
@@ -7615,7 +7708,7 @@ fn drop_weak_from_raw_in_finalizer() {
     let local = v8::Object::new(scope);
     let weak = v8::Weak::with_finalizer(
       scope,
-      &local,
+      local,
       Box::new({
         let weak_ptr = weak_ptr.clone();
         let finalized = finalized.clone();
@@ -7690,10 +7783,10 @@ fn finalizer_on_kept_global() {
     let scope = &mut v8::ContextScope::new(scope, context);
 
     let object = v8::Object::new(scope);
-    global = v8::Global::new(scope, &object);
+    global = v8::Global::new(scope, object);
     weak1 = v8::Weak::with_finalizer(
       scope,
-      &object,
+      object,
       Box::new({
         let finalized = regular_finalized.clone();
         move |_| finalized.set(true)
@@ -7701,7 +7794,7 @@ fn finalizer_on_kept_global() {
     );
     weak2 = v8::Weak::with_guaranteed_finalizer(
       scope,
-      &object,
+      object,
       Box::new({
         let guaranteed_finalized = guaranteed_finalized.clone();
         move || guaranteed_finalized.set(true)
@@ -8471,4 +8564,121 @@ fn test_fast_calls_callback_options_data() {
   "#;
   eval(scope, source).unwrap();
   assert!(unsafe { DATA });
+}
+
+#[test]
+fn test_detach_key() {
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Object detach key
+  {
+    let detach_key = eval(scope, "({})").unwrap();
+    assert!(detach_key.is_object());
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(detach_key);
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert!(!buffer.was_detached());
+    assert_eq!(buffer.detach(detach_key), Some(true));
+    assert!(buffer.was_detached());
+  }
+
+  // External detach key
+  {
+    let mut rust_detach_key = Box::new(42usize);
+    let v8_detach_key = v8::External::new(
+      scope,
+      &mut *rust_detach_key as *mut usize as *mut c_void,
+    );
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(v8_detach_key.into());
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert!(!buffer.was_detached());
+    assert_eq!(buffer.detach(v8_detach_key.into()), Some(true));
+    assert!(buffer.was_detached());
+  }
+
+  // Undefined detach key
+  {
+    let buffer = v8::ArrayBuffer::new(scope, 1024);
+    buffer.set_detach_key(v8::undefined(scope).into());
+    assert!(buffer.is_detachable());
+    assert_eq!(buffer.detach(v8::undefined(scope).into()), Some(true));
+    assert!(buffer.was_detached());
+  }
+}
+
+#[test]
+fn test_fast_calls_onebytestring() {
+  static mut WHO: &str = "none";
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    data: *const fast_api::FastApiOneByteString,
+  ) -> u32 {
+    unsafe { WHO = "fast" };
+    let data = unsafe { &*data }.as_str();
+    assert_eq!("hello", data);
+    data.len() as u32
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::V8Value, fast_api::Type::SeqOneByteString]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Uint32
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn as _
+    }
+  }
+
+  fn slow_fn(
+    _: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    _: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+  }
+
+  let _setup_guard = setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(data) { return func(data); }
+  %PrepareFunctionForOptimization(f);
+  const str = "hello";
+  f(str);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    const result = f(str);
+    if (result != 5) {
+      throw new Error("wrong result");
+    }
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
 }

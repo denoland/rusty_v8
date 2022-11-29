@@ -13,12 +13,11 @@ use std::convert::TryFrom;
 use std::iter::once;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
-use std::os::raw::c_char;
 use std::ptr::null;
 
 /// Should return a pointer to memory that persists for the lifetime of the
 /// isolate.
-pub type CounterLookupCallback = extern "C" fn(name: *const c_char) -> *mut i32;
+pub type CounterLookupCallback = extern "C" fn(name: *const char) -> *mut i32;
 
 /// Initial configuration parameters for a new Isolate.
 #[must_use]

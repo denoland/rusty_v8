@@ -1,8 +1,8 @@
 use crate::support::Opaque;
 use crate::Local;
 use crate::Value;
-use libc::c_void;
 use std::{
+  ffi::c_void,
   mem::align_of,
   ptr::{self, NonNull},
 };
@@ -65,7 +65,7 @@ impl CTypeInfo {
   }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum SequenceType {
   Scalar,
@@ -91,6 +91,7 @@ pub enum CType {
   Float32,
   Float64,
   V8Value,
+  SeqOneByteString,
   // https://github.com/v8/v8/blob/492a32943bc34a527f42df2ae15a77154b16cc84/include/v8-fast-api-calls.h#L264-L267
   // kCallbackOptionsType is not part of the Type enum
   // because it is only used internally. Use value 255 that is larger
@@ -110,6 +111,7 @@ pub enum Type {
   Float32,
   Float64,
   V8Value,
+  SeqOneByteString,
   CallbackOptions,
   Sequence(CType),
   TypedArray(CType),
@@ -128,6 +130,7 @@ impl From<&Type> for CType {
       Type::Float32 => CType::Float32,
       Type::Float64 => CType::Float64,
       Type::V8Value => CType::V8Value,
+      Type::SeqOneByteString => CType::SeqOneByteString,
       Type::CallbackOptions => CType::CallbackOptions,
       Type::Sequence(ty) => *ty,
       Type::TypedArray(ty) => *ty,
@@ -202,6 +205,25 @@ pub struct FastApiTypedArray<T: Default> {
   // provide a special implementation for reading from it, which hides
   // the possibly unaligned read in the `get` method.
   data: *mut T,
+}
+
+#[repr(C)]
+pub struct FastApiOneByteString {
+  data: *const u8,
+  pub length: usize,
+}
+
+impl FastApiOneByteString {
+  #[inline(always)]
+  pub fn as_str(&self) -> &str {
+    // SAFETY: The string is guaranteed to be valid UTF-8.
+    unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        self.data,
+        self.length,
+      ))
+    }
+  }
 }
 
 impl<T: Default> FastApiTypedArray<T> {
