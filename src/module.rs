@@ -230,7 +230,7 @@ impl Location {
 /// This corresponds to the states used in ECMAScript except that "evaluated"
 /// is split into kEvaluated and kErrored, indicating success and failure,
 /// respectively.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(C)]
 pub enum ModuleStatus {
   Uninstantiated,
@@ -345,20 +345,20 @@ impl Module {
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope
-        .cast_local(|sd| v8__Module__Evaluate(&*self, sd.get_current_context()))
+        .cast_local(|sd| v8__Module__Evaluate(self, sd.get_current_context()))
     }
   }
 
   /// Returns whether the module is a SourceTextModule.
   #[inline(always)]
   pub fn is_source_text_module(&self) -> bool {
-    unsafe { v8__Module__IsSourceTextModule(&*self) }
+    unsafe { v8__Module__IsSourceTextModule(self) }
   }
 
   /// Returns whether the module is a SyntheticModule.
   #[inline(always)]
   pub fn is_synthetic_module(&self) -> bool {
-    unsafe { v8__Module__IsSyntheticModule(&*self) }
+    unsafe { v8__Module__IsSyntheticModule(self) }
   }
 
   /// Creates a new SyntheticModule with the specified export names, where
@@ -406,7 +406,7 @@ impl Module {
   ) -> Option<bool> {
     unsafe {
       v8__Module__SetSyntheticModuleExport(
-        &*self,
+        self,
         scope.get_isolate_ptr(),
         &*export_name,
         &*export_value,
@@ -446,7 +446,7 @@ impl Module {
 
     let returned_len = unsafe {
       v8__Module__GetStalledTopLevelAwaitMessage(
-        &*self,
+        self,
         scope.get_isolate_ptr(),
         out_vec.as_mut_ptr(),
         out_vec.len(),

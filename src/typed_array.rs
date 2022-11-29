@@ -1,11 +1,12 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+use crate::support::size_t;
 use crate::ArrayBuffer;
 use crate::HandleScope;
 use crate::Local;
 use crate::TypedArray;
 
 extern "C" {
-  fn v8__TypedArray__kMaxLength() -> libc::size_t;
+  fn v8__TypedArray__kMaxLength() -> size_t;
 }
 
 impl TypedArray {

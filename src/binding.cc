@@ -759,6 +759,10 @@ bool v8__Value__BooleanValue(const v8::Value& self, v8::Isolate* isolate) {
   return self.BooleanValue(isolate);
 }
 
+const v8::String* v8__Value__TypeOf(v8::Value& self, v8::Isolate* isolate) {
+  return local_to_ptr(self.TypeOf(isolate));
+}
+
 const v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
@@ -2444,9 +2448,12 @@ v8_inspector::V8InspectorSession* v8_inspector__V8Inspector__connect(
 
 void v8_inspector__V8Inspector__contextCreated(
     v8_inspector::V8Inspector* self, const v8::Context& context,
-    int contextGroupId, v8_inspector::StringView humanReadableName) {
-  self->contextCreated(v8_inspector::V8ContextInfo(
-      ptr_to_local(&context), contextGroupId, humanReadableName));
+    int contextGroupId, v8_inspector::StringView humanReadableName,
+    v8_inspector::StringView auxData) {
+  v8_inspector::V8ContextInfo info(
+      ptr_to_local(&context), contextGroupId, humanReadableName);
+  info.auxData = auxData;
+  self->contextCreated(info);
 }
 
 void v8_inspector__V8Inspector__contextDestroyed(
@@ -2769,6 +2776,11 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
 void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
                                size_t len) {
   self->inner->SetUrl(url, len);
+}
+
+const v8::ArrayBuffer* v8__WasmMemoryObject__Buffer(
+    const v8::WasmMemoryObject& self) {
+  return local_to_ptr(ptr_to_local(&self)->Buffer());
 }
 
 using HeapSnapshotCallback = bool (*)(void*, const char*, size_t);

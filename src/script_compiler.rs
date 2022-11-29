@@ -1,7 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use std::os::raw::c_int;
 use std::{marker::PhantomData, mem::MaybeUninit};
 
+use crate::support::int;
 use crate::Function;
 use crate::Local;
 use crate::Module;
@@ -65,9 +65,9 @@ extern "C" {
 pub struct Source {
   _source_string: usize,
   _resource_name: usize,
-  _resource_line_offset: c_int,
-  _resource_column_offset: c_int,
-  _resource_options: c_int,
+  _resource_line_offset: int,
+  _resource_column_offset: int,
+  _resource_options: int,
   _source_map_url: usize,
   _host_defined_options: usize,
   _cached_data: usize,

@@ -346,7 +346,7 @@ impl<'a, 's> ValueDeserializerHelper for ValueDeserializerHeap<'a, 's> {
 
 impl<'a, 's> ValueDeserializerHelper for ValueDeserializer<'a, 's> {
   fn get_cxx_value_deserializer(&mut self) -> &mut CxxValueDeserializer {
-    &mut (*self.value_deserializer_heap).cxx_value_deserializer
+    &mut self.value_deserializer_heap.cxx_value_deserializer
   }
 }
 
@@ -378,18 +378,20 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
     });
 
     unsafe {
-      v8__ValueDeserializer__Delegate__CONSTRUCT(core::mem::transmute(
-        &mut (*value_deserializer_heap).cxx_value_deserializer_delegate,
-      ));
+      v8__ValueDeserializer__Delegate__CONSTRUCT(
+        &mut value_deserializer_heap.cxx_value_deserializer_delegate
+          as *mut CxxValueDeserializerDelegate
+          as *mut std::mem::MaybeUninit<CxxValueDeserializerDelegate>,
+      );
 
       v8__ValueDeserializer__CONSTRUCT(
-        core::mem::transmute(
-          &mut (*value_deserializer_heap).cxx_value_deserializer,
-        ),
+        &mut value_deserializer_heap.cxx_value_deserializer
+          as *mut CxxValueDeserializer
+          as *mut std::mem::MaybeUninit<CxxValueDeserializer>,
         scope.get_isolate_ptr(),
         data.as_ptr(),
         data.len(),
-        &mut (*value_deserializer_heap).cxx_value_deserializer_delegate,
+        &mut value_deserializer_heap.cxx_value_deserializer_delegate,
       );
     };
 
@@ -406,7 +408,7 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
   ) {
     unsafe {
       v8__ValueDeserializer__SetSupportsLegacyWireFormat(
-        &mut (*self.value_deserializer_heap).cxx_value_deserializer,
+        &mut self.value_deserializer_heap.cxx_value_deserializer,
         supports_legacy_wire_format,
       );
     }
@@ -416,6 +418,6 @@ impl<'a, 's> ValueDeserializer<'a, 's> {
     &mut self,
     context: Local<'t, Context>,
   ) -> Option<Local<'t, Value>> {
-    (*self.value_deserializer_heap).read_value(context)
+    self.value_deserializer_heap.read_value(context)
   }
 }
