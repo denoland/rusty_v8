@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
 use crate::gc;
+use crate::gc::GCType;
 use crate::handle::FinalizerCallback;
 use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
@@ -984,7 +985,7 @@ impl Isolate {
     &mut self,
     callback: GcCallbackWithData,
     data: *mut c_void,
-    gc_type_filter: gc::GCType,
+    gc_type_filter: GCType,
   ) {
     unsafe {
       v8__Isolate__AddGCPrologueCallback(self, callback, data, gc_type_filter)
