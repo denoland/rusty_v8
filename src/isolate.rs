@@ -290,6 +290,53 @@ where
 pub type HostCreateShadowRealmContextCallback =
   for<'s> fn(scope: &mut HandleScope<'s>) -> Option<Local<'s, Context>>;
 
+/// Applications can register callback functions which will be called before and
+/// after certain garbage collection operations.  Allocations are not allowed in
+/// the callback functions, you therefore cannot manipulate objects (set or
+/// delete properties for example) since it is possible such operations will
+/// result in the allocation of objects.
+#[repr(C)]
+enum GCType {
+  GCTypeScavenge = 1 << 0,
+  GCTypeMinorMarkCompact = 1 << 1,
+  GCTypeMarkSweepCompact = 1 << 2,
+  GCTypeIncrementalMarking = 1 << 3,
+  GCTypeProcessWeakCallbacks = 1 << 4,
+  GCTypeAll = GCType::GCTypeScavenge | GCType::GCTypeMinorMarkCompact |
+               GCType::GCTypeMarkSweepCompact | GCType::GCTypeIncrementalMarking |
+               GCType::GCTypeProcessWeakCallbacks
+}
+
+/// GCCallbackFlags is used to notify additional information about the GC
+/// callback.
+///   - GCCallbackFlagConstructRetainedObjectInfos: The GC callback is for
+///     constructing retained object infos.
+///   - GCCallbackFlagForced: The GC callback is for a forced GC for testing.
+///   - GCCallbackFlagSynchronousPhantomCallbackProcessing: The GC callback
+///     is called synchronously without getting posted to an idle task.
+///   - GCCallbackFlagCollectAllAvailableGarbage: The GC callback is called
+///     in a phase where V8 is trying to collect all available garbage
+///     (e.g., handling a low memory notification).
+///   - GCCallbackScheduleIdleGarbageCollection: The GC callback is called to
+///     trigger an idle garbage collection.
+#[repr(C)]
+enum GCCallbackFlags {
+  NoGCCallbackFlags = 0,
+  GCCallbackFlagConstructRetainedObjectInfos = 1 << 1,
+  GCCallbackFlagForced = 1 << 2,
+  GCCallbackFlagSynchronousPhantomCallbackProcessing = 1 << 3,
+  GCCallbackFlagCollectAllAvailableGarbage = 1 << 4,
+  GCCallbackFlagCollectAllExternalMemory = 1 << 5,
+  GCCallbackScheduleIdleGarbageCollection = 1 << 6,
+}
+
+pub type GcCallbackWithData = extern "C" fn (
+  isolate: *mut Isolate,
+  r#type: GCType,
+  flags: GCCallbackFlags,
+  data: *mut c_void,
+);
+
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
