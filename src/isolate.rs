@@ -1,7 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
-use crate::gc;
 use crate::gc::GCType;
+use crate::gc::GCCallbackFlags;
 use crate::handle::FinalizerCallback;
 use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
@@ -294,8 +294,8 @@ pub type HostCreateShadowRealmContextCallback =
 
 pub type GcCallbackWithData = extern "C" fn(
   isolate: *mut Isolate,
-  r#type: gc::GCType,
-  flags: gc::GCCallbackFlags,
+  r#type: GCType,
+  flags: GCCallbackFlags,
   data: *mut c_void,
 );
 
@@ -373,7 +373,7 @@ extern "C" {
     isolate: *mut Isolate,
     callback: GcCallbackWithData,
     data: *mut c_void,
-    gc_type_filter: gc::GCType,
+    gc_type_filter: GCType,
   );
   fn v8__Isolate__RemoveGCPrologueCallback(
     isolate: *mut Isolate,
