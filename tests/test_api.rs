@@ -161,6 +161,7 @@ fn global_from_into_raw() {
     (raw, weak)
   };
 
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
   assert!(!weak.is_empty());
 
@@ -171,6 +172,7 @@ fn global_from_into_raw() {
     assert_eq!(global_from_weak, reconstructed);
   }
 
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
   assert!(weak.is_empty());
 }
@@ -6369,6 +6371,7 @@ fn clear_kept_objects() {
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
 
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   let step1 = r#"
     var weakrefs = [];
     for (let i = 0; i < 424242; i++) weakrefs.push(new WeakRef({ i }));
@@ -6376,6 +6379,7 @@ fn clear_kept_objects() {
     if (weakrefs.some(w => !w.deref())) throw "fail";
   "#;
 
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   let step2 = r#"
     gc();
     if (weakrefs.every(w => w.deref())) throw "fail";
@@ -7408,6 +7412,7 @@ fn weak_handle() {
 
   let scope = &mut v8::HandleScope::new(scope);
 
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
 
   assert!(weak.is_empty());
@@ -7437,6 +7442,7 @@ fn finalizers() {
     }
 
     let scope = &mut v8::HandleScope::new(scope);
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
   }
 
@@ -7472,6 +7478,7 @@ fn finalizers() {
   };
 
   let scope = &mut v8::HandleScope::new(scope);
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
   assert!(weak.is_empty());
   assert!(finalizer_called.get());
@@ -7506,6 +7513,7 @@ fn guaranteed_finalizers() {
     }
 
     let scope = &mut v8::HandleScope::new(scope);
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
   }
 
@@ -7541,6 +7549,7 @@ fn guaranteed_finalizers() {
   };
 
   let scope = &mut v8::HandleScope::new(scope);
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
   assert!(weak.is_empty());
   assert!(finalizer_called.get());
@@ -7566,6 +7575,7 @@ fn weak_from_global() {
   assert_eq!(weak.to_global(scope).unwrap(), global);
 
   drop(global);
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
   assert!(weak.is_empty());
 }
@@ -7615,6 +7625,7 @@ fn weak_from_into_raw() {
       assert!(!finalizer_called.get());
       (weak1, weak2)
     };
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
     assert!(weak1.is_empty());
     assert!(weak2.is_empty());
@@ -7629,6 +7640,7 @@ fn weak_from_into_raw() {
       v8::Weak::new(scope, local)
     };
     assert!(!weak.is_empty());
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
     assert!(weak.is_empty());
     assert_eq!(weak.into_raw(), None);
@@ -7660,6 +7672,7 @@ fn weak_from_into_raw() {
     let raw2 = weak_with_finalizer.into_raw();
     assert!(raw1.is_some());
     assert!(raw2.is_some());
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
     assert!(finalizer_called.get());
     let weak1 = unsafe { v8::Weak::from_raw(scope, raw1) };
@@ -7674,8 +7687,10 @@ fn weak_from_into_raw() {
     let local = v8::Object::new(scope);
     v8::Weak::new(scope, local).into_raw();
     v8::Weak::with_finalizer(scope, local, Box::new(|_| {})).into_raw();
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
   }
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
 }
 
@@ -7716,6 +7731,7 @@ fn drop_weak_from_raw_in_finalizer() {
   }
 
   assert!(!finalized.get());
+  // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
   eval(scope, "gc()").unwrap();
   assert!(finalized.get());
 }
@@ -8723,6 +8739,7 @@ fn gc_callbacks() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
     assert_eq!(state.mark_sweep_calls, 1);
     assert_eq!(state.incremental_marking_calls, 0);
@@ -8735,6 +8752,7 @@ fn gc_callbacks() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
+    // TODO use binding to Isolate::RequestGarbageCollectionForTesting instead of gc()
     eval(scope, "gc()").unwrap();
     // Assert callback was removed and not called again.
     assert_eq!(state.mark_sweep_calls, 1);
