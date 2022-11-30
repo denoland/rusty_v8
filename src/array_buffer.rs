@@ -4,6 +4,7 @@ use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr;
+use std::ptr::null;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::slice;
@@ -412,11 +413,12 @@ impl ArrayBuffer {
   /// `None` if the key didn't pass the `[[ArrayBufferDetachKey]]` check,
   /// and `Some(true)` otherwise.
   #[inline(always)]
-  pub fn detach(&self, key: Local<Value>) -> Option<bool> {
+  pub fn detach(&self, key: Option<Local<Value>>) -> Option<bool> {
     // V8 terminates when the ArrayBuffer is not detachable. Non-detachable
     // buffers are buffers that are in use by WebAssembly or asm.js.
     if self.is_detachable() {
-      unsafe { v8__ArrayBuffer__Detach(self, &*key) }.into()
+      let key = key.map(|v| &*v as *const Value).unwrap_or(null());
+      unsafe { v8__ArrayBuffer__Detach(self, key) }.into()
     } else {
       Some(true)
     }
