@@ -1,7 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
-use crate::gc::GCType;
 use crate::gc::GCCallbackFlags;
+use crate::gc::GCType;
 use crate::handle::FinalizerCallback;
 use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
