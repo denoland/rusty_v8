@@ -1,5 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::gc::GCCallbackFlags;
+use crate::gc::GCType;
 use crate::handle::FinalizerCallback;
 use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
@@ -302,6 +304,13 @@ where
 pub type HostCreateShadowRealmContextCallback =
   for<'s> fn(scope: &mut HandleScope<'s>) -> Option<Local<'s, Context>>;
 
+pub type GcCallbackWithData = extern "C" fn(
+  isolate: *mut Isolate,
+  r#type: GCType,
+  flags: GCCallbackFlags,
+  data: *mut c_void,
+);
+
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
 
@@ -373,6 +382,17 @@ extern "C" {
     isolate: *mut Isolate,
     callback: MessageCallback,
   ) -> bool;
+  fn v8__Isolate__AddGCPrologueCallback(
+    isolate: *mut Isolate,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+    gc_type_filter: GCType,
+  );
+  fn v8__Isolate__RemoveGCPrologueCallback(
+    isolate: *mut Isolate,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+  );
   fn v8__Isolate__AddNearHeapLimitCallback(
     isolate: *mut Isolate,
     callback: NearHeapLimitCallback,
@@ -972,6 +992,38 @@ impl Isolate {
         );
       }
     }
+  }
+
+  /// Enables the host application to receive a notification before a
+  /// garbage collection. Allocations are allowed in the callback function,
+  /// but the callback is not re-entrant: if the allocation inside it will
+  /// trigger the garbage collection, the callback won't be called again.
+  /// It is possible to specify the GCType filter for your callback. But it is
+  /// not possible to register the same callback function two times with
+  /// different GCType filters.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
+  pub fn add_gc_prologue_callback(
+    &mut self,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+    gc_type_filter: GCType,
+  ) {
+    unsafe {
+      v8__Isolate__AddGCPrologueCallback(self, callback, data, gc_type_filter)
+    }
+  }
+
+  /// This function removes callback which was installed by
+  /// AddGCPrologueCallback function.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
+  pub fn remove_gc_prologue_callback(
+    &mut self,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RemoveGCPrologueCallback(self, callback, data) }
   }
 
   /// Add a callback to invoke in case the heap size is close to the heap limit.
