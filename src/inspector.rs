@@ -250,8 +250,8 @@ where
 }
 
 pub trait ChannelImpl: AsChannel {
-  fn base(this: *const Self) -> *const ChannelBase where Self: Sized;
-  fn base_mut(this: *mut Self) -> *mut ChannelBase where Self: Sized;
+  fn base(&self) -> &ChannelBase;
+  fn base_mut(&mut self) -> &mut ChannelBase;
 
   fn send_response(&mut self, call_id: i32, message: UniquePtr<StringBuffer>);
   fn send_notification(&mut self, message: UniquePtr<StringBuffer>);
@@ -285,7 +285,7 @@ impl ChannelBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = T::base(embedder_ptr);
+    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
