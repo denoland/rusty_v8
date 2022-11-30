@@ -576,16 +576,15 @@ fn array_buffer() {
     assert!(!ab.was_detached());
     assert!(ab.is_detachable());
 
-    let key = v8::undefined(scope);
-    assert!(ab.detach(key.into()).unwrap());
+    assert!(ab.detach(None).unwrap());
     assert_eq!(0, ab.byte_length());
     assert!(ab.was_detached());
-    assert!(ab.detach(key.into()).unwrap()); // Calling it twice should be a no-op.
+    assert!(ab.detach(None).unwrap()); // Calling it twice should be a no-op.
 
     // detecting if it was detached on a zero-length ArrayBuffer should work
     let empty_ab = v8::ArrayBuffer::new(scope, 0);
     assert!(!empty_ab.was_detached());
-    assert!(empty_ab.detach(key.into()).unwrap());
+    assert!(empty_ab.detach(None).unwrap());
     assert!(empty_ab.was_detached());
 
     let bs = v8::ArrayBuffer::new_backing_store(scope, 84);
@@ -8572,9 +8571,9 @@ fn test_detach_key() {
     let buffer = v8::ArrayBuffer::new(scope, 1024);
     buffer.set_detach_key(detach_key);
     assert!(buffer.is_detachable());
-    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert_eq!(buffer.detach(None), None);
     assert!(!buffer.was_detached());
-    assert_eq!(buffer.detach(detach_key), Some(true));
+    assert_eq!(buffer.detach(Some(detach_key)), Some(true));
     assert!(buffer.was_detached());
   }
 
@@ -8588,9 +8587,9 @@ fn test_detach_key() {
     let buffer = v8::ArrayBuffer::new(scope, 1024);
     buffer.set_detach_key(v8_detach_key.into());
     assert!(buffer.is_detachable());
-    assert_eq!(buffer.detach(v8::undefined(scope).into()), None);
+    assert_eq!(buffer.detach(None), None);
     assert!(!buffer.was_detached());
-    assert_eq!(buffer.detach(v8_detach_key.into()), Some(true));
+    assert_eq!(buffer.detach(Some(v8_detach_key.into())), Some(true));
     assert!(buffer.was_detached());
   }
 
@@ -8599,7 +8598,7 @@ fn test_detach_key() {
     let buffer = v8::ArrayBuffer::new(scope, 1024);
     buffer.set_detach_key(v8::undefined(scope).into());
     assert!(buffer.is_detachable());
-    assert_eq!(buffer.detach(v8::undefined(scope).into()), Some(true));
+    assert_eq!(buffer.detach(Some(v8::undefined(scope).into())), Some(true));
     assert!(buffer.was_detached());
   }
 }
