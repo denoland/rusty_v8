@@ -210,7 +210,7 @@ pub struct FastApiTypedArray<T: Default> {
 #[repr(C)]
 pub struct FastApiOneByteString {
   data: *const u8,
-  pub length: usize,
+  pub length: u32,
 }
 
 impl FastApiOneByteString {
@@ -220,7 +220,7 @@ impl FastApiOneByteString {
     unsafe {
       std::str::from_utf8_unchecked(std::slice::from_raw_parts(
         self.data,
-        self.length,
+        self.length as usize,
       ))
     }
   }
