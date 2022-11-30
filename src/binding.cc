@@ -247,6 +247,19 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
   return isolate->AddMessageListener(callback);
 }
 
+void v8__Isolate__AddGCPrologueCallback(v8::Isolate* isolate,
+                                        v8::Isolate::GCCallbackWithData callback,
+                                        void* data,
+                                        v8::GCType gc_type_filter) {
+  isolate->AddGCPrologueCallback(callback, data, gc_type_filter);
+}
+
+void v8__Isolate__RemoveGCPrologueCallback(v8::Isolate* isolate,
+                                           v8::Isolate::GCCallbackWithData callback,
+                                           void* data) {
+  isolate->RemoveGCPrologueCallback(callback, data);
+}
+
 void v8__Isolate__AddNearHeapLimitCallback(v8::Isolate* isolate,
                                            v8::NearHeapLimitCallback callback,
                                            void* data) {

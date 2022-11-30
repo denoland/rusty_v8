@@ -41,6 +41,7 @@ mod external_references;
 pub mod fast_api;
 mod fixed_array;
 mod function;
+pub mod gc;
 mod get_property_names_args_builder;
 mod handle;
 pub mod icu;

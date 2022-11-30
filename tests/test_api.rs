@@ -8673,3 +8673,71 @@ fn test_fast_calls_onebytestring() {
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
 }
+
+#[test]
+fn gc_callbacks() {
+  let _setup_guard = setup();
+
+  #[derive(Default)]
+  struct GCCallbackState {
+    mark_sweep_calls: u64,
+    incremental_marking_calls: u64,
+  }
+
+  extern "C" fn callback(
+    _isolate: *mut v8::Isolate,
+    r#type: v8::gc::GCType,
+    _flags: v8::gc::GCCallbackFlags,
+    data: *mut c_void,
+  ) {
+    // We should get a mark-sweep GC here.
+    assert_eq!(r#type, v8::gc::MARK_SWEEP_COMPACT);
+    let state = unsafe { &mut *(data as *mut GCCallbackState) };
+    state.mark_sweep_calls += 1;
+  }
+
+  extern "C" fn callback2(
+    _isolate: *mut v8::Isolate,
+    r#type: v8::gc::GCType,
+    _flags: v8::gc::GCCallbackFlags,
+    data: *mut c_void,
+  ) {
+    // We should get a mark-sweep GC here.
+    assert_eq!(r#type, v8::gc::INCREMENTAL_MARKING);
+    let state = unsafe { &mut *(data as *mut GCCallbackState) };
+    state.incremental_marking_calls += 1;
+  }
+
+  let mut state = GCCallbackState::default();
+  let state_ptr = &mut state as *mut _ as *mut c_void;
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.add_gc_prologue_callback(callback, state_ptr, v8::gc::TYPE_ALL);
+  isolate.add_gc_prologue_callback(
+    callback2,
+    state_ptr,
+    v8::gc::INCREMENTAL_MARKING,
+  );
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    eval(scope, "gc()").unwrap();
+    assert_eq!(state.mark_sweep_calls, 1);
+    assert_eq!(state.incremental_marking_calls, 0);
+  }
+
+  isolate.remove_gc_prologue_callback(callback, state_ptr);
+  isolate.remove_gc_prologue_callback(callback2, state_ptr);
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    eval(scope, "gc()").unwrap();
+    // Assert callback was removed and not called again.
+    assert_eq!(state.mark_sweep_calls, 1);
+    assert_eq!(state.incremental_marking_calls, 0);
+  }
+}
