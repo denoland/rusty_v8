@@ -382,6 +382,12 @@ mod tests {
     fn flush_protocol_notifications(&mut self) {
       self.log_call()
     }
+
+    fn base_ptr(this: *const Self) -> *const ChannelBase
+  where
+    Self: Sized {
+        todo!()
+    }
   }
 
   impl TestChannel {
