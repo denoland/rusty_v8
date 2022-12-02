@@ -107,6 +107,15 @@ pub enum PromiseHookType {
   After,
 }
 
+/// Types of garbage collections that can be requested via
+/// [`Isolate::request_garbage_collection_for_testing`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum GarbageCollectionType {
+  Full,
+  Minor,
+}
+
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
 pub type PromiseHook =
@@ -471,6 +480,10 @@ extern "C" {
     callback: extern "C" fn(*const FunctionCallbackInfo),
   );
   fn v8__Isolate__HasPendingBackgroundTasks(isolate: *const Isolate) -> bool;
+  fn v8__Isolate__RequestGarbageCollectionForTesting(
+    isolate: *mut Isolate,
+    r#type: usize,
+  );
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
@@ -1138,6 +1151,31 @@ impl Isolate {
   #[inline(always)]
   pub fn has_pending_background_tasks(&self) -> bool {
     unsafe { v8__Isolate__HasPendingBackgroundTasks(self) }
+  }
+
+  /// Request garbage collection with a specific embedderstack state in this
+  /// Isolate. It is only valid to call this function if --expose_gc was
+  /// specified.
+  ///
+  /// This should only be used for testing purposes and not to enforce a garbage
+  /// collection schedule. It has strong negative impact on the garbage
+  /// collection performance. Use IdleNotificationDeadline() or
+  /// LowMemoryNotification() instead to influence the garbage collection
+  /// schedule.
+  #[inline(always)]
+  pub fn request_garbage_collection_for_testing(
+    &mut self,
+    r#type: GarbageCollectionType,
+  ) {
+    unsafe {
+      v8__Isolate__RequestGarbageCollectionForTesting(
+        self,
+        match r#type {
+          GarbageCollectionType::Full => 0,
+          GarbageCollectionType::Minor => 1,
+        },
+      )
+    }
   }
 
   unsafe fn clear_scope_and_annex(&mut self) {

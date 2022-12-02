@@ -97,6 +97,7 @@ pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;
 pub use handle::Weak;
+pub use isolate::GarbageCollectionType;
 pub use isolate::HeapStatistics;
 pub use isolate::HostCreateShadowRealmContextCallback;
 pub use isolate::HostImportModuleDynamicallyCallback;
