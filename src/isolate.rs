@@ -108,12 +108,12 @@ pub enum PromiseHookType {
 }
 
 /// Types of garbage collections that can be requested via
-/// RequestGarbageCollectionForTesting.
+/// [`Isolate::request_garbage_collection_for_testing`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum GarbageCollectionType {
-  FullGarbageCollection,
-  MinorGarbageCollection,
+  Full,
+  Minor,
 }
 
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
@@ -1171,8 +1171,8 @@ impl Isolate {
       v8__Isolate__RequestGarbageCollectionForTesting(
         self,
         match r#type {
-          GarbageCollectionType::FullGarbageCollection => 0,
-          GarbageCollectionType::MinorGarbageCollection => 1,
+          GarbageCollectionType::Full => 0,
+          GarbageCollectionType::Minor => 1,
         },
       )
     }

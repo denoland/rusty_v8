@@ -161,9 +161,7 @@ fn global_from_into_raw() {
     (raw, weak)
   };
 
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(!weak.is_empty());
 
   {
@@ -173,9 +171,7 @@ fn global_from_into_raw() {
     assert_eq!(global_from_weak, reconstructed);
   }
 
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
 }
 
@@ -6394,14 +6390,10 @@ fn clear_kept_objects() {
   "#;
 
   eval(scope, step1).unwrap();
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   eval(scope, step2).unwrap();
   scope.clear_kept_objects();
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   eval(scope, step3).unwrap();
 }
 
@@ -7427,9 +7419,7 @@ fn weak_handle() {
 
   let scope = &mut v8::HandleScope::new(scope);
 
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
 
   assert!(weak.is_empty());
   assert_eq!(weak.to_local(scope), None);
@@ -7458,9 +7448,8 @@ fn finalizers() {
     }
 
     let scope = &mut v8::HandleScope::new(scope);
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   }
 
   let finalizer_called = Rc::new(Cell::new(false));
@@ -7495,9 +7484,7 @@ fn finalizers() {
   };
 
   let scope = &mut v8::HandleScope::new(scope);
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
   assert!(finalizer_called.get());
 }
@@ -7531,9 +7518,8 @@ fn guaranteed_finalizers() {
     }
 
     let scope = &mut v8::HandleScope::new(scope);
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   }
 
   let finalizer_called = Rc::new(Cell::new(false));
@@ -7568,9 +7554,7 @@ fn guaranteed_finalizers() {
   };
 
   let scope = &mut v8::HandleScope::new(scope);
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
   assert!(finalizer_called.get());
 }
@@ -7595,9 +7579,7 @@ fn weak_from_global() {
   assert_eq!(weak.to_global(scope).unwrap(), global);
 
   drop(global);
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
 }
 
@@ -7646,9 +7628,8 @@ fn weak_from_into_raw() {
       assert!(!finalizer_called.get());
       (weak1, weak2)
     };
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
     assert!(weak1.is_empty());
     assert!(weak2.is_empty());
     assert!(finalizer_called.get());
@@ -7662,9 +7643,8 @@ fn weak_from_into_raw() {
       v8::Weak::new(scope, local)
     };
     assert!(!weak.is_empty());
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
     assert!(weak.is_empty());
     assert_eq!(weak.into_raw(), None);
   }
@@ -7695,9 +7675,8 @@ fn weak_from_into_raw() {
     let raw2 = weak_with_finalizer.into_raw();
     assert!(raw1.is_some());
     assert!(raw2.is_some());
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
     assert!(finalizer_called.get());
     let weak1 = unsafe { v8::Weak::from_raw(scope, raw1) };
     let weak2 = unsafe { v8::Weak::from_raw(scope, raw2) };
@@ -7711,13 +7690,10 @@ fn weak_from_into_raw() {
     let local = v8::Object::new(scope);
     v8::Weak::new(scope, local).into_raw();
     v8::Weak::with_finalizer(scope, local, Box::new(|_| {})).into_raw();
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   }
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
 }
 
 #[test]
@@ -7757,9 +7733,7 @@ fn drop_weak_from_raw_in_finalizer() {
   }
 
   assert!(!finalized.get());
-  scope.request_garbage_collection_for_testing(
-    v8::GarbageCollectionType::FullGarbageCollection,
-  );
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(finalized.get());
 }
 
@@ -8766,9 +8740,8 @@ fn gc_callbacks() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
     assert_eq!(state.mark_sweep_calls, 1);
     assert_eq!(state.incremental_marking_calls, 0);
   }
@@ -8780,9 +8753,8 @@ fn gc_callbacks() {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    scope.request_garbage_collection_for_testing(
-      v8::GarbageCollectionType::FullGarbageCollection,
-    );
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
     // Assert callback was removed and not called again.
     assert_eq!(state.mark_sweep_calls, 1);
     assert_eq!(state.incremental_marking_calls, 0);
