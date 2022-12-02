@@ -317,6 +317,11 @@ bool v8__Isolate__HasPendingBackgroundTasks(v8::Isolate* isolate) {
   return isolate->HasPendingBackgroundTasks();
 }
 
+void v8__Isolate__RequestGarbageCollectionForTesting(
+  v8::Isolate* isolate, v8::Isolate::GarbageCollectionType type) {
+  isolate->RequestGarbageCollectionForTesting(type);
+}
+
 void v8__Isolate__CreateParams__CONSTRUCT(
     uninit_t<v8::Isolate::CreateParams>* buf) {
   construct_in_place<v8::Isolate::CreateParams>(buf);
