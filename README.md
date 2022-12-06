@@ -161,3 +161,17 @@ increasing amount of V8's API in Rust.
 **When building I get unknown argument: '-gno-inline-line-tables'**
 
 Use `export GN_ARGS="no_inline_line_tables=false"` during build.
+
+## For maintainers
+
+**Cut a release**
+
+Go to https://github.com/denoland/rusty_v8/actions/workflows/release.yml, select
+proper release kind and wait for the workflow to complete. It will bump the
+version and create a tag. You will need to manually upload binary archives for
+M1 build.
+
+```
+$ V8_FROM_SOURCE=1 cargo build
+$ V8_FROM_SOURCE=1 cargo build --release
+```
