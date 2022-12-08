@@ -144,8 +144,7 @@ impl<'s, T> Deref for Local<'s, T> {
 
 /// An object reference that is independent of any handle scope. Where
 /// a Local handle only lives as long as the HandleScope in which it was
-/// allocated, a global handle remains valid until it is explicitly
-/// disposed using reset().
+/// allocated, a global handle remains valid until it is dropped.
 ///
 /// A global handle contains a reference to a storage cell within
 /// the V8 engine which holds an object value and which is updated by
