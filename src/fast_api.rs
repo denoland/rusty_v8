@@ -90,6 +90,7 @@ pub enum CType {
   Uint64,
   Float32,
   Float64,
+  Pointer,
   V8Value,
   SeqOneByteString,
   // https://github.com/v8/v8/blob/492a32943bc34a527f42df2ae15a77154b16cc84/include/v8-fast-api-calls.h#L264-L267
@@ -110,6 +111,7 @@ pub enum Type {
   Uint64,
   Float32,
   Float64,
+  Pointer,
   V8Value,
   SeqOneByteString,
   CallbackOptions,
@@ -129,6 +131,7 @@ impl From<&Type> for CType {
       Type::Uint64 => CType::Uint64,
       Type::Float32 => CType::Float32,
       Type::Float64 => CType::Float64,
+      Type::Pointer => CType::Pointer,
       Type::V8Value => CType::V8Value,
       Type::SeqOneByteString => CType::SeqOneByteString,
       Type::CallbackOptions => CType::CallbackOptions,
