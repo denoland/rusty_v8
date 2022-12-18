@@ -252,16 +252,15 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
   return isolate->AddMessageListener(callback);
 }
 
-void v8__Isolate__AddGCPrologueCallback(v8::Isolate* isolate,
-                                        v8::Isolate::GCCallbackWithData callback,
-                                        void* data,
-                                        v8::GCType gc_type_filter) {
+void v8__Isolate__AddGCPrologueCallback(
+    v8::Isolate* isolate, v8::Isolate::GCCallbackWithData callback, void* data,
+    v8::GCType gc_type_filter) {
   isolate->AddGCPrologueCallback(callback, data, gc_type_filter);
 }
 
-void v8__Isolate__RemoveGCPrologueCallback(v8::Isolate* isolate,
-                                           v8::Isolate::GCCallbackWithData callback,
-                                           void* data) {
+void v8__Isolate__RemoveGCPrologueCallback(
+    v8::Isolate* isolate, v8::Isolate::GCCallbackWithData callback,
+    void* data) {
   isolate->RemoveGCPrologueCallback(callback, data);
 }
 
@@ -318,7 +317,7 @@ bool v8__Isolate__HasPendingBackgroundTasks(v8::Isolate* isolate) {
 }
 
 void v8__Isolate__RequestGarbageCollectionForTesting(
-  v8::Isolate* isolate, v8::Isolate::GarbageCollectionType type) {
+    v8::Isolate* isolate, v8::Isolate::GarbageCollectionType type) {
   isolate->RequestGarbageCollectionForTesting(type);
 }
 
@@ -848,10 +847,9 @@ void* v8__ArrayBuffer__Data(const v8::ArrayBuffer& self) {
   return ptr_to_local(&self)->Data();
 }
 
-MaybeBool v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self, 
-  const v8::Value* key) {
-  return maybe_to_maybe_bool(ptr_to_local(&self)->Detach(
-      ptr_to_local(key)));
+MaybeBool v8__ArrayBuffer__Detach(const v8::ArrayBuffer& self,
+                                  const v8::Value* key) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->Detach(ptr_to_local(key)));
 }
 
 bool v8__ArrayBuffer__IsDetachable(const v8::ArrayBuffer& self) {
@@ -2473,8 +2471,8 @@ void v8_inspector__V8Inspector__contextCreated(
     v8_inspector::V8Inspector* self, const v8::Context& context,
     int contextGroupId, v8_inspector::StringView humanReadableName,
     v8_inspector::StringView auxData) {
-  v8_inspector::V8ContextInfo info(
-      ptr_to_local(&context), contextGroupId, humanReadableName);
+  v8_inspector::V8ContextInfo info(ptr_to_local(&context), contextGroupId,
+                                   humanReadableName);
   info.auxData = auxData;
   self->contextCreated(info);
 }
@@ -2759,7 +2757,6 @@ struct StalledTopLevelAwaitMessage {
   const v8::Module* module;
   const v8::Message* message;
 };
-
 
 size_t v8__Module__GetStalledTopLevelAwaitMessage(
     const v8::Module& self, v8::Isolate* isolate,
