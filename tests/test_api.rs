@@ -19,18 +19,29 @@ use v8::fast_api;
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
 
-#[must_use]
-struct SetupGuard {}
+mod setup {
+  use std::sync::Once;
+  use std::sync::RwLock;
+  use std::sync::RwLockReadGuard;
+  use std::sync::RwLockWriteGuard;
 
-impl Drop for SetupGuard {
-  fn drop(&mut self) {
-    // TODO shutdown process cleanly.
+  static PROCESS_LOCK: RwLock<()> = RwLock::new(());
+
+  /// Set up global state for a test that can run in parallel with other tests.
+  pub(super) fn parallel_test() -> SetupGuard<RwLockReadGuard<'static, ()>> {
+    initialize_once();
+    SetupGuard::new(PROCESS_LOCK.read().unwrap())
   }
-}
 
-fn setup() -> SetupGuard {
-  static START: std::sync::Once = std::sync::Once::new();
-  START.call_once(|| {
+  /// Set up global state for a test that must be the only test running.
+  pub(super) fn sequential_test() -> SetupGuard<RwLockWriteGuard<'static, ()>> {
+    initialize_once();
+    SetupGuard::new(PROCESS_LOCK.write().unwrap())
+  }
+
+  fn initialize_once() {
+    static START: Once = Once::new();
+    START.call_once(|| {
     assert!(v8::icu::set_common_data_72(align_data::include_aligned!(
       align_data::Align16,
       "../third_party/icu/common/icudtl.dat"
@@ -44,12 +55,23 @@ fn setup() -> SetupGuard {
     );
     v8::V8::initialize();
   });
-  SetupGuard {}
+  }
+
+  #[must_use]
+  pub(super) struct SetupGuard<G> {
+    _inner: G,
+  }
+
+  impl<G> SetupGuard<G> {
+    fn new(inner: G) -> Self {
+      Self { _inner: inner }
+    }
+  }
 }
 
 #[test]
 fn handle_scope_nested() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope1 = &mut v8::HandleScope::new(isolate);
@@ -62,7 +84,7 @@ fn handle_scope_nested() {
 #[test]
 #[allow(clippy::float_cmp)]
 fn handle_scope_numbers() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope1 = &mut v8::HandleScope::new(isolate);
@@ -86,7 +108,7 @@ fn handle_scope_numbers() {
 
 #[test]
 fn handle_scope_non_lexical_lifetime() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope1 = &mut v8::HandleScope::new(isolate);
 
@@ -101,7 +123,7 @@ fn handle_scope_non_lexical_lifetime() {
 
 #[test]
 fn global_handles() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let g1: v8::Global<v8::String>;
   let mut g2: Option<v8::Global<v8::Integer>> = None;
@@ -144,7 +166,7 @@ fn global_handles() {
 
 #[test]
 fn global_from_into_raw() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -177,7 +199,7 @@ fn global_from_into_raw() {
 
 #[test]
 fn local_handle_deref() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -194,7 +216,7 @@ fn local_handle_deref() {
 
 #[test]
 fn global_handle_drop() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   // Global 'g1' will be dropped _after_ the Isolate has been disposed.
   #[allow(clippy::needless_late_init)]
@@ -213,7 +235,7 @@ fn global_handle_drop() {
 
 #[test]
 fn test_string() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -308,7 +330,7 @@ fn test_string() {
 #[test]
 #[allow(clippy::float_cmp)]
 fn escapable_handle_scope() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let handle_scope = &mut v8::HandleScope::new(isolate);
@@ -347,7 +369,7 @@ fn escapable_handle_scope() {
 #[test]
 #[should_panic(expected = "EscapableHandleScope::escape() called twice")]
 fn escapable_handle_scope_can_escape_only_once() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope1 = &mut v8::HandleScope::new(isolate);
@@ -364,7 +386,7 @@ fn escapable_handle_scope_can_escape_only_once() {
 
 #[test]
 fn context_scope() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -391,7 +413,7 @@ fn context_scope() {
   expected = "HandleScope<()> and Context do not belong to the same Isolate"
 )]
 fn context_scope_param_and_context_must_share_isolate() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate1 = &mut v8::Isolate::new(Default::default());
   let isolate2 = &mut v8::Isolate::new(Default::default());
   let scope1 = &mut v8::HandleScope::new(isolate1);
@@ -407,7 +429,7 @@ fn context_scope_param_and_context_must_share_isolate() {
   expected = "attempt to use Handle in an Isolate that is not its host"
 )]
 fn handle_scope_param_and_context_must_share_isolate() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate1 = &mut v8::Isolate::new(Default::default());
   let isolate2 = &mut v8::Isolate::new(Default::default());
   let global_context1;
@@ -428,7 +450,7 @@ fn handle_scope_param_and_context_must_share_isolate() {
 
 #[test]
 fn microtasks() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   assert_eq!(isolate.get_microtasks_policy(), v8::MicrotasksPolicy::Auto);
@@ -525,7 +547,7 @@ fn get_isolate_from_handle() {
     check_handle(scope, expect_some, |scope| eval(scope, code).unwrap());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -555,7 +577,7 @@ fn get_isolate_from_handle() {
 
 #[test]
 fn handles_from_isolate() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let _ = v8::null(isolate);
   let _ = v8::undefined(isolate);
@@ -564,7 +586,7 @@ fn handles_from_isolate() {
 
 #[test]
 fn array_buffer() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -671,7 +693,7 @@ fn array_buffer() {
 
 #[test]
 fn backing_store_segfault() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let array_buffer_allocator = v8::new_default_allocator().make_shared();
   let shared_bs = {
     array_buffer_allocator.assert_use_count_eq(1);
@@ -716,7 +738,7 @@ fn shared_array_buffer_allocator() {
 
 #[test]
 fn array_buffer_with_shared_backing_store() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -777,7 +799,7 @@ fn deref_empty_backing_store() {
   // Test that the slice that results from derefing a backing store is not
   // backed by a null pointer, since that would be UB.
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let backing_store = v8::ArrayBuffer::new_backing_store(isolate, 0);
@@ -798,7 +820,7 @@ fn eval<'s>(
 
 #[test]
 fn external() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
 
@@ -858,7 +880,7 @@ fn external() {
 
 #[test]
 fn try_catch() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -907,7 +929,7 @@ fn try_catch() {
 
 #[test]
 fn try_catch_caught_lifetime() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -935,7 +957,7 @@ fn try_catch_caught_lifetime() {
 
 #[test]
 fn throw_exception() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -956,7 +978,7 @@ fn throw_exception() {
 
 #[test]
 fn isolate_termination_methods() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   drop(isolate);
@@ -977,7 +999,7 @@ fn isolate_termination_methods() {
 
 #[test]
 fn thread_safe_handle_drop_after_isolate() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   // We can call it twice.
@@ -1008,7 +1030,7 @@ fn thread_safe_handle_drop_after_isolate() {
 #[cfg(not(target_os = "android"))]
 #[test]
 fn terminate_execution() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let (tx, rx) = std::sync::mpsc::channel::<bool>();
   let handle = isolate.thread_safe_handle();
@@ -1044,7 +1066,7 @@ fn terminate_execution() {
 // TODO(ry) This test should use threads
 #[test]
 fn request_interrupt_small_scripts() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   {
@@ -1068,7 +1090,7 @@ fn request_interrupt_small_scripts() {
 
 #[test]
 fn add_message_listener() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
 
@@ -1134,7 +1156,7 @@ fn unexpected_module_resolve_callback<'a>(
 
 #[test]
 fn set_host_initialize_import_meta_object_callback() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -1174,7 +1196,7 @@ fn set_host_initialize_import_meta_object_callback() {
 
 #[test]
 fn script_compile_and_run() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1190,7 +1212,7 @@ fn script_compile_and_run() {
 
 #[test]
 fn script_origin() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   {
@@ -1277,7 +1299,7 @@ fn inspector_string_buffer() {
 
 #[test]
 fn test_primitives() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1307,7 +1329,7 @@ fn test_primitives() {
 
 #[test]
 fn exception() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -1330,7 +1352,7 @@ fn exception() {
 
 #[test]
 fn create_message_argument_lifetimes() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -1362,7 +1384,7 @@ fn create_message_argument_lifetimes() {
 
 #[test]
 fn json() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1382,7 +1404,7 @@ fn json() {
 
 #[test]
 fn no_internal_field() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1401,7 +1423,7 @@ fn no_internal_field() {
 
 #[test]
 fn object_template() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1459,7 +1481,7 @@ fn object_template() {
 
 #[test]
 fn object_template_from_function_template() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1482,7 +1504,7 @@ fn object_template_from_function_template() {
 
 #[test]
 fn object_template_immutable_proto() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1512,7 +1534,7 @@ fn object_template_immutable_proto() {
 
 #[test]
 fn function_template_signature() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1549,7 +1571,7 @@ fn function_template_signature() {
 
 #[test]
 fn function_template_prototype() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -1622,7 +1644,7 @@ fn function_template_prototype() {
 
 #[test]
 fn instance_template_with_internal_field() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -1662,7 +1684,7 @@ fn instance_template_with_internal_field() {
 
 #[test]
 fn object_template_set_accessor() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -1797,7 +1819,7 @@ fn object_template_set_accessor() {
 
 #[test]
 fn object_template_set_named_property_handler() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -1984,7 +2006,7 @@ fn object_template_set_named_property_handler() {
 
 #[test]
 fn object_template_set_indexed_property_handler() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -2127,7 +2149,7 @@ fn object_template_set_indexed_property_handler() {
 
 #[test]
 fn object() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2209,7 +2231,7 @@ fn object() {
 
 #[test]
 fn map() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2253,7 +2275,7 @@ fn map() {
 
 #[test]
 fn array() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2297,7 +2319,7 @@ fn array() {
 
 #[test]
 fn create_data_property() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2327,7 +2349,7 @@ fn create_data_property() {
 
 #[test]
 fn object_set_accessor() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -2385,7 +2407,7 @@ fn object_set_accessor() {
 
 #[test]
 fn object_set_accessor_with_setter() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -2486,7 +2508,7 @@ fn object_set_accessor_with_setter() {
 
 #[test]
 fn promise_resolved() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2514,7 +2536,7 @@ fn promise_resolved() {
 
 #[test]
 fn promise_rejected() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2542,7 +2564,7 @@ fn promise_rejected() {
 }
 #[test]
 fn proxy() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2658,7 +2680,7 @@ fn nested_builder<'a>(
 
 #[test]
 fn function_builder_raw() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2693,7 +2715,7 @@ fn function_builder_raw() {
 
 #[test]
 fn return_value() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -2865,7 +2887,7 @@ fn return_value() {
 
 #[test]
 fn function() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   {
@@ -2983,7 +3005,7 @@ fn function() {
 
 #[test]
 fn function_column_and_line_numbers() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3042,7 +3064,7 @@ export function anotherFunctionG(a, b) {
 
 #[test]
 fn constructor() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   {
@@ -3075,7 +3097,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
 
 #[test]
 fn set_promise_reject_callback() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_reject_callback(promise_reject_callback);
   {
@@ -3099,7 +3121,7 @@ fn promise_reject_callback_no_value() {
       _ => unreachable!(),
     };
   }
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_reject_callback(promise_reject_callback);
   {
@@ -3136,7 +3158,7 @@ fn promise_hook() {
     let args = &[v8::Integer::new(scope, type_ as i32).into(), promise.into()];
     func.call(scope, global.into(), args).unwrap();
   }
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_hook(hook);
   {
@@ -3172,7 +3194,7 @@ fn promise_hook() {
 
 #[test]
 fn context_get_extras_binding_object() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3185,7 +3207,7 @@ fn context_get_extras_binding_object() {
 
 #[test]
 fn context_promise_hooks() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3286,7 +3308,7 @@ fn context_promise_hooks() {
 
 #[test]
 fn allow_atomics_wait() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   for allow in &[false, true, false] {
     let allow = *allow;
@@ -3355,7 +3377,7 @@ fn mock_source<'s>(
 
 #[test]
 fn script_compiler_source() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_reject_callback(promise_reject_callback);
   {
@@ -3379,7 +3401,7 @@ fn script_compiler_source() {
 
 #[test]
 fn module_instantiation_failures1() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3466,7 +3488,7 @@ fn compile_specifier_as_module_resolve_callback<'a>(
 
 #[test]
 fn module_evaluation() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3507,7 +3529,7 @@ fn module_evaluation() {
 
 #[test]
 fn module_stalled_top_level_await() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3567,7 +3589,7 @@ fn module_stalled_top_level_await() {
 
 #[test]
 fn import_assertions() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   // Clippy thinks the return value doesn't need to be an Option, it's unaware
@@ -3648,7 +3670,7 @@ fn import_assertions() {
 
 #[test]
 fn primitive_array() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3679,7 +3701,7 @@ fn primitive_array() {
 
 #[test]
 fn equality() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3705,7 +3727,7 @@ fn equality() {
 #[test]
 #[allow(clippy::eq_op)]
 fn equality_edge_cases() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -3763,7 +3785,7 @@ fn get_hash() {
   use std::collections::HashSet;
   use std::iter::once;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -3877,7 +3899,7 @@ fn get_hash() {
 
 #[test]
 fn array_buffer_view() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -3904,7 +3926,7 @@ fn array_buffer_view() {
 
 #[test]
 fn snapshot_creator() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::sequential_test();
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let isolate_data_index;
@@ -3993,7 +4015,7 @@ fn snapshot_creator() {
 
 #[test]
 fn snapshot_creator_multiple_contexts() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::sequential_test();
   let startup_data = {
     let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
     {
@@ -4141,7 +4163,7 @@ fn snapshot_creator_multiple_contexts() {
 
 #[test]
 fn external_references() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::sequential_test();
   // Allocate externals for the test.
   let external_ptr = Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice())
     as *mut [u8] as *mut c_void;
@@ -4230,7 +4252,7 @@ fn create_params_snapshot_blob() {
 
 #[test]
 fn uint8_array() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -4258,7 +4280,7 @@ fn uint8_array() {
 
 #[test]
 fn typed_array_constructors() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -4332,7 +4354,7 @@ fn typed_array_constructors() {
 
 #[test]
 fn dynamic_import() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -4372,7 +4394,7 @@ fn dynamic_import() {
 
 #[test]
 fn shared_array_buffer() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -4425,7 +4447,7 @@ fn shared_array_buffer() {
 
 #[test]
 fn typeof_checker() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -4446,7 +4468,7 @@ fn typeof_checker() {
 #[allow(clippy::cognitive_complexity)]
 #[allow(clippy::eq_op)]
 fn value_checker() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -4800,7 +4822,7 @@ fn value_checker() {
 
 #[test]
 fn try_from_data() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -4877,7 +4899,7 @@ fn try_from_data() {
 
 #[test]
 fn try_from_value() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5133,7 +5155,7 @@ fn inspector_can_dispatch_method() {
 
 #[test]
 fn inspector_dispatch_protocol_message() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
@@ -5171,7 +5193,7 @@ fn inspector_dispatch_protocol_message() {
 
 #[test]
 fn inspector_exception_thrown() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
@@ -5239,7 +5261,7 @@ fn inspector_exception_thrown() {
 
 #[test]
 fn inspector_schedule_pause_on_next_statement() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
@@ -5306,7 +5328,7 @@ fn inspector_schedule_pause_on_next_statement() {
 
 #[test]
 fn inspector_console_api_message() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
@@ -5372,7 +5394,7 @@ fn inspector_console_api_message() {
 
 #[test]
 fn context_from_object_template() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5390,7 +5412,7 @@ fn context_from_object_template() {
 
 #[test]
 fn take_heap_snapshot() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5416,7 +5438,7 @@ fn take_heap_snapshot() {
 
 #[test]
 fn test_prototype_api() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5466,7 +5488,7 @@ fn test_prototype_api() {
 
 #[test]
 fn test_map_api() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5502,7 +5524,7 @@ fn test_map_api() {
 
 #[test]
 fn test_object_get_property_names() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -5680,7 +5702,7 @@ fn test_object_get_property_names() {
 
 #[test]
 fn module_snapshot() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::sequential_test();
 
   let startup_data = {
     let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
@@ -5762,7 +5784,7 @@ extern "C" fn heap_limit_callback(
 // https://bugs.chromium.org/p/v8/issues/detail?id=10843.
 #[test]
 fn heap_limits() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let params = v8::CreateParams::default().heap_limits(0, 10 << 20); // 10 MB.
   let isolate = &mut v8::Isolate::new(params);
@@ -5797,7 +5819,7 @@ fn heap_limits() {
 
 #[test]
 fn heap_statistics() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let params = v8::CreateParams::default().heap_limits(0, 10 << 20); // 10 MB.
   let isolate = &mut v8::Isolate::new(params);
@@ -5876,7 +5898,7 @@ fn synthetic_evaluation_steps<'a>(
 
 #[test]
 fn synthetic_module() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -5925,7 +5947,7 @@ fn synthetic_module() {
 fn date() {
   let time = 1_291_404_900_000.; // 2010-12-03 20:35:00 - Mees <3
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -5952,7 +5974,7 @@ fn date() {
 
 #[test]
 fn symbol() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
 
@@ -5981,7 +6003,7 @@ fn symbol() {
 
 #[test]
 fn private() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
 
@@ -6023,7 +6045,7 @@ fn private() {
 
 #[test]
 fn bigint() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -6153,7 +6175,7 @@ fn value_serializer_and_deserializer() {
   use v8::ValueDeserializerHelper;
   use v8::ValueSerializerHelper;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let mut array_buffers = ArrayBuffers::new();
   let isolate = &mut v8::Isolate::new(Default::default());
 
@@ -6195,7 +6217,7 @@ fn value_serializer_and_deserializer_js_objects() {
   let buffer;
   let mut array_buffers = ArrayBuffers::new();
   {
-    let _setup_guard = setup();
+    let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
     let scope = &mut v8::HandleScope::new(isolate);
@@ -6229,7 +6251,7 @@ fn value_serializer_and_deserializer_js_objects() {
   }
 
   {
-    let _setup_guard = setup();
+    let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
     let scope = &mut v8::HandleScope::new(isolate);
@@ -6309,7 +6331,7 @@ fn value_serializer_and_deserializer_array_buffers() {
   let buffer;
   let mut array_buffers = ArrayBuffers::new();
   {
-    let _setup_guard = setup();
+    let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
     let scope = &mut v8::HandleScope::new(isolate);
@@ -6335,7 +6357,7 @@ fn value_serializer_and_deserializer_array_buffers() {
   }
 
   {
-    let _setup_guard = setup();
+    let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
     let scope = &mut v8::HandleScope::new(isolate);
@@ -6392,7 +6414,7 @@ impl v8::ValueSerializerImpl for Custom2Value {
 
 #[test]
 fn value_serializer_not_implemented() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
   let scope = &mut v8::HandleScope::new(isolate);
@@ -6429,7 +6451,7 @@ fn value_serializer_not_implemented() {
 
 #[test]
 fn memory_pressure_notification() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.memory_pressure_notification(v8::MemoryPressureLevel::Moderate);
   isolate.memory_pressure_notification(v8::MemoryPressureLevel::Critical);
@@ -6440,7 +6462,7 @@ fn memory_pressure_notification() {
 #[cfg(not(target_os = "android"))]
 #[test]
 fn clear_kept_objects() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
@@ -6482,7 +6504,7 @@ fn wasm_streaming_callback() {
     WS.with(|slot| assert!(slot.borrow_mut().replace(ws).is_none()));
   };
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
   isolate.set_wasm_streaming_callback(callback);
@@ -6559,7 +6581,7 @@ fn wasm_streaming_callback() {
 
 #[test]
 fn unbound_script_conversion() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let unbound_script = {
@@ -6635,7 +6657,7 @@ fn run_with_rust_allocator() {
     };
   let count = Arc::new(AtomicUsize::new(0));
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let create_params =
     v8::CreateParams::default().array_buffer_allocator(unsafe {
       v8::new_rust_allocator(Arc::into_raw(count.clone()), vtable)
@@ -6679,7 +6701,7 @@ fn oom_callback() {
     unreachable!()
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let params = v8::CreateParams::default().heap_limits(0, 1048576 * 8);
   let isolate = &mut v8::Isolate::new(params);
   isolate.set_oom_error_handler(oom_handler);
@@ -6704,7 +6726,7 @@ fn prepare_stack_trace_callback() {
     }
   "#;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_prepare_stack_trace_callback(callback);
 
@@ -6767,7 +6789,7 @@ fn prepare_stack_trace_callback() {
 
 #[test]
 fn icu_date() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -6795,7 +6817,7 @@ fn icu_set_common_data_fail() {
 
 #[test]
 fn icu_format() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -6815,7 +6837,7 @@ fn icu_format() {
 
 #[test]
 fn icu_collator() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -6882,7 +6904,7 @@ fn create_unbound_module_script<'s>(
 
 #[test]
 fn unbound_module_script_conversion() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -6915,7 +6937,7 @@ fn code_cache() {
   }
 
   const CODE: &str = "export const hello = 'world';";
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let code_cache = {
     let isolate = &mut v8::Isolate::new(Default::default());
@@ -6955,7 +6977,7 @@ fn code_cache() {
 #[test]
 fn function_code_cache() {
   const CODE: &str = "return word.split('').reverse().join('');";
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let code_cache = {
     let isolate = &mut v8::Isolate::new(Default::default());
@@ -7008,7 +7030,7 @@ fn function_code_cache() {
 
 #[test]
 fn eager_compile_script() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -7030,7 +7052,7 @@ fn eager_compile_script() {
 #[test]
 fn code_cache_script() {
   const CODE: &str = "1 + 1";
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let code_cache = {
     let isolate = &mut v8::Isolate::new(Default::default());
     let scope = &mut v8::HandleScope::new(isolate);
@@ -7073,7 +7095,7 @@ fn code_cache_script() {
 
 #[test]
 fn compile_function() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -7107,7 +7129,7 @@ fn compile_function() {
 
 #[test]
 fn external_strings() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -7188,7 +7210,7 @@ fn counter_lookup_callback() {
       .0
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let params = v8::CreateParams::default().counter_lookup_callback(callback);
   let isolate = &mut v8::Isolate::new(params);
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7217,7 +7239,7 @@ fn counter_lookup_callback() {
 #[cfg(not(target_os = "android"))]
 #[test]
 fn compiled_wasm_module() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let compiled_module = {
     let isolate = &mut v8::Isolate::new(Default::default());
@@ -7343,7 +7365,7 @@ fn function_names() {
 // https://github.com/denoland/rusty_v8/issues/849
 #[test]
 fn backing_store_from_empty_boxed_slice() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let mut isolate = v8::Isolate::new(Default::default());
   let mut scope = v8::HandleScope::new(&mut isolate);
@@ -7357,7 +7379,7 @@ fn backing_store_from_empty_boxed_slice() {
 
 #[test]
 fn backing_store_from_empty_vec() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let mut isolate = v8::Isolate::new(Default::default());
   let mut scope = v8::HandleScope::new(&mut isolate);
@@ -7371,7 +7393,7 @@ fn backing_store_from_empty_vec() {
 
 #[test]
 fn backing_store_data() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let mut isolate = v8::Isolate::new(Default::default());
   let mut scope = v8::HandleScope::new(&mut isolate);
@@ -7444,7 +7466,7 @@ fn current_stack_trace() {
 
 #[test]
 fn instance_of() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let mut isolate = v8::Isolate::new(Default::default());
   let mut scope = v8::HandleScope::new(&mut isolate);
@@ -7470,7 +7492,7 @@ fn get_default_locale() {
 
 #[test]
 fn weak_handle() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7503,7 +7525,7 @@ fn finalizers() {
   use std::ops::Deref;
   use std::rc::Rc;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7570,7 +7592,7 @@ fn guaranteed_finalizers() {
   use std::ops::Deref;
   use std::rc::Rc;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7633,7 +7655,7 @@ fn guaranteed_finalizers() {
 
 #[test]
 fn weak_from_global() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7660,7 +7682,7 @@ fn weak_from_into_raw() {
   use std::cell::Cell;
   use std::rc::Rc;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7773,7 +7795,7 @@ fn drop_weak_from_raw_in_finalizer() {
   use std::cell::Cell;
   use std::rc::Rc;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -7814,7 +7836,7 @@ fn finalizer_on_global_object() {
   use std::cell::Cell;
   use std::rc::Rc;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let weak;
   let finalized = Rc::new(Cell::new(false));
@@ -7848,7 +7870,7 @@ fn finalizer_on_kept_global() {
   use std::cell::Cell;
   use std::rc::Rc;
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let global;
   let weak1;
@@ -7893,7 +7915,7 @@ fn finalizer_on_kept_global() {
 
 #[test]
 fn isolate_data_slots() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
 
   assert_eq!(isolate.get_number_of_data_slots(), 2);
@@ -7915,7 +7937,7 @@ fn isolate_data_slots() {
 
 #[test]
 fn context_embedder_data() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let global_context;
 
@@ -7955,7 +7977,7 @@ fn context_embedder_data() {
 
 #[test]
 fn host_create_shadow_realm_context_callback() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -8061,7 +8083,7 @@ fn test_fast_calls() {
     rv.set_uint32(a + b);
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8134,7 +8156,7 @@ fn test_fast_calls_sequence() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8207,7 +8229,7 @@ fn test_fast_calls_arraybuffer() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8283,7 +8305,7 @@ fn test_fast_calls_typedarray() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8359,7 +8381,7 @@ fn test_fast_calls_reciever() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(
     v8::CreateParams::default().embedder_wrapper_type_info_offsets(
       V8_WRAPPER_TYPE_INDEX,
@@ -8464,7 +8486,7 @@ fn test_fast_calls_overload() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8541,7 +8563,7 @@ fn test_fast_calls_callback_options_fallback() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8613,7 +8635,7 @@ fn test_fast_calls_callback_options_data() {
     rv.set(v8::Boolean::new(scope, false).into());
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8648,7 +8670,7 @@ fn test_fast_calls_callback_options_data() {
 
 #[test]
 fn test_detach_key() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8729,7 +8751,7 @@ fn test_fast_calls_onebytestring() {
     unsafe { WHO = "slow" };
   }
 
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
@@ -8765,7 +8787,7 @@ fn test_fast_calls_onebytestring() {
 
 #[test]
 fn gc_callbacks() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
 
   #[derive(Default)]
   struct GCCallbackState {

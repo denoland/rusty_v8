@@ -42,10 +42,4 @@ default_args = {
   # around by the garbage collector but embedders normally want them to have
   # fixed addresses.
   v8_typed_array_max_size_in_heap = 0
-
-  # To avoid test failure:
-  # Fatal error in ../../../v8/src/heap/read-only-spaces.cc, line 69
-  # Check failed: read_only_blob_checksum_ == snapshot_checksum (<unprintable>
-  # vs. 604745897).
-  v8_enable_shared_ro_heap = false
 }
