@@ -248,25 +248,26 @@ fn maybe_install_sysroot(arch: &str) {
   }
 }
 
-fn platform() -> &'static str {
-  #[cfg(target_os = "windows")]
-  {
-    "win"
-  }
+fn platform() -> String {
   #[cfg(target_os = "linux")]
-  {
-    "linux64"
-  }
+  let os = "linux";
   #[cfg(target_os = "macos")]
-  {
-    "mac"
-  }
+  let os = "mac";
+  #[cfg(target_os = "windows")]
+  let os = "windows";
+
+  #[cfg(target_arch = "x86_64")]
+  let arch = "amd64";
+  #[cfg(target_arch = "aarch64")]
+  let arch = "arm64";
+
+  format!("{os}-{arch}")
 }
 
 fn download_ninja_gn_binaries() {
   let target_dir = build_dir();
   let bin_dir = target_dir
-    .join("ninja_gn_binaries-20220517")
+    .join("ninja_gn_binaries-20221218")
     .join(platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");
