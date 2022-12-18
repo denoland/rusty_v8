@@ -18,7 +18,7 @@ except ImportError:  # For Py3 compatibility
     from urllib.error import HTTPError, URLError
     from urllib.request import urlopen
 
-URL = "https://github.com/denoland/ninja_gn_binaries/archive/20220517.tar.gz"
+URL = "https://github.com/denoland/ninja_gn_binaries/archive/20221218.tar.gz"
 DIR = None
 
 
