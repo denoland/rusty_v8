@@ -12,7 +12,7 @@ jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
     runs-on: ${{ matrix.config.os }}
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       # Always run main branch builds to completion. This allows the cache to
       # stay mostly up-to-date in situations where a single job fails due to
