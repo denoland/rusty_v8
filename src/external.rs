@@ -17,7 +17,8 @@ extern "C" {
 
 impl External {
   #[inline(always)]
-  pub unsafe fn new<'s>(
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     value: *mut c_void,
   ) -> Local<'s, Self> {
