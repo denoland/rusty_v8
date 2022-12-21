@@ -383,10 +383,10 @@ mod tests {
       self.log_call()
     }
 
-    fn base_ptr(this: *const Self) -> *const ChannelBase
+    fn base_ptr(_this: *const Self) -> *const ChannelBase
   where
     Self: Sized {
-        todo!()
+       _this as *const ChannelBase
     }
   }
 
