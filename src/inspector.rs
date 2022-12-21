@@ -384,9 +384,10 @@ mod tests {
     }
 
     fn base_ptr(_this: *const Self) -> *const ChannelBase
-  where
-    Self: Sized {
-       _this as *const ChannelBase
+    where
+      Self: Sized,
+    {
+      _this as *const ChannelBase
     }
   }
 

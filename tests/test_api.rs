@@ -1,6 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use lazy_static::lazy_static;
-use v8::inspector::ChannelBase;
 use std::any::type_name;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -16,6 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use v8::fast_api;
+use v8::inspector::ChannelBase;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -5029,16 +5029,17 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
     self.count_run_message_loop_on_pause += 1;
   }
 
-fn generate_unique_id(&mut self) -> i64 {
+  fn generate_unique_id(&mut self) -> i64 {
     self.count_generate_unique_id += 1;
     self.count_generate_unique_id
   }
 
-fn base_ptr(this: *const Self) -> *const v8::inspector::V8InspectorClientBase
+  fn base_ptr(this: *const Self) -> *const v8::inspector::V8InspectorClientBase
   where
-    Self: Sized {
-        this as *const v8::inspector::V8InspectorClientBase
-    }
+    Self: Sized,
+  {
+    this as *const v8::inspector::V8InspectorClientBase
+  }
 }
 
 struct ChannelCounter {
@@ -5068,9 +5069,10 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   }
   fn base_ptr(_this: *const Self) -> *const ChannelBase
   where
-    Self: Sized {
-      _this as *const ChannelBase
-    }
+    Self: Sized,
+  {
+    _this as *const ChannelBase
+  }
   fn send_response(
     &mut self,
     call_id: i32,
@@ -5091,7 +5093,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     self.count_send_notification += 1;
   }
 
-fn flush_protocol_notifications(&mut self) {
+  fn flush_protocol_notifications(&mut self) {
     self.count_flush_protocol_notifications += 1;
   }
 }
@@ -5276,7 +5278,9 @@ fn inspector_console_api_message() {
       &mut self.base
     }
 
-    fn base_ptr(_this: *const Self) -> *const v8::inspector::V8InspectorClientBase { 
+    fn base_ptr(
+      _this: *const Self,
+    ) -> *const v8::inspector::V8InspectorClientBase {
       _this as *const v8::inspector::V8InspectorClientBase
     }
 
