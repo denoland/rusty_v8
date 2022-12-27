@@ -1183,7 +1183,7 @@ checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
 
 [[package]]
 name = "v8"
-version = "0.60.0"
+version = "0.61.0"
 dependencies = [
  "align-data",
  "bitflags",
