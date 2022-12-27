@@ -8854,3 +8854,82 @@ fn gc_callbacks() {
     assert_eq!(state.incremental_marking_calls, 0);
   }
 }
+
+#[test]
+fn test_fast_calls_pointer() {
+  static mut WHO: &str = "none";
+  fn fast_fn(_recv: v8::Local<v8::Object>, data: *mut c_void) -> *mut c_void {
+    // Assert before re-assigning WHO, as the reassignment will change the reference.
+    assert!(std::ptr::eq(data, unsafe { WHO.as_ptr() as *mut c_void }));
+    unsafe { WHO = "fast" };
+    std::ptr::null_mut()
+  }
+
+  pub struct FastTest;
+  impl fast_api::FastFunction for FastTest {
+    fn args(&self) -> &'static [fast_api::Type] {
+      &[fast_api::Type::V8Value, fast_api::Type::Pointer]
+    }
+
+    fn return_type(&self) -> fast_api::CType {
+      fast_api::CType::Pointer
+    }
+
+    fn function(&self) -> *const c_void {
+      fast_fn as _
+    }
+  }
+
+  fn slow_fn(
+    scope: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    unsafe { WHO = "slow" };
+    rv.set(
+      v8::External::new(scope, unsafe { WHO.as_ptr() as *mut c_void }).into(),
+    );
+  }
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+  function f(data) {
+    return func(data);
+  }
+  %PrepareFunctionForOptimization(f);
+  const external = f(null);
+  if (
+    typeof external !== "object" || external === null ||
+    Object.keys(external).length > 0 || Object.getPrototypeOf(external) !== null
+  ) {
+    throw new Error(
+      "External pointer object should be an empty object with no properties and no prototype",
+    );
+  }
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!("slow", unsafe { WHO });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    const external_fast = f(external);
+    if (external_fast !== null) {
+      throw new Error("Null pointer external should be JS null");
+    }
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!("fast", unsafe { WHO });
+}
