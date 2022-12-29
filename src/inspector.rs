@@ -389,7 +389,7 @@ mod tests {
     where
       Self: Sized,
     {
-      return unsafe { addr_of!((*_this).base) };
+      unsafe { addr_of!((*_this).base) }
     }
     fn send_response(
       &mut self,
