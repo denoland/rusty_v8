@@ -10,7 +10,7 @@ use std::ffi::CStr;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::ptr::{NonNull, addr_of};
+use std::ptr::{addr_of, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
