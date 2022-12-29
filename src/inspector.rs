@@ -271,6 +271,9 @@ where
 pub trait ChannelImpl: AsChannel {
   fn base(&self) -> &ChannelBase;
   fn base_mut(&mut self) -> &mut ChannelBase;
+  fn base_ptr(this: *const Self) -> *const ChannelBase
+  where
+    Self: Sized;
 
   fn send_response(&mut self, call_id: i32, message: UniquePtr<StringBuffer>);
   fn send_notification(&mut self, message: UniquePtr<StringBuffer>);
@@ -304,9 +307,7 @@ impl ChannelBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    // TODO(y21): the call to base() creates a reference to uninitialized memory (UB)
-    // fixing this requires changes in the ChannelImpl trait, namely ChannelImpl::base() can't take &self
-    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
+    let self_ptr: *const Self = T::base_ptr(embedder_ptr);
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
@@ -383,6 +384,12 @@ mod tests {
     }
     fn base_mut(&mut self) -> &mut ChannelBase {
       &mut self.base
+    }
+    fn base_ptr(_this: *const Self) -> *const ChannelBase
+    where
+      Self: Sized,
+    {
+      unsafe { addr_of!((*_this).base) }
     }
     fn send_response(
       &mut self,
@@ -520,6 +527,9 @@ where
 pub trait V8InspectorClientImpl: AsV8InspectorClient {
   fn base(&self) -> &V8InspectorClientBase;
   fn base_mut(&mut self) -> &mut V8InspectorClientBase;
+  fn base_ptr(this: *const Self) -> *const V8InspectorClientBase
+  where
+    Self: Sized;
 
   fn run_message_loop_on_pause(&mut self, context_group_id: i32) {}
   fn quit_message_loop_on_pause(&mut self) {}
@@ -570,7 +580,7 @@ impl V8InspectorClientBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
+    let self_ptr: *const Self = T::base_ptr(embedder_ptr);
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
