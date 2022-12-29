@@ -10,7 +10,7 @@ use std::ffi::CStr;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::ptr::NonNull;
+use std::ptr::{addr_of, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -5040,7 +5040,7 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
   where
     Self: Sized,
   {
-    this as *const v8::inspector::V8InspectorClientBase
+    unsafe { addr_of!((*this).base) }
   }
 
   fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
@@ -5094,7 +5094,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   where
     Self: Sized,
   {
-    _this as *const ChannelBase
+    unsafe { addr_of!((*_this).base) }
   }
   fn send_response(
     &mut self,
@@ -5373,7 +5373,7 @@ fn inspector_console_api_message() {
     fn base_ptr(
       _this: *const Self,
     ) -> *const v8::inspector::V8InspectorClientBase {
-      _this as *const v8::inspector::V8InspectorClientBase
+      unsafe { addr_of!((*_this).base) }
     }
 
     fn console_api_message(
