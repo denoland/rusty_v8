@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use v8::fast_api;
+use v8::inspector::ChannelBase;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -5035,6 +5036,13 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
     &mut self.base
   }
 
+  fn base_ptr(this: *const Self) -> *const v8::inspector::V8InspectorClientBase
+  where
+    Self: Sized,
+  {
+    this as *const v8::inspector::V8InspectorClientBase
+  }
+
   fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
     assert_eq!(context_group_id, 1);
     self.count_run_message_loop_on_pause += 1;
@@ -5081,6 +5089,12 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   }
   fn base_mut(&mut self) -> &mut v8::inspector::ChannelBase {
     &mut self.base
+  }
+  fn base_ptr(_this: *const Self) -> *const ChannelBase
+  where
+    Self: Sized,
+  {
+    _this as *const ChannelBase
   }
   fn send_response(
     &mut self,
@@ -5354,6 +5368,12 @@ fn inspector_console_api_message() {
 
     fn base_mut(&mut self) -> &mut V8InspectorClientBase {
       &mut self.base
+    }
+
+    fn base_ptr(
+      _this: *const Self,
+    ) -> *const v8::inspector::V8InspectorClientBase {
+      _this as *const v8::inspector::V8InspectorClientBase
     }
 
     fn console_api_message(
