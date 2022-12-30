@@ -5090,7 +5090,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   fn base_mut(&mut self) -> &mut v8::inspector::ChannelBase {
     &mut self.base
   }
-  fn base_ptr(_this: *const Self) -> *const ChannelBase
+  unsafe fn base_ptr(_this: *const Self) -> *const ChannelBase
   where
     Self: Sized,
   {

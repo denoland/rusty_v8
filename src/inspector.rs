@@ -271,7 +271,8 @@ where
 pub trait ChannelImpl: AsChannel {
   fn base(&self) -> &ChannelBase;
   fn base_mut(&mut self) -> &mut ChannelBase;
-  fn base_ptr(this: *const Self) -> *const ChannelBase
+  /// This is used for calculating the offset to the base field, and care must be taken not to create any references in the process of creating the pointer because the *const Self pointer is not valid (thus resulting in instant UB)
+  unsafe fn base_ptr(this: *const Self) -> *const ChannelBase
   where
     Self: Sized;
 
@@ -307,7 +308,7 @@ impl ChannelBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = T::base_ptr(embedder_ptr);
+    let self_ptr: *const Self = unsafe {T::base_ptr(embedder_ptr)};
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
@@ -385,7 +386,7 @@ mod tests {
     fn base_mut(&mut self) -> &mut ChannelBase {
       &mut self.base
     }
-    fn base_ptr(_this: *const Self) -> *const ChannelBase
+    unsafe fn base_ptr(_this: *const Self) -> *const ChannelBase
     where
       Self: Sized,
     {
