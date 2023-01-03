@@ -528,7 +528,8 @@ where
 pub trait V8InspectorClientImpl: AsV8InspectorClient {
   fn base(&self) -> &V8InspectorClientBase;
   fn base_mut(&mut self) -> &mut V8InspectorClientBase;
-  fn base_ptr(this: *const Self) -> *const V8InspectorClientBase
+  /// This is used for calculating the offset to the base field, and care must be taken not to create any references in the process of creating the pointer because the *const Self pointer is not valid (thus resulting in instant UB)
+  unsafe fn base_ptr(this: *const Self) -> *const V8InspectorClientBase
   where
     Self: Sized;
 
@@ -581,7 +582,7 @@ impl V8InspectorClientBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = T::base_ptr(embedder_ptr);
+    let self_ptr: *const Self = unsafe {T::base_ptr(embedder_ptr)};
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 
