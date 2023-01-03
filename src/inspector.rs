@@ -582,7 +582,7 @@ impl V8InspectorClientBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = unsafe {T::base_ptr(embedder_ptr)};
+    let self_ptr: *const Self = unsafe { T::base_ptr(embedder_ptr) };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
 

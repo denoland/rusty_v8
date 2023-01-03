@@ -5036,7 +5036,9 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
     &mut self.base
   }
 
-  unsafe fn base_ptr(this: *const Self) -> *const v8::inspector::V8InspectorClientBase
+  unsafe fn base_ptr(
+    this: *const Self,
+  ) -> *const v8::inspector::V8InspectorClientBase
   where
     Self: Sized,
   {
