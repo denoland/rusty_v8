@@ -7,6 +7,7 @@ use crate::TypedArray;
 
 extern "C" {
   fn v8__TypedArray__kMaxLength() -> size_t;
+  fn v8__TypedArray__Length(this: *const TypedArray) -> size_t;
 }
 
 impl TypedArray {
@@ -16,6 +17,13 @@ impl TypedArray {
   #[inline(always)]
   pub fn max_length() -> usize {
     unsafe { v8__TypedArray__kMaxLength() }
+  }
+
+  /// Number of elements in this typed array
+  /// (e.g. for Int16Array, |ByteLength|/2).
+  #[inline(always)]
+  pub fn length(&self) -> usize {
+    unsafe { v8__TypedArray__Length(self) }
   }
 }
 

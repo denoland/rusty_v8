@@ -4290,36 +4290,47 @@ fn typed_array_constructors() {
 
   let t = v8::Uint8Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint8_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Uint8ClampedArray::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint8_clamped_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Int8Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int8_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Uint16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint16_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Int16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int16_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Uint32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint32_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Int32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int32_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float32_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::Float64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float64_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::BigUint64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_uint64_array());
+  assert_eq!(t.length(), 0);
 
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
+  assert_eq!(t.length(), 0);
 
   // TypedArray::max_length() ought to be >= 2^30 < 2^32 in 64 bits
   #[cfg(target_pointer_width = "64")]
