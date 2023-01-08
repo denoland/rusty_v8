@@ -463,6 +463,9 @@ uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
   return v8::ScriptCompiler::CachedDataVersionTag();
 }
 
+size_t v8__TypedArray__Length(const v8::TypedArray* self) { 
+  return ptr_to_local(self)->Length(); 
+}
 size_t v8__TypedArray__kMaxLength() { return v8::TypedArray::kMaxLength; }
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
