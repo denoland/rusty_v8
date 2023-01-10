@@ -1,6 +1,6 @@
 // This is flaky on cross (QEMU bug)
 // but otherwise works fine on real device.
-#![cfg(not(target_arch = "aarch64"))]
+#![cfg(not(any(target_arch = "aarch64", target_arch = "riscv64")))]
 
 use std::iter::repeat_with;
 use std::thread;

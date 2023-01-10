@@ -171,6 +171,13 @@ fn build_v8() {
       maybe_install_sysroot("amd64");
     };
 
+    if target_triple == "riscv64gc-unknown-linux-gnu" {
+      gn_args.push(r#"target_cpu="riscv64""#.to_string());
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("riscv64");
+      maybe_install_sysroot("amd64");
+    };
+
     if target_triple == "aarch64-linux-android" {
       gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
       gn_args.push(r#"target_os="android""#.to_string());
