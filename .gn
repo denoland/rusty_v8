@@ -42,6 +42,4 @@ default_args = {
   # around by the garbage collector but embedders normally want them to have
   # fixed addresses.
   v8_typed_array_max_size_in_heap = 0
-
-  enable_ios_bitcode = true
 }
