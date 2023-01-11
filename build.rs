@@ -199,6 +199,18 @@ fn build_v8() {
       );
     };
   }
+  
+  if target_triple == "aarch64-apple-ios" {
+    gn_args.push(r#"enable_ios_bitcode=true"#.to_string());
+    gn_args.push(r#"ios_deployment_target=10"#.to_string());
+    gn_args.push(r#"is_debug=false"#.to_string());
+    gn_args.push(r#"target_cpu="arm64""#.to_string());
+    gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
+    gn_args.push(r#"target_os="ios""#.to_string());
+    gn_args.push(r#"use_custom_libcxx=false"#.to_string());
+    gn_args.push(r#"use_xcode_clang=true"#.to_string());
+    gn_args.push(r#"v8_enable_pointer_compression=false"#.to_string());
+  };
 
   if target_triple.starts_with("i686-") {
     gn_args.push(r#"target_cpu="x86""#.to_string());
@@ -255,6 +267,8 @@ fn platform() -> String {
   let os = "mac";
   #[cfg(target_os = "windows")]
   let os = "windows";
+  #[cfg(target_os = "ios")]
+  let os = "mac";
 
   #[cfg(target_arch = "x86_64")]
   let arch = "amd64";
