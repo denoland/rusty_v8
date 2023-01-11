@@ -199,7 +199,7 @@ fn build_v8() {
       );
     };
   }
-  
+
   if target_triple == "aarch64-apple-ios" {
     gn_args.push(r#"enable_ios_bitcode=true"#.to_string());
     gn_args.push(r#"ios_deployment_target=10"#.to_string());
