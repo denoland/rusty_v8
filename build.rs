@@ -203,6 +203,7 @@ fn build_v8() {
   if target_triple == "aarch64-apple-ios" {
     gn_args.push(r#"enable_ios_bitcode=true"#.to_string());
     gn_args.push(r#"ios_deployment_target=10"#.to_string());
+    gn_args.push(r#"ios_enable_code_signing=false"#.to_string());
     gn_args.push(r#"is_debug=false"#.to_string());
     gn_args.push(r#"target_cpu="arm64""#.to_string());
     gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
