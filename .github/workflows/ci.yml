@@ -102,6 +102,10 @@ jobs:
 
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
+          
+      - name: Install cross compilation toolchain for iOS (AArch64)
+        if: matrix.config.target == 'aarch64-apple-ios'
+        run: rustup target add aarch64-apple-ios
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
