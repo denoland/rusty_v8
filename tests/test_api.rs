@@ -10,11 +10,12 @@ use std::ffi::CStr;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::ptr::NonNull;
+use std::ptr::{addr_of, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use v8::fast_api;
+use v8::inspector::ChannelBase;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -5046,6 +5047,15 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
     &mut self.base
   }
 
+  unsafe fn base_ptr(
+    this: *const Self,
+  ) -> *const v8::inspector::V8InspectorClientBase
+  where
+    Self: Sized,
+  {
+    unsafe { addr_of!((*this).base) }
+  }
+
   fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
     assert_eq!(context_group_id, 1);
     self.count_run_message_loop_on_pause += 1;
@@ -5092,6 +5102,12 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   }
   fn base_mut(&mut self) -> &mut v8::inspector::ChannelBase {
     &mut self.base
+  }
+  unsafe fn base_ptr(_this: *const Self) -> *const ChannelBase
+  where
+    Self: Sized,
+  {
+    unsafe { addr_of!((*_this).base) }
   }
   fn send_response(
     &mut self,
@@ -5365,6 +5381,12 @@ fn inspector_console_api_message() {
 
     fn base_mut(&mut self) -> &mut V8InspectorClientBase {
       &mut self.base
+    }
+
+    unsafe fn base_ptr(
+      _this: *const Self,
+    ) -> *const v8::inspector::V8InspectorClientBase {
+      unsafe { addr_of!((*_this).base) }
     }
 
     fn console_api_message(
