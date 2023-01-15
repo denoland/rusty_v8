@@ -179,6 +179,7 @@ impl<'s> HandleScope<'s> {
 
   /// Returns the context of the currently running JavaScript, or the context
   /// on the top of the stack if no JavaScript is running.
+  #[inline(always)]
   pub fn get_current_context(&self) -> Local<'s, Context> {
     let context_ptr = data::ScopeData::get(self).get_current_context();
     unsafe { Local::from_raw(context_ptr) }.unwrap()
@@ -205,6 +206,7 @@ impl<'s> HandleScope<'s, ()> {
   /// JavaScript operations.
   ///
   /// This function always returns the `undefined` value.
+  #[inline(always)]
   pub fn throw_exception(
     &mut self,
     exception: Local<Value>,
@@ -217,6 +219,7 @@ impl<'s> HandleScope<'s, ()> {
     .unwrap()
   }
 
+  #[inline(always)]
   pub(crate) unsafe fn cast_local<T>(
     &mut self,
     f: impl FnOnce(&mut data::ScopeData) -> *const T,
@@ -224,6 +227,7 @@ impl<'s> HandleScope<'s, ()> {
     Local::from_raw(f(data::ScopeData::get_mut(self)))
   }
 
+  #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
     data::ScopeData::get(self).get_isolate_ptr()
   }
@@ -342,6 +346,7 @@ impl<'s, P: param::NewTryCatch<'s>> TryCatch<'s, P> {
 
 impl<'s, P> TryCatch<'s, P> {
   /// Returns true if an exception has been caught by this try/catch block.
+  #[inline(always)]
   pub fn has_caught(&self) -> bool {
     unsafe { raw::v8__TryCatch__HasCaught(self.get_raw()) }
   }
@@ -352,6 +357,7 @@ impl<'s, P> TryCatch<'s, P> {
   /// cleanup needed and then return. If CanContinue returns false and
   /// HasTerminated returns true, it is possible to call
   /// CancelTerminateExecution in order to continue calling into the engine.
+  #[inline(always)]
   pub fn can_continue(&self) -> bool {
     unsafe { raw::v8__TryCatch__CanContinue(self.get_raw()) }
   }
@@ -366,11 +372,13 @@ impl<'s, P> TryCatch<'s, P> {
   /// If such an exception has been thrown, HasTerminated will return true,
   /// indicating that it is possible to call CancelTerminateExecution in order
   /// to continue calling into the engine.
+  #[inline(always)]
   pub fn has_terminated(&self) -> bool {
     unsafe { raw::v8__TryCatch__HasTerminated(self.get_raw()) }
   }
 
   /// Returns true if verbosity is enabled.
+  #[inline(always)]
   pub fn is_verbose(&self) -> bool {
     unsafe { raw::v8__TryCatch__IsVerbose(self.get_raw()) }
   }
@@ -381,6 +389,7 @@ impl<'s, P> TryCatch<'s, P> {
   /// handler are not reported. Call SetVerbose with true on an
   /// external exception handler to have exceptions caught by the
   /// handler reported as if they were not caught.
+  #[inline(always)]
   pub fn set_verbose(&mut self, value: bool) {
     unsafe { raw::v8__TryCatch__SetVerbose(self.get_raw_mut(), value) };
   }
@@ -388,6 +397,7 @@ impl<'s, P> TryCatch<'s, P> {
   /// Set whether or not this TryCatch should capture a Message object
   /// which holds source information about where the exception
   /// occurred. True by default.
+  #[inline(always)]
   pub fn set_capture_message(&mut self, value: bool) {
     unsafe { raw::v8__TryCatch__SetCaptureMessage(self.get_raw_mut(), value) };
   }
@@ -401,14 +411,17 @@ impl<'s, P> TryCatch<'s, P> {
   /// another exception is thrown the previously caught exception will just be
   /// overwritten. However, it is often a good idea since it makes it easier
   /// to determine which operation threw a given exception.
+  #[inline(always)]
   pub fn reset(&mut self) {
     unsafe { raw::v8__TryCatch__Reset(self.get_raw_mut()) };
   }
 
+  #[inline(always)]
   fn get_raw(&self) -> &raw::TryCatch {
     data::ScopeData::get(self).get_try_catch()
   }
 
+  #[inline(always)]
   fn get_raw_mut(&mut self) -> &mut raw::TryCatch {
     data::ScopeData::get_mut(self).get_try_catch_mut()
   }
@@ -632,6 +645,7 @@ macro_rules! impl_scope_drop {
     unsafe impl<$($params),*> Scope for $type {}
 
     impl<$($params),*> Drop for $type {
+      #[inline(always)]
       fn drop(&mut self) {
         data::ScopeData::get_mut(self).notify_scope_dropped();
       }
@@ -889,13 +903,13 @@ mod getter {
 
   impl<'s> GetIsolate<'s> for &'s FunctionCallbackInfo {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *raw::v8__FunctionCallbackInfo__GetIsolate(self)
+      &mut *self.get_isolate_ptr()
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s PropertyCallbackInfo {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *raw::v8__PropertyCallbackInfo__GetIsolate(self)
+      &mut *self.get_isolate_ptr()
     }
   }
 
@@ -979,6 +993,7 @@ pub(crate) mod data {
     /// Returns a mutable reference to the data associated with topmost scope
     /// on the scope stack. This function does not automatically exit zombie
     /// scopes, so it might return a zombie ScopeData reference.
+    #[inline(always)]
     pub(crate) fn get_current_mut(isolate: &mut Isolate) -> &mut Self {
       let self_mut = isolate
         .get_current_scope_data()
@@ -1009,6 +1024,7 @@ pub(crate) mod data {
     ///
     /// This function panics if the root can't be activated because there are
     /// still other scopes on the stack and they're not zombies.
+    #[inline(always)]
     pub(crate) fn get_root_mut(isolate: &mut Isolate) -> &mut Self {
       let mut current_scope_data = Self::get_current_mut(isolate);
       loop {
@@ -1027,6 +1043,7 @@ pub(crate) mod data {
       isolate.set_current_scope_data(None);
     }
 
+    #[inline(always)]
     pub(super) fn new_context_scope_data<'s>(
       &'s mut self,
       context: Local<'s, Context>,
@@ -1075,12 +1092,14 @@ pub(crate) mod data {
       })
     }
 
+    #[inline(always)]
     pub(super) fn new_handle_scope_data(&mut self) -> &mut Self {
       self.new_handle_scope_data_with(|_, _, raw_context_scope| {
         debug_assert!(raw_context_scope.is_none())
       })
     }
 
+    #[inline(always)]
     pub(super) fn new_handle_scope_data_with_context(
       &mut self,
       context_ref: &Context,
@@ -1109,6 +1128,7 @@ pub(crate) mod data {
       )
     }
 
+    #[inline(always)]
     pub(super) fn new_escapable_handle_scope_data(&mut self) -> &mut Self {
       self.new_scope_data_with(|data| {
         // Note: the `raw_escape_slot` field must be initialized _before_ the
@@ -1135,6 +1155,7 @@ pub(crate) mod data {
       })
     }
 
+    #[inline(always)]
     pub(super) fn new_try_catch_data(&mut self) -> &mut Self {
       self.new_scope_data_with(|data| {
         let isolate = data.isolate;
@@ -1153,6 +1174,7 @@ pub(crate) mod data {
       })
     }
 
+    #[inline(always)]
     pub(super) fn new_callback_scope_data<'s>(
       &'s mut self,
       maybe_current_context: Option<Local<'s, Context>>,
@@ -1165,6 +1187,7 @@ pub(crate) mod data {
       })
     }
 
+    #[inline(always)]
     fn new_scope_data_with(
       &mut self,
       init_fn: impl FnOnce(&mut Self),
@@ -1200,6 +1223,7 @@ pub(crate) mod data {
 
     /// Either returns an free `Box<ScopeData>` that is available for reuse,
     /// or allocates a new one on the heap.
+    #[inline(always)]
     fn allocate_or_reuse_scope_data(&mut self) -> &mut Self {
       let self_nn = NonNull::new(self);
       match &mut self.next {
@@ -1221,6 +1245,7 @@ pub(crate) mod data {
       }
     }
 
+    #[inline(always)]
     pub(super) fn as_scope<S: Scope>(&mut self) -> S {
       assert_eq!(Layout::new::<&mut Self>(), Layout::new::<S>());
       // In debug builds, a new initialized `ScopeStatus` will have the `zombie`
@@ -1234,6 +1259,7 @@ pub(crate) mod data {
       unsafe { ptr::read(&self_nn as *const _ as *const S) }
     }
 
+    #[inline(always)]
     pub(super) fn get<S: Scope>(scope: &S) -> &Self {
       let self_mut = unsafe {
         (*(scope as *const S as *mut S as *mut NonNull<Self>)).as_mut()
@@ -1242,6 +1268,7 @@ pub(crate) mod data {
       self_mut
     }
 
+    #[inline(always)]
     pub(super) fn get_mut<S: Scope>(scope: &mut S) -> &mut Self {
       let self_mut =
         unsafe { (*(scope as *mut S as *mut NonNull<Self>)).as_mut() };
@@ -1265,6 +1292,7 @@ pub(crate) mod data {
       self
     }
 
+    #[inline(always)]
     fn try_exit_scope(mut self: &mut Self) -> &mut Self {
       loop {
         self = match self.status.get() {
@@ -1280,10 +1308,14 @@ pub(crate) mod data {
       }
     }
 
+    #[inline(always)]
     fn exit_scope(&mut self) -> &mut Self {
       // Clear out the scope type specific data field. None of the other fields
       // have a destructor, and there's no need to do any cleanup on them.
-      self.scope_type_specific_data = Default::default();
+      if !matches!(self.scope_type_specific_data, ScopeTypeSpecificData::None) {
+        self.scope_type_specific_data = Default::default();
+      }
+
       // Change the ScopeData's status field from 'Current' to 'Free', which
       // means that it is not associated with a scope and can be reused.
       self.status.set(ScopeStatus::Free);
@@ -1293,6 +1325,7 @@ pub(crate) mod data {
       self
         .get_isolate_mut()
         .set_current_scope_data(Some(previous_nn));
+
       // Update the parent scope's status field to reflect that it is now
       // 'Current' again an no longer 'Shadowed'.
       let previous_mut = unsafe { &mut *previous_nn.as_ptr() };
@@ -1323,6 +1356,7 @@ pub(crate) mod data {
     /// because the 'a lifetime ends there.
     ///
     /// Scope types that do no store local handles are exited immediately.
+    #[inline(always)]
     pub(super) fn notify_scope_dropped(&mut self) {
       match &self.scope_type_specific_data {
         ScopeTypeSpecificData::HandleScope { .. }
@@ -1342,18 +1376,22 @@ pub(crate) mod data {
       }
     }
 
+    #[inline(always)]
     pub(crate) fn get_isolate(&self) -> &Isolate {
       unsafe { self.isolate.as_ref() }
     }
 
+    #[inline(always)]
     pub(crate) fn get_isolate_mut(&mut self) -> &mut Isolate {
       unsafe { self.isolate.as_mut() }
     }
 
+    #[inline(always)]
     pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
       self.isolate.as_ptr()
     }
 
+    #[inline(always)]
     pub(crate) fn get_current_context(&self) -> *const Context {
       // To avoid creating a new Local every time `get_current_context() is
       // called, the current context is usually cached in the `context` field.
@@ -1377,6 +1415,7 @@ pub(crate) mod data {
       }
     }
 
+    #[inline(always)]
     pub(super) fn get_escape_slot_mut(
       &mut self,
     ) -> Option<&mut Option<raw::EscapeSlot>> {
@@ -1386,6 +1425,7 @@ pub(crate) mod data {
         .map(|escape_slot_nn| unsafe { escape_slot_nn.as_mut() })
     }
 
+    #[inline(always)]
     pub(super) fn get_try_catch(&self) -> &raw::TryCatch {
       self
         .try_catch
@@ -1394,6 +1434,7 @@ pub(crate) mod data {
         .unwrap()
     }
 
+    #[inline(always)]
     pub(super) fn get_try_catch_mut(&mut self) -> &mut raw::TryCatch {
       self
         .try_catch
@@ -1407,6 +1448,7 @@ pub(crate) mod data {
     /// default values. This function exists solely because it turns out that
     /// Rust doesn't optimize `Box::new(Self{ .. })` very well (a.k.a. not at
     /// all) in this case, which is why `std::alloc::alloc()` is used directly.
+    #[cold]
     fn boxed(isolate: NonNull<Isolate>) -> Box<Self> {
       unsafe {
         #[allow(clippy::cast_ptr_alignment)]
@@ -1468,6 +1510,7 @@ pub(crate) mod data {
   }
 
   impl Drop for ScopeTypeSpecificData {
+    #[inline(always)]
     fn drop(&mut self) {
       // For `HandleScope`s that also enter a `Context`, drop order matters. The
       // context is stored in a `Local` handle, which is allocated in this
@@ -1525,6 +1568,7 @@ mod raw {
   }
 
   impl Drop for ContextScope {
+    #[inline(always)]
     fn drop(&mut self) {
       unsafe { v8__Context__Exit(self.entered_context.as_ptr()) };
     }
@@ -1532,15 +1576,14 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct HandleScope([usize; 3]);
+  pub(super) struct HandleScope([MaybeUninit<usize>; 3]);
 
   impl HandleScope {
+    /// Creates an uninitialized `HandleScope`.
+    ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 3]`.
-      #[allow(clippy::uninit_assumed_init)]
       Self(MaybeUninit::uninit().assume_init())
     }
 
@@ -1554,6 +1597,7 @@ mod raw {
   }
 
   impl Drop for HandleScope {
+    #[inline(always)]
     fn drop(&mut self) {
       unsafe { v8__HandleScope__DESTRUCT(self) };
     }
@@ -1591,15 +1635,14 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct TryCatch([usize; 6]);
+  pub(super) struct TryCatch([MaybeUninit<usize>; 6]);
 
   impl TryCatch {
+    /// Creates an uninitialized `TryCatch`.
+    ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      // This is safe because there is no combination of bits that would produce
-      // an invalid `[usize; 6]`.
-      #[allow(clippy::uninit_assumed_init)]
       Self(MaybeUninit::uninit().assume_init())
     }
 
@@ -1613,6 +1656,7 @@ mod raw {
   }
 
   impl Drop for TryCatch {
+    #[inline(always)]
     fn drop(&mut self) {
       unsafe { v8__TryCatch__DESTRUCT(self) };
     }
@@ -1689,12 +1733,6 @@ mod raw {
     pub(super) fn v8__Message__GetIsolate(this: *const Message)
       -> *mut Isolate;
     pub(super) fn v8__Object__GetIsolate(this: *const Object) -> *mut Isolate;
-    pub(super) fn v8__FunctionCallbackInfo__GetIsolate(
-      this: *const FunctionCallbackInfo,
-    ) -> *mut Isolate;
-    pub(super) fn v8__PropertyCallbackInfo__GetIsolate(
-      this: *const PropertyCallbackInfo,
-    ) -> *mut Isolate;
   }
 }
 

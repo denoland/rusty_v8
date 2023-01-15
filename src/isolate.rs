@@ -1,9 +1,17 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::gc::GCCallbackFlags;
+use crate::gc::GCType;
+use crate::handle::FinalizerCallback;
+use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
+use crate::snapshot::SnapshotCreator;
+use crate::support::char;
+use crate::support::int;
+use crate::support::Allocated;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::Opaque;
@@ -15,14 +23,18 @@ use crate::Array;
 use crate::CallbackScope;
 use crate::Context;
 use crate::Data;
+use crate::ExternalReferences;
 use crate::FixedArray;
 use crate::Function;
+use crate::FunctionCodeHandling;
 use crate::HandleScope;
 use crate::Local;
 use crate::Message;
 use crate::Module;
 use crate::Object;
 use crate::Promise;
+use crate::PromiseResolver;
+use crate::StartupData;
 use crate::String;
 use crate::Value;
 
@@ -40,7 +52,6 @@ use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::os::raw::c_char;
 use std::ptr;
 use std::ptr::drop_in_place;
 use std::ptr::null_mut;
@@ -53,12 +64,24 @@ use std::sync::Mutex;
 ///               Isolate::PerformMicrotaskCheckpoint() method;
 ///   - auto: microtasks are invoked when the script call depth decrements
 ///           to zero.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum MicrotasksPolicy {
   Explicit = 0,
   // Scoped = 1 (RAII) is omitted for now, doesn't quite map to idiomatic Rust.
   Auto = 2,
+}
+
+/// Memory pressure level for the MemoryPressureNotification.
+/// None hints V8 that there is no memory pressure.
+/// Moderate hints V8 to speed up incremental garbage collection at the cost
+/// of higher latency due to garbage collection pauses.
+/// Critical hints V8 to free memory as soon as possible. Garbage collection
+/// pauses at this level will be large.
+pub enum MemoryPressureLevel {
+  None = 0,
+  Moderate = 1,
+  Critical = 2,
 }
 
 /// PromiseHook with type Init is called when a new promise is
@@ -75,7 +98,7 @@ pub enum MicrotasksPolicy {
 ///
 /// PromiseHook with type After is called right at the end of the
 /// PromiseReactionJob.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum PromiseHookType {
   Init,
@@ -84,12 +107,35 @@ pub enum PromiseHookType {
   After,
 }
 
+/// Types of garbage collections that can be requested via
+/// [`Isolate::request_garbage_collection_for_testing`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum GarbageCollectionType {
+  Full,
+  Minor,
+}
+
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
 pub type PromiseHook =
   extern "C" fn(PromiseHookType, Local<Promise>, Local<Value>);
 
 pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum WasmAsyncSuccess {
+  Success,
+  Fail,
+}
+pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
+  *mut Isolate,
+  Local<Context>,
+  Local<PromiseResolver>,
+  Local<Value>,
+  WasmAsyncSuccess,
+);
 
 /// HostInitializeImportMetaObjectCallback is called the first time import.meta
 /// is accessed for a module. Subsequent access will reuse the same value.
@@ -102,31 +148,177 @@ pub type PromiseRejectCallback = extern "C" fn(PromiseRejectMessage);
 pub type HostInitializeImportMetaObjectCallback =
   extern "C" fn(Local<Context>, Local<Module>, Local<Object>);
 
-/// HostImportModuleDynamicallyCallback is called when we require the
-/// embedder to load a module. This is used as part of the dynamic
-/// import syntax.
+/// HostImportModuleDynamicallyCallback is called when we require the embedder
+/// to load a module. This is used as part of the dynamic import syntax.
 ///
-/// The referrer contains metadata about the script/module that calls
-/// import.
+/// The referrer contains metadata about the script/module that calls import.
 ///
 /// The specifier is the name of the module that should be imported.
 ///
-/// The embedder must compile, instantiate, evaluate the Module, and
-/// obtain it's namespace object.
+/// The import_assertions are import assertions for this request in the form:
+/// [key1, value1, key2, value2, ...] where the keys and values are of type
+/// v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
+/// returned from ModuleRequest::GetImportAssertions(), this array does not
+/// contain the source Locations of the assertions.
 ///
-/// The Promise returned from this function is forwarded to userland
-/// JavaScript. The embedder must resolve this promise with the module
-/// namespace object. In case of an exception, the embedder must reject
-/// this promise with the exception. If the promise creation itself
-/// fails (e.g. due to stack overflow), the embedder must propagate
-/// that exception by returning an empty MaybeLocal.
-pub type HostImportModuleDynamicallyCallback = extern "C" fn(
-  Local<Context>,
-  Local<Data>,
-  Local<Value>,
-  Local<String>,
-  Local<FixedArray>,
-) -> *mut Promise;
+/// The embedder must compile, instantiate, evaluate the Module, and obtain its
+/// namespace object.
+///
+/// The Promise returned from this function is forwarded to userland JavaScript.
+/// The embedder must resolve this promise with the module namespace object. In
+/// case of an exception, the embedder must reject this promise with the
+/// exception. If the promise creation itself fails (e.g. due to stack
+/// overflow), the embedder must propagate that exception by returning an empty
+/// MaybeLocal.
+///
+/// # Example
+///
+/// ```
+/// fn host_import_module_dynamically_callback_example<'s>(
+///   scope: &mut v8::HandleScope<'s>,
+///   host_defined_options: v8::Local<'s, v8::Data>,
+///   resource_name: v8::Local<'s, v8::Value>,
+///   specifier: v8::Local<'s, v8::String>,
+///   import_assertions: v8::Local<'s, v8::FixedArray>,
+/// ) -> Option<v8::Local<'s, v8::Promise>> {
+///   todo!()
+/// }
+/// ```
+pub trait HostImportModuleDynamicallyCallback:
+  UnitType
+  + for<'s> FnOnce(
+    &mut HandleScope<'s>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> Option<Local<'s, Promise>>
+{
+  fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback;
+}
+
+#[cfg(target_family = "unix")]
+pub(crate) type RawHostImportModuleDynamicallyCallback =
+  for<'s> extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> *mut Promise;
+
+#[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+pub type RawHostImportModuleDynamicallyCallback =
+  for<'s> extern "C" fn(
+    *mut *mut Promise,
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> *mut *mut Promise;
+
+impl<F> HostImportModuleDynamicallyCallback for F
+where
+  F: UnitType
+    + for<'s> FnOnce(
+      &mut HandleScope<'s>,
+      Local<'s, Data>,
+      Local<'s, Value>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>>,
+{
+  #[inline(always)]
+  fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback {
+    #[inline(always)]
+    fn scope_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>> {
+      let scope = &mut unsafe { CallbackScope::new(context) };
+      (F::get())(
+        scope,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_assertions,
+      )
+    }
+
+    #[cfg(target_family = "unix")]
+    #[inline(always)]
+    extern "C" fn abi_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> *mut Promise {
+      scope_adapter::<F>(
+        context,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_assertions,
+      )
+      .map(|return_value| return_value.as_non_null().as_ptr())
+      .unwrap_or_else(null_mut)
+    }
+
+    #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+    #[inline(always)]
+    extern "C" fn abi_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+      return_value: *mut *mut Promise,
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_assertions: Local<'s, FixedArray>,
+    ) -> *mut *mut Promise {
+      unsafe {
+        std::ptr::write(
+          return_value,
+          scope_adapter::<F>(
+            context,
+            host_defined_options,
+            resource_name,
+            specifier,
+            import_assertions,
+          )
+          .map(|return_value| return_value.as_non_null().as_ptr())
+          .unwrap_or_else(null_mut),
+        );
+        return_value
+      }
+    }
+
+    abi_adapter::<F>
+  }
+}
+
+/// `HostCreateShadowRealmContextCallback` is called each time a `ShadowRealm`
+/// is being constructed. You can use [`HandleScope::get_current_context`] to
+/// get the [`Context`] in which the constructor is being run.
+///
+/// The method combines [`Context`] creation and the implementation-defined
+/// abstract operation `HostInitializeShadowRealm` into one.
+///
+/// The embedder should use [`Context::new`] to create a new context. If the
+/// creation fails, the embedder must propagate that exception by returning
+/// [`None`].
+pub type HostCreateShadowRealmContextCallback =
+  for<'s> fn(scope: &mut HandleScope<'s>) -> Option<Local<'s, Context>>;
+
+pub type GcCallbackWithData = extern "C" fn(
+  isolate: *mut Isolate,
+  r#type: GCType,
+  flags: GCCallbackFlags,
+  data: *mut c_void,
+);
 
 pub type InterruptCallback =
   extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
@@ -137,8 +329,14 @@ pub type NearHeapLimitCallback = extern "C" fn(
   initial_heap_limit: usize,
 ) -> usize;
 
+#[repr(C)]
+pub struct OomDetails {
+  pub is_heap_oom: bool,
+  pub detail: *const char,
+}
+
 pub type OomErrorCallback =
-  extern "C" fn(location: *const c_char, is_heap_oom: bool);
+  extern "C" fn(location: *const char, details: &OomDetails);
 
 pub type AbortOnUncaughtExceptionCallback =
   extern "C" fn(isolate: &mut Isolate) -> bool;
@@ -162,21 +360,28 @@ pub type PrepareStackTraceCallback<'s> = extern "C" fn(
 ) -> *mut *const Value;
 
 // System V ABI: MaybeLocal<Value> returned in a register.
+// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
 #[cfg(not(target_os = "windows"))]
-pub type PrepareStackTraceCallback<'s> = extern "C" fn(
-  Local<'s, Context>,
-  Local<'s, Value>,
-  Local<'s, Array>,
-) -> *const Value;
+#[repr(C)]
+pub struct PrepareStackTraceCallbackRet(*const Value);
+
+#[cfg(not(target_os = "windows"))]
+pub type PrepareStackTraceCallback<'s> =
+  extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Value>,
+    Local<'s, Array>,
+  ) -> PrepareStackTraceCallbackRet;
 
 extern "C" {
+  static v8__internal__Internals__kIsolateEmbedderDataOffset: int;
+
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
-  fn v8__Isolate__SetData(this: *mut Isolate, slot: u32, data: *mut c_void);
-  fn v8__Isolate__GetData(this: *const Isolate, slot: u32) -> *mut c_void;
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
@@ -189,6 +394,17 @@ extern "C" {
     isolate: *mut Isolate,
     callback: MessageCallback,
   ) -> bool;
+  fn v8__Isolate__AddGCPrologueCallback(
+    isolate: *mut Isolate,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+    gc_type_filter: GCType,
+  );
+  fn v8__Isolate__RemoveGCPrologueCallback(
+    isolate: *mut Isolate,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+  );
   fn v8__Isolate__AddNearHeapLimitCallback(
     isolate: *mut Isolate,
     callback: NearHeapLimitCallback,
@@ -220,13 +436,30 @@ extern "C" {
     isolate: *mut Isolate,
     callback: PromiseRejectCallback,
   );
+  fn v8__Isolate__SetWasmAsyncResolvePromiseCallback(
+    isolate: *mut Isolate,
+    callback: WasmAsyncResolvePromiseCallback,
+  );
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     isolate: *mut Isolate,
     callback: HostInitializeImportMetaObjectCallback,
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: RawHostImportModuleDynamicallyCallback,
+  );
+  #[cfg(not(target_os = "windows"))]
+  fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(initiator_context: Local<Context>) -> *mut Context,
+  );
+  #[cfg(target_os = "windows")]
+  fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
+    isolate: *mut Isolate,
+    callback: extern "C" fn(
+      rv: *mut *mut Context,
+      initiator_context: Local<Context>,
+    ) -> *mut *mut Context,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -254,6 +487,10 @@ extern "C" {
     callback: extern "C" fn(*const FunctionCallbackInfo),
   );
   fn v8__Isolate__HasPendingBackgroundTasks(isolate: *const Isolate) -> bool;
+  fn v8__Isolate__RequestGarbageCollectionForTesting(
+    isolate: *mut Isolate,
+    r#type: usize,
+  );
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
@@ -307,9 +544,30 @@ extern "C" {
 pub struct Isolate(Opaque);
 
 impl Isolate {
+  // Total number of isolate data slots provided by V8.
+  const EMBEDDER_DATA_SLOT_COUNT: u32 = 4;
+
+  // Byte offset inside `Isolate` where the isolate data slots are stored. This
+  // should be the same as the value of `kIsolateEmbedderDataOffset` which is
+  // defined in `v8-internal.h`.
+  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 23]>();
+
+  // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
   const CURRENT_SCOPE_DATA_SLOT: u32 = 1;
-  const INTERNAL_SLOT_COUNT: u32 = 2;
+  const INTERNAL_DATA_SLOT_COUNT: u32 = 2;
+
+  #[inline(always)]
+  fn assert_embedder_data_slot_count_and_offset_correct(&self) {
+    assert_eq!(
+      unsafe { v8__Isolate__GetNumberOfDataSlots(self) },
+      Self::EMBEDDER_DATA_SLOT_COUNT
+    );
+    assert_eq!(
+      unsafe { v8__internal__Internals__kIsolateEmbedderDataOffset } as usize,
+      Self::EMBEDDER_DATA_OFFSET
+    );
+  }
 
   /// Creates a new isolate.  Does not change the currently entered
   /// isolate.
@@ -324,6 +582,7 @@ impl Isolate {
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
     let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
+    owned_isolate.assert_embedder_data_slot_count_and_offset_correct();
     ScopeData::new_root(&mut owned_isolate);
     owned_isolate.create_annex(create_param_allocations);
     unsafe {
@@ -332,26 +591,49 @@ impl Isolate {
     owned_isolate
   }
 
+  #[allow(clippy::new_ret_no_self)]
+  pub fn snapshot_creator(
+    external_references: Option<&'static ExternalReferences>,
+  ) -> OwnedIsolate {
+    SnapshotCreator::new(external_references)
+  }
+
+  #[allow(clippy::new_ret_no_self)]
+  pub fn snapshot_creator_from_existing_snapshot(
+    existing_snapshot_blob: impl Allocated<[u8]>,
+    external_references: Option<&'static ExternalReferences>,
+  ) -> OwnedIsolate {
+    SnapshotCreator::from_existing_snapshot(
+      existing_snapshot_blob,
+      external_references,
+    )
+  }
+
   /// Initial configuration parameters for a new Isolate.
+  #[inline(always)]
   pub fn create_params() -> CreateParams {
     CreateParams::default()
   }
 
+  #[inline(always)]
   pub fn thread_safe_handle(&self) -> IsolateHandle {
     IsolateHandle::new(self)
   }
 
   /// See [`IsolateHandle::terminate_execution`]
+  #[inline(always)]
   pub fn terminate_execution(&self) -> bool {
     self.thread_safe_handle().terminate_execution()
   }
 
   /// See [`IsolateHandle::cancel_terminate_execution`]
+  #[inline(always)]
   pub fn cancel_terminate_execution(&self) -> bool {
     self.thread_safe_handle().cancel_terminate_execution()
   }
 
   /// See [`IsolateHandle::is_execution_terminating`]
+  #[inline(always)]
   pub fn is_execution_terminating(&self) -> bool {
     self.thread_safe_handle().is_execution_terminating()
   }
@@ -362,23 +644,43 @@ impl Isolate {
   ) {
     let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
     let annex_ptr = Arc::into_raw(annex_arc);
-    unsafe {
-      assert!(v8__Isolate__GetData(self, Self::ANNEX_SLOT).is_null());
-      v8__Isolate__SetData(self, Self::ANNEX_SLOT, annex_ptr as *mut c_void);
-    };
+    assert!(self.get_data_internal(Self::ANNEX_SLOT).is_null());
+    self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
+  #[inline(always)]
   fn get_annex(&self) -> &IsolateAnnex {
-    unsafe {
-      &*(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *const _
-        as *const IsolateAnnex)
-    }
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *const IsolateAnnex;
+    assert!(!annex_ptr.is_null());
+    unsafe { &*annex_ptr }
   }
 
+  #[inline(always)]
   fn get_annex_mut(&mut self) -> &mut IsolateAnnex {
-    unsafe {
-      &mut *(v8__Isolate__GetData(self, Self::ANNEX_SLOT) as *mut IsolateAnnex)
-    }
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    assert!(!annex_ptr.is_null());
+    unsafe { &mut *annex_ptr }
+  }
+
+  pub(crate) fn set_snapshot_creator(
+    &mut self,
+    snapshot_creator: SnapshotCreator,
+  ) {
+    let prev = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .replace(snapshot_creator);
+    assert!(prev.is_none());
+  }
+
+  pub(crate) fn get_finalizer_map(&self) -> &FinalizerMap {
+    &self.get_annex().finalizer_map
+  }
+
+  pub(crate) fn get_finalizer_map_mut(&mut self) -> &mut FinalizerMap {
+    &mut self.get_annex_mut().finalizer_map
   }
 
   fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
@@ -388,36 +690,56 @@ impl Isolate {
     annex_arc
   }
 
-  /// Associate embedder-specific data with the isolate. `slot` has to be
-  /// between 0 and `Isolate::get_number_of_data_slots()`.
-  unsafe fn set_data(&mut self, slot: u32, ptr: *mut c_void) {
-    v8__Isolate__SetData(self, slot + Self::INTERNAL_SLOT_COUNT, ptr)
-  }
-
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given `slot`.
-  #[allow(dead_code)]
-  fn get_data(&self, slot: u32) -> *mut c_void {
-    unsafe { v8__Isolate__GetData(self, slot + Self::INTERNAL_SLOT_COUNT) }
+  pub fn get_data(&self, slot: u32) -> *mut c_void {
+    self.get_data_internal(Self::INTERNAL_DATA_SLOT_COUNT + slot)
+  }
+
+  /// Associate embedder-specific data with the isolate. `slot` has to be
+  /// between 0 and `Isolate::get_number_of_data_slots()`.
+  #[inline(always)]
+  pub fn set_data(&mut self, slot: u32, data: *mut c_void) {
+    self.set_data_internal(Self::INTERNAL_DATA_SLOT_COUNT + slot, data)
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
-  /// are in the range of 0 - `Isolate::get_number_of_data_slots() - 1`.
-  #[allow(dead_code)]
-  fn get_number_of_data_slots(&self) -> u32 {
-    unsafe {
-      v8__Isolate__GetNumberOfDataSlots(self) - Self::INTERNAL_SLOT_COUNT
-    }
+  /// are in the range of `0 <= n < Isolate::get_number_of_data_slots()`.
+  pub fn get_number_of_data_slots(&self) -> u32 {
+    Self::EMBEDDER_DATA_SLOT_COUNT - Self::INTERNAL_DATA_SLOT_COUNT
+  }
+
+  #[inline(always)]
+  pub(crate) fn get_data_internal(&self, slot: u32) -> *mut c_void {
+    let slots = unsafe {
+      let p = self as *const Self as *const u8;
+      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
+      let p = p as *const [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
+      &*p
+    };
+    slots[slot as usize]
+  }
+
+  #[inline(always)]
+  pub(crate) fn set_data_internal(&mut self, slot: u32, data: *mut c_void) {
+    let slots = unsafe {
+      let p = self as *mut Self as *mut u8;
+      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
+      let p = p as *mut [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
+      &mut *p
+    };
+    slots[slot as usize] = data;
   }
 
   /// Returns a pointer to the `ScopeData` struct for the current scope.
+  #[inline(always)]
   pub(crate) fn get_current_scope_data(&self) -> Option<NonNull<ScopeData>> {
-    let scope_data_ptr =
-      unsafe { v8__Isolate__GetData(self, Self::CURRENT_SCOPE_DATA_SLOT) };
+    let scope_data_ptr = self.get_data_internal(Self::CURRENT_SCOPE_DATA_SLOT);
     NonNull::new(scope_data_ptr).map(NonNull::cast)
   }
 
   /// Updates the slot that stores a `ScopeData` pointer for the current scope.
+  #[inline(always)]
   pub(crate) fn set_current_scope_data(
     &mut self,
     scope_data: Option<NonNull<ScopeData>>,
@@ -426,12 +748,11 @@ impl Isolate {
       .map(NonNull::cast)
       .map(NonNull::as_ptr)
       .unwrap_or_else(null_mut);
-    unsafe {
-      v8__Isolate__SetData(self, Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr)
-    };
+    self.set_data_internal(Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr);
   }
 
   /// Get a reference to embedder data added with `set_slot()`.
+  #[inline(always)]
   pub fn get_slot<T: 'static>(&self) -> Option<&T> {
     self
       .get_annex()
@@ -441,6 +762,7 @@ impl Isolate {
   }
 
   /// Get a mutable reference to embedder data added with `set_slot()`.
+  #[inline(always)]
   pub fn get_slot_mut<T: 'static>(&mut self) -> Option<&mut T> {
     self
       .get_annex_mut()
@@ -460,6 +782,7 @@ impl Isolate {
   /// Returns true if value was set without replacing an existing value.
   ///
   /// The value will be dropped when the isolate is dropped.
+  #[inline(always)]
   pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
     self
       .get_annex_mut()
@@ -469,6 +792,7 @@ impl Isolate {
   }
 
   /// Removes the embedder data added with `set_slot()` and returns it if it exists.
+  #[inline(always)]
   pub fn remove_slot<T: 'static>(&mut self) -> Option<T> {
     self
       .get_annex_mut()
@@ -483,6 +807,7 @@ impl Isolate {
   ///
   /// rusty_v8 note: Unlike in the C++ API, the isolate is entered when it is
   /// constructed and exited when dropped.
+  #[inline(always)]
   pub unsafe fn enter(&mut self) {
     v8__Isolate__Enter(self)
   }
@@ -495,8 +820,18 @@ impl Isolate {
   ///
   /// rusty_v8 note: Unlike in the C++ API, the isolate is entered when it is
   /// constructed and exited when dropped.
+  #[inline(always)]
   pub unsafe fn exit(&mut self) {
     v8__Isolate__Exit(self)
+  }
+
+  /// Optional notification that the system is running low on memory.
+  /// V8 uses these notifications to guide heuristics.
+  /// It is allowed to call this function from another thread while
+  /// the isolate is executing long running JavaScript code.
+  #[inline(always)]
+  pub fn memory_pressure_notification(&mut self, level: MemoryPressureLevel) {
+    unsafe { v8__Isolate__MemoryPressureNotification(self, level as u8) }
   }
 
   /// Clears the set of objects held strongly by the heap. This set of
@@ -510,23 +845,27 @@ impl Isolate {
   /// running microtasks via a custom MicrotaskQueue class's PerformCheckpoint.
   /// In that case, it is the embedder's responsibility to make this call at a
   /// time which does not interrupt synchronous ECMAScript code execution.
+  #[inline(always)]
   pub fn clear_kept_objects(&mut self) {
     unsafe { v8__Isolate__ClearKeptObjects(self) }
   }
 
   /// Optional notification that the system is running low on memory.
   /// V8 uses these notifications to attempt to free memory.
+  #[inline(always)]
   pub fn low_memory_notification(&mut self) {
     unsafe { v8__Isolate__LowMemoryNotification(self) }
   }
 
   /// Get statistics about the heap memory usage.
+  #[inline(always)]
   pub fn get_heap_statistics(&mut self, s: &mut HeapStatistics) {
     unsafe { v8__Isolate__GetHeapStatistics(self, s) }
   }
 
   /// Tells V8 to capture current stack trace when uncaught exception occurs
   /// and report it to the message listeners. The option is off by default.
+  #[inline(always)]
   pub fn set_capture_stack_trace_for_uncaught_exceptions(
     &mut self,
     capture: bool,
@@ -547,6 +886,7 @@ impl Isolate {
   /// case it will be called more than once for each message.
   ///
   /// The exception object will be passed to the callback.
+  #[inline(always)]
   pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
     unsafe { v8__Isolate__AddMessageListener(self, callback) }
   }
@@ -559,6 +899,7 @@ impl Isolate {
   /// callback is registed, the |Error.prepareStackTrace| API will be disabled.
   /// |sites| is an array of call sites, specified in
   /// https://v8.dev/docs/stack-trace-api
+  #[inline(always)]
   pub fn set_prepare_stack_trace_callback<'s>(
     &mut self,
     callback: impl MapFnTo<PrepareStackTraceCallback<'s>>,
@@ -573,18 +914,30 @@ impl Isolate {
 
   /// Set the PromiseHook callback for various promise lifecycle
   /// events.
+  #[inline(always)]
   pub fn set_promise_hook(&mut self, hook: PromiseHook) {
     unsafe { v8__Isolate__SetPromiseHook(self, hook) }
   }
 
   /// Set callback to notify about promise reject with no handler, or
   /// revocation of such a previous notification once the handler is added.
+  #[inline(always)]
   pub fn set_promise_reject_callback(
     &mut self,
     callback: PromiseRejectCallback,
   ) {
     unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
   }
+
+  #[inline(always)]
+  pub fn set_wasm_async_resolve_promise_callback(
+    &mut self,
+    callback: WasmAsyncResolvePromiseCallback,
+  ) {
+    unsafe { v8__Isolate__SetWasmAsyncResolvePromiseCallback(self, callback) }
+  }
+
+  #[inline(always)]
   /// This specifies the callback called by the upcoming importa.meta
   /// language feature to retrieve host-defined meta data for a module.
   pub fn set_host_initialize_import_meta_object_callback(
@@ -598,19 +951,106 @@ impl Isolate {
 
   /// This specifies the callback called by the upcoming dynamic
   /// import() language feature to load modules.
+  #[inline(always)]
   pub fn set_host_import_module_dynamically_callback(
     &mut self,
-    callback: HostImportModuleDynamicallyCallback,
+    callback: impl HostImportModuleDynamicallyCallback,
   ) {
     unsafe {
-      v8__Isolate__SetHostImportModuleDynamicallyCallback(self, callback)
+      v8__Isolate__SetHostImportModuleDynamicallyCallback(
+        self,
+        callback.to_c_fn(),
+      )
     }
+  }
+
+  /// This specifies the callback called by the upcoming `ShadowRealm`
+  /// construction language feature to retrieve host created globals.
+  pub fn set_host_create_shadow_realm_context_callback(
+    &mut self,
+    callback: HostCreateShadowRealmContextCallback,
+  ) {
+    #[inline]
+    extern "C" fn rust_shadow_realm_callback(
+      initiator_context: Local<Context>,
+    ) -> *mut Context {
+      let mut scope = unsafe { CallbackScope::new(initiator_context) };
+      let callback = scope
+        .get_slot::<HostCreateShadowRealmContextCallback>()
+        .unwrap();
+      let context = callback(&mut scope);
+      context
+        .map(|l| l.as_non_null().as_ptr())
+        .unwrap_or_else(null_mut)
+    }
+
+    // Windows x64 ABI: MaybeLocal<Context> must be returned on the stack.
+    #[cfg(target_os = "windows")]
+    extern "C" fn rust_shadow_realm_callback_windows(
+      rv: *mut *mut Context,
+      initiator_context: Local<Context>,
+    ) -> *mut *mut Context {
+      let ret = rust_shadow_realm_callback(initiator_context);
+      unsafe {
+        rv.write(ret);
+      }
+      rv
+    }
+
+    let slot_didnt_exist_before = self.set_slot(callback);
+    if slot_didnt_exist_before {
+      unsafe {
+        #[cfg(target_os = "windows")]
+        v8__Isolate__SetHostCreateShadowRealmContextCallback(
+          self,
+          rust_shadow_realm_callback_windows,
+        );
+        #[cfg(not(target_os = "windows"))]
+        v8__Isolate__SetHostCreateShadowRealmContextCallback(
+          self,
+          rust_shadow_realm_callback,
+        );
+      }
+    }
+  }
+
+  /// Enables the host application to receive a notification before a
+  /// garbage collection. Allocations are allowed in the callback function,
+  /// but the callback is not re-entrant: if the allocation inside it will
+  /// trigger the garbage collection, the callback won't be called again.
+  /// It is possible to specify the GCType filter for your callback. But it is
+  /// not possible to register the same callback function two times with
+  /// different GCType filters.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
+  pub fn add_gc_prologue_callback(
+    &mut self,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+    gc_type_filter: GCType,
+  ) {
+    unsafe {
+      v8__Isolate__AddGCPrologueCallback(self, callback, data, gc_type_filter)
+    }
+  }
+
+  /// This function removes callback which was installed by
+  /// AddGCPrologueCallback function.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
+  pub fn remove_gc_prologue_callback(
+    &mut self,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RemoveGCPrologueCallback(self, callback, data) }
   }
 
   /// Add a callback to invoke in case the heap size is close to the heap limit.
   /// If multiple callbacks are added, only the most recently added callback is
   /// invoked.
   #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
   pub fn add_near_heap_limit_callback(
     &mut self,
     callback: NearHeapLimitCallback,
@@ -623,6 +1063,7 @@ impl Isolate {
   /// If the given limit is zero, then it is ignored. If the current heap size
   /// is greater than the given limit, then the heap limit is restored to the
   /// minimal limit that is possible for the current heap size.
+  #[inline(always)]
   pub fn remove_near_heap_limit_callback(
     &mut self,
     callback: NearHeapLimitCallback,
@@ -640,6 +1081,7 @@ impl Isolate {
   /// will trigger global garbage collections more often than it would
   /// otherwise in an attempt to garbage collect the JavaScript objects
   /// that keep the externally allocated memory alive.
+  #[inline(always)]
   pub fn adjust_amount_of_external_allocated_memory(
     &mut self,
     change_in_bytes: i64,
@@ -649,6 +1091,7 @@ impl Isolate {
     }
   }
 
+  #[inline(always)]
   pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {
     unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
   }
@@ -670,11 +1113,13 @@ impl Isolate {
   }
 
   /// Returns the policy controlling how Microtasks are invoked.
+  #[inline(always)]
   pub fn get_microtasks_policy(&self) -> MicrotasksPolicy {
     unsafe { v8__Isolate__GetMicrotasksPolicy(self) }
   }
 
   /// Returns the policy controlling how Microtasks are invoked.
+  #[inline(always)]
   pub fn set_microtasks_policy(&mut self, policy: MicrotasksPolicy) {
     unsafe { v8__Isolate__SetMicrotasksPolicy(self, policy) }
   }
@@ -683,6 +1128,7 @@ impl Isolate {
   /// microtask checkpoint steps, such as calling ClearKeptObjects. Asserts that
   /// the MicrotasksPolicy is not kScoped. Any exceptions thrown by microtask
   /// callbacks are swallowed.
+  #[inline(always)]
   pub fn perform_microtask_checkpoint(&mut self) {
     unsafe { v8__Isolate__PerformMicrotaskCheckpoint(self) }
   }
@@ -694,6 +1140,7 @@ impl Isolate {
   }
 
   /// Enqueues the callback to the default MicrotaskQueue
+  #[inline(always)]
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
     unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
   }
@@ -701,6 +1148,7 @@ impl Isolate {
   /// Set whether calling Atomics.wait (a function that may block) is allowed in
   /// this isolate. This can also be configured via
   /// CreateParams::allow_atomics_wait.
+  #[inline(always)]
   pub fn set_allow_atomics_wait(&mut self, allow: bool) {
     unsafe { v8__Isolate__SetAllowAtomicsWait(self, allow) }
   }
@@ -712,6 +1160,7 @@ impl Isolate {
   /// and an instance of [WasmStreaming]. The [WasmStreaming] instance
   /// can outlive the callback and is used to feed data chunks to V8
   /// asynchronously.
+  #[inline(always)]
   pub fn set_wasm_streaming_callback<F>(&mut self, _: F)
   where
     F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
@@ -722,15 +1171,48 @@ impl Isolate {
   /// Returns true if there is ongoing background work within V8 that will
   /// eventually post a foreground task, like asynchronous WebAssembly
   /// compilation.
+  #[inline(always)]
   pub fn has_pending_background_tasks(&self) -> bool {
     unsafe { v8__Isolate__HasPendingBackgroundTasks(self) }
   }
 
-  /// Disposes the isolate.  The isolate must not be entered by any
-  /// thread to be disposable.
-  unsafe fn dispose(&mut self) {
+  /// Request garbage collection with a specific embedderstack state in this
+  /// Isolate. It is only valid to call this function if --expose_gc was
+  /// specified.
+  ///
+  /// This should only be used for testing purposes and not to enforce a garbage
+  /// collection schedule. It has strong negative impact on the garbage
+  /// collection performance. Use IdleNotificationDeadline() or
+  /// LowMemoryNotification() instead to influence the garbage collection
+  /// schedule.
+  #[inline(always)]
+  pub fn request_garbage_collection_for_testing(
+    &mut self,
+    r#type: GarbageCollectionType,
+  ) {
+    unsafe {
+      v8__Isolate__RequestGarbageCollectionForTesting(
+        self,
+        match r#type {
+          GarbageCollectionType::Full => 0,
+          GarbageCollectionType::Minor => 1,
+        },
+      )
+    }
+  }
+
+  unsafe fn clear_scope_and_annex(&mut self) {
     // Drop the scope stack.
     ScopeData::drop_root(self);
+
+    // If there are finalizers left to call, we trigger GC to try and call as
+    // many of them as possible.
+    if !self.get_annex().finalizer_map.is_empty() {
+      // A low memory notification triggers a synchronous GC, which means
+      // finalizers will be called during the course of the call, rather than at
+      // some later point.
+      self.low_memory_notification();
+    }
 
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
@@ -745,10 +1227,21 @@ impl Isolate {
     annex.create_param_allocations = Box::new(());
     annex.slots.clear();
 
+    // Run through any remaining guaranteed finalizers.
+    for finalizer in annex.finalizer_map.drain() {
+      if let FinalizerCallback::Guaranteed(callback) = finalizer {
+        callback();
+      }
+    }
+
     // Subtract one from the Arc<IsolateAnnex> reference count.
     Arc::from_raw(annex);
     self.set_data(0, null_mut());
+  }
 
+  /// Disposes the isolate.  The isolate must not be entered by any
+  /// thread to be disposable.
+  unsafe fn dispose(&mut self) {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
     v8__Isolate__Dispose(self)
@@ -781,11 +1274,94 @@ impl Isolate {
     let arg = &mut callback as *mut F as *mut c_void;
     unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
   }
+
+  /// Set the default context to be included in the snapshot blob.
+  /// The snapshot will not contain the global proxy, and we expect one or a
+  /// global object template to create one, to be provided upon deserialization.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn set_default_context(&mut self, context: Local<Context>) {
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
+    snapshot_creator.set_default_context(context);
+  }
+
+  /// Add additional context to be included in the snapshot blob.
+  /// The snapshot will include the global proxy.
+  ///
+  /// Returns the index of the context in the snapshot blob.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_context(&mut self, context: Local<Context>) -> usize {
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
+    snapshot_creator.add_context(context)
+  }
+
+  /// Attach arbitrary `v8::Data` to the isolate snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is created
+  /// from an existing snapshot.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_isolate_data<T>(&mut self, data: Local<T>) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
+    snapshot_creator.add_isolate_data(data)
+  }
+
+  /// Attach arbitrary `v8::Data` to the context snapshot, which can be
+  /// retrieved via `HandleScope::get_context_data_from_snapshot_once()` after
+  /// deserialization. This data does not survive when a new snapshot is
+  /// created from an existing snapshot.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn add_context_data<T>(
+    &mut self,
+    context: Local<Context>,
+    data: Local<T>,
+  ) -> usize
+  where
+    for<'l> Local<'l, T>: Into<Local<'l, Data>>,
+  {
+    let snapshot_creator = self
+      .get_annex_mut()
+      .maybe_snapshot_creator
+      .as_mut()
+      .unwrap();
+    snapshot_creator.add_context_data(context, data)
+  }
 }
 
 pub(crate) struct IsolateAnnex {
   create_param_allocations: Box<dyn Any>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
+  finalizer_map: FinalizerMap,
+  maybe_snapshot_creator: Option<SnapshotCreator>,
   // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
   // (which may outlive the isolate itself) can determine whether the isolate
   // is still alive, and if so, get a reference to it. Safety rules:
@@ -805,6 +1381,8 @@ impl IsolateAnnex {
     Self {
       create_param_allocations,
       slots: HashMap::default(),
+      finalizer_map: FinalizerMap::default(),
+      maybe_snapshot_creator: None,
       isolate,
       isolate_mutex: Mutex::new(()),
     }
@@ -840,6 +1418,7 @@ impl IsolateHandle {
     self.0.isolate
   }
 
+  #[inline(always)]
   fn new(isolate: &Isolate) -> Self {
     Self(isolate.get_annex_arc())
   }
@@ -851,6 +1430,7 @@ impl IsolateHandle {
   /// acquired the V8 lock with a Locker object.
   ///
   /// Returns false if Isolate was already destroyed.
+  #[inline(always)]
   pub fn terminate_execution(&self) -> bool {
     let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
@@ -875,6 +1455,7 @@ impl IsolateHandle {
   /// acquired the V8 lock with a Locker object.
   ///
   /// Returns false if Isolate was already destroyed.
+  #[inline(always)]
   pub fn cancel_terminate_execution(&self) -> bool {
     let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
@@ -893,6 +1474,7 @@ impl IsolateHandle {
   /// exception is still active.
   ///
   /// Returns false if Isolate was already destroyed.
+  #[inline(always)]
   pub fn is_execution_terminating(&self) -> bool {
     let _lock = self.0.isolate_mutex.lock().unwrap();
     if self.0.isolate.is_null() {
@@ -913,6 +1495,7 @@ impl IsolateHandle {
   // Clippy warns that this method is dereferencing a raw pointer, but it is
   // not: https://github.com/rust-lang/rust-clippy/issues/3045
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  #[inline(always)]
   pub fn request_interrupt(
     &self,
     callback: InterruptCallback,
@@ -944,8 +1527,14 @@ impl OwnedIsolate {
 impl Drop for OwnedIsolate {
   fn drop(&mut self) {
     unsafe {
+      let snapshot_creator = self.get_annex_mut().maybe_snapshot_creator.take();
+      assert!(
+        snapshot_creator.is_none(),
+        "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
+      );
       self.exit();
-      self.cxx_isolate.as_mut().dispose()
+      self.cxx_isolate.as_mut().clear_scope_and_annex();
+      self.cxx_isolate.as_mut().dispose();
     }
   }
 }
@@ -963,61 +1552,109 @@ impl DerefMut for OwnedIsolate {
   }
 }
 
+impl AsMut<Isolate> for OwnedIsolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
+impl AsMut<Isolate> for Isolate {
+  fn as_mut(&mut self) -> &mut Isolate {
+    self
+  }
+}
+
+impl OwnedIsolate {
+  /// Creates a snapshot data blob.
+  /// This must not be called from within a handle scope.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn create_blob(
+    mut self,
+    function_code_handling: FunctionCodeHandling,
+  ) -> Option<StartupData> {
+    let mut snapshot_creator =
+      self.get_annex_mut().maybe_snapshot_creator.take().unwrap();
+    unsafe { self.cxx_isolate.as_mut().clear_scope_and_annex() };
+    // The isolate is owned by the snapshot creator; we need to forget it
+    // here as the snapshot creator will drop it when running the destructor.
+    std::mem::forget(self);
+    snapshot_creator.create_blob(function_code_handling)
+  }
+}
+
 impl HeapStatistics {
+  #[inline(always)]
   pub fn total_heap_size(&self) -> usize {
     unsafe { v8__HeapStatistics__total_heap_size(self) }
   }
 
+  #[inline(always)]
   pub fn total_heap_size_executable(&self) -> usize {
     unsafe { v8__HeapStatistics__total_heap_size_executable(self) }
   }
 
+  #[inline(always)]
   pub fn total_physical_size(&self) -> usize {
     unsafe { v8__HeapStatistics__total_physical_size(self) }
   }
 
+  #[inline(always)]
   pub fn total_available_size(&self) -> usize {
     unsafe { v8__HeapStatistics__total_available_size(self) }
   }
 
+  #[inline(always)]
   pub fn total_global_handles_size(&self) -> usize {
     unsafe { v8__HeapStatistics__total_global_handles_size(self) }
   }
 
+  #[inline(always)]
   pub fn used_global_handles_size(&self) -> usize {
     unsafe { v8__HeapStatistics__used_global_handles_size(self) }
   }
 
+  #[inline(always)]
   pub fn used_heap_size(&self) -> usize {
     unsafe { v8__HeapStatistics__used_heap_size(self) }
   }
 
+  #[inline(always)]
   pub fn heap_size_limit(&self) -> usize {
     unsafe { v8__HeapStatistics__heap_size_limit(self) }
   }
 
+  #[inline(always)]
   pub fn malloced_memory(&self) -> usize {
     unsafe { v8__HeapStatistics__malloced_memory(self) }
   }
 
+  #[inline(always)]
   pub fn external_memory(&self) -> usize {
     unsafe { v8__HeapStatistics__external_memory(self) }
   }
 
+  #[inline(always)]
   pub fn peak_malloced_memory(&self) -> usize {
     unsafe { v8__HeapStatistics__peak_malloced_memory(self) }
   }
 
+  #[inline(always)]
   pub fn number_of_native_contexts(&self) -> usize {
     unsafe { v8__HeapStatistics__number_of_native_contexts(self) }
   }
 
+  #[inline(always)]
   pub fn number_of_detached_contexts(&self) -> usize {
     unsafe { v8__HeapStatistics__number_of_detached_contexts(self) }
   }
 
   /// Returns a 0/1 boolean, which signifies whether the V8 overwrite heap
   /// garbage with a bit pattern.
+  #[inline(always)]
   pub fn does_zap_garbage(&self) -> usize {
     unsafe { v8__HeapStatistics__does_zap_garbage(self) }
   }
@@ -1054,13 +1691,13 @@ where
     f.to_c_fn()
   }
 
-  // System V ABI: MaybeLocal<Value> returned in a register.
+  // System V ABI
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
       let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
       let r = (F::get())(&mut scope, error, sites);
-      &*r as *const _
+      PrepareStackTraceCallbackRet(&*r as *const _)
     };
     f.to_c_fn()
   }
@@ -1108,10 +1745,10 @@ impl BuildHasher for BuildTypeIdHasher {
 
 const _: () = {
   assert!(size_of::<TypeId>() == size_of::<u64>());
-  assert!(align_of::<TypeId>() == size_of::<u64>());
+  assert!(align_of::<TypeId>() == align_of::<u64>());
 };
 
-struct RawSlot {
+pub(crate) struct RawSlot {
   data: RawSlotData,
   dtor: Option<RawSlotDtor>,
 }

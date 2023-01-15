@@ -3,7 +3,7 @@ use crate::support::intptr_t;
 use crate::AccessorNameGetterCallback;
 use crate::FunctionCallback;
 use crate::MessageCallback;
-use std::os::raw::c_void;
+use std::ffi::c_void;
 
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
@@ -21,6 +21,7 @@ pub struct ExternalReferences {
 unsafe impl Sync for ExternalReferences {}
 
 impl ExternalReferences {
+  #[inline(always)]
   pub fn new(refs: &[ExternalReference]) -> Self {
     let null_terminated = refs
       .iter()
@@ -30,6 +31,7 @@ impl ExternalReferences {
     Self { null_terminated }
   }
 
+  #[inline(always)]
   pub fn as_ptr(&self) -> *const intptr_t {
     self.null_terminated.as_ptr()
   }
@@ -38,12 +40,12 @@ impl ExternalReferences {
 impl std::ops::Deref for ExternalReferences {
   type Target = [intptr_t];
   fn deref(&self) -> &Self::Target {
-    &*self.null_terminated
+    &self.null_terminated
   }
 }
 
 impl std::borrow::Borrow<[intptr_t]> for ExternalReferences {
   fn borrow(&self) -> &[intptr_t] {
-    &**self
+    self
   }
 }

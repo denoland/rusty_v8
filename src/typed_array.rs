@@ -1,19 +1,29 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+use crate::support::size_t;
 use crate::ArrayBuffer;
 use crate::HandleScope;
 use crate::Local;
 use crate::TypedArray;
 
 extern "C" {
-  fn v8__TypedArray__kMaxLength() -> libc::size_t;
+  fn v8__TypedArray__kMaxLength() -> size_t;
+  fn v8__TypedArray__Length(this: *const TypedArray) -> size_t;
 }
 
 impl TypedArray {
   /// The maximum length (in bytes) of the buffer backing a v8::TypedArray
   /// instance. Attempting to create a v8::ArrayBuffer from a larger buffer will
   /// result in a fatal error.
+  #[inline(always)]
   pub fn max_length() -> usize {
     unsafe { v8__TypedArray__kMaxLength() }
+  }
+
+  /// Number of elements in this typed array
+  /// (e.g. for Int16Array, |ByteLength|/2).
+  #[inline(always)]
+  pub fn length(&self) -> usize {
+    unsafe { v8__TypedArray__Length(self) }
   }
 }
 
@@ -21,6 +31,7 @@ macro_rules! typed_array {
   ($name:ident, $func:ident) => {
     use crate::$name;
     impl $name {
+      #[inline(always)]
       pub fn new<'s>(
         scope: &mut HandleScope<'s>,
         buf: Local<ArrayBuffer>,

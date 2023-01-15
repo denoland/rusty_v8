@@ -13,6 +13,7 @@ use crate::FixedArray;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::Message;
 use crate::Module;
 use crate::ModuleRequest;
 use crate::String;
@@ -38,14 +39,18 @@ use crate::Value;
 ///   }
 /// ```
 
-// System V AMD64 ABI: Local<Module> returned in a register.
+// System V ABI
+#[cfg(not(target_os = "windows"))]
+#[repr(C)]
+pub struct ResolveModuleCallbackRet(*const Module);
+
 #[cfg(not(target_os = "windows"))]
 pub type ResolveModuleCallback<'a> = extern "C" fn(
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, FixedArray>,
   Local<'a, Module>,
-) -> *const Module;
+) -> ResolveModuleCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
@@ -70,9 +75,11 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, specifier, import_assertions, referrer| {
-      (F::get())(context, specifier, import_assertions, referrer)
-        .map(|r| -> *const Module { &*r })
-        .unwrap_or(null())
+      ResolveModuleCallbackRet(
+        (F::get())(context, specifier, import_assertions, referrer)
+          .map(|r| -> *const Module { &*r })
+          .unwrap_or(null()),
+      )
     };
     f.to_c_fn()
   }
@@ -90,10 +97,17 @@ where
   }
 }
 
-// System V AMD64 ABI: Local<Value> returned in a register.
+// System V ABI.
+#[cfg(not(target_os = "windows"))]
+#[repr(C)]
+pub struct SyntheticModuleEvaluationStepsRet(*const Value);
+
 #[cfg(not(target_os = "windows"))]
 pub type SyntheticModuleEvaluationSteps<'a> =
-  extern "C" fn(Local<'a, Context>, Local<'a, Module>) -> *const Value;
+  extern "C" fn(
+    Local<'a, Context>,
+    Local<'a, Module>,
+  ) -> SyntheticModuleEvaluationStepsRet;
 
 // Windows x64 ABI: Local<Value> returned on the stack.
 #[cfg(target_os = "windows")]
@@ -112,9 +126,11 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, module| {
-      (F::get())(context, module)
-        .map(|r| -> *const Value { &*r })
-        .unwrap_or(null())
+      SyntheticModuleEvaluationStepsRet(
+        (F::get())(context, module)
+          .map(|r| -> *const Value { &*r })
+          .unwrap_or(null()),
+      )
     };
     f.to_c_fn()
   }
@@ -139,8 +155,8 @@ extern "C" {
   fn v8__Module__SourceOffsetToLocation(
     this: *const Module,
     offset: int,
-    out: *mut MaybeUninit<Location>,
-  ) -> Location;
+    out: *mut Location,
+  );
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__ScriptId(this: *const Module) -> int;
@@ -180,6 +196,18 @@ extern "C" {
   fn v8__ModuleRequest__GetImportAssertions(
     this: *const ModuleRequest,
   ) -> *const FixedArray;
+  fn v8__Module__GetStalledTopLevelAwaitMessage(
+    this: *const Module,
+    isolate: *const Isolate,
+    out_vec: *mut StalledTopLevelAwaitMessage,
+    vec_len: usize,
+  ) -> usize;
+}
+
+#[repr(C)]
+pub struct StalledTopLevelAwaitMessage {
+  pub module: *const Module,
+  pub message: *const Message,
 }
 
 /// A location in JavaScript source.
@@ -202,7 +230,7 @@ impl Location {
 /// This corresponds to the states used in ECMAScript except that "evaluated"
 /// is split into kEvaluated and kErrored, indicating success and failure,
 /// respectively.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(C)]
 pub enum ModuleStatus {
   Uninstantiated,
@@ -215,11 +243,13 @@ pub enum ModuleStatus {
 
 impl Module {
   /// Returns the module's current status.
+  #[inline(always)]
   pub fn get_status(&self) -> ModuleStatus {
     unsafe { v8__Module__GetStatus(self) }
   }
 
   /// For a module in kErrored status, this returns the corresponding exception.
+  #[inline(always)]
   pub fn get_exception(&self) -> Local<Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
@@ -227,16 +257,18 @@ impl Module {
   }
 
   /// Returns the ModuleRequests for this module.
+  #[inline(always)]
   pub fn get_module_requests(&self) -> Local<FixedArray> {
     unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
   }
 
   /// For the given source text offset in this module, returns the corresponding
   /// Location with line and column numbers.
+  #[inline(always)]
   pub fn source_offset_to_location(&self, offset: int) -> Location {
     let mut out = MaybeUninit::<Location>::uninit();
     unsafe {
-      v8__Module__SourceOffsetToLocation(self, offset, &mut out);
+      v8__Module__SourceOffsetToLocation(self, offset, out.as_mut_ptr());
       out.assume_init()
     }
   }
@@ -246,6 +278,7 @@ impl Module {
   ///
   /// The return value will never be 0. Also, it is not guaranteed to be
   /// unique.
+  #[inline(always)]
   pub fn get_identity_hash(&self) -> NonZeroI32 {
     unsafe { NonZeroI32::new_unchecked(v8__Module__GetIdentityHash(self)) }
   }
@@ -253,6 +286,7 @@ impl Module {
   /// Returns the underlying script's id.
   ///
   /// The module must be a SourceTextModule and must not have an Errored status.
+  #[inline(always)]
   pub fn script_id(&self) -> Option<int> {
     if !self.is_source_text_module() {
       return None;
@@ -266,6 +300,7 @@ impl Module {
   /// Returns the namespace object of this module.
   ///
   /// The module's status must be at least kInstantiated.
+  #[inline(always)]
   pub fn get_module_namespace(&self) -> Local<Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
@@ -280,6 +315,7 @@ impl Module {
   ///
   /// NOTE: requires to set `--harmony-import-assertions` V8 flag.
   #[must_use]
+  #[inline(always)]
   pub fn instantiate_module<'a>(
     &self,
     scope: &mut HandleScope,
@@ -302,24 +338,27 @@ impl Module {
   /// kErrored and propagate the thrown exception (which is then also available
   /// via |GetException|).
   #[must_use]
+  #[inline(always)]
   pub fn evaluate<'s>(
     &self,
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope
-        .cast_local(|sd| v8__Module__Evaluate(&*self, sd.get_current_context()))
+        .cast_local(|sd| v8__Module__Evaluate(self, sd.get_current_context()))
     }
   }
 
   /// Returns whether the module is a SourceTextModule.
+  #[inline(always)]
   pub fn is_source_text_module(&self) -> bool {
-    unsafe { v8__Module__IsSourceTextModule(&*self) }
+    unsafe { v8__Module__IsSourceTextModule(self) }
   }
 
   /// Returns whether the module is a SyntheticModule.
+  #[inline(always)]
   pub fn is_synthetic_module(&self) -> bool {
-    unsafe { v8__Module__IsSyntheticModule(&*self) }
+    unsafe { v8__Module__IsSyntheticModule(self) }
   }
 
   /// Creates a new SyntheticModule with the specified export names, where
@@ -327,6 +366,7 @@ impl Module {
   /// export_names must not contain duplicates.
   /// module_name is used solely for logging/debugging and doesn't affect module
   /// behavior.
+  #[inline(always)]
   pub fn create_synthetic_module<'s, 'a>(
     scope: &mut HandleScope<'s>,
     module_name: Local<String>,
@@ -357,6 +397,7 @@ impl Module {
   /// of the export_names that were passed in that create_synthetic_module call.
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
+  #[inline(always)]
   pub fn set_synthetic_module_export(
     &self,
     scope: &mut HandleScope,
@@ -365,7 +406,7 @@ impl Module {
   ) -> Option<bool> {
     unsafe {
       v8__Module__SetSyntheticModuleExport(
-        &*self,
+        self,
         scope.get_isolate_ptr(),
         &*export_name,
         &*export_value,
@@ -374,6 +415,7 @@ impl Module {
     .into()
   }
 
+  #[inline(always)]
   pub fn get_unbound_module_script<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -384,16 +426,56 @@ impl Module {
         .unwrap()
     }
   }
+
+  /// Search the modules requested directly or indirectly by the module for
+  /// any top-level await that has not yet resolved. If there is any, the
+  /// returned vector contains a tuple of the unresolved module and a message
+  /// with the pending top-level await.
+  /// An embedder may call this before exiting to improve error messages.
+  pub fn get_stalled_top_level_await_message(
+    &self,
+    scope: &mut HandleScope,
+  ) -> Vec<(Local<Module>, Local<Message>)> {
+    let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
+    for _i in 0..16 {
+      out_vec.push(StalledTopLevelAwaitMessage {
+        module: std::ptr::null(),
+        message: std::ptr::null(),
+      });
+    }
+
+    let returned_len = unsafe {
+      v8__Module__GetStalledTopLevelAwaitMessage(
+        self,
+        scope.get_isolate_ptr(),
+        out_vec.as_mut_ptr(),
+        out_vec.len(),
+      )
+    };
+
+    let mut ret_vec = Vec::with_capacity(returned_len);
+    for item in out_vec.iter().take(returned_len) {
+      unsafe {
+        ret_vec.push((
+          Local::from_raw(item.module).unwrap(),
+          Local::from_raw(item.message).unwrap(),
+        ));
+      }
+    }
+    ret_vec
+  }
 }
 
 impl ModuleRequest {
   /// Returns the module specifier for this ModuleRequest.
+  #[inline(always)]
   pub fn get_specifier(&self) -> Local<String> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
   }
 
   /// Returns the source code offset of this module request.
   /// Use Module::source_offset_to_location to convert this to line/column numbers.
+  #[inline(always)]
   pub fn get_source_offset(&self) -> int {
     unsafe { v8__ModuleRequest__GetSourceOffset(self) }
   }
@@ -410,6 +492,7 @@ impl ModuleRequest {
   /// hosts are expected to ignore assertions that they do not support (as
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
+  #[inline(always)]
   pub fn get_import_assertions(&self) -> Local<FixedArray> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetImportAssertions(self)) }
       .unwrap()

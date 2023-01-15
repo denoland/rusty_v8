@@ -1,4 +1,4 @@
-const V8_TRACKING_BRANCH = "10.0-lkgr-denoland";
+const V8_TRACKING_BRANCH = "11.0-lkgr-denoland";
 const AUTOROLL_BRANCH = "autoroll";
 
 function extractVersion() {
@@ -52,7 +52,7 @@ console.log(`Updated to version ${newVersion}`);
 // Update version in readme
 let readme = Deno.readTextFileSync("README.md");
 readme = readme.replace(
-  `V8 Version: ${currentVersion}`,
+  /V8 Version: \S+/,
   `V8 Version: ${newVersion}`,
 );
 Deno.writeTextFileSync("README.md", readme);

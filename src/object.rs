@@ -6,15 +6,21 @@ use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
 use crate::Array;
 use crate::Context;
+use crate::GetPropertyNamesArgs;
 use crate::HandleScope;
+use crate::IndexFilter;
+use crate::KeyCollectionMode;
+use crate::KeyConversionMode;
 use crate::Local;
 use crate::Map;
 use crate::Name;
 use crate::Object;
 use crate::Private;
 use crate::PropertyAttribute;
+use crate::PropertyFilter;
 use crate::Value;
 use std::convert::TryFrom;
+use std::ffi::c_void;
 use std::num::NonZeroI32;
 
 extern "C" {
@@ -85,10 +91,16 @@ extern "C" {
   fn v8__Object__GetOwnPropertyNames(
     this: *const Object,
     context: *const Context,
+    filter: PropertyFilter,
+    key_conversion: KeyConversionMode,
   ) -> *const Array;
   fn v8__Object__GetPropertyNames(
     this: *const Object,
     context: *const Context,
+    mode: KeyCollectionMode,
+    property_filter: PropertyFilter,
+    index_filter: IndexFilter,
+    key_conversion: KeyConversionMode,
   ) -> *const Array;
   fn v8__Object__Has(
     this: *const Object,
@@ -120,6 +132,15 @@ extern "C" {
     this: *const Object,
     index: int,
   ) -> *const Value;
+  fn v8__Object__GetAlignedPointerFromInternalField(
+    this: *const Object,
+    index: int,
+  ) -> *const c_void;
+  fn v8__Object__SetAlignedPointerInInternalField(
+    this: *const Object,
+    index: int,
+    value: *const c_void,
+  );
   fn v8__Object__SetIntegrityLevel(
     this: *const Object,
     context: *const Context,
@@ -188,6 +209,7 @@ extern "C" {
 
 impl Object {
   /// Creates an empty object.
+  #[inline(always)]
   pub fn new<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Object> {
     unsafe { scope.cast_local(|sd| v8__Object__New(sd.get_isolate_ptr())) }
       .unwrap()
@@ -198,6 +220,7 @@ impl Object {
   /// the newly created object won't have a prototype at all). This is similar
   /// to Object.create(). All properties will be created as enumerable,
   /// configurable and writable properties.
+  #[inline(always)]
   pub fn with_prototype_and_properties<'s>(
     scope: &mut HandleScope<'s>,
     prototype_or_null: Local<'s, Value>,
@@ -223,6 +246,7 @@ impl Object {
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
+  #[inline(always)]
   pub fn set(
     &self,
     scope: &mut HandleScope,
@@ -237,6 +261,7 @@ impl Object {
 
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
+  #[inline(always)]
   pub fn set_index(
     &self,
     scope: &mut HandleScope,
@@ -251,6 +276,7 @@ impl Object {
 
   /// Set the prototype object. This does not skip objects marked to be
   /// skipped by proto and it does not consult the security handler.
+  #[inline(always)]
   pub fn set_prototype(
     &self,
     scope: &mut HandleScope,
@@ -269,6 +295,7 @@ impl Object {
   /// or the object is not extensible.
   ///
   /// Returns true on success.
+  #[inline(always)]
   pub fn create_data_property(
     &self,
     scope: &mut HandleScope,
@@ -292,6 +319,7 @@ impl Object {
   /// for specifying attributes.
   ///
   /// Returns true on success.
+  #[inline(always)]
   pub fn define_own_property(
     &self,
     scope: &mut HandleScope,
@@ -311,6 +339,7 @@ impl Object {
     .into()
   }
 
+  #[inline(always)]
   pub fn get<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -322,6 +351,7 @@ impl Object {
     }
   }
 
+  #[inline(always)]
   pub fn get_index<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -336,6 +366,7 @@ impl Object {
 
   /// Get the prototype object. This does not skip objects marked to be
   /// skipped by proto and it does not consult the security handler.
+  #[inline(always)]
   pub fn get_prototype<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -344,6 +375,7 @@ impl Object {
   }
 
   /// Note: SideEffectType affects the getter only, not the setter.
+  #[inline(always)]
   pub fn set_accessor(
     &self,
     scope: &mut HandleScope,
@@ -361,6 +393,7 @@ impl Object {
     .into()
   }
 
+  #[inline(always)]
   pub fn set_accessor_with_setter(
     &self,
     scope: &mut HandleScope,
@@ -385,11 +418,13 @@ impl Object {
   ///
   /// The return value will never be 0. Also, it is not guaranteed to be
   /// unique.
+  #[inline(always)]
   pub fn get_identity_hash(&self) -> NonZeroI32 {
     unsafe { NonZeroI32::new_unchecked(v8__Object__GetIdentityHash(self)) }
   }
 
   /// Returns the context in which the object was created.
+  #[inline(always)]
   pub fn get_creation_context<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -400,13 +435,20 @@ impl Object {
   /// This function has the same functionality as GetPropertyNames but the
   /// returned array doesn't contain the names of properties from prototype
   /// objects.
+  #[inline(always)]
   pub fn get_own_property_names<'s>(
     &self,
     scope: &mut HandleScope<'s>,
+    args: GetPropertyNamesArgs,
   ) -> Option<Local<'s, Array>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Object__GetOwnPropertyNames(self, sd.get_current_context())
+        v8__Object__GetOwnPropertyNames(
+          self,
+          sd.get_current_context(),
+          args.property_filter,
+          args.key_conversion,
+        )
       })
     }
   }
@@ -415,13 +457,22 @@ impl Object {
   /// object, including properties from prototype objects. The array returned by
   /// this method contains the same values as would be enumerated by a for-in
   /// statement over this object.
+  #[inline(always)]
   pub fn get_property_names<'s>(
     &self,
     scope: &mut HandleScope<'s>,
+    args: GetPropertyNamesArgs,
   ) -> Option<Local<'s, Array>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Object__GetPropertyNames(self, sd.get_current_context())
+        v8__Object__GetPropertyNames(
+          self,
+          sd.get_current_context(),
+          args.mode,
+          args.property_filter,
+          args.index_filter,
+          args.key_conversion,
+        )
       })
     }
   }
@@ -436,6 +487,7 @@ impl Object {
   //
   // Note: This function converts the key to a name, which possibly calls back
   // into JavaScript.
+  #[inline(always)]
   pub fn has<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -445,6 +497,7 @@ impl Object {
       .into()
   }
 
+  #[inline(always)]
   pub fn has_index<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -455,6 +508,7 @@ impl Object {
   }
 
   /// HasOwnProperty() is like JavaScript's Object.prototype.hasOwnProperty().
+  #[inline(always)]
   pub fn has_own_property<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -466,6 +520,7 @@ impl Object {
     .into()
   }
 
+  #[inline(always)]
   pub fn delete<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -487,12 +542,14 @@ impl Object {
   }
 
   /// Gets the number of internal fields for this Object.
+  #[inline(always)]
   pub fn internal_field_count(&self) -> usize {
     let count = unsafe { v8__Object__InternalFieldCount(self) };
     usize::try_from(count).expect("bad internal field count") // Can't happen.
   }
 
   /// Gets the value from an internal field.
+  #[inline(always)]
   pub fn get_internal_field<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -512,7 +569,32 @@ impl Object {
     None
   }
 
+  /// Gets a 2-byte-aligned native pointer from an internal field.
+  ///
+  /// # Safety
+  /// This field must have been set by SetAlignedPointerInInternalField, everything else leads to undefined behavior.
+  #[inline(always)]
+  pub unsafe fn get_aligned_pointer_from_internal_field(
+    &self,
+    index: i32,
+  ) -> *const c_void {
+    v8__Object__GetAlignedPointerFromInternalField(self, index)
+  }
+
+  /// Sets a 2-byte-aligned native pointer in an internal field.
+  /// To retrieve such a field, GetAlignedPointerFromInternalField must be used.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  #[inline(always)]
+  pub fn set_aligned_pointer_in_internal_field(
+    &self,
+    index: i32,
+    value: *const c_void,
+  ) {
+    unsafe { v8__Object__SetAlignedPointerInInternalField(self, index, value) }
+  }
+
   /// Sets the integrity level of the object.
+  #[inline(always)]
   pub fn set_integrity_level(
     &self,
     scope: &mut HandleScope,
@@ -526,6 +608,7 @@ impl Object {
 
   /// Sets the value in an internal field. Returns false when the index
   /// is out of bounds, true otherwise.
+  #[inline(always)]
   pub fn set_internal_field(&self, index: usize, value: Local<Value>) -> bool {
     // Trying to access out-of-bounds internal fields makes V8 abort
     // in debug mode and access out-of-bounds memory in release mode.
@@ -544,6 +627,7 @@ impl Object {
   /// This is an experimental feature, use at your own risk.
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
+  #[inline(always)]
   pub fn get_private<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -560,6 +644,7 @@ impl Object {
   /// This is an experimental feature, use at your own risk.
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
+  #[inline(always)]
   pub fn set_private<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -581,6 +666,7 @@ impl Object {
   /// This is an experimental feature, use at your own risk.
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
+  #[inline(always)]
   pub fn delete_private<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -596,6 +682,7 @@ impl Object {
   /// This is an experimental feature, use at your own risk.
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
+  #[inline(always)]
   pub fn has_private<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -625,6 +712,7 @@ pub enum IntegrityLevel {
 impl Array {
   /// Creates a JavaScript array with the given length. If the length
   /// is negative the returned array will have length 0.
+  #[inline(always)]
   pub fn new<'s>(scope: &mut HandleScope<'s>, length: i32) -> Local<'s, Array> {
     unsafe {
       scope.cast_local(|sd| v8__Array__New(sd.get_isolate_ptr(), length))
@@ -634,6 +722,7 @@ impl Array {
 
   /// Creates a JavaScript array out of a Local<Value> array with a known
   /// length.
+  #[inline(always)]
   pub fn new_with_elements<'s>(
     scope: &mut HandleScope<'s>,
     elements: &[Local<Value>],
@@ -654,25 +743,30 @@ impl Array {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn length(&self) -> u32 {
     unsafe { v8__Array__Length(self) }
   }
 }
 
 impl Map {
+  #[inline(always)]
   pub fn new<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Map> {
     unsafe { scope.cast_local(|sd| v8__Map__New(sd.get_isolate_ptr())) }
       .unwrap()
   }
 
+  #[inline(always)]
   pub fn size(&self) -> usize {
     unsafe { v8__Map__Size(self) }
   }
 
+  #[inline(always)]
   pub fn clear(&self) {
     unsafe { v8__Map__Clear(self) }
   }
 
+  #[inline(always)]
   pub fn get<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -683,6 +777,7 @@ impl Map {
     }
   }
 
+  #[inline(always)]
   pub fn set<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -696,6 +791,7 @@ impl Map {
     }
   }
 
+  #[inline(always)]
   pub fn has(
     &self,
     scope: &mut HandleScope,
@@ -704,6 +800,7 @@ impl Map {
     unsafe { v8__Map__Has(self, &*scope.get_current_context(), &*key) }.into()
   }
 
+  #[inline(always)]
   pub fn delete(
     &self,
     scope: &mut HandleScope,
@@ -715,6 +812,7 @@ impl Map {
 
   /// Returns an array of length size() * 2, where index N is the Nth key and
   /// index N + 1 is the Nth value.
+  #[inline(always)]
   pub fn as_array<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Array> {
     unsafe { scope.cast_local(|_| v8__Map__As__Array(self)) }.unwrap()
   }

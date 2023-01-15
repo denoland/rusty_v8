@@ -17,10 +17,12 @@ extern "C" {
 }
 
 impl FixedArray {
+  #[inline(always)]
   pub fn length(&self) -> usize {
     unsafe { v8__FixedArray__Length(self) as usize }
   }
 
+  #[inline(always)]
   pub fn get<'s>(
     &self,
     scope: &mut HandleScope<'s>,

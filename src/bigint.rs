@@ -31,6 +31,7 @@ extern "C" {
 }
 
 impl BigInt {
+  #[inline(always)]
   pub fn new_from_i64<'s>(
     scope: &mut HandleScope<'s>,
     value: i64,
@@ -41,6 +42,7 @@ impl BigInt {
     .unwrap()
   }
 
+  #[inline(always)]
   pub fn new_from_u64<'s>(
     scope: &mut HandleScope<'s>,
     value: u64,
@@ -58,6 +60,7 @@ impl BigInt {
   /// The resulting number is calculated as:
   ///
   /// (-1)^sign_bit * (words[0] * (2^64)^0 + words[1] * (2^64)^1 + ...)
+  #[inline(always)]
   pub fn new_from_words<'s>(
     scope: &mut HandleScope<'s>,
     sign_bit: bool,
@@ -79,31 +82,35 @@ impl BigInt {
   /// `bool` indicating whether the return value was truncated was truncated or
   /// wrapped around. In particular, it will be `false` if this BigInt is
   /// negative.
+  #[inline(always)]
   pub fn u64_value(&self) -> (u64, bool) {
     let mut lossless = MaybeUninit::uninit();
-    let v = unsafe { v8__BigInt__Uint64Value(&*self, lossless.as_mut_ptr()) };
+    let v = unsafe { v8__BigInt__Uint64Value(self, lossless.as_mut_ptr()) };
     let lossless = unsafe { lossless.assume_init() };
     (v, lossless)
   }
 
   /// Returns the value of this BigInt as a signed 64-bit integer, and a `bool`
   /// indicating whether this BigInt was truncated or not.
+  #[inline(always)]
   pub fn i64_value(&self) -> (i64, bool) {
     let mut lossless = MaybeUninit::uninit();
-    let v = unsafe { v8__BigInt__Int64Value(&*self, lossless.as_mut_ptr()) };
+    let v = unsafe { v8__BigInt__Int64Value(self, lossless.as_mut_ptr()) };
     let lossless = unsafe { lossless.assume_init() };
     (v, lossless)
   }
 
   /// Returns the number of 64-bit words needed to store the result of
   /// `to_words_array`.
+  #[inline(always)]
   pub fn word_count(&self) -> usize {
-    unsafe { v8__BigInt__WordCount(&*self) as usize }
+    unsafe { v8__BigInt__WordCount(self) as usize }
   }
 
   /// Converts this BigInt to a (sign_bit, words) pair. `sign_bit` will be true
   /// if this BigInt is negative. If `words` has too few elements, the result will
   /// be truncated to fit.
+  #[inline]
   pub fn to_words_array<'a>(
     &self,
     words: &'a mut [u64],
@@ -112,7 +119,7 @@ impl BigInt {
     let mut word_count = words.len() as int;
     unsafe {
       v8__BigInt__ToWordsArray(
-        &*self,
+        self,
         sign_bit.as_mut_ptr(),
         &mut word_count,
         words.as_mut_ptr(),

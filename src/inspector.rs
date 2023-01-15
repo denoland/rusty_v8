@@ -23,6 +23,8 @@ use crate::support::UniqueRef;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use crate::StackTrace;
+use crate::Value;
 use std::fmt::{self, Debug, Formatter};
 
 extern "C" {
@@ -102,13 +104,36 @@ extern "C" {
     context_group_id: int,
     channel: *mut Channel,
     state: StringView,
+    client_trust_level: V8InspectorClientTrustLevel,
   ) -> *mut V8InspectorSession;
   fn v8_inspector__V8Inspector__contextCreated(
     this: *mut V8Inspector,
     context: *const Context,
     contextGroupId: int,
     humanReadableName: StringView,
+    auxData: StringView,
   );
+  fn v8_inspector__V8Inspector__contextDestroyed(
+    this: *mut V8Inspector,
+    context: *const Context,
+  );
+  fn v8_inspector__V8Inspector__exceptionThrown(
+    this: *mut V8Inspector,
+    context: *const Context,
+    message: StringView,
+    exception: *const Value,
+    detailed_message: StringView,
+    url: StringView,
+    line_number: u32,
+    column_number: u32,
+    stack_trace: *mut V8StackTrace,
+    script_id: int,
+  ) -> u32;
+  fn v8_inspector__V8Inspector__createStackTrace(
+    this: *mut V8Inspector,
+    stack_trace: *const StackTrace,
+  ) -> *mut V8StackTrace;
+  fn v8_inspector__V8StackTrace__DELETE(this: &mut V8StackTrace);
 }
 
 #[no_mangle]
@@ -269,7 +294,8 @@ impl ChannelBase {
 
   fn get_cxx_base_offset() -> FieldOffset<Channel> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+    let base = unsafe { addr_of!((*buf.as_ptr()).cxx_base) };
+    FieldOffset::from_ptrs(buf.as_ptr(), base)
   }
 
   fn get_offset_within_embedder<T>() -> FieldOffset<Self>
@@ -278,6 +304,8 @@ impl ChannelBase {
   {
     let buf = std::mem::MaybeUninit::<T>::uninit();
     let embedder_ptr: *const T = buf.as_ptr();
+    // TODO(y21): the call to base() creates a reference to uninitialized memory (UB)
+    // fixing this requires changes in the ChannelImpl trait, namely ChannelImpl::base() can't take &self
     let self_ptr: *const Self = unsafe { (*embedder_ptr).base() };
     FieldOffset::from_ptrs(embedder_ptr, self_ptr)
   }
@@ -532,7 +560,8 @@ impl V8InspectorClientBase {
 
   fn get_cxx_base_offset() -> FieldOffset<V8InspectorClient> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe { &(*buf.as_ptr()).cxx_base })
+    let base = unsafe { addr_of!((*buf.as_ptr()).cxx_base) };
+    FieldOffset::from_ptrs(buf.as_ptr(), base)
   }
 
   fn get_offset_within_embedder<T>() -> FieldOffset<Self>
@@ -668,6 +697,7 @@ use std::iter::ExactSizeIterator;
 use std::iter::IntoIterator;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::ptr::addr_of;
 use std::ptr::null;
 use std::ptr::NonNull;
 use std::slice;
@@ -812,7 +842,7 @@ impl fmt::Display for CharacterArray<'_, u8> {
 
 impl fmt::Display for CharacterArray<'_, u16> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str(&string::String::from_utf16_lossy(&*self))
+    f.write_str(&string::String::from_utf16_lossy(self))
   }
 }
 
@@ -876,6 +906,13 @@ fn string_view_display() {
   assert_eq!("ØÞ", format!("{}", StringView::from(&[216u8, 222u8][..])));
 }
 
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[repr(C)]
+pub enum V8InspectorClientTrustLevel {
+  Untrusted = 0,
+  FullyTrusted = 1,
+}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct V8Inspector(Opaque);
@@ -901,6 +938,7 @@ impl V8Inspector {
     context_group_id: i32,
     channel: &mut T,
     state: StringView,
+    client_trust_level: V8InspectorClientTrustLevel,
   ) -> UniqueRef<V8InspectorSession>
   where
     T: AsChannel,
@@ -911,6 +949,7 @@ impl V8Inspector {
         context_group_id,
         channel.as_channel_mut(),
         state,
+        client_trust_level,
       ))
     }
   }
@@ -922,6 +961,7 @@ impl V8Inspector {
     context: Local<Context>,
     context_group_id: i32,
     human_readable_name: StringView,
+    aux_data: StringView,
   ) {
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
@@ -929,7 +969,53 @@ impl V8Inspector {
         &*context,
         context_group_id,
         human_readable_name,
+        aux_data,
       )
+    }
+  }
+
+  pub fn context_destroyed(&mut self, context: Local<Context>) {
+    unsafe { v8_inspector__V8Inspector__contextDestroyed(self, &*context) }
+  }
+
+  #[allow(clippy::too_many_arguments)]
+  pub fn exception_thrown(
+    &mut self,
+    context: Local<Context>,
+    message: StringView,
+    exception: Local<Value>,
+    detailed_message: StringView,
+    url: StringView,
+    line_number: u32,
+    column_number: u32,
+    stack_trace: UniquePtr<V8StackTrace>,
+    script_id: i32,
+  ) -> u32 {
+    unsafe {
+      v8_inspector__V8Inspector__exceptionThrown(
+        self,
+        &*context,
+        message,
+        &*exception,
+        detailed_message,
+        url,
+        line_number,
+        column_number,
+        stack_trace.into_raw(),
+        script_id,
+      )
+    }
+  }
+
+  pub fn create_stack_trace(
+    &mut self,
+    stack_trace: Local<StackTrace>,
+  ) -> UniquePtr<V8StackTrace> {
+    unsafe {
+      UniquePtr::from_raw(v8_inspector__V8Inspector__createStackTrace(
+        self,
+        &*stack_trace,
+      ))
     }
   }
 }
@@ -944,6 +1030,12 @@ impl Drop for V8Inspector {
 #[derive(Debug)]
 pub struct V8StackTrace {
   _cxx_vtable: CxxVTable,
+}
+
+impl Drop for V8StackTrace {
+  fn drop(&mut self) {
+    unsafe { v8_inspector__V8StackTrace__DELETE(self) };
+  }
 }
 
 // TODO(bnoordhuis) This needs to be fleshed out more but that can wait

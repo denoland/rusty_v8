@@ -19,6 +19,7 @@ extern "C" {
 
 impl Private {
   /// Create a private symbol. If name is not empty, it will be the description.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     name: Option<Local<String>>,
@@ -41,6 +42,7 @@ impl Private {
   /// Also, there is only one global name space for the names used as keys.
   /// To minimize the potential for clashes, use qualified names as keys,
   /// e.g., "Class#property".
+  #[inline(always)]
   pub fn for_api<'s>(
     scope: &mut HandleScope<'s, ()>,
     name: Option<Local<String>>,
@@ -57,7 +59,8 @@ impl Private {
   }
 
   /// Returns the print name string of the private symbol, or undefined if none.
+  #[inline(always)]
   pub fn name<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, Value> {
-    unsafe { scope.cast_local(|_| v8__Private__Name(&*self)) }.unwrap()
+    unsafe { scope.cast_local(|_| v8__Private__Name(self)) }.unwrap()
   }
 }

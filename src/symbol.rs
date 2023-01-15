@@ -34,6 +34,7 @@ macro_rules! well_known {
 impl Symbol {
   /// Create a symbol. If description is not empty, it will be used as the
   /// description.
+  #[inline(always)]
   pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
     description: Option<Local<String>>,
@@ -56,6 +57,7 @@ impl Symbol {
   /// keys.
   /// To minimize the potential for clashes, use qualified descriptions as keys.
   /// Corresponds to v8::Symbol::For() in C++.
+  #[inline(always)]
   pub fn for_global<'s>(
     scope: &mut HandleScope<'s, ()>,
     description: Local<String>,
@@ -69,13 +71,13 @@ impl Symbol {
   }
 
   /// Returns the description string of the symbol, or undefined if none.
+  #[inline(always)]
   pub fn description<'s>(
     &self,
     scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Value> {
     unsafe {
-      scope
-        .cast_local(|sd| v8__Symbol__Description(&*self, sd.get_isolate_ptr()))
+      scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))
     }
     .unwrap()
   }

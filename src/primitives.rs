@@ -1,6 +1,5 @@
 use crate::isolate::Isolate;
 use crate::Boolean;
-use crate::HandleScope;
 use crate::Local;
 use crate::Primitive;
 
@@ -11,22 +10,30 @@ extern "C" {
   fn v8__Boolean__New(isolate: *mut Isolate, value: bool) -> *const Boolean;
 }
 
-pub fn null<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Primitive> {
-  unsafe { scope.cast_local(|sd| v8__Null(sd.get_isolate_ptr())) }.unwrap()
+#[inline(always)]
+pub fn null<'a, R>(scope: &mut R) -> Local<'a, Primitive>
+where
+  R: AsMut<Isolate>,
+{
+  unsafe { Local::from_raw_unchecked(v8__Null(scope.as_mut())) }
 }
 
-pub fn undefined<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Primitive> {
-  unsafe { scope.cast_local(|sd| v8__Undefined(sd.get_isolate_ptr())) }.unwrap()
+#[inline(always)]
+pub fn undefined<'a, R>(scope: &mut R) -> Local<'a, Primitive>
+where
+  R: AsMut<Isolate>,
+{
+  unsafe { Local::from_raw_unchecked(v8__Undefined(scope.as_mut())) }
 }
 
 impl Boolean {
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
-    value: bool,
-  ) -> Local<'s, Boolean> {
+  #[inline(always)]
+  pub fn new<'a, R>(scope: &mut R, value: bool) -> Local<'a, Boolean>
+  where
+    R: AsMut<Isolate>,
+  {
     unsafe {
-      scope.cast_local(|sd| v8__Boolean__New(sd.get_isolate_ptr(), value))
+      Local::from_raw_unchecked(v8__Boolean__New(scope.as_mut(), value))
     }
-    .unwrap()
   }
 }

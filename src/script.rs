@@ -47,6 +47,7 @@ extern "C" {
 
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
+  #[inline(always)]
   pub fn compile<'s>(
     scope: &mut HandleScope<'s>,
     source: Local<String>,
@@ -64,6 +65,7 @@ impl Script {
   }
 
   /// Returns the corresponding context-unbound script.
+  #[inline(always)]
   pub fn get_unbound_script<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -78,6 +80,7 @@ impl Script {
   /// Runs the script returning the resulting value. It will be run in the
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
+  #[inline(always)]
   pub fn run<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -91,6 +94,7 @@ impl Script {
 /// The origin, within a file, of a script.
 impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
+  #[inline(always)]
   pub fn new(
     scope: &mut HandleScope<'s, ()>,
     resource_name: Local<'s, Value>,

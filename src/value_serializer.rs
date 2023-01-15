@@ -15,6 +15,7 @@ use std::alloc::dealloc;
 use std::alloc::realloc;
 use std::alloc::Layout;
 use std::mem::MaybeUninit;
+use std::ptr::addr_of;
 
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
@@ -274,9 +275,9 @@ impl<'a, 's> ValueSerializerHeap<'a, 's> {
   fn get_cxx_value_serializer_delegate_offset(
   ) -> FieldOffset<CxxValueSerializerDelegate> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
-    FieldOffset::from_ptrs(buf.as_ptr(), unsafe {
-      &(*buf.as_ptr()).cxx_value_serializer_delegate
-    })
+    let delegate =
+      unsafe { addr_of!((*buf.as_ptr()).cxx_value_serializer_delegate) };
+    FieldOffset::from_ptrs(buf.as_ptr(), delegate)
   }
 
   /// Starting from 'this' pointer a ValueSerializerHeap ref can be created
@@ -388,7 +389,7 @@ impl<'a, 's> ValueSerializerHelper for ValueSerializerHeap<'a, 's> {
 
 impl<'a, 's> ValueSerializerHelper for ValueSerializer<'a, 's> {
   fn get_cxx_value_serializer(&mut self) -> &mut CxxValueSerializer {
-    &mut (*self.value_serializer_heap).cxx_value_serializer
+    &mut self.value_serializer_heap.cxx_value_serializer
   }
 }
 
@@ -420,16 +421,18 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     });
 
     unsafe {
-      v8__ValueSerializer__Delegate__CONSTRUCT(core::mem::transmute(
-        &mut (*value_serializer_heap).cxx_value_serializer_delegate,
-      ));
+      v8__ValueSerializer__Delegate__CONSTRUCT(
+        &mut value_serializer_heap.cxx_value_serializer_delegate
+          as *mut CxxValueSerializerDelegate
+          as *mut std::mem::MaybeUninit<CxxValueSerializerDelegate>,
+      );
 
       v8__ValueSerializer__CONSTRUCT(
-        core::mem::transmute(
-          &mut (*value_serializer_heap).cxx_value_serializer,
-        ),
+        &mut value_serializer_heap.cxx_value_serializer
+          as *mut CxxValueSerializer
+          as *mut std::mem::MaybeUninit<CxxValueSerializer>,
         scope.get_isolate_ptr(),
-        &mut (*value_serializer_heap).cxx_value_serializer_delegate,
+        &mut value_serializer_heap.cxx_value_serializer_delegate,
       );
     };
 
@@ -445,14 +448,14 @@ impl<'a, 's> ValueSerializer<'a, 's> {
       let mut size: usize = 0;
       let mut ptr: *mut u8 = &mut 0;
       v8__ValueSerializer__Release(
-        &mut (*self.value_serializer_heap).cxx_value_serializer,
+        &mut self.value_serializer_heap.cxx_value_serializer,
         &mut ptr,
         &mut size,
       );
       Vec::from_raw_parts(
         ptr as *mut u8,
         size,
-        (*self.value_serializer_heap).buffer_size,
+        self.value_serializer_heap.buffer_size,
       )
     }
   }
@@ -462,6 +465,6 @@ impl<'a, 's> ValueSerializer<'a, 's> {
     context: Local<Context>,
     value: Local<Value>,
   ) -> Option<bool> {
-    (*self.value_serializer_heap).write_value(context, value)
+    self.value_serializer_heap.write_value(context, value)
   }
 }

@@ -19,6 +19,7 @@ extern "C" {
 
 /// Tries to parse the string `json_string` and returns it as value if
 /// successful.
+#[inline(always)]
 pub fn parse<'s>(
   scope: &mut HandleScope<'s>,
   json_string: Local<'_, String>,
@@ -31,6 +32,7 @@ pub fn parse<'s>(
 
 /// Tries to stringify the JSON-serializable object `json_object` and returns
 /// it as string if successful.
+#[inline(always)]
 pub fn stringify<'s>(
   scope: &mut HandleScope<'s>,
   json_object: Local<'_, Value>,

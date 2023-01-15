@@ -19,25 +19,30 @@ pub const DONT_DELETE: PropertyAttribute = PropertyAttribute(4);
 
 impl PropertyAttribute {
   /// Test if no property attributes are set.
+  #[inline(always)]
   pub fn is_none(&self) -> bool {
     *self == NONE
   }
 
   /// Test if the read-only property attribute is set.
+  #[inline(always)]
   pub fn is_read_only(&self) -> bool {
     self.has(READ_ONLY)
   }
 
   /// Test if the non-enumerable property attribute is set.
+  #[inline(always)]
   pub fn is_dont_enum(&self) -> bool {
     self.has(DONT_ENUM)
   }
 
   /// Test if the non-configurable property attribute is set.
+  #[inline(always)]
   pub fn is_dont_delete(&self) -> bool {
     self.has(DONT_DELETE)
   }
 
+  #[inline(always)]
   fn has(&self, that: Self) -> bool {
     let Self(lhs) = self;
     let Self(rhs) = that;
@@ -52,12 +57,12 @@ impl Default for PropertyAttribute {
   }
 }
 
-impl std::ops::Add for PropertyAttribute {
+impl std::ops::BitOr for PropertyAttribute {
   type Output = Self;
 
-  fn add(self, Self(rhs): Self) -> Self {
+  fn bitor(self, Self(rhs): Self) -> Self {
     let Self(lhs) = self;
-    Self(lhs + rhs)
+    Self(lhs | rhs)
   }
 }
 
@@ -84,9 +89,15 @@ fn test_attr() {
   assert!(DONT_DELETE.is_dont_delete());
 
   assert_eq!(NONE, Default::default());
-  assert_eq!(READ_ONLY, NONE + READ_ONLY);
+  assert_eq!(READ_ONLY, NONE | READ_ONLY);
 
-  let attr = READ_ONLY + DONT_ENUM;
+  let attr = READ_ONLY | DONT_ENUM;
+  assert!(!attr.is_none());
+  assert!(attr.is_read_only());
+  assert!(attr.is_dont_enum());
+  assert!(!attr.is_dont_delete());
+
+  let attr = READ_ONLY | READ_ONLY | DONT_ENUM;
   assert!(!attr.is_none());
   assert!(attr.is_read_only());
   assert!(attr.is_dont_enum());
