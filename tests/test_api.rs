@@ -7496,7 +7496,7 @@ fn instance_of() {
 
 #[test]
 fn test_uncaught_exception_callback() {
-  let _setup_guard = setup();
+  let _setup_guard = setup::parallel_test();
   static COUNTER: AtomicUsize = AtomicUsize::new(0);
   extern "C" fn uncaught_exception_callback(
     _isolate: &mut v8::Isolate,
