@@ -7520,6 +7520,7 @@ fn test_uncaught_exception_callback() {
   assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
 
+#[test]
 fn get_default_locale() {
   v8::icu::set_default_locale("nb_NO");
   let default_locale = v8::icu::get_language_tag();
