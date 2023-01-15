@@ -48,7 +48,6 @@ mod setup {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--expose_gc --harmony-import-assertions ",
       "--no_freeze_flags_after_init --expose_gc --harmony-import-assertions --abort-on-uncaught-exception --harmony-shadow-realm --allow_natives_syntax  --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
