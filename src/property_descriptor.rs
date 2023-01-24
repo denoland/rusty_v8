@@ -12,11 +12,11 @@ extern "C" {
     set: *const Value,
   );
   fn v8__PropertyDescriptor__DESTRUCT(this: *mut PropertyDescriptor);
-  fn v8__PropertyDesctiptor__set_enumerable(
+  fn v8__PropertyDescriptor__set_enumerable(
     this: *mut PropertyDescriptor,
     enumerable: bool,
   );
-  fn v8__PropertyDesctiptor__set_configurable(
+  fn v8__PropertyDescriptor__set_configurable(
     this: *mut PropertyDescriptor,
     configurable: bool,
   );
@@ -60,11 +60,11 @@ impl PropertyDescriptor {
   }
 
   pub fn set_enumerable(&mut self, enumerable: bool) {
-    unsafe { v8__PropertyDesctiptor__set_enumerable(self, enumerable) }
+    unsafe { v8__PropertyDescriptor__set_enumerable(self, enumerable) }
   }
 
   pub fn set_configurable(&mut self, configurable: bool) {
-    unsafe { v8__PropertyDesctiptor__set_configurable(self, configurable) }
+    unsafe { v8__PropertyDescriptor__set_configurable(self, configurable) }
   }
 }
 
