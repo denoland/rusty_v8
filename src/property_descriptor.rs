@@ -32,6 +32,12 @@ const _: () = {
   );
 };
 
+impl Default for PropertyDescriptor {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl PropertyDescriptor {
   pub fn new() -> Self {
     let mut this = MaybeUninit::<Self>::uninit();
