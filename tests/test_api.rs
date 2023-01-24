@@ -8966,3 +8966,32 @@ fn test_fast_calls_pointer() {
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
 }
+
+#[test]
+fn object_define_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let mut desc = v8::PropertyDescriptor::new();
+    desc.set_configurable(true);
+    desc.set_enumerable(false);
+
+    let name = v8::String::new(scope, "g").unwrap();
+    context
+      .global(scope)
+      .define_property(scope, name.into(), &desc);
+    let source = r#"
+      {
+        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+        [d.configurable, d.enumerable, d.writable].toString()
+      }
+    "#;
+    let actual = eval(scope, source).unwrap();
+    let expected = v8::String::new(scope, "true,false,false").unwrap();
+    assert!(expected.strict_equals(actual));
+  }
+}

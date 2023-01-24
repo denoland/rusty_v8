@@ -17,6 +17,7 @@ use crate::Name;
 use crate::Object;
 use crate::Private;
 use crate::PropertyAttribute;
+use crate::PropertyDescriptor;
 use crate::PropertyFilter;
 use crate::Value;
 use std::convert::TryFrom;
@@ -85,6 +86,12 @@ extern "C" {
     key: *const Name,
     value: *const Value,
     attr: PropertyAttribute,
+  ) -> MaybeBool;
+  fn v8__Object__DefineProperty(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    desc: *const PropertyDescriptor,
   ) -> MaybeBool;
   fn v8__Object__GetIdentityHash(this: *const Object) -> int;
   fn v8__Object__GetCreationContext(this: *const Object) -> *const Context;
@@ -337,6 +344,24 @@ impl Object {
       )
     }
     .into()
+  }
+
+  #[inline(always)]
+  pub fn define_property(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Name>,
+    descriptor: &PropertyDescriptor,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__DefineProperty(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        descriptor,
+      )
+      .into()
+    }
   }
 
   #[inline(always)]

@@ -1254,6 +1254,14 @@ MaybeBool v8__Object__DefineOwnProperty(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key), ptr_to_local(&value), attr));
 }
 
+MaybeBool v8__Object__DefineProperty(const v8::Object& self,
+                                        const v8::Context& context,
+                                        const v8::Name& key,
+                                        v8::PropertyDescriptor& desc) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->DefineProperty(
+      ptr_to_local(&context), ptr_to_local(&key), desc));
+}
+
 MaybeBool v8__Object__SetAccessor(const v8::Object& self,
                                   const v8::Context& context,
                                   const v8::Name& key,
@@ -3225,6 +3233,39 @@ size_t icu_get_default_locale(char* output, size_t output_len) {
 void icu_set_default_locale(const char* locale) {
   UErrorCode status = U_ZERO_ERROR;
   icu::Locale::setDefault(icu::Locale(locale), status);
+}
+
+}  // extern "C"
+
+// v8::PropertyDescriptor
+
+extern "C" {
+
+static_assert(sizeof(v8::PropertyDescriptor) == sizeof(size_t),
+              "v8::PropertyDescriptor size mismatch");
+
+void v8__PropertyDescriptor__CONSTRUCT(uninit_t<v8::PropertyDescriptor>* buf) {
+  construct_in_place<v8::PropertyDescriptor>(buf);
+}
+
+void v8__PropertyDescriptor__CONSTRUCT__Get_Set(
+    uninit_t<v8::PropertyDescriptor>* buf, v8::Local<v8::Value> get,
+    v8::Local<v8::Value> set) {
+  construct_in_place<v8::PropertyDescriptor>(buf, get, set);
+}
+
+void v8__PropertyDescriptor__DESTRUCT(v8::PropertyDescriptor* self) {
+  self->~PropertyDescriptor();
+}
+
+void v8__PropertyDescriptor__set_enumerable(v8::PropertyDescriptor* self,
+                                       bool enumurable) {
+  self->set_enumerable(enumurable);
+}
+
+void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
+                                       bool configurable) {
+  self->set_configurable(configurable);
 }
 
 }  // extern "C"
