@@ -6,7 +6,7 @@ use crate::Value;
 
 extern "C" {
   fn v8__PropertyDescriptor__CONSTRUCT(out: *mut PropertyDescriptor);
-  fn v8__PropertyDescriptor__CONSTRUCT_Get_Set(
+  fn v8__PropertyDescriptor__CONSTRUCT__Get_Set(
     this: *const PropertyDescriptor,
     get: *const Value,
     set: *const Value,
@@ -50,7 +50,7 @@ impl PropertyDescriptor {
   pub fn new_from_get_set(get: Local<Value>, set: Local<Value>) -> Self {
     let mut this = MaybeUninit::<Self>::uninit();
     unsafe {
-      v8__PropertyDescriptor__CONSTRUCT_Get_Set(
+      v8__PropertyDescriptor__CONSTRUCT__Get_Set(
         this.as_mut_ptr(),
         &*get,
         &*set,
