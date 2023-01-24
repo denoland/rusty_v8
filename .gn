@@ -42,4 +42,10 @@ default_args = {
   # around by the garbage collector but embedders normally want them to have
   # fixed addresses.
   v8_typed_array_max_size_in_heap = 0
+
+  # Enabling the shared read-only heap comes with a restriction that all
+  # isolates running at the same time must be created from the same snapshot.
+  # This is problematic for Deno, which has separate "runtime" and "typescript
+  # compiler" snapshots, and sometimes uses them both at the same time.
+  v8_enable_shared_ro_heap = false
 }
