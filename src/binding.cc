@@ -1709,10 +1709,11 @@ const v8::Object* v8__Context__GetExtrasBindingObject(v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->GetExtrasBindingObject());
 }
 
-void v8__Context__SetPromiseHooks(v8::Context& self, v8::Function* init_hook,
-                                  v8::Function* before_hook,
-                                  v8::Function* after_hook,
-                                  v8::Function* resolve_hook) {
+void v8__Context__SetPromiseHooks(v8::Context& self,
+                                  const v8::Function* init_hook,
+                                  const v8::Function* before_hook,
+                                  const v8::Function* after_hook,
+                                  const v8::Function* resolve_hook) {
   ptr_to_local(&self)->SetPromiseHooks(
       ptr_to_local(init_hook), ptr_to_local(before_hook),
       ptr_to_local(after_hook), ptr_to_local(resolve_hook));
