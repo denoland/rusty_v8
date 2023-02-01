@@ -118,10 +118,10 @@ impl Context {
     unsafe {
       v8__Context__SetPromiseHooks(
         self,
-        init_hook.map_or_else(std::ptr::null, |v| &*v),
-        before_hook.map_or_else(std::ptr::null, |v| &*v),
-        after_hook.map_or_else(std::ptr::null, |v| &*v),
-        resolve_hook.map_or_else(std::ptr::null, |v| &*v),
+        init_hook.map_or_else(null, |v| &*v),
+        before_hook.map_or_else(null, |v| &*v),
+        after_hook.map_or_else(null, |v| &*v),
+        resolve_hook.map_or_else(null, |v| &*v),
       )
     }
   }
