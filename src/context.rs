@@ -110,18 +110,18 @@ impl Context {
   #[inline(always)]
   pub fn set_promise_hooks(
     &self,
-    init_hook: Local<Function>,
-    before_hook: Local<Function>,
-    after_hook: Local<Function>,
-    resolve_hook: Local<Function>,
+    init_hook: Option<Local<Function>>,
+    before_hook: Option<Local<Function>>,
+    after_hook: Option<Local<Function>>,
+    resolve_hook: Option<Local<Function>>,
   ) {
     unsafe {
       v8__Context__SetPromiseHooks(
         self,
-        &*init_hook,
-        &*before_hook,
-        &*after_hook,
-        &*resolve_hook,
+        init_hook.map_or_else(null, |v| &*v),
+        before_hook.map_or_else(null, |v| &*v),
+        after_hook.map_or_else(null, |v| &*v),
+        resolve_hook.map_or_else(null, |v| &*v),
       )
     }
   }

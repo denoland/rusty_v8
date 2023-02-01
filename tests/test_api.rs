@@ -3269,7 +3269,12 @@ fn context_promise_hooks() {
       .unwrap(),
     )
     .unwrap();
-    context.set_promise_hooks(init_hook, before_hook, after_hook, resolve_hook);
+    context.set_promise_hooks(
+      Some(init_hook),
+      Some(before_hook),
+      Some(after_hook),
+      Some(resolve_hook),
+    );
 
     let source = r#"
       function expect(expected, actual = promises.size) {
@@ -3301,6 +3306,80 @@ fn context_promise_hooks() {
       scope,
       r#"
       expect(0, promiseStack.length);
+    "#,
+    )
+    .unwrap();
+  }
+}
+
+#[test]
+fn context_promise_hooks_partial() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let init_hook = v8::Local::<v8::Function>::try_from(
+      eval(
+        scope,
+        r#"
+      globalThis.promises = new Set();
+      function initHook(promise) {
+        promises.add(promise);
+      }
+      initHook;
+    "#,
+      )
+      .unwrap(),
+    )
+    .unwrap();
+    let before_hook = v8::Local::<v8::Function>::try_from(
+      eval(
+        scope,
+        r#"
+      globalThis.promiseStack = [];
+      function beforeHook(promise) {
+        promiseStack.push(promise);
+      }
+      beforeHook;
+    "#,
+      )
+      .unwrap(),
+    )
+    .unwrap();
+    context.set_promise_hooks(Some(init_hook), Some(before_hook), None, None);
+
+    let source = r#"
+      function expect(expected, actual = promises.size) {
+        if (actual !== expected) throw `expected ${expected}, actual ${actual}`;
+      }
+      expect(0);
+      var p = new Promise(resolve => {
+        expect(1);
+        resolve();
+        expect(1);
+      });
+      expect(1);
+      new Promise(() => {});
+      expect(2);
+
+      expect(0, promiseStack.length);
+      p.then(() => {
+        expect(1, promiseStack.length);
+      });
+      promises.values().next().value
+    "#;
+    let promise = eval(scope, source).unwrap();
+    let promise = v8::Local::<v8::Promise>::try_from(promise).unwrap();
+    assert!(promise.has_handler());
+    assert_eq!(promise.state(), v8::PromiseState::Fulfilled);
+
+    scope.perform_microtask_checkpoint();
+    let _ = eval(
+      scope,
+      r#"
+      expect(1, promiseStack.length);
     "#,
     )
     .unwrap();
