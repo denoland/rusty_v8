@@ -1046,8 +1046,8 @@ bool v8__String__ContainsOnlyOneByte(const v8::String& self) {
 }
 
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
-                                  const v8::String& description) {
-  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(&description)));
+                                  const v8::String* description) {
+  return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(description)));
 }
 
 const v8::Symbol* v8__Symbol__For(v8::Isolate* isolate,
@@ -1084,13 +1084,13 @@ const v8::Value* v8__Symbol__Description(const v8::Symbol& self,
 }
 
 const v8::Private* v8__Private__New(v8::Isolate* isolate,
-                                    const v8::String& name) {
-  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(&name)));
+                                    const v8::String* name) {
+  return local_to_ptr(v8::Private::New(isolate, ptr_to_local(name)));
 }
 
 const v8::Private* v8__Private__ForApi(v8::Isolate* isolate,
-                                       const v8::String& name) {
-  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(&name)));
+                                       const v8::String* name) {
+  return local_to_ptr(v8::Private::ForApi(isolate, ptr_to_local(name)));
 }
 
 const v8::Value* v8__Private__Name(const v8::Private& self) {
