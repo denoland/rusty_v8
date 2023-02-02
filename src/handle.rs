@@ -548,12 +548,11 @@ impl<T> Weak<T> {
 
   /// Create a weak handle with a finalization callback installed.
   ///
-  /// There is no guarantee as to *when* the finalization callback will be
-  /// invoked. However, unlike the C++ API, this API guarantees that when an
-  /// isolate is destroyed, any finalizers that haven't been called yet will be
-  /// run, unless a [`Global`] reference is keeping the object alive. Other than
-  /// that, there is still no guarantee as to when the finalizers will be
-  /// called.
+  /// There is no guarantee as to *when* or even *if* the finalization callback
+  /// will be invoked. The invocation is performed solely on a best effort
+  /// basis. GC-based finalization should *not* be relied upon for any critical
+  /// form of resource management! Consider using
+  /// [`Self::with_guaranteed_finalizer`] instead.
   ///
   /// The callback does not have access to the inner value, because it has
   /// already been collected by the time it runs.
@@ -570,6 +569,20 @@ impl<T> Weak<T> {
     Self::new_raw(isolate, data, Some(finalizer_id))
   }
 
+  /// Create a weak handle with a finalization callback installed, which is
+  /// guaranteed to run at some point.
+  ///
+  /// Unlike [`Self::with_finalizer`], whose finalization callbacks are not
+  /// guaranteed to run, this method is guaranteed to be called before the
+  /// isolate is destroyed. It can therefore be used for critical resource
+  /// management. Note that other than that, there is still no guarantee as to
+  /// *when* the callback will be called.
+  ///
+  /// Unlike regular finalizers, guaranteed finalizers aren't passed a mutable
+  /// [`Isolate`] reference, since they might be called when the isolate is
+  /// being destroyed, at which point it might be no longer valid to use.
+  /// Accessing the isolate (with unsafe code) from the finalizer callback is
+  /// therefore unsound, unless you prove the isolate is not being destroyed.
   pub fn with_guaranteed_finalizer(
     isolate: &mut Isolate,
     handle: impl Handle<Data = T>,
@@ -632,6 +645,11 @@ impl<T> Weak<T> {
     self.clone_raw(Some(FinalizerCallback::Regular(finalizer)))
   }
 
+  /// Clones this handle and installs a guaranteed finalizer callback on the
+  /// clone, as if by calling [`Self::with_guaranteed_finalizer`].
+  ///
+  /// Note that if this handle is empty (its value has already been GC'd), the
+  /// finalization callback will never run.
   pub fn clone_with_guaranteed_finalizer(
     &self,
     finalizer: Box<dyn FnOnce()>,
