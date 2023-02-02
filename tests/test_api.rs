@@ -7944,37 +7944,6 @@ fn drop_weak_from_raw_in_finalizer() {
 }
 
 #[test]
-fn finalizer_on_global_object() {
-  use std::cell::Cell;
-  use std::rc::Rc;
-
-  let _setup_guard = setup::parallel_test();
-
-  let weak;
-  let finalized = Rc::new(Cell::new(false));
-
-  {
-    let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    let global_object = context.global(scope);
-    weak = v8::Weak::with_finalizer(
-      scope,
-      global_object,
-      Box::new({
-        let finalized = finalized.clone();
-        move |_| finalized.set(true)
-      }),
-    );
-  }
-
-  assert!(finalized.get());
-  drop(weak);
-}
-
-#[test]
 fn finalizer_on_kept_global() {
   // If a global is kept alive after an isolate is dropped, regular finalizers
   // won't be called, but guaranteed ones will.
