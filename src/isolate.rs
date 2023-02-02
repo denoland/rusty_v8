@@ -1182,15 +1182,6 @@ impl Isolate {
     // Drop the scope stack.
     ScopeData::drop_root(self);
 
-    // If there are finalizers left to call, we trigger GC to try and call as
-    // many of them as possible.
-    if !self.get_annex().finalizer_map.is_empty() {
-      // A low memory notification triggers a synchronous GC, which means
-      // finalizers will be called during the course of the call, rather than at
-      // some later point.
-      self.low_memory_notification();
-    }
-
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.

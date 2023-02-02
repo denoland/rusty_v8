@@ -972,10 +972,6 @@ impl FinalizerMap {
     id
   }
 
-  pub(crate) fn is_empty(&self) -> bool {
-    self.map.is_empty()
-  }
-
   pub(crate) fn drain(
     &mut self,
   ) -> impl Iterator<Item = FinalizerCallback> + '_ {
