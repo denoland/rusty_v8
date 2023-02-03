@@ -4005,6 +4005,30 @@ fn array_buffer_view() {
 }
 
 #[test]
+fn continuation_preserved_embedder_data() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let data = context.get_continuation_preserved_embedder_data(scope);
+    assert!(data.is_undefined());
+
+    let value = v8::String::new(scope, "hello").unwrap();
+    context.set_continuation_preserved_embedder_data(value.into());
+    let data = context.get_continuation_preserved_embedder_data(scope);
+    assert!(data.is_string());
+    assert_eq!(data.to_rust_string_lossy(scope), "hello");
+
+    eval(scope, "b = 2 + 3").unwrap();
+    let data = context.get_continuation_preserved_embedder_data(scope);
+    assert!(data.is_string());
+    assert_eq!(data.to_rust_string_lossy(scope), "hello");
+  }
+}
+
+#[test]
 fn snapshot_creator() {
   let _setup_guard = setup::sequential_test();
   // First we create the snapshot, there is a single global variable 'a' set to
