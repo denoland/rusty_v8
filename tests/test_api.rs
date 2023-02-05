@@ -4016,7 +4016,7 @@ fn continuation_preserved_embedder_data() {
     assert!(data.is_undefined());
 
     let value = v8::String::new(scope, "hello").unwrap();
-    context.set_continuation_preserved_embedder_data(value.into());
+    context.set_continuation_preserved_embedder_data(scope, value.into());
     let data = context.get_continuation_preserved_embedder_data(scope);
     assert!(data.is_string());
     assert_eq!(data.to_rust_string_lossy(scope), "hello");

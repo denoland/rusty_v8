@@ -355,7 +355,11 @@ impl Context {
     }
   }
 
-  pub fn set_continuation_preserved_embedder_data(&self, data: Local<Value>) {
+  pub fn set_continuation_preserved_embedder_data<'s>(
+    &self,
+    _scope: &mut HandleScope<'s, ()>,
+    data: Local<Value>,
+  ) {
     unsafe {
       v8__Context__SetContinuationPreservedEmbedderData(self, &*data);
     }
