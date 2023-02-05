@@ -108,8 +108,9 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn set_promise_hooks(
+  pub fn set_promise_hooks<'s>(
     &self,
+    _scope: &mut HandleScope<'s, ()>,
     init_hook: Option<Local<Function>>,
     before_hook: Option<Local<Function>>,
     after_hook: Option<Local<Function>>,
