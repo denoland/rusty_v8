@@ -3269,8 +3269,7 @@ fn context_promise_hooks() {
       .unwrap(),
     )
     .unwrap();
-    context.set_promise_hooks(
-      scope,
+    scope.set_promise_hooks(
       Some(init_hook),
       Some(before_hook),
       Some(after_hook),
@@ -3349,8 +3348,7 @@ fn context_promise_hooks_partial() {
       .unwrap(),
     )
     .unwrap();
-    context.set_promise_hooks(
-      scope,
+    scope.set_promise_hooks(
       Some(init_hook),
       Some(before_hook),
       None,

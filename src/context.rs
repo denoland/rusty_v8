@@ -5,7 +5,6 @@ use crate::isolate::Isolate;
 use crate::isolate::RawSlot;
 use crate::support::int;
 use crate::Context;
-use crate::Function;
 use crate::HandleScope;
 use crate::Local;
 use crate::Object;
@@ -27,13 +26,6 @@ extern "C" {
   fn v8__Context__Global(this: *const Context) -> *const Object;
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
     -> *const Object;
-  fn v8__Context__SetPromiseHooks(
-    this: *const Context,
-    init_hook: *const Function,
-    before_hook: *const Function,
-    after_hook: *const Function,
-    resolve_hook: *const Function,
-  );
   fn v8__Context__GetNumberOfEmbedderDataFields(this: *const Context) -> u32;
   fn v8__Context__GetAlignedPointerFromEmbedderData(
     this: *const Context,
@@ -105,26 +97,6 @@ impl Context {
     scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
-  }
-
-  #[inline(always)]
-  pub fn set_promise_hooks<'s>(
-    &self,
-    _scope: &mut HandleScope<'s, ()>,
-    init_hook: Option<Local<Function>>,
-    before_hook: Option<Local<Function>>,
-    after_hook: Option<Local<Function>>,
-    resolve_hook: Option<Local<Function>>,
-  ) {
-    unsafe {
-      v8__Context__SetPromiseHooks(
-        self,
-        init_hook.map_or_else(null, |v| &*v),
-        before_hook.map_or_else(null, |v| &*v),
-        after_hook.map_or_else(null, |v| &*v),
-        resolve_hook.map_or_else(null, |v| &*v),
-      )
-    }
   }
 
   #[inline]
