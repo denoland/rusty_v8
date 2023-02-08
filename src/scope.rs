@@ -293,15 +293,14 @@ impl<'s> HandleScope<'s> {
     data: Local<Value>,
   ) {
     unsafe {
-      self
+      let _ = self
         .cast_local(|sd| {
           raw::v8__Context__SetContinuationPreservedEmbedderData(
             sd.get_current_context(),
             &*data,
           );
           std::ptr::null::<()>()
-        })
-        .unwrap();
+        });
     }
   }
 
