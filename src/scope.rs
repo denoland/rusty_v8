@@ -293,7 +293,7 @@ impl<'s> HandleScope<'s> {
     data: Local<Value>,
   ) {
     unsafe {
-      let mut sd = data::ScopeData::get_mut(self);
+      let sd = data::ScopeData::get_mut(self);
       raw::v8__Context__SetContinuationPreservedEmbedderData(
         sd.get_current_context(),
         &*data,
