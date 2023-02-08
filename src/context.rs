@@ -48,13 +48,6 @@ extern "C" {
     isolate: *mut Isolate,
     context_snapshot_index: usize,
   ) -> *const Context;
-  fn v8__Context__SetContinuationPreservedEmbedderData(
-    this: *const Context,
-    value: *const Value,
-  );
-  fn v8__Context__GetContinuationPreservedEmbedderData(
-    this: *const Context,
-  ) -> *const Value;
 }
 
 impl Context {
@@ -352,29 +345,6 @@ impl Context {
       scope.cast_local(|sd| {
         v8__Context__FromSnapshot(sd.get_isolate_mut(), context_snapshot_index)
       })
-    }
-  }
-
-  pub fn set_continuation_preserved_embedder_data<'s>(
-    &self,
-    _scope: &mut HandleScope<'s, ()>,
-    data: Local<Value>,
-  ) {
-    unsafe {
-      v8__Context__SetContinuationPreservedEmbedderData(self, &*data);
-    }
-  }
-
-  pub fn get_continuation_preserved_embedder_data<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, Value> {
-    unsafe {
-      scope
-        .cast_local(|_sd| {
-          v8__Context__GetContinuationPreservedEmbedderData(self)
-        })
-        .unwrap()
     }
   }
 }
