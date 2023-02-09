@@ -286,6 +286,35 @@ impl<'s> HandleScope<'s> {
         .and_then(|data| data.try_into())
     }
   }
+
+  #[inline(always)]
+  pub fn set_continuation_preserved_embedder_data(
+    &mut self,
+    data: Local<Value>,
+  ) {
+    unsafe {
+      let sd = data::ScopeData::get_mut(self);
+      raw::v8__Context__SetContinuationPreservedEmbedderData(
+        sd.get_current_context(),
+        &*data,
+      );
+    }
+  }
+
+  #[inline(always)]
+  pub fn get_continuation_preserved_embedder_data(
+    &mut self,
+  ) -> Local<'s, Value> {
+    unsafe {
+      self
+        .cast_local(|sd| {
+          raw::v8__Context__GetContinuationPreservedEmbedderData(
+            sd.get_current_context(),
+          )
+        })
+        .unwrap()
+    }
+  }
 }
 
 /// A HandleScope which first allocates a handle in the current scope
@@ -1690,6 +1719,13 @@ mod raw {
       this: *const Context,
       index: usize,
     ) -> *const Data;
+    pub(super) fn v8__Context__SetContinuationPreservedEmbedderData(
+      this: *const Context,
+      value: *const Value,
+    );
+    pub(super) fn v8__Context__GetContinuationPreservedEmbedderData(
+      this: *const Context,
+    ) -> *const Value;
 
     pub(super) fn v8__HandleScope__CONSTRUCT(
       buf: *mut MaybeUninit<HandleScope>,
