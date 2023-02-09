@@ -96,6 +96,7 @@ use crate::function::PropertyCallbackInfo;
 use crate::Context;
 use crate::Data;
 use crate::DataError;
+use crate::Function;
 use crate::Handle;
 use crate::Isolate;
 use crate::Local;
@@ -284,6 +285,26 @@ impl<'s> HandleScope<'s> {
         })
         .ok_or_else(DataError::no_data::<T>)
         .and_then(|data| data.try_into())
+    }
+  }
+
+  #[inline(always)]
+  pub fn set_promise_hooks(
+    &mut self,
+    init_hook: Option<Local<Function>>,
+    before_hook: Option<Local<Function>>,
+    after_hook: Option<Local<Function>>,
+    resolve_hook: Option<Local<Function>>,
+  ) {
+    unsafe {
+      let sd = data::ScopeData::get_mut(self);
+      raw::v8__Context__SetPromiseHooks(
+        sd.get_current_context(),
+        init_hook.map_or_else(std::ptr::null, |v| &*v),
+        before_hook.map_or_else(std::ptr::null, |v| &*v),
+        after_hook.map_or_else(std::ptr::null, |v| &*v),
+        resolve_hook.map_or_else(std::ptr::null, |v| &*v),
+      );
     }
   }
 
@@ -1719,6 +1740,13 @@ mod raw {
       this: *const Context,
       index: usize,
     ) -> *const Data;
+    pub(super) fn v8__Context__SetPromiseHooks(
+      this: *const Context,
+      init_hook: *const Function,
+      before_hook: *const Function,
+      after_hook: *const Function,
+      resolve_hook: *const Function,
+    );
     pub(super) fn v8__Context__SetContinuationPreservedEmbedderData(
       this: *const Context,
       value: *const Value,
