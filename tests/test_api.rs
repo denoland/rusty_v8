@@ -3348,12 +3348,7 @@ fn context_promise_hooks_partial() {
       .unwrap(),
     )
     .unwrap();
-    scope.set_promise_hooks(
-      Some(init_hook),
-      Some(before_hook),
-      None,
-      None,
-    );
+    scope.set_promise_hooks(Some(init_hook), Some(before_hook), None, None);
 
     let source = r#"
       function expect(expected, actual = promises.size) {
@@ -4006,6 +4001,30 @@ fn array_buffer_view() {
     assert!(maybe_ab.is_some());
     let ab = maybe_ab.unwrap();
     assert_eq!(ab.byte_length(), 4);
+  }
+}
+
+#[test]
+fn continuation_preserved_embedder_data() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let data = scope.get_continuation_preserved_embedder_data();
+    assert!(data.is_undefined());
+
+    let value = v8::String::new(scope, "hello").unwrap();
+    scope.set_continuation_preserved_embedder_data(value.into());
+    let data = scope.get_continuation_preserved_embedder_data();
+    assert!(data.is_string());
+    assert_eq!(data.to_rust_string_lossy(scope), "hello");
+
+    eval(scope, "b = 2 + 3").unwrap();
+    let data = scope.get_continuation_preserved_embedder_data();
+    assert!(data.is_string());
+    assert_eq!(data.to_rust_string_lossy(scope), "hello");
   }
 }
 
