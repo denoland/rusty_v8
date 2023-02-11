@@ -37,6 +37,8 @@ default_args = {
   v8_use_external_startup_data = false
   v8_use_snapshot = true
 
+  # Disable handle zapping for performance
+  v8_enable_handle_zapping = false
   # Ensure allocation of typed arrays and arraybuffers always goes through
   # the embedder's ArrayBufferAllocator, otherwise small buffers get moved
   # around by the garbage collector but embedders normally want them to have
