@@ -3261,6 +3261,17 @@ void v8__PropertyDescriptor__CONSTRUCT(uninit_t<v8::PropertyDescriptor>* buf) {
   construct_in_place<v8::PropertyDescriptor>(buf);
 }
 
+void v8__PropertyDescriptor__CONSTRUCT__Value_Writable(
+    uninit_t<v8::PropertyDescriptor>* buf, v8::Local<v8::Value> value,
+    bool writable) {
+  construct_in_place<v8::PropertyDescriptor>(buf, value, writable);
+}
+
+void v8__PropertyDescriptor__CONSTRUCT__Value(
+    uninit_t<v8::PropertyDescriptor>* buf, v8::Local<v8::Value> value) {
+  construct_in_place<v8::PropertyDescriptor>(buf, value);
+}
+
 void v8__PropertyDescriptor__CONSTRUCT__Get_Set(
     uninit_t<v8::PropertyDescriptor>* buf, v8::Local<v8::Value> get,
     v8::Local<v8::Value> set) {

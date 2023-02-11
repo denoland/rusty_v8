@@ -9066,4 +9066,57 @@ fn object_define_property() {
     let expected = v8::String::new(scope, "true,false,false").unwrap();
     assert!(expected.strict_equals(actual));
   }
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let mut desc = v8::PropertyDescriptor::new_from_value_writable(
+      v8::Integer::new(scope, 42).into(),
+      true,
+    );
+    desc.set_configurable(true);
+    desc.set_enumerable(false);
+
+    let name = v8::String::new(scope, "g").unwrap();
+    context
+      .global(scope)
+      .define_property(scope, name.into(), &desc);
+    let source = r#"
+      {
+        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+        [d.configurable, d.enumerable, d.writable].toString()
+      }
+    "#;
+    let actual = eval(scope, source).unwrap();
+    let expected = v8::String::new(scope, "true,false,true").unwrap();
+    assert!(expected.strict_equals(actual));
+  }
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let mut desc = v8::PropertyDescriptor::new_from_value(
+      v8::Integer::new(scope, 42).into(),
+    );
+    desc.set_configurable(true);
+    desc.set_enumerable(false);
+
+    let name = v8::String::new(scope, "g").unwrap();
+    context
+      .global(scope)
+      .define_property(scope, name.into(), &desc);
+    let source = r#"
+      {
+        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+        [d.configurable, d.enumerable, d.writable].toString()
+      }
+    "#;
+    let actual = eval(scope, source).unwrap();
+    let expected = v8::String::new(scope, "true,false,false").unwrap();
+    assert!(expected.strict_equals(actual));
+  }
 }
