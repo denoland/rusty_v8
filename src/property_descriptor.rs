@@ -6,6 +6,15 @@ use crate::Value;
 
 extern "C" {
   fn v8__PropertyDescriptor__CONSTRUCT(out: *mut PropertyDescriptor);
+  fn v8__PropertyDescriptor__CONSTRUCT__Value(
+    this: *const PropertyDescriptor,
+    value: *const Value,
+  );
+  fn v8__PropertyDescriptor__CONSTRUCT__Value_Writable(
+    this: *const PropertyDescriptor,
+    value: *const Value,
+    writable: bool,
+  );
   fn v8__PropertyDescriptor__CONSTRUCT__Get_Set(
     this: *const PropertyDescriptor,
     get: *const Value,
@@ -43,6 +52,26 @@ impl PropertyDescriptor {
     let mut this = MaybeUninit::<Self>::uninit();
     unsafe {
       v8__PropertyDescriptor__CONSTRUCT(this.as_mut_ptr());
+      this.assume_init()
+    }
+  }
+
+  pub fn new_from_value(value: Local<Value>) -> Self {
+    let mut this = MaybeUninit::<Self>::uninit();
+    unsafe {
+      v8__PropertyDescriptor__CONSTRUCT__Value(this.as_mut_ptr(), &*value);
+      this.assume_init()
+    }
+  }
+
+  pub fn new_from_value_writable(value: Local<Value>, writable: bool) -> Self {
+    let mut this = MaybeUninit::<Self>::uninit();
+    unsafe {
+      v8__PropertyDescriptor__CONSTRUCT__Value_Writable(
+        this.as_mut_ptr(),
+        &*value,
+        writable,
+      );
       this.assume_init()
     }
   }
