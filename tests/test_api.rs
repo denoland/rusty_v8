@@ -3387,6 +3387,63 @@ fn context_promise_hooks_partial() {
 }
 
 #[test]
+fn context_nested_context() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // Define a variable in the parent context
+    let global = {
+      let global = context.global(scope);
+      let variable_key = v8::String::new(scope, "variable").unwrap();
+      let variable_value = v8::String::new(scope, "value").unwrap();
+      global.set(scope, variable_key.into(), variable_value.into());
+      v8::Global::new(scope, global)
+    };
+
+    // Creates a child context
+    {
+      let security_token = context.get_security_token(scope);
+      let templ = v8::ObjectTemplate::new(scope);
+      let global = v8::Local::new(scope, global);
+      templ.set_named_property_handler(
+        v8::NamedPropertyHandlerConfiguration::new()
+          .getter(
+            |scope: &mut v8::HandleScope,
+             key: v8::Local<v8::Name>,
+             args: v8::PropertyCallbackArguments,
+             mut rv: v8::ReturnValue| {
+              let obj = v8::Local::<v8::Object>::try_from(args.data()).unwrap();
+              if let Some(val) = obj.get(scope, key.into()) {
+                rv.set(val);
+              }
+            },
+          )
+          .data(global.into()),
+      );
+      let child_context = v8::Context::new_from_template(scope, templ);
+
+      // Without the security context, the variable can not be shared
+      child_context.set_security_token(security_token);
+      let child_scope = &mut v8::ContextScope::new(scope, child_context);
+      // Use the variable in a child context
+      let source = r#"
+        if (variable !== 'value') {
+          throw new Error('Expected variable to be value');
+        }
+      "#;
+      let try_catch = &mut v8::TryCatch::new(child_scope);
+      let result = eval(try_catch, source);
+      assert!(!try_catch.has_caught());
+      assert!(result.unwrap().is_undefined());
+    }
+  }
+}
+
+#[test]
 fn allow_atomics_wait() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

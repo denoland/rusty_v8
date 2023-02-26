@@ -1719,6 +1719,21 @@ void v8__Context__SetPromiseHooks(v8::Context& self,
       ptr_to_local(after_hook), ptr_to_local(resolve_hook));
 }
 
+const v8::Value* v8__Context__GetSecurityToken(const v8::Context& self) {
+  auto value = ptr_to_local(&self)->GetSecurityToken();
+  return local_to_ptr(value); 
+}
+
+void v8__Context__SetSecurityToken(v8::Context& self,
+                                                       const v8::Value* token) {
+  auto c = ptr_to_local(&self);
+  c->SetSecurityToken(ptr_to_local(token));
+}
+
+void v8__Context__UseDefaultSecurityToken(v8::Context& self) {
+  ptr_to_local(&self)->UseDefaultSecurityToken();
+}
+
 const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
                                              size_t context_snapshot_index) {
   v8::MaybeLocal<v8::Context> maybe_local =

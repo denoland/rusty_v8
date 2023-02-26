@@ -40,6 +40,14 @@ extern "C" {
     isolate: *mut Isolate,
     context_snapshot_index: usize,
   ) -> *const Context;
+  pub(super) fn v8__Context__GetSecurityToken(
+    this: *const Context,
+  ) -> *const Value;
+  pub(super) fn v8__Context__SetSecurityToken(
+    this: *const Context,
+    value: *const Value,
+  );
+  pub(super) fn v8__Context__UseDefaultSecurityToken(this: *const Context);
 }
 
 impl Context {
@@ -318,6 +326,29 @@ impl Context {
       scope.cast_local(|sd| {
         v8__Context__FromSnapshot(sd.get_isolate_mut(), context_snapshot_index)
       })
+    }
+  }
+
+  #[inline(always)]
+  pub fn get_security_token<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Local<'s, Value> {
+    unsafe { scope.cast_local(|_| v8__Context__GetSecurityToken(self)) }
+      .unwrap()
+  }
+
+  #[inline(always)]
+  pub fn set_security_token(&self, token: Local<Value>) {
+    unsafe {
+      v8__Context__SetSecurityToken(self, &*token);
+    }
+  }
+
+  #[inline(always)]
+  pub fn use_default_security_token(&self) {
+    unsafe {
+      v8__Context__UseDefaultSecurityToken(self);
     }
   }
 }
