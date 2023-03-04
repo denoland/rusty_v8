@@ -7050,6 +7050,7 @@ fn unbound_module_script_conversion() {
 
 #[test]
 fn cached_data_version_tag() {
+  let _setup_guard = setup::sequential_test();
   // The value is unpredictable/unstable, as it is generated from a combined
   // hash of the V8 version number and select configuration flags. This test
   // asserts that it returns the same value twice in a row (the value ought to
