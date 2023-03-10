@@ -257,4 +257,14 @@ pub trait FastFunction {
     CType::Void
   }
   fn function(&self) -> *const c_void;
+  fn type_info(&self) -> NonNull<CFunctionInfo> {
+    // TODO(@littledivy): This needs to be a static (stable) ptr?
+    let args = CTypeInfo::new_from_slice(self.args());
+    let ret = CTypeInfo::new(self.return_type());
+
+    let c_fn = unsafe {
+      CFunctionInfo::new(args.as_ptr(), self.args().len(), ret.as_ptr())
+    };
+    c_fn
+  }
 }

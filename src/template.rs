@@ -379,20 +379,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
     overload2: Option<&dyn FastFunction>,
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
-      let args = CTypeInfo::new_from_slice(overload1.args());
-      let ret = CTypeInfo::new(overload1.return_type());
-      let c_fn1 =
-        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr());
-
-      let c_fn2 = match overload2 {
-        Some(overload) => {
-          let args = CTypeInfo::new_from_slice(overload.args());
-          let ret = CTypeInfo::new(overload.return_type());
-          CFunctionInfo::new(args.as_ptr(), overload.args().len(), ret.as_ptr())
-            .as_ptr()
-        }
-        None => null(),
-      };
+      let c_fn1 = overload1.type_info();
+      let c_fn2 =
+        overload2.map_or(null(), |f| f.type_info().as_ptr() as *const _);
       scope.cast_local(|sd| {
         v8__FunctionTemplate__New(
           sd.get_isolate_ptr(),
