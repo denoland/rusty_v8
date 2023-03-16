@@ -250,9 +250,11 @@ impl<T: Default> FastApiTypedArray<T> {
 }
 
 pub trait FastFunction {
+  #[inline(always)]
   fn args(&self) -> &'static [Type] {
     &[]
   }
+  #[inline(always)]
   fn return_type(&self) -> CType {
     CType::Void
   }
