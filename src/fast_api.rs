@@ -30,7 +30,7 @@ pub struct CFunction(Opaque);
 
 impl CFunctionInfo {
   #[inline(always)]
-  pub(crate) unsafe fn new(
+  pub unsafe fn new(
     args: *const CTypeInfo,
     args_len: usize,
     return_type: *const CTypeInfo,
@@ -45,11 +45,11 @@ pub struct CTypeInfo(Opaque);
 
 impl CTypeInfo {
   #[inline(always)]
-  pub(crate) fn new(ty: CType) -> NonNull<CTypeInfo> {
+  pub fn new(ty: CType) -> NonNull<CTypeInfo> {
     unsafe { NonNull::new_unchecked(v8__CTypeInfo__New(ty)) }
   }
 
-  pub(crate) fn new_from_slice(types: &[Type]) -> NonNull<CTypeInfo> {
+  pub fn new_from_slice(types: &[Type]) -> NonNull<CTypeInfo> {
     let mut structs = vec![];
 
     for type_ in types.iter() {
