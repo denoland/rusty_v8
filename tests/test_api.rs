@@ -326,6 +326,80 @@ fn test_string() {
     );
     assert!(none.is_none());
   }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let invalid_sequence_identifier = v8::String::new_from_utf8(
+      scope,
+      &[0xa0, 0xa1],
+      v8::NewStringType::Normal,
+    );
+    assert!(invalid_sequence_identifier.is_some());
+    let invalid_sequence_identifier = invalid_sequence_identifier.unwrap();
+    assert_eq!(invalid_sequence_identifier.length(), 2);
+
+    let invalid_3_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xe2, 0x28, 0xa1],
+      v8::NewStringType::Normal,
+    );
+    assert!(invalid_3_octet_sequence.is_some());
+    let invalid_3_octet_sequence = invalid_3_octet_sequence.unwrap();
+    assert_eq!(invalid_3_octet_sequence.length(), 3);
+
+    let invalid_3_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xe2, 0x82, 0x28],
+      v8::NewStringType::Normal,
+    );
+    assert!(invalid_3_octet_sequence.is_some());
+    let invalid_3_octet_sequence = invalid_3_octet_sequence.unwrap();
+    assert_eq!(invalid_3_octet_sequence.length(), 2);
+
+    let invalid_4_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xf0, 0x28, 0x8c, 0xbc],
+      v8::NewStringType::Normal,
+    );
+    assert!(invalid_4_octet_sequence.is_some());
+    let invalid_4_octet_sequence = invalid_4_octet_sequence.unwrap();
+    assert_eq!(invalid_4_octet_sequence.length(), 4);
+
+    let invalid_4_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xf0, 0x90, 0x28, 0xbc],
+      v8::NewStringType::Normal,
+    );
+    assert!(invalid_4_octet_sequence.is_some());
+    let invalid_4_octet_sequence = invalid_4_octet_sequence.unwrap();
+    assert_eq!(invalid_4_octet_sequence.length(), 3);
+
+    let invalid_4_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xf0, 0x28, 0x8c, 0x28],
+      v8::NewStringType::Normal,
+    );
+    assert!(invalid_4_octet_sequence.is_some());
+    let invalid_4_octet_sequence = invalid_4_octet_sequence.unwrap();
+    assert_eq!(invalid_4_octet_sequence.length(), 4);
+
+    let valid_5_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xf8, 0xa1, 0xa1, 0xa1, 0xa1],
+      v8::NewStringType::Normal,
+    );
+    assert!(valid_5_octet_sequence.is_some());
+    let invalid_4_octet_sequence = valid_5_octet_sequence.unwrap();
+    assert_eq!(invalid_4_octet_sequence.length(), 5);
+
+    let valid_6_octet_sequence = v8::String::new_from_utf8(
+      scope,
+      &[0xfc, 0xa1, 0xa1, 0xa1, 0xa1, 0xa1],
+      v8::NewStringType::Normal,
+    );
+    assert!(valid_6_octet_sequence.is_some());
+    let invalid_4_octet_sequence = valid_6_octet_sequence.unwrap();
+    assert_eq!(invalid_4_octet_sequence.length(), 6);
+  }
 }
 
 #[test]
