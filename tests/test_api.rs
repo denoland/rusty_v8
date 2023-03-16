@@ -8268,8 +8268,8 @@ fn test_fast_calls() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8341,8 +8341,8 @@ fn test_fast_calls_sequence() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8414,8 +8414,8 @@ fn test_fast_calls_arraybuffer() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8490,8 +8490,8 @@ fn test_fast_calls_typedarray() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8580,8 +8580,8 @@ fn test_fast_calls_reciever() {
     embedder_obj as _,
   );
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "method").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8750,8 +8750,8 @@ fn test_fast_calls_callback_options_fallback() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8938,8 +8938,8 @@ fn test_fast_calls_onebytestring() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -9078,8 +9078,8 @@ fn test_fast_calls_pointer() {
 
   let global = context.global(scope);
 
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &FastTest, None, None, None);
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FastTest, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();

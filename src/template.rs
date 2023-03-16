@@ -383,30 +383,37 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
     overload1: &dyn FastFunction,
     c_fn_info1: Option<*const CFunctionInfo>,
     overload2: Option<&dyn FastFunction>,
-    c_fn_info2: Option<*const CFunctionInfo>
+    c_fn_info2: Option<*const CFunctionInfo>,
   ) -> Local<'s, FunctionTemplate> {
     let c_fn1 = if let Some(fn_info) = c_fn_info1 {
-      fn_info 
+      fn_info
     } else {
       let args = CTypeInfo::new_from_slice(overload1.args());
       let ret = CTypeInfo::new(overload1.return_type());
-      let fn_info = unsafe { CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr()) };
+      let fn_info = unsafe {
+        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr())
+      };
       fn_info.as_ptr()
     };
 
     let c_fn2 = if let Some(overload2) = overload2 {
       if let Some(fn_info) = c_fn_info2 {
-        fn_info 
+        fn_info
       } else {
         let args = CTypeInfo::new_from_slice(overload2.args());
         let ret = CTypeInfo::new(overload2.return_type());
-        let fn_info = unsafe { CFunctionInfo::new(args.as_ptr(), overload2.args().len(), ret.as_ptr()) };
+        let fn_info = unsafe {
+          CFunctionInfo::new(
+            args.as_ptr(),
+            overload2.args().len(),
+            ret.as_ptr(),
+          )
+        };
         fn_info.as_ptr()
       }
     } else {
       null()
     };
-
 
     unsafe {
       scope.cast_local(|sd| {
