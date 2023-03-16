@@ -24,11 +24,8 @@ jobs:
         with:
           token: ${{ secrets.DENOBOT_PAT }}
 
-      - name: Install rust
-        uses: hecrj/setup-rust-action@v1
-        with:
-          components: clippy, rustfmt
-          rust-version: 1.66.1
+      - uses: denoland/setup-deno@v1
+      - uses: dsherret/rust-toolchain-file@v1
 
       - name: Tag and release
         env:
