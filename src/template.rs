@@ -372,27 +372,50 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
     .unwrap()
   }
 
+  /// It's not required to provide `CFunctionInfo` for the overloads - if they
+  /// are omitted, then they will be automatically created. In some cases it is
+  /// useful to pass them explicitly - eg. when you are snapshotting you'd provide
+  /// the overloads and `CFunctionInfo` that would be placed in the external
+  /// references array.
   pub fn build_fast(
     self,
     scope: &mut HandleScope<'s, ()>,
     overload1: &dyn FastFunction,
+    c_fn_info1: Option<*const CFunctionInfo>,
     overload2: Option<&dyn FastFunction>,
+    c_fn_info2: Option<*const CFunctionInfo>,
   ) -> Local<'s, FunctionTemplate> {
-    unsafe {
+    let c_fn1 = if let Some(fn_info) = c_fn_info1 {
+      fn_info
+    } else {
       let args = CTypeInfo::new_from_slice(overload1.args());
       let ret = CTypeInfo::new(overload1.return_type());
-      let c_fn1 =
-        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr());
-
-      let c_fn2 = match overload2 {
-        Some(overload) => {
-          let args = CTypeInfo::new_from_slice(overload.args());
-          let ret = CTypeInfo::new(overload.return_type());
-          CFunctionInfo::new(args.as_ptr(), overload.args().len(), ret.as_ptr())
-            .as_ptr()
-        }
-        None => null(),
+      let fn_info = unsafe {
+        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr())
       };
+      fn_info.as_ptr()
+    };
+
+    let c_fn2 = if let Some(overload2) = overload2 {
+      if let Some(fn_info) = c_fn_info2 {
+        fn_info
+      } else {
+        let args = CTypeInfo::new_from_slice(overload2.args());
+        let ret = CTypeInfo::new(overload2.return_type());
+        let fn_info = unsafe {
+          CFunctionInfo::new(
+            args.as_ptr(),
+            overload2.args().len(),
+            ret.as_ptr(),
+          )
+        };
+        fn_info.as_ptr()
+      }
+    } else {
+      null()
+    };
+
+    unsafe {
       scope.cast_local(|sd| {
         v8__FunctionTemplate__New(
           sd.get_isolate_ptr(),
@@ -403,7 +426,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           ConstructorBehavior::Throw,
           self.side_effect_type,
           overload1.function(),
-          c_fn1.as_ptr(),
+          c_fn1,
           overload2.map_or(null(), |f| f.function()),
           c_fn2,
         )

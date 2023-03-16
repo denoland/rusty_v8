@@ -87,7 +87,7 @@ fn main() {
         rv.set(v8::Integer::new(scope, 42).into());
       },
     )
-    .build_fast(scope, &FastCall, None);
+    .build_fast(scope, &FastCall, None, None, None);
     let name = v8::String::new(scope, "new_fast").unwrap();
     let value = template.get_function(scope).unwrap();
 
