@@ -249,14 +249,23 @@ impl<T: Default> FastApiTypedArray<T> {
   }
 }
 
-pub trait FastFunction {
+pub struct FastFunction {
+  pub args: &'static [Type],
+  pub return_type: CType,
+  pub function: *const c_void,
+}
+
+impl FastFunction {
   #[inline(always)]
-  fn args(&self) -> &'static [Type] {
-    &[]
+  pub const fn new(
+    args: &'static [Type],
+    return_type: CType,
+    function: *const c_void,
+  ) -> Self {
+    Self {
+      args,
+      return_type,
+      function,
+    }
   }
-  #[inline(always)]
-  fn return_type(&self) -> CType {
-    CType::Void
-  }
-  fn function(&self) -> *const c_void;
 }

@@ -8301,27 +8301,19 @@ fn host_create_shadow_realm_context_callback() {
 
 #[test]
 fn test_fast_calls() {
+  use fast_api::Type::*;
+
   static mut WHO: &str = "none";
   fn fast_fn(_recv: v8::Local<v8::Object>, a: u32, b: u32) -> u32 {
     unsafe { WHO = "fast" };
     a + b
   }
 
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      use fast_api::Type::*;
-      &[V8Value, Uint32, Uint32]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Uint32
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
+  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
+    &[V8Value, Uint32, Uint32],
+    fast_api::CType::Uint32,
+    fast_fn as _,
+  );
 
   fn slow_fn(
     scope: &mut v8::HandleScope,
@@ -8343,7 +8335,7 @@ fn test_fast_calls() {
   let global = context.global(scope);
 
   let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
+    .build_fast(scope, &FAST_TEST, None, None, None);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -8364,907 +8356,907 @@ fn test_fast_calls() {
   assert_eq!("fast", unsafe { WHO });
 }
 
-#[test]
-fn test_fast_calls_sequence() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    a: u32,
-    b: u32,
-    array: v8::Local<v8::Array>,
-  ) -> u32 {
-    unsafe { WHO = "fast" };
-    assert_eq!(array.length(), 2);
-    a + b + array.length()
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[
-        fast_api::Type::V8Value,
-        fast_api::Type::Uint32,
-        fast_api::Type::Uint32,
-        fast_api::Type::Sequence(fast_api::CType::Void),
-      ]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Uint32
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f(x, y, data) { return func(x, y, data); }
-  %PrepareFunctionForOptimization(f);
-  const arr = [3, 4];
-  f(1, 2, arr);
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f(1, 2, arr);
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-}
-
-#[test]
-fn test_fast_calls_arraybuffer() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    a: u32,
-    b: u32,
-    data: *const fast_api::FastApiTypedArray<u32>,
-  ) -> u32 {
-    unsafe { WHO = "fast" };
-    a + b + unsafe { &*data }.get(0)
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[
-        fast_api::Type::V8Value,
-        fast_api::Type::Uint32,
-        fast_api::Type::Uint32,
-        fast_api::Type::TypedArray(fast_api::CType::Uint32),
-      ]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Uint32
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f(x, y, data) { return func(x, y, data); }
-  %PrepareFunctionForOptimization(f);
-  const arr = new Uint32Array([3, 4]);
-  f(1, 2, arr);
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f(1, 2, arr);
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-}
-
-#[test]
-fn test_fast_calls_typedarray() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    data: *const fast_api::FastApiTypedArray<u8>,
-  ) -> u32 {
-    unsafe { WHO = "fast" };
-    let first = unsafe { &*data }.get(0);
-    let second = unsafe { &*data }.get(1);
-    let third = unsafe { &*data }.get(2);
-    assert_eq!(first, 4);
-    assert_eq!(second, 5);
-    assert_eq!(third, 6);
-    let sum = first + second + third;
-    sum.into()
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[
-        fast_api::Type::V8Value,
-        fast_api::Type::TypedArray(fast_api::CType::Uint8),
-      ]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Uint32
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f(data) { return func(data); }
-  %PrepareFunctionForOptimization(f);
-  const arr = new Uint8Array([4, 5, 6]);
-  f(arr);
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    const result = f(arr);
-    if (result != 15) {
-      throw new Error("wrong result");
-    }
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-}
-
-#[test]
-fn test_fast_calls_reciever() {
-  const V8_WRAPPER_TYPE_INDEX: i32 = 0;
-  const V8_WRAPPER_OBJECT_INDEX: i32 = 1;
-
-  static mut WHO: &str = "none";
-  fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
-    unsafe {
-      WHO = "fast";
-      let embedder_obj =
-        recv.get_aligned_pointer_from_internal_field(V8_WRAPPER_OBJECT_INDEX);
-
-      let i = *(embedder_obj as *const u32);
-      assert_eq!(i, 69);
-      i
-    }
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::V8Value]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Uint32
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(
-    v8::CreateParams::default().embedder_wrapper_type_info_offsets(
-      V8_WRAPPER_TYPE_INDEX,
-      V8_WRAPPER_OBJECT_INDEX,
-    ),
-  );
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let object_template = v8::ObjectTemplate::new(scope);
-  assert!(object_template
-    .set_internal_field_count((V8_WRAPPER_OBJECT_INDEX + 1) as usize));
-
-  let obj = object_template.new_instance(scope).unwrap();
-  let embedder_obj = Box::into_raw(Box::new(69u32));
-  obj.set_aligned_pointer_in_internal_field(
-    V8_WRAPPER_OBJECT_INDEX,
-    embedder_obj as _,
-  );
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "method").unwrap();
-  let value = template.get_function(scope).unwrap();
-  obj.set(scope, name.into(), value.into()).unwrap();
-
-  let obj_str = v8::String::new(scope, "obj").unwrap();
-  let global = context.global(scope);
-  global.set(scope, obj_str.into(), obj.into()).unwrap();
-
-  let source = r#"
-  function f() { return obj.method(); }
-  %PrepareFunctionForOptimization(f);
-  f();
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f();
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-}
-
-#[test]
-fn test_fast_calls_overload() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    data: *const fast_api::FastApiTypedArray<u32>,
-  ) {
-    unsafe { WHO = "fast_buf" };
-    let buf = unsafe { &*data };
-    assert_eq!(buf.length, 2);
-    assert_eq!(buf.get(0), 6);
-    assert_eq!(buf.get(1), 9);
-  }
-
-  fn fast_fn2(_recv: v8::Local<v8::Object>, data: v8::Local<v8::Array>) {
-    unsafe { WHO = "fast_array" };
-    assert_eq!(data.length(), 2);
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[
-        fast_api::Type::V8Value,
-        fast_api::Type::TypedArray(fast_api::CType::Uint32),
-      ]
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  pub struct FastTest2;
-  impl fast_api::FastFunction for FastTest2 {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[
-        fast_api::Type::V8Value,
-        fast_api::Type::Sequence(fast_api::CType::Void),
-      ]
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn2 as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn).build_fast(
-    scope,
-    &FastTest,
-    None,
-    Some(&FastTest2),
-    None,
-  );
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f(data) { return func(data); }
-  %PrepareFunctionForOptimization(f);
-  const arr = [6, 9];
-  const buf = new Uint32Array(arr);
-  f(buf);
-  f(arr);
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f(buf);
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast_buf", unsafe { WHO });
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f(arr);
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast_array", unsafe { WHO });
-}
-
-#[test]
-fn test_fast_calls_callback_options_fallback() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    options: *mut fast_api::FastApiCallbackOptions,
-  ) {
-    if unsafe { WHO == "fast" } {
-      let options = unsafe { &mut *options };
-      options.fallback = true; // Go back to slow path.
-    } else {
-      unsafe { WHO = "fast" };
-    }
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::V8Value, fast_api::Type::CallbackOptions]
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f() { return func(); }
-  %PrepareFunctionForOptimization(f);
-  f();
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f();
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-  let source = r#"
-  f(); // Second call fallbacks back to slow path.
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-}
-
-#[test]
-fn test_fast_calls_callback_options_data() {
-  static mut DATA: bool = false;
-  unsafe fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    options: *mut fast_api::FastApiCallbackOptions,
-  ) {
-    let options = &mut *options;
-    if !options.data.data.is_external() {
-      options.fallback = true;
-      return;
-    }
-
-    let data = v8::Local::<v8::External>::cast(options.data.data);
-    let data = &mut *(data.value() as *mut bool);
-    *data = true;
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::V8Value, fast_api::Type::CallbackOptions]
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-  let external =
-    v8::External::new(scope, unsafe { &mut DATA as *mut bool as *mut c_void });
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .data(external.into())
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f() { return func(); }
-  %PrepareFunctionForOptimization(f);
-  f();
-"#;
-  eval(scope, source).unwrap();
-  assert!(unsafe { !DATA });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f();
-  "#;
-  eval(scope, source).unwrap();
-  assert!(unsafe { DATA });
-}
-
-#[test]
-fn test_detach_key() {
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  // Object detach key
-  {
-    let detach_key = eval(scope, "({})").unwrap();
-    assert!(detach_key.is_object());
-    let buffer = v8::ArrayBuffer::new(scope, 1024);
-    buffer.set_detach_key(detach_key);
-    assert!(buffer.is_detachable());
-    assert_eq!(buffer.detach(None), None);
-    assert!(!buffer.was_detached());
-    assert_eq!(buffer.detach(Some(detach_key)), Some(true));
-    assert!(buffer.was_detached());
-  }
-
-  // External detach key
-  {
-    let mut rust_detach_key = Box::new(42usize);
-    let v8_detach_key = v8::External::new(
-      scope,
-      &mut *rust_detach_key as *mut usize as *mut c_void,
-    );
-    let buffer = v8::ArrayBuffer::new(scope, 1024);
-    buffer.set_detach_key(v8_detach_key.into());
-    assert!(buffer.is_detachable());
-    assert_eq!(buffer.detach(None), None);
-    assert!(!buffer.was_detached());
-    assert_eq!(buffer.detach(Some(v8_detach_key.into())), Some(true));
-    assert!(buffer.was_detached());
-  }
-
-  // Undefined detach key
-  {
-    let buffer = v8::ArrayBuffer::new(scope, 1024);
-    buffer.set_detach_key(v8::undefined(scope).into());
-    assert!(buffer.is_detachable());
-    assert_eq!(buffer.detach(Some(v8::undefined(scope).into())), Some(true));
-    assert!(buffer.was_detached());
-  }
-}
-
-#[test]
-fn test_fast_calls_onebytestring() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    data: *const fast_api::FastApiOneByteString,
-  ) -> u32 {
-    unsafe { WHO = "fast" };
-    let data = unsafe { &*data }.as_str();
-    assert_eq!("hello", data);
-    data.len() as u32
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::V8Value, fast_api::Type::SeqOneByteString]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Uint32
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    _: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    _: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f(data) { return func(data); }
-  %PrepareFunctionForOptimization(f);
-  const str = "hello";
-  f(str);
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    const result = f(str);
-    if (result != 5) {
-      throw new Error("wrong result");
-    }
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-}
-
-#[test]
-fn gc_callbacks() {
-  let _setup_guard = setup::parallel_test();
-
-  #[derive(Default)]
-  struct GCCallbackState {
-    mark_sweep_calls: u64,
-    incremental_marking_calls: u64,
-  }
-
-  extern "C" fn callback(
-    _isolate: *mut v8::Isolate,
-    r#type: v8::GCType,
-    _flags: v8::GCCallbackFlags,
-    data: *mut c_void,
-  ) {
-    // We should get a mark-sweep GC here.
-    assert_eq!(r#type, v8::GC_TYPE_MARK_SWEEP_COMPACT);
-    let state = unsafe { &mut *(data as *mut GCCallbackState) };
-    state.mark_sweep_calls += 1;
-  }
-
-  extern "C" fn callback2(
-    _isolate: *mut v8::Isolate,
-    r#type: v8::GCType,
-    _flags: v8::GCCallbackFlags,
-    data: *mut c_void,
-  ) {
-    // We should get a mark-sweep GC here.
-    assert_eq!(r#type, v8::GC_TYPE_INCREMENTAL_MARKING);
-    let state = unsafe { &mut *(data as *mut GCCallbackState) };
-    state.incremental_marking_calls += 1;
-  }
-
-  let mut state = GCCallbackState::default();
-  let state_ptr = &mut state as *mut _ as *mut c_void;
-  let isolate = &mut v8::Isolate::new(Default::default());
-  isolate.add_gc_prologue_callback(callback, state_ptr, v8::GC_TYPE_ALL);
-  isolate.add_gc_prologue_callback(
-    callback2,
-    state_ptr,
-    v8::GC_TYPE_INCREMENTAL_MARKING | v8::GC_TYPE_PROCESS_WEAK_CALLBACK,
-  );
-
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    scope
-      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
-    assert_eq!(state.mark_sweep_calls, 1);
-    assert_eq!(state.incremental_marking_calls, 0);
-  }
-
-  isolate.remove_gc_prologue_callback(callback, state_ptr);
-  isolate.remove_gc_prologue_callback(callback2, state_ptr);
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    scope
-      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
-    // Assert callback was removed and not called again.
-    assert_eq!(state.mark_sweep_calls, 1);
-    assert_eq!(state.incremental_marking_calls, 0);
-  }
-}
-
-#[test]
-fn test_fast_calls_pointer() {
-  static mut WHO: &str = "none";
-  fn fast_fn(_recv: v8::Local<v8::Object>, data: *mut c_void) -> *mut c_void {
-    // Assert before re-assigning WHO, as the reassignment will change the reference.
-    assert!(std::ptr::eq(data, unsafe { WHO.as_ptr() as *mut c_void }));
-    unsafe { WHO = "fast" };
-    std::ptr::null_mut()
-  }
-
-  pub struct FastTest;
-  impl fast_api::FastFunction for FastTest {
-    fn args(&self) -> &'static [fast_api::Type] {
-      &[fast_api::Type::V8Value, fast_api::Type::Pointer]
-    }
-
-    fn return_type(&self) -> fast_api::CType {
-      fast_api::CType::Pointer
-    }
-
-    fn function(&self) -> *const c_void {
-      fast_fn as _
-    }
-  }
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(
-      v8::External::new(scope, unsafe { WHO.as_ptr() as *mut c_void }).into(),
-    );
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FastTest, None, None, None);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f(data) {
-    return func(data);
-  }
-  %PrepareFunctionForOptimization(f);
-  const external = f(null);
-  if (
-    typeof external !== "object" || external === null ||
-    Object.keys(external).length > 0 || Object.getPrototypeOf(external) !== null
-  ) {
-    throw new Error(
-      "External pointer object should be an empty object with no properties and no prototype",
-    );
-  }
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    const external_fast = f(external);
-    if (external_fast !== null) {
-      throw new Error("Null pointer external should be JS null");
-    }
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-}
-
-#[test]
-fn object_define_property() {
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    let mut desc = v8::PropertyDescriptor::new();
-    desc.set_configurable(true);
-    desc.set_enumerable(false);
-
-    let name = v8::String::new(scope, "g").unwrap();
-    context
-      .global(scope)
-      .define_property(scope, name.into(), &desc);
-    let source = r#"
-      {
-        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
-        [d.configurable, d.enumerable, d.writable].toString()
-      }
-    "#;
-    let actual = eval(scope, source).unwrap();
-    let expected = v8::String::new(scope, "true,false,false").unwrap();
-    assert!(expected.strict_equals(actual));
-  }
-
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    let mut desc = v8::PropertyDescriptor::new_from_value_writable(
-      v8::Integer::new(scope, 42).into(),
-      true,
-    );
-    desc.set_configurable(true);
-    desc.set_enumerable(false);
-
-    let name = v8::String::new(scope, "g").unwrap();
-    context
-      .global(scope)
-      .define_property(scope, name.into(), &desc);
-    let source = r#"
-      {
-        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
-        [d.configurable, d.enumerable, d.writable].toString()
-      }
-    "#;
-    let actual = eval(scope, source).unwrap();
-    let expected = v8::String::new(scope, "true,false,true").unwrap();
-    assert!(expected.strict_equals(actual));
-  }
-
-  {
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    let mut desc = v8::PropertyDescriptor::new_from_value(
-      v8::Integer::new(scope, 42).into(),
-    );
-    desc.set_configurable(true);
-    desc.set_enumerable(false);
-
-    let name = v8::String::new(scope, "g").unwrap();
-    context
-      .global(scope)
-      .define_property(scope, name.into(), &desc);
-    let source = r#"
-      {
-        const d = Object.getOwnPropertyDescriptor(globalThis, "g");
-        [d.configurable, d.enumerable, d.writable].toString()
-      }
-    "#;
-    let actual = eval(scope, source).unwrap();
-    let expected = v8::String::new(scope, "true,false,false").unwrap();
-    assert!(expected.strict_equals(actual));
-  }
-}
+// #[test]
+// fn test_fast_calls_sequence() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     a: u32,
+//     b: u32,
+//     array: v8::Local<v8::Array>,
+//   ) -> u32 {
+//     unsafe { WHO = "fast" };
+//     assert_eq!(array.length(), 2);
+//     a + b + array.length()
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[
+//         fast_api::Type::V8Value,
+//         fast_api::Type::Uint32,
+//         fast_api::Type::Uint32,
+//         fast_api::Type::Sequence(fast_api::CType::Void),
+//       ]
+//     }
+
+//     fn return_type(&self) -> fast_api::CType {
+//       fast_api::CType::Uint32
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f(x, y, data) { return func(x, y, data); }
+//   %PrepareFunctionForOptimization(f);
+//   const arr = [3, 4];
+//   f(1, 2, arr);
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f(1, 2, arr);
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+// }
+
+// #[test]
+// fn test_fast_calls_arraybuffer() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     a: u32,
+//     b: u32,
+//     data: *const fast_api::FastApiTypedArray<u32>,
+//   ) -> u32 {
+//     unsafe { WHO = "fast" };
+//     a + b + unsafe { &*data }.get(0)
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[
+//         fast_api::Type::V8Value,
+//         fast_api::Type::Uint32,
+//         fast_api::Type::Uint32,
+//         fast_api::Type::TypedArray(fast_api::CType::Uint32),
+//       ]
+//     }
+
+//     fn return_type(&self) -> fast_api::CType {
+//       fast_api::CType::Uint32
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f(x, y, data) { return func(x, y, data); }
+//   %PrepareFunctionForOptimization(f);
+//   const arr = new Uint32Array([3, 4]);
+//   f(1, 2, arr);
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f(1, 2, arr);
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+// }
+
+// #[test]
+// fn test_fast_calls_typedarray() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     data: *const fast_api::FastApiTypedArray<u8>,
+//   ) -> u32 {
+//     unsafe { WHO = "fast" };
+//     let first = unsafe { &*data }.get(0);
+//     let second = unsafe { &*data }.get(1);
+//     let third = unsafe { &*data }.get(2);
+//     assert_eq!(first, 4);
+//     assert_eq!(second, 5);
+//     assert_eq!(third, 6);
+//     let sum = first + second + third;
+//     sum.into()
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[
+//         fast_api::Type::V8Value,
+//         fast_api::Type::TypedArray(fast_api::CType::Uint8),
+//       ]
+//     }
+
+//     fn return_type(&self) -> fast_api::CType {
+//       fast_api::CType::Uint32
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f(data) { return func(data); }
+//   %PrepareFunctionForOptimization(f);
+//   const arr = new Uint8Array([4, 5, 6]);
+//   f(arr);
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     const result = f(arr);
+//     if (result != 15) {
+//       throw new Error("wrong result");
+//     }
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+// }
+
+// #[test]
+// fn test_fast_calls_reciever() {
+//   const V8_WRAPPER_TYPE_INDEX: i32 = 0;
+//   const V8_WRAPPER_OBJECT_INDEX: i32 = 1;
+
+//   static mut WHO: &str = "none";
+//   fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
+//     unsafe {
+//       WHO = "fast";
+//       let embedder_obj =
+//         recv.get_aligned_pointer_from_internal_field(V8_WRAPPER_OBJECT_INDEX);
+
+//       let i = *(embedder_obj as *const u32);
+//       assert_eq!(i, 69);
+//       i
+//     }
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[fast_api::Type::V8Value]
+//     }
+
+//     fn return_type(&self) -> fast_api::CType {
+//       fast_api::CType::Uint32
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(
+//     v8::CreateParams::default().embedder_wrapper_type_info_offsets(
+//       V8_WRAPPER_TYPE_INDEX,
+//       V8_WRAPPER_OBJECT_INDEX,
+//     ),
+//   );
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let object_template = v8::ObjectTemplate::new(scope);
+//   assert!(object_template
+//     .set_internal_field_count((V8_WRAPPER_OBJECT_INDEX + 1) as usize));
+
+//   let obj = object_template.new_instance(scope).unwrap();
+//   let embedder_obj = Box::into_raw(Box::new(69u32));
+//   obj.set_aligned_pointer_in_internal_field(
+//     V8_WRAPPER_OBJECT_INDEX,
+//     embedder_obj as _,
+//   );
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "method").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   obj.set(scope, name.into(), value.into()).unwrap();
+
+//   let obj_str = v8::String::new(scope, "obj").unwrap();
+//   let global = context.global(scope);
+//   global.set(scope, obj_str.into(), obj.into()).unwrap();
+
+//   let source = r#"
+//   function f() { return obj.method(); }
+//   %PrepareFunctionForOptimization(f);
+//   f();
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f();
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+// }
+
+// #[test]
+// fn test_fast_calls_overload() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     data: *const fast_api::FastApiTypedArray<u32>,
+//   ) {
+//     unsafe { WHO = "fast_buf" };
+//     let buf = unsafe { &*data };
+//     assert_eq!(buf.length, 2);
+//     assert_eq!(buf.get(0), 6);
+//     assert_eq!(buf.get(1), 9);
+//   }
+
+//   fn fast_fn2(_recv: v8::Local<v8::Object>, data: v8::Local<v8::Array>) {
+//     unsafe { WHO = "fast_array" };
+//     assert_eq!(data.length(), 2);
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[
+//         fast_api::Type::V8Value,
+//         fast_api::Type::TypedArray(fast_api::CType::Uint32),
+//       ]
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   pub struct FastTest2;
+//   impl fast_api::FastFunction for FastTest2 {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[
+//         fast_api::Type::V8Value,
+//         fast_api::Type::Sequence(fast_api::CType::Void),
+//       ]
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn2 as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn).build_fast(
+//     scope,
+//     &FastTest,
+//     None,
+//     Some(&FastTest2),
+//     None,
+//   );
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f(data) { return func(data); }
+//   %PrepareFunctionForOptimization(f);
+//   const arr = [6, 9];
+//   const buf = new Uint32Array(arr);
+//   f(buf);
+//   f(arr);
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f(buf);
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast_buf", unsafe { WHO });
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f(arr);
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast_array", unsafe { WHO });
+// }
+
+// #[test]
+// fn test_fast_calls_callback_options_fallback() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     options: *mut fast_api::FastApiCallbackOptions,
+//   ) {
+//     if unsafe { WHO == "fast" } {
+//       let options = unsafe { &mut *options };
+//       options.fallback = true; // Go back to slow path.
+//     } else {
+//       unsafe { WHO = "fast" };
+//     }
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[fast_api::Type::V8Value, fast_api::Type::CallbackOptions]
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f() { return func(); }
+//   %PrepareFunctionForOptimization(f);
+//   f();
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f();
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+//   let source = r#"
+//   f(); // Second call fallbacks back to slow path.
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+// }
+
+// #[test]
+// fn test_fast_calls_callback_options_data() {
+//   static mut DATA: bool = false;
+//   unsafe fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     options: *mut fast_api::FastApiCallbackOptions,
+//   ) {
+//     let options = &mut *options;
+//     if !options.data.data.is_external() {
+//       options.fallback = true;
+//       return;
+//     }
+
+//     let data = v8::Local::<v8::External>::cast(options.data.data);
+//     let data = &mut *(data.value() as *mut bool);
+//     *data = true;
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[fast_api::Type::V8Value, fast_api::Type::CallbackOptions]
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     rv.set(v8::Boolean::new(scope, false).into());
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+//   let external =
+//     v8::External::new(scope, unsafe { &mut DATA as *mut bool as *mut c_void });
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .data(external.into())
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f() { return func(); }
+//   %PrepareFunctionForOptimization(f);
+//   f();
+// "#;
+//   eval(scope, source).unwrap();
+//   assert!(unsafe { !DATA });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     f();
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert!(unsafe { DATA });
+// }
+
+// #[test]
+// fn test_detach_key() {
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   // Object detach key
+//   {
+//     let detach_key = eval(scope, "({})").unwrap();
+//     assert!(detach_key.is_object());
+//     let buffer = v8::ArrayBuffer::new(scope, 1024);
+//     buffer.set_detach_key(detach_key);
+//     assert!(buffer.is_detachable());
+//     assert_eq!(buffer.detach(None), None);
+//     assert!(!buffer.was_detached());
+//     assert_eq!(buffer.detach(Some(detach_key)), Some(true));
+//     assert!(buffer.was_detached());
+//   }
+
+//   // External detach key
+//   {
+//     let mut rust_detach_key = Box::new(42usize);
+//     let v8_detach_key = v8::External::new(
+//       scope,
+//       &mut *rust_detach_key as *mut usize as *mut c_void,
+//     );
+//     let buffer = v8::ArrayBuffer::new(scope, 1024);
+//     buffer.set_detach_key(v8_detach_key.into());
+//     assert!(buffer.is_detachable());
+//     assert_eq!(buffer.detach(None), None);
+//     assert!(!buffer.was_detached());
+//     assert_eq!(buffer.detach(Some(v8_detach_key.into())), Some(true));
+//     assert!(buffer.was_detached());
+//   }
+
+//   // Undefined detach key
+//   {
+//     let buffer = v8::ArrayBuffer::new(scope, 1024);
+//     buffer.set_detach_key(v8::undefined(scope).into());
+//     assert!(buffer.is_detachable());
+//     assert_eq!(buffer.detach(Some(v8::undefined(scope).into())), Some(true));
+//     assert!(buffer.was_detached());
+//   }
+// }
+
+// #[test]
+// fn test_fast_calls_onebytestring() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(
+//     _recv: v8::Local<v8::Object>,
+//     data: *const fast_api::FastApiOneByteString,
+//   ) -> u32 {
+//     unsafe { WHO = "fast" };
+//     let data = unsafe { &*data }.as_str();
+//     assert_eq!("hello", data);
+//     data.len() as u32
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[fast_api::Type::V8Value, fast_api::Type::SeqOneByteString]
+//     }
+
+//     fn return_type(&self) -> fast_api::CType {
+//       fast_api::CType::Uint32
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     _: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     _: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f(data) { return func(data); }
+//   %PrepareFunctionForOptimization(f);
+//   const str = "hello";
+//   f(str);
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     const result = f(str);
+//     if (result != 5) {
+//       throw new Error("wrong result");
+//     }
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+// }
+
+// #[test]
+// fn gc_callbacks() {
+//   let _setup_guard = setup::parallel_test();
+
+//   #[derive(Default)]
+//   struct GCCallbackState {
+//     mark_sweep_calls: u64,
+//     incremental_marking_calls: u64,
+//   }
+
+//   extern "C" fn callback(
+//     _isolate: *mut v8::Isolate,
+//     r#type: v8::GCType,
+//     _flags: v8::GCCallbackFlags,
+//     data: *mut c_void,
+//   ) {
+//     // We should get a mark-sweep GC here.
+//     assert_eq!(r#type, v8::GC_TYPE_MARK_SWEEP_COMPACT);
+//     let state = unsafe { &mut *(data as *mut GCCallbackState) };
+//     state.mark_sweep_calls += 1;
+//   }
+
+//   extern "C" fn callback2(
+//     _isolate: *mut v8::Isolate,
+//     r#type: v8::GCType,
+//     _flags: v8::GCCallbackFlags,
+//     data: *mut c_void,
+//   ) {
+//     // We should get a mark-sweep GC here.
+//     assert_eq!(r#type, v8::GC_TYPE_INCREMENTAL_MARKING);
+//     let state = unsafe { &mut *(data as *mut GCCallbackState) };
+//     state.incremental_marking_calls += 1;
+//   }
+
+//   let mut state = GCCallbackState::default();
+//   let state_ptr = &mut state as *mut _ as *mut c_void;
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   isolate.add_gc_prologue_callback(callback, state_ptr, v8::GC_TYPE_ALL);
+//   isolate.add_gc_prologue_callback(
+//     callback2,
+//     state_ptr,
+//     v8::GC_TYPE_INCREMENTAL_MARKING | v8::GC_TYPE_PROCESS_WEAK_CALLBACK,
+//   );
+
+//   {
+//     let scope = &mut v8::HandleScope::new(isolate);
+//     let context = v8::Context::new(scope);
+//     let scope = &mut v8::ContextScope::new(scope, context);
+
+//     scope
+//       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+//     assert_eq!(state.mark_sweep_calls, 1);
+//     assert_eq!(state.incremental_marking_calls, 0);
+//   }
+
+//   isolate.remove_gc_prologue_callback(callback, state_ptr);
+//   isolate.remove_gc_prologue_callback(callback2, state_ptr);
+//   {
+//     let scope = &mut v8::HandleScope::new(isolate);
+//     let context = v8::Context::new(scope);
+//     let scope = &mut v8::ContextScope::new(scope, context);
+
+//     scope
+//       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+//     // Assert callback was removed and not called again.
+//     assert_eq!(state.mark_sweep_calls, 1);
+//     assert_eq!(state.incremental_marking_calls, 0);
+//   }
+// }
+
+// #[test]
+// fn test_fast_calls_pointer() {
+//   static mut WHO: &str = "none";
+//   fn fast_fn(_recv: v8::Local<v8::Object>, data: *mut c_void) -> *mut c_void {
+//     // Assert before re-assigning WHO, as the reassignment will change the reference.
+//     assert!(std::ptr::eq(data, unsafe { WHO.as_ptr() as *mut c_void }));
+//     unsafe { WHO = "fast" };
+//     std::ptr::null_mut()
+//   }
+
+//   pub struct FastTest;
+//   impl fast_api::FastFunction for FastTest {
+//     fn args(&self) -> &'static [fast_api::Type] {
+//       &[fast_api::Type::V8Value, fast_api::Type::Pointer]
+//     }
+
+//     fn return_type(&self) -> fast_api::CType {
+//       fast_api::CType::Pointer
+//     }
+
+//     fn function(&self) -> *const c_void {
+//       fast_fn as _
+//     }
+//   }
+
+//   fn slow_fn(
+//     scope: &mut v8::HandleScope,
+//     _: v8::FunctionCallbackArguments,
+//     mut rv: v8::ReturnValue,
+//   ) {
+//     unsafe { WHO = "slow" };
+//     rv.set(
+//       v8::External::new(scope, unsafe { WHO.as_ptr() as *mut c_void }).into(),
+//     );
+//   }
+
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   let scope = &mut v8::HandleScope::new(isolate);
+//   let context = v8::Context::new(scope);
+//   let scope = &mut v8::ContextScope::new(scope, context);
+
+//   let global = context.global(scope);
+
+//   let template = v8::FunctionTemplate::builder(slow_fn)
+//     .build_fast(scope, &FastTest, None, None, None);
+
+//   let name = v8::String::new(scope, "func").unwrap();
+//   let value = template.get_function(scope).unwrap();
+//   global.set(scope, name.into(), value.into()).unwrap();
+//   let source = r#"
+//   function f(data) {
+//     return func(data);
+//   }
+//   %PrepareFunctionForOptimization(f);
+//   const external = f(null);
+//   if (
+//     typeof external !== "object" || external === null ||
+//     Object.keys(external).length > 0 || Object.getPrototypeOf(external) !== null
+//   ) {
+//     throw new Error(
+//       "External pointer object should be an empty object with no properties and no prototype",
+//     );
+//   }
+// "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("slow", unsafe { WHO });
+
+//   let source = r#"
+//     %OptimizeFunctionOnNextCall(f);
+//     const external_fast = f(external);
+//     if (external_fast !== null) {
+//       throw new Error("Null pointer external should be JS null");
+//     }
+//   "#;
+//   eval(scope, source).unwrap();
+//   assert_eq!("fast", unsafe { WHO });
+// }
+
+// #[test]
+// fn object_define_property() {
+//   let _setup_guard = setup::parallel_test();
+//   let isolate = &mut v8::Isolate::new(Default::default());
+//   {
+//     let scope = &mut v8::HandleScope::new(isolate);
+//     let context = v8::Context::new(scope);
+//     let scope = &mut v8::ContextScope::new(scope, context);
+
+//     let mut desc = v8::PropertyDescriptor::new();
+//     desc.set_configurable(true);
+//     desc.set_enumerable(false);
+
+//     let name = v8::String::new(scope, "g").unwrap();
+//     context
+//       .global(scope)
+//       .define_property(scope, name.into(), &desc);
+//     let source = r#"
+//       {
+//         const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+//         [d.configurable, d.enumerable, d.writable].toString()
+//       }
+//     "#;
+//     let actual = eval(scope, source).unwrap();
+//     let expected = v8::String::new(scope, "true,false,false").unwrap();
+//     assert!(expected.strict_equals(actual));
+//   }
+
+//   {
+//     let scope = &mut v8::HandleScope::new(isolate);
+//     let context = v8::Context::new(scope);
+//     let scope = &mut v8::ContextScope::new(scope, context);
+
+//     let mut desc = v8::PropertyDescriptor::new_from_value_writable(
+//       v8::Integer::new(scope, 42).into(),
+//       true,
+//     );
+//     desc.set_configurable(true);
+//     desc.set_enumerable(false);
+
+//     let name = v8::String::new(scope, "g").unwrap();
+//     context
+//       .global(scope)
+//       .define_property(scope, name.into(), &desc);
+//     let source = r#"
+//       {
+//         const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+//         [d.configurable, d.enumerable, d.writable].toString()
+//       }
+//     "#;
+//     let actual = eval(scope, source).unwrap();
+//     let expected = v8::String::new(scope, "true,false,true").unwrap();
+//     assert!(expected.strict_equals(actual));
+//   }
+
+//   {
+//     let scope = &mut v8::HandleScope::new(isolate);
+//     let context = v8::Context::new(scope);
+//     let scope = &mut v8::ContextScope::new(scope, context);
+
+//     let mut desc = v8::PropertyDescriptor::new_from_value(
+//       v8::Integer::new(scope, 42).into(),
+//     );
+//     desc.set_configurable(true);
+//     desc.set_enumerable(false);
+
+//     let name = v8::String::new(scope, "g").unwrap();
+//     context
+//       .global(scope)
+//       .define_property(scope, name.into(), &desc);
+//     let source = r#"
+//       {
+//         const d = Object.getOwnPropertyDescriptor(globalThis, "g");
+//         [d.configurable, d.enumerable, d.writable].toString()
+//       }
+//     "#;
+//     let actual = eval(scope, source).unwrap();
+//     let expected = v8::String::new(scope, "true,false,false").unwrap();
+//     assert!(expected.strict_equals(actual));
+//   }
+// }

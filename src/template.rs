@@ -380,18 +380,18 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   pub fn build_fast(
     self,
     scope: &mut HandleScope<'s, ()>,
-    overload1: &dyn FastFunction,
+    overload1: &FastFunction,
     c_fn_info1: Option<*const CFunctionInfo>,
-    overload2: Option<&dyn FastFunction>,
+    overload2: Option<&FastFunction>,
     c_fn_info2: Option<*const CFunctionInfo>,
   ) -> Local<'s, FunctionTemplate> {
     let c_fn1 = if let Some(fn_info) = c_fn_info1 {
       fn_info
     } else {
-      let args = CTypeInfo::new_from_slice(overload1.args());
-      let ret = CTypeInfo::new(overload1.return_type());
+      let args = CTypeInfo::new_from_slice(overload1.args);
+      let ret = CTypeInfo::new(overload1.return_type);
       let fn_info = unsafe {
-        CFunctionInfo::new(args.as_ptr(), overload1.args().len(), ret.as_ptr())
+        CFunctionInfo::new(args.as_ptr(), overload1.args.len(), ret.as_ptr())
       };
       fn_info.as_ptr()
     };
@@ -400,14 +400,10 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
       if let Some(fn_info) = c_fn_info2 {
         fn_info
       } else {
-        let args = CTypeInfo::new_from_slice(overload2.args());
-        let ret = CTypeInfo::new(overload2.return_type());
+        let args = CTypeInfo::new_from_slice(overload2.args);
+        let ret = CTypeInfo::new(overload2.return_type);
         let fn_info = unsafe {
-          CFunctionInfo::new(
-            args.as_ptr(),
-            overload2.args().len(),
-            ret.as_ptr(),
-          )
+          CFunctionInfo::new(args.as_ptr(), overload2.args.len(), ret.as_ptr())
         };
         fn_info.as_ptr()
       }
@@ -425,9 +421,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.length,
           ConstructorBehavior::Throw,
           self.side_effect_type,
-          overload1.function(),
+          overload1.function,
           c_fn1,
-          overload2.map_or(null(), |f| f.function()),
+          overload2.map_or(null(), |f| f.function),
           c_fn2,
         )
       })
