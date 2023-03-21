@@ -34,6 +34,7 @@ fn main() {
     "SCCACHE",
     "V8_FORCE_DEBUG",
     "V8_FROM_SOURCE",
+    "PYTHON",
   ];
   for env in envs {
     println!("cargo:rerun-if-env-changed={}", env);
@@ -215,6 +216,7 @@ fn build_v8() {
 
 fn print_gn_args(gn_out_dir: &Path) {
   assert!(Command::new(gn())
+    .arg(format!("--script-executable={}", python()))
     .arg("args")
     .arg(gn_out_dir)
     .arg("--list")
@@ -239,7 +241,7 @@ fn maybe_clone_repo(dest: &str, repo: &str) {
 fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{}-sysroot", arch);
   if !PathBuf::from(sysroot_path).is_dir() {
-    assert!(Command::new("python")
+    assert!(Command::new(python())
       .arg("./build/linux/sysroot_scripts/install-sysroot.py")
       .arg(format!("--arch={}", arch))
       .status()
@@ -277,7 +279,7 @@ fn download_ninja_gn_binaries() {
   let ninja = ninja.with_extension("exe");
 
   if !gn.exists() || !ninja.exists() {
-    assert!(Command::new("python")
+    assert!(Command::new(python())
       .arg("./tools/ninja_gn_binaries.py")
       .arg("--dir")
       .arg(&target_dir)
@@ -382,7 +384,7 @@ fn download_file(url: String, filename: PathBuf) {
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
   println!("Downloading {}", url);
-  let status = Command::new("python")
+  let status = Command::new(python())
     .arg("./tools/download_file.py")
     .arg("--url")
     .arg(&url)
@@ -531,7 +533,7 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path {}", clang_base_path.display());
-  assert!(Command::new("python")
+  assert!(Command::new(python())
     .arg("./tools/clang/scripts/update.py")
     .arg("--output-dir")
     .arg(&clang_base_path)
@@ -638,6 +640,14 @@ fn gn() -> String {
   env::var("GN").unwrap_or_else(|_| "gn".to_owned())
 }
 
+/*
+ * Get the system's python binary - specified via the PYTHON environment
+ * variable or defaulting to `python3`.
+ */
+fn python() -> String {
+  env::var("PYTHON").unwrap_or_else(|_| "python3".to_owned())
+}
+
 type NinjaEnv = Vec<(String, String)>;
 
 fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
@@ -671,6 +681,7 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
     );
     assert!(Command::new(gn())
       .arg(format!("--root={}", dirs.root.display()))
+      .arg(format!("--script-executable={}", python()))
       .arg("gen")
       .arg(&gn_out_dir)
       .arg("--args=".to_owned() + &args)
