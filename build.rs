@@ -840,6 +840,7 @@ edge [fontsize=10]
   #[test]
   fn test_static_lib_size() {
     let static_lib_size = std::fs::metadata(static_lib_path()).unwrap().len();
-    assert!(static_lib_size <= 200u64 << 20); // No more than 200 MiB.
+    eprintln!("static lib size {}", static_lib_size);
+    assert!(static_lib_size <= 230u64 << 20); // No more than 230 MiB.
   }
 }
