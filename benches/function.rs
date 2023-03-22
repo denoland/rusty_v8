@@ -1,5 +1,3 @@
-use std::os::raw::c_void;
-
 fn main() {
   // Skip running benchmarks in debug or CI.
   if cfg!(debug_assertions) || std::env::var("CI").is_ok() {
