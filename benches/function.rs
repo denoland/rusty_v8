@@ -1,5 +1,3 @@
-use std::os::raw::c_void;
-
 fn main() {
   // Skip running benchmarks in debug or CI.
   if cfg!(debug_assertions) || std::env::var("CI").is_ok() {
@@ -67,19 +65,12 @@ fn main() {
     fn fast_fn() -> i32 {
       42
     }
-    pub struct FastCall;
-    impl v8::fast_api::FastFunction for FastCall {
-      fn args(&self) -> &'static [v8::fast_api::Type] {
-        &[v8::fast_api::Type::V8Value]
-      }
-      fn return_type(&self) -> v8::fast_api::CType {
-        v8::fast_api::CType::Int32
-      }
-
-      fn function(&self) -> *const c_void {
-        fast_fn as _
-      }
-    }
+    const FAST_CALL: v8::fast_api::FastFunction =
+      v8::fast_api::FastFunction::new(
+        &[v8::fast_api::Type::V8Value],
+        v8::fast_api::CType::Int32,
+        fast_fn as _,
+      );
     let template = v8::FunctionTemplate::builder(
       |scope: &mut v8::HandleScope,
        _: v8::FunctionCallbackArguments,
@@ -87,7 +78,7 @@ fn main() {
         rv.set(v8::Integer::new(scope, 42).into());
       },
     )
-    .build_fast(scope, &FastCall, None, None, None);
+    .build_fast(scope, &FAST_CALL, None, None, None);
     let name = v8::String::new(scope, "new_fast").unwrap();
     let value = template.get_function(scope).unwrap();
 
