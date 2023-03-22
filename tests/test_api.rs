@@ -15,6 +15,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use v8::fast_api;
+use v8::fast_api::CType;
+use v8::fast_api::Type::*;
 use v8::inspector::ChannelBase;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
@@ -8301,8 +8303,6 @@ fn host_create_shadow_realm_context_callback() {
 
 #[test]
 fn test_fast_calls() {
-  use fast_api::Type::*;
-
   static mut WHO: &str = "none";
   fn fast_fn(_recv: v8::Local<v8::Object>, a: u32, b: u32) -> u32 {
     unsafe { WHO = "fast" };
@@ -8430,12 +8430,7 @@ fn test_fast_calls_arraybuffer() {
   }
 
   const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[
-      V8Value,
-      Uint32,
-      Uint32,
-      TypedArray(fast_api::CType::Uint32),
-    ],
+    &[V8Value, Uint32, Uint32, TypedArray(fast_api::CType::Uint32)],
     fast_api::CType::Uint32,
     fast_fn as _,
   );
@@ -9031,11 +9026,11 @@ fn test_fast_calls_pointer() {
     std::ptr::null_mut()
   }
 
-  const FAST_TEST: fast_api::FastFunctionImpl = fast_api::FastFunctionImpl {
-    args: &[fast_api::Type::V8Value, fast_api::Type::Pointer],
-    return_type: fast_api::CType::Pointer,
-    function: fast_fn as _,
-  };
+  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
+    &[V8Value, Pointer],
+    fast_api::CType::Pointer,
+    fast_fn as _,
+  );
 
   fn slow_fn(
     scope: &mut v8::HandleScope,

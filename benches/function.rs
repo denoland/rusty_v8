@@ -67,11 +67,12 @@ fn main() {
     fn fast_fn() -> i32 {
       42
     }
-    const FAST_CALL: v8::fast_api::FastFunction = v8::fast_api::FastFunction::new(
-      &[v8::fast_api::Type::V8Value],
-      v8::fast_api::CType::Int32,
-      fast_fn as _,
-    );
+    const FAST_CALL: v8::fast_api::FastFunction =
+      v8::fast_api::FastFunction::new(
+        &[v8::fast_api::Type::V8Value],
+        v8::fast_api::CType::Int32,
+        fast_fn as _,
+      );
     let template = v8::FunctionTemplate::builder(
       |scope: &mut v8::HandleScope,
        _: v8::FunctionCallbackArguments,
