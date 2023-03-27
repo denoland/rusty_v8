@@ -7706,7 +7706,8 @@ fn backing_store_resizable() {
   let _setup_guard = setup::parallel_test();
 
   let v = vec![1, 2, 3, 4, 5];
-  let store_fixed = v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
+  let store_fixed =
+    v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
   assert!(!store_fixed.is_resizable_by_user_javascript());
 
   let mut isolate = v8::Isolate::new(Default::default());
@@ -7714,7 +7715,8 @@ fn backing_store_resizable() {
   let context = v8::Context::new(&mut scope);
   let mut scope = v8::ContextScope::new(&mut scope, context);
 
-  let ab_val = eval(&mut scope, "new ArrayBuffer(100, {maxByteLength: 200})").unwrap();
+  let ab_val =
+    eval(&mut scope, "new ArrayBuffer(100, {maxByteLength: 200})").unwrap();
   assert!(ab_val.is_array_buffer());
   let ab = v8::Local::<v8::ArrayBuffer>::try_from(ab_val).unwrap();
   let store_resizable = ab.get_backing_store();

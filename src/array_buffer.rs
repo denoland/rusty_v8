@@ -64,7 +64,9 @@ extern "C" {
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
-  fn v8__BackingStore__IsResizableByUserJavaScript(this: *const BackingStore) -> bool;
+  fn v8__BackingStore__IsResizableByUserJavaScript(
+    this: *const BackingStore,
+  ) -> bool;
   fn v8__BackingStore__DELETE(this: *mut BackingStore);
 
   fn std__shared_ptr__v8__BackingStore__COPY(
