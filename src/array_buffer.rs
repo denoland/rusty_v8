@@ -64,6 +64,7 @@ extern "C" {
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
+  fn v8__BackingStore__IsResizableByUserJavaScript(this: *const BackingStore) -> bool;
   fn v8__BackingStore__DELETE(this: *mut BackingStore);
 
   fn std__shared_ptr__v8__BackingStore__COPY(
@@ -303,6 +304,11 @@ impl BackingStore {
   #[inline(always)]
   pub fn is_shared(&self) -> bool {
     unsafe { v8__BackingStore__IsShared(self) }
+  }
+
+  #[inline(always)]
+  pub fn is_resizable_by_user_javascript(&self) -> bool {
+    unsafe { v8__BackingStore__IsResizableByUserJavaScript(self) }
   }
 }
 
