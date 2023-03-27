@@ -306,6 +306,9 @@ impl BackingStore {
     unsafe { v8__BackingStore__IsShared(self) }
   }
 
+  /// Indicates whether the backing store was created for a resizable ArrayBuffer
+  /// or a growable SharedArrayBuffer, and thus may be resized by user
+  /// JavaScript code.
   #[inline(always)]
   pub fn is_resizable_by_user_javascript(&self) -> bool {
     unsafe { v8__BackingStore__IsResizableByUserJavaScript(self) }
