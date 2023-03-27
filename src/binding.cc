@@ -846,6 +846,10 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
 
+bool v8__BackingStore__IsResizableByUserJavaScript(const v8::BackingStore& self) {
+  return ptr_to_local(&self)->IsResizableByUserJavaScript();
+}
+
 void* v8__ArrayBuffer__Data(const v8::ArrayBuffer& self) {
   return ptr_to_local(&self)->Data();
 }
