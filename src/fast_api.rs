@@ -218,13 +218,13 @@ pub struct FastApiOneByteString {
 
 impl FastApiOneByteString {
   #[inline(always)]
-  pub fn as_str(&self) -> &str {
-    // SAFETY: The string is guaranteed to be valid UTF-8.
+  pub fn as_bytes(&self) -> &[u8] {
+    // SAFETY: The data is guaranteed to be valid for the length of the string.
     unsafe {
-      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+      std::slice::from_raw_parts(
         self.data,
         self.length as usize,
-      ))
+      )
     }
   }
 }
