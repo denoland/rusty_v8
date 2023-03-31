@@ -33,11 +33,11 @@ jobs:
             target: x86_64-apple-darwin
             variant: release
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
 
@@ -45,11 +45,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-20.04-xl' || 'ubuntu-18.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
 
