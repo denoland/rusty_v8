@@ -8915,8 +8915,8 @@ fn test_fast_calls_onebytestring() {
     data: *const fast_api::FastApiOneByteString,
   ) -> u32 {
     unsafe { WHO = "fast" };
-    let data = unsafe { &*data }.as_str();
-    assert_eq!("hello", data);
+    let data = unsafe { &*data }.as_bytes();
+    assert_eq!(b"hello", data);
     data.len() as u32
   }
 
