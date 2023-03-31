@@ -220,12 +220,7 @@ impl FastApiOneByteString {
   #[inline(always)]
   pub fn as_bytes(&self) -> &[u8] {
     // SAFETY: The data is guaranteed to be valid for the length of the string.
-    unsafe {
-      std::slice::from_raw_parts(
-        self.data,
-        self.length as usize,
-      )
-    }
+    unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
   }
 }
 
