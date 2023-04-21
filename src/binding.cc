@@ -2039,6 +2039,11 @@ const v8::StackTrace* v8__StackTrace__CurrentStackTrace(v8::Isolate* isolate,
   return local_to_ptr(v8::StackTrace::CurrentStackTrace(isolate, frame_limit));
 }
 
+const v8::String* v8__StackTrace__CurrentScriptNameOrSourceURL(
+  v8::Isolate* isolate) {
+  return local_to_ptr(v8::StackTrace::CurrentScriptNameOrSourceURL(isolate));
+}
+
 int v8__StackTrace__GetFrameCount(const v8::StackTrace& self) {
   return self.GetFrameCount();
 }
