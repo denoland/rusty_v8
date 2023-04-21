@@ -7772,6 +7772,8 @@ fn current_stack_trace() {
 fn current_script_name_or_source_url() {
   let _setup_guard = setup::parallel_test();
 
+  static mut USED: u32 = 0;
+
   fn analyze_script_url_in_stack(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
@@ -7779,6 +7781,7 @@ fn current_script_name_or_source_url() {
   ) {
     let maybe_name = v8::StackTrace::current_script_name_or_source_url(scope);
     assert!(maybe_name.is_some());
+    unsafe { USED = 1};
     assert_eq!(maybe_name.unwrap().to_rust_string_lossy(scope), "foo.js")
   }
 
@@ -7822,6 +7825,7 @@ fn current_script_name_or_source_url() {
   let script =
     v8::Script::compile(scope, source, Some(&script_origin)).unwrap();
   script.run(scope).unwrap();
+  unsafe { assert_eq!(USED, 1) };
 }
 
 #[test]
