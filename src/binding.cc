@@ -1241,6 +1241,10 @@ MaybeBool v8__Object__SetPrototype(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&prototype)));
 }
 
+const v8::String* v8__Object__GetConstructorName(v8::Object& self) {
+  return local_to_ptr(self.GetConstructorName());
+}
+
 MaybeBool v8__Object__CreateDataProperty(const v8::Object& self,
                                          const v8::Context& context,
                                          const v8::Name& key,
