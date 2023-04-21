@@ -5720,6 +5720,45 @@ fn take_heap_snapshot() {
 }
 
 #[test]
+fn get_constructor_name() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  fn check_ctor_name(
+    scope: &mut v8::HandleScope,
+    script: &str,
+    expected_name: &str,
+  ) {
+    let val = eval(scope, script).unwrap();
+    let obj: v8::Local<v8::Object> = val.try_into().unwrap();
+    assert_eq!(
+      obj.get_constructor_name().to_rust_string_lossy(scope),
+      expected_name
+    );
+  }
+
+  let code = r#"
+  function Parent() {};
+  function Child() {};
+  Child.prototype = new Parent();
+  Child.prototype.constructor = Child;
+  var outer = { inner: (0, function() { }) };
+  var p = new Parent();
+  var c = new Child();
+  var x = new outer.inner();
+  var proto = Child.prototype;
+  "#;
+  eval(scope, code).unwrap();
+  check_ctor_name(scope, "p", "Parent");
+  check_ctor_name(scope, "c", "Child");
+  check_ctor_name(scope, "x", "outer.inner");
+  check_ctor_name(scope, "proto", "Parent");
+}
+
+#[test]
 fn test_prototype_api() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

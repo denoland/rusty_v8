@@ -19,6 +19,7 @@ use crate::Private;
 use crate::PropertyAttribute;
 use crate::PropertyDescriptor;
 use crate::PropertyFilter;
+use crate::String;
 use crate::Value;
 use std::convert::TryFrom;
 use std::ffi::c_void;
@@ -74,6 +75,7 @@ extern "C" {
     context: *const Context,
     prototype: *const Value,
   ) -> MaybeBool;
+  fn v8__Object__GetConstructorName(this: *const Object) -> *const String;
   fn v8__Object__CreateDataProperty(
     this: *const Object,
     context: *const Context,
@@ -293,6 +295,12 @@ impl Object {
       v8__Object__SetPrototype(self, &*scope.get_current_context(), &*prototype)
     }
     .into()
+  }
+
+  /// Returns the name of the function invoked as a constructor for this object.
+  #[inline(always)]
+  pub fn get_constructor_name(&self) -> Local<String> {
+    unsafe { Local::from_raw(v8__Object__GetConstructorName(self)) }.unwrap()
   }
 
   /// Implements CreateDataProperty (ECMA-262, 7.3.4).
