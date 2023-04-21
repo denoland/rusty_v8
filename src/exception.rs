@@ -38,6 +38,9 @@ extern "C" {
     isolate: *mut Isolate,
     frame_limit: int,
   ) -> *const StackTrace;
+  fn v8__StackTrace__CurrentScriptNameOrSourceURL(
+    isolate: *mut Isolate,
+  ) -> *const String;
   fn v8__StackTrace__GetFrameCount(this: *const StackTrace) -> int;
   fn v8__StackTrace__GetFrame(
     this: *const StackTrace,
@@ -83,6 +86,26 @@ impl StackTrace {
     unsafe {
       scope.cast_local(|sd| {
         v8__StackTrace__CurrentStackTrace(sd.get_isolate_ptr(), frame_limit)
+      })
+    }
+  }
+
+  /// Returns the first valid script name or source URL starting at the top of
+  /// the JS stack. The returned string is either an empty handle if no script
+  /// name/url was found or a non-zero-length string.
+  ///
+  /// This method is equivalent to calling StackTrace::CurrentStackTrace and
+  /// walking the resulting frames from the beginning until a non-empty script
+  /// name/url is found. The difference is that this method won't allocate
+  /// a stack trace.
+  ///
+  #[inline(always)]
+  pub fn current_script_name_or_source_url<'s>(
+    scope: &mut HandleScope<'s>,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__StackTrace__CurrentScriptNameOrSourceURL(sd.get_isolate_ptr())
       })
     }
   }

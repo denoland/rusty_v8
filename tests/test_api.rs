@@ -7769,6 +7769,66 @@ fn current_stack_trace() {
 }
 
 #[test]
+fn current_script_name_or_source_url() {
+  let _setup_guard = setup::parallel_test();
+
+  static mut USED: u32 = 0;
+
+  fn analyze_script_url_in_stack(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    _rv: v8::ReturnValue,
+  ) {
+    let maybe_name = v8::StackTrace::current_script_name_or_source_url(scope);
+    assert!(maybe_name.is_some());
+    unsafe { USED = 1 };
+    assert_eq!(maybe_name.unwrap().to_rust_string_lossy(scope), "foo.js")
+  }
+
+  // Setup isolate
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let key = v8::String::new(scope, "analyzeScriptURLInStack").unwrap();
+  let tmpl = v8::FunctionTemplate::new(scope, analyze_script_url_in_stack);
+  let obj_template = v8::ObjectTemplate::new(scope);
+  obj_template.set(key.into(), tmpl.into());
+  let context = v8::Context::new_from_template(scope, obj_template);
+
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let src = r#"function foo() {
+    analyzeScriptURLInStack();
+  }
+  foo();"#;
+  let resource_name = v8::String::new(scope, "foo.js").unwrap();
+  let resource_line_offset = 4;
+  let resource_column_offset = 5;
+  let resource_is_shared_cross_origin = true;
+  let script_id = 123;
+  let source_map_url = v8::String::new(scope, "source_map_url").unwrap();
+  let resource_is_opaque = true;
+  let is_wasm = false;
+  let is_module = false;
+
+  let script_origin = v8::ScriptOrigin::new(
+    scope,
+    resource_name.into(),
+    resource_line_offset,
+    resource_column_offset,
+    resource_is_shared_cross_origin,
+    script_id,
+    source_map_url.into(),
+    resource_is_opaque,
+    is_wasm,
+    is_module,
+  );
+  let source = v8::String::new(scope, src).unwrap();
+  let script =
+    v8::Script::compile(scope, source, Some(&script_origin)).unwrap();
+  script.run(scope).unwrap();
+  unsafe { assert_eq!(USED, 1) };
+}
+
+#[test]
 fn instance_of() {
   let _setup_guard = setup::parallel_test();
 
