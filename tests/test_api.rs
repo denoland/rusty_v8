@@ -7781,7 +7781,7 @@ fn current_script_name_or_source_url() {
   ) {
     let maybe_name = v8::StackTrace::current_script_name_or_source_url(scope);
     assert!(maybe_name.is_some());
-    unsafe { USED = 1};
+    unsafe { USED = 1 };
     assert_eq!(maybe_name.unwrap().to_rust_string_lossy(scope), "foo.js")
   }
 
