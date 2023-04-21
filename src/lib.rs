@@ -26,8 +26,6 @@
 
 #[macro_use]
 extern crate bitflags;
-#[macro_use]
-extern crate lazy_static;
 
 mod array_buffer;
 mod array_buffer_view;
