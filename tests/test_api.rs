@@ -1,5 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use std::any::type_name;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -7480,9 +7480,7 @@ fn counter_lookup_callback() {
   unsafe impl Send for Name {}
   unsafe impl Send for Count {}
 
-  lazy_static! {
-    static ref MAP: Arc<Mutex<HashMap<Name, Count>>> = Arc::default();
-  }
+  static MAP: Lazy<Arc<Mutex<HashMap<Name, Count>>>> = Lazy::new(Arc::default);
 
   // |name| points to a static zero-terminated C string.
   extern "C" fn callback(name: *const c_char) -> *mut i32 {
