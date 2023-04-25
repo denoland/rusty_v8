@@ -2913,14 +2913,6 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
   const_cast<v8::HeapSnapshot*>(snapshot)->Delete();
 }
 
-// This is necessary for v8__internal__GetIsolateFromHeapObject() to be
-// reliable enough for our purposes.
-#if UINTPTR_MAX == 0xffffffffffffffff && \
-    !(defined V8_SHARED_RO_HEAP or defined V8_COMPRESS_POINTERS)
-#error V8 must be built with either the 'v8_enable_pointer_compression' or \
-'v8_enable_shared_ro_heap' feature enabled.
-#endif
-
 v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
   namespace i = v8::internal;
   i::Object object(reinterpret_cast<const i::Address&>(data));
