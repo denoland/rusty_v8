@@ -35,6 +35,9 @@ fn main() {
     "V8_FORCE_DEBUG",
     "V8_FROM_SOURCE",
     "PYTHON",
+    "DISABLE_CLANG",
+    "EXTRA_GN_ARGS",
+    "NO_PRINT_GN_ARGS",
   ];
   for env in envs {
     println!("cargo:rerun-if-env-changed={}", env);
@@ -127,7 +130,11 @@ fn build_v8() {
     gn_args.push("host_cpu=\"arm64\"".to_string())
   }
 
-  if let Some(clang_base_path) = find_compatible_system_clang() {
+  if env::var_os("DISABLE_CLANG").is_some() {
+    gn_args.push("is_clang=false".into());
+    // -gline-tables-only is Clang-only
+    gn_args.push("line_tables_only=false".into());
+  } else if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
     gn_args.push("treat_warnings_as_errors=false".to_string());
@@ -210,7 +217,9 @@ fn build_v8() {
   let gn_out = maybe_gen(&gn_root, gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
-  print_gn_args(&gn_out);
+  if env::var_os("NO_PRINT_GN_ARGS").is_none() {
+    print_gn_args(&gn_out);
+  }
   build("rusty_v8", None);
 }
 
@@ -257,11 +266,19 @@ fn platform() -> String {
   let os = "mac";
   #[cfg(target_os = "windows")]
   let os = "windows";
+  #[cfg(not(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "windows"
+  )))]
+  let arch = "unknown";
 
   #[cfg(target_arch = "x86_64")]
   let arch = "amd64";
   #[cfg(target_arch = "aarch64")]
   let arch = "arm64";
+  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+  let arch = "unknown";
 
   format!("{os}-{arch}")
 }
@@ -670,7 +687,11 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
   let gn_out_dir = dirs.out.join("gn_out");
 
   if !gn_out_dir.exists() || !gn_out_dir.join("build.ninja").exists() {
-    let args = gn_args.join(" ");
+    let args = if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
+      format!("{} {}", gn_args.join(" "), extra_args)
+    } else {
+      gn_args.join(" ")
+    };
 
     let path = env::current_dir().unwrap();
     println!("The current directory is {}", path.display());
