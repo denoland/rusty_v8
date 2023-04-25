@@ -50,4 +50,10 @@ default_args = {
   # This is problematic for Deno, which has separate "runtime" and "typescript
   # compiler" snapshots, and sometimes uses them both at the same time.
   v8_enable_shared_ro_heap = false
+
+  # V8 introduced a bug in 11.1 that causes the External Pointer Table to never
+  # be cleaned which causes resource exhaustion. Disabling pointer compression
+  # makes sure that the EPT is not used.
+  # https://bugs.chromium.org/p/v8/issues/detail?id=13640&q=garbage%20collection&can=2
+  v8_enable_pointer_compression = false
 }
