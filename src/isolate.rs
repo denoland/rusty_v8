@@ -543,7 +543,7 @@ impl Isolate {
   // Byte offset inside `Isolate` where the isolate data slots are stored. This
   // should be the same as the value of `kIsolateEmbedderDataOffset` which is
   // defined in `v8-internal.h`.
-  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 23]>();
+  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 61]>();
 
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
