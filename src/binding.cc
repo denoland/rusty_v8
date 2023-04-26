@@ -1994,7 +1994,7 @@ const extern int v8__FunctionCallbackInfo__kArgsLength = 6;
 
 const extern int v8__PropertyCallbackInfo__kArgsLength = 7;
 // NOTE(bartlomieju): V8 made this field private in 11.4
-    // v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
+// v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
 
 bool v8__PropertyCallbackInfo__ShouldThrowOnError(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
