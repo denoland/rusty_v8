@@ -49,7 +49,7 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
 static_assert(sizeof(v8::ScriptCompiler::Source) ==
-                  align_to<size_t>(sizeof(size_t) * 6 + sizeof(int) * 3),
+                  align_to<size_t>(sizeof(size_t) * 9 + sizeof(int) * 2),
               "Source size mismatch");
 
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
@@ -1988,11 +1988,13 @@ const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
   return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
 }
 
-const extern int v8__FunctionCallbackInfo__kArgsLength =
-    v8::FunctionCallbackInfo<v8::Value>::kArgsLength;
+const extern int v8__FunctionCallbackInfo__kArgsLength = 6;
+// NOTE(bartlomieju): V8 made this field private in 11.4
+// v8::FunctionCallbackInfo<v8::Value>::kArgsLength;
 
-const extern int v8__PropertyCallbackInfo__kArgsLength =
-    v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
+const extern int v8__PropertyCallbackInfo__kArgsLength = 7;
+// NOTE(bartlomieju): V8 made this field private in 11.4
+    // v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
 
 bool v8__PropertyCallbackInfo__ShouldThrowOnError(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
