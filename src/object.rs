@@ -2,6 +2,7 @@ use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
 use crate::support::MaybeBool;
+use crate::AccessorConfiguration;
 use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
 use crate::Array;
@@ -25,6 +26,7 @@ use crate::Value;
 use std::convert::TryFrom;
 use std::ffi::c_void;
 use std::num::NonZeroI32;
+use std::ptr::null;
 
 extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *const Object;
@@ -40,13 +42,9 @@ extern "C" {
     context: *const Context,
     key: *const Name,
     getter: AccessorNameGetterCallback,
-  ) -> MaybeBool;
-  fn v8__Object__SetAccessorWithSetter(
-    this: *const Object,
-    context: *const Context,
-    key: *const Name,
-    getter: AccessorNameGetterCallback,
-    setter: AccessorNameSetterCallback,
+    setter: Option<AccessorNameSetterCallback>,
+    data_or_null: *const Value,
+    attr: PropertyAttribute,
   ) -> MaybeBool;
   fn v8__Object__Get(
     this: *const Object,
@@ -435,15 +433,11 @@ impl Object {
     name: Local<Name>,
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
   ) -> Option<bool> {
-    unsafe {
-      v8__Object__SetAccessor(
-        self,
-        &*scope.get_current_context(),
-        &*name,
-        getter.map_fn_to(),
-      )
-    }
-    .into()
+    self.set_accessor_with_configuration(
+      scope,
+      name,
+      AccessorConfiguration::new(getter),
+    )
   }
 
   #[inline(always)]
@@ -454,13 +448,28 @@ impl Object {
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
     setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
   ) -> Option<bool> {
+    self.set_accessor_with_configuration(
+      scope,
+      name,
+      AccessorConfiguration::new(getter).setter(setter),
+    )
+  }
+  #[inline(always)]
+  pub fn set_accessor_with_configuration(
+    &self,
+    scope: &mut HandleScope,
+    name: Local<Name>,
+    configuration: AccessorConfiguration,
+  ) -> Option<bool> {
     unsafe {
-      v8__Object__SetAccessorWithSetter(
+      v8__Object__SetAccessor(
         self,
         &*scope.get_current_context(),
         &*name,
-        getter.map_fn_to(),
-        setter.map_fn_to(),
+        configuration.getter,
+        configuration.setter,
+        configuration.data.map_or_else(null, |p| &*p),
+        configuration.property_attribute,
       )
     }
     .into()

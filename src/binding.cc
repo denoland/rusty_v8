@@ -1126,17 +1126,15 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
-void v8__ObjectTemplate__SetAccessor(const v8::ObjectTemplate& self,
-                                     const v8::Name& key,
-                                     v8::AccessorNameGetterCallback getter) {
-  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter);
-}
-
-void v8__ObjectTemplate__SetAccessorWithSetter(
+void v8__ObjectTemplate__SetAccessor(
     const v8::ObjectTemplate& self, const v8::Name& key,
     v8::AccessorNameGetterCallback getter,
-    v8::AccessorNameSetterCallback setter) {
-  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter);
+    v8::AccessorNameSetterCallback setter,
+    const v8::Value* data_or_null, 
+    v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessor(
+    ptr_to_local(&key), getter, setter,  ptr_to_local(data_or_null), v8::AccessControl::DEFAULT,
+    attr);
 }
 
 void v8__ObjectTemplate__SetNamedPropertyHandler(
@@ -1273,17 +1271,13 @@ MaybeBool v8__Object__DefineProperty(const v8::Object& self,
 MaybeBool v8__Object__SetAccessor(const v8::Object& self,
                                   const v8::Context& context,
                                   const v8::Name& key,
-                                  v8::AccessorNameGetterCallback getter) {
+                                  v8::AccessorNameGetterCallback getter, 
+                                  v8::AccessorNameSetterCallback setter,
+                                  const v8::Value* data_or_null, 
+                                  v8::PropertyAttribute attr) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
-      ptr_to_local(&context), ptr_to_local(&key), getter));
-}
-
-MaybeBool v8__Object__SetAccessorWithSetter(
-    const v8::Object& self, const v8::Context& context, const v8::Name& key,
-    v8::AccessorNameGetterCallback getter,
-    v8::AccessorNameSetterCallback setter) {
-  return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
-      ptr_to_local(&context), ptr_to_local(&key), getter, setter));
+      ptr_to_local(&context), ptr_to_local(&key), getter, setter,
+      ptr_to_local(data_or_null), v8::AccessControl::DEFAULT,attr));
 }
 
 v8::Isolate* v8__Object__GetIsolate(const v8::Object& self) {
