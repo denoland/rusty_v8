@@ -3542,7 +3542,7 @@ fn allow_code_generation_from_strings() {
     let context = v8::Context::new(scope);
     // The code generation is allowed by default
     assert!(context.is_code_generation_from_strings_allowed());
-    // This code will try to access the variable defined in the parent context
+    // This code will try to use generation from strings
     let source = r#"
      eval("const i = 1; i")
     "#;
