@@ -2351,6 +2351,44 @@ fn map() {
 }
 
 #[test]
+fn set() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let set = v8::Set::new(scope);
+    assert_eq!(set.size(), 0);
+
+    {
+      let key = v8::Object::new(scope).into();
+      assert_eq!(set.has(scope, key), Some(false));
+      assert_eq!(set.add(scope, key), Some(set));
+
+      assert_eq!(set.has(scope, key), Some(true));
+      assert_eq!(set.size(), 1);
+    }
+
+    set.clear();
+    assert_eq!(set.size(), 0);
+
+    {
+      let key = v8::String::new(scope, "key").unwrap().into();
+
+      assert_eq!(set.delete(scope, key), Some(false));
+
+      set.add(scope, key);
+      assert_eq!(set.size(), 1);
+
+      assert_eq!(set.delete(scope, key), Some(true));
+      assert_eq!(set.size(), 0);
+    }
+  }
+}
+
+#[test]
 fn array() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

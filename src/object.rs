@@ -19,6 +19,7 @@ use crate::Private;
 use crate::PropertyAttribute;
 use crate::PropertyDescriptor;
 use crate::PropertyFilter;
+use crate::Set;
 use crate::String;
 use crate::Value;
 use std::convert::TryFrom;
@@ -214,6 +215,25 @@ extern "C" {
   ) -> MaybeBool;
   fn v8__Map__Size(map: *const Map) -> usize;
   fn v8__Map__As__Array(this: *const Map) -> *const Array;
+  fn v8__Set__New(isolate: *mut Isolate) -> *const Set;
+  fn v8__Set__Clear(this: *const Set);
+  fn v8__Set__Add(
+    this: *const Set,
+    context: *const Context,
+    key: *const Value,
+  ) -> *const Set;
+  fn v8__Set__Has(
+    this: *const Set,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
+  fn v8__Set__Delete(
+    this: *const Set,
+    context: *const Context,
+    key: *const Value,
+  ) -> MaybeBool;
+  fn v8__Set__Size(map: *const Set) -> usize;
+  fn v8__Set__As__Array(this: *const Set) -> *const Array;
 }
 
 impl Object {
@@ -848,5 +868,60 @@ impl Map {
   #[inline(always)]
   pub fn as_array<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Array> {
     unsafe { scope.cast_local(|_| v8__Map__As__Array(self)) }.unwrap()
+  }
+}
+
+impl Set {
+  #[inline(always)]
+  pub fn new<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Set> {
+    unsafe { scope.cast_local(|sd| v8__Set__New(sd.get_isolate_ptr())) }
+      .unwrap()
+  }
+
+  #[inline(always)]
+  pub fn size(&self) -> usize {
+    unsafe { v8__Set__Size(self) }
+  }
+
+  #[inline(always)]
+  pub fn clear(&self) {
+    unsafe { v8__Set__Clear(self) }
+  }
+
+  #[inline(always)]
+  pub fn add<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+  ) -> Option<Local<'s, Set>> {
+    unsafe {
+      scope.cast_local(|sd| v8__Set__Add(self, sd.get_current_context(), &*key))
+    }
+  }
+
+  #[inline(always)]
+  pub fn has(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Set__Has(self, &*scope.get_current_context(), &*key) }.into()
+  }
+
+  #[inline(always)]
+  pub fn delete(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+  ) -> Option<bool> {
+    unsafe { v8__Set__Delete(self, &*scope.get_current_context(), &*key) }
+      .into()
+  }
+
+  /// Returns an array of length size() * 2, where index N is the Nth key and
+  /// index N + 1 is the Nth value.
+  #[inline(always)]
+  pub fn as_array<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Array> {
+    unsafe { scope.cast_local(|_| v8__Set__As__Array(self)) }.unwrap()
   }
 }

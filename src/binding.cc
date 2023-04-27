@@ -1502,6 +1502,38 @@ const v8::Array* v8__Map__As__Array(const v8::Map& self) {
   return local_to_ptr(self.AsArray());
 }
 
+const v8::Set* v8__Set__New(v8::Isolate* isolate) {
+  return local_to_ptr(v8::Set::New(isolate));
+}
+
+size_t v8__Set__Size(const v8::Set& self) { return self.Size(); }
+
+void v8__Set__Clear(const v8::Set& self) {
+  return ptr_to_local(&self)->Clear();
+}
+
+v8::Set* v8__Set__Add(const v8::Set& self, const v8::Context& context,
+                              const v8::Value& key) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->Add(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+MaybeBool v8__Set__Has(const v8::Set& self, const v8::Context& context,
+                       const v8::Value& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Has(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+MaybeBool v8__Set__Delete(const v8::Set& self, const v8::Context& context,
+                          const v8::Value& key) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Delete(ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+const v8::Array* v8__Set__As__Array(const v8::Set& self) {
+  return local_to_ptr(self.AsArray());
+}
+
 const v8::Number* v8__Number__New(v8::Isolate* isolate, double value) {
   return *v8::Number::New(isolate, value);
 }
