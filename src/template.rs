@@ -658,7 +658,8 @@ impl ObjectTemplate {
     key: Local<Name>,
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
   ) {
-    self.set_accessor_with_configuration(key, AccessorConfiguration::new(getter))
+    self
+      .set_accessor_with_configuration(key, AccessorConfiguration::new(getter))
   }
 
   #[inline(always)]
