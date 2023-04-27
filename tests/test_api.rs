@@ -14,10 +14,10 @@ use std::ptr::{addr_of, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use v8::fast_api;
 use v8::fast_api::CType;
 use v8::fast_api::Type::*;
 use v8::inspector::ChannelBase;
+use v8::{fast_api, AccessorConfiguration};
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -1801,6 +1801,43 @@ fn object_template_set_accessor() {
       assert!(this.set_internal_field(0, value));
     };
 
+    let getter_with_data =
+      |scope: &mut v8::HandleScope,
+       key: v8::Local<v8::Name>,
+       args: v8::PropertyCallbackArguments,
+       mut rv: v8::ReturnValue| {
+        let this = args.this();
+
+        assert_eq!(args.holder(), this);
+        assert!(args.data().is_string());
+        assert!(!args.should_throw_on_error());
+        assert_eq!(args.data().to_rust_string_lossy(scope), "data");
+
+        let expected_key = v8::String::new(scope, "key").unwrap();
+        assert!(key.strict_equals(expected_key.into()));
+
+        rv.set(this.get_internal_field(scope, 0).unwrap());
+      };
+
+    let setter_with_data =
+      |scope: &mut v8::HandleScope,
+       key: v8::Local<v8::Name>,
+       value: v8::Local<v8::Value>,
+       args: v8::PropertyCallbackArguments| {
+        let this = args.this();
+
+        assert_eq!(args.holder(), this);
+        assert!(args.data().is_string());
+        assert!(!args.should_throw_on_error());
+        assert_eq!(args.data().to_rust_string_lossy(scope), "data");
+
+        let expected_key = v8::String::new(scope, "key").unwrap();
+        assert!(key.strict_equals(expected_key.into()));
+
+        assert!(value.is_int32());
+        assert!(this.set_internal_field(0, value));
+      };
+
     let key = v8::String::new(scope, "key").unwrap();
     let name = v8::String::new(scope, "obj").unwrap();
 
@@ -1823,6 +1860,34 @@ fn object_template_set_accessor() {
     let templ = v8::ObjectTemplate::new(scope);
     templ.set_internal_field_count(1);
     templ.set_accessor_with_setter(key.into(), getter, setter);
+
+    let obj = templ.new_instance(scope).unwrap();
+    obj.set_internal_field(0, int.into());
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      obj.into(),
+    );
+    let new_int = v8::Integer::new(scope, 9);
+    eval(scope, "obj.key = 9");
+    assert!(obj
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .strict_equals(new_int.into()));
+    // Falls back on standard setter
+    assert!(eval(scope, "obj.key2 = null; obj.key2").unwrap().is_null());
+
+    // Getter + setter + data
+
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_internal_field_count(1);
+    let data = v8::String::new(scope, "data").unwrap();
+    templ.set_accessor_with_configuration(
+      key.into(),
+      AccessorConfiguration::new(getter_with_data)
+        .setter(setter_with_data)
+        .data(data.into()),
+    );
 
     let obj = templ.new_instance(scope).unwrap();
     obj.set_internal_field(0, int.into());
@@ -2553,6 +2618,218 @@ fn object_set_accessor_with_setter() {
       getter_setter_key.into(),
       getter,
       setter,
+    );
+
+    let int_key = v8::String::new(scope, "int_key").unwrap();
+    let int_value = v8::Integer::new(scope, 42);
+    obj.set(scope, int_key.into(), int_value.into());
+
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(scope, obj_name.into(), obj.into());
+
+    let actual = eval(scope, "obj.getter_setter_key").unwrap();
+    let expected = v8::String::new(scope, "hello").unwrap();
+    assert!(actual.strict_equals(expected.into()));
+
+    eval(scope, "obj.getter_setter_key = 123").unwrap();
+    assert_eq!(
+      obj
+        .get(scope, int_key.into())
+        .unwrap()
+        .to_integer(scope)
+        .unwrap()
+        .value(),
+      123
+    );
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
+  }
+}
+
+#[test]
+fn object_set_accessor_with_setter_with_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    let getter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
+      let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let s = v8::String::new(scope, "hello").unwrap();
+      assert!(rv.get(scope).is_undefined());
+      rv.set(s.into());
+
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let setter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  value: v8::Local<v8::Value>,
+                  args: v8::PropertyCallbackArguments| {
+      println!("setter called");
+
+      let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_undefined());
+      assert!(!args.should_throw_on_error());
+
+      let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let new_value = v8::Local::<v8::Integer>::try_from(value).unwrap();
+      this.set(scope, int_key.into(), new_value.into());
+
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let obj = v8::Object::new(scope);
+
+    let getter_setter_key =
+      v8::String::new(scope, "getter_setter_key").unwrap();
+    obj.set_accessor_with_configuration(
+      scope,
+      getter_setter_key.into(),
+      AccessorConfiguration::new(getter)
+        .setter(setter)
+        .property_attribute(v8::READ_ONLY),
+    );
+
+    let int_key = v8::String::new(scope, "int_key").unwrap();
+    let int_value = v8::Integer::new(scope, 42);
+    obj.set(scope, int_key.into(), int_value.into());
+
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(scope, obj_name.into(), obj.into());
+
+    let actual = eval(scope, "obj.getter_setter_key").unwrap();
+    let expected = v8::String::new(scope, "hello").unwrap();
+    assert!(actual.strict_equals(expected.into()));
+
+    eval(scope, "obj.getter_setter_key = 123").unwrap();
+    assert_eq!(
+      obj
+        .get(scope, int_key.into())
+        .unwrap()
+        .to_integer(scope)
+        .unwrap()
+        .value(),
+      42 //Since it is read only
+    );
+
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+  }
+}
+
+#[test]
+fn object_set_accessor_with_data() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    let getter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue| {
+      let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_string());
+      assert!(!args.should_throw_on_error());
+
+      let data = v8::String::new(scope, "data").unwrap();
+      assert!(data.strict_equals(args.data()));
+
+      let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let s = v8::String::new(scope, "hello").unwrap();
+      assert!(rv.get(scope).is_undefined());
+      rv.set(s.into());
+
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let setter = |scope: &mut v8::HandleScope,
+                  key: v8::Local<v8::Name>,
+                  value: v8::Local<v8::Value>,
+                  args: v8::PropertyCallbackArguments| {
+      println!("setter called");
+
+      let this = args.this();
+
+      assert_eq!(args.holder(), this);
+      assert!(args.data().is_string());
+      assert!(!args.should_throw_on_error());
+
+      let data = v8::String::new(scope, "data").unwrap();
+      assert!(data.strict_equals(args.data()));
+
+      let expected_key = v8::String::new(scope, "getter_setter_key").unwrap();
+      assert!(key.strict_equals(expected_key.into()));
+
+      let int_key = v8::String::new(scope, "int_key").unwrap();
+      let int_value = this.get(scope, int_key.into()).unwrap();
+      let int_value = v8::Local::<v8::Integer>::try_from(int_value).unwrap();
+      assert_eq!(int_value.value(), 42);
+
+      let new_value = v8::Local::<v8::Integer>::try_from(value).unwrap();
+      this.set(scope, int_key.into(), new_value.into());
+
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let obj = v8::Object::new(scope);
+
+    let getter_setter_key =
+      v8::String::new(scope, "getter_setter_key").unwrap();
+
+    let data = v8::String::new(scope, "data").unwrap();
+    obj.set_accessor_with_configuration(
+      scope,
+      getter_setter_key.into(),
+      AccessorConfiguration::new(getter)
+        .setter(setter)
+        .data(data.into()),
     );
 
     let int_key = v8::String::new(scope, "int_key").unwrap();
