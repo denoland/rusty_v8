@@ -620,6 +620,10 @@ bool v8__Value__IsSetIterator(const v8::Value& self) {
   return self.IsSetIterator();
 }
 
+bool v8__Value__IsSetGeneratorObject(const v8::Value& self) {
+  return self.IsGeneratorObject();
+}
+
 bool v8__Value__IsWeakMap(const v8::Value& self) { return self.IsWeakMap(); }
 
 bool v8__Value__IsWeakSet(const v8::Value& self) { return self.IsWeakSet(); }
@@ -1740,6 +1744,14 @@ void v8__Context__SetSecurityToken(v8::Context& self,
 
 void v8__Context__UseDefaultSecurityToken(v8::Context& self) {
   ptr_to_local(&self)->UseDefaultSecurityToken();
+}
+
+void v8__Context__AllowCodeGenerationFromStrings(v8::Context& self, bool allow) {
+   ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow); 
+}
+
+bool v8__Context_IsCodeGenerationFromStringsAllowed(v8::Context& self) {
+   return ptr_to_local(&self)->IsCodeGenerationFromStringsAllowed();
 }
 
 const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,

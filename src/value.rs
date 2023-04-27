@@ -52,6 +52,7 @@ extern "C" {
   fn v8__Value__IsSet(this: *const Value) -> bool;
   fn v8__Value__IsMapIterator(this: *const Value) -> bool;
   fn v8__Value__IsSetIterator(this: *const Value) -> bool;
+  fn v8__Value__IsSetGeneratorObject(this: *const Value) -> bool;
   fn v8__Value__IsWeakMap(this: *const Value) -> bool;
   fn v8__Value__IsWeakSet(this: *const Value) -> bool;
   fn v8__Value__IsArrayBuffer(this: *const Value) -> bool;
@@ -359,6 +360,12 @@ impl Value {
   #[inline(always)]
   pub fn is_set_iterator(&self) -> bool {
     unsafe { v8__Value__IsSetIterator(self) }
+  }
+
+  /// Returns true if this value is a Generator Object.
+  #[inline(always)]
+  pub fn is_generator_object(&self) -> bool {
+    unsafe { v8__Value__IsSetGeneratorObject(self) }
   }
 
   /// Returns true if this value is a WeakMap.
