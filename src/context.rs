@@ -48,6 +48,13 @@ extern "C" {
     value: *const Value,
   );
   pub(super) fn v8__Context__UseDefaultSecurityToken(this: *const Context);
+  pub(super) fn v8__Context__AllowCodeGenerationFromStrings(
+    this: *const Context,
+    allow: bool,
+  );
+  pub(super) fn v8__Context_IsCodeGenerationFromStringsAllowed(
+    this: *const Context,
+  ) -> bool;
 }
 
 impl Context {
@@ -350,6 +357,16 @@ impl Context {
     unsafe {
       v8__Context__UseDefaultSecurityToken(self);
     }
+  }
+
+  pub fn set_allow_generation_from_strings(&self, allow: bool) {
+    unsafe {
+      v8__Context__AllowCodeGenerationFromStrings(self, allow);
+    }
+  }
+
+  pub fn is_code_generation_from_strings_allowed(&self) -> bool {
+    unsafe { v8__Context_IsCodeGenerationFromStringsAllowed(self) }
   }
 }
 

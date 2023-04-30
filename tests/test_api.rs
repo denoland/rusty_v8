@@ -3849,6 +3849,46 @@ fn security_token() {
 }
 
 #[test]
+fn allow_code_generation_from_strings() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    // The code generation is allowed by default
+    assert!(context.is_code_generation_from_strings_allowed());
+    // This code will try to use generation from strings
+    let source = r#"
+     eval("const i = 1; i")
+    "#;
+    {
+      let scope = &mut v8::ContextScope::new(scope, context);
+
+      let try_catch = &mut v8::TryCatch::new(scope);
+      let result = eval(try_catch, source).unwrap();
+      let expected = v8::Integer::new(try_catch, 1);
+      assert!(expected.strict_equals(result));
+      assert!(!try_catch.has_caught());
+    }
+    context.set_allow_generation_from_strings(false);
+    assert!(!context.is_code_generation_from_strings_allowed());
+    {
+      let scope = &mut v8::ContextScope::new(scope, context);
+
+      let try_catch = &mut v8::TryCatch::new(scope);
+      let result = eval(try_catch, source);
+      assert!(try_catch.has_caught());
+      let exc = try_catch.exception().unwrap();
+      let exc = exc.to_string(try_catch).unwrap();
+      let exc = exc.to_rust_string_lossy(try_catch);
+      assert!(exc
+        .contains("Code generation from strings disallowed for this context"));
+      assert!(result.is_none());
+    }
+  }
+}
+
+#[test]
 fn allow_atomics_wait() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -5264,6 +5304,22 @@ fn value_checker() {
 
     let value = eval(scope, "new Set().entries()").unwrap();
     assert!(value.is_set_iterator());
+    assert!(value == value);
+    assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
+    assert!(value != v8::Object::new(scope));
+
+    let value = eval(
+      scope,
+      r#"
+    function* values() {
+      for (var i = 0; i < arguments.length; i++) {
+        yield arguments[i];
+      }
+    }
+    values(1, 2, 3)"#,
+    )
+    .unwrap();
+    assert!(value.is_generator_object());
     assert!(value == value);
     assert!(value == v8::Local::<v8::Object>::try_from(value).unwrap());
     assert!(value != v8::Object::new(scope));
