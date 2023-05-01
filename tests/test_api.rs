@@ -9657,3 +9657,124 @@ fn object_define_property() {
     assert!(expected.strict_equals(actual));
   }
 }
+
+#[test]
+fn disallow_javascript_execution_scope() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  // We can run JS before the scope begins.
+  assert_eq!(
+    eval(&mut scope, "42").unwrap().uint32_value(&mut scope),
+    Some(42)
+  );
+
+  {
+    let try_catch = &mut v8::TryCatch::new(&mut scope);
+    {
+      let scope = &mut v8::DisallowJavascriptExecutionScope::new(
+        try_catch,
+        v8::OnFailure::ThrowOnFailure,
+      );
+      assert!(eval(scope, "42").is_none());
+    }
+    assert!(try_catch.has_caught());
+    try_catch.reset();
+  }
+
+  // And we can run JS after the scope ends.
+  assert_eq!(
+    eval(&mut scope, "42").unwrap().uint32_value(&mut scope),
+    Some(42)
+  );
+}
+
+// TODO: Test DisallowJavascriptExecutionScope with OnFailure::CrashOnFailure
+// and OnFailure::DumpOnFailure. #[should_panic] obviously doesn't work on
+// those.
+
+#[test]
+fn allow_javascript_execution_scope() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  let disallow_scope = &mut v8::DisallowJavascriptExecutionScope::new(
+    &mut scope,
+    v8::OnFailure::CrashOnFailure,
+  );
+  let allow_scope = &mut v8::AllowJavascriptExecutionScope::new(disallow_scope);
+  assert_eq!(
+    eval(allow_scope, "42").unwrap().uint32_value(allow_scope),
+    Some(42)
+  );
+}
+
+#[test]
+fn allow_scope_in_read_host_object() {
+  // The scope that is passed to ValueDeserializerImpl::read_host_object is
+  // internally a DisallowJavascriptExecutionScope, so an allow scope must be
+  // created in order to run JS code in that callback.
+  struct Serializer;
+  impl v8::ValueSerializerImpl for Serializer {
+    fn write_host_object<'s>(
+      &mut self,
+      _scope: &mut v8::HandleScope<'s>,
+      _object: v8::Local<'s, v8::Object>,
+      _value_serializer: &mut dyn v8::ValueSerializerHelper,
+    ) -> Option<bool> {
+      // Doesn't look at the object or writes anything.
+      Some(true)
+    }
+
+    fn throw_data_clone_error<'s>(
+      &mut self,
+      _scope: &mut v8::HandleScope<'s>,
+      _message: v8::Local<'s, v8::String>,
+    ) {
+      todo!()
+    }
+  }
+
+  struct Deserializer;
+  impl v8::ValueDeserializerImpl for Deserializer {
+    fn read_host_object<'s>(
+      &mut self,
+      scope: &mut v8::HandleScope<'s>,
+      _value_deserializer: &mut dyn v8::ValueDeserializerHelper,
+    ) -> Option<v8::Local<'s, v8::Object>> {
+      let scope2 = &mut v8::AllowJavascriptExecutionScope::new(scope);
+      let value = eval(scope2, "{}").unwrap();
+      let object = v8::Local::<v8::Object>::try_from(value).unwrap();
+      Some(object)
+    }
+  }
+
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  let serialized = {
+    let mut serializer =
+      v8::ValueSerializer::new(&mut scope, Box::new(Serializer));
+    serializer
+      .write_value(context, v8::Object::new(&mut scope).into())
+      .unwrap();
+    serializer.release()
+  };
+
+  let mut deserializer =
+    v8::ValueDeserializer::new(&mut scope, Box::new(Deserializer), &serialized);
+  let value = deserializer.read_value(context).unwrap();
+  assert!(value.is_object());
+}

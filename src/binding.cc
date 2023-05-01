@@ -64,6 +64,14 @@ static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
               "TryCatch size mismatch");
 
+static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) ==
+                  sizeof(size_t) * 2,
+              "DisallowJavascriptExecutionScope size mismatch");
+
+static_assert(sizeof(v8::Isolate::AllowJavascriptExecutionScope) ==
+                  sizeof(size_t) * 2,
+              "AllowJavascriptExecutionScope size mismatch");
+
 static_assert(sizeof(v8::Location) == sizeof(int) * 2,
               "Location size mismatch");
 
@@ -2187,6 +2195,30 @@ void v8__TryCatch__SetVerbose(v8::TryCatch* self, bool value) {
 
 void v8__TryCatch__SetCaptureMessage(v8::TryCatch* self, bool value) {
   self->SetCaptureMessage(value);
+}
+
+void v8__DisallowJavascriptExecutionScope__CONSTRUCT(
+    uninit_t<v8::Isolate::DisallowJavascriptExecutionScope>* buf,
+    v8::Isolate* isolate,
+    v8::Isolate::DisallowJavascriptExecutionScope::OnFailure on_failure) {
+  construct_in_place<v8::Isolate::DisallowJavascriptExecutionScope>(
+      buf, isolate, on_failure);
+}
+
+void v8__DisallowJavascriptExecutionScope__DESTRUCT(
+    v8::Isolate::DisallowJavascriptExecutionScope* self) {
+  self->~DisallowJavascriptExecutionScope();
+}
+
+void v8__AllowJavascriptExecutionScope__CONSTRUCT(
+    uninit_t<v8::Isolate::AllowJavascriptExecutionScope>* buf,
+    v8::Isolate* isolate) {
+  construct_in_place<v8::Isolate::AllowJavascriptExecutionScope>(buf, isolate);
+}
+
+void v8__AllowJavascriptExecutionScope__DESTRUCT(
+    v8::Isolate::AllowJavascriptExecutionScope* self) {
+  self->~AllowJavascriptExecutionScope();
 }
 
 #define V(NAME)                                                          \
