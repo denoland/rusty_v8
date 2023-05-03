@@ -21,25 +21,25 @@ function extractVersion() {
   return `${major}.${minor}.${build}.${patch}`;
 }
 
-await run(["git", "checkout", "origin/main"]);
-await run(["git", "submodule", "update", "--init", "--recursive", "v8"]);
+await run("git", ["checkout", "origin/main"]);
+await run("git", ["submodule", "update", "--init", "--recursive", "v8"]);
 
 const currentVersion = extractVersion();
 console.log(`Starting auto update. Currently on ${currentVersion}`);
 
-async function run(cmd: string[], cwd?: string) {
-  console.log("$", ...cmd);
-  const proc = Deno.run({ cmd, cwd });
-  const status = await proc.status();
+async function run(cmd: string, args: string[], cwd?: string) {
+  console.log("$", cmd, ...args);
+  const proc = new Deno.Command(cmd, { args, cwd });
+  const status = await proc.output();
   if (!status.success) {
-    console.error(`Failed to run ${cmd.join(" ")}`);
+    console.error(`Failed to run ${cmd} ${args.join(" ")}`);
     Deno.exit(1);
   }
 }
 
 // Update v8 submodule
-await run(["git", "fetch", `origin`, V8_TRACKING_BRANCH], "./v8");
-await run(["git", "checkout", `origin/${V8_TRACKING_BRANCH}`], "./v8");
+await run("git", ["fetch", `origin`, V8_TRACKING_BRANCH], "./v8");
+await run("git", ["checkout", `origin/${V8_TRACKING_BRANCH}`], "./v8");
 
 const newVersion = extractVersion();
 if (currentVersion == newVersion) {
@@ -58,30 +58,29 @@ readme = readme.replace(
 Deno.writeTextFileSync("README.md", readme);
 
 // Stage the changes
-await run(["git", "add", "v8", "README.md"]);
+await run("git", ["add", "v8", "README.md"]);
 
 // Commit the changes
-await run(["git", "commit", "-m", `Rolling to V8 ${newVersion}`]);
+await run("git", ["commit", "-m", `Rolling to V8 ${newVersion}`]);
 
 // Push to the `denoland/rusty_v8#autoroll`
-await run(["git", "push", "origin", `+HEAD:refs/heads/${AUTOROLL_BRANCH}`]);
+await run("git", ["push", "origin", `+HEAD:refs/heads/${AUTOROLL_BRANCH}`]);
 
 // Fetch the remote branch so `gh` cli can find it
-await run(["git", "fetch", "origin", AUTOROLL_BRANCH]);
+await run("git", ["fetch", "origin", AUTOROLL_BRANCH]);
 
-const proc = Deno.run({
-  cmd: ["gh", "pr", "view", AUTOROLL_BRANCH, "--json", "state"],
+const proc = new Deno.Command("gh", {
+  args: ["pr", "view", AUTOROLL_BRANCH, "--json", "state"],
   stdout: "piped",
 });
-const status = await proc.status();
-const isPrOpen = status.success
-  ? JSON.parse(new TextDecoder().decode(await proc.output())).state === "OPEN"
+const output = await proc.output();
+const isPrOpen = output.success
+  ? JSON.parse(new TextDecoder().decode(output.stdout)).state === "OPEN"
   : false;
 
 if (isPrOpen) {
   console.log("Already open PR. Editing existing PR.");
-  await run([
-    "gh",
+  await run("gh", [
     "pr",
     "edit",
     AUTOROLL_BRANCH,
@@ -90,8 +89,7 @@ if (isPrOpen) {
   ]);
 } else {
   console.log("No PR open. Creating a new PR.");
-  await run([
-    "gh",
+  await run("gh", [
     "pr",
     "create",
     "--title",
