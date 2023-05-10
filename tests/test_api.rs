@@ -9657,3 +9657,119 @@ fn object_define_property() {
     assert!(expected.strict_equals(actual));
   }
 }
+
+#[test]
+fn bubbling_up_exception() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  fn boom_fn(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    _retval: v8::ReturnValue,
+  ) {
+    let msg = v8::String::new(scope, "boom").unwrap();
+    let exception = v8::Exception::type_error(scope, msg);
+    scope.throw_exception(exception);
+  }
+
+  let global_proxy = scope.get_current_context().global(scope);
+  let identifier = v8::String::new(scope, "boom").unwrap();
+  let value = v8::FunctionTemplate::new(scope, boom_fn)
+    .get_function(scope)
+    .unwrap();
+  global_proxy.set(scope, identifier.into(), value.into());
+
+  let code = r#"
+try {
+    boom()
+} catch (e) {
+    //
+}
+"#;
+
+  let source = v8::String::new(scope, code).unwrap();
+  let script = v8::Script::compile(scope, source, None).unwrap();
+
+  let scope = &mut v8::TryCatch::new(scope);
+  let _result = script.run(scope);
+  // This fails in debug build, but passes in release build.
+  assert!(!scope.has_caught());
+  assert!(scope.exception().is_none());
+}
+
+#[test]
+fn exception_thrown_but_continues_execution() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  fn call_object_property<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    value: v8::Local<v8::Value>,
+    property: &str,
+  ) -> Option<v8::Local<'s, v8::Value>> {
+    let object: v8::Local<v8::Object> = value.try_into().unwrap();
+    let ident = v8::String::new(scope, property).unwrap().into();
+    let prop = object.get(scope, ident).unwrap();
+    let func: v8::Local<v8::Function> = prop.try_into().unwrap();
+    let recv = scope.get_current_context().global(scope).into();
+
+    let retval = func.call(scope, recv, &[]);
+    return retval;
+  }
+
+  fn print_fn(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    _retval: v8::ReturnValue,
+  ) {
+    let local_arg = args.get(0);
+    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    let print_str = if local_arg.is_string() {
+      local_arg.to_rust_string_lossy(scope)
+    } else if local_arg.is_object() {
+      let obj_repr = call_object_property(scope, local_arg, "repr");
+      if obj_repr.is_none() {
+        return;
+      }
+      "[".to_owned() + &obj_repr.unwrap().to_rust_string_lossy(scope) + "]"
+    } else {
+      "Unknown type".to_owned()
+    };
+    println!("{print_str}");
+  }
+
+  let global_proxy = scope.get_current_context().global(scope);
+  let identifier = v8::String::new(scope, "print").unwrap();
+  let value = v8::FunctionTemplate::new(scope, print_fn)
+    .get_function(scope)
+    .unwrap();
+  global_proxy.set(scope, identifier.into(), value.into());
+
+  let code = r#"
+  let object_with_ok_repr = {
+      repr: function() { return "object_with_ok_repr"; }
+  };
+  print(object_with_ok_repr);
+  let object_with_broken_repr = {
+      repr: function() { boom }
+  };
+  print(object_with_broken_repr);
+  print("this should not be reachable");
+  "#;
+
+  let source = v8::String::new(scope, code).unwrap();
+  let script = v8::Script::compile(scope, source, None).unwrap();
+
+  let scope = &mut v8::TryCatch::new(scope);
+  let _result = script.run(scope);
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
+}
