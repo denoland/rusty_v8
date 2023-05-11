@@ -80,7 +80,7 @@ impl Script {
   /// Runs the script returning the resulting value. It will be run in the
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
-  #[inline(always)]
+  #[inline]
   pub fn run<'s>(
     &self,
     scope: &mut HandleScope<'s>,
