@@ -9658,6 +9658,7 @@ fn object_define_property() {
   }
 }
 
+// Regression test for https://github.com/denoland/deno/issues/19021
 #[test]
 fn bubbling_up_exception() {
   let _setup_guard = setup::parallel_test();
@@ -9701,6 +9702,7 @@ try {
   assert!(scope.exception().is_none());
 }
 
+// Regression test for https://github.com/denoland/rusty_v8/issues/1226
 #[test]
 fn exception_thrown_but_continues_execution() {
   let _setup_guard = setup::parallel_test();
@@ -9723,7 +9725,7 @@ fn exception_thrown_but_continues_execution() {
     let recv = scope.get_current_context().global(scope).into();
 
     let retval = func.call(scope, recv, &[]);
-    return retval;
+    retval
   }
 
   fn print_fn(
