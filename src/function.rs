@@ -763,7 +763,7 @@ impl Function {
     Self::builder_raw(callback).build(scope)
   }
 
-  #[inline(always)]
+  #[inline]
   pub fn call<'s>(
     &self,
     scope: &mut HandleScope<'s>,

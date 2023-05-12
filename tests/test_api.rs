@@ -9702,6 +9702,61 @@ try {
   assert!(scope.exception().is_none());
 }
 
+// Regression test for https://github.com/denoland/deno/issues/19021
+#[test]
+fn bubbling_up_exception_in_function_call() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  fn boom_fn(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    _retval: v8::ReturnValue,
+  ) {
+    let msg = v8::String::new(scope, "boom").unwrap();
+    let exception = v8::Exception::type_error(scope, msg);
+    scope.throw_exception(exception);
+  }
+
+  let global_proxy = scope.get_current_context().global(scope);
+  let identifier = v8::String::new(scope, "boom").unwrap();
+  let value = v8::FunctionTemplate::new(scope, boom_fn)
+    .get_function(scope)
+    .unwrap();
+  global_proxy.set(scope, identifier.into(), value.into());
+
+  let code = r#"
+(function () {
+  return function callBoom() {
+    try {
+        boom()
+    } catch (e) {
+        //
+    }
+  }
+})();
+"#;
+
+  let source = v8::String::new(scope, code).unwrap();
+  let script = v8::Script::compile(scope, source, None).unwrap();
+
+  let scope = &mut v8::TryCatch::new(scope);
+  let call_boom_fn_val = script.run(scope).unwrap();
+  let call_boom_fn =
+    v8::Local::<v8::Function>::try_from(call_boom_fn_val).unwrap();
+
+  let scope = &mut v8::TryCatch::new(scope);
+  let this = v8::undefined(scope);
+  let result = call_boom_fn.call(scope, this.into(), &[]).unwrap();
+  assert!(result.is_undefined());
+  // This fails in debug build, but passes in release build.
+  assert!(!scope.has_caught());
+  assert!(scope.exception().is_none());
+}
+
 // Regression test for https://github.com/denoland/rusty_v8/issues/1226
 #[test]
 fn exception_thrown_but_continues_execution() {
