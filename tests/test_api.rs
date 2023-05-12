@@ -9745,7 +9745,8 @@ fn bubbling_up_exception_in_function_call() {
 
   let scope = &mut v8::TryCatch::new(scope);
   let call_boom_fn_val = script.run(scope).unwrap();
-  let call_boom_fn = v8::Local::<v8::Function>::try_from(call_boom_fn_val).unwrap();
+  let call_boom_fn =
+    v8::Local::<v8::Function>::try_from(call_boom_fn_val).unwrap();
 
   let scope = &mut v8::TryCatch::new(scope);
   let this = v8::undefined(scope);
