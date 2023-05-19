@@ -7231,16 +7231,7 @@ fn wasm_streaming_callback() {
 
   ws.finish();
   assert!(!scope.has_pending_background_tasks());
-  assert!(global.get(scope, name).unwrap().is_null());
 
-  while v8::Platform::pump_message_loop(
-    &v8::V8::get_current_platform(),
-    scope,
-    false, // don't block if there are no tasks
-  ) {}
-
-  // We did not set wasm resolve callback so V8 uses the default one that
-  // runs microtasks automatically.
   let result = global.get(scope, name).unwrap();
   assert!(result.is_wasm_module_object());
 
