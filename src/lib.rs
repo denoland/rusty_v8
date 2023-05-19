@@ -23,6 +23,7 @@
 //! ```
 
 #![allow(clippy::missing_safety_doc)]
+#![cfg_attr(feature = "unstable_type_name", feature(const_type_name))]
 
 #[macro_use]
 extern crate bitflags;

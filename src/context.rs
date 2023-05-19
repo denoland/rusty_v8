@@ -57,6 +57,16 @@ extern "C" {
   ) -> bool;
 }
 
+#[cfg(not(feature = "unstable_type_name"))]
+fn type_id<T: 'static>() -> TypeId {
+  TypeId::of::<T>()
+}
+
+#[cfg(feature = "unstable_type_name")]
+const fn type_id<T: 'static>() -> &'static str {
+  std::any::type_name::<T>()
+}
+
 impl Context {
   const ANNEX_SLOT: int = 1;
   const INTERNAL_SLOT_COUNT: int = 1;
@@ -204,7 +214,7 @@ impl Context {
     isolate: &'a mut Isolate,
   ) -> Option<&'a T> {
     if let Some(annex) = self.get_annex_mut(isolate, false) {
-      annex.slots.get(&TypeId::of::<T>()).map(|slot| {
+      annex.slots.get(&type_id::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
         unsafe { slot.borrow::<T>() }
@@ -221,7 +231,7 @@ impl Context {
     isolate: &'a mut Isolate,
   ) -> Option<&'a mut T> {
     if let Some(annex) = self.get_annex_mut(isolate, false) {
-      annex.slots.get_mut(&TypeId::of::<T>()).map(|slot| {
+      annex.slots.get_mut(&type_id::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
         unsafe { slot.borrow_mut::<T>() }
@@ -252,7 +262,7 @@ impl Context {
       .get_annex_mut(isolate, true)
       .unwrap()
       .slots
-      .insert(TypeId::of::<T>(), RawSlot::new(value))
+      .insert(type_id::<T>(), RawSlot::new(value))
       .is_none()
   }
 
@@ -264,7 +274,7 @@ impl Context {
     isolate: &'a mut Isolate,
   ) -> Option<T> {
     if let Some(annex) = self.get_annex_mut(isolate, false) {
-      annex.slots.remove(&TypeId::of::<T>()).map(|slot| {
+      annex.slots.remove(&type_id::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
         unsafe { slot.into_inner::<T>() }
@@ -371,7 +381,10 @@ impl Context {
 }
 
 struct ContextAnnex {
+  #[cfg(not(feature = "unstable_type_name"))]
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
+  #[cfg(feature = "unstable_type_name")]
+  slots: HashMap<&'static str, RawSlot>,
   // In order to run the finalizer that drops the ContextAnnex when the Context
   // is GC'd, the corresponding Weak must be kept alive until that time.
   self_weak: Weak<Context>,
