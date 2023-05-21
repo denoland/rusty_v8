@@ -7342,10 +7342,13 @@ fn run_with_rust_allocator() {
   let count = Arc::new(AtomicUsize::new(0));
 
   let _setup_guard = setup::parallel_test();
+  let create_params = v8::CreateParams::default();
+  assert!(!create_params.has_set_array_buffer_allocator());
   let create_params =
-    v8::CreateParams::default().array_buffer_allocator(unsafe {
+    create_params.array_buffer_allocator(unsafe {
       v8::new_rust_allocator(Arc::into_raw(count.clone()), vtable)
     });
+  assert!(create_params.has_set_array_buffer_allocator());
   let isolate = &mut v8::Isolate::new(create_params);
 
   {
