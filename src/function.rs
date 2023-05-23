@@ -18,6 +18,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::Name;
 use crate::Object;
+use crate::PropertyDescriptor;
 use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
@@ -121,7 +122,7 @@ impl<'cb> ReturnValue<'cb> {
   }
 
   #[inline(always)]
-  fn from_property_callback_info(info: &'cb PropertyCallbackInfo) -> Self {
+  pub fn from_property_callback_info(info: &'cb PropertyCallbackInfo) -> Self {
     let nn = info.get_return_value_non_null();
     Self(nn, PhantomData)
   }
@@ -538,12 +539,10 @@ where
   }
 }
 
-/// AccessorNameGetterCallback is used as callback functions when getting a
-/// particular property. See Object and ObjectTemplate's method SetAccessor.
-pub type AccessorNameGetterCallback<'s> =
+pub(crate) type NamedGetterCallback<'s> =
   extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for AccessorNameGetterCallback<'_>
+impl<F> MapFnFrom<F> for NamedGetterCallback<'_>
 where
   F: UnitType
     + Fn(&mut HandleScope, Local<Name>, PropertyCallbackArguments, ReturnValue),
@@ -560,13 +559,19 @@ where
   }
 }
 
-pub type AccessorNameSetterCallback<'s> =
+pub(crate) type NamedSetterCallback<'s> =
   extern "C" fn(Local<'s, Name>, Local<'s, Value>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for AccessorNameSetterCallback<'_>
+impl<F> MapFnFrom<F> for NamedSetterCallback<'_>
 where
   F: UnitType
-    + Fn(&mut HandleScope, Local<Name>, Local<Value>, PropertyCallbackArguments),
+    + Fn(
+      &mut HandleScope,
+      Local<Name>,
+      Local<Value>,
+      PropertyCallbackArguments,
+      ReturnValue,
+    ),
 {
   fn mapping() -> Self {
     let f = |key: Local<Name>,
@@ -575,14 +580,15 @@ where
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
-      (F::get())(scope, key, value, args);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, value, args, rv);
     };
     f.to_c_fn()
   }
 }
 
-//Should return an Array in Return Value
-pub type PropertyEnumeratorCallback<'s> =
+// Should return an Array in Return Value
+pub(crate) type PropertyEnumeratorCallback<'s> =
   extern "C" fn(*const PropertyCallbackInfo);
 
 impl<F> MapFnFrom<F> for PropertyEnumeratorCallback<'_>
@@ -601,12 +607,42 @@ where
   }
 }
 
-/// IndexedPropertyGetterCallback is used as callback functions when registering a named handler
-/// particular property. See Object and ObjectTemplate's method SetHandler.
-pub type IndexedPropertyGetterCallback<'s> =
+pub(crate) type NamedDefinerCallback<'s> = extern "C" fn(
+  Local<'s, Name>,
+  *const PropertyDescriptor,
+  *const PropertyCallbackInfo,
+);
+
+impl<F> MapFnFrom<F> for NamedDefinerCallback<'_>
+where
+  F: UnitType
+    + Fn(
+      &mut HandleScope,
+      Local<Name>,
+      &PropertyDescriptor,
+      PropertyCallbackArguments,
+      ReturnValue,
+    ),
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>,
+             desc: *const PropertyDescriptor,
+             info: *const PropertyCallbackInfo| {
+      let info = unsafe { &*info };
+      let scope = &mut unsafe { CallbackScope::new(info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let desc = unsafe { &*desc };
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, desc, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+pub(crate) type IndexedGetterCallback<'s> =
   extern "C" fn(u32, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for IndexedPropertyGetterCallback<'_>
+impl<F> MapFnFrom<F> for IndexedGetterCallback<'_>
 where
   F: UnitType
     + Fn(&mut HandleScope, u32, PropertyCallbackArguments, ReturnValue),
@@ -623,13 +659,19 @@ where
   }
 }
 
-pub type IndexedPropertySetterCallback<'s> =
+pub(crate) type IndexedSetterCallback<'s> =
   extern "C" fn(u32, Local<'s, Value>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for IndexedPropertySetterCallback<'_>
+impl<F> MapFnFrom<F> for IndexedSetterCallback<'_>
 where
   F: UnitType
-    + Fn(&mut HandleScope, u32, Local<Value>, PropertyCallbackArguments),
+    + Fn(
+      &mut HandleScope,
+      u32,
+      Local<Value>,
+      PropertyCallbackArguments,
+      ReturnValue,
+    ),
 {
   fn mapping() -> Self {
     let f =
@@ -637,8 +679,38 @@ where
         let info = unsafe { &*info };
         let scope = &mut unsafe { CallbackScope::new(info) };
         let args = PropertyCallbackArguments::from_property_callback_info(info);
-        (F::get())(scope, index, value, args);
+        let rv = ReturnValue::from_property_callback_info(info);
+        (F::get())(scope, index, value, args, rv);
       };
+    f.to_c_fn()
+  }
+}
+
+pub(crate) type IndexedDefinerCallback<'s> =
+  extern "C" fn(u32, *const PropertyDescriptor, *const PropertyCallbackInfo);
+
+impl<F> MapFnFrom<F> for IndexedDefinerCallback<'_>
+where
+  F: UnitType
+    + Fn(
+      &mut HandleScope,
+      u32,
+      &PropertyDescriptor,
+      PropertyCallbackArguments,
+      ReturnValue,
+    ),
+{
+  fn mapping() -> Self {
+    let f = |index: u32,
+             desc: *const PropertyDescriptor,
+             info: *const PropertyCallbackInfo| {
+      let info = unsafe { &*info };
+      let scope = &mut unsafe { CallbackScope::new(info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      let desc = unsafe { &*desc };
+      (F::get())(scope, index, desc, args, rv);
+    };
     f.to_c_fn()
   }
 }

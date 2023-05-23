@@ -7,17 +7,19 @@
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct GCType(u32);
 
-pub const GC_TYPE_TYPE_SCAVENGE: GCType = GCType(1);
+impl GCType {
+  pub const SCAVENGE: Self = Self(1 << 0);
 
-pub const GC_TYPE_MINOR_MARK_COMPACT: GCType = GCType(2);
+  pub const MINOR_MARK_COMPACT: Self = Self(1 << 1);
 
-pub const GC_TYPE_MARK_SWEEP_COMPACT: GCType = GCType(4);
+  pub const MARK_SWEEP_COMPACT: Self = Self(1 << 2);
 
-pub const GC_TYPE_INCREMENTAL_MARKING: GCType = GCType(8);
+  pub const INCREMENTAL_MARKING: Self = Self(1 << 3);
 
-pub const GC_TYPE_PROCESS_WEAK_CALLBACK: GCType = GCType(16);
+  pub const PROCESS_WEAK_CALLBACKS: Self = Self(1 << 4);
 
-pub const GC_TYPE_ALL: GCType = GCType(31);
+  pub const ALL: Self = Self(31);
+}
 
 impl std::ops::BitOr for GCType {
   type Output = Self;
@@ -44,24 +46,21 @@ impl std::ops::BitOr for GCType {
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct GCCallbackFlags(u32);
 
-pub const GC_CALLBACK_FLAGS_NO_FLAGS: GCCallbackFlags = GCCallbackFlags(0);
+impl GCCallbackFlags {
+  pub const NONE: Self = Self(0);
 
-pub const GC_CALLBACK_FLAGS_CONSTRUCT_RETAINED_OBJECT_INFOS: GCCallbackFlags =
-  GCCallbackFlags(2);
+  pub const CONSTRUCT_RETAINED_OBJECT_INFOS: Self = Self(1 << 1);
 
-pub const GC_CALLBACK_FLAGS_FORCED: GCCallbackFlags = GCCallbackFlags(4);
+  pub const FORCED: Self = Self(1 << 2);
 
-pub const GC_CALLBACK_FLAGS_SYNCHRONOUS_PHANTOM_CALLBACK_PROCESSING:
-  GCCallbackFlags = GCCallbackFlags(8);
+  pub const SYNCHRONOUS_PHANTOM_CALLBACK_PROCESSING: Self = Self(1 << 3);
 
-pub const GC_CALLBACK_FLAGS_COLLECT_ALL_AVAILABLE_GARBAGE: GCCallbackFlags =
-  GCCallbackFlags(16);
+  pub const COLLECT_ALL_AVAILABLE_GARBAGE: Self = Self(1 << 4);
 
-pub const GC_CALLBACK_FLAGS_COLLECT_ALL_EXTERNAL_MEMORY: GCCallbackFlags =
-  GCCallbackFlags(32);
+  pub const COLLECT_ALL_EXTERNAL_MEMORY: Self = Self(1 << 5);
 
-pub const GC_CALLBACK_FLAGS_SCHEDULE_IDLE_GARBAGE_COLLECTION: GCCallbackFlags =
-  GCCallbackFlags(64);
+  pub const SCHEDULE_IDLE_GARBAGE_COLLECTION: Self = Self(1 << 6);
+}
 
 impl std::ops::BitOr for GCCallbackFlags {
   type Output = Self;

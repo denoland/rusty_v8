@@ -1148,11 +1148,13 @@ void v8__ObjectTemplate__SetNamedPropertyHandler(
     v8::GenericNamedPropertyQueryCallback query,
     v8::GenericNamedPropertyDeleterCallback deleter,
     v8::GenericNamedPropertyEnumeratorCallback enumerator,
+    v8::GenericNamedPropertyDefinerCallback definer,
     v8::GenericNamedPropertyDescriptorCallback descriptor,
-    const v8::Value* data_or_null) {
+    const v8::Value* data_or_null,
+    v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(
-      getter, setter, query, deleter, enumerator, nullptr, descriptor,
-      ptr_to_local(data_or_null)));
+      getter, setter, query, deleter, enumerator, definer, descriptor,
+      ptr_to_local(data_or_null), flags));
 }
 
 void v8__ObjectTemplate__SetIndexedPropertyHandler(
@@ -1161,11 +1163,13 @@ void v8__ObjectTemplate__SetIndexedPropertyHandler(
     v8::IndexedPropertyQueryCallback query,
     v8::IndexedPropertyDeleterCallback deleter,
     v8::IndexedPropertyEnumeratorCallback enumerator,
+    v8::IndexedPropertyDefinerCallback definer,
     v8::IndexedPropertyDescriptorCallback descriptor,
-    const v8::Value* data_or_null) {
+    const v8::Value* data_or_null,
+    v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
-      getter, setter, query, deleter, enumerator, nullptr, descriptor,
-      ptr_to_local(data_or_null)));
+      getter, setter, query, deleter, enumerator, definer, descriptor,
+      ptr_to_local(data_or_null), flags));
 }
 
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
@@ -3340,6 +3344,60 @@ void v8__PropertyDescriptor__CONSTRUCT__Get_Set(
 
 void v8__PropertyDescriptor__DESTRUCT(v8::PropertyDescriptor* self) {
   self->~PropertyDescriptor();
+}
+
+bool v8__PropertyDescriptor__configurable(const v8::PropertyDescriptor* self) {
+  return self->configurable();
+}
+
+bool v8__PropertyDescriptor__enumerable(const v8::PropertyDescriptor* self) {
+  return self->enumerable();
+}
+
+bool v8__PropertyDescriptor__writable(const v8::PropertyDescriptor* self) {
+  return self->writable();
+}
+
+const v8::Value* v8__PropertyDescriptor__value(
+    const v8::PropertyDescriptor* self) {
+  return local_to_ptr(self->value());
+}
+
+const v8::Value* v8__PropertyDescriptor__get(
+    const v8::PropertyDescriptor* self) {
+  return local_to_ptr(self->get());
+}
+
+const v8::Value* v8__PropertyDescriptor__set(
+    const v8::PropertyDescriptor* self) {
+  return local_to_ptr(self->set());
+}
+
+bool v8__PropertyDescriptor__has_configurable(
+    const v8::PropertyDescriptor* self) {
+  return self->has_configurable();
+}
+
+bool v8__PropertyDescriptor__has_enumerable(
+    const v8::PropertyDescriptor* self) {
+  return self->has_enumerable();
+}
+
+bool v8__PropertyDescriptor__has_writable(
+    const v8::PropertyDescriptor* self) {
+  return self->has_writable();
+}
+
+bool v8__PropertyDescriptor__has_value(const v8::PropertyDescriptor* self) {
+  return self->has_value();
+}
+
+bool v8__PropertyDescriptor__has_get(const v8::PropertyDescriptor* self) {
+  return self->has_get();
+}
+
+bool v8__PropertyDescriptor__has_set(const v8::PropertyDescriptor* self) {
+  return self->has_set();
 }
 
 void v8__PropertyDescriptor__set_enumerable(v8::PropertyDescriptor* self,
