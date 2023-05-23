@@ -1979,9 +1979,10 @@ v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
 
 v8::CFunctionInfo* v8__CFunctionInfo__New(const v8::CTypeInfo& return_info,
                                           unsigned int args_len,
-                                          v8::CTypeInfo* args_info) {
+                                          v8::CTypeInfo* args_info,
+                                          Int64Representation repr) {
   std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(
-      v8::CFunctionInfo(return_info, args_len, args_info));
+      v8::CFunctionInfo(return_info, args_len, args_info, repr));
   return info.release();
 }
 

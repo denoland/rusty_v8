@@ -6,6 +6,7 @@ use crate::data::Template;
 use crate::fast_api::CFunctionInfo;
 use crate::fast_api::CTypeInfo;
 use crate::fast_api::FastFunction;
+use crate::fast_api::Int64Representation;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
@@ -578,7 +579,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
       let args = CTypeInfo::new_from_slice(overload1.args);
       let ret = CTypeInfo::new(overload1.return_type);
       let fn_info = unsafe {
-        CFunctionInfo::new(args.as_ptr(), overload1.args.len(), ret.as_ptr())
+        CFunctionInfo::new(args.as_ptr(), overload1.args.len(), ret.as_ptr(), Int64Representation::Number)
       };
       fn_info.as_ptr()
     };
@@ -590,7 +591,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
         let args = CTypeInfo::new_from_slice(overload2.args);
         let ret = CTypeInfo::new(overload2.return_type);
         let fn_info = unsafe {
-          CFunctionInfo::new(args.as_ptr(), overload2.args.len(), ret.as_ptr())
+          CFunctionInfo::new(args.as_ptr(), overload2.args.len(), ret.as_ptr(), Int64Representation::Number)
         };
         fn_info.as_ptr()
       }

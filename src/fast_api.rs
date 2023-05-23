@@ -17,6 +17,7 @@ extern "C" {
     return_info: *const CTypeInfo,
     args_len: usize,
     args_info: *const CTypeInfo,
+    repr: Int64Representation,
   ) -> *mut CFunctionInfo;
 }
 
@@ -34,8 +35,14 @@ impl CFunctionInfo {
     args: *const CTypeInfo,
     args_len: usize,
     return_type: *const CTypeInfo,
+    repr: Int64Representation,
   ) -> NonNull<CFunctionInfo> {
-    NonNull::new_unchecked(v8__CFunctionInfo__New(return_type, args_len, args))
+    NonNull::new_unchecked(v8__CFunctionInfo__New(
+      return_type,
+      args_len,
+      args,
+      repr,
+    ))
   }
 }
 
@@ -263,4 +270,10 @@ impl FastFunction {
       function,
     }
   }
+}
+
+#[repr(u8)]
+pub enum Int64Representation {
+  Number = 0,
+  BigInt = 1,
 }
