@@ -6200,7 +6200,9 @@ fn get_own_property_descriptor() {
 
   // doesn't exist
   let b_key = v8::String::new(scope, "b").unwrap();
-  let desc = obj.get_own_property_descriptor(scope, b_key).unwrap();
+  let desc = obj
+    .get_own_property_descriptor(scope, b_key.into())
+    .unwrap();
   assert!(desc.is_undefined());
 }
 
