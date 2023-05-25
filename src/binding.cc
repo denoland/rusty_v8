@@ -1426,6 +1426,21 @@ MaybeBool v8__Object__HasPrivate(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+void v8__Object__GetPropertyAttributes(
+    const v8::Object& self, const v8::Context& context,
+    const v8::Value& key, v8::Maybe<v8::PropertyAttribute>* out) {
+  *out = ptr_to_local(&self)->GetPropertyAttributes(ptr_to_local(&context),
+                                                    ptr_to_local(&key));
+}
+
+const v8::Value* v8__Object__GetOwnPropertyDescriptor(
+    const v8::Object& self, const v8::Context& context,
+    const v8::Name& key) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetOwnPropertyDescriptor(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }

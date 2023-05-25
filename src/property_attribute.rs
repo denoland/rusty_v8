@@ -48,6 +48,11 @@ impl PropertyAttribute {
     let Self(rhs) = that;
     0 != lhs & rhs
   }
+
+  pub fn as_u32(&self) -> u32 {
+    let Self(bits) = self;
+    *bits
+  }
 }
 
 // Identical to #[derive(Default)] but arguably clearer when made explicit.
