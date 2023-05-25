@@ -522,10 +522,10 @@ impl<'s> PropertyCallbackArguments<'s> {
 
 pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
 
-impl<'a, F> MapFnFrom<F> for FunctionCallback
+impl<F> MapFnFrom<F> for FunctionCallback
 where
   F: UnitType
-    + Fn(&mut HandleScope<'a>, FunctionCallbackArguments<'a>, ReturnValue),
+    + for<'s> Fn(&mut HandleScope<'s>, FunctionCallbackArguments<'s>, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
@@ -545,7 +545,12 @@ pub(crate) type NamedGetterCallback<'s> =
 impl<F> MapFnFrom<F> for NamedGetterCallback<'_>
 where
   F: UnitType
-    + Fn(&mut HandleScope, Local<Name>, PropertyCallbackArguments, ReturnValue),
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      Local<'s, Name>,
+      PropertyCallbackArguments<'s>,
+      ReturnValue,
+    ),
 {
   fn mapping() -> Self {
     let f = |key: Local<Name>, info: *const PropertyCallbackInfo| {
@@ -565,11 +570,11 @@ pub(crate) type NamedSetterCallback<'s> =
 impl<F> MapFnFrom<F> for NamedSetterCallback<'_>
 where
   F: UnitType
-    + Fn(
-      &mut HandleScope,
-      Local<Name>,
-      Local<Value>,
-      PropertyCallbackArguments,
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      Local<'s, Name>,
+      Local<'s, Value>,
+      PropertyCallbackArguments<'s>,
       ReturnValue,
     ),
 {
@@ -593,7 +598,8 @@ pub(crate) type PropertyEnumeratorCallback<'s> =
 
 impl<F> MapFnFrom<F> for PropertyEnumeratorCallback<'_>
 where
-  F: UnitType + Fn(&mut HandleScope, PropertyCallbackArguments, ReturnValue),
+  F: UnitType
+    + for<'s> Fn(&mut HandleScope<'s>, PropertyCallbackArguments<'s>, ReturnValue),
 {
   fn mapping() -> Self {
     let f = |info: *const PropertyCallbackInfo| {
@@ -616,11 +622,11 @@ pub(crate) type NamedDefinerCallback<'s> = extern "C" fn(
 impl<F> MapFnFrom<F> for NamedDefinerCallback<'_>
 where
   F: UnitType
-    + Fn(
-      &mut HandleScope,
-      Local<Name>,
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      Local<'s, Name>,
       &PropertyDescriptor,
-      PropertyCallbackArguments,
+      PropertyCallbackArguments<'s>,
       ReturnValue,
     ),
 {
@@ -645,7 +651,12 @@ pub(crate) type IndexedGetterCallback<'s> =
 impl<F> MapFnFrom<F> for IndexedGetterCallback<'_>
 where
   F: UnitType
-    + Fn(&mut HandleScope, u32, PropertyCallbackArguments, ReturnValue),
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      u32,
+      PropertyCallbackArguments<'s>,
+      ReturnValue,
+    ),
 {
   fn mapping() -> Self {
     let f = |index: u32, info: *const PropertyCallbackInfo| {
@@ -665,11 +676,11 @@ pub(crate) type IndexedSetterCallback<'s> =
 impl<F> MapFnFrom<F> for IndexedSetterCallback<'_>
 where
   F: UnitType
-    + Fn(
-      &mut HandleScope,
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
       u32,
-      Local<Value>,
-      PropertyCallbackArguments,
+      Local<'s, Value>,
+      PropertyCallbackArguments<'s>,
       ReturnValue,
     ),
 {
@@ -692,11 +703,11 @@ pub(crate) type IndexedDefinerCallback<'s> =
 impl<F> MapFnFrom<F> for IndexedDefinerCallback<'_>
 where
   F: UnitType
-    + Fn(
-      &mut HandleScope,
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
       u32,
       &PropertyDescriptor,
-      PropertyCallbackArguments,
+      PropertyCallbackArguments<'s>,
       ReturnValue,
     ),
 {

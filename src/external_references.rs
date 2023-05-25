@@ -1,14 +1,26 @@
+use crate::IndexedDefinerCallback;
+use crate::IndexedGetterCallback;
+use crate::IndexedSetterCallback;
+use crate::NamedDefinerCallback;
+use crate::NamedSetterCallback;
+use crate::PropertyEnumeratorCallback;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::support::intptr_t;
-use crate::AccessorNameGetterCallback;
 use crate::FunctionCallback;
 use crate::MessageCallback;
+use crate::NamedGetterCallback;
 use std::ffi::c_void;
 
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
   pub function: FunctionCallback,
-  pub getter: AccessorNameGetterCallback<'s>,
+  pub named_getter: NamedGetterCallback<'s>,
+  pub named_setter: NamedSetterCallback<'s>,
+  pub named_definer: NamedDefinerCallback<'s>,
+  pub indexed_getter: IndexedGetterCallback<'s>,
+  pub indexed_setter: IndexedSetterCallback<'s>,
+  pub indexed_definer: IndexedDefinerCallback<'s>,
+  pub enumerator: PropertyEnumeratorCallback<'s>,
   pub message: MessageCallback,
   pub pointer: *mut c_void,
 }
