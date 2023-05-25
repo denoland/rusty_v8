@@ -6154,7 +6154,7 @@ fn get_property_attributes() {
   // exception
   let key = eval(scope, "({ toString() { throw 'foo' } })").unwrap();
   let tc = &mut v8::TryCatch::new(scope);
-  assert!(obj.get_property_attributes(tc, key.into()).is_none());
+  assert!(obj.get_property_attributes(tc, key).is_none());
   assert!(tc.has_caught());
 }
 
@@ -6200,9 +6200,7 @@ fn get_own_property_descriptor() {
 
   // doesn't exist
   let b_key = v8::String::new(scope, "b").unwrap();
-  let desc = obj
-    .get_own_property_descriptor(scope, b_key.into())
-    .unwrap();
+  let desc = obj.get_own_property_descriptor(scope, b_key).unwrap();
   assert!(desc.is_undefined());
 }
 
