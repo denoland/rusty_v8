@@ -6130,6 +6130,75 @@ fn get_constructor_name() {
 }
 
 #[test]
+fn get_property_attributes() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let obj = eval(scope, "({ a: 1 })").unwrap();
+  let obj = obj.to_object(scope).unwrap();
+  let key = v8::String::new(scope, "a").unwrap();
+  let attrs = obj.get_property_attributes(scope, key.into()).unwrap();
+  assert!(!attrs.is_read_only());
+  assert!(!attrs.is_dont_enum());
+  assert!(!attrs.is_dont_delete());
+  assert!(attrs.is_none());
+
+  let key = v8::String::new(scope, "b").unwrap();
+  let attrs = obj.get_property_attributes(scope, key.into()).unwrap();
+  assert!(attrs.is_none());
+}
+
+#[test]
+fn get_own_property_descriptor() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let obj = eval(scope, "({ a: 1 })").unwrap();
+  let obj = obj.to_object(scope).unwrap();
+  let key = v8::String::new(scope, "a").unwrap();
+  let desc = obj.get_own_property_descriptor(scope, key.into()).unwrap();
+  let desc = desc.to_object(scope).unwrap();
+
+  let value_key = v8::String::new(scope, "value").unwrap();
+  let value = desc.get(scope, value_key.into()).unwrap();
+  assert!(value.is_number());
+
+  let writable_key = v8::String::new(scope, "writable").unwrap();
+  let writable = desc.get(scope, writable_key.into()).unwrap();
+  assert!(writable.is_boolean());
+  assert!(writable.boolean_value(scope));
+
+  let enumerable_key = v8::String::new(scope, "enumerable").unwrap();
+  let enumerable = desc.get(scope, enumerable_key.into()).unwrap();
+  assert!(enumerable.is_boolean());
+  assert!(enumerable.boolean_value(scope));
+
+  let configurable_key = v8::String::new(scope, "configurable").unwrap();
+  let configurable = desc.get(scope, configurable_key.into()).unwrap();
+  assert!(configurable.is_boolean());
+
+  let get_key = v8::String::new(scope, "get").unwrap();
+  let get = desc.get(scope, get_key.into()).unwrap();
+  assert!(get.is_undefined());
+
+  let set_key = v8::String::new(scope, "set").unwrap();
+  let set = desc.get(scope, set_key.into()).unwrap();
+  assert!(set.is_undefined());
+
+  let b_key = v8::String::new(scope, "b").unwrap();
+  let desc = obj
+    .get_own_property_descriptor(scope, b_key.into())
+    .unwrap();
+  assert!(desc.is_undefined());
+}
+
+#[test]
 fn test_prototype_api() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
