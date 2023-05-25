@@ -768,10 +768,11 @@ impl Object {
     .into()
   }
 
-  /// Gets the property attributes of a property which can be [None] or any
-  /// combination of [PropertyAttribute::READ_ONLY],
-  /// [PropertyAttribute::DONT_ENUM] and [PropertyAttribute::DONT_DELETE].
-  /// Returns [None] when the property doesn't exist.
+  /// Gets the property attributes of a property which can be
+  /// [PropertyAttribute::NONE] or any combination of
+  /// [PropertyAttribute::READ_ONLY], [PropertyAttribute::DONT_ENUM] and
+  /// [PropertyAttribute::DONT_DELETE].
+  /// Returns [PropertyAttribute::NONE] when the property doesn't exist.
   pub fn get_property_attributes(
     &self,
     scope: &mut HandleScope,
