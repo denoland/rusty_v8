@@ -2472,12 +2472,12 @@ fn object_template_set_indexed_property_handler() {
 
     assert_eq!(index, 37);
 
-    assert_eq!(desc.has_enumerable(), false);
-    assert_eq!(desc.has_configurable(), false);
-    assert_eq!(desc.has_writable(), false);
-    assert_eq!(desc.has_value(), true);
-    assert_eq!(desc.has_get(), false);
-    assert_eq!(desc.has_set(), false);
+    assert!(!desc.has_enumerable());
+    assert!(!desc.has_configurable());
+    assert!(!desc.has_writable());
+    assert!(desc.has_value());
+    assert!(!desc.has_get());
+    assert!(!desc.has_set());
 
     let value = desc.value();
     this.set_internal_field(0, value);
