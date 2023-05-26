@@ -1,6 +1,4 @@
 use crate::PropertyFilter;
-use crate::ONLY_ENUMERABLE;
-use crate::SKIP_SYMBOLS;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -47,7 +45,8 @@ impl Default for GetPropertyNamesArgs {
   fn default() -> Self {
     GetPropertyNamesArgs {
       mode: KeyCollectionMode::IncludePrototypes,
-      property_filter: ONLY_ENUMERABLE | SKIP_SYMBOLS,
+      property_filter: PropertyFilter::ONLY_ENUMERABLE
+        | PropertyFilter::SKIP_SYMBOLS,
       index_filter: IndexFilter::IncludeIndices,
       key_conversion: KeyConversionMode::KeepNumbers,
     }
@@ -72,7 +71,8 @@ impl GetPropertyNamesArgsBuilder {
   pub fn new() -> Self {
     Self {
       mode: KeyCollectionMode::IncludePrototypes,
-      property_filter: ONLY_ENUMERABLE | SKIP_SYMBOLS,
+      property_filter: PropertyFilter::ONLY_ENUMERABLE
+        | PropertyFilter::SKIP_SYMBOLS,
       index_filter: IndexFilter::IncludeIndices,
       key_conversion: KeyConversionMode::KeepNumbers,
     }
