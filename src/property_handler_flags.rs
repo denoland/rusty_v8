@@ -1,3 +1,5 @@
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+
 #[repr(C)]
 #[derive(Debug, Eq, PartialEq)]
 pub struct PropertyHandlerFlags(u32);

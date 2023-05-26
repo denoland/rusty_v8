@@ -1,14 +1,15 @@
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+
+use crate::support::intptr_t;
+use crate::FunctionCallback;
 use crate::IndexedDefinerCallback;
 use crate::IndexedGetterCallback;
 use crate::IndexedSetterCallback;
+use crate::MessageCallback;
 use crate::NamedDefinerCallback;
+use crate::NamedGetterCallback;
 use crate::NamedSetterCallback;
 use crate::PropertyEnumeratorCallback;
-// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::support::intptr_t;
-use crate::FunctionCallback;
-use crate::MessageCallback;
-use crate::NamedGetterCallback;
 use std::ffi::c_void;
 
 #[derive(Clone, Copy)]
