@@ -1,6 +1,7 @@
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
+use crate::support::Maybe;
 use crate::support::MaybeBool;
 use crate::AccessorConfiguration;
 use crate::AccessorNameGetterCallback;
@@ -180,6 +181,17 @@ extern "C" {
     context: *const Context,
     key: *const Private,
   ) -> MaybeBool;
+  fn v8__Object__GetPropertyAttributes(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+    out: *mut Maybe<PropertyAttribute>,
+  );
+  fn v8__Object__GetOwnPropertyDescriptor(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+  ) -> *const Value;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -754,6 +766,46 @@ impl Object {
       v8__Object__HasPrivate(self, &*scope.get_current_context(), &*key)
     }
     .into()
+  }
+
+  /// Gets the property attributes of a property which can be
+  /// [PropertyAttribute::NONE] or any combination of
+  /// [PropertyAttribute::READ_ONLY], [PropertyAttribute::DONT_ENUM] and
+  /// [PropertyAttribute::DONT_DELETE].
+  /// Returns [PropertyAttribute::NONE] when the property doesn't exist.
+  pub fn get_property_attributes(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+  ) -> Option<PropertyAttribute> {
+    let mut out = Maybe::<PropertyAttribute>::default();
+    unsafe {
+      v8__Object__GetPropertyAttributes(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &mut out,
+      )
+    };
+    out.into()
+  }
+
+  /// Implements Object.getOwnPropertyDescriptor(O, P), see
+  /// https://tc39.es/ecma262/#sec-object.getownpropertydescriptor.
+  pub fn get_own_property_descriptor<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Name>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__GetOwnPropertyDescriptor(
+          self,
+          sd.get_current_context(),
+          &*key,
+        )
+      })
+    }
   }
 }
 
