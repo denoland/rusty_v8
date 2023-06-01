@@ -253,8 +253,9 @@ impl<T: Default> FastApiTypedArray<T> {
 
 pub struct FastFunction {
   pub args: &'static [Type],
-  pub return_type: CType,
   pub function: *const c_void,
+  pub repr: Int64Representation,
+  pub return_type: CType,
 }
 
 impl FastFunction {
@@ -266,12 +267,27 @@ impl FastFunction {
   ) -> Self {
     Self {
       args,
-      return_type,
       function,
+      repr: Int64Representation::Number,
+      return_type,
+    }
+  }
+
+  pub const fn new_with_bigint(
+    args: &'static [Type],
+    return_type: CType,
+    function: *const c_void,
+  ) -> Self {
+    Self {
+      args,
+      function,
+      repr: Int64Representation::BigInt,
+      return_type,
     }
   }
 }
 
+#[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum Int64Representation {
   Number = 0,

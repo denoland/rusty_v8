@@ -9874,6 +9874,113 @@ fn test_fast_calls_onebytestring() {
 }
 
 #[test]
+fn test_fast_calls_i64representation() {
+  static mut FAST_CALL_COUNT: u32 = 0;
+  static mut SLOW_CALL_COUNT: u32 = 0;
+  fn fast_fn(_recv: v8::Local<v8::Object>, a: u64, b: u64) -> u64 {
+    unsafe { FAST_CALL_COUNT += 1 };
+    assert_eq!(9007199254740991, a);
+    assert_eq!(646, b);
+    a * b
+  }
+
+  const FAST_TEST_NUMBER: fast_api::FastFunction = fast_api::FastFunction::new(
+    &[V8Value, Uint64, Uint64],
+    CType::Uint64,
+    fast_fn as _,
+  );
+
+  const FAST_TEST_BIGINT: fast_api::FastFunction =
+    fast_api::FastFunction::new_with_bigint(
+      &[V8Value, Uint64, Uint64],
+      CType::Uint64,
+      fast_fn as _,
+    );
+
+  fn slow_fn(
+    _: &mut v8::HandleScope,
+    _: v8::FunctionCallbackArguments,
+    _: v8::ReturnValue,
+  ) {
+    unsafe { SLOW_CALL_COUNT += 1 };
+  }
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template_number = v8::FunctionTemplate::builder(slow_fn).build_fast(
+    scope,
+    &FAST_TEST_NUMBER,
+    None,
+    None,
+    None,
+  );
+  let template_bigint = v8::FunctionTemplate::builder(slow_fn).build_fast(
+    scope,
+    &FAST_TEST_BIGINT,
+    None,
+    None,
+    None,
+  );
+
+  let name_number = v8::String::new(scope, "func_number").unwrap();
+  let name_bigint = v8::String::new(scope, "func_bigint").unwrap();
+  let value_number = template_number.get_function(scope).unwrap();
+  let value_bigint = template_bigint.get_function(scope).unwrap();
+  global
+    .set(scope, name_number.into(), value_number.into())
+    .unwrap();
+  global
+    .set(scope, name_bigint.into(), value_bigint.into())
+    .unwrap();
+  let source = r#"
+  function f(a, b) { return func_number(a, b); }
+  %PrepareFunctionForOptimization(f);
+  f(1, 2);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!(1, unsafe { SLOW_CALL_COUNT });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(f);
+    {
+      const result = f(Number.MAX_SAFE_INTEGER, 646);
+      // Correct answer is 5818650718562680186: data is lost.
+      if (result != 5818650718562680000) {
+        throw new Error(`wrong number result: ${result}`);
+      }
+    }
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!(1, unsafe { FAST_CALL_COUNT });
+
+  let source = r#"
+  function g(a, b) { return func_bigint(a, b); }
+  %PrepareFunctionForOptimization(g);
+  g(1n, 2n);
+"#;
+  eval(scope, source).unwrap();
+  assert_eq!(2, unsafe { SLOW_CALL_COUNT });
+
+  let source = r#"
+    %OptimizeFunctionOnNextCall(g);
+    {
+      const result = g(BigInt(Number.MAX_SAFE_INTEGER), 646n);
+      if (result != 5818650718562680186n) {
+        throw new Error(`wrong bigint result: ${result}`);
+      }
+    }
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!(2, unsafe { FAST_CALL_COUNT });
+}
+
+#[test]
 fn gc_callbacks() {
   let _setup_guard = setup::parallel_test();
 
