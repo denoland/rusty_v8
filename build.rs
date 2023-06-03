@@ -3,6 +3,7 @@ use fslock::LockFile;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
@@ -383,7 +384,7 @@ fn build_dir() -> PathBuf {
 
 fn download_file(url: String, filename: PathBuf) {
   if !url.starts_with("http:") && !url.starts_with("https:") {
-    fs::copy(&url, filename).unwrap();
+    copy_archive(&url, &filename);
     return;
   }
 
@@ -453,6 +454,19 @@ fn download_static_lib_binaries() {
     _ => {}
   };
   download_file(url, static_lib_path());
+}
+
+/// Copy the V8 archive at `url` to `filename`.
+///
+/// This function doesn't use `std::fs::copy` because that would
+/// preveserve the file attributes such as ownership and mode flags.
+/// Instead, it copies the file contents to a new file.
+/// This is necessary because the V8 archive could live inside a read-only
+/// filesystem, and subsequent builds would fail to overwrite it.
+fn copy_archive(url: &str, filename: &Path) {
+  let mut src = fs::File::open(url).unwrap();
+  let mut dst = fs::File::create(filename).unwrap();
+  io::copy(&mut src, &mut dst).unwrap();
 }
 
 fn print_link_flags() {
