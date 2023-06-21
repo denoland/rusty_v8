@@ -134,8 +134,11 @@ impl<'s> ScriptOrigin<'s> {
   }
 
   #[inline(always)]
-  pub fn get_script_id(&self) -> i32 {
-    unsafe { v8__ScriptOrigin__GetScriptId(self as *const _) }
+  pub fn get_script_id(&self) -> Option<u32> {
+    unsafe {
+      let ret = v8__ScriptOrigin__GetScriptId(self as *const _);
+      (ret > 0).then_some(ret as u32)
+    }
   }
 
   #[inline(always)]

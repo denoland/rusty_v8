@@ -3872,6 +3872,7 @@ fn function_script_origin_and_id() {
 
     if let Some(id) = prev_id {
       assert_eq!(script_id, id + 1);
+      assert_eq!(script_id, f_function_obj.get_script_origin().get_script_id().unwrap());
     }
     prev_id = Some(script_id);
 
