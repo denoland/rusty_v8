@@ -3872,12 +3872,22 @@ fn function_script_origin_and_id() {
 
     if let Some(id) = prev_id {
       assert_eq!(script_id, id + 1);
-      assert_eq!(script_id, f_function_obj.get_script_origin().get_script_id().unwrap());
+      assert_eq!(
+        script_id,
+        f_function_obj.get_script_origin().get_script_id().unwrap()
+      );
     }
     prev_id = Some(script_id);
 
     // Verify source map URL matches
-    assert_eq!("source_map_url", f_function_obj.get_script_origin().get_source_map_url().unwrap().to_rust_string_lossy(scope));
+    assert_eq!(
+      "source_map_url",
+      f_function_obj
+        .get_script_origin()
+        .get_source_map_url()
+        .unwrap()
+        .to_rust_string_lossy(scope)
+    );
 
     // Verify resource name matches in script origin
     let resource_name_val =
