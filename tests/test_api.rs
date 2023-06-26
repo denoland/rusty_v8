@@ -307,6 +307,7 @@ fn test_string() {
     let scope = &mut v8::HandleScope::new(isolate);
     let mut buffer = Vec::with_capacity(v8::String::max_length());
     for _ in 0..buffer.capacity() / 4 {
+      // U+10348 in UTF-8
       buffer.push(0xF0_u8);
       buffer.push(0x90_u8);
       buffer.push(0x8D_u8);
@@ -324,6 +325,7 @@ fn test_string() {
 
     let mut too_long = Vec::with_capacity(v8::String::max_length() + 4);
     for _ in 0..too_long.capacity() / 4 {
+      // U+10348 in UTF-8
       too_long.push(0xF0_u8);
       too_long.push(0x90_u8);
       too_long.push(0x8D_u8);
