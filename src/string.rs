@@ -258,6 +258,28 @@ impl String {
     }
   }
 
+  /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as one-byte
+  /// (Latin-1) characters.
+  #[inline(always)]
+  pub fn write_one_byte_uninit(
+    &self,
+    scope: &mut Isolate,
+    buffer: &mut [MaybeUninit<u8>],
+    start: usize,
+    options: WriteOptions,
+  ) -> usize {
+    unsafe {
+      v8__String__WriteOneByte(
+        self,
+        scope,
+        buffer.as_mut_ptr() as *mut u8,
+        start.try_into().unwrap_or(int::max_value()),
+        buffer.len().try_into().unwrap_or(int::max_value()),
+        options,
+      ) as usize
+    }
+  }
+
   /// Writes the contents of the string to an external buffer, as UTF-8.
   #[inline(always)]
   pub fn write_utf8(
@@ -281,7 +303,7 @@ impl String {
     }
   }
 
-  /// Writes the contents of the string to an external buffer, as UTF-8.
+  /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
   pub fn write_utf8_uninit(
     &self,
     scope: &mut Isolate,
@@ -378,16 +400,17 @@ impl String {
     unsafe { v8__String__IsExternalTwoByte(self) }
   }
 
-  /// True if string is known to contain only one-byte data.
-  /// Doesn't read the string so can return false positives.
+  /// Will return true if and only if string is known for certain to contain only one-byte data,
+  /// ie: Latin-1, a.k.a. ISO-8859-1 code points. Doesn't read the string so can return false
+  /// negatives, and a return value of false does not mean this string is not one-byte data.
   ///
-  /// For a method that will not return false positives at the cost of
+  /// For a method that will not return false negatives at the cost of
   /// potentially reading the entire string, use [`contains_only_onebyte()`].
   ///
   /// [`contains_only_onebyte()`]: String::contains_only_onebyte
   #[inline(always)]
   pub fn is_onebyte(&self) -> bool {
-    unsafe { v8__String__IsExternalOneByte(self) }
+    unsafe { v8__String__IsOneByte(self) }
   }
 
   /// True if the string contains only one-byte data.
