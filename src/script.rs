@@ -43,11 +43,11 @@ extern "C" {
     is_wasm: bool,
     is_module: bool,
   );
-  fn v8__ScriptOrigin__GetScriptId(origin: *const ScriptOrigin) -> i32;
-  fn v8__ScriptOrigin__GetResourceName(
+  fn v8__ScriptOrigin__ScriptId(origin: *const ScriptOrigin) -> i32;
+  fn v8__ScriptOrigin__ResourceName(
     origin: *const ScriptOrigin,
   ) -> *const Value;
-  fn v8__ScriptOrigin__GetSourceMapUrl(
+  fn v8__ScriptOrigin__SourceMapUrl(
     origin: *const ScriptOrigin,
   ) -> *const Value;
 }
@@ -134,25 +134,22 @@ impl<'s> ScriptOrigin<'s> {
   }
 
   #[inline(always)]
-  pub fn get_script_id(&self) -> Option<u32> {
-    unsafe {
-      let ret = v8__ScriptOrigin__GetScriptId(self as *const _);
-      (ret > 0).then_some(ret as u32)
-    }
+  pub fn script_id(&self) -> i32 {
+    unsafe { v8__ScriptOrigin__ScriptId(self as *const _) }
   }
 
   #[inline(always)]
-  pub fn get_resource_name(&self) -> Option<Local<'s, Value>> {
+  pub fn resource_name(&self) -> Option<Local<'s, Value>> {
     unsafe {
-      let ptr = v8__ScriptOrigin__GetResourceName(self);
+      let ptr = v8__ScriptOrigin__ResourceName(self);
       Local::from_raw(ptr)
     }
   }
 
   #[inline(always)]
-  pub fn get_source_map_url(&self) -> Option<Local<'s, Value>> {
+  pub fn source_map_url(&self) -> Option<Local<'s, Value>> {
     unsafe {
-      let ptr = v8__ScriptOrigin__GetSourceMapUrl(self);
+      let ptr = v8__ScriptOrigin__SourceMapUrl(self);
       Local::from_raw(ptr)
     }
   }

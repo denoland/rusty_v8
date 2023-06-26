@@ -3866,15 +3866,14 @@ fn function_script_origin_and_id() {
     // but the script ID of the first module is a V8 internal, so should not
     // be depended on.
     // See https://groups.google.com/g/v8-users/c/iEfceRohiy8 for more discussion.
-    let script_id = f_function_obj.get_script_id();
-    assert!(f_function_obj.get_script_id().is_some());
-    let script_id = script_id.unwrap();
+    let script_id = f_function_obj.script_id();
+    assert!(f_function_obj.script_id() > 0);
 
     if let Some(id) = prev_id {
       assert_eq!(script_id, id + 1);
       assert_eq!(
         script_id,
-        f_function_obj.get_script_origin().get_script_id().unwrap()
+        f_function_obj.get_script_origin().script_id(),
       );
     }
     prev_id = Some(script_id);
@@ -3884,14 +3883,14 @@ fn function_script_origin_and_id() {
       "source_map_url",
       f_function_obj
         .get_script_origin()
-        .get_source_map_url()
+        .source_map_url()
         .unwrap()
         .to_rust_string_lossy(scope)
     );
 
     // Verify resource name matches in script origin
     let resource_name_val =
-      f_function_obj.get_script_origin().get_resource_name();
+      f_function_obj.get_script_origin().resource_name();
     assert!(resource_name_val.is_some());
     assert_eq!(
       resource_name_val.unwrap().to_rust_string_lossy(scope),

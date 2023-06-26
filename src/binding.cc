@@ -2290,16 +2290,16 @@ void v8__ScriptOrigin__CONSTRUCT(
       ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
 }
 
-int v8__ScriptOrigin__GetScriptId(const v8::ScriptOrigin& self) {
+int v8__ScriptOrigin__ScriptId(const v8::ScriptOrigin& self) {
   return ptr_to_local(&self)->ScriptId();
 }
 
-const v8::Value* v8__ScriptOrigin__GetResourceName(
+const v8::Value* v8__ScriptOrigin__ResourceName(
     const v8::ScriptOrigin& self) {
   return local_to_ptr(ptr_to_local(&self)->ResourceName());
 }
 
-const v8::Value* v8__ScriptOrigin__GetSourceMapUrl(
+const v8::Value* v8__ScriptOrigin__SourceMapUrl(
     const v8::ScriptOrigin& self) {
   return local_to_ptr(ptr_to_local(&self)->SourceMapUrl());
 }

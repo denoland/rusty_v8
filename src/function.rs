@@ -917,12 +917,8 @@ impl Function {
 
   /// Returns scriptId.
   #[inline(always)]
-  pub fn get_script_id(&self) -> Option<u32> {
-    unsafe {
-      let ret = v8__Function__ScriptId(self);
-      // kTemporaryScriptId == -2 and kNoScriptId == 0
-      (ret > 0).then_some(ret as u32)
-    }
+  pub fn script_id(&self) -> i32 {
+    unsafe { v8__Function__ScriptId(self) }
   }
 
   /// Creates and returns code cache for the specified unbound_script.
