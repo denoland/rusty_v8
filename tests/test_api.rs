@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use once_cell::sync::Lazy;
 use std::any::type_name;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -409,6 +410,45 @@ fn test_string() {
     assert!(valid_6_octet_sequence.is_some());
     let invalid_4_octet_sequence = valid_6_octet_sequence.unwrap();
     assert_eq!(invalid_4_octet_sequence.length(), 6);
+  }
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let s = "Lorem ipsum dolor sit amet. Qui inventore debitis et voluptas cupiditate qui recusandae molestias et ullam possimus";
+    let one_byte = v8::String::new_from_one_byte(
+      scope,
+      s.as_bytes(),
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+
+    // Does not fit
+    let mut buffer = [MaybeUninit::uninit(); 10];
+    let cow = one_byte.to_rust_cow_lossy(scope, &mut buffer);
+    assert!(matches!(cow, Cow::Owned(_)));
+    assert_eq!(s, cow);
+
+    // Fits
+    let mut buffer = [MaybeUninit::uninit(); 1000];
+    let cow = one_byte.to_rust_cow_lossy(scope, &mut buffer);
+    assert!(matches!(cow, Cow::Borrowed(_)));
+    assert_eq!(s, cow);
+
+    let s = "🦕 Lorem ipsum dolor sit amet. Qui inventore debitis et voluptas cupiditate qui recusandae molestias et ullam possimus";
+    let two_bytes =
+      v8::String::new_from_utf8(scope, s.as_bytes(), v8::NewStringType::Normal)
+        .unwrap();
+
+    // Does not fit
+    let mut buffer = [MaybeUninit::uninit(); 10];
+    let cow = two_bytes.to_rust_cow_lossy(scope, &mut buffer);
+    assert!(matches!(cow, Cow::Owned(_)));
+    assert_eq!(s, cow);
+
+    // Fits
+    let mut buffer = [MaybeUninit::uninit(); 1000];
+    let cow = two_bytes.to_rust_cow_lossy(scope, &mut buffer);
+    assert!(matches!(cow, Cow::Borrowed(_)));
+    assert_eq!(s, cow);
   }
 }
 
