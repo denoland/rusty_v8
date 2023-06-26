@@ -3871,10 +3871,7 @@ fn function_script_origin_and_id() {
 
     if let Some(id) = prev_id {
       assert_eq!(script_id, id + 1);
-      assert_eq!(
-        script_id,
-        f_function_obj.get_script_origin().script_id(),
-      );
+      assert_eq!(script_id, f_function_obj.get_script_origin().script_id(),);
     }
     prev_id = Some(script_id);
 
@@ -3889,8 +3886,7 @@ fn function_script_origin_and_id() {
     );
 
     // Verify resource name matches in script origin
-    let resource_name_val =
-      f_function_obj.get_script_origin().resource_name();
+    let resource_name_val = f_function_obj.get_script_origin().resource_name();
     assert!(resource_name_val.is_some());
     assert_eq!(
       resource_name_val.unwrap().to_rust_string_lossy(scope),
