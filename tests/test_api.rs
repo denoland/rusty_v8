@@ -8324,6 +8324,14 @@ fn external_strings() {
   assert!(!gradients.is_external_twobyte());
   assert!(!gradients.is_onebyte());
   assert!(!gradients.contains_only_onebyte());
+
+  // one-byte "internal" test
+  let latin1 = v8::String::new(scope, "latin-1").unwrap();
+  assert!(!latin1.is_external());
+  assert!(!latin1.is_external_onebyte());
+  assert!(!latin1.is_external_twobyte());
+  assert!(latin1.is_onebyte());
+  assert!(latin1.contains_only_onebyte());
 }
 
 #[test]
