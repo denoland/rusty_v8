@@ -305,27 +305,35 @@ fn test_string() {
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    let buffer = (0..v8::String::max_length() / 4)
-      .map(|_| '\u{10348}') // UTF8: 0xF0 0x90 0x8D 0x88
-      .collect::<String>();
-    let local = v8::String::new_from_utf8(
-      scope,
-      buffer.as_bytes(),
-      v8::NewStringType::Normal,
-    )
-    .unwrap();
+    let mut buffer = Vec::with_capacity(v8::String::max_length());
+    for _ in 0..buffer.capacity() / 4 {
+      // U+10348 in UTF-8
+      buffer.push(0xF0_u8);
+      buffer.push(0x90_u8);
+      buffer.push(0x8D_u8);
+      buffer.push(0x88_u8);
+    }
+    let local =
+      v8::String::new_from_utf8(scope, &buffer, v8::NewStringType::Normal)
+        .unwrap();
     // U+10348 is 2 UTF-16 code units, which is the unit of v8::String.length().
     assert_eq!(v8::String::max_length() / 2, local.length());
-    assert_eq!(buffer, local.to_rust_string_lossy(scope));
-
-    let too_long = (0..(v8::String::max_length() / 4) + 1)
-      .map(|_| '\u{10348}') // UTF8: 0xF0 0x90 0x8D 0x88
-      .collect::<String>();
-    let none = v8::String::new_from_utf8(
-      scope,
-      too_long.as_bytes(),
-      v8::NewStringType::Normal,
+    assert_eq!(
+      buffer.as_slice(),
+      local.to_rust_string_lossy(scope).as_bytes()
     );
+
+    let mut too_long = Vec::with_capacity(v8::String::max_length() + 4);
+    for _ in 0..too_long.capacity() / 4 {
+      // U+10348 in UTF-8
+      too_long.push(0xF0_u8);
+      too_long.push(0x90_u8);
+      too_long.push(0x8D_u8);
+      too_long.push(0x88_u8);
+    }
+
+    let none =
+      v8::String::new_from_utf8(scope, &too_long, v8::NewStringType::Normal);
     assert!(none.is_none());
   }
   {
@@ -8393,6 +8401,14 @@ fn external_strings() {
   assert!(!gradients.is_external_twobyte());
   assert!(!gradients.is_onebyte());
   assert!(!gradients.contains_only_onebyte());
+
+  // one-byte "internal" test
+  let latin1 = v8::String::new(scope, "latin-1").unwrap();
+  assert!(!latin1.is_external());
+  assert!(!latin1.is_external_onebyte());
+  assert!(!latin1.is_external_twobyte());
+  assert!(latin1.is_onebyte());
+  assert!(latin1.contains_only_onebyte());
 }
 
 #[test]
