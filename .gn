@@ -57,5 +57,8 @@ default_args = {
   # https://bugs.chromium.org/p/v8/issues/detail?id=13640&q=garbage%20collection&can=2
   v8_enable_pointer_compression = false
 
+  # V8 11.6 hardcoded an assumption in `mksnapshot` that shared RO heap
+  # is enabled. In our case it's disabled so without this flag we can't
+  # compile.
   v8_enable_verify_heap = false
 }
