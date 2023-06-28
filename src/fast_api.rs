@@ -84,7 +84,7 @@ pub enum SequenceType {
   IsArrayBuffer,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(u8)]
 #[non_exhaustive]
 pub enum CType {
@@ -107,7 +107,7 @@ pub enum CType {
   CallbackOptions = 255,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum Type {
   Void,
@@ -251,6 +251,7 @@ impl<T: Default> FastApiTypedArray<T> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct FastFunction {
   pub args: &'static [Type],
   pub function: *const c_void,
