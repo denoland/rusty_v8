@@ -1,6 +1,6 @@
+use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
-use std::mem::forget;
 use std::mem::MaybeUninit;
 use std::slice;
 
@@ -420,22 +420,163 @@ impl String {
     unsafe { v8__String__ContainsOnlyOneByte(self) }
   }
 
+  /// Creates a copy of a [`crate::String`] in a [`std::string::String`].
   /// Convenience function not present in the original V8 API.
   #[inline(always)]
   pub fn to_rust_string_lossy(
     &self,
     scope: &mut Isolate,
   ) -> std::string::String {
+    if self.is_onebyte() {
+      let len_utf16 = self.length();
+      unsafe {
+        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+        // accidentally creating a slice of u8 which would be invalid.
+        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
+        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
+
+        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+        let length = self.write_one_byte_uninit(
+          scope,
+          &mut *buffer,
+          0,
+          WriteOptions::NO_NULL_TERMINATION
+            | WriteOptions::REPLACE_INVALID_UTF8,
+        );
+        debug_assert!(length == len_utf16);
+
+        // Return an owned string from this guaranteed now-initialized data
+        let buffer = data as *mut u8;
+        return std::string::String::from_raw_parts(buffer, length, len_utf16);
+      }
+    }
+
     let capacity = self.utf8_length(scope);
-    let mut string = std::string::String::with_capacity(capacity);
-    let data = string.as_mut_ptr();
-    forget(string);
-    let length = self.write_utf8(
-      scope,
-      unsafe { slice::from_raw_parts_mut(data, capacity) },
-      None,
-      WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
-    );
-    unsafe { std::string::String::from_raw_parts(data, length, capacity) }
+    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
+    // We have a large number of invariants to uphold, so please check changes to this code carefully
+    unsafe {
+      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+      // accidentally creating a slice of u8 which would be invalid.
+      let layout = std::alloc::Layout::from_size_align(capacity, 1).unwrap();
+      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+      let buffer = std::ptr::slice_from_raw_parts_mut(data, capacity);
+
+      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+      let length = self.write_utf8_uninit(
+        scope,
+        &mut *buffer,
+        None,
+        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+      );
+      debug_assert!(length == capacity);
+
+      // Return an owned string from this guaranteed now-initialized data
+      let buffer = data as *mut u8;
+      std::string::String::from_raw_parts(buffer, length, capacity)
+    }
+  }
+
+  /// Converts a [`crate::String`] to either an owned [`std::string::String`], or a borrowed [`str`], depending on whether it fits into the
+  /// provided buffer.
+  #[inline(always)]
+  pub fn to_rust_cow_lossy<'a, const N: usize>(
+    &self,
+    scope: &mut Isolate,
+    buffer: &'a mut [MaybeUninit<u8>; N],
+  ) -> Cow<'a, str> {
+    // TODO(mmastrac): Ideally we should be able to access the string's internal representation
+
+    let len_utf16 = self.length();
+    if self.is_onebyte() {
+      if len_utf16 <= N {
+        let length = self.write_one_byte_uninit(
+          scope,
+          buffer,
+          0,
+          WriteOptions::NO_NULL_TERMINATION,
+        );
+        debug_assert!(length == len_utf16);
+        unsafe {
+          // Get a slice of &[u8] of what we know is initialized now
+          let buffer = &mut buffer[..length];
+          let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
+
+          // We know it's valid UTF-8, so make a string
+          return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
+        }
+      }
+
+      unsafe {
+        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+        // accidentally creating a slice of u8 which would be invalid.
+        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
+        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
+
+        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+        let length = self.write_one_byte_uninit(
+          scope,
+          &mut *buffer,
+          0,
+          WriteOptions::NO_NULL_TERMINATION
+            | WriteOptions::REPLACE_INVALID_UTF8,
+        );
+        debug_assert!(length == len_utf16);
+
+        // Return an owned string from this guaranteed now-initialized data
+        let buffer = data as *mut u8;
+        return Cow::Owned(std::string::String::from_raw_parts(
+          buffer, length, len_utf16,
+        ));
+      }
+    }
+
+    let capacity = self.utf8_length(scope);
+    if capacity <= N {
+      // No malloc path
+      let length = self.write_utf8_uninit(
+        scope,
+        buffer,
+        None,
+        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+      );
+      debug_assert!(length == capacity);
+
+      // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
+      unsafe {
+        // Get a slice of &[u8] of what we know is initialized now
+        let buffer = &mut buffer[..length];
+        let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
+
+        // We know it's valid UTF-8, so make a string
+        return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
+      }
+    }
+
+    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
+    // We have a large number of invariants to uphold, so please check changes to this code carefully
+    unsafe {
+      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+      // accidentally creating a slice of u8 which would be invalid.
+      let layout = std::alloc::Layout::from_size_align(capacity, 1).unwrap();
+      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+      let buffer = std::ptr::slice_from_raw_parts_mut(data, capacity);
+
+      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+      let length = self.write_utf8_uninit(
+        scope,
+        &mut *buffer,
+        None,
+        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+      );
+      debug_assert!(length == capacity);
+
+      // Return an owned string from this guaranteed now-initialized data
+      let buffer = data as *mut u8;
+      Cow::Owned(std::string::String::from_raw_parts(
+        buffer, length, capacity,
+      ))
+    }
   }
 }
