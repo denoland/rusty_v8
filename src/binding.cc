@@ -1952,6 +1952,16 @@ int v8__Function__GetScriptLineNumber(const v8::Function& self) {
   return ptr_to_local(&self)->GetScriptLineNumber();
 }
 
+int v8__Function__ScriptId(const v8::Function& self) {
+  return ptr_to_local(&self)->ScriptId();
+}
+
+const v8::ScriptOrigin* v8__Function__GetScriptOrigin(const v8::Function& self) {
+  std::unique_ptr<v8::ScriptOrigin> u =
+      std::make_unique<v8::ScriptOrigin>(ptr_to_local(&self)->GetScriptOrigin());
+  return u.release();
+}
+
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
                                         const v8::FunctionTemplate* templ) {
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
@@ -2278,6 +2288,20 @@ void v8__ScriptOrigin__CONSTRUCT(
       buf, isolate, ptr_to_local(&resource_name), resource_line_offset,
       resource_column_offset, resource_is_shared_cross_origin, script_id,
       ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
+}
+
+int v8__ScriptOrigin__ScriptId(const v8::ScriptOrigin& self) {
+  return ptr_to_local(&self)->ScriptId();
+}
+
+const v8::Value* v8__ScriptOrigin__ResourceName(
+    const v8::ScriptOrigin& self) {
+  return local_to_ptr(ptr_to_local(&self)->ResourceName());
+}
+
+const v8::Value* v8__ScriptOrigin__SourceMapUrl(
+    const v8::ScriptOrigin& self) {
+  return local_to_ptr(ptr_to_local(&self)->SourceMapUrl());
 }
 
 const v8::Value* v8__ScriptOrModule__GetResourceName(

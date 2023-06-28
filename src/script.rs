@@ -43,6 +43,13 @@ extern "C" {
     is_wasm: bool,
     is_module: bool,
   );
+  fn v8__ScriptOrigin__ScriptId(origin: *const ScriptOrigin) -> i32;
+  fn v8__ScriptOrigin__ResourceName(
+    origin: *const ScriptOrigin,
+  ) -> *const Value;
+  fn v8__ScriptOrigin__SourceMapUrl(
+    origin: *const ScriptOrigin,
+  ) -> *const Value;
 }
 
 impl Script {
@@ -123,6 +130,27 @@ impl<'s> ScriptOrigin<'s> {
         is_module,
       );
       buf.assume_init()
+    }
+  }
+
+  #[inline(always)]
+  pub fn script_id(&self) -> i32 {
+    unsafe { v8__ScriptOrigin__ScriptId(self as *const _) }
+  }
+
+  #[inline(always)]
+  pub fn resource_name(&self) -> Option<Local<'s, Value>> {
+    unsafe {
+      let ptr = v8__ScriptOrigin__ResourceName(self);
+      Local::from_raw(ptr)
+    }
+  }
+
+  #[inline(always)]
+  pub fn source_map_url(&self) -> Option<Local<'s, Value>> {
+    unsafe {
+      let ptr = v8__ScriptOrigin__SourceMapUrl(self);
+      Local::from_raw(ptr)
     }
   }
 }

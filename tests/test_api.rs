@@ -3829,6 +3829,83 @@ export function anotherFunctionG(a, b) {
 }
 
 #[test]
+fn function_script_origin_and_id() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let mut num_cases = 10;
+  let mut prev_id = None;
+  while num_cases > 0 {
+    let resource_name = format!("google.com/{}", num_cases);
+    let source = mock_source(
+      scope,
+      resource_name.as_str(), // make sure each source has a different resource name
+      r#"export function f(a, b) {
+          return a;
+        }
+
+        export function anotherFunctionG(a, b) {
+          return b;
+        }"#,
+    );
+    let module = v8::script_compiler::compile_module(scope, source).unwrap();
+    let result =
+      module.instantiate_module(scope, unexpected_module_resolve_callback);
+    assert!(result.is_some());
+    module.evaluate(scope).unwrap();
+    assert_eq!(v8::ModuleStatus::Evaluated, module.get_status());
+
+    let namespace = module.get_module_namespace();
+    assert!(namespace.is_module_namespace_object());
+    let namespace_obj = namespace.to_object(scope).unwrap();
+
+    let f_str = v8::String::new(scope, "f").unwrap();
+    let f_function_obj: v8::Local<v8::Function> = namespace_obj
+      .get(scope, f_str.into())
+      .unwrap()
+      .try_into()
+      .unwrap();
+
+    // Modules with different resource names will have incrementing script IDs
+    // but the script ID of the first module is a V8 internal, so should not
+    // be depended on.
+    // See https://groups.google.com/g/v8-users/c/iEfceRohiy8 for more discussion.
+    let script_id = f_function_obj.script_id();
+    assert!(f_function_obj.script_id() > 0);
+
+    if let Some(id) = prev_id {
+      assert_eq!(script_id, id + 1);
+      assert_eq!(script_id, f_function_obj.get_script_origin().script_id(),);
+    }
+    prev_id = Some(script_id);
+
+    // Verify source map URL matches
+    assert_eq!(
+      "source_map_url",
+      f_function_obj
+        .get_script_origin()
+        .source_map_url()
+        .unwrap()
+        .to_rust_string_lossy(scope)
+    );
+
+    // Verify resource name matches in script origin
+    let resource_name_val = f_function_obj.get_script_origin().resource_name();
+    assert!(resource_name_val.is_some());
+    assert_eq!(
+      resource_name_val.unwrap().to_rust_string_lossy(scope),
+      resource_name
+    );
+
+    num_cases -= 1;
+  }
+}
+
+#[test]
 fn constructor() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

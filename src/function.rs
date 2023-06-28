@@ -10,7 +10,6 @@ use crate::support::MapFnTo;
 use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::{int, Opaque};
-use crate::undefined;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
@@ -23,6 +22,7 @@ use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
 use crate::Value;
+use crate::{undefined, ScriptOrigin};
 
 extern "C" {
   fn v8__Function__New(
@@ -50,6 +50,10 @@ extern "C" {
   fn v8__Function__SetName(this: *const Function, name: *const String);
   fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
   fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
+  fn v8__Function__ScriptId(this: *const Function) -> int;
+  fn v8__Function__GetScriptOrigin(
+    this: *const Function,
+  ) -> *const ScriptOrigin<'static>;
 
   fn v8__Function__CreateCodeCache(
     script: *const Function,
@@ -901,6 +905,20 @@ impl Function {
   pub fn get_script_line_number(&self) -> Option<u32> {
     let ret = unsafe { v8__Function__GetScriptLineNumber(self) };
     (ret >= 0).then_some(ret as u32)
+  }
+
+  #[inline(always)]
+  pub fn get_script_origin(&self) -> &ScriptOrigin {
+    unsafe {
+      let ptr = v8__Function__GetScriptOrigin(self);
+      &*ptr
+    }
+  }
+
+  /// Returns scriptId.
+  #[inline(always)]
+  pub fn script_id(&self) -> i32 {
+    unsafe { v8__Function__ScriptId(self) }
   }
 
   /// Creates and returns code cache for the specified unbound_script.
