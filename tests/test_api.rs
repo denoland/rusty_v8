@@ -242,6 +242,21 @@ fn test_string() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
+    // Ensure that a Latin-1 string correctly round-trips
+    let scope = &mut v8::HandleScope::new(isolate);
+    let reference = "\u{00a0}";
+    assert_eq!(2, reference.len());
+    let local = v8::String::new(scope, reference).unwrap();
+    assert_eq!(1, local.length());
+    assert_eq!(2, local.utf8_length(scope));
+    // Should round-trip to UTF-8
+    assert_eq!(2, local.to_rust_string_lossy(scope).len());
+    let mut buf = [MaybeUninit::uninit(); 0];
+    assert_eq!(2, local.to_rust_cow_lossy(scope, &mut buf).len());
+    let mut buf = [MaybeUninit::uninit(); 10];
+    assert_eq!(2, local.to_rust_cow_lossy(scope, &mut buf).len());
+  }
+  {
     let scope = &mut v8::HandleScope::new(isolate);
     let reference = "Hello 🦕 world!";
     let local = v8::String::new(scope, reference).unwrap();
