@@ -23,6 +23,7 @@ fn main() {
   let envs = vec![
     "CCACHE",
     "CLANG_BASE_PATH",
+    "CXXSTDLIB",
     "DENO_TRYBUILD",
     "DOCS_RS",
     "GN",
@@ -261,25 +262,23 @@ fn maybe_install_sysroot(arch: &str) {
 }
 
 fn platform() -> String {
-  #[cfg(target_os = "linux")]
-  let os = "linux";
-  #[cfg(target_os = "macos")]
-  let os = "mac";
-  #[cfg(target_os = "windows")]
-  let os = "windows";
-  #[cfg(not(any(
-    target_os = "linux",
-    target_os = "macos",
-    target_os = "windows"
-  )))]
-  let arch = "unknown";
+  let os = if cfg!(target_os = "linux") {
+    "linux"
+  } else if cfg!(target_os = "macos") {
+    "mac"
+  } else if cfg!(target_os = "windows") {
+    "windows"
+  } else {
+    "unknown"
+  };
 
-  #[cfg(target_arch = "x86_64")]
-  let arch = "amd64";
-  #[cfg(target_arch = "aarch64")]
-  let arch = "arm64";
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  let arch = "unknown";
+  let arch = if cfg!(target_arch = "x86_64") {
+    "amd64"
+  } else if cfg!(target_arch = "aarch64") {
+    "arm64"
+  } else {
+    "unknown"
+  };
 
   format!("{os}-{arch}")
 }
@@ -481,16 +480,24 @@ fn print_link_flags() {
 
   if should_dyn_link_libcxx {
     // Based on https://github.com/alexcrichton/cc-rs/blob/fba7feded71ee4f63cfe885673ead6d7b4f2f454/src/lib.rs#L2462
-    let target = env::var("TARGET").unwrap();
-    if target.contains("apple")
-      || target.contains("freebsd")
-      || target.contains("openbsd")
-    {
-      println!("cargo:rustc-link-lib=dylib=c++");
-    } else if target.contains("linux") {
-      println!("cargo:rustc-link-lib=dylib=stdc++");
-    } else if target.contains("android") {
-      println!("cargo:rustc-link-lib=dylib=c++_shared");
+    if let Ok(stdlib) = env::var("CXXSTDLIB") {
+      if !stdlib.is_empty() {
+        println!("cargo:rustc-link-lib=dylib={}", stdlib);
+      }
+    } else {
+      let target = env::var("TARGET").unwrap();
+      if target.contains("msvc") {
+        // nothing to link to
+      } else if target.contains("apple")
+        || target.contains("freebsd")
+        || target.contains("openbsd")
+      {
+        println!("cargo:rustc-link-lib=dylib=c++");
+      } else if target.contains("android") {
+        println!("cargo:rustc-link-lib=dylib=c++_shared");
+      } else {
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+      }
     }
   }
 
@@ -544,10 +551,6 @@ fn is_compatible_clang_version(clang_path: &Path) -> bool {
 }
 
 fn find_compatible_system_clang() -> Option<PathBuf> {
-  if cfg!(target_os = "android") {
-    return None;
-  }
-
   if let Ok(p) = env::var("CLANG_BASE_PATH") {
     let base_path = Path::new(&p);
     let clang_path = base_path.join("bin").join("clang");
@@ -686,6 +689,10 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let mut cmd = Command::new(cmd_string);
   cmd.arg("-C");
   cmd.arg(gn_out_dir);
+  if let Ok(jobs) = env::var("NUM_JOBS") {
+    cmd.arg("-j");
+    cmd.arg(jobs);
+  }
   if let Some(env) = maybe_env {
     for item in env {
       cmd.env(item.0, item.1);
