@@ -1013,6 +1013,36 @@ class ExternalStaticOneByteStringResource
   const int _length;
 };
 
+class ExternalConstOneByteStringResource
+    : public v8::String::ExternalOneByteStringResource {
+ public:
+  ExternalConstOneByteStringResource(const char* data, int length)
+      : _data(data), _length(length) {}
+  const char* data() const override { return _data; }
+  size_t length() const override { return _length; }
+  void Dispose() override {}
+
+ private:
+  const char* _data;
+  const int _length;
+};
+
+static_assert(sizeof(ExternalConstOneByteStringResource) == 32,
+              "ExternalConstOneByteStringResource size was not 32");
+static_assert(alignof()(ExternalConstOneByteStringResource) == 8,
+              "ExternalConstOneByteStringResource align was not 8");
+
+void v8__String__CreateExternalOneByteConst(ExternalConstOneByteStringResource* mem,
+                                const char* data, int length) {
+  new(mem) ExternalConstOneByteStringResource(data, length);
+}
+
+const v8::String* v8__String__NewExternalOneByteConst(v8::Isolate* isolate,
+                                                      ExternalConstOneByteStringResource* resource) {
+  return maybe_local_to_ptr(v8::String::NewExternalOneByte(
+      isolate, resource));
+}
+
 const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
                                                        const char* data,
                                                        int length) {

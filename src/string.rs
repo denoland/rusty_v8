@@ -69,6 +69,17 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
+  fn v8__String__CreateExternalOneByteConst(
+    mem: *mut ExternalOneByteConst,
+    buffer: *const char,
+    length: int,
+  );
+
+  fn v8__String__NewExternalOneByteConst(
+    isolate: *mut Isolate,
+    onebyte_const: *const ExternalOneByteConst,
+  ) -> *const String;
+
   fn v8__String__NewExternalOneByteStatic(
     isolate: *mut Isolate,
     buffer: *const char,
@@ -88,6 +99,15 @@ extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct ExternalOneByteConst {
+  vtable: *const (),
+  cached_data_: *const (),
+  _data: *const (),
+  _length: i32,
 }
 
 #[repr(C)]
@@ -335,6 +355,40 @@ impl String {
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
+  }
+
+  // Allocates a static ExternalOneByteConst and leaks it.
+  // The allocated ExternalOneByteConst can never be deallocated.
+  #[inline(always)]
+  pub fn create_external_onebyte_const(
+    buffer: &'static [u8],
+  ) -> &'static ExternalOneByteConst {
+    let mut boxed: Box<MaybeUninit<ExternalOneByteConst>> =
+      Box::new(MaybeUninit::uninit());
+    let buffer_len = buffer.len().try_into().unwrap();
+    unsafe {
+      v8__String__CreateExternalOneByteConst(
+        boxed.as_mut_ptr(),
+        buffer.as_ptr() as *const char,
+        buffer_len,
+      )
+    };
+    let leak = Box::<MaybeUninit<ExternalOneByteConst>>::leak(boxed);
+    unsafe { leak.assume_init_mut() }
+  }
+
+  // Creates a v8::String from a `&'static [u8]`,
+  // must be Latin-1 or ASCII, not UTF-8 !
+  #[inline(always)]
+  pub fn new_external_onebyte_const<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    onebyte_const: &'static ExternalOneByteConst,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
+      })
+    }
   }
 
   // Creates a v8::String from a `&'static [u8]`,
