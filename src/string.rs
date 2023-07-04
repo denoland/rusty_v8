@@ -69,6 +69,11 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
+  fn v8__String__NewExternalOneByte(
+    isolate: *mut Isolate,
+    onebyte_const: *const OneByteConst,
+  ) -> *const String;
+
   fn v8__String__NewExternalOneByteStatic(
     isolate: *mut Isolate,
     buffer: *const char,
@@ -88,6 +93,80 @@ extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
+}
+
+#[repr(C)]
+pub struct OneByteConst {
+  vtable: *const extern "C" fn(&'static OneByteConst),
+  cached_data: *const char,
+  length: int,
+}
+
+unsafe impl Sync for OneByteConst {}
+
+extern "C" fn one_byte_const_no_op(_this: &'static OneByteConst) {}
+extern "C" fn one_byte_const_is_cacheable(
+  _this: &'static OneByteConst,
+) -> bool {
+  true
+}
+extern "C" fn one_byte_const_data(this: &'static OneByteConst) -> *const char {
+  this.cached_data
+}
+extern "C" fn one_byte_const_length(this: &'static OneByteConst) -> usize {
+  this.length as usize
+}
+
+const ONE_BYTE_CONST_VTABLE: (
+  // typeinfo / metadata pointer
+  *const (),
+  // base offset
+  usize,
+  // Destructor & Delete
+  extern "C" fn(&'static OneByteConst),
+  extern "C" fn(&'static OneByteConst),
+  // IsCacheable
+  extern "C" fn(&'static OneByteConst) -> bool,
+  // Dispose
+  extern "C" fn(&'static OneByteConst),
+  // Lock
+  extern "C" fn(&'static OneByteConst),
+  // Unlock
+  extern "C" fn(&'static OneByteConst),
+  // Data
+  extern "C" fn(&'static OneByteConst) -> *const char,
+  // Length
+  extern "C" fn(&'static OneByteConst) -> usize,
+  // UpdateDataCache
+  extern "C" fn(&'static OneByteConst),
+  // CheckCachedDataInvariants
+  extern "C" fn(&'static OneByteConst),
+) = (
+  std::ptr::null(),
+  0,
+  one_byte_const_no_op,
+  one_byte_const_no_op,
+  one_byte_const_is_cacheable,
+  one_byte_const_no_op,
+  one_byte_const_no_op,
+  one_byte_const_no_op,
+  one_byte_const_data,
+  one_byte_const_length,
+  one_byte_const_no_op,
+  one_byte_const_no_op,
+);
+
+/// Compile-time function to determine if a string is ASCII. Note that UTF-8 chars
+/// longer than one byte have the high-bit set and thus, are not ASCII.
+const fn is_ascii(s: &'static [u8]) -> bool {
+  let mut i = 0;
+  while i < s.len() {
+    if !s[i].is_ascii() {
+      return false;
+    }
+    i += 1;
+  }
+  true
 }
 
 #[repr(C)]
@@ -335,6 +414,34 @@ impl String {
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
+  }
+
+  // Compile-time function to create an external string resource.
+  // This resource must be assigned into a 'static mut'.
+  #[inline(always)]
+  pub const fn create_external_onebyte_const(
+    buffer: &'static [u8],
+  ) -> OneByteConst {
+    is_ascii(buffer);
+    OneByteConst {
+      vtable: &ONE_BYTE_CONST_VTABLE.2,
+      cached_data: buffer.as_ptr() as *const char,
+      length: buffer.len() as i32,
+    }
+  }
+
+  // Creates a v8::String from a `&'static [u8]`,
+  // must be Latin-1 or ASCII, not UTF-8 !
+  #[inline(always)]
+  pub fn new_from_onebyte_const<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    onebyte_const: &'static OneByteConst,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByte(sd.get_isolate_ptr(), onebyte_const)
+      })
+    }
   }
 
   // Creates a v8::String from a `&'static [u8]`,

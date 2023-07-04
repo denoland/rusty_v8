@@ -139,6 +139,7 @@ pub use script_compiler::CachedData;
 pub use snapshot::FunctionCodeHandling;
 pub use snapshot::StartupData;
 pub use string::NewStringType;
+pub use string::OneByteConst;
 pub use string::WriteOptions;
 pub use support::SharedPtr;
 pub use support::SharedRef;
