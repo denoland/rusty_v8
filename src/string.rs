@@ -111,7 +111,7 @@ pub struct ExternalOneByteConst {
 unsafe impl Sync for ExternalOneByteConst {}
 
 impl ExternalOneByteConst {
-  pub fn init(&self) {
+  fn init_vtable(&self) {
     let vtable_ptr =
       unsafe { &v8__String__ExternalConstOneByteStringResource__VTABLE }
         as *const _ as *mut ();
@@ -393,7 +393,7 @@ impl String {
     onebyte_const: &'static ExternalOneByteConst,
   ) -> Option<Local<'s, String>> {
     unsafe {
-      onebyte_const.init();
+      onebyte_const.init_vtable();
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
       })
