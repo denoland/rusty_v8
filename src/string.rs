@@ -127,20 +127,9 @@ impl ExternalOneByteConst {
     let vtable_ptr = vtable_ptr as *mut *mut ();
     let vtable_ptr = unsafe { vtable_ptr.add(2) };
     let vtable_ptr = vtable_ptr as *mut ();
-    println!("Actual VTABLE: {:#?}", unsafe {
-      &v8__String__ExternalConstOneByteStringResource__VTABLE
-    });
-    println!("vtable: {:#?}", self.vtable);
-    println!("cached_data_: {:#?}", self.cached_data_);
-    println!("_data: {:#?}", self._data);
-    println!("_length: {:#?}", self._length);
     self
       .vtable
       .store(vtable_ptr, std::sync::atomic::Ordering::SeqCst);
-    println!("vtable: {:#?}", self.vtable);
-    println!("cached_data_: {:#?}", self.cached_data_);
-    println!("_data: {:#?}", self._data);
-    println!("_length: {:#?}", self._length);
   }
 }
 
