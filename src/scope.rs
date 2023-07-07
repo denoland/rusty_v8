@@ -1089,7 +1089,9 @@ pub(crate) mod data {
     /// This function should be called only when an Isolate is being disposed.
     pub(crate) fn drop_root(isolate: &mut Isolate) {
       let root = Self::get_root_mut(isolate);
-      unsafe { Box::from_raw(root) };
+      unsafe {
+        let _ = Box::from_raw(root);
+      };
       isolate.set_current_scope_data(None);
     }
 
