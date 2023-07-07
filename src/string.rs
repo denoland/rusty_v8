@@ -1,12 +1,9 @@
 use std::borrow::Cow;
-use std::cell::Cell;
 use std::convert::TryInto;
 use std::default::Default;
 use std::mem::MaybeUninit;
 use std::slice;
 use std::sync::atomic::AtomicPtr;
-
-use once_cell::sync::OnceCell;
 
 use crate::support::char;
 use crate::support::int;
@@ -72,12 +69,6 @@ extern "C" {
     nchars_ref: *mut int,
     options: WriteOptions,
   ) -> int;
-
-  fn v8__String__CreateExternalOneByteConst(
-    mem: *mut ExternalOneByteConst,
-    buffer: *const char,
-    length: int,
-  );
 
   fn v8__String__NewExternalOneByteConst(
     isolate: *mut Isolate,

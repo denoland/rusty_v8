@@ -1033,11 +1033,6 @@ static_assert(alignof(ExternalConstOneByteStringResource) == 8,
               "ExternalConstOneByteStringResource align was not 8");
 
 
-void v8__String__CreateExternalOneByteConst(ExternalConstOneByteStringResource* mem,
-                                const char* data, int length) {
-  new(mem) ExternalConstOneByteStringResource(data, length);
-}
-
 const v8::String* v8__String__NewExternalOneByteConst(v8::Isolate* isolate,
                                                       ExternalConstOneByteStringResource* resource) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
