@@ -1029,8 +1029,9 @@ class ExternalConstOneByteStringResource
 
 static_assert(sizeof(ExternalConstOneByteStringResource) == 32,
               "ExternalConstOneByteStringResource size was not 32");
-static_assert(alignof()(ExternalConstOneByteStringResource) == 8,
+static_assert(alignof(ExternalConstOneByteStringResource) == 8,
               "ExternalConstOneByteStringResource align was not 8");
+
 
 void v8__String__CreateExternalOneByteConst(ExternalConstOneByteStringResource* mem,
                                 const char* data, int length) {
@@ -1039,6 +1040,10 @@ void v8__String__CreateExternalOneByteConst(ExternalConstOneByteStringResource* 
 
 const v8::String* v8__String__NewExternalOneByteConst(v8::Isolate* isolate,
                                                       ExternalConstOneByteStringResource* resource) {
+  void* cVtablePtr = (void*)((void**)resource)[0];
+  auto foo = ExternalConstOneByteStringResource("", 0);
+  void* cVtablePtr2 = (void*)((void**)&foo)[0];
+  printf("%p %p\n", cVtablePtr, cVtablePtr2);
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
       isolate, resource));
 }

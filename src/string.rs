@@ -1,8 +1,12 @@
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::convert::TryInto;
 use std::default::Default;
 use std::mem::MaybeUninit;
 use std::slice;
+use std::sync::atomic::AtomicPtr;
+
+use once_cell::sync::OnceCell;
 
 use crate::support::char;
 use crate::support::int;
@@ -99,15 +103,45 @@ extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
+
+  #[link_name = "_ZTV34ExternalConstOneByteStringResource"]
+  static v8__String__ExternalConstOneByteStringResource__VTABLE: *mut ();
 }
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct ExternalOneByteConst {
-  vtable: *const (),
+  vtable: AtomicPtr<()>,
   cached_data_: *const (),
-  _data: *const (),
+  _data: *const u8,
   _length: i32,
+}
+
+unsafe impl Sync for ExternalOneByteConst {}
+
+impl ExternalOneByteConst {
+  pub fn init(&self) {
+    let vtable_ptr =
+      unsafe { &v8__String__ExternalConstOneByteStringResource__VTABLE }
+        as *const _ as *mut ();
+    let vtable_ptr = vtable_ptr as *mut *mut ();
+    let vtable_ptr = unsafe { vtable_ptr.add(2) };
+    let vtable_ptr = vtable_ptr as *mut ();
+    println!("Actual VTABLE: {:#?}", unsafe {
+      &v8__String__ExternalConstOneByteStringResource__VTABLE
+    });
+    println!("vtable: {:#?}", self.vtable);
+    println!("cached_data_: {:#?}", self.cached_data_);
+    println!("_data: {:#?}", self._data);
+    println!("_length: {:#?}", self._length);
+    self
+      .vtable
+      .store(vtable_ptr, std::sync::atomic::Ordering::SeqCst);
+    println!("vtable: {:#?}", self.vtable);
+    println!("cached_data_: {:#?}", self.cached_data_);
+    println!("_data: {:#?}", self._data);
+    println!("_length: {:#?}", self._length);
+  }
 }
 
 #[repr(C)]
@@ -360,21 +394,15 @@ impl String {
   // Allocates a static ExternalOneByteConst and leaks it.
   // The allocated ExternalOneByteConst can never be deallocated.
   #[inline(always)]
-  pub fn create_external_onebyte_const(
+  pub const fn create_external_onebyte_const(
     buffer: &'static [u8],
-  ) -> &'static ExternalOneByteConst {
-    let mut boxed: Box<MaybeUninit<ExternalOneByteConst>> =
-      Box::new(MaybeUninit::uninit());
-    let buffer_len = buffer.len().try_into().unwrap();
-    unsafe {
-      v8__String__CreateExternalOneByteConst(
-        boxed.as_mut_ptr(),
-        buffer.as_ptr() as *const char,
-        buffer_len,
-      )
-    };
-    let leak = Box::<MaybeUninit<ExternalOneByteConst>>::leak(boxed);
-    unsafe { leak.assume_init_mut() }
+  ) -> ExternalOneByteConst {
+    ExternalOneByteConst {
+      vtable: AtomicPtr::new(std::ptr::null_mut()),
+      cached_data_: std::ptr::null(),
+      _data: buffer.as_ptr(),
+      _length: buffer.len() as i32,
+    }
   }
 
   // Creates a v8::String from a `&'static [u8]`,
@@ -385,6 +413,7 @@ impl String {
     onebyte_const: &'static ExternalOneByteConst,
   ) -> Option<Local<'s, String>> {
     unsafe {
+      onebyte_const.init();
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
       })
