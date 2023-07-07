@@ -129,7 +129,7 @@ impl ExternalOneByteConst {
     let vtable_ptr = vtable_ptr as *mut ();
     self
       .vtable
-      .store(vtable_ptr, std::sync::atomic::Ordering::SeqCst);
+      .store(vtable_ptr, std::sync::atomic::Ordering::Relaxed);
   }
 }
 
