@@ -103,7 +103,7 @@ extern "C" {
 #[derive(Debug)]
 pub struct ExternalOneByteConst {
   vtable: AtomicPtr<()>,
-  cached_data_: *const (),
+  cached_data_: *const u8,
   _data: *const u8,
   _length: i32,
 }
@@ -379,7 +379,7 @@ impl String {
   ) -> ExternalOneByteConst {
     ExternalOneByteConst {
       vtable: AtomicPtr::new(std::ptr::null_mut()),
-      cached_data_: std::ptr::null(),
+      cached_data_: buffer.as_ptr(),
       _data: buffer.as_ptr(),
       _length: buffer.len() as i32,
     }
