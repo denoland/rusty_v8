@@ -336,11 +336,27 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn getter_raw(
+    mut self,
+    getter: GenericNamedPropertyGetterCallback<'s>,
+  ) -> Self {
+    self.getter = Some(getter);
+    self
+  }
+
   pub fn setter(
     mut self,
     setter: impl MapFnTo<GenericNamedPropertySetterCallback<'s>>,
   ) -> Self {
     self.setter = Some(setter.map_fn_to());
+    self
+  }
+
+  pub fn setter_raw(
+    mut self,
+    setter: GenericNamedPropertySetterCallback<'s>,
+  ) -> Self {
+    self.setter = Some(setter);
     self
   }
 
@@ -352,11 +368,27 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn query_raw(
+    mut self,
+    query: GenericNamedPropertyQueryCallback<'s>,
+  ) -> Self {
+    self.query = Some(query);
+    self
+  }
+
   pub fn deleter(
     mut self,
     deleter: impl MapFnTo<GenericNamedPropertyDeleterCallback<'s>>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
+    self
+  }
+
+  pub fn deleter_raw(
+    mut self,
+    deleter: GenericNamedPropertyDeleterCallback<'s>,
+  ) -> Self {
+    self.deleter = Some(deleter);
     self
   }
 
@@ -368,6 +400,14 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn enumerator_raw(
+    mut self,
+    enumerator: GenericNamedPropertyEnumeratorCallback<'s>,
+  ) -> Self {
+    self.enumerator = Some(enumerator);
+    self
+  }
+
   pub fn definer(
     mut self,
     definer: impl MapFnTo<GenericNamedPropertyDefinerCallback<'s>>,
@@ -376,11 +416,27 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn definer_raw(
+    mut self,
+    definer: GenericNamedPropertyDefinerCallback<'s>,
+  ) -> Self {
+    self.definer = Some(definer);
+    self
+  }
+
   pub fn descriptor(
     mut self,
     descriptor: impl MapFnTo<GenericNamedPropertyDescriptorCallback<'s>>,
   ) -> Self {
     self.descriptor = Some(descriptor.map_fn_to());
+    self
+  }
+
+  pub fn descriptor_raw(
+    mut self,
+    descriptor: GenericNamedPropertyDescriptorCallback<'s>,
+  ) -> Self {
+    self.descriptor = Some(descriptor);
     self
   }
 
