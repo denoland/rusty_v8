@@ -2437,6 +2437,35 @@ fn object_template_set_named_property_handler() {
       .unwrap()
       .boolean_value(scope));
     assert!(eval(scope, "obj.panicOnGet").unwrap().is_string());
+
+    // Test `v8::NamedPropertyHandlerConfiguration::*_raw()` methods
+    {
+      let templ = v8::ObjectTemplate::new(scope);
+      templ.set_internal_field_count(1);
+      templ.set_named_property_handler(
+        v8::NamedPropertyHandlerConfiguration::new()
+          .getter_raw(getter.map_fn_to())
+          .setter_raw(setter.map_fn_to())
+          .query_raw(query.map_fn_to())
+          .flags(v8::PropertyHandlerFlags::NON_MASKING),
+      );
+
+      let obj = templ.new_instance(scope).unwrap();
+      obj.set_internal_field(0, int.into());
+      scope.get_current_context().global(scope).set(
+        scope,
+        name.into(),
+        obj.into(),
+      );
+      assert!(!eval(scope, "'panicOnGet' in obj")
+        .unwrap()
+        .boolean_value(scope));
+      eval(scope, "obj.panicOnGet = 'x'").unwrap();
+      assert!(eval(scope, "'panicOnGet' in obj")
+        .unwrap()
+        .boolean_value(scope));
+      assert!(eval(scope, "obj.panicOnGet").unwrap().is_string());
+    }
   }
 }
 
