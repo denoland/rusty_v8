@@ -8398,7 +8398,7 @@ fn compile_function() {
   assert_eq!(42 * 1337, result.int32_value(scope).unwrap());
 }
 
-static EXAMPLE_STRING: v8::ExternalOneByteConst =
+static mut EXAMPLE_STRING: v8::ExternalOneByteConst =
   v8::String::create_external_onebyte_const(b"const static");
 
 #[test]
@@ -8471,7 +8471,10 @@ fn external_strings() {
   // one-byte "const" test
   // SAFETY: Statics are alright.
   let const_ref_string =
-    v8::String::new_external_onebyte_const(scope, &EXAMPLE_STRING).unwrap();
+    v8::String::new_external_onebyte_const(scope, unsafe {
+      &mut EXAMPLE_STRING
+    })
+    .unwrap();
   assert!(const_ref_string.is_external());
   assert!(const_ref_string.is_external_onebyte());
   assert!(!const_ref_string.is_external_twobyte());

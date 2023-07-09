@@ -3,7 +3,6 @@ use std::convert::TryInto;
 use std::default::Default;
 use std::mem::MaybeUninit;
 use std::slice;
-use std::sync::atomic::AtomicPtr;
 
 use crate::support::char;
 use crate::support::int;
@@ -70,9 +69,15 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
+  fn v8__String__ExternalOneByteStringResource__Constructor(
+    onebyte_const: *mut ExternalOneByteConst,
+    buffer: *const char,
+    length: int,
+  );
+
   fn v8__String__NewExternalOneByteConst(
     isolate: *mut Isolate,
-    onebyte_const: *const ExternalOneByteConst,
+    onebyte_const: *mut ExternalOneByteConst,
   ) -> *const String;
 
   fn v8__String__NewExternalOneByteStatic(
@@ -94,34 +99,44 @@ extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
-
-  #[link_name = "_ZTV34ExternalConstOneByteStringResource"]
-  static v8__String__ExternalConstOneByteStringResource__VTABLE: *mut ();
 }
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct ExternalOneByteConst {
-  vtable: AtomicPtr<()>,
-  cached_data_: *const u8,
-  _data: *const u8,
-  _length: i32,
+  vtable: *const (),
+  cached_data_: *const char,
+  _data: *const char,
+  _length: int,
 }
 
 unsafe impl Sync for ExternalOneByteConst {}
 
 impl ExternalOneByteConst {
-  fn init_vtable(&self) {
-    let vtable_ptr =
-      unsafe { &v8__String__ExternalConstOneByteStringResource__VTABLE }
-        as *const _ as *mut ();
-    let vtable_ptr = vtable_ptr as *mut *mut ();
-    let vtable_ptr = unsafe { vtable_ptr.add(2) };
-    let vtable_ptr = vtable_ptr as *mut ();
-    self
-      .vtable
-      .store(vtable_ptr, std::sync::atomic::Ordering::Relaxed);
+  fn init(&mut self) {
+    if self.vtable.is_null() {
+      unsafe {
+        v8__String__ExternalOneByteStringResource__Constructor(
+          self,
+          self._data,
+          self._length,
+        );
+      }
+    }
   }
+}
+
+/// Compile-time function to determine if a string is ASCII. Note that UTF-8 chars
+/// longer than one byte have the high-bit set and thus, are not ASCII.
+const fn is_ascii(s: &'static [u8]) -> bool {
+  let mut i = 0;
+  while i < s.len() {
+    if !s[i].is_ascii() {
+      return false;
+    }
+    i += 1;
+  }
+  true
 }
 
 #[repr(C)]
@@ -371,16 +386,17 @@ impl String {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
-  // Allocates a static ExternalOneByteConst and leaks it.
-  // The allocated ExternalOneByteConst can never be deallocated.
+  // Compile-time function to create an external string resource.
+  // This resource must be assigned into a 'static mut'.
   #[inline(always)]
   pub const fn create_external_onebyte_const(
     buffer: &'static [u8],
   ) -> ExternalOneByteConst {
+    is_ascii(buffer);
     ExternalOneByteConst {
-      vtable: AtomicPtr::new(std::ptr::null_mut()),
-      cached_data_: buffer.as_ptr(),
-      _data: buffer.as_ptr(),
+      vtable: std::ptr::null(),
+      cached_data_: std::ptr::null(),
+      _data: buffer.as_ptr() as *const char,
       _length: buffer.len() as i32,
     }
   }
@@ -390,10 +406,10 @@ impl String {
   #[inline(always)]
   pub fn new_external_onebyte_const<'s>(
     scope: &mut HandleScope<'s, ()>,
-    onebyte_const: &'static ExternalOneByteConst,
+    onebyte_const: &'static mut ExternalOneByteConst,
   ) -> Option<Local<'s, String>> {
     unsafe {
-      onebyte_const.init_vtable();
+      onebyte_const.init();
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
       })
