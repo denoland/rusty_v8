@@ -320,9 +320,9 @@ where
   }
 
   /// Utility function that extracts the http request object from a wrapper object.
-  fn unwrap_request<'a>(
+  fn unwrap_request(
     scope: &mut v8::HandleScope,
-    request: v8::Local<'a, v8::Object>,
+    request: v8::Local<v8::Object>,
   ) -> *mut Box<dyn HttpRequest> {
     let external = request.get_internal_field(scope, 0).unwrap();
     let external = unsafe { v8::Local::<v8::External>::cast(external) };

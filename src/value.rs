@@ -568,9 +568,9 @@ impl Value {
 
   /// Convenience function not present in the original V8 API.
   #[inline(always)]
-  pub fn to_rust_string_lossy<'s>(
+  pub fn to_rust_string_lossy(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
   ) -> std::string::String {
     self
       .to_string(scope)
@@ -646,9 +646,9 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn instance_of<'s>(
+  pub fn instance_of(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     object: Local<Object>,
   ) -> Option<bool> {
     let mut out = Maybe::<bool>::default();
@@ -664,7 +664,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn number_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<f64> {
+  pub fn number_value(&self, scope: &mut HandleScope) -> Option<f64> {
     let mut out = Maybe::<f64>::default();
     unsafe {
       v8__Value__NumberValue(self, &*scope.get_current_context(), &mut out)
@@ -673,7 +673,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn integer_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<i64> {
+  pub fn integer_value(&self, scope: &mut HandleScope) -> Option<i64> {
     let mut out = Maybe::<i64>::default();
     unsafe {
       v8__Value__IntegerValue(self, &*scope.get_current_context(), &mut out)
@@ -682,7 +682,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn uint32_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<u32> {
+  pub fn uint32_value(&self, scope: &mut HandleScope) -> Option<u32> {
     let mut out = Maybe::<u32>::default();
     unsafe {
       v8__Value__Uint32Value(self, &*scope.get_current_context(), &mut out)
@@ -691,7 +691,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn int32_value<'s>(&self, scope: &mut HandleScope<'s>) -> Option<i32> {
+  pub fn int32_value(&self, scope: &mut HandleScope) -> Option<i32> {
     let mut out = Maybe::<i32>::default();
     unsafe {
       v8__Value__Int32Value(self, &*scope.get_current_context(), &mut out)
@@ -700,7 +700,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn boolean_value<'s>(&self, scope: &mut HandleScope<'s, ()>) -> bool {
+  pub fn boolean_value(&self, scope: &mut HandleScope<'_, ()>) -> bool {
     unsafe { v8__Value__BooleanValue(self, scope.get_isolate_ptr()) }
   }
 

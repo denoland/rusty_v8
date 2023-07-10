@@ -91,16 +91,11 @@ extern "C" {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum NewStringType {
+  #[default]
   Normal,
   Internalized,
-}
-
-impl Default for NewStringType {
-  fn default() -> Self {
-    NewStringType::Normal
-  }
 }
 
 bitflags! {

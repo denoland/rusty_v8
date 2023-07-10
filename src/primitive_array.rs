@@ -48,9 +48,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn set<'s>(
+  pub fn set(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
