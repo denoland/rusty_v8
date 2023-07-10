@@ -818,8 +818,8 @@ impl Object {
   /// If this object is a SetIterator or MapIterator, this returns all elements
   /// of the underlying collection, starting at the iterator's current position.
   ///
-  /// Also returns a boolean, which corresponds to the array being key values
-  /// or not.
+  /// Also returns a boolean, indicating whether the returned array contains
+  /// key & values (for example, Set.entries()).
   pub fn preview_entries<'s>(
     &self,
     scope: &mut HandleScope<'s>,
