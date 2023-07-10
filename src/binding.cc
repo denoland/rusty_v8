@@ -1018,8 +1018,8 @@ class ExternalStaticOneByteStringResource
 class ExternalConstOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
-  ExternalConstOneByteStringResource(const char* data, int length)
-      : _data(data), _length(length) {
+  ExternalConstOneByteStringResource(int length)
+      : _length(length) {
     static_assert(offsetof(ExternalConstOneByteStringResource, _length) == 16,
                   "ExternalConstOneByteStringResource's length was not at offset 16");
     static_assert(sizeof(ExternalConstOneByteStringResource) == 24,
