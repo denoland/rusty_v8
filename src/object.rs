@@ -26,6 +26,7 @@ use crate::String;
 use crate::Value;
 use std::convert::TryFrom;
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
 use std::ptr::null;
 
@@ -192,6 +193,10 @@ extern "C" {
     context: *const Context,
     key: *const Name,
   ) -> *const Value;
+  fn v8__Object__PreviewEntries(
+    this: *const Object,
+    is_key_value: *mut bool,
+  ) -> *const Array;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -805,6 +810,28 @@ impl Object {
           &*key,
         )
       })
+    }
+  }
+
+  /// If this object is a Set, Map, WeakSet or WeakMap, this returns a
+  /// representation of the elements of this object as an array.
+  /// If this object is a SetIterator or MapIterator, this returns all elements
+  /// of the underlying collection, starting at the iterator's current position.
+  ///
+  /// Also returns a boolean, indicating whether the returned array contains
+  /// key & values (for example when the value is Set.entries()).
+  pub fn preview_entries<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> (Option<Local<'s, Array>>, bool) {
+    let mut is_key_value = MaybeUninit::uninit();
+    unsafe {
+      let val = scope.cast_local(|_| {
+        v8__Object__PreviewEntries(self, is_key_value.as_mut_ptr())
+      });
+      let is_key_value = is_key_value.assume_init();
+
+      (val, is_key_value)
     }
   }
 }
