@@ -97,7 +97,7 @@ extern "C" {
 
 #[repr(C)]
 pub struct OneByteConst {
-  vtable: *const extern "C" fn(&'static OneByteConst),
+  vtable: *const OneByteConstNoOp,
   cached_data: *const char,
   length: int,
 }
@@ -117,31 +117,39 @@ extern "C" fn one_byte_const_length(this: &'static OneByteConst) -> usize {
   this.length as usize
 }
 
-const ONE_BYTE_CONST_VTABLE: (
+type OneByteConstNoOp = extern "C" fn(&'static OneByteConst);
+
+type OneByteConstIsCacheable = extern "C" fn(&'static OneByteConst) -> bool;
+type OneByteConstData = extern "C" fn(&'static OneByteConst) -> *const char;
+type OneByteConstLength = extern "C" fn(&'static OneByteConst) -> usize;
+
+type OneByteConstVtable = (
   // typeinfo / metadata pointer
   *const (),
   // base offset
   usize,
   // Destructor & Delete
-  extern "C" fn(&'static OneByteConst),
-  extern "C" fn(&'static OneByteConst),
+  OneByteConstNoOp,
+  OneByteConstNoOp,
   // IsCacheable
-  extern "C" fn(&'static OneByteConst) -> bool,
+  OneByteConstIsCacheable,
   // Dispose
-  extern "C" fn(&'static OneByteConst),
+  OneByteConstNoOp,
   // Lock
-  extern "C" fn(&'static OneByteConst),
+  OneByteConstNoOp,
   // Unlock
-  extern "C" fn(&'static OneByteConst),
+  OneByteConstNoOp,
   // Data
-  extern "C" fn(&'static OneByteConst) -> *const char,
+  OneByteConstData,
   // Length
-  extern "C" fn(&'static OneByteConst) -> usize,
+  OneByteConstLength,
   // UpdateDataCache
-  extern "C" fn(&'static OneByteConst),
+  OneByteConstNoOp,
   // CheckCachedDataInvariants
-  extern "C" fn(&'static OneByteConst),
-) = (
+  OneByteConstNoOp,
+);
+
+const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = (
   std::ptr::null(),
   0,
   one_byte_const_no_op,
