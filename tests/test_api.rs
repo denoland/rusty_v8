@@ -6742,6 +6742,42 @@ fn get_own_property_descriptor() {
 }
 
 #[test]
+fn preview_entries() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let obj = eval(
+    scope,
+    "var set = new Set([1,2,3]); set.delete(1); set.keys()",
+  )
+  .unwrap();
+  let obj = obj.to_object(scope).unwrap();
+  let (preview, is_key_value) = obj.preview_entries(scope);
+  let preview = preview.unwrap();
+  assert!(!is_key_value);
+  assert_eq!(preview.length(), 2);
+  assert_eq!(
+    preview
+      .get_index(scope, 0)
+      .unwrap()
+      .number_value(scope)
+      .unwrap(),
+    2.0
+  );
+  assert_eq!(
+    preview
+      .get_index(scope, 1)
+      .unwrap()
+      .number_value(scope)
+      .unwrap(),
+    3.0
+  );
+}
+
+#[test]
 fn test_prototype_api() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
