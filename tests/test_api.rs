@@ -6749,32 +6749,75 @@ fn preview_entries() {
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
 
-  let obj = eval(
-    scope,
-    "var set = new Set([1,2,3]); set.delete(1); set.keys()",
-  )
-  .unwrap();
-  let obj = obj.to_object(scope).unwrap();
-  let (preview, is_key_value) = obj.preview_entries(scope);
-  let preview = preview.unwrap();
-  assert!(!is_key_value);
-  assert_eq!(preview.length(), 2);
-  assert_eq!(
-    preview
+  {
+    let obj = eval(
+      scope,
+      "var set = new Set([1,2,3]); set.delete(1); set.keys()",
+    )
+    .unwrap();
+    let obj = obj.to_object(scope).unwrap();
+    let (preview, is_key_value) = obj.preview_entries(scope);
+    let preview = preview.unwrap();
+    assert!(!is_key_value);
+    assert_eq!(preview.length(), 2);
+    assert_eq!(
+      preview
+        .get_index(scope, 0)
+        .unwrap()
+        .number_value(scope)
+        .unwrap(),
+      2.0
+    );
+    assert_eq!(
+      preview
+        .get_index(scope, 1)
+        .unwrap()
+        .number_value(scope)
+        .unwrap(),
+      3.0
+    );
+  }
+
+  {
+    let obj = eval(
+      scope,
+      "var set = new Set([1,2,3]); set.delete(2); set.entries()",
+    )
+    .unwrap();
+    let obj = obj.to_object(scope).unwrap();
+    let (preview, is_key_value) = obj.preview_entries(scope);
+    let preview = preview.unwrap();
+    assert!(is_key_value);
+    assert_eq!(preview.length(), 4);
+    let first = preview
       .get_index(scope, 0)
       .unwrap()
       .number_value(scope)
-      .unwrap(),
-    2.0
-  );
-  assert_eq!(
-    preview
-      .get_index(scope, 1)
+      .unwrap();
+    let second = preview
+      .get_index(scope, 2)
       .unwrap()
       .number_value(scope)
-      .unwrap(),
-    3.0
-  );
+      .unwrap();
+    assert_eq!(first, 1.0);
+    assert_eq!(second, 3.0);
+    assert_eq!(
+      first,
+      preview
+        .get_index(scope, 1)
+        .unwrap()
+        .number_value(scope)
+        .unwrap(),
+    );
+    assert_eq!(
+      second,
+      preview
+        .get_index(scope, 3)
+        .unwrap()
+        .number_value(scope)
+        .unwrap(),
+    );
+  }
 }
 
 #[test]
