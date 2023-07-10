@@ -118,7 +118,6 @@ extern "C" fn one_byte_const_length(this: &'static OneByteConst) -> usize {
 }
 
 type OneByteConstNoOp = extern "C" fn(&'static OneByteConst);
-
 type OneByteConstIsCacheable = extern "C" fn(&'static OneByteConst) -> bool;
 type OneByteConstData = extern "C" fn(&'static OneByteConst) -> *const char;
 type OneByteConstLength = extern "C" fn(&'static OneByteConst) -> usize;
