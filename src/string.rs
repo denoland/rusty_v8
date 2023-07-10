@@ -122,46 +122,34 @@ type OneByteConstIsCacheable = extern "C" fn(&'static OneByteConst) -> bool;
 type OneByteConstData = extern "C" fn(&'static OneByteConst) -> *const char;
 type OneByteConstLength = extern "C" fn(&'static OneByteConst) -> usize;
 
-type OneByteConstVtable = (
-  // typeinfo / metadata pointer
-  *const (),
-  // base offset
-  usize,
-  // Destructor & Delete
-  OneByteConstNoOp,
-  OneByteConstNoOp,
-  // IsCacheable
-  OneByteConstIsCacheable,
-  // Dispose
-  OneByteConstNoOp,
-  // Lock
-  OneByteConstNoOp,
-  // Unlock
-  OneByteConstNoOp,
-  // Data
-  OneByteConstData,
-  // Length
-  OneByteConstLength,
-  // UpdateDataCache
-  OneByteConstNoOp,
-  // CheckCachedDataInvariants
-  OneByteConstNoOp,
-);
+#[repr(C)]
+struct OneByteConstVtable {
+  _typeinfo: *const (),
+  _base_offset: usize,
+  delete1: OneByteConstNoOp,
+  #[cfg(not(target_family = "windows"))]
+  delete2: OneByteConstNoOp,
+  is_cacheable: OneByteConstIsCacheable,
+  dispose: OneByteConstNoOp,
+  lock: OneByteConstNoOp,
+  unlock: OneByteConstNoOp,
+  data: OneByteConstData,
+  length: OneByteConstLength,
+}
 
-const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = (
-  std::ptr::null(),
-  0,
-  one_byte_const_no_op,
-  one_byte_const_no_op,
-  one_byte_const_is_cacheable,
-  one_byte_const_no_op,
-  one_byte_const_no_op,
-  one_byte_const_no_op,
-  one_byte_const_data,
-  one_byte_const_length,
-  one_byte_const_no_op,
-  one_byte_const_no_op,
-);
+const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
+  _typeinfo: std::ptr::null(),
+  _base_offset: 0,
+  delete1: one_byte_const_no_op,
+  #[cfg(not(target_family = "windows"))]
+  delete2: one_byte_const_no_op,
+  is_cacheable: one_byte_const_is_cacheable,
+  dispose: one_byte_const_no_op,
+  lock: one_byte_const_no_op,
+  unlock: one_byte_const_no_op,
+  data: one_byte_const_data,
+  length: one_byte_const_length,
+};
 
 /// Compile-time function to determine if a string is ASCII. Note that UTF-8 chars
 /// longer than one byte have the high-bit set and thus, are not ASCII.
@@ -431,7 +419,7 @@ impl String {
   ) -> OneByteConst {
     is_ascii(buffer);
     OneByteConst {
-      vtable: &ONE_BYTE_CONST_VTABLE.2,
+      vtable: &ONE_BYTE_CONST_VTABLE.delete1,
       cached_data: buffer.as_ptr() as *const char,
       length: buffer.len() as i32,
     }
