@@ -819,7 +819,7 @@ impl Object {
   /// of the underlying collection, starting at the iterator's current position.
   ///
   /// Also returns a boolean, indicating whether the returned array contains
-  /// key & values (for example, Set.entries()).
+  /// key & values (for example when the value is Set.entries()).
   pub fn preview_entries<'s>(
     &self,
     scope: &mut HandleScope<'s>,
