@@ -544,4 +544,27 @@ impl ArrayBuffer {
       deleter_data,
     ))
   }
+
+  #[inline(always)]
+  /// Create a cheap, zero-sized backing store.
+  pub fn new_empty_backing_store() -> UniqueRef<BackingStore> {
+    // A zero-sized-but-valid, mutable buffer
+    static mut BUFFER: [u8; 0] = [];
+    // A function that does nothing
+    extern "C" fn empty_deleter(
+      _ptr: *mut c_void,
+      _size: usize,
+      _data: *mut c_void,
+    ) {
+    }
+
+    unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
+        BUFFER.as_mut_ptr() as _,
+        0,
+        empty_deleter,
+        std::ptr::null_mut() as _,
+      ))
+    }
+  }
 }

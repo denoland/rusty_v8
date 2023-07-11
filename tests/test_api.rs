@@ -828,6 +828,11 @@ fn array_buffer() {
     assert_eq!(10, shared_bs_2.byte_length());
     assert_eq!(shared_bs_2[0].get(), 0);
     assert_eq!(shared_bs_2[9].get(), 9);
+
+    let empty_bs = v8::ArrayBuffer::new_empty_backing_store().into();
+    let ab = v8::ArrayBuffer::with_backing_store(scope, &empty_bs);
+    assert_eq!(0, ab.byte_length());
+    assert!(!empty_bs.is_shared());
   }
 }
 
