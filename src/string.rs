@@ -96,6 +96,7 @@ extern "C" {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct OneByteConst {
   vtable: *const OneByteConstNoOp,
   cached_data: *const char,
