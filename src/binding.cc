@@ -1159,15 +1159,15 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
-void v8__ObjectTemplate__SetAccessor(const v8::ObjectTemplate& self,
-                                     const v8::Name& key,
-                                     v8::AccessorNameGetterCallback getter,
-                                     v8::AccessorNameSetterCallback setter,
-                                     const v8::Value* data_or_null,
-                                     v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter,
-                                   ptr_to_local(data_or_null),
-                                   v8::AccessControl::DEFAULT, attr);
+void v8__ObjectTemplate__SetAccessor(
+    const v8::ObjectTemplate& self, const v8::Name& key,
+    v8::AccessorNameGetterCallback getter,
+    v8::AccessorNameSetterCallback setter,
+    const v8::Value* data_or_null,
+    v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessor(
+    ptr_to_local(&key), getter, setter,  ptr_to_local(data_or_null), v8::AccessControl::DEFAULT,
+    attr);
 }
 
 void v8__ObjectTemplate__SetNamedPropertyHandler(
@@ -1469,6 +1469,12 @@ const v8::Value* v8__Object__GetOwnPropertyDescriptor(
     const v8::Object& self, const v8::Context& context, const v8::Name& key) {
   return maybe_local_to_ptr(ptr_to_local(&self)->GetOwnPropertyDescriptor(
       ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+const v8::Array* v8__Object__PreviewEntries(
+    const v8::Object& self,
+    bool* is_key_value) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
 }
 
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
@@ -1816,9 +1822,8 @@ void v8__Context__UseDefaultSecurityToken(v8::Context& self) {
   ptr_to_local(&self)->UseDefaultSecurityToken();
 }
 
-void v8__Context__AllowCodeGenerationFromStrings(v8::Context& self,
-                                                 bool allow) {
-  ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow);
+void v8__Context__AllowCodeGenerationFromStrings(v8::Context& self, bool allow) {
+   ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow);
 }
 
 bool v8__Context_IsCodeGenerationFromStringsAllowed(v8::Context& self) {
