@@ -234,14 +234,12 @@ impl FastApiOneByteString {
 }
 
 impl<T: Default> FastApiTypedArray<T> {
+  /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
   pub fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
-    let mut t: T = Default::default();
-    unsafe {
-      ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
-    }
-    t
+    // SAFETY: src is valid for reads, and is a valid value for T
+    unsafe { ptr::read_unaligned(self.data.add(index)) }
   }
 
   #[inline(always)]
