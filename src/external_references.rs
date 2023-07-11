@@ -11,6 +11,7 @@ use crate::NamedGetterCallback;
 use crate::NamedSetterCallback;
 use crate::PropertyEnumeratorCallback;
 use std::ffi::c_void;
+use std::fmt::Debug;
 
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
@@ -24,6 +25,13 @@ pub union ExternalReference<'s> {
   pub enumerator: PropertyEnumeratorCallback<'s>,
   pub message: MessageCallback,
   pub pointer: *mut c_void,
+}
+
+impl<'s> Debug for ExternalReference<'s> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    // SAFETY: All union fields are the same size
+    unsafe { (self.pointer).fmt(f) }
+  }
 }
 
 #[derive(Debug, Clone)]

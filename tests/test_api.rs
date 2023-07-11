@@ -5309,7 +5309,7 @@ fn external_references() {
   let external_ptr = Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice())
     as *mut [u8] as *mut c_void;
   // Push them to the external reference table.
-  let refs = v8::ExternalReferences::new(&[
+  let refs = [
     v8::ExternalReference {
       function: fn_callback.map_fn_to(),
     },
@@ -5319,7 +5319,10 @@ fn external_references() {
     v8::ExternalReference {
       pointer: external_ptr,
     },
-  ]);
+  ];
+  // Exercise the Debug impl
+  println!("{refs:?}");
+  let refs = v8::ExternalReferences::new(&refs);
   // TODO(piscisaureus): leaking the `ExternalReferences` collection shouldn't
   // be necessary. The reference needs to remain valid for the lifetime of the
   // `SnapshotCreator` or `Isolate` that uses it, which would be the case here
