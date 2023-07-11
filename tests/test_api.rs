@@ -679,8 +679,8 @@ fn get_isolate_from_handle() {
     check_handle_helper(scope, expect_some, local2);
   }
 
-  fn check_eval<'s>(
-    scope: &mut v8::HandleScope<'s>,
+  fn check_eval(
+    scope: &mut v8::HandleScope,
     expect_some: Option<bool>,
     code: &str,
   ) {
@@ -4482,8 +4482,8 @@ fn mock_script_origin<'s>(
   )
 }
 
-fn mock_source<'s>(
-  scope: &mut v8::HandleScope<'s>,
+fn mock_source(
+  scope: &mut v8::HandleScope,
   resource_name: &str,
   source: &str,
 ) -> v8::script_compiler::Source {
@@ -5309,7 +5309,7 @@ fn external_references() {
   let external_ptr = Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice())
     as *mut [u8] as *mut c_void;
   // Push them to the external reference table.
-  let refs = v8::ExternalReferences::new(&[
+  let refs = [
     v8::ExternalReference {
       function: fn_callback.map_fn_to(),
     },
@@ -5319,7 +5319,10 @@ fn external_references() {
     v8::ExternalReference {
       pointer: external_ptr,
     },
-  ]);
+  ];
+  // Exercise the Debug impl
+  println!("{refs:?}");
+  let refs = v8::ExternalReferences::new(&refs);
   // TODO(piscisaureus): leaking the `ExternalReferences` collection shouldn't
   // be necessary. The reference needs to remain valid for the lifetime of the
   // `SnapshotCreator` or `Isolate` that uses it, which would be the case here

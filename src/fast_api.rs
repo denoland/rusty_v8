@@ -112,6 +112,7 @@ pub enum CType {
 pub enum Type {
   Void,
   Bool,
+  Uint8,
   Int32,
   Uint32,
   Int64,
@@ -132,6 +133,7 @@ impl From<&Type> for CType {
     match ty {
       Type::Void => CType::Void,
       Type::Bool => CType::Bool,
+      Type::Uint8 => CType::Uint8,
       Type::Int32 => CType::Int32,
       Type::Uint32 => CType::Uint32,
       Type::Int64 => CType::Int64,
@@ -232,14 +234,12 @@ impl FastApiOneByteString {
 }
 
 impl<T: Default> FastApiTypedArray<T> {
+  /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
   pub fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
-    let mut t: T = Default::default();
-    unsafe {
-      ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
-    }
-    t
+    // SAFETY: src is valid for reads, and is a valid value for T
+    unsafe { ptr::read_unaligned(self.data.add(index)) }
   }
 
   #[inline(always)]

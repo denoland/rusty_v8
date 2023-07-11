@@ -186,17 +186,11 @@ const fn is_ascii(s: &'static [u8]) -> bool {
   true
 }
 
-#[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum NewStringType {
+  #[default]
   Normal,
   Internalized,
-}
-
-impl Default for NewStringType {
-  fn default() -> Self {
-    NewStringType::Normal
-  }
 }
 
 bitflags! {
