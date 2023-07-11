@@ -1002,6 +1002,8 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
+// NOTE: This class is never used and only serves as a reference for
+// the OneByteConst struct created on Rust-side.
 class ExternalStaticOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:

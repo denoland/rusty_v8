@@ -104,29 +104,32 @@ pub struct OneByteConst {
 
 unsafe impl Sync for OneByteConst {}
 
-extern "C" fn one_byte_const_no_op(_this: &'static OneByteConst) {}
-extern "C" fn one_byte_const_is_cacheable(
-  _this: &'static OneByteConst,
-) -> bool {
+extern "C" fn one_byte_const_no_op(_this: *const OneByteConst) {}
+extern "C" fn one_byte_const_is_cacheable(_this: *const OneByteConst) -> bool {
   true
 }
-extern "C" fn one_byte_const_data(this: &'static OneByteConst) -> *const char {
-  this.cached_data
+extern "C" fn one_byte_const_data(this: *const OneByteConst) -> *const char {
+  // SAFETY: Only called from C++ with a valid OneByteConst pointer.
+  unsafe { (*this).cached_data }
 }
-extern "C" fn one_byte_const_length(this: &'static OneByteConst) -> usize {
-  this.length as usize
+extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
+  // SAFETY: Only called from C++ with a valid OneByteConst pointer.
+  unsafe { (*this).length as usize }
 }
 
-type OneByteConstNoOp = extern "C" fn(&'static OneByteConst);
-type OneByteConstIsCacheable = extern "C" fn(&'static OneByteConst) -> bool;
-type OneByteConstData = extern "C" fn(&'static OneByteConst) -> *const char;
-type OneByteConstLength = extern "C" fn(&'static OneByteConst) -> usize;
+type OneByteConstNoOp = extern "C" fn(*const OneByteConst);
+type OneByteConstIsCacheable = extern "C" fn(*const OneByteConst) -> bool;
+type OneByteConstData = extern "C" fn(*const OneByteConst) -> *const char;
+type OneByteConstLength = extern "C" fn(*const OneByteConst) -> usize;
 
 #[repr(C)]
 struct OneByteConstVtable {
   _typeinfo: *const (),
   _base_offset: usize,
   delete1: OneByteConstNoOp,
+  // In SysV / Itanium ABI, a class vtable includes the
+  // deleting destructor and the compete object destructor.
+  // In MSVC, it only includes the deleting destructor.
   #[cfg(not(target_family = "windows"))]
   delete2: OneByteConstNoOp,
   is_cacheable: OneByteConstIsCacheable,
@@ -412,7 +415,7 @@ impl String {
   }
 
   // Compile-time function to create an external string resource.
-  // This resource must be assigned into a 'static mut'.
+  // The buffer is checked to contain only ASCII characters.
   #[inline(always)]
   pub const fn create_external_onebyte_const(
     buffer: &'static [u8],
@@ -425,8 +428,8 @@ impl String {
     }
   }
 
-  // Creates a v8::String from a `&'static [u8]`,
-  // must be Latin-1 or ASCII, not UTF-8 !
+  // Creates a v8::String from a `&'static OneByteConst`
+  // which is guaranteed to be Latin-1 or ASCII.
   #[inline(always)]
   pub fn new_from_onebyte_const<'s>(
     scope: &mut HandleScope<'s, ()>,
