@@ -567,9 +567,9 @@ impl Object {
   // Note: This function converts the key to a name, which possibly calls back
   // into JavaScript.
   #[inline(always)]
-  pub fn has<'s>(
+  pub fn has(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Has(self, &*scope.get_current_context(), &*key) }
@@ -577,20 +577,16 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn has_index<'s>(
-    &self,
-    scope: &mut HandleScope<'s>,
-    index: u32,
-  ) -> Option<bool> {
+  pub fn has_index(&self, scope: &mut HandleScope, index: u32) -> Option<bool> {
     unsafe { v8__Object__HasIndex(self, &*scope.get_current_context(), index) }
       .into()
   }
 
   /// HasOwnProperty() is like JavaScript's Object.prototype.hasOwnProperty().
   #[inline(always)]
-  pub fn has_own_property<'s>(
+  pub fn has_own_property(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Name>,
   ) -> Option<bool> {
     unsafe {
@@ -600,18 +596,18 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn delete<'s>(
+  pub fn delete(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Delete(self, &*scope.get_current_context(), &*key) }
       .into()
   }
 
-  pub fn delete_index<'s>(
+  pub fn delete_index(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     index: u32,
   ) -> Option<bool> {
     unsafe {
@@ -724,9 +720,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn set_private<'s>(
+  pub fn set_private(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Private>,
     value: Local<Value>,
   ) -> Option<bool> {
@@ -746,9 +742,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn delete_private<'s>(
+  pub fn delete_private(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Private>,
   ) -> Option<bool> {
     unsafe {
@@ -762,9 +758,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn has_private<'s>(
+  pub fn has_private(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Private>,
   ) -> Option<bool> {
     unsafe {

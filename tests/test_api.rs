@@ -679,8 +679,8 @@ fn get_isolate_from_handle() {
     check_handle_helper(scope, expect_some, local2);
   }
 
-  fn check_eval<'s>(
-    scope: &mut v8::HandleScope<'s>,
+  fn check_eval(
+    scope: &mut v8::HandleScope,
     expect_some: Option<bool>,
     code: &str,
   ) {
@@ -4482,8 +4482,8 @@ fn mock_script_origin<'s>(
   )
 }
 
-fn mock_source<'s>(
-  scope: &mut v8::HandleScope<'s>,
+fn mock_source(
+  scope: &mut v8::HandleScope,
   resource_name: &str,
   source: &str,
 ) -> v8::script_compiler::Source {
