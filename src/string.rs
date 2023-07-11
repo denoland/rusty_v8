@@ -125,8 +125,21 @@ type OneByteConstLength = extern "C" fn(*const OneByteConst) -> usize;
 
 #[repr(C)]
 struct OneByteConstVtable {
+  // In SysV / Itanium ABI, -0x10 offset of the vtable
+  // tells how many bytes the vtable pointer pointing to
+  // this vtable is offset from the base class. For
+  // single inheritance this is always 0.
+  _offset_to_top: usize,
+  // The -0x08 offset then contains the RTTI / type_info
+  // pointer. V8 is normally compiled with `-fno-rtti`
+  // meaning that this pointer is a nullptr.
   _typeinfo: *const (),
-  _base_offset: usize,
+  // After the metadata fields come the virtual function
+  // pointers. The vtable pointer in a class instance points
+  // to the first virtual function pointer, making this
+  // the 0x00 offset of the table.
+  // The order of the virtual function pointers is determined
+  // by their order of declaration in the classes.
   delete1: OneByteConstNoOp,
   // In SysV / Itanium ABI, a class vtable includes the
   // deleting destructor and the compete object destructor.
@@ -142,8 +155,8 @@ struct OneByteConstVtable {
 }
 
 const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
+  _offset_to_top: 0,
   _typeinfo: std::ptr::null(),
-  _base_offset: 0,
   delete1: one_byte_const_no_op,
   #[cfg(not(target_family = "windows"))]
   delete2: one_byte_const_no_op,
