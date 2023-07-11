@@ -186,6 +186,7 @@ const fn is_ascii(s: &'static [u8]) -> bool {
   true
 }
 
+#[repr(C)]
 #[derive(Debug, Default)]
 pub enum NewStringType {
   #[default]
