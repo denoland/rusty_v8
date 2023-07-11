@@ -112,6 +112,7 @@ pub enum CType {
 pub enum Type {
   Void,
   Bool,
+  Uint8,
   Int32,
   Uint32,
   Int64,
@@ -132,6 +133,7 @@ impl From<&Type> for CType {
     match ty {
       Type::Void => CType::Void,
       Type::Bool => CType::Bool,
+      Type::Uint8 => CType::Uint8,
       Type::Int32 => CType::Int32,
       Type::Uint32 => CType::Uint32,
       Type::Int64 => CType::Int64,
