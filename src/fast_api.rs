@@ -1,6 +1,7 @@
 use crate::support::Opaque;
 use crate::Local;
 use crate::Value;
+use std::mem::MaybeUninit;
 use std::{
   ffi::c_void,
   mem::align_of,
@@ -232,14 +233,16 @@ impl FastApiOneByteString {
 }
 
 impl<T: Default> FastApiTypedArray<T> {
+  /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
   pub fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
-    let mut t: T = Default::default();
+    let mut t = MaybeUninit::<T>::uninit();
+    // SAFETY: src is valid for reads, and is value for T
     unsafe {
-      ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
+      t.write(ptr::read_unaligned(self.data.add(index)));
+      t.assume_init()
     }
-    t
   }
 
   #[inline(always)]
