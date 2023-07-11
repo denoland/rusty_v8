@@ -125,14 +125,18 @@ type OneByteConstLength = extern "C" fn(*const OneByteConst) -> usize;
 
 #[repr(C)]
 struct OneByteConstVtable {
-  // In SysV / Itanium ABI, -0x10 offset of the vtable
+  #[cfg(target_family = "windows")]
+  // In SysV / Itanium ABI -0x10 offset of the vtable
   // tells how many bytes the vtable pointer pointing to
   // this vtable is offset from the base class. For
   // single inheritance this is always 0.
   _offset_to_top: usize,
-  // The -0x08 offset then contains the RTTI / type_info
+  // In Itanium ABI the -0x08 offset contains the type_info
+  // pointer, and in MSVC it contains the Complete Object Locator
   // pointer. V8 is normally compiled with `-fno-rtti`
-  // meaning that this pointer is a nullptr.
+  // meaning that this pointer is a nullptr on Itanium ABI.
+  // For MSVC it probably should point to a real struct but
+  // it's never needed by V8.
   _typeinfo: *const (),
   // After the metadata fields come the virtual function
   // pointers. The vtable pointer in a class instance points
@@ -155,6 +159,7 @@ struct OneByteConstVtable {
 }
 
 const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
+  #[cfg(target_family = "windows")]
   _offset_to_top: 0,
   _typeinfo: std::ptr::null(),
   delete1: one_byte_const_no_op,
