@@ -30,7 +30,7 @@ pub union ExternalReference<'s> {
 impl<'s> Debug for ExternalReference<'s> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     // SAFETY: All union fields are the same size
-    unsafe { self.pointer.fmt(f) }
+    unsafe { (self.pointer).fmt(f) }
   }
 }
 
