@@ -3,7 +3,7 @@ use crate::Local;
 use crate::Value;
 use std::{
   ffi::c_void,
-  mem::{align_of, MaybeUninit},
+  mem::align_of,
   ptr::{self, NonNull},
 };
 
@@ -236,12 +236,8 @@ impl<T: Default> FastApiTypedArray<T> {
   #[inline(always)]
   pub fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
-    let mut t = MaybeUninit::<T>::uninit();
     // SAFETY: src is valid for reads, and is a valid value for T
-    unsafe {
-      t.write(ptr::read_unaligned(self.data.add(index)));
-      t.assume_init()
-    }
+    unsafe { ptr::read_unaligned(self.data.add(index)) }
   }
 
   #[inline(always)]
