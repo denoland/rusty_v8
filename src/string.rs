@@ -132,11 +132,10 @@ struct OneByteConstVtable {
   // single inheritance this is always 0.
   _offset_to_top: usize,
   // In Itanium ABI the -0x08 offset contains the type_info
-  // pointer, and in MSVC it contains the Complete Object Locator
-  // pointer. V8 is normally compiled with `-fno-rtti`
-  // meaning that this pointer is a nullptr on Itanium ABI.
-  // For MSVC it probably should point to a real struct but
-  // it's never needed by V8.
+  // pointer, and in MSVC it contains the RTTI Complete Object
+  // Locator pointer. V8 is normally compiled with `-fno-rtti`
+  // meaning that this pointer is a nullptr on both
+  // Itanium and MSVC.
   _typeinfo: *const (),
   // After the metadata fields come the virtual function
   // pointers. The vtable pointer in a class instance points
