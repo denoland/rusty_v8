@@ -103,6 +103,12 @@ pub struct OneByteConst {
   length: int,
 }
 
+// SAFETY: The vtable for OneByteConst is an immutable static and all
+// of the included functions are thread-safe, the cached_data pointer
+// is never changed and points to a static ASCII string, and the
+// length is likewise never changed. Thus, it is safe to share the
+// OneByteConst across threads. This means that multiple isolates
+// can use the same OneByteConst statics simultaneously.
 unsafe impl Sync for OneByteConst {}
 
 extern "C" fn one_byte_const_no_op(_this: *const OneByteConst) {}
