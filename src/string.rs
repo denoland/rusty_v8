@@ -100,7 +100,7 @@ extern "C" {
 pub struct OneByteConst {
   vtable: *const OneByteConstNoOp,
   cached_data: *const char,
-  length: int,
+  length: usize,
 }
 
 // SAFETY: The vtable for OneByteConst is an immutable static and all
@@ -121,7 +121,7 @@ extern "C" fn one_byte_const_data(this: *const OneByteConst) -> *const char {
 }
 extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
   // SAFETY: Only called from C++ with a valid OneByteConst pointer.
-  unsafe { (*this).length as usize }
+  unsafe { (*this).length }
 }
 
 type OneByteConstNoOp = extern "C" fn(*const OneByteConst);
@@ -439,11 +439,13 @@ impl String {
   pub const fn create_external_onebyte_const(
     buffer: &'static [u8],
   ) -> OneByteConst {
-    is_ascii(buffer);
+    // Assert that the buffer contains only ASCII, and that the
+    // length is less or equal to (64-bit) v8::String::kMaxLength.
+    assert!(is_ascii(buffer) && buffer.len() <= ((1 << 29) - 24));
     OneByteConst {
       vtable: &ONE_BYTE_CONST_VTABLE.delete1,
       cached_data: buffer.as_ptr() as *const char,
-      length: buffer.len() as i32,
+      length: buffer.len(),
     }
   }
 
