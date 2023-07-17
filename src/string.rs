@@ -1,6 +1,6 @@
+use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
-use std::mem::forget;
 use std::mem::MaybeUninit;
 use std::slice;
 
@@ -69,6 +69,11 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
+  fn v8__String__NewExternalOneByte(
+    isolate: *mut Isolate,
+    onebyte_const: *const OneByteConst,
+  ) -> *const String;
+
   fn v8__String__NewExternalOneByteStatic(
     isolate: *mut Isolate,
     buffer: *const char,
@@ -92,15 +97,106 @@ extern "C" {
 
 #[repr(C)]
 #[derive(Debug)]
-pub enum NewStringType {
-  Normal,
-  Internalized,
+pub struct OneByteConst {
+  vtable: *const OneByteConstNoOp,
+  cached_data: *const char,
+  length: usize,
 }
 
-impl Default for NewStringType {
-  fn default() -> Self {
-    NewStringType::Normal
+// SAFETY: The vtable for OneByteConst is an immutable static and all
+// of the included functions are thread-safe, the cached_data pointer
+// is never changed and points to a static ASCII string, and the
+// length is likewise never changed. Thus, it is safe to share the
+// OneByteConst across threads. This means that multiple isolates
+// can use the same OneByteConst statics simultaneously.
+unsafe impl Sync for OneByteConst {}
+
+extern "C" fn one_byte_const_no_op(_this: *const OneByteConst) {}
+extern "C" fn one_byte_const_is_cacheable(_this: *const OneByteConst) -> bool {
+  true
+}
+extern "C" fn one_byte_const_data(this: *const OneByteConst) -> *const char {
+  // SAFETY: Only called from C++ with a valid OneByteConst pointer.
+  unsafe { (*this).cached_data }
+}
+extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
+  // SAFETY: Only called from C++ with a valid OneByteConst pointer.
+  unsafe { (*this).length }
+}
+
+type OneByteConstNoOp = extern "C" fn(*const OneByteConst);
+type OneByteConstIsCacheable = extern "C" fn(*const OneByteConst) -> bool;
+type OneByteConstData = extern "C" fn(*const OneByteConst) -> *const char;
+type OneByteConstLength = extern "C" fn(*const OneByteConst) -> usize;
+
+#[repr(C)]
+struct OneByteConstVtable {
+  #[cfg(target_family = "windows")]
+  // In SysV / Itanium ABI -0x10 offset of the vtable
+  // tells how many bytes the vtable pointer pointing to
+  // this vtable is offset from the base class. For
+  // single inheritance this is always 0.
+  _offset_to_top: usize,
+  // In Itanium ABI the -0x08 offset contains the type_info
+  // pointer, and in MSVC it contains the RTTI Complete Object
+  // Locator pointer. V8 is normally compiled with `-fno-rtti`
+  // meaning that this pointer is a nullptr on both
+  // Itanium and MSVC.
+  _typeinfo: *const (),
+  // After the metadata fields come the virtual function
+  // pointers. The vtable pointer in a class instance points
+  // to the first virtual function pointer, making this
+  // the 0x00 offset of the table.
+  // The order of the virtual function pointers is determined
+  // by their order of declaration in the classes.
+  delete1: OneByteConstNoOp,
+  // In SysV / Itanium ABI, a class vtable includes the
+  // deleting destructor and the compete object destructor.
+  // In MSVC, it only includes the deleting destructor.
+  #[cfg(not(target_family = "windows"))]
+  delete2: OneByteConstNoOp,
+  is_cacheable: OneByteConstIsCacheable,
+  dispose: OneByteConstNoOp,
+  lock: OneByteConstNoOp,
+  unlock: OneByteConstNoOp,
+  data: OneByteConstData,
+  length: OneByteConstLength,
+}
+
+const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
+  #[cfg(target_family = "windows")]
+  _offset_to_top: 0,
+  _typeinfo: std::ptr::null(),
+  delete1: one_byte_const_no_op,
+  #[cfg(not(target_family = "windows"))]
+  delete2: one_byte_const_no_op,
+  is_cacheable: one_byte_const_is_cacheable,
+  dispose: one_byte_const_no_op,
+  lock: one_byte_const_no_op,
+  unlock: one_byte_const_no_op,
+  data: one_byte_const_data,
+  length: one_byte_const_length,
+};
+
+/// Compile-time function to determine if a string is ASCII. Note that UTF-8 chars
+/// longer than one byte have the high-bit set and thus, are not ASCII.
+const fn is_ascii(s: &'static [u8]) -> bool {
+  let mut i = 0;
+  while i < s.len() {
+    if !s[i].is_ascii() {
+      return false;
+    }
+    i += 1;
   }
+  true
+}
+
+#[repr(C)]
+#[derive(Debug, Default)]
+pub enum NewStringType {
+  #[default]
+  Normal,
+  Internalized,
 }
 
 bitflags! {
@@ -258,6 +354,28 @@ impl String {
     }
   }
 
+  /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as one-byte
+  /// (Latin-1) characters.
+  #[inline(always)]
+  pub fn write_one_byte_uninit(
+    &self,
+    scope: &mut Isolate,
+    buffer: &mut [MaybeUninit<u8>],
+    start: usize,
+    options: WriteOptions,
+  ) -> usize {
+    unsafe {
+      v8__String__WriteOneByte(
+        self,
+        scope,
+        buffer.as_mut_ptr() as *mut u8,
+        start.try_into().unwrap_or(int::max_value()),
+        buffer.len().try_into().unwrap_or(int::max_value()),
+        options,
+      ) as usize
+    }
+  }
+
   /// Writes the contents of the string to an external buffer, as UTF-8.
   #[inline(always)]
   pub fn write_utf8(
@@ -281,7 +399,7 @@ impl String {
     }
   }
 
-  /// Writes the contents of the string to an external buffer, as UTF-8.
+  /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
   pub fn write_utf8_uninit(
     &self,
     scope: &mut Isolate,
@@ -313,6 +431,36 @@ impl String {
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
+  }
+
+  // Compile-time function to create an external string resource.
+  // The buffer is checked to contain only ASCII characters.
+  #[inline(always)]
+  pub const fn create_external_onebyte_const(
+    buffer: &'static [u8],
+  ) -> OneByteConst {
+    // Assert that the buffer contains only ASCII, and that the
+    // length is less or equal to (64-bit) v8::String::kMaxLength.
+    assert!(is_ascii(buffer) && buffer.len() <= ((1 << 29) - 24));
+    OneByteConst {
+      vtable: &ONE_BYTE_CONST_VTABLE.delete1,
+      cached_data: buffer.as_ptr() as *const char,
+      length: buffer.len(),
+    }
+  }
+
+  // Creates a v8::String from a `&'static OneByteConst`
+  // which is guaranteed to be Latin-1 or ASCII.
+  #[inline(always)]
+  pub fn new_from_onebyte_const<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    onebyte_const: &'static OneByteConst,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByte(sd.get_isolate_ptr(), onebyte_const)
+      })
+    }
   }
 
   // Creates a v8::String from a `&'static [u8]`,
@@ -378,16 +526,17 @@ impl String {
     unsafe { v8__String__IsExternalTwoByte(self) }
   }
 
-  /// True if string is known to contain only one-byte data.
-  /// Doesn't read the string so can return false positives.
+  /// Will return true if and only if string is known for certain to contain only one-byte data,
+  /// ie: Latin-1, a.k.a. ISO-8859-1 code points. Doesn't read the string so can return false
+  /// negatives, and a return value of false does not mean this string is not one-byte data.
   ///
-  /// For a method that will not return false positives at the cost of
+  /// For a method that will not return false negatives at the cost of
   /// potentially reading the entire string, use [`contains_only_onebyte()`].
   ///
   /// [`contains_only_onebyte()`]: String::contains_only_onebyte
   #[inline(always)]
   pub fn is_onebyte(&self) -> bool {
-    unsafe { v8__String__IsExternalOneByte(self) }
+    unsafe { v8__String__IsOneByte(self) }
   }
 
   /// True if the string contains only one-byte data.
@@ -397,22 +546,166 @@ impl String {
     unsafe { v8__String__ContainsOnlyOneByte(self) }
   }
 
+  /// Creates a copy of a [`crate::String`] in a [`std::string::String`].
   /// Convenience function not present in the original V8 API.
-  #[inline(always)]
   pub fn to_rust_string_lossy(
     &self,
     scope: &mut Isolate,
   ) -> std::string::String {
-    let capacity = self.utf8_length(scope);
-    let mut string = std::string::String::with_capacity(capacity);
-    let data = string.as_mut_ptr();
-    forget(string);
-    let length = self.write_utf8(
-      scope,
-      unsafe { slice::from_raw_parts_mut(data, capacity) },
-      None,
-      WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
-    );
-    unsafe { std::string::String::from_raw_parts(data, length, capacity) }
+    let len_utf8 = self.utf8_length(scope);
+    let len_utf16 = self.length();
+
+    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
+    // string is 100% 7-bit ASCII.
+    if self.is_onebyte() && len_utf8 == len_utf16 {
+      unsafe {
+        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+        // accidentally creating a slice of u8 which would be invalid.
+        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
+        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
+
+        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+        let length = self.write_one_byte_uninit(
+          scope,
+          &mut *buffer,
+          0,
+          WriteOptions::NO_NULL_TERMINATION
+            | WriteOptions::REPLACE_INVALID_UTF8,
+        );
+        debug_assert!(length == len_utf16);
+
+        // Return an owned string from this guaranteed now-initialized data
+        let buffer = data as *mut u8;
+        return std::string::String::from_raw_parts(buffer, length, len_utf16);
+      }
+    }
+
+    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
+    // We have a large number of invariants to uphold, so please check changes to this code carefully
+    unsafe {
+      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+      // accidentally creating a slice of u8 which would be invalid.
+      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
+      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
+
+      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+      let length = self.write_utf8_uninit(
+        scope,
+        &mut *buffer,
+        None,
+        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+      );
+      debug_assert!(length == len_utf8);
+
+      // Return an owned string from this guaranteed now-initialized data
+      let buffer = data as *mut u8;
+      std::string::String::from_raw_parts(buffer, length, len_utf8)
+    }
+  }
+
+  /// Converts a [`crate::String`] to either an owned [`std::string::String`], or a borrowed [`str`], depending on whether it fits into the
+  /// provided buffer.
+  pub fn to_rust_cow_lossy<'a, const N: usize>(
+    &self,
+    scope: &mut Isolate,
+    buffer: &'a mut [MaybeUninit<u8>; N],
+  ) -> Cow<'a, str> {
+    // TODO(mmastrac): Ideally we should be able to access the string's internal representation
+    let len_utf8 = self.utf8_length(scope);
+    let len_utf16 = self.length();
+
+    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
+    // string is 100% 7-bit ASCII.
+    if self.is_onebyte() && len_utf8 == len_utf16 {
+      if len_utf16 <= N {
+        let length = self.write_one_byte_uninit(
+          scope,
+          buffer,
+          0,
+          WriteOptions::NO_NULL_TERMINATION,
+        );
+        debug_assert!(length == len_utf16);
+        unsafe {
+          // Get a slice of &[u8] of what we know is initialized now
+          let buffer = &mut buffer[..length];
+          let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
+
+          // We know it's valid UTF-8, so make a string
+          return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
+        }
+      }
+
+      unsafe {
+        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+        // accidentally creating a slice of u8 which would be invalid.
+        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
+        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
+
+        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+        let length = self.write_one_byte_uninit(
+          scope,
+          &mut *buffer,
+          0,
+          WriteOptions::NO_NULL_TERMINATION
+            | WriteOptions::REPLACE_INVALID_UTF8,
+        );
+        debug_assert!(length == len_utf16);
+
+        // Return an owned string from this guaranteed now-initialized data
+        let buffer = data as *mut u8;
+        return Cow::Owned(std::string::String::from_raw_parts(
+          buffer, length, len_utf16,
+        ));
+      }
+    }
+
+    if len_utf8 <= N {
+      // No malloc path
+      let length = self.write_utf8_uninit(
+        scope,
+        buffer,
+        None,
+        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+      );
+      debug_assert!(length == len_utf8);
+
+      // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
+      unsafe {
+        // Get a slice of &[u8] of what we know is initialized now
+        let buffer = &mut buffer[..length];
+        let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
+
+        // We know it's valid UTF-8, so make a string
+        return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
+      }
+    }
+
+    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
+    // We have a large number of invariants to uphold, so please check changes to this code carefully
+    unsafe {
+      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
+      // accidentally creating a slice of u8 which would be invalid.
+      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
+      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
+      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
+
+      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+      let length = self.write_utf8_uninit(
+        scope,
+        &mut *buffer,
+        None,
+        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+      );
+      debug_assert!(length == len_utf8);
+
+      // Return an owned string from this guaranteed now-initialized data
+      let buffer = data as *mut u8;
+      Cow::Owned(std::string::String::from_raw_parts(
+        buffer, length, len_utf8,
+      ))
+    }
   }
 }

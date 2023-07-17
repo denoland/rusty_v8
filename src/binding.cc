@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
@@ -471,8 +472,8 @@ uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
   return v8::ScriptCompiler::CachedDataVersionTag();
 }
 
-size_t v8__TypedArray__Length(const v8::TypedArray* self) { 
-  return ptr_to_local(self)->Length(); 
+size_t v8__TypedArray__Length(const v8::TypedArray* self) {
+  return ptr_to_local(self)->Length();
 }
 size_t v8__TypedArray__kMaxLength() { return v8::TypedArray::kMaxLength; }
 
@@ -858,7 +859,8 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
 
-bool v8__BackingStore__IsResizableByUserJavaScript(const v8::BackingStore& self) {
+bool v8__BackingStore__IsResizableByUserJavaScript(
+    const v8::BackingStore& self) {
   return ptr_to_local(&self)->IsResizableByUserJavaScript();
 }
 
@@ -1021,6 +1023,33 @@ class ExternalStaticOneByteStringResource
   const int _length;
 };
 
+// NOTE: This class is never used and only serves as a reference for
+// the OneByteConst struct created on Rust-side.
+class ExternalConstOneByteStringResource
+    : public v8::String::ExternalOneByteStringResource {
+ public:
+  ExternalConstOneByteStringResource(int length)
+      : _length(length) {
+    static_assert(offsetof(ExternalConstOneByteStringResource, _length) == 16,
+                  "ExternalConstOneByteStringResource's length was not at offset 16");
+    static_assert(sizeof(ExternalConstOneByteStringResource) == 24,
+                  "ExternalConstOneByteStringResource size was not 24");
+    static_assert(alignof(ExternalConstOneByteStringResource) == 8,
+                  "ExternalConstOneByteStringResource align was not 8");
+  }
+  const char* data() const override { return nullptr; }
+  size_t length() const override { return _length; }
+  void Dispose() override {}
+
+ private:
+  const int _length;
+};
+
+const v8::String* v8__String__NewExternalOneByte(
+    v8::Isolate* isolate, v8::String::ExternalOneByteStringResource* resource) {
+  return maybe_local_to_ptr(v8::String::NewExternalOneByte(isolate, resource));
+}
+
 const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
                                                        const char* data,
                                                        int length) {
@@ -1142,7 +1171,7 @@ void v8__ObjectTemplate__SetAccessor(
     const v8::ObjectTemplate& self, const v8::Name& key,
     v8::AccessorNameGetterCallback getter,
     v8::AccessorNameSetterCallback setter,
-    const v8::Value* data_or_null, 
+    const v8::Value* data_or_null,
     v8::PropertyAttribute attr) {
   ptr_to_local(&self)->SetAccessor(
     ptr_to_local(&key), getter, setter,  ptr_to_local(data_or_null), v8::AccessControl::DEFAULT,
@@ -1156,11 +1185,12 @@ void v8__ObjectTemplate__SetNamedPropertyHandler(
     v8::GenericNamedPropertyQueryCallback query,
     v8::GenericNamedPropertyDeleterCallback deleter,
     v8::GenericNamedPropertyEnumeratorCallback enumerator,
+    v8::GenericNamedPropertyDefinerCallback definer,
     v8::GenericNamedPropertyDescriptorCallback descriptor,
-    const v8::Value* data_or_null) {
+    const v8::Value* data_or_null, v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(
-      getter, setter, query, deleter, enumerator, nullptr, descriptor,
-      ptr_to_local(data_or_null)));
+      getter, setter, query, deleter, enumerator, definer, descriptor,
+      ptr_to_local(data_or_null), flags));
 }
 
 void v8__ObjectTemplate__SetIndexedPropertyHandler(
@@ -1169,11 +1199,12 @@ void v8__ObjectTemplate__SetIndexedPropertyHandler(
     v8::IndexedPropertyQueryCallback query,
     v8::IndexedPropertyDeleterCallback deleter,
     v8::IndexedPropertyEnumeratorCallback enumerator,
+    v8::IndexedPropertyDefinerCallback definer,
     v8::IndexedPropertyDescriptorCallback descriptor,
-    const v8::Value* data_or_null) {
+    const v8::Value* data_or_null, v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
-      getter, setter, query, deleter, enumerator, nullptr, descriptor,
-      ptr_to_local(data_or_null)));
+      getter, setter, query, deleter, enumerator, definer, descriptor,
+      ptr_to_local(data_or_null), flags));
 }
 
 void v8__ObjectTemplate__SetAccessorProperty(const v8::ObjectTemplate& self,
@@ -1273,9 +1304,9 @@ MaybeBool v8__Object__DefineOwnProperty(const v8::Object& self,
 }
 
 MaybeBool v8__Object__DefineProperty(const v8::Object& self,
-                                        const v8::Context& context,
-                                        const v8::Name& key,
-                                        v8::PropertyDescriptor& desc) {
+                                     const v8::Context& context,
+                                     const v8::Name& key,
+                                     v8::PropertyDescriptor& desc) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->DefineProperty(
       ptr_to_local(&context), ptr_to_local(&key), desc));
 }
@@ -1283,13 +1314,13 @@ MaybeBool v8__Object__DefineProperty(const v8::Object& self,
 MaybeBool v8__Object__SetAccessor(const v8::Object& self,
                                   const v8::Context& context,
                                   const v8::Name& key,
-                                  v8::AccessorNameGetterCallback getter, 
+                                  v8::AccessorNameGetterCallback getter,
                                   v8::AccessorNameSetterCallback setter,
-                                  const v8::Value* data_or_null, 
+                                  const v8::Value* data_or_null,
                                   v8::PropertyAttribute attr) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
       ptr_to_local(&context), ptr_to_local(&key), getter, setter,
-      ptr_to_local(data_or_null), v8::AccessControl::DEFAULT,attr));
+      ptr_to_local(data_or_null), v8::AccessControl::DEFAULT, attr));
 }
 
 v8::Isolate* v8__Object__GetIsolate(const v8::Object& self) {
@@ -1434,6 +1465,26 @@ MaybeBool v8__Object__HasPrivate(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+void v8__Object__GetPropertyAttributes(const v8::Object& self,
+                                       const v8::Context& context,
+                                       const v8::Value& key,
+                                       v8::Maybe<v8::PropertyAttribute>* out) {
+  *out = ptr_to_local(&self)->GetPropertyAttributes(ptr_to_local(&context),
+                                                    ptr_to_local(&key));
+}
+
+const v8::Value* v8__Object__GetOwnPropertyDescriptor(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetOwnPropertyDescriptor(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+const v8::Array* v8__Object__PreviewEntries(
+    const v8::Object& self,
+    bool* is_key_value) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
+}
+
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
   return local_to_ptr(v8::Array::New(isolate, length));
 }
@@ -1519,7 +1570,7 @@ void v8__Set__Clear(const v8::Set& self) {
 }
 
 v8::Set* v8__Set__Add(const v8::Set& self, const v8::Context& context,
-                              const v8::Value& key) {
+                      const v8::Value& key) {
   return maybe_local_to_ptr(
       ptr_to_local(&self)->Add(ptr_to_local(&context), ptr_to_local(&key)));
 }
@@ -1767,11 +1818,10 @@ void v8__Context__SetPromiseHooks(v8::Context& self,
 
 const v8::Value* v8__Context__GetSecurityToken(const v8::Context& self) {
   auto value = ptr_to_local(&self)->GetSecurityToken();
-  return local_to_ptr(value); 
+  return local_to_ptr(value);
 }
 
-void v8__Context__SetSecurityToken(v8::Context& self,
-                                                       const v8::Value* token) {
+void v8__Context__SetSecurityToken(v8::Context& self, const v8::Value* token) {
   auto c = ptr_to_local(&self);
   c->SetSecurityToken(ptr_to_local(token));
 }
@@ -1781,11 +1831,11 @@ void v8__Context__UseDefaultSecurityToken(v8::Context& self) {
 }
 
 void v8__Context__AllowCodeGenerationFromStrings(v8::Context& self, bool allow) {
-   ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow); 
+   ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow);
 }
 
 bool v8__Context_IsCodeGenerationFromStringsAllowed(v8::Context& self) {
-   return ptr_to_local(&self)->IsCodeGenerationFromStringsAllowed();
+  return ptr_to_local(&self)->IsCodeGenerationFromStringsAllowed();
 }
 
 const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
@@ -1941,6 +1991,17 @@ int v8__Function__GetScriptLineNumber(const v8::Function& self) {
   return ptr_to_local(&self)->GetScriptLineNumber();
 }
 
+int v8__Function__ScriptId(const v8::Function& self) {
+  return ptr_to_local(&self)->ScriptId();
+}
+
+const v8::ScriptOrigin* v8__Function__GetScriptOrigin(
+    const v8::Function& self) {
+  std::unique_ptr<v8::ScriptOrigin> u = std::make_unique<v8::ScriptOrigin>(
+      ptr_to_local(&self)->GetScriptOrigin());
+  return u.release();
+}
+
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
                                         const v8::FunctionTemplate* templ) {
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
@@ -1966,11 +2027,11 @@ v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
   return v;
 }
 
-v8::CFunctionInfo* v8__CFunctionInfo__New(const v8::CTypeInfo& return_info,
-                                          unsigned int args_len,
-                                          v8::CTypeInfo* args_info) {
+v8::CFunctionInfo* v8__CFunctionInfo__New(
+    const v8::CTypeInfo& return_info, unsigned int args_len,
+    v8::CTypeInfo* args_info, v8::CFunctionInfo::Int64Representation repr) {
   std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(
-      v8::CFunctionInfo(return_info, args_len, args_info));
+      v8::CFunctionInfo(return_info, args_len, args_info, repr));
   return info.release();
 }
 
@@ -2092,7 +2153,7 @@ const v8::StackTrace* v8__StackTrace__CurrentStackTrace(v8::Isolate* isolate,
 }
 
 const v8::String* v8__StackTrace__CurrentScriptNameOrSourceURL(
-  v8::Isolate* isolate) {
+    v8::Isolate* isolate) {
   return local_to_ptr(v8::StackTrace::CurrentScriptNameOrSourceURL(isolate));
 }
 
@@ -2290,6 +2351,18 @@ void v8__ScriptOrigin__CONSTRUCT(
       buf, isolate, ptr_to_local(&resource_name), resource_line_offset,
       resource_column_offset, resource_is_shared_cross_origin, script_id,
       ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
+}
+
+int v8__ScriptOrigin__ScriptId(const v8::ScriptOrigin& self) {
+  return ptr_to_local(&self)->ScriptId();
+}
+
+const v8::Value* v8__ScriptOrigin__ResourceName(const v8::ScriptOrigin& self) {
+  return local_to_ptr(ptr_to_local(&self)->ResourceName());
+}
+
+const v8::Value* v8__ScriptOrigin__SourceMapUrl(const v8::ScriptOrigin& self) {
+  return local_to_ptr(ptr_to_local(&self)->SourceMapUrl());
 }
 
 const v8::Value* v8__ScriptOrModule__GetResourceName(
@@ -3374,13 +3447,66 @@ void v8__PropertyDescriptor__DESTRUCT(v8::PropertyDescriptor* self) {
   self->~PropertyDescriptor();
 }
 
+bool v8__PropertyDescriptor__configurable(const v8::PropertyDescriptor* self) {
+  return self->configurable();
+}
+
+bool v8__PropertyDescriptor__enumerable(const v8::PropertyDescriptor* self) {
+  return self->enumerable();
+}
+
+bool v8__PropertyDescriptor__writable(const v8::PropertyDescriptor* self) {
+  return self->writable();
+}
+
+const v8::Value* v8__PropertyDescriptor__value(
+    const v8::PropertyDescriptor* self) {
+  return local_to_ptr(self->value());
+}
+
+const v8::Value* v8__PropertyDescriptor__get(
+    const v8::PropertyDescriptor* self) {
+  return local_to_ptr(self->get());
+}
+
+const v8::Value* v8__PropertyDescriptor__set(
+    const v8::PropertyDescriptor* self) {
+  return local_to_ptr(self->set());
+}
+
+bool v8__PropertyDescriptor__has_configurable(
+    const v8::PropertyDescriptor* self) {
+  return self->has_configurable();
+}
+
+bool v8__PropertyDescriptor__has_enumerable(
+    const v8::PropertyDescriptor* self) {
+  return self->has_enumerable();
+}
+
+bool v8__PropertyDescriptor__has_writable(const v8::PropertyDescriptor* self) {
+  return self->has_writable();
+}
+
+bool v8__PropertyDescriptor__has_value(const v8::PropertyDescriptor* self) {
+  return self->has_value();
+}
+
+bool v8__PropertyDescriptor__has_get(const v8::PropertyDescriptor* self) {
+  return self->has_get();
+}
+
+bool v8__PropertyDescriptor__has_set(const v8::PropertyDescriptor* self) {
+  return self->has_set();
+}
+
 void v8__PropertyDescriptor__set_enumerable(v8::PropertyDescriptor* self,
-                                       bool enumurable) {
+                                            bool enumurable) {
   self->set_enumerable(enumurable);
 }
 
 void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
-                                       bool configurable) {
+                                              bool configurable) {
   self->set_configurable(configurable);
 }
 

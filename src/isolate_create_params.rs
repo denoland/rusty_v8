@@ -58,6 +58,13 @@ impl CreateParams {
     self
   }
 
+  /// Check if `array_buffer_allocator` has already been called. Useful to some
+  /// embedders that might want to set an allocator but not overwrite if one
+  /// was already set by a user.
+  pub fn has_set_array_buffer_allocator(&self) -> bool {
+    !self.raw.array_buffer_allocator_shared.is_null()
+  }
+
   /// Specifies an optional nullptr-terminated array of raw addresses in the
   /// embedder that V8 can match against during serialization and use for
   /// deserialization. This array and its content must stay valid for the

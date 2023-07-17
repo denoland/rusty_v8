@@ -1,9 +1,10 @@
 error[E0597]: `scope2` does not live long enough
-  --> $DIR/handle_scope_escape_lifetime.rs:9:43
+  --> tests/compile_fail/handle_scope_escape_lifetime.rs:9:43
    |
 7  |   let _local = {
    |       ------ borrow later stored here
 8  |     let mut scope2 = v8::HandleScope::new(&mut scope1);
+   |         ---------- binding `scope2` declared here
 9  |     let mut scope3 = v8::HandleScope::new(&mut scope2);
    |                                           ^^^^^^^^^^^ borrowed value does not live long enough
 ...

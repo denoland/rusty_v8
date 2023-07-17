@@ -543,7 +543,7 @@ impl Isolate {
   // Byte offset inside `Isolate` where the isolate data slots are stored. This
   // should be the same as the value of `kIsolateEmbedderDataOffset` which is
   // defined in `v8-internal.h`.
-  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 61]>();
+  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 62]>();
 
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
@@ -1686,6 +1686,8 @@ impl Hasher for TypeIdHasher {
 
   #[inline]
   fn write_u64(&mut self, value: u64) {
+    // The internal hash function of TypeId only takes the bottom 64-bits, even on versions
+    // of Rust that use a 128-bit TypeId.
     let prev_state = self.state.replace(value);
     debug_assert_eq!(prev_state, None);
   }
@@ -1712,8 +1714,14 @@ impl BuildHasher for BuildTypeIdHasher {
 }
 
 const _: () = {
-  assert!(size_of::<TypeId>() == size_of::<u64>());
-  assert!(align_of::<TypeId>() == align_of::<u64>());
+  assert!(
+    size_of::<TypeId>() == size_of::<u64>()
+      || size_of::<TypeId>() == size_of::<u128>()
+  );
+  assert!(
+    align_of::<TypeId>() == align_of::<u64>()
+      || align_of::<TypeId>() == align_of::<u128>()
+  );
 };
 
 pub(crate) struct RawSlot {

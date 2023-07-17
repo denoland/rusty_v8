@@ -17,6 +17,7 @@ extern "C" {
     return_info: *const CTypeInfo,
     args_len: usize,
     args_info: *const CTypeInfo,
+    repr: Int64Representation,
   ) -> *mut CFunctionInfo;
 }
 
@@ -34,8 +35,14 @@ impl CFunctionInfo {
     args: *const CTypeInfo,
     args_len: usize,
     return_type: *const CTypeInfo,
+    repr: Int64Representation,
   ) -> NonNull<CFunctionInfo> {
-    NonNull::new_unchecked(v8__CFunctionInfo__New(return_type, args_len, args))
+    NonNull::new_unchecked(v8__CFunctionInfo__New(
+      return_type,
+      args_len,
+      args,
+      repr,
+    ))
   }
 }
 
@@ -77,7 +84,7 @@ pub enum SequenceType {
   IsArrayBuffer,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(u8)]
 #[non_exhaustive]
 pub enum CType {
@@ -100,11 +107,12 @@ pub enum CType {
   CallbackOptions = 255,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum Type {
   Void,
   Bool,
+  Uint8,
   Int32,
   Uint32,
   Int64,
@@ -125,6 +133,7 @@ impl From<&Type> for CType {
     match ty {
       Type::Void => CType::Void,
       Type::Bool => CType::Bool,
+      Type::Uint8 => CType::Uint8,
       Type::Int32 => CType::Int32,
       Type::Uint32 => CType::Uint32,
       Type::Int64 => CType::Int64,
@@ -225,14 +234,12 @@ impl FastApiOneByteString {
 }
 
 impl<T: Default> FastApiTypedArray<T> {
+  /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
   pub fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
-    let mut t: T = Default::default();
-    unsafe {
-      ptr::copy_nonoverlapping(self.data.add(index), &mut t, 1);
-    }
-    t
+    // SAFETY: src is valid for reads, and is a valid value for T
+    unsafe { ptr::read_unaligned(self.data.add(index)) }
   }
 
   #[inline(always)]
@@ -244,10 +251,12 @@ impl<T: Default> FastApiTypedArray<T> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct FastFunction {
   pub args: &'static [Type],
-  pub return_type: CType,
   pub function: *const c_void,
+  pub repr: Int64Representation,
+  pub return_type: CType,
 }
 
 impl FastFunction {
@@ -259,8 +268,29 @@ impl FastFunction {
   ) -> Self {
     Self {
       args,
-      return_type,
       function,
+      repr: Int64Representation::Number,
+      return_type,
     }
   }
+
+  pub const fn new_with_bigint(
+    args: &'static [Type],
+    return_type: CType,
+    function: *const c_void,
+  ) -> Self {
+    Self {
+      args,
+      function,
+      repr: Int64Representation::BigInt,
+      return_type,
+    }
+  }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[repr(u8)]
+pub enum Int64Representation {
+  Number = 0,
+  BigInt = 1,
 }

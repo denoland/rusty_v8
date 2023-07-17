@@ -1,6 +1,7 @@
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
+use crate::support::Maybe;
 use crate::support::MaybeBool;
 use crate::AccessorConfiguration;
 use crate::AccessorNameGetterCallback;
@@ -25,6 +26,7 @@ use crate::String;
 use crate::Value;
 use std::convert::TryFrom;
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
 use std::ptr::null;
 
@@ -180,6 +182,21 @@ extern "C" {
     context: *const Context,
     key: *const Private,
   ) -> MaybeBool;
+  fn v8__Object__GetPropertyAttributes(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+    out: *mut Maybe<PropertyAttribute>,
+  );
+  fn v8__Object__GetOwnPropertyDescriptor(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+  ) -> *const Value;
+  fn v8__Object__PreviewEntries(
+    this: *const Object,
+    is_key_value: *mut bool,
+  ) -> *const Array;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -550,9 +567,9 @@ impl Object {
   // Note: This function converts the key to a name, which possibly calls back
   // into JavaScript.
   #[inline(always)]
-  pub fn has<'s>(
+  pub fn has(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Has(self, &*scope.get_current_context(), &*key) }
@@ -560,20 +577,16 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn has_index<'s>(
-    &self,
-    scope: &mut HandleScope<'s>,
-    index: u32,
-  ) -> Option<bool> {
+  pub fn has_index(&self, scope: &mut HandleScope, index: u32) -> Option<bool> {
     unsafe { v8__Object__HasIndex(self, &*scope.get_current_context(), index) }
       .into()
   }
 
   /// HasOwnProperty() is like JavaScript's Object.prototype.hasOwnProperty().
   #[inline(always)]
-  pub fn has_own_property<'s>(
+  pub fn has_own_property(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Name>,
   ) -> Option<bool> {
     unsafe {
@@ -583,18 +596,18 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn delete<'s>(
+  pub fn delete(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Delete(self, &*scope.get_current_context(), &*key) }
       .into()
   }
 
-  pub fn delete_index<'s>(
+  pub fn delete_index(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     index: u32,
   ) -> Option<bool> {
     unsafe {
@@ -707,9 +720,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn set_private<'s>(
+  pub fn set_private(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Private>,
     value: Local<Value>,
   ) -> Option<bool> {
@@ -729,9 +742,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn delete_private<'s>(
+  pub fn delete_private(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Private>,
   ) -> Option<bool> {
     unsafe {
@@ -745,15 +758,77 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn has_private<'s>(
+  pub fn has_private(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Private>,
   ) -> Option<bool> {
     unsafe {
       v8__Object__HasPrivate(self, &*scope.get_current_context(), &*key)
     }
     .into()
+  }
+
+  /// Gets the property attributes of a property which can be
+  /// [PropertyAttribute::NONE] or any combination of
+  /// [PropertyAttribute::READ_ONLY], [PropertyAttribute::DONT_ENUM] and
+  /// [PropertyAttribute::DONT_DELETE].
+  /// Returns [PropertyAttribute::NONE] when the property doesn't exist.
+  pub fn get_property_attributes(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+  ) -> Option<PropertyAttribute> {
+    let mut out = Maybe::<PropertyAttribute>::default();
+    unsafe {
+      v8__Object__GetPropertyAttributes(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &mut out,
+      )
+    };
+    out.into()
+  }
+
+  /// Implements Object.getOwnPropertyDescriptor(O, P), see
+  /// https://tc39.es/ecma262/#sec-object.getownpropertydescriptor.
+  pub fn get_own_property_descriptor<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Name>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__GetOwnPropertyDescriptor(
+          self,
+          sd.get_current_context(),
+          &*key,
+        )
+      })
+    }
+  }
+
+  /// If this object is a Set, Map, WeakSet or WeakMap, this returns a
+  /// representation of the elements of this object as an array.
+  /// If this object is a SetIterator or MapIterator, this returns all elements
+  /// of the underlying collection, starting at the iterator's current position.
+  ///
+  /// Also returns a boolean, indicating whether the returned array contains
+  /// key & values (for example when the value is Set.entries()).
+  pub fn preview_entries<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> (Option<Local<'s, Array>>, bool) {
+    let mut is_key_value = MaybeUninit::uninit();
+    unsafe {
+      let val = scope.cast_local(|_| {
+        v8__Object__PreviewEntries(self, is_key_value.as_mut_ptr())
+      });
+      let is_key_value = is_key_value.assume_init();
+
+      (val, is_key_value)
+    }
   }
 }
 
