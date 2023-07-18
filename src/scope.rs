@@ -2222,8 +2222,12 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
-        let l3_djses = &mut DisallowJavascriptExecutionScope::new(l2_cxs, OnFailure::CrashOnFailure);
-        AssertTypeOf(l3_djses).is::<DisallowJavascriptExecutionScope<HandleScope>>();
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
+          l2_cxs,
+          OnFailure::CrashOnFailure,
+        );
+        AssertTypeOf(l3_djses)
+          .is::<DisallowJavascriptExecutionScope<HandleScope>>();
         let d = l3_djses.deref_mut();
         AssertTypeOf(d).is::<HandleScope>();
         let d = d.deref_mut();
@@ -2267,8 +2271,12 @@ mod tests {
           AssertTypeOf(d).is::<Isolate>();
         }
         {
-          let l4_djses = &mut DisallowJavascriptExecutionScope::new(l3_ehs, OnFailure::CrashOnFailure);
-          AssertTypeOf(l4_djses).is::<DisallowJavascriptExecutionScope<EscapableHandleScope>>();
+          let l4_djses = &mut DisallowJavascriptExecutionScope::new(
+            l3_ehs,
+            OnFailure::CrashOnFailure,
+          );
+          AssertTypeOf(l4_djses)
+            .is::<DisallowJavascriptExecutionScope<EscapableHandleScope>>();
           let d = l4_djses.deref_mut();
           AssertTypeOf(d).is::<EscapableHandleScope>();
           let d = d.deref_mut();
@@ -2298,8 +2306,12 @@ mod tests {
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
       {
-        let l3_djses = &mut DisallowJavascriptExecutionScope::new(l2_tc, OnFailure::CrashOnFailure);
-        AssertTypeOf(l3_djses).is::<DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>>();
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
+          l2_tc,
+          OnFailure::CrashOnFailure,
+        );
+        AssertTypeOf(l3_djses)
+          .is::<DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>>();
         let d = l3_djses.deref_mut();
         AssertTypeOf(d).is::<TryCatch<HandleScope<()>>>();
         let d = d.deref_mut();
