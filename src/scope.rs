@@ -602,6 +602,7 @@ pub struct DisallowJavascriptExecutionScope<'s, P> {
 impl<'s, P: param::NewDisallowJavascriptExecutionScope<'s>>
   DisallowJavascriptExecutionScope<'s, P>
 {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new(param: &'s mut P, on_failure: OnFailure) -> P::NewScope {
     param
       .get_scope_data_mut()
@@ -619,6 +620,7 @@ pub struct AllowJavascriptExecutionScope<'s, P> {
 impl<'s, P: param::NewAllowJavascriptExecutionScope<'s>>
   AllowJavascriptExecutionScope<'s, P>
 {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new(param: &'s mut P) -> P::NewScope {
     param
       .get_scope_data_mut()
