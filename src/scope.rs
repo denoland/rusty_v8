@@ -2222,6 +2222,24 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(l2_cxs, OnFailure::CrashOnFailure);
+        AssertTypeOf(l3_djses).is::<DisallowJavascriptExecutionScope<HandleScope>>();
+        let d = l3_djses.deref_mut();
+        AssertTypeOf(d).is::<HandleScope>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+        {
+          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
+          AssertTypeOf(l4_ajses).is::<HandleScope>();
+          let d = l4_ajses.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
+      {
         let l3_ehs = &mut EscapableHandleScope::new(l2_cxs);
         AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
         {
@@ -2248,6 +2266,28 @@ mod tests {
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
         }
+        {
+          let l4_djses = &mut DisallowJavascriptExecutionScope::new(l3_ehs, OnFailure::CrashOnFailure);
+          AssertTypeOf(l4_djses).is::<DisallowJavascriptExecutionScope<EscapableHandleScope>>();
+          let d = l4_djses.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+          {
+            let l5_ajses = &mut AllowJavascriptExecutionScope::new(l4_djses);
+            AssertTypeOf(l5_ajses).is::<EscapableHandleScope>();
+            let d = l5_ajses.deref_mut();
+            AssertTypeOf(d).is::<HandleScope>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<HandleScope<()>>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<Isolate>();
+          }
+        }
       }
     }
     {
@@ -2257,6 +2297,24 @@ mod tests {
       AssertTypeOf(d).is::<HandleScope<()>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
+      {
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(l2_tc, OnFailure::CrashOnFailure);
+        AssertTypeOf(l3_djses).is::<DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>>();
+        let d = l3_djses.deref_mut();
+        AssertTypeOf(d).is::<TryCatch<HandleScope<()>>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+        {
+          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
+          AssertTypeOf(l4_ajses).is::<TryCatch<HandleScope<()>>>();
+          let d = l4_ajses.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
     }
     {
       let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
