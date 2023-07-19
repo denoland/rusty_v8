@@ -76,6 +76,17 @@
 //!   - This scope type is only to be constructed inside embedder defined
 //!     callbacks when these are called by V8.
 //!   - When a scope is created inside, type is erased to `HandleScope<'s>`.
+//!
+//! - `DisallowJavascriptExecutionScope<'s, P>`
+//!   - 's = lifetime of the `DisallowJavascriptExecutionScope` scope.
+//!   - `P` is either a `HandleScope`, `ContextScope`, `EscapableHandleScope`
+//!     or a `TryCatch`.
+//!   - Derefs to `P`.
+//!
+//! - `AllowJavascriptExecutionScope<'s, P>`
+//!   - 's = lifetime of the `AllowJavascriptExecutionScope` scope.
+//!   - `P` is `DisallowJavascriptExecutionScope`.
+//!   - Derefs to `HandleScope<'s, ()>`.
 
 use std::alloc::alloc;
 use std::alloc::Layout;
