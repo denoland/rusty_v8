@@ -76,6 +76,17 @@
 //!   - This scope type is only to be constructed inside embedder defined
 //!     callbacks when these are called by V8.
 //!   - When a scope is created inside, type is erased to `HandleScope<'s>`.
+//!
+//! - `DisallowJavascriptExecutionScope<'s, P>`
+//!   - 's = lifetime of the `DisallowJavascriptExecutionScope` scope.
+//!   - `P` is either a `HandleScope`, `ContextScope`, `EscapableHandleScope`
+//!     or a `TryCatch`.
+//!   - Derefs to `P`.
+//!
+//! - `AllowJavascriptExecutionScope<'s, P>`
+//!   - 's = lifetime of the `AllowJavascriptExecutionScope` scope.
+//!   - `P` is `DisallowJavascriptExecutionScope`.
+//!   - Derefs to `HandleScope<'s, ()>`.
 
 use std::alloc::alloc;
 use std::alloc::Layout;
@@ -585,6 +596,50 @@ impl<'s> CallbackScope<'s> {
   }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum OnFailure {
+  CrashOnFailure,
+  ThrowOnFailure,
+  DumpOnFailure,
+}
+
+#[derive(Debug)]
+pub struct DisallowJavascriptExecutionScope<'s, P> {
+  _data: NonNull<data::ScopeData>,
+  _phantom: PhantomData<&'s mut P>,
+}
+
+impl<'s, P: param::NewDisallowJavascriptExecutionScope<'s>>
+  DisallowJavascriptExecutionScope<'s, P>
+{
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(param: &'s mut P, on_failure: OnFailure) -> P::NewScope {
+    param
+      .get_scope_data_mut()
+      .new_disallow_javascript_execution_scope_data(on_failure)
+      .as_scope()
+  }
+}
+
+#[derive(Debug)]
+pub struct AllowJavascriptExecutionScope<'s, P> {
+  _data: NonNull<data::ScopeData>,
+  _phantom: PhantomData<&'s mut P>,
+}
+
+impl<'s, P: param::NewAllowJavascriptExecutionScope<'s>>
+  AllowJavascriptExecutionScope<'s, P>
+{
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(param: &'s mut P) -> P::NewScope {
+    param
+      .get_scope_data_mut()
+      .new_allow_javascript_execution_scope_data()
+      .as_scope()
+  }
+}
+
 macro_rules! impl_as {
   // Implements `AsRef<Isolate>` and AsMut<Isolate>` on a scope type.
   (<$($params:tt),+> $src_type:ty as Isolate) => {
@@ -622,6 +677,8 @@ impl_as!(<'s, 'p, P> ContextScope<'s, P> as Isolate);
 impl_as!(<'s, C> HandleScope<'s, C> as Isolate);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as Isolate);
 impl_as!(<'s, P> TryCatch<'s, P> as Isolate);
+impl_as!(<'s, P> DisallowJavascriptExecutionScope<'s, P> as Isolate);
+impl_as!(<'s, P> AllowJavascriptExecutionScope<'s, P> as Isolate);
 impl_as!(<'s, C> CallbackScope<'s, C> as Isolate);
 
 impl_as!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p, ()>);
@@ -630,6 +687,10 @@ impl_as!(<'s, C> HandleScope<'s, C> as HandleScope<'s, ()>);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as HandleScope<'s, ()>);
 impl_as!(<'s, 'p, C> TryCatch<'s, HandleScope<'p, C>> as HandleScope<'p, ()>);
 impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as HandleScope<'p, ()>);
+impl_as!(<'s, 'p, C> DisallowJavascriptExecutionScope<'s, HandleScope<'p, C>> as HandleScope<'p, ()>);
+impl_as!(<'s, 'p, 'e, C> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as HandleScope<'p, ()>);
+impl_as!(<'s, 'p, C> AllowJavascriptExecutionScope<'s, HandleScope<'p, C>> as HandleScope<'p, ()>);
+impl_as!(<'s, 'p, 'e, C> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as HandleScope<'p, ()>);
 impl_as!(<'s, C> CallbackScope<'s, C> as HandleScope<'s, ()>);
 
 impl_as!(<'s, 'p> ContextScope<'s, HandleScope<'p>> as HandleScope<'p>);
@@ -638,15 +699,23 @@ impl_as!(<'s> HandleScope<'s> as HandleScope<'s>);
 impl_as!(<'s, 'e> EscapableHandleScope<'s, 'e> as HandleScope<'s>);
 impl_as!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as HandleScope<'p>);
 impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p>);
+impl_as!(<'s, 'p> DisallowJavascriptExecutionScope<'s, HandleScope<'p>> as HandleScope<'p>);
+impl_as!(<'s, 'p, 'e> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p>);
+impl_as!(<'s, 'p> AllowJavascriptExecutionScope<'s, HandleScope<'p>> as HandleScope<'p>);
+impl_as!(<'s, 'p, 'e> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as HandleScope<'p>);
 impl_as!(<'s> CallbackScope<'s> as HandleScope<'s>);
 
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e, ()>);
 impl_as!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> as EscapableHandleScope<'s, 'e, ()>);
 impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as EscapableHandleScope<'p, 'e, ()>);
+impl_as!(<'s, 'p, 'e, C> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as EscapableHandleScope<'p, 'e, ()>);
+impl_as!(<'s, 'p, 'e, C> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as EscapableHandleScope<'p, 'e, ()>);
 
 impl_as!(<'s, 'p, 'e> ContextScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
 impl_as!(<'s, 'e> EscapableHandleScope<'s, 'e> as EscapableHandleScope<'s, 'e>);
 impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
+impl_as!(<'s, 'p, 'e> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
+impl_as!(<'s, 'p, 'e> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
 
 impl_as!(<'s, 'p, C> TryCatch<'s, HandleScope<'p, C>> as TryCatch<'s, HandleScope<'p, ()>>);
 impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as TryCatch<'s, HandleScope<'p, ()>>);
@@ -655,6 +724,25 @@ impl_as!(<'s, 'p, 'e, C> TryCatch<'s, EscapableHandleScope<'p, 'e, C>> as TryCat
 impl_as!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as TryCatch<'s, HandleScope<'p>>);
 impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as TryCatch<'s, HandleScope<'p>>);
 impl_as!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as TryCatch<'s, EscapableHandleScope<'p, 'e>>);
+
+impl_as!(<'s, 'p, C> DisallowJavascriptExecutionScope<'s, HandleScope<'p, C>> as DisallowJavascriptExecutionScope<'s, HandleScope<'p, ()>>);
+impl_as!(<'s, 'p, 'e, C> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as DisallowJavascriptExecutionScope<'s, HandleScope<'p, ()>>);
+impl_as!(<'s, 'p, 'e, C> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, ()>>);
+
+impl_as!(<'s, 'p> DisallowJavascriptExecutionScope<'s, HandleScope<'p>> as DisallowJavascriptExecutionScope<'s, HandleScope<'p>>);
+impl_as!(<'s, 'p, 'e> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as DisallowJavascriptExecutionScope<'s, HandleScope<'p>>);
+impl_as!(<'s, 'p, 'e> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>>);
+
+impl_as!(<'s, 'p, C> AllowJavascriptExecutionScope<'s, HandleScope<'p, C>> as AllowJavascriptExecutionScope<'s, HandleScope<'p, ()>>);
+impl_as!(<'s, 'p, 'e, C> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as AllowJavascriptExecutionScope<'s, HandleScope<'p, ()>>);
+impl_as!(<'s, 'p, 'e, C> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>> as AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, ()>>);
+
+impl_as!(<'s, 'p> AllowJavascriptExecutionScope<'s, HandleScope<'p>> as AllowJavascriptExecutionScope<'s, HandleScope<'p>>);
+impl_as!(<'s, 'p, 'e> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as AllowJavascriptExecutionScope<'s, HandleScope<'p>>);
+impl_as!(<'s, 'p, 'e> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>>);
+
+impl_as!(<'s, 'p, P> DisallowJavascriptExecutionScope<'s, TryCatch<'p, P>> as TryCatch<'p, P>);
+impl_as!(<'s, 'p, P> AllowJavascriptExecutionScope<'s, TryCatch<'p, P>> as TryCatch<'p, P>);
 
 macro_rules! impl_deref {
   (<$($params:tt),+> $src_type:ty as $tgt_type:ty) => {
@@ -687,6 +775,18 @@ impl_deref!(<'s, 'p> TryCatch<'s, HandleScope<'p>> as HandleScope<'p>);
 impl_deref!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e, ()>> as EscapableHandleScope<'p, 'e, ()>);
 impl_deref!(<'s, 'p, 'e> TryCatch<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
 
+impl_deref!(<'s, 'p> DisallowJavascriptExecutionScope<'s, HandleScope<'p, ()>> as HandleScope<'p, ()>);
+impl_deref!(<'s, 'p> DisallowJavascriptExecutionScope<'s, HandleScope<'p>> as HandleScope<'p>);
+impl_deref!(<'s, 'p, 'e> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, ()>> as EscapableHandleScope<'p, 'e, ()>);
+impl_deref!(<'s, 'p, 'e> DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
+impl_deref!(<'s, 'p, P> DisallowJavascriptExecutionScope<'s, TryCatch<'p, P>> as TryCatch<'p, P>);
+
+impl_deref!(<'s, 'p> AllowJavascriptExecutionScope<'s, HandleScope<'p, ()>> as HandleScope<'p, ()>);
+impl_deref!(<'s, 'p> AllowJavascriptExecutionScope<'s, HandleScope<'p>> as HandleScope<'p>);
+impl_deref!(<'s, 'p, 'e> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, ()>> as EscapableHandleScope<'p, 'e, ()>);
+impl_deref!(<'s, 'p, 'e> AllowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e>> as EscapableHandleScope<'p, 'e>);
+impl_deref!(<'s, 'p, P> AllowJavascriptExecutionScope<'s, TryCatch<'p, P>> as TryCatch<'p, P>);
+
 impl_deref!(<'s> CallbackScope<'s, ()> as HandleScope<'s, ()>);
 impl_deref!(<'s> CallbackScope<'s> as HandleScope<'s>);
 
@@ -707,6 +807,8 @@ impl_scope_drop!(<'s, 'p, P> ContextScope<'s, P>);
 impl_scope_drop!(<'s, C> HandleScope<'s, C> );
 impl_scope_drop!(<'s, 'e, C> EscapableHandleScope<'s, 'e, C> );
 impl_scope_drop!(<'s, P> TryCatch<'s, P> );
+impl_scope_drop!(<'s, P> DisallowJavascriptExecutionScope<'s, P>);
+impl_scope_drop!(<'s, P> AllowJavascriptExecutionScope<'s, P>);
 impl_scope_drop!(<'s, C> CallbackScope<'s, C> );
 
 pub unsafe trait Scope: Sized {}
@@ -768,6 +870,18 @@ mod param {
     type NewScope = <P as NewContextScope<'s>>::NewScope;
   }
 
+  impl<'s, 'p: 's, P: NewContextScope<'s>> NewContextScope<'s>
+    for DisallowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = <P as NewContextScope<'s>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, P: NewContextScope<'s>> NewContextScope<'s>
+    for AllowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = <P as NewContextScope<'s>>::NewScope;
+  }
+
   impl<'s, 'p: 's, C> NewContextScope<'s> for CallbackScope<'p, C> {
     type NewScope = ContextScope<'s, HandleScope<'p>>;
   }
@@ -801,6 +915,18 @@ mod param {
   }
 
   impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s> for TryCatch<'p, P> {
+    type NewScope = <P as NewHandleScope<'s>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s>
+    for DisallowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = <P as NewHandleScope<'s>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s>
+    for AllowJavascriptExecutionScope<'p, P>
+  {
     type NewScope = <P as NewHandleScope<'s>>::NewScope;
   }
 
@@ -850,6 +976,19 @@ mod param {
     type NewScope = <P as NewEscapableHandleScope<'s, 'e>>::NewScope;
   }
 
+  impl<'s, 'p: 's, 'e: 'p, P: NewEscapableHandleScope<'s, 'e>>
+    NewEscapableHandleScope<'s, 'e>
+    for DisallowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = <P as NewEscapableHandleScope<'s, 'e>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, 'e: 'p, P: NewEscapableHandleScope<'s, 'e>>
+    NewEscapableHandleScope<'s, 'e> for AllowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = <P as NewEscapableHandleScope<'s, 'e>>::NewScope;
+  }
+
   impl<'s, 'p: 's, C> NewEscapableHandleScope<'s, 'p> for CallbackScope<'p, C> {
     type NewScope = EscapableHandleScope<'s, 'p, C>;
   }
@@ -876,8 +1015,99 @@ mod param {
     type NewScope = TryCatch<'s, P>;
   }
 
+  impl<'s, 'p: 's, P> NewTryCatch<'s>
+    for DisallowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = TryCatch<'s, P>;
+  }
+
+  impl<'s, 'p: 's, P> NewTryCatch<'s> for AllowJavascriptExecutionScope<'p, P> {
+    type NewScope = TryCatch<'s, P>;
+  }
+
   impl<'s, 'p: 's, C> NewTryCatch<'s> for CallbackScope<'p, C> {
     type NewScope = TryCatch<'s, HandleScope<'p, C>>;
+  }
+
+  pub trait NewDisallowJavascriptExecutionScope<'s>:
+    getter::GetScopeData
+  {
+    type NewScope: Scope;
+  }
+
+  impl<'s, 'p: 's, P: NewDisallowJavascriptExecutionScope<'s>>
+    NewDisallowJavascriptExecutionScope<'s> for ContextScope<'p, P>
+  {
+    type NewScope = <P as NewDisallowJavascriptExecutionScope<'s>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, C> NewDisallowJavascriptExecutionScope<'s>
+    for HandleScope<'p, C>
+  {
+    type NewScope = DisallowJavascriptExecutionScope<'s, HandleScope<'p, C>>;
+  }
+
+  impl<'s, 'p: 's, 'e: 'p, C> NewDisallowJavascriptExecutionScope<'s>
+    for EscapableHandleScope<'p, 'e, C>
+  {
+    type NewScope =
+      DisallowJavascriptExecutionScope<'s, EscapableHandleScope<'p, 'e, C>>;
+  }
+
+  impl<'s, 'p: 's, P> NewDisallowJavascriptExecutionScope<'s>
+    for TryCatch<'p, P>
+  {
+    type NewScope = DisallowJavascriptExecutionScope<'s, TryCatch<'p, P>>;
+  }
+
+  impl<'s, 'p: 's, P> NewDisallowJavascriptExecutionScope<'s>
+    for DisallowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = DisallowJavascriptExecutionScope<'s, P>;
+  }
+
+  impl<'s, 'p: 's, P> NewDisallowJavascriptExecutionScope<'s>
+    for AllowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = DisallowJavascriptExecutionScope<'s, P>;
+  }
+
+  pub trait NewAllowJavascriptExecutionScope<'s>: getter::GetScopeData {
+    type NewScope: Scope;
+  }
+
+  impl<'s, 'p: 's, P: NewAllowJavascriptExecutionScope<'s>>
+    NewAllowJavascriptExecutionScope<'s> for ContextScope<'p, P>
+  {
+    type NewScope = <P as NewAllowJavascriptExecutionScope<'s>>::NewScope;
+  }
+
+  impl<'s, 'p: 's, C> NewAllowJavascriptExecutionScope<'s>
+    for HandleScope<'p, C>
+  {
+    type NewScope = HandleScope<'p, C>;
+  }
+
+  impl<'s, 'p: 's, 'e: 'p, C> NewAllowJavascriptExecutionScope<'s>
+    for EscapableHandleScope<'p, 'e, C>
+  {
+    type NewScope = EscapableHandleScope<'p, 'e, C>;
+  }
+
+  impl<'s, 'p: 's, P> NewAllowJavascriptExecutionScope<'s> for TryCatch<'p, P> {
+    type NewScope = TryCatch<'s, P>;
+  }
+
+  impl<'s, 'p: 's, P: Scope> NewAllowJavascriptExecutionScope<'s>
+    for DisallowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = P;
+  }
+
+  impl<'s, 'p: 's, P> NewAllowJavascriptExecutionScope<'s>
+    for AllowJavascriptExecutionScope<'p, P>
+  {
+    type NewScope = AllowJavascriptExecutionScope<'s, P>;
   }
 
   pub trait NewCallbackScope<'s>: Sized + getter::GetIsolate<'s> {
@@ -1227,6 +1457,49 @@ pub(crate) mod data {
     }
 
     #[inline(always)]
+    pub(super) fn new_disallow_javascript_execution_scope_data(
+      &mut self,
+      on_failure: OnFailure,
+    ) -> &mut Self {
+      self.new_scope_data_with(|data| {
+        let isolate = data.isolate;
+        data.scope_type_specific_data.init_with(|| {
+          ScopeTypeSpecificData::DisallowJavascriptExecutionScope {
+            raw_scope: unsafe {
+              raw::DisallowJavascriptExecutionScope::uninit()
+            },
+          }
+        });
+        match &mut data.scope_type_specific_data {
+          ScopeTypeSpecificData::DisallowJavascriptExecutionScope {
+            raw_scope,
+          } => unsafe { raw_scope.init(isolate, on_failure) },
+          _ => unreachable!(),
+        }
+      })
+    }
+
+    #[inline(always)]
+    pub(super) fn new_allow_javascript_execution_scope_data(
+      &mut self,
+    ) -> &mut Self {
+      self.new_scope_data_with(|data| {
+        let isolate = data.isolate;
+        data.scope_type_specific_data.init_with(|| {
+          ScopeTypeSpecificData::AllowJavascriptExecutionScope {
+            raw_scope: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
+          }
+        });
+        match &mut data.scope_type_specific_data {
+          ScopeTypeSpecificData::AllowJavascriptExecutionScope {
+            raw_scope,
+          } => unsafe { raw_scope.init(isolate) },
+          _ => unreachable!(),
+        }
+      })
+    }
+
+    #[inline(always)]
     pub(super) fn new_callback_scope_data<'s>(
       &'s mut self,
       maybe_current_context: Option<Local<'s, Context>>,
@@ -1553,6 +1826,12 @@ pub(crate) mod data {
     TryCatch {
       raw_try_catch: raw::TryCatch,
     },
+    DisallowJavascriptExecutionScope {
+      raw_scope: raw::DisallowJavascriptExecutionScope,
+    },
+    AllowJavascriptExecutionScope {
+      raw_scope: raw::AllowJavascriptExecutionScope,
+    },
   }
 
   impl Default for ScopeTypeSpecificData {
@@ -1714,6 +1993,77 @@ mod raw {
     }
   }
 
+  #[repr(C)]
+  #[derive(Debug)]
+  pub(super) struct DisallowJavascriptExecutionScope([MaybeUninit<usize>; 2]);
+
+  impl DisallowJavascriptExecutionScope {
+    /// Creates an uninitialized `DisallowJavascriptExecutionScope`.
+    ///
+    /// This function is marked unsafe because the caller must ensure that the
+    /// returned value isn't dropped before `init()` has been called.
+    pub unsafe fn uninit() -> Self {
+      Self(MaybeUninit::uninit().assume_init())
+    }
+
+    /// This function is marked unsafe because `init()` must be called exactly
+    /// once, no more and no less, after creating a
+    /// `DisallowJavascriptExecutionScope` value with
+    /// `DisallowJavascriptExecutionScope::uninit()`.
+    pub unsafe fn init(
+      &mut self,
+      isolate: NonNull<Isolate>,
+      on_failure: OnFailure,
+    ) {
+      let buf = NonNull::from(self).cast();
+      v8__DisallowJavascriptExecutionScope__CONSTRUCT(
+        buf.as_ptr(),
+        isolate.as_ptr(),
+        on_failure,
+      );
+    }
+  }
+
+  impl Drop for DisallowJavascriptExecutionScope {
+    #[inline(always)]
+    fn drop(&mut self) {
+      unsafe { v8__DisallowJavascriptExecutionScope__DESTRUCT(self) };
+    }
+  }
+
+  #[repr(C)]
+  #[derive(Debug)]
+  pub(super) struct AllowJavascriptExecutionScope([MaybeUninit<usize>; 2]);
+
+  impl AllowJavascriptExecutionScope {
+    /// Creates an uninitialized `AllowJavascriptExecutionScope`.
+    ///
+    /// This function is marked unsafe because the caller must ensure that the
+    /// returned value isn't dropped before `init()` has been called.
+    pub unsafe fn uninit() -> Self {
+      Self(MaybeUninit::uninit().assume_init())
+    }
+
+    /// This function is marked unsafe because `init()` must be called exactly
+    /// once, no more and no less, after creating an
+    /// `AllowJavascriptExecutionScope` value with
+    /// `AllowJavascriptExecutionScope::uninit()`.
+    pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
+      let buf = NonNull::from(self).cast();
+      v8__AllowJavascriptExecutionScope__CONSTRUCT(
+        buf.as_ptr(),
+        isolate.as_ptr(),
+      );
+    }
+  }
+
+  impl Drop for AllowJavascriptExecutionScope {
+    #[inline(always)]
+    fn drop(&mut self) {
+      unsafe { v8__AllowJavascriptExecutionScope__DESTRUCT(self) };
+    }
+  }
+
   extern "C" {
     pub(super) fn v8__Isolate__GetCurrentContext(
       isolate: *mut Isolate,
@@ -1796,6 +2146,23 @@ mod raw {
     ) -> *const Message;
     pub(super) fn v8__TryCatch__ReThrow(this: *mut TryCatch) -> *const Value;
 
+    pub(super) fn v8__DisallowJavascriptExecutionScope__CONSTRUCT(
+      buf: *mut MaybeUninit<DisallowJavascriptExecutionScope>,
+      isolate: *mut Isolate,
+      on_failure: OnFailure,
+    );
+    pub(super) fn v8__DisallowJavascriptExecutionScope__DESTRUCT(
+      this: *mut DisallowJavascriptExecutionScope,
+    );
+
+    pub(super) fn v8__AllowJavascriptExecutionScope__CONSTRUCT(
+      buf: *mut MaybeUninit<AllowJavascriptExecutionScope>,
+      isolate: *mut Isolate,
+    );
+    pub(super) fn v8__AllowJavascriptExecutionScope__DESTRUCT(
+      this: *mut AllowJavascriptExecutionScope,
+    );
+
     pub(super) fn v8__Message__GetIsolate(this: *const Message)
       -> *mut Isolate;
     pub(super) fn v8__Object__GetIsolate(this: *const Object) -> *mut Isolate;
@@ -1866,6 +2233,28 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
+          l2_cxs,
+          OnFailure::CrashOnFailure,
+        );
+        AssertTypeOf(l3_djses)
+          .is::<DisallowJavascriptExecutionScope<HandleScope>>();
+        let d = l3_djses.deref_mut();
+        AssertTypeOf(d).is::<HandleScope>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+        {
+          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
+          AssertTypeOf(l4_ajses).is::<HandleScope>();
+          let d = l4_ajses.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
+      {
         let l3_ehs = &mut EscapableHandleScope::new(l2_cxs);
         AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
         {
@@ -1892,6 +2281,32 @@ mod tests {
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
         }
+        {
+          let l4_djses = &mut DisallowJavascriptExecutionScope::new(
+            l3_ehs,
+            OnFailure::CrashOnFailure,
+          );
+          AssertTypeOf(l4_djses)
+            .is::<DisallowJavascriptExecutionScope<EscapableHandleScope>>();
+          let d = l4_djses.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+          {
+            let l5_ajses = &mut AllowJavascriptExecutionScope::new(l4_djses);
+            AssertTypeOf(l5_ajses).is::<EscapableHandleScope>();
+            let d = l5_ajses.deref_mut();
+            AssertTypeOf(d).is::<HandleScope>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<HandleScope<()>>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<Isolate>();
+          }
+        }
       }
     }
     {
@@ -1901,6 +2316,28 @@ mod tests {
       AssertTypeOf(d).is::<HandleScope<()>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
+      {
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
+          l2_tc,
+          OnFailure::CrashOnFailure,
+        );
+        AssertTypeOf(l3_djses)
+          .is::<DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>>();
+        let d = l3_djses.deref_mut();
+        AssertTypeOf(d).is::<TryCatch<HandleScope<()>>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+        {
+          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
+          AssertTypeOf(l4_ajses).is::<TryCatch<HandleScope<()>>>();
+          let d = l4_ajses.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
     }
     {
       let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
