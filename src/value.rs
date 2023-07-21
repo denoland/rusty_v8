@@ -728,85 +728,85 @@ impl Value {
   /// Utility method that returns human readable representation of the
   /// underlying value.
   pub fn type_repr(&self) -> &'static str {
-    if value.is_module_namespace_object() {
+    if self.is_module_namespace_object() {
       "Module"
-    } else if value.is_wasm_module_object() {
+    } else if self.is_wasm_module_object() {
       "WASM module"
-    } else if value.is_wasm_memory_object() {
+    } else if self.is_wasm_memory_object() {
       "WASM memory object"
-    } else if value.is_proxy() {
+    } else if self.is_proxy() {
       "Proxy"
-    } else if value.is_shared_array_buffer() {
+    } else if self.is_shared_array_buffer() {
       "SharedArrayBuffer"
-    } else if value.is_data_view() {
+    } else if self.is_data_view() {
       "DataView"
-    } else if value.is_big_uint64_array() {
+    } else if self.is_big_uint64_array() {
       "BigUint64Array"
-    } else if value.is_big_int64_array() {
+    } else if self.is_big_int64_array() {
       "BigInt64Array"
-    } else if value.is_float64_array() {
+    } else if self.is_float64_array() {
       "Float64Array"
-    } else if value.is_float32_array() {
+    } else if self.is_float32_array() {
       "Float32Array"
-    } else if value.is_int32_array() {
+    } else if self.is_int32_array() {
       "Int32Array"
-    } else if value.is_uint32_array() {
+    } else if self.is_uint32_array() {
       "Uint32Array"
-    } else if value.is_int16_array() {
+    } else if self.is_int16_array() {
       "Int16Array"
-    } else if value.is_uint16_array() {
+    } else if self.is_uint16_array() {
       "Uint16Array"
-    } else if value.is_int8_array() {
+    } else if self.is_int8_array() {
       "Int8Array"
-    } else if value.is_uint8_clamped_array() {
+    } else if self.is_uint8_clamped_array() {
       "Uint8ClampedArray"
-    } else if value.is_uint8_array() {
+    } else if self.is_uint8_array() {
       "Uint8Array"
-    } else if value.is_typed_array() {
+    } else if self.is_typed_array() {
       "TypedArray"
-    } else if value.is_array_buffer_view() {
+    } else if self.is_array_buffer_view() {
       "ArrayBufferView"
-    } else if value.is_array_buffer() {
+    } else if self.is_array_buffer() {
       "ArrayBuffer"
-    } else if value.is_weak_set() {
+    } else if self.is_weak_set() {
       "WeakSet"
-    } else if value.is_weak_map() {
+    } else if self.is_weak_map() {
       "WeakMap"
-    } else if value.is_set_iterator() {
+    } else if self.is_set_iterator() {
       "Set Iterator"
-    } else if value.is_map_iterator() {
+    } else if self.is_map_iterator() {
       "Map Iterator"
-    } else if value.is_set() {
+    } else if self.is_set() {
       "Set"
-    } else if value.is_map() {
+    } else if self.is_map() {
       "Map"
-    } else if value.is_promise() {
+    } else if self.is_promise() {
       "Promise"
-    } else if value.is_generator_function() {
+    } else if self.is_generator_function() {
       "Generator function"
-    } else if value.is_async_function() {
+    } else if self.is_async_function() {
       "Async function"
-    } else if value.is_reg_exp() {
+    } else if self.is_reg_exp() {
       "RegExp"
-    } else if value.is_date() {
+    } else if self.is_date() {
       "Date"
-    } else if value.is_number() {
+    } else if self.is_number() {
       "Number"
-    } else if value.is_boolean() {
+    } else if self.is_boolean() {
       "Boolean"
-    } else if value.is_big_int() {
+    } else if self.is_big_int() {
       "bigint"
-    } else if value.is_array() {
+    } else if self.is_array() {
       "array"
-    } else if value.is_function() {
+    } else if self.is_function() {
       "function"
-    } else if value.is_symbol() {
+    } else if self.is_symbol() {
       "symbol"
-    } else if value.is_string() {
+    } else if self.is_string() {
       "string"
-    } else if value.is_null() {
+    } else if self.is_null() {
       "null"
-    } else if value.is_undefined() {
+    } else if self.is_undefined() {
       "undefined"
     } else {
       "unknown"
