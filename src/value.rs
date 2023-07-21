@@ -724,4 +724,92 @@ impl Value {
     }
     .unwrap()
   }
+
+  /// Utility method that returns human readable representation of the
+  /// underlying value.
+  pub fn type_repr(&self) -> &'static str {
+    if value.is_module_namespace_object() {
+      "Module"
+    } else if value.is_wasm_module_object() {
+      "WASM module"
+    } else if value.is_wasm_memory_object() {
+      "WASM memory object"
+    } else if value.is_proxy() {
+      "Proxy"
+    } else if value.is_shared_array_buffer() {
+      "SharedArrayBuffer"
+    } else if value.is_data_view() {
+      "DataView"
+    } else if value.is_big_uint64_array() {
+      "BigUint64Array"
+    } else if value.is_big_int64_array() {
+      "BigInt64Array"
+    } else if value.is_float64_array() {
+      "Float64Array"
+    } else if value.is_float32_array() {
+      "Float32Array"
+    } else if value.is_int32_array() {
+      "Int32Array"
+    } else if value.is_uint32_array() {
+      "Uint32Array"
+    } else if value.is_int16_array() {
+      "Int16Array"
+    } else if value.is_uint16_array() {
+      "Uint16Array"
+    } else if value.is_int8_array() {
+      "Int8Array"
+    } else if value.is_uint8_clamped_array() {
+      "Uint8ClampedArray"
+    } else if value.is_uint8_array() {
+      "Uint8Array"
+    } else if value.is_typed_array() {
+      "TypedArray"
+    } else if value.is_array_buffer_view() {
+      "ArrayBufferView"
+    } else if value.is_array_buffer() {
+      "ArrayBuffer"
+    } else if value.is_weak_set() {
+      "WeakSet"
+    } else if value.is_weak_map() {
+      "WeakMap"
+    } else if value.is_set_iterator() {
+      "Set Iterator"
+    } else if value.is_map_iterator() {
+      "Map Iterator"
+    } else if value.is_set() {
+      "Set"
+    } else if value.is_map() {
+      "Map"
+    } else if value.is_promise() {
+      "Promise"
+    } else if value.is_generator_function() {
+      "Generator function"
+    } else if value.is_async_function() {
+      "Async function"
+    } else if value.is_reg_exp() {
+      "RegExp"
+    } else if value.is_date() {
+      "Date"
+    } else if value.is_number() {
+      "Number"
+    } else if value.is_boolean() {
+      "Boolean"
+    } else if value.is_big_int() {
+      "bigint"
+    } else if value.is_array() {
+      "array"
+    } else if value.is_function() {
+      "function"
+    } else if value.is_symbol() {
+      "symbol"
+    } else if value.is_string() {
+      "string"
+    } else if value.is_null() {
+      "null"
+    } else if value.is_undefined() {
+      "undefined"
+    } else {
+      "unknown"
+    }
+  }
 }
