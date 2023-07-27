@@ -65,10 +65,6 @@ static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
 static_assert(sizeof(v8::TryCatch) == sizeof(size_t) * 6,
               "TryCatch size mismatch");
 
-static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) ==
-                  sizeof(size_t) * 2,
-              "DisallowJavascriptExecutionScope size mismatch");
-
 static_assert(sizeof(v8::Isolate::AllowJavascriptExecutionScope) ==
                   sizeof(size_t) * 2,
               "AllowJavascriptExecutionScope size mismatch");
@@ -96,6 +92,9 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, rejected) == 12,
               "CachedData.rejected offset mismatch");
 static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 16,
               "CachedData.buffer_policy offset mismatch");
+static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) ==
+                  16,
+              "DisallowJavascriptExecutionScope size mismatch");
 #else
 static_assert(sizeof(v8::ScriptCompiler::CachedData) == 16,
               "CachedData size mismatch");
@@ -107,6 +106,9 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, rejected) == 8,
               "CachedData.rejected offset mismatch");
 static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 12,
               "CachedData.buffer_policy offset mismatch");
+static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) ==
+                  12,
+              "DisallowJavascriptExecutionScope size mismatch");
 #endif
 
 extern "C" {
@@ -1030,12 +1032,12 @@ class ExternalConstOneByteStringResource
  public:
   ExternalConstOneByteStringResource(int length)
       : _length(length) {
-    static_assert(offsetof(ExternalConstOneByteStringResource, _length) == 16,
-                  "ExternalConstOneByteStringResource's length was not at offset 16");
-    static_assert(sizeof(ExternalConstOneByteStringResource) == 24,
-                  "ExternalConstOneByteStringResource size was not 24");
-    static_assert(alignof(ExternalConstOneByteStringResource) == 8,
-                  "ExternalConstOneByteStringResource align was not 8");
+    static_assert(offsetof(ExternalConstOneByteStringResource, _length) == sizeof(size_t) * 2,
+                  "ExternalConstOneByteStringResource's length was not at offset of sizeof(size_t) * 2");
+    static_assert(sizeof(ExternalConstOneByteStringResource) == sizeof(size_t) * 3,
+                  "ExternalConstOneByteStringResource size was not sizeof(size_t) * 3");
+    static_assert(alignof(ExternalConstOneByteStringResource) == sizeof(size_t),
+                  "ExternalConstOneByteStringResource align was not sizeof(size_t)");
   }
   const char* data() const override { return nullptr; }
   size_t length() const override { return _length; }
