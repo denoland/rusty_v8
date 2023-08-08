@@ -5,7 +5,7 @@ use std::ffi::CString;
 extern "C" {
   fn icu_get_default_locale(output: *mut char, output_len: usize) -> usize;
   fn icu_set_default_locale(locale: *const char);
-  fn udata_setCommonData_72(this: *const u8, error_code: *mut i32);
+  fn udata_setCommonData_73(this: *const u8, error_code: *mut i32);
 }
 
 /// This function bypasses the normal ICU data loading process and allows you to force ICU's system
@@ -42,10 +42,10 @@ extern "C" {
 /// functionality for application data.
 // TODO(ry) Map error code to something useful.
 #[inline(always)]
-pub fn set_common_data_72(data: &'static [u8]) -> Result<(), i32> {
+pub fn set_common_data_73(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
-    udata_setCommonData_72(data.as_ptr(), &mut error_code);
+    udata_setCommonData_73(data.as_ptr(), &mut error_code);
   }
   if error_code == 0 {
     Ok(())
