@@ -25,3 +25,6 @@
 [submodule "third_party/icu"]
 	path = third_party/icu
 	url = https://github.com/denoland/icu.git
+[submodule "third_party/abseil-cpp"]
+	path = third_party/abseil-cpp
+	url = https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp.git
