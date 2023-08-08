@@ -46,7 +46,7 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
-    assert!(v8::icu::set_common_data_72(align_data::include_aligned!(
+    assert!(v8::icu::set_common_data_73(align_data::include_aligned!(
       align_data::Align16,
       "../third_party/icu/common/icudtl.dat"
     ))
@@ -8193,7 +8193,7 @@ fn icu_date() {
 
 #[test]
 fn icu_set_common_data_fail() {
-  assert!(v8::icu::set_common_data_72(&[1, 2, 3]).is_err());
+  assert!(v8::icu::set_common_data_73(&[1, 2, 3]).is_err());
 }
 
 #[test]

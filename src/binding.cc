@@ -484,17 +484,17 @@ bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
 }
 
 bool v8__Data__IsBigInt(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsBigInt();
+  return IsBigInt(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsBoolean(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsBoolean();
+  return IsBoolean(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsContext(const v8::Data& self) { return self.IsContext(); }
 
 bool v8__Data__IsFixedArray(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsFixedArray();
+  return IsFixedArray(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
@@ -504,15 +504,15 @@ bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
 bool v8__Data__IsModule(const v8::Data& self) { return self.IsModule(); }
 
 bool v8__Data__IsModuleRequest(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsModuleRequest();
+  return IsModuleRequest(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsName(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsName();
+  return IsName(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsNumber(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsNumber();
+  return IsNumber(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsObjectTemplate(const v8::Data& self) {
@@ -520,17 +520,17 @@ bool v8__Data__IsObjectTemplate(const v8::Data& self) {
 }
 
 bool v8__Data__IsPrimitive(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsPrimitive() && !self.IsPrivate();
+  return IsPrimitive(*v8::Utils::OpenHandle(&self)) && !self.IsPrivate();
 }
 
 bool v8__Data__IsPrivate(const v8::Data& self) { return self.IsPrivate(); }
 
 bool v8__Data__IsString(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsString();
+  return IsString(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsSymbol(const v8::Data& self) {
-  return v8::Utils::OpenHandle(&self)->IsPublicSymbol();
+  return IsPublicSymbol(*v8::Utils::OpenHandle(&self));
 }
 
 bool v8__Data__IsValue(const v8::Data& self) { return self.IsValue(); }
@@ -3072,7 +3072,7 @@ v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
   namespace i = v8::internal;
   i::Object object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;
-  return object.IsHeapObject() &&
+  return IsHeapObject(object) &&
                  i::GetIsolateFromHeapObject(object.GetHeapObject(), &isolate)
              ? reinterpret_cast<v8::Isolate*>(isolate)
              : nullptr;
@@ -3082,10 +3082,10 @@ int v8__Value__GetHash(const v8::Value& data) {
   namespace i = v8::internal;
   i::Object object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;
-  int hash = object.IsHeapObject() && i::GetIsolateFromHeapObject(
+  int hash = IsHeapObject(object) && i::GetIsolateFromHeapObject(
                                           object.GetHeapObject(), &isolate)
-                 ? object.GetOrCreateHash(isolate).value()
-                 : i::Smi::ToInt(object.GetHash());
+                 ? i::Object::GetOrCreateHash(object, isolate).value()
+                 : i::Smi::ToInt(i::Object::GetHash(object));
   assert(hash != 0);
   return hash;
 }
@@ -3409,8 +3409,8 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 extern "C" {
 
 size_t icu_get_default_locale(char* output, size_t output_len) {
-  const icu_72::Locale& default_locale = icu::Locale::getDefault();
-  icu_72::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
+  const icu_73::Locale& default_locale = icu::Locale::getDefault();
+  icu_73::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
   UErrorCode status = U_ZERO_ERROR;
   default_locale.toLanguageTag(sink, status);
   assert(status == U_ZERO_ERROR);
