@@ -54,6 +54,7 @@ exclude = [
   "third_party/icu/source/samples/",
   "third_party/icu/source/tools/",
   "third_party/icu/tzres/",
+  "third_party/abseil-cpp/*.def",
   "tools/clang",
   "v8/ChangeLog",
   "v8/benchmarks/",
