@@ -55,4 +55,10 @@ default_args = {
   # is enabled. In our case it's disabled so without this flag we can't
   # compile.
   v8_enable_verify_heap = false
+
+  # V8 introduced a bug in 11.1 that causes the External Pointer Table to never
+  # be cleaned which causes resource exhaustion. Disabling pointer compression
+  # makes sure that the EPT is not used.
+  # https://bugs.chromium.org/p/v8/issues/detail?id=13640&q=garbage%20collection&can=2
+  v8_enable_pointer_compression = false
 }
