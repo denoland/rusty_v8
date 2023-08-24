@@ -61,4 +61,9 @@ default_args = {
   # makes sure that the EPT is not used.
   # https://bugs.chromium.org/p/v8/issues/detail?id=13640&q=garbage%20collection&can=2
   v8_enable_pointer_compression = false
+
+  # Maglev *should* be supported when pointer compression is disabled as per
+  # https://chromium-review.googlesource.com/c/v8/v8/+/4753150, but it still
+  # fails to compile.
+  v8_enable_maglev = false
 }
