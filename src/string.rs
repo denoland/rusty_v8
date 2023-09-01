@@ -552,8 +552,14 @@ impl String {
     &self,
     scope: &mut Isolate,
   ) -> std::string::String {
-    let len_utf8 = self.utf8_length(scope);
     let len_utf16 = self.length();
+
+    // No need to allocate or do any work for zero-length strings
+    if len_utf16 == 0 {
+      return std::string::String::new();
+    }
+
+    let len_utf8 = self.utf8_length(scope);
 
     // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
     // string is 100% 7-bit ASCII.
@@ -612,9 +618,15 @@ impl String {
     scope: &mut Isolate,
     buffer: &'a mut [MaybeUninit<u8>; N],
   ) -> Cow<'a, str> {
+    let len_utf16 = self.length();
+
+    // No need to allocate or do any work for zero-length strings
+    if len_utf16 == 0 {
+      return "".into();
+    }
+
     // TODO(mmastrac): Ideally we should be able to access the string's internal representation
     let len_utf8 = self.utf8_length(scope);
-    let len_utf16 = self.length();
 
     // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
     // string is 100% 7-bit ASCII.
