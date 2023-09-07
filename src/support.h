@@ -77,7 +77,8 @@ struct make_pod {
   // Using a union is a C++ trick to achieve this.
   template <class V>
   union helper {
-    static_assert(std::is_pod<P>::value, "type P must a pod type");
+    static_assert(std::is_trivially_copyable<V>::value, "type V must be trivially copyable");
+    static_assert(std::is_standard_layout<P>::value && std::is_trivially_copyable<P>::value, "type P must a pod type");
     static_assert(sizeof(V) == sizeof(P), "type P must be same size as type V");
     static_assert(alignof(V) == alignof(P),
                   "alignment of type P must be compatible with that of type V");
