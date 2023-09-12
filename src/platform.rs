@@ -14,6 +14,10 @@ extern "C" {
     thread_pool_size: int,
     idle_task_support: bool,
   ) -> *mut Platform;
+  fn v8__Platform__NewUnprotectedDefaultPlatform(
+    thread_pool_size: int,
+    idle_task_support: bool,
+  ) -> *mut Platform;
   fn v8__Platform__NewSingleThreadedDefaultPlatform(
     idle_task_support: bool,
   ) -> *mut Platform;
@@ -58,12 +62,25 @@ pub struct Platform(Opaque);
 /// If |idle_task_support| is enabled then the platform will accept idle
 /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
 /// calling v8::platform::RunIdleTasks to process the idle tasks.
+///
+/// TODO: reference the threading restrictions that apply when V8 is initialized
+/// with the default platform, the implications for the Cargo test harness, and
+/// when to use new_unprotected_default_platform().
 #[inline(always)]
 pub fn new_default_platform(
   thread_pool_size: u32,
   idle_task_support: bool,
 ) -> UniqueRef<Platform> {
   Platform::new(thread_pool_size, idle_task_support)
+}
+
+/// TODO: doc comment
+#[inline(always)]
+pub fn new_unprotected_default_platform(
+  thread_pool_size: u32,
+  idle_task_support: bool,
+) -> UniqueRef<Platform> {
+  Platform::new_unprotected(thread_pool_size, idle_task_support)
 }
 
 /// The same as new_default_platform() but disables the worker thread pool.
@@ -88,6 +105,10 @@ impl Platform {
   /// If |idle_task_support| is enabled then the platform will accept idle
   /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
   /// calling v8::platform::RunIdleTasks to process the idle tasks.
+  ///
+  /// TODO: reference the threading restrictions that apply when V8 is
+  /// initialized with the default platform, the implications for the Cargo
+  /// test harness, and when to use new_unprotected().
   #[inline(always)]
   pub fn new(
     thread_pool_size: u32,
@@ -95,6 +116,20 @@ impl Platform {
   ) -> UniqueRef<Self> {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewDefaultPlatform(
+        thread_pool_size.min(16) as i32,
+        idle_task_support,
+      ))
+    }
+  }
+
+  /// TODO: doc comment
+  #[inline(always)]
+  pub fn new_unprotected(
+    thread_pool_size: u32,
+    idle_task_support: bool,
+  ) -> UniqueRef<Self> {
+    unsafe {
+      UniqueRef::from_raw(v8__Platform__NewUnprotectedDefaultPlatform(
         thread_pool_size.min(16) as i32,
         idle_task_support,
       ))

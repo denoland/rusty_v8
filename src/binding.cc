@@ -1,9 +1,11 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <memory>
 
 #include "support.h"
 #include "unicode/locid.h"
@@ -17,9 +19,12 @@
 #include "v8/include/v8.h"
 #include "v8/src/api/api-inl.h"
 #include "v8/src/api/api.h"
+#include "v8/src/base/debug/stack_trace.h"
+#include "v8/src/base/sys-info.h"
 #include "v8/src/execution/isolate-utils-inl.h"
 #include "v8/src/execution/isolate-utils.h"
 #include "v8/src/flags/flags.h"
+#include "v8/src/libplatform/default-platform.h"
 #include "v8/src/objects/objects-inl.h"
 #include "v8/src/objects/objects.h"
 #include "v8/src/objects/smi.h"
@@ -2579,9 +2584,62 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
+class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
+  using IdleTaskSupport = v8::platform::IdleTaskSupport;
+  using InProcessStackDumping = v8::platform::InProcessStackDumping;
+  using PriorityMode = v8::platform::PriorityMode;
+  using TracingController = v8::TracingController;
+
+  static constexpr int kMaxThreadPoolSize = 16;
+
+ public:
+  explicit UnprotectedDefaultPlatform(
+      int thread_pool_size, IdleTaskSupport idle_task_support,
+      std::unique_ptr<TracingController> tracing_controller = {},
+      PriorityMode priority_mode = PriorityMode::kDontApply)
+      : v8::platform::DefaultPlatform(thread_pool_size, idle_task_support,
+                                      std::move(tracing_controller),
+                                      priority_mode) {}
+
+  static std::unique_ptr<v8::Platform> New(
+      int thread_pool_size, IdleTaskSupport idle_task_support,
+      InProcessStackDumping in_process_stack_dumping,
+      std::unique_ptr<TracingController> tracing_controller = {},
+      PriorityMode priority_mode = PriorityMode::kDontApply) {
+    // This implementation is semantically equivalent to the implementation of
+    // `v8::platform::NewDefaultPlatform()`.
+    DCHECK_GE(thread_pool_size, 0);
+    if (thread_pool_size < 1) {
+      thread_pool_size =
+          std::max(v8::base::SysInfo::NumberOfProcessors() - 1, 1);
+    }
+    thread_pool_size = std::min(thread_pool_size, kMaxThreadPoolSize);
+    if (in_process_stack_dumping == InProcessStackDumping::kEnabled) {
+      v8::base::debug::EnableInProcessStackDumping();
+    }
+    return std::make_unique<UnprotectedDefaultPlatform>(
+        thread_pool_size, idle_task_support, std::move(tracing_controller),
+        priority_mode);
+  }
+
+  v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
+    return nullptr;
+  }
+};
+
 v8::Platform* v8__Platform__NewDefaultPlatform(int thread_pool_size,
                                                bool idle_task_support) {
   return v8::platform::NewDefaultPlatform(
+             thread_pool_size,
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
+}
+
+v8::Platform* v8__Platform__NewUnprotectedDefaultPlatform(
+    int thread_pool_size, bool idle_task_support) {
+  return UnprotectedDefaultPlatform::New(
              thread_pool_size,
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,

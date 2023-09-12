@@ -3,7 +3,9 @@ fn atomics_pump_message_loop() {
   v8::V8::set_flags_from_string(
     "--allow-natives-syntax --harmony-sharedarraybuffer",
   );
-  v8::V8::initialize_platform(v8::new_default_platform(0, false).make_shared());
+  v8::V8::initialize_platform(
+    v8::new_unprotected_default_platform(0, false).make_shared(),
+  );
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
