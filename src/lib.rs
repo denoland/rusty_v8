@@ -120,6 +120,7 @@ pub use module::*;
 pub use object::*;
 pub use platform::new_default_platform;
 pub use platform::new_single_threaded_default_platform;
+pub use platform::new_unprotected_default_platform;
 pub use platform::Platform;
 pub use primitives::*;
 pub use private::*;

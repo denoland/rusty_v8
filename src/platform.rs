@@ -14,6 +14,10 @@ extern "C" {
     thread_pool_size: int,
     idle_task_support: bool,
   ) -> *mut Platform;
+  fn v8__Platform__NewUnprotectedDefaultPlatform(
+    thread_pool_size: int,
+    idle_task_support: bool,
+  ) -> *mut Platform;
   fn v8__Platform__NewSingleThreadedDefaultPlatform(
     idle_task_support: bool,
   ) -> *mut Platform;
@@ -58,12 +62,34 @@ pub struct Platform(Opaque);
 /// If |idle_task_support| is enabled then the platform will accept idle
 /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
 /// calling v8::platform::RunIdleTasks to process the idle tasks.
+///
+/// The default platform for v8 may include restrictions and caveats on thread
+/// creation and initialization. This platform should only be used in cases
+/// where v8 can be reliably initialized on the application's main thread, or
+/// the parent thread to all threads in the system that will use v8.
+///
+/// One example of a restriction is the use of Memory Protection Keys (pkeys) on
+/// modern Linux systems using modern Intel/AMD processors. This particular
+/// technology requires that all threads using v8 are created as descendent
+/// threads of the thread that called `v8::Initialize`.
 #[inline(always)]
 pub fn new_default_platform(
   thread_pool_size: u32,
   idle_task_support: bool,
 ) -> UniqueRef<Platform> {
   Platform::new(thread_pool_size, idle_task_support)
+}
+
+/// Creates a platform that is identical to the default platform, but does not
+/// enforce thread-isolated allocations. This may reduce security in some cases,
+/// so this method should be used with caution in cases where the threading
+/// guarantees of `new_default_platform` cannot be upheld (generally for tests).
+#[inline(always)]
+pub fn new_unprotected_default_platform(
+  thread_pool_size: u32,
+  idle_task_support: bool,
+) -> UniqueRef<Platform> {
+  Platform::new_unprotected(thread_pool_size, idle_task_support)
 }
 
 /// The same as new_default_platform() but disables the worker thread pool.
@@ -88,6 +114,16 @@ impl Platform {
   /// If |idle_task_support| is enabled then the platform will accept idle
   /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
   /// calling v8::platform::RunIdleTasks to process the idle tasks.
+  ///
+  /// The default platform for v8 may include restrictions and caveats on thread
+  /// creation and initialization. This platform should only be used in cases
+  /// where v8 can be reliably initialized on the application's main thread, or
+  /// the parent thread to all threads in the system that will use v8.
+  ///
+  /// One example of a restriction is the use of Memory Protection Keys (pkeys)
+  /// on modern Linux systems using modern Intel/AMD processors. This particular
+  /// technology requires that all threads using v8 are created as descendent
+  /// threads of the thread that called `v8::Initialize`.
   #[inline(always)]
   pub fn new(
     thread_pool_size: u32,
@@ -95,6 +131,24 @@ impl Platform {
   ) -> UniqueRef<Self> {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewDefaultPlatform(
+        thread_pool_size.min(16) as i32,
+        idle_task_support,
+      ))
+    }
+  }
+
+  /// Creates a platform that is identical to the default platform, but does not
+  /// enforce thread-isolated allocations. This may reduce security in some
+  /// cases, so this method should be used with caution in cases where the
+  /// threading guarantees of `new_default_platform` cannot be upheld (generally
+  /// for tests).
+  #[inline(always)]
+  pub fn new_unprotected(
+    thread_pool_size: u32,
+    idle_task_support: bool,
+  ) -> UniqueRef<Self> {
+    unsafe {
+      UniqueRef::from_raw(v8__Platform__NewUnprotectedDefaultPlatform(
         thread_pool_size.min(16) as i32,
         idle_task_support,
       ))
