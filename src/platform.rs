@@ -63,9 +63,15 @@ pub struct Platform(Opaque);
 /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
 /// calling v8::platform::RunIdleTasks to process the idle tasks.
 ///
-/// TODO: reference the threading restrictions that apply when V8 is initialized
-/// with the default platform, the implications for the Cargo test harness, and
-/// when to use new_unprotected_default_platform().
+/// The default platform for v8 may include restrictions and caveats on thread creation
+/// and initialization. This platform should only be used in cases where v8 can be
+/// reliably initialized on the application's main thread, or the parent thread to all 
+/// threads in the system that will use v8.
+///
+/// One example of a restriction is the use of Memory Protection Keys (pkeys) on
+/// modern Linux systems using modern Intel/AMD processors. This particular technology
+/// requires that all threads using v8 are created as descendent threads of the thread
+/// that called `v8::Initialize`. 
 #[inline(always)]
 pub fn new_default_platform(
   thread_pool_size: u32,
@@ -74,7 +80,10 @@ pub fn new_default_platform(
   Platform::new(thread_pool_size, idle_task_support)
 }
 
-/// TODO: doc comment
+/// Creates a platform that is identical to the default platform, but does not enforce
+/// thread-isolated allocations. This may reduce security in some cases, so this method
+/// should be used with caution in cases where the threading guarantees of
+/// `new_default_platform` cannot be upheld (generally for tests).
 #[inline(always)]
 pub fn new_unprotected_default_platform(
   thread_pool_size: u32,
@@ -106,9 +115,15 @@ impl Platform {
   /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
   /// calling v8::platform::RunIdleTasks to process the idle tasks.
   ///
-  /// TODO: reference the threading restrictions that apply when V8 is
-  /// initialized with the default platform, the implications for the Cargo
-  /// test harness, and when to use new_unprotected().
+  /// The default platform for v8 may include restrictions and caveats on thread creation
+  /// and initialization. This platform should only be used in cases where v8 can be
+  /// reliably initialized on the application's main thread, or the parent thread to all 
+  /// threads in the system that will use v8.
+  ///
+  /// One example of a restriction is the use of Memory Protection Keys (pkeys) on
+  /// modern Linux systems using modern Intel/AMD processors. This particular technology
+  /// requires that all threads using v8 are created as descendent threads of the thread
+  /// that called `v8::Initialize`.
   #[inline(always)]
   pub fn new(
     thread_pool_size: u32,
@@ -122,7 +137,10 @@ impl Platform {
     }
   }
 
-  /// TODO: doc comment
+  /// Creates a platform that is identical to the default platform, but does not enforce
+  /// thread-isolated allocations. This may reduce security in some cases, so this method
+  /// should be used with caution in cases where the threading guarantees of
+  /// `new_default_platform` cannot be upheld (generally for tests).
   #[inline(always)]
   pub fn new_unprotected(
     thread_pool_size: u32,
