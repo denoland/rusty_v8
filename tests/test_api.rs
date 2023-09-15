@@ -7534,12 +7534,18 @@ impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
 
   fn write_host_object<'s>(
     &mut self,
-    _scope: &mut v8::HandleScope<'s>,
-    _object: v8::Local<'s, v8::Object>,
+    scope: &mut v8::HandleScope<'s>,
+    object: v8::Local<'s, v8::Object>,
     value_serializer: &mut dyn v8::ValueSerializerHelper,
   ) -> Option<bool> {
-    value_serializer.write_uint64(1);
-    None
+    let key = v8::String::new(scope, "hostObject").unwrap();
+    let value = object
+      .get(scope, key.into())
+      .unwrap()
+      .uint32_value(scope)
+      .unwrap();
+    value_serializer.write_uint32(value);
+    Some(true)
   }
 }
 
@@ -7559,12 +7565,18 @@ impl<'a> v8::ValueDeserializerImpl for Custom1Value<'a> {
 
   fn read_host_object<'s>(
     &mut self,
-    _scope: &mut v8::HandleScope<'s>,
+    scope: &mut v8::HandleScope<'s>,
     value_deserializer: &mut dyn v8::ValueDeserializerHelper,
   ) -> Option<v8::Local<'s, v8::Object>> {
     let mut value = 0;
-    value_deserializer.read_uint64(&mut value);
-    None
+    value_deserializer.read_uint32(&mut value);
+    let template = v8::ObjectTemplate::new(scope);
+    template.set_internal_field_count(1);
+    let host_object = template.new_instance(scope).unwrap();
+    let key = v8::String::new(scope, "readHostObject").unwrap();
+    let value = v8::Integer::new_from_unsigned(scope, value);
+    host_object.set(scope, key.into(), value.into());
+    Some(host_object)
   }
 }
 
@@ -7785,6 +7797,64 @@ fn value_serializer_and_deserializer_array_buffers() {
 
     let expected = v8::String::new(scope, "0,0,0,4,0,0,0,0,0,0").unwrap();
     assert!(expected.strict_equals(result));
+  }
+}
+
+#[test]
+fn value_serializer_and_deserializer_embedder_host_object() {
+  let buffer;
+  let expected: u32 = 123;
+  let mut array_buffers = ArrayBuffers::new();
+  {
+    let _setup_guard = setup::parallel_test();
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let template = v8::ObjectTemplate::new(scope);
+    template.set_internal_field_count(1);
+    let host_object = template.new_instance(scope).unwrap();
+    let key = v8::String::new(scope, "hostObject").unwrap();
+    let value = v8::Integer::new_from_unsigned(scope, expected);
+    host_object.set(scope, key.into(), value.into());
+
+    let mut value_serializer =
+      Custom1Value::serializer(scope, &mut array_buffers);
+    assert_eq!(
+      value_serializer.write_value(context, host_object.into()),
+      Some(true)
+    );
+
+    buffer = value_serializer.release();
+  }
+
+  {
+    let _setup_guard = setup::parallel_test();
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let mut value_deserializer =
+      Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
+    let host_object_out = value_deserializer
+      .read_value(context)
+      .unwrap()
+      .to_object(scope)
+      .unwrap();
+    drop(value_deserializer);
+    let key = v8::String::new(scope, "readHostObject").unwrap();
+    let value = host_object_out
+      .get(scope, key.into())
+      .unwrap()
+      .uint32_value(scope)
+      .unwrap();
+    assert_eq!(value, expected);
   }
 }
 
