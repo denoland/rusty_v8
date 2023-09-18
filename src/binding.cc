@@ -3178,6 +3178,13 @@ extern "C" {
 void v8__ValueSerializer__Delegate__ThrowDataCloneError(
     v8::ValueSerializer::Delegate* self, v8::Local<v8::String> message);
 
+bool v8__ValueSerializer__Delegate__HasCustomHostObject(
+    v8::ValueSerializer::Delegate* self, v8::Isolate* isolate);
+
+MaybeBool v8__ValueSerializer__Delegate__IsHostObject(
+    v8::ValueSerializer::Delegate* self, v8::Isolate* isolate,
+    v8::Local<v8::Object> object);
+
 MaybeBool v8__ValueSerializer__Delegate__WriteHostObject(
     v8::ValueSerializer::Delegate* self, v8::Isolate* isolate,
     v8::Local<v8::Object> object);
@@ -3201,6 +3208,16 @@ void v8__ValueSerializer__Delegate__FreeBufferMemory(
 struct v8__ValueSerializer__Delegate : public v8::ValueSerializer::Delegate {
   void ThrowDataCloneError(v8::Local<v8::String> message) override {
     v8__ValueSerializer__Delegate__ThrowDataCloneError(this, message);
+  }
+
+  bool HasCustomHostObject(v8::Isolate* isolate) override {
+    return v8__ValueSerializer__Delegate__HasCustomHostObject(this, isolate);
+  }
+
+  v8::Maybe<bool> IsHostObject(v8::Isolate* isolate,
+                                  v8::Local<v8::Object> object) override {
+    return maybe_bool_to_maybe(
+        v8__ValueSerializer__Delegate__IsHostObject(this, isolate, object));
   }
 
   v8::Maybe<bool> WriteHostObject(v8::Isolate* isolate,
