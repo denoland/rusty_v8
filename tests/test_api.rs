@@ -7374,13 +7374,23 @@ fn symbol() {
   let s = v8::Symbol::new(scope, Some(desc));
   assert!(s.description(scope) == desc);
 
-  let s_pub = v8::Symbol::for_global(scope, desc);
+  let s_pub = v8::Symbol::for_key(scope, desc);
   assert!(s_pub.description(scope) == desc);
   assert!(s_pub != s);
 
-  let s_pub2 = v8::Symbol::for_global(scope, desc);
+  let s_pub2 = v8::Symbol::for_key(scope, desc);
   assert!(s_pub2 != s);
   assert!(s_pub == s_pub2);
+
+  let s_api = v8::Symbol::for_api(scope, desc);
+  assert!(s_api.description(scope) == desc);
+  assert!(s_api != s);
+  assert!(s_api != s_pub);
+
+  let s_api2 = v8::Symbol::for_api(scope, desc);
+  assert!(s_api2 != s);
+  assert!(s_api2 != s_pub);
+  assert!(s_api == s_api2);
 
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);

@@ -10,6 +10,10 @@ extern "C" {
     isolate: *mut Isolate,
     description: *const String,
   ) -> *const Symbol;
+  fn v8__Symbol__For(
+    isolate: *mut Isolate,
+    description: *const String,
+  ) -> *const Symbol;
   fn v8__Symbol__ForApi(
     isolate: *mut Isolate,
     description: *const String,
@@ -57,6 +61,38 @@ impl Symbol {
   /// keys.
   /// To minimize the potential for clashes, use qualified descriptions as keys.
   /// Corresponds to v8::Symbol::For() in C++.
+  #[inline(always)]
+  pub fn for_key<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    description: Local<String>,
+  ) -> Local<'s, Symbol> {
+    unsafe {
+      scope
+        .cast_local(|sd| v8__Symbol__For(sd.get_isolate_ptr(), &*description))
+    }
+    .unwrap()
+  }
+
+  /// Retrieve a global symbol. Similar to `for_key`, but using a separate
+  /// registry that is not accessible by (and cannot clash with) JavaScript code.
+  /// Corresponds to v8::Symbol::ForApi() in C++.
+  #[inline(always)]
+  pub fn for_api<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    description: Local<String>,
+  ) -> Local<'s, Symbol> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Symbol__ForApi(sd.get_isolate_ptr(), &*description)
+      })
+    }
+    .unwrap()
+  }
+
+  #[deprecated(
+    since = "0.77.0",
+    note = "This was documented as `for_key` but implemented as `for_api`"
+  )]
   #[inline(always)]
   pub fn for_global<'s>(
     scope: &mut HandleScope<'s, ()>,
