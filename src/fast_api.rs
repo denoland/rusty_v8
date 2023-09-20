@@ -228,6 +228,12 @@ pub struct FastApiOneByteString {
 impl FastApiOneByteString {
   #[inline(always)]
   pub fn as_bytes(&self) -> &[u8] {
+    // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
+    // is invalid because of Rust's niche packing).
+    if self.data.is_null() {
+      return &mut [];
+    }
+
     // SAFETY: The data is guaranteed to be valid for the length of the string.
     unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
   }
@@ -236,14 +242,37 @@ impl FastApiOneByteString {
 impl<T: Default> FastApiTypedArray<T> {
   /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
-  pub fn get(&self, index: usize) -> T {
+  pub const fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
     // SAFETY: src is valid for reads, and is a valid value for T
     unsafe { ptr::read_unaligned(self.data.add(index)) }
   }
 
+  /// Given a pointer to a `FastApiTypedArray`, returns a slice pointing to the
+  /// data if safe to do so.
+  ///
+  /// # Safety
+  ///
+  /// The pointer must not be null and the caller must choose a lifetime that is
+  /// safe.
+  #[inline(always)]
+  pub unsafe fn get_storage_from_pointer_if_aligned<'a>(
+    ptr: *mut Self,
+  ) -> Option<&'a mut [T]> {
+    debug_assert!(!ptr.is_null());
+    let self_ref = ptr.as_mut().unwrap_unchecked();
+    self_ref.get_storage_if_aligned()
+  }
+
+  /// Returns a slace pointing to the underlying data if safe to do so.
   #[inline(always)]
   pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
+    // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
+    // is invalid because of Rust's niche packing).
+    if self.data.is_null() {
+      return Some(&mut []);
+    }
+    // Ensure that we never return an unaligned buffer
     if (self.data as usize) % align_of::<T>() != 0 {
       return None;
     }
