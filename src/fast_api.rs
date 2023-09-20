@@ -264,7 +264,7 @@ impl<T: Default> FastApiTypedArray<T> {
     self_ref.get_storage_if_aligned()
   }
 
-  /// Returns a slace pointing to the underlying data if safe to do so.
+  /// Returns a slice pointing to the underlying data if safe to do so.
   #[inline(always)]
   pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
     // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
