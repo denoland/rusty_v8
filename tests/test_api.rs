@@ -15,8 +15,8 @@ use std::ptr::{addr_of, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use v8::fast_api::CType;
 use v8::fast_api::Type::*;
+use v8::fast_api::{CType, FastApiTypedArray};
 use v8::inspector::ChannelBase;
 use v8::{fast_api, AccessorConfiguration};
 
@@ -9564,6 +9564,64 @@ fn test_fast_calls() {
   "#;
   eval(scope, source).unwrap();
   assert_eq!("fast", unsafe { WHO });
+}
+
+#[test]
+fn test_fast_calls_empty_buffer() {
+  static mut WHO: &str = "none";
+  unsafe fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    buffer: *mut FastApiTypedArray<u8>,
+  ) {
+    assert_eq!(WHO, "slow");
+    WHO = "fast";
+    assert_eq!(
+      0,
+      FastApiTypedArray::get_storage_from_pointer_if_aligned(buffer)
+        .unwrap()
+        .len()
+    );
+  }
+
+  fn slow_fn(
+    _scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      WHO = "slow";
+    }
+  }
+
+  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
+    &[V8Value, TypedArray(CType::Uint8)],
+    fast_api::CType::Void,
+    fast_fn as _,
+  );
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let global = context.global(scope);
+
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &FAST_TEST, None, None, None);
+
+  let name = v8::String::new(scope, "func").unwrap();
+  let value = template.get_function(scope).unwrap();
+  global.set(scope, name.into(), value.into()).unwrap();
+  let source = r#"
+    function f(arr) { func(arr); }
+    %PrepareFunctionForOptimization(f);
+    f(new Uint8Array(0));
+    %OptimizeFunctionOnNextCall(f);
+    f(new Uint8Array(0));
+  "#;
+  eval(scope, source).unwrap();
+  assert_eq!(unsafe { WHO }, "fast");
 }
 
 #[test]

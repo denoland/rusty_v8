@@ -267,13 +267,13 @@ impl<T: Default> FastApiTypedArray<T> {
   /// Returns a slice pointing to the underlying data if safe to do so.
   #[inline(always)]
   pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
-    // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
-    // is invalid because of Rust's niche packing).
-    if self.data.is_null() {
+    // V8 may provide an invalid or null pointer when length is zero, so we just
+    // ignore that value completely and create an empty slice in this case.
+    if self.length == 0 {
       return Some(&mut []);
     }
-    // Ensure that we never return an unaligned buffer
-    if (self.data as usize) % align_of::<T>() != 0 {
+    // Ensure that we never return an unaligned or null buffer
+    if self.data.is_null() || (self.data as usize) % align_of::<T>() != 0 {
       return None;
     }
     Some(unsafe { std::slice::from_raw_parts_mut(self.data, self.length) })
