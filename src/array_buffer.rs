@@ -539,8 +539,8 @@ impl ArrayBuffer {
   }
 
   /// Returns a new standalone BackingStore backed by an object that dereferences
-  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
-  /// the same mutable slice for its entire lifetime.
+  /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
+  /// memory is used for the lifetime of the buffer.
   #[inline(always)]
   pub fn new_backing_store_from_bytes<T>(bytes: T) -> UniqueRef<BackingStore> where T: DerefMut<Target = [u8]>{
     // First we move the object into a box so it is pinned in place
@@ -549,8 +549,8 @@ impl ArrayBuffer {
   }
 
   /// Returns a new standalone BackingStore backed by an object that dereferences
-  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
-  /// the same mutable slice for its entire lifetime.
+  /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
+  /// memory is used for the lifetime of the buffer.
   #[inline(always)]
   pub fn new_backing_store_from_boxed_bytes<T>(mut bytes: Box<T>) -> UniqueRef<BackingStore> where T: DerefMut<Target = [u8]>{
     // We need to be very careful here not to move the data out of the box as that may

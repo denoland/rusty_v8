@@ -173,8 +173,8 @@ impl SharedArrayBuffer {
   }
 
   /// Returns a new standalone shared BackingStore backed by an object that dereferences
-  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
-  /// the same mutable slice for its entire lifetime.
+  /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
+  /// memory is used for the lifetime of the buffer.
   ///
   /// As this buffer may be shared, the underlying object must be [`Send`] + [`Sync`].
   #[inline(always)]
@@ -185,8 +185,8 @@ impl SharedArrayBuffer {
   }
 
   /// Returns a new standalone shared BackingStore backed by an object that dereferences
-  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
-  /// the same mutable slice for its entire lifetime.
+  /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
+  /// memory is used for the lifetime of the buffer.
   /// 
   /// As this buffer may be shared, the underlying object must be [`Send`] + [`Sync`].
   #[inline(always)]
