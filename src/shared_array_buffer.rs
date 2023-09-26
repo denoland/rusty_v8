@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
+use std::ops::DerefMut;
 use std::ptr::null_mut;
 
 use crate::array_buffer::boxed_slice_deleter_callback;
@@ -38,6 +39,9 @@ extern "C" {
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
+  fn v8__BackingStore__EmptyBackingStore(
+    shared: bool,
+  ) -> *mut BackingStore;
 }
 
 impl SharedArrayBuffer {
@@ -74,6 +78,14 @@ impl SharedArrayBuffer {
       })
     }
     .unwrap()
+  }
+
+  /// Create a new, empty SharedArrayBuffer.
+  #[inline(always)]
+  pub fn empty<'s>(scope: &mut HandleScope<'s>) -> Local<'s, SharedArrayBuffer> {
+    // SAFETY: This is a v8-provided empty backing store
+    let backing_store = unsafe { UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(true)) };
+    Self::with_backing_store(scope, &backing_store.make_shared())
   }
 
   /// Data length in bytes.
@@ -158,5 +170,65 @@ impl SharedArrayBuffer {
         null_mut(),
       ))
     }
+  }
+
+  /// Returns a new standalone shared BackingStore backed by an object that dereferences
+  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
+  /// the same mutable slice for its entire lifetime.
+  ///
+  /// As this buffer may be shared, the underlying object must be [`Send`] + [`Sync`].
+  #[inline(always)]
+  pub fn new_backing_store_from_bytes<T>(bytes: T) -> UniqueRef<BackingStore> where T: DerefMut<Target = [u8]> + Send + Sync {
+    // First we move the object into a box so it is pinned in place
+    let alloc = Box::new(bytes);
+    Self::new_backing_store_from_boxed_bytes(alloc)
+  }
+
+  /// Returns a new standalone shared BackingStore backed by an object that dereferences
+  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
+  /// the same mutable slice for its entire lifetime.
+  /// 
+  /// As this buffer may be shared, the underlying object must be [`Send`] + [`Sync`].
+  #[inline(always)]
+  pub fn new_backing_store_from_boxed_bytes<T>(mut bytes: Box<T>) -> UniqueRef<BackingStore> where T: DerefMut<Target = [u8]> + Send + Sync {
+    // We need to be very careful here not to move the data out of the box as that may
+    // invalidate the slice's pointer. You can imagine a SmallVec that provides a pointer to
+    // a slice inside of itself -- moving that SmallVec would invalidate the slice!
+    let slice = bytes.deref_mut();
+    let len = slice.len();
+    let slice = slice.as_mut_ptr();
+    let ptr = Box::into_raw(bytes) as *const c_void;
+  
+    extern "C" fn drop_box<T>(_ptr: *mut c_void, _len: usize, data: *mut c_void) {
+      // SAFETY: We know that data is a raw Box from above
+      unsafe { drop(Box::<T>::from_raw(data as _)) }
+    }
+  
+    // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
+    // derefed from so there's no way to get another mutable reference.
+    unsafe {
+      Self::new_backing_store_from_ptr(
+        slice as _, len, drop_box::<T>, ptr as _,
+      )
+    }
+  }
+
+  /// Returns a new standalone shared BackingStore backed by given ptr.
+  ///
+  /// SAFETY: This API consumes raw pointers so is inherently
+  /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
+  #[inline(always)]
+  pub unsafe fn new_backing_store_from_ptr(
+    data_ptr: *mut c_void,
+    byte_length: usize,
+    deleter_callback: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> UniqueRef<BackingStore> {
+    UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
+      data_ptr,
+      byte_length,
+      deleter_callback,
+      deleter_data,
+    ))
   }
 }

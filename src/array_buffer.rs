@@ -3,6 +3,7 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
+use std::ops::DerefMut;
 use std::ptr;
 use std::ptr::null;
 use std::ptr::null_mut;
@@ -59,6 +60,9 @@ extern "C" {
     byte_length: usize,
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
+  ) -> *mut BackingStore;
+  fn v8__BackingStore__EmptyBackingStore(
+    shared: bool,
   ) -> *mut BackingStore;
 
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
@@ -396,6 +400,14 @@ impl ArrayBuffer {
     .unwrap()
   }
 
+  /// Create a new, empty ArrayBuffer.
+  #[inline(always)]
+  pub fn empty<'s>(scope: &mut HandleScope<'s>) -> Local<'s, ArrayBuffer> {
+    // SAFETY: This is a v8-provided empty backing store
+    let backing_store = unsafe { UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false)) };
+    Self::with_backing_store(scope, &backing_store.make_shared())
+  }
+
   /// Data length in bytes.
   #[inline(always)]
   pub fn byte_length(&self) -> usize {
@@ -523,6 +535,43 @@ impl ArrayBuffer {
         vec_deleter_callback,
         capacity as *mut c_void,
       ))
+    }
+  }
+
+  /// Returns a new standalone BackingStore backed by an object that dereferences
+  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
+  /// the same mutable slice for its entire lifetime.
+  #[inline(always)]
+  pub fn new_backing_store_from_bytes<T>(bytes: T) -> UniqueRef<BackingStore> where T: DerefMut<Target = [u8]>{
+    // First we move the object into a box so it is pinned in place
+    let alloc = Box::new(bytes);
+    Self::new_backing_store_from_boxed_bytes(alloc)
+  }
+
+  /// Returns a new standalone BackingStore backed by an object that dereferences
+  /// to a mutable slice of bytes. You must ensure that the bytes object will deref to
+  /// the same mutable slice for its entire lifetime.
+  #[inline(always)]
+  pub fn new_backing_store_from_boxed_bytes<T>(mut bytes: Box<T>) -> UniqueRef<BackingStore> where T: DerefMut<Target = [u8]>{
+    // We need to be very careful here not to move the data out of the box as that may
+    // invalidate the slice's pointer. You can imagine a SmallVec that provides a pointer to
+    // a slice inside of itself -- moving that SmallVec would invalidate the slice!
+    let slice = bytes.deref_mut();
+    let len = slice.len();
+    let slice = slice.as_mut_ptr();
+    let ptr = Box::into_raw(bytes) as *const c_void;
+  
+    extern "C" fn drop_box<T>(_ptr: *mut c_void, _len: usize, data: *mut c_void) {
+      // SAFETY: We know that data is a raw Box from above
+      unsafe { drop(Box::<T>::from_raw(data as _)) }
+    }
+  
+    // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
+    // derefed from so there's no way to get another mutable reference.
+    unsafe {
+      Self::new_backing_store_from_ptr(
+        slice as _, len, drop_box::<T>, ptr as _,
+      )
     }
   }
 

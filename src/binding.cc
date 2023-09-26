@@ -866,6 +866,12 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
 
+v8::BackingStore* v8__BackingStore__EmptyBackingStore(bool shared) {
+  std::unique_ptr<i::BackingStoreBase> u = 
+      i::BackingStore::EmptyBackingStore(shared ? i::SharedFlag::kShared : i::SharedFlag::kNotShared);
+  return static_cast<v8::BackingStore*>(u.release());
+}
+
 bool v8__BackingStore__IsResizableByUserJavaScript(
     const v8::BackingStore& self) {
   return ptr_to_local(&self)->IsResizableByUserJavaScript();
