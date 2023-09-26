@@ -837,7 +837,7 @@ fn array_buffer() {
     // From something that derefs to a slice
     #[derive(Default)]
     struct DerefsToSlice {
-      bytes: [u8; 16]
+      bytes: [u8; 16],
     }
 
     impl std::ops::Deref for DerefsToSlice {
@@ -858,7 +858,8 @@ fn array_buffer() {
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_bytes(data);
     assert_eq!(unique_bs.get(0).unwrap().get(), 1);
 
-    let ab = v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
+    let ab =
+      v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
     assert_eq!(ab.byte_length(), 16);
     assert_eq!(ab.get_backing_store().get(0).unwrap().get(), 1);
   }
