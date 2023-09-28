@@ -97,10 +97,23 @@ pub trait GarbageCollected {
   fn trace(&self, visitor: *mut Visitor) {}
 }
 
+pub struct Member<T> {
+  handle: *mut (),
+  ptr: *mut T,
+}
+
+impl<T> std::ops::Deref for Member<T> {
+  type Target = T;
+
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*self.ptr }
+  }
+}
+
 pub fn make_garbage_collected<T: GarbageCollected>(
   heap: &Heap,
   obj: Box<T>,
-) -> *mut T {
+) -> Member<T> {
   extern "C" fn destroy<T>(obj: *mut ()) {
     let _ = unsafe { Box::from_raw(obj as *mut T) };
   }
@@ -113,12 +126,15 @@ pub fn make_garbage_collected<T: GarbageCollected>(
     obj.trace(visitor);
   }
 
-  unsafe {
+  let ptr = Box::into_raw(obj);
+  let handle = unsafe {
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
-      Box::into_raw(obj) as _,
+      ptr as _,
       trace::<T>,
       destroy::<T>,
-    ) as *mut T
-  }
+    )
+  };
+
+  Member { handle, ptr }
 }

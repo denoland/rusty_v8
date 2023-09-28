@@ -1,3 +1,4 @@
+#[derive(Debug)]
 struct Resource {
   name: String,
 }
@@ -18,7 +19,6 @@ fn main() {
   let platform = v8::new_default_platform(0, false).make_shared();
   v8::V8::initialize_platform(platform.clone());
   v8::V8::initialize();
-
   v8::cppgc::initalize_process(platform.clone());
   {
     let heap = v8::cppgc::Heap::create(platform);
@@ -39,7 +39,10 @@ fn main() {
   unsafe { v8::cppgc::shutdown_process() };
 }
 
-fn make_object(heap: &v8::cppgc::Heap, name: &str) -> *mut Resource {
+fn make_object(
+  heap: &v8::cppgc::Heap,
+  name: &str,
+) -> v8::cppgc::Member<Resource> {
   let val = Box::new(Resource {
     name: name.to_string(),
   });
