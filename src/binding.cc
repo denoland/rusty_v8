@@ -3626,7 +3626,7 @@ void cppgc__heap__enable_detached_garbage_collections_for_testing(v8::CppHeap* h
   heap->EnableDetachedGarbageCollectionsForTesting();
 }
 
-void cppgc__heap__force_garbage_collection_slow(v8::CppHeap* heap, cppgc::EmbedderStackState stack_state) {  
+void cppgc__heap__collect_garbage_for_testing(v8::CppHeap* heap, cppgc::EmbedderStackState stack_state) {  
   heap->CollectGarbageForTesting(stack_state);
 }
 

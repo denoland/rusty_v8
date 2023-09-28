@@ -65,10 +65,10 @@ fn main() {
     println!("{}", &*rope);
     // Manually trigger garbage collection.
     heap.enable_detached_garbage_collections_for_testing();
-    heap.force_garbage_collection_slow(
+    heap.collect_garbage_for_testing(
       v8::cppgc::EmbedderStackState::MayContainHeapPointers,
     );
-    heap.force_garbage_collection_slow(
+    heap.collect_garbage_for_testing(
       v8::cppgc::EmbedderStackState::NoHeapPointers,
     );
   }
