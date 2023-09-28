@@ -29,7 +29,7 @@ impl Rope {
 impl v8::cppgc::GarbageCollected for Rope {
   fn trace(&self, visitor: &v8::cppgc::Visitor) {
     if let Some(member) = &self.next {
-      visitor.trace(&member);
+      visitor.trace(member);
     }
   }
 }
