@@ -3634,4 +3634,8 @@ RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, void* obj, RustTrace
   return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(), obj, trace, destroy);
 }
 
+void cppgc__visitor__trace(cppgc::Visitor* visitor, RustObj* member) {
+  visitor->Trace(*member);
+}
+
 }  // extern "C"

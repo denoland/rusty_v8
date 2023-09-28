@@ -25,6 +25,8 @@ extern "C" {
     heap: *mut Heap,
     stack_state: EmbedderStackState,
   );
+
+  fn cppgc__visitor__trace(visitor: *const Visitor, member: *const ());
 }
 
 pub fn initalize_process(platform: SharedRef<Platform>) {
@@ -39,11 +41,13 @@ pub unsafe fn shutdown_process() {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct RustObj(Opaque);
-
-#[repr(C)]
-#[derive(Debug)]
 pub struct Visitor(Opaque);
+
+impl Visitor {
+  pub fn trace<T: GarbageCollected>(&self, member: &Member<T>) {
+    unsafe { cppgc__visitor__trace(self, member.handle) }
+  }
+}
 
 #[repr(C)]
 pub enum EmbedderStackState {
@@ -94,15 +98,15 @@ impl Heap {
 }
 
 pub trait GarbageCollected {
-  fn trace(&self, visitor: *mut Visitor) {}
+  fn trace(&self, _visitor: &Visitor) {}
 }
 
-pub struct Member<T> {
+pub struct Member<T: GarbageCollected> {
   handle: *mut (),
   ptr: *mut T,
 }
 
-impl<T> std::ops::Deref for Member<T> {
+impl<T: GarbageCollected> std::ops::Deref for Member<T> {
   type Target = T;
 
   fn deref(&self) -> &Self::Target {
@@ -123,7 +127,7 @@ pub fn make_garbage_collected<T: GarbageCollected>(
     obj: *mut (),
   ) {
     let obj = unsafe { &*(obj as *const T) };
-    obj.trace(visitor);
+    obj.trace(unsafe { &*visitor });
   }
 
   let ptr = Box::into_raw(obj);

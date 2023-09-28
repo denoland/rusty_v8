@@ -4,7 +4,7 @@ struct Resource {
 }
 
 impl v8::cppgc::GarbageCollected for Resource {
-  fn trace(&self, _visitor: *mut v8::cppgc::Visitor) {
+  fn trace(&self, _visitor: &v8::cppgc::Visitor) {
     println!("Trace {}", self.name);
   }
 }
