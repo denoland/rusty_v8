@@ -2,6 +2,12 @@ struct Resource {
   name: String,
 }
 
+impl v8::cppgc::GarbageCollected for Resource {
+  fn trace(&self, _visitor: *mut v8::cppgc::Visitor) {
+    println!("Trace {}", self.name);
+  }
+}
+
 impl Drop for Resource {
   fn drop(&mut self) {
     println!("Dropping {}", self.name);
@@ -17,10 +23,12 @@ fn main() {
   {
     let heap = v8::cppgc::Heap::create(platform);
 
-    let obj = make_object(&*heap, "hello");
+    // No trace. Sweep.
+    make_object(&*heap, "hello");
+    // Trace and sweep.
+    let _obj = make_object(&*heap, "hello 2");
 
     heap.enable_detached_garbage_collections_for_testing();
-
     heap.force_garbage_collection_slow(
       v8::cppgc::EmbedderStackState::MayContainHeapPointers,
     );
@@ -32,14 +40,9 @@ fn main() {
 }
 
 fn make_object(heap: &v8::cppgc::Heap, name: &str) -> *mut Resource {
-  extern "C" fn trace(visitor: *mut v8::cppgc::Visitor, obj: *mut ()) {
-    let obj = unsafe { &*(obj as *const Resource) };
-    println!("Trace {}", obj.name);
-  }
-
   let val = Box::new(Resource {
     name: name.to_string(),
   });
-  let obj = v8::cppgc::make_garbage_collected(heap, val, trace);
+  let obj = v8::cppgc::make_garbage_collected(heap, val);
   return obj;
 }

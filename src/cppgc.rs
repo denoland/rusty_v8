@@ -10,6 +10,7 @@ extern "C" {
   fn cppgc__shutdown_process();
 
   fn cppgc__heap__create(platform: *mut Platform) -> *mut Heap;
+  fn cppgc__heap__DELETE(heap: *mut Heap);
   fn cppgc__make_garbage_collectable(
     heap: *mut Heap,
     obj: *mut (),
@@ -60,7 +61,9 @@ type DestroyFn = extern "C" fn(*mut ());
 pub struct Heap(Opaque);
 
 impl Drop for Heap {
-  fn drop(&mut self) {}
+  fn drop(&mut self) {
+    unsafe { cppgc__heap__DELETE(self as *mut Heap) }
+  }
 }
 
 impl Heap {
@@ -90,20 +93,31 @@ impl Heap {
   }
 }
 
-pub fn make_garbage_collected<T>(
+pub trait GarbageCollected {
+  fn trace(&self, visitor: *mut Visitor) {}
+}
+
+pub fn make_garbage_collected<T: GarbageCollected>(
   heap: &Heap,
   obj: Box<T>,
-  trace: TraceFn,
 ) -> *mut T {
   extern "C" fn destroy<T>(obj: *mut ()) {
     let _ = unsafe { Box::from_raw(obj as *mut T) };
+  }
+
+  extern "C" fn trace<T: GarbageCollected>(
+    visitor: *mut Visitor,
+    obj: *mut (),
+  ) {
+    let obj = unsafe { &*(obj as *const T) };
+    obj.trace(visitor);
   }
 
   unsafe {
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
       Box::into_raw(obj) as _,
-      trace,
+      trace::<T>,
       destroy::<T>,
     ) as *mut T
   }
