@@ -1,17 +1,42 @@
-#[derive(Debug)]
-struct Resource {
-  name: String,
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+//
+// This sample program shows how to set up a stand-alone cppgc heap.
+use std::ops::Deref;
+
+// Simple string rope to illustrate allocation and garbage collection below.
+// The rope keeps the next parts alive via regular managed reference.
+struct Rope {
+  part: String,
+  next: Option<v8::cppgc::Member<Rope>>,
 }
 
-impl v8::cppgc::GarbageCollected for Resource {
-  fn trace(&self, _visitor: &v8::cppgc::Visitor) {
-    println!("Trace {}", self.name);
+impl std::fmt::Display for Rope {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.part)?;
+    if let Some(next) = &self.next {
+      write!(f, "{}", next.deref())?;
+    }
+    Ok(())
   }
 }
 
-impl Drop for Resource {
+impl Rope {
+  pub fn new(part: String, next: Option<v8::cppgc::Member<Rope>>) -> Box<Rope> {
+    Box::new(Self { part, next })
+  }
+}
+
+impl v8::cppgc::GarbageCollected for Rope {
+  fn trace(&self, visitor: &v8::cppgc::Visitor) {
+    if let Some(member) = &self.next {
+      visitor.trace(&member);
+    }
+  }
+}
+
+impl Drop for Rope {
   fn drop(&mut self) {
-    println!("Dropping {}", self.name);
+    println!("Dropping {}", self.part);
   }
 }
 
@@ -20,14 +45,25 @@ fn main() {
   v8::V8::initialize_platform(platform.clone());
   v8::V8::initialize();
   v8::cppgc::initalize_process(platform.clone());
+
   {
+    // Create a managed heap.
     let heap = v8::cppgc::Heap::create(platform);
 
-    // No trace. Sweep.
-    make_object(&*heap, "hello");
-    // Trace and sweep.
-    let _obj = make_object(&*heap, "hello 2");
+    // Allocate a string rope on the managed heap.
+    let rope = v8::cppgc::make_garbage_collected(
+      &heap,
+      Rope::new(
+        String::from("Hello "),
+        Some(v8::cppgc::make_garbage_collected(
+          &heap,
+          Rope::new(String::from("World!"), None),
+        )),
+      ),
+    );
 
+    println!("{}", &*rope);
+    // Manually trigger garbage collection.
     heap.enable_detached_garbage_collections_for_testing();
     heap.force_garbage_collection_slow(
       v8::cppgc::EmbedderStackState::MayContainHeapPointers,
@@ -36,16 +72,11 @@ fn main() {
       v8::cppgc::EmbedderStackState::NoHeapPointers,
     );
   }
-  unsafe { v8::cppgc::shutdown_process() };
-}
 
-fn make_object(
-  heap: &v8::cppgc::Heap,
-  name: &str,
-) -> v8::cppgc::Member<Resource> {
-  let val = Box::new(Resource {
-    name: name.to_string(),
-  });
-  let obj = v8::cppgc::make_garbage_collected(heap, val);
-  return obj;
+  // Gracefully shutdown the process.
+  unsafe {
+    v8::cppgc::shutdown_process();
+    v8::V8::dispose();
+  }
+  v8::V8::dispose_platform();
 }
