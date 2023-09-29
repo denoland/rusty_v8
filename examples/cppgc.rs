@@ -40,7 +40,7 @@ impl Drop for Rope {
   }
 }
 
-const DEFAULT_CPP_GC_EMBEDDER_ID: u16 = 0x90de;
+const DEFAULT_CPP_GC_EMBEDDER_ID: u16 = 0xde90;
 
 fn main() {
   let platform = v8::new_default_platform(0, false).make_shared();
