@@ -218,7 +218,7 @@ pub trait GarbageCollected {
 /// collected objects. All members fields on garbage collected objects
 /// must be trace in the `trace` method.
 pub struct Member<T: GarbageCollected> {
-  handle: *mut (),
+  pub handle: *mut (),
   ptr: *mut T,
 }
 

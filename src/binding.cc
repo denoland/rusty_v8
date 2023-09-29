@@ -3621,6 +3621,10 @@ void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) {
   isolate->AttachCppHeap(cpp_heap);
 }
 
+v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
+  return isolate->GetCppHeap();
+}
+
 void cppgc__heap__DELETE(v8::CppHeap* self) { delete self; }
 
 void cppgc__heap__enable_detached_garbage_collections_for_testing(v8::CppHeap* heap) {
