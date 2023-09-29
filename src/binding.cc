@@ -3617,6 +3617,10 @@ v8::CppHeap* cppgc__heap__create(v8::Platform* platform, int wrappable_type_inde
   return heap.release();
 }
 
+void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) { 
+  isolate->AttachCppHeap(cpp_heap);
+}
+
 void cppgc__heap__DELETE(v8::CppHeap* self) { delete self; }
 
 void cppgc__heap__enable_detached_garbage_collections_for_testing(v8::CppHeap* heap) {

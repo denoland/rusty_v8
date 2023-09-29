@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::function::FunctionCallbackInfo;
+use crate::cppgc::Heap;
 use crate::gc::GCCallbackFlags;
 use crate::gc::GCType;
 use crate::handle::FinalizerCallback;
@@ -420,6 +421,10 @@ extern "C" {
     isolate: *mut Isolate,
     change_in_bytes: i64,
   ) -> i64;
+  fn v8__Isolate__AttachCppHeap(
+    isolate: *mut Isolate,
+    heap: *mut Heap,
+  );
   fn v8__Isolate__SetPrepareStackTraceCallback(
     isolate: *mut Isolate,
     callback: PrepareStackTraceCallback,
@@ -1081,6 +1086,20 @@ impl Isolate {
   ) -> i64 {
     unsafe {
       v8__Isolate__AdjustAmountOfExternalAllocatedMemory(self, change_in_bytes)
+    }
+  }
+
+  /// Attaches a managed C++ heap as an extension to the JavaScript heap.
+  /// 
+  /// The embedder maintains ownership of the CppHeap. At most one C++ heap
+  /// can be attached to V8.
+  #[inline(always)]
+  pub fn attach_cpp_heap(
+    &mut self,
+    heap: &Heap,
+  ) {
+    unsafe {
+      v8__Isolate__AttachCppHeap(self, heap as *const Heap as *mut _);
     }
   }
 
