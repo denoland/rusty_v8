@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license
 
 use crate::platform::Platform;
+use crate::support::int;
 use crate::support::Opaque;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
@@ -9,7 +10,12 @@ extern "C" {
   fn cppgc__initialize_process(platform: *mut Platform);
   fn cppgc__shutdown_process();
 
-  fn cppgc__heap__create(platform: *mut Platform) -> *mut Heap;
+  fn cppgc__heap__create(
+    platform: *mut Platform,
+    wrappable_type_index: int,
+    wrappable_instance_index: int,
+    embedder_id_for_garbage_collected: u16,
+  ) -> *mut Heap;
   fn cppgc__heap__DELETE(heap: *mut Heap);
   fn cppgc__make_garbage_collectable(
     heap: *mut Heap,
@@ -78,6 +84,75 @@ pub enum EmbedderStackState {
   NoHeapPointers,
 }
 
+/// Specifies supported marking types.
+#[repr(u8)]
+pub enum MarkingType {
+  /// Atomic stop-the-world marking. This option does not require any write barriers but is the most intrusive in terms of jank.
+  Atomic,
+  /// Incremental marking interleaves marking with the rest of the application workload on the same thread.
+  Incremental,
+  /// Incremental and concurrent marking.
+  IncrementalAndConcurrent,
+}
+
+/// Specifies supported sweeping types.
+#[repr(u8)]
+pub enum SweepingType {
+  /// Atomic stop-the-world sweeping. All of sweeping is performed at once.
+  Atomic,
+  /// Incremental sweeping interleaves sweeping with the rest of the application workload on the same thread.
+  Incremental,
+  /// Incremental and concurrent sweeping. Sweeping is split and interleaved with the rest of the application.
+  IncrementalAndConcurrent,
+}
+
+pub type InternalFieldIndex = int;
+
+/// Describes how V8 wrapper objects maintain references to garbage-collected C++ objects.
+pub struct WrapperDescriptor {
+  /// Index of the wrappable type.
+  pub wrappable_type_index: InternalFieldIndex,
+  /// Index of the wrappable instance.
+  pub wrappable_instance_index: InternalFieldIndex,
+  /// Embedder id identifying instances of garbage-collected objects. It is expected that
+  /// the first field of the wrappable type is a uint16_t holding the id. Only references
+  /// to instances of wrappables types with an id of embedder_id_for_garbage_collected will
+  /// be considered by Heap.
+  pub embedder_id_for_garbage_collected: u16,
+}
+
+impl WrapperDescriptor {
+  pub fn new(
+    wrappable_type_index: InternalFieldIndex,
+    wrappable_instance_index: InternalFieldIndex,
+    embedder_id_for_garbage_collected: u16,
+  ) -> Self {
+    Self {
+      wrappable_type_index,
+      wrappable_instance_index,
+      embedder_id_for_garbage_collected,
+    }
+  }
+}
+
+pub struct HeapCreateParams {
+  wrapper_descriptor: WrapperDescriptor,
+  /// Specifies which kind of marking are supported by the heap.
+  pub marking_support: MarkingType,
+  /// Specifies which kind of sweeping are supported by the heap.
+  pub sweeping_support: SweepingType,
+}
+
+impl HeapCreateParams {
+  pub fn new(wrapper_descriptor: WrapperDescriptor) -> Self {
+    Self {
+      wrapper_descriptor,
+      marking_support: MarkingType::IncrementalAndConcurrent,
+      sweeping_support: SweepingType::IncrementalAndConcurrent,
+    }
+  }
+}
+
 type TraceFn = extern "C" fn(*mut Visitor, *mut ());
 type DestroyFn = extern "C" fn(*mut ());
 
@@ -96,10 +171,22 @@ impl Drop for Heap {
 }
 
 impl Heap {
-  pub fn create(platform: SharedRef<Platform>) -> UniqueRef<Heap> {
+  pub fn create(
+    platform: SharedRef<Platform>,
+    params: HeapCreateParams,
+  ) -> UniqueRef<Heap> {
+    let WrapperDescriptor {
+      wrappable_type_index,
+      wrappable_instance_index,
+      embedder_id_for_garbage_collected,
+    } = params.wrapper_descriptor;
+
     unsafe {
       UniqueRef::from_raw(cppgc__heap__create(
         &*platform as *const Platform as *mut _,
+        wrappable_type_index,
+        wrappable_instance_index,
+        embedder_id_for_garbage_collected,
       ))
     }
   }

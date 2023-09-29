@@ -40,6 +40,8 @@ impl Drop for Rope {
   }
 }
 
+const DEFAULT_CPP_GC_EMBEDDER_ID: u16 = 0x90de;
+
 fn main() {
   let platform = v8::new_default_platform(0, false).make_shared();
   v8::V8::initialize_platform(platform.clone());
@@ -48,7 +50,14 @@ fn main() {
 
   {
     // Create a managed heap.
-    let heap = v8::cppgc::Heap::create(platform);
+    let heap = v8::cppgc::Heap::create(
+      platform,
+      v8::cppgc::HeapCreateParams::new(v8::cppgc::WrapperDescriptor::new(
+        0,
+        1,
+        DEFAULT_CPP_GC_EMBEDDER_ID,
+      )),
+    );
 
     // Allocate a string rope on the managed heap.
     let rope = v8::cppgc::make_garbage_collected(

@@ -3600,10 +3600,6 @@ class RustObj final: public cppgc::GarbageCollected<RustObj> {
     void* obj_;
 };
 
-enum InternalFields { kEmbedderType, kSlot, kInternalFieldCount };
-
-constexpr uint16_t kDefaultCppGCEmebdderID = 0x90de;
-
 void cppgc__initialize_process(v8::Platform* platform) {
   cppgc::InitializeProcess(platform->GetPageAllocator());
 }
@@ -3612,10 +3608,11 @@ void cppgc__shutdown_process() {
   cppgc::ShutdownProcess();
 }
 
-v8::CppHeap* cppgc__heap__create(v8::Platform* platform) {
+v8::CppHeap* cppgc__heap__create(v8::Platform* platform, int wrappable_type_index,
+                                 int wrappable_instance_index, uint16_t embedder_id) {
   std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(platform, v8::CppHeapCreateParams {
     {},
-    v8::WrapperDescriptor(InternalFields::kEmbedderType, InternalFields::kSlot, kDefaultCppGCEmebdderID),
+    v8::WrapperDescriptor(wrappable_type_index, wrappable_instance_index, embedder_id),
   });
   return heap.release();
 }
