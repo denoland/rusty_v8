@@ -5022,22 +5022,32 @@ fn array_buffer_view() {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
-    let source =
-      v8::String::new(scope, "new Uint8Array([23,23,23,23])").unwrap();
+    let source = v8::String::new(
+      scope,
+      "new Uint8Array(new Uint8Array([22,22,23,23,23,23]).buffer, 2, 4)",
+    )
+    .unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     source.to_rust_string_lossy(scope);
     let result: v8::Local<v8::ArrayBufferView> =
       script.run(scope).unwrap().try_into().unwrap();
     assert_eq!(result.byte_length(), 4);
-    assert_eq!(result.byte_offset(), 0);
+    assert_eq!(result.byte_offset(), 2);
     let mut dest = [0; 4];
     let copy_bytes = result.copy_contents(&mut dest);
     assert_eq!(copy_bytes, 4);
     assert_eq!(dest, [23, 23, 23, 23]);
+    let slice = unsafe {
+      std::slice::from_raw_parts(
+        result.data() as *const u8,
+        result.byte_length(),
+      )
+    };
+    assert_eq!(dest, slice);
     let maybe_ab = result.buffer(scope);
     assert!(maybe_ab.is_some());
     let ab = maybe_ab.unwrap();
-    assert_eq!(ab.byte_length(), 4);
+    assert_eq!(ab.byte_length(), 6);
   }
 }
 

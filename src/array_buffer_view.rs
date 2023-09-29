@@ -11,6 +11,9 @@ extern "C" {
   fn v8__ArrayBufferView__Buffer(
     this: *const ArrayBufferView,
   ) -> *const ArrayBuffer;
+  fn v8__ArrayBufferView__Buffer__Data(
+    this: *const ArrayBufferView,
+  ) -> *mut c_void;
   fn v8__ArrayBufferView__ByteLength(this: *const ArrayBufferView) -> usize;
   fn v8__ArrayBufferView__ByteOffset(this: *const ArrayBufferView) -> usize;
   fn v8__ArrayBufferView__CopyContents(
@@ -28,6 +31,17 @@ impl ArrayBufferView {
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
+  }
+
+  /// Returns the underlying storage for this `ArrayBufferView`, including the built-in `byte_offset`.
+  /// This is a more efficient way of calling `buffer(scope)->data()`, and may be called without a
+  /// scope.
+  #[inline(always)]
+  pub fn data(&self) -> *mut c_void {
+    unsafe {
+      v8__ArrayBufferView__Buffer__Data(self)
+        .add(v8__ArrayBufferView__ByteOffset(self))
+    }
   }
 
   /// Size of a view in bytes.
