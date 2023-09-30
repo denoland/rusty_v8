@@ -1657,6 +1657,11 @@ const v8::ArrayBuffer* v8__ArrayBufferView__Buffer(
   return local_to_ptr(ptr_to_local(&self)->Buffer());
 }
 
+const void* v8__ArrayBufferView__Buffer__Data(
+    const v8::ArrayBufferView& self) {
+  return ptr_to_local(&self)->Buffer()->Data();
+}
+
 size_t v8__ArrayBufferView__ByteLength(const v8::ArrayBufferView& self) {
   return ptr_to_local(&self)->ByteLength();
 }
