@@ -153,7 +153,7 @@ impl HeapCreateParams {
   }
 }
 
-type TraceFn = extern "C" fn(*mut Visitor, *mut ());
+type TraceFn = extern "C" fn(*mut (), *mut Visitor);
 type DestroyFn = extern "C" fn(*mut ());
 
 /// A heap for allocating managed C++ objects.
@@ -240,8 +240,8 @@ pub fn make_garbage_collected<T: GarbageCollected>(
   }
 
   extern "C" fn trace<T: GarbageCollected>(
-    visitor: *mut Visitor,
     obj: *mut (),
+    visitor: *mut Visitor,
   ) {
     let obj = unsafe { &*(obj as *const T) };
     obj.trace(unsafe { &*visitor });

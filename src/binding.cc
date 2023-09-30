@@ -3579,7 +3579,7 @@ void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
 
 extern "C" {
 
-using RustTraceFn = void (*)(cppgc::Visitor*, void* obj);
+using RustTraceFn = void (*)(void* obj, cppgc::Visitor*);
 using RustDestroyFn = void (*)(void* obj);
 
 class RustObj final: public cppgc::GarbageCollected<RustObj> {
@@ -3591,7 +3591,7 @@ class RustObj final: public cppgc::GarbageCollected<RustObj> {
     }
 
     void Trace(cppgc::Visitor* visitor) const {
-      trace_(visitor, obj_);
+      trace_(obj_, visitor);
     }
 
   private:
