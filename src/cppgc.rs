@@ -45,7 +45,7 @@ pub fn initalize_process(platform: SharedRef<Platform>) {
   }
 }
 
-/// # SAFETY
+/// # Safety
 ///
 /// Must be called after destroying the last used heap. Some process-global
 /// metadata may not be returned and reused upon a subsequent
@@ -153,8 +153,8 @@ impl HeapCreateParams {
   }
 }
 
-type TraceFn = extern "C" fn(*mut (), *mut Visitor);
-type DestroyFn = extern "C" fn(*mut ());
+type TraceFn = unsafe extern "C" fn(*mut (), *mut Visitor);
+type DestroyFn = unsafe extern "C" fn(*mut ());
 
 /// A heap for allocating managed C++ objects.
 ///
@@ -235,11 +235,25 @@ pub fn make_garbage_collected<T: GarbageCollected>(
   heap: &Heap,
   obj: Box<T>,
 ) -> Member<T> {
-  extern "C" fn destroy<T>(obj: *mut ()) {
-    let _ = unsafe { Box::from_raw(obj as *mut T) };
+  unsafe extern "C" fn destroy<T>(obj: *mut ()) {
+    let _ = Box::from_raw(obj as *mut T);
   }
 
-  extern "C" fn trace<T: GarbageCollected>(
+  unsafe { make_garbage_collected_raw(heap, Box::into_raw(obj), destroy::<T>) }
+}
+
+/// # Safety
+///
+/// `obj` must be a pointer to a valid instance of T allocated on the heap.
+///
+/// `drop_fn` must be a function that drops the instance of T. This function
+/// will be called when the object is garbage collected.
+pub unsafe fn make_garbage_collected_raw<T: GarbageCollected>(
+  heap: &Heap,
+  obj: *mut T,
+  destroy: DestroyFn,
+) -> Member<T> {
+  unsafe extern "C" fn trace<T: GarbageCollected>(
     obj: *mut (),
     visitor: *mut Visitor,
   ) {
@@ -247,15 +261,12 @@ pub fn make_garbage_collected<T: GarbageCollected>(
     obj.trace(unsafe { &*visitor });
   }
 
-  let ptr = Box::into_raw(obj);
-  let handle = unsafe {
-    cppgc__make_garbage_collectable(
-      heap as *const Heap as *mut _,
-      ptr as _,
-      trace::<T>,
-      destroy::<T>,
-    )
-  };
+  let handle = cppgc__make_garbage_collectable(
+    heap as *const Heap as *mut _,
+    obj as _,
+    trace::<T>,
+    destroy,
+  );
 
-  Member { handle, ptr }
+  Member { handle, ptr: obj }
 }
