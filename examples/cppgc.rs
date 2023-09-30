@@ -71,7 +71,7 @@ fn main() {
       ),
     );
 
-    println!("{}", &*rope);
+    println!("{}", unsafe { rope.get() });
     // Manually trigger garbage collection.
     heap.enable_detached_garbage_collections_for_testing();
     heap.collect_garbage_for_testing(

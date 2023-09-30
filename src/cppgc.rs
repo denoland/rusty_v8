@@ -224,6 +224,17 @@ pub struct Member<T: GarbageCollected> {
   ptr: *mut T,
 }
 
+impl<T: GarbageCollected> Member<T> {
+  /// Returns a raw pointer to the object.
+  ///
+  /// # Safety
+  ///
+  /// There are no guarantees that the object is alive and not garbage collected.
+  pub unsafe fn get(&self) -> &T {
+    unsafe { &*self.ptr }
+  }
+}
+
 impl<T: GarbageCollected> std::ops::Deref for Member<T> {
   type Target = T;
 
