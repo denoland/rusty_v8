@@ -57,7 +57,9 @@ pub unsafe fn shutdown_process() {
 /// Visitor passed to trace methods. All managed pointers must have called the
 /// Visitor's trace method on them.
 ///
-/// ```no_run
+/// ```
+/// use v8::cppgc::{Member, Visitor, GarbageCollected};
+///
 /// struct Foo { foo: Member<Foo> }
 ///
 /// impl GarbageCollected for Foo {
