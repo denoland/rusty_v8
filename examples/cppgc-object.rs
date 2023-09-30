@@ -19,6 +19,8 @@ impl Drop for Wrappable {
   }
 }
 
+// Set a custom embedder ID for the garbage collector. cppgc will use this ID to
+// identify the object that it manages.
 const DEFAULT_CPP_GC_EMBEDDER_ID: u16 = 0xde90;
 
 fn main() {
