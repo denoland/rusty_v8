@@ -231,6 +231,12 @@ impl<T: GarbageCollected> std::ops::Deref for Member<T> {
 }
 
 /// Constructs an instance of T, which is a garbage collected type.
+///
+/// The object will be allocated on the heap and managed by cppgc. During
+/// marking, the object will be traced by calling the `trace` method on it.
+///
+/// During sweeping, the destructor will be called and the memory will be
+/// freed using `Box::from_raw`.
 pub fn make_garbage_collected<T: GarbageCollected>(
   heap: &Heap,
   obj: Box<T>,
@@ -243,6 +249,9 @@ pub fn make_garbage_collected<T: GarbageCollected>(
 }
 
 /// # Safety
+///
+/// By calling this function, you are giving up ownership of `T` to the
+/// garbage collector.
 ///
 /// `obj` must be a pointer to a valid instance of T allocated on the heap.
 ///
