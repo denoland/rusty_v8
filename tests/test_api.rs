@@ -853,15 +853,28 @@ fn array_buffer() {
       }
     }
 
+    impl AsMut<[u8]> for DerefsToSlice {
+      fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes
+      }
+    }
+
     let mut data = DerefsToSlice::default();
     data[0] = 1;
-    let unique_bs = v8::ArrayBuffer::new_backing_store_from_bytes(data);
+    let unique_bs =
+      v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
     assert_eq!(unique_bs.get(0).unwrap().get(), 1);
 
     let ab =
       v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
     assert_eq!(ab.byte_length(), 16);
     assert_eq!(ab.get_backing_store().get(0).unwrap().get(), 1);
+
+    // Ensure that these additional calls successfully compile (they are functionally tested above)
+    v8::ArrayBuffer::new_backing_store_from_bytes(vec![1, 2, 3]);
+    v8::ArrayBuffer::new_backing_store_from_bytes(
+      vec![1, 2, 3].into_boxed_slice(),
+    );
   }
 }
 

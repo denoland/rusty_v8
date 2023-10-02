@@ -88,6 +88,7 @@ fslock = "0.1.8"
 which = "4.2.5"
 
 [dev-dependencies]
+bytes = "1"
 align-data = "0.1.0"
 fslock = "0.1.8"
 trybuild = "1.0.61"

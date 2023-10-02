@@ -1,11 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
-use std::ops::DerefMut;
-use std::ptr::null_mut;
 
-use crate::array_buffer::boxed_slice_deleter_callback;
-use crate::array_buffer::vec_deleter_callback;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::BackingStore;
@@ -137,16 +133,7 @@ impl SharedArrayBuffer {
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    let byte_length = data.len();
-    let data_ptr = Box::into_raw(data) as *mut c_void;
-    unsafe {
-      UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        boxed_slice_deleter_callback,
-        null_mut(),
-      ))
-    }
+    Self::new_backing_store_from_bytes(data)
   }
 
   /// Returns a new standalone BackingStore that takes over the ownership of
@@ -157,70 +144,64 @@ impl SharedArrayBuffer {
   /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
-  pub fn new_backing_store_from_vec(
-    mut data: Vec<u8>,
-  ) -> UniqueRef<BackingStore> {
-    let byte_length = data.len();
-    let data_ptr = data.as_mut_ptr() as *mut c_void;
-    std::mem::forget(data);
-    unsafe {
-      UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        vec_deleter_callback,
-        null_mut(),
-      ))
-    }
+  pub fn new_backing_store_from_vec(data: Vec<u8>) -> UniqueRef<BackingStore> {
+    Self::new_backing_store_from_bytes(data)
   }
 
-  /// Returns a new standalone shared BackingStore backed by an object that dereferences
+  /// Returns a new standalone BackingStore backed by a container that dereferences
   /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
   /// memory is used for the lifetime of the buffer.
   ///
-  /// As this buffer may be shared, the underlying object must be [`Send`] + [`Sync`].
-  #[inline(always)]
-  pub fn new_backing_store_from_bytes<T>(bytes: T) -> UniqueRef<BackingStore>
-  where
-    T: DerefMut<Target = [u8]> + Send + Sync,
-  {
-    // First we move the object into a box so it is pinned in place
-    let alloc = Box::new(bytes);
-    Self::new_backing_store_from_boxed_bytes(alloc)
-  }
-
-  /// Returns a new standalone shared BackingStore backed by an object that dereferences
-  /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
-  /// memory is used for the lifetime of the buffer.
+  /// This method may be called with most single-ownership containers that implement `AsMut<[u8]>`, including
+  /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
+  /// though these buffers will need to be boxed to manage ownership of memory.
   ///
-  /// As this buffer may be shared, the underlying object must be [`Send`] + [`Sync`].
+  /// ```
+  /// // Vector of bytes
+  /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(vec![1, 2, 3]);
+  /// // Boxes slice of bytes
+  /// let boxed_slice: Box<[u8]> = vec![1, 2, 3].into_boxed_slice();
+  /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(boxed_slice);
+  /// // BytesMut from bytes crate
+  /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(bytes::BytesMut::new()));
+  /// ```
   #[inline(always)]
-  pub fn new_backing_store_from_boxed_bytes<T>(
-    mut bytes: Box<T>,
+  pub fn new_backing_store_from_bytes<T, U>(
+    mut bytes: T,
   ) -> UniqueRef<BackingStore>
   where
-    T: DerefMut<Target = [u8]> + Send + Sync,
+    U: ?Sized,
+    U: AsMut<[u8]>,
+    T: AsMut<U>,
+    T: crate::array_buffer::sealed::Rawable<U>,
   {
-    // We need to be very careful here not to move the data out of the box as that may
-    // invalidate the slice's pointer. You can imagine a SmallVec that provides a pointer to
-    // a slice inside of itself -- moving that SmallVec would invalidate the slice!
-    let slice = bytes.deref_mut();
-    let len = slice.len();
-    let slice = slice.as_mut_ptr();
-    let ptr = Box::into_raw(bytes) as *const c_void;
+    let len = bytes.as_mut().as_mut().len();
+    let slice = bytes.as_mut().as_mut().as_mut_ptr();
+    let ptr = T::into_raw(bytes);
 
-    extern "C" fn drop_box<T>(
+    extern "C" fn drop_rawable<
+      T: crate::array_buffer::sealed::Rawable<U>,
+      U: ?Sized,
+    >(
       _ptr: *mut c_void,
-      _len: usize,
+      len: usize,
       data: *mut c_void,
     ) {
-      // SAFETY: We know that data is a raw Box from above
-      unsafe { drop(Box::<T>::from_raw(data as _)) }
+      // SAFETY: We know that data is a raw T from above
+      unsafe {
+        <T as crate::array_buffer::sealed::Rawable<U>>::drop_raw(data as _, len)
+      }
     }
 
     // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
     // derefed from so there's no way to get another mutable reference.
     unsafe {
-      Self::new_backing_store_from_ptr(slice as _, len, drop_box::<T>, ptr as _)
+      Self::new_backing_store_from_ptr(
+        slice as _,
+        len,
+        drop_rawable::<T, U>,
+        ptr as _,
+      )
     }
   }
 
