@@ -834,32 +834,9 @@ fn array_buffer() {
     assert_eq!(0, ab.byte_length());
     assert!(!ab.get_backing_store().is_shared());
 
-    // From something that derefs to a slice
-    #[derive(Default)]
-    struct DerefsToSlice {
-      bytes: [u8; 16],
-    }
-
-    impl std::ops::Deref for DerefsToSlice {
-      type Target = [u8];
-      fn deref(&self) -> &Self::Target {
-        &self.bytes
-      }
-    }
-
-    impl std::ops::DerefMut for DerefsToSlice {
-      fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.bytes
-      }
-    }
-
-    impl AsMut<[u8]> for DerefsToSlice {
-      fn as_mut(&mut self) -> &mut [u8] {
-        &mut self.bytes
-      }
-    }
-
-    let mut data = DerefsToSlice::default();
+    // From a bytes::BytesMut
+    let mut data = bytes::BytesMut::new();
+    data.extend_from_slice(&[0; 16]);
     data[0] = 1;
     let unique_bs =
       v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
@@ -869,12 +846,6 @@ fn array_buffer() {
       v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
     assert_eq!(ab.byte_length(), 16);
     assert_eq!(ab.get_backing_store().get(0).unwrap().get(), 1);
-
-    // Ensure that these additional calls successfully compile (they are functionally tested above)
-    v8::ArrayBuffer::new_backing_store_from_bytes(vec![1, 2, 3]);
-    v8::ArrayBuffer::new_backing_store_from_bytes(
-      vec![1, 2, 3].into_boxed_slice(),
-    );
   }
 }
 
