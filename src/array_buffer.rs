@@ -5,7 +5,6 @@ use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr;
 use std::ptr::null;
-use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::slice;
 
@@ -60,6 +59,7 @@ extern "C" {
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
+  fn v8__BackingStore__EmptyBackingStore(shared: bool) -> *mut BackingStore;
 
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
@@ -246,24 +246,49 @@ pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
   deleter_data: *mut c_void,
 );
 
-pub unsafe extern "C" fn boxed_slice_deleter_callback(
-  data: *mut c_void,
-  byte_length: usize,
-  _deleter_data: *mut c_void,
-) {
-  let slice_ptr = ptr::slice_from_raw_parts_mut(data as *mut u8, byte_length);
-  let b = Box::from_raw(slice_ptr);
-  drop(b);
+pub(crate) mod sealed {
+  pub trait Rawable<T: ?Sized> {
+    fn into_raw(self) -> *const ();
+    unsafe fn drop_raw(ptr: *const (), size: usize);
+  }
 }
 
-pub unsafe extern "C" fn vec_deleter_callback(
-  data: *mut c_void,
-  byte_length: usize,
-  deleter_data: *mut c_void,
-) {
-  let capacity = deleter_data as usize;
-  drop(Vec::from_raw_parts(data as *mut u8, byte_length, capacity))
+impl sealed::Rawable<[u8]> for Vec<u8> {
+  unsafe fn drop_raw(ptr: *const (), size: usize) {
+    <Box<[u8]> as sealed::Rawable<[u8]>>::drop_raw(ptr, size);
+  }
+
+  fn into_raw(self) -> *const () {
+    self.into_boxed_slice().into_raw()
+  }
 }
+
+macro_rules! rawable {
+  ($container:ident) => {
+    impl<T: Sized> sealed::Rawable<T> for $container<T> {
+      fn into_raw(self) -> *const () {
+        Self::into_raw(self) as _
+      }
+
+      unsafe fn drop_raw(ptr: *const (), _len: usize) {
+        _ = Self::from_raw(ptr as _);
+      }
+    }
+
+    impl sealed::Rawable<[u8]> for $container<[u8]> {
+      fn into_raw(self) -> *const () {
+        Self::into_raw(self) as _
+      }
+
+      unsafe fn drop_raw(ptr: *const (), len: usize) {
+        _ = Self::from_raw(ptr::slice_from_raw_parts_mut(ptr as _, len));
+      }
+    }
+  };
+}
+
+// Implement Rawable for single-ownership container types
+rawable!(Box);
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
 /// See a document linked in http://crbug.com/v8/9908 for more information.
@@ -396,6 +421,16 @@ impl ArrayBuffer {
     .unwrap()
   }
 
+  /// Create a new, empty ArrayBuffer.
+  #[inline(always)]
+  pub fn empty<'s>(scope: &mut HandleScope<'s>) -> Local<'s, ArrayBuffer> {
+    // SAFETY: This is a v8-provided empty backing store
+    let backing_store = unsafe {
+      UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
+    };
+    Self::with_backing_store(scope, &backing_store.make_shared())
+  }
+
   /// Data length in bytes.
   #[inline(always)]
   pub fn byte_length(&self) -> usize {
@@ -489,16 +524,7 @@ impl ArrayBuffer {
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    let byte_length = data.len();
-    let data_ptr = Box::into_raw(data) as *mut c_void;
-    unsafe {
-      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        boxed_slice_deleter_callback,
-        null_mut(),
-      ))
-    }
+    Self::new_backing_store_from_bytes(data)
   }
 
   /// Returns a new standalone BackingStore that takes over the ownership of
@@ -509,20 +535,59 @@ impl ArrayBuffer {
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
-  pub fn new_backing_store_from_vec(
-    mut data: Vec<u8>,
-  ) -> UniqueRef<BackingStore> {
-    let byte_length = data.len();
-    let capacity = data.capacity();
-    let data_ptr = data.as_mut_ptr() as *mut c_void;
-    std::mem::forget(data);
+  pub fn new_backing_store_from_vec(data: Vec<u8>) -> UniqueRef<BackingStore> {
+    Self::new_backing_store_from_bytes(data)
+  }
+
+  /// Returns a new standalone BackingStore backed by a container that dereferences
+  /// to a mutable slice of bytes. The object is dereferenced once, and the resulting slice's
+  /// memory is used for the lifetime of the buffer.
+  ///
+  /// This method may be called with most single-ownership containers that implement `AsMut<[u8]>`, including
+  /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
+  /// though these buffers will need to be boxed to manage ownership of memory.
+  ///
+  /// ```
+  /// // Vector of bytes
+  /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(vec![1, 2, 3]);
+  /// // Boxes slice of bytes
+  /// let boxed_slice: Box<[u8]> = vec![1, 2, 3].into_boxed_slice();
+  /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(boxed_slice);
+  /// // BytesMut from bytes crate
+  /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(bytes::BytesMut::new()));
+  /// ```
+  #[inline(always)]
+  pub fn new_backing_store_from_bytes<T, U>(
+    mut bytes: T,
+  ) -> UniqueRef<BackingStore>
+  where
+    U: ?Sized,
+    U: AsMut<[u8]>,
+    T: AsMut<U>,
+    T: sealed::Rawable<U>,
+  {
+    let len = bytes.as_mut().as_mut().len();
+    let slice = bytes.as_mut().as_mut().as_mut_ptr();
+    let ptr = T::into_raw(bytes);
+
+    extern "C" fn drop_rawable<T: sealed::Rawable<U>, U: ?Sized>(
+      _ptr: *mut c_void,
+      len: usize,
+      data: *mut c_void,
+    ) {
+      // SAFETY: We know that data is a raw T from above
+      unsafe { <T as sealed::Rawable<U>>::drop_raw(data as _, len) }
+    }
+
+    // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
+    // derefed from so there's no way to get another mutable reference.
     unsafe {
-      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        vec_deleter_callback,
-        capacity as *mut c_void,
-      ))
+      Self::new_backing_store_from_ptr(
+        slice as _,
+        len,
+        drop_rawable::<T, U>,
+        ptr as _,
+      )
     }
   }
 

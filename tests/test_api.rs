@@ -828,6 +828,24 @@ fn array_buffer() {
     assert_eq!(10, shared_bs_2.byte_length());
     assert_eq!(shared_bs_2[0].get(), 0);
     assert_eq!(shared_bs_2[9].get(), 9);
+
+    // Empty
+    let ab = v8::ArrayBuffer::empty(scope);
+    assert_eq!(0, ab.byte_length());
+    assert!(!ab.get_backing_store().is_shared());
+
+    // From a bytes::BytesMut
+    let mut data = bytes::BytesMut::new();
+    data.extend_from_slice(&[0; 16]);
+    data[0] = 1;
+    let unique_bs =
+      v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
+    assert_eq!(unique_bs.get(0).unwrap().get(), 1);
+
+    let ab =
+      v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
+    assert_eq!(ab.byte_length(), 16);
+    assert_eq!(ab.get_backing_store().get(0).unwrap().get(), 1);
   }
 }
 
@@ -5607,6 +5625,11 @@ fn shared_array_buffer() {
     assert_eq!(shared_bs_3.byte_length(), 10);
     assert_eq!(shared_bs_3[0].get(), 0);
     assert_eq!(shared_bs_3[9].get(), 9);
+
+    // Empty
+    let ab = v8::SharedArrayBuffer::empty(scope);
+    assert_eq!(ab.byte_length(), 0);
+    assert!(ab.get_backing_store().is_shared());
   }
 }
 
