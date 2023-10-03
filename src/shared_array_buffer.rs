@@ -176,8 +176,13 @@ impl SharedArrayBuffer {
     T: crate::array_buffer::sealed::Rawable<U>,
   {
     let len = bytes.as_mut().as_mut().len();
-    let slice = bytes.as_mut().as_mut().as_mut_ptr();
-    let ptr = T::into_raw(bytes);
+    if len == 0 {
+      return unsafe {
+        UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
+      };
+    }
+
+    let (ptr, slice) = T::into_raw(bytes);
 
     extern "C" fn drop_rawable<
       T: crate::array_buffer::sealed::Rawable<U>,

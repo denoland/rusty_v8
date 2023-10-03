@@ -3,7 +3,6 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
-use std::ptr;
 use std::ptr::null;
 use std::ptr::NonNull;
 use std::slice;
@@ -248,7 +247,7 @@ pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
 
 pub(crate) mod sealed {
   pub trait Rawable<T: ?Sized> {
-    fn into_raw(self) -> *const ();
+    fn into_raw(self) -> (*const (), *const u8);
     unsafe fn drop_raw(ptr: *const (), size: usize);
   }
 }
@@ -258,37 +257,39 @@ impl sealed::Rawable<[u8]> for Vec<u8> {
     <Box<[u8]> as sealed::Rawable<[u8]>>::drop_raw(ptr, size);
   }
 
-  fn into_raw(self) -> *const () {
+  fn into_raw(self) -> (*const (), *const u8) {
     self.into_boxed_slice().into_raw()
   }
 }
 
-macro_rules! rawable {
-  ($container:ident) => {
-    impl<T: Sized> sealed::Rawable<T> for $container<T> {
-      fn into_raw(self) -> *const () {
-        Self::into_raw(self) as _
-      }
+impl<T: Sized> sealed::Rawable<T> for Box<T>
+where
+  T: AsMut<[u8]>,
+{
+  fn into_raw(mut self) -> (*const (), *const u8) {
+    let data = self.as_mut().as_mut().as_mut_ptr();
+    let ptr = Self::into_raw(self);
+    (ptr as _, data)
+  }
 
-      unsafe fn drop_raw(ptr: *const (), _len: usize) {
-        _ = Self::from_raw(ptr as _);
-      }
-    }
-
-    impl sealed::Rawable<[u8]> for $container<[u8]> {
-      fn into_raw(self) -> *const () {
-        Self::into_raw(self) as _
-      }
-
-      unsafe fn drop_raw(ptr: *const (), len: usize) {
-        _ = Self::from_raw(ptr::slice_from_raw_parts_mut(ptr as _, len));
-      }
-    }
-  };
+  unsafe fn drop_raw(ptr: *const (), _len: usize) {
+    _ = Self::from_raw(ptr as _);
+  }
 }
 
-// Implement Rawable for single-ownership container types
-rawable!(Box);
+impl sealed::Rawable<[u8]> for Box<[u8]> {
+  fn into_raw(mut self) -> (*const (), *const u8) {
+    // Thin the fat pointer
+    let ptr = self.as_mut_ptr();
+    std::mem::forget(self);
+    (ptr as _, ptr)
+  }
+
+  unsafe fn drop_raw(ptr: *const (), len: usize) {
+    // Fatten the thin pointer
+    _ = Self::from_raw(std::ptr::slice_from_raw_parts_mut(ptr as _, len));
+  }
+}
 
 /// A wrapper around the backing store (i.e. the raw memory) of an array buffer.
 /// See a document linked in http://crbug.com/v8/9908 for more information.
@@ -567,8 +568,13 @@ impl ArrayBuffer {
     T: sealed::Rawable<U>,
   {
     let len = bytes.as_mut().as_mut().len();
-    let slice = bytes.as_mut().as_mut().as_mut_ptr();
-    let ptr = T::into_raw(bytes);
+    if len == 0 {
+      return unsafe {
+        UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
+      };
+    }
+
+    let (ptr, slice) = T::into_raw(bytes);
 
     extern "C" fn drop_rawable<T: sealed::Rawable<U>, U: ?Sized>(
       _ptr: *mut c_void,

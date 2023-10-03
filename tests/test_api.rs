@@ -834,13 +834,41 @@ fn array_buffer() {
     assert_eq!(0, ab.byte_length());
     assert!(!ab.get_backing_store().is_shared());
 
+    // Empty but from vec
+    let ab = v8::ArrayBuffer::with_backing_store(
+      scope,
+      &v8::ArrayBuffer::new_backing_store_from_bytes(vec![]).make_shared(),
+    );
+    assert_eq!(0, ab.byte_length());
+    assert!(!ab.get_backing_store().is_shared());
+
+    // Empty but from vec with a huge capacity
+    let mut v = Vec::with_capacity(10_000_000);
+    v.extend_from_slice(&[1, 2, 3, 4]);
+    let ab = v8::ArrayBuffer::with_backing_store(
+      scope,
+      &v8::ArrayBuffer::new_backing_store_from_bytes(v).make_shared(),
+    );
+    // Allocate a completely unused buffer overtop of the old allocation
+    let mut v2: Vec<u8> = Vec::with_capacity(10_000_000);
+    v2.extend_from_slice(&[10, 20, 30, 40]);
+    // Make sure the the arraybuffer didn't get stomped
+    assert_eq!(4, ab.byte_length());
+    assert_eq!(1, ab.get_backing_store()[0].get());
+    assert_eq!(2, ab.get_backing_store()[1].get());
+    assert_eq!(3, ab.get_backing_store()[2].get());
+    assert_eq!(4, ab.get_backing_store()[3].get());
+    assert!(!ab.get_backing_store().is_shared());
+    drop(v2);
+
     // From a bytes::BytesMut
     let mut data = bytes::BytesMut::new();
-    data.extend_from_slice(&[0; 16]);
+    data.extend_from_slice(&[100; 16]);
     data[0] = 1;
     let unique_bs =
       v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
     assert_eq!(unique_bs.get(0).unwrap().get(), 1);
+    assert_eq!(unique_bs.get(15).unwrap().get(), 100);
 
     let ab =
       v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
