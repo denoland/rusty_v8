@@ -41,9 +41,8 @@ impl ArrayBufferView {
   /// should not attempt to manage lifetime of the storage through other means.
   #[inline(always)]
   pub fn get_backing_store(&self) -> Option<SharedRef<BackingStore>> {
-    let buffer =
-      unsafe { v8__ArrayBufferView__Buffer(self) as *mut ArrayBuffer };
-    unsafe { buffer.as_mut().map(|buffer| buffer.get_backing_store()) }
+    let buffer = unsafe { v8__ArrayBufferView__Buffer(self) };
+    unsafe { buffer.as_ref().map(|buffer| buffer.get_backing_store()) }
   }
 
   /// Returns the underlying storage for this `ArrayBufferView`, including the built-in `byte_offset`.
