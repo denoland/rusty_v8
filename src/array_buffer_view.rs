@@ -4,8 +4,10 @@ use std::ffi::c_void;
 use crate::support::int;
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
+use crate::BackingStore;
 use crate::HandleScope;
 use crate::Local;
+use crate::SharedRef;
 
 extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -31,6 +33,16 @@ impl ArrayBufferView {
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
+  }
+
+  /// Get a shared pointer to the backing store of this array buffer. This
+  /// pointer coordinates the lifetime management of the internal storage
+  /// with any live ArrayBuffers on the heap, even across isolates. The embedder
+  /// should not attempt to manage lifetime of the storage through other means.
+  #[inline(always)]
+  pub fn get_backing_store(&self) -> Option<SharedRef<BackingStore>> {
+    let buffer = unsafe { v8__ArrayBufferView__Buffer(self) };
+    unsafe { buffer.as_ref().map(|buffer| buffer.get_backing_store()) }
   }
 
   /// Returns the underlying storage for this `ArrayBufferView`, including the built-in `byte_offset`.

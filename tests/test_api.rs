@@ -5094,6 +5094,10 @@ fn array_buffer_view() {
     assert!(maybe_ab.is_some());
     let ab = maybe_ab.unwrap();
     assert_eq!(ab.byte_length(), 6);
+    assert_eq!(
+      result.get_backing_store().unwrap().data(),
+      ab.get_backing_store().data()
+    );
   }
 }
 
