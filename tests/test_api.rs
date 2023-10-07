@@ -52,7 +52,7 @@ mod setup {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--no_freeze_flags_after_init --expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
+      "--no_freeze_flags_after_init --expose_deno_builtins --expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
       v8::new_unprotected_default_platform(0, false).make_shared(),
@@ -10900,4 +10900,21 @@ fn allow_scope_in_read_host_object() {
     v8::ValueDeserializer::new(&mut scope, Box::new(Deserializer), &serialized);
   let value = deserializer.read_value(context).unwrap();
   assert!(value.is_object());
+}
+
+#[test]
+fn has_deno_builtins() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+  let context = v8::Context::new(scope);
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  for builtin_name in &["fromUtf8", "toUtf8", "isOneByte"] {
+    let name = v8::String::new(scope, builtin_name).unwrap();
+    let value = context.global(scope).get(scope, name.into()).unwrap();
+    assert!(value.is_function());
+  }
 }
