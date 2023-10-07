@@ -10912,11 +10912,7 @@ fn has_deno_builtins() {
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
 
-  for builtin_name in &[
-    "fromUtf8",
-    "toUtf8",
-    "isOneByte"
-  ] {
+  for builtin_name in &["fromUtf8", "toUtf8", "isOneByte"] {
     let name = v8::String::new(scope, builtin_name).unwrap();
     let value = context.global(scope).get(scope, name.into()).unwrap();
     assert!(value.is_function());
