@@ -3897,6 +3897,27 @@ fn function() {
     assert!(value.is_boolean());
     assert!(value.boolean_value(scope));
   }
+
+  {
+    let mut root_scope = v8::HandleScope::new(isolate);
+    let context = v8::Context::new(&mut root_scope);
+    let mut scope = v8::ContextScope::new(&mut root_scope, context);
+
+    let function: v8::Local<v8::Function> =
+      eval(&mut scope, "function a() { return 1; }; a")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    drop(scope);
+
+    let recv = v8::undefined(&mut root_scope).into();
+    let ret = function
+      .call_with_context(&mut root_scope, context, recv, &[])
+      .unwrap();
+    let integer: v8::Local<v8::Integer> = ret.try_into().unwrap();
+    let mut scope = v8::ContextScope::new(&mut root_scope, context);
+    assert_eq!(integer.int32_value(&mut scope).unwrap(), 1);
+  }
 }
 
 #[test]

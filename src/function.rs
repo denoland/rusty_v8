@@ -850,6 +850,7 @@ impl Function {
     Self::builder_raw(callback).build(scope)
   }
 
+  /// Call a function in a context scope.
   #[inline]
   pub fn call<'s>(
     &self,
@@ -864,6 +865,34 @@ impl Function {
       scope.cast_local(|sd| {
         v8__Function__Call(self, sd.get_current_context(), &*recv, argc, argv)
       })
+    }
+  }
+
+  /// Call a function in a given context.
+  #[inline]
+  pub fn call_with_context<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+    context: Local<Context>,
+    recv: Local<Value>,
+    args: &[Local<Value>],
+  ) -> Option<Local<'s, Value>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      let ret = v8__Function__Call(
+        self,
+        context.as_non_null().as_ptr(),
+        &*recv,
+        argc,
+        argv,
+      );
+      if ret.is_null() {
+        None
+      } else {
+        scope.cast_local(|_| ret)
+      }
     }
   }
 
