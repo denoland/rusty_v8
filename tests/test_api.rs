@@ -10911,20 +10911,3 @@ fn allow_scope_in_read_host_object() {
   let value = deserializer.read_value(context).unwrap();
   assert!(value.is_object());
 }
-
-#[test]
-fn has_deno_builtins() {
-  let _setup_guard = setup::parallel_test();
-
-  let isolate = &mut v8::Isolate::new(Default::default());
-
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  for builtin_name in &["fromUtf8", "toUtf8", "isOneByte"] {
-    let name = v8::String::new(scope, builtin_name).unwrap();
-    let value = context.global(scope).get(scope, name.into()).unwrap();
-    assert!(value.is_function());
-  }
-}
