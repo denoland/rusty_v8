@@ -4175,6 +4175,16 @@ fn context_get_extras_binding_object() {
     let scope = &mut v8::ContextScope::new(scope, context);
     let extras_binding = context.get_extras_binding_object(scope);
     assert!(extras_binding.is_object());
+    // Verify that Deno specific APIs are available on the extras object.
+    assert!(extras_binding
+      .get(scope, v8::String::new(scope, "isOneByte").into())
+      .is_some());
+    assert!(extras_binding
+      .get(scope, v8::String::new(scope, "fromUtf8").into())
+      .is_some());
+    assert!(extras_binding
+      .get(scope, v8::String::new(scope, "toUtf8").into())
+      .is_some());
   }
 }
 
