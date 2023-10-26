@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::env;
 use std::env::consts;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use which::which;
@@ -16,16 +15,6 @@ macro_rules! system {
       .wait()
       .unwrap()
       .success());
-  };
-}
-macro_rules! s {
-  ($expr:expr) => {
-    $expr.to_string()
-  };
-}
-macro_rules! q {
-  ($expr:expr) => {
-    format!("\"{}\"", $expr)
   };
 }
 
@@ -58,11 +47,7 @@ fn main() {
     return;
   }
 
-  build_v8(
-    crate_dir,
-    out_dir,
-    gn_out_dir.as_os_str().try_into().unwrap(),
-  );
+  build_v8(crate_dir, out_dir, gn_out_dir);
 }
 
 fn gn_os<'a>(os: &'a str) -> &'a str {
@@ -84,7 +69,7 @@ fn gn_arch<'a>(arch: &'a str) -> &'a str {
   }
 }
 
-fn build_v8(crate_dir: PathBuf, out_dir: PathBuf, gn_out_dir: &str) {
+fn build_v8(crate_dir: PathBuf, out_dir: PathBuf, gn_out_dir: PathBuf) {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0"); // google uses internal visual studio by default
   env::set_var("PYTHONDONTWRITEBYTECODE", "1"); // disable __pycache__
 
@@ -95,52 +80,7 @@ fn build_v8(crate_dir: PathBuf, out_dir: PathBuf, gn_out_dir: &str) {
   let gn_target_os = gn_os(&target_os);
   let gn_target_arch = gn_arch(&target_arch);
 
-  let mut gn_args = HashMap::<&str, String>::from([
-    ("clang_use_chrome_plugins", s!(false)),
-    ("is_component_build", s!(false)),
-    ("linux_use_bundled_binutils", s!(false)),
-    ("use_dummy_lastchange", s!(true)),
-    ("use_sysroot", s!(false)),
-    ("win_crt_flavor_agnostic", s!(true)),
-    // Minimize size of debuginfo in distributed static library.
-    ("line_tables_only", s!(true)),
-    ("no_inline_line_tables", s!(true)),
-    ("symbol_level", s!(1)),
-    ("use_debug_fission", s!(false)),
-    ("v8_enable_sandbox", s!(false)),
-    ("v8_enable_snapshot_compression", s!(false)),
-    ("v8_enable_javascript_promise_hooks", s!(true)),
-    ("v8_promise_internal_field_count", s!(1)),
-    ("v8_use_external_startup_data", s!(false)),
-    ("v8_use_snapshot", s!(true)),
-    // Disable handle zapping for performance
-    ("v8_enable_handle_zapping", s!(false)),
-    // Ensure allocation of typed arrays and arraybuffers always goes through
-    // the embedder's ArrayBufferAllocator, otherwise small buffers get moved
-    // around by the garbage collector but embedders normally want them to have
-    // fixed addresses.
-    ("v8_typed_array_max_size_in_heap", s!(0)),
-    // Enabling the shared read-only heap comes with a restriction that all
-    // isolates running at the same time must be created from the same snapshot.
-    // This is problematic for Deno, which has separate "runtime" and "typescript
-    // compiler" snapshots, and sometimes uses them both at the same time.
-    ("v8_enable_shared_ro_heap", s!(false)),
-    // V8 11.6 hardcoded an assumption in `mksnapshot` that shared RO heap
-    // is enabled. In our case it's disabled so without this flag we can't
-    // compile.
-    ("v8_enable_verify_heap", s!(false)),
-    // V8 introduced a bug in 11.1 that causes the External Pointer Table to never
-    // be cleaned which causes resource exhaustion. Disabling pointer compression
-    // makes sure that the EPT is not used.
-    // https://bugs.chromium.org/p/v8/issues/detail?id=13640&q=garbage%20collection&can=2
-    ("v8_enable_pointer_compression", s!(false)),
-    // Maglev *should* be supported when pointer compression is disabled as per
-    // https://chromium-review.googlesource.com/c/v8/v8/+/4753150, but it still
-    // fails to compile.
-    ("v8_enable_maglev", s!(false)),
-  ]);
-
-  let is_debug = if target_os == "windows" {
+  let is_debug = if cfg!(target_os = "windows") {
     false
   } else {
     match env::var("PROFILE").unwrap().as_str() {
@@ -149,89 +89,35 @@ fn build_v8(crate_dir: PathBuf, out_dir: PathBuf, gn_out_dir: &str) {
     }
   };
 
-  #[cfg(not(feature = "use_custom_libcxx"))]
-  gn_args.insert("use_custom_libcxx", s!(false));
-
-  gn_args.insert("is_debug", s!(is_debug));
-  gn_args.insert("target_cpu", q!(gn_target_arch));
-  gn_args.insert("v8_target_cpu", q!(gn_target_arch));
-
-  if let Some(cc_wrapper) = find_cc_wrapper() {
-    gn_args.insert("cc_wrapper", q!(cc_wrapper.to_string_lossy()));
-  }
-
-  if target_os != consts::OS {
-    gn_args.insert("target_os", q!(gn_target_os));
-  }
-
-  let use_sysroot = target_arch != consts::ARCH;
-  gn_args.insert("use_sysroot", s!(use_sysroot));
-
-  if env::var_os("DISABLE_CLANG").is_some() {
-    gn_args.insert("is_clang", s!(false));
-    gn_args.insert("line_tables_only", s!(false));
-  } else if let Ok(clang_base_path) = env::var("CLANG_BASE_PATH") {
-    gn_args.insert("clang_base_path", q!(clang_base_path));
-    gn_args.insert("treat_warnings_as_errors", s!(false));
-  }
-
-  let extra_gn_args = env::var("GN_ARGS").unwrap_or_default();
-
-  for pair in extra_gn_args
-    .split_whitespace()
-    .map(|pair| pair.split_once("="))
-  {
-    if let Some((k, v)) = pair {
-      gn_args.insert(k, v.to_string());
-    }
-  }
-
-  let gn_args = gn_args
-    .iter()
-    .map(|(key, value)| format!("{key}={value}"))
-    .collect::<Vec<String>>()
-    .join(" ");
-
-  env::set_var("GN_ARGS", &gn_args);
-
-  println!("[*] crate_dir  : {}", crate_dir.display());
-  println!("[*] out_dir    : {}", out_dir.display());
-  println!("[*] gn_out_dir : {}", gn_out_dir);
-  println!("[*] gn_args    : {}", gn_args);
-
-  env::set_current_dir(&out_dir).unwrap();
+  let use_custom_libcxx = cfg!(feature = "use_custom_libcxx");
 
   let python = find_python().expect("Can't find python");
   system!(
     &python,
     [
-      crate_dir.join("scripts/download_v8.py").as_os_str(),
-      crate_dir.as_os_str(),
-      out_dir.as_os_str(),
-      OsStr::new(gn_host_os),
-      OsStr::new(gn_host_arch),
-      OsStr::new(gn_target_os),
-      OsStr::new(gn_target_arch),
-      OsStr::new(&format!("--host-os={gn_host_os}")),
-      OsStr::new(&format!("--host-cpu={gn_host_arch}")),
+      crate_dir
+        .join("scripts/build_v8.py")
+        .to_string_lossy()
+        .as_ref(),
+      "--crate-root",
+      crate_dir.to_string_lossy().as_ref(),
+      "--root",
+      out_dir.to_string_lossy().as_ref(),
+      "--gn-root",
+      gn_out_dir.to_string_lossy().as_ref(),
+      "--host-os",
+      gn_host_os,
+      "--host-cpu",
+      gn_host_arch,
+      "--target-os",
+      gn_target_os,
+      "--target-cpu",
+      gn_target_arch,
+      "--is-debug",
+      is_debug.to_string().as_ref(),
+      "--use-custom-libcxx",
+      use_custom_libcxx.to_string().as_ref(),
     ]
-  );
-
-  let gn = find_gn(&out_dir).expect("Can't find gn");
-  let gn_se = format!("--script-executable={}", python.to_string_lossy());
-
-  system!(
-    &gn,
-    [&gn_se, "gen", gn_out_dir, &format!("--args={gn_args}")]
-  );
-
-  if env::var_os("PRINT_GN_ARGS").is_some() {
-    system!(&gn, [&gn_se, "args", gn_out_dir, "--list"]);
-  }
-
-  system!(
-    find_ninja(&out_dir).expect("Can't find ninja"),
-    ["-C", gn_out_dir, "rusty_v8"]
   );
 }
 
@@ -327,54 +213,6 @@ fn find_python() -> Option<OsString> {
   } else if let Ok(path) = which("python3") {
     path.into()
   } else if let Ok(path) = which("python") {
-    path.into()
-  } else {
-    return None;
-  })
-}
-
-fn find_ninja(out_dir: &Path) -> Option<OsString> {
-  let mut ninja_path = out_dir.join("third_party").join("ninja").join("ninja");
-  ninja_path.set_extension(consts::EXE_EXTENSION);
-
-  Some(if let Some(path) = env::var_os("NINJA") {
-    path
-  } else if ninja_path.exists() {
-    ninja_path.into()
-  } else if let Ok(path) = which("ninja") {
-    path.into()
-  } else {
-    return None;
-  })
-}
-
-fn find_gn(out_dir: &Path) -> Option<OsString> {
-  let platform = match consts::OS {
-    "linux" => "linux64",
-    "windows" => "win",
-    "macos" => "mac",
-    _ => "unsupported",
-  };
-  let mut gn_path = out_dir.join("buildtools").join(platform).join("gn");
-  gn_path.set_extension(consts::EXE_EXTENSION);
-
-  Some(if let Some(path) = env::var_os("GN") {
-    path
-  } else if gn_path.exists() {
-    gn_path.into()
-  } else {
-    return None;
-  })
-}
-
-fn find_cc_wrapper() -> Option<OsString> {
-  Some(if let Some(path) = env::var_os("SCCACHE") {
-    path
-  } else if let Ok(path) = which("sccache") {
-    path.into()
-  } else if let Some(path) = env::var_os("CCACHE") {
-    path
-  } else if let Ok(path) = which("ccache") {
     path.into()
   } else {
     return None;
