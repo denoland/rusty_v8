@@ -52,7 +52,7 @@ mod setup {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--no_freeze_flags_after_init --expose_deno_builtins --expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
+      "--no_freeze_flags_after_init --expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
       v8::new_unprotected_default_platform(0, false).make_shared(),
@@ -4184,9 +4184,18 @@ fn context_get_extras_binding_object() {
     eprintln!("val {:#?}", val.is_undefined());
     let val1 = extras_binding.get(scope, key4.into()).unwrap();
     eprintln!("val1 {:#?}", val1.is_undefined());
-    assert!(extras_binding.get(scope, key1.into()).unwrap().is_function());
-    assert!(extras_binding.get(scope, key2.into()).unwrap().is_function());
-    assert!(extras_binding.get(scope, key3.into()).unwrap().is_function());
+    assert!(extras_binding
+      .get(scope, key1.into())
+      .unwrap()
+      .is_function());
+    assert!(extras_binding
+      .get(scope, key2.into())
+      .unwrap()
+      .is_function());
+    assert!(extras_binding
+      .get(scope, key3.into())
+      .unwrap()
+      .is_function());
   }
 }
 
