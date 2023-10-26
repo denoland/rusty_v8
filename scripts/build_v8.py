@@ -50,6 +50,8 @@ def default_args():
         # https:#chromium-review.googlesource.com/c/v8/v8/+/4753150, but it still
         # fails to compile.
         "v8_enable_maglev": False,
+        # Enable Deno-specific extra bindings
+        "deno_enable_extras": True,
     }
 
 
