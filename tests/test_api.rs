@@ -4176,15 +4176,17 @@ fn context_get_extras_binding_object() {
     let extras_binding = context.get_extras_binding_object(scope);
     assert!(extras_binding.is_object());
     // Verify that Deno specific APIs are available on the extras object.
-    assert!(extras_binding
-      .get(scope, v8::String::new(scope, "isOneByte").into())
-      .is_some());
-    assert!(extras_binding
-      .get(scope, v8::String::new(scope, "fromUtf8").into())
-      .is_some());
-    assert!(extras_binding
-      .get(scope, v8::String::new(scope, "toUtf8").into())
-      .is_some());
+    let key4 = v8::String::new(scope, "console").unwrap();
+    let key1 = v8::String::new(scope, "isOneByte").unwrap();
+    let key2 = v8::String::new(scope, "fromUtf8").unwrap();
+    let key3 = v8::String::new(scope, "toUtf8").unwrap();
+    let val = extras_binding.get(scope, key2.into()).unwrap();
+    eprintln!("val {:#?}", val.is_undefined());
+    let val1 = extras_binding.get(scope, key4.into()).unwrap();
+    eprintln!("val1 {:#?}", val1.is_undefined());
+    assert!(extras_binding.get(scope, key1.into()).unwrap().is_function());
+    assert!(extras_binding.get(scope, key2.into()).unwrap().is_function());
+    assert!(extras_binding.get(scope, key3.into()).unwrap().is_function());
   }
 }
 
