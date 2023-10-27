@@ -19,6 +19,7 @@ def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
     os.makedirs(os.path.dirname(gpath), exist_ok=True)
     open(gpath, "a").close()
 
+    git_fetch("https://github.com/denoland/chromium_build", "20230426_rustyv8", os.path.join(out_dir, "build"))
     dumb_gclient.main(
         out_dir,
         os.path.join(out_dir, "DEPS"),
@@ -34,7 +35,7 @@ def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
         ],
         deps=[
             "base/trace_event/common",
-            "build",
+            # "build",
             "buildtools",
             "buildtools/linux64",
             "buildtools/mac",
