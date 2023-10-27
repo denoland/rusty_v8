@@ -31,11 +31,14 @@ default_args = {
   use_debug_fission = false
 
   v8_enable_sandbox = false
-  v8_enable_snapshot_compression = false
   v8_enable_javascript_promise_hooks = true
   v8_promise_internal_field_count = 1
   v8_use_external_startup_data = false
   v8_use_snapshot = true
+
+  # We prefer embedders to bring their own compression
+  v8_use_zlib = false
+  v8_enable_snapshot_compression = false
 
   # Disable handle zapping for performance
   v8_enable_handle_zapping = false
