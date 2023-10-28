@@ -2,9 +2,7 @@
 
 import io
 import os
-import re
 import sys
-import stat
 import zipfile
 import argparse
 import platform
@@ -39,7 +37,7 @@ def replace_placeholders(value):
     elif sys.platform.startswith("darwin"):
         os = "mac"
     else:
-        raise "Unknown OS: " + sys.platform
+        raise Exception("Unknown OS: " + sys.platform)
 
     arch = None
     machine = platform.machine().lower()
@@ -48,7 +46,7 @@ def replace_placeholders(value):
     elif machine == "aarch64" or machine.startswith("arm64"):
         arch = "arm64"
     else:
-        raise "Unknown Arch: " + machine
+        raise Exception("Unknown Arch: " + machine)
 
     platform_ = os + "-" + arch
 

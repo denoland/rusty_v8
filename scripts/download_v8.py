@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import argparse
 import patch_build
 import dumb_gclient
-from common import system, git_fetch
+from common import git_fetch
 
 
 def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
@@ -15,11 +14,16 @@ def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
     git_fetch("https://github.com/denoland/v8.git", "11.8-lkgr-denoland", out_dir)
     patch_build.patch(crate_dir, out_dir)
 
+    git_fetch(
+        "https://github.com/denoland/chromium_build",
+        "20230426_rustyv8",
+        os.path.join(out_dir, "build"),
+    )
+
     gpath = os.path.join(out_dir, "build/config/gclient_args.gni")
     os.makedirs(os.path.dirname(gpath), exist_ok=True)
     open(gpath, "a").close()
 
-    git_fetch("https://github.com/denoland/chromium_build", "20230426_rustyv8", os.path.join(out_dir, "build"))
     dumb_gclient.main(
         out_dir,
         os.path.join(out_dir, "DEPS"),

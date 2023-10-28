@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import shutil
@@ -107,7 +109,9 @@ def build_v8(
     gn_args["target_cpu"] = q(target_cpu)
     gn_args["v8_target_cpu"] = q(target_cpu)
 
-    gn_args["cc_wrapper"] = q(find_cc_wrapper())
+    cc_wrapper = find_cc_wrapper()
+    if cc_wrapper:
+        gn_args["cc_wrapper"] = q(cc_wrapper)
 
     if not use_custom_libcxx:
         gn_args["use_custom_libcxx"] = False
