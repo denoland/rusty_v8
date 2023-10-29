@@ -1,11 +1,51 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import shutil
 import argparse
-import download_v8
-from common import system
+import v8_download
+from utils import system
+
+
+def find_cc_wrapper():
+    return (
+        os.environ.get("SCCACHE")
+        or shutil.which("sccache")
+        or os.environ.get("CCACHE")
+        or shutil.which("ccache")
+        or None
+    )
+
+
+def find_ninja(root):
+    return (
+        os.environ.get("NINJA")
+        or shutil.which(os.path.join(root, "third_party/ninja/ninja"))
+        or shutil.which("ninja")
+        or None
+    )
+
+
+def find_gn(root, host_os):
+    is_depot_tools = "depot_tools" in os.environ["PATH"]
+    if host_os == "linux":
+        host_os = "linux64"
+    return (
+        os.environ.get("GN")
+        or shutil.which(os.path.join(root, "buildtools", host_os, "gn"))
+        or (not is_depot_tools and shutil.which("gn"))
+        or None
+    )
+
+
+def s(value):
+    if type(value) is bool:
+        return str(value).lower()
+    else:
+        return str(value)
+
+
+def q(value):
+    return f'"{value}"'
 
 
 def default_args():
@@ -57,42 +97,6 @@ def default_args():
     }
 
 
-def find_cc_wrapper():
-    return (
-        os.environ.get("SCCACHE")
-        or shutil.which("sccache")
-        or os.environ.get("CCACHE")
-        or shutil.which("ccache")
-    )
-
-
-def find_ninja(root):
-    return (
-        os.environ.get("NINJA")
-        or shutil.which(os.path.join(root, "third_party/ninja/ninja"))
-        or shutil.which("ninja")
-    )
-
-
-def find_gn(root, host_os):
-    if host_os == "linux":
-        host_os = "linux64"
-    return os.environ.get("GN") or shutil.which(
-        os.path.join(root, "buildtools", host_os, "gn")
-    )
-
-
-def s(value):
-    if type(value) is bool:
-        return str(value).lower()
-    else:
-        return str(value)
-
-
-def q(value):
-    return f'"{value}"'
-
-
 def build_v8(
     crate_root,
     root,
@@ -138,7 +142,7 @@ def build_v8(
     gn_args = " ".join(gn_args)
     print(gn_args)
 
-    download_v8.main(
+    v8_download.main(
         crate_root,
         root,
         [host_os, host_cpu, target_os, target_cpu],
@@ -146,8 +150,9 @@ def build_v8(
         host_cpu=host_cpu,
     )
 
-    gn_se = f"--script-executable={sys.executable}"
     gn_r = f"--root={root}"
+    gn_se = f"--script-executable={sys.executable}"
+
     system([find_gn(root, host_os), gn_r, gn_se, "gen", gn_root, f"--args={gn_args}"])
     if "PRINT_GN_ARGS" in os.environ:
         system([find_gn(root, host_os), gn_r, gn_se, "args", gn_root, "--list"])

@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
 import os
+import gclient
 import argparse
 import patch_build
-import dumb_gclient
-from common import git_fetch
+from utils import NonFallibleDict, git_fetch
 
 
 def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
     os.makedirs(out_dir, exist_ok=True)
 
     patch_build.restore(out_dir)
-    git_fetch("https://github.com/denoland/v8.git", "11.8-lkgr-denoland", out_dir)
-    patch_build.patch(crate_dir, out_dir)
+    git_fetch("https://github.com/denoland/v8", "11.8-lkgr-denoland", out_dir)
 
     git_fetch(
         "https://github.com/denoland/chromium_build",
@@ -20,26 +19,19 @@ def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
         os.path.join(out_dir, "build"),
     )
 
-    gpath = os.path.join(out_dir, "build/config/gclient_args.gni")
-    os.makedirs(os.path.dirname(gpath), exist_ok=True)
-    open(gpath, "a").close()
+    deps = gclient.load_deps(os.path.join(out_dir, "DEPS"))
+    vars = NonFallibleDict(deps["vars"])
+    vars["host_os"] = host_os
+    vars["host_cpu"] = host_cpu
+    for c in checkout:
+        vars["checkout_" + c] = True
 
-    dumb_gclient.main(
+    gclient.fetch_deps(
         out_dir,
-        os.path.join(out_dir, "DEPS"),
-        hooks=[
-            "clang",
-            "lastchange",
-            "mac_toolchain",
-            "win_toolchain",
-            "sysroot_arm",
-            "sysroot_arm64",
-            "sysroot_x86",
-            "sysroot_x64",
-        ],
-        deps=[
+        deps["deps"],
+        [
             "base/trace_event/common",
-            # "build",
+            "build",
             "buildtools",
             "buildtools/linux64",
             "buildtools/mac",
@@ -62,10 +54,26 @@ def main(crate_dir, out_dir, checkout, host_os=None, host_cpu=None):
             "third_party/zlib",
             "tools/clang",
         ],
-        checkout=checkout,
-        host_os=host_os,
-        host_cpu=host_cpu,
+        vars,
     )
+
+    gclient.run_hooks(
+        out_dir,
+        deps["hooks"],
+        [
+            "clang",
+            "lastchange",
+            "mac_toolchain",
+            "win_toolchain",
+            "sysroot_arm",
+            "sysroot_arm64",
+            "sysroot_x86",
+            "sysroot_x64",
+        ],
+        vars,
+    )
+
+    patch_build.patch(crate_dir, out_dir)
 
 
 if __name__ == "__main__":
