@@ -11,6 +11,7 @@
 #include "unicode/locid.h"
 #include "v8-callbacks.h"
 #include "v8/include/libplatform/libplatform.h"
+#include "v8/include/v8-cppgc.h"
 #include "v8/include/v8-fast-api-calls.h"
 #include "v8/include/v8-inspector.h"
 #include "v8/include/v8-internal.h"
@@ -28,6 +29,8 @@
 #include "v8/src/objects/objects-inl.h"
 #include "v8/src/objects/objects.h"
 #include "v8/src/objects/smi.h"
+
+#include "cppgc/platform.h"
 
 using namespace support;
 
@@ -3579,6 +3582,76 @@ void v8__PropertyDescriptor__set_enumerable(v8::PropertyDescriptor* self,
 void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
                                               bool configurable) {
   self->set_configurable(configurable);
+}
+
+}  // extern "C"
+
+// cppgc
+
+extern "C" {
+
+using RustTraceFn = void (*)(void* obj, cppgc::Visitor*);
+using RustDestroyFn = void (*)(void* obj);
+
+class RustObj final: public cppgc::GarbageCollected<RustObj> {
+  public:
+    explicit RustObj(void* obj, RustTraceFn trace, RustDestroyFn destroy): trace_(trace), destroy_(destroy), obj_(obj) {}
+
+    ~RustObj() {
+      destroy_(obj_);
+    }
+
+    void Trace(cppgc::Visitor* visitor) const {
+      trace_(obj_, visitor);
+    }
+
+  private:
+    RustTraceFn trace_;
+    RustDestroyFn destroy_;
+    void* obj_;
+};
+
+void cppgc__initialize_process(v8::Platform* platform) {
+  cppgc::InitializeProcess(platform->GetPageAllocator());
+}
+
+void cppgc__shutdown_process() {
+  cppgc::ShutdownProcess();
+}
+
+v8::CppHeap* cppgc__heap__create(v8::Platform* platform, int wrappable_type_index,
+                                 int wrappable_instance_index, uint16_t embedder_id) {
+  std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(platform, v8::CppHeapCreateParams {
+    {},
+    v8::WrapperDescriptor(wrappable_type_index, wrappable_instance_index, embedder_id),
+  });
+  return heap.release();
+}
+
+void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) { 
+  isolate->AttachCppHeap(cpp_heap);
+}
+
+v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
+  return isolate->GetCppHeap();
+}
+
+void cppgc__heap__DELETE(v8::CppHeap* self) { delete self; }
+
+void cppgc__heap__enable_detached_garbage_collections_for_testing(v8::CppHeap* heap) {
+  heap->EnableDetachedGarbageCollectionsForTesting();
+}
+
+void cppgc__heap__collect_garbage_for_testing(v8::CppHeap* heap, cppgc::EmbedderStackState stack_state) {  
+  heap->CollectGarbageForTesting(stack_state);
+}
+
+RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, void* obj, RustTraceFn trace, RustDestroyFn destroy) {
+  return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(), obj, trace, destroy);
+}
+
+void cppgc__visitor__trace(cppgc::Visitor* visitor, RustObj* member) {
+  visitor->Trace(*member);
 }
 
 }  // extern "C"

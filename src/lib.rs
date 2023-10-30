@@ -31,6 +31,7 @@ mod array_buffer;
 mod array_buffer_view;
 mod bigint;
 mod context;
+pub mod cppgc;
 mod data;
 mod date;
 mod exception;
