@@ -4243,7 +4243,6 @@ fn promise_hook() {
   }
 }
 
-
 #[test]
 fn context_get_extras_binding_object() {
   let _setup_guard = setup::parallel_test();
