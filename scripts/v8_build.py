@@ -67,6 +67,9 @@ def default_args():
         "v8_promise_internal_field_count": 1,
         "v8_use_external_startup_data": False,
         "v8_use_snapshot": True,
+        # We prefer embedders to bring their own compression
+        "v8_use_zlib": False,
+        "v8_enable_snapshot_compression": False,
         # Disable handle zapping for performance
         "v8_enable_handle_zapping": False,
         # Ensure allocation of typed arrays and arraybuffers always goes through
