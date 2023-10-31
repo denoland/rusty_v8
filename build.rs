@@ -96,7 +96,7 @@ fn build_v8(crate_dir: PathBuf, out_dir: PathBuf, gn_out_dir: PathBuf) {
     &python,
     [
       crate_dir
-        .join("scripts/build_v8.py")
+        .join("scripts/v8_build.py")
         .to_string_lossy()
         .as_ref(),
       "--crate-root",
