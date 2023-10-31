@@ -485,7 +485,7 @@ uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
 size_t v8__TypedArray__Length(const v8::TypedArray* self) {
   return ptr_to_local(self)->Length();
 }
-size_t v8__TypedArray__kMaxLength() { return v8::TypedArray::kMaxLength; }
+size_t v8__TypedArray__kMaxByteLength() { return v8::TypedArray::kMaxByteLength; }
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
   return ptr_to_local(&self) == ptr_to_local(&other);
@@ -1430,7 +1430,7 @@ int v8__Object__InternalFieldCount(const v8::Object& self) {
   return ptr_to_local(&self)->InternalFieldCount();
 }
 
-const v8::Value* v8__Object__GetInternalField(const v8::Object& self,
+const v8::Data* v8__Object__GetInternalField(const v8::Object& self,
                                               int index) {
   return local_to_ptr(ptr_to_local(&self)->GetInternalField(index));
 }
@@ -1448,8 +1448,8 @@ MaybeBool v8__Object__SetIntegrityLevel(const v8::Object& self,
 }
 
 void v8__Object__SetInternalField(const v8::Object& self, int index,
-                                  const v8::Value& value) {
-  ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&value));
+                                  const v8::Data& data) {
+  ptr_to_local(&self)->SetInternalField(index, ptr_to_local(&data));
 }
 
 const v8::Value* v8__Object__GetPrivate(const v8::Object& self,
@@ -2308,7 +2308,11 @@ void v8__AllowJavascriptExecutionScope__DESTRUCT(
                                     size_t byte_offset, size_t length) { \
     return local_to_ptr(                                                 \
         v8::NAME::New(ptr_to_local(&buf_ptr), byte_offset, length));     \
+  }                                                                      \
+  size_t v8__##NAME##__kMaxLength() {                                    \
+    return v8::NAME::kMaxLength;                                         \
   }
+
 
 V(Uint8Array)
 V(Uint8ClampedArray)
@@ -3003,10 +3007,11 @@ const v8::Module* v8__Module__CreateSyntheticModule(
     v8::Isolate* isolate, const v8::String* module_name,
     size_t export_names_len, const v8::String* export_names_raw[],
     v8::Module::SyntheticModuleEvaluationSteps evaluation_steps) {
-  std::vector<v8::Local<v8::String>> export_names{};
+  std::vector<v8::Local<v8::String>> export_names_vec{};
   for (size_t i = 0; i < export_names_len; i += 1) {
-    export_names.push_back(ptr_to_local(export_names_raw[i]));
+    export_names_vec.push_back(ptr_to_local(export_names_raw[i]));
   }
+  auto export_names = v8::MemorySpan<const v8::Local<v8::String>>{export_names_vec.data(), export_names_len};
   return local_to_ptr(v8::Module::CreateSyntheticModule(
       isolate, ptr_to_local(module_name), export_names, evaluation_steps));
 }
@@ -3134,7 +3139,7 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
 
 v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
   namespace i = v8::internal;
-  i::Object object(reinterpret_cast<const i::Address&>(data));
+  i::Tagged<i::Object> object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;
   return IsHeapObject(object) &&
                  i::GetIsolateFromHeapObject(object.GetHeapObject(), &isolate)
@@ -3144,7 +3149,7 @@ v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
 
 int v8__Value__GetHash(const v8::Value& data) {
   namespace i = v8::internal;
-  i::Object object(reinterpret_cast<const i::Address&>(data));
+  i::Tagged<i::Object> object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;
   int hash = IsHeapObject(object) && i::GetIsolateFromHeapObject(
                                           object.GetHeapObject(), &isolate)
