@@ -6,17 +6,16 @@ use crate::Local;
 use crate::TypedArray;
 
 extern "C" {
-  fn v8__TypedArray__kMaxLength() -> size_t;
+  fn v8__TypedArray__kMaxByteLength() -> size_t;
   fn v8__TypedArray__Length(this: *const TypedArray) -> size_t;
 }
 
 impl TypedArray {
-  /// The maximum length (in bytes) of the buffer backing a v8::TypedArray
-  /// instance. Attempting to create a v8::ArrayBuffer from a larger buffer will
-  /// result in a fatal error.
+  /// The largest supported typed array byte size. Each subclass defines a
+  /// type-specific max_length for the maximum length that can be passed to new.
   #[inline(always)]
-  pub fn max_length() -> usize {
-    unsafe { v8__TypedArray__kMaxLength() }
+  pub fn max_byte_length() -> usize {
+    unsafe { v8__TypedArray__kMaxByteLength() }
   }
 
   /// Number of elements in this typed array
@@ -28,7 +27,7 @@ impl TypedArray {
 }
 
 macro_rules! typed_array {
-  ($name:ident, $func:ident) => {
+  ($name:ident, $new_func:ident, $max_length_func:ident) => {
     use crate::$name;
     impl $name {
       #[inline(always)]
@@ -39,26 +38,64 @@ macro_rules! typed_array {
         length: usize,
       ) -> Option<Local<'s, $name>> {
         extern "C" {
-          fn $func(
+          fn $new_func(
             buf_ptr: *const ArrayBuffer,
             byte_offset: usize,
             length: usize,
           ) -> *const $name;
         }
-        unsafe { scope.cast_local(|_| $func(&*buf, byte_offset, length)) }
+        unsafe { scope.cast_local(|_| $new_func(&*buf, byte_offset, length)) }
       }
+
+      #[doc = concat!("The largest ", stringify!($name), " size that can be constructed using `new`.")]
+      #[inline(always)]
+      pub fn max_length() -> usize {
+        extern "C" {
+          fn $max_length_func() -> usize;
+        }
+        unsafe { $max_length_func() }
+      }
+
     }
   };
 }
 
-typed_array!(Uint8Array, v8__Uint8Array__New);
-typed_array!(Uint8ClampedArray, v8__Uint8ClampedArray__New);
-typed_array!(Int8Array, v8__Int8Array__New);
-typed_array!(Uint16Array, v8__Uint16Array__New);
-typed_array!(Int16Array, v8__Int16Array__New);
-typed_array!(Uint32Array, v8__Uint32Array__New);
-typed_array!(Int32Array, v8__Int32Array__New);
-typed_array!(Float32Array, v8__Float32Array__New);
-typed_array!(Float64Array, v8__Float64Array__New);
-typed_array!(BigUint64Array, v8__BigUint64Array__New);
-typed_array!(BigInt64Array, v8__BigInt64Array__New);
+typed_array!(Uint8Array, v8__Uint8Array__New, v8__Uint8Array__kMaxLength);
+typed_array!(
+  Uint8ClampedArray,
+  v8__Uint8ClampedArray__New,
+  v8__Uint8ClampedArray__kMaxLength
+);
+typed_array!(Int8Array, v8__Int8Array__New, v8__Int8Array__kMaxLength);
+typed_array!(
+  Uint16Array,
+  v8__Uint16Array__New,
+  v8__Uint16Array__kMaxLength
+);
+typed_array!(Int16Array, v8__Int16Array__New, v8__Int16Array__kMaxLength);
+typed_array!(
+  Uint32Array,
+  v8__Uint32Array__New,
+  v8__Uint32Array__kMaxLength
+);
+typed_array!(Int32Array, v8__Int32Array__New, v8__Int32Array__kMaxLength);
+typed_array!(
+  Float32Array,
+  v8__Float32Array__New,
+  v8__Float32Array__kMaxLength
+);
+typed_array!(
+  Float64Array,
+  v8__Float64Array__New,
+  v8__Float64Array__kMaxLength
+);
+typed_array!(
+  BigUint64Array,
+  v8__BigUint64Array__New,
+  v8__BigUint64Array__kMaxLength
+);
+typed_array!(
+  BigInt64Array,
+  v8__BigInt64Array__New,
+  v8__BigInt64Array__kMaxLength
+);

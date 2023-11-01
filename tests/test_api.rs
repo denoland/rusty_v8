@@ -1628,12 +1628,16 @@ fn object_template() {
     assert!(!object.is_null_or_undefined());
     assert_eq!(1, object.internal_field_count());
 
-    let value = object.get_internal_field(scope, 0).unwrap();
+    let data = object.get_internal_field(scope, 0).unwrap();
+    assert!(data.is_value());
+    let value: v8::Local<v8::Value> = data.try_into().unwrap();
     assert!(value.is_undefined());
 
-    let fortytwo = v8::Integer::new(scope, 42).into();
-    assert!(object.set_internal_field(0, fortytwo));
-    let value = object.get_internal_field(scope, 0).unwrap();
+    let fortytwo: v8::Local<'_, v8::Value> = v8::Integer::new(scope, 42).into();
+    assert!(object.set_internal_field(0, fortytwo.into()));
+    let data = object.get_internal_field(scope, 0).unwrap();
+    assert!(data.is_value());
+    let value: v8::Local<v8::Value> = data.try_into().unwrap();
     assert!(value.same_value(fortytwo));
 
     let name = v8::String::new(scope, "g").unwrap();
@@ -1861,12 +1865,13 @@ fn instance_template_with_internal_field() {
   context.global(scope).set(scope, name.into(), val.into());
 
   let new_instance = eval(scope, "new WithInternalField()").unwrap();
-  let internal_field = new_instance
+  let internal_field_data = new_instance
     .to_object(scope)
     .unwrap()
     .get_internal_field(scope, 0)
     .unwrap();
-
+  let internal_field: v8::Local<v8::Value> =
+    internal_field_data.try_into().unwrap();
   assert_eq!(internal_field.integer_value(scope).unwrap(), 42);
 }
 
@@ -1892,7 +1897,12 @@ fn object_template_set_accessor() {
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
-      rv.set(this.get_internal_field(scope, 0).unwrap());
+      let internal_field = this
+        .get_internal_field(scope, 0)
+        .unwrap()
+        .try_into()
+        .unwrap();
+      rv.set(internal_field);
     };
 
     let setter = |scope: &mut v8::HandleScope,
@@ -1910,7 +1920,7 @@ fn object_template_set_accessor() {
       assert!(key.strict_equals(expected_key.into()));
 
       assert!(value.is_int32());
-      assert!(this.set_internal_field(0, value));
+      assert!(this.set_internal_field(0, value.into()));
     };
 
     let getter_with_data =
@@ -1928,7 +1938,12 @@ fn object_template_set_accessor() {
         let expected_key = v8::String::new(scope, "key").unwrap();
         assert!(key.strict_equals(expected_key.into()));
 
-        rv.set(this.get_internal_field(scope, 0).unwrap());
+        let internal_field = this
+          .get_internal_field(scope, 0)
+          .unwrap()
+          .try_into()
+          .unwrap();
+        rv.set(internal_field);
       };
 
     let setter_with_data = |scope: &mut v8::HandleScope,
@@ -1947,7 +1962,7 @@ fn object_template_set_accessor() {
       assert!(key.strict_equals(expected_key.into()));
 
       assert!(value.is_int32());
-      assert!(this.set_internal_field(0, value));
+      assert!(this.set_internal_field(0, value.into()));
     };
 
     let key = v8::String::new(scope, "key").unwrap();
@@ -1982,10 +1997,12 @@ fn object_template_set_accessor() {
     );
     let new_int = v8::Integer::new(scope, 9);
     eval(scope, "obj.key = 9");
-    assert!(obj
+    let internal_field: v8::Local<v8::Value> = obj
       .get_internal_field(scope, 0)
       .unwrap()
-      .strict_equals(new_int.into()));
+      .try_into()
+      .unwrap();
+    assert!(internal_field.strict_equals(new_int.into()));
     // Falls back on standard setter
     assert!(eval(scope, "obj.key2 = null; obj.key2").unwrap().is_null());
 
@@ -2010,10 +2027,12 @@ fn object_template_set_accessor() {
     );
     let new_int = v8::Integer::new(scope, 9);
     eval(scope, "obj.key = 9");
-    assert!(obj
+    let internal_field: v8::Local<v8::Value> = obj
       .get_internal_field(scope, 0)
       .unwrap()
-      .strict_equals(new_int.into()));
+      .try_into()
+      .unwrap();
+    assert!(internal_field.strict_equals(new_int.into()));
     // Falls back on standard setter
     assert!(eval(scope, "obj.key2 = null; obj.key2").unwrap().is_null());
 
@@ -2098,7 +2117,12 @@ fn object_template_set_named_property_handler() {
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
 
-      rv.set(this.get_internal_field(scope, 0).unwrap());
+      let internal_field = this
+        .get_internal_field(scope, 0)
+        .unwrap()
+        .try_into()
+        .unwrap();
+      rv.set(internal_field);
     };
 
     let setter = |scope: &mut v8::HandleScope,
@@ -2126,7 +2150,7 @@ fn object_template_set_named_property_handler() {
       assert!(key.strict_equals(expected_key.into()));
 
       assert!(value.is_int32());
-      assert!(this.set_internal_field(0, value));
+      assert!(this.set_internal_field(0, value.into()));
 
       rv.set_undefined();
     };
@@ -2156,10 +2180,12 @@ fn object_template_set_named_property_handler() {
       // PropertyAttribute::READ_ONLY
       rv.set_int32(1);
       let expected_value = v8::Integer::new(scope, 42);
-      assert!(this
+      let internal_field: v8::Local<v8::Value> = this
         .get_internal_field(scope, 0)
         .unwrap()
-        .strict_equals(expected_value.into()));
+        .try_into()
+        .unwrap();
+      assert!(internal_field.strict_equals(expected_value.into()));
     };
 
     let deleter = |scope: &mut v8::HandleScope,
@@ -2192,10 +2218,12 @@ fn object_template_set_named_property_handler() {
 
       // Validate is the current object.
       let expected_value = v8::Integer::new(scope, 42);
-      assert!(this
+      let internal_field: v8::Local<v8::Value> = this
         .get_internal_field(scope, 0)
         .unwrap()
-        .strict_equals(expected_value.into()));
+        .try_into()
+        .unwrap();
+      assert!(internal_field.strict_equals(expected_value.into()));
 
       let key: v8::Local<v8::Name> =
         v8::String::new(scope, "key").unwrap().into();
@@ -2232,7 +2260,7 @@ fn object_template_set_named_property_handler() {
       let value = desc.value();
 
       assert!(value.is_int32());
-      assert!(this.set_internal_field(0, value));
+      assert!(this.set_internal_field(0, value.into()));
 
       rv.set_undefined();
     };
@@ -2253,7 +2281,8 @@ fn object_template_set_named_property_handler() {
 
       let descriptor = v8::Object::new(scope);
       let value_key = v8::String::new(scope, "value").unwrap();
-      let value = this.get_internal_field(scope, 0).unwrap();
+      let data = this.get_internal_field(scope, 0).unwrap();
+      let value = data.try_into().unwrap();
       descriptor.set(scope, value_key.into(), value);
       let enumerable_key = v8::String::new(scope, "enumerable").unwrap();
       let enumerable = v8::Boolean::new(scope, true);
@@ -2290,10 +2319,12 @@ fn object_template_set_named_property_handler() {
     assert!(eval(scope, "obj.fallthrough = 'a'; obj.fallthrough")
       .unwrap()
       .is_string());
-    assert!(obj
+    let internal_field: v8::Local<v8::Value> = obj
       .get_internal_field(scope, 0)
       .unwrap()
-      .strict_equals(int.into()));
+      .try_into()
+      .unwrap();
+    assert!(internal_field.strict_equals(int.into()));
 
     // Getter + setter + deleter
     let templ = v8::ObjectTemplate::new(scope);
@@ -2314,18 +2345,30 @@ fn object_template_set_named_property_handler() {
     );
     let new_int = v8::Integer::new(scope, 9);
     eval(scope, "obj.key = 9");
-    assert!(obj
+    let internal_field: v8::Local<v8::Value> = obj
       .get_internal_field(scope, 0)
       .unwrap()
-      .strict_equals(new_int.into()));
+      .try_into()
+      .unwrap();
+    assert!(internal_field.strict_equals(new_int.into()));
     assert!(eval(scope, "delete obj.key").unwrap().boolean_value(scope));
-    assert!(obj.get_internal_field(scope, 0).unwrap().is_undefined());
+    let internal_field: v8::Local<v8::Value> = obj
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert!(internal_field.is_undefined());
     assert!(eval(scope, "delete obj.key").unwrap().boolean_value(scope));
 
     assert!(eval(scope, "obj.fallthrough = 'a'; obj.fallthrough")
       .unwrap()
       .is_string());
-    assert!(obj.get_internal_field(scope, 0).unwrap().is_undefined());
+    let internal_field: v8::Local<v8::Value> = obj
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .try_into()
+      .unwrap();
+    assert!(internal_field.is_undefined());
     assert!(eval(scope, "delete obj.fallthrough")
       .unwrap()
       .boolean_value(scope));
@@ -2403,10 +2446,12 @@ fn object_template_set_named_property_handler() {
       "Object.defineProperty(obj, 'key', { value: 9, enumerable: true, configurable: true, writable: true })",
     )
     .unwrap();
-    assert!(obj
+    let internal_field: v8::Local<v8::Value> = obj
       .get_internal_field(scope, 0)
       .unwrap()
-      .strict_equals(new_int.into()));
+      .try_into()
+      .unwrap();
+    assert!(internal_field.strict_equals(new_int.into()));
     assert!(eval(
       scope,
       "Object.defineProperty(obj, 'fallthrough', { value: 'a' }); obj.fallthrough"
@@ -2535,7 +2580,12 @@ fn object_template_set_indexed_property_handler() {
 
     let expected_index = 37;
     assert!(index.eq(&expected_index));
-    rv.set(this.get_internal_field(scope, 0).unwrap());
+    let internal_field = this
+      .get_internal_field(scope, 0)
+      .unwrap()
+      .try_into()
+      .unwrap();
+    rv.set(internal_field);
   };
 
   let setter = |_scope: &mut v8::HandleScope,
@@ -2552,7 +2602,7 @@ fn object_template_set_indexed_property_handler() {
     assert_eq!(index, 37);
 
     assert!(value.is_int32());
-    assert!(this.set_internal_field(0, value));
+    assert!(this.set_internal_field(0, value.into()));
 
     rv.set_undefined();
   };
@@ -2591,10 +2641,12 @@ fn object_template_set_indexed_property_handler() {
 
     // Validate is the current object.
     let expected_value = v8::Integer::new(scope, 42);
-    assert!(this
+    let internal_field: v8::Local<v8::Value> = this
       .get_internal_field(scope, 0)
       .unwrap()
-      .strict_equals(expected_value.into()));
+      .try_into()
+      .unwrap();
+    assert!(internal_field.strict_equals(expected_value.into()));
 
     let key = v8::Integer::new(scope, 37);
     let result = v8::Array::new_with_elements(scope, &[key.into()]);
@@ -2618,7 +2670,7 @@ fn object_template_set_indexed_property_handler() {
     assert!(!desc.has_set());
 
     let value = desc.value();
-    this.set_internal_field(0, value);
+    this.set_internal_field(0, value.into());
 
     rv.set_undefined();
   };
@@ -2633,7 +2685,8 @@ fn object_template_set_indexed_property_handler() {
 
     let descriptor = v8::Object::new(scope);
     let value_key = v8::String::new(scope, "value").unwrap();
-    let value = this.get_internal_field(scope, 0).unwrap();
+    let data = this.get_internal_field(scope, 0).unwrap();
+    let value = data.try_into().unwrap();
     descriptor.set(scope, value_key.into(), value);
     let enumerable_key = v8::String::new(scope, "enumerable").unwrap();
     let enumerable = v8::Boolean::new(scope, true);
@@ -2684,10 +2737,12 @@ fn object_template_set_indexed_property_handler() {
     .set(scope, name.into(), obj.into());
   let new_int = v8::Integer::new(scope, 9);
   eval(scope, "obj[37] = 9");
-  assert!(obj
+  let internal_field: v8::Local<v8::Value> = obj
     .get_internal_field(scope, 0)
     .unwrap()
-    .strict_equals(new_int.into()));
+    .try_into()
+    .unwrap();
+  assert!(internal_field.strict_equals(new_int.into()));
 
   assert!(!eval(scope, "delete obj[37]").unwrap().boolean_value(scope));
 
@@ -2749,10 +2804,12 @@ fn object_template_set_indexed_property_handler() {
     .global(scope)
     .set(scope, name.into(), obj.into());
   eval(scope, "Object.defineProperty(obj, 37, { value: 9 })").unwrap();
-  assert!(obj
+  let internal_field: v8::Local<v8::Value> = obj
     .get_internal_field(scope, 0)
     .unwrap()
-    .strict_equals(new_int.into()));
+    .try_into()
+    .unwrap();
+  assert!(internal_field.strict_equals(new_int.into()));
 
   // Descriptor
   let templ = v8::ObjectTemplate::new(scope);
@@ -4197,12 +4254,13 @@ fn context_get_extras_binding_object() {
     let extras_binding = context.get_extras_binding_object(scope);
     assert!(extras_binding.is_object());
 
-    // Verify that Deno specific APIs are available on the extras object.
-    for builtin_name in &["fromUtf8", "toUtf8", "isOneByte"] {
-      let name = v8::String::new(scope, builtin_name).unwrap();
-      let value = extras_binding.get(scope, name.into()).unwrap();
-      assert!(value.is_function());
-    }
+    // Disabled for now because patch doesn't apply cleanly on v8 12.0
+    // // Verify that Deno specific APIs are available on the extras object.
+    // for builtin_name in &["fromUtf8", "toUtf8", "isOneByte"] {
+    //   let name = v8::String::new(scope, builtin_name).unwrap();
+    //   let value = extras_binding.get(scope, name.into()).unwrap();
+    //   assert!(value.is_function());
+    // }
   }
 }
 
@@ -5524,71 +5582,117 @@ fn typed_array_constructors() {
   assert!(t.is_uint8_array());
   assert_eq!(t.length(), 0);
 
+  // Uint8Array::max_length() ought to be 1 << 53 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 53) - 1, v8::Uint8Array::max_length());
+
   let t = v8::Uint8ClampedArray::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint8_clamped_array());
   assert_eq!(t.length(), 0);
+
+  // Uint8ClampedArray::max_length() ought to be 1 << 53 - 1 on 64 bits when
+  // heap sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 53) - 1, v8::Uint8ClampedArray::max_length());
 
   let t = v8::Int8Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int8_array());
   assert_eq!(t.length(), 0);
 
+  // Int8Array::max_length() ought to be 1 << 53 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 53) - 1, v8::Int8Array::max_length());
+
   let t = v8::Uint16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint16_array());
   assert_eq!(t.length(), 0);
+
+  // Uint16Array::max_length() ought to be 1 << 52 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 52) - 1, v8::Uint16Array::max_length());
 
   let t = v8::Int16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int16_array());
   assert_eq!(t.length(), 0);
 
+  // Int16Array::max_length() ought to be 1 << 52 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 52) - 1, v8::Int16Array::max_length());
+
   let t = v8::Uint32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint32_array());
   assert_eq!(t.length(), 0);
+
+  // Uint32Array::max_length() ought to be 1 << 51 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 51) - 1, v8::Uint32Array::max_length());
 
   let t = v8::Int32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int32_array());
   assert_eq!(t.length(), 0);
 
+  // Int32Array::max_length() ought to be 1 << 51 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 51) - 1, v8::Int32Array::max_length());
+
   let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float32_array());
   assert_eq!(t.length(), 0);
+
+  // Float32Array::max_length() ought to be 1 << 51 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 51) - 1, v8::Float32Array::max_length());
 
   let t = v8::Float64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float64_array());
   assert_eq!(t.length(), 0);
 
+  // Float64Array::max_length() ought to be 1 << 50 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 50) - 1, v8::Float64Array::max_length());
+
   let t = v8::BigUint64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_uint64_array());
   assert_eq!(t.length(), 0);
+
+  // BigUint64Array::max_length() ought to be 1 << 50 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 50) - 1, v8::BigUint64Array::max_length());
 
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
   assert_eq!(t.length(), 0);
 
-  // TypedArray::max_length() ought to be >= 2^30 < 2^32 in 64 bits
+  // BigInt64Array::max_length() ought to be 1 << 50 - 1 on 64 bits when heap
+  // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert!(((2 << 30)..(2 << 32)).contains(&v8::TypedArray::max_length()));
+  assert_eq!((1 << 50) - 1, v8::BigInt64Array::max_length());
 
-  // TypedArray::max_length() ought to be >= 2^28 < 2^30 in 32 bits
+  // TypedArray::max_byte_length() ought to be 1 << 53 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 53) - 1, v8::TypedArray::max_byte_length());
+
+  // TypedArray::max_byte_length() ought to be >= 2^28 < 2^30 in 32 bits
   #[cfg(target_pointer_width = "32")]
-  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::max_length()));
+  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::max_byte_length()));
 
   // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
   {
     let scope = &mut v8::TryCatch::new(scope);
-    let _ = eval(
-      scope,
-      &format!("new Uint8Array({})", v8::TypedArray::max_length()),
-    )
-    .unwrap();
-    assert!(!scope.has_caught());
-  }
-
-  {
-    let scope = &mut v8::TryCatch::new(scope);
     eval(
       scope,
-      &format!("new Uint8Array({})", v8::TypedArray::max_length() + 1),
+      &format!("new Uint8Array({})", v8::Uint8Array::max_length() + 1),
     );
     // Array is too big (> max_length) - expecting this threw a RangeError
     assert!(scope.has_caught());

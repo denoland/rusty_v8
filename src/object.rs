@@ -8,6 +8,7 @@ use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
 use crate::Array;
 use crate::Context;
+use crate::Data;
 use crate::GetPropertyNamesArgs;
 use crate::HandleScope;
 use crate::IndexFilter;
@@ -141,7 +142,7 @@ extern "C" {
   fn v8__Object__GetInternalField(
     this: *const Object,
     index: int,
-  ) -> *const Value;
+  ) -> *const Data;
   fn v8__Object__GetAlignedPointerFromInternalField(
     this: *const Object,
     index: int,
@@ -159,7 +160,7 @@ extern "C" {
   fn v8__Object__SetInternalField(
     this: *const Object,
     index: int,
-    value: *const Value,
+    data: *const Data,
   );
   fn v8__Object__GetPrivate(
     this: *const Object,
@@ -623,13 +624,13 @@ impl Object {
     usize::try_from(count).expect("bad internal field count") // Can't happen.
   }
 
-  /// Gets the value from an internal field.
+  /// Gets the data from an internal field.
   #[inline(always)]
   pub fn get_internal_field<'s>(
     &self,
     scope: &mut HandleScope<'s>,
     index: usize,
-  ) -> Option<Local<'s, Value>> {
+  ) -> Option<Local<'s, Data>> {
     // Trying to access out-of-bounds internal fields makes V8 abort
     // in debug mode and access out-of-bounds memory in release mode.
     // The C++ API takes an i32 but doesn't check for indexes < 0, which
@@ -681,17 +682,17 @@ impl Object {
     .into()
   }
 
-  /// Sets the value in an internal field. Returns false when the index
+  /// Sets the data in an internal field. Returns false when the index
   /// is out of bounds, true otherwise.
   #[inline(always)]
-  pub fn set_internal_field(&self, index: usize, value: Local<Value>) -> bool {
+  pub fn set_internal_field(&self, index: usize, data: Local<Data>) -> bool {
     // Trying to access out-of-bounds internal fields makes V8 abort
     // in debug mode and access out-of-bounds memory in release mode.
     // The C++ API takes an i32 but doesn't check for indexes < 0, which
     // results in an out-of-bounds access in both debug and release mode.
     if index < self.internal_field_count() {
       if let Ok(index) = int::try_from(index) {
-        unsafe { v8__Object__SetInternalField(self, index, &*value) };
+        unsafe { v8__Object__SetInternalField(self, index, &*data) };
         return true;
       }
     }
