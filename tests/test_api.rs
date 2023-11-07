@@ -7945,7 +7945,7 @@ impl v8::ValueSerializerImpl for Custom3Value {
     scope.throw_exception(error);
   }
 
-  fn has_custom_host_object(&mut self, _scope: &mut v8::HandleScope) -> bool {
+  fn has_custom_host_object(&mut self, _isolate: &mut v8::Isolate) -> bool {
     true
   }
 

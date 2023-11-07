@@ -48,15 +48,13 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
 #[no_mangle]
 pub unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
   this: &mut CxxValueSerializerDelegate,
-  _isolate: *mut Isolate,
+  isolate: *mut Isolate,
 ) -> bool {
   let value_serializer_heap = ValueSerializerHeap::dispatch_mut(this);
-  let scope =
-    &mut crate::scope::CallbackScope::new(value_serializer_heap.context);
   value_serializer_heap
     .value_serializer_impl
     .as_mut()
-    .has_custom_host_object(scope)
+    .has_custom_host_object(&mut *isolate)
 }
 
 #[no_mangle]
@@ -239,7 +237,7 @@ pub trait ValueSerializerImpl {
     message: Local<'s, String>,
   );
 
-  fn has_custom_host_object(&mut self, _scope: &mut HandleScope) -> bool {
+  fn has_custom_host_object(&mut self, _isolate: &mut Isolate) -> bool {
     false
   }
 
