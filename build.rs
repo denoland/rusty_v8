@@ -382,6 +382,9 @@ fn build_dir() -> PathBuf {
 }
 
 fn download_file(url: String, filename: PathBuf) {
+  if filename.exists() {
+    return;
+  }
   if !url.starts_with("http:") && !url.starts_with("https:") {
     copy_archive(&url, &filename);
     return;
