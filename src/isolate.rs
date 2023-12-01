@@ -707,24 +707,20 @@ impl Isolate {
 
   #[inline(always)]
   pub(crate) fn get_data_internal(&self, slot: u32) -> *mut c_void {
-    let slots = unsafe {
+    unsafe {
       let p = self as *const Self as *const u8;
-      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
-      let p = p as *const [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
-      &*p
-    };
-    slots[slot as usize]
+      let p = p.add(Self::EMBEDDER_DATA_OFFSET) as *const *mut c_void;
+      *p.add(slot as usize)
+    }
   }
 
   #[inline(always)]
   pub(crate) fn set_data_internal(&mut self, slot: u32, data: *mut c_void) {
-    let slots = unsafe {
-      let p = self as *mut Self as *mut u8;
-      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
-      let p = p as *mut [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
-      &mut *p
-    };
-    slots[slot as usize] = data;
+    unsafe {
+      let p = self as *const Self as *const u8;
+      let p = p.add(Self::EMBEDDER_DATA_OFFSET) as *mut *mut c_void;
+      *p.add(slot as usize) = data;
+    }
   }
 
   /// Returns a pointer to the `ScopeData` struct for the current scope.

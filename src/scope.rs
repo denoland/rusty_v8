@@ -1260,13 +1260,13 @@ pub(crate) mod data {
     previous: Option<NonNull<ScopeData>>,
     next: Option<Box<ScopeData>>,
     // The 'status' field is also always valid (but does change).
-    status: Cell<ScopeStatus>,
+    status: ScopeStatus,
     // The following fields are only valid when this ScopeData object is in use
     // (eiter current or shadowed -- not free).
     context: Cell<Option<NonNull<Context>>>,
     escape_slot: Option<NonNull<Option<raw::EscapeSlot>>>,
     try_catch: Option<NonNull<raw::TryCatch>>,
-    scope_type_specific_data: ScopeTypeSpecificData,
+    scope_type_specific_data: Option<ScopeTypeSpecificData>,
   }
 
   impl ScopeData {
@@ -1280,8 +1280,8 @@ pub(crate) mod data {
         .map(NonNull::as_ptr)
         .map(|p| unsafe { &mut *p })
         .unwrap();
-      match self_mut.status.get() {
-        ScopeStatus::Current { .. } => self_mut,
+      match self_mut.status {
+        ScopeStatus::CurrentZombie | ScopeStatus::CurrentNoZombie => self_mut,
         _ => unreachable!(),
       }
     }
@@ -1291,7 +1291,7 @@ pub(crate) mod data {
     /// ScopeData objects even when no scope is entered.
     pub(crate) fn new_root(isolate: &mut Isolate) {
       let root = Box::leak(Self::boxed(isolate.into()));
-      root.status = ScopeStatus::Current { zombie: false }.into();
+      root.status = ScopeStatus::CurrentNoZombie.into();
       debug_assert!(isolate.get_current_scope_data().is_none());
       isolate.set_current_scope_data(Some(root.into()));
     }
@@ -1331,11 +1331,10 @@ pub(crate) mod data {
       context: Local<'s, Context>,
     ) -> &'s mut Self {
       self.new_scope_data_with(move |data| {
-        data.scope_type_specific_data.init_with(|| {
-          ScopeTypeSpecificData::ContextScope {
+        data.scope_type_specific_data =
+          Some(ScopeTypeSpecificData::ContextScope {
             _raw_context_scope: raw::ContextScope::new(context),
-          }
-        });
+          });
         data.context.set(Some(context.as_non_null()));
       })
     }
@@ -1355,17 +1354,17 @@ pub(crate) mod data {
     {
       self.new_scope_data_with(|data| {
         let isolate = data.isolate;
-        data.scope_type_specific_data.init_with(|| {
+        data.scope_type_specific_data = Some({
           ScopeTypeSpecificData::HandleScope {
             raw_handle_scope: unsafe { raw::HandleScope::uninit() },
             raw_context_scope: None,
           }
         });
         match &mut data.scope_type_specific_data {
-          ScopeTypeSpecificData::HandleScope {
+          Some(ScopeTypeSpecificData::HandleScope {
             raw_handle_scope,
             raw_context_scope,
-          } => {
+          }) => {
             unsafe { raw_handle_scope.init(isolate) };
             init_context_fn(isolate, &mut data.context, raw_context_scope);
           }
@@ -1418,17 +1417,17 @@ pub(crate) mod data {
         // inside the `EscapableHandleScope` that's being constructed here,
         // rather than escaping from it.
         let isolate = data.isolate;
-        data.scope_type_specific_data.init_with(|| {
+        data.scope_type_specific_data = Some({
           ScopeTypeSpecificData::EscapableHandleScope {
             raw_handle_scope: unsafe { raw::HandleScope::uninit() },
             raw_escape_slot: Some(raw::EscapeSlot::new(isolate)),
           }
         });
         match &mut data.scope_type_specific_data {
-          ScopeTypeSpecificData::EscapableHandleScope {
+          Some(ScopeTypeSpecificData::EscapableHandleScope {
             raw_handle_scope,
             raw_escape_slot,
-          } => {
+          }) => {
             unsafe { raw_handle_scope.init(isolate) };
             data.escape_slot.replace(raw_escape_slot.into());
           }
@@ -1441,13 +1440,13 @@ pub(crate) mod data {
     pub(super) fn new_try_catch_data(&mut self) -> &mut Self {
       self.new_scope_data_with(|data| {
         let isolate = data.isolate;
-        data.scope_type_specific_data.init_with(|| {
+        data.scope_type_specific_data = Some({
           ScopeTypeSpecificData::TryCatch {
             raw_try_catch: unsafe { raw::TryCatch::uninit() },
           }
         });
         match &mut data.scope_type_specific_data {
-          ScopeTypeSpecificData::TryCatch { raw_try_catch } => {
+          Some(ScopeTypeSpecificData::TryCatch { raw_try_catch }) => {
             unsafe { raw_try_catch.init(isolate) };
             data.try_catch.replace(raw_try_catch.into());
           }
@@ -1463,7 +1462,7 @@ pub(crate) mod data {
     ) -> &mut Self {
       self.new_scope_data_with(|data| {
         let isolate = data.isolate;
-        data.scope_type_specific_data.init_with(|| {
+        data.scope_type_specific_data = Some({
           ScopeTypeSpecificData::DisallowJavascriptExecutionScope {
             raw_scope: unsafe {
               raw::DisallowJavascriptExecutionScope::uninit()
@@ -1471,9 +1470,9 @@ pub(crate) mod data {
           }
         });
         match &mut data.scope_type_specific_data {
-          ScopeTypeSpecificData::DisallowJavascriptExecutionScope {
+          Some(ScopeTypeSpecificData::DisallowJavascriptExecutionScope {
             raw_scope,
-          } => unsafe { raw_scope.init(isolate, on_failure) },
+          }) => unsafe { raw_scope.init(isolate, on_failure) },
           _ => unreachable!(),
         }
       })
@@ -1485,15 +1484,15 @@ pub(crate) mod data {
     ) -> &mut Self {
       self.new_scope_data_with(|data| {
         let isolate = data.isolate;
-        data.scope_type_specific_data.init_with(|| {
+        data.scope_type_specific_data = Some({
           ScopeTypeSpecificData::AllowJavascriptExecutionScope {
             raw_scope: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
           }
         });
         match &mut data.scope_type_specific_data {
-          ScopeTypeSpecificData::AllowJavascriptExecutionScope {
+          Some(ScopeTypeSpecificData::AllowJavascriptExecutionScope {
             raw_scope,
-          } => unsafe { raw_scope.init(isolate) },
+          }) => unsafe { raw_scope.init(isolate) },
           _ => unreachable!(),
         }
       })
@@ -1506,9 +1505,9 @@ pub(crate) mod data {
     ) -> &'s mut Self {
       self.new_scope_data_with(|data| {
         debug_assert!(data.scope_type_specific_data.is_none());
-        data
-          .context
-          .set(maybe_current_context.map(|cx| cx.as_non_null()));
+        if let Some(context) = maybe_current_context {
+          data.context.set(Some(context.as_non_null()));
+        }
       })
     }
 
@@ -1518,10 +1517,11 @@ pub(crate) mod data {
       init_fn: impl FnOnce(&mut Self),
     ) -> &mut Self {
       // Mark this scope (the parent of the newly created scope) as 'shadowed';
-      self.status.set(match self.status.get() {
-        ScopeStatus::Current { zombie } => ScopeStatus::Shadowed { zombie },
+      self.status = match self.status {
+        ScopeStatus::CurrentZombie => ScopeStatus::ShadowedZombie,
+        ScopeStatus::CurrentNoZombie => ScopeStatus::ShadowedNoZombie,
         _ => unreachable!(),
-      });
+      };
       // Copy fields that that will be inherited by the new scope.
       let context = self.context.get().into();
       let escape_slot = self.escape_slot;
@@ -1531,9 +1531,11 @@ pub(crate) mod data {
       // later cleared in the `as_scope()` method, to verify that we're
       // always creating exactly one scope from any `ScopeData` object.
       // For performance reasons this check is not performed in release builds.
-      new_scope_data.status = Cell::new(ScopeStatus::Current {
-        zombie: cfg!(debug_assertions),
-      });
+      new_scope_data.status = if cfg!(debug_assertions) {
+        ScopeStatus::CurrentZombie
+      } else {
+        ScopeStatus::CurrentNoZombie
+      };
       // Store fields inherited from the parent scope.
       new_scope_data.context = context;
       new_scope_data.escape_slot = escape_slot;
@@ -1556,7 +1558,7 @@ pub(crate) mod data {
           // Reuse a free `Box<ScopeData>` allocation.
           debug_assert_eq!(next_box.isolate, self.isolate);
           debug_assert_eq!(next_box.previous, self_nn);
-          debug_assert_eq!(next_box.status.get(), ScopeStatus::Free);
+          debug_assert_eq!(next_box.status, ScopeStatus::Free);
           debug_assert!(next_box.scope_type_specific_data.is_none());
           next_box.as_mut()
         }
@@ -1572,13 +1574,13 @@ pub(crate) mod data {
 
     #[inline(always)]
     pub(super) fn as_scope<S: Scope>(&mut self) -> S {
-      assert_eq!(Layout::new::<&mut Self>(), Layout::new::<S>());
+      debug_assert_eq!(Layout::new::<&mut Self>(), Layout::new::<S>());
       // In debug builds, a new initialized `ScopeStatus` will have the `zombie`
       // flag set, so we have to reset it. In release builds, new `ScopeStatus`
       // objects come with the `zombie` flag cleared, so no update is necessary.
       if cfg!(debug_assertions) {
-        assert_eq!(self.status.get(), ScopeStatus::Current { zombie: true });
-        self.status.set(ScopeStatus::Current { zombie: false });
+        assert_eq!(self.status, ScopeStatus::CurrentZombie);
+        self.status = ScopeStatus::CurrentNoZombie;
       }
       let self_nn = NonNull::from(self);
       unsafe { ptr::read(&self_nn as *const _ as *const S) }
@@ -1603,9 +1605,9 @@ pub(crate) mod data {
 
     #[inline(always)]
     fn try_activate_scope(mut self: &mut Self) -> &mut Self {
-      self = match self.status.get() {
-        ScopeStatus::Current { zombie: false } => self,
-        ScopeStatus::Shadowed { zombie: false } => {
+      self = match self.status {
+        ScopeStatus::CurrentNoZombie => self,
+        ScopeStatus::ShadowedNoZombie => {
           self.next.as_mut().unwrap().try_exit_scope()
         }
         _ => unreachable!(),
@@ -1620,12 +1622,12 @@ pub(crate) mod data {
     #[inline(always)]
     fn try_exit_scope(mut self: &mut Self) -> &mut Self {
       loop {
-        self = match self.status.get() {
-          ScopeStatus::Shadowed { .. } => {
+        self = match self.status {
+          ScopeStatus::ShadowedZombie | ScopeStatus::ShadowedNoZombie => {
             self.next.as_mut().unwrap().try_exit_scope()
           }
-          ScopeStatus::Current { zombie: true } => break self.exit_scope(),
-          ScopeStatus::Current { zombie: false } => {
+          ScopeStatus::CurrentZombie => break self.exit_scope(),
+          ScopeStatus::CurrentNoZombie => {
             panic!("active scope can't be dropped")
           }
           _ => unreachable!(),
@@ -1637,13 +1639,13 @@ pub(crate) mod data {
     fn exit_scope(&mut self) -> &mut Self {
       // Clear out the scope type specific data field. None of the other fields
       // have a destructor, and there's no need to do any cleanup on them.
-      if !matches!(self.scope_type_specific_data, ScopeTypeSpecificData::None) {
+      if self.scope_type_specific_data.is_some() {
         self.scope_type_specific_data = Default::default();
       }
 
       // Change the ScopeData's status field from 'Current' to 'Free', which
       // means that it is not associated with a scope and can be reused.
-      self.status.set(ScopeStatus::Free);
+      self.status = ScopeStatus::Free;
 
       // Point the Isolate's current scope data slot at our parent scope.
       let previous_nn = self.previous.unwrap();
@@ -1654,10 +1656,11 @@ pub(crate) mod data {
       // Update the parent scope's status field to reflect that it is now
       // 'Current' again an no longer 'Shadowed'.
       let previous_mut = unsafe { &mut *previous_nn.as_ptr() };
-      previous_mut.status.set(match previous_mut.status.get() {
-        ScopeStatus::Shadowed { zombie } => ScopeStatus::Current { zombie },
+      previous_mut.status = match previous_mut.status {
+        ScopeStatus::ShadowedZombie => ScopeStatus::CurrentZombie,
+        ScopeStatus::ShadowedNoZombie => ScopeStatus::CurrentNoZombie,
         _ => unreachable!(),
-      });
+      };
 
       previous_mut
     }
@@ -1684,15 +1687,15 @@ pub(crate) mod data {
     #[inline(always)]
     pub(super) fn notify_scope_dropped(&mut self) {
       match &self.scope_type_specific_data {
-        ScopeTypeSpecificData::HandleScope { .. }
-        | ScopeTypeSpecificData::EscapableHandleScope { .. } => {
+        Some(
+          ScopeTypeSpecificData::HandleScope { .. }
+          | ScopeTypeSpecificData::EscapableHandleScope { .. },
+        ) => {
           // Defer scope exit until the parent scope is touched.
-          self.status.set(match self.status.get() {
-            ScopeStatus::Current { zombie: false } => {
-              ScopeStatus::Current { zombie: true }
-            }
+          self.status = match self.status {
+            ScopeStatus::CurrentNoZombie => ScopeStatus::CurrentZombie,
             _ => unreachable!(),
-          })
+          }
         }
         _ => {
           // Regular, immediate exit.
@@ -1797,10 +1800,13 @@ pub(crate) mod data {
   }
 
   #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+  #[repr(u8)]
   enum ScopeStatus {
     Free,
-    Current { zombie: bool },
-    Shadowed { zombie: bool },
+    CurrentZombie,
+    CurrentNoZombie,
+    ShadowedZombie,
+    ShadowedNoZombie,
   }
 
   impl Default for ScopeStatus {
@@ -1811,7 +1817,6 @@ pub(crate) mod data {
 
   #[derive(Debug)]
   enum ScopeTypeSpecificData {
-    None,
     ContextScope {
       _raw_context_scope: raw::ContextScope,
     },
@@ -1834,12 +1839,6 @@ pub(crate) mod data {
     },
   }
 
-  impl Default for ScopeTypeSpecificData {
-    fn default() -> Self {
-      Self::None
-    }
-  }
-
   impl Drop for ScopeTypeSpecificData {
     #[inline(always)]
     fn drop(&mut self) {
@@ -1854,23 +1853,6 @@ pub(crate) mod data {
       {
         *raw_context_scope = None
       }
-    }
-  }
-
-  impl ScopeTypeSpecificData {
-    pub fn is_none(&self) -> bool {
-      matches!(self, Self::None)
-    }
-
-    /// Replaces a `ScopeTypeSpecificData::None` value with the value returned
-    /// from the specified closure. This function exists because initializing
-    /// scopes is performance critical, and `ptr::write()` produces more
-    /// efficient code than using a regular assign statement, which will try to
-    /// drop the old value and move the new value into place, even after
-    /// asserting `self.is_none()`.
-    pub fn init_with(&mut self, init_fn: impl FnOnce() -> Self) {
-      assert!(self.is_none());
-      unsafe { ptr::write(self, (init_fn)()) }
     }
   }
 }
