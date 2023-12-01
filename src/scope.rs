@@ -1291,7 +1291,7 @@ pub(crate) mod data {
     /// ScopeData objects even when no scope is entered.
     pub(crate) fn new_root(isolate: &mut Isolate) {
       let root = Box::leak(Self::boxed(isolate.into()));
-      root.status = ScopeStatus::CurrentNoZombie.into();
+      root.status = ScopeStatus::CurrentNoZombie;
       debug_assert!(isolate.get_current_scope_data().is_none());
       isolate.set_current_scope_data(Some(root.into()));
     }
