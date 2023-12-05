@@ -327,7 +327,7 @@ impl<'s> HandleScope<'s> {
     unsafe {
       let sd = data::ScopeData::get_mut(self);
       raw::v8__Context__SetContinuationPreservedEmbedderData(
-        sd.get_current_context(),
+        sd.get_isolate_ptr(),
         &*data,
       );
     }
@@ -341,7 +341,7 @@ impl<'s> HandleScope<'s> {
       self
         .cast_local(|sd| {
           raw::v8__Context__GetContinuationPreservedEmbedderData(
-            sd.get_current_context(),
+            sd.get_isolate_ptr(),
           )
         })
         .unwrap()
@@ -2100,11 +2100,11 @@ mod raw {
       resolve_hook: *const Function,
     );
     pub(super) fn v8__Context__SetContinuationPreservedEmbedderData(
-      this: *const Context,
+      this: *mut Isolate,
       value: *const Value,
     );
     pub(super) fn v8__Context__GetContinuationPreservedEmbedderData(
-      this: *const Context,
+      this: *mut Isolate,
     ) -> *const Value;
 
     pub(super) fn v8__HandleScope__CONSTRUCT(

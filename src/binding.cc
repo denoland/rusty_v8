@@ -1341,9 +1341,9 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
                                   v8::AccessorNameSetterCallback setter,
                                   const v8::Value* data_or_null,
                                   v8::PropertyAttribute attr) {
-  return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
+  return maybe_to_maybe_bool(ptr_to_local(&self)->SetNativeDataProperty(
       ptr_to_local(&context), ptr_to_local(&key), getter, setter,
-      ptr_to_local(data_or_null), v8::AccessControl::DEFAULT, attr));
+      ptr_to_local(data_or_null), attr));
 }
 
 v8::Isolate* v8__Object__GetIsolate(const v8::Object& self) {
@@ -1872,15 +1872,14 @@ const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
   return maybe_local_to_ptr(maybe_local);
 }
 
-void v8__Context__SetContinuationPreservedEmbedderData(v8::Context& context,
+void v8__Context__SetContinuationPreservedEmbedderData(v8::Isolate* isolate,
                                                        const v8::Value* data) {
-  auto c = ptr_to_local(&context);
-  c->SetContinuationPreservedEmbedderData(ptr_to_local(data));
+  isolate->SetContinuationPreservedEmbedderData(ptr_to_local(data));
 }
 
 const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
-    const v8::Context& context) {
-  auto value = ptr_to_local(&context)->GetContinuationPreservedEmbedderData();
+    v8::Isolate* isolate) {
+  auto value = isolate->GetContinuationPreservedEmbedderData();
   return local_to_ptr(value);
 }
 
@@ -2369,12 +2368,14 @@ const v8::Value* v8__Script__Run(const v8::Script& script,
   return maybe_local_to_ptr(ptr_to_local(&script)->Run(ptr_to_local(&context)));
 }
 
-void v8__ScriptOrigin__CONSTRUCT(
-    uninit_t<v8::ScriptOrigin>* buf,
-    const v8::Value& resource_name, int resource_line_offset,
-    int resource_column_offset, bool resource_is_shared_cross_origin,
-    int script_id, const v8::Value& source_map_url, bool resource_is_opaque,
-    bool is_wasm, bool is_module) {
+void v8__ScriptOrigin__CONSTRUCT(uninit_t<v8::ScriptOrigin>* buf,
+                                 const v8::Value& resource_name,
+                                 int resource_line_offset,
+                                 int resource_column_offset,
+                                 bool resource_is_shared_cross_origin,
+                                 int script_id, const v8::Value& source_map_url,
+                                 bool resource_is_opaque, bool is_wasm,
+                                 bool is_module) {
   construct_in_place<v8::ScriptOrigin>(
       buf, ptr_to_local(&resource_name), resource_line_offset,
       resource_column_offset, resource_is_shared_cross_origin, script_id,
@@ -3039,12 +3040,13 @@ struct StalledTopLevelAwaitMessage {
 size_t v8__Module__GetStalledTopLevelAwaitMessage(
     const v8::Module& self, v8::Isolate* isolate,
     StalledTopLevelAwaitMessage* out_vec, size_t out_len) {
-  auto messages = ptr_to_local(&self)->GetStalledTopLevelAwaitMessage(isolate);
+  auto [modules, messages] =
+      ptr_to_local(&self)->GetStalledTopLevelAwaitMessages(isolate);
   auto len = std::min(messages.size(), out_len);
   for (size_t i = 0; i < len; i += 1) {
     StalledTopLevelAwaitMessage stalled_message;
-    stalled_message.module = local_to_ptr(std::get<0>(messages[i]));
-    stalled_message.message = local_to_ptr(std::get<1>(messages[i]));
+    stalled_message.module = local_to_ptr(modules[i]);
+    stalled_message.message = local_to_ptr(messages[i]);
     out_vec[i] = stalled_message;
   }
   return len;
@@ -3633,10 +3635,6 @@ v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
                                 embedder_id),
       });
   return heap.release();
-}
-
-void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) {
-  isolate->AttachCppHeap(cpp_heap);
 }
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
