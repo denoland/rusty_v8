@@ -2367,13 +2367,13 @@ const v8::Value* v8__Script__Run(const v8::Script& script,
 }
 
 void v8__ScriptOrigin__CONSTRUCT(
-    v8::Isolate* isolate, uninit_t<v8::ScriptOrigin>* buf,
+    uninit_t<v8::ScriptOrigin>* buf,
     const v8::Value& resource_name, int resource_line_offset,
     int resource_column_offset, bool resource_is_shared_cross_origin,
     int script_id, const v8::Value& source_map_url, bool resource_is_opaque,
     bool is_wasm, bool is_module) {
   construct_in_place<v8::ScriptOrigin>(
-      buf, isolate, ptr_to_local(&resource_name), resource_line_offset,
+      buf, ptr_to_local(&resource_name), resource_line_offset,
       resource_column_offset, resource_is_shared_cross_origin, script_id,
       ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
 }

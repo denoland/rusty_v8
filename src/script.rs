@@ -31,7 +31,6 @@ extern "C" {
   ) -> *const Value;
 
   fn v8__ScriptOrigin__CONSTRUCT(
-    isolate: *mut Isolate,
     buf: *mut MaybeUninit<ScriptOrigin>,
     resource_name: *const Value,
     resource_line_offset: i32,
@@ -117,7 +116,6 @@ impl<'s> ScriptOrigin<'s> {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
       v8__ScriptOrigin__CONSTRUCT(
-        scope.get_isolate_ptr(),
         &mut buf,
         &*resource_name,
         resource_line_offset,
