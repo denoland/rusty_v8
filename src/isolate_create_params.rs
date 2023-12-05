@@ -1,5 +1,6 @@
 use crate::array_buffer;
 use crate::array_buffer::Allocator as ArrayBufferAllocator;
+use crate::cppgc::Heap;
 use crate::support::char;
 use crate::support::int;
 use crate::support::intptr_t;
@@ -164,6 +165,15 @@ impl CreateParams {
     self
   }
 
+  /// Attaches a managed C++ heap as an extension to the JavaScript heap.
+  ///
+  /// The embedder maintains ownership of the CppHeap. At most one C++ heap
+  /// can be attached to V8.
+  pub fn cppgc_heap(mut self, heap: &Heap) -> Self {
+    self.raw.cpp_heap = heap as *const Heap;
+    self
+  }
+
   pub(crate) fn finalize(mut self) -> (raw::CreateParams, Box<dyn Any>) {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
@@ -212,10 +222,9 @@ pub(crate) mod raw {
     pub only_terminate_in_safe_scope: bool,
     pub embedder_wrapper_type_index: int,
     pub embedder_wrapper_object_index: int,
-    // NOTE(bartlomieju): this field is deprecated in V8 API.
-    // This is an std::vector<std::string>. It's usually no bigger
-    // than three or four words but let's take a generous upper bound.
-    pub supported_import_assertions: [usize; 8],
+    _fatal_error_handler: *const Opaque, // FatalErrorCallback
+    _oom_error_handler: *const Opaque,   // OOMErrorCallback
+    pub cpp_heap: *const Heap,
   }
 
   extern "C" {

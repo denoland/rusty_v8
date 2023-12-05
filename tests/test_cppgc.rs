@@ -72,7 +72,6 @@ fn cppgc_object_wrap() {
   }
 
   {
-    let isolate = &mut v8::Isolate::new(Default::default());
     // Create a managed heap.
     let heap = v8::cppgc::Heap::create(
       guard.platform.clone(),
@@ -83,7 +82,8 @@ fn cppgc_object_wrap() {
       )),
     );
 
-    isolate.attach_cpp_heap(&heap);
+    let isolate =
+      &mut v8::Isolate::new(v8::CreateParams::default().cppgc_heap(&heap));
 
     let handle_scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(handle_scope);

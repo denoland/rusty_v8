@@ -32,8 +32,6 @@ fn main() {
   v8::cppgc::initalize_process(platform.clone());
 
   {
-    let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-
     // Create a managed heap.
     let heap = v8::cppgc::Heap::create(
       platform,
@@ -44,7 +42,8 @@ fn main() {
       )),
     );
 
-    isolate.attach_cpp_heap(&heap);
+    let isolate =
+      &mut v8::Isolate::new(v8::CreateParams::default().cppgc_heap(&heap));
 
     let handle_scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(handle_scope);

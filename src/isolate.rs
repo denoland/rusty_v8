@@ -1086,11 +1086,6 @@ impl Isolate {
     }
   }
 
-  /// Attaches a managed C++ heap as an extension to the JavaScript heap.
-  ///
-  /// The embedder maintains ownership of the CppHeap. At most one C++ heap
-  /// can be attached to V8.
-
   pub fn get_cpp_heap(&mut self) -> &Heap {
     unsafe { &*v8__Isolate__GetCppHeap(self) }
   }
