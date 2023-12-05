@@ -74,6 +74,7 @@ pub struct Source {
   _consume_cache_task: usize,
   _compile_hint_callback: usize,
   _compile_hint_callback_data: usize,
+  _compilation_details: [usize; 3],
 }
 
 /// Compilation data that the embedder can cache and pass back to speed up future
