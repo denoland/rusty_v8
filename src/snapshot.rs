@@ -3,9 +3,7 @@ use crate::isolate_create_params::raw;
 use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
-use crate::support::intptr_t;
 use crate::support::Allocated;
-use crate::support::Allocation;
 use crate::Context;
 use crate::Data;
 use crate::Isolate;
@@ -16,7 +14,6 @@ use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
-use std::ptr::null;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(

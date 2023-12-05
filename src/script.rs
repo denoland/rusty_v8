@@ -4,7 +4,6 @@ use std::ptr::null;
 
 use crate::Context;
 use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::Script;
 use crate::String;
@@ -102,7 +101,8 @@ impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
   #[inline(always)]
   pub fn new(
-    scope: &mut HandleScope<'s, ()>,
+    // TODO(littledivy): remove
+    _scope: &mut HandleScope<'s, ()>,
     resource_name: Local<'s, Value>,
     resource_line_offset: i32,
     resource_column_offset: i32,
