@@ -12,10 +12,9 @@ publish = false
 path = "lib.rs"
 crate-type = ["cdylib"]
 
-[dependencies]
+[target.'cfg(target_os = "android")'.dependencies]
 v8 = { path = "../../" }
 winit = "0.26"
 pixels = "0.8.0"
 ndk = "0.3.0"
 ndk-glue = { version = "0.5.0", features = ["logger"] }
-
