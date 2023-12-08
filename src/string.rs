@@ -200,7 +200,7 @@ pub enum NewStringType {
 }
 
 bitflags! {
-  #[derive(Default)]
+  #[derive(Clone, Copy, Default)]
   #[repr(transparent)]
   pub struct WriteOptions: int {
     const NO_OPTIONS = 0;
