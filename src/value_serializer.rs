@@ -46,6 +46,32 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
+  this: &mut CxxValueSerializerDelegate,
+  isolate: *mut Isolate,
+) -> bool {
+  let value_serializer_heap = ValueSerializerHeap::dispatch_mut(this);
+  value_serializer_heap
+    .value_serializer_impl
+    .as_mut()
+    .has_custom_host_object(&mut *isolate)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
+  this: &mut CxxValueSerializerDelegate,
+  _isolate: *mut Isolate,
+  object: Local<Object>,
+) -> MaybeBool {
+  let value_serializer_heap = ValueSerializerHeap::dispatch_mut(this);
+  let scope =
+    &mut crate::scope::CallbackScope::new(value_serializer_heap.context);
+  let value_serializer_impl =
+    value_serializer_heap.value_serializer_impl.as_mut();
+  MaybeBool::from(value_serializer_impl.is_host_object(scope, object))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   this: &mut CxxValueSerializerDelegate,
   _isolate: *mut Isolate,
@@ -210,6 +236,23 @@ pub trait ValueSerializerImpl {
     scope: &mut HandleScope<'s>,
     message: Local<'s, String>,
   );
+
+  fn has_custom_host_object(&mut self, _isolate: &mut Isolate) -> bool {
+    false
+  }
+
+  fn is_host_object<'s>(
+    &mut self,
+    scope: &mut HandleScope<'s>,
+    _object: Local<'s, Object>,
+  ) -> Option<bool> {
+    let msg =
+      String::new(scope, "Deno serializer: is_host_object not implemented")
+        .unwrap();
+    let exc = Exception::error(scope, msg);
+    scope.throw_exception(exc);
+    None
+  }
 
   fn write_host_object<'s>(
     &mut self,
