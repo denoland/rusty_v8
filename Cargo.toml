@@ -80,19 +80,19 @@ default = ["use_custom_libcxx"]
 use_custom_libcxx = []
 
 [dependencies]
-bitflags = "1.3.2"
-once_cell = "1.17.1"
+bitflags = "2.4"
+once_cell = "1.19"
 
 [build-dependencies]
-fslock = "0.1.8"
-which = "4.2.5"
+fslock = "0.2"
+which = "5"
 
 [dev-dependencies]
 bytes = "1"
 align-data = "0.1.0"
-fslock = "0.1.8"
+fslock = "0.2"
 trybuild = "1.0.61"
-which = "4.2.5"
+which = "5"
 
 [[example]]
 name = "hello_world"
