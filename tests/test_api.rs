@@ -637,6 +637,17 @@ fn microtasks() {
 }
 
 #[test]
+#[should_panic(
+  expected = "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
+)]
+fn isolate_drop_order() {
+  let isolate1 = v8::Isolate::new(Default::default());
+  let isolate2 = v8::Isolate::new(Default::default());
+  drop(isolate1);
+  drop(isolate2);
+}
+
+#[test]
 fn get_isolate_from_handle() {
   extern "C" {
     fn v8__internal__GetIsolateFromHeapObject(

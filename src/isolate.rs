@@ -379,6 +379,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__GetCurrent() -> *mut Isolate;
   fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
@@ -534,7 +535,8 @@ extern "C" {
 /// synchronize.
 ///
 /// rusty_v8 note: Unlike in the C++ API, the Isolate is entered when it is
-/// constructed and exited when dropped.
+/// constructed and exited when dropped. Because of that v8::OwnedIsolate
+/// instances must be dropped in the reverse order of creation
 #[repr(C)]
 #[derive(Debug)]
 pub struct Isolate(Opaque);
@@ -1517,6 +1519,11 @@ impl Drop for OwnedIsolate {
       assert!(
         snapshot_creator.is_none(),
         "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
+      );
+      // Safety: We need to check `this == Isolate::GetCurrent()` before calling exit()
+      assert!(
+        self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__GetCurrent(),
+        "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
       self.exit();
       self.cxx_isolate.as_mut().clear_scope_and_annex();

@@ -161,6 +161,8 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+v8::Isolate* v8__Isolate__GetCurrent() { return v8::Isolate::GetCurrent(); }
+
 void v8__Isolate__MemoryPressureNotification(v8::Isolate* isolate,
                                              v8::MemoryPressureLevel level) {
   isolate->MemoryPressureNotification(level);
