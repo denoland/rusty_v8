@@ -79,9 +79,9 @@ impl BigInt {
   }
 
   /// Returns the value of this BigInt as an unsigned 64-bit integer, and a
-  /// `bool` indicating whether the return value was truncated was truncated or
-  /// wrapped around. In particular, it will be `false` if this BigInt is
-  /// negative.
+  /// `bool` indicating whether the conversion was lossless or not.
+  /// The boolean value will be `false` if the return value was truncated or wrapped around,
+  /// in particular if the BigInt is negative.
   #[inline(always)]
   pub fn u64_value(&self) -> (u64, bool) {
     let mut lossless = MaybeUninit::uninit();
@@ -91,7 +91,8 @@ impl BigInt {
   }
 
   /// Returns the value of this BigInt as a signed 64-bit integer, and a `bool`
-  /// indicating whether this BigInt was truncated or not.
+  /// indicating whether the conversion was lossless or not.
+  /// The boolean value will be `false` if the return value was truncated or wrapped around.
   #[inline(always)]
   pub fn i64_value(&self) -> (i64, bool) {
     let mut lossless = MaybeUninit::uninit();
