@@ -3654,6 +3654,18 @@ v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
   return heap.release();
 }
 
+void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) { 
+// The AttachCppHeap method is deprecated but the alternative of passing
+// heap to the Isolate CreateParams is broken.
+//
+// TODO(@littledivy): Remove this when the above CL is merged.
+// https://chromium-review.googlesource.com/c/chromium/src/+/4992764
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  isolate->AttachCppHeap(cpp_heap);
+#pragma clang diagnostic pop
+}
+
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
   return isolate->GetCppHeap();
 }

@@ -165,15 +165,6 @@ impl CreateParams {
     self
   }
 
-  /// Attaches a managed C++ heap as an extension to the JavaScript heap.
-  ///
-  /// The embedder maintains ownership of the CppHeap. At most one C++ heap
-  /// can be attached to V8.
-  pub fn cppgc_heap(mut self, heap: &Heap) -> Self {
-    self.raw.cpp_heap = heap as *const Heap;
-    self
-  }
-
   pub(crate) fn finalize(mut self) -> (raw::CreateParams, Box<dyn Any>) {
     if self.raw.array_buffer_allocator_shared.is_null() {
       self = self.array_buffer_allocator(array_buffer::new_default_allocator());
