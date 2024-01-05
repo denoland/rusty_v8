@@ -43,7 +43,6 @@ fn main() {
         DEFAULT_CPP_GC_EMBEDDER_ID,
       )),
     );
-
     isolate.attach_cpp_heap(&heap);
 
     let handle_scope = &mut v8::HandleScope::new(isolate);

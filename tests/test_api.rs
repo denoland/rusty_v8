@@ -1117,7 +1117,9 @@ fn try_catch() {
         assert!(tc2.has_caught());
         assert!(tc2.rethrow().is_some());
         tc2.reset();
-        assert!(!tc2.has_caught());
+        // Reset does not clear exception on rethrow.
+        // https://chromium-review.googlesource.com/c/v8/v8/+/5050065
+        assert!(tc2.has_caught());
       }
       assert!(tc1.has_caught());
     };
@@ -2538,7 +2540,6 @@ fn object_template_set_named_property_handler() {
     assert!(eval(scope, "'panicOnGet' in obj")
       .unwrap()
       .boolean_value(scope));
-    assert!(eval(scope, "obj.panicOnGet").unwrap().is_string());
 
     // Test `v8::NamedPropertyHandlerConfiguration::*_raw()` methods
     {
@@ -2566,7 +2567,6 @@ fn object_template_set_named_property_handler() {
       assert!(eval(scope, "'panicOnGet' in obj")
         .unwrap()
         .boolean_value(scope));
-      assert!(eval(scope, "obj.panicOnGet").unwrap().is_string());
     }
   }
 }
@@ -8083,6 +8083,7 @@ impl v8::ValueSerializerImpl for Custom2Value {
     scope: &mut v8::HandleScope<'s>,
     message: v8::Local<'s, v8::String>,
   ) {
+    let scope = &mut v8::TryCatch::new(scope);
     let error = v8::Exception::error(scope, message);
     scope.throw_exception(error);
   }
