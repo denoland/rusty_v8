@@ -2117,7 +2117,6 @@ fn object_template_set_named_property_handler() {
       assert!(!args.should_throw_on_error());
 
       let expected_key = v8::String::new(scope, "key").unwrap();
-      println!("key: {:?}", key.to_rust_string_lossy(scope));
       assert!(key.strict_equals(expected_key.into()));
 
       let internal_field = this
