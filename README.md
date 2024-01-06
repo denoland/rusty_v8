@@ -169,7 +169,7 @@ Use `export GN_ARGS="no_inline_line_tables=false"` during build.
 
 **My program crashes when initializing on non-main thread**
 
-Initializing V8 on a non-main thread with a the CPUs PKU feature enabled might
+Initializing V8 on a non-main thread with the CPUs PKU feature enabled might
 lead to crashes. You can work around this problem by using
 `v8::new_unprotected_default_platform`.
 
