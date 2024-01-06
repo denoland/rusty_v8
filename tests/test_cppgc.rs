@@ -59,8 +59,10 @@ fn cppgc_object_wrap() {
 
     let obj = templ.new_instance(scope).unwrap();
 
-    let member =
-      v8::cppgc::make_garbage_collected(scope.get_cpp_heap(), Box::new(Wrap));
+    let member = v8::cppgc::make_garbage_collected(
+      scope.get_cpp_heap().unwrap(),
+      Box::new(Wrap),
+    );
 
     obj.set_aligned_pointer_in_internal_field(
       0,
