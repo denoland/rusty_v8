@@ -63,7 +63,7 @@ fn main() {
           let obj = templ.new_instance(scope).unwrap();
 
           let member = v8::cppgc::make_garbage_collected(
-            scope.get_cpp_heap(),
+            scope.get_cpp_heap().unwrap(),
             Box::new(Wrappable {
               trace_count: Cell::new(0),
               id,

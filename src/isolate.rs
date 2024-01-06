@@ -1100,8 +1100,8 @@ impl Isolate {
     }
   }
 
-  pub fn get_cpp_heap(&mut self) -> &Heap {
-    unsafe { &*v8__Isolate__GetCppHeap(self) }
+  pub fn get_cpp_heap(&mut self) -> Option<&Heap> {
+    unsafe { v8__Isolate__GetCppHeap(self).as_ref().map(|h| &*h) }
   }
 
   #[inline(always)]
