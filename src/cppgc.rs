@@ -1,4 +1,4 @@
-// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license
+// Copyright 2020-2021 the Deno authors. All rights reserved. MIT license
 
 use crate::platform::Platform;
 use crate::support::int;
@@ -22,7 +22,7 @@ extern "C" {
     obj: *mut (),
     trace: TraceFn,
     destroy: DestroyFn,
-  ) -> *mut ();
+  ) -> *mut InnerMember;
 
   fn cppgc__heap__enable_detached_garbage_collections_for_testing(
     heap: *mut Heap,
@@ -32,7 +32,7 @@ extern "C" {
     stack_state: EmbedderStackState,
   );
 
-  fn cppgc__visitor__trace(visitor: *const Visitor, member: *const ());
+  fn cppgc__visitor__trace(visitor: *const Visitor, member: *const InnerMember);
 }
 
 /// Process-global initialization of the garbage collector. Must be called before
@@ -216,12 +216,19 @@ pub trait GarbageCollected {
   fn trace(&self, _visitor: &Visitor) {}
 }
 
+#[repr(C)]
+pub struct InnerMember {
+  inner: [usize; 2],
+  ptr: *mut (),
+}
+
 /// Members are used to contain strong pointers to other garbage
 /// collected objects. All members fields on garbage collected objects
 /// must be trace in the `trace` method.
+#[repr(transparent)]
 pub struct Member<T: GarbageCollected> {
-  pub handle: *mut (),
-  ptr: *mut T,
+  pub handle: *mut InnerMember,
+  _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T: GarbageCollected> Member<T> {
@@ -231,7 +238,7 @@ impl<T: GarbageCollected> Member<T> {
   ///
   /// There are no guarantees that the object is alive and not garbage collected.
   pub unsafe fn get(&self) -> &T {
-    unsafe { &*self.ptr }
+    unsafe { (*self.handle).ptr.cast::<T>().as_ref().unwrap() }
   }
 }
 
@@ -239,7 +246,7 @@ impl<T: GarbageCollected> std::ops::Deref for Member<T> {
   type Target = T;
 
   fn deref(&self) -> &Self::Target {
-    unsafe { &*self.ptr }
+    unsafe { self.get() }
   }
 }
 
@@ -290,5 +297,8 @@ pub unsafe fn make_garbage_collected_raw<T: GarbageCollected>(
     destroy,
   );
 
-  Member { handle, ptr: obj }
+  Member {
+    handle,
+    _phantom: std::marker::PhantomData,
+  }
 }
