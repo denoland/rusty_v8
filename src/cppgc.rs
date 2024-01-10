@@ -1,4 +1,4 @@
-// Copyright 2020-2021 the Deno authors. All rights reserved. MIT license
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license
 
 use crate::platform::Platform;
 use crate::support::int;
