@@ -2540,6 +2540,7 @@ fn object_template_set_named_property_handler() {
     assert!(eval(scope, "'panicOnGet' in obj")
       .unwrap()
       .boolean_value(scope));
+    assert!(eval(scope, "obj.panicOnGet").unwrap().is_string());
 
     // Test `v8::NamedPropertyHandlerConfiguration::*_raw()` methods
     {
@@ -2567,6 +2568,7 @@ fn object_template_set_named_property_handler() {
       assert!(eval(scope, "'panicOnGet' in obj")
         .unwrap()
         .boolean_value(scope));
+      assert!(eval(scope, "obj.panicOnGet").unwrap().is_string());
     }
   }
 }

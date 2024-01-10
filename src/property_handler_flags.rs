@@ -8,31 +8,22 @@ impl PropertyHandlerFlags {
   /// None.
   pub const NONE: Self = Self(0);
 
-  /// See ALL_CAN_READ above.
-  pub const ALL_CAN_READ: Self = Self(1 << 0);
-
   /// Will not call into interceptor for properties on the receiver or prototype
   /// chain, i.e., only call into interceptor for properties that do not exist.
   /// Currently only valid for named interceptors.
-  pub const NON_MASKING: Self = Self(1 << 1);
+  pub const NON_MASKING: Self = Self(1 << 0);
 
   /// Will not call into interceptor for symbol lookup.  Only meaningful for
   /// named interceptors.
-  pub const ONLY_INTERCEPT_STRINGS: Self = Self(1 << 2);
+  pub const ONLY_INTERCEPT_STRINGS: Self = Self(1 << 1);
 
   /// The getter, query, enumerator callbacks do not produce side effects.
-  pub const HAS_NO_SIDE_EFFECT: Self = Self(1 << 3);
+  pub const HAS_NO_SIDE_EFFECT: Self = Self(1 << 2);
 
   /// Test if no property handler flags are set.
   #[inline(always)]
   pub fn is_none(&self) -> bool {
     *self == Self::NONE
-  }
-
-  /// Test if the all-can-read property handler flag is set.
-  #[inline(always)]
-  pub fn is_all_can_read(&self) -> bool {
-    self.has(Self::ALL_CAN_READ)
   }
 
   /// Test if the non-masking property handler flag is set.
@@ -80,25 +71,16 @@ impl std::ops::BitOr for PropertyHandlerFlags {
 #[test]
 fn test_attr() {
   assert!(PropertyHandlerFlags::NONE.is_none());
-  assert!(!PropertyHandlerFlags::NONE.is_all_can_read());
   assert!(!PropertyHandlerFlags::NONE.is_non_masking());
   assert!(!PropertyHandlerFlags::NONE.is_only_intercept_strings());
   assert!(!PropertyHandlerFlags::NONE.is_has_no_side_effect());
 
-  assert!(!PropertyHandlerFlags::ALL_CAN_READ.is_none());
-  assert!(PropertyHandlerFlags::ALL_CAN_READ.is_all_can_read());
-  assert!(!PropertyHandlerFlags::ALL_CAN_READ.is_non_masking());
-  assert!(!PropertyHandlerFlags::ALL_CAN_READ.is_only_intercept_strings());
-  assert!(!PropertyHandlerFlags::ALL_CAN_READ.is_has_no_side_effect());
-
   assert!(!PropertyHandlerFlags::NON_MASKING.is_none());
-  assert!(!PropertyHandlerFlags::NON_MASKING.is_all_can_read());
   assert!(PropertyHandlerFlags::NON_MASKING.is_non_masking());
   assert!(!PropertyHandlerFlags::NON_MASKING.is_only_intercept_strings());
   assert!(!PropertyHandlerFlags::NON_MASKING.is_has_no_side_effect());
 
   assert!(!PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_none());
-  assert!(!PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_all_can_read());
   assert!(!PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_non_masking());
   assert!(
     PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_only_intercept_strings()
@@ -106,30 +88,16 @@ fn test_attr() {
   assert!(!PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_has_no_side_effect());
 
   assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_none());
-  assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_all_can_read());
   assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_non_masking());
   assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_only_intercept_strings());
   assert!(PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_has_no_side_effect());
 
   assert_eq!(PropertyHandlerFlags::NONE, Default::default());
-  assert_eq!(
-    PropertyHandlerFlags::ALL_CAN_READ,
-    PropertyHandlerFlags::NONE | PropertyHandlerFlags::ALL_CAN_READ
-  );
-
-  let attr =
-    PropertyHandlerFlags::ALL_CAN_READ | PropertyHandlerFlags::NON_MASKING;
-  assert!(!attr.is_none());
-  assert!(attr.is_all_can_read());
-  assert!(attr.is_non_masking());
-  assert!(!attr.is_only_intercept_strings());
-  assert!(!attr.is_has_no_side_effect());
 
   let attr = PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS
     | PropertyHandlerFlags::HAS_NO_SIDE_EFFECT
     | PropertyHandlerFlags::NON_MASKING;
   assert!(!attr.is_none());
-  assert!(!attr.is_all_can_read());
   assert!(attr.is_non_masking());
   assert!(attr.is_only_intercept_strings());
   assert!(attr.is_has_no_side_effect());
