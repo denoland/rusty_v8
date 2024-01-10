@@ -222,6 +222,12 @@ pub struct InnerMember {
   ptr: *mut (),
 }
 
+impl InnerMember {
+  pub unsafe fn get<T: GarbageCollected>(&self) -> &T {
+    unsafe { self.ptr.cast::<T>().as_ref().unwrap() }
+  }
+}
+
 /// Members are used to contain strong pointers to other garbage
 /// collected objects. All members fields on garbage collected objects
 /// must be trace in the `trace` method.
@@ -238,7 +244,7 @@ impl<T: GarbageCollected> Member<T> {
   ///
   /// There are no guarantees that the object is alive and not garbage collected.
   pub unsafe fn get(&self) -> &T {
-    unsafe { (*self.handle).ptr.cast::<T>().as_ref().unwrap() }
+    unsafe { (*self.handle).get() }
   }
 }
 
