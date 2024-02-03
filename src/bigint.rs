@@ -79,7 +79,7 @@ impl BigInt {
   }
 
   /// Returns the value of this BigInt as an unsigned 64-bit integer, and a
-  /// `bool` indicating whether the conversion was lossless or not.
+  /// `bool` indicating that the conversion was lossless when `true`.
   /// The boolean value will be `false` if the return value was truncated or wrapped around,
   /// in particular if the BigInt is negative.
   #[inline(always)]
