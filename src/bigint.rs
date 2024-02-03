@@ -91,7 +91,7 @@ impl BigInt {
   }
 
   /// Returns the value of this BigInt as a signed 64-bit integer, and a `bool`
-  /// indicating whether the conversion was lossless or not.
+  /// indicating that the conversion was lossless when `true`.
   /// The boolean value will be `false` if the return value was truncated or wrapped around.
   #[inline(always)]
   pub fn i64_value(&self) -> (i64, bool) {
