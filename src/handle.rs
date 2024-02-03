@@ -63,7 +63,7 @@ extern "C" {
 ///
 /// It is safe to extract the object stored in the handle by
 /// dereferencing the handle (for instance, to extract the `*Object` from
-/// a Local`<Object>`); the value will still be governed by a handle
+/// a `Local<Object>`); the value will still be governed by a handle
 /// behind the scenes and the same rules apply to these values as to
 /// their handles.
 ///
