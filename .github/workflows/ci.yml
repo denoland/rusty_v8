@@ -8,6 +8,8 @@ on:
     branches: [main]
     types: [labeled, opened, synchronize, reopened]
 
+permissions: write-all
+
 jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
