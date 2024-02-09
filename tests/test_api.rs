@@ -5310,7 +5310,7 @@ fn snapshot_creator() {
         );
       assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
       // Ensure we can compile a request for v8::Data
-      scope
+      _ = scope
         .get_context_data_from_snapshot_once::<v8::Data>(context_data_index_2);
     }
   }

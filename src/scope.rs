@@ -282,7 +282,7 @@ impl<'s> HandleScope<'s> {
   ) -> Result<Local<'s, T>, DataError>
   where
     T: 'static,
-    for<'l> <Local<'s, Data> as TryInto<Local<'l, T>>>::Error:
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
       get_data_sealed::ToDataError,
     for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
@@ -314,7 +314,7 @@ impl<'s> HandleScope<'s> {
   ) -> Result<Local<'s, T>, DataError>
   where
     T: 'static,
-    for<'l> <Local<'s, Data> as TryInto<Local<'l, T>>>::Error:
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
       get_data_sealed::ToDataError,
     for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
