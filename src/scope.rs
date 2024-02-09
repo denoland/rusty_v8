@@ -245,6 +245,29 @@ impl<'s> HandleScope<'s, ()> {
   }
 }
 
+// TODO(mmastrac): When the never type is stabilized, we can replace this trait
+// with type bounds (https://github.com/rust-lang/rust/issues/35121):
+
+// for<'l> DataError: From<<Local<'s, Data> as TryInto<Local<'l, T>>>::Error>,
+mod get_data_sealed {
+  use crate::DataError;
+  use std::convert::Infallible;
+
+  pub trait ToDataError {
+    fn to_data_error(self) -> DataError;
+  }
+  impl ToDataError for DataError {
+    fn to_data_error(self) -> DataError {
+      self
+    }
+  }
+  impl ToDataError for Infallible {
+    fn to_data_error(self) -> DataError {
+      unreachable!()
+    }
+  }
+}
+
 impl<'s> HandleScope<'s> {
   /// Return data that was previously attached to the isolate snapshot via
   /// SnapshotCreator, and removes the reference to it. If called again with
@@ -259,15 +282,22 @@ impl<'s> HandleScope<'s> {
   ) -> Result<Local<'s, T>, DataError>
   where
     T: 'static,
-    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
+      get_data_sealed::ToDataError,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
     unsafe {
-      self
+      let Some(res) = self
         .cast_local(|sd| {
           raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
-        })
-        .ok_or_else(DataError::no_data::<T>)
-        .and_then(|data| data.try_into())
+        }) else {
+          return Err(DataError::no_data::<T>());
+        };
+      use get_data_sealed::ToDataError;
+      match res.try_into() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(e.to_data_error()),
+      }
     }
   }
 
@@ -284,18 +314,22 @@ impl<'s> HandleScope<'s> {
   ) -> Result<Local<'s, T>, DataError>
   where
     T: 'static,
-    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
+      get_data_sealed::ToDataError,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
     unsafe {
-      self
+      let Some(res) = self
         .cast_local(|sd| {
-          raw::v8__Context__GetDataFromSnapshotOnce(
-            sd.get_current_context(),
-            index,
-          )
-        })
-        .ok_or_else(DataError::no_data::<T>)
-        .and_then(|data| data.try_into())
+          raw::v8__Context__GetDataFromSnapshotOnce(sd.get_current_context(), index)
+        }) else {
+          return Err(DataError::no_data::<T>());
+        };
+      use get_data_sealed::ToDataError;
+      match res.try_into() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(e.to_data_error()),
+      }
     }
   }
 
