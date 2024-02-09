@@ -10,6 +10,7 @@ on:
 
 jobs:
   build:
+    permissions: write-all
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 180
