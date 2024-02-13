@@ -70,6 +70,9 @@ default_args = {
   # fails to compile.
   v8_enable_maglev = false
 
+  # Enable V8 object print for debugging.
+  # v8_enable_object_print = true
+
   # Enable Deno-specific extra bindings
   deno_enable_extras = true
 }

@@ -2,11 +2,13 @@ use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
 use std::mem::MaybeUninit;
+use std::ptr::NonNull;
 use std::slice;
 
 use crate::support::char;
 use crate::support::int;
 use crate::support::size_t;
+use crate::support::Opaque;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
@@ -69,6 +71,14 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
+  fn v8__String__GetExternalStringResource(
+    this: *const String,
+  ) -> *mut ExternalStringResource;
+  fn v8__String__GetExternalStringResourceBase(
+    this: *const String,
+    encoding: *mut Encoding,
+  ) -> *mut ExternalOneByteStringResourceBase;
+
   fn v8__String__NewExternalOneByte(
     isolate: *mut Isolate,
     onebyte_const: *const OneByteConst,
@@ -94,6 +104,19 @@ extern "C" {
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
 }
+
+#[repr(C)]
+pub enum Encoding {
+  Unknown = 0,
+  OneByte = 1,
+  TwoByte = 2,
+}
+
+#[repr(C)]
+pub struct ExternalStringResource(Opaque);
+
+#[repr(C)]
+pub struct ExternalOneByteStringResourceBase(Opaque);
 
 #[repr(C)]
 #[derive(Debug)]
@@ -498,6 +521,27 @@ impl String {
         )
       })
     }
+  }
+
+  // Get the ExternalStringResource for an external string.
+  //
+  // Returns None if is_external() doesn't return true.
+  pub fn get_external_string_resource(
+    &self,
+  ) -> Option<NonNull<ExternalStringResource>> {
+    NonNull::new(unsafe { v8__String__GetExternalStringResource(self) })
+  }
+
+  pub fn get_external_string_resource_base(
+    &self,
+  ) -> (Option<NonNull<ExternalOneByteStringResourceBase>>, Encoding) {
+    let mut encoding = Encoding::Unknown;
+    (
+      NonNull::new(unsafe {
+        v8__String__GetExternalStringResourceBase(self, &mut encoding)
+      }),
+      encoding,
+    )
   }
 
   /// True if string is external
