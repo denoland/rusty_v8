@@ -1033,6 +1033,16 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
+const v8::String::ExternalStringResource* v8__String__GetExternalStringResource(
+	const v8::String& self) {
+  return self.GetExternalStringResource();
+}
+
+const v8::String::ExternalStringResourceBase* v8__String__GetExternalStringResourceBase(
+	const v8::String& self, v8::String::Encoding* encoding_out) {
+  return self.GetExternalStringResourceBase(encoding_out);
+}
+
 class ExternalStaticOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
