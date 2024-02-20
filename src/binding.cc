@@ -3075,7 +3075,7 @@ int v8__ModuleRequest__GetSourceOffset(const v8::ModuleRequest& self) {
 
 const v8::FixedArray* v8__ModuleRequest__GetImportAssertions(
     const v8::ModuleRequest& self) {
-  return local_to_ptr(self.GetImportAssertions());
+  return local_to_ptr(self.GetImportAttributes());
 }
 
 struct WasmStreamingSharedPtr {
