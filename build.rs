@@ -161,9 +161,9 @@ fn build_v8() {
     gn_args.push("is_clang=false".to_string());
     gn_args.push("treat_warnings_as_errors=false".to_string());
     gn_args.push("line_tables_only=false".to_string());
-    gn_args.push(format!("use_gold=false"));
-    gn_args.push(format!("use_sysroot=false"));
-    gn_args.push(format!("use_lld=false"));
+    gn_args.push("use_gold=false".to_string());
+    gn_args.push("use_sysroot=false".to_string());
+    gn_args.push("use_lld=false".to_string());
     gn_args.push("v8_static_library=true".to_string());
     gn_args.push("clang_use_chrome_plugins=false".to_string());
     gn_args.push(format!(
@@ -175,7 +175,7 @@ fn build_v8() {
     let target = std::env::var("TARGET").unwrap();
     env::set_var("TOOLCHAIN", toolchain.join("bin").display().to_string());
     env::set_var(
-      format!("CC_{}", target.replace("-", "_")),
+      format!("CC_{}", target.replace('-', "_")),
       format!(
         "{}/bin/{}-cc",
         toolchain.display(),
