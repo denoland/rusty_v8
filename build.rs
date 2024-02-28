@@ -190,9 +190,20 @@ fn build_v8(is_asan: bool) {
   } else {
     vec!["is_debug=false".to_string()]
   };
+
   if is_asan {
     gn_args.push("is_asan=true".to_string());
   }
+
+  if std::env::var("CARGO_CFG_TARGET_ENV").map_or(false, |e| e == "musl") {
+    build_musl_cross_make();
+
+    gn_args.push("use_custom_libcxx=true".to_string());
+    gn_args.push("is_clang=false".to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    gn_args.push("line_tables_only=false".to_string());
+  }
+
   if env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_err() {
     gn_args.push("use_custom_libcxx=false".to_string());
   }
@@ -404,6 +415,30 @@ fn static_lib_name(suffix: &str) -> String {
   } else {
     format!("librusty_v8{suffix}.a")
   }
+}
+
+fn build_musl_cross_make() {
+  let toolchain_dir = build_dir().join("musl-cross-make");
+  if toolchain_dir.exists() {
+    println!("musl-cross-make toolchain already exists, skipping build");
+  }
+
+  std::fs::copy("config.mak", "musl-cross-make/config.mak").unwrap();
+  Command::new("make")
+    .arg("-C")
+    .arg("musl-cross-make")
+    .arg("TARGET=x86_64-linux-musl")
+    .status()
+    .unwrap();
+
+  Command::new("make")
+    .arg("-C")
+    .arg("musl-cross-make")
+    .arg("TARGET=x86_64-linux-musl")
+    .arg("install")
+    .arg(format!("OUTPUT={}", toolchain_dir.display()))
+    .status()
+    .unwrap();
 }
 
 fn static_lib_url() -> String {

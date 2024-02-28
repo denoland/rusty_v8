@@ -37,3 +37,6 @@
 [submodule "third_party/fast_float/src"]
 	path = third_party/fast_float/src
 	url = https://chromium.googlesource.com/external/github.com/fastfloat/fast_float.git
+[submodule "musl-cross-make"]
+	path = musl-cross-make
+	url = https://github.com/richfelker/musl-cross-make.git
