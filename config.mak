@@ -1,5 +1,5 @@
-MUSL_VER = 1.1.24
-GCC_VER  = 9.2.0
+MUSL_VER = 1.2.4
+GCC_VER  = 11.2.0
 
 GCC_CONFIG += --enable-default-pie
 

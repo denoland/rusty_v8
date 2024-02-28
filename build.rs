@@ -123,15 +123,6 @@ fn build_v8() {
     vec!["is_debug=false".to_string()]
   };
 
-  if std::env::var("CARGO_CFG_TARGET_ENV").map_or(false, |e| e == "musl") {
-    build_musl_cross_make();
-
-    gn_args.push("use_custom_libcxx=true".to_string());
-    gn_args.push("is_clang=false".to_string());
-    gn_args.push("treat_warnings_as_errors=false".to_string());
-    gn_args.push("line_tables_only=false".to_string());
-  }
-
   if cfg!(not(feature = "use_custom_libcxx")) {
     gn_args.push("use_custom_libcxx=false".to_string());
   }
@@ -157,6 +148,40 @@ fn build_v8() {
     if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
       gn_args.push("treat_warnings_as_errors=false".to_string());
     }
+  }
+
+  if std::env::var("CARGO_CFG_TARGET_ENV").map_or(false, |e| e == "musl") {
+    let toolchain = build_musl_cross_make();
+
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let manifest_dir = Path::new(&manifest_dir).join("toolchain");
+    let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+
+    gn_args.push("use_custom_libcxx=false".to_string());
+    gn_args.push("is_clang=false".to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    gn_args.push("line_tables_only=false".to_string());
+    gn_args.push(format!("use_gold=false"));
+    gn_args.push(format!("use_sysroot=false"));
+    gn_args.push(format!("use_lld=false"));
+    gn_args.push("v8_static_library=true".to_string());
+    gn_args.push("clang_use_chrome_plugins=false".to_string());
+    gn_args.push(format!(
+      "custom_toolchain=\"{}:{}\"",
+      manifest_dir.display(),
+      arch
+    ));
+
+    let target = std::env::var("TARGET").unwrap();
+    env::set_var("TOOLCHAIN", toolchain.join("bin").display().to_string());
+    env::set_var(
+      format!("CC_{}", target.replace("-", "_")),
+      format!(
+        "{}/bin/{}-cc",
+        toolchain.display(),
+        target.replace("-unknown-", "-")
+      ),
+    );
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
@@ -319,10 +344,11 @@ fn download_ninja_gn_binaries() {
   env::set_var("NINJA", ninja);
 }
 
-fn build_musl_cross_make() {
+fn build_musl_cross_make() -> PathBuf {
   let toolchain_dir = build_dir().join("musl-cross-make");
   if toolchain_dir.exists() {
     println!("musl-cross-make toolchain already exists, skipping build");
+    return toolchain_dir;
   }
 
   std::fs::copy("config.mak", "musl-cross-make/config.mak").unwrap();
@@ -341,6 +367,8 @@ fn build_musl_cross_make() {
     .arg(format!("OUTPUT={}", toolchain_dir.display()))
     .status()
     .unwrap();
+
+  toolchain_dir
 }
 
 fn static_lib_url() -> String {
