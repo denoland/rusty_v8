@@ -43,6 +43,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             variant: release
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: release
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2019-xxl' || 'windows-2019' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -83,6 +87,10 @@ jobs:
         with:
           python-version: 3.11.x
           architecture: x64
+
+      - name: Install cross compilation toolchain (musl)
+        if: endsWith(matrix.config.target, '-musl')
+        run: rustup target add ${{ matrix.config.target }}
 
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
