@@ -121,7 +121,7 @@ jobs:
           key:
             cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys:
-            cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-
+            cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-1
 
         # It seems that the 'target' directory does not always get restored
         # from cache correctly on MacOS. In the build log we see the following:
