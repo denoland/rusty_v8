@@ -193,6 +193,11 @@ jobs:
           curl -O http://commondatastorage.googleapis.com/chromium-browser-clang-staging/Mac/dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
           tar -C tools/clang/dsymutil/ -xvzf dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
           V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std test --lib --bins --tests -vv --target ${{ matrix.config.target }}
+      - name: Build Musl
+        if: matrix.config.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          docker run -v "$PWD":/usr/src/rusty_v8 -w /usr/src/rusty_v8 rust:alpine3.16 ./musl-build.sh
+          cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_x86_64-unknown-linux-musl.a
 
       - name: Test
         env:
@@ -206,12 +211,6 @@ jobs:
         run:
           ${{ matrix.config.cargo }} clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }} -- -D clippy::all
-
-      - name: Build Musl
-        if: matrix.config.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          docker run -v "$PWD":/usr/src/rusty_v8 -w /usr/src/rusty_v8 rust:alpine3.16 ./musl-build.sh
-          cp target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_x86_64-unknown-linux-musl.a
 
       - name: Rustfmt
         run: cargo fmt -- --check
