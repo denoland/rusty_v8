@@ -31,5 +31,5 @@ if [ ! -d "./gn" ]; then
     )
 fi
 
-# Build rusty_v8
-cargo build -vv
+# Build rusty_v8 and pass through the arguments
+cargo build -vv $@
