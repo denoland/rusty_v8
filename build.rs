@@ -247,6 +247,8 @@ fn build_v8(is_asan: bool) {
     gn_args.push("use_lld=false".to_string());
     gn_args.push("v8_static_library=true".to_string());
     gn_args.push("clang_use_chrome_plugins=false".to_string());
+    // execinfo. is not available in musl
+    gn_args.push("is_debug=false".to_string());
     gn_args.push(format!(
       "custom_toolchain=\"{}:{}\"",
       manifest_dir.display(),
