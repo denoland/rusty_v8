@@ -263,8 +263,7 @@ fn test_string() {
     assert_eq!(15, local.length());
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
-    let mut vec = Vec::new();
-    vec.resize(17, 0);
+    let mut vec = vec![0; 17];
     let options = v8::WriteOptions::NO_NULL_TERMINATION;
     let mut nchars = 0;
     assert_eq!(
@@ -705,8 +704,8 @@ fn get_isolate_from_handle() {
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
 
-  check_handle(scope, None, |s| v8::null(s));
-  check_handle(scope, None, |s| v8::undefined(s));
+  check_handle(scope, None, v8::null);
+  check_handle(scope, None, v8::undefined);
   check_handle(scope, None, |s| v8::Boolean::new(s, true));
   check_handle(scope, None, |s| v8::Boolean::new(s, false));
   check_handle(scope, None, |s| v8::String::new(s, "").unwrap());
@@ -878,13 +877,13 @@ fn array_buffer() {
     data[0] = 1;
     let unique_bs =
       v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
-    assert_eq!(unique_bs.get(0).unwrap().get(), 1);
+    assert_eq!(unique_bs.first().unwrap().get(), 1);
     assert_eq!(unique_bs.get(15).unwrap().get(), 100);
 
     let ab =
       v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
     assert_eq!(ab.byte_length(), 16);
-    assert_eq!(ab.get_backing_store().get(0).unwrap().get(), 1);
+    assert_eq!(ab.get_backing_store().first().unwrap().get(), 1);
   }
 }
 
@@ -1001,7 +1000,7 @@ fn deref_empty_backing_store() {
 
   let backing_store = v8::ArrayBuffer::new_backing_store(isolate, 0);
   let slice: &[std::cell::Cell<u8>] = &backing_store;
-  assert!(!slice.as_ptr().is_null());
+  assert!(!std::hint::black_box(slice.as_ptr()).is_null());
 }
 
 fn eval<'s>(
@@ -4203,6 +4202,7 @@ fn promise_reject_callback_no_value() {
 }
 
 #[test]
+#[allow(clippy::clone_on_copy)]
 fn promise_hook() {
   extern "C" fn hook(
     type_: v8::PromiseHookType,
@@ -4210,8 +4210,8 @@ fn promise_hook() {
     _parent: v8::Local<v8::Value>,
   ) {
     // Check that PromiseHookType implements Clone and PartialEq.
-    #[allow(clippy::clone_on_copy)]
-    if type_.clone() == v8::PromiseHookType::Init {}
+    _ = type_.clone() == v8::PromiseHookType::Init;
+
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
     let context = promise.get_creation_context(scope).unwrap();
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -5468,8 +5468,8 @@ fn snapshot_creator_multiple_contexts() {
 fn external_references() {
   let _setup_guard = setup::sequential_test();
   // Allocate externals for the test.
-  let external_ptr = Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice())
-    as *mut [u8] as *mut c_void;
+  let external_ptr =
+    Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice()) as *mut c_void;
   // Push them to the external reference table.
   let refs = [
     v8::ExternalReference {
@@ -7683,16 +7683,13 @@ fn bigint() {
 
   let raw_b = v8::Local::<v8::BigInt>::try_from(raw_b).unwrap();
 
-  let mut vec = Vec::new();
-  vec.resize(raw_b.word_count(), 0);
+  let mut vec = vec![0; raw_b.word_count()];
   assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
 
-  let mut vec = Vec::new();
-  vec.resize(1, 0);
+  let mut vec = vec![0; 1];
   assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10][..]));
 
-  let mut vec = Vec::new();
-  vec.resize(20, 1337);
+  let mut vec = vec![1337, 20];
   assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
 }
 
@@ -8415,7 +8412,7 @@ fn run_with_rust_allocator() {
 
   unsafe extern "C" fn allocate(count: &AtomicUsize, n: usize) -> *mut c_void {
     count.fetch_add(n, Ordering::SeqCst);
-    Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut [u8] as *mut c_void
+    Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut c_void
   }
   unsafe extern "C" fn allocate_uninitialized(
     count: &AtomicUsize,
@@ -8443,7 +8440,7 @@ fn run_with_rust_allocator() {
     let copy_len = oldlen.min(newlen);
     new_store.extend_from_slice(&old_store[..copy_len]);
     new_store.resize(newlen, 0u8);
-    Box::into_raw(new_store.into_boxed_slice()) as *mut [u8] as *mut c_void
+    Box::into_raw(new_store.into_boxed_slice()) as *mut c_void
   }
   unsafe extern "C" fn drop(count: *const AtomicUsize) {
     Arc::from_raw(count);

@@ -1361,6 +1361,9 @@ pub(crate) struct IsolateAnnex {
   isolate_mutex: Mutex<()>,
 }
 
+unsafe impl Send for IsolateAnnex {}
+unsafe impl Sync for IsolateAnnex {}
+
 impl IsolateAnnex {
   fn new(
     isolate: &mut Isolate,
@@ -1394,9 +1397,6 @@ impl Debug for IsolateAnnex {
 /// IsolateHandle is Cloneable, Send, and Sync.
 #[derive(Clone, Debug)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
-
-unsafe impl Send for IsolateHandle {}
-unsafe impl Sync for IsolateHandle {}
 
 impl IsolateHandle {
   // This function is marked unsafe because it must be called only with either

@@ -34,7 +34,6 @@ impl UnboundScript {
     let code_cache = unsafe {
       UniqueRef::try_from_raw(v8__UnboundScript__CreateCodeCache(self))
     };
-    #[cfg(debug_assertions)]
     if let Some(code_cache) = &code_cache {
       debug_assert_eq!(
         code_cache.buffer_policy(),

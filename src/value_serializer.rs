@@ -488,11 +488,7 @@ impl<'a, 's> ValueSerializer<'a, 's> {
         &mut ptr,
         &mut size,
       );
-      Vec::from_raw_parts(
-        ptr as *mut u8,
-        size,
-        self.value_serializer_heap.buffer_size,
-      )
+      Vec::from_raw_parts(ptr, size, self.value_serializer_heap.buffer_size)
     }
   }
 

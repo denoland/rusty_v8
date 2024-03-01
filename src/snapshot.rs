@@ -66,9 +66,9 @@ impl Drop for StartupData {
 impl Deref for StartupData {
   type Target = [u8];
   fn deref(&self) -> &Self::Target {
-    let data = self.data as *const u8;
+    let data = self.data;
     let len = usize::try_from(self.raw_size).unwrap();
-    unsafe { std::slice::from_raw_parts(data, len) }
+    unsafe { std::slice::from_raw_parts(data as _, len) }
   }
 }
 

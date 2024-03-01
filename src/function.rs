@@ -957,7 +957,6 @@ impl Function {
   pub fn create_code_cache(&self) -> Option<UniqueRef<CachedData<'static>>> {
     let code_cache =
       unsafe { UniqueRef::try_from_raw(v8__Function__CreateCodeCache(self)) };
-    #[cfg(debug_assertions)]
     if let Some(code_cache) = &code_cache {
       debug_assert_eq!(
         code_cache.buffer_policy(),
