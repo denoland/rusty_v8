@@ -9000,6 +9000,7 @@ fn external_strings() {
   assert!(latin1.contains_only_onebyte());
 
   // one-byte "const" test
+  assert_eq!(EXAMPLE_STRING.as_bytes(), b"const static");
   let const_ref_string =
     v8::String::new_from_onebyte_const(scope, &EXAMPLE_STRING).unwrap();
   assert!(const_ref_string.is_external());
