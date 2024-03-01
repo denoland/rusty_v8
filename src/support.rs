@@ -514,7 +514,7 @@ impl<F> Copy for FieldOffset<F> {}
 
 impl<F> Clone for FieldOffset<F> {
   fn clone(&self) -> Self {
-    Self(self.0, self.1)
+    *self
   }
 }
 

@@ -287,12 +287,11 @@ impl<'s> HandleScope<'s> {
     for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
     unsafe {
-      let Some(res) = self
-        .cast_local(|sd| {
-          raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
-        }) else {
-          return Err(DataError::no_data::<T>());
-        };
+      let Some(res) = self.cast_local(|sd| {
+        raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
+      }) else {
+        return Err(DataError::no_data::<T>());
+      };
       use get_data_sealed::ToDataError;
       match res.try_into() {
         Ok(x) => Ok(x),
@@ -319,12 +318,14 @@ impl<'s> HandleScope<'s> {
     for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
     unsafe {
-      let Some(res) = self
-        .cast_local(|sd| {
-          raw::v8__Context__GetDataFromSnapshotOnce(sd.get_current_context(), index)
-        }) else {
-          return Err(DataError::no_data::<T>());
-        };
+      let Some(res) = self.cast_local(|sd| {
+        raw::v8__Context__GetDataFromSnapshotOnce(
+          sd.get_current_context(),
+          index,
+        )
+      }) else {
+        return Err(DataError::no_data::<T>());
+      };
       use get_data_sealed::ToDataError;
       match res.try_into() {
         Ok(x) => Ok(x),
