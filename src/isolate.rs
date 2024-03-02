@@ -386,7 +386,7 @@ extern "C" {
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     this: *mut Isolate,
-    caputre: bool,
+    capture: bool,
     frame_limit: i32,
   );
   fn v8__Isolate__AddMessageListener(
