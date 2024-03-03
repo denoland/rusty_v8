@@ -158,6 +158,10 @@ pub struct Global<T> {
   isolate_handle: IsolateHandle,
 }
 
+// Globals can go between threads as long as a locker was used to acquire a SharedIsolate.
+unsafe impl<T> Send for Global<T> {}
+unsafe impl<T> Sync for Global<T> {}
+
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
   #[inline(always)]

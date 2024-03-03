@@ -7,6 +7,7 @@ use crate::handle::FinalizerCallback;
 use crate::handle::FinalizerMap;
 use crate::isolate_create_params::raw;
 use crate::isolate_create_params::CreateParams;
+use crate::locker::Locker;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::snapshot::SnapshotCreator;
@@ -41,6 +42,7 @@ use crate::Value;
 
 use std::any::Any;
 use std::any::TypeId;
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
@@ -1499,6 +1501,62 @@ impl IsolateHandle {
   }
 }
 
+/// An isolate that can be shared between threads,
+/// only one thread can access the isolate at a time via a locker.
+pub struct SharedIsolate {
+  // We wrap an owned isolate to persist the cleanup operations of an owned isolate.
+  // Lockers having a lifetime parameter ensures this can only be cleaned up after all lockers are dropped.
+  isolate: UnsafeCell<OwnedIsolate>,
+}
+
+// OwnedIsolate doesn't support send and sync, but we're guarding them with lockers.
+unsafe impl Send for SharedIsolate {}
+unsafe impl Sync for SharedIsolate {}
+
+impl SharedIsolate {
+  /// Consume an isolate, allowing it to be shared between threads as threads take a locker to the isolate.
+  pub fn new(mut isolate: OwnedIsolate) -> Self {
+    // Exit the isolate as any access to it requires a lock, which will enter the isolate.
+    // This should be OK because scoped objects will already need to be cleaned up,
+    // as the isolate was moved into this method, not borrowed.
+    unsafe { isolate.exit() };
+    Self {
+      isolate: UnsafeCell::new(isolate),
+    }
+  }
+
+  fn internal_unsafe_isolate_mut(&self) -> &mut Isolate {
+    unsafe { &mut *self.isolate.get() }
+  }
+
+  fn internal_unsafe_isolate(&self) -> &Isolate {
+    unsafe { &*self.isolate.get() }
+  }
+
+  /// Acquire a lock on the isolate, this allows the current thread to use the isolate.
+  /// Threads attempting to lock an already locked isolate will block.
+  pub fn lock(&self) -> Locker {
+    Locker::new(self.internal_unsafe_isolate_mut())
+  }
+
+  /// Gets if the shared isolate is locked by the current thread.
+  pub fn is_locked(&self) -> bool {
+    Locker::is_locked(self.internal_unsafe_isolate())
+  }
+
+  /// Gets a thread safe handle to the isolate, this can be done without acquiring a lock on the isolate.
+  pub fn thread_safe_handle(&self) -> IsolateHandle {
+    self.internal_unsafe_isolate().thread_safe_handle()
+  }
+}
+
+impl Drop for SharedIsolate {
+  fn drop(&mut self) {
+    // Enter the isolate, as the inner owned isolate can be cleaned up in an entered context.
+    unsafe { self.internal_unsafe_isolate_mut().enter() };
+  }
+}
+
 /// Same as Isolate but gets disposed when it goes out of scope.
 #[derive(Debug)]
 pub struct OwnedIsolate {
@@ -1576,6 +1634,16 @@ impl OwnedIsolate {
     // here as the snapshot creator will drop it when running the destructor.
     std::mem::forget(self);
     snapshot_creator.create_blob(function_code_handling)
+  }
+
+  /// Converts this isolate to an isolate that can be shared via the locker api.
+  pub fn to_shared(self) -> SharedIsolate {
+    SharedIsolate::new(self)
+  }
+
+  /// If this isolate is currently locked by the locker api to the current thread.
+  pub fn is_locked(&self) -> bool {
+    Locker::is_locked(self)
   }
 }
 
