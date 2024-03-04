@@ -98,8 +98,8 @@ fn single_isolate_cross_thread_operation_spam(isolate: Arc<v8::SharedIsolate>) {
     .map(|h| h.join().unwrap())
     .collect::<Vec<_>>();
 
-  for val in 0..100 {
-    assert_eq!(val as f64, numbers[val]);
+  for (val, item) in numbers.iter().enumerate() {
+    assert_eq!(val as f64, *item);
   }
 }
 
