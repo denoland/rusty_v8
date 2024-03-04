@@ -1530,6 +1530,7 @@ impl SharedIsolate {
     }
   }
 
+  #[allow(clippy::mut_from_ref)]
   fn internal_unsafe_isolate_mut(&self) -> &mut Isolate {
     unsafe { &mut *self.isolate.get() }
   }

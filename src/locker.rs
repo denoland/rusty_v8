@@ -28,12 +28,12 @@ impl<'a> Locker<'a> {
 
   /// Returns a reference to the locked isolate.
   pub fn isolate(&self) -> &Isolate {
-    &self.locked
+    self.locked
   }
 
   /// Returns a mutable reference to the locked isolate.
   pub fn isolate_mut(&mut self) -> &mut Isolate {
-    &mut self.locked
+    self.locked
   }
 
   /// Returns if the isolate is locked by the current thread.
