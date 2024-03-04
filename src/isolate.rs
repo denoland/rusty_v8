@@ -1499,6 +1499,11 @@ impl IsolateHandle {
       true
     }
   }
+
+  /// If this isolate is currently locked by the locker api to the current thread.
+  pub fn is_locked(&self) -> bool {
+    Locker::is_locked(unsafe { &*self.0.isolate })
+  }
 }
 
 /// An isolate that can be shared between threads,
@@ -1639,11 +1644,6 @@ impl OwnedIsolate {
   /// Converts this isolate to an isolate that can be shared via the locker api.
   pub fn to_shared(self) -> SharedIsolate {
     SharedIsolate::new(self)
-  }
-
-  /// If this isolate is currently locked by the locker api to the current thread.
-  pub fn is_locked(&self) -> bool {
-    Locker::is_locked(self)
   }
 }
 
