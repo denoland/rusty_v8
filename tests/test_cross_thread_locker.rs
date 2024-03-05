@@ -48,7 +48,7 @@ where
 #[test]
 fn isolate_passed_between_threads_with_locker() {
   initialize_test();
-  let isolate = Arc::new(v8::Isolate::new(Default::default()).to_shared());
+  let isolate = Arc::new(v8::Isolate::new_shared(Default::default()));
 
   let global = spawn_thread_with_scope(&isolate, move |scope| {
     let name = v8::String::new(scope, "Thread 1 value").unwrap();
@@ -110,12 +110,12 @@ fn mass_spam_isolate() {
   // This is done multiple times to verify that disposal of an isolate doesn't raise errors.
   let t1 = thread::spawn(|| {
     single_isolate_cross_thread_operation_spam(Arc::new(
-      v8::Isolate::new(Default::default()).to_shared(),
+      v8::Isolate::new_shared(Default::default()),
     ));
   });
   let t2 = thread::spawn(|| {
     single_isolate_cross_thread_operation_spam(Arc::new(
-      v8::Isolate::new(Default::default()).to_shared(),
+      v8::Isolate::new_shared(Default::default()),
     ));
   });
   t1.join().unwrap();

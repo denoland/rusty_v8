@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::isolate::Isolate;
+use crate::scope::data::ScopeData;
 use crate::support::Opaque;
 
 #[repr(C)]
@@ -16,12 +17,13 @@ pub struct Locker<'a> {
 }
 
 impl<'a> Locker<'a> {
-  /// Claims the isolate, this should only be used from other lockers, or from a shared isolate.
+  /// Claims the isolate, this should only be used from a shared isolate.
   pub(crate) fn new(isolate: &'a mut Isolate) -> Self {
     let s = Self {
       _lock: raw::Locker::new(isolate),
       locked: isolate,
     };
+    ScopeData::new_root(s.locked);
     unsafe { s.locked.enter() };
     s
   }
@@ -46,6 +48,7 @@ impl<'a> Drop for Locker<'a> {
   fn drop(&mut self) {
     // A new locker automatically enters the isolate, so be sure to exit the isolate when the locker is exited.
     unsafe { self.exit() };
+    ScopeData::drop_root(self);
   }
 }
 
