@@ -8670,7 +8670,7 @@ fn create_module<'s>(
     true,
   );
   let has_cache = code_cache.is_some();
-  let source = match code_cache {
+  let mut source = match code_cache {
     Some(x) => v8::script_compiler::Source::new_with_cached_data(
       source,
       Some(&script_origin),
@@ -8678,14 +8678,18 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
-  assert_eq!(source.get_cached_data().is_some(), has_cache);
-  let module = v8::script_compiler::compile_module2(
+  let module = v8::script_compiler::compile_module3(
     scope,
-    source,
+    &mut source,
     options,
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
+  let code_cache = source.get_cached_data();
+  assert_eq!(code_cache.is_some(), has_cache);
+  if let Some(code_cache) = code_cache {
+    assert!(!code_cache.rejected());
+  }
   module
 }
 

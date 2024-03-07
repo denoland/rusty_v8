@@ -118,6 +118,11 @@ impl<'a> CachedData<'a> {
   pub(crate) fn buffer_policy(&self) -> BufferPolicy {
     self.buffer_policy
   }
+
+  #[inline(always)]
+  pub fn rejected(&self) -> bool {
+    self.rejected
+  }
 }
 
 impl<'a> std::ops::Deref for CachedData<'a> {
@@ -245,11 +250,22 @@ pub fn compile_module2<'s>(
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'s, Module>> {
+  compile_module3(scope, &mut source, options, no_cache_reason)
+}
+
+/// Same as compile_module2, but source is passed as a mutable reference.
+#[inline(always)]
+pub fn compile_module3<'s>(
+  scope: &mut HandleScope<'s>,
+  source: &mut Source,
+  options: CompileOptions,
+  no_cache_reason: NoCacheReason,
+) -> Option<Local<'s, Module>> {
   unsafe {
     scope.cast_local(|sd| {
       v8__ScriptCompiler__CompileModule(
         sd.get_isolate_ptr(),
-        &mut source,
+        source,
         options,
         no_cache_reason,
       )
