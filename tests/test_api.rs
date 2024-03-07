@@ -8678,7 +8678,7 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
-  let module = v8::script_compiler::compile_module3(
+  let module = v8::script_compiler::compile_module2(
     scope,
     &mut source,
     options,

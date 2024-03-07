@@ -232,11 +232,11 @@ pub enum NoCacheReason {
 #[inline(always)]
 pub fn compile_module<'s>(
   scope: &mut HandleScope<'s>,
-  source: Source,
+  mut source: Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
     scope,
-    source,
+    &mut source,
     CompileOptions::NoCompileOptions,
     NoCacheReason::NoReason,
   )
@@ -245,17 +245,6 @@ pub fn compile_module<'s>(
 /// Same as compile_module with more options.
 #[inline(always)]
 pub fn compile_module2<'s>(
-  scope: &mut HandleScope<'s>,
-  mut source: Source,
-  options: CompileOptions,
-  no_cache_reason: NoCacheReason,
-) -> Option<Local<'s, Module>> {
-  compile_module3(scope, &mut source, options, no_cache_reason)
-}
-
-/// Same as compile_module2, but source is passed as a mutable reference.
-#[inline(always)]
-pub fn compile_module3<'s>(
   scope: &mut HandleScope<'s>,
   source: &mut Source,
   options: CompileOptions,
