@@ -72,6 +72,8 @@ default_args = {
 
   # Enable V8 object print for debugging.
   # v8_enable_object_print = true
+  
+  v8_enable_builtins_optimization = true
 
   # Enable Deno-specific extra bindings
   deno_enable_extras = true

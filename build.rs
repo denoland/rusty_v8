@@ -114,6 +114,9 @@ fn build_v8() {
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
   }
+  if need_pgo_data_download() {
+    download_v8_pgo_data();
+  }
 
   // On windows, rustc cannot link with a V8 debug build.
   let mut gn_args = if is_debug() && !cfg!(target_os = "windows") {
@@ -308,6 +311,33 @@ fn download_ninja_gn_binaries() {
   assert!(ninja.exists());
   env::set_var("GN", gn);
   env::set_var("NINJA", ninja);
+}
+
+fn download_v8_pgo_data() {
+  // Update $PATH to include depot_tools
+  //
+  // required for vpython3 to work.
+  env::set_var(
+    "PATH",
+    format!(
+      "{}:{}",
+      env::var("PATH").unwrap(),
+      std::env::current_dir()
+        .unwrap()
+        .join("depot_tools")
+        .to_str()
+        .unwrap()
+    ),
+  );
+  println!("Downloading PGO data");
+  assert!(Command::new(python())
+    .arg("./v8/tools/builtins-pgo/download_profiles.py")
+    .arg("download")
+    .arg("--depot-tools")
+    .arg("./depot_tools")
+    .status()
+    .unwrap()
+    .success());
 }
 
 fn static_lib_url() -> String {
@@ -531,6 +561,11 @@ fn need_gn_ninja_download() -> bool {
     || env::var_os("GN").is_some();
 
   !has_ninja || !has_gn
+}
+
+fn need_pgo_data_download() -> bool {
+  let pgo_data = Path::new("v8/tools/builtins-pgo/profiles/x64.profile");
+  !pgo_data.exists()
 }
 
 // Chromiums gn arg clang_base_path is currently compatible with:
