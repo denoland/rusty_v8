@@ -4693,7 +4693,7 @@ fn module_instantiation_failures1() {
     let loc = module.source_offset_to_location(mr1.get_source_offset());
     assert_eq!(0, loc.get_line_number());
     assert_eq!(7, loc.get_column_number());
-    assert_eq!(0, mr1.get_import_attributes().length());
+    assert_eq!(0, mr1.get_import_assertions().length());
 
     let mr2 = v8::Local::<v8::ModuleRequest>::try_from(
       module_requests.get(scope, 1).unwrap(),
@@ -4703,7 +4703,7 @@ fn module_instantiation_failures1() {
     let loc = module.source_offset_to_location(mr2.get_source_offset());
     assert_eq!(1, loc.get_line_number());
     assert_eq!(15, loc.get_column_number());
-    assert_eq!(0, mr2.get_import_attributes().length());
+    assert_eq!(0, mr2.get_import_assertions().length());
 
     // Instantiation should fail.
     {
