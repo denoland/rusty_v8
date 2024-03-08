@@ -330,6 +330,7 @@ fn download_v8_pgo_data() {
     ),
   );
   println!("Downloading PGO data");
+  #[cfg(not(target_os = "windows"))]
   assert!(Command::new(python())
     .arg("./v8/tools/builtins-pgo/download_profiles.py")
     .arg("download")
