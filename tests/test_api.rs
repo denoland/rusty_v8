@@ -4,7 +4,7 @@ use std::any::type_name;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
 use std::ffi::CStr;
@@ -4525,6 +4525,57 @@ fn security_token() {
       assert!(exc.contains("no access"));
       assert!(result.is_none());
     }
+  }
+}
+
+#[test]
+fn context_with_object_template() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  static mut CALLS: Vec<String> = Vec::new();
+
+  fn definer<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _key: v8::Local<'s, v8::Name>,
+    _descriptor: &v8::PropertyDescriptor,
+    _args: v8::PropertyCallbackArguments<'s>,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      CALLS.push("definer".to_string());
+    }
+  }
+
+  pub fn setter<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _key: v8::Local<'s, v8::Name>,
+    _value: v8::Local<'s, v8::Value>,
+    _args: v8::PropertyCallbackArguments<'s>,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      CALLS.push("setter".to_string());
+    }
+  }
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let object_template = v8::ObjectTemplate::new(scope);
+    let mut config = v8::NamedPropertyHandlerConfiguration::new().flags(
+      v8::PropertyHandlerFlags::NON_MASKING
+        | v8::PropertyHandlerFlags::HAS_NO_SIDE_EFFECT,
+    );
+    config = config.definer_raw(definer.map_fn_to());
+    config = config.setter_raw(setter.map_fn_to());
+    object_template.set_named_property_handler(config);
+    let context = v8::Context::new_from_template(scope, object_template);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, r#"Object.defineProperty(globalThis, 'key', { value: 9, enumerable: true, configurable: true, writable: true })"#).unwrap();
+    let calls_set =
+      unsafe { CALLS.clone().into_iter().collect::<HashSet<String>>() };
+    assert!(calls_set.contains("setter"));
+    assert!(calls_set.contains("definer"));
   }
 }
 
