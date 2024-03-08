@@ -72,18 +72,6 @@ default_args = {
 
   # Enable V8 object print for debugging.
   # v8_enable_object_print = true
-  
-  # V8 12.3 added google/fuzztest as a third party dependency.
-  # https://chromium.googlesource.com/v8/v8.git/+/d5acece0c9b89b18716c177d1fcc8f734191e1e2%5E%21/#F4
-  #
-  # This flag disables it.
-  v8_enable_fuzztest = false
-
-  # Disable v8::HandleScope LIFO checks.
-  # https://chromium-review.googlesource.com/c/v8/v8/+/5110566
-  #
-  # rusty_v8 scopes are not on the stack.
-  v8_enable_v8_checks = false
 
   # Enable Deno-specific extra bindings
   deno_enable_extras = true
