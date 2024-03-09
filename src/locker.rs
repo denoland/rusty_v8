@@ -9,6 +9,9 @@ use crate::support::Opaque;
 struct LockerHandle(Opaque);
 
 /// A handle to a shared isolate, allowing access to the isolate in a thread safe way.
+///
+/// Unlike V8 isolates, these do not currently support re-entrancy.
+/// Do not create multiple lockers to the same isolate in the same thread.
 #[derive(Debug)]
 pub struct Locker<'a> {
   _lock: raw::Locker,

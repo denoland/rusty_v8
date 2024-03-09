@@ -595,6 +595,10 @@ impl Isolate {
     OwnedIsolate::new(Self::new_impl(params))
   }
 
+  /// Creates a new isolate that can be accessed via lockers.
+  ///
+  /// Unlike V8 isolates, these do not currently support re-entrancy.
+  /// Do not create multiple lockers to the same isolate in the same thread.
   pub fn new_shared(params: CreateParams) -> SharedIsolate {
     SharedIsolate::new(Self::new_impl(params))
   }
@@ -1552,8 +1556,12 @@ impl SharedIsolate {
   /// Acquire a lock on the isolate, this allows the current thread to use the isolate.
   /// Threads attempting to lock an already locked isolate will block.
   ///
-  /// Unlike the C++ api, lockers are not re-entrant.
+  /// Unlike V8 lockers, these do not currently support re-entrancy.
+  /// Do not create multiple lockers to the same isolate in the same thread.
   pub fn lock(&self) -> Locker {
+    // Only lock if the isolate is not currently locked in the current thread.
+    // Re-entrant lockers may be supported later.
+    assert!(!self.is_locked());
     Locker::new(self.internal_unsafe_isolate_mut())
   }
 
