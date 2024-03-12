@@ -4902,6 +4902,9 @@ fn module_stalled_top_level_await() {
 
 #[test]
 fn import_assertions() {
+  use std::sync::atomic::AtomicUsize;
+  use std::sync::atomic::Ordering;
+
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
@@ -4954,6 +4957,20 @@ fn import_assertions() {
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
+  // TODO(@littledivy): this won't work when V8 removes `assert`.
+  static COUNTER: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _msg: v8::Local<v8::Message>,
+    _: v8::Local<v8::Value>,
+  ) {
+    COUNTER.fetch_add(1, Ordering::SeqCst);
+  }
+
+  isolate.add_message_listener_with_error_level(
+    callback,
+    v8::MessageErrorLevel::ALL,
+  );
+
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
@@ -4979,6 +4996,8 @@ fn import_assertions() {
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
+
+  assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
 
 #[test]
