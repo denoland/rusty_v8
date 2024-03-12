@@ -119,6 +119,19 @@ pub enum GarbageCollectionType {
 
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
 
+bitflags! {
+  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+  #[repr(transparent)]
+  pub struct MessageErrorLevel: int {
+    const LOG = 1 << 0;
+    const DEBUG = 1 << 1;
+    const INFO = 1 << 2;
+    const ERROR = 1 << 3;
+    const WARNING = 1 << 4;
+    const ALL = (1 << 5) - 1;
+  }
+}
+
 pub type PromiseHook =
   extern "C" fn(PromiseHookType, Local<Promise>, Local<Value>);
 
@@ -392,6 +405,11 @@ extern "C" {
   fn v8__Isolate__AddMessageListener(
     isolate: *mut Isolate,
     callback: MessageCallback,
+  ) -> bool;
+  fn v8__Isolate__AddMessageListenerWithErrorLevel(
+    isolate: *mut Isolate,
+    callback: MessageCallback,
+    message_levels: MessageErrorLevel,
   ) -> bool;
   fn v8__Isolate__AddGCPrologueCallback(
     isolate: *mut Isolate,
@@ -887,6 +905,22 @@ impl Isolate {
   #[inline(always)]
   pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
     unsafe { v8__Isolate__AddMessageListener(self, callback) }
+  }
+
+  /// Adds a message listener for the specified message levels.
+  #[inline(always)]
+  pub fn add_message_listener_with_error_level(
+    &mut self,
+    callback: MessageCallback,
+    message_levels: MessageErrorLevel,
+  ) -> bool {
+    unsafe {
+      v8__Isolate__AddMessageListenerWithErrorLevel(
+        self,
+        callback,
+        message_levels,
+      )
+    }
   }
 
   /// This specifies the callback called when the stack property of Error

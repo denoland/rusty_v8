@@ -106,6 +106,7 @@ pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
 pub use isolate::MemoryPressureLevel;
 pub use isolate::MessageCallback;
+pub use isolate::MessageErrorLevel;
 pub use isolate::MicrotasksPolicy;
 pub use isolate::NearHeapLimitCallback;
 pub use isolate::OomDetails;
