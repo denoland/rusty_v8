@@ -278,7 +278,7 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
 
 bool v8__Isolate__AddMessageListenerWithErrorLevel(
     v8::Isolate* isolate, v8::MessageCallback callback, int error_level) {
-  return isolate->AddMessageListener(callback, error_level);
+  return isolate->AddMessageListenerWithErrorLevel(callback, error_level);
 }
 
 void v8__Isolate__AddGCPrologueCallback(
