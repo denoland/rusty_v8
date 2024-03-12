@@ -532,10 +532,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
     self
   }
 
-  pub fn query_raw(
-    mut self,
-    query: IndexedPropertyQueryCallback<'s>,
-  ) -> Self {
+  pub fn query_raw(mut self, query: IndexedPropertyQueryCallback<'s>) -> Self {
     self.query = Some(query);
     self
   }
