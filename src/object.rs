@@ -198,6 +198,17 @@ extern "C" {
     this: *const Object,
     is_key_value: *mut bool,
   ) -> *const Array;
+  fn v8__Object__GetRealNamedProperty(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+  ) -> *const Value;
+  fn v8__Object__GetRealNamedPropertyAttribute(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    out: *mut Maybe<PropertyAttribute>,
+  );
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -830,6 +841,43 @@ impl Object {
 
       (val, is_key_value)
     }
+  }
+
+  /// If result.IsEmpty() no real property was located on the object or
+  /// in the prototype chain.
+  /// This means interceptors in the prototype chain are not called.
+  #[inline(always)]
+  pub fn get_real_named_property<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Name>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__GetRealNamedProperty(self, sd.get_current_context(), &*key)
+      })
+    }
+  }
+
+  /// Gets the property attributes of a real property which can be
+  /// None or any combination of ReadOnly, DontEnum and DontDelete.
+  /// Interceptors in the prototype chain are not called.
+  #[inline(always)]
+  pub fn get_real_named_property_attributes<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Name>,
+  ) -> Option<PropertyAttribute> {
+    let mut out = Maybe::<PropertyAttribute>::default();
+    unsafe {
+      v8__Object__GetRealNamedPropertyAttribute(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &mut out,
+      )
+    }
+    out.into()
   }
 }
 

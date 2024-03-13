@@ -1519,6 +1519,20 @@ const v8::Value* v8__Object__GetOwnPropertyDescriptor(
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+
+const v8::Value* v8__Object__GetRealNamedProperty(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetRealNamedProperty(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+void v8__Object__GetRealNamedPropertyAttributes(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key,
+    v8::Maybe<v8::PropertyAttribute>* out) {
+  *out = ptr_to_local(&self)->GetRealNamedPropertyAttributes(
+      ptr_to_local(&context), ptr_to_local(&key));
+}
+
 const v8::Array* v8__Object__PreviewEntries(const v8::Object& self,
                                             bool* is_key_value) {
   return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
