@@ -863,9 +863,9 @@ impl Object {
   /// None or any combination of ReadOnly, DontEnum and DontDelete.
   /// Interceptors in the prototype chain are not called.
   #[inline(always)]
-  pub fn get_real_named_property_attributes<'s>(
+  pub fn get_real_named_property_attributes(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut HandleScope,
     key: Local<Name>,
   ) -> Option<PropertyAttribute> {
     let mut out = Maybe::<PropertyAttribute>::default();
