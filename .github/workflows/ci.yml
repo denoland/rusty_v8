@@ -35,6 +35,14 @@ jobs:
             target: x86_64-apple-darwin
             variant: release
 
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: debug
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: release
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
