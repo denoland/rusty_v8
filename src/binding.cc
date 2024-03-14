@@ -1882,6 +1882,15 @@ bool v8__Context_IsCodeGenerationFromStringsAllowed(v8::Context& self) {
   return ptr_to_local(&self)->IsCodeGenerationFromStringsAllowed();
 }
 
+v8::MicrotaskQueue* v8__Context__GetMicrotaskQueue(v8::Context& self) {
+  return ptr_to_local(&self)->GetMicrotaskQueue();
+}
+
+void v8__Context__SetMicrotaskQueue(v8::Context& self,
+                                    v8::MicrotaskQueue* microtask_queue) {
+  ptr_to_local(&self)->SetMicrotaskQueue(microtask_queue);
+}
+
 const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
                                              size_t context_snapshot_index) {
   v8::MaybeLocal<v8::Context> maybe_local =
@@ -1898,6 +1907,25 @@ const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
     v8::Isolate* isolate) {
   auto value = isolate->GetContinuationPreservedEmbedderData();
   return local_to_ptr(value);
+}
+
+void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,
+                                           v8::MicrotaskQueue* self) {
+  self->PerformCheckpoint(isolate);
+}
+
+bool v8__MicrotaskQueue__IsRunningMicrotasks(v8::MicrotaskQueue* self) {
+  return self->IsRunningMicrotasks();
+}
+
+int v8__MicrotaskQueue__GetMicrotasksScopeDepth(v8::MicrotaskQueue* self) {
+  return self->GetMicrotasksScopeDepth();
+}
+
+void v8__MicrotaskQueue__EnqueueMicrotask(v8::Isolate* isolate,
+                                          v8::MicrotaskQueue* self,
+                                          v8::Function* callback) {
+  self->EnqueueMicrotask(isolate, ptr_to_local(callback));
 }
 
 const v8::String* v8__Message__Get(const v8::Message& self) {

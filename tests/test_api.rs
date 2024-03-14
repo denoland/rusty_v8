@@ -11324,3 +11324,32 @@ fn allow_scope_in_read_host_object() {
   let value = deserializer.read_value(context).unwrap();
   assert!(value.is_object());
 }
+
+#[test]
+fn microtask_queue() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+
+  let queue = context.get_microtask_queue();
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  let function = v8::Function::new(
+    &mut scope,
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    },
+  )
+  .unwrap();
+
+  queue.enqueue_microtask(&mut scope, function);
+  // Flushes the microtasks queue.
+  let _ = eval(&mut scope, "").unwrap();
+
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+}
