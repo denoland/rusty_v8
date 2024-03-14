@@ -1,3 +1,5 @@
+// Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+
 use crate::support::int;
 use crate::support::Opaque;
 use crate::Function;
