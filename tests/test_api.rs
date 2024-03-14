@@ -11347,7 +11347,7 @@ fn microtask_queue() {
   )
   .unwrap();
 
-  queue.enqueue_microtask(&mut scope, function.into());
+  queue.enqueue_microtask(&mut scope, function);
   // Flushes the microtasks queue.
   let _ = eval(&mut scope, "").unwrap();
 
