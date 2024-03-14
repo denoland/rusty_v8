@@ -179,9 +179,10 @@ See https://github.com/denoland/rusty_v8/issues/1381
 
 **Cut a release**
 
-Go to https://github.com/denoland/rusty_v8/actions/workflows/release.yml, select
-proper release kind and wait for the workflow to complete. It will bump the
-version and create a tag. You will need to manually upload binary archives for
+Create a PR to bump the release version (e.g. https://github.com/denoland/rusty_v8/pull/1415).
+
+Create a new release/tag after the bump PR is landed. CI will publish the crate
+and upload release binaries. You will need to manually upload binary archives for
 M1 build.
 
 ```
