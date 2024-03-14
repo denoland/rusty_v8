@@ -265,7 +265,7 @@ pub fn compile_module2<'s>(
 #[inline(always)]
 pub fn compile<'s>(
   scope: &mut HandleScope<'s>,
-  mut source: Source,
+  source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'s, Script>> {
@@ -273,7 +273,7 @@ pub fn compile<'s>(
     scope.cast_local(|sd| {
       v8__ScriptCompiler__Compile(
         &*sd.get_current_context(),
-        &mut source,
+        source,
         options,
         no_cache_reason,
       )

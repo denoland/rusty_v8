@@ -4902,6 +4902,9 @@ fn module_stalled_top_level_await() {
 
 #[test]
 fn import_assertions() {
+  use std::sync::atomic::AtomicUsize;
+  use std::sync::atomic::Ordering;
+
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
@@ -4954,6 +4957,20 @@ fn import_assertions() {
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
+  // TODO(@littledivy): this won't work when V8 removes `assert`.
+  static COUNTER: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _msg: v8::Local<v8::Message>,
+    _: v8::Local<v8::Value>,
+  ) {
+    COUNTER.fetch_add(1, Ordering::SeqCst);
+  }
+
+  isolate.add_message_listener_with_error_level(
+    callback,
+    v8::MessageErrorLevel::ALL,
+  );
+
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
@@ -4979,6 +4996,8 @@ fn import_assertions() {
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
+
+  assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -8894,10 +8913,10 @@ fn eager_compile_script() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let code = v8::String::new(scope, "1 + 1").unwrap();
-  let source = v8::script_compiler::Source::new(code, None);
+  let mut source = v8::script_compiler::Source::new(code, None);
   let script = v8::script_compiler::compile(
     scope,
-    source,
+    &mut source,
     v8::script_compiler::CompileOptions::EagerCompile,
     v8::script_compiler::NoCacheReason::NoReason,
   )
@@ -8934,18 +8953,21 @@ fn code_cache_script() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let code = v8::String::new(scope, CODE).unwrap();
-  let source = v8::script_compiler::Source::new_with_cached_data(
+  let mut source = v8::script_compiler::Source::new_with_cached_data(
     code,
     None,
     v8::CachedData::new(&code_cache),
   );
   let script = v8::script_compiler::compile(
     scope,
-    source,
+    &mut source,
     v8::script_compiler::CompileOptions::ConsumeCodeCache,
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
+  let code_cache = source.get_cached_data();
+  assert!(code_cache.is_some());
+  assert!(!code_cache.unwrap().rejected());
   let ret = script.run(scope).unwrap();
   assert_eq!(ret.uint32_value(scope).unwrap(), 2);
 }

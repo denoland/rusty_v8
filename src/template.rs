@@ -500,11 +500,27 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn getter_raw(
+    mut self,
+    getter: IndexedPropertyGetterCallback<'s>,
+  ) -> Self {
+    self.getter = Some(getter);
+    self
+  }
+
   pub fn setter(
     mut self,
     setter: impl MapFnTo<IndexedPropertySetterCallback<'s>>,
   ) -> Self {
     self.setter = Some(setter.map_fn_to());
+    self
+  }
+
+  pub fn setter_raw(
+    mut self,
+    setter: IndexedPropertySetterCallback<'s>,
+  ) -> Self {
+    self.setter = Some(setter);
     self
   }
 
@@ -516,11 +532,24 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn query_raw(mut self, query: IndexedPropertyQueryCallback<'s>) -> Self {
+    self.query = Some(query);
+    self
+  }
+
   pub fn deleter(
     mut self,
     deleter: impl MapFnTo<IndexedPropertyDeleterCallback<'s>>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
+    self
+  }
+
+  pub fn deleter_raw(
+    mut self,
+    deleter: IndexedPropertyDeleterCallback<'s>,
+  ) -> Self {
+    self.deleter = Some(deleter);
     self
   }
 
@@ -532,6 +561,14 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn enumerator_raw(
+    mut self,
+    enumerator: IndexedPropertyEnumeratorCallback<'s>,
+  ) -> Self {
+    self.enumerator = Some(enumerator);
+    self
+  }
+
   pub fn definer(
     mut self,
     definer: impl MapFnTo<IndexedPropertyDefinerCallback<'s>>,
@@ -540,11 +577,27 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
     self
   }
 
+  pub fn definer_raw(
+    mut self,
+    definer: IndexedPropertyDefinerCallback<'s>,
+  ) -> Self {
+    self.definer = Some(definer);
+    self
+  }
+
   pub fn descriptor(
     mut self,
     descriptor: impl MapFnTo<IndexedPropertyDescriptorCallback<'s>>,
   ) -> Self {
     self.descriptor = Some(descriptor.map_fn_to());
+    self
+  }
+
+  pub fn descriptor_raw(
+    mut self,
+    descriptor: IndexedPropertyDescriptorCallback<'s>,
+  ) -> Self {
+    self.descriptor = Some(descriptor);
     self
   }
 
