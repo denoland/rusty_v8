@@ -1,9 +1,18 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use fslock::LockFile;
+use miniz_oxide::inflate::stream::inflate;
+use miniz_oxide::inflate::stream::InflateState;
+use miniz_oxide::MZFlush;
+use miniz_oxide::MZResult;
+use miniz_oxide::MZStatus;
+use miniz_oxide::StreamResult;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io;
+use std::io::Read;
+use std::io::Seek;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
@@ -322,14 +331,17 @@ fn static_lib_url() -> String {
 
   // Note: we always use the release build on windows.
   if cfg!(target_os = "windows") {
-    return format!("{}/v{}/rusty_v8_release_{}.lib", base, version, target);
+    return format!("{}/v{}/rusty_v8_release_{}.lib.gz", base, version, target);
   }
   // Use v8 in release mode unless $V8_FORCE_DEBUG=true
   let profile = match env_bool("V8_FORCE_DEBUG") {
     true => "debug",
     _ => "release",
   };
-  format!("{}/v{}/librusty_v8_{}_{}.a", base, version, profile, target)
+  format!(
+    "{}/v{}/librusty_v8_{}_{}.a.gz",
+    base, version, profile, target
+  )
 }
 
 fn env_bool(key: &str) -> bool {
@@ -418,7 +430,7 @@ fn download_file(url: String, filename: PathBuf) {
 
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
-  println!("Downloading {}", url);
+  println!("Downloading (using Python) {}", url);
   let status = Command::new(python())
     .arg("./tools/download_file.py")
     .arg("--url")
@@ -451,7 +463,9 @@ fn download_file(url: String, filename: PathBuf) {
 
   // Write checksum (i.e url) & move file
   std::fs::write(static_checksum_path(), url).unwrap();
-  std::fs::rename(&tmpfile, &filename).unwrap();
+  copy_archive(&tmpfile.to_string_lossy(), &filename);
+  std::fs::remove_file(&tmpfile).unwrap();
+
   assert!(filename.exists());
   assert!(static_checksum_path().exists());
   assert!(!tmpfile.exists());
@@ -473,6 +487,57 @@ fn download_static_lib_binaries() {
   download_file(url, static_lib_path());
 }
 
+fn decompress_to_writer<R, W>(input: &mut R, output: &mut W) -> io::Result<()>
+where
+  R: Read,
+  W: Write,
+{
+  let mut inflate_state = InflateState::default();
+  let mut input_buffer = [0; 16 * 1024];
+  let mut output_buffer = [0; 16 * 1024];
+  let mut input_offset = 0;
+
+  // Skip the gzip header
+  gzip_header::read_gz_header(input).unwrap();
+
+  loop {
+    let bytes_read = input.read(&mut input_buffer[input_offset..])?;
+    let bytes_avail = input_offset + bytes_read;
+
+    let StreamResult {
+      bytes_consumed,
+      bytes_written,
+      status,
+    } = inflate(
+      &mut inflate_state,
+      &input_buffer[..bytes_avail],
+      &mut output_buffer,
+      MZFlush::None,
+    );
+
+    if status != MZResult::Ok(MZStatus::Ok)
+      && status != MZResult::Ok(MZStatus::StreamEnd)
+    {
+      return Err(io::Error::new(
+        io::ErrorKind::Other,
+        format!("Decompression error {status:?}"),
+      ));
+    }
+
+    output.write_all(&output_buffer[..bytes_written])?;
+
+    // Move remaining bytes to the beginning of the buffer
+    input_buffer.copy_within(bytes_consumed..bytes_avail, 0);
+    input_offset = bytes_avail - bytes_consumed;
+
+    if status == MZResult::Ok(MZStatus::StreamEnd) {
+      break; // End of decompression
+    }
+  }
+
+  Ok(())
+}
+
 /// Copy the V8 archive at `url` to `filename`.
 ///
 /// This function doesn't use `std::fs::copy` because that would
@@ -481,9 +546,21 @@ fn download_static_lib_binaries() {
 /// This is necessary because the V8 archive could live inside a read-only
 /// filesystem, and subsequent builds would fail to overwrite it.
 fn copy_archive(url: &str, filename: &Path) {
+  println!("Copying {url} to {filename:?}");
   let mut src = fs::File::open(url).unwrap();
   let mut dst = fs::File::create(filename).unwrap();
-  io::copy(&mut src, &mut dst).unwrap();
+
+  // Allow both GZIP and non-GZIP downloads
+  let mut header = [0; 2];
+  src.read_exact(&mut header).unwrap();
+  src.seek(io::SeekFrom::Start(0)).unwrap();
+  if header == [0x1f, 0x8b] {
+    println!("Detected GZIP archive");
+    decompress_to_writer(&mut src, &mut dst).unwrap();
+  } else {
+    println!("Not a GZIP archive");
+    io::copy(&mut src, &mut dst).unwrap();
+  }
 }
 
 fn print_link_flags() {
