@@ -193,7 +193,7 @@ lines that you can use to determine the correct file and cache location:
 Given the above log output, use `curl` to download the file like so:
 
 ```
-curl https://github.com/denoland/rusty_v8/releases/download/v0.87.0/librusty_v8_release_aarch64-apple-darwin.a.gz >
+curl -L https://github.com/denoland/rusty_v8/releases/download/v0.87.0/librusty_v8_release_aarch64-apple-darwin.a.gz >
   /Users/<name>/.cargo/.rusty_v8/https___github_com_denoland_rusty_v8_releases_download_v0_87_0_librusty_v8_release_aarch64_apple_darwin_a_gz
 ```
 
