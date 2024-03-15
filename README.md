@@ -175,15 +175,38 @@ lead to crashes. You can work around this problem by using
 
 See https://github.com/denoland/rusty_v8/issues/1381
 
+## Download cache
+
+The v8 archives used for linking in prebuilt mode can be cached to avoid
+re-downloading archives when switching between branches that otherwise change
+the current rusty_v8 version.
+
+To populate the cache by hand, you'll need to place the files in the appropriate
+location in your `.cargo` folder. Running `cargo build -v -v` will print two
+lines that you can use to determine the correct file and cache location:
+
+```
+[v8 0.87.0] static lib URL: https://github.com/denoland/rusty_v8/releases/download/v0.87.0/librusty_v8_release_aarch64-apple-darwin.a.gz
+[v8 0.87.0] Looking for download in '"/Users/<name>/.cargo/.rusty_v8/https___github_com_denoland_rusty_v8_releases_download_v0_87_0_librusty_v8_release_aarch64_apple_darwin_a_gz"'
+```
+
+Given the above log output, use `curl` to download the file like so:
+
+```
+curl https://github.com/denoland/rusty_v8/releases/download/v0.87.0/librusty_v8_release_aarch64-apple-darwin.a.gz >
+  /Users/<name>/.cargo/.rusty_v8/https___github_com_denoland_rusty_v8_releases_download_v0_87_0_librusty_v8_release_aarch64_apple_darwin_a_gz
+```
+
 ## For maintainers
 
 **Cut a release**
 
-Create a PR to bump the release version (e.g. https://github.com/denoland/rusty_v8/pull/1415).
+Create a PR to bump the release version (e.g.
+https://github.com/denoland/rusty_v8/pull/1415).
 
 Create a new release/tag after the bump PR is landed. CI will publish the crate
-and upload release binaries. You will need to manually upload binary archives for
-M1 build.
+and upload release binaries. You will need to manually upload binary archives
+for M1 build.
 
 ```
 $ V8_FROM_SOURCE=1 cargo build
