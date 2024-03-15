@@ -187,7 +187,8 @@ jobs:
       - name: Prepare binary publish
         run: gzip -9c
           target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} >
-          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz &&
+          ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
       - name: Binary publish
         uses: softprops/action-gh-release@v0.1.15
