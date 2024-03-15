@@ -381,10 +381,28 @@ fn build_dir() -> PathBuf {
     .to_path_buf()
 }
 
+fn replace_non_alphanumeric(url: &str) -> String {
+  url
+    .chars()
+    .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+    .collect()
+}
+
 fn download_file(url: String, filename: PathBuf) {
   if !url.starts_with("http:") && !url.starts_with("https:") {
     copy_archive(&url, &filename);
     return;
+  }
+
+  // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead
+  // of downloading.
+  if let Ok(mut path) = home::cargo_home() {
+    path = path.join(".rusty_v8").join(replace_non_alphanumeric(&url));
+    println!("Looking for download in '{path:?}'");
+    if path.exists() {
+      copy_archive(&path.to_string_lossy(), &filename);
+      return;
+    }
   }
 
   // tmp file to download to so we don't clobber the existing one
