@@ -94,6 +94,7 @@ align-data = "0.1.0"
 fslock = "0.2"
 trybuild = "1.0.61"
 which = "5"
+home = "0"
 
 [[example]]
 name = "hello_world"
