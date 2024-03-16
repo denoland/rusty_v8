@@ -5,8 +5,15 @@ use crate::support::Opaque;
 use crate::Function;
 use crate::Isolate;
 use crate::Local;
+use crate::MicrotasksPolicy;
+use crate::UniqueRef;
 
 extern "C" {
+  fn v8__MicrotaskQueue__New(
+    isolate: *mut Isolate,
+    policy: MicrotasksPolicy,
+  ) -> *mut MicrotaskQueue;
+  fn v8__MicrotaskQueue__DESTRUCT(queue: *mut MicrotaskQueue);
   fn v8__MicrotaskQueue__PerformCheckpoint(
     isolate: *mut Isolate,
     queue: *const MicrotaskQueue,
@@ -42,6 +49,13 @@ extern "C" {
 pub struct MicrotaskQueue(Opaque);
 
 impl MicrotaskQueue {
+  pub fn new(
+    isolate: &mut Isolate,
+    policy: MicrotasksPolicy,
+  ) -> UniqueRef<Self> {
+    unsafe { UniqueRef::from_raw(v8__MicrotaskQueue__New(isolate, policy)) }
+  }
+
   pub fn enqueue_microtask(
     &self,
     isolate: &mut Isolate,
@@ -74,5 +88,11 @@ impl MicrotaskQueue {
   /// Returns the current depth of nested MicrotasksScope that has kRunMicrotasks.
   pub fn get_microtasks_scope_depth(&self) -> i32 {
     unsafe { v8__MicrotaskQueue__GetMicrotasksScopeDepth(self) }
+  }
+}
+
+impl Drop for MicrotaskQueue {
+  fn drop(&mut self) {
+    unsafe { v8__MicrotaskQueue__DESTRUCT(self) }
   }
 }

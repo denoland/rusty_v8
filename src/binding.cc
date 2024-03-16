@@ -1923,6 +1923,15 @@ const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
   return local_to_ptr(value);
 }
 
+v8::MicrotaskQueue* v8__MicrotaskQueue__New(
+    v8::Isolate* isolate, v8::MicrotasksPolicy policy) {
+  return v8::MicrotaskQueue::New(isolate, policy).release();
+}
+
+void v8__MicrotaskQueue__DESTRUCT(v8::MicrotaskQueue* self) {
+  self->~MicrotaskQueue();
+}
+
 void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,
                                            v8::MicrotaskQueue* self) {
   self->PerformCheckpoint(isolate);
