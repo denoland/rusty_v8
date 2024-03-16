@@ -6968,7 +6968,9 @@ fn get_property_attributes() {
   assert!(attrs.is_none());
   let real_prop = obj.get_real_named_property(scope, key.into()).unwrap();
   assert!(real_prop.is_number());
-  let real_prop_attrs = obj.get_real_named_property_attributes(scope, key.into()).unwrap();
+  let real_prop_attrs = obj
+    .get_real_named_property_attributes(scope, key.into())
+    .unwrap();
   assert!(!real_prop_attrs.is_read_only());
   assert!(!real_prop_attrs.is_dont_enum());
   assert!(!real_prop_attrs.is_dont_delete());
