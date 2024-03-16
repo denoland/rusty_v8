@@ -203,7 +203,7 @@ extern "C" {
     context: *const Context,
     key: *const Name,
   ) -> *const Value;
-  fn v8__Object__GetRealNamedPropertyAttribute(
+  fn v8__Object__GetRealNamedPropertyAttributes(
     this: *const Object,
     context: *const Context,
     key: *const Name,
@@ -870,7 +870,7 @@ impl Object {
   ) -> Option<PropertyAttribute> {
     let mut out = Maybe::<PropertyAttribute>::default();
     unsafe {
-      v8__Object__GetRealNamedPropertyAttribute(
+      v8__Object__GetRealNamedPropertyAttributes(
         self,
         &*scope.get_current_context(),
         &*key,
