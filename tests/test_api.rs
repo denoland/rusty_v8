@@ -11362,3 +11362,19 @@ fn microtask_queue() {
 
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn microtask_queue_new() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let queue = v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Auto);
+
+  let context = v8::Context::new(&mut scope);
+
+  context.set_microtask_queue(queue.as_ref());
+  assert!(std::ptr::eq(context.get_microtask_queue(), queue.as_ref()));
+  // TODO(bartlomieju): add more tests once we have Context::New() bindings
+  // https://github.com/denoland/rusty_v8/issues/1438
+}
