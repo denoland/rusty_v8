@@ -1,0 +1,54 @@
+import("//build/config/sysroot.gni")
+import("//build/toolchain/gcc_toolchain.gni")
+
+template("cross_toolchain") {
+  gcc_toolchain(target_name) {
+    assert(defined(invoker.toolprefix), "missing toolprefix")
+
+    toolchain  = getenv("TOOLCHAIN")
+    toolprefix = "${toolchain}/${invoker.toolprefix}"
+
+    cc      = "${toolprefix}-gcc"
+    cxx     = "${toolprefix}-g++"
+    ld      = cxx
+
+    ar      = "${toolprefix}-ar"
+    readelf = "${toolprefix}-readelf"
+    nm      = "${toolprefix}-nm"
+
+    extra_ldflags = "-static"
+
+    toolchain_args = {
+      forward_variables_from(invoker.toolchain_args, "*")
+      use_remoteexec = false
+      is_clang       = false
+    }
+  }
+}
+
+cross_toolchain("aarch64") {
+  toolprefix = "aarch64-linux-musl"
+
+  toolchain_args = {
+    current_cpu = "arm64"
+    current_os  = "linux"
+  }
+}
+
+cross_toolchain("armv7") {
+  toolprefix = "armv7-linux-musleabihf"
+
+  toolchain_args = {
+    current_cpu = "arm"
+    current_os  = "linux"
+  }
+}
+
+cross_toolchain("x86_64") {
+  toolprefix = "x86_64-linux-musl"
+
+  toolchain_args = {
+    current_cpu = "x64"
+    current_os  = "linux"
+  }
+}
