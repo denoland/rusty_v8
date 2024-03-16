@@ -11326,7 +11326,7 @@ fn allow_scope_in_read_host_object() {
 }
 
 #[test]
-fn microtask_queue2() {
+fn microtask_queue() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
 
