@@ -6966,6 +6966,15 @@ fn get_property_attributes() {
   assert!(!attrs.is_dont_enum());
   assert!(!attrs.is_dont_delete());
   assert!(attrs.is_none());
+  let real_prop = obj.get_real_named_property(scope, key.into()).unwrap();
+  assert!(real_prop.is_number());
+  let real_prop_attrs = obj
+    .get_real_named_property_attributes(scope, key.into())
+    .unwrap();
+  assert!(!real_prop_attrs.is_read_only());
+  assert!(!real_prop_attrs.is_dont_enum());
+  assert!(!real_prop_attrs.is_dont_delete());
+  assert!(real_prop_attrs.is_none());
 
   // doesn't exist
   let key = v8::String::new(scope, "b").unwrap();
