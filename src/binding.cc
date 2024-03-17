@@ -276,6 +276,11 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
   return isolate->AddMessageListener(callback);
 }
 
+bool v8__Isolate__AddMessageListenerWithErrorLevel(
+    v8::Isolate* isolate, v8::MessageCallback callback, int error_level) {
+  return isolate->AddMessageListenerWithErrorLevel(callback, error_level);
+}
+
 void v8__Isolate__AddGCPrologueCallback(
     v8::Isolate* isolate, v8::Isolate::GCCallbackWithData callback, void* data,
     v8::GCType gc_type_filter) {
@@ -1524,6 +1529,20 @@ const v8::Value* v8__Object__GetOwnPropertyDescriptor(
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+
+const v8::Value* v8__Object__GetRealNamedProperty(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetRealNamedProperty(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+void v8__Object__GetRealNamedPropertyAttributes(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key,
+    v8::Maybe<v8::PropertyAttribute>* out) {
+  *out = ptr_to_local(&self)->GetRealNamedPropertyAttributes(
+      ptr_to_local(&context), ptr_to_local(&key));
+}
+
 const v8::Array* v8__Object__PreviewEntries(const v8::Object& self,
                                             bool* is_key_value) {
   return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
@@ -1887,6 +1906,15 @@ bool v8__Context_IsCodeGenerationFromStringsAllowed(v8::Context& self) {
   return ptr_to_local(&self)->IsCodeGenerationFromStringsAllowed();
 }
 
+v8::MicrotaskQueue* v8__Context__GetMicrotaskQueue(v8::Context& self) {
+  return ptr_to_local(&self)->GetMicrotaskQueue();
+}
+
+void v8__Context__SetMicrotaskQueue(v8::Context& self,
+                                    v8::MicrotaskQueue* microtask_queue) {
+  ptr_to_local(&self)->SetMicrotaskQueue(microtask_queue);
+}
+
 const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
                                              size_t context_snapshot_index) {
   v8::MaybeLocal<v8::Context> maybe_local =
@@ -1903,6 +1931,34 @@ const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
     v8::Isolate* isolate) {
   auto value = isolate->GetContinuationPreservedEmbedderData();
   return local_to_ptr(value);
+}
+
+v8::MicrotaskQueue* v8__MicrotaskQueue__New(
+    v8::Isolate* isolate, v8::MicrotasksPolicy policy) {
+  return v8::MicrotaskQueue::New(isolate, policy).release();
+}
+
+void v8__MicrotaskQueue__DESTRUCT(v8::MicrotaskQueue* self) {
+  self->~MicrotaskQueue();
+}
+
+void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,
+                                           v8::MicrotaskQueue* self) {
+  self->PerformCheckpoint(isolate);
+}
+
+bool v8__MicrotaskQueue__IsRunningMicrotasks(v8::MicrotaskQueue* self) {
+  return self->IsRunningMicrotasks();
+}
+
+int v8__MicrotaskQueue__GetMicrotasksScopeDepth(v8::MicrotaskQueue* self) {
+  return self->GetMicrotasksScopeDepth();
+}
+
+void v8__MicrotaskQueue__EnqueueMicrotask(v8::Isolate* isolate,
+                                          v8::MicrotaskQueue* self,
+                                          v8::Function* callback) {
+  self->EnqueueMicrotask(isolate, ptr_to_local(callback));
 }
 
 const v8::String* v8__Message__Get(const v8::Message& self) {

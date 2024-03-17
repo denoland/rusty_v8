@@ -118,6 +118,11 @@ impl<'a> CachedData<'a> {
   pub(crate) fn buffer_policy(&self) -> BufferPolicy {
     self.buffer_policy
   }
+
+  #[inline(always)]
+  pub fn rejected(&self) -> bool {
+    self.rejected
+  }
 }
 
 impl<'a> std::ops::Deref for CachedData<'a> {
@@ -227,11 +232,11 @@ pub enum NoCacheReason {
 #[inline(always)]
 pub fn compile_module<'s>(
   scope: &mut HandleScope<'s>,
-  source: Source,
+  mut source: Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
     scope,
-    source,
+    &mut source,
     CompileOptions::NoCompileOptions,
     NoCacheReason::NoReason,
   )
@@ -241,7 +246,7 @@ pub fn compile_module<'s>(
 #[inline(always)]
 pub fn compile_module2<'s>(
   scope: &mut HandleScope<'s>,
-  mut source: Source,
+  source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'s, Module>> {
@@ -249,7 +254,7 @@ pub fn compile_module2<'s>(
     scope.cast_local(|sd| {
       v8__ScriptCompiler__CompileModule(
         sd.get_isolate_ptr(),
-        &mut source,
+        source,
         options,
         no_cache_reason,
       )
@@ -260,7 +265,7 @@ pub fn compile_module2<'s>(
 #[inline(always)]
 pub fn compile<'s>(
   scope: &mut HandleScope<'s>,
-  mut source: Source,
+  source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'s, Script>> {
@@ -268,7 +273,7 @@ pub fn compile<'s>(
     scope.cast_local(|sd| {
       v8__ScriptCompiler__Compile(
         &*sd.get_current_context(),
-        &mut source,
+        source,
         options,
         no_cache_reason,
       )

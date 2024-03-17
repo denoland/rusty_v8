@@ -35,6 +35,14 @@ jobs:
             target: x86_64-apple-darwin
             variant: release
 
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: debug
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: release
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
@@ -177,9 +185,10 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Prepare binary publish
-        run: cp
-          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }}
-          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+        run: gzip -9c
+          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} >
+          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz &&
+          ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
       - name: Binary publish
         uses: softprops/action-gh-release@v0.1.15
@@ -189,7 +198,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+          files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
       # TODO: add clang-format and maybe cpplint.
 

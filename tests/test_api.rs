@@ -4,7 +4,7 @@ use std::any::type_name;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
 use std::ffi::CStr;
@@ -4529,6 +4529,57 @@ fn security_token() {
 }
 
 #[test]
+fn context_with_object_template() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  static mut CALLS: Vec<String> = Vec::new();
+
+  fn definer<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _key: v8::Local<'s, v8::Name>,
+    _descriptor: &v8::PropertyDescriptor,
+    _args: v8::PropertyCallbackArguments<'s>,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      CALLS.push("definer".to_string());
+    }
+  }
+
+  pub fn setter<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _key: v8::Local<'s, v8::Name>,
+    _value: v8::Local<'s, v8::Value>,
+    _args: v8::PropertyCallbackArguments<'s>,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      CALLS.push("setter".to_string());
+    }
+  }
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let object_template = v8::ObjectTemplate::new(scope);
+    let mut config = v8::NamedPropertyHandlerConfiguration::new().flags(
+      v8::PropertyHandlerFlags::NON_MASKING
+        | v8::PropertyHandlerFlags::HAS_NO_SIDE_EFFECT,
+    );
+    config = config.definer_raw(definer.map_fn_to());
+    config = config.setter_raw(setter.map_fn_to());
+    object_template.set_named_property_handler(config);
+    let context = v8::Context::new_from_template(scope, object_template);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, r#"Object.defineProperty(globalThis, 'key', { value: 9, enumerable: true, configurable: true, writable: true })"#).unwrap();
+    let calls_set =
+      unsafe { CALLS.clone().into_iter().collect::<HashSet<String>>() };
+    assert!(calls_set.contains("setter"));
+    assert!(calls_set.contains("definer"));
+  }
+}
+
+#[test]
 fn allow_code_generation_from_strings() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4851,6 +4902,9 @@ fn module_stalled_top_level_await() {
 
 #[test]
 fn import_assertions() {
+  use std::sync::atomic::AtomicUsize;
+  use std::sync::atomic::Ordering;
+
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
@@ -4903,6 +4957,20 @@ fn import_assertions() {
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
+  // TODO(@littledivy): this won't work when V8 removes `assert`.
+  static COUNTER: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _msg: v8::Local<v8::Message>,
+    _: v8::Local<v8::Value>,
+  ) {
+    COUNTER.fetch_add(1, Ordering::SeqCst);
+  }
+
+  isolate.add_message_listener_with_error_level(
+    callback,
+    v8::MessageErrorLevel::ALL,
+  );
+
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
@@ -4928,6 +4996,8 @@ fn import_assertions() {
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
+
+  assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -6896,6 +6966,15 @@ fn get_property_attributes() {
   assert!(!attrs.is_dont_enum());
   assert!(!attrs.is_dont_delete());
   assert!(attrs.is_none());
+  let real_prop = obj.get_real_named_property(scope, key.into()).unwrap();
+  assert!(real_prop.is_number());
+  let real_prop_attrs = obj
+    .get_real_named_property_attributes(scope, key.into())
+    .unwrap();
+  assert!(!real_prop_attrs.is_read_only());
+  assert!(!real_prop_attrs.is_dont_enum());
+  assert!(!real_prop_attrs.is_dont_delete());
+  assert!(real_prop_attrs.is_none());
 
   // doesn't exist
   let key = v8::String::new(scope, "b").unwrap();
@@ -8670,7 +8749,7 @@ fn create_module<'s>(
     true,
   );
   let has_cache = code_cache.is_some();
-  let source = match code_cache {
+  let mut source = match code_cache {
     Some(x) => v8::script_compiler::Source::new_with_cached_data(
       source,
       Some(&script_origin),
@@ -8678,14 +8757,18 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
-  assert_eq!(source.get_cached_data().is_some(), has_cache);
   let module = v8::script_compiler::compile_module2(
     scope,
-    source,
+    &mut source,
     options,
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
+  let code_cache = source.get_cached_data();
+  assert_eq!(code_cache.is_some(), has_cache);
+  if let Some(code_cache) = code_cache {
+    assert!(!code_cache.rejected());
+  }
   module
 }
 
@@ -8839,10 +8922,10 @@ fn eager_compile_script() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let code = v8::String::new(scope, "1 + 1").unwrap();
-  let source = v8::script_compiler::Source::new(code, None);
+  let mut source = v8::script_compiler::Source::new(code, None);
   let script = v8::script_compiler::compile(
     scope,
-    source,
+    &mut source,
     v8::script_compiler::CompileOptions::EagerCompile,
     v8::script_compiler::NoCacheReason::NoReason,
   )
@@ -8879,18 +8962,21 @@ fn code_cache_script() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let code = v8::String::new(scope, CODE).unwrap();
-  let source = v8::script_compiler::Source::new_with_cached_data(
+  let mut source = v8::script_compiler::Source::new_with_cached_data(
     code,
     None,
     v8::CachedData::new(&code_cache),
   );
   let script = v8::script_compiler::compile(
     scope,
-    source,
+    &mut source,
     v8::script_compiler::CompileOptions::ConsumeCodeCache,
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
+  let code_cache = source.get_cached_data();
+  assert!(code_cache.is_some());
+  assert!(!code_cache.unwrap().rejected());
   let ret = script.run(scope).unwrap();
   assert_eq!(ret.uint32_value(scope).unwrap(), 2);
 }
@@ -11246,4 +11332,49 @@ fn allow_scope_in_read_host_object() {
     v8::ValueDeserializer::new(&mut scope, Box::new(Deserializer), &serialized);
   let value = deserializer.read_value(context).unwrap();
   assert!(value.is_object());
+}
+
+#[test]
+fn microtask_queue() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+
+  let queue = context.get_microtask_queue();
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  let function = v8::Function::new(
+    &mut scope,
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    },
+  )
+  .unwrap();
+
+  queue.enqueue_microtask(&mut scope, function);
+  // Flushes the microtasks queue.
+  let _ = eval(&mut scope, "").unwrap();
+
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn microtask_queue_new() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let queue = v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Auto);
+
+  let context = v8::Context::new(&mut scope);
+
+  context.set_microtask_queue(queue.as_ref());
+  assert!(std::ptr::eq(context.get_microtask_queue(), queue.as_ref()));
+  // TODO(bartlomieju): add more tests once we have Context::New() bindings
+  // https://github.com/denoland/rusty_v8/issues/1438
 }
