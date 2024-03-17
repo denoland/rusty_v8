@@ -1,6 +1,5 @@
 use crate::external_references::ExternalReferences;
 use crate::isolate_create_params::raw;
-use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
 use crate::support::Allocated;
@@ -144,9 +143,8 @@ impl SnapshotCreator {
 
     let isolate_ptr =
       unsafe { v8__SnapshotCreator__GetIsolate(&snapshot_creator) };
-    let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(create_param_allocations);
+    let mut owned_isolate = OwnedIsolate::new_already_entered(isolate_ptr);
+    owned_isolate.initialize(create_param_allocations);
     owned_isolate.set_snapshot_creator(snapshot_creator);
     owned_isolate
   }
