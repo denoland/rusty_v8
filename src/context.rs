@@ -37,6 +37,11 @@ extern "C" {
     index: int,
     value: *mut c_void,
   );
+  fn v8__Context__SetEmbedderData(
+    this: *const Context,
+    slot: int,
+    data: *const Value,
+  );
   fn v8__Context__FromSnapshot(
     isolate: *mut Isolate,
     context_snapshot_index: usize,
@@ -327,6 +332,10 @@ impl Context {
       slot + Self::INTERNAL_SLOT_COUNT,
       data,
     )
+  }
+
+  pub fn set_embedder_data(&self, slot: i32, data: Local<Value>) {
+    unsafe { v8__Context__SetEmbedderData(self, slot, &*data) }
   }
 
   #[inline(always)]
