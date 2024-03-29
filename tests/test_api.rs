@@ -4651,6 +4651,17 @@ fn allow_atomics_wait() {
   }
 }
 
+#[test]
+fn date_time_configuration_change_notification() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate
+    .date_time_configuration_change_notification(v8::TimeZoneDetection::Skip);
+  isolate.date_time_configuration_change_notification(
+    v8::TimeZoneDetection::Redetect,
+  );
+}
+
 fn mock_script_origin<'s>(
   scope: &mut v8::HandleScope<'s>,
   resource_name_: &str,

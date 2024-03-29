@@ -359,6 +359,14 @@ size_t v8__Isolate__CreateParams__SIZEOF() {
   return sizeof(v8::Isolate::CreateParams);
 }
 
+void v8__Isolate__DateTimeConfigurationChangeNotification(
+    v8::Isolate* isolate,
+    v8::TimeZoneDetection time_zone_detection
+) {
+    isolate->DateTimeConfigurationChangeNotification(time_zone_detection)
+}
+
+
 void v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
     v8::ResourceConstraints* constraints, size_t initial_heap_size_in_bytes,
     size_t maximum_heap_size_in_bytes) {
