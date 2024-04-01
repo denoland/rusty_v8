@@ -361,9 +361,9 @@ size_t v8__Isolate__CreateParams__SIZEOF() {
 
 void v8__Isolate__DateTimeConfigurationChangeNotification(
     v8::Isolate* isolate,
-    v8::TimeZoneDetection time_zone_detection
+    v8::Isolate::TimeZoneDetection time_zone_detection
 ) {
-    isolate->DateTimeConfigurationChangeNotification(time_zone_detection)
+    isolate->DateTimeConfigurationChangeNotification(time_zone_detection);
 }
 
 
