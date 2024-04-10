@@ -1290,15 +1290,16 @@ impl Isolate {
     {
       let mut callback = NonNull::<F>::new_unchecked(arg as _);
       if size > 0 {
-        let slice = unsafe { std::slice::from_raw_parts(data, size) };
-        (callback.as_mut())(slice)
+        (callback.as_mut())(std::slice::from_raw_parts(data, size))
       } else {
         (callback.as_mut())(&[])
       }
     }
 
     let arg = addr_of_mut!(callback);
-    unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
+    unsafe {
+      v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg as _)
+    }
   }
 
   /// Set the default context to be included in the snapshot blob.
