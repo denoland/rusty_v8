@@ -49,6 +49,7 @@ fn main() {
     "DISABLE_CLANG",
     "EXTRA_GN_ARGS",
     "NO_PRINT_GN_ARGS",
+    "CARGO_ENCODED_RUSTFLAGS",
   ];
   for env in envs {
     println!("cargo:rerun-if-env-changed={}", env);
@@ -81,9 +82,18 @@ fn main() {
     return;
   }
 
+  let is_asan = if let Some(rustflags) = env::var_os("CARGO_ENCODED_RUSTFLAGS")
+  {
+    let rustflags = rustflags.to_string_lossy();
+    rustflags.find("-Z sanitizer=address").is_some()
+      || rustflags.find("-Zsanitizer=address").is_some()
+  } else {
+    false
+  };
+
   // Build from source
-  if env::var_os("V8_FROM_SOURCE").is_some() {
-    return build_v8();
+  if is_asan || env::var_os("V8_FROM_SOURCE").is_some() {
+    return build_v8(is_asan);
   }
 
   // utilize a lockfile to prevent linking of
@@ -105,7 +115,7 @@ fn main() {
   lockfile.unlock().expect("Couldn't unlock lockfile");
 }
 
-fn build_v8() {
+fn build_v8(is_asan: bool) {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
 
   // cargo publish doesn't like pyc files.
@@ -132,6 +142,10 @@ fn build_v8() {
     vec!["is_debug=false".to_string()]
   };
 
+  if is_asan {
+    gn_args.push("is_asan=true".to_string());
+  }
+
   if cfg!(not(feature = "use_custom_libcxx")) {
     gn_args.push("use_custom_libcxx=false".to_string());
   }
@@ -146,11 +160,11 @@ fn build_v8() {
     // -gline-tables-only is Clang-only
     gn_args.push("line_tables_only=false".into());
   } else if let Some(clang_base_path) = find_compatible_system_clang() {
-    println!("clang_base_path {}", clang_base_path.display());
+    println!("clang_base_path (system): {}", clang_base_path.display());
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
     gn_args.push("treat_warnings_as_errors=false".to_string());
   } else {
-    println!("using Chromiums clang");
+    println!("using Chromium's clang");
     let clang_base_path = clang_download();
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
 
@@ -661,7 +675,7 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 // modify the source directory.
 fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
-  println!("clang_base_path {}", clang_base_path.display());
+  println!("clang_base_path (downloaded) {}", clang_base_path.display());
   assert!(Command::new(python())
     .arg("./tools/clang/scripts/update.py")
     .arg("--output-dir")
@@ -826,7 +840,7 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
       .stderr(Stdio::inherit())
       .envs(env::vars())
       .status()
-      .expect("Coud not run `gn`")
+      .expect("Could not run `gn`")
       .success());
   }
   gn_out_dir
