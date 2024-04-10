@@ -75,6 +75,9 @@ exclude = [
   "!v8/tools/testrunner/utils/dump_build_config.py",
 ]
 
+[profile.dev]
+opt-level = "1"
+
 [features]
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
