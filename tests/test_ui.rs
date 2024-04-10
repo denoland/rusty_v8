@@ -1,4 +1,4 @@
-// Don't run UI tests on emulated environment.
+// Don't run UI tests on emulated environment or nightly build.
 #[cfg(not(target_os = "android"))]
 #[rustversion::attr(not(nightly), test)]
 fn ui() {
