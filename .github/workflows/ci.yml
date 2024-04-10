@@ -178,7 +178,8 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'debug' && runner.os == 'macOS'
         # https://github.com/rust-lang/rust/issues/87215
-        run:
+        run: |
+          rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
           RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std test --target ${{ matrix.config.target }}
 
       - name: Test
