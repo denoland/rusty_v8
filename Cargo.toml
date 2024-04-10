@@ -76,7 +76,11 @@ exclude = [
 ]
 
 [profile.dev]
-opt-level = "1"
+# rusty_v8 may miscompile at opt-level=0.
+# https://github.com/rust-lang/rust/issues/87215
+# https://github.com/rust-lang/rust/issues/75839
+# https://github.com/rust-lang/rust/issues/121028
+opt-level = 1
 
 [features]
 default = ["use_custom_libcxx"]
