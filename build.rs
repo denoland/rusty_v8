@@ -85,7 +85,7 @@ fn main() {
   let is_asan = if let Some(rustflags) = env::var_os("CARGO_ENCODED_RUSTFLAGS")
   {
     if std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
-      panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN. Aborting before miscompilations cause issues.");
+      panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
     }
 
     let rustflags = rustflags.to_string_lossy();
