@@ -156,7 +156,7 @@ jobs:
 
       - name: Install Rust (nightly)
         uses: dtolnay/rust-toolchain@nightly
-        if: matrix.config.variant == 'debug' && runner.os == 'macOS'
+        if: matrix.config.variant == 'asan'
 
       - name: Test (ASAN)
         env:
