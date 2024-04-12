@@ -96,7 +96,7 @@ fn main() {
   };
 
   // Build from source
-  if is_asan || env::var_os("V8_FROM_SOURCE").is_some() {
+  if env::var_os("V8_FROM_SOURCE").is_some() {
     return build_v8(is_asan);
   }
 
