@@ -126,17 +126,32 @@ pub struct OneByteConst {
   length: usize,
 }
 
+impl OneByteConst {
+  /// `const` function that returns this string as a string reference.
+  pub const fn as_str(&self) -> &str {
+    if self.length == 0 {
+      &""
+    } else {
+      // SAFETY: We know this is ASCII and length > 0
+      unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+          self.cached_data as _,
+          self.length,
+        ))
+      }
+    }
+  }
+}
+
 impl AsRef<str> for OneByteConst {
   fn as_ref(&self) -> &str {
-    // SAFETY: We know this is ASCII
-    unsafe { std::str::from_utf8_unchecked(AsRef::<[u8]>::as_ref(self)) }
+    self.as_str()
   }
 }
 
 impl AsRef<[u8]> for OneByteConst {
   fn as_ref(&self) -> &[u8] {
-    // SAFETY: Returning to the slice from which this came
-    unsafe { std::slice::from_raw_parts(self.cached_data as _, self.length) }
+    self.as_str().as_bytes()
   }
 }
 
