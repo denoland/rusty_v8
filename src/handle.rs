@@ -62,14 +62,14 @@ extern "C" {
 /// longer used.
 ///
 /// It is safe to extract the object stored in the handle by
-/// dereferencing the handle (for instance, to extract the *Object from
-/// a Local<Object>); the value will still be governed by a handle
+/// dereferencing the handle (for instance, to extract the `*Object` from
+/// a `Local<Object>`); the value will still be governed by a handle
 /// behind the scenes and the same rules apply to these values as to
 /// their handles.
 ///
 /// Note: Local handles in Rusty V8 differ from the V8 C++ API in that they are
 /// never empty. In situations where empty handles are needed, use
-/// Option<Local>.
+/// `Option<Local>`.
 #[repr(C)]
 #[derive(Debug)]
 pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);

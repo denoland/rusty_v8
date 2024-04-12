@@ -4,7 +4,6 @@ use std::ptr::null;
 
 use crate::Context;
 use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::Script;
 use crate::String;
@@ -31,7 +30,6 @@ extern "C" {
   ) -> *const Value;
 
   fn v8__ScriptOrigin__CONSTRUCT(
-    isolate: *mut Isolate,
     buf: *mut MaybeUninit<ScriptOrigin>,
     resource_name: *const Value,
     resource_line_offset: i32,
@@ -103,7 +101,8 @@ impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
   #[inline(always)]
   pub fn new(
-    scope: &mut HandleScope<'s, ()>,
+    // TODO(littledivy): remove
+    _scope: &mut HandleScope<'s, ()>,
     resource_name: Local<'s, Value>,
     resource_line_offset: i32,
     resource_column_offset: i32,
@@ -117,7 +116,6 @@ impl<'s> ScriptOrigin<'s> {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
       v8__ScriptOrigin__CONSTRUCT(
-        scope.get_isolate_ptr(),
         &mut buf,
         &*resource_name,
         resource_line_offset,

@@ -67,7 +67,7 @@ enum GlobalState {
   Uninitialized,
   PlatformInitialized(SharedRef<Platform>),
   Initialized(SharedRef<Platform>),
-  Disposed(SharedRef<Platform>),
+  Disposed(#[allow(dead_code)] SharedRef<Platform>),
   PlatformShutdown,
 }
 use GlobalState::*;

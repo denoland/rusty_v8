@@ -8,6 +8,8 @@ on:
     branches: [main]
     types: [labeled, opened, synchronize, reopened]
 
+permissions: write-all
+
 jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
@@ -31,6 +33,18 @@ jobs:
 
           - os: macOS-latest
             target: x86_64-apple-darwin
+            variant: release
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: asan
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: debug
+
+          - os: macos-14
+            target: aarch64-apple-darwin
             variant: release
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
@@ -65,16 +79,13 @@ jobs:
         run: git config --global core.symlinks true
 
       - name: Clone repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 10
           submodules: recursive
 
       - name: Install rust
-        uses: hecrj/setup-rust-action@v1
-        with:
-          components: clippy, rustfmt
-          rust-version: 1.66.1
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: Install python
         uses: actions/setup-python@v4
@@ -121,25 +132,6 @@ jobs:
           restore-keys:
             cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-
 
-        # It seems that the 'target' directory does not always get restored
-        # from cache correctly on MacOS. In the build log we see the following:
-        #
-        #   Fresh serde_derive v1.0.115
-        #
-        # But a little while after that Cargo aborts because 'serde_derive' is
-        # now nowhere to be found. We're not the only ones experiencing this,
-        # see https://github.com/actions-rs/cargo/issues/111.
-        #
-        #   error[E0463]: can't find crate for `serde_derive`
-        #   ##[error]   --> /Users/runner/.cargo/registry/src/github.com-
-        #       |           1ecc6299db9ec823/serde-1.0.115/src/lib.rs:285:1
-        #       |
-        #   285 | extern crate serde_derive;
-        #       | ^^^^^^^^^^^^^^^^^^^^^^^^^^ can't find crate
-      - name: Work around MacOS + Cargo + Github Actions cache bug
-        if: runner.os == 'macOS'
-        run: cargo clean -p serde_derive
-
       - name: Install and start sccache
         shell: pwsh
         env:
@@ -162,9 +154,26 @@ jobs:
           . $basename/sccache --start-server
           echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@nightly
+        if: matrix.config.variant == 'asan'
+
+      - name: Test (ASAN)
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+        if: matrix.config.variant == 'asan'
+        # https://github.com/rust-lang/rust/issues/87215
+        run: |
+          rustup component add rust-src --toolchain nightly-${{ matrix.config.target }}
+          # Is there a better way to install this tool?
+          curl -O http://commondatastorage.googleapis.com/chromium-browser-clang-staging/Mac/dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
+          tar -C tools/clang/dsymutil/ -xvzf dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
+          V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std test --lib --bins --tests -vv --target ${{ matrix.config.target }}
+
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
+        if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run:
           cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }}
@@ -178,19 +187,22 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Prepare binary publish
-        run: cp
-          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }}
-          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+        if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
+        run: gzip -9c
+          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} >
+          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz &&
+          ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
       - name: Binary publish
         uses: softprops/action-gh-release@v0.1.15
         if: >-
           github.repository == 'denoland/rusty_v8' &&
-          startsWith(github.ref, 'refs/tags/')
+          startsWith(github.ref, 'refs/tags/') &&
+          (matrix.config.variant == 'debug' || matrix.config.variant == 'release')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}
+          files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
       # TODO: add clang-format and maybe cpplint.
 

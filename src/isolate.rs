@@ -54,6 +54,7 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr;
+use std::ptr::addr_of_mut;
 use std::ptr::drop_in_place;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
@@ -118,6 +119,19 @@ pub enum GarbageCollectionType {
 }
 
 pub type MessageCallback = extern "C" fn(Local<Message>, Local<Value>);
+
+bitflags! {
+  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+  #[repr(transparent)]
+  pub struct MessageErrorLevel: int {
+    const LOG = 1 << 0;
+    const DEBUG = 1 << 1;
+    const INFO = 1 << 2;
+    const ERROR = 1 << 3;
+    const WARNING = 1 << 4;
+    const ALL = (1 << 5) - 1;
+  }
+}
 
 pub type PromiseHook =
   extern "C" fn(PromiseHookType, Local<Promise>, Local<Value>);
@@ -379,18 +393,24 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
+  fn v8__Isolate__GetCurrent() -> *mut Isolate;
   fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
   fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     this: *mut Isolate,
-    caputre: bool,
+    capture: bool,
     frame_limit: i32,
   );
   fn v8__Isolate__AddMessageListener(
     isolate: *mut Isolate,
     callback: MessageCallback,
+  ) -> bool;
+  fn v8__Isolate__AddMessageListenerWithErrorLevel(
+    isolate: *mut Isolate,
+    callback: MessageCallback,
+    message_levels: MessageErrorLevel,
   ) -> bool;
   fn v8__Isolate__AddGCPrologueCallback(
     isolate: *mut Isolate,
@@ -490,7 +510,7 @@ extern "C" {
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
-    callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
+    callback: unsafe extern "C" fn(*mut c_void, *const u8, usize) -> bool,
     arg: *mut c_void,
   );
 
@@ -534,7 +554,8 @@ extern "C" {
 /// synchronize.
 ///
 /// rusty_v8 note: Unlike in the C++ API, the Isolate is entered when it is
-/// constructed and exited when dropped.
+/// constructed and exited when dropped. Because of that v8::OwnedIsolate
+/// instances must be dropped in the reverse order of creation
 #[repr(C)]
 #[derive(Debug)]
 pub struct Isolate(Opaque);
@@ -883,6 +904,22 @@ impl Isolate {
     unsafe { v8__Isolate__AddMessageListener(self, callback) }
   }
 
+  /// Adds a message listener for the specified message levels.
+  #[inline(always)]
+  pub fn add_message_listener_with_error_level(
+    &mut self,
+    callback: MessageCallback,
+    message_levels: MessageErrorLevel,
+  ) -> bool {
+    unsafe {
+      v8__Isolate__AddMessageListenerWithErrorLevel(
+        self,
+        callback,
+        message_levels,
+      )
+    }
+  }
+
   /// This specifies the callback called when the stack property of Error
   /// is accessed.
   ///
@@ -1094,8 +1131,8 @@ impl Isolate {
     }
   }
 
-  pub fn get_cpp_heap(&mut self) -> &Heap {
-    unsafe { &*v8__Isolate__GetCppHeap(self) }
+  pub fn get_cpp_heap(&mut self) -> Option<&Heap> {
+    unsafe { v8__Isolate__GetCppHeap(self).as_ref() }
   }
 
   #[inline(always)]
@@ -1239,7 +1276,7 @@ impl Isolate {
   where
     F: FnMut(&[u8]) -> bool,
   {
-    extern "C" fn trampoline<F>(
+    unsafe extern "C" fn trampoline<F>(
       arg: *mut c_void,
       data: *const u8,
       size: usize,
@@ -1247,14 +1284,18 @@ impl Isolate {
     where
       F: FnMut(&[u8]) -> bool,
     {
-      let p = arg as *mut F;
-      let callback = unsafe { &mut *p };
-      let slice = unsafe { std::slice::from_raw_parts(data, size) };
-      callback(slice)
+      let mut callback = NonNull::<F>::new_unchecked(arg as _);
+      if size > 0 {
+        (callback.as_mut())(std::slice::from_raw_parts(data, size))
+      } else {
+        (callback.as_mut())(&[])
+      }
     }
 
-    let arg = &mut callback as *mut F as *mut c_void;
-    unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
+    let arg = addr_of_mut!(callback);
+    unsafe {
+      v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg as _)
+    }
   }
 
   /// Set the default context to be included in the snapshot blob.
@@ -1355,6 +1396,9 @@ pub(crate) struct IsolateAnnex {
   isolate_mutex: Mutex<()>,
 }
 
+unsafe impl Send for IsolateAnnex {}
+unsafe impl Sync for IsolateAnnex {}
+
 impl IsolateAnnex {
   fn new(
     isolate: &mut Isolate,
@@ -1388,9 +1432,6 @@ impl Debug for IsolateAnnex {
 /// IsolateHandle is Cloneable, Send, and Sync.
 #[derive(Clone, Debug)]
 pub struct IsolateHandle(Arc<IsolateAnnex>);
-
-unsafe impl Send for IsolateHandle {}
-unsafe impl Sync for IsolateHandle {}
 
 impl IsolateHandle {
   // This function is marked unsafe because it must be called only with either
@@ -1513,6 +1554,11 @@ impl Drop for OwnedIsolate {
       assert!(
         snapshot_creator.is_none(),
         "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
+      );
+      // Safety: We need to check `this == Isolate::GetCurrent()` before calling exit()
+      assert!(
+        self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__GetCurrent(),
+        "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
       self.exit();
       self.cxx_isolate.as_mut().clear_scope_and_annex();

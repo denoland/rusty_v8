@@ -7,6 +7,7 @@ use crate::support::int;
 use crate::Context;
 use crate::HandleScope;
 use crate::Local;
+use crate::MicrotaskQueue;
 use crate::Object;
 use crate::ObjectTemplate;
 use crate::Value;
@@ -55,6 +56,13 @@ extern "C" {
   pub(super) fn v8__Context_IsCodeGenerationFromStringsAllowed(
     this: *const Context,
   ) -> bool;
+  fn v8__Context__GetMicrotaskQueue(
+    this: *const Context,
+  ) -> *const MicrotaskQueue;
+  fn v8__Context__SetMicrotaskQueue(
+    this: *const Context,
+    microtask_queue: *const MicrotaskQueue,
+  );
 }
 
 impl Context {
@@ -112,6 +120,18 @@ impl Context {
     scope: &mut HandleScope<'s, ()>,
   ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
+  }
+
+  #[inline(always)]
+  pub fn get_microtask_queue(&self) -> &MicrotaskQueue {
+    unsafe { &*v8__Context__GetMicrotaskQueue(self) }
+  }
+
+  #[inline(always)]
+  pub fn set_microtask_queue(&self, microtask_queue: &MicrotaskQueue) {
+    unsafe {
+      v8__Context__SetMicrotaskQueue(self, microtask_queue);
+    }
   }
 
   #[inline]

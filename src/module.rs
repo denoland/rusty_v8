@@ -193,7 +193,7 @@ extern "C" {
     this: *const ModuleRequest,
   ) -> *const String;
   fn v8__ModuleRequest__GetSourceOffset(this: *const ModuleRequest) -> int;
-  fn v8__ModuleRequest__GetImportAssertions(
+  fn v8__ModuleRequest__GetImportAttributes(
     this: *const ModuleRequest,
   ) -> *const FixedArray;
   fn v8__Module__GetStalledTopLevelAwaitMessage(
@@ -480,7 +480,7 @@ impl ModuleRequest {
     unsafe { v8__ModuleRequest__GetSourceOffset(self) }
   }
 
-  /// Contains the import assertions for this request in the form:
+  /// Contains the import attributes for this request in the form:
   /// [key1, value1, source_offset1, key2, value2, source_offset2, ...].
   /// The keys and values are of type v8::String, and the source offsets are of
   /// type Int32. Use Module::source_offset_to_location to convert the source
@@ -493,8 +493,14 @@ impl ModuleRequest {
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
   #[inline(always)]
-  pub fn get_import_assertions(&self) -> Local<FixedArray> {
-    unsafe { Local::from_raw(v8__ModuleRequest__GetImportAssertions(self)) }
+  pub fn get_import_attributes(&self) -> Local<FixedArray> {
+    unsafe { Local::from_raw(v8__ModuleRequest__GetImportAttributes(self)) }
       .unwrap()
+  }
+
+  #[inline(always)]
+  #[deprecated(note = "Use get_import_attributes instead")]
+  pub fn get_import_assertions(&self) -> Local<FixedArray> {
+    self.get_import_attributes()
   }
 }

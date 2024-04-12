@@ -270,16 +270,9 @@ pub trait ValueSerializerImpl {
 
   fn get_shared_array_buffer_id<'s>(
     &mut self,
-    scope: &mut HandleScope<'s>,
+    _scope: &mut HandleScope<'s>,
     _shared_array_buffer: Local<'s, SharedArrayBuffer>,
   ) -> Option<u32> {
-    let msg = String::new(
-      scope,
-      "Deno serializer: get_shared_array_buffer_id not implemented",
-    )
-    .unwrap();
-    let exc = Exception::error(scope, msg);
-    scope.throw_exception(exc);
     None
   }
 
@@ -495,11 +488,7 @@ impl<'a, 's> ValueSerializer<'a, 's> {
         &mut ptr,
         &mut size,
       );
-      Vec::from_raw_parts(
-        ptr as *mut u8,
-        size,
-        self.value_serializer_heap.buffer_size,
-      )
+      Vec::from_raw_parts(ptr, size, self.value_serializer_heap.buffer_size)
     }
   }
 

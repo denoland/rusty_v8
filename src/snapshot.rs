@@ -3,9 +3,7 @@ use crate::isolate_create_params::raw;
 use crate::scope::data::ScopeData;
 use crate::support::char;
 use crate::support::int;
-use crate::support::intptr_t;
 use crate::support::Allocated;
-use crate::support::Allocation;
 use crate::Context;
 use crate::Data;
 use crate::Isolate;
@@ -16,13 +14,11 @@ use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
-use std::ptr::null;
 
 extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
     buf: *mut MaybeUninit<SnapshotCreator>,
-    external_references: *const intptr_t,
-    existing_blob: *const raw::StartupData,
+    params: *const raw::CreateParams,
   );
   fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
@@ -70,9 +66,9 @@ impl Drop for StartupData {
 impl Deref for StartupData {
   type Target = [u8];
   fn deref(&self) -> &Self::Target {
-    let data = self.data as *const u8;
+    let data = self.data;
     let len = usize::try_from(self.raw_size).unwrap();
-    unsafe { std::slice::from_raw_parts(data, len) }
+    unsafe { std::slice::from_raw_parts(data as _, len) }
   }
 }
 
@@ -131,30 +127,18 @@ impl SnapshotCreator {
     existing_snapshot_blob: Option<impl Allocated<[u8]>>,
   ) -> OwnedIsolate {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
-    let external_references_ptr = if let Some(er) = external_references {
-      er.as_ptr()
-    } else {
-      std::ptr::null()
-    };
 
-    let snapshot_blob_ptr;
-    let snapshot_allocations;
-    if let Some(snapshot_blob) = existing_snapshot_blob {
-      let data = Allocation::of(snapshot_blob);
-      let header = Allocation::of(raw::StartupData::boxed_header(&data));
-      snapshot_blob_ptr = &*header as *const _;
-      snapshot_allocations = Some((header, data));
-    } else {
-      snapshot_blob_ptr = null();
-      snapshot_allocations = None;
+    let mut params = crate::CreateParams::default();
+    if let Some(external_refs) = external_references {
+      params = params.external_references(&**external_refs);
     }
+    if let Some(snapshot_blob) = existing_snapshot_blob {
+      params = params.snapshot_blob(snapshot_blob);
+    }
+    let (raw_create_params, create_param_allocations) = params.finalize();
 
     let snapshot_creator = unsafe {
-      v8__SnapshotCreator__CONSTRUCT(
-        &mut snapshot_creator,
-        external_references_ptr,
-        snapshot_blob_ptr,
-      );
+      v8__SnapshotCreator__CONSTRUCT(&mut snapshot_creator, &raw_create_params);
       snapshot_creator.assume_init()
     };
 
@@ -162,7 +146,7 @@ impl SnapshotCreator {
       unsafe { v8__SnapshotCreator__GetIsolate(&snapshot_creator) };
     let mut owned_isolate = OwnedIsolate::new(isolate_ptr);
     ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(Box::new(snapshot_allocations));
+    owned_isolate.create_annex(create_param_allocations);
     owned_isolate.set_snapshot_creator(snapshot_creator);
     owned_isolate
   }

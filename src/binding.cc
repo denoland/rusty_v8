@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 
+#include "cppgc/platform.h"
 #include "support.h"
 #include "unicode/locid.h"
 #include "v8-callbacks.h"
@@ -29,8 +30,6 @@
 #include "v8/src/objects/objects-inl.h"
 #include "v8/src/objects/objects.h"
 #include "v8/src/objects/smi.h"
-
-#include "cppgc/platform.h"
 
 using namespace support;
 
@@ -57,9 +56,15 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
-static_assert(sizeof(v8::ScriptCompiler::Source) ==
-                  align_to<size_t>(sizeof(size_t) * 9 + sizeof(int) * 2),
-              "Source size mismatch");
+static_assert(sizeof(v8::ScriptCompiler::CompilationDetails) ==
+                  sizeof(size_t) * 3,
+              "CompilationDetails size mismatch");
+
+static_assert(
+    sizeof(v8::ScriptCompiler::Source) ==
+        align_to<size_t>(sizeof(size_t) * 9 + sizeof(int) * 2 +
+                         sizeof(v8::ScriptCompiler::CompilationDetails)),
+    "Source size mismatch");
 
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
               "FunctionCallbackInfo size mismatch");
@@ -100,8 +105,7 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, rejected) == 12,
               "CachedData.rejected offset mismatch");
 static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 16,
               "CachedData.buffer_policy offset mismatch");
-static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) ==
-                  16,
+static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 16,
               "DisallowJavascriptExecutionScope size mismatch");
 #else
 static_assert(sizeof(v8::ScriptCompiler::CachedData) == 16,
@@ -114,8 +118,7 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, rejected) == 8,
               "CachedData.rejected offset mismatch");
 static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 12,
               "CachedData.buffer_policy offset mismatch");
-static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) ==
-                  12,
+static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 12,
               "DisallowJavascriptExecutionScope size mismatch");
 #endif
 
@@ -160,6 +163,8 @@ void v8__Isolate__Dispose(v8::Isolate* isolate) { isolate->Dispose(); }
 void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
+
+v8::Isolate* v8__Isolate__GetCurrent() { return v8::Isolate::GetCurrent(); }
 
 void v8__Isolate__MemoryPressureNotification(v8::Isolate* isolate,
                                              v8::MemoryPressureLevel level) {
@@ -269,6 +274,11 @@ void v8__Isolate__SetHostCreateShadowRealmContextCallback(
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
                                      v8::MessageCallback callback) {
   return isolate->AddMessageListener(callback);
+}
+
+bool v8__Isolate__AddMessageListenerWithErrorLevel(
+    v8::Isolate* isolate, v8::MessageCallback callback, int error_level) {
+  return isolate->AddMessageListenerWithErrorLevel(callback, error_level);
 }
 
 void v8__Isolate__AddGCPrologueCallback(
@@ -485,7 +495,9 @@ uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
 size_t v8__TypedArray__Length(const v8::TypedArray* self) {
   return ptr_to_local(self)->Length();
 }
-size_t v8__TypedArray__kMaxByteLength() { return v8::TypedArray::kMaxByteLength; }
+size_t v8__TypedArray__kMaxByteLength() {
+  return v8::TypedArray::kMaxByteLength;
+}
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
   return ptr_to_local(&self) == ptr_to_local(&other);
@@ -870,8 +882,8 @@ two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
 }
 
 v8::BackingStore* v8__BackingStore__EmptyBackingStore(bool shared) {
-  std::unique_ptr<i::BackingStoreBase> u = 
-      i::BackingStore::EmptyBackingStore(shared ? i::SharedFlag::kShared : i::SharedFlag::kNotShared);
+  std::unique_ptr<i::BackingStoreBase> u = i::BackingStore::EmptyBackingStore(
+      shared ? i::SharedFlag::kShared : i::SharedFlag::kNotShared);
   return static_cast<v8::BackingStore*>(u.release());
 }
 
@@ -1026,6 +1038,16 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
   return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
+const v8::String::ExternalStringResource* v8__String__GetExternalStringResource(
+	const v8::String& self) {
+  return self.GetExternalStringResource();
+}
+
+const v8::String::ExternalStringResourceBase* v8__String__GetExternalStringResourceBase(
+	const v8::String& self, v8::String::Encoding* encoding_out) {
+  return self.GetExternalStringResourceBase(encoding_out);
+}
+
 class ExternalStaticOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
@@ -1044,14 +1066,17 @@ class ExternalStaticOneByteStringResource
 class ExternalConstOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
-  ExternalConstOneByteStringResource(int length)
-      : _length(length) {
-    static_assert(offsetof(ExternalConstOneByteStringResource, _length) == sizeof(size_t) * 2,
-                  "ExternalConstOneByteStringResource's length was not at offset of sizeof(size_t) * 2");
-    static_assert(sizeof(ExternalConstOneByteStringResource) == sizeof(size_t) * 3,
-                  "ExternalConstOneByteStringResource size was not sizeof(size_t) * 3");
-    static_assert(alignof(ExternalConstOneByteStringResource) == sizeof(size_t),
-                  "ExternalConstOneByteStringResource align was not sizeof(size_t)");
+  ExternalConstOneByteStringResource(int length) : _length(length) {
+    static_assert(offsetof(ExternalConstOneByteStringResource, _length) ==
+                      sizeof(size_t) * 2,
+                  "ExternalConstOneByteStringResource's length was not at "
+                  "offset of sizeof(size_t) * 2");
+    static_assert(
+        sizeof(ExternalConstOneByteStringResource) == sizeof(size_t) * 3,
+        "ExternalConstOneByteStringResource size was not sizeof(size_t) * 3");
+    static_assert(
+        alignof(ExternalConstOneByteStringResource) == sizeof(size_t),
+        "ExternalConstOneByteStringResource align was not sizeof(size_t)");
   }
   const char* data() const override { return nullptr; }
   size_t length() const override { return _length; }
@@ -1183,15 +1208,14 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
-void v8__ObjectTemplate__SetAccessor(
-    const v8::ObjectTemplate& self, const v8::Name& key,
-    v8::AccessorNameGetterCallback getter,
-    v8::AccessorNameSetterCallback setter,
-    const v8::Value* data_or_null,
-    v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetAccessor(
-    ptr_to_local(&key), getter, setter,  ptr_to_local(data_or_null), v8::AccessControl::DEFAULT,
-    attr);
+void v8__ObjectTemplate__SetAccessor(const v8::ObjectTemplate& self,
+                                     const v8::Name& key,
+                                     v8::AccessorNameGetterCallback getter,
+                                     v8::AccessorNameSetterCallback setter,
+                                     const v8::Value* data_or_null,
+                                     v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter,
+                                   ptr_to_local(data_or_null), attr);
 }
 
 void v8__ObjectTemplate__SetNamedPropertyHandler(
@@ -1334,9 +1358,9 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
                                   v8::AccessorNameSetterCallback setter,
                                   const v8::Value* data_or_null,
                                   v8::PropertyAttribute attr) {
-  return maybe_to_maybe_bool(ptr_to_local(&self)->SetAccessor(
+  return maybe_to_maybe_bool(ptr_to_local(&self)->SetNativeDataProperty(
       ptr_to_local(&context), ptr_to_local(&key), getter, setter,
-      ptr_to_local(data_or_null), v8::AccessControl::DEFAULT, attr));
+      ptr_to_local(data_or_null), attr));
 }
 
 v8::Isolate* v8__Object__GetIsolate(const v8::Object& self) {
@@ -1431,7 +1455,7 @@ int v8__Object__InternalFieldCount(const v8::Object& self) {
 }
 
 const v8::Data* v8__Object__GetInternalField(const v8::Object& self,
-                                              int index) {
+                                             int index) {
   return local_to_ptr(ptr_to_local(&self)->GetInternalField(index));
 }
 
@@ -1495,9 +1519,22 @@ const v8::Value* v8__Object__GetOwnPropertyDescriptor(
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
-const v8::Array* v8__Object__PreviewEntries(
-    const v8::Object& self,
-    bool* is_key_value) {
+
+const v8::Value* v8__Object__GetRealNamedProperty(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->GetRealNamedProperty(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
+void v8__Object__GetRealNamedPropertyAttributes(
+    const v8::Object& self, const v8::Context& context, const v8::Name& key,
+    v8::Maybe<v8::PropertyAttribute>* out) {
+  *out = ptr_to_local(&self)->GetRealNamedPropertyAttributes(
+      ptr_to_local(&context), ptr_to_local(&key));
+}
+
+const v8::Array* v8__Object__PreviewEntries(const v8::Object& self,
+                                            bool* is_key_value) {
   return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
 }
 
@@ -1666,8 +1703,7 @@ const v8::ArrayBuffer* v8__ArrayBufferView__Buffer(
   return local_to_ptr(ptr_to_local(&self)->Buffer());
 }
 
-const void* v8__ArrayBufferView__Buffer__Data(
-    const v8::ArrayBufferView& self) {
+const void* v8__ArrayBufferView__Buffer__Data(const v8::ArrayBufferView& self) {
   return ptr_to_local(&self)->Buffer()->Data();
 }
 
@@ -1851,12 +1887,22 @@ void v8__Context__UseDefaultSecurityToken(v8::Context& self) {
   ptr_to_local(&self)->UseDefaultSecurityToken();
 }
 
-void v8__Context__AllowCodeGenerationFromStrings(v8::Context& self, bool allow) {
-   ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow);
+void v8__Context__AllowCodeGenerationFromStrings(v8::Context& self,
+                                                 bool allow) {
+  ptr_to_local(&self)->AllowCodeGenerationFromStrings(allow);
 }
 
 bool v8__Context_IsCodeGenerationFromStringsAllowed(v8::Context& self) {
   return ptr_to_local(&self)->IsCodeGenerationFromStringsAllowed();
+}
+
+v8::MicrotaskQueue* v8__Context__GetMicrotaskQueue(v8::Context& self) {
+  return ptr_to_local(&self)->GetMicrotaskQueue();
+}
+
+void v8__Context__SetMicrotaskQueue(v8::Context& self,
+                                    v8::MicrotaskQueue* microtask_queue) {
+  ptr_to_local(&self)->SetMicrotaskQueue(microtask_queue);
 }
 
 const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
@@ -1866,16 +1912,43 @@ const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
   return maybe_local_to_ptr(maybe_local);
 }
 
-void v8__Context__SetContinuationPreservedEmbedderData(v8::Context& context,
+void v8__Context__SetContinuationPreservedEmbedderData(v8::Isolate* isolate,
                                                        const v8::Value* data) {
-  auto c = ptr_to_local(&context);
-  c->SetContinuationPreservedEmbedderData(ptr_to_local(data));
+  isolate->SetContinuationPreservedEmbedderData(ptr_to_local(data));
 }
 
 const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
-    const v8::Context& context) {
-  auto value = ptr_to_local(&context)->GetContinuationPreservedEmbedderData();
+    v8::Isolate* isolate) {
+  auto value = isolate->GetContinuationPreservedEmbedderData();
   return local_to_ptr(value);
+}
+
+v8::MicrotaskQueue* v8__MicrotaskQueue__New(
+    v8::Isolate* isolate, v8::MicrotasksPolicy policy) {
+  return v8::MicrotaskQueue::New(isolate, policy).release();
+}
+
+void v8__MicrotaskQueue__DESTRUCT(v8::MicrotaskQueue* self) {
+  self->~MicrotaskQueue();
+}
+
+void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,
+                                           v8::MicrotaskQueue* self) {
+  self->PerformCheckpoint(isolate);
+}
+
+bool v8__MicrotaskQueue__IsRunningMicrotasks(v8::MicrotaskQueue* self) {
+  return self->IsRunningMicrotasks();
+}
+
+int v8__MicrotaskQueue__GetMicrotasksScopeDepth(v8::MicrotaskQueue* self) {
+  return self->GetMicrotasksScopeDepth();
+}
+
+void v8__MicrotaskQueue__EnqueueMicrotask(v8::Isolate* isolate,
+                                          v8::MicrotaskQueue* self,
+                                          v8::Function* callback) {
+  self->EnqueueMicrotask(isolate, ptr_to_local(callback));
 }
 
 const v8::String* v8__Message__Get(const v8::Message& self) {
@@ -2063,19 +2136,27 @@ const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::SideEffectType side_effect_type, void* func_ptr1,
     const v8::CFunctionInfo* c_function_info1, void* func_ptr2,
     const v8::CFunctionInfo* c_function_info2) {
-  auto overload = v8::MemorySpan<const v8::CFunction>{};
   // Support upto 2 overloads. V8 requires TypedArray to have a
   // v8::Array overload.
   if (func_ptr1) {
     if (func_ptr2 == nullptr) {
       const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1)};
-      overload = v8::MemorySpan<const v8::CFunction>{o, 1};
+      auto overload = v8::MemorySpan<const v8::CFunction>{o, 1};
+      return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
+          isolate, callback, ptr_to_local(data_or_null),
+          ptr_to_local(signature_or_null), length, constructor_behavior,
+          side_effect_type, overload));
     } else {
       const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1),
                                  v8::CFunction(func_ptr2, c_function_info2)};
-      overload = v8::MemorySpan<const v8::CFunction>{o, 2};
+      auto overload = v8::MemorySpan<const v8::CFunction>{o, 2};
+      return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
+          isolate, callback, ptr_to_local(data_or_null),
+          ptr_to_local(signature_or_null), length, constructor_behavior,
+          side_effect_type, overload));
     }
   }
+  auto overload = v8::MemorySpan<const v8::CFunction>{};
   return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
@@ -2309,10 +2390,7 @@ void v8__AllowJavascriptExecutionScope__DESTRUCT(
     return local_to_ptr(                                                 \
         v8::NAME::New(ptr_to_local(&buf_ptr), byte_offset, length));     \
   }                                                                      \
-  size_t v8__##NAME##__kMaxLength() {                                    \
-    return v8::NAME::kMaxLength;                                         \
-  }
-
+  size_t v8__##NAME##__kMaxLength() { return v8::NAME::kMaxLength; }
 
 V(Uint8Array)
 V(Uint8ClampedArray)
@@ -2366,14 +2444,16 @@ const v8::Value* v8__Script__Run(const v8::Script& script,
   return maybe_local_to_ptr(ptr_to_local(&script)->Run(ptr_to_local(&context)));
 }
 
-void v8__ScriptOrigin__CONSTRUCT(
-    v8::Isolate* isolate, uninit_t<v8::ScriptOrigin>* buf,
-    const v8::Value& resource_name, int resource_line_offset,
-    int resource_column_offset, bool resource_is_shared_cross_origin,
-    int script_id, const v8::Value& source_map_url, bool resource_is_opaque,
-    bool is_wasm, bool is_module) {
+void v8__ScriptOrigin__CONSTRUCT(uninit_t<v8::ScriptOrigin>* buf,
+                                 const v8::Value& resource_name,
+                                 int resource_line_offset,
+                                 int resource_column_offset,
+                                 bool resource_is_shared_cross_origin,
+                                 int script_id, const v8::Value& source_map_url,
+                                 bool resource_is_opaque, bool is_wasm,
+                                 bool is_module) {
   construct_in_place<v8::ScriptOrigin>(
-      buf, isolate, ptr_to_local(&resource_name), resource_line_offset,
+      buf, ptr_to_local(&resource_name), resource_line_offset,
       resource_column_offset, resource_is_shared_cross_origin, script_id,
       ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
 }
@@ -2543,10 +2623,8 @@ bool v8__Proxy__IsRevoked(const v8::Proxy& self) {
 void v8__Proxy__Revoke(const v8::Proxy& self) { ptr_to_local(&self)->Revoke(); }
 
 void v8__SnapshotCreator__CONSTRUCT(uninit_t<v8::SnapshotCreator>* buf,
-                                    const intptr_t* external_references,
-                                    v8::StartupData* existing_blob) {
-  construct_in_place<v8::SnapshotCreator>(buf, external_references,
-                                          existing_blob);
+                                    const v8::Isolate::CreateParams& params) {
+  construct_in_place<v8::SnapshotCreator>(buf, params);
 }
 
 void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
@@ -3011,7 +3089,8 @@ const v8::Module* v8__Module__CreateSyntheticModule(
   for (size_t i = 0; i < export_names_len; i += 1) {
     export_names_vec.push_back(ptr_to_local(export_names_raw[i]));
   }
-  auto export_names = v8::MemorySpan<const v8::Local<v8::String>>{export_names_vec.data(), export_names_len};
+  auto export_names = v8::MemorySpan<const v8::Local<v8::String>>{
+      export_names_vec.data(), export_names_len};
   return local_to_ptr(v8::Module::CreateSyntheticModule(
       isolate, ptr_to_local(module_name), export_names, evaluation_steps));
 }
@@ -3037,12 +3116,13 @@ struct StalledTopLevelAwaitMessage {
 size_t v8__Module__GetStalledTopLevelAwaitMessage(
     const v8::Module& self, v8::Isolate* isolate,
     StalledTopLevelAwaitMessage* out_vec, size_t out_len) {
-  auto messages = ptr_to_local(&self)->GetStalledTopLevelAwaitMessage(isolate);
+  auto [modules, messages] =
+      ptr_to_local(&self)->GetStalledTopLevelAwaitMessages(isolate);
   auto len = std::min(messages.size(), out_len);
   for (size_t i = 0; i < len; i += 1) {
     StalledTopLevelAwaitMessage stalled_message;
-    stalled_message.module = local_to_ptr(std::get<0>(messages[i]));
-    stalled_message.message = local_to_ptr(std::get<1>(messages[i]));
+    stalled_message.module = local_to_ptr(modules[i]);
+    stalled_message.message = local_to_ptr(messages[i]);
     out_vec[i] = stalled_message;
   }
   return len;
@@ -3057,9 +3137,9 @@ int v8__ModuleRequest__GetSourceOffset(const v8::ModuleRequest& self) {
   return self.GetSourceOffset();
 }
 
-const v8::FixedArray* v8__ModuleRequest__GetImportAssertions(
+const v8::FixedArray* v8__ModuleRequest__GetImportAttributes(
     const v8::ModuleRequest& self) {
-  return local_to_ptr(self.GetImportAssertions());
+  return local_to_ptr(self.GetImportAttributes());
 }
 
 struct WasmStreamingSharedPtr {
@@ -3152,7 +3232,7 @@ int v8__Value__GetHash(const v8::Value& data) {
   i::Tagged<i::Object> object(reinterpret_cast<const i::Address&>(data));
   i::Isolate* isolate;
   int hash = IsHeapObject(object) && i::GetIsolateFromHeapObject(
-                                          object.GetHeapObject(), &isolate)
+                                         object.GetHeapObject(), &isolate)
                  ? i::Object::GetOrCreateHash(object, isolate).value()
                  : i::Smi::ToInt(i::Object::GetHash(object));
   assert(hash != 0);
@@ -3615,43 +3695,51 @@ extern "C" {
 using RustTraceFn = void (*)(void* obj, cppgc::Visitor*);
 using RustDestroyFn = void (*)(void* obj);
 
-class RustObj final: public cppgc::GarbageCollected<RustObj> {
-  public:
-    explicit RustObj(void* obj, RustTraceFn trace, RustDestroyFn destroy): trace_(trace), destroy_(destroy), obj_(obj) {}
+class RustObj final : public cppgc::GarbageCollected<RustObj> {
+ public:
+  explicit RustObj(void* obj, RustTraceFn trace, RustDestroyFn destroy)
+      : trace_(trace), destroy_(destroy), obj_(obj) {}
 
-    ~RustObj() {
-      destroy_(obj_);
-    }
+  ~RustObj() { destroy_(obj_); }
 
-    void Trace(cppgc::Visitor* visitor) const {
-      trace_(obj_, visitor);
-    }
+  void Trace(cppgc::Visitor* visitor) const { trace_(obj_, visitor); }
 
-  private:
-    RustTraceFn trace_;
-    RustDestroyFn destroy_;
-    void* obj_;
+ private:
+  RustTraceFn trace_;
+  RustDestroyFn destroy_;
+  void* obj_;
 };
 
 void cppgc__initialize_process(v8::Platform* platform) {
   cppgc::InitializeProcess(platform->GetPageAllocator());
 }
 
-void cppgc__shutdown_process() {
-  cppgc::ShutdownProcess();
-}
+void cppgc__shutdown_process() { cppgc::ShutdownProcess(); }
 
-v8::CppHeap* cppgc__heap__create(v8::Platform* platform, int wrappable_type_index,
-                                 int wrappable_instance_index, uint16_t embedder_id) {
-  std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(platform, v8::CppHeapCreateParams {
-    {},
-    v8::WrapperDescriptor(wrappable_type_index, wrappable_instance_index, embedder_id),
-  });
+v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
+                                 int wrappable_type_index,
+                                 int wrappable_instance_index,
+                                 uint16_t embedder_id) {
+  std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(
+      platform,
+      v8::CppHeapCreateParams{
+          {},
+          v8::WrapperDescriptor(wrappable_type_index, wrappable_instance_index,
+                                embedder_id),
+      });
   return heap.release();
 }
 
 void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) { 
+// The AttachCppHeap method is deprecated but the alternative of passing
+// heap to the Isolate CreateParams is broken.
+//
+// TODO(@littledivy): Remove this when the above CL is merged.
+// https://chromium-review.googlesource.com/c/chromium/src/+/4992764
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   isolate->AttachCppHeap(cpp_heap);
+#pragma clang diagnostic pop
 }
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
@@ -3660,16 +3748,21 @@ v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
 
 void cppgc__heap__DELETE(v8::CppHeap* self) { delete self; }
 
-void cppgc__heap__enable_detached_garbage_collections_for_testing(v8::CppHeap* heap) {
+void cppgc__heap__enable_detached_garbage_collections_for_testing(
+    v8::CppHeap* heap) {
   heap->EnableDetachedGarbageCollectionsForTesting();
 }
 
-void cppgc__heap__collect_garbage_for_testing(v8::CppHeap* heap, cppgc::EmbedderStackState stack_state) {  
+void cppgc__heap__collect_garbage_for_testing(
+    v8::CppHeap* heap, cppgc::EmbedderStackState stack_state) {
   heap->CollectGarbageForTesting(stack_state);
 }
 
-RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, void* obj, RustTraceFn trace, RustDestroyFn destroy) {
-  return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(), obj, trace, destroy);
+RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, void* obj,
+                                         RustTraceFn trace,
+                                         RustDestroyFn destroy) {
+  return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(), obj,
+                                              trace, destroy);
 }
 
 void cppgc__visitor__trace(cppgc::Visitor* visitor, RustObj* member) {

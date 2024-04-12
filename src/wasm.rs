@@ -159,7 +159,7 @@ impl CompiledWasmModule {
     let mut len = 0;
     unsafe {
       let ptr = v8__CompiledWasmModule__SourceUrl(self.0, &mut len);
-      let bytes = std::slice::from_raw_parts(ptr as *const u8, len);
+      let bytes = std::slice::from_raw_parts(ptr as _, len);
       std::str::from_utf8_unchecked(bytes)
     }
   }

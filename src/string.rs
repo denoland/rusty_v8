@@ -2,11 +2,13 @@ use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
 use std::mem::MaybeUninit;
+use std::ptr::NonNull;
 use std::slice;
 
 use crate::support::char;
 use crate::support::int;
 use crate::support::size_t;
+use crate::support::Opaque;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
@@ -69,6 +71,14 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
+  fn v8__String__GetExternalStringResource(
+    this: *const String,
+  ) -> *mut ExternalStringResource;
+  fn v8__String__GetExternalStringResourceBase(
+    this: *const String,
+    encoding: *mut Encoding,
+  ) -> *mut ExternalOneByteStringResourceBase;
+
   fn v8__String__NewExternalOneByte(
     isolate: *mut Isolate,
     onebyte_const: *const OneByteConst,
@@ -96,11 +106,45 @@ extern "C" {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+pub enum Encoding {
+  Unknown = 0,
+  OneByte = 1,
+  TwoByte = 2,
+}
+
+#[repr(C)]
+pub struct ExternalStringResource(Opaque);
+
+#[repr(C)]
+pub struct ExternalOneByteStringResourceBase(Opaque);
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
 pub struct OneByteConst {
   vtable: *const OneByteConstNoOp,
   cached_data: *const char,
   length: usize,
+}
+
+impl AsRef<str> for OneByteConst {
+  fn as_ref(&self) -> &str {
+    // SAFETY: We know this is ASCII
+    unsafe { std::str::from_utf8_unchecked(AsRef::<[u8]>::as_ref(self)) }
+  }
+}
+
+impl AsRef<[u8]> for OneByteConst {
+  fn as_ref(&self) -> &[u8] {
+    // SAFETY: Returning to the slice from which this came
+    unsafe { std::slice::from_raw_parts(self.cached_data as _, self.length) }
+  }
+}
+
+impl std::ops::Deref for OneByteConst {
+  type Target = str;
+  fn deref(&self) -> &Self::Target {
+    self.as_ref()
+  }
 }
 
 // SAFETY: The vtable for OneByteConst is an immutable static and all
@@ -178,19 +222,6 @@ const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
   length: one_byte_const_length,
 };
 
-/// Compile-time function to determine if a string is ASCII. Note that UTF-8 chars
-/// longer than one byte have the high-bit set and thus, are not ASCII.
-const fn is_ascii(s: &'static [u8]) -> bool {
-  let mut i = 0;
-  while i < s.len() {
-    if !s[i].is_ascii() {
-      return false;
-    }
-    i += 1;
-  }
-  true
-}
-
 #[repr(C)]
 #[derive(Debug, Default)]
 pub enum NewStringType {
@@ -200,7 +231,7 @@ pub enum NewStringType {
 }
 
 bitflags! {
-  #[derive(Default)]
+  #[derive(Clone, Copy, Default)]
   #[repr(transparent)]
   pub struct WriteOptions: int {
     const NO_OPTIONS = 0;
@@ -433,15 +464,28 @@ impl String {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
-  // Compile-time function to create an external string resource.
-  // The buffer is checked to contain only ASCII characters.
+  /// Compile-time function to create an external string resource.
+  /// The buffer is checked to contain only ASCII characters.
   #[inline(always)]
   pub const fn create_external_onebyte_const(
     buffer: &'static [u8],
   ) -> OneByteConst {
     // Assert that the buffer contains only ASCII, and that the
     // length is less or equal to (64-bit) v8::String::kMaxLength.
-    assert!(is_ascii(buffer) && buffer.len() <= ((1 << 29) - 24));
+    assert!(buffer.is_ascii() && buffer.len() <= ((1 << 29) - 24));
+    OneByteConst {
+      vtable: &ONE_BYTE_CONST_VTABLE.delete1,
+      cached_data: buffer.as_ptr() as *const char,
+      length: buffer.len(),
+    }
+  }
+
+  /// Compile-time function to create an external string resource which
+  /// skips the ASCII and length checks.
+  #[inline(always)]
+  pub const unsafe fn create_external_onebyte_const_unchecked(
+    buffer: &'static [u8],
+  ) -> OneByteConst {
     OneByteConst {
       vtable: &ONE_BYTE_CONST_VTABLE.delete1,
       cached_data: buffer.as_ptr() as *const char,
@@ -498,6 +542,27 @@ impl String {
         )
       })
     }
+  }
+
+  // Get the ExternalStringResource for an external string.
+  //
+  // Returns None if is_external() doesn't return true.
+  pub fn get_external_string_resource(
+    &self,
+  ) -> Option<NonNull<ExternalStringResource>> {
+    NonNull::new(unsafe { v8__String__GetExternalStringResource(self) })
+  }
+
+  pub fn get_external_string_resource_base(
+    &self,
+  ) -> (Option<NonNull<ExternalOneByteStringResourceBase>>, Encoding) {
+    let mut encoding = Encoding::Unknown;
+    (
+      NonNull::new(unsafe {
+        v8__String__GetExternalStringResourceBase(self, &mut encoding)
+      }),
+      encoding,
+    )
   }
 
   /// True if string is external

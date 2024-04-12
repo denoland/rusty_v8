@@ -4,14 +4,14 @@ use std::any::type_name;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::{Into, TryFrom, TryInto};
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::ptr::{addr_of, NonNull};
+use std::ptr::{addr_of, addr_of_mut, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -263,8 +263,7 @@ fn test_string() {
     assert_eq!(15, local.length());
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
-    let mut vec = Vec::new();
-    vec.resize(17, 0);
+    let mut vec = vec![0; 17];
     let options = v8::WriteOptions::NO_NULL_TERMINATION;
     let mut nchars = 0;
     assert_eq!(
@@ -637,6 +636,17 @@ fn microtasks() {
 }
 
 #[test]
+#[should_panic(
+  expected = "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
+)]
+fn isolate_drop_order() {
+  let isolate1 = v8::Isolate::new(Default::default());
+  let isolate2 = v8::Isolate::new(Default::default());
+  drop(isolate1);
+  drop(isolate2);
+}
+
+#[test]
 fn get_isolate_from_handle() {
   extern "C" {
     fn v8__internal__GetIsolateFromHeapObject(
@@ -694,8 +704,8 @@ fn get_isolate_from_handle() {
   let context = v8::Context::new(scope);
   let scope = &mut v8::ContextScope::new(scope, context);
 
-  check_handle(scope, None, |s| v8::null(s));
-  check_handle(scope, None, |s| v8::undefined(s));
+  check_handle(scope, None, v8::null);
+  check_handle(scope, None, v8::undefined);
   check_handle(scope, None, |s| v8::Boolean::new(s, true));
   check_handle(scope, None, |s| v8::Boolean::new(s, false));
   check_handle(scope, None, |s| v8::String::new(s, "").unwrap());
@@ -867,13 +877,13 @@ fn array_buffer() {
     data[0] = 1;
     let unique_bs =
       v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
-    assert_eq!(unique_bs.get(0).unwrap().get(), 1);
+    assert_eq!(unique_bs.first().unwrap().get(), 1);
     assert_eq!(unique_bs.get(15).unwrap().get(), 100);
 
     let ab =
       v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
     assert_eq!(ab.byte_length(), 16);
-    assert_eq!(ab.get_backing_store().get(0).unwrap().get(), 1);
+    assert_eq!(ab.get_backing_store().first().unwrap().get(), 1);
   }
 }
 
@@ -990,7 +1000,7 @@ fn deref_empty_backing_store() {
 
   let backing_store = v8::ArrayBuffer::new_backing_store(isolate, 0);
   let slice: &[std::cell::Cell<u8>] = &backing_store;
-  assert!(!slice.as_ptr().is_null());
+  assert!(!std::hint::black_box(slice.as_ptr()).is_null());
 }
 
 fn eval<'s>(
@@ -1106,7 +1116,9 @@ fn try_catch() {
         assert!(tc2.has_caught());
         assert!(tc2.rethrow().is_some());
         tc2.reset();
-        assert!(!tc2.has_caught());
+        // Reset does not clear exception on rethrow.
+        // https://chromium-review.googlesource.com/c/v8/v8/+/5050065
+        assert!(tc2.has_caught());
       }
       assert!(tc1.has_caught());
     };
@@ -4190,6 +4202,7 @@ fn promise_reject_callback_no_value() {
 }
 
 #[test]
+#[allow(clippy::clone_on_copy)]
 fn promise_hook() {
   extern "C" fn hook(
     type_: v8::PromiseHookType,
@@ -4197,8 +4210,8 @@ fn promise_hook() {
     _parent: v8::Local<v8::Value>,
   ) {
     // Check that PromiseHookType implements Clone and PartialEq.
-    #[allow(clippy::clone_on_copy)]
-    if type_.clone() == v8::PromiseHookType::Init {}
+    _ = type_.clone() == v8::PromiseHookType::Init;
+
     let scope = &mut unsafe { v8::CallbackScope::new(promise) };
     let context = promise.get_creation_context(scope).unwrap();
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -4516,6 +4529,57 @@ fn security_token() {
 }
 
 #[test]
+fn context_with_object_template() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  static mut CALLS: Vec<String> = Vec::new();
+
+  fn definer<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _key: v8::Local<'s, v8::Name>,
+    _descriptor: &v8::PropertyDescriptor,
+    _args: v8::PropertyCallbackArguments<'s>,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      CALLS.push("definer".to_string());
+    }
+  }
+
+  pub fn setter<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _key: v8::Local<'s, v8::Name>,
+    _value: v8::Local<'s, v8::Value>,
+    _args: v8::PropertyCallbackArguments<'s>,
+    _rv: v8::ReturnValue,
+  ) {
+    unsafe {
+      CALLS.push("setter".to_string());
+    }
+  }
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let object_template = v8::ObjectTemplate::new(scope);
+    let mut config = v8::NamedPropertyHandlerConfiguration::new().flags(
+      v8::PropertyHandlerFlags::NON_MASKING
+        | v8::PropertyHandlerFlags::HAS_NO_SIDE_EFFECT,
+    );
+    config = config.definer_raw(definer.map_fn_to());
+    config = config.setter_raw(setter.map_fn_to());
+    object_template.set_named_property_handler(config);
+    let context = v8::Context::new_from_template(scope, object_template);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, r#"Object.defineProperty(globalThis, 'key', { value: 9, enumerable: true, configurable: true, writable: true })"#).unwrap();
+    let calls_set =
+      unsafe { CALLS.clone().into_iter().collect::<HashSet<String>>() };
+    assert!(calls_set.contains("setter"));
+    assert!(calls_set.contains("definer"));
+  }
+}
+
+#[test]
 fn allow_code_generation_from_strings() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -4680,7 +4744,7 @@ fn module_instantiation_failures1() {
     let loc = module.source_offset_to_location(mr1.get_source_offset());
     assert_eq!(0, loc.get_line_number());
     assert_eq!(7, loc.get_column_number());
-    assert_eq!(0, mr1.get_import_assertions().length());
+    assert_eq!(0, mr1.get_import_attributes().length());
 
     let mr2 = v8::Local::<v8::ModuleRequest>::try_from(
       module_requests.get(scope, 1).unwrap(),
@@ -4690,7 +4754,7 @@ fn module_instantiation_failures1() {
     let loc = module.source_offset_to_location(mr2.get_source_offset());
     assert_eq!(1, loc.get_line_number());
     assert_eq!(15, loc.get_column_number());
-    assert_eq!(0, mr2.get_import_assertions().length());
+    assert_eq!(0, mr2.get_import_attributes().length());
 
     // Instantiation should fail.
     {
@@ -4838,6 +4902,9 @@ fn module_stalled_top_level_await() {
 
 #[test]
 fn import_assertions() {
+  use std::sync::atomic::AtomicUsize;
+  use std::sync::atomic::Ordering;
+
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
@@ -4890,6 +4957,20 @@ fn import_assertions() {
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
+  // TODO(@littledivy): this won't work when V8 removes `assert`.
+  static COUNTER: AtomicUsize = AtomicUsize::new(0);
+  extern "C" fn callback(
+    _msg: v8::Local<v8::Message>,
+    _: v8::Local<v8::Value>,
+  ) {
+    COUNTER.fetch_add(1, Ordering::SeqCst);
+  }
+
+  isolate.add_message_listener_with_error_level(
+    callback,
+    v8::MessageErrorLevel::ALL,
+  );
+
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope);
@@ -4915,6 +4996,8 @@ fn import_assertions() {
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
+
+  assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -5296,6 +5379,9 @@ fn snapshot_creator() {
           context_data_index_2,
         );
       assert!(matches!(bad_type_err, Err(v8::DataError::BadType { .. })));
+      // Ensure we can compile a request for v8::Data
+      _ = scope
+        .get_context_data_from_snapshot_once::<v8::Data>(context_data_index_2);
     }
   }
 }
@@ -5452,8 +5538,8 @@ fn snapshot_creator_multiple_contexts() {
 fn external_references() {
   let _setup_guard = setup::sequential_test();
   // Allocate externals for the test.
-  let external_ptr = Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice())
-    as *mut [u8] as *mut c_void;
+  let external_ptr =
+    Box::into_raw(vec![0_u8, 1, 2, 3, 4].into_boxed_slice()) as *mut c_void;
   // Push them to the external reference table.
   let refs = [
     v8::ExternalReference {
@@ -6880,6 +6966,15 @@ fn get_property_attributes() {
   assert!(!attrs.is_dont_enum());
   assert!(!attrs.is_dont_delete());
   assert!(attrs.is_none());
+  let real_prop = obj.get_real_named_property(scope, key.into()).unwrap();
+  assert!(real_prop.is_number());
+  let real_prop_attrs = obj
+    .get_real_named_property_attributes(scope, key.into())
+    .unwrap();
+  assert!(!real_prop_attrs.is_read_only());
+  assert!(!real_prop_attrs.is_dont_enum());
+  assert!(!real_prop_attrs.is_dont_delete());
+  assert!(real_prop_attrs.is_none());
 
   // doesn't exist
   let key = v8::String::new(scope, "b").unwrap();
@@ -7667,16 +7762,13 @@ fn bigint() {
 
   let raw_b = v8::Local::<v8::BigInt>::try_from(raw_b).unwrap();
 
-  let mut vec = Vec::new();
-  vec.resize(raw_b.word_count(), 0);
+  let mut vec = vec![0; raw_b.word_count()];
   assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
 
-  let mut vec = Vec::new();
-  vec.resize(1, 0);
+  let mut vec = vec![0; 1];
   assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10][..]));
 
-  let mut vec = Vec::new();
-  vec.resize(20, 1337);
+  let mut vec = vec![1337, 20];
   assert_eq!(raw_b.to_words_array(&mut vec), (true, &mut [10, 10][..]));
 }
 
@@ -8072,6 +8164,7 @@ impl v8::ValueSerializerImpl for Custom2Value {
     scope: &mut v8::HandleScope<'s>,
     message: v8::Local<'s, v8::String>,
   ) {
+    let scope = &mut v8::TryCatch::new(scope);
     let error = v8::Exception::error(scope, message);
     scope.throw_exception(error);
   }
@@ -8288,7 +8381,7 @@ fn clear_kept_objects() {
 #[test]
 fn wasm_streaming_callback() {
   thread_local! {
-    static WS: RefCell<Option<v8::WasmStreaming>> = RefCell::new(None);
+    static WS: RefCell<Option<v8::WasmStreaming>> = const { RefCell::new(None) };
   }
 
   let callback = |scope: &mut v8::HandleScope,
@@ -8398,7 +8491,7 @@ fn run_with_rust_allocator() {
 
   unsafe extern "C" fn allocate(count: &AtomicUsize, n: usize) -> *mut c_void {
     count.fetch_add(n, Ordering::SeqCst);
-    Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut [u8] as *mut c_void
+    Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut c_void
   }
   unsafe extern "C" fn allocate_uninitialized(
     count: &AtomicUsize,
@@ -8426,7 +8519,7 @@ fn run_with_rust_allocator() {
     let copy_len = oldlen.min(newlen);
     new_store.extend_from_slice(&old_store[..copy_len]);
     new_store.resize(newlen, 0u8);
-    Box::into_raw(new_store.into_boxed_slice()) as *mut [u8] as *mut c_void
+    Box::into_raw(new_store.into_boxed_slice()) as *mut c_void
   }
   unsafe extern "C" fn drop(count: *const AtomicUsize) {
     Arc::from_raw(count);
@@ -8500,7 +8593,7 @@ fn oom_callback() {
 #[test]
 fn prepare_stack_trace_callback() {
   thread_local! {
-    static SITES: RefCell<Option<v8::Global<v8::Array>>> = RefCell::new(None);
+    static SITES: RefCell<Option<v8::Global<v8::Array>>> = const { RefCell::new(None) };
   }
 
   let script = r#"
@@ -8599,7 +8692,9 @@ fn icu_date() {
 
 #[test]
 fn icu_set_common_data_fail() {
-  assert!(v8::icu::set_common_data_73(&[1, 2, 3]).is_err());
+  assert!(
+    v8::icu::set_common_data_73(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
+  );
 }
 
 #[test]
@@ -8656,7 +8751,7 @@ fn create_module<'s>(
     true,
   );
   let has_cache = code_cache.is_some();
-  let source = match code_cache {
+  let mut source = match code_cache {
     Some(x) => v8::script_compiler::Source::new_with_cached_data(
       source,
       Some(&script_origin),
@@ -8664,14 +8759,18 @@ fn create_module<'s>(
     ),
     None => v8::script_compiler::Source::new(source, Some(&script_origin)),
   };
-  assert_eq!(source.get_cached_data().is_some(), has_cache);
   let module = v8::script_compiler::compile_module2(
     scope,
-    source,
+    &mut source,
     options,
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
+  let code_cache = source.get_cached_data();
+  assert_eq!(code_cache.is_some(), has_cache);
+  if let Some(code_cache) = code_cache {
+    assert!(!code_cache.rejected());
+  }
   module
 }
 
@@ -8825,10 +8924,10 @@ fn eager_compile_script() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let code = v8::String::new(scope, "1 + 1").unwrap();
-  let source = v8::script_compiler::Source::new(code, None);
+  let mut source = v8::script_compiler::Source::new(code, None);
   let script = v8::script_compiler::compile(
     scope,
-    source,
+    &mut source,
     v8::script_compiler::CompileOptions::EagerCompile,
     v8::script_compiler::NoCacheReason::NoReason,
   )
@@ -8865,18 +8964,21 @@ fn code_cache_script() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let code = v8::String::new(scope, CODE).unwrap();
-  let source = v8::script_compiler::Source::new_with_cached_data(
+  let mut source = v8::script_compiler::Source::new_with_cached_data(
     code,
     None,
     v8::CachedData::new(&code_cache),
   );
   let script = v8::script_compiler::compile(
     scope,
-    source,
+    &mut source,
     v8::script_compiler::CompileOptions::ConsumeCodeCache,
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
+  let code_cache = source.get_cached_data();
+  assert!(code_cache.is_some());
+  assert!(!code_cache.unwrap().rejected());
   let ret = script.run(scope).unwrap();
   assert_eq!(ret.uint32_value(scope).unwrap(), 2);
 }
@@ -8986,6 +9088,7 @@ fn external_strings() {
   assert!(latin1.contains_only_onebyte());
 
   // one-byte "const" test
+  assert_eq!(EXAMPLE_STRING.as_bytes(), b"const static");
   let const_ref_string =
     v8::String::new_from_onebyte_const(scope, &EXAMPLE_STRING).unwrap();
   assert!(const_ref_string.is_external());
@@ -10477,7 +10580,7 @@ fn test_fast_calls_callback_options_data() {
 
   let global = context.global(scope);
   let external =
-    v8::External::new(scope, unsafe { &mut DATA as *mut bool as *mut c_void });
+    v8::External::new(scope, unsafe { addr_of_mut!(DATA) as *mut c_void });
 
   let template = v8::FunctionTemplate::builder(slow_fn)
     .data(external.into())
@@ -11231,4 +11334,49 @@ fn allow_scope_in_read_host_object() {
     v8::ValueDeserializer::new(&mut scope, Box::new(Deserializer), &serialized);
   let value = deserializer.read_value(context).unwrap();
   assert!(value.is_object());
+}
+
+#[test]
+fn microtask_queue() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+
+  let queue = context.get_microtask_queue();
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  let function = v8::Function::new(
+    &mut scope,
+    |_: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    },
+  )
+  .unwrap();
+
+  queue.enqueue_microtask(&mut scope, function);
+  // Flushes the microtasks queue.
+  let _ = eval(&mut scope, "").unwrap();
+
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn microtask_queue_new() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let queue = v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Auto);
+
+  let context = v8::Context::new(&mut scope);
+
+  context.set_microtask_queue(queue.as_ref());
+  assert!(std::ptr::eq(context.get_microtask_queue(), queue.as_ref()));
+  // TODO(bartlomieju): add more tests once we have Context::New() bindings
+  // https://github.com/denoland/rusty_v8/issues/1438
 }

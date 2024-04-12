@@ -245,6 +245,29 @@ impl<'s> HandleScope<'s, ()> {
   }
 }
 
+// TODO(mmastrac): When the never type is stabilized, we can replace this trait
+// with type bounds (https://github.com/rust-lang/rust/issues/35121):
+
+// for<'l> DataError: From<<Local<'s, Data> as TryInto<Local<'l, T>>>::Error>,
+mod get_data_sealed {
+  use crate::DataError;
+  use std::convert::Infallible;
+
+  pub trait ToDataError {
+    fn to_data_error(self) -> DataError;
+  }
+  impl ToDataError for DataError {
+    fn to_data_error(self) -> DataError {
+      self
+    }
+  }
+  impl ToDataError for Infallible {
+    fn to_data_error(self) -> DataError {
+      unreachable!()
+    }
+  }
+}
+
 impl<'s> HandleScope<'s> {
   /// Return data that was previously attached to the isolate snapshot via
   /// SnapshotCreator, and removes the reference to it. If called again with
@@ -259,15 +282,21 @@ impl<'s> HandleScope<'s> {
   ) -> Result<Local<'s, T>, DataError>
   where
     T: 'static,
-    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
+      get_data_sealed::ToDataError,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
     unsafe {
-      self
-        .cast_local(|sd| {
-          raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
-        })
-        .ok_or_else(DataError::no_data::<T>)
-        .and_then(|data| data.try_into())
+      let Some(res) = self.cast_local(|sd| {
+        raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
+      }) else {
+        return Err(DataError::no_data::<T>());
+      };
+      use get_data_sealed::ToDataError;
+      match res.try_into() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(e.to_data_error()),
+      }
     }
   }
 
@@ -284,18 +313,24 @@ impl<'s> HandleScope<'s> {
   ) -> Result<Local<'s, T>, DataError>
   where
     T: 'static,
-    for<'l> Local<'l, Data>: TryInto<Local<'l, T>, Error = DataError>,
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
+      get_data_sealed::ToDataError,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
   {
     unsafe {
-      self
-        .cast_local(|sd| {
-          raw::v8__Context__GetDataFromSnapshotOnce(
-            sd.get_current_context(),
-            index,
-          )
-        })
-        .ok_or_else(DataError::no_data::<T>)
-        .and_then(|data| data.try_into())
+      let Some(res) = self.cast_local(|sd| {
+        raw::v8__Context__GetDataFromSnapshotOnce(
+          sd.get_current_context(),
+          index,
+        )
+      }) else {
+        return Err(DataError::no_data::<T>());
+      };
+      use get_data_sealed::ToDataError;
+      match res.try_into() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(e.to_data_error()),
+      }
     }
   }
 
@@ -327,7 +362,7 @@ impl<'s> HandleScope<'s> {
     unsafe {
       let sd = data::ScopeData::get_mut(self);
       raw::v8__Context__SetContinuationPreservedEmbedderData(
-        sd.get_current_context(),
+        sd.get_isolate_ptr(),
         &*data,
       );
     }
@@ -341,7 +376,7 @@ impl<'s> HandleScope<'s> {
       self
         .cast_local(|sd| {
           raw::v8__Context__GetContinuationPreservedEmbedderData(
-            sd.get_current_context(),
+            sd.get_isolate_ptr(),
           )
         })
         .unwrap()
@@ -2082,11 +2117,11 @@ mod raw {
       resolve_hook: *const Function,
     );
     pub(super) fn v8__Context__SetContinuationPreservedEmbedderData(
-      this: *const Context,
+      this: *mut Isolate,
       value: *const Value,
     );
     pub(super) fn v8__Context__GetContinuationPreservedEmbedderData(
-      this: *const Context,
+      this: *mut Isolate,
     ) -> *const Value;
 
     pub(super) fn v8__HandleScope__CONSTRUCT(
@@ -2167,7 +2202,7 @@ mod tests {
   /// assigning a value to a variable with an explicitly stated type is that the
   /// latter allows coercions and dereferencing to change the type, whereas
   /// `AssertTypeOf` requires the compared types to match exactly.
-  struct AssertTypeOf<'a, T>(pub &'a T);
+  struct AssertTypeOf<'a, T>(#[allow(dead_code)] &'a T);
   impl<'a, T> AssertTypeOf<'a, T> {
     pub fn is<A>(self)
     where

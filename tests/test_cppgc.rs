@@ -59,8 +59,10 @@ fn cppgc_object_wrap() {
 
     let obj = templ.new_instance(scope).unwrap();
 
-    let member =
-      v8::cppgc::make_garbage_collected(scope.get_cpp_heap(), Box::new(Wrap));
+    let member = v8::cppgc::make_garbage_collected(
+      scope.get_cpp_heap().unwrap(),
+      Box::new(Wrap),
+    );
 
     obj.set_aligned_pointer_in_internal_field(
       0,
@@ -72,7 +74,7 @@ fn cppgc_object_wrap() {
   }
 
   {
-    let isolate = &mut v8::Isolate::new(Default::default());
+    let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
     // Create a managed heap.
     let heap = v8::cppgc::Heap::create(
       guard.platform.clone(),
@@ -82,7 +84,6 @@ fn cppgc_object_wrap() {
         DEFAULT_CPP_GC_EMBEDDER_ID,
       )),
     );
-
     isolate.attach_cpp_heap(&heap);
 
     let handle_scope = &mut v8::HandleScope::new(isolate);
