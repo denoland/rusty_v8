@@ -128,9 +128,10 @@ pub struct OneByteConst {
 
 impl OneByteConst {
   /// `const` function that returns this string as a string reference.
+  #[inline(always)]
   pub const fn as_str(&self) -> &str {
     if self.length == 0 {
-      &""
+      ""
     } else {
       // SAFETY: We know this is ASCII and length > 0
       unsafe {
@@ -144,12 +145,14 @@ impl OneByteConst {
 }
 
 impl AsRef<str> for OneByteConst {
+  #[inline(always)]
   fn as_ref(&self) -> &str {
     self.as_str()
   }
 }
 
 impl AsRef<[u8]> for OneByteConst {
+  #[inline(always)]
   fn as_ref(&self) -> &[u8] {
     self.as_str().as_bytes()
   }
@@ -157,6 +160,7 @@ impl AsRef<[u8]> for OneByteConst {
 
 impl std::ops::Deref for OneByteConst {
   type Target = str;
+  #[inline(always)]
   fn deref(&self) -> &Self::Target {
     self.as_ref()
   }
