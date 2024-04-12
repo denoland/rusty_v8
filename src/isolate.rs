@@ -54,6 +54,7 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr;
+use std::ptr::addr_of_mut;
 use std::ptr::drop_in_place;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
@@ -531,7 +532,7 @@ extern "C" {
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
     isolate: *mut Isolate,
-    callback: extern "C" fn(*mut c_void, *const u8, usize) -> bool,
+    callback: unsafe extern "C" fn(*mut c_void, *const u8, usize) -> bool,
     arg: *mut c_void,
   );
 
@@ -1322,7 +1323,7 @@ impl Isolate {
   where
     F: FnMut(&[u8]) -> bool,
   {
-    extern "C" fn trampoline<F>(
+    unsafe extern "C" fn trampoline<F>(
       arg: *mut c_void,
       data: *const u8,
       size: usize,
@@ -1330,14 +1331,18 @@ impl Isolate {
     where
       F: FnMut(&[u8]) -> bool,
     {
-      let p = arg as *mut F;
-      let callback = unsafe { &mut *p };
-      let slice = unsafe { std::slice::from_raw_parts(data, size) };
-      callback(slice)
+      let mut callback = NonNull::<F>::new_unchecked(arg as _);
+      if size > 0 {
+        (callback.as_mut())(std::slice::from_raw_parts(data, size))
+      } else {
+        (callback.as_mut())(&[])
+      }
     }
 
-    let arg = &mut callback as *mut F as *mut c_void;
-    unsafe { v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg) }
+    let arg = addr_of_mut!(callback);
+    unsafe {
+      v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg as _)
+    }
   }
 
   /// Set the default context to be included in the snapshot blob.

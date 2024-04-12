@@ -1,6 +1,6 @@
-// Don't run UI tests on emulated environment.
+// Don't run UI tests on emulated environment or nightly build.
 #[cfg(not(target_os = "android"))]
-#[test]
+#[rustversion::attr(not(nightly), test)]
 fn ui() {
   // This environment variable tells build.rs that we're running trybuild tests,
   // so it won't rebuild V8.
