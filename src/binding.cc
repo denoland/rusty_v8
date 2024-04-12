@@ -2107,6 +2107,8 @@ v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
   return u.release();
 }
 
+void v8__CTypeInfo__DELETE(v8::CTypeInfo* self) { delete self; }
+
 struct CTypeSequenceType {
   v8::CTypeInfo::Type c_type;
   v8::CTypeInfo::SequenceType sequence_type;
