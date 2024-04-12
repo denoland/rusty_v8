@@ -75,6 +75,13 @@ exclude = [
   "!v8/tools/testrunner/utils/dump_build_config.py",
 ]
 
+[profile.dev]
+# rusty_v8 may miscompile at opt-level=0.
+# https://github.com/rust-lang/rust/issues/87215
+# https://github.com/rust-lang/rust/issues/75839
+# https://github.com/rust-lang/rust/issues/121028
+opt-level = 1
+
 [features]
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
@@ -99,6 +106,7 @@ fslock = "0.2"
 trybuild = "1.0.61"
 which = "5"
 home = "0"
+rustversion = "1"
 
 [[example]]
 name = "hello_world"
