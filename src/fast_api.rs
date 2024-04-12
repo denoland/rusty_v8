@@ -19,6 +19,7 @@ extern "C" {
     args_info: *const CTypeInfo,
     repr: Int64Representation,
   ) -> *mut CFunctionInfo;
+  fn v8__CFunctionInfo__DELETE(this: &mut CFunctionInfo);
 }
 
 #[repr(C)]
@@ -43,6 +44,12 @@ impl CFunctionInfo {
       args,
       repr,
     ))
+  }
+}
+
+impl Drop for CFunctionInfo {
+  fn drop(&mut self) {
+    unsafe { v8__CFunctionInfo__DELETE(self) };
   }
 }
 

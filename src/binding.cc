@@ -2129,6 +2129,8 @@ v8::CFunctionInfo* v8__CFunctionInfo__New(
   return info.release();
 }
 
+void v8__CFunctionInfo__DELETE(v8::CFunctionInfo* self) { delete self; }
+
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
