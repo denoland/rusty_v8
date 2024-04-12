@@ -8692,7 +8692,9 @@ fn icu_date() {
 
 #[test]
 fn icu_set_common_data_fail() {
-  assert!(v8::icu::set_common_data_73(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err());
+  assert!(
+    v8::icu::set_common_data_73(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
+  );
 }
 
 #[test]
