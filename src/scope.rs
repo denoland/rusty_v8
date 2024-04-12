@@ -2220,7 +2220,7 @@ mod tests {
   /// assigning a value to a variable with an explicitly stated type is that the
   /// latter allows coercions and dereferencing to change the type, whereas
   /// `AssertTypeOf` requires the compared types to match exactly.
-  struct AssertTypeOf<'a, T>(pub &'a T);
+  struct AssertTypeOf<'a, T>(#[allow(dead_code)] &'a T);
   impl<'a, T> AssertTypeOf<'a, T> {
     pub fn is<A>(self)
     where
