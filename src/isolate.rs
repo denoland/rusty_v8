@@ -608,6 +608,20 @@ impl Isolate {
     );
   }
 
+  fn new_impl(params: CreateParams) -> *mut Isolate {
+    crate::V8::assert_initialized();
+    let (raw_create_params, create_param_allocations) = params.finalize();
+    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
+    let isolate = unsafe { &mut *cxx_isolate };
+    isolate.initialize(create_param_allocations);
+    cxx_isolate
+  }
+
+  pub(crate) fn initialize(&mut self, create_param_allocations: Box<dyn Any>) {
+    self.assert_embedder_data_slot_count_and_offset_correct();
+    self.create_annex(create_param_allocations);
+  }
+
   /// Creates a new isolate.  Does not change the currently entered
   /// isolate.
   ///
@@ -617,17 +631,7 @@ impl Isolate {
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
   pub fn new(params: CreateParams) -> OwnedIsolate {
-    crate::V8::assert_initialized();
-    let (raw_create_params, create_param_allocations) = params.finalize();
-    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    let mut owned_isolate = OwnedIsolate::new(cxx_isolate);
-    owned_isolate.assert_embedder_data_slot_count_and_offset_correct();
-    ScopeData::new_root(&mut owned_isolate);
-    owned_isolate.create_annex(create_param_allocations);
-    unsafe {
-      owned_isolate.enter();
-    }
-    owned_isolate
+    OwnedIsolate::new(Self::new_impl(params))
   }
 
   #[allow(clippy::new_ret_no_self)]
@@ -685,6 +689,32 @@ impl Isolate {
     let annex_ptr = Arc::into_raw(annex_arc);
     assert!(self.get_data_internal(Self::ANNEX_SLOT).is_null());
     self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
+  }
+
+  unsafe fn dispose_annex(&mut self) {
+    // Set the `isolate` pointer inside the annex struct to null, so any
+    // IsolateHandle that outlives the isolate will know that it can't call
+    // methods on the isolate.
+    let annex = self.get_annex_mut();
+    {
+      let _lock = annex.isolate_mutex.lock().unwrap();
+      annex.isolate = null_mut();
+    }
+
+    // Clear slots and drop owned objects that were taken out of `CreateParams`.
+    annex.create_param_allocations = Box::new(());
+    annex.slots.clear();
+
+    // Run through any remaining guaranteed finalizers.
+    for finalizer in annex.finalizer_map.drain() {
+      if let FinalizerCallback::Guaranteed(callback) = finalizer {
+        callback();
+      }
+    }
+
+    // Subtract one from the Arc<IsolateAnnex> reference count.
+    unsafe { Arc::from_raw(annex) };
+    self.set_data(0, null_mut());
   }
 
   #[inline(always)]
@@ -768,6 +798,14 @@ impl Isolate {
       &mut *p
     };
     slots[slot as usize] = data;
+  }
+
+  pub(crate) fn init_scope_root(&mut self) {
+    ScopeData::new_root(self);
+  }
+
+  pub(crate) fn dispose_scope_root(&mut self) {
+    ScopeData::drop_root(self);
   }
 
   /// Returns a pointer to the `ScopeData` struct for the current scope.
@@ -1276,41 +1314,12 @@ impl Isolate {
     }
   }
 
-  unsafe fn clear_scope_and_annex(&mut self) {
-    // Drop the scope stack.
-    ScopeData::drop_root(self);
-
-    // Set the `isolate` pointer inside the annex struct to null, so any
-    // IsolateHandle that outlives the isolate will know that it can't call
-    // methods on the isolate.
-    let annex = self.get_annex_mut();
-    {
-      let _lock = annex.isolate_mutex.lock().unwrap();
-      annex.isolate = null_mut();
-    }
-
-    // Clear slots and drop owned objects that were taken out of `CreateParams`.
-    annex.create_param_allocations = Box::new(());
-    annex.slots.clear();
-
-    // Run through any remaining guaranteed finalizers.
-    for finalizer in annex.finalizer_map.drain() {
-      if let FinalizerCallback::Guaranteed(callback) = finalizer {
-        callback();
-      }
-    }
-
-    // Subtract one from the Arc<IsolateAnnex> reference count.
-    Arc::from_raw(annex);
-    self.set_data(0, null_mut());
-  }
-
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
   unsafe fn dispose(&mut self) {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
-    v8__Isolate__Dispose(self)
+    v8__Isolate__Dispose(self);
   }
 
   /// Take a heap snapshot. The callback is invoked one or more times
@@ -1589,8 +1598,18 @@ pub struct OwnedIsolate {
 
 impl OwnedIsolate {
   pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
+    let mut isolate = Self::new_already_entered(cxx_isolate);
+    unsafe {
+      isolate.enter();
+    }
+    isolate
+  }
+
+  pub(crate) fn new_already_entered(cxx_isolate: *mut Isolate) -> Self {
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
-    Self { cxx_isolate }
+    let mut owned_isolate = Self { cxx_isolate };
+    owned_isolate.init_scope_root();
+    owned_isolate
   }
 }
 
@@ -1608,9 +1627,35 @@ impl Drop for OwnedIsolate {
         "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
       self.exit();
-      self.cxx_isolate.as_mut().clear_scope_and_annex();
-      self.cxx_isolate.as_mut().dispose();
+      self.dispose_scope_root();
+      self.dispose_annex();
+      self.dispose();
     }
+  }
+}
+
+impl OwnedIsolate {
+  /// Creates a snapshot data blob.
+  /// This must not be called from within a handle scope.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
+  #[inline(always)]
+  pub fn create_blob(
+    mut self,
+    function_code_handling: FunctionCodeHandling,
+  ) -> Option<StartupData> {
+    let mut snapshot_creator =
+      self.get_annex_mut().maybe_snapshot_creator.take().unwrap();
+    unsafe {
+      self.dispose_scope_root();
+      self.dispose_annex();
+    }
+    // The isolate is owned by the snapshot creator; we need to forget it
+    // here as the snapshot creator will drop it when running the destructor.
+    std::mem::forget(self);
+    snapshot_creator.create_blob(function_code_handling)
   }
 }
 
@@ -1636,28 +1681,6 @@ impl AsMut<Isolate> for OwnedIsolate {
 impl AsMut<Isolate> for Isolate {
   fn as_mut(&mut self) -> &mut Isolate {
     self
-  }
-}
-
-impl OwnedIsolate {
-  /// Creates a snapshot data blob.
-  /// This must not be called from within a handle scope.
-  ///
-  /// # Panics
-  ///
-  /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
-  #[inline(always)]
-  pub fn create_blob(
-    mut self,
-    function_code_handling: FunctionCodeHandling,
-  ) -> Option<StartupData> {
-    let mut snapshot_creator =
-      self.get_annex_mut().maybe_snapshot_creator.take().unwrap();
-    unsafe { self.cxx_isolate.as_mut().clear_scope_and_annex() };
-    // The isolate is owned by the snapshot creator; we need to forget it
-    // here as the snapshot creator will drop it when running the destructor.
-    std::mem::forget(self);
-    snapshot_creator.create_blob(function_code_handling)
   }
 }
 
