@@ -73,6 +73,7 @@ exclude = [
   "!v8/tools/run.py",
   "!v8/tools/snapshot/asm_to_inline_asm.py",
   "!v8/tools/testrunner/utils/dump_build_config.py",
+  "!v8/tools/builtins-pgo",
 ]
 
 [profile.dev]
