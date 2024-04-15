@@ -91,12 +91,12 @@ fn main() {
     false
   };
 
-  if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
-    panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
-  }
-
   // Build from source
   if env::var_os("V8_FROM_SOURCE").is_some() {
+    if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
+      panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
+    }
+
     return build_v8(is_asan);
   }
 
