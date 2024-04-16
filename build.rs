@@ -200,7 +200,7 @@ fn build_v8(is_asan: bool) {
     maybe_install_sysroot("arm64");
     maybe_install_sysroot("amd64");
   }
-  if target_arch == "arm"{
+  if target_arch == "arm" {
     gn_args.push(r#"target_cpu="arm""#.to_string());
     gn_args.push(r#"v8_target_cpu="arm""#.to_string());
     gn_args.push("use_sysroot=true".to_string());
@@ -290,9 +290,26 @@ fn maybe_install_sysroot(arch: &str) {
   }
 }
 
-fn platform() -> String {
-  let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-  let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+fn host_platform() -> String {
+  let os = if cfg!(target_os = "linux") {
+    "linux"
+  } else if cfg!(target_os = "macos") {
+    "mac"
+  } else if cfg!(target_os = "windows") {
+    "windows"
+  } else {
+    "unknown"
+  };
+
+  let arch = if cfg!(target_arch = "x86_64") {
+    "amd64"
+  } else if cfg!(target_arch = "aarch64") {
+    "arm64"
+  } else if cfg!(target_arch = "arm") {
+    "arm"
+  } else {
+    "unknown"
+  };
   format!("{os}-{arch}")
 }
 
@@ -300,7 +317,7 @@ fn download_ninja_gn_binaries() {
   let target_dir = build_dir();
   let bin_dir = target_dir
     .join("ninja_gn_binaries-20221218")
-    .join(platform());
+    .join(host_platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");
   #[cfg(windows)]
