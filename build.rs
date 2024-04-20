@@ -208,18 +208,47 @@ fn build_v8(is_asan: bool) {
       maybe_install_sysroot("amd64");
     };
 
-    if target_triple == "aarch64-linux-android" {
-      gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
-      gn_args.push(r#"target_os="android""#.to_string());
+    let t_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let t_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
 
+    if t_os == "android" {
+      let arch = if t_arch == "x86_64" {
+        "x64"
+      } else if t_arch == "aarch64" {
+        "arm64"
+      } else {
+        "unknown"
+      };
+
+      gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
+      gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
+      gn_args.push(r#"target_os="android""#.to_string());
       gn_args.push("treat_warnings_as_errors=false".to_string());
+      gn_args.push("use_sysroot=true".to_string());
 
       // NDK 23 and above removes libgcc entirely.
       // https://github.com/rust-lang/rust/pull/85806
-      maybe_clone_repo(
-        "./third_party/android_ndk",
-        "https://github.com/denoland/android_ndk.git",
-      );
+      if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
+        assert!(Command::new("curl")
+        .arg("-L")
+        .arg("-o").arg("./third_party/android-ndk-r26c-linux.zip")
+        .arg("https://dl.google.com/android/repository/android-ndk-r26c-linux.zip")
+        .status()
+        .unwrap()
+        .success());
+
+        assert!(Command::new("unzip")
+        .arg("-d").arg("./third_party/")
+        .arg("-o")
+        .arg("-q")
+        .arg("./third_party/android-ndk-r26c-linux.zip")
+        .status()
+        .unwrap()
+        .success());
+
+        fs::rename("./third_party/android-ndk-r26c", "./third_party/android_ndk").unwrap();
+        fs::remove_file("./third_party/android-ndk-r26c-linux.zip").unwrap();
+      }
 
       static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
 

@@ -1,6 +1,3 @@
-[target.aarch64-linux-android]
-image = "cross:aarch64-linux-android-0.2.1"
-
 [build.env]
 passthrough = [
     "V8_FROM_SOURCE",
@@ -8,4 +5,12 @@ passthrough = [
     "SCCACHE_LOG",
     "SCCACHE_DIR",
     "SCCACHE_IDLE_TIMEOUT"
+]
+
+[target.aarch64-linux-android]
+image = "cross-rusty_v8:aarch64-linux-android"
+
+[target.aarch64-linux-android.env]
+passthrough = [
+    "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
 ]
