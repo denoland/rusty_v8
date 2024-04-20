@@ -14,3 +14,11 @@ image = "cross-rusty_v8:aarch64-linux-android"
 passthrough = [
     "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
 ]
+
+[target.x86_64-linux-android]
+image = "cross-rusty_v8:x86_64-linux-android"
+
+[target.x86_64-linux-android.env]
+passthrough = [
+    "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang++"
+]

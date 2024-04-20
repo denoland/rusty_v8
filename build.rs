@@ -220,6 +220,10 @@ fn build_v8(is_asan: bool) {
         "unknown"
       };
 
+      if t_arch == "x86_64" {
+        maybe_install_sysroot("amd64");
+      }
+
       gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
       gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
       gn_args.push(r#"target_os="android""#.to_string());

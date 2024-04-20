@@ -7456,11 +7456,13 @@ fn module_snapshot() {
   }
 }
 
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[derive(Default)]
 struct TestHeapLimitState {
   near_heap_limit_callback_calls: u64,
 }
 
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 extern "C" fn heap_limit_callback(
   data: *mut c_void,
   current_heap_limit: usize,
@@ -7473,6 +7475,7 @@ extern "C" fn heap_limit_callback(
 
 // This test might fail due to a bug in V8. The upstream bug report is at
 // https://bugs.chromium.org/p/v8/issues/detail?id=10843.
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
 fn heap_limits() {
   let _setup_guard = setup::parallel_test();
@@ -7508,6 +7511,8 @@ fn heap_limits() {
   assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
 
+// Same as heap_limits()
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
 fn heap_statistics() {
   let _setup_guard = setup::parallel_test();
@@ -8583,6 +8588,8 @@ fn run_with_rust_allocator() {
   assert_eq!(count_loaded, 0);
 }
 
+// Same as heap_limits()
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
 fn oom_callback() {
   extern "C" fn oom_handler(
