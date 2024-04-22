@@ -208,6 +208,20 @@ fn build_v8(is_asan: bool) {
       maybe_install_sysroot("amd64");
     };
 
+    if target_triple == "aarch64-apple-ios" {
+      gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+      gn_args.push("ios_deployment_target=\"10\"".to_string());
+      gn_args.push("is_component_build=false".to_string());
+      gn_args.push("is_debug=false".to_string());
+      gn_args.push("target_cpu=\"arm64\"".to_string());
+      gn_args.push("target_os=\"ios\"".to_string());
+      gn_args.push("use_custom_libcxx=false".to_string());
+      gn_args.push("v8_enable_pointer_compression=false".to_string());
+      gn_args.push("ios_enable_code_signing=false".to_string());
+      gn_args.push("enable_ios_bitcode=false".to_string());
+    }
+
     if target_triple == "aarch64-linux-android" {
       gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
       gn_args.push(r#"target_os="android""#.to_string());
