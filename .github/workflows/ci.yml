@@ -30,42 +30,72 @@ jobs:
           - os: macOS-latest
             target: x86_64-apple-darwin
             variant: debug
+            cargo: cargo
 
           - os: macOS-latest
             target: x86_64-apple-darwin
             variant: release
+            cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: asan
+            cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: debug
+            cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: release
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2019-xxl' || 'windows-2019' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
+            cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-linux-android
+            variant: debug
+            cargo: cross
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-linux-android
+            variant: release
+            cargo: cross
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-linux-android
+            variant: debug
+            cargo: cross
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-linux-android
+            variant: release
+            cargo: cross
 
     env:
       V8_FROM_SOURCE: true
@@ -112,6 +142,13 @@ jobs:
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
+
+      - name: Install cross and build custom image
+        if: contains(matrix.config.target, 'linux-android')
+        run: |
+          mkdir -p /home/runner/.local/bin
+          curl -qL https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-musl.tar.gz  | tar xz -C /home/runner/.local/bin
+          sudo docker build --build-arg CROSS_BASE_IMAGE=ghcr.io/cross-rs/${{ matrix.config.target }}:0.2.5 -t cross-rusty_v8:${{ matrix.config.target }} .
 
       - name: Cache
         uses: actions/cache@v3
@@ -175,12 +212,12 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run:
-          cargo test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:
-          cargo clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
+          ${{ matrix.config.cargo }} clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }} -- -D clippy::all
 
       - name: Rustfmt

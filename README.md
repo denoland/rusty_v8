@@ -115,6 +115,15 @@ For Mac builds: You'll need Xcode and Xcode CLT installed. Recent macOS versions
 will also require you to pass PYTHON=python3 because macOS no longer ships with
 `python` simlinked to Python 3.
 
+For Android builds: You'll need to cross compile from a x86_64 host to the aarch64 or x64 android. You can use the following commands:
+```bash
+rustup target add aarch64-linux-android  # or x86_64-linux-android
+V8_FROM_SOURCE=1 cargo build -vv --target aarch64-linux-android
+# or with cross
+docker build --build-arg CROSS_BASE_IMAGE=ghcr.io/cross-rs/aarch64-linux-android:0.2.5 -t cross-rusty_v8:aarch64-linux-android .
+V8_FROM_SOURCE=1 cross build -vv --target aarch64-linux-android
+```
+
 The build depends on several binary tools: `gn`, `ninja` and `clang`. The tools
 will automatically be downloaded, if they are not detected in the environment.
 
