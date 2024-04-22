@@ -3,13 +3,17 @@ use once_cell::sync::Lazy;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::sync::Mutex;
+use std::sync::Once;
 use std::vec::Vec;
 
-use crate::platform::Platform;
 use crate::support::char;
 use crate::support::int;
 use crate::support::SharedRef;
 use crate::support::UnitType;
+use crate::CreateParams;
+use crate::Isolate;
+use crate::OwnedIsolate;
+use crate::Platform;
 
 extern "C" {
   fn v8__V8__SetFlagsFromCommandLine(
@@ -246,4 +250,106 @@ pub fn dispose_platform() {
     }
     _ => panic!("Invalid global state"),
   };
+}
+
+/// You can use this to initialize v8 isolates
+#[derive(Debug, Clone, Copy)]
+pub struct PlatformToken(());
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct V8Builder {
+  /// If None is passed it will disable the worker pool.
+  thread_pool_size: Option<u32>,
+
+  idle_task_support: bool,
+  unprotected: bool,
+}
+
+impl V8Builder {
+  pub fn new() -> Self {
+    Self {
+      thread_pool_size: Some(0),
+      idle_task_support: true,
+      unprotected: false,
+    }
+  }
+
+  /// If |idle_task_support| is enabled then the platform will accept idle
+  /// tasks (IdleTasksEnabled will return true) and will rely on the embedder
+  /// calling v8::platform::RunIdleTasks to process the idle tasks.
+  pub fn no_idle_task(mut self) -> Self {
+    self.idle_task_support = false;
+    self
+  }
+
+  /// |thread_pool_size| is the number of worker threads to allocate for
+  /// background jobs. If a value of zero is passed, a suitable default
+  /// based on the current number of processors online will be chosen.
+  pub fn thread_pool_size(mut self, size: u32) -> Self {
+    self.thread_pool_size = Some(size);
+    self
+  }
+
+  /// Disables the worker thread pool.
+  pub fn disable_thread_pool(mut self) -> Self {
+    self.thread_pool_size = None;
+    self
+  }
+
+  /// Creates a platform that is identical to the default platform, but does not
+  /// enforce thread-isolated allocations. This may reduce security in some cases,
+  /// so this method should be used with caution in cases where the threading
+  /// guarantees of `new_default_platform` cannot be upheld (generally for tests).
+  pub fn unprotected(mut self) -> Self {
+    self.unprotected = true;
+    self
+  }
+
+  /// Will return a [PlatformToken], used to construct isolates.
+  /// If this has been called before it will return None.
+  pub fn build(self) -> Option<PlatformToken> {
+    static ONCE: Once = Once::new();
+    let mut pf = None;
+
+    ONCE.call_once(|| {
+      let platform = if let Some(thread_pool_size) = self.thread_pool_size {
+        if self.unprotected {
+          Platform::new_unprotected(thread_pool_size, self.idle_task_support)
+        } else {
+          Platform::new(thread_pool_size, self.idle_task_support)
+        }
+      } else {
+        if self.unprotected {
+          panic!("Can't make single threaded unprotected platform")
+        }
+        Platform::new_single_threaded(self.idle_task_support)
+      };
+
+      initialize_platform(platform.into());
+      initialize();
+      pf = Some(PlatformToken(()))
+    });
+    pf
+  }
+}
+
+impl PlatformToken {
+  pub fn isolate(token: &Self) -> OwnedIsolate {
+    Self::isolate_with_params(token, Default::default())
+  }
+
+  pub fn isolate_with_params(
+    _: &PlatformToken,
+    params: CreateParams,
+  ) -> OwnedIsolate {
+    static HAS_EXECUTED: Mutex<bool> = Mutex::new(false);
+    let mut g = HAS_EXECUTED.lock().unwrap();
+    if !(*g) {
+      *g = true;
+      Isolate::new(params)
+    } else {
+      drop(g);
+      Isolate::new(params)
+    }
+  }
 }

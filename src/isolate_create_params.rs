@@ -198,7 +198,7 @@ pub(crate) mod raw {
   use super::*;
 
   #[repr(C)]
-  #[derive(Debug)]
+  #[derive(Debug, Clone)]
   pub(crate) struct CreateParams {
     pub code_event_handler: *const Opaque, // JitCodeEventHandler
     pub constraints: ResourceConstraints,
@@ -252,7 +252,7 @@ pub(crate) mod raw {
   }
 
   #[repr(C)]
-  #[derive(Debug)]
+  #[derive(Debug, Clone)]
   pub(crate) struct ResourceConstraints {
     code_range_size_: usize,
     max_old_generation_size_: usize,
