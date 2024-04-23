@@ -137,6 +137,10 @@ fn build_v8(is_asan: bool) {
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
   }
+  // `#[cfg(...)]` attributes don't work as expected from build.rs -- they refer to the configuration
+  // of the host system which the build.rs script will be running on. In short, `cfg!(target_<os/arch>)`
+  // is actually the host os/arch instead of target os/arch while cross compiling. Instead, Environment variables
+  // are the officially approach to get the target os/arch in build.rs.
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
   // On windows, rustc cannot link with a V8 debug build.
