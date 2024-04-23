@@ -84,10 +84,6 @@ fn main() {
 
   let is_asan = if let Some(rustflags) = env::var_os("CARGO_ENCODED_RUSTFLAGS")
   {
-    if std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
-      panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
-    }
-
     let rustflags = rustflags.to_string_lossy();
     rustflags.find("-Z sanitizer=address").is_some()
       || rustflags.find("-Zsanitizer=address").is_some()
@@ -97,6 +93,10 @@ fn main() {
 
   // Build from source
   if env::var_os("V8_FROM_SOURCE").is_some() {
+    if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
+      panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
+    }
+
     return build_v8(is_asan);
   }
 
@@ -211,17 +211,48 @@ fn build_v8(is_asan: bool) {
   let target_triple = env::var("TARGET").unwrap();
   // check if the target triple describes a non-native environment
   if target_triple != env::var("HOST").unwrap() {
-    if target_triple == "aarch64-linux-android" {
-      gn_args.push(r#"v8_target_cpu="arm64""#.to_string());
+    if target_os == "android" {
+      let arch = if target_arch == "x86_64" {
+        "x64"
+      } else if target_arch == "aarch64" {
+        "arm64"
+      } else {
+        "unknown"
+      };
+
+      if target_arch == "x86_64" {
+        maybe_install_sysroot("amd64");
+      }
+
+      gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
+      gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
       gn_args.push(r#"target_os="android""#.to_string());
       gn_args.push("treat_warnings_as_errors=false".to_string());
+      gn_args.push("use_sysroot=true".to_string());
 
       // NDK 23 and above removes libgcc entirely.
       // https://github.com/rust-lang/rust/pull/85806
-      maybe_clone_repo(
-        "./third_party/android_ndk",
-        "https://github.com/denoland/android_ndk.git",
-      );
+      if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
+        assert!(Command::new("curl")
+        .arg("-L")
+        .arg("-o").arg("./third_party/android-ndk-r26c-linux.zip")
+        .arg("https://dl.google.com/android/repository/android-ndk-r26c-linux.zip")
+        .status()
+        .unwrap()
+        .success());
+
+        assert!(Command::new("unzip")
+        .arg("-d").arg("./third_party/")
+        .arg("-o")
+        .arg("-q")
+        .arg("./third_party/android-ndk-r26c-linux.zip")
+        .status()
+        .unwrap()
+        .success());
+
+        fs::rename("./third_party/android-ndk-r26c", "./third_party/android_ndk").unwrap();
+        fs::remove_file("./third_party/android-ndk-r26c-linux.zip").unwrap();
+      }
 
       static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
 
