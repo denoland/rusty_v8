@@ -13,14 +13,14 @@ extern "C" {
     len: usize,
     tys: *const CTypeSequenceInfo,
   ) -> *mut CTypeInfo;
-  fn v8__CTypeInfo__DELETE(this: &mut CTypeInfo);
+  fn v8__CTypeInfo__DELETE(this: *mut CTypeInfo);
   fn v8__CFunctionInfo__New(
     return_info: *const CTypeInfo,
     args_len: usize,
     args_info: *const CTypeInfo,
     repr: Int64Representation,
   ) -> *mut CFunctionInfo;
-  fn v8__CFunctionInfo__DELETE(this: &mut CFunctionInfo);
+  fn v8__CFunctionInfo__DELETE(this: *mut CFunctionInfo);
 }
 
 #[repr(C)]

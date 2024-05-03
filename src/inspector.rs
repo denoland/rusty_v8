@@ -74,7 +74,7 @@ extern "C" {
     stack_trace: &mut V8StackTrace,
   );
 
-  fn v8_inspector__V8InspectorSession__DELETE(this: &mut V8InspectorSession);
+  fn v8_inspector__V8InspectorSession__DELETE(this: *mut V8InspectorSession);
   fn v8_inspector__V8InspectorSession__dispatchProtocolMessage(
     session: *mut V8InspectorSession,
     message: StringView,
@@ -88,13 +88,13 @@ extern "C" {
     method: StringView,
   ) -> bool;
 
-  fn v8_inspector__StringBuffer__DELETE(this: &mut StringBuffer);
+  fn v8_inspector__StringBuffer__DELETE(this: *mut StringBuffer);
   fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView;
   fn v8_inspector__StringBuffer__create(
     source: StringView,
   ) -> UniquePtr<StringBuffer>;
 
-  fn v8_inspector__V8Inspector__DELETE(this: &mut V8Inspector);
+  fn v8_inspector__V8Inspector__DELETE(this: *mut V8Inspector);
   fn v8_inspector__V8Inspector__create(
     isolate: *mut Isolate,
     client: *mut V8InspectorClient,
@@ -133,7 +133,7 @@ extern "C" {
     this: *mut V8Inspector,
     stack_trace: *const StackTrace,
   ) -> *mut V8StackTrace;
-  fn v8_inspector__V8StackTrace__DELETE(this: &mut V8StackTrace);
+  fn v8_inspector__V8StackTrace__DELETE(this: *mut V8StackTrace);
 }
 
 #[no_mangle]
