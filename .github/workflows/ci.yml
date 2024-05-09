@@ -27,12 +27,12 @@ jobs:
         !contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
       matrix:
         config:
-          - os: macOS-latest
+          - os: macos-13
             target: x86_64-apple-darwin
             variant: debug
             cargo: cargo
 
-          - os: macOS-latest
+          - os: macos-13
             target: x86_64-apple-darwin
             variant: release
             cargo: cargo
