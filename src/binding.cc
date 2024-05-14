@@ -31,6 +31,8 @@
 #include "v8/src/objects/objects.h"
 #include "v8/src/objects/smi.h"
 
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 using namespace support;
 
 template <typename T>
