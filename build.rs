@@ -137,20 +137,23 @@ fn build_v8(is_asan: bool) {
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
   }
-
+  // `#[cfg(...)]` attributes don't work as expected from build.rs -- they refer to the configuration
+  // of the host system which the build.rs script will be running on. In short, `cfg!(target_<os/arch>)`
+  // is actually the host os/arch instead of target os/arch while cross compiling. Instead, Environment variables
+  // are the officially approach to get the target os/arch in build.rs.
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
   // On windows, rustc cannot link with a V8 debug build.
-  let mut gn_args = if is_debug() && !cfg!(target_os = "windows") {
+  let mut gn_args = if is_debug() && target_os != "windows" {
     // Note: When building for Android aarch64-qemu, use release instead of debug.
     vec!["is_debug=true".to_string()]
   } else {
     vec!["is_debug=false".to_string()]
   };
-
   if is_asan {
     gn_args.push("is_asan=true".to_string());
   }
-
-  if cfg!(not(feature = "use_custom_libcxx")) {
+  if env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_err() {
     gn_args.push("use_custom_libcxx=false".to_string());
   }
 
@@ -172,7 +175,7 @@ fn build_v8(is_asan: bool) {
     let clang_base_path = clang_download();
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
 
-    if cfg!(target_os = "android") && cfg!(target_arch = "aarch64") {
+    if target_os == "android" && target_arch == "aarch64" {
       gn_args.push("treat_warnings_as_errors=false".to_string());
     }
   }
@@ -194,45 +197,43 @@ fn build_v8(is_asan: bool) {
       gn_args.push(arg.to_string());
     }
   }
+  // cross-compilation setup
+  if target_arch == "aarch64" {
+    gn_args.push(r#"target_cpu="arm64""#.to_string());
+    gn_args.push("use_sysroot=true".to_string());
+    maybe_install_sysroot("arm64");
+    maybe_install_sysroot("amd64");
+  }
+  if target_arch == "arm" {
+    gn_args.push(r#"target_cpu="arm""#.to_string());
+    gn_args.push(r#"v8_target_cpu="arm""#.to_string());
+    gn_args.push("use_sysroot=true".to_string());
+    maybe_install_sysroot("i386");
+    maybe_install_sysroot("arm");
+  }
 
   let target_triple = env::var("TARGET").unwrap();
   // check if the target triple describes a non-native environment
-  if target_triple != env::var("HOST").unwrap() {
-    // cross-compilation setup
-    if target_triple == "aarch64-unknown-linux-gnu"
-      || target_triple == "aarch64-linux-android"
-    {
-      gn_args.push(r#"target_cpu="arm64""#.to_string());
-      gn_args.push("use_sysroot=true".to_string());
-      maybe_install_sysroot("arm64");
-      maybe_install_sysroot("amd64");
+  if target_triple != env::var("HOST").unwrap() && target_os == "android" {
+    let arch = if target_arch == "x86_64" {
+      "x64"
+    } else if target_arch == "aarch64" {
+      "arm64"
+    } else {
+      "unknown"
     };
+    if target_arch == "x86_64" {
+      maybe_install_sysroot("amd64");
+    }
+    gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
+    gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
+    gn_args.push(r#"target_os="android""#.to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    gn_args.push("use_sysroot=true".to_string());
 
-    let t_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-    let t_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
-
-    if t_os == "android" {
-      let arch = if t_arch == "x86_64" {
-        "x64"
-      } else if t_arch == "aarch64" {
-        "arm64"
-      } else {
-        "unknown"
-      };
-
-      if t_arch == "x86_64" {
-        maybe_install_sysroot("amd64");
-      }
-
-      gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
-      gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
-      gn_args.push(r#"target_os="android""#.to_string());
-      gn_args.push("treat_warnings_as_errors=false".to_string());
-      gn_args.push("use_sysroot=true".to_string());
-
-      // NDK 23 and above removes libgcc entirely.
-      // https://github.com/rust-lang/rust/pull/85806
-      if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
+    // NDK 23 and above removes libgcc entirely.
+    // https://github.com/rust-lang/rust/pull/85806
+    if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
         assert!(Command::new("curl")
         .arg("-L")
         .arg("-o").arg("./third_party/android-ndk-r26c-linux.zip")
@@ -253,21 +254,18 @@ fn build_v8(is_asan: bool) {
         fs::rename("./third_party/android-ndk-r26c", "./third_party/android_ndk").unwrap();
         fs::remove_file("./third_party/android-ndk-r26c-linux.zip").unwrap();
       }
-
-      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
-
-      maybe_clone_repo(
-        "./third_party/android_platform",
-        &format!(
-          "{}/chromium/src/third_party/android_platform.git",
-          CHROMIUM_URI
-        ),
-      );
-      maybe_clone_repo(
-        "./third_party/catapult",
-        &format!("{}/catapult.git", CHROMIUM_URI),
-      );
-    };
+    static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
+    maybe_clone_repo(
+      "./third_party/android_platform",
+      &format!(
+        "{}/chromium/src/third_party/android_platform.git",
+        CHROMIUM_URI
+      ),
+    );
+    maybe_clone_repo(
+      "./third_party/catapult",
+      &format!("{}/catapult.git", CHROMIUM_URI),
+    );
   }
 
   if target_triple.starts_with("i686-") {
@@ -321,7 +319,7 @@ fn maybe_install_sysroot(arch: &str) {
   }
 }
 
-fn platform() -> String {
+fn host_platform() -> String {
   let os = if cfg!(target_os = "linux") {
     "linux"
   } else if cfg!(target_os = "macos") {
@@ -336,10 +334,11 @@ fn platform() -> String {
     "amd64"
   } else if cfg!(target_arch = "aarch64") {
     "arm64"
+  } else if cfg!(target_arch = "arm") {
+    "arm"
   } else {
     "unknown"
   };
-
   format!("{os}-{arch}")
 }
 
@@ -347,7 +346,7 @@ fn download_ninja_gn_binaries() {
   let target_dir = build_dir();
   let bin_dir = target_dir
     .join("ninja_gn_binaries-20221218")
-    .join(platform());
+    .join(host_platform());
   let gn = bin_dir.join("gn");
   let ninja = bin_dir.join("ninja");
   #[cfg(windows)]
@@ -379,9 +378,9 @@ fn static_lib_url() -> String {
     env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
   let version = env::var("CARGO_PKG_VERSION").unwrap();
   let target = env::var("TARGET").unwrap();
-
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   // Note: we always use the release build on windows.
-  if cfg!(target_os = "windows") {
+  if target_os == "windows" {
     return format!("{}/v{}/rusty_v8_release_{}.lib.gz", base, version, target);
   }
   // Use v8 in release mode unless $V8_FORCE_DEBUG=true
@@ -403,9 +402,11 @@ fn env_bool(key: &str) -> bool {
 }
 
 fn static_lib_name() -> &'static str {
-  match cfg!(target_os = "windows") {
-    true => "rusty_v8.lib",
-    false => "librusty_v8.a",
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  if target_os == "windows" {
+    "rusty_v8.lib"
+  } else {
+    "librusty_v8.a"
   }
 }
 
@@ -616,8 +617,8 @@ fn copy_archive(url: &str, filename: &Path) {
 
 fn print_link_flags() {
   println!("cargo:rustc-link-lib=static=rusty_v8");
-
-  let should_dyn_link_libcxx = cfg!(not(feature = "use_custom_libcxx"))
+  let should_dyn_link_libcxx = env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX")
+    .is_err()
     || env::var("GN_ARGS").map_or(false, |gn_args| {
       gn_args
         .split_whitespace()
@@ -646,16 +647,18 @@ fn print_link_flags() {
       }
     }
   }
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
 
-  if cfg!(target_os = "windows") {
+  if target_os == "windows" {
     println!("cargo:rustc-link-lib=dylib=winmm");
     println!("cargo:rustc-link-lib=dylib=dbghelp");
   }
 
-  if cfg!(target_env = "msvc") {
+  if target_env == "msvc" {
     // On Windows, including libcpmt[d]/msvcprt[d] explicitly links the C++
     // standard library, which libc++ needs for exception_ptr internals.
-    if cfg!(target_feature = "crt-static") {
+    if env::var("CARGO_FEATURE_CRT_STATIC").is_ok() {
       println!("cargo:rustc-link-lib=libcpmt");
     } else {
       println!("cargo:rustc-link-lib=dylib=msvcprt");
