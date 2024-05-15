@@ -8586,6 +8586,25 @@ fn run_with_rust_allocator() {
   isolate.low_memory_notification();
   let count_loaded = count.load(Ordering::SeqCst);
   assert_eq!(count_loaded, 0);
+
+  // This should not OOM or crash when we run in a tight loop as the EPT should be subject
+  // to GC.
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        for(let i = 0; i < 10_000; i++) new ArrayBuffer(10 * 1024 * 1024);
+        "OK";
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "OK");
+  }
 }
 
 // Same as heap_limits()
