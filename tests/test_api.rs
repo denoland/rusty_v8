@@ -8361,11 +8361,11 @@ fn memory_pressure_notification() {
   isolate.memory_pressure_notification(v8::MemoryPressureLevel::None);
 }
 
-// Flaky on aarch64-qemu (Stack corruption).
-#[cfg(not(target_os = "android"))]
 #[test]
 fn clear_kept_objects() {
-  let _setup_guard = setup::parallel_test();
+  // This test is flaky when run in parallel because it might end up triggering a GC on
+  // some other test's data
+  let _setup_guard = setup::sequential_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
