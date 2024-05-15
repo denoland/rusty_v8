@@ -19,11 +19,11 @@ use crate::IndexedDefinerCallback;
 use crate::IndexedGetterCallback;
 use crate::IndexedSetterCallback;
 use crate::Local;
-use crate::NamedDefinerCallbackNew;
+use crate::NamedDefinerCallback;
+use crate::NamedGetterCallback;
 use crate::NamedGetterCallbackForAccessor;
-use crate::NamedGetterCallbackNew;
+use crate::NamedSetterCallback;
 use crate::NamedSetterCallbackForAccessor;
-use crate::NamedSetterCallbackNew;
 use crate::Object;
 use crate::PropertyAttribute;
 use crate::PropertyEnumeratorCallback;
@@ -160,7 +160,7 @@ pub type AccessorNameSetterCallback<'s> = NamedSetterCallbackForAccessor<'s>;
 /// not produce side effects.
 ///
 /// See also [ObjectTemplate::set_handler].
-pub type NamedPropertyGetterCallback<'s> = NamedGetterCallbackNew<'s>;
+pub type NamedPropertyGetterCallback<'s> = NamedGetterCallback<'s>;
 
 /// Interceptor for set requests on an object.
 ///
@@ -172,7 +172,7 @@ pub type NamedPropertyGetterCallback<'s> = NamedGetterCallbackNew<'s>;
 /// effects.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertySetterCallback<'s> = NamedSetterCallbackNew<'s>;
+pub type NamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
 
 /// Intercepts all requests that query the attributes of the property, e.g.,
 /// getOwnPropertyDescriptor(), propertyIsEnumerable(), and defineProperty().
@@ -186,7 +186,7 @@ pub type NamedPropertySetterCallback<'s> = NamedSetterCallbackNew<'s>;
 /// this interceptor depending on the state of the object.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyQueryCallback<'s> = NamedGetterCallbackNew<'s>;
+pub type NamedPropertyQueryCallback<'s> = NamedGetterCallback<'s>;
 
 /// Interceptor for delete requests on an object.
 ///
@@ -203,7 +203,7 @@ pub type NamedPropertyQueryCallback<'s> = NamedGetterCallbackNew<'s>;
 /// in strict mode.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDeleterCallback<'s> = NamedGetterCallbackNew<'s>;
+pub type NamedPropertyDeleterCallback<'s> = NamedGetterCallback<'s>;
 
 /// Returns an array containing the names of the properties the named property getter intercepts.
 ///
@@ -222,7 +222,7 @@ pub type NamedPropertyEnumeratorCallback<'s> = PropertyEnumeratorCallback<'s>;
 /// effects.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDefinerCallback<'s> = NamedDefinerCallbackNew<'s>;
+pub type NamedPropertyDefinerCallback<'s> = NamedDefinerCallback<'s>;
 
 /// Interceptor for getOwnPropertyDescriptor requests on an object.
 ///
@@ -235,7 +235,7 @@ pub type NamedPropertyDefinerCallback<'s> = NamedDefinerCallbackNew<'s>;
 /// true, i.e., indicate that the property was found.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDescriptorCallback<'s> = NamedGetterCallbackNew<'s>;
+pub type NamedPropertyDescriptorCallback<'s> = NamedGetterCallback<'s>;
 
 /// See [GenericNamedPropertyGetterCallback].
 pub type IndexedPropertyGetterCallback<'s> = IndexedGetterCallback<'s>;

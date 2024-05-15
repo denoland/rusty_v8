@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::ptr::null;
 use std::ptr::NonNull;
 
-use crate::template::Intercepted;
 use crate::scope::CallbackScope;
 use crate::script_compiler::CachedData;
 use crate::support::MapFnFrom;
@@ -11,6 +10,7 @@ use crate::support::MapFnTo;
 use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::{int, Opaque};
+use crate::template::Intercepted;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
@@ -569,10 +569,10 @@ where
   }
 }
 
-pub(crate) type NamedGetterCallbackNew<'s> =
+pub(crate) type NamedGetterCallback<'s> =
   extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedGetterCallbackNew<'_>
+impl<F> MapFnFrom<F> for NamedGetterCallback<'_>
 where
   F: UnitType
     + for<'s> Fn(
@@ -622,13 +622,13 @@ where
   }
 }
 
-pub(crate) type NamedSetterCallbackNew<'s> = extern "C" fn(
+pub(crate) type NamedSetterCallback<'s> = extern "C" fn(
   Local<'s, Name>,
   Local<'s, Value>,
   *const PropertyCallbackInfo,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedSetterCallbackNew<'_>
+impl<F> MapFnFrom<F> for NamedSetterCallback<'_>
 where
   F: UnitType
     + for<'s> Fn(
@@ -674,13 +674,13 @@ where
   }
 }
 
-pub(crate) type NamedDefinerCallbackNew<'s> = extern "C" fn(
+pub(crate) type NamedDefinerCallback<'s> = extern "C" fn(
   Local<'s, Name>,
   *const PropertyDescriptor,
   *const PropertyCallbackInfo,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedDefinerCallbackNew<'_>
+impl<F> MapFnFrom<F> for NamedDefinerCallback<'_>
 where
   F: UnitType
     + for<'s> Fn(
