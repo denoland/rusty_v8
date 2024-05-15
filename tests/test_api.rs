@@ -2604,6 +2604,7 @@ fn object_template_set_indexed_property_handler() {
       .try_into()
       .unwrap();
     rv.set(internal_field);
+    v8::Intercepted::Yes
   };
 
   let setter = |_scope: &mut v8::HandleScope,
@@ -2623,6 +2624,7 @@ fn object_template_set_indexed_property_handler() {
     assert!(this.set_internal_field(0, value.into()));
 
     rv.set_undefined();
+    v8::Intercepted::Yes
   };
 
   let query = |_scope: &mut v8::HandleScope,
@@ -2630,13 +2632,14 @@ fn object_template_set_indexed_property_handler() {
                _args: v8::PropertyCallbackArguments,
                mut rv: v8::ReturnValue| {
     if index == 12 {
-      return;
+      return v8::Intercepted::No;
     }
 
     assert_eq!(index, 37);
 
     // PropertyAttribute::READ_ONLY
     rv.set_int32(1);
+    v8::Intercepted::Yes
   };
 
   let deleter = |_scope: &mut v8::HandleScope,
@@ -2646,6 +2649,7 @@ fn object_template_set_indexed_property_handler() {
     assert_eq!(index, 37);
 
     rv.set_bool(false);
+    v8::Intercepted::Yes
   };
 
   let enumerator = |scope: &mut v8::HandleScope,
@@ -2691,6 +2695,7 @@ fn object_template_set_indexed_property_handler() {
     this.set_internal_field(0, value.into());
 
     rv.set_undefined();
+    v8::Intercepted::Yes
   };
 
   let descriptor = |scope: &mut v8::HandleScope,
@@ -2717,6 +2722,7 @@ fn object_template_set_indexed_property_handler() {
     descriptor.set(scope, writable_key.into(), writable.into());
 
     rv.set(descriptor.into());
+    v8::Intercepted::Yes
   };
 
   let name = v8::String::new(scope, "obj").unwrap();

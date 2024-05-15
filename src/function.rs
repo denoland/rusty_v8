@@ -707,7 +707,7 @@ where
 }
 
 pub(crate) type IndexedGetterCallback<'s> =
-  extern "C" fn(u32, *const PropertyCallbackInfo);
+  extern "C" fn(u32, *const PropertyCallbackInfo) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedGetterCallback<'_>
 where
@@ -717,7 +717,7 @@ where
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue,
-    ),
+    ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |index: u32, info: *const PropertyCallbackInfo| {
@@ -725,14 +725,17 @@ where
       let scope = &mut unsafe { CallbackScope::new(info) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope, index, args, rv);
+      (F::get())(scope, index, args, rv)
     };
     f.to_c_fn()
   }
 }
 
-pub(crate) type IndexedSetterCallback<'s> =
-  extern "C" fn(u32, Local<'s, Value>, *const PropertyCallbackInfo);
+pub(crate) type IndexedSetterCallback<'s> = extern "C" fn(
+  u32,
+  Local<'s, Value>,
+  *const PropertyCallbackInfo,
+) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedSetterCallback<'_>
 where
@@ -743,7 +746,7 @@ where
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
       ReturnValue,
-    ),
+    ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f =
@@ -752,14 +755,17 @@ where
         let scope = &mut unsafe { CallbackScope::new(info) };
         let args = PropertyCallbackArguments::from_property_callback_info(info);
         let rv = ReturnValue::from_property_callback_info(info);
-        (F::get())(scope, index, value, args, rv);
+        (F::get())(scope, index, value, args, rv)
       };
     f.to_c_fn()
   }
 }
 
-pub(crate) type IndexedDefinerCallback<'s> =
-  extern "C" fn(u32, *const PropertyDescriptor, *const PropertyCallbackInfo);
+pub(crate) type IndexedDefinerCallback<'s> = extern "C" fn(
+  u32,
+  *const PropertyDescriptor,
+  *const PropertyCallbackInfo,
+) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedDefinerCallback<'_>
 where
@@ -770,7 +776,7 @@ where
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
       ReturnValue,
-    ),
+    ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |index: u32,
@@ -781,7 +787,7 @@ where
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       let desc = unsafe { &*desc };
-      (F::get())(scope, index, desc, args, rv);
+      (F::get())(scope, index, desc, args, rv)
     };
     f.to_c_fn()
   }

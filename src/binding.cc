@@ -1245,13 +1245,13 @@ void v8__ObjectTemplate__SetNamedPropertyHandler(
 }
 
 void v8__ObjectTemplate__SetIndexedPropertyHandler(
-    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallback getter,
-    v8::IndexedPropertySetterCallback setter,
-    v8::IndexedPropertyQueryCallback query,
-    v8::IndexedPropertyDeleterCallback deleter,
+    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallbackV2 getter,
+    v8::IndexedPropertySetterCallbackV2 setter,
+    v8::IndexedPropertyQueryCallbackV2 query,
+    v8::IndexedPropertyDeleterCallbackV2 deleter,
     v8::IndexedPropertyEnumeratorCallback enumerator,
-    v8::IndexedPropertyDefinerCallback definer,
-    v8::IndexedPropertyDescriptorCallback descriptor,
+    v8::IndexedPropertyDefinerCallbackV2 definer,
+    v8::IndexedPropertyDescriptorCallbackV2 descriptor,
     const v8::Value* data_or_null, v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
       getter, setter, query, deleter, enumerator, definer, descriptor,
