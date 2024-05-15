@@ -6,9 +6,9 @@ use crate::IndexedDefinerCallback;
 use crate::IndexedGetterCallback;
 use crate::IndexedSetterCallback;
 use crate::MessageCallback;
-use crate::NamedDefinerCallback;
-use crate::NamedGetterCallback;
-use crate::NamedSetterCallback;
+use crate::NamedDefinerCallbackNew;
+use crate::NamedGetterCallbackNew;
+use crate::NamedSetterCallbackNew;
 use crate::PropertyEnumeratorCallback;
 use std::ffi::c_void;
 use std::fmt::Debug;
@@ -16,9 +16,9 @@ use std::fmt::Debug;
 #[derive(Clone, Copy)]
 pub union ExternalReference<'s> {
   pub function: FunctionCallback,
-  pub named_getter: NamedGetterCallback<'s>,
-  pub named_setter: NamedSetterCallback<'s>,
-  pub named_definer: NamedDefinerCallback<'s>,
+  pub named_getter: NamedGetterCallbackNew<'s>,
+  pub named_setter: NamedSetterCallbackNew<'s>,
+  pub named_definer: NamedDefinerCallbackNew<'s>,
   pub indexed_getter: IndexedGetterCallback<'s>,
   pub indexed_setter: IndexedSetterCallback<'s>,
   pub indexed_definer: IndexedDefinerCallback<'s>,

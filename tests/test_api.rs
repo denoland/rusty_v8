@@ -2117,7 +2117,7 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let this = args.this();
@@ -2135,6 +2135,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       rv.set(internal_field);
+      v8::Intercepted::Yes
     };
 
     let setter = |scope: &mut v8::HandleScope,
@@ -2144,12 +2145,12 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let this = args.this();
@@ -2165,6 +2166,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_undefined();
+      v8::Intercepted::Yes
     };
 
     let query = |scope: &mut v8::HandleScope,
@@ -2173,12 +2175,12 @@ fn object_template_set_named_property_handler() {
                  mut rv: v8::ReturnValue| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let this = args.this();
@@ -2198,6 +2200,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       assert!(internal_field.strict_equals(expected_value.into()));
+      v8::Intercepted::Yes
     };
 
     let deleter = |scope: &mut v8::HandleScope,
@@ -2206,7 +2209,7 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let this = args.this();
@@ -2217,6 +2220,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, v8::undefined(scope).into()));
 
       rv.set_bool(true);
+      v8::Intercepted::Yes
     };
 
     let enumerator = |scope: &mut v8::HandleScope,
@@ -2250,7 +2254,7 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let this = args.this();
@@ -2275,6 +2279,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_undefined();
+      v8::Intercepted::Yes
     };
 
     let descriptor = |scope: &mut v8::HandleScope,
@@ -2283,7 +2288,7 @@ fn object_template_set_named_property_handler() {
                       mut rv: v8::ReturnValue| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return;
+        return v8::Intercepted::No;
       }
 
       let this = args.this();
@@ -2307,6 +2312,7 @@ fn object_template_set_named_property_handler() {
       descriptor.set(scope, writable_key.into(), writable.into());
 
       rv.set(descriptor.into());
+      v8::Intercepted::Yes
     };
 
     let name = v8::String::new(scope, "obj").unwrap();
@@ -4493,6 +4499,9 @@ fn security_token() {
             let obj = v8::Local::<v8::Object>::try_from(args.data()).unwrap();
             if let Some(val) = obj.get(scope, key.into()) {
               rv.set(val);
+              v8::Intercepted::Yes
+            } else {
+              v8::Intercepted::No
             }
           },
         )
@@ -4541,10 +4550,11 @@ fn context_with_object_template() {
     _descriptor: &v8::PropertyDescriptor,
     _args: v8::PropertyCallbackArguments<'s>,
     _rv: v8::ReturnValue,
-  ) {
+  ) -> v8::Intercepted {
     unsafe {
       CALLS.push("definer".to_string());
     }
+    v8::Intercepted::No
   }
 
   pub fn setter<'s>(
@@ -4553,10 +4563,11 @@ fn context_with_object_template() {
     _value: v8::Local<'s, v8::Value>,
     _args: v8::PropertyCallbackArguments<'s>,
     _rv: v8::ReturnValue,
-  ) {
+  ) -> v8::Intercepted {
     unsafe {
       CALLS.push("setter".to_string());
     }
+    v8::Intercepted::No
   }
 
   {

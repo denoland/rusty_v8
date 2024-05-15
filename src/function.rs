@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::ptr::null;
 use std::ptr::NonNull;
 
+use crate::template::Intercepted;
 use crate::scope::CallbackScope;
 use crate::script_compiler::CachedData;
 use crate::support::MapFnFrom;
@@ -543,10 +544,10 @@ where
   }
 }
 
-pub(crate) type NamedGetterCallback<'s> =
+pub(crate) type NamedGetterCallbackForAccessor<'s> =
   extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for NamedGetterCallback<'_>
+impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor<'_>
 where
   F: UnitType
     + for<'s> Fn(
@@ -568,10 +569,35 @@ where
   }
 }
 
-pub(crate) type NamedSetterCallback<'s> =
+pub(crate) type NamedGetterCallbackNew<'s> =
+  extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo) -> Intercepted;
+
+impl<F> MapFnFrom<F> for NamedGetterCallbackNew<'_>
+where
+  F: UnitType
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      Local<'s, Name>,
+      PropertyCallbackArguments<'s>,
+      ReturnValue,
+    ) -> Intercepted,
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>, info: *const PropertyCallbackInfo| {
+      let info = unsafe { &*info };
+      let scope = &mut unsafe { CallbackScope::new(info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, args, rv)
+    };
+    f.to_c_fn()
+  }
+}
+
+pub(crate) type NamedSetterCallbackForAccessor<'s> =
   extern "C" fn(Local<'s, Name>, Local<'s, Value>, *const PropertyCallbackInfo);
 
-impl<F> MapFnFrom<F> for NamedSetterCallback<'_>
+impl<F> MapFnFrom<F> for NamedSetterCallbackForAccessor<'_>
 where
   F: UnitType
     + for<'s> Fn(
@@ -591,6 +617,37 @@ where
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, value, args, rv);
+    };
+    f.to_c_fn()
+  }
+}
+
+pub(crate) type NamedSetterCallbackNew<'s> = extern "C" fn(
+  Local<'s, Name>,
+  Local<'s, Value>,
+  *const PropertyCallbackInfo,
+) -> Intercepted;
+
+impl<F> MapFnFrom<F> for NamedSetterCallbackNew<'_>
+where
+  F: UnitType
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      Local<'s, Name>,
+      Local<'s, Value>,
+      PropertyCallbackArguments<'s>,
+      ReturnValue,
+    ) -> Intercepted,
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>,
+             value: Local<Value>,
+             info: *const PropertyCallbackInfo| {
+      let info = unsafe { &*info };
+      let scope = &mut unsafe { CallbackScope::new(info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, value, args, rv)
     };
     f.to_c_fn()
   }
@@ -617,13 +674,13 @@ where
   }
 }
 
-pub(crate) type NamedDefinerCallback<'s> = extern "C" fn(
+pub(crate) type NamedDefinerCallbackNew<'s> = extern "C" fn(
   Local<'s, Name>,
   *const PropertyDescriptor,
   *const PropertyCallbackInfo,
-);
+) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedDefinerCallback<'_>
+impl<F> MapFnFrom<F> for NamedDefinerCallbackNew<'_>
 where
   F: UnitType
     + for<'s> Fn(
@@ -632,7 +689,7 @@ where
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
       ReturnValue,
-    ),
+    ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |key: Local<Name>,
@@ -643,7 +700,7 @@ where
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let desc = unsafe { &*desc };
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope, key, desc, args, rv);
+      (F::get())(scope, key, desc, args, rv)
     };
     f.to_c_fn()
   }
