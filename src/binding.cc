@@ -1218,25 +1218,26 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
   ptr_to_local(&self)->SetInternalFieldCount(value);
 }
 
-void v8__ObjectTemplate__SetAccessor(const v8::ObjectTemplate& self,
-                                     const v8::Name& key,
-                                     v8::AccessorNameGetterCallback getter,
-                                     v8::AccessorNameSetterCallback setter,
-                                     const v8::Value* data_or_null,
-                                     v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetAccessor(ptr_to_local(&key), getter, setter,
-                                   ptr_to_local(data_or_null), attr);
+void v8__ObjectTemplate__SetNativeDataProperty(
+  const v8::ObjectTemplate& self,
+  const v8::Name& key,
+  v8::AccessorNameGetterCallback getter,
+  v8::AccessorNameSetterCallback setter,
+  const v8::Value* data_or_null,
+  v8::PropertyAttribute attr) {
+    ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key),
+      getter, setter, ptr_to_local(data_or_null), attr);
 }
 
 void v8__ObjectTemplate__SetNamedPropertyHandler(
     const v8::ObjectTemplate& self,
-    v8::GenericNamedPropertyGetterCallback getter,
-    v8::GenericNamedPropertySetterCallback setter,
-    v8::GenericNamedPropertyQueryCallback query,
-    v8::GenericNamedPropertyDeleterCallback deleter,
-    v8::GenericNamedPropertyEnumeratorCallback enumerator,
-    v8::GenericNamedPropertyDefinerCallback definer,
-    v8::GenericNamedPropertyDescriptorCallback descriptor,
+    v8::NamedPropertyGetterCallback getter,
+    v8::NamedPropertySetterCallback setter,
+    v8::NamedPropertyQueryCallback query,
+    v8::NamedPropertyDeleterCallback deleter,
+    v8::NamedPropertyEnumeratorCallback enumerator,
+    v8::NamedPropertyDefinerCallback definer,
+    v8::NamedPropertyDescriptorCallback descriptor,
     const v8::Value* data_or_null, v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::NamedPropertyHandlerConfiguration(
       getter, setter, query, deleter, enumerator, definer, descriptor,
@@ -1244,13 +1245,13 @@ void v8__ObjectTemplate__SetNamedPropertyHandler(
 }
 
 void v8__ObjectTemplate__SetIndexedPropertyHandler(
-    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallback getter,
-    v8::IndexedPropertySetterCallback setter,
-    v8::IndexedPropertyQueryCallback query,
-    v8::IndexedPropertyDeleterCallback deleter,
+    const v8::ObjectTemplate& self, v8::IndexedPropertyGetterCallbackV2 getter,
+    v8::IndexedPropertySetterCallbackV2 setter,
+    v8::IndexedPropertyQueryCallbackV2 query,
+    v8::IndexedPropertyDeleterCallbackV2 deleter,
     v8::IndexedPropertyEnumeratorCallback enumerator,
-    v8::IndexedPropertyDefinerCallback definer,
-    v8::IndexedPropertyDescriptorCallback descriptor,
+    v8::IndexedPropertyDefinerCallbackV2 definer,
+    v8::IndexedPropertyDescriptorCallbackV2 descriptor,
     const v8::Value* data_or_null, v8::PropertyHandlerFlags flags) {
   ptr_to_local(&self)->SetHandler(v8::IndexedPropertyHandlerConfiguration(
       getter, setter, query, deleter, enumerator, definer, descriptor,

@@ -21,7 +21,9 @@ use crate::IndexedSetterCallback;
 use crate::Local;
 use crate::NamedDefinerCallback;
 use crate::NamedGetterCallback;
+use crate::NamedGetterCallbackForAccessor;
 use crate::NamedSetterCallback;
+use crate::NamedSetterCallbackForAccessor;
 use crate::Object;
 use crate::PropertyAttribute;
 use crate::PropertyEnumeratorCallback;
@@ -94,7 +96,7 @@ extern "C" {
     value: int,
   );
 
-  fn v8__ObjectTemplate__SetAccessor(
+  fn v8__ObjectTemplate__SetNativeDataProperty(
     this: *const ObjectTemplate,
     key: *const Name,
     getter: AccessorNameGetterCallback,
@@ -112,13 +114,13 @@ extern "C" {
 
   fn v8__ObjectTemplate__SetNamedPropertyHandler(
     this: *const ObjectTemplate,
-    getter: Option<GenericNamedPropertyGetterCallback>,
-    setter: Option<GenericNamedPropertySetterCallback>,
-    query: Option<GenericNamedPropertyQueryCallback>,
-    deleter: Option<GenericNamedPropertyDeleterCallback>,
-    enumerator: Option<GenericNamedPropertyEnumeratorCallback>,
-    definer: Option<GenericNamedPropertyDefinerCallback>,
-    descriptor: Option<GenericNamedPropertyDescriptorCallback>,
+    getter: Option<NamedPropertyGetterCallback>,
+    setter: Option<NamedPropertySetterCallback>,
+    query: Option<NamedPropertyQueryCallback>,
+    deleter: Option<NamedPropertyDeleterCallback>,
+    enumerator: Option<NamedPropertyEnumeratorCallback>,
+    definer: Option<NamedPropertyDefinerCallback>,
+    descriptor: Option<NamedPropertyDescriptorCallback>,
     data_or_null: *const Value,
     flags: PropertyHandlerFlags,
   );
@@ -138,10 +140,18 @@ extern "C" {
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 }
 
-pub type AccessorNameGetterCallback<'s> = NamedGetterCallback<'s>;
+/// Interceptor callbacks use this value to indicate whether the request was
+/// intercepted or not.
+#[repr(u8)]
+pub enum Intercepted {
+  No,
+  Yes,
+}
+
+pub type AccessorNameGetterCallback<'s> = NamedGetterCallbackForAccessor<'s>;
 
 /// Note: [ReturnValue] is ignored for accessors.
-pub type AccessorNameSetterCallback<'s> = NamedSetterCallback<'s>;
+pub type AccessorNameSetterCallback<'s> = NamedSetterCallbackForAccessor<'s>;
 
 /// Interceptor for get requests on an object.
 ///
@@ -150,7 +160,7 @@ pub type AccessorNameSetterCallback<'s> = NamedSetterCallback<'s>;
 /// not produce side effects.
 ///
 /// See also [ObjectTemplate::set_handler].
-pub type GenericNamedPropertyGetterCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyGetterCallback<'s> = NamedGetterCallback<'s>;
 
 /// Interceptor for set requests on an object.
 ///
@@ -162,7 +172,7 @@ pub type GenericNamedPropertyGetterCallback<'s> = NamedGetterCallback<'s>;
 /// effects.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type GenericNamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
+pub type NamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
 
 /// Intercepts all requests that query the attributes of the property, e.g.,
 /// getOwnPropertyDescriptor(), propertyIsEnumerable(), and defineProperty().
@@ -176,7 +186,7 @@ pub type GenericNamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
 /// this interceptor depending on the state of the object.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type GenericNamedPropertyQueryCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyQueryCallback<'s> = NamedGetterCallback<'s>;
 
 /// Interceptor for delete requests on an object.
 ///
@@ -193,15 +203,14 @@ pub type GenericNamedPropertyQueryCallback<'s> = NamedGetterCallback<'s>;
 /// in strict mode.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type GenericNamedPropertyDeleterCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyDeleterCallback<'s> = NamedGetterCallback<'s>;
 
 /// Returns an array containing the names of the properties the named property getter intercepts.
 ///
 /// Note: The values in the array must be of type v8::Name.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type GenericNamedPropertyEnumeratorCallback<'s> =
-  PropertyEnumeratorCallback<'s>;
+pub type NamedPropertyEnumeratorCallback<'s> = PropertyEnumeratorCallback<'s>;
 
 /// Interceptor for defineProperty requests on an object.
 ///
@@ -213,7 +222,7 @@ pub type GenericNamedPropertyEnumeratorCallback<'s> =
 /// effects.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type GenericNamedPropertyDefinerCallback<'s> = NamedDefinerCallback<'s>;
+pub type NamedPropertyDefinerCallback<'s> = NamedDefinerCallback<'s>;
 
 /// Interceptor for getOwnPropertyDescriptor requests on an object.
 ///
@@ -226,7 +235,7 @@ pub type GenericNamedPropertyDefinerCallback<'s> = NamedDefinerCallback<'s>;
 /// true, i.e., indicate that the property was found.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type GenericNamedPropertyDescriptorCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyDescriptorCallback<'s> = NamedGetterCallback<'s>;
 
 /// See [GenericNamedPropertyGetterCallback].
 pub type IndexedPropertyGetterCallback<'s> = IndexedGetterCallback<'s>;
@@ -291,13 +300,13 @@ impl<'s> AccessorConfiguration<'s> {
 
 #[derive(Default)]
 pub struct NamedPropertyHandlerConfiguration<'s> {
-  pub(crate) getter: Option<GenericNamedPropertyGetterCallback<'s>>,
-  pub(crate) setter: Option<GenericNamedPropertySetterCallback<'s>>,
-  pub(crate) query: Option<GenericNamedPropertyQueryCallback<'s>>,
-  pub(crate) deleter: Option<GenericNamedPropertyDeleterCallback<'s>>,
-  pub(crate) enumerator: Option<GenericNamedPropertyEnumeratorCallback<'s>>,
-  pub(crate) definer: Option<GenericNamedPropertyDefinerCallback<'s>>,
-  pub(crate) descriptor: Option<GenericNamedPropertyDescriptorCallback<'s>>,
+  pub(crate) getter: Option<NamedPropertyGetterCallback<'s>>,
+  pub(crate) setter: Option<NamedPropertySetterCallback<'s>>,
+  pub(crate) query: Option<NamedPropertyQueryCallback<'s>>,
+  pub(crate) deleter: Option<NamedPropertyDeleterCallback<'s>>,
+  pub(crate) enumerator: Option<NamedPropertyEnumeratorCallback<'s>>,
+  pub(crate) definer: Option<NamedPropertyDefinerCallback<'s>>,
+  pub(crate) descriptor: Option<NamedPropertyDescriptorCallback<'s>>,
   pub(crate) data: Option<Local<'s, Value>>,
   pub(crate) flags: PropertyHandlerFlags,
 }
@@ -330,55 +339,46 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn getter(
     mut self,
-    getter: impl MapFnTo<GenericNamedPropertyGetterCallback<'s>>,
+    getter: impl MapFnTo<NamedPropertyGetterCallback<'s>>,
   ) -> Self {
     self.getter = Some(getter.map_fn_to());
     self
   }
 
-  pub fn getter_raw(
-    mut self,
-    getter: GenericNamedPropertyGetterCallback<'s>,
-  ) -> Self {
+  pub fn getter_raw(mut self, getter: NamedPropertyGetterCallback<'s>) -> Self {
     self.getter = Some(getter);
     self
   }
 
   pub fn setter(
     mut self,
-    setter: impl MapFnTo<GenericNamedPropertySetterCallback<'s>>,
+    setter: impl MapFnTo<NamedPropertySetterCallback<'s>>,
   ) -> Self {
     self.setter = Some(setter.map_fn_to());
     self
   }
 
-  pub fn setter_raw(
-    mut self,
-    setter: GenericNamedPropertySetterCallback<'s>,
-  ) -> Self {
+  pub fn setter_raw(mut self, setter: NamedPropertySetterCallback<'s>) -> Self {
     self.setter = Some(setter);
     self
   }
 
   pub fn query(
     mut self,
-    query: impl MapFnTo<GenericNamedPropertyQueryCallback<'s>>,
+    query: impl MapFnTo<NamedPropertyQueryCallback<'s>>,
   ) -> Self {
     self.query = Some(query.map_fn_to());
     self
   }
 
-  pub fn query_raw(
-    mut self,
-    query: GenericNamedPropertyQueryCallback<'s>,
-  ) -> Self {
+  pub fn query_raw(mut self, query: NamedPropertyQueryCallback<'s>) -> Self {
     self.query = Some(query);
     self
   }
 
   pub fn deleter(
     mut self,
-    deleter: impl MapFnTo<GenericNamedPropertyDeleterCallback<'s>>,
+    deleter: impl MapFnTo<NamedPropertyDeleterCallback<'s>>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
     self
@@ -386,7 +386,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn deleter_raw(
     mut self,
-    deleter: GenericNamedPropertyDeleterCallback<'s>,
+    deleter: NamedPropertyDeleterCallback<'s>,
   ) -> Self {
     self.deleter = Some(deleter);
     self
@@ -394,7 +394,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn enumerator(
     mut self,
-    enumerator: impl MapFnTo<GenericNamedPropertyEnumeratorCallback<'s>>,
+    enumerator: impl MapFnTo<NamedPropertyEnumeratorCallback<'s>>,
   ) -> Self {
     self.enumerator = Some(enumerator.map_fn_to());
     self
@@ -402,7 +402,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn enumerator_raw(
     mut self,
-    enumerator: GenericNamedPropertyEnumeratorCallback<'s>,
+    enumerator: NamedPropertyEnumeratorCallback<'s>,
   ) -> Self {
     self.enumerator = Some(enumerator);
     self
@@ -410,7 +410,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn definer(
     mut self,
-    definer: impl MapFnTo<GenericNamedPropertyDefinerCallback<'s>>,
+    definer: impl MapFnTo<NamedPropertyDefinerCallback<'s>>,
   ) -> Self {
     self.definer = Some(definer.map_fn_to());
     self
@@ -418,7 +418,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn definer_raw(
     mut self,
-    definer: GenericNamedPropertyDefinerCallback<'s>,
+    definer: NamedPropertyDefinerCallback<'s>,
   ) -> Self {
     self.definer = Some(definer);
     self
@@ -426,7 +426,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn descriptor(
     mut self,
-    descriptor: impl MapFnTo<GenericNamedPropertyDescriptorCallback<'s>>,
+    descriptor: impl MapFnTo<NamedPropertyDescriptorCallback<'s>>,
   ) -> Self {
     self.descriptor = Some(descriptor.map_fn_to());
     self
@@ -434,7 +434,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn descriptor_raw(
     mut self,
-    descriptor: GenericNamedPropertyDescriptorCallback<'s>,
+    descriptor: NamedPropertyDescriptorCallback<'s>,
   ) -> Self {
     self.descriptor = Some(descriptor);
     self
@@ -950,7 +950,7 @@ impl ObjectTemplate {
     configuration: AccessorConfiguration,
   ) {
     unsafe {
-      v8__ObjectTemplate__SetAccessor(
+      v8__ObjectTemplate__SetNativeDataProperty(
         self,
         &*key,
         configuration.getter,
