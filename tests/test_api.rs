@@ -8378,11 +8378,11 @@ fn memory_pressure_notification() {
   isolate.memory_pressure_notification(v8::MemoryPressureLevel::None);
 }
 
-// Flaky on aarch64-qemu (Stack corruption).
-#[cfg(not(target_os = "android"))]
 #[test]
 fn clear_kept_objects() {
-  let _setup_guard = setup::parallel_test();
+  // This test is flaky when run in parallel because it might end up triggering a GC on
+  // some other test's data
+  let _setup_guard = setup::sequential_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
@@ -8519,6 +8519,30 @@ fn unbound_script_conversion() {
 }
 
 #[test]
+fn ept_torture_test() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  // This should not OOM or crash when we run in a tight loop as the EPT should be subject
+  // to GC.
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        for(let i = 0; i < 100_000; i++) new ArrayBuffer(1024 * 1024);
+        "OK";
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "OK");
+  }
+}
+
+#[test]
 fn run_with_rust_allocator() {
   use std::sync::Arc;
 
@@ -8603,6 +8627,25 @@ fn run_with_rust_allocator() {
   isolate.low_memory_notification();
   let count_loaded = count.load(Ordering::SeqCst);
   assert_eq!(count_loaded, 0);
+
+  // This should not OOM or crash when we run in a tight loop as the EPT should be subject
+  // to GC.
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        for(let i = 0; i < 10_000; i++) new ArrayBuffer(10 * 1024 * 1024);
+        "OK";
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "OK");
+  }
 }
 
 // Same as heap_limits()
