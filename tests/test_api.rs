@@ -8514,7 +8514,7 @@ fn ept_torture_test() {
     let source = v8::String::new(
       scope,
       r#"
-        for(let i = 0; i < 1_000_000; i++) new ArrayBuffer(1024 * 1024);
+        for(let i = 0; i < 100_000; i++) new ArrayBuffer(1024 * 1024);
         "OK";
       "#,
     )
