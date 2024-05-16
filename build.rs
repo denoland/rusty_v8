@@ -326,6 +326,8 @@ fn host_platform() -> String {
     "mac"
   } else if cfg!(target_os = "windows") {
     "windows"
+  } else if cfg!(target_os = "freebsd") {
+    "freebsd"
   } else {
     "unknown"
   };
