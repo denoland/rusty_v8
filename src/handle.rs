@@ -35,6 +35,17 @@ extern "C" {
     this: *const WeakCallbackInfo,
     callback: extern "C" fn(*const WeakCallbackInfo),
   );
+
+  fn v8__TracedReference__CONSTRUCT(this: *mut TracedReference<Data>);
+  fn v8__TracedReference__Reset(
+    this: *mut TracedReference<Data>,
+    isolate: *mut Isolate,
+    data: *mut Data,
+  );
+  fn v8__TracedReference__Get(
+    this: *const TracedReference<Data>,
+    isolate: *mut Isolate,
+  ) -> *const Data;
 }
 
 /// An object reference managed by the v8 garbage collector.
@@ -976,5 +987,63 @@ impl FinalizerMap {
     &mut self,
   ) -> impl Iterator<Item = FinalizerCallback> + '_ {
     self.map.drain().map(|(_, finalizer)| finalizer)
+  }
+}
+
+/// A traced handle without destructor that clears the handle. The embedder needs
+/// to ensure that the handle is not accessed once the V8 object has been
+/// reclaimed. For more details see BasicTracedReference.
+#[repr(C)]
+pub struct TracedReference<T> {
+  data: [u8; crate::binding::RUST_v8__TracedReference_SIZE],
+  _phantom: PhantomData<T>,
+}
+
+impl<T> TracedReference<T> {
+  /// An empty TracedReference without storage cell.
+  pub fn empty() -> Self {
+    let mut this = std::mem::MaybeUninit::uninit();
+    unsafe {
+      v8__TracedReference__CONSTRUCT(this.as_mut_ptr() as _);
+      this.assume_init()
+    }
+  }
+
+  /// Construct a TracedReference from a Local.
+  ///
+  /// A new storage cell is created pointing to the same object.
+  pub fn new(scope: &mut HandleScope<()>, data: Local<T>) -> Self {
+    let mut this = Self::empty();
+    this.reset(scope, Some(data));
+    this
+  }
+
+  pub fn get<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Option<Local<'s, T>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__TracedReference__Get(
+          self as *const Self as *const TracedReference<Data>,
+          sd.get_isolate_ptr(),
+        ) as *const T
+      })
+    }
+  }
+
+  /// Always resets the reference. Creates a new reference from `other` if it is
+  /// non-empty.
+  pub fn reset(&mut self, scope: &mut HandleScope<()>, data: Option<Local<T>>) {
+    unsafe {
+      v8__TracedReference__Reset(
+        self as *mut Self as *mut TracedReference<Data>,
+        scope.get_isolate_ptr(),
+        data
+          .map(|h| h.as_non_null().as_ptr())
+          .unwrap_or(std::ptr::null_mut())
+          .cast(),
+      );
+    }
   }
 }

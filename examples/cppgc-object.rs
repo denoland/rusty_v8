@@ -19,9 +19,7 @@ impl Drop for Wrappable {
   }
 }
 
-// Set a custom embedder ID for the garbage collector. cppgc will use this ID to
-// identify the object that it manages.
-const DEFAULT_CPP_GC_EMBEDDER_ID: u16 = 0xde90;
+const TAG: u16 = 1;
 
 fn main() {
   let platform = v8::new_default_platform(0, false).make_shared();
@@ -32,18 +30,10 @@ fn main() {
   v8::cppgc::initalize_process(platform.clone());
 
   {
-    let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-
-    // Create a managed heap.
-    let heap = v8::cppgc::Heap::create(
-      platform,
-      v8::cppgc::HeapCreateParams::new(v8::cppgc::WrapperDescriptor::new(
-        0,
-        1,
-        DEFAULT_CPP_GC_EMBEDDER_ID,
-      )),
-    );
-    isolate.attach_cpp_heap(&heap);
+    let heap =
+      v8::cppgc::Heap::create(platform, v8::cppgc::HeapCreateParams::default());
+    let isolate =
+      &mut v8::Isolate::new(v8::CreateParams::default().cpp_heap(heap));
 
     let handle_scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(handle_scope);
@@ -57,24 +47,31 @@ fn main() {
          mut rv: v8::ReturnValue| {
           let id = args.get(0).to_rust_string_lossy(scope);
 
-          let templ = v8::ObjectTemplate::new(scope);
-          templ.set_internal_field_count(2);
+          fn empty(
+            _scope: &mut v8::HandleScope,
+            _args: v8::FunctionCallbackArguments,
+            _rv: v8::ReturnValue,
+          ) {
+          }
+          let templ = v8::FunctionTemplate::new(scope, empty);
+          let func = templ.get_function(scope).unwrap();
+          let obj = func.new_instance(scope, &[]).unwrap();
 
-          let obj = templ.new_instance(scope).unwrap();
+          assert!(obj.is_api_wrapper());
 
-          let member = v8::cppgc::make_garbage_collected(
-            scope.get_cpp_heap().unwrap(),
-            Box::new(Wrappable {
-              trace_count: Cell::new(0),
-              id,
-            }),
-          );
+          let member = unsafe {
+            v8::cppgc::make_garbage_collected(
+              scope.get_cpp_heap().unwrap(),
+              Wrappable {
+                trace_count: Cell::new(0),
+                id,
+              },
+            )
+          };
 
-          obj.set_aligned_pointer_in_internal_field(
-            0,
-            &DEFAULT_CPP_GC_EMBEDDER_ID as *const u16 as _,
-          );
-          obj.set_aligned_pointer_in_internal_field(1, member.handle as _);
+          unsafe {
+            v8::Object::wrap::<TAG, Wrappable>(scope, obj, &member);
+          }
 
           rv.set(obj.into());
         },

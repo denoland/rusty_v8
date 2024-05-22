@@ -26,7 +26,7 @@ impl Drop for CppGCGuard {
   }
 }
 
-const DEFAULT_CPP_GC_EMBEDDER_ID: u16 = 0xde90;
+const TAG: u16 = 1;
 
 #[test]
 fn cppgc_object_wrap() {
@@ -35,11 +35,14 @@ fn cppgc_object_wrap() {
   static TRACE_COUNT: AtomicUsize = AtomicUsize::new(0);
   static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  struct Wrap;
+  struct Wrap {
+    value: v8::TracedReference<v8::Value>,
+  }
 
   impl GarbageCollected for Wrap {
-    fn trace(&self, _: &Visitor) {
+    fn trace(&self, visitor: &Visitor) {
       TRACE_COUNT.fetch_add(1, Ordering::SeqCst);
+      visitor.trace(&self.value);
     }
   }
 
@@ -49,62 +52,84 @@ fn cppgc_object_wrap() {
     }
   }
 
-  fn op_make_wrap(
+  fn op_wrap(
     scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
+    args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
   ) {
-    let templ = v8::ObjectTemplate::new(scope);
-    templ.set_internal_field_count(2);
+    fn empty(
+      _scope: &mut v8::HandleScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue,
+    ) {
+    }
+    let templ = v8::FunctionTemplate::new(scope, empty);
+    let func = templ.get_function(scope).unwrap();
+    let obj = func.new_instance(scope, &[]).unwrap();
+    assert!(obj.is_api_wrapper());
 
-    let obj = templ.new_instance(scope).unwrap();
+    let wrap = Wrap {
+      value: v8::TracedReference::new(scope, args.get(0)),
+    };
+    let member = unsafe {
+      v8::cppgc::make_garbage_collected(scope.get_cpp_heap().unwrap(), wrap)
+    };
 
-    let member = v8::cppgc::make_garbage_collected(
-      scope.get_cpp_heap().unwrap(),
-      Box::new(Wrap),
-    );
-
-    obj.set_aligned_pointer_in_internal_field(
-      0,
-      &DEFAULT_CPP_GC_EMBEDDER_ID as *const u16 as _,
-    );
-    obj.set_aligned_pointer_in_internal_field(1, member.handle as _);
+    unsafe {
+      v8::Object::wrap::<TAG, Wrap>(scope, obj, &member);
+    }
 
     rv.set(obj.into());
   }
 
+  fn op_unwrap(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    let obj = args.get(0).try_into().unwrap();
+    let member = unsafe { v8::Object::unwrap::<TAG, Wrap>(scope, obj) };
+    rv.set(member.borrow().unwrap().value.get(scope).unwrap());
+  }
+
   {
-    let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
     // Create a managed heap.
     let heap = v8::cppgc::Heap::create(
       guard.platform.clone(),
-      v8::cppgc::HeapCreateParams::new(v8::cppgc::WrapperDescriptor::new(
-        0,
-        1,
-        DEFAULT_CPP_GC_EMBEDDER_ID,
-      )),
+      v8::cppgc::HeapCreateParams::default(),
     );
-    isolate.attach_cpp_heap(&heap);
+    let isolate =
+      &mut v8::Isolate::new(v8::CreateParams::default().cpp_heap(heap));
 
     let handle_scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(handle_scope);
     let scope = &mut v8::ContextScope::new(handle_scope, context);
     let global = context.global(scope);
     {
-      let func = v8::Function::new(scope, op_make_wrap).unwrap();
-      let name = v8::String::new(scope, "make_wrap").unwrap();
+      let func = v8::Function::new(scope, op_wrap).unwrap();
+      let name = v8::String::new(scope, "wrap").unwrap();
+      global.set(scope, name.into(), func.into()).unwrap();
+    }
+    {
+      let func = v8::Function::new(scope, op_unwrap).unwrap();
+      let name = v8::String::new(scope, "unwrap").unwrap();
       global.set(scope, name.into(), func.into()).unwrap();
     }
 
-    let source = v8::String::new(
+    execute_script(
       scope,
       r#"
-      make_wrap(); // Inaccessible after scope.
-      globalThis.wrap = make_wrap(); // Accessible after scope.
+      {
+        const x = {};
+        const y = unwrap(wrap(x)); // collected
+        if (x !== y) {
+          throw new Error('mismatch');
+        }
+      }
+
+      globalThis.wrapped = wrap(wrap({})); // not collected
     "#,
-    )
-    .unwrap();
-    execute_script(scope, source);
+    );
 
     assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
 
@@ -113,24 +138,38 @@ fn cppgc_object_wrap() {
 
     assert!(TRACE_COUNT.load(Ordering::SeqCst) > 0);
     assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 1);
+
+    execute_script(
+      scope,
+      r#"
+      globalThis.wrapped = undefined;
+    "#,
+    );
+
+    scope
+      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+
+    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 3);
   }
 }
 
 fn execute_script(
   context_scope: &mut v8::ContextScope<v8::HandleScope>,
-  script: v8::Local<v8::String>,
+  source: &str,
 ) {
   let scope = &mut v8::HandleScope::new(context_scope);
-  let try_catch = &mut v8::TryCatch::new(scope);
+  let scope = &mut v8::TryCatch::new(scope);
 
-  let script = v8::Script::compile(try_catch, script, None)
-    .expect("failed to compile script");
+  let source = v8::String::new(scope, source).unwrap();
 
-  if script.run(try_catch).is_none() {
-    let exception_string = try_catch
+  let script =
+    v8::Script::compile(scope, source, None).expect("failed to compile script");
+
+  if script.run(scope).is_none() {
+    let exception_string = scope
       .stack_trace()
-      .or_else(|| try_catch.exception())
-      .map(|value| value.to_rust_string_lossy(try_catch))
+      .or_else(|| scope.exception())
+      .map(|value| value.to_rust_string_lossy(scope))
       .unwrap_or_else(|| "no stack trace".into());
 
     panic!("{}", exception_string);

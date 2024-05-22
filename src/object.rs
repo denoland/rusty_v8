@@ -1,3 +1,7 @@
+use crate::cppgc::GarbageCollected;
+use crate::cppgc::GetRustObj;
+use crate::cppgc::Member;
+use crate::cppgc::RustObj;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
@@ -209,6 +213,18 @@ extern "C" {
     key: *const Name,
     out: *mut Maybe<PropertyAttribute>,
   );
+  fn v8__Object__Wrap(
+    isolate: *const Isolate,
+    wrapper: *const Object,
+    value: *const RustObj,
+    tag: u16,
+  );
+  fn v8__Object__Unwrap(
+    isolate: *const Isolate,
+    wrapper: *const Object,
+    tag: u16,
+  ) -> *mut RustObj;
+  fn v8__Object__IsApiWrapper(this: *const Object) -> bool;
 
   fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -262,6 +278,8 @@ extern "C" {
   fn v8__Set__Size(map: *const Set) -> usize;
   fn v8__Set__As__Array(this: *const Set) -> *const Array;
 }
+
+const LAST_TAG: u16 = 0x7fff;
 
 impl Object {
   /// Creates an empty object.
@@ -678,6 +696,56 @@ impl Object {
     value: *const c_void,
   ) {
     unsafe { v8__Object__SetAlignedPointerInInternalField(self, index, value) }
+  }
+
+  /// Wraps a JS wrapper with a C++ instance.
+  ///
+  /// # Safety
+  ///
+  /// The `TAG` must be unique to the caller within the heap.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)]
+  #[inline(always)]
+  pub unsafe fn wrap<const TAG: u16, T: GarbageCollected>(
+    scope: &mut HandleScope,
+    wrapper: Local<Object>,
+    value: &impl GetRustObj<T>,
+  ) {
+    // TODO: use a const assert once const expressions are stable
+    assert!(TAG < LAST_TAG);
+    let ptr = value.get_rust_obj();
+    unsafe { v8__Object__Wrap(scope.get_isolate_ptr(), &*wrapper, ptr, TAG) }
+  }
+
+  /// Unwraps a JS wrapper object.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that the returned pointer is always stored on
+  /// the stack, or moved into one of the Persistent types.
+  #[inline(always)]
+  pub unsafe fn unwrap<const TAG: u16, T: GarbageCollected>(
+    scope: &mut HandleScope,
+    wrapper: Local<Object>,
+  ) -> Member<T> {
+    // TODO: use a const assert once const expressions are stable
+    assert!(TAG < LAST_TAG);
+    let ptr =
+      unsafe { v8__Object__Unwrap(scope.get_isolate_ptr(), &*wrapper, TAG) };
+    Member::new(ptr)
+  }
+
+  /// Returns true if this object can be generally used to wrap object objects.
+  /// This means that the object either follows the convention of using embedder
+  /// fields to denote type/instance pointers or is using the Wrap()/Unwrap()
+  /// APIs for the same purpose. Returns false otherwise.
+  ///
+  /// Note that there may be other objects that use embedder fields but are not
+  /// used as API wrapper objects. E.g., v8::Promise may in certain configuration
+  /// use embedder fields but promises are not generally supported as API
+  /// wrappers. The method will return false in those cases.
+  #[inline(always)]
+  pub fn is_api_wrapper(&self) -> bool {
+    unsafe { v8__Object__IsApiWrapper(self) }
   }
 
   /// Sets the integrity level of the object.

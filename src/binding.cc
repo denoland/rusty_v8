@@ -11,6 +11,7 @@
 #include "support.h"
 #include "unicode/locid.h"
 #include "v8-callbacks.h"
+#include "v8/include/cppgc/persistent.h"
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8-cppgc.h"
 #include "v8/include/v8-fast-api-calls.h"
@@ -30,8 +31,6 @@
 #include "v8/src/objects/objects-inl.h"
 #include "v8/src/objects/objects.h"
 #include "v8/src/objects/smi.h"
-
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 using namespace support;
 
@@ -403,6 +402,21 @@ const v8::Data* v8__Global__NewWeak(
 void v8__Global__Reset(const v8::Data* data) {
   auto global = ptr_to_global(data);
   global.Reset();
+}
+
+void v8__TracedReference__CONSTRUCT(
+    uninit_t<v8::TracedReference<v8::Data>>* buf) {
+  construct_in_place<v8::TracedReference<v8::Data>>(buf);
+}
+
+void v8__TracedReference__Reset(v8::TracedReference<v8::Data>* self,
+                                v8::Isolate* isolate, const v8::Data* other) {
+  self->Reset(isolate, ptr_to_local(other));
+}
+
+const v8::Data* v8__TracedReference__Get(v8::TracedReference<v8::Data>* self,
+                                         v8::Isolate* isolate) {
+  return local_to_ptr(self->Get(isolate));
 }
 
 v8::Isolate* v8__WeakCallbackInfo__GetIsolate(
@@ -1313,8 +1327,12 @@ void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
   ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
 }
 
+bool v8__Object__IsApiWrapper(const v8::Object& self) {
+  return ptr_to_local(&self)->IsApiWrapper();
+}
+
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
-  return local_to_ptr(ptr_to_local(&self)->GetPrototype());
+  return local_to_ptr(ptr_to_local(&self)->GetPrototypeV2());
 }
 
 MaybeBool v8__Object__Set(const v8::Object& self, const v8::Context& context,
@@ -1333,7 +1351,7 @@ MaybeBool v8__Object__SetIndex(const v8::Object& self,
 MaybeBool v8__Object__SetPrototype(const v8::Object& self,
                                    const v8::Context& context,
                                    const v8::Value& prototype) {
-  return maybe_to_maybe_bool(ptr_to_local(&self)->SetPrototype(
+  return maybe_to_maybe_bool(ptr_to_local(&self)->SetPrototypeV2(
       ptr_to_local(&context), ptr_to_local(&prototype)));
 }
 
@@ -3729,23 +3747,37 @@ void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
 
 extern "C" {
 
-using RustTraceFn = void (*)(void* obj, cppgc::Visitor*);
-using RustDestroyFn = void (*)(void* obj);
+class RustObj;
+
+using RustTraceFn = void (*)(const RustObj* obj, cppgc::Visitor*);
+using RustDestroyFn = void (*)(const RustObj* obj);
 
 class RustObj final : public cppgc::GarbageCollected<RustObj> {
  public:
-  explicit RustObj(void* obj, RustTraceFn trace, RustDestroyFn destroy)
-      : trace_(trace), destroy_(destroy), obj_(obj) {}
+  explicit RustObj(RustTraceFn trace, RustDestroyFn destroy)
+      : trace_(trace), destroy_(destroy) {}
 
-  ~RustObj() { destroy_(obj_); }
+  ~RustObj() { destroy_(this); }
 
-  void Trace(cppgc::Visitor* visitor) const { trace_(obj_, visitor); }
+  void Trace(cppgc::Visitor* visitor) const { trace_(this, visitor); }
 
  private:
   RustTraceFn trace_;
   RustDestroyFn destroy_;
-  void* obj_;
 };
+
+RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
+                            v8::CppHeapPointerTag tag) {
+  v8::CppHeapPointerTagRange tag_range(tag, tag);
+  return static_cast<RustObj*>(
+      v8::Object::Unwrap(isolate, ptr_to_local(&wrapper), tag_range));
+}
+
+void v8__Object__Wrap(v8::Isolate* isolate, const v8::Object& wrapper,
+                      RustObj* value, v8::CppHeapPointerTag tag) {
+  v8::Object::Wrap(isolate, ptr_to_local(&wrapper), static_cast<void*>(value),
+                   tag);
+}
 
 void cppgc__initialize_process(v8::Platform* platform) {
   cppgc::InitializeProcess(platform->GetPageAllocator());
@@ -3754,29 +3786,13 @@ void cppgc__initialize_process(v8::Platform* platform) {
 void cppgc__shutdown_process() { cppgc::ShutdownProcess(); }
 
 v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
-                                 int wrappable_type_index,
-                                 int wrappable_instance_index,
-                                 uint16_t embedder_id) {
-  std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(
-      platform,
-      v8::CppHeapCreateParams{
-          {},
-          v8::WrapperDescriptor(wrappable_type_index, wrappable_instance_index,
-                                embedder_id),
-      });
+                                 cppgc::Heap::MarkingType marking_support,
+                                 cppgc::Heap::SweepingType sweeping_support) {
+  v8::CppHeapCreateParams params{{}};
+  params.marking_support = marking_support;
+  params.sweeping_support = sweeping_support;
+  std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(platform, params);
   return heap.release();
-}
-
-void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) {
-// The AttachCppHeap method is deprecated but the alternative of passing
-// heap to the Isolate CreateParams is broken.
-//
-// TODO(@littledivy): Remove this when the above CL is merged.
-// https://chromium-review.googlesource.com/c/chromium/src/+/4992764
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  isolate->AttachCppHeap(cpp_heap);
-#pragma clang diagnostic pop
 }
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
@@ -3795,15 +3811,95 @@ void cppgc__heap__collect_garbage_for_testing(
   heap->CollectGarbageForTesting(stack_state);
 }
 
-RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, void* obj,
+RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size,
                                          RustTraceFn trace,
                                          RustDestroyFn destroy) {
-  return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(), obj,
+  return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(),
+                                              cppgc::AdditionalBytes(size),
                                               trace, destroy);
 }
 
-void cppgc__visitor__trace(cppgc::Visitor* visitor, RustObj* member) {
+void cppgc__Visitor__Trace__Member(cppgc::Visitor* visitor,
+                                   cppgc::Member<RustObj>* member) {
   visitor->Trace(*member);
+}
+
+void cppgc__Visitor__Trace__WeakMember(cppgc::Visitor* visitor,
+                                       cppgc::WeakMember<RustObj>* member) {
+  visitor->Trace(*member);
+}
+
+void cppgc__Visitor__Trace__TracedReference(
+    cppgc::Visitor* visitor, v8::TracedReference<v8::Data>* ref) {
+  visitor->Trace(*ref);
+}
+
+void cppgc__Member__CONSTRUCT(uninit_t<cppgc::Member<RustObj>>* buf,
+                              RustObj* other) {
+  construct_in_place<cppgc::Member<RustObj>>(buf, other);
+}
+
+void cppgc__Member__DESTRUCT(cppgc::Member<RustObj>* self) {
+  self->~BasicMember();
+}
+
+RustObj* cppgc__Member__Get(cppgc::Member<RustObj>* member) {
+  return member->Get();
+}
+
+void cppgc__Member__Assign(cppgc::Member<RustObj>* member, RustObj* other) {
+  member->operator=(other);
+}
+
+void cppgc__WeakMember__CONSTRUCT(uninit_t<cppgc::WeakMember<RustObj>>* buf,
+                                  RustObj* other) {
+  construct_in_place<cppgc::WeakMember<RustObj>>(buf, other);
+}
+
+void cppgc__WeakMember__DESTRUCT(cppgc::WeakMember<RustObj>* self) {
+  self->~BasicMember();
+}
+
+RustObj* cppgc__WeakMember__Get(cppgc::WeakMember<RustObj>* member) {
+  return member->Get();
+}
+
+void cppgc__WeakMember__Assign(cppgc::WeakMember<RustObj>* member,
+                               RustObj* other) {
+  member->operator=(other);
+}
+
+cppgc::Persistent<RustObj>* cppgc__Persistent__CONSTRUCT() {
+  return new cppgc::Persistent<RustObj>(nullptr);
+}
+
+void cppgc__Persistent__DESTRUCT(cppgc::Persistent<RustObj>* self) {
+  delete self;
+}
+
+void cppgc__Persistent__Assign(cppgc::Persistent<RustObj>* self, RustObj* ptr) {
+  self->operator=(ptr);
+}
+
+RustObj* cppgc__Persistent__Get(cppgc::Persistent<RustObj>* self) {
+  return self->Get();
+}
+
+cppgc::WeakPersistent<RustObj>* cppgc__WeakPersistent__CONSTRUCT() {
+  return new cppgc::WeakPersistent<RustObj>(nullptr);
+}
+
+void cppgc__WeakPersistent__DESTRUCT(cppgc::WeakPersistent<RustObj>* self) {
+  delete self;
+}
+
+void cppgc__WeakPersistent__Assign(cppgc::WeakPersistent<RustObj>* self,
+                                   RustObj* ptr) {
+  self->operator=(ptr);
+}
+
+RustObj* cppgc__WeakPersistent__Get(cppgc::WeakPersistent<RustObj>* self) {
+  return self->Get();
 }
 
 }  // extern "C"

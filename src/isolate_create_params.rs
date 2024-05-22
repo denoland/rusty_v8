@@ -8,6 +8,7 @@ use crate::support::Allocated;
 use crate::support::Allocation;
 use crate::support::Opaque;
 use crate::support::SharedPtr;
+use crate::support::UniqueRef;
 
 use std::any::Any;
 use std::convert::TryFrom;
@@ -156,6 +157,13 @@ impl CreateParams {
       .raw
       .constraints
       .configure_defaults_from_heap_size(initial, max);
+    self
+  }
+
+  /// A CppHeap used to construct the Isolate. V8 takes ownership of the
+  /// CppHeap passed this way.
+  pub fn cpp_heap(mut self, heap: UniqueRef<Heap>) -> Self {
+    self.raw.cpp_heap = heap.into_raw();
     self
   }
 
