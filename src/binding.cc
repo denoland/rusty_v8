@@ -65,7 +65,8 @@ static_assert(sizeof(v8::ScriptCompiler::CompilationDetails) ==
 static_assert(
     sizeof(v8::ScriptCompiler::Source) ==
         align_to<size_t>(sizeof(size_t) * 8 + sizeof(int) * 2 +
-    // the last field before CompilationDetails on 32-bit systems will have a padding
+                         // the last field before CompilationDetails on 32-bit
+                         // systems will have a padding
                          align_to<int64_t>(sizeof(size_t)) +
                          sizeof(v8::ScriptCompiler::CompilationDetails)),
     "Source size mismatch");
@@ -280,8 +281,9 @@ bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
   return isolate->AddMessageListener(callback);
 }
 
-bool v8__Isolate__AddMessageListenerWithErrorLevel(
-    v8::Isolate* isolate, v8::MessageCallback callback, int error_level) {
+bool v8__Isolate__AddMessageListenerWithErrorLevel(v8::Isolate* isolate,
+                                                   v8::MessageCallback callback,
+                                                   int error_level) {
   return isolate->AddMessageListenerWithErrorLevel(callback, error_level);
 }
 
@@ -364,12 +366,9 @@ size_t v8__Isolate__CreateParams__SIZEOF() {
 }
 
 void v8__Isolate__DateTimeConfigurationChangeNotification(
-    v8::Isolate* isolate,
-    v8::Isolate::TimeZoneDetection time_zone_detection
-) {
-    isolate->DateTimeConfigurationChangeNotification(time_zone_detection);
+    v8::Isolate* isolate, v8::Isolate::TimeZoneDetection time_zone_detection) {
+  isolate->DateTimeConfigurationChangeNotification(time_zone_detection);
 }
-
 
 void v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
     v8::ResourceConstraints* constraints, size_t initial_heap_size_in_bytes,
@@ -1051,12 +1050,13 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
 }
 
 const v8::String::ExternalStringResource* v8__String__GetExternalStringResource(
-	const v8::String& self) {
+    const v8::String& self) {
   return self.GetExternalStringResource();
 }
 
-const v8::String::ExternalStringResourceBase* v8__String__GetExternalStringResourceBase(
-	const v8::String& self, v8::String::Encoding* encoding_out) {
+const v8::String::ExternalStringResourceBase*
+v8__String__GetExternalStringResourceBase(const v8::String& self,
+                                          v8::String::Encoding* encoding_out) {
   return self.GetExternalStringResourceBase(encoding_out);
 }
 
@@ -1221,19 +1221,16 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
 }
 
 void v8__ObjectTemplate__SetNativeDataProperty(
-  const v8::ObjectTemplate& self,
-  const v8::Name& key,
-  v8::AccessorNameGetterCallback getter,
-  v8::AccessorNameSetterCallback setter,
-  const v8::Value* data_or_null,
-  v8::PropertyAttribute attr) {
-    ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key),
-      getter, setter, ptr_to_local(data_or_null), attr);
+    const v8::ObjectTemplate& self, const v8::Name& key,
+    v8::AccessorNameGetterCallback getter,
+    v8::AccessorNameSetterCallback setter, const v8::Value* data_or_null,
+    v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key), getter, setter,
+                                             ptr_to_local(data_or_null), attr);
 }
 
 void v8__ObjectTemplate__SetNamedPropertyHandler(
-    const v8::ObjectTemplate& self,
-    v8::NamedPropertyGetterCallback getter,
+    const v8::ObjectTemplate& self, v8::NamedPropertyGetterCallback getter,
     v8::NamedPropertySetterCallback setter,
     v8::NamedPropertyQueryCallback query,
     v8::NamedPropertyDeleterCallback deleter,
@@ -1532,9 +1529,9 @@ const v8::Value* v8__Object__GetOwnPropertyDescriptor(
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
-
-const v8::Value* v8__Object__GetRealNamedProperty(
-    const v8::Object& self, const v8::Context& context, const v8::Name& key) {
+const v8::Value* v8__Object__GetRealNamedProperty(const v8::Object& self,
+                                                  const v8::Context& context,
+                                                  const v8::Name& key) {
   return maybe_local_to_ptr(ptr_to_local(&self)->GetRealNamedProperty(
       ptr_to_local(&context), ptr_to_local(&key)));
 }
@@ -1936,8 +1933,8 @@ const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
   return local_to_ptr(value);
 }
 
-v8::MicrotaskQueue* v8__MicrotaskQueue__New(
-    v8::Isolate* isolate, v8::MicrotasksPolicy policy) {
+v8::MicrotaskQueue* v8__MicrotaskQueue__New(v8::Isolate* isolate,
+                                            v8::MicrotasksPolicy policy) {
   return v8::MicrotaskQueue::New(isolate, policy).release();
 }
 
@@ -3339,7 +3336,7 @@ struct v8__ValueSerializer__Delegate : public v8::ValueSerializer::Delegate {
   }
 
   v8::Maybe<bool> IsHostObject(v8::Isolate* isolate,
-                                  v8::Local<v8::Object> object) override {
+                               v8::Local<v8::Object> object) override {
     return maybe_bool_to_maybe(
         v8__ValueSerializer__Delegate__IsHostObject(this, isolate, object));
   }
@@ -3755,7 +3752,7 @@ v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
   return heap.release();
 }
 
-void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) { 
+void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) {
 // The AttachCppHeap method is deprecated but the alternative of passing
 // heap to the Isolate CreateParams is broken.
 //
