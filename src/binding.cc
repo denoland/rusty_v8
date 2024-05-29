@@ -59,12 +59,14 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
 static_assert(sizeof(v8::ScriptCompiler::CompilationDetails) ==
-                  sizeof(size_t) * 3,
+                  sizeof(int64_t) * 3,
               "CompilationDetails size mismatch");
 
 static_assert(
     sizeof(v8::ScriptCompiler::Source) ==
-        align_to<size_t>(sizeof(size_t) * 9 + sizeof(int) * 2 +
+        align_to<size_t>(sizeof(size_t) * 8 + sizeof(int) * 2 +
+    // the last field before CompilationDetails on 32-bit systems will have a padding
+                         align_to<int64_t>(sizeof(size_t)) +
                          sizeof(v8::ScriptCompiler::CompilationDetails)),
     "Source size mismatch");
 
