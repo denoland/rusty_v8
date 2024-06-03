@@ -16,6 +16,7 @@ use crate::support::SharedRef;
 use crate::support::UniquePtr;
 use crate::support::UniqueRef;
 use crate::ArrayBuffer;
+use crate::DataView;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
@@ -67,6 +68,12 @@ extern "C" {
     this: *const BackingStore,
   ) -> bool;
   fn v8__BackingStore__DELETE(this: *mut BackingStore);
+
+  fn v8__DataView__New(
+    arraybuffer: *const ArrayBuffer,
+    byte_offset: usize,
+    length: usize,
+  ) -> *const DataView;
 
   fn std__shared_ptr__v8__BackingStore__COPY(
     ptr: *const SharedPtrBase<BackingStore>,
@@ -614,5 +621,22 @@ impl ArrayBuffer {
       deleter_callback,
       deleter_data,
     ))
+  }
+}
+
+impl DataView {
+  /// Returns a new DataView.
+  #[inline(always)]
+  pub fn new<'s>(
+    scope: &mut HandleScope<'s>,
+    arraybuffer: Local<'s, ArrayBuffer>,
+    byte_offset: usize,
+    length: usize,
+  ) -> Local<'s, DataView> {
+    unsafe {
+      scope
+        .cast_local(|_| v8__DataView__New(&*arraybuffer, byte_offset, length))
+    }
+    .unwrap()
   }
 }

@@ -735,6 +735,22 @@ fn handles_from_isolate() {
 }
 
 #[test]
+fn data_view() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let ab = v8::ArrayBuffer::new(scope, 42);
+
+    let dv = v8::DataView::new(scope, ab, 0, 42);
+    assert!(dv.is_data_view());
+  }
+}
+
+#[test]
 fn array_buffer() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
