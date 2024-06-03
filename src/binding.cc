@@ -1802,6 +1802,13 @@ size_t v8__ArrayBuffer__ByteLength(const v8::ArrayBuffer& self) {
   return self.ByteLength();
 }
 
+const v8::DataView* v8__DataView__New(
+    const v8::ArrayBuffer& ab,
+    size_t offset,
+    size_t length) {
+  return local_to_ptr(v8::DataView::New(ptr_to_local(&ab), offset, length));
+}
+
 struct InternalFieldData {
   uint32_t data;
 };
