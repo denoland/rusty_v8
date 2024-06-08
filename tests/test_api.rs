@@ -1904,7 +1904,7 @@ fn function_template_intrinsic_data_property() {
     let object1_prototype_parent = object1_prototype.to_object(scope)
       .and_then(|o| o.get_prototype(scope)).unwrap();
 
-    assert!(object1_prototype_parent == error_prototype);
+    assert_eq!(object1_prototype_parent, error_prototype);
   }
 }
 
