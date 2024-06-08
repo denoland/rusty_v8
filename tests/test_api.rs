@@ -1863,6 +1863,52 @@ fn function_template_prototype() {
 }
 
 #[test]
+fn function_template_intrinsic_data_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+
+    let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+
+    let prop_name = v8::String::new(scope, "prototype").unwrap();
+
+    let intrinsic_error_prototype_interface_template =
+      v8::FunctionTemplate::builder(fortytwo_callback)
+        .constructor_behavior(v8::ConstructorBehavior::Throw)
+        .build(scope);
+
+    intrinsic_error_prototype_interface_template.set_intrinsic_data_property(
+      prop_name.into(),
+      v8::Intrinsic::ErrorPrototype,
+      v8::PropertyAttribute::NONE,
+    );
+    function_templ.inherit(intrinsic_error_prototype_interface_template);
+
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let function = function_templ.get_function(scope).unwrap();
+    let object1 = function.new_instance(scope, &[]).unwrap();
+
+    let error_prototype = {
+      let message = v8::String::empty(scope);
+      v8::Exception::error(scope, message)
+        .to_object(scope)
+        .unwrap()
+        .get_prototype(scope)
+        .unwrap()
+    };
+
+    let object1_prototype = object1.get_prototype(scope).unwrap();
+    let object1_prototype_parent = object1_prototype.to_object(scope)
+      .and_then(|o| o.get_prototype(scope)).unwrap();
+
+    assert!(object1_prototype_parent == error_prototype);
+  }
+}
+
+#[test]
 fn instance_template_with_internal_field() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
