@@ -666,12 +666,7 @@ impl Template {
     attr: PropertyAttribute,
   ) {
     unsafe {
-      v8__Template__SetIntrinsicDataProperty(
-        self,
-        &*key,
-        intrinsic,
-        attr,
-      )
+      v8__Template__SetIntrinsicDataProperty(self, &*key, intrinsic, attr)
     }
   }
 }

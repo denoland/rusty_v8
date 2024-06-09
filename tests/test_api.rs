@@ -1901,8 +1901,10 @@ fn function_template_intrinsic_data_property() {
     };
 
     let object1_prototype = object1.get_prototype(scope).unwrap();
-    let object1_prototype_parent = object1_prototype.to_object(scope)
-      .and_then(|o| o.get_prototype(scope)).unwrap();
+    let object1_prototype_parent = object1_prototype
+      .to_object(scope)
+      .and_then(|o| o.get_prototype(scope))
+      .unwrap();
 
     assert_eq!(object1_prototype_parent, error_prototype);
   }
