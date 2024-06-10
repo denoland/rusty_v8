@@ -322,6 +322,9 @@ impl Context {
     slot: i32,
     data: *mut c_void,
   ) {
+    // Initialize the annex when slot count > INTERNAL_SLOT_COUNT.
+    self.get_annex_mut(&mut *v8__Context__GetIsolate(self), true);
+
     v8__Context__SetAlignedPointerInEmbedderData(
       self,
       slot + Self::INTERNAL_SLOT_COUNT,
