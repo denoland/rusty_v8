@@ -11485,7 +11485,6 @@ fn clear_slots_annex_uninitialized() {
   let mut isolate = v8::Isolate::new(Default::default());
 
   let mut scope = v8::HandleScope::new(&mut isolate);
-  let queue = v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Auto);
 
   let context = v8::Context::new(&mut scope);
 
