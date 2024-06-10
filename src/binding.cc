@@ -1200,6 +1200,14 @@ void v8__Template__Set(const v8::Template& self, const v8::Name& key,
   ptr_to_local(&self)->Set(ptr_to_local(&key), ptr_to_local(&value), attr);
 }
 
+void v8__Template__SetIntrinsicDataProperty(
+    const v8::Template& self, const v8::Name& key,
+    v8::Intrinsic intrinsic,
+    v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetIntrinsicDataProperty(ptr_to_local(&key),
+                                                intrinsic, attr);
+}
+
 const v8::ObjectTemplate* v8__ObjectTemplate__New(
     v8::Isolate* isolate, const v8::FunctionTemplate& templ) {
   return local_to_ptr(v8::ObjectTemplate::New(isolate, ptr_to_local(&templ)));

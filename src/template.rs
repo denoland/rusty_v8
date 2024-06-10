@@ -43,6 +43,13 @@ extern "C" {
     value: *const Data,
     attr: PropertyAttribute,
   );
+  fn v8__Template__SetIntrinsicDataProperty(
+    this: *const Template,
+    key: *const Name,
+    intrinsic: Intrinsic,
+    attr: PropertyAttribute,
+  );
+
   fn v8__Signature__New(
     isolate: *mut Isolate,
     templ: *const FunctionTemplate,
@@ -614,6 +621,22 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
   }
 }
 
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub enum Intrinsic {
+  ArrayProtoEntries,
+  ArrayProtoForEach,
+  ArrayProtoKeys,
+  ArrayProtoValues,
+  ArrayPrototype,
+  AsyncIteratorPrototype,
+  ErrorPrototype,
+  IteratorPrototype,
+  MapIteratorPrototype,
+  ObjProtoValueOf,
+  SetIteratorPrototype,
+}
+
 impl Template {
   /// Adds a property to each instance created by this template.
   #[inline(always)]
@@ -631,6 +654,20 @@ impl Template {
     attr: PropertyAttribute,
   ) {
     unsafe { v8__Template__Set(self, &*key, &*value, attr) }
+  }
+
+  /// During template instantiation, sets the value with the
+  /// intrinsic property from the correct context.
+  #[inline(always)]
+  pub fn set_intrinsic_data_property(
+    &self,
+    key: Local<Name>,
+    intrinsic: Intrinsic,
+    attr: PropertyAttribute,
+  ) {
+    unsafe {
+      v8__Template__SetIntrinsicDataProperty(self, &*key, intrinsic, attr)
+    }
   }
 }
 
