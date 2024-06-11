@@ -197,7 +197,7 @@ jobs:
 
       - name: check formatting
         run: |
-          cargo fmt -- --check
+          cargo fmt --check
           clang-format --Werror --dry-run src/binding.cc
 
       - name: Test (ASAN)
