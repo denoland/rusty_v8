@@ -1200,12 +1200,12 @@ void v8__Template__Set(const v8::Template& self, const v8::Name& key,
   ptr_to_local(&self)->Set(ptr_to_local(&key), ptr_to_local(&value), attr);
 }
 
-void v8__Template__SetIntrinsicDataProperty(
-    const v8::Template& self, const v8::Name& key,
-    v8::Intrinsic intrinsic,
-    v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetIntrinsicDataProperty(ptr_to_local(&key),
-                                                intrinsic, attr);
+void v8__Template__SetIntrinsicDataProperty(const v8::Template& self,
+                                            const v8::Name& key,
+                                            v8::Intrinsic intrinsic,
+                                            v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetIntrinsicDataProperty(ptr_to_local(&key), intrinsic,
+                                                attr);
 }
 
 const v8::ObjectTemplate* v8__ObjectTemplate__New(
@@ -1810,10 +1810,8 @@ size_t v8__ArrayBuffer__ByteLength(const v8::ArrayBuffer& self) {
   return self.ByteLength();
 }
 
-const v8::DataView* v8__DataView__New(
-    const v8::ArrayBuffer& ab,
-    size_t offset,
-    size_t length) {
+const v8::DataView* v8__DataView__New(const v8::ArrayBuffer& ab, size_t offset,
+                                      size_t length) {
   return local_to_ptr(v8::DataView::New(ptr_to_local(&ab), offset, length));
 }
 
