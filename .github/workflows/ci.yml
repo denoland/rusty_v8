@@ -195,6 +195,11 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         if: matrix.config.variant == 'asan'
 
+      - name: check formatting
+        run: |
+          cargo fmt -- --check
+          clang-format --Werror --dry-run src/binding.cc
+
       - name: Test (ASAN)
         env:
           SCCACHE_IDLE_TIMEOUT: 0
@@ -219,9 +224,6 @@ jobs:
         run:
           ${{ matrix.config.cargo }} clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
           --target ${{ matrix.config.target }} -- -D clippy::all
-
-      - name: Rustfmt
-        run: cargo fmt -- --check
 
       - name: Prepare binary publish
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
