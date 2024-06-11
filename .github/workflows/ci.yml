@@ -195,9 +195,13 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         if: matrix.config.variant == 'asan'
 
-      - name: check formatting
+      - name: check rust code formatting
+        run: cargo fmt --check
+
+      - name: check c++ code formatting
+        if: startsWith(matrix.config.os, 'ubuntu')
         run: |
-          cargo fmt --check
+          sudo apt-get install -y clang-format
           clang-format --Werror --dry-run src/binding.cc
 
       - name: Test (ASAN)
