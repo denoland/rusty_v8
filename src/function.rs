@@ -64,6 +64,10 @@ extern "C" {
 
   static v8__PropertyCallbackInfo__kArgsLength: int;
 
+  fn v8__FunctionCallbackInfo__Data(
+    this: *const FunctionCallbackInfo,
+  ) -> *const Value;
+
   fn v8__PropertyCallbackInfo__ShouldThrowOnError(
     this: *const PropertyCallbackInfo,
   ) -> bool;
@@ -201,9 +205,9 @@ pub struct FunctionCallbackInfo {
 impl FunctionCallbackInfo {
   const kHolderIndex: i32 = 0;
   const kIsolateIndex: i32 = 1;
-  const kReturnValueDefaultValueIndex: i32 = 2;
+  const kUnusedIndex: i32 = 2;
   const kReturnValueIndex: i32 = 3;
-  const kDataIndex: i32 = 4;
+  const kTargetIndex: i32 = 4;
   const kNewTargetIndex: i32 = 5;
   const kArgsLength: i32 = 6;
 }
@@ -238,7 +242,11 @@ impl FunctionCallbackInfo {
 
   #[inline(always)]
   pub(crate) fn data(&self) -> Local<Value> {
-    unsafe { self.get_implicit_arg_local(Self::kDataIndex) }
+    unsafe {
+      let ptr = v8__FunctionCallbackInfo__Data(self);
+      let nn = NonNull::new_unchecked(ptr as *mut Value);
+      Local::from_non_null(nn)
+    }
   }
 
   #[inline(always)]
