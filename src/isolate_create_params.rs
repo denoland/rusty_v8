@@ -117,12 +117,6 @@ impl CreateParams {
     self
   }
 
-  /// Termination is postponed when there is no active SafeForTerminationScope.
-  pub fn only_terminate_in_safe_scope(mut self, value: bool) -> Self {
-    self.raw.only_terminate_in_safe_scope = value;
-    self
-  }
-
   /// The following parameters describe the offsets for addressing type info
   /// for wrapped API objects and are used by the fast C API
   /// (for details see v8-fast-api-calls.h).
@@ -190,7 +184,6 @@ fn create_param_defaults() {
   let params = CreateParams::default();
   assert_eq!(params.raw.embedder_wrapper_type_index, -1);
   assert_eq!(params.raw.embedder_wrapper_object_index, -1);
-  assert!(!params.raw.only_terminate_in_safe_scope);
   assert!(params.raw.allow_atomics_wait);
 }
 
@@ -210,7 +203,7 @@ pub(crate) mod raw {
     pub array_buffer_allocator_shared: SharedPtr<ArrayBufferAllocator>,
     pub external_references: *const intptr_t,
     pub allow_atomics_wait: bool,
-    pub only_terminate_in_safe_scope: bool,
+    _only_terminate_in_safe_scope: bool,
     pub embedder_wrapper_type_index: int,
     pub embedder_wrapper_object_index: int,
     _fatal_error_handler: *const Opaque, // FatalErrorCallback
