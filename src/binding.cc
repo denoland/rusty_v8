@@ -2232,6 +2232,11 @@ const extern int v8__PropertyCallbackInfo__kArgsLength = 7;
 // NOTE(bartlomieju): V8 made this field private in 11.4
 // v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
 
+const v8::Value* v8__FunctionCallbackInfo__Data(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Data());
+}
+
 bool v8__PropertyCallbackInfo__ShouldThrowOnError(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return self.ShouldThrowOnError();
