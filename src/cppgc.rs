@@ -226,6 +226,10 @@ impl InnerMember {
   pub unsafe fn get<T: GarbageCollected>(&self) -> &T {
     unsafe { self.ptr.cast::<T>().as_ref().unwrap() }
   }
+
+  pub unsafe fn get_mut<T: GarbageCollected>(&mut self) -> &mut T {
+    unsafe { self.ptr.cast::<T>().as_mut().unwrap() }
+  }
 }
 
 /// Members are used to contain strong pointers to other garbage
