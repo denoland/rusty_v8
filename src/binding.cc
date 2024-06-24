@@ -44,9 +44,6 @@ static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
               "std::shared_ptr<v8::BackingStore> size mismatch");
 
-static_assert(sizeof(v8::ScriptOrigin) <= sizeof(size_t) * 8,
-              "ScriptOrigin size mismatch");
-
 static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
               "HandleScope size mismatch");
 

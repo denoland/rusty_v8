@@ -13,7 +13,10 @@ use crate::Value;
 /// The origin, within a file, of a script.
 #[repr(C)]
 #[derive(Debug)]
-pub struct ScriptOrigin<'s>([usize; 8], PhantomData<&'s ()>);
+pub struct ScriptOrigin<'s>(
+  [u8; crate::binding::RUST_v8__ScriptOrigin_SIZE],
+  PhantomData<&'s ()>,
+);
 
 extern "C" {
   fn v8__Script__Compile(

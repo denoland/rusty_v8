@@ -30,6 +30,7 @@ extern crate bitflags;
 mod array_buffer;
 mod array_buffer_view;
 mod bigint;
+mod binding;
 mod context;
 pub mod cppgc;
 mod data;

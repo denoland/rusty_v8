@@ -96,6 +96,7 @@ gzip-header = "1.0.0"
 fslock = "0.2"
 which = "6"
 home = "0"
+bindgen = "0.69"
 
 [dev-dependencies]
 miniz_oxide = "0.7.3"
@@ -107,6 +108,7 @@ trybuild = "1.0.96"
 which = "6"
 home = "0"
 rustversion = "1"
+bindgen = "0.69"
 
 [[example]]
 name = "hello_world"
