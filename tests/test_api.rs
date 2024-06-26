@@ -7839,8 +7839,31 @@ fn private() {
 }
 
 #[test]
-fn bigint() {
+fn external_onebyte_string() {
   let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let input = "hello";
+  let s =
+    v8::String::new_external_onebyte(scope, input.to_string().into_bytes())
+      .unwrap();
+
+  assert!(s.is_external_onebyte());
+  assert_eq!(s.utf8_length(scope), 5);
+
+  let one_byte =
+    unsafe { &*s.get_external_onebyte_string_resource().unwrap().as_ptr() };
+
+  assert_eq!(one_byte.length(), 5);
+
+  assert_eq!(one_byte.as_str(), "hello");
+}
+
+#[test]
+fn bigint() {
+  let _setup_guard: setup::SetupGuard<std::sync::RwLockReadGuard<'_, ()>> =
+    setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope);
