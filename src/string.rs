@@ -77,7 +77,7 @@ extern "C" {
   fn v8__String__GetExternalStringResourceBase(
     this: *const String,
     encoding: *mut Encoding,
-  ) -> *mut ExternalOneByteStringResourceBase;
+  ) -> *mut ExternalStringResourceBase;
 
   fn v8__String__NewExternalOneByteConst(
     isolate: *mut Isolate,
@@ -103,20 +103,50 @@ extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
+  fn v8__ExternalOneByteStringResource__data(
+    this: *const ExternalOneByteStringResource,
+  ) -> *const u8;
+  fn v8__ExternalOneByteStringResource__length(
+    this: *const ExternalOneByteStringResource,
+  ) -> size_t;
 }
 
+#[derive(PartialEq, Debug)]
 #[repr(C)]
 pub enum Encoding {
-  Unknown = 0,
-  OneByte = 1,
-  TwoByte = 2,
+  Unknown = 0x1,
+  TwoByte = 0x2,
+  OneByte = 0x8,
 }
 
 #[repr(C)]
 pub struct ExternalStringResource(Opaque);
 
 #[repr(C)]
-pub struct ExternalOneByteStringResourceBase(Opaque);
+pub struct ExternalStringResourceBase(Opaque);
+
+#[repr(C)]
+pub struct ExternalOneByteStringResource(Opaque);
+
+impl ExternalOneByteStringResource {
+  pub fn data(&self) -> *const u8 {
+    unsafe { v8__ExternalOneByteStringResource__data(self) }
+  }
+
+  pub fn length(&self) -> usize {
+    unsafe { v8__ExternalOneByteStringResource__length(self) }
+  }
+
+  pub fn as_str(&self) -> &str {
+    // SAFETY: We know this is ASCII and length > 0
+    unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        self.data(),
+        self.length(),
+      ))
+    }
+  }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -572,9 +602,28 @@ impl String {
     NonNull::new(unsafe { v8__String__GetExternalStringResource(self) })
   }
 
+  /// Get the ExternalOneByteStringResource for an external one-byte string.
+  /// 
+  /// Returns None if is_external_onebyte() doesn't return true.
+  pub fn get_external_onebyte_string_resource(
+    &self,
+  ) -> Option<NonNull<ExternalOneByteStringResource>> {
+    if !self.is_external_onebyte() {
+      return None;
+    }
+    let (base, encoding) = self.get_external_string_resource_base();
+    let base = base?;
+    if encoding != Encoding::OneByte {
+      // this shouldn't really happen because we just checked `is_external_onebyte`
+      return None;
+    }
+
+    Some(base.cast())
+  }
+
   pub fn get_external_string_resource_base(
     &self,
-  ) -> (Option<NonNull<ExternalOneByteStringResourceBase>>, Encoding) {
+  ) -> (Option<NonNull<ExternalStringResourceBase>>, Encoding) {
     let mut encoding = Encoding::Unknown;
     (
       NonNull::new(unsafe {

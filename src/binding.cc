@@ -1120,6 +1120,15 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
       isolate, new ExternalStaticOneByteStringResource(data, length)));
 }
+const char* v8__ExternalOneByteStringResource__data(
+    v8::String::ExternalOneByteStringResource* self) {
+  return self->data();
+}
+
+size_t v8__ExternalOneByteStringResource__length(
+    v8::String::ExternalOneByteStringResource* self) {
+  return self->length();
+}
 
 class ExternalStaticStringResource : public v8::String::ExternalStringResource {
  public:
