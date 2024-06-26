@@ -1109,7 +1109,7 @@ class ExternalConstOneByteStringResource
   const int _length;
 };
 
-const v8::String* v8__String__NewExternalOneByte(
+const v8::String* v8__String__NewExternalOneByteConst(
     v8::Isolate* isolate, v8::String::ExternalOneByteStringResource* resource) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(isolate, resource));
 }

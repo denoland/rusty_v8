@@ -79,7 +79,7 @@ extern "C" {
     encoding: *mut Encoding,
   ) -> *mut ExternalOneByteStringResourceBase;
 
-  fn v8__String__NewExternalOneByte(
+  fn v8__String__NewExternalOneByteConst(
     isolate: *mut Isolate,
     onebyte_const: *const OneByteConst,
   ) -> *const String;
@@ -521,7 +521,7 @@ impl String {
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__String__NewExternalOneByte(sd.get_isolate_ptr(), onebyte_const)
+        v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
       })
     }
   }
