@@ -1071,6 +1071,32 @@ v8__String__GetExternalStringResourceBase(const v8::String& self,
   return self.GetExternalStringResourceBase(encoding_out);
 }
 
+class ExternalOneByteString
+    : public v8::String::ExternalOneByteStringResource {
+ public:
+  ExternalOneByteString(char* data, int length,
+                                      void (*rustFree)(char*, size_t), v8::Isolate* isolate)
+      : _data(data), _length(length), _rustFree(rustFree), _isolate(isolate) {
+    _isolate->AdjustAmountOfExternalAllocatedMemory(
+        static_cast<int64_t>(sizeof(*this) + _length));
+      }
+  ~ExternalOneByteString() override {
+    (*_rustFree)(_data, _length);
+    _isolate->AdjustAmountOfExternalAllocatedMemory(
+        -static_cast<int64_t>(-(sizeof(*this) + _length)));
+  }
+
+  const char* data() const override { return _data; }
+
+  size_t length() const override { return _length; }
+
+ private:
+  char* _data;
+  const int _length;
+  void (*_rustFree)(char*, size_t);
+  v8::Isolate* _isolate;
+};
+
 class ExternalStaticOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
@@ -1120,6 +1146,15 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
       isolate, new ExternalStaticOneByteStringResource(data, length)));
 }
+
+const v8::String* v8__String__NewExternalOneByte(
+    v8::Isolate* isolate, char* data, int length,
+    void (*rustFree)(char*, size_t)) {
+  return maybe_local_to_ptr(v8::String::NewExternalOneByte(
+      isolate,
+      new ExternalOneByteString(data, length, rustFree, isolate)));
+}
+
 const char* v8__ExternalOneByteStringResource__data(
     v8::String::ExternalOneByteStringResource* self) {
   return self->data();

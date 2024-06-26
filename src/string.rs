@@ -90,6 +90,13 @@ extern "C" {
     length: int,
   ) -> *const String;
 
+  fn v8__String__NewExternalOneByte(
+    isolate: *mut Isolate,
+    buffer: *mut char,
+    length: int,
+    free: extern "C" fn(*mut char, size_t),
+  ) -> *const String;
+
   fn v8__String__NewExternalTwoByteStatic(
     isolate: *mut Isolate,
     buffer: *const u16,
@@ -137,7 +144,7 @@ impl ExternalOneByteStringResource {
     unsafe { v8__ExternalOneByteStringResource__length(self) }
   }
 
-  pub fn as_str(&self) -> &str {
+  pub fn as_str(&self) -> Result<&str,  {
     // SAFETY: We know this is ASCII and length > 0
     unsafe {
       std::str::from_utf8_unchecked(std::slice::from_raw_parts(
@@ -575,6 +582,25 @@ impl String {
     }
   }
 
+  #[inline(always)]
+  pub fn new_external_onebyte<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: Vec<u8>,
+  ) -> Option<Local<'s, String>> {
+    let slice = buffer.into_boxed_slice();
+    let buffer_len = slice.len().try_into().ok()?;
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByte(
+          sd.get_isolate_ptr(),
+          Box::into_raw(slice).cast::<char>(),
+          buffer_len,
+          free_rust_external_onebyte,
+        )
+      })
+    }
+  }
+
   // Creates a v8::String from a `&'static [u16]`.
   #[inline(always)]
   pub fn new_external_twobyte_static<'s>(
@@ -852,5 +878,14 @@ impl String {
         buffer, length, len_utf8,
       ))
     }
+  }
+}
+
+pub extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
+  unsafe {
+    let slice = std::slice::from_raw_parts_mut(s, len);
+
+    // Drop the slice
+    drop(Box::from_raw(slice as *mut [char]));
   }
 }
