@@ -7845,9 +7845,11 @@ fn external_onebyte_string() {
   let scope = &mut v8::HandleScope::new(isolate);
 
   let input = "hello";
-  let s =
-    v8::String::new_external_onebyte(scope, input.to_string().into_bytes())
-      .unwrap();
+  let s = v8::String::new_external_onebyte(
+    scope,
+    Box::<str>::from(input).into_boxed_bytes(),
+  )
+  .unwrap();
 
   assert!(s.is_external_onebyte());
   assert_eq!(s.utf8_length(scope), 5);

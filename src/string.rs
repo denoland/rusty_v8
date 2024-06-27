@@ -133,24 +133,37 @@ pub struct ExternalStringResource(Opaque);
 pub struct ExternalStringResourceBase(Opaque);
 
 #[repr(C)]
+/// An external, one-byte string resource.
+/// This corresponds with `v8::String::ExternalOneByteStringResource`.
 pub struct ExternalOneByteStringResource(Opaque);
 
 impl ExternalOneByteStringResource {
+  /// Returns a pointer to the data owned by this resource.
+  /// This pointer is valid as long as the resource is alive.
+  /// The data is guaranteed to be ASCII.
   pub fn data(&self) -> *const u8 {
     unsafe { v8__ExternalOneByteStringResource__data(self) }
   }
 
+  /// Returns the length of the data owned by this resource.
   pub fn length(&self) -> usize {
     unsafe { v8__ExternalOneByteStringResource__length(self) }
   }
 
-  pub fn as_str(&self) -> Result<&str,  {
-    // SAFETY: We know this is ASCII and length > 0
-    unsafe {
-      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-        self.data(),
-        self.length(),
-      ))
+  /// Returns the data owned by this resource as a string slice.
+  /// The data is guaranteed to be ASCII.
+  pub fn as_str(&self) -> &str {
+    let len = self.length();
+    if len == 0 {
+      ""
+    } else {
+      // SAFETY: We know this is ASCII and length > 0
+      unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+          self.data(),
+          len,
+        ))
+      }
     }
   }
 }
@@ -549,8 +562,8 @@ impl String {
     }
   }
 
-  // Creates a v8::String from a `&'static OneByteConst`
-  // which is guaranteed to be Latin-1 or ASCII.
+  /// Creates a v8::String from a `&'static OneByteConst`
+  /// which is guaranteed to be Latin-1 or ASCII.
   #[inline(always)]
   pub fn new_from_onebyte_const<'s>(
     scope: &mut HandleScope<'s, ()>,
@@ -563,8 +576,8 @@ impl String {
     }
   }
 
-  // Creates a v8::String from a `&'static [u8]`,
-  // must be Latin-1 or ASCII, not UTF-8 !
+  /// Creates a v8::String from a `&'static [u8]`,
+  /// must be Latin-1 or ASCII, not UTF-8 !
   #[inline(always)]
   pub fn new_external_onebyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
@@ -582,18 +595,20 @@ impl String {
     }
   }
 
+  /// Creates a `v8::String` from owned bytes.
+  /// The bytes must be Latin-1 or ASCII.
+  /// V8 will take ownership of the buffer and free it when the string is garbage collected.
   #[inline(always)]
   pub fn new_external_onebyte<'s>(
     scope: &mut HandleScope<'s, ()>,
-    buffer: Vec<u8>,
+    buffer: Box<[u8]>,
   ) -> Option<Local<'s, String>> {
-    let slice = buffer.into_boxed_slice();
-    let buffer_len = slice.len().try_into().ok()?;
+    let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByte(
           sd.get_isolate_ptr(),
-          Box::into_raw(slice).cast::<char>(),
+          Box::into_raw(buffer).cast::<char>(),
           buffer_len,
           free_rust_external_onebyte,
         )
@@ -601,7 +616,7 @@ impl String {
     }
   }
 
-  // Creates a v8::String from a `&'static [u16]`.
+  /// Creates a v8::String from a `&'static [u16]`.
   #[inline(always)]
   pub fn new_external_twobyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
@@ -619,9 +634,9 @@ impl String {
     }
   }
 
-  // Get the ExternalStringResource for an external string.
-  //
-  // Returns None if is_external() doesn't return true.
+  /// Get the ExternalStringResource for an external string.
+  ///
+  /// Returns None if is_external() doesn't return true.
   pub fn get_external_string_resource(
     &self,
   ) -> Option<NonNull<ExternalStringResource>> {
@@ -629,7 +644,7 @@ impl String {
   }
 
   /// Get the ExternalOneByteStringResource for an external one-byte string.
-  /// 
+  ///
   /// Returns None if is_external_onebyte() doesn't return true.
   pub fn get_external_onebyte_string_resource(
     &self,
@@ -647,6 +662,10 @@ impl String {
     Some(base.cast())
   }
 
+  /// Get the ExternalStringResourceBase for an external string.
+  /// Note this is just the base class, and isn't very useful on its own.
+  /// You'll want to downcast to one of its subclasses, for instance
+  /// with `get_external_onebyte_string_resource`.
   pub fn get_external_string_resource_base(
     &self,
   ) -> (Option<NonNull<ExternalStringResourceBase>>, Encoding) {
