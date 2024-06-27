@@ -202,7 +202,7 @@ jobs:
         if: startsWith(matrix.config.os, 'ubuntu')
         run: |
           sudo apt-get install -y clang-format
-          clang-format --Werror --dry-run src/binding.cc
+          clang-format --verbose --Werror --dry-run src/*.cc src/*.hpp
 
       - name: Test (ASAN)
         env:
@@ -231,10 +231,12 @@ jobs:
 
       - name: Prepare binary publish
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
-        run: gzip -9c
-          target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} >
-          target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz &&
+        run: |
+          gzip -9c target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} > target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
           ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant}}/gn_out/src_binding.rs target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          ls -l target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
       - name: Binary publish
         uses: softprops/action-gh-release@v0.1.15
@@ -247,25 +249,49 @@ jobs:
         with:
           files: target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
-      # TODO: add clang-format and maybe cpplint.
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          path: target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
-      - name: Cargo Package
-        if: >-
-          github.repository == 'denoland/rusty_v8' &&
-          startsWith(matrix.config.target , 'x86_64') &&
-          matrix.config.variant == 'debug' &&
-          runner.os == 'Linux'
-        run: cargo package -vv --locked
+  publish:
+    needs: build
+    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - name: Install rust
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11.x
+          architecture: x64
+
+      - name: Download CI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: gen
+          pattern: src_binding_*.rs
+          merge-multiple: true
 
       - name: Publish
-        # Only publish on x64 linux when there's a git tag:
-        if: >-
-          startsWith(github.ref, 'refs/tags/') &&
-          github.repository == 'denoland/rusty_v8' &&
-          startsWith(matrix.config.target , 'x86_64') &&
-          !endsWith(matrix.config.target , 'android') &&
-          matrix.config.variant == 'debug' &&
-          runner.os == 'Linux'
+        if: github.repository == 'denoland/rusty_v8'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -vv
+          DRY_RUN: ${{ startsWith(github.ref, 'refs/tags/') == false }}
+        run: |
+          args="-vv --locked --allow-dirty"
+          if [ "$DRY_RUN" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          cargo publish $args

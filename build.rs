@@ -72,6 +72,7 @@ fn main() {
 
   // Early exit
   if is_cargo_doc || is_rls {
+    print_prebuilt_src_binding_path();
     return;
   }
 
@@ -79,6 +80,10 @@ fn main() {
 
   // Don't attempt rebuild but link
   if is_trybuild {
+    println!(
+      "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
+      env::var("RUSTY_V8_SRC_BINDING_PATH").unwrap()
+    );
     return;
   }
 
@@ -92,13 +97,21 @@ fn main() {
   };
 
   // Build from source
-  if env::var_os("V8_FROM_SOURCE").is_some() {
+  if env_bool("V8_FROM_SOURCE") {
     if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
       panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
     }
 
-    return build_v8(is_asan);
+    // cargo publish doesn't like pyc files.
+    env::set_var("PYTHONDONTWRITEBYTECODE", "1");
+
+    build_v8(is_asan);
+    build_binding();
+
+    return;
   }
+
+  print_prebuilt_src_binding_path();
 
   // utilize a lockfile to prevent linking of
   // only partially downloaded static library.
@@ -119,11 +132,37 @@ fn main() {
   lockfile.unlock().expect("Couldn't unlock lockfile");
 }
 
+fn build_binding() {
+  let output = Command::new(python())
+    .arg("./tools/get_bindgen_args.py")
+    .arg("--gn-out")
+    .arg(build_dir().join("gn_out"))
+    .output()
+    .unwrap();
+  let args = String::from_utf8(output.stdout).unwrap();
+  let args = args.split('\0').collect::<Vec<_>>();
+
+  let bindings = bindgen::Builder::default()
+    .header("src/binding.hpp")
+    .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+    .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include"])
+    .clang_args(args)
+    .allowlist_item("RUST_.*")
+    .generate()
+    .expect("Unable to generate bindings");
+
+  let out_path = build_dir().join("gn_out").join("src_binding.rs");
+  println!(
+    "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
+    out_path.display()
+  );
+  bindings
+    .write_to_file(out_path)
+    .expect("Couldn't write bindings!");
+}
+
 fn build_v8(is_asan: bool) {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-
-  // cargo publish doesn't like pyc files.
-  env::set_var("PYTHONDONTWRITEBYTECODE", "1");
 
   // git submodule update --init --recursive
   let libcxx_src = PathBuf::from("buildtools/third_party/libc++/trunk/src");
@@ -369,6 +408,28 @@ fn download_ninja_gn_binaries() {
   env::set_var("NINJA", ninja);
 }
 
+fn prebuilt_profile() -> &'static str {
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  // Note: we always use the release build on windows.
+  if target_os == "windows" {
+    return "release";
+  }
+  // Use v8 in release mode unless $V8_FORCE_DEBUG=true
+  match env_bool("V8_FORCE_DEBUG") {
+    true => "debug",
+    _ => "release",
+  }
+}
+
+fn static_lib_name(suffix: &str) -> String {
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  if target_os == "windows" {
+    format!("rusty_v8{suffix}.lib")
+  } else {
+    format!("librusty_v8{suffix}.a")
+  }
+}
+
 fn static_lib_url() -> String {
   if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
     return custom_archive;
@@ -378,40 +439,17 @@ fn static_lib_url() -> String {
     env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
   let version = env::var("CARGO_PKG_VERSION").unwrap();
   let target = env::var("TARGET").unwrap();
-  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-  // Note: we always use the release build on windows.
-  if target_os == "windows" {
-    return format!("{}/v{}/rusty_v8_release_{}.lib.gz", base, version, target);
-  }
-  // Use v8 in release mode unless $V8_FORCE_DEBUG=true
-  let profile = match env_bool("V8_FORCE_DEBUG") {
-    true => "debug",
-    _ => "release",
-  };
+  let profile = prebuilt_profile();
   format!(
-    "{}/v{}/librusty_v8_{}_{}.a.gz",
-    base, version, profile, target
+    "{}/v{}/{}.gz",
+    base,
+    version,
+    static_lib_name(&format!("_{}_{}", profile, target)),
   )
-}
-
-fn env_bool(key: &str) -> bool {
-  matches!(
-    env::var(key).unwrap_or_default().as_str(),
-    "true" | "1" | "yes"
-  )
-}
-
-fn static_lib_name() -> &'static str {
-  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-  if target_os == "windows" {
-    "rusty_v8.lib"
-  } else {
-    "librusty_v8.a"
-  }
 }
 
 fn static_lib_path() -> PathBuf {
-  static_lib_dir().join(static_lib_name())
+  static_lib_dir().join(static_lib_name(""))
 }
 
 fn static_checksum_path() -> PathBuf {
@@ -666,6 +704,19 @@ fn print_link_flags() {
   }
 }
 
+fn print_prebuilt_src_binding_path() {
+  let target = env::var("TARGET").unwrap();
+  let profile = prebuilt_profile();
+  let src_binding_path = get_dirs(None)
+    .root
+    .join("gen")
+    .join(format!("src_binding_{}_{}.rs", profile, target));
+  println!(
+    "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
+    src_binding_path.display()
+  );
+}
+
 // Chromium depot_tools contains helpers
 // which delegate to the "relevant" `buildtools`
 // directory when invoked, so they don't count.
@@ -875,6 +926,7 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
       .arg(format!("--script-executable={}", python()))
       .arg("gen")
       .arg(&gn_out_dir)
+      .arg("--ide=json")
       .arg("--args=".to_owned() + &args)
       .stdout(Stdio::inherit())
       .stderr(Stdio::inherit())
@@ -914,8 +966,9 @@ fn rerun_if_changed(out_dir: &Path, maybe_env: Option<NinjaEnv>, target: &str) {
   let deps = ninja_get_deps(out_dir, maybe_env, target);
   for d in deps {
     let p = out_dir.join(d);
-    assert!(p.exists(), "Path doesn't exist: {:?}", p);
-    println!("cargo:rerun-if-changed={}", p.display());
+    if p.exists() {
+      println!("cargo:rerun-if-changed={}", p.display());
+    }
   }
 }
 
@@ -973,6 +1026,13 @@ pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
     }
   }
   out
+}
+
+fn env_bool(key: &str) -> bool {
+  matches!(
+    env::var(key).unwrap_or_default().as_str(),
+    "true" | "1" | "yes"
+  )
 }
 
 #[cfg(test)]
