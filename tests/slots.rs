@@ -326,7 +326,7 @@ fn dropped_context_slots_on_kept_context() {
 fn clear_all_context_slots() {
   setup();
 
-  let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
+  let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
 
   {
     let scope = &mut v8::HandleScope::new(&mut snapshot_creator);

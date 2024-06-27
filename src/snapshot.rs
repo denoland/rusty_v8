@@ -102,8 +102,9 @@ impl SnapshotCreator {
   #[allow(clippy::new_ret_no_self)]
   pub(crate) fn new(
     external_references: Option<&'static ExternalReferences>,
+    params: Option<crate::CreateParams>,
   ) -> OwnedIsolate {
-    Self::new_impl(external_references, None::<&[u8]>)
+    Self::new_impl(external_references, None::<&[u8]>, params)
   }
 
   /// Create an isolate, and set it up for serialization.
@@ -113,8 +114,9 @@ impl SnapshotCreator {
   pub(crate) fn from_existing_snapshot(
     existing_snapshot_blob: impl Allocated<[u8]>,
     external_references: Option<&'static ExternalReferences>,
+    params: Option<crate::CreateParams>,
   ) -> OwnedIsolate {
-    Self::new_impl(external_references, Some(existing_snapshot_blob))
+    Self::new_impl(external_references, Some(existing_snapshot_blob), params)
   }
 
   /// Create and enter an isolate, and set it up for serialization.
@@ -124,10 +126,11 @@ impl SnapshotCreator {
   fn new_impl(
     external_references: Option<&'static ExternalReferences>,
     existing_snapshot_blob: Option<impl Allocated<[u8]>>,
+    params: Option<crate::CreateParams>,
   ) -> OwnedIsolate {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
 
-    let mut params = crate::CreateParams::default();
+    let mut params = params.unwrap_or_default();
     if let Some(external_refs) = external_references {
       params = params.external_references(&**external_refs);
     }

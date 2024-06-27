@@ -5395,7 +5395,7 @@ fn snapshot_creator() {
   let context_data_index;
   let context_data_index_2;
   let startup_data = {
-    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
     {
       let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
@@ -5411,7 +5411,11 @@ fn snapshot_creator() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::Isolate::snapshot_creator_from_existing_snapshot(startup_data, None);
+      v8::Isolate::snapshot_creator_from_existing_snapshot(
+        startup_data,
+        None,
+        None,
+      );
     {
       // Check that the SnapshotCreator isolate has been set up correctly.
       let _ = snapshot_creator.thread_safe_handle();
@@ -5482,7 +5486,7 @@ fn snapshot_creator() {
 fn snapshot_creator_multiple_contexts() {
   let _setup_guard = setup::sequential_test();
   let startup_data = {
-    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
     {
       let mut scope = v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(&mut scope);
@@ -5517,7 +5521,11 @@ fn snapshot_creator_multiple_contexts() {
 
   let startup_data = {
     let mut snapshot_creator =
-      v8::Isolate::snapshot_creator_from_existing_snapshot(startup_data, None);
+      v8::Isolate::snapshot_creator_from_existing_snapshot(
+        startup_data,
+        None,
+        None,
+      );
     {
       let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
@@ -5655,7 +5663,7 @@ fn external_references() {
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::Isolate::snapshot_creator(Some(refs));
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(Some(refs), None);
     {
       let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);
@@ -7477,7 +7485,7 @@ fn module_snapshot() {
   let _setup_guard = setup::sequential_test();
 
   let startup_data = {
-    let mut snapshot_creator = v8::Isolate::snapshot_creator(None);
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
     {
       let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope);

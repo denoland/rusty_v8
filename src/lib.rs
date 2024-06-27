@@ -98,6 +98,7 @@ pub use get_property_names_args_builder::*;
 pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;
+pub use handle::TracedReference;
 pub use handle::Weak;
 pub use isolate::GarbageCollectionType;
 pub use isolate::HeapStatistics;
