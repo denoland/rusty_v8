@@ -112,7 +112,7 @@ extern "C" {
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
   fn v8__ExternalOneByteStringResource__data(
     this: *const ExternalOneByteStringResource,
-  ) -> *const u8;
+  ) -> *const char;
   fn v8__ExternalOneByteStringResource__length(
     this: *const ExternalOneByteStringResource,
   ) -> size_t;
@@ -141,7 +141,7 @@ impl ExternalOneByteStringResource {
   /// Returns a pointer to the data owned by this resource.
   /// This pointer is valid as long as the resource is alive.
   /// The data is guaranteed to be ASCII.
-  pub fn data(&self) -> *const u8 {
+  pub fn data(&self) -> *const char {
     unsafe { v8__ExternalOneByteStringResource__data(self) }
   }
 
@@ -160,7 +160,7 @@ impl ExternalOneByteStringResource {
       // SAFETY: We know this is ASCII and length > 0
       unsafe {
         std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-          self.data(),
+          self.data().cast(),
           len,
         ))
       }
@@ -675,13 +675,9 @@ impl String {
   pub fn get_external_onebyte_string_resource(
     &self,
   ) -> Option<NonNull<ExternalOneByteStringResource>> {
-    if !self.is_external_onebyte() {
-      return None;
-    }
     let (base, encoding) = self.get_external_string_resource_base();
     let base = base?;
     if encoding != Encoding::OneByte {
-      // this shouldn't really happen because we just checked `is_external_onebyte`
       return None;
     }
 
