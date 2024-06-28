@@ -147,11 +147,7 @@ fn build_binding() {
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
     .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include"])
     .clang_args(args)
-    .respect_cxx_access_specs(true)
     .allowlist_item("RUST_.*")
-    .blocklist_item("v8::.*")
-    .blocklist_item("cppgc::.*")
-    .blocklist_item("std::.*")
     .generate()
     .expect("Unable to generate bindings");
 

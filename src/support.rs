@@ -41,10 +41,6 @@ pub use std::os::raw::c_long as long;
 
 pub type Opaque = [u8; 0];
 
-pub(crate) fn cpp_new<T>() -> *mut T {
-  unsafe { crate::binding::RUST_new(std::mem::size_of::<T>()).cast() }
-}
-
 /// Pointer to object allocated on the C++ heap. The pointer may be null.
 #[repr(transparent)]
 #[derive(Debug)]

@@ -79,6 +79,11 @@ extern "C" {
     encoding: *mut Encoding,
   ) -> *mut ExternalStringResourceBase;
 
+  fn v8__String__NewExternalOneByteConst(
+    isolate: *mut Isolate,
+    onebyte_const: *const OneByteConst,
+  ) -> *const String;
+
   fn v8__String__NewExternalOneByteStatic(
     isolate: *mut Isolate,
     buffer: *const char,
@@ -87,7 +92,9 @@ extern "C" {
 
   fn v8__String__NewExternalOneByte(
     isolate: *mut Isolate,
-    resource: *mut ExternalOneByteStringResource,
+    buffer: *mut char,
+    length: int,
+    free: extern "C" fn(*mut char, size_t),
   ) -> *const String;
 
   fn v8__String__NewExternalTwoByteStatic(
@@ -564,11 +571,7 @@ impl String {
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__String__NewExternalOneByte(
-          sd.get_isolate_ptr(),
-          onebyte_const as *const _ as *mut OneByteConst
-            as *mut ExternalOneByteStringResource,
-        )
+        v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
       })
     }
   }
@@ -603,51 +606,12 @@ impl String {
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
-        let ptr = crate::support::cpp_new::<
-          crate::binding::RUST_ExternalOneByteString,
-        >();
-        crate::binding::RUST_ExternalOneByteString_RUST_ExternalOneByteString(
-          ptr,
+        v8__String__NewExternalOneByte(
+          sd.get_isolate_ptr(),
           Box::into_raw(buffer).cast::<char>(),
           buffer_len,
-          Some(free_rust_external_onebyte),
-          sd.get_isolate_ptr().cast(),
-        );
-
-        v8__String__NewExternalOneByte(sd.get_isolate_ptr(), ptr.cast())
-      })
-    }
-  }
-
-  /// Creates a `v8::String` from owned bytes, length, and a custom destructor.
-  /// The bytes must be Latin-1 or ASCII.
-  /// V8 will take ownership of the buffer and free it when the string is garbage collected.
-  ///
-  /// SAFETY: `buffer` must be owned (valid for the lifetime of the string), and
-  /// `destructor` must be a valid function pointer that can free the buffer.
-  /// The destructor will be called with the buffer and length when the string is garbage collected.
-  #[inline(always)]
-  pub unsafe fn new_external_onebyte_raw<'s>(
-    scope: &mut HandleScope<'s, ()>,
-    buffer: *mut char,
-    buffer_len: usize,
-    destructor: extern "C" fn(*mut char, usize),
-  ) -> Option<Local<'s, String>> {
-    let buffer_len = buffer_len.try_into().ok()?;
-    unsafe {
-      scope.cast_local(|sd| {
-        let ptr = crate::support::cpp_new::<
-          crate::binding::RUST_ExternalOneByteString,
-        >();
-        crate::binding::RUST_ExternalOneByteString_RUST_ExternalOneByteString(
-          ptr,
-          buffer.cast::<char>(),
-          buffer_len,
-          Some(destructor),
-          sd.get_isolate_ptr().cast(),
-        );
-
-        v8__String__NewExternalOneByte(sd.get_isolate_ptr(), ptr.cast())
+          free_rust_external_onebyte,
+        )
       })
     }
   }
