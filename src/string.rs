@@ -93,7 +93,7 @@ extern "C" {
   fn v8__String__NewExternalOneByte(
     isolate: *mut Isolate,
     buffer: *mut char,
-    length: int,
+    length: size_t,
     free: extern "C" fn(*mut char, size_t),
   ) -> *const String;
 
@@ -603,7 +603,7 @@ impl String {
     scope: &mut HandleScope<'s, ()>,
     buffer: Box<[u8]>,
   ) -> Option<Local<'s, String>> {
-    let buffer_len = buffer.len().try_into().ok()?;
+    let buffer_len = buffer.len();
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByte(
@@ -611,6 +611,33 @@ impl String {
           Box::into_raw(buffer).cast::<char>(),
           buffer_len,
           free_rust_external_onebyte,
+        )
+      })
+    }
+  }
+
+  /// Creates a `v8::String` from owned bytes, length, and a custom destructor.
+  /// The bytes must be Latin-1 or ASCII.
+  /// V8 will take ownership of the buffer and free it when the string is garbage collected.
+  ///
+  /// SAFETY: `buffer` must be owned (valid for the lifetime of the string), and
+  /// `destructor` must be a valid function pointer that can free the buffer.
+  /// The destructor will be called with the buffer and length when the string is garbage collected.
+  #[inline(always)]
+  pub unsafe fn new_external_onebyte_raw<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: *mut char,
+    buffer_len: usize,
+    destructor: extern "C" fn(*mut char, usize),
+  ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer_len.try_into().ok()?;
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByte(
+          sd.get_isolate_ptr(),
+          buffer,
+          buffer_len,
+          destructor,
         )
       })
     }

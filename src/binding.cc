@@ -1074,30 +1074,30 @@ v8__String__GetExternalStringResourceBase(const v8::String& self,
 class ExternalOneByteString : public v8::String::ExternalOneByteStringResource {
  public:
   using RustDestroy = void (*)(char*, size_t);
-  ExternalOneByteString(char* data, int length, RustDestroy rustDestroy,
+  ExternalOneByteString(char* data, size_t length, RustDestroy rustDestroy,
                         v8::Isolate* isolate)
-      : _data(data),
-        _length(length),
-        _rustDestroy(rustDestroy),
-        _isolate(isolate) {
-    _isolate->AdjustAmountOfExternalAllocatedMemory(
-        static_cast<int64_t>(_length));
+      : data_(data),
+        length_(length),
+        rustDestroy_(rustDestroy),
+        isolate_(isolate) {
+    isolate_->AdjustAmountOfExternalAllocatedMemory(
+        static_cast<int64_t>(length_));
   }
   ~ExternalOneByteString() override {
-    (*_rustDestroy)(_data, _length);
-    _isolate->AdjustAmountOfExternalAllocatedMemory(
-        -static_cast<int64_t>(-_length));
+    (*rustDestroy_)(data_, length_);
+    isolate_->AdjustAmountOfExternalAllocatedMemory(
+        -static_cast<int64_t>(-length_));
   }
 
-  const char* data() const override { return _data; }
+  const char* data() const override { return data_; }
 
-  size_t length() const override { return _length; }
+  size_t length() const override { return length_; }
 
  private:
-  char* _data;
-  const int _length;
-  RustDestroy _rustDestroy;
-  v8::Isolate* _isolate;
+  char* data_;
+  const size_t length_;
+  RustDestroy rustDestroy_;
+  v8::Isolate* isolate_;
 };
 
 class ExternalStaticOneByteStringResource
