@@ -941,6 +941,6 @@ pub extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
     let slice = std::slice::from_raw_parts_mut(s, len);
 
     // Drop the slice
-    drop(Box::from_raw(slice as *mut [char]));
+    drop(Box::from_raw(slice));
   }
 }
