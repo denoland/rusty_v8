@@ -77,9 +77,9 @@ extern "C" {
   fn v8__String__GetExternalStringResourceBase(
     this: *const String,
     encoding: *mut Encoding,
-  ) -> *mut ExternalOneByteStringResourceBase;
+  ) -> *mut ExternalStringResourceBase;
 
-  fn v8__String__NewExternalOneByte(
+  fn v8__String__NewExternalOneByteConst(
     isolate: *mut Isolate,
     onebyte_const: *const OneByteConst,
   ) -> *const String;
@@ -88,6 +88,13 @@ extern "C" {
     isolate: *mut Isolate,
     buffer: *const char,
     length: int,
+  ) -> *const String;
+
+  fn v8__String__NewExternalOneByte(
+    isolate: *mut Isolate,
+    buffer: *mut char,
+    length: size_t,
+    free: extern "C" fn(*mut char, size_t),
   ) -> *const String;
 
   fn v8__String__NewExternalTwoByteStatic(
@@ -103,20 +110,63 @@ extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
+  fn v8__ExternalOneByteStringResource__data(
+    this: *const ExternalOneByteStringResource,
+  ) -> *const char;
+  fn v8__ExternalOneByteStringResource__length(
+    this: *const ExternalOneByteStringResource,
+  ) -> size_t;
 }
 
+#[derive(PartialEq, Debug)]
 #[repr(C)]
 pub enum Encoding {
-  Unknown = 0,
-  OneByte = 1,
-  TwoByte = 2,
+  Unknown = 0x1,
+  TwoByte = 0x2,
+  OneByte = 0x8,
 }
 
 #[repr(C)]
 pub struct ExternalStringResource(Opaque);
 
 #[repr(C)]
-pub struct ExternalOneByteStringResourceBase(Opaque);
+pub struct ExternalStringResourceBase(Opaque);
+
+#[repr(C)]
+/// An external, one-byte string resource.
+/// This corresponds with `v8::String::ExternalOneByteStringResource`.
+pub struct ExternalOneByteStringResource(Opaque);
+
+impl ExternalOneByteStringResource {
+  /// Returns a pointer to the data owned by this resource.
+  /// This pointer is valid as long as the resource is alive.
+  /// The data is guaranteed to be ASCII.
+  pub fn data(&self) -> *const char {
+    unsafe { v8__ExternalOneByteStringResource__data(self) }
+  }
+
+  /// Returns the length of the data owned by this resource.
+  pub fn length(&self) -> usize {
+    unsafe { v8__ExternalOneByteStringResource__length(self) }
+  }
+
+  /// Returns the data owned by this resource as a string slice.
+  /// The data is guaranteed to be ASCII.
+  pub fn as_str(&self) -> &str {
+    let len = self.length();
+    if len == 0 {
+      ""
+    } else {
+      // SAFETY: We know this is ASCII and length > 0
+      unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+          self.data().cast(),
+          len,
+        ))
+      }
+    }
+  }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -512,8 +562,8 @@ impl String {
     }
   }
 
-  // Creates a v8::String from a `&'static OneByteConst`
-  // which is guaranteed to be Latin-1 or ASCII.
+  /// Creates a v8::String from a `&'static OneByteConst`
+  /// which is guaranteed to be Latin-1 or ASCII.
   #[inline(always)]
   pub fn new_from_onebyte_const<'s>(
     scope: &mut HandleScope<'s, ()>,
@@ -521,13 +571,13 @@ impl String {
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__String__NewExternalOneByte(sd.get_isolate_ptr(), onebyte_const)
+        v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
       })
     }
   }
 
-  // Creates a v8::String from a `&'static [u8]`,
-  // must be Latin-1 or ASCII, not UTF-8 !
+  /// Creates a v8::String from a `&'static [u8]`,
+  /// must be Latin-1 or ASCII, not UTF-8!
   #[inline(always)]
   pub fn new_external_onebyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
@@ -545,7 +595,54 @@ impl String {
     }
   }
 
-  // Creates a v8::String from a `&'static [u16]`.
+  /// Creates a `v8::String` from owned bytes.
+  /// The bytes must be Latin-1 or ASCII.
+  /// V8 will take ownership of the buffer and free it when the string is garbage collected.
+  #[inline(always)]
+  pub fn new_external_onebyte<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: Box<[u8]>,
+  ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByte(
+          sd.get_isolate_ptr(),
+          Box::into_raw(buffer).cast::<char>(),
+          buffer_len,
+          free_rust_external_onebyte,
+        )
+      })
+    }
+  }
+
+  /// Creates a `v8::String` from owned bytes, length, and a custom destructor.
+  /// The bytes must be Latin-1 or ASCII.
+  /// V8 will take ownership of the buffer and free it when the string is garbage collected.
+  ///
+  /// SAFETY: `buffer` must be owned (valid for the lifetime of the string), and
+  /// `destructor` must be a valid function pointer that can free the buffer.
+  /// The destructor will be called with the buffer and length when the string is garbage collected.
+  #[inline(always)]
+  pub unsafe fn new_external_onebyte_raw<'s>(
+    scope: &mut HandleScope<'s, ()>,
+    buffer: *mut char,
+    buffer_len: usize,
+    destructor: extern "C" fn(*mut char, usize),
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalOneByte(
+          sd.get_isolate_ptr(),
+          buffer,
+          buffer_len,
+          destructor,
+        )
+      })
+    }
+  }
+
+  /// Creates a v8::String from a `&'static [u16]`.
   #[inline(always)]
   pub fn new_external_twobyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
@@ -563,18 +660,37 @@ impl String {
     }
   }
 
-  // Get the ExternalStringResource for an external string.
-  //
-  // Returns None if is_external() doesn't return true.
+  /// Get the ExternalStringResource for an external string.
+  ///
+  /// Returns None if is_external() doesn't return true.
   pub fn get_external_string_resource(
     &self,
   ) -> Option<NonNull<ExternalStringResource>> {
     NonNull::new(unsafe { v8__String__GetExternalStringResource(self) })
   }
 
+  /// Get the ExternalOneByteStringResource for an external one-byte string.
+  ///
+  /// Returns None if is_external_onebyte() doesn't return true.
+  pub fn get_external_onebyte_string_resource(
+    &self,
+  ) -> Option<NonNull<ExternalOneByteStringResource>> {
+    let (base, encoding) = self.get_external_string_resource_base();
+    let base = base?;
+    if encoding != Encoding::OneByte {
+      return None;
+    }
+
+    Some(base.cast())
+  }
+
+  /// Get the ExternalStringResourceBase for an external string.
+  /// Note this is just the base class, and isn't very useful on its own.
+  /// You'll want to downcast to one of its subclasses, for instance
+  /// with `get_external_onebyte_string_resource`.
   pub fn get_external_string_resource_base(
     &self,
-  ) -> (Option<NonNull<ExternalOneByteStringResourceBase>>, Encoding) {
+  ) -> (Option<NonNull<ExternalStringResourceBase>>, Encoding) {
     let mut encoding = Encoding::Unknown;
     (
       NonNull::new(unsafe {
@@ -803,5 +919,14 @@ impl String {
         buffer, length, len_utf8,
       ))
     }
+  }
+}
+
+pub extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
+  unsafe {
+    let slice = std::slice::from_raw_parts_mut(s, len);
+
+    // Drop the slice
+    drop(Box::from_raw(slice));
   }
 }

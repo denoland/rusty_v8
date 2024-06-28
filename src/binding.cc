@@ -1071,6 +1071,35 @@ v8__String__GetExternalStringResourceBase(const v8::String& self,
   return self.GetExternalStringResourceBase(encoding_out);
 }
 
+class ExternalOneByteString : public v8::String::ExternalOneByteStringResource {
+ public:
+  using RustDestroy = void (*)(char*, size_t);
+  ExternalOneByteString(char* data, size_t length, RustDestroy rustDestroy,
+                        v8::Isolate* isolate)
+      : data_(data),
+        length_(length),
+        rustDestroy_(rustDestroy),
+        isolate_(isolate) {
+    isolate_->AdjustAmountOfExternalAllocatedMemory(
+        static_cast<int64_t>(length_));
+  }
+  ~ExternalOneByteString() override {
+    (*rustDestroy_)(data_, length_);
+    isolate_->AdjustAmountOfExternalAllocatedMemory(
+        -static_cast<int64_t>(-length_));
+  }
+
+  const char* data() const override { return data_; }
+
+  size_t length() const override { return length_; }
+
+ private:
+  char* data_;
+  const size_t length_;
+  RustDestroy rustDestroy_;
+  v8::Isolate* isolate_;
+};
+
 class ExternalStaticOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
@@ -1109,7 +1138,7 @@ class ExternalConstOneByteStringResource
   const int _length;
 };
 
-const v8::String* v8__String__NewExternalOneByte(
+const v8::String* v8__String__NewExternalOneByteConst(
     v8::Isolate* isolate, v8::String::ExternalOneByteStringResource* resource) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(isolate, resource));
 }
@@ -1119,6 +1148,23 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
                                                        int length) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
       isolate, new ExternalStaticOneByteStringResource(data, length)));
+}
+
+const v8::String* v8__String__NewExternalOneByte(
+    v8::Isolate* isolate, char* data, int length,
+    ExternalOneByteString::RustDestroy rustDestroy) {
+  return maybe_local_to_ptr(v8::String::NewExternalOneByte(
+      isolate, new ExternalOneByteString(data, length, rustDestroy, isolate)));
+}
+
+const char* v8__ExternalOneByteStringResource__data(
+    v8::String::ExternalOneByteStringResource* self) {
+  return self->data();
+}
+
+size_t v8__ExternalOneByteStringResource__length(
+    v8::String::ExternalOneByteStringResource* self) {
+  return self->length();
 }
 
 class ExternalStaticStringResource : public v8::String::ExternalStringResource {
