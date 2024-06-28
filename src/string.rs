@@ -577,7 +577,7 @@ impl String {
   }
 
   /// Creates a v8::String from a `&'static [u8]`,
-  /// must be Latin-1 or ASCII, not UTF-8 !
+  /// must be Latin-1 or ASCII, not UTF-8!
   #[inline(always)]
   pub fn new_external_onebyte_static<'s>(
     scope: &mut HandleScope<'s, ()>,
