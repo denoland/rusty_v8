@@ -1,4 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+#include "binding.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -1071,35 +1073,6 @@ v8__String__GetExternalStringResourceBase(const v8::String& self,
   return self.GetExternalStringResourceBase(encoding_out);
 }
 
-class ExternalOneByteString : public v8::String::ExternalOneByteStringResource {
- public:
-  using RustDestroy = void (*)(char*, size_t);
-  ExternalOneByteString(char* data, int length, RustDestroy rustDestroy,
-                        v8::Isolate* isolate)
-      : _data(data),
-        _length(length),
-        _rustDestroy(rustDestroy),
-        _isolate(isolate) {
-    _isolate->AdjustAmountOfExternalAllocatedMemory(
-        static_cast<int64_t>(_length));
-  }
-  ~ExternalOneByteString() override {
-    (*_rustDestroy)(_data, _length);
-    _isolate->AdjustAmountOfExternalAllocatedMemory(
-        -static_cast<int64_t>(-_length));
-  }
-
-  const char* data() const override { return _data; }
-
-  size_t length() const override { return _length; }
-
- private:
-  char* _data;
-  const int _length;
-  RustDestroy _rustDestroy;
-  v8::Isolate* _isolate;
-};
-
 class ExternalStaticOneByteStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
@@ -1138,7 +1111,7 @@ class ExternalConstOneByteStringResource
   const int _length;
 };
 
-const v8::String* v8__String__NewExternalOneByteConst(
+const v8::String* v8__String__NewExternalOneByte(
     v8::Isolate* isolate, v8::String::ExternalOneByteStringResource* resource) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(isolate, resource));
 }
@@ -1148,13 +1121,6 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
                                                        int length) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
       isolate, new ExternalStaticOneByteStringResource(data, length)));
-}
-
-const v8::String* v8__String__NewExternalOneByte(
-    v8::Isolate* isolate, char* data, int length,
-    ExternalOneByteString::RustDestroy rustDestroy) {
-  return maybe_local_to_ptr(v8::String::NewExternalOneByte(
-      isolate, new ExternalOneByteString(data, length, rustDestroy, isolate)));
 }
 
 const char* v8__ExternalOneByteStringResource__data(
@@ -3787,30 +3753,22 @@ void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
   self->set_configurable(configurable);
 }
 
+RUST_ExternalOneByteString::RUST_ExternalOneByteString(
+    char* data, int length,
+    RUST_ExternalOneByteString::RustDestroyFn rustDestroy, v8::Isolate* isolate)
+    : _data(data),
+      _length(length),
+      _rustDestroy(rustDestroy),
+      _isolate(isolate) {
+  _isolate->AdjustAmountOfExternalAllocatedMemory(
+      static_cast<int64_t>(_length));
+}
+
 }  // extern "C"
 
 // cppgc
 
 extern "C" {
-
-class RustObj;
-
-using RustTraceFn = void (*)(const RustObj* obj, cppgc::Visitor*);
-using RustDestroyFn = void (*)(const RustObj* obj);
-
-class RustObj final : public cppgc::GarbageCollected<RustObj> {
- public:
-  explicit RustObj(RustTraceFn trace, RustDestroyFn destroy)
-      : trace_(trace), destroy_(destroy) {}
-
-  ~RustObj() { destroy_(this); }
-
-  void Trace(cppgc::Visitor* visitor) const { trace_(this, visitor); }
-
- private:
-  RustTraceFn trace_;
-  RustDestroyFn destroy_;
-};
 
 RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
                             v8::CppHeapPointerTag tag) {
@@ -3858,8 +3816,8 @@ void cppgc__heap__collect_garbage_for_testing(
 }
 
 RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size,
-                                         RustTraceFn trace,
-                                         RustDestroyFn destroy) {
+                                         RustObj::RustTraceFn trace,
+                                         RustObj::RustDestroyFn destroy) {
   return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(),
                                               cppgc::AdditionalBytes(size),
                                               trace, destroy);
@@ -3948,4 +3906,5 @@ RustObj* cppgc__WeakPersistent__Get(cppgc::WeakPersistent<RustObj>* self) {
   return self->Get();
 }
 
+//
 }  // extern "C"

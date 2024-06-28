@@ -24,6 +24,8 @@ fn main() {
   println!("cargo:rerun-if-changed=.gn");
   println!("cargo:rerun-if-changed=BUILD.gn");
   println!("cargo:rerun-if-changed=src/binding.cc");
+  println!("cargo:rerun-if-changed=src/binding.hpp");
+  println!("cargo:rerun-if-changed=build.rs");
 
   // These are all the environment variables that we check. This is
   // probably more than what is needed, but missing an important
@@ -147,7 +149,11 @@ fn build_binding() {
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
     .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include"])
     .clang_args(args)
+    .respect_cxx_access_specs(true)
     .allowlist_item("RUST_.*")
+    .blocklist_item("v8::.*")
+    .blocklist_item("cppgc::.*")
+    .blocklist_item("std::.*")
     .generate()
     .expect("Unable to generate bindings");
 
