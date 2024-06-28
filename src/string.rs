@@ -630,7 +630,6 @@ impl String {
     buffer_len: usize,
     destructor: extern "C" fn(*mut char, usize),
   ) -> Option<Local<'s, String>> {
-    let buffer_len = buffer_len.try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByte(
