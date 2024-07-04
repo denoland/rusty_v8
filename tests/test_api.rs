@@ -8595,7 +8595,7 @@ fn unbound_script_conversion() {
   let unbound_script = {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
-    let source = v8::String::new(scope, "'Hello ' + value").unwrap();
+    let source = v8::String::new(scope, "'Hello ' + value\n//# sourceMappingURL=foo.js.map").unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.get_unbound_script(scope)
   };
@@ -8609,6 +8609,8 @@ fn unbound_script_conversion() {
     let value = v8::String::new(scope, "world").unwrap();
     global_object.set(scope, key.into(), value.into());
 
+    let source_mapping_url = unbound_script.get_source_mapping_url(scope).to_rust_string_lossy(scope);
+    assert_eq!(source_mapping_url, "foo.js.map");
     let script = unbound_script.bind_to_current_context(scope);
     let result = script.run(scope).unwrap();
     assert_eq!(result.to_rust_string_lossy(scope), "Hello world");

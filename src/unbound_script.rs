@@ -2,7 +2,9 @@ use crate::CachedData;
 use crate::Local;
 use crate::Script;
 use crate::UnboundScript;
-use crate::{HandleScope, UniqueRef};
+use crate::UniqueRef;
+use crate::HandleScope;
+use crate::Value;
 
 extern "C" {
   fn v8__UnboundScript__BindToCurrentContext(
@@ -11,6 +13,14 @@ extern "C" {
   fn v8__UnboundScript__CreateCodeCache(
     script: *const UnboundScript,
   ) -> *mut CachedData<'static>;
+
+  fn v8__UnboundScript__GetSourceMappingURL(
+    script: *const UnboundScript,
+  ) -> *const Value;
+
+  fn v8__UnboundScript__GetSourceURL(
+    script: *const UnboundScript,
+  ) -> *const Value;
 }
 
 impl UnboundScript {
@@ -41,5 +51,19 @@ impl UnboundScript {
       );
     }
     code_cache
+  }
+
+  #[inline(always)]
+  pub fn get_source_mapping_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+    unsafe {
+      scope.cast_local(|_| v8__UnboundScript__GetSourceMappingURL(self)).unwrap()
+    }
+  }
+
+  #[inline(always)]
+  pub fn get_source_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+    unsafe {
+      scope.cast_local(|_| v8__UnboundScript__GetSourceURL(self)).unwrap()
+    }
   }
 }

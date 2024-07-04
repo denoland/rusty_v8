@@ -1,11 +1,22 @@
 use crate::CachedData;
 use crate::UnboundModuleScript;
 use crate::UniqueRef;
+use crate::HandleScope;
+use crate::Local;
+use crate::Value;
 
 extern "C" {
   fn v8__UnboundModuleScript__CreateCodeCache(
     script: *const UnboundModuleScript,
   ) -> *mut CachedData<'static>;
+
+  fn v8__UnboundModuleScript__GetSourceMappingURL(
+    script: *const UnboundModuleScript,
+  ) -> *const Value;
+
+  fn v8__UnboundModuleScript__GetSourceURL(
+    script: *const UnboundModuleScript,
+  ) -> *const Value;
 }
 
 impl UnboundModuleScript {
@@ -24,5 +35,17 @@ impl UnboundModuleScript {
       );
     }
     code_cache
+  }
+
+  pub fn get_source_mapping_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+    unsafe {
+      scope.cast_local(|_| v8__UnboundModuleScript__GetSourceMappingURL(self)).unwrap()
+    }
+  }
+
+  pub fn get_source_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+    unsafe {
+      scope.cast_local(|_| v8__UnboundModuleScript__GetSourceURL(self)).unwrap()
+    }
   }
 }
