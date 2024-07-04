@@ -1,9 +1,9 @@
 use crate::CachedData;
+use crate::HandleScope;
 use crate::Local;
 use crate::Script;
 use crate::UnboundScript;
 use crate::UniqueRef;
-use crate::HandleScope;
 use crate::Value;
 
 extern "C" {
@@ -54,16 +54,26 @@ impl UnboundScript {
   }
 
   #[inline(always)]
-  pub fn get_source_mapping_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn get_source_mapping_url<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, Value> {
     unsafe {
-      scope.cast_local(|_| v8__UnboundScript__GetSourceMappingURL(self)).unwrap()
+      scope
+        .cast_local(|_| v8__UnboundScript__GetSourceMappingURL(self))
+        .unwrap()
     }
   }
 
   #[inline(always)]
-  pub fn get_source_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn get_source_url<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, Value> {
     unsafe {
-      scope.cast_local(|_| v8__UnboundScript__GetSourceURL(self)).unwrap()
+      scope
+        .cast_local(|_| v8__UnboundScript__GetSourceURL(self))
+        .unwrap()
     }
   }
 }

@@ -8595,7 +8595,11 @@ fn unbound_script_conversion() {
   let unbound_script = {
     let context = v8::Context::new(scope);
     let scope = &mut v8::ContextScope::new(scope, context);
-    let source = v8::String::new(scope, "'Hello ' + value\n//# sourceMappingURL=foo.js.map").unwrap();
+    let source = v8::String::new(
+      scope,
+      "'Hello ' + value\n//# sourceMappingURL=foo.js.map",
+    )
+    .unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.get_unbound_script(scope)
   };
@@ -8624,7 +8628,8 @@ fn get_source_mapping_from_comment() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   // TODO(bartlomieju): add a shorter version of `v8::ScriptOrigin`
-  let resource_name = v8::String::new(scope, "http://www.foo.com/foo.js").unwrap();
+  let resource_name =
+    v8::String::new(scope, "http://www.foo.com/foo.js").unwrap();
   let resource_line_offset = 0;
   let resource_column_offset = 0;
   let resource_is_shared_cross_origin = false;
@@ -8646,7 +8651,9 @@ fn get_source_mapping_from_comment() {
     is_wasm,
     is_module,
   );
-  let code = v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map").unwrap();
+  let code =
+    v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map")
+      .unwrap();
   let mut source = v8::script_compiler::Source::new(code, Some(&script_origin));
   let script = v8::script_compiler::compile(
     scope,
@@ -8655,7 +8662,10 @@ fn get_source_mapping_from_comment() {
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
-  let source_mapping_url = script.get_unbound_script(scope).get_source_mapping_url(scope).to_rust_string_lossy(scope);
+  let source_mapping_url = script
+    .get_unbound_script(scope)
+    .get_source_mapping_url(scope)
+    .to_rust_string_lossy(scope);
   assert_eq!("foo.js.map", source_mapping_url)
 }
 
@@ -8669,7 +8679,8 @@ fn origin_source_map_overrides_source_mapping_url_comment() {
 
   let expected_source_map_url = "http://override/foo.js.map";
   // TODO(bartlomieju): add a shorter version of `v8::ScriptOrigin`
-  let resource_name = v8::String::new(scope, "http://www.foo.com/foo.js").unwrap();
+  let resource_name =
+    v8::String::new(scope, "http://www.foo.com/foo.js").unwrap();
   let resource_line_offset = 13;
   let resource_column_offset = 0;
   let resource_is_shared_cross_origin = false;
@@ -8691,7 +8702,9 @@ fn origin_source_map_overrides_source_mapping_url_comment() {
     is_wasm,
     is_module,
   );
-  let code = v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map").unwrap();
+  let code =
+    v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map")
+      .unwrap();
   let mut source = v8::script_compiler::Source::new(code, Some(&script_origin));
   let script = v8::script_compiler::compile(
     scope,
@@ -8700,7 +8713,10 @@ fn origin_source_map_overrides_source_mapping_url_comment() {
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
-  let source_mapping_url = script.get_unbound_script(scope).get_source_mapping_url(scope).to_rust_string_lossy(scope);
+  let source_mapping_url = script
+    .get_unbound_script(scope)
+    .get_source_mapping_url(scope)
+    .to_rust_string_lossy(scope);
   assert_eq!(expected_source_map_url, source_mapping_url)
 }
 
@@ -8713,7 +8729,8 @@ fn ignore_origin_source_map_empty_string() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   // TODO(bartlomieju): add a shorter version of `v8::ScriptOrigin`
-  let resource_name = v8::String::new(scope, "http://www.foo.com/foo.js").unwrap();
+  let resource_name =
+    v8::String::new(scope, "http://www.foo.com/foo.js").unwrap();
   let resource_line_offset = 0;
   let resource_column_offset = 0;
   let resource_is_shared_cross_origin = false;
@@ -8735,7 +8752,9 @@ fn ignore_origin_source_map_empty_string() {
     is_wasm,
     is_module,
   );
-  let code = v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map").unwrap();
+  let code =
+    v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map")
+      .unwrap();
   let mut source = v8::script_compiler::Source::new(code, Some(&script_origin));
   let script = v8::script_compiler::compile(
     scope,
@@ -8744,7 +8763,10 @@ fn ignore_origin_source_map_empty_string() {
     v8::script_compiler::NoCacheReason::NoReason,
   )
   .unwrap();
-  let source_mapping_url = script.get_unbound_script(scope).get_source_mapping_url(scope).to_rust_string_lossy(scope);
+  let source_mapping_url = script
+    .get_unbound_script(scope)
+    .get_source_mapping_url(scope)
+    .to_rust_string_lossy(scope);
   assert_eq!("foo.js.map", source_mapping_url)
 }
 

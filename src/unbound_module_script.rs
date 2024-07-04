@@ -1,8 +1,8 @@
 use crate::CachedData;
-use crate::UnboundModuleScript;
-use crate::UniqueRef;
 use crate::HandleScope;
 use crate::Local;
+use crate::UnboundModuleScript;
+use crate::UniqueRef;
 use crate::Value;
 
 extern "C" {
@@ -37,15 +37,25 @@ impl UnboundModuleScript {
     code_cache
   }
 
-  pub fn get_source_mapping_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn get_source_mapping_url<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, Value> {
     unsafe {
-      scope.cast_local(|_| v8__UnboundModuleScript__GetSourceMappingURL(self)).unwrap()
+      scope
+        .cast_local(|_| v8__UnboundModuleScript__GetSourceMappingURL(self))
+        .unwrap()
     }
   }
 
-  pub fn get_source_url<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn get_source_url<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+  ) -> Local<'s, Value> {
     unsafe {
-      scope.cast_local(|_| v8__UnboundModuleScript__GetSourceURL(self)).unwrap()
+      scope
+        .cast_local(|_| v8__UnboundModuleScript__GetSourceURL(self))
+        .unwrap()
     }
   }
 }
