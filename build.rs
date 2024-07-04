@@ -849,7 +849,7 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
         Ok(_) => remove_dir(symlink).expect("remove_dir failed"),
         Err(_) => {
           remove_dir(symlink).expect("remove_dir failed");
-          break symlink_dir(target, symlink).expect("symlink_dir failed")
+          break symlink_dir(target, symlink).expect("symlink_dir failed");
         }
       }
     }
