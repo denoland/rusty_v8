@@ -2539,7 +2539,8 @@ v8::ScriptCompiler::CachedData* v8__UnboundModuleScript__CreateCodeCache(
 
 v8::Value* v8__UnboundModuleScript__GetSourceMappingURL(
     const v8::UnboundModuleScript& unbound_module_script) {
-  return local_to_ptr(ptr_to_local(&unbound_module_script)->GetSourceMappingURL());
+  return local_to_ptr(
+      ptr_to_local(&unbound_module_script)->GetSourceMappingURL());
 }
 
 v8::Value* v8__UnboundModuleScript__GetSourceURL(
