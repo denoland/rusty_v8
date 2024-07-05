@@ -848,7 +848,8 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
         Ok(existing) if existing == target => break,
         Ok(_) => remove_dir(symlink).expect("remove_dir failed"),
         Err(_) => {
-          break symlink_dir(target, symlink).expect("symlink_dir failed")
+          let _ = remove_dir(symlink);
+          break symlink_dir(target, symlink).expect("symlink_dir failed");
         }
       }
     }
