@@ -706,14 +706,14 @@ impl Object {
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
   #[inline(always)]
   pub unsafe fn wrap<const TAG: u16, T: GarbageCollected>(
-    scope: &mut HandleScope,
+    isolate: &mut Isolate,
     wrapper: Local<Object>,
     value: &impl GetRustObj<T>,
   ) {
     // TODO: use a const assert once const expressions are stable
     assert!(TAG < LAST_TAG);
     let ptr = value.get_rust_obj();
-    unsafe { v8__Object__Wrap(scope.get_isolate_ptr(), &*wrapper, ptr, TAG) }
+    unsafe { v8__Object__Wrap(isolate as *mut _, &*wrapper, ptr, TAG) }
   }
 
   /// Unwraps a JS wrapper object.
@@ -724,13 +724,12 @@ impl Object {
   /// the stack, or moved into one of the Persistent types.
   #[inline(always)]
   pub unsafe fn unwrap<const TAG: u16, T: GarbageCollected>(
-    scope: &mut HandleScope,
+    isolate: &mut Isolate,
     wrapper: Local<Object>,
   ) -> Member<T> {
     // TODO: use a const assert once const expressions are stable
     assert!(TAG < LAST_TAG);
-    let ptr =
-      unsafe { v8__Object__Unwrap(scope.get_isolate_ptr(), &*wrapper, TAG) };
+    let ptr = unsafe { v8__Object__Unwrap(isolate as *mut _, &*wrapper, TAG) };
     Member::new(ptr)
   }
 
