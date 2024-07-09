@@ -824,7 +824,7 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
   // different drive than the output. If this is the case we'll create a
   // symlink called "gn_root' in the out directory, next to 'gn_out', so it
   // appears as if they're both on the same drive.
-  use std::fs::remove_dir;
+  use std::fs::remove_dir_all;
   use std::os::windows::fs::symlink_dir;
 
   let get_prefix = |p: &Path| {
@@ -846,7 +846,7 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
     loop {
       match symlink.canonicalize() {
         Ok(existing) if existing == target => break,
-        Ok(_) => remove_dir_all(symlink).expect("remove_dir failed"),
+        Ok(_) => remove_dir_all(symlink).expect("remove_dir_all failed"),
         Err(_) => {
           let _ = remove_dir_all(symlink);
           break symlink_dir(target, symlink).expect("symlink_dir failed");
