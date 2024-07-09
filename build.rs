@@ -846,9 +846,9 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
     loop {
       match symlink.canonicalize() {
         Ok(existing) if existing == target => break,
-        Ok(_) => remove_dir(symlink).expect("remove_dir failed"),
+        Ok(_) => remove_dir_all(symlink).expect("remove_dir failed"),
         Err(_) => {
-          let _ = remove_dir(symlink);
+          let _ = remove_dir_all(symlink);
           break symlink_dir(target, symlink).expect("symlink_dir failed");
         }
       }
