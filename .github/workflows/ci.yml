@@ -258,6 +258,7 @@ jobs:
   publish:
     needs: build
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+    if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Configure git
         run: git config --global core.symlinks true
@@ -285,13 +286,6 @@ jobs:
           merge-multiple: true
 
       - name: Publish
-        if: github.repository == 'denoland/rusty_v8'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-          DRY_RUN: ${{ startsWith(github.ref, 'refs/tags/') == false }}
-        run: |
-          args="-vv --locked --allow-dirty"
-          if [ "$DRY_RUN" = "true" ]; then
-            args="$args --dry-run"
-          fi
-          cargo publish $args
+        run: cargo publish -vv --locked --allow-dirty
