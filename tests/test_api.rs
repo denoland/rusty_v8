@@ -251,7 +251,7 @@ fn test_string() {
     assert_eq!(2, local.utf8_length(scope));
     // Should round-trip to UTF-8
     assert_eq!(2, local.to_rust_string_lossy(scope).len());
-    let mut buf = [MaybeUninit::uninit(); 0];
+    let mut buf: [MaybeUninit<u8>; 0] = [];
     assert_eq!(2, local.to_rust_cow_lossy(scope, &mut buf).len());
     let mut buf = [MaybeUninit::uninit(); 10];
     assert_eq!(2, local.to_rust_cow_lossy(scope, &mut buf).len());

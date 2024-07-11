@@ -710,8 +710,9 @@ impl Object {
     wrapper: Local<Object>,
     value: &impl GetRustObj<T>,
   ) {
-    // TODO: use a const assert once const expressions are stable
-    assert!(TAG < LAST_TAG);
+    const {
+      assert!(TAG < LAST_TAG);
+    }
     let ptr = value.get_rust_obj();
     unsafe { v8__Object__Wrap(isolate as *mut _, &*wrapper, ptr, TAG) }
   }
@@ -727,8 +728,9 @@ impl Object {
     isolate: &mut Isolate,
     wrapper: Local<Object>,
   ) -> Option<Ptr<T>> {
-    // TODO: use a const assert once const expressions are stable
-    assert!(TAG < LAST_TAG);
+    const {
+      assert!(TAG < LAST_TAG);
+    }
     let ptr = unsafe { v8__Object__Unwrap(isolate as *mut _, &*wrapper, TAG) };
     Ptr::new(&ptr)
   }
