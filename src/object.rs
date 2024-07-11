@@ -1,6 +1,6 @@
 use crate::cppgc::GarbageCollected;
 use crate::cppgc::GetRustObj;
-use crate::cppgc::Member;
+use crate::cppgc::Ptr;
 use crate::cppgc::RustObj;
 use crate::isolate::Isolate;
 use crate::support::int;
@@ -721,16 +721,16 @@ impl Object {
   /// # Safety
   ///
   /// The caller must ensure that the returned pointer is always stored on
-  /// the stack, or moved into one of the Persistent types.
+  /// the stack, or is safely moved into one of the other cppgc pointer types.
   #[inline(always)]
   pub unsafe fn unwrap<const TAG: u16, T: GarbageCollected>(
     isolate: &mut Isolate,
     wrapper: Local<Object>,
-  ) -> Member<T> {
+  ) -> Option<Ptr<T>> {
     // TODO: use a const assert once const expressions are stable
     assert!(TAG < LAST_TAG);
     let ptr = unsafe { v8__Object__Unwrap(isolate as *mut _, &*wrapper, TAG) };
-    Member::new(ptr)
+    Ptr::new(&ptr)
   }
 
   /// Returns true if this object can be generally used to wrap object objects.

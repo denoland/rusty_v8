@@ -21,7 +21,11 @@ impl std::fmt::Display for Rope {
 }
 
 impl Rope {
-  pub fn new(part: String, next: v8::cppgc::Member<Rope>) -> Rope {
+  pub fn new(part: String, next: Option<v8::cppgc::Ptr<Rope>>) -> Rope {
+    let next = match next {
+      Some(p) => v8::cppgc::Member::new(&p),
+      None => v8::cppgc::Member::empty(),
+    };
     Self { part, next }
   }
 }
@@ -55,15 +59,15 @@ fn main() {
         &heap,
         Rope::new(
           String::from("Hello "),
-          v8::cppgc::make_garbage_collected(
+          Some(v8::cppgc::make_garbage_collected(
             &heap,
-            Rope::new(String::from("World!"), v8::cppgc::Member::empty()),
-          ),
+            Rope::new(String::from("World!"), None),
+          )),
         ),
       )
     };
 
-    println!("{}", rope.borrow().unwrap());
+    println!("{}", rope);
 
     // Manually trigger garbage collection.
     heap.enable_detached_garbage_collections_for_testing();
@@ -76,7 +80,7 @@ fn main() {
     }
 
     // Should still be live here:
-    println!("{}", rope.borrow().unwrap());
+    println!("{}", rope);
 
     println!("Collect: NoHeapPointers");
     unsafe {

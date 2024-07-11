@@ -3936,8 +3936,8 @@ void cppgc__WeakMember__Assign(cppgc::WeakMember<RustObj>* member,
   member->operator=(other);
 }
 
-cppgc::Persistent<RustObj>* cppgc__Persistent__CONSTRUCT() {
-  return new cppgc::Persistent<RustObj>(nullptr);
+cppgc::Persistent<RustObj>* cppgc__Persistent__CONSTRUCT(RustObj* obj) {
+  return new cppgc::Persistent<RustObj>(obj);
 }
 
 void cppgc__Persistent__DESTRUCT(cppgc::Persistent<RustObj>* self) {
@@ -3952,8 +3952,8 @@ RustObj* cppgc__Persistent__Get(cppgc::Persistent<RustObj>* self) {
   return self->Get();
 }
 
-cppgc::WeakPersistent<RustObj>* cppgc__WeakPersistent__CONSTRUCT() {
-  return new cppgc::WeakPersistent<RustObj>(nullptr);
+cppgc::WeakPersistent<RustObj>* cppgc__WeakPersistent__CONSTRUCT(RustObj* obj) {
+  return new cppgc::WeakPersistent<RustObj>(obj);
 }
 
 void cppgc__WeakPersistent__DESTRUCT(cppgc::WeakPersistent<RustObj>* self) {
