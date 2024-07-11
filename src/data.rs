@@ -158,10 +158,12 @@ macro_rules! impl_try_from {
         // Not dead: `cast()` is sometimes used in the $check expression.
         #[allow(dead_code)]
         fn cast<T>(l: Local<$source>) -> Local<T> {
-          unsafe { transmute(l) }
+          unsafe { transmute::<Local<$source>, Local<T>>(l) }
         }
         match l {
-          $value if $check => Ok(unsafe { transmute(l) }),
+          $value if $check => Ok(unsafe {
+            transmute::<Local<'s, $source>, Local<'s, $target>>(l)
+          }),
           _ => Err(DataError::bad_type::<$target, $source>())
         }
       }
