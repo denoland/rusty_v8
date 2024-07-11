@@ -317,9 +317,7 @@ fn build_v8(is_asan: bool) {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
-  let gn_root = env::var("CARGO_MANIFEST_DIR").unwrap();
-
-  let gn_out = maybe_gen(&gn_root, gn_args);
+  let gn_out = maybe_gen(gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   if env::var_os("NO_PRINT_GN_ARGS").is_none() {
@@ -469,14 +467,14 @@ fn static_lib_dir() -> PathBuf {
 }
 
 fn build_dir() -> PathBuf {
-  let root = env::current_dir().unwrap();
+  let cwd = env::current_dir().unwrap();
 
   // target/debug//build/rusty_v8-d9e5a424d4f96994/out/
   let out_dir = env::var_os("OUT_DIR").expect(
     "The 'OUT_DIR' environment is not set (it should be something like \
      'target/debug/rusty_v8-{hash}').",
   );
-  let out_dir_abs = root.join(out_dir);
+  let out_dir_abs = cwd.join(out_dir);
 
   // This would be target/debug or target/release
   out_dir_abs
@@ -713,7 +711,7 @@ fn print_link_flags() {
 fn print_prebuilt_src_binding_path() {
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
-  let src_binding_path = get_dirs(None)
+  let src_binding_path = get_dirs()
     .root
     .join("gen")
     .join(format!("src_binding_{}_{}.rs", profile, target));
@@ -793,7 +791,7 @@ struct Dirs {
   pub root: PathBuf,
 }
 
-fn get_dirs(manifest_dir: Option<&str>) -> Dirs {
+fn get_dirs() -> Dirs {
   // The OUT_DIR is going to be a crate-specific directory like
   // "target/debug/build/cargo_gn_example-eee5160084460b2c"
   // But we want to share the GN build amongst all crates
@@ -811,11 +809,7 @@ fn get_dirs(manifest_dir: Option<&str>) -> Dirs {
     .unwrap()
     .to_owned();
 
-  let root = match manifest_dir {
-    Some(s) => env::current_dir().unwrap().join(s),
-    None => env::var("CARGO_MANIFEST_DIR").map(PathBuf::from).unwrap(),
-  };
-
+  let root = env::var("CARGO_MANIFEST_DIR").map(PathBuf::from).unwrap();
   let mut dirs = Dirs { out, root };
   maybe_symlink_root_dir(&mut dirs);
   dirs
@@ -828,7 +822,7 @@ fn maybe_symlink_root_dir(_: &mut Dirs) {}
 fn maybe_symlink_root_dir(dirs: &mut Dirs) {
   // GN produces invalid paths if the source (a.k.a. root) directory is on a
   // different drive than the output. If this is the case we'll create a
-  // symlink called "gn_root' in the out directory, next to 'gn_out', so it
+  // symlink called 'gn_root' in the out directory, next to 'gn_out', so it
   // appears as if they're both on the same drive.
   use std::fs::remove_dir_all;
   use std::os::windows::fs::symlink_dir;
@@ -849,13 +843,25 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
 
     println!("Creating symlink {:?} to {:?}", &symlink, &root);
 
+    let mut retries = 0;
     loop {
       match symlink.canonicalize() {
         Ok(existing) if existing == target => break,
         Ok(_) => remove_dir_all(symlink).expect("remove_dir_all failed"),
-        Err(_) => {
+        Err(err) => {
+          println!("symlink.canonicalize failed: {:?}", err);
           let _ = remove_dir_all(symlink);
-          break symlink_dir(target, symlink).expect("symlink_dir failed");
+          match symlink_dir(target, symlink) {
+            Ok(_) => break,
+            Err(err) => {
+              println!("symlink_dir failed: {:?}", err);
+              retries += 1;
+              std::thread::sleep(std::time::Duration::from_millis(100));
+              if retries > 4 {
+                panic!("Failed to create symlink");
+              }
+            }
+          }
         }
       }
     }
@@ -910,8 +916,8 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
 
 pub type GnArgs = Vec<String>;
 
-pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
-  let dirs = get_dirs(Some(manifest_dir));
+pub fn maybe_gen(gn_args: GnArgs) -> PathBuf {
+  let dirs = get_dirs();
   let gn_out_dir = dirs.out.join("gn_out");
 
   if !gn_out_dir.exists() || !gn_out_dir.join("build.ninja").exists() {
@@ -946,7 +952,7 @@ pub fn maybe_gen(manifest_dir: &str, gn_args: GnArgs) -> PathBuf {
 }
 
 pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
-  let gn_out_dir = get_dirs(None).out.join("gn_out");
+  let gn_out_dir = get_dirs().out.join("gn_out");
 
   rerun_if_changed(&gn_out_dir, maybe_env.clone(), target);
 
