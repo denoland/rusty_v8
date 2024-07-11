@@ -8,6 +8,7 @@ use crate::support::UniqueRef;
 use crate::Data;
 use crate::TracedReference;
 use std::marker::PhantomData;
+use std::ptr::NonNull;
 
 extern "C" {
   fn cppgc__initialize_process(platform: *mut Platform);
@@ -63,12 +64,14 @@ extern "C" {
     other: *mut RustObj,
   );
 
-  fn cppgc__Persistent__CONSTRUCT() -> *mut PersistentInner;
+  fn cppgc__Persistent__CONSTRUCT(obj: *mut RustObj) -> *mut PersistentInner;
   fn cppgc__Persistent__DESTRUCT(this: *mut PersistentInner);
   fn cppgc__Persistent__Assign(this: *mut PersistentInner, ptr: *mut RustObj);
   fn cppgc__Persistent__Get(this: *const PersistentInner) -> *mut RustObj;
 
-  fn cppgc__WeakPersistent__CONSTRUCT() -> *mut WeakPersistentInner;
+  fn cppgc__WeakPersistent__CONSTRUCT(
+    obj: *mut RustObj,
+  ) -> *mut WeakPersistentInner;
   fn cppgc__WeakPersistent__DESTRUCT(this: *mut WeakPersistentInner);
   fn cppgc__WeakPersistent__Assign(
     this: *mut WeakPersistentInner,
@@ -152,18 +155,6 @@ impl Visitor {
 #[doc(hidden)]
 pub trait Traced {
   fn trace(&self, visitor: &Visitor);
-}
-
-impl<T: GarbageCollected> Traced for Member<T> {
-  fn trace(&self, visitor: &Visitor) {
-    unsafe { cppgc__Visitor__Trace__Member(visitor, &self.inner) }
-  }
-}
-
-impl<T: GarbageCollected> Traced for WeakMember<T> {
-  fn trace(&self, visitor: &Visitor) {
-    unsafe { cppgc__Visitor__Trace__WeakMember(visitor, &self.inner) }
-  }
 }
 
 impl<T> Traced for TracedReference<T> {
@@ -290,11 +281,11 @@ pub trait GarbageCollected {
 /// # Safety
 ///
 /// The caller must ensure that the returned pointer is always stored on
-/// the stack, or moved into one of the Persistent types.
+/// the stack, or is safely moved into one of the other cppgc pointer types.
 pub unsafe fn make_garbage_collected<T: GarbageCollected>(
   heap: &Heap,
   obj: T,
-) -> Member<T> {
+) -> Ptr<T> {
   unsafe extern "C" fn trace<T: GarbageCollected>(
     obj: *const RustObj,
     visitor: *mut Visitor,
@@ -312,7 +303,7 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected>(
     - std::mem::size_of::<RustObj>())
     + std::mem::size_of::<T>();
 
-  let handle = unsafe {
+  let pointer = unsafe {
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
       additional_bytes,
@@ -322,15 +313,24 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected>(
   };
 
   unsafe {
-    get_object_from_rust_obj::<T>(handle).write(obj);
+    get_object_from_rust_obj::<T>(pointer).write(obj);
   }
 
-  Member::new(handle)
+  Ptr {
+    pointer: NonNull::new_unchecked(pointer),
+    _phantom: PhantomData,
+  }
 }
 
 #[doc(hidden)]
 pub trait GetRustObj<T: GarbageCollected> {
   fn get_rust_obj(&self) -> *mut RustObj;
+}
+
+impl<T: GarbageCollected> GetRustObj<T> for *mut RustObj {
+  fn get_rust_obj(&self) -> *mut RustObj {
+    *self
+  }
 }
 
 macro_rules! member {
@@ -379,18 +379,24 @@ macro_rules! member {
       }
 
       impl<T: GarbageCollected> $name<T> {
-        pub(crate) fn new(obj: *mut RustObj) -> Self {
-          Self {
-            inner: [< $name Inner >]::new(obj),
-            _phantom: PhantomData,
-          }
-        }
-
         #[doc = "Create a new empty "]
         #[doc = stringify!($name)]
         #[doc = " which may be set later."]
         pub fn empty() -> Self {
-          Self::new(std::ptr::null_mut())
+          Self {
+            inner: [< $name Inner >]::new(std::ptr::null_mut()),
+            _phantom: PhantomData,
+          }
+        }
+
+        #[doc = "Create a new "]
+        #[doc = stringify!(name)]
+        #[doc = " and initialize it with an object."]
+        pub fn new(other: &impl GetRustObj<T>) -> Self {
+          Self {
+            inner: [< $name Inner >]::new(other.get_rust_obj()),
+            _phantom: PhantomData,
+          }
         }
 
         #[doc = "Set the object pointed to by this "]
@@ -419,6 +425,12 @@ macro_rules! member {
       impl<T: GarbageCollected> GetRustObj<T> for $name<T> {
         fn get_rust_obj(&self) -> *mut RustObj {
           self.inner.get()
+        }
+      }
+
+      impl<T: GarbageCollected> Traced for $name<T> {
+        fn trace(&self, visitor: &Visitor) {
+          unsafe { [< cppgc__Visitor__Trace__ $name >](visitor, &self.inner) }
         }
       }
 
@@ -467,7 +479,18 @@ macro_rules! persistent {
         #[doc = stringify!($name)]
         #[doc = " which may be set later."]
         pub fn empty() -> Self {
-          let this = unsafe { [< cppgc__ $name __CONSTRUCT >]() };
+          let this = unsafe { [< cppgc__ $name __CONSTRUCT >](std::ptr::null_mut()) };
+          Self {
+            inner: this,
+            _phantom: PhantomData,
+          }
+        }
+
+        #[doc = "Create a new "]
+        #[doc = stringify!(name)]
+        #[doc = " and initialize it with an object."]
+        pub fn new(other: &impl GetRustObj<T>) -> Self {
+          let this = unsafe { [< cppgc__ $name __CONSTRUCT >](other.get_rust_obj()) };
           Self {
             inner: this,
             _phantom: PhantomData,
@@ -550,4 +573,52 @@ persistent! {
   /// collected. WeakPersistent must be constructed and destructed in the same
   /// thread.
   WeakPersistent
+}
+
+/// Ptr is used to refer to an on-heap object from the stack.
+#[derive(Clone, Copy)]
+pub struct Ptr<T: GarbageCollected> {
+  pointer: NonNull<RustObj>,
+  _phantom: PhantomData<T>,
+}
+
+impl<T: GarbageCollected> Ptr<T> {
+  /// Create a new Ptr.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that the returned pointer is always stored on
+  /// the stack, or is safely moved into one of the other cppgc pointer types.
+  pub unsafe fn new(other: &impl GetRustObj<T>) -> Option<Self> {
+    NonNull::new(other.get_rust_obj()).map(|pointer| Self {
+      pointer,
+      _phantom: PhantomData,
+    })
+  }
+}
+
+impl<T: GarbageCollected> std::ops::Deref for Ptr<T> {
+  type Target = T;
+
+  fn deref(&self) -> &T {
+    unsafe { &*get_object_from_rust_obj(self.pointer.as_ptr()) }
+  }
+}
+
+impl<T: GarbageCollected> GetRustObj<T> for Ptr<T> {
+  fn get_rust_obj(&self) -> *mut RustObj {
+    self.pointer.as_ptr()
+  }
+}
+
+impl<T: GarbageCollected + std::fmt::Debug> std::fmt::Debug for Ptr<T> {
+  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    std::fmt::Debug::fmt(&**self, fmt)
+  }
+}
+
+impl<T: GarbageCollected + std::fmt::Display> std::fmt::Display for Ptr<T> {
+  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    std::fmt::Display::fmt(&**self, fmt)
+  }
 }

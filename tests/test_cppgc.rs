@@ -89,7 +89,7 @@ fn cppgc_object_wrap() {
   ) {
     let obj = args.get(0).try_into().unwrap();
     let member = unsafe { v8::Object::unwrap::<TAG, Wrap>(scope, obj) };
-    rv.set(member.borrow().unwrap().value.get(scope).unwrap());
+    rv.set(member.unwrap().value.get(scope).unwrap());
   }
 
   {
