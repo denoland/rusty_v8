@@ -501,6 +501,7 @@ impl From<Option<bool>> for MaybeBool {
 #[repr(transparent)]
 pub struct CxxVTable(pub *const Opaque);
 
+#[allow(unused)]
 #[derive(Copy, Clone, Debug)]
 pub struct RustVTable<DynT>(pub *const Opaque, pub PhantomData<DynT>);
 

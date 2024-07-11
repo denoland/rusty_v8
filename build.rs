@@ -96,6 +96,11 @@ fn main() {
     false
   };
 
+  // Cargo likes to run multiple build scripts at once sometimes.
+  // Nothing that follows is safe to run multiple times at once,
+  // because we store everything in a parent directory of OUT_DIR.
+  let _lockfile = acquire_lock();
+
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
     if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
@@ -113,8 +118,10 @@ fn main() {
 
   print_prebuilt_src_binding_path();
 
-  // utilize a lockfile to prevent linking of
-  // only partially downloaded static library.
+  download_static_lib_binaries();
+}
+
+fn acquire_lock() -> LockFile {
   let root = env::current_dir().unwrap();
   let out_dir = env::var_os("OUT_DIR").unwrap();
   let lockfilepath = root
@@ -123,13 +130,12 @@ fn main() {
     .unwrap()
     .parent()
     .unwrap()
-    .join("lib_download.fslock");
-  println!("download lockfile: {:?}", &lockfilepath);
+    .join("v8.fslock");
   let mut lockfile = LockFile::open(&lockfilepath)
     .expect("Couldn't open lib download lockfile.");
-  lockfile.lock().expect("Couldn't get lock");
-  download_static_lib_binaries();
-  lockfile.unlock().expect("Couldn't unlock lockfile");
+  lockfile.lock_with_pid().expect("Couldn't get lock");
+  println!("lockfile: {:?}", &lockfilepath);
+  lockfile
 }
 
 fn build_binding() {

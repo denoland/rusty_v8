@@ -425,8 +425,8 @@ impl String {
         self,
         scope,
         buffer.as_mut_ptr(),
-        start.try_into().unwrap_or(int::max_value()),
-        buffer.len().try_into().unwrap_or(int::max_value()),
+        start.try_into().unwrap_or(int::MAX),
+        buffer.len().try_into().unwrap_or(int::MAX),
         options,
       ) as usize
     }
@@ -447,8 +447,8 @@ impl String {
         self,
         scope,
         buffer.as_mut_ptr(),
-        start.try_into().unwrap_or(int::max_value()),
-        buffer.len().try_into().unwrap_or(int::max_value()),
+        start.try_into().unwrap_or(int::MAX),
+        buffer.len().try_into().unwrap_or(int::MAX),
         options,
       ) as usize
     }
@@ -469,8 +469,8 @@ impl String {
         self,
         scope,
         buffer.as_mut_ptr() as *mut u8,
-        start.try_into().unwrap_or(int::max_value()),
-        buffer.len().try_into().unwrap_or(int::max_value()),
+        start.try_into().unwrap_or(int::MAX),
+        buffer.len().try_into().unwrap_or(int::MAX),
         options,
       ) as usize
     }
@@ -513,7 +513,7 @@ impl String {
         self,
         scope,
         buffer.as_mut_ptr() as *mut char,
-        buffer.len().try_into().unwrap_or(int::max_value()),
+        buffer.len().try_into().unwrap_or(int::MAX),
         &mut nchars_ref_int,
         options,
       )
