@@ -157,6 +157,7 @@ fn build_binding() {
     .rustified_enum(".*UseCounterFeature")
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")
+    .allowlist_item("RustObj")
     .generate()
     .expect("Unable to generate bindings");
 

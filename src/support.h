@@ -9,6 +9,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "v8/include/cppgc/name-provider.h"
+#include "v8/include/v8-cppgc.h"
 #include "v8/include/v8.h"
 
 // Work around a bug in the V8 headers.
@@ -190,3 +192,12 @@ struct three_pointers_t {
   V(BigInt64Array)
 
 #endif  // SUPPORT_H_
+
+class RustObj final : public cppgc::GarbageCollected<RustObj>,
+                      public cppgc::NameProvider {
+ public:
+  ~RustObj();
+  void Trace(cppgc::Visitor* visitor) const;
+  const char* GetHumanReadableName() const final;
+  uintptr_t data[2];
+};

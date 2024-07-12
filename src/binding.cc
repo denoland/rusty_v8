@@ -3856,24 +3856,19 @@ void v8__PropertyDescriptor__set_configurable(v8::PropertyDescriptor* self,
 
 extern "C" {
 
-class RustObj;
+void rusty_v8_RustObj_trace(const RustObj*, cppgc::Visitor*);
+const char* rusty_v8_RustObj_get_name(const RustObj*);
+void rusty_v8_RustObj_drop(RustObj*);
 
-using RustTraceFn = void (*)(const RustObj* obj, cppgc::Visitor*);
-using RustDestroyFn = void (*)(const RustObj* obj);
+RustObj::~RustObj() { rusty_v8_RustObj_drop(this); }
 
-class RustObj final : public cppgc::GarbageCollected<RustObj> {
- public:
-  explicit RustObj(RustTraceFn trace, RustDestroyFn destroy)
-      : trace_(trace), destroy_(destroy) {}
+void RustObj::Trace(cppgc::Visitor* visitor) const {
+  rusty_v8_RustObj_trace(this, visitor);
+}
 
-  ~RustObj() { destroy_(this); }
-
-  void Trace(cppgc::Visitor* visitor) const { trace_(this, visitor); }
-
- private:
-  RustTraceFn trace_;
-  RustDestroyFn destroy_;
-};
+const char* RustObj::GetHumanReadableName() const {
+  return rusty_v8_RustObj_get_name(this);
+}
 
 RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
                             v8::CppHeapPointerTag tag) {
@@ -3930,12 +3925,9 @@ void cppgc__heap__collect_garbage_for_testing(
   heap->CollectGarbageForTesting(stack_state);
 }
 
-RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size,
-                                         RustTraceFn trace,
-                                         RustDestroyFn destroy) {
+RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size) {
   return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(),
-                                              cppgc::AdditionalBytes(size),
-                                              trace, destroy);
+                                              cppgc::AdditionalBytes(size));
 }
 
 void cppgc__Visitor__Trace__Member(cppgc::Visitor* visitor,
