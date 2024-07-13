@@ -825,6 +825,7 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
   // symlink called 'gn_root' in the out directory, next to 'gn_out', so it
   // appears as if they're both on the same drive.
   use std::fs::remove_dir_all;
+  use std::fs::remove_file;
   use std::os::windows::fs::symlink_dir;
 
   let get_prefix = |p: &Path| {
@@ -850,13 +851,20 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
         Ok(_) => remove_dir_all(symlink).expect("remove_dir_all failed"),
         Err(err) => {
           println!("symlink.canonicalize failed: {:?}", err);
-          let _ = remove_dir_all(symlink);
+          // we're having very strange issues on GHA when the cache
+          // is restored, so trying this out temporarily
+          if let Err(err) = remove_dir_all(symlink) {
+            eprintln!("remove_dir_all failed: {:?}", err);
+            if let Err(err) = remove_file(symlink) {
+              eprintln!("remove_file failed: {:?}", err);
+            }
+          }
           match symlink_dir(target, symlink) {
             Ok(_) => break,
             Err(err) => {
               println!("symlink_dir failed: {:?}", err);
               retries += 1;
-              std::thread::sleep(std::time::Duration::from_millis(100));
+              std::thread::sleep(std::time::Duration::from_millis(50 * retries));
               if retries > 4 {
                 panic!("Failed to create symlink");
               }
