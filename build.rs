@@ -864,7 +864,9 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
             Err(err) => {
               println!("symlink_dir failed: {:?}", err);
               retries += 1;
-              std::thread::sleep(std::time::Duration::from_millis(50 * retries));
+              std::thread::sleep(std::time::Duration::from_millis(
+                50 * retries,
+              ));
               if retries > 4 {
                 panic!("Failed to create symlink");
               }
