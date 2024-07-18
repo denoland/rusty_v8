@@ -7844,22 +7844,23 @@ fn external_onebyte_string() {
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
 
-  let input = "hello";
-  let s = v8::String::new_external_onebyte(
-    scope,
-    Box::<str>::from(input).into_boxed_bytes(),
-  )
-  .unwrap();
+  // "hello©"
+  // Note that we're specifically testing a byte array that is not ASCII nor
+  // UTF-8, but is valid Latin-1. V8's one-byte strings accept Latin-1 and we
+  // need to remember this detail: It is not safe to access one-byte strings as
+  // UTF-8 strings.
+  let input = Box::new([b'h', b'e', b'l', b'l', b'o', 0xA9]);
+  let s = v8::String::new_external_onebyte(scope, input).unwrap();
 
   assert!(s.is_external_onebyte());
-  assert_eq!(s.utf8_length(scope), 5);
+  assert_eq!(s.utf8_length(scope), 7);
 
   let one_byte =
     unsafe { &*s.get_external_onebyte_string_resource().unwrap().as_ptr() };
 
-  assert_eq!(one_byte.length(), 5);
+  assert_eq!(one_byte.length(), 6);
 
-  assert_eq!(one_byte.as_str(), "hello");
+  assert_eq!(one_byte.as_bytes(), [b'h', b'e', b'l', b'l', b'o', 0xA9]);
 }
 
 #[test]

@@ -135,12 +135,16 @@ pub struct ExternalStringResourceBase(Opaque);
 #[repr(C)]
 /// An external, one-byte string resource.
 /// This corresponds with `v8::String::ExternalOneByteStringResource`.
+///
+/// Note: The data contained in a one-byte string resource is guaranteed to be
+/// Latin-1 data. It is not safe to assume that it is valid UTF-8, as Latin-1
+/// only has commonality with UTF-8 in the ASCII range and differs beyond that.
 pub struct ExternalOneByteStringResource(Opaque);
 
 impl ExternalOneByteStringResource {
   /// Returns a pointer to the data owned by this resource.
   /// This pointer is valid as long as the resource is alive.
-  /// The data is guaranteed to be ASCII.
+  /// The data is guaranteed to be Latin-1.
   pub fn data(&self) -> *const char {
     unsafe { v8__ExternalOneByteStringResource__data(self) }
   }
@@ -151,23 +155,15 @@ impl ExternalOneByteStringResource {
   }
 
   /// Returns the data owned by this resource as a string slice.
-  /// The data is guaranteed to be ASCII.
-  pub fn as_str(&self) -> &str {
+  /// The data is guaranteed to be Latin-1.
+  pub fn as_bytes(&self) -> &[u8] {
     let len = self.length();
-    if len == 0 {
-      ""
-    } else {
-      // SAFETY: We know this is ASCII and length > 0
-      unsafe {
-        std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-          self.data().cast(),
-          len,
-        ))
-      }
-    }
+    // SAFETY: We know this is Latin-1
+    unsafe { std::slice::from_raw_parts(self.data().cast(), len) }
   }
 }
 
+/// A static ASCII string resource for usage in V8, created at build time.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct OneByteConst {
@@ -551,6 +547,12 @@ impl String {
 
   /// Compile-time function to create an external string resource which
   /// skips the ASCII and length checks.
+  ///
+  /// ## Safety
+  ///
+  /// The passed in buffer must contain only ASCII data. Note that while V8
+  /// allows OneByte string resources to contain Latin-1 data, the OneByteConst
+  /// struct does not allow it.
   #[inline(always)]
   pub const unsafe fn create_external_onebyte_const_unchecked(
     buffer: &'static [u8],
@@ -563,7 +565,10 @@ impl String {
   }
 
   /// Creates a v8::String from a `&'static OneByteConst`
-  /// which is guaranteed to be Latin-1 or ASCII.
+  /// which is guaranteed to be ASCII.
+  ///
+  /// Note that OneByteConst guarantees ASCII even though V8 would allow
+  /// OneByte string resources to contain Latin-1.
   #[inline(always)]
   pub fn new_from_onebyte_const<'s>(
     scope: &mut HandleScope<'s, ()>,
