@@ -154,6 +154,18 @@ impl<'s, T> Deref for Local<'s, T> {
 }
 
 impl<'s, T> Local<'s, T> {
+  /// Attempts to cast the contained type to another,
+  /// returning an error if the conversion fails.
+  /// 
+  /// # Examples
+  /// 
+  /// ```
+  /// let value: Local<'_, Value> = get_v8_value();
+  /// 
+  /// if let Ok(func) = value.try_cast::<Function<() {
+  ///   //
+  /// }
+  /// ```
   pub fn try_cast<A>(
     self,
   ) -> Result<Local<'s, A>, <Self as TryInto<Local<'s, A>>>::Error>
@@ -163,6 +175,16 @@ impl<'s, T> Local<'s, T> {
     self.try_into()
   }
 
+  /// Attempts to cast the contained type to another,
+  /// panicking if the conversion fails.
+  /// 
+  /// # Example
+  /// 
+  /// ```
+  /// let value: Local<'_, Value> = get_v8_value();
+  /// 
+  /// let func = value.cast::<Function>();
+  /// ```
   pub fn cast<A>(self) -> Local<'s, A>
   where
     Self: TryInto<Local<'s, A>, Error: std::fmt::Debug>,
