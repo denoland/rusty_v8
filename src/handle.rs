@@ -105,7 +105,7 @@ impl<'s, T> Local<'s, T> {
   /// Create a local handle by downcasting from one of its super types.
   /// This function is unsafe because the cast is unchecked.
   #[inline(always)]
-  pub unsafe fn cast<A>(other: Local<'s, A>) -> Self
+  pub unsafe fn cast_unchecked<A>(other: Local<'s, A>) -> Self
   where
     Local<'s, A>: From<Self>,
   {

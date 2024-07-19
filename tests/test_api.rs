@@ -10935,7 +10935,7 @@ fn test_fast_calls_callback_options_data() {
       return;
     }
 
-    let data = v8::Local::<v8::External>::cast(options.data.data);
+    let data = v8::Local::<v8::External>::cast_unchecked(options.data.data);
     let data = &mut *(data.value() as *mut bool);
     *data = true;
   }

@@ -325,7 +325,8 @@ where
     request: v8::Local<v8::Object>,
   ) -> *mut Box<dyn HttpRequest> {
     let external = request.get_internal_field(scope, 0).unwrap();
-    let external = unsafe { v8::Local::<v8::External>::cast(external) };
+    let external =
+      unsafe { v8::Local::<v8::External>::cast_unchecked(external) };
     external.value() as *mut Box<dyn HttpRequest>
   }
 

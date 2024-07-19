@@ -224,7 +224,8 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
   } else {
     return;
   };
-  let stack_trace = unsafe { v8::Local::<v8::String>::cast(stack_trace) };
+  let stack_trace =
+    unsafe { v8::Local::<v8::String>::cast_unchecked(stack_trace) };
   let stack_trace = stack_trace
     .to_string(&mut try_catch)
     .map(|s| s.to_rust_string_lossy(&mut try_catch));
