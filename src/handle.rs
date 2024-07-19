@@ -166,6 +166,7 @@ impl<'s, T> Local<'s, T> {
   ///   //
   /// }
   /// ```
+  #[inline(always)]
   pub fn try_cast<A>(
     self,
   ) -> Result<Local<'s, A>, <Self as TryInto<Local<'s, A>>>::Error>
@@ -185,6 +186,7 @@ impl<'s, T> Local<'s, T> {
   ///
   /// let func = value.cast::<Function>();
   /// ```
+  #[inline(always)]
   pub fn cast<A>(self) -> Local<'s, A>
   where
     Self: TryInto<Local<'s, A>, Error: std::fmt::Debug>,
