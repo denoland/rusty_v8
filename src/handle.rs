@@ -153,6 +153,24 @@ impl<'s, T> Deref for Local<'s, T> {
   }
 }
 
+impl<'s, T> Local<'s, T> {
+  pub fn try_cast<A>(
+    self,
+  ) -> Result<Local<'s, A>, <Self as TryInto<Local<'s, A>>>::Error>
+  where
+    Self: TryInto<Local<'s, A>>,
+  {
+    self.try_into()
+  }
+
+  pub fn cast<A>(self) -> Local<'s, A>
+  where
+    Self: TryInto<Local<'s, A>, Error: std::fmt::Debug>,
+  {
+    self.try_into().unwrap()
+  }
+}
+
 /// An object reference that is independent of any handle scope. Where
 /// a Local handle only lives as long as the HandleScope in which it was
 /// allocated, a global handle remains valid until it is dropped.
