@@ -158,8 +158,12 @@ impl ExternalOneByteStringResource {
   /// The data is guaranteed to be Latin-1.
   pub fn as_bytes(&self) -> &[u8] {
     let len = self.length();
-    // SAFETY: We know this is Latin-1
-    unsafe { std::slice::from_raw_parts(self.data().cast(), len) }
+    if len == 0 {
+      &[]
+    } else {
+      // SAFETY: We know this is Latin-1
+      unsafe { std::slice::from_raw_parts(self.data().cast(), len) }
+    }
   }
 }
 
