@@ -107,7 +107,7 @@ impl<'s, T> Local<'s, T> {
   #[inline(always)]
   pub unsafe fn cast_unchecked<A>(other: Local<'s, A>) -> Self
   where
-    Local<'s, A>: From<Self>,
+    Local<'s, A>: TryFrom<Self>,
   {
     transmute(other)
   }
