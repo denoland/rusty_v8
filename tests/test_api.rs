@@ -97,8 +97,8 @@ fn handle_scope_numbers() {
     {
       let scope2 = &mut v8::HandleScope::new(scope1);
       let l3 = v8::Number::new(scope2, 78.9);
-      let l4 = v8::Local::<v8::Int32>::try_from(l1).unwrap();
-      let l5 = v8::Local::<v8::Uint32>::try_from(l2).unwrap();
+      let l4 = l1.cast::<v8::Int32>();
+      let l5 = l2.cast::<v8::Uint32>();
       assert_eq!(l1.value(), -123);
       assert_eq!(l2.value(), 456);
       assert_eq!(l3.value(), 78.9);
@@ -2493,20 +2493,15 @@ fn object_template_set_named_property_handler() {
       name.into(),
       obj.into(),
     );
-    let arr = v8::Local::<v8::Array>::try_from(
-      eval(scope, "Object.keys(obj)").unwrap(),
-    )
-    .unwrap();
+    let arr = eval(scope, "Object.keys(obj)").unwrap().cast::<v8::Array>();
     assert_eq!(arr.length(), 1);
     let index = v8::Integer::new(scope, 0);
     let result = arr.get(scope, index.into()).unwrap();
     let expected = v8::String::new(scope, "key").unwrap();
     assert!(expected.strict_equals(result));
     eval(scope, "obj.fallthrough = 'a'").unwrap();
-    let arr = v8::Local::<v8::Array>::try_from(
-      eval(scope, "Object.keys(obj)").unwrap(),
-    )
-    .unwrap();
+    let arr = eval(scope, "Object.keys(obj)").unwrap().cast::<v8::Array>();
+
     assert_eq!(arr.length(), 2);
 
     // definer
@@ -10935,7 +10930,7 @@ fn test_fast_calls_callback_options_data() {
       return;
     }
 
-    let data = v8::Local::<v8::External>::cast(options.data.data);
+    let data = v8::Local::<v8::External>::cast_unchecked(options.data.data);
     let data = &mut *(data.value() as *mut bool);
     *data = true;
   }

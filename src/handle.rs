@@ -105,9 +105,9 @@ impl<'s, T> Local<'s, T> {
   /// Create a local handle by downcasting from one of its super types.
   /// This function is unsafe because the cast is unchecked.
   #[inline(always)]
-  pub unsafe fn cast<A>(other: Local<'s, A>) -> Self
+  pub unsafe fn cast_unchecked<A>(other: Local<'s, A>) -> Self
   where
-    Local<'s, A>: From<Self>,
+    Local<'s, A>: TryFrom<Self>,
   {
     transmute(other)
   }
@@ -150,6 +150,48 @@ impl<'s, T> Deref for Local<'s, T> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_ref() }
+  }
+}
+
+impl<'s, T> Local<'s, T> {
+  /// Attempts to cast the contained type to another,
+  /// returning an error if the conversion fails.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// let value: Local<'_, Value> = get_v8_value();
+  ///
+  /// if let Ok(func) = value.try_cast::<Function<() {
+  ///   //
+  /// }
+  /// ```
+  #[inline(always)]
+  pub fn try_cast<A>(
+    self,
+  ) -> Result<Local<'s, A>, <Self as TryInto<Local<'s, A>>>::Error>
+  where
+    Self: TryInto<Local<'s, A>>,
+  {
+    self.try_into()
+  }
+
+  /// Attempts to cast the contained type to another,
+  /// panicking if the conversion fails.
+  ///
+  /// # Example
+  ///
+  /// ```
+  /// let value: Local<'_, Value> = get_v8_value();
+  ///
+  /// let func = value.cast::<Function>();
+  /// ```
+  #[inline(always)]
+  pub fn cast<A>(self) -> Local<'s, A>
+  where
+    Self: TryInto<Local<'s, A>, Error: std::fmt::Debug>,
+  {
+    self.try_into().unwrap()
   }
 }
 
