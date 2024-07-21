@@ -1451,10 +1451,11 @@ fn script_origin() {
       resource_column_offset,
       resource_is_shared_cross_origin,
       script_id,
-      source_map_url.into(),
+      Some(source_map_url.into()),
       resource_is_opaque,
       is_wasm,
       is_module,
+      None,
     );
 
     let source = v8::String::new(scope, "1+2").unwrap();
@@ -4759,10 +4760,11 @@ fn mock_script_origin<'s>(
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    Some(source_map_url.into()),
     resource_is_opaque,
     is_wasm,
     is_module,
+    None,
   )
 }
 
@@ -8631,7 +8633,6 @@ fn get_source_mapping_from_comment() {
   let resource_column_offset = 0;
   let resource_is_shared_cross_origin = false;
   let script_id = -1;
-  let source_map_url = v8::undefined(scope);
   let resource_is_opaque = false;
   let is_wasm = false;
   let is_module = false;
@@ -8643,10 +8644,11 @@ fn get_source_mapping_from_comment() {
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    None,
     resource_is_opaque,
     is_wasm,
     is_module,
+    None,
   );
   let code =
     v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map")
@@ -8694,10 +8696,11 @@ fn origin_source_map_overrides_source_mapping_url_comment() {
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    Some(source_map_url.into()),
     resource_is_opaque,
     is_wasm,
     is_module,
+    None,
   );
   let code =
     v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map")
@@ -8744,10 +8747,11 @@ fn ignore_origin_source_map_empty_string() {
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    Some(source_map_url.into()),
     resource_is_opaque,
     is_wasm,
     is_module,
+    None,
   );
   let code =
     v8::String::new(scope, "var foo;\n//# sourceMappingURL=foo.js.map")
@@ -8794,10 +8798,11 @@ fn no_source_map_comment() {
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    Some(source_map_url.into()),
     resource_is_opaque,
     is_wasm,
     is_module,
+    None,
   );
   let code = v8::String::new(scope, "var foo;\n").unwrap();
   let mut source = v8::script_compiler::Source::new(code, Some(&script_origin));
@@ -9112,7 +9117,6 @@ fn create_module<'s>(
 ) -> v8::Local<'s, v8::Module> {
   let source = v8::String::new(scope, source).unwrap();
   let resource_name = v8::String::new(scope, "<resource>").unwrap();
-  let source_map_url = v8::undefined(scope);
   let script_origin = v8::ScriptOrigin::new(
     scope,
     resource_name.into(),
@@ -9120,10 +9124,11 @@ fn create_module<'s>(
     0,
     false,
     0,
-    source_map_url.into(),
+    None,
     false,
     false,
     true,
+    None,
   );
   let has_cache = code_cache.is_some();
   let mut source = match code_cache {
@@ -9824,10 +9829,11 @@ fn current_script_name_or_source_url() {
     resource_column_offset,
     resource_is_shared_cross_origin,
     script_id,
-    source_map_url.into(),
+    Some(source_map_url.into()),
     resource_is_opaque,
     is_wasm,
     is_module,
+    None,
   );
   let source = v8::String::new(scope, src).unwrap();
   let script =
@@ -11809,4 +11815,62 @@ fn string_valueview() {
     let view = v8::ValueView::new(scope, two_byte);
     assert_eq!(view.data(), v8::ValueViewData::TwoByte(&[1, 0x1FF, 3]));
   }
+}
+
+#[test]
+fn host_defined_options() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  let test = v8::Function::new(
+    scope,
+    |scope: &mut v8::HandleScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue| {
+      let host_defined_options = unsafe {
+        v8::Local::<v8::PrimitiveArray>::cast_unchecked(
+          scope.get_current_host_defined_options().unwrap(),
+        )
+      };
+      let val = host_defined_options.get(scope, 0);
+      assert_eq!(val, v8::Number::new(scope, 42.5));
+    },
+  )
+  .unwrap();
+  let key = v8::String::new(scope, "test").unwrap();
+  context
+    .global(scope)
+    .set(scope, key.into(), test.into())
+    .unwrap();
+
+  let resource_name = v8::String::new(scope, "file.js").unwrap();
+  let host_defined_options = v8::PrimitiveArray::new(scope, 1);
+  let value = v8::Number::new(scope, 42.5);
+  host_defined_options.set(scope, 0, value.into());
+  let origin = v8::ScriptOrigin::new(
+    scope,
+    resource_name.into(),
+    0,
+    0,
+    false,
+    0,
+    None,
+    false,
+    false,
+    false,
+    Some(host_defined_options.into()),
+  );
+  let code = v8::String::new(scope, "test()").unwrap();
+  let mut source = v8::script_compiler::Source::new(code, Some(&origin));
+  let script = v8::script_compiler::compile(
+    scope,
+    &mut source,
+    v8::script_compiler::CompileOptions::EagerCompile,
+    v8::script_compiler::NoCacheReason::NoReason,
+  )
+  .unwrap();
+  script.run(scope).unwrap();
 }

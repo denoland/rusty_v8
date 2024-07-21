@@ -2631,18 +2631,17 @@ const v8::Value* v8__Script__Run(const v8::Script& script,
   return maybe_local_to_ptr(ptr_to_local(&script)->Run(ptr_to_local(&context)));
 }
 
-void v8__ScriptOrigin__CONSTRUCT(uninit_t<v8::ScriptOrigin>* buf,
-                                 const v8::Value& resource_name,
-                                 int resource_line_offset,
-                                 int resource_column_offset,
-                                 bool resource_is_shared_cross_origin,
-                                 int script_id, const v8::Value& source_map_url,
-                                 bool resource_is_opaque, bool is_wasm,
-                                 bool is_module) {
+void v8__ScriptOrigin__CONSTRUCT(
+    uninit_t<v8::ScriptOrigin>* buf, const v8::Value& resource_name,
+    int resource_line_offset, int resource_column_offset,
+    bool resource_is_shared_cross_origin, int script_id,
+    const v8::Value* source_map_url, bool resource_is_opaque, bool is_wasm,
+    bool is_module, const v8::Data* host_defined_options) {
   construct_in_place<v8::ScriptOrigin>(
       buf, ptr_to_local(&resource_name), resource_line_offset,
       resource_column_offset, resource_is_shared_cross_origin, script_id,
-      ptr_to_local(&source_map_url), resource_is_opaque, is_wasm, is_module);
+      ptr_to_local(source_map_url), resource_is_opaque, is_wasm, is_module,
+      ptr_to_local(host_defined_options));
 }
 
 int v8__ScriptOrigin__ScriptId(const v8::ScriptOrigin& self) {

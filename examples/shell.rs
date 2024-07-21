@@ -119,7 +119,6 @@ fn execute_string(
   let mut scope = v8::TryCatch::new(scope);
 
   let filename = v8::String::new(&mut scope, filename).unwrap();
-  let undefined = v8::undefined(&mut scope);
   let script = v8::String::new(&mut scope, script).unwrap();
   let origin = v8::ScriptOrigin::new(
     &mut scope,
@@ -128,10 +127,11 @@ fn execute_string(
     0,
     false,
     0,
-    undefined.into(),
+    None,
     false,
     false,
     false,
+    None,
   );
 
   let script = if let Some(script) =

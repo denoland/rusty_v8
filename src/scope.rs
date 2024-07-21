@@ -208,6 +208,19 @@ impl<'s> HandleScope<'s> {
       unsafe { raw::v8__Isolate__GetEnteredOrMicrotaskContext(isolate_ptr) };
     unsafe { Local::from_raw(context_ptr) }.unwrap()
   }
+
+  /// Returns the host defined options set for currently running script or
+  /// module, if available.
+  #[inline(always)]
+  pub fn get_current_host_defined_options(&self) -> Option<Local<'s, Data>> {
+    let data = data::ScopeData::get(self);
+    let isolate_ptr = data.get_isolate_ptr();
+    unsafe {
+      Local::from_raw(raw::v8__Isolate__GetCurrentHostDefinedOptions(
+        isolate_ptr,
+      ))
+    }
+  }
 }
 
 impl<'s> HandleScope<'s, ()> {
@@ -2113,6 +2126,9 @@ mod raw {
     pub(super) fn v8__Isolate__GetDataFromSnapshotOnce(
       this: *mut Isolate,
       index: usize,
+    ) -> *const Data;
+    pub(super) fn v8__Isolate__GetCurrentHostDefinedOptions(
+      this: *mut Isolate,
     ) -> *const Data;
 
     pub(super) fn v8__Context__EQ(
