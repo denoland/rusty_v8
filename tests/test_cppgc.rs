@@ -55,12 +55,12 @@ fn cppgc_object_wrap() {
   fn op_wrap(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     fn empty(
       _scope: &mut v8::HandleScope,
       _args: v8::FunctionCallbackArguments,
-      _rv: v8::ReturnValue,
+      _rv: v8::ReturnValue<v8::Value>,
     ) {
     }
     let templ = v8::FunctionTemplate::new(scope, empty);

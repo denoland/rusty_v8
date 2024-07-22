@@ -1,4 +1,5 @@
 use crate::support::Opaque;
+use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use std::{
@@ -205,6 +206,7 @@ pub union FastApiCallbackData<'a> {
 /// ```
 #[repr(C)]
 pub struct FastApiCallbackOptions<'a> {
+  pub isolate: *mut Isolate,
   /// If the callback wants to signal an error condition or to perform an
   /// allocation, it must set options.fallback to true and do an early return
   /// from the fast method. Then V8 checks the value of options.fallback and if

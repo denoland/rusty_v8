@@ -611,7 +611,7 @@ fn microtasks() {
       scope,
       |_: &mut v8::HandleScope,
        _: v8::FunctionCallbackArguments,
-       _: v8::ReturnValue| {
+       _: v8::ReturnValue<v8::Value>| {
         CALL_COUNT.fetch_add(1, Ordering::SeqCst);
       },
     )
@@ -1577,7 +1577,7 @@ fn create_message_argument_lifetimes() {
       scope,
       |scope: &mut v8::HandleScope,
        args: v8::FunctionCallbackArguments,
-       mut rv: v8::ReturnValue| {
+       mut rv: v8::ReturnValue<v8::Value>| {
         let message = v8::Exception::create_message(scope, args.get(0));
         let message_str = message.get(scope);
         rv.set(message_str.into())
@@ -1921,7 +1921,7 @@ fn instance_template_with_internal_field() {
   pub fn constructor_callback(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
-    mut retval: v8::ReturnValue,
+    mut retval: v8::ReturnValue<v8::Value>,
   ) {
     let this = args.this();
 
@@ -1963,7 +1963,7 @@ fn object_template_set_accessor() {
     let getter = |scope: &mut v8::HandleScope,
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<v8::Value>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -1985,7 +1985,7 @@ fn object_template_set_accessor() {
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  _rv: v8::ReturnValue| {
+                  _rv: v8::ReturnValue<()>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -2003,7 +2003,7 @@ fn object_template_set_accessor() {
       |scope: &mut v8::HandleScope,
        key: v8::Local<v8::Name>,
        args: v8::PropertyCallbackArguments,
-       mut rv: v8::ReturnValue| {
+       mut rv: v8::ReturnValue<v8::Value>| {
         let this = args.this();
 
         assert_eq!(args.holder(), this);
@@ -2022,24 +2022,25 @@ fn object_template_set_accessor() {
         rv.set(internal_field);
       };
 
-    let setter_with_data = |scope: &mut v8::HandleScope,
-                            key: v8::Local<v8::Name>,
-                            value: v8::Local<v8::Value>,
-                            args: v8::PropertyCallbackArguments,
-                            _rv: v8::ReturnValue| {
-      let this = args.this();
+    let setter_with_data =
+      |scope: &mut v8::HandleScope,
+       key: v8::Local<v8::Name>,
+       value: v8::Local<v8::Value>,
+       args: v8::PropertyCallbackArguments,
+       _rv: v8::ReturnValue<()>| {
+        let this = args.this();
 
-      assert_eq!(args.holder(), this);
-      assert!(args.data().is_string());
-      assert!(!args.should_throw_on_error());
-      assert_eq!(args.data().to_rust_string_lossy(scope), "data");
+        assert_eq!(args.holder(), this);
+        assert!(args.data().is_string());
+        assert!(!args.should_throw_on_error());
+        assert_eq!(args.data().to_rust_string_lossy(scope), "data");
 
-      let expected_key = v8::String::new(scope, "key").unwrap();
-      assert!(key.strict_equals(expected_key.into()));
+        let expected_key = v8::String::new(scope, "key").unwrap();
+        assert!(key.strict_equals(expected_key.into()));
 
-      assert!(value.is_int32());
-      assert!(this.set_internal_field(0, value.into()));
-    };
+        assert!(value.is_int32());
+        assert!(this.set_internal_field(0, value.into()));
+      };
 
     let key = v8::String::new(scope, "key").unwrap();
     let name = v8::String::new(scope, "obj").unwrap();
@@ -2117,7 +2118,7 @@ fn object_template_set_accessor() {
     fn property_setter(
       scope: &mut v8::HandleScope,
       args: v8::FunctionCallbackArguments,
-      _: v8::ReturnValue,
+      _: v8::ReturnValue<v8::Value>,
     ) {
       let this = args.this();
 
@@ -2178,7 +2179,7 @@ fn object_template_set_named_property_handler() {
     let getter = |scope: &mut v8::HandleScope,
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2206,7 +2207,7 @@ fn object_template_set_named_property_handler() {
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<()>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2229,14 +2230,14 @@ fn object_template_set_named_property_handler() {
       assert!(value.is_int32());
       assert!(this.set_internal_field(0, value.into()));
 
-      rv.set_undefined();
+      rv.set_bool(true);
       v8::Intercepted::Yes
     };
 
     let query = |scope: &mut v8::HandleScope,
                  key: v8::Local<v8::Name>,
                  args: v8::PropertyCallbackArguments,
-                 mut rv: v8::ReturnValue| {
+                 mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2270,7 +2271,7 @@ fn object_template_set_named_property_handler() {
     let deleter = |scope: &mut v8::HandleScope,
                    key: v8::Local<v8::Name>,
                    args: v8::PropertyCallbackArguments,
-                   mut rv: v8::ReturnValue| {
+                   mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2289,7 +2290,7 @@ fn object_template_set_named_property_handler() {
 
     let enumerator = |scope: &mut v8::HandleScope,
                       args: v8::PropertyCallbackArguments,
-                      mut rv: v8::ReturnValue| {
+                      mut rv: v8::ReturnValue<v8::Array>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -2308,14 +2309,14 @@ fn object_template_set_named_property_handler() {
       let key: v8::Local<v8::Name> =
         v8::String::new(scope, "key").unwrap().into();
       let result = v8::Array::new_with_elements(scope, &[key.into()]);
-      rv.set(result.into());
+      rv.set(result);
     };
 
     let definer = |scope: &mut v8::HandleScope,
                    key: v8::Local<v8::Name>,
                    desc: &v8::PropertyDescriptor,
                    args: v8::PropertyCallbackArguments,
-                   mut rv: v8::ReturnValue| {
+                   mut rv: v8::ReturnValue<()>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2342,14 +2343,14 @@ fn object_template_set_named_property_handler() {
       assert!(value.is_int32());
       assert!(this.set_internal_field(0, value.into()));
 
-      rv.set_undefined();
+      rv.set_bool(true);
       v8::Intercepted::Yes
     };
 
     let descriptor = |scope: &mut v8::HandleScope,
                       key: v8::Local<v8::Name>,
                       args: v8::PropertyCallbackArguments,
-                      mut rv: v8::ReturnValue| {
+                      mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2648,7 +2649,7 @@ fn object_template_set_indexed_property_handler() {
   let getter = |scope: &mut v8::HandleScope,
                 index: u32,
                 args: v8::PropertyCallbackArguments,
-                mut rv: v8::ReturnValue| {
+                mut rv: v8::ReturnValue<v8::Value>| {
     let this = args.this();
 
     assert_eq!(args.holder(), this);
@@ -2670,7 +2671,7 @@ fn object_template_set_indexed_property_handler() {
                 index: u32,
                 value: v8::Local<v8::Value>,
                 args: v8::PropertyCallbackArguments,
-                mut rv: v8::ReturnValue| {
+                mut rv: v8::ReturnValue<()>| {
     let this = args.this();
 
     assert_eq!(args.holder(), this);
@@ -2682,14 +2683,14 @@ fn object_template_set_indexed_property_handler() {
     assert!(value.is_int32());
     assert!(this.set_internal_field(0, value.into()));
 
-    rv.set_undefined();
+    rv.set_bool(true);
     v8::Intercepted::Yes
   };
 
   let query = |_scope: &mut v8::HandleScope,
                index: u32,
                _args: v8::PropertyCallbackArguments,
-               mut rv: v8::ReturnValue| {
+               mut rv: v8::ReturnValue<v8::Value>| {
     if index == 12 {
       return v8::Intercepted::No;
     }
@@ -2704,7 +2705,7 @@ fn object_template_set_indexed_property_handler() {
   let deleter = |_scope: &mut v8::HandleScope,
                  index: u32,
                  _args: v8::PropertyCallbackArguments,
-                 mut rv: v8::ReturnValue| {
+                 mut rv: v8::ReturnValue<v8::Boolean>| {
     assert_eq!(index, 37);
 
     rv.set_bool(false);
@@ -2713,7 +2714,7 @@ fn object_template_set_indexed_property_handler() {
 
   let enumerator = |scope: &mut v8::HandleScope,
                     args: v8::PropertyCallbackArguments,
-                    mut rv: v8::ReturnValue| {
+                    mut rv: v8::ReturnValue<v8::Array>| {
     let this = args.this();
 
     assert_eq!(args.holder(), this);
@@ -2731,14 +2732,14 @@ fn object_template_set_indexed_property_handler() {
 
     let key = v8::Integer::new(scope, 37);
     let result = v8::Array::new_with_elements(scope, &[key.into()]);
-    rv.set(result.into());
+    rv.set(result);
   };
 
   let definer = |_scope: &mut v8::HandleScope,
                  index: u32,
                  desc: &v8::PropertyDescriptor,
                  args: v8::PropertyCallbackArguments,
-                 mut rv: v8::ReturnValue| {
+                 mut rv: v8::ReturnValue<()>| {
     let this = args.this();
 
     assert_eq!(index, 37);
@@ -2753,14 +2754,14 @@ fn object_template_set_indexed_property_handler() {
     let value = desc.value();
     this.set_internal_field(0, value.into());
 
-    rv.set_undefined();
+    rv.set_bool(true);
     v8::Intercepted::Yes
   };
 
   let descriptor = |scope: &mut v8::HandleScope,
                     index: u32,
                     args: v8::PropertyCallbackArguments,
-                    mut rv: v8::ReturnValue| {
+                    mut rv: v8::ReturnValue<v8::Value>| {
     let this = args.this();
 
     assert_eq!(index, 37);
@@ -3182,7 +3183,7 @@ fn object_set_accessor() {
     let getter = |scope: &mut v8::HandleScope,
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<v8::Value>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -3240,7 +3241,7 @@ fn object_set_accessor_with_setter() {
     let getter = |scope: &mut v8::HandleScope,
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<v8::Value>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -3266,7 +3267,7 @@ fn object_set_accessor_with_setter() {
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  _rv: v8::ReturnValue| {
+                  _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
       let this = args.this();
@@ -3342,7 +3343,7 @@ fn object_set_accessor_with_setter_with_property() {
     let getter = |scope: &mut v8::HandleScope,
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<v8::Value>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -3368,7 +3369,7 @@ fn object_set_accessor_with_setter_with_property() {
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  _rv: v8::ReturnValue| {
+                  _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
       let this = args.this();
@@ -3445,7 +3446,7 @@ fn object_set_accessor_with_data() {
     let getter = |scope: &mut v8::HandleScope,
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue| {
+                  mut rv: v8::ReturnValue<v8::Value>| {
       let this = args.this();
 
       assert_eq!(args.holder(), this);
@@ -3474,7 +3475,7 @@ fn object_set_accessor_with_data() {
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  _rv: v8::ReturnValue| {
+                  _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
       let this = args.this();
@@ -3622,7 +3623,7 @@ fn proxy() {
 fn fn_callback_external(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
+  mut rv: v8::ReturnValue<v8::Value>,
 ) {
   assert_eq!(args.length(), 0);
   let data = args.data();
@@ -3638,7 +3639,7 @@ fn fn_callback_external(
 fn fn_callback(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
+  mut rv: v8::ReturnValue<v8::Value>,
 ) {
   assert_eq!(args.length(), 0);
   let s = v8::String::new(scope, "Hello callback!").unwrap();
@@ -3649,7 +3650,7 @@ fn fn_callback(
 fn fn_callback_new(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
+  mut rv: v8::ReturnValue<v8::Value>,
 ) {
   assert_eq!(args.length(), 0);
   assert!(args.new_target().is_object());
@@ -3664,7 +3665,7 @@ fn fn_callback_new(
 fn fn_callback2(
   scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
+  mut rv: v8::ReturnValue<v8::Value>,
 ) {
   assert_eq!(args.length(), 2);
   let arg1_val = v8::String::new(scope, "arg1").unwrap();
@@ -3685,7 +3686,7 @@ fn fn_callback2(
 fn fortytwo_callback(
   _: &mut v8::HandleScope,
   _: v8::FunctionCallbackArguments,
-  mut rv: v8::ReturnValue,
+  mut rv: v8::ReturnValue<v8::Value>,
 ) {
   rv.set_int32(42);
 }
@@ -3693,7 +3694,7 @@ fn fortytwo_callback(
 fn data_is_true_callback(
   _scope: &mut v8::HandleScope,
   args: v8::FunctionCallbackArguments,
-  _rv: v8::ReturnValue,
+  _rv: v8::ReturnValue<v8::Value>,
 ) {
   let data = args.data();
   assert!(data.is_true());
@@ -3702,13 +3703,13 @@ fn data_is_true_callback(
 fn nested_builder<'a>(
   scope: &mut v8::HandleScope<'a>,
   args: v8::FunctionCallbackArguments<'a>,
-  _: v8::ReturnValue,
+  _: v8::ReturnValue<v8::Value>,
 ) {
   let arg0 = args.get(0);
   v8::Function::builder(
     |_: &mut v8::HandleScope,
      _: v8::FunctionCallbackArguments,
-     _: v8::ReturnValue| {},
+     _: v8::ReturnValue<v8::Value>| {},
   )
   .data(arg0)
   .build(scope);
@@ -3766,7 +3767,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_bool(false);
@@ -3789,7 +3790,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_int32(69);
@@ -3812,7 +3813,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_uint32(69);
@@ -3835,7 +3836,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_null();
@@ -3857,7 +3858,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_undefined();
@@ -3879,7 +3880,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_double(69.420);
@@ -3902,7 +3903,7 @@ fn return_value() {
         scope,
         |scope: &mut v8::HandleScope,
          args: v8::FunctionCallbackArguments,
-         mut rv: v8::ReturnValue| {
+         mut rv: v8::ReturnValue<v8::Value>| {
           assert_eq!(args.length(), 0);
           assert!(rv.get(scope).is_undefined());
           rv.set_empty_string();
@@ -4560,7 +4561,7 @@ fn security_token() {
           |scope: &mut v8::HandleScope,
            key: v8::Local<v8::Name>,
            args: v8::PropertyCallbackArguments,
-           mut rv: v8::ReturnValue| {
+           mut rv: v8::ReturnValue<v8::Value>| {
             let obj = v8::Local::<v8::Object>::try_from(args.data()).unwrap();
             if let Some(val) = obj.get(scope, key.into()) {
               rv.set(val);
@@ -4614,7 +4615,7 @@ fn context_with_object_template() {
     _key: v8::Local<'s, v8::Name>,
     _descriptor: &v8::PropertyDescriptor,
     _args: v8::PropertyCallbackArguments<'s>,
-    _rv: v8::ReturnValue,
+    _rv: v8::ReturnValue<()>,
   ) -> v8::Intercepted {
     unsafe {
       CALLS.push("definer".to_string());
@@ -4627,7 +4628,7 @@ fn context_with_object_template() {
     _key: v8::Local<'s, v8::Name>,
     _value: v8::Local<'s, v8::Value>,
     _args: v8::PropertyCallbackArguments<'s>,
-    _rv: v8::ReturnValue,
+    _rv: v8::ReturnValue<()>,
   ) -> v8::Intercepted {
     unsafe {
       CALLS.push("setter".to_string());
@@ -6382,7 +6383,7 @@ fn try_from_data() {
   let function_callback =
     |_: &mut v8::HandleScope,
      _: v8::FunctionCallbackArguments,
-     _: v8::ReturnValue| { unreachable!() };
+     _: v8::ReturnValue<v8::Value>| { unreachable!() };
 
   let function_template = v8::FunctionTemplate::new(scope, function_callback);
   let d: v8::Local<v8::Data> = function_template.into();
@@ -9597,7 +9598,7 @@ fn function_names() {
   fn callback(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     rv.set(v8::Integer::new(scope, 42).into())
   }
@@ -9740,7 +9741,7 @@ fn current_stack_trace() {
   fn call_depth(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     let stack = v8::StackTrace::current_stack_trace(scope, 5).unwrap();
     let count = stack.get_frame_count();
@@ -9784,7 +9785,7 @@ fn current_script_name_or_source_url() {
   fn analyze_script_url_in_stack(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
-    _rv: v8::ReturnValue,
+    _rv: v8::ReturnValue<v8::Value>,
   ) {
     let maybe_name = v8::StackTrace::current_script_name_or_source_url(scope);
     assert!(maybe_name.is_some());
@@ -10405,7 +10406,7 @@ fn test_fast_calls() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     let a = args.get(0).uint32_value(scope).unwrap();
@@ -10463,7 +10464,7 @@ fn test_fast_calls_empty_buffer() {
   fn slow_fn(
     _scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
-    _rv: v8::ReturnValue,
+    _rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe {
       WHO = "slow";
@@ -10524,7 +10525,7 @@ fn test_fast_calls_sequence() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(v8::Boolean::new(scope, false).into());
@@ -10583,7 +10584,7 @@ fn test_fast_calls_arraybuffer() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(v8::Boolean::new(scope, false).into());
@@ -10647,7 +10648,7 @@ fn test_fast_calls_typedarray() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(v8::Boolean::new(scope, false).into());
@@ -10714,7 +10715,7 @@ fn test_fast_calls_reciever() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(v8::Boolean::new(scope, false).into());
@@ -10803,7 +10804,7 @@ fn test_fast_calls_overload() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(v8::Boolean::new(scope, false).into());
@@ -10877,7 +10878,7 @@ fn test_fast_calls_callback_options_fallback() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(v8::Boolean::new(scope, false).into());
@@ -10945,7 +10946,7 @@ fn test_fast_calls_callback_options_data() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     rv.set(v8::Boolean::new(scope, false).into());
   }
@@ -11052,7 +11053,7 @@ fn test_fast_calls_onebytestring() {
   fn slow_fn(
     _: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    _: v8::ReturnValue,
+    _: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
   }
@@ -11118,7 +11119,7 @@ fn test_fast_calls_i64representation() {
   fn slow_fn(
     _: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    _: v8::ReturnValue,
+    _: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { SLOW_CALL_COUNT += 1 };
   }
@@ -11287,7 +11288,7 @@ fn test_fast_calls_pointer() {
   fn slow_fn(
     scope: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue,
+    mut rv: v8::ReturnValue<v8::Value>,
   ) {
     unsafe { WHO = "slow" };
     rv.set(
@@ -11432,7 +11433,7 @@ fn bubbling_up_exception() {
   fn boom_fn(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
-    _retval: v8::ReturnValue,
+    _retval: v8::ReturnValue<v8::Value>,
   ) {
     let msg = v8::String::new(scope, "boom").unwrap();
     let exception = v8::Exception::type_error(scope, msg);
@@ -11476,7 +11477,7 @@ fn bubbling_up_exception_in_function_call() {
   fn boom_fn(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
-    _retval: v8::ReturnValue,
+    _retval: v8::ReturnValue<v8::Value>,
   ) {
     let msg = v8::String::new(scope, "boom").unwrap();
     let exception = v8::Exception::type_error(scope, msg);
@@ -11548,7 +11549,7 @@ fn exception_thrown_but_continues_execution() {
   fn print_fn(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
-    _retval: v8::ReturnValue,
+    _retval: v8::ReturnValue<v8::Value>,
   ) {
     let local_arg = args.get(0);
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -11730,7 +11731,7 @@ fn microtask_queue() {
     &mut scope,
     |_: &mut v8::HandleScope,
      _: v8::FunctionCallbackArguments,
-     _: v8::ReturnValue| {
+     _: v8::ReturnValue<v8::Value>| {
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     },
   )

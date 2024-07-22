@@ -16,10 +16,12 @@ use crate::FunctionBuilder;
 use crate::FunctionCallback;
 use crate::HandleScope;
 use crate::IndexedDefinerCallback;
+use crate::IndexedDeleterCallback;
 use crate::IndexedGetterCallback;
 use crate::IndexedSetterCallback;
 use crate::Local;
 use crate::NamedDefinerCallback;
+use crate::NamedDeleterCallback;
 use crate::NamedGetterCallback;
 use crate::NamedGetterCallbackForAccessor;
 use crate::NamedSetterCallback;
@@ -210,7 +212,7 @@ pub type NamedPropertyQueryCallback<'s> = NamedGetterCallback<'s>;
 /// in strict mode.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDeleterCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyDeleterCallback<'s> = NamedDeleterCallback<'s>;
 
 /// Returns an array containing the names of the properties the named property getter intercepts.
 ///
@@ -254,7 +256,7 @@ pub type IndexedPropertySetterCallback<'s> = IndexedSetterCallback<'s>;
 pub type IndexedPropertyQueryCallback<'s> = IndexedGetterCallback<'s>;
 
 /// See [GenericNamedPropertyDeleterCallback].
-pub type IndexedPropertyDeleterCallback<'s> = IndexedGetterCallback<'s>;
+pub type IndexedPropertyDeleterCallback<'s> = IndexedDeleterCallback<'s>;
 
 /// See [GenericNamedPropertyEnumeratorCallback].
 pub type IndexedPropertyEnumeratorCallback<'s> = PropertyEnumeratorCallback<'s>;

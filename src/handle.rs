@@ -159,10 +159,10 @@ impl<'s, T> Local<'s, T> {
   ///
   /// # Examples
   ///
-  /// ```
+  /// ```ignore
   /// let value: Local<'_, Value> = get_v8_value();
   ///
-  /// if let Ok(func) = value.try_cast::<Function<() {
+  /// if let Ok(func) = value.try_cast::<Function> {
   ///   //
   /// }
   /// ```
@@ -181,7 +181,7 @@ impl<'s, T> Local<'s, T> {
   ///
   /// # Example
   ///
-  /// ```
+  /// ```ignore
   /// let value: Local<'_, Value> = get_v8_value();
   ///
   /// let func = value.cast::<Function>();
