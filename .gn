@@ -36,6 +36,13 @@ default_args = {
   v8_use_external_startup_data = false
   v8_use_snapshot = true
 
+  # This flag speeds up the performance of fork/execve on Linux systems for
+  # embedders which use it (like Node.js). It works by marking the pages that
+  # V8 allocates as MADV_DONTFORK. Without MADV_DONTFORK, the Linux kernel
+  # spends a long time manipulating page mappings on fork and exec which the
+  # child process doesn't generally need to access.
+  v8_enable_private_mapping_fork_optimization = true
+
   # We prefer embedders to bring their own compression
   v8_use_zlib = false
   v8_enable_snapshot_compression = false
