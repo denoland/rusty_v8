@@ -1167,7 +1167,7 @@ mod param {
     type NewScope = CallbackScope<'s>;
   }
 
-  impl<'s> NewCallbackScope<'s> for &'s PropertyCallbackInfo {
+  impl<'s, T> NewCallbackScope<'s> for &'s PropertyCallbackInfo<T> {
     type NewScope = CallbackScope<'s>;
   }
 
@@ -1222,7 +1222,7 @@ mod getter {
     }
   }
 
-  impl<'s> GetIsolate<'s> for &'s PropertyCallbackInfo {
+  impl<'s, T> GetIsolate<'s> for &'s PropertyCallbackInfo<T> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self.get_isolate_ptr()
     }

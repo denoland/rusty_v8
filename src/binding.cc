@@ -70,9 +70,6 @@ static_assert(
 static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
               "FunctionCallbackInfo size mismatch");
 
-static_assert(sizeof(v8::PropertyCallbackInfo<v8::Value>) == sizeof(size_t) * 1,
-              "PropertyCallbackInfo size mismatch");
-
 static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
               "ReturnValue size mismatch");
 
@@ -2289,13 +2286,35 @@ const extern int v8__FunctionCallbackInfo__kArgsLength = 6;
 // NOTE(bartlomieju): V8 made this field private in 11.4
 // v8::FunctionCallbackInfo<v8::Value>::kArgsLength;
 
-const extern int v8__PropertyCallbackInfo__kArgsLength = 7;
-// NOTE(bartlomieju): V8 made this field private in 11.4
-// v8::PropertyCallbackInfo<v8::Value>::kArgsLength;
-
 const v8::Value* v8__FunctionCallbackInfo__Data(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.Data());
+}
+
+v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return self.GetIsolate();
+}
+
+const v8::Value* v8__PropertyCallbackInfo__Data(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.Data());
+}
+
+const v8::Object* v8__PropertyCallbackInfo__This(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.This());
+}
+
+const v8::Object* v8__PropertyCallbackInfo__Holder(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.HolderV2());
+}
+
+v8::internal::Address* v8__PropertyCallbackInfo__GetReturnValue(
+    const v8::PropertyCallbackInfo<v8::Value>& self) {
+  v8::ReturnValue<v8::Value> rv = self.GetReturnValue();
+  return *reinterpret_cast<v8::internal::Address**>(&rv);
 }
 
 bool v8__PropertyCallbackInfo__ShouldThrowOnError(
@@ -2303,41 +2322,45 @@ bool v8__PropertyCallbackInfo__ShouldThrowOnError(
   return self.ShouldThrowOnError();
 }
 
-void v8__ReturnValue__Set(v8::ReturnValue<v8::Value>* self,
-                          const v8::Value& value) {
+void v8__ReturnValue__Value__Set(v8::ReturnValue<v8::Value>* self,
+                                 const v8::Value& value) {
   self->Set(ptr_to_local(&value));
 }
 
-void v8__ReturnValue__Set__Bool(v8::ReturnValue<v8::Value>* self, bool i) {
+void v8__ReturnValue__Value__Set__Bool(v8::ReturnValue<v8::Value>* self,
+                                       bool i) {
   self->Set(i);
 }
 
-void v8__ReturnValue__Set__Int32(v8::ReturnValue<v8::Value>* self, int32_t i) {
+void v8__ReturnValue__Value__Set__Int32(v8::ReturnValue<v8::Value>* self,
+                                        int32_t i) {
   self->Set(i);
 }
 
-void v8__ReturnValue__Set__Uint32(v8::ReturnValue<v8::Value>* self,
-                                  uint32_t i) {
+void v8__ReturnValue__Value__Set__Uint32(v8::ReturnValue<v8::Value>* self,
+                                         uint32_t i) {
   self->Set(i);
 }
 
-void v8__ReturnValue__Set__Double(v8::ReturnValue<v8::Value>* self, double i) {
+void v8__ReturnValue__Value__Set__Double(v8::ReturnValue<v8::Value>* self,
+                                         double i) {
   self->Set(i);
 }
 
-void v8__ReturnValue__SetNull(v8::ReturnValue<v8::Value>* self) {
+void v8__ReturnValue__Value__SetNull(v8::ReturnValue<v8::Value>* self) {
   self->SetNull();
 }
 
-void v8__ReturnValue__SetUndefined(v8::ReturnValue<v8::Value>* self) {
+void v8__ReturnValue__Value__SetUndefined(v8::ReturnValue<v8::Value>* self) {
   self->SetUndefined();
 }
 
-void v8__ReturnValue__SetEmptyString(v8::ReturnValue<v8::Value>* self) {
+void v8__ReturnValue__Value__SetEmptyString(v8::ReturnValue<v8::Value>* self) {
   self->SetEmptyString();
 }
 
-const v8::Value* v8__ReturnValue__Get(const v8::ReturnValue<v8::Value>& self) {
+const v8::Value* v8__ReturnValue__Value__Get(
+    const v8::ReturnValue<v8::Value>& self) {
   return local_to_ptr(self.Get());
 }
 
