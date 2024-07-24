@@ -1,3 +1,4 @@
+use crate::binding::v8__String__kMaxLength;
 use crate::support::char;
 use crate::support::int;
 use crate::support::size_t;
@@ -16,8 +17,6 @@ use std::ptr::NonNull;
 use std::slice;
 
 extern "C" {
-  fn v8__String__kMaxLength() -> size_t;
-
   fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
 
   fn v8__String__NewFromUtf8(
@@ -329,10 +328,7 @@ impl String {
   /// The maximum length (in bytes) of a buffer that a v8::String can be built
   /// from. Attempting to create a v8::String from a larger buffer will result
   /// in None being returned.
-  #[inline(always)]
-  pub fn max_length() -> usize {
-    unsafe { v8__String__kMaxLength() }
-  }
+  pub const MAX_LENGTH: usize = v8__String__kMaxLength as _;
 
   #[inline(always)]
   pub fn empty<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, String> {
@@ -967,7 +963,7 @@ pub enum ValueViewData<'s> {
 /// V8 strings are either encoded as one-byte or two-bytes per character.
 #[repr(C)]
 pub struct ValueView<'s>(
-  [u8; crate::binding::RUST_v8__String__ValueView_SIZE],
+  [u8; crate::binding::v8__String__ValueView_SIZE],
   PhantomData<&'s ()>,
 );
 

@@ -406,6 +406,10 @@ void v8__TracedReference__CONSTRUCT(
   construct_in_place<v8::TracedReference<v8::Data>>(buf);
 }
 
+void v8__TracedReference__DESTRUCT(v8::TracedReference<v8::Data>* self) {
+  self->~TracedReference();
+}
+
 void v8__TracedReference__Reset(v8::TracedReference<v8::Data>* self,
                                 v8::Isolate* isolate, const v8::Data* other) {
   self->Reset(isolate, ptr_to_local(other));
@@ -513,9 +517,6 @@ uint32_t v8__ScriptCompiler__CachedDataVersionTag() {
 
 size_t v8__TypedArray__Length(const v8::TypedArray* self) {
   return ptr_to_local(self)->Length();
-}
-size_t v8__TypedArray__kMaxByteLength() {
-  return v8::TypedArray::kMaxByteLength;
 }
 
 bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
@@ -1003,8 +1004,6 @@ long std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
 int v8__Name__GetIdentityHash(const v8::Name& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }
-
-size_t v8__String__kMaxLength() { return v8::String::kMaxLength; }
 
 const v8::String* v8__String__Empty(v8::Isolate* isolate) {
   return local_to_ptr(v8::String::Empty(isolate));
@@ -2550,20 +2549,8 @@ void v8__AllowJavascriptExecutionScope__DESTRUCT(
                                     size_t byte_offset, size_t length) { \
     return local_to_ptr(                                                 \
         v8::NAME::New(ptr_to_local(&buf_ptr), byte_offset, length));     \
-  }                                                                      \
-  size_t v8__##NAME##__kMaxLength() { return v8::NAME::kMaxLength; }
-
-V(Uint8Array)
-V(Uint8ClampedArray)
-V(Int8Array)
-V(Uint16Array)
-V(Int16Array)
-V(Uint32Array)
-V(Int32Array)
-V(Float32Array)
-V(Float64Array)
-V(BigUint64Array)
-V(BigInt64Array)
+  }
+EACH_TYPED_ARRAY(V)
 #undef V
 
 const v8::Script* v8__Script__Compile(const v8::Context& context,

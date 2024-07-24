@@ -320,7 +320,7 @@ fn test_string() {
   }
   {
     let scope = &mut v8::HandleScope::new(isolate);
-    let mut buffer = Vec::with_capacity(v8::String::max_length());
+    let mut buffer = Vec::with_capacity(v8::String::MAX_LENGTH);
     for _ in 0..buffer.capacity() / 4 {
       // U+10348 in UTF-8
       buffer.push(0xF0_u8);
@@ -332,13 +332,13 @@ fn test_string() {
       v8::String::new_from_utf8(scope, &buffer, v8::NewStringType::Normal)
         .unwrap();
     // U+10348 is 2 UTF-16 code units, which is the unit of v8::String.length().
-    assert_eq!(v8::String::max_length() / 2, local.length());
+    assert_eq!(v8::String::MAX_LENGTH / 2, local.length());
     assert_eq!(
       buffer.as_slice(),
       local.to_rust_string_lossy(scope).as_bytes()
     );
 
-    let mut too_long = Vec::with_capacity(v8::String::max_length() + 4);
+    let mut too_long = Vec::with_capacity(v8::String::MAX_LENGTH + 4);
     for _ in 0..too_long.capacity() / 4 {
       // U+10348 in UTF-8
       too_long.push(0xF0_u8);
@@ -5764,109 +5764,109 @@ fn typed_array_constructors() {
   assert!(t.is_uint8_array());
   assert_eq!(t.length(), 0);
 
-  // Uint8Array::max_length() ought to be 1 << 53 - 1 on 64 bits when heap
+  // Uint8Array::MAX_LENGTH ought to be 1 << 53 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::Uint8Array::max_length());
+  assert_eq!((1 << 53) - 1, v8::Uint8Array::MAX_LENGTH);
 
   let t = v8::Uint8ClampedArray::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint8_clamped_array());
   assert_eq!(t.length(), 0);
 
-  // Uint8ClampedArray::max_length() ought to be 1 << 53 - 1 on 64 bits when
+  // Uint8ClampedArray::MAX_LENGTH ought to be 1 << 53 - 1 on 64 bits when
   // heap sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::Uint8ClampedArray::max_length());
+  assert_eq!((1 << 53) - 1, v8::Uint8ClampedArray::MAX_LENGTH);
 
   let t = v8::Int8Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int8_array());
   assert_eq!(t.length(), 0);
 
-  // Int8Array::max_length() ought to be 1 << 53 - 1 on 64 bits when heap
+  // Int8Array::MAX_LENGTH ought to be 1 << 53 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::Int8Array::max_length());
+  assert_eq!((1 << 53) - 1, v8::Int8Array::MAX_LENGTH);
 
   let t = v8::Uint16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint16_array());
   assert_eq!(t.length(), 0);
 
-  // Uint16Array::max_length() ought to be 1 << 52 - 1 on 64 bits when heap
+  // Uint16Array::MAX_LENGTH ought to be 1 << 52 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 52) - 1, v8::Uint16Array::max_length());
+  assert_eq!((1 << 52) - 1, v8::Uint16Array::MAX_LENGTH);
 
   let t = v8::Int16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int16_array());
   assert_eq!(t.length(), 0);
 
-  // Int16Array::max_length() ought to be 1 << 52 - 1 on 64 bits when heap
+  // Int16Array::MAX_LENGTH ought to be 1 << 52 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 52) - 1, v8::Int16Array::max_length());
+  assert_eq!((1 << 52) - 1, v8::Int16Array::MAX_LENGTH);
 
   let t = v8::Uint32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint32_array());
   assert_eq!(t.length(), 0);
 
-  // Uint32Array::max_length() ought to be 1 << 51 - 1 on 64 bits when heap
+  // Uint32Array::MAX_LENGTH ought to be 1 << 51 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 51) - 1, v8::Uint32Array::max_length());
+  assert_eq!((1 << 51) - 1, v8::Uint32Array::MAX_LENGTH);
 
   let t = v8::Int32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int32_array());
   assert_eq!(t.length(), 0);
 
-  // Int32Array::max_length() ought to be 1 << 51 - 1 on 64 bits when heap
+  // Int32Array::MAX_LENGTH ought to be 1 << 51 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 51) - 1, v8::Int32Array::max_length());
+  assert_eq!((1 << 51) - 1, v8::Int32Array::MAX_LENGTH);
 
   let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float32_array());
   assert_eq!(t.length(), 0);
 
-  // Float32Array::max_length() ought to be 1 << 51 - 1 on 64 bits when heap
+  // Float32Array::MAX_LENGTH ought to be 1 << 51 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 51) - 1, v8::Float32Array::max_length());
+  assert_eq!((1 << 51) - 1, v8::Float32Array::MAX_LENGTH);
 
   let t = v8::Float64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float64_array());
   assert_eq!(t.length(), 0);
 
-  // Float64Array::max_length() ought to be 1 << 50 - 1 on 64 bits when heap
+  // Float64Array::MAX_LENGTH ought to be 1 << 50 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 50) - 1, v8::Float64Array::max_length());
+  assert_eq!((1 << 50) - 1, v8::Float64Array::MAX_LENGTH);
 
   let t = v8::BigUint64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_uint64_array());
   assert_eq!(t.length(), 0);
 
-  // BigUint64Array::max_length() ought to be 1 << 50 - 1 on 64 bits when heap
+  // BigUint64Array::MAX_LENGTH ought to be 1 << 50 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 50) - 1, v8::BigUint64Array::max_length());
+  assert_eq!((1 << 50) - 1, v8::BigUint64Array::MAX_LENGTH);
 
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
   assert_eq!(t.length(), 0);
 
-  // BigInt64Array::max_length() ought to be 1 << 50 - 1 on 64 bits when heap
+  // BigInt64Array::MAX_LENGTH ought to be 1 << 50 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 50) - 1, v8::BigInt64Array::max_length());
+  assert_eq!((1 << 50) - 1, v8::BigInt64Array::MAX_LENGTH);
 
-  // TypedArray::max_byte_length() ought to be 1 << 53 - 1 on 64 bits when heap
+  // TypedArray::MAX_BYTE_LENGTH ought to be 1 << 53 - 1 on 64 bits when heap
   // sandbox is disabled.
   #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::TypedArray::max_byte_length());
+  assert_eq!((1 << 53) - 1, v8::TypedArray::MAX_BYTE_LENGTH);
 
-  // TypedArray::max_byte_length() ought to be >= 2^28 < 2^30 in 32 bits
+  // TypedArray::MAX_BYTE_LENGTH ought to be >= 2^28 < 2^30 in 32 bits
   #[cfg(target_pointer_width = "32")]
-  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::max_byte_length()));
+  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::MAX_BYTE_LENGTH));
 
   // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
@@ -5874,7 +5874,7 @@ fn typed_array_constructors() {
     let scope = &mut v8::TryCatch::new(scope);
     eval(
       scope,
-      &format!("new Uint8Array({})", v8::Uint8Array::max_length() + 1),
+      &format!("new Uint8Array({})", v8::Uint8Array::MAX_LENGTH + 1),
     );
     // Array is too big (> max_length) - expecting this threw a RangeError
     assert!(scope.has_caught());

@@ -14,7 +14,7 @@ use crate::Value;
 #[repr(C)]
 #[derive(Debug)]
 pub struct ScriptOrigin<'s>(
-  [u8; crate::binding::RUST_v8__ScriptOrigin_SIZE],
+  [u8; crate::binding::v8__ScriptOrigin_SIZE],
   PhantomData<&'s ()>,
 );
 

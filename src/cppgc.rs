@@ -337,7 +337,7 @@ macro_rules! member {
   ($( # $attr:tt )* $name:ident) => {
     paste::paste! {
       #[repr(transparent)]
-      struct [< $name Inner >]([u8; crate::binding:: [< RUST_cppgc__ $name _SIZE >]]);
+      struct [< $name Inner >]([u8; crate::binding:: [< cppgc__ $name _SIZE >]]);
 
       impl [< $name Inner >] {
         fn new(ptr: *mut RustObj) -> Self {
