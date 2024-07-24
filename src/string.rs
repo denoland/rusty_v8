@@ -1,10 +1,3 @@
-use std::borrow::Cow;
-use std::convert::TryInto;
-use std::default::Default;
-use std::mem::MaybeUninit;
-use std::ptr::NonNull;
-use std::slice;
-
 use crate::support::char;
 use crate::support::int;
 use crate::support::size_t;
@@ -13,6 +6,14 @@ use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::String;
+use std::borrow::Cow;
+use std::convert::TryInto;
+use std::default::Default;
+use std::ffi::c_void;
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ptr::NonNull;
+use std::slice;
 
 extern "C" {
   fn v8__String__kMaxLength() -> size_t;
@@ -116,6 +117,16 @@ extern "C" {
   fn v8__ExternalOneByteStringResource__length(
     this: *const ExternalOneByteStringResource,
   ) -> size_t;
+
+  fn v8__String__ValueView__CONSTRUCT(
+    buf: *mut ValueView,
+    isolate: *mut Isolate,
+    string: *const String,
+  );
+  fn v8__String__ValueView__DESTRUCT(this: *mut ValueView);
+  fn v8__String__ValueView__is_one_byte(this: *const ValueView) -> bool;
+  fn v8__String__ValueView__data(this: *const ValueView) -> *const c_void;
+  fn v8__String__ValueView__length(this: *const ValueView) -> int;
 }
 
 #[derive(PartialEq, Debug)]
@@ -937,5 +948,55 @@ pub extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
 
     // Drop the slice
     drop(Box::from_raw(slice));
+  }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ValueViewData<'s> {
+  OneByte(&'s [u8]),
+  TwoByte(&'s [u16]),
+}
+
+/// Returns a view onto a string's contents.
+///
+/// WARNING: This does not copy the string's contents, and will therefore be
+/// invalidated if the GC can move the string while the ValueView is alive. It
+/// is therefore required that no GC or allocation can happen while there is an
+/// active ValueView. This requirement may be relaxed in the future.
+///
+/// V8 strings are either encoded as one-byte or two-bytes per character.
+#[repr(C)]
+pub struct ValueView<'s>(
+  [u8; crate::binding::RUST_v8__String__ValueView_SIZE],
+  PhantomData<&'s ()>,
+);
+
+impl<'s> ValueView<'s> {
+  #[inline(always)]
+  pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
+    let mut v = std::mem::MaybeUninit::uninit();
+    unsafe {
+      v8__String__ValueView__CONSTRUCT(v.as_mut_ptr(), isolate, &*string);
+      v.assume_init()
+    }
+  }
+
+  #[inline(always)]
+  pub fn data(&self) -> ValueViewData<'_> {
+    unsafe {
+      let data = v8__String__ValueView__data(self);
+      let length = v8__String__ValueView__length(self) as usize;
+      if v8__String__ValueView__is_one_byte(self) {
+        ValueViewData::OneByte(std::slice::from_raw_parts(data as _, length))
+      } else {
+        ValueViewData::TwoByte(std::slice::from_raw_parts(data as _, length))
+      }
+    }
+  }
+}
+
+impl<'s> Drop for ValueView<'s> {
+  fn drop(&mut self) {
+    unsafe { v8__String__ValueView__DESTRUCT(self) }
   }
 }

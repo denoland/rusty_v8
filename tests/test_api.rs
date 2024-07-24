@@ -11779,3 +11779,34 @@ fn clear_slots_annex_uninitialized() {
   // initialized.
   context.clear_all_slots(&mut scope);
 }
+
+#[test]
+fn string_valueview() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope);
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  {
+    let one_byte = v8::String::new_from_one_byte(
+      scope,
+      &[1, 2, 3],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, one_byte);
+    assert_eq!(view.data(), v8::ValueViewData::OneByte(&[1, 2, 3]));
+  }
+
+  {
+    let two_byte = v8::String::new_from_two_byte(
+      scope,
+      &[1, 0x1FF, 3],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, two_byte);
+    assert_eq!(view.data(), v8::ValueViewData::TwoByte(&[1, 0x1FF, 3]));
+  }
+}

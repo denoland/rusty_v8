@@ -19,3 +19,5 @@ static size_t RUST_cppgc__WeakMember_SIZE = sizeof(cppgc::WeakMember<RustObj>);
 
 static size_t RUST_v8__TracedReference_SIZE =
     sizeof(v8::TracedReference<v8::Data>);
+
+static size_t RUST_v8__String__ValueView_SIZE = sizeof(v8::String::ValueView);
