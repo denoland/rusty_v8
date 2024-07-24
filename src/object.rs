@@ -58,6 +58,12 @@ extern "C" {
     context: *const Context,
     key: *const Value,
   ) -> *const Value;
+  fn v8__Object__GetWithReceiver(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+    receiver: *const Object,
+  ) -> *const Value;
   fn v8__Object__GetIndex(
     this: *const Object,
     context: *const Context,
@@ -69,6 +75,13 @@ extern "C" {
     context: *const Context,
     key: *const Value,
     value: *const Value,
+  ) -> MaybeBool;
+  fn v8__Object__SetWithReceiver(
+    this: *const Object,
+    context: *const Context,
+    key: *const Value,
+    value: *const Value,
+    receiver: *const Object,
   ) -> MaybeBool;
   fn v8__Object__SetIndex(
     this: *const Object,
@@ -333,6 +346,28 @@ impl Object {
     .into()
   }
 
+  /// SetWithReceiver only return Just(true) or Empty(), so if it should never fail, use
+  /// result.Check().
+  #[inline(always)]
+  pub fn set_with_receiver(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Value>,
+    value: Local<Value>,
+    receiver: Local<Object>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetWithReceiver(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+        &*value,
+        &*receiver,
+      )
+    }
+    .into()
+  }
+
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
   #[inline(always)]
@@ -446,6 +481,25 @@ impl Object {
     unsafe {
       scope
         .cast_local(|sd| v8__Object__Get(self, sd.get_current_context(), &*key))
+    }
+  }
+
+  #[inline(always)]
+  pub fn get_with_receiver<'s>(
+    &self,
+    scope: &mut HandleScope<'s>,
+    key: Local<Value>,
+    receiver: Local<Object>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__GetWithReceiver(
+          self,
+          sd.get_current_context(),
+          &*key,
+          &*receiver,
+        )
+      })
     }
   }
 
