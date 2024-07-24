@@ -5,11 +5,13 @@ use crate::FunctionCallback;
 use crate::IndexedDefinerCallback;
 use crate::IndexedDeleterCallback;
 use crate::IndexedGetterCallback;
+use crate::IndexedQueryCallback;
 use crate::IndexedSetterCallback;
 use crate::MessageCallback;
 use crate::NamedDefinerCallback;
 use crate::NamedDeleterCallback;
 use crate::NamedGetterCallback;
+use crate::NamedQueryCallback;
 use crate::NamedSetterCallback;
 use crate::PropertyEnumeratorCallback;
 use std::ffi::c_void;
@@ -22,10 +24,12 @@ pub union ExternalReference<'s> {
   pub named_setter: NamedSetterCallback<'s>,
   pub named_definer: NamedDefinerCallback<'s>,
   pub named_deleter: NamedDeleterCallback<'s>,
+  pub named_query: NamedQueryCallback<'s>,
   pub indexed_getter: IndexedGetterCallback<'s>,
   pub indexed_setter: IndexedSetterCallback<'s>,
   pub indexed_definer: IndexedDefinerCallback<'s>,
   pub indexed_deleter: IndexedDeleterCallback<'s>,
+  pub indexed_query: IndexedQueryCallback<'s>,
   pub enumerator: PropertyEnumeratorCallback<'s>,
   pub message: MessageCallback,
   pub pointer: *mut c_void,

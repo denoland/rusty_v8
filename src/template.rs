@@ -18,12 +18,14 @@ use crate::HandleScope;
 use crate::IndexedDefinerCallback;
 use crate::IndexedDeleterCallback;
 use crate::IndexedGetterCallback;
+use crate::IndexedQueryCallback;
 use crate::IndexedSetterCallback;
 use crate::Local;
 use crate::NamedDefinerCallback;
 use crate::NamedDeleterCallback;
 use crate::NamedGetterCallback;
 use crate::NamedGetterCallbackForAccessor;
+use crate::NamedQueryCallback;
 use crate::NamedSetterCallback;
 use crate::NamedSetterCallbackForAccessor;
 use crate::Object;
@@ -195,7 +197,7 @@ pub type NamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
 /// this interceptor depending on the state of the object.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyQueryCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyQueryCallback<'s> = NamedQueryCallback<'s>;
 
 /// Interceptor for delete requests on an object.
 ///
@@ -253,7 +255,7 @@ pub type IndexedPropertyGetterCallback<'s> = IndexedGetterCallback<'s>;
 pub type IndexedPropertySetterCallback<'s> = IndexedSetterCallback<'s>;
 
 /// See [GenericNamedPropertyQueryCallback].
-pub type IndexedPropertyQueryCallback<'s> = IndexedGetterCallback<'s>;
+pub type IndexedPropertyQueryCallback<'s> = IndexedQueryCallback<'s>;
 
 /// See [GenericNamedPropertyDeleterCallback].
 pub type IndexedPropertyDeleterCallback<'s> = IndexedDeleterCallback<'s>;

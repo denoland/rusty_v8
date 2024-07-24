@@ -2237,7 +2237,7 @@ fn object_template_set_named_property_handler() {
     let query = |scope: &mut v8::HandleScope,
                  key: v8::Local<v8::Name>,
                  args: v8::PropertyCallbackArguments,
-                 mut rv: v8::ReturnValue<v8::Value>| {
+                 mut rv: v8::ReturnValue<v8::Integer>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::No;
@@ -2690,7 +2690,7 @@ fn object_template_set_indexed_property_handler() {
   let query = |_scope: &mut v8::HandleScope,
                index: u32,
                _args: v8::PropertyCallbackArguments,
-               mut rv: v8::ReturnValue<v8::Value>| {
+               mut rv: v8::ReturnValue<v8::Integer>| {
     if index == 12 {
       return v8::Intercepted::No;
     }
