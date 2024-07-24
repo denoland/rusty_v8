@@ -16,6 +16,7 @@ use crate::Boolean;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
+use crate::Integer;
 use crate::Isolate;
 use crate::Local;
 use crate::Name;
@@ -584,6 +585,33 @@ where
   }
 }
 
+pub(crate) type NamedQueryCallback<'s> = extern "C" fn(
+  Local<'s, Name>,
+  *const PropertyCallbackInfo<Integer>,
+) -> Intercepted;
+
+impl<F> MapFnFrom<F> for NamedQueryCallback<'_>
+where
+  F: UnitType
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      Local<'s, Name>,
+      PropertyCallbackArguments<'s>,
+      ReturnValue<Integer>,
+    ) -> Intercepted,
+{
+  fn mapping() -> Self {
+    let f = |key: Local<Name>, info: *const PropertyCallbackInfo<Integer>| {
+      let info = unsafe { &*info };
+      let scope = &mut unsafe { CallbackScope::new(info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, args, rv)
+    };
+    f.to_c_fn()
+  }
+}
+
 pub(crate) type NamedSetterCallbackForAccessor<'s> = extern "C" fn(
   Local<'s, Name>,
   Local<'s, Value>,
@@ -750,6 +778,31 @@ where
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, index, args, rv)
+    };
+    f.to_c_fn()
+  }
+}
+
+pub(crate) type IndexedQueryCallback<'s> =
+  extern "C" fn(u32, *const PropertyCallbackInfo<Integer>) -> Intercepted;
+
+impl<F> MapFnFrom<F> for IndexedQueryCallback<'_>
+where
+  F: UnitType
+    + for<'s> Fn(
+      &mut HandleScope<'s>,
+      u32,
+      PropertyCallbackArguments<'s>,
+      ReturnValue<Integer>,
+    ) -> Intercepted,
+{
+  fn mapping() -> Self {
+    let f = |key: u32, info: *const PropertyCallbackInfo<Integer>| {
+      let info = unsafe { &*info };
+      let scope = &mut unsafe { CallbackScope::new(info) };
+      let args = PropertyCallbackArguments::from_property_callback_info(info);
+      let rv = ReturnValue::from_property_callback_info(info);
+      (F::get())(scope, key, args, rv)
     };
     f.to_c_fn()
   }
