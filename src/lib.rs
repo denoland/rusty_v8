@@ -149,6 +149,8 @@ pub use snapshot::StartupData;
 pub use string::Encoding;
 pub use string::NewStringType;
 pub use string::OneByteConst;
+pub use string::ValueView;
+pub use string::ValueViewData;
 pub use string::WriteOptions;
 pub use support::SharedPtr;
 pub use support::SharedRef;
