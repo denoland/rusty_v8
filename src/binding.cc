@@ -1380,6 +1380,14 @@ const v8::Value* v8__Object__Get(const v8::Object& self,
       ptr_to_local(&self)->Get(ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+const v8::Value* v8__Object__GetWithReceiver(const v8::Object& self,
+                                             const v8::Context& context,
+                                             const v8::Value& key,
+                                             const v8::Object& receiver) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->Get(
+      ptr_to_local(&context), ptr_to_local(&key), ptr_to_local(&receiver)));
+}
+
 const v8::Value* v8__Object__GetIndex(const v8::Object& self,
                                       const v8::Context& context,
                                       uint32_t index) {
@@ -1409,6 +1417,16 @@ MaybeBool v8__Object__Set(const v8::Object& self, const v8::Context& context,
                           const v8::Value& key, const v8::Value& value) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->Set(
       ptr_to_local(&context), ptr_to_local(&key), ptr_to_local(&value)));
+}
+
+MaybeBool v8__Object__SetWithReceiver(const v8::Object& self,
+                                      const v8::Context& context,
+                                      const v8::Value& key,
+                                      const v8::Value& value,
+                                      const v8::Object& receiver) {
+  return maybe_to_maybe_bool(
+      ptr_to_local(&self)->Set(ptr_to_local(&context), ptr_to_local(&key),
+                               ptr_to_local(&value), ptr_to_local(&receiver)));
 }
 
 MaybeBool v8__Object__SetIndex(const v8::Object& self,
