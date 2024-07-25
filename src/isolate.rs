@@ -412,6 +412,9 @@ extern "C" {
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
   fn v8__Isolate__GetCurrent() -> *mut Isolate;
+  fn v8__Isolate__GetCurrentHostDefinedOptions(
+    this: *mut Isolate,
+  ) -> *const Data;
   fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
@@ -1424,6 +1427,18 @@ impl Isolate {
       .as_mut()
       .unwrap();
     snapshot_creator.add_context_data(context, data)
+  }
+
+  /// Returns the host defined options set for currently running script or
+  /// module, if available.
+  #[inline(always)]
+  pub fn get_current_host_defined_options<'s>(
+    &mut self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Option<Local<'s, Data>> {
+    unsafe {
+      scope.cast_local(|_| v8__Isolate__GetCurrentHostDefinedOptions(self))
+    }
   }
 }
 
