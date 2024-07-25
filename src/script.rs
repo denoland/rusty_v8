@@ -3,6 +3,7 @@ use std::mem::MaybeUninit;
 use std::ptr::null;
 
 use crate::Context;
+use crate::Data;
 use crate::HandleScope;
 use crate::Local;
 use crate::Script;
@@ -43,6 +44,7 @@ extern "C" {
     resource_is_opaque: bool,
     is_wasm: bool,
     is_module: bool,
+    host_defined_options: *const Data,
   );
   fn v8__ScriptOrigin__ScriptId(origin: *const ScriptOrigin) -> i32;
   fn v8__ScriptOrigin__ResourceName(
@@ -111,10 +113,11 @@ impl<'s> ScriptOrigin<'s> {
     resource_column_offset: i32,
     resource_is_shared_cross_origin: bool,
     script_id: i32,
-    source_map_url: Local<'s, Value>,
+    source_map_url: Option<Local<'s, Value>>,
     resource_is_opaque: bool,
     is_wasm: bool,
     is_module: bool,
+    host_defined_options: Option<Local<'s, Data>>,
   ) -> Self {
     unsafe {
       let mut buf = std::mem::MaybeUninit::<ScriptOrigin>::uninit();
@@ -125,10 +128,15 @@ impl<'s> ScriptOrigin<'s> {
         resource_column_offset,
         resource_is_shared_cross_origin,
         script_id,
-        &*source_map_url,
+        source_map_url
+          .map(|l| &*l as *const Value)
+          .unwrap_or_else(null),
         resource_is_opaque,
         is_wasm,
         is_module,
+        host_defined_options
+          .map(|l| &*l as *const Data)
+          .unwrap_or_else(null),
       );
       buf.assume_init()
     }
