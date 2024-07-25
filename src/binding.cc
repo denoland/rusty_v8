@@ -164,6 +164,11 @@ void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
 v8::Isolate* v8__Isolate__GetCurrent() { return v8::Isolate::GetCurrent(); }
 
+const v8::Data* v8__Isolate__GetCurrentHostDefinedOptions(
+    v8::Isolate* isolate) {
+  return maybe_local_to_ptr(isolate->GetCurrentHostDefinedOptions());
+}
+
 void v8__Isolate__MemoryPressureNotification(v8::Isolate* isolate,
                                              v8::MemoryPressureLevel level) {
   isolate->MemoryPressureNotification(level);
