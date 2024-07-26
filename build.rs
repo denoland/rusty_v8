@@ -151,9 +151,10 @@ fn build_binding() {
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-    .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include"])
+    .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include", "-I."])
     .clang_args(args)
-    .allowlist_item("RUST_.*")
+    .allowlist_item("v8__.*")
+    .allowlist_item("cppgc__.*")
     .generate()
     .expect("Unable to generate bindings");
 

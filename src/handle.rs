@@ -37,6 +37,7 @@ extern "C" {
   );
 
   fn v8__TracedReference__CONSTRUCT(this: *mut TracedReference<Data>);
+  fn v8__TracedReference__DESTRUCT(this: *mut TracedReference<Data>);
   fn v8__TracedReference__Reset(
     this: *mut TracedReference<Data>,
     isolate: *mut Isolate,
@@ -1037,7 +1038,7 @@ impl FinalizerMap {
 /// reclaimed. For more details see BasicTracedReference.
 #[repr(C)]
 pub struct TracedReference<T> {
-  data: [u8; crate::binding::RUST_v8__TracedReference_SIZE],
+  data: [u8; crate::binding::v8__TracedReference_SIZE],
   _phantom: PhantomData<T>,
 }
 
@@ -1085,6 +1086,16 @@ impl<T> TracedReference<T> {
           .map(|h| h.as_non_null().as_ptr())
           .unwrap_or(std::ptr::null_mut())
           .cast(),
+      );
+    }
+  }
+}
+
+impl<T> Drop for TracedReference<T> {
+  fn drop(&mut self) {
+    unsafe {
+      v8__TracedReference__DESTRUCT(
+        self as *mut Self as *mut TracedReference<Data>,
       );
     }
   }

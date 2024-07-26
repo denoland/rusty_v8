@@ -176,4 +176,17 @@ struct three_pointers_t {
 
 }  // namespace support
 
+#define EACH_TYPED_ARRAY(V) \
+  V(Uint8Array)             \
+  V(Uint8ClampedArray)      \
+  V(Int8Array)              \
+  V(Uint16Array)            \
+  V(Int16Array)             \
+  V(Uint32Array)            \
+  V(Int32Array)             \
+  V(Float32Array)           \
+  V(Float64Array)           \
+  V(BigUint64Array)         \
+  V(BigInt64Array)
+
 #endif  // SUPPORT_H_

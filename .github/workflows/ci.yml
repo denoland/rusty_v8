@@ -202,7 +202,7 @@ jobs:
         if: startsWith(matrix.config.os, 'ubuntu')
         run: |
           sudo apt-get install -y clang-format
-          clang-format --verbose --Werror --dry-run src/*.cc src/*.hpp
+          clang-format --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
       - name: Test (ASAN)
         env:
