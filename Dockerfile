@@ -7,9 +7,11 @@ RUN apt update && \
 
 ENV TZ=Etc/UTC
 COPY ./build/*.sh /chromium_build/
+COPY ./build/install-build-deps.py /chromium_build/
 RUN \
 	DEBIAN_FRONTEND=noninteractive \
-	ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+	echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections \
+	&& ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
 	&& apt-get update && apt-get install -y lsb-release sudo \
 	&& sed -i 's/snapcraft/snapcraftnoinstall/g' /chromium_build/install-build-deps.sh \
 	&& /chromium_build/install-build-deps.sh --no-prompt --no-chromeos-fonts \
