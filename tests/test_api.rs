@@ -5202,6 +5202,7 @@ fn equality_edge_cases() {
 }
 
 #[test]
+#[allow(clippy::mutable_key_type)]
 fn get_hash() {
   use std::collections::HashMap;
   use std::collections::HashSet;
