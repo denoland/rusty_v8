@@ -235,6 +235,8 @@ pub struct FastApiTypedArray<T: Default> {
   data: *mut T,
 }
 
+// FastApiOneByteString is an alias for SeqOneByteString and the type is widely used in deno_core.
+#[allow(dead_code)]
 #[repr(C)]
 pub struct FastApiOneByteString {
   data: *const u8,
