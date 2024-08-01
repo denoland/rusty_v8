@@ -220,6 +220,11 @@ extern "C" {
     context: *const Context,
     key: *const Name,
   ) -> *const Value;
+  fn v8__Object__HasRealNamedProperty(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+  ) -> MaybeBool;
   fn v8__Object__GetRealNamedPropertyAttributes(
     this: *const Object,
     context: *const Context,
@@ -980,6 +985,22 @@ impl Object {
         v8__Object__GetRealNamedProperty(self, sd.get_current_context(), &*key)
       })
     }
+  }
+
+  #[inline(always)]
+  pub fn has_real_named_property(
+    &self,
+    scope: &mut HandleScope,
+    key: Local<Name>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__HasRealNamedProperty(
+        self,
+        &*scope.get_current_context(),
+        &*key,
+      )
+    }
+    .into()
   }
 
   /// Gets the property attributes of a real property which can be

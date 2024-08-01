@@ -170,6 +170,9 @@ pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
   WasmAsyncSuccess,
 );
 
+pub type AllowWasmCodeGenerationCallback =
+  extern "C" fn(Local<Context>, Local<String>) -> bool;
+
 /// HostInitializeImportMetaObjectCallback is called the first time import.meta
 /// is accessed for a module. Subsequent access will reuse the same value.
 ///
@@ -472,6 +475,10 @@ extern "C" {
   fn v8__Isolate__SetWasmAsyncResolvePromiseCallback(
     isolate: *mut Isolate,
     callback: WasmAsyncResolvePromiseCallback,
+  );
+  fn v8__Isolate__SetAllowWasmCodeGenerationCallback(
+    isolate: *mut Isolate,
+    callback: AllowWasmCodeGenerationCallback,
   );
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     isolate: *mut Isolate,
@@ -1030,6 +1037,16 @@ impl Isolate {
     callback: WasmAsyncResolvePromiseCallback,
   ) {
     unsafe { v8__Isolate__SetWasmAsyncResolvePromiseCallback(self, callback) }
+  }
+
+  #[inline(always)]
+  pub fn set_allow_wasm_code_generation_callback(
+    &mut self,
+    callback: AllowWasmCodeGenerationCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetAllowWasmCodeGenerationCallback(self, callback);
+    }
   }
 
   #[inline(always)]

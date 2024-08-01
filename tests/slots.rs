@@ -46,7 +46,7 @@ impl CoreIsolate {
   // Returns false if there was an error.
   fn execute(&mut self, code: &str) -> bool {
     let scope = &mut v8::HandleScope::new(&mut self.0);
-    let context = v8::Context::new(scope);
+    let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, code).unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
@@ -255,17 +255,17 @@ fn context_slots() {
   setup();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope);
+  let context = v8::Context::new(scope, Default::default());
 
-  assert!(context.set_slot(scope, TestState(0)));
-  assert!(!context.set_slot(scope, TestState(1)));
+  assert!(context.set_slot(TestState(0)));
+  assert!(!context.set_slot(TestState(1)));
 
-  context.get_slot_mut::<TestState>(scope).unwrap().0 += 5;
-  assert_eq!(context.get_slot::<TestState>(scope).unwrap().0, 6);
+  context.get_slot_mut::<TestState>().unwrap().0 += 5;
+  assert_eq!(context.get_slot::<TestState>().unwrap().0, 6);
 
-  let value = context.remove_slot::<TestState>(scope).unwrap();
+  let value = context.remove_slot::<TestState>().unwrap();
   assert_eq!(value.0, 6);
-  assert!(context.remove_slot::<TestState>(scope).is_none());
+  assert!(context.remove_slot::<TestState>().is_none());
 }
 
 #[test]
@@ -285,9 +285,9 @@ fn dropped_context_slots() {
   let dropped = Rc::new(Cell::new(false));
   {
     let scope = &mut v8::HandleScope::new(isolate.deref_mut());
-    let context = v8::Context::new(scope);
+    let context = v8::Context::new(scope, Default::default());
 
-    context.set_slot(scope, DropMarker(dropped.clone()));
+    context.set_slot(DropMarker(dropped.clone()));
   }
 
   assert!(isolate.execute("gc()"));
@@ -311,9 +311,9 @@ fn dropped_context_slots_on_kept_context() {
   let _global_context;
   {
     let scope = &mut v8::HandleScope::new(isolate.deref_mut());
-    let context = v8::Context::new(scope);
+    let context = v8::Context::new(scope, Default::default());
 
-    context.set_slot(scope, DropMarker(dropped.clone()));
+    context.set_slot(DropMarker(dropped.clone()));
 
     _global_context = v8::Global::new(scope, context);
   }
@@ -330,12 +330,12 @@ fn clear_all_context_slots() {
 
   {
     let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
-    let context = v8::Context::new(scope);
+    let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    context.set_slot(scope, TestState(0));
-    context.clear_all_slots(scope);
-    assert!(context.get_slot::<TestState>(scope).is_none());
+    context.set_slot(TestState(0));
+    context.clear_all_slots();
+    assert!(context.get_slot::<TestState>().is_none());
     scope.set_default_context(context);
   }
 

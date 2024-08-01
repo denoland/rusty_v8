@@ -12,7 +12,7 @@ fn main() {
     let handle_scope = &mut v8::HandleScope::new(isolate);
 
     // Create a new context.
-    let context = v8::Context::new(handle_scope);
+    let context = v8::Context::new(handle_scope, Default::default());
 
     // Enter the context for compiling and running the hello world script.
     let scope = &mut v8::ContextScope::new(handle_scope, context);
