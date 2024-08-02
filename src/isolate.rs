@@ -1617,8 +1617,8 @@ impl Drop for OwnedIsolate {
         self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__GetCurrent(),
         "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
-      self.exit();
       self.dispose_scope_root();
+      self.exit();
       self.dispose_annex();
       self.dispose();
     }

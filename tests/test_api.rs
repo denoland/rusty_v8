@@ -554,10 +554,10 @@ fn context_scope() {
 fn context_scope_param_and_context_must_share_isolate() {
   let _setup_guard = setup::parallel_test();
   let isolate1 = &mut v8::Isolate::new(Default::default());
-  let isolate2 = &mut v8::Isolate::new(Default::default());
   let scope1 = &mut v8::HandleScope::new(isolate1);
-  let scope2 = &mut v8::HandleScope::new(isolate2);
   let context1 = v8::Context::new(scope1);
+  let isolate2 = &mut v8::Isolate::new(Default::default());
+  let scope2 = &mut v8::HandleScope::new(isolate2);
   let context2 = v8::Context::new(scope2);
   let _context_scope_12 = &mut v8::ContextScope::new(scope1, context2);
   let _context_scope_21 = &mut v8::ContextScope::new(scope2, context1);
@@ -570,15 +570,17 @@ fn context_scope_param_and_context_must_share_isolate() {
 fn handle_scope_param_and_context_must_share_isolate() {
   let _setup_guard = setup::parallel_test();
   let isolate1 = &mut v8::Isolate::new(Default::default());
-  let isolate2 = &mut v8::Isolate::new(Default::default());
   let global_context1;
-  let global_context2;
   {
     let scope1 = &mut v8::HandleScope::new(isolate1);
-    let scope2 = &mut v8::HandleScope::new(isolate2);
     let local_context_1 = v8::Context::new(scope1);
-    let local_context_2 = v8::Context::new(scope2);
     global_context1 = v8::Global::new(scope1, local_context_1);
+  }
+  let isolate2 = &mut v8::Isolate::new(Default::default());
+  let global_context2;
+  {
+    let scope2 = &mut v8::HandleScope::new(isolate2);
+    let local_context_2 = v8::Context::new(scope2);
     global_context2 = v8::Global::new(scope2, local_context_2);
   }
   let _handle_scope_12 =
