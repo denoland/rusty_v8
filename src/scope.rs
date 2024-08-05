@@ -2224,6 +2224,7 @@ mod raw {
 mod tests {
   use super::*;
   use crate::new_default_platform;
+  use crate::ContextOptions;
   use crate::Global;
   use crate::V8;
   use std::any::type_name;
@@ -2261,7 +2262,7 @@ mod tests {
     AssertTypeOf(isolate).is::<OwnedIsolate>();
     let l1_hs = &mut HandleScope::new(isolate);
     AssertTypeOf(l1_hs).is::<HandleScope<()>>();
-    let context = Context::new(l1_hs);
+    let context = Context::new(l1_hs, ContextOptions::default());
     {
       let l2_cxs = &mut ContextScope::new(l1_hs, context);
       AssertTypeOf(l2_cxs).is::<ContextScope<HandleScope>>();
@@ -2437,7 +2438,7 @@ mod tests {
     {
       let l1_hs = &mut HandleScope::new(isolate);
       AssertTypeOf(l1_hs).is::<HandleScope<()>>();
-      let context = Context::new(l1_hs);
+      let context = Context::new(l1_hs, Default::default());
       global_context = Global::new(l1_hs, context);
       AssertTypeOf(&HandleScope::new(l1_hs)).is::<HandleScope<()>>();
       {
@@ -2541,7 +2542,7 @@ mod tests {
     {
       let l1_cbs = &mut unsafe { CallbackScope::new(&mut *isolate) };
       AssertTypeOf(l1_cbs).is::<CallbackScope<()>>();
-      let context = Context::new(l1_cbs);
+      let context = Context::new(l1_cbs, Default::default());
       AssertTypeOf(&ContextScope::new(l1_cbs, context))
         .is::<ContextScope<HandleScope>>();
       AssertTypeOf(&HandleScope::new(l1_cbs)).is::<HandleScope<()>>();

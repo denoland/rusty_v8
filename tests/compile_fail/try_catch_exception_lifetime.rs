@@ -3,7 +3,7 @@
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
   let mut scope1 = v8::HandleScope::new(&mut isolate);
-  let context = v8::Context::new(&mut scope1);
+  let context = v8::Context::new(&mut scope1, Default::default());
   let mut scope2 = v8::ContextScope::new(&mut scope1, context);
 
   let _exception = {

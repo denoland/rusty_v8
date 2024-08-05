@@ -196,7 +196,7 @@ impl Drop for Source {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CompileOptions {
   NoCompileOptions = 0,
   ConsumeCodeCache,
@@ -232,11 +232,11 @@ pub enum NoCacheReason {
 #[inline(always)]
 pub fn compile_module<'s>(
   scope: &mut HandleScope<'s>,
-  mut source: Source,
+  source: &mut Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
     scope,
-    &mut source,
+    source,
     CompileOptions::NoCompileOptions,
     NoCacheReason::NoReason,
   )
@@ -284,7 +284,7 @@ pub fn compile<'s>(
 #[inline(always)]
 pub fn compile_function<'s>(
   scope: &mut HandleScope<'s>,
-  mut source: Source,
+  source: &mut Source,
   arguments: &[Local<String>],
   context_extensions: &[Local<Object>],
   options: CompileOptions,
@@ -296,7 +296,7 @@ pub fn compile_function<'s>(
     scope.cast_local(|sd| {
       v8__ScriptCompiler__CompileFunction(
         &*sd.get_current_context(),
-        &mut source,
+        source,
         arguments.len(),
         arguments.as_ptr(),
         context_extensions.len(),
@@ -311,7 +311,7 @@ pub fn compile_function<'s>(
 #[inline(always)]
 pub fn compile_unbound_script<'s>(
   scope: &mut HandleScope<'s>,
-  mut source: Source,
+  source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
 ) -> Option<Local<'s, UnboundScript>> {
@@ -319,7 +319,7 @@ pub fn compile_unbound_script<'s>(
     scope.cast_local(|sd| {
       v8__ScriptCompiler__CompileUnboundScript(
         sd.get_isolate_ptr(),
-        &mut source,
+        source,
         options,
         no_cache_reason,
       )

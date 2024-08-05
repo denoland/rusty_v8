@@ -10,7 +10,7 @@
 //! let isolate = &mut v8::Isolate::new(Default::default());
 //!
 //! let scope = &mut v8::HandleScope::new(isolate);
-//! let context = v8::Context::new(scope);
+//! let context = v8::Context::new(scope, Default::default());
 //! let scope = &mut v8::ContextScope::new(scope, context);
 //!
 //! let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
@@ -32,6 +32,7 @@ mod array_buffer_view;
 mod bigint;
 mod binding;
 mod context;
+pub use context::ContextOptions;
 pub mod cppgc;
 mod data;
 mod date;

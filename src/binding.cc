@@ -345,6 +345,11 @@ void v8__Isolate__SetWasmStreamingCallback(v8::Isolate* isolate,
   isolate->SetWasmStreamingCallback(callback);
 }
 
+void v8__Isolate__SetAllowWasmCodeGenerationCallback(
+    v8::Isolate* isolate, v8::AllowWasmCodeGenerationCallback callback) {
+  isolate->SetAllowWasmCodeGenerationCallback(callback);
+}
+
 bool v8__Isolate__HasPendingBackgroundTasks(v8::Isolate* isolate) {
   return isolate->HasPendingBackgroundTasks();
 }
@@ -1651,6 +1656,13 @@ const v8::Value* v8__Object__GetRealNamedProperty(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+MaybeBool v8__Object__HasRealNamedProperty(const v8::Object& self,
+                                           const v8::Context& context,
+                                           const v8::Name& key) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->HasRealNamedProperty(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
 void v8__Object__GetRealNamedPropertyAttributes(
     const v8::Object& self, const v8::Context& context, const v8::Name& key,
     v8::Maybe<v8::PropertyAttribute>* out) {
@@ -1943,12 +1955,13 @@ void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
 
 const v8::Context* v8__Context__New(v8::Isolate* isolate,
                                     const v8::ObjectTemplate* templ,
-                                    const v8::Value* global_object) {
-  return local_to_ptr(
-      v8::Context::New(isolate, nullptr, ptr_to_maybe_local(templ),
-                       ptr_to_maybe_local(global_object),
-                       v8::DeserializeInternalFieldsCallback(
-                           DeserializeInternalFields, nullptr)));
+                                    const v8::Value* global_object,
+                                    v8::MicrotaskQueue* microtask_queue) {
+  return local_to_ptr(v8::Context::New(
+      isolate, nullptr, ptr_to_maybe_local(templ),
+      ptr_to_maybe_local(global_object),
+      v8::DeserializeInternalFieldsCallback(DeserializeInternalFields, nullptr),
+      microtask_queue));
 }
 
 bool v8__Context__EQ(const v8::Context& self, const v8::Context& other) {
@@ -2035,10 +2048,13 @@ void v8__Context__SetMicrotaskQueue(v8::Context& self,
   ptr_to_local(&self)->SetMicrotaskQueue(microtask_queue);
 }
 
-const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
-                                             size_t context_snapshot_index) {
-  v8::MaybeLocal<v8::Context> maybe_local =
-      v8::Context::FromSnapshot(isolate, context_snapshot_index);
+const v8::Context* v8__Context__FromSnapshot(
+    v8::Isolate* isolate, size_t context_snapshot_index,
+    v8::Value* global_object, v8::MicrotaskQueue* microtask_queue) {
+  v8::MaybeLocal<v8::Context> maybe_local = v8::Context::FromSnapshot(
+      isolate, context_snapshot_index,
+      v8::DeserializeInternalFieldsCallback(DeserializeInternalFields, nullptr),
+      nullptr, ptr_to_maybe_local(global_object), microtask_queue);
   return maybe_local_to_ptr(maybe_local);
 }
 
