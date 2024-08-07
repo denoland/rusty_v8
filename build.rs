@@ -15,7 +15,6 @@ use std::io::Seek;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::exit;
 use std::process::Command;
 use std::process::Stdio;
 use which::which;
@@ -170,15 +169,6 @@ fn build_binding() {
 
 fn build_v8(is_asan: bool) {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-
-  // git submodule update --init --recursive
-  let libcxx_src = PathBuf::from("buildtools/third_party/libc++/trunk/src");
-  if !libcxx_src.is_dir() {
-    eprintln!(
-      "missing source code. Run 'git submodule update --init --recursive'"
-    );
-    exit(1);
-  }
 
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
@@ -410,7 +400,9 @@ fn download_ninja_gn_binaries() {
   assert!(gn.exists());
   assert!(ninja.exists());
   env::set_var("GN", gn);
-  env::set_var("NINJA", ninja);
+  if env::var("NINJA").is_err() {
+    env::set_var("NINJA", ninja);
+  }
 }
 
 fn prebuilt_profile() -> &'static str {
@@ -910,12 +902,14 @@ type NinjaEnv = Vec<(String, String)>;
 
 fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let cmd_string = env::var("NINJA").unwrap_or_else(|_| "ninja".to_owned());
-  let mut cmd = Command::new(cmd_string);
+  let mut cmd = Command::new(&cmd_string);
   cmd.arg("-C");
   cmd.arg(gn_out_dir);
-  if let Ok(jobs) = env::var("NUM_JOBS") {
-    cmd.arg("-j");
-    cmd.arg(jobs);
+  if !cmd_string.ends_with("autoninja") {
+    if let Ok(jobs) = env::var("NUM_JOBS") {
+      cmd.arg("-j");
+      cmd.arg(jobs);
+    }
   }
   if let Some(env) = maybe_env {
     for item in env {
