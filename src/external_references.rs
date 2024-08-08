@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
+use crate::fast_api::CFunctionInfo;
 use crate::support::intptr_t;
 use crate::FunctionCallback;
 use crate::IndexedDefinerCallback;
@@ -33,6 +34,7 @@ pub union ExternalReference<'s> {
   pub enumerator: PropertyEnumeratorCallback<'s>,
   pub message: MessageCallback,
   pub pointer: *mut c_void,
+  pub type_info: *const CFunctionInfo,
 }
 
 impl<'s> Debug for ExternalReference<'s> {

@@ -1,203 +1,136 @@
-use crate::support::Opaque;
+use std::ffi::c_void;
+
+use crate::binding::*;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
-use std::{
-  ffi::c_void,
-  mem::align_of,
-  ptr::{self, NonNull},
-};
 
-extern "C" {
-  fn v8__CTypeInfo__New(ty: CType) -> *mut CTypeInfo;
-  fn v8__CTypeInfo__New__From__Slice(
-    len: usize,
-    tys: *const CTypeSequenceInfo,
-  ) -> *mut CTypeInfo;
-  fn v8__CTypeInfo__DELETE(this: *mut CTypeInfo);
-  fn v8__CFunctionInfo__New(
-    return_info: *const CTypeInfo,
-    args_len: usize,
-    args_info: *const CTypeInfo,
-    repr: Int64Representation,
-  ) -> *mut CFunctionInfo;
-  fn v8__CFunctionInfo__DELETE(this: *mut CFunctionInfo);
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct CFunction(v8__CFunction);
+
+impl CFunction {
+  pub const fn new(address: *const c_void, type_info: &CFunctionInfo) -> Self {
+    Self(v8__CFunction {
+      address_: address,
+      type_info_: &type_info.0,
+    })
+  }
+
+  pub const fn address(&self) -> *const c_void {
+    self.0.address_
+  }
+
+  pub const fn type_info(&self) -> &CFunctionInfo {
+    // SAFETY: We initialize this field with a reference. and
+    // the layout of CFunctionInfo is identical to v8_CFunctionInfo.
+    unsafe { &*(self.0.type_info_ as *const CFunctionInfo) }
+  }
 }
 
-#[repr(C)]
-#[derive(Default)]
-pub struct CFunctionInfo(Opaque);
-
-#[repr(C)]
-#[derive(Default)]
-pub struct CFunction(Opaque);
+#[repr(transparent)]
+pub struct CFunctionInfo(v8__CFunctionInfo);
 
 impl CFunctionInfo {
-  #[inline(always)]
-  pub unsafe fn new(
-    args: *const CTypeInfo,
-    args_len: usize,
-    return_type: *const CTypeInfo,
+  /// Construct a struct to hold a CFunction's type information.
+  /// |return_info| describes the function's return type.
+  /// |arg_info| is an array of |arg_count| CTypeInfos describing the
+  ///   arguments. Only the last argument may be of the special type
+  ///   CTypeInfo::kCallbackOptionsType.
+  pub const fn new(
+    return_info: CTypeInfo,
+    arg_info: &[CTypeInfo],
     repr: Int64Representation,
-  ) -> NonNull<CFunctionInfo> {
-    NonNull::new_unchecked(v8__CFunctionInfo__New(
-      return_type,
-      args_len,
-      args,
-      repr,
-    ))
+  ) -> Self {
+    Self(v8__CFunctionInfo {
+      arg_count_: arg_info.len() as _,
+      arg_info_: arg_info.as_ptr() as _,
+      repr_: repr as _,
+      return_info_: return_info.0,
+    })
   }
 }
 
-impl Drop for CFunctionInfo {
-  fn drop(&mut self) {
-    unsafe { v8__CFunctionInfo__DELETE(self) };
-  }
+#[derive(Clone, Copy)]
+#[repr(u8)]
+pub enum Int64Representation {
+  /// Use numbers to represent 64 bit integers.
+  Number = v8_CFunctionInfo_Int64Representation_kNumber,
+  /// Use BigInts to represent 64 bit integers.
+  BigInt = v8_CFunctionInfo_Int64Representation_kBigInt,
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct CTypeInfo(Opaque);
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct CTypeInfo(v8_CTypeInfo);
 
 impl CTypeInfo {
-  #[inline(always)]
-  pub fn new(ty: CType) -> NonNull<CTypeInfo> {
-    unsafe { NonNull::new_unchecked(v8__CTypeInfo__New(ty)) }
-  }
-
-  pub fn new_from_slice(types: &[Type]) -> NonNull<CTypeInfo> {
-    let mut structs = vec![];
-
-    for type_ in types.iter() {
-      structs.push(type_.into())
-    }
-
-    unsafe {
-      NonNull::new_unchecked(v8__CTypeInfo__New__From__Slice(
-        structs.len(),
-        structs.as_ptr(),
-      ))
-    }
+  pub const fn new(
+    r#type: Type,
+    sequence_type: SequenceType,
+    flags: Flags,
+  ) -> Self {
+    Self(v8_CTypeInfo {
+      flags_: flags.bits(),
+      sequence_type_: sequence_type as _,
+      type_: r#type as _,
+    })
   }
 }
 
-impl Drop for CTypeInfo {
-  fn drop(&mut self) {
-    unsafe { v8__CTypeInfo__DELETE(self) };
-  }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy)]
 #[repr(u8)]
-pub enum SequenceType {
-  Scalar,
-  /// sequence<T>
-  IsSequence,
-  /// TypedArray of T or any ArrayBufferView if T is void
-  IsTypedArray,
-  /// ArrayBuffer
-  IsArrayBuffer,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u8)]
-#[non_exhaustive]
-pub enum CType {
-  Void = 0,
-  Bool,
-  Uint8,
-  Int32,
-  Uint32,
-  Int64,
-  Uint64,
-  Float32,
-  Float64,
-  Pointer,
-  V8Value,
-  SeqOneByteString,
-  // https://github.com/v8/v8/blob/492a32943bc34a527f42df2ae15a77154b16cc84/include/v8-fast-api-calls.h#L264-L267
-  // kCallbackOptionsType is not part of the Type enum
-  // because it is only used internally. Use value 255 that is larger
-  // than any valid Type enum.
+pub enum Type {
+  Void = v8_CTypeInfo_Type_kVoid,
+  Bool = v8_CTypeInfo_Type_kBool,
+  Uint8 = v8_CTypeInfo_Type_kUint8,
+  Int32 = v8_CTypeInfo_Type_kInt32,
+  Uint32 = v8_CTypeInfo_Type_kUint32,
+  Int64 = v8_CTypeInfo_Type_kInt64,
+  Uint64 = v8_CTypeInfo_Type_kUint64,
+  Float32 = v8_CTypeInfo_Type_kFloat32,
+  Float64 = v8_CTypeInfo_Type_kFloat64,
+  Pointer = v8_CTypeInfo_Type_kPointer,
+  V8Value = v8_CTypeInfo_Type_kV8Value,
+  SeqOneByteString = v8_CTypeInfo_Type_kSeqOneByteString,
+  ApiObject = v8_CTypeInfo_Type_kApiObject,
+  Any = v8_CTypeInfo_Type_kAny,
   CallbackOptions = 255,
 }
 
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub enum Type {
-  Void,
-  Bool,
-  Uint8,
-  Int32,
-  Uint32,
-  Int64,
-  Uint64,
-  Float32,
-  Float64,
-  Pointer,
-  V8Value,
-  SeqOneByteString,
-  CallbackOptions,
-  Sequence(CType),
-  TypedArray(CType),
-  ArrayBuffer(CType),
-}
+impl Type {
+  pub const fn scalar(self) -> CTypeInfo {
+    CTypeInfo::new(self, SequenceType::Scalar, Flags::empty())
+  }
 
-impl From<&Type> for CType {
-  fn from(ty: &Type) -> CType {
-    match ty {
-      Type::Void => CType::Void,
-      Type::Bool => CType::Bool,
-      Type::Uint8 => CType::Uint8,
-      Type::Int32 => CType::Int32,
-      Type::Uint32 => CType::Uint32,
-      Type::Int64 => CType::Int64,
-      Type::Uint64 => CType::Uint64,
-      Type::Float32 => CType::Float32,
-      Type::Float64 => CType::Float64,
-      Type::Pointer => CType::Pointer,
-      Type::V8Value => CType::V8Value,
-      Type::SeqOneByteString => CType::SeqOneByteString,
-      Type::CallbackOptions => CType::CallbackOptions,
-      Type::Sequence(ty) => *ty,
-      Type::TypedArray(ty) => *ty,
-      Type::ArrayBuffer(ty) => *ty,
-    }
+  pub const fn typed_array(self) -> CTypeInfo {
+    CTypeInfo::new(self, SequenceType::IsTypedArray, Flags::empty())
   }
 }
 
-impl From<&Type> for SequenceType {
-  fn from(ty: &Type) -> SequenceType {
-    match ty {
-      Type::Sequence(_) => SequenceType::IsSequence,
-      Type::TypedArray(_) => SequenceType::IsTypedArray,
-      Type::ArrayBuffer(_) => SequenceType::IsArrayBuffer,
-      _ => SequenceType::Scalar,
-    }
+#[derive(Clone, Copy)]
+#[repr(u8)]
+pub enum SequenceType {
+  Scalar = v8_CTypeInfo_SequenceType_kScalar,
+  /// sequence<T>
+  IsSequence = v8_CTypeInfo_SequenceType_kIsSequence,
+  /// TypedArray of T or any ArrayBufferView if T is void
+  IsTypedArray = v8_CTypeInfo_SequenceType_kIsTypedArray,
+  /// ArrayBuffer
+  IsArrayBuffer = v8_CTypeInfo_SequenceType_kIsArrayBuffer,
+}
+
+bitflags::bitflags! {
+  pub struct Flags: u8 {
+    /// Must be an ArrayBuffer or TypedArray
+    const AllowShared = v8_CTypeInfo_Flags_kAllowSharedBit;
+    /// T must be integral
+    const EnforceRange = v8_CTypeInfo_Flags_kEnforceRangeBit;
+    /// T must be integral
+    const Clamp = v8_CTypeInfo_Flags_kClampBit;
+    /// T must be float or double
+    const IsRestricted = v8_CTypeInfo_Flags_kIsRestrictedBit;
   }
-}
-
-impl From<&Type> for CTypeSequenceInfo {
-  fn from(ty: &Type) -> CTypeSequenceInfo {
-    CTypeSequenceInfo {
-      c_type: ty.into(),
-      sequence_type: ty.into(),
-    }
-  }
-}
-
-#[repr(C)]
-struct CTypeSequenceInfo {
-  c_type: CType,
-  sequence_type: SequenceType,
-}
-
-#[repr(C)]
-pub union FastApiCallbackData<'a> {
-  /// `data_ptr` allows for default constructing FastApiCallbackOptions.
-  pub data_ptr: *mut c_void,
-  /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
-  pub data: Local<'a, Value>,
 }
 
 /// A struct which may be passed to a fast call callback, like so
@@ -217,7 +150,8 @@ pub struct FastApiCallbackOptions<'a> {
   /// fallback conditions are checked, because otherwise executing the slow
   /// callback might produce visible side-effects twice.
   pub fallback: bool,
-  pub data: FastApiCallbackData<'a>,
+  /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
+  pub data: Local<'a, Value>,
   /// When called from WebAssembly, a view of the calling module's memory.
   pub wasm_memory: *const FastApiTypedArray<u8>,
 }
@@ -235,51 +169,13 @@ pub struct FastApiTypedArray<T: Default> {
   data: *mut T,
 }
 
-// FastApiOneByteString is an alias for SeqOneByteString and the type is widely used in deno_core.
-#[allow(dead_code)]
-#[repr(C)]
-pub struct FastApiOneByteString {
-  data: *const u8,
-  pub length: u32,
-}
-
-impl FastApiOneByteString {
-  #[inline(always)]
-  pub fn as_bytes(&self) -> &[u8] {
-    // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
-    // is invalid because of Rust's niche packing).
-    if self.data.is_null() {
-      return &mut [];
-    }
-
-    // SAFETY: The data is guaranteed to be valid for the length of the string.
-    unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
-  }
-}
-
 impl<T: Default> FastApiTypedArray<T> {
   /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
   pub const fn get(&self, index: usize) -> T {
     debug_assert!(index < self.length);
     // SAFETY: src is valid for reads, and is a valid value for T
-    unsafe { ptr::read_unaligned(self.data.add(index)) }
-  }
-
-  /// Given a pointer to a `FastApiTypedArray`, returns a slice pointing to the
-  /// data if safe to do so.
-  ///
-  /// # Safety
-  ///
-  /// The pointer must not be null and the caller must choose a lifetime that is
-  /// safe.
-  #[inline(always)]
-  pub unsafe fn get_storage_from_pointer_if_aligned<'a>(
-    ptr: *mut Self,
-  ) -> Option<&'a mut [T]> {
-    debug_assert!(!ptr.is_null());
-    let self_ref = ptr.as_mut().unwrap_unchecked();
-    self_ref.get_storage_if_aligned()
+    unsafe { std::ptr::read_unaligned(self.data.add(index)) }
   }
 
   /// Returns a slice pointing to the underlying data if safe to do so.
@@ -298,46 +194,36 @@ impl<T: Default> FastApiTypedArray<T> {
   }
 }
 
-#[derive(Copy, Clone)]
-pub struct FastFunction {
-  pub args: &'static [Type],
-  pub function: *const c_void,
-  pub repr: Int64Representation,
-  pub return_type: CType,
+/// Any TypedArray. It uses kTypedArrayBit with base type void
+/// Overloaded args of ArrayBufferView and TypedArray are not supported
+/// (for now) because the generic “any” ArrayBufferView doesn’t have its
+/// own instance type. It could be supported if we specify that
+/// TypedArray<T> always has precedence over the generic ArrayBufferView,
+/// but this complicates overload resolution.
+#[repr(C)]
+pub struct FastApiArrayBufferView {
+  pub data: *mut c_void,
+  pub byte_length: usize,
 }
 
-impl FastFunction {
+// FastApiOneByteString is an alias for SeqOneByteString and the type is widely used in deno_core.
+#[allow(unused)]
+#[repr(C)]
+pub struct FastApiOneByteString {
+  data: *const u8,
+  pub length: u32,
+}
+
+impl FastApiOneByteString {
   #[inline(always)]
-  pub const fn new(
-    args: &'static [Type],
-    return_type: CType,
-    function: *const c_void,
-  ) -> Self {
-    Self {
-      args,
-      function,
-      repr: Int64Representation::Number,
-      return_type,
+  pub fn as_bytes(&self) -> &[u8] {
+    // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
+    // is invalid because of Rust's niche packing).
+    if self.data.is_null() {
+      return &mut [];
     }
-  }
 
-  pub const fn new_with_bigint(
-    args: &'static [Type],
-    return_type: CType,
-    function: *const c_void,
-  ) -> Self {
-    Self {
-      args,
-      function,
-      repr: Int64Representation::BigInt,
-      return_type,
-    }
+    // SAFETY: The data is guaranteed to be valid for the length of the string.
+    unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
   }
-}
-
-#[derive(Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum Int64Representation {
-  Number = 0,
-  BigInt = 1,
 }

@@ -3,9 +3,7 @@ use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
-use crate::fast_api::CFunctionInfo;
-use crate::fast_api::CTypeInfo;
-use crate::fast_api::FastFunction;
+use crate::fast_api::CFunction;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;
@@ -37,7 +35,6 @@ use crate::Signature;
 use crate::String;
 use crate::Value;
 use std::convert::TryFrom;
-use std::ffi::c_void;
 use std::ptr::null;
 
 extern "C" {
@@ -66,10 +63,8 @@ extern "C" {
     length: i32,
     constructor_behavior: ConstructorBehavior,
     side_effect_type: SideEffectType,
-    func_ptr1: *const c_void,
-    c_function1: *const CFunctionInfo,
-    func_ptr2: *const c_void,
-    c_function2: *const CFunctionInfo,
+    c_functions: *const CFunction,
+    c_functions_len: usize,
   ) -> *const FunctionTemplate;
   fn v8__FunctionTemplate__GetFunction(
     this: *const FunctionTemplate,
@@ -700,9 +695,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.constructor_behavior,
           self.side_effect_type,
           null(),
-          null(),
-          null(),
-          null(),
+          0,
         )
       })
     }
@@ -717,47 +710,8 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   pub fn build_fast(
     self,
     scope: &mut HandleScope<'s, ()>,
-    overload1: &FastFunction,
-    c_fn_info1: Option<*const CFunctionInfo>,
-    overload2: Option<&FastFunction>,
-    c_fn_info2: Option<*const CFunctionInfo>,
+    overloads: &[CFunction],
   ) -> Local<'s, FunctionTemplate> {
-    let c_fn1 = if let Some(fn_info) = c_fn_info1 {
-      fn_info
-    } else {
-      let args = CTypeInfo::new_from_slice(overload1.args);
-      let ret = CTypeInfo::new(overload1.return_type);
-      let fn_info = unsafe {
-        CFunctionInfo::new(
-          args.as_ptr(),
-          overload1.args.len(),
-          ret.as_ptr(),
-          overload1.repr,
-        )
-      };
-      fn_info.as_ptr()
-    };
-
-    let c_fn2 = if let Some(overload2) = overload2 {
-      if let Some(fn_info) = c_fn_info2 {
-        fn_info
-      } else {
-        let args = CTypeInfo::new_from_slice(overload2.args);
-        let ret = CTypeInfo::new(overload2.return_type);
-        let fn_info = unsafe {
-          CFunctionInfo::new(
-            args.as_ptr(),
-            overload2.args.len(),
-            ret.as_ptr(),
-            overload2.repr,
-          )
-        };
-        fn_info.as_ptr()
-      }
-    } else {
-      null()
-    };
-
     unsafe {
       scope.cast_local(|sd| {
         v8__FunctionTemplate__New(
@@ -768,10 +722,8 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
           self.length,
           ConstructorBehavior::Throw,
           self.side_effect_type,
-          overload1.function,
-          c_fn1,
-          overload2.map_or(null(), |f| f.function),
-          c_fn2,
+          overloads.as_ptr(),
+          overloads.len(),
         )
       })
     }
