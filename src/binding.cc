@@ -2247,70 +2247,17 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
-v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
-  std::unique_ptr<v8::CTypeInfo> u =
-      std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
-  return u.release();
-}
-
-void v8__CTypeInfo__DELETE(v8::CTypeInfo* self) { delete self; }
-
-struct CTypeSequenceType {
-  v8::CTypeInfo::Type c_type;
-  v8::CTypeInfo::SequenceType sequence_type;
-};
-
-v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
-                                               CTypeSequenceType* ty) {
-  v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
-  for (size_t i = 0; i < len; i += 1) {
-    v[i] = v8::CTypeInfo(ty[i].c_type, ty[i].sequence_type);
-  }
-  return v;
-}
-
-v8::CFunctionInfo* v8__CFunctionInfo__New(
-    const v8::CTypeInfo& return_info, unsigned int args_len,
-    v8::CTypeInfo* args_info, v8::CFunctionInfo::Int64Representation repr) {
-  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(
-      v8::CFunctionInfo(return_info, args_len, args_info, repr));
-  return info.release();
-}
-
-void v8__CFunctionInfo__DELETE(v8::CFunctionInfo* self) { delete self; }
-
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
-    v8::SideEffectType side_effect_type, void* func_ptr1,
-    const v8::CFunctionInfo* c_function_info1, void* func_ptr2,
-    const v8::CFunctionInfo* c_function_info2) {
-  // Support upto 2 overloads. V8 requires TypedArray to have a
-  // v8::Array overload.
-  if (func_ptr1) {
-    if (func_ptr2 == nullptr) {
-      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1)};
-      auto overload = v8::MemorySpan<const v8::CFunction>{o, 1};
-      return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
-          isolate, callback, ptr_to_local(data_or_null),
-          ptr_to_local(signature_or_null), length, constructor_behavior,
-          side_effect_type, overload));
-    } else {
-      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1),
-                                 v8::CFunction(func_ptr2, c_function_info2)};
-      auto overload = v8::MemorySpan<const v8::CFunction>{o, 2};
-      return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
-          isolate, callback, ptr_to_local(data_or_null),
-          ptr_to_local(signature_or_null), length, constructor_behavior,
-          side_effect_type, overload));
-    }
-  }
-  auto overload = v8::MemorySpan<const v8::CFunction>{};
+    v8::SideEffectType side_effect_type, const v8::CFunction* c_functions,
+    size_t c_functions_len) {
+  v8::MemorySpan<const v8::CFunction> overloads{c_functions, c_functions_len};
   return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
-      side_effect_type, overload));
+      side_effect_type, overloads));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(
