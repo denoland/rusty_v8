@@ -15,10 +15,9 @@ use std::ptr::{addr_of, addr_of_mut, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use v8::fast_api::Type::*;
-use v8::fast_api::{CType, FastApiTypedArray};
+use v8::fast_api;
 use v8::inspector::ChannelBase;
-use v8::{fast_api, AccessorConfiguration};
+use v8::AccessorConfiguration;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -10456,10 +10455,17 @@ fn test_fast_calls() {
     a + b
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, Uint32, Uint32],
-    fast_api::CType::Uint32,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint32.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::Uint32.scalar(),
+        fast_api::Type::Uint32.scalar(),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10481,8 +10487,8 @@ fn test_fast_calls() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10508,16 +10514,11 @@ fn test_fast_calls_empty_buffer() {
   static mut WHO: &str = "none";
   unsafe fn fast_fn(
     _recv: v8::Local<v8::Object>,
-    buffer: *mut FastApiTypedArray<u8>,
+    buffer: *mut fast_api::FastApiTypedArray<u8>,
   ) {
     assert_eq!(WHO, "slow");
     WHO = "fast";
-    assert_eq!(
-      0,
-      FastApiTypedArray::get_storage_from_pointer_if_aligned(buffer)
-        .unwrap()
-        .len()
-    );
+    assert_eq!(0, (*buffer).get_storage_if_aligned().unwrap().len());
   }
 
   fn slow_fn(
@@ -10530,10 +10531,20 @@ fn test_fast_calls_empty_buffer() {
     }
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, TypedArray(CType::Uint8)],
-    fast_api::CType::Void,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Void.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::CTypeInfo::new(
+          fast_api::Type::Uint8,
+          fast_api::SequenceType::IsTypedArray,
+          fast_api::Flags::empty(),
+        ),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   let _setup_guard = setup::parallel_test();
@@ -10544,8 +10555,8 @@ fn test_fast_calls_empty_buffer() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10575,10 +10586,22 @@ fn test_fast_calls_sequence() {
     a + b + array.length()
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, Uint32, Uint32, Sequence(fast_api::CType::Void)],
-    fast_api::CType::Uint32,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint32.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::Uint32.scalar(),
+        fast_api::Type::Uint32.scalar(),
+        fast_api::CTypeInfo::new(
+          fast_api::Type::Void,
+          fast_api::SequenceType::IsSequence,
+          fast_api::Flags::empty(),
+        ),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10598,8 +10621,8 @@ fn test_fast_calls_sequence() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10634,10 +10657,22 @@ fn test_fast_calls_arraybuffer() {
     a + b + unsafe { &*data }.get(0)
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, Uint32, Uint32, TypedArray(fast_api::CType::Uint32)],
-    fast_api::CType::Uint32,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint32.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::Uint32.scalar(),
+        fast_api::Type::Uint32.scalar(),
+        fast_api::CTypeInfo::new(
+          fast_api::Type::Uint32,
+          fast_api::SequenceType::IsTypedArray,
+          fast_api::Flags::empty(),
+        ),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10657,8 +10692,8 @@ fn test_fast_calls_arraybuffer() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10698,10 +10733,20 @@ fn test_fast_calls_typedarray() {
     sum.into()
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, TypedArray(fast_api::CType::Uint8)],
-    fast_api::CType::Uint32,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint32.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::CTypeInfo::new(
+          fast_api::Type::Uint8,
+          fast_api::SequenceType::IsTypedArray,
+          fast_api::Flags::empty(),
+        ),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10721,8 +10766,8 @@ fn test_fast_calls_typedarray() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10765,10 +10810,13 @@ fn test_fast_calls_reciever() {
     }
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value],
-    fast_api::CType::Uint32,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint32.scalar(),
+      &[fast_api::Type::V8Value.scalar()],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10802,8 +10850,8 @@ fn test_fast_calls_reciever() {
     embedder_obj as _,
   );
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "method").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10848,16 +10896,36 @@ fn test_fast_calls_overload() {
     assert_eq!(data.length(), 2);
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, TypedArray(CType::Uint32)],
-    CType::Void,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Void.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::CTypeInfo::new(
+          fast_api::Type::Uint32,
+          fast_api::SequenceType::IsTypedArray,
+          fast_api::Flags::empty(),
+        ),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
-  const FAST_TEST2: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, Sequence(CType::Void)],
-    CType::Void,
+  const FAST_TEST2: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn2 as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Void.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::CTypeInfo::new(
+          fast_api::Type::Void,
+          fast_api::SequenceType::IsSequence,
+          fast_api::Flags::empty(),
+        ),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10877,13 +10945,8 @@ fn test_fast_calls_overload() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn).build_fast(
-    scope,
-    &FAST_TEST,
-    None,
-    Some(&FAST_TEST2),
-    None,
-  );
+  let template = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &[FAST_TEST, FAST_TEST2]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10928,10 +10991,16 @@ fn test_fast_calls_callback_options_fallback() {
     }
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, CallbackOptions],
-    CType::Void,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Void.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::CallbackOptions.scalar(),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -10951,8 +11020,8 @@ fn test_fast_calls_callback_options_fallback() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -10986,20 +11055,26 @@ fn test_fast_calls_callback_options_data() {
     options: *mut fast_api::FastApiCallbackOptions,
   ) {
     let options = &mut *options;
-    if !options.data.data.is_external() {
+    if !options.data.is_external() {
       options.fallback = true;
       return;
     }
 
-    let data = v8::Local::<v8::External>::cast_unchecked(options.data.data);
+    let data = v8::Local::<v8::External>::cast_unchecked(options.data);
     let data = &mut *(data.value() as *mut bool);
     *data = true;
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, CallbackOptions],
-    CType::Void,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Void.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::CallbackOptions.scalar(),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -11022,7 +11097,7 @@ fn test_fast_calls_callback_options_data() {
 
   let template = v8::FunctionTemplate::builder(slow_fn)
     .data(external.into())
-    .build_fast(scope, &FAST_TEST, None, None, None);
+    .build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -11103,10 +11178,16 @@ fn test_fast_calls_onebytestring() {
     data.len() as u32
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, SeqOneByteString],
-    CType::Uint32,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint32.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::SeqOneByteString.scalar(),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -11125,8 +11206,8 @@ fn test_fast_calls_onebytestring() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
@@ -11162,18 +11243,31 @@ fn test_fast_calls_i64representation() {
     a * b
   }
 
-  const FAST_TEST_NUMBER: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, Uint64, Uint64],
-    CType::Uint64,
+  const FAST_TEST_NUMBER: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint64.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::Uint64.scalar(),
+        fast_api::Type::Uint64.scalar(),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
-  const FAST_TEST_BIGINT: fast_api::FastFunction =
-    fast_api::FastFunction::new_with_bigint(
-      &[V8Value, Uint64, Uint64],
-      CType::Uint64,
-      fast_fn as _,
-    );
+  const FAST_TEST_BIGINT: fast_api::CFunction = fast_api::CFunction::new(
+    fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Uint64.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::Uint64.scalar(),
+        fast_api::Type::Uint64.scalar(),
+      ],
+      fast_api::Int64Representation::BigInt,
+    ),
+  );
 
   fn slow_fn(
     _: &mut v8::HandleScope,
@@ -11191,20 +11285,10 @@ fn test_fast_calls_i64representation() {
 
   let global = context.global(scope);
 
-  let template_number = v8::FunctionTemplate::builder(slow_fn).build_fast(
-    scope,
-    &FAST_TEST_NUMBER,
-    None,
-    None,
-    None,
-  );
-  let template_bigint = v8::FunctionTemplate::builder(slow_fn).build_fast(
-    scope,
-    &FAST_TEST_BIGINT,
-    None,
-    None,
-    None,
-  );
+  let template_number = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &[FAST_TEST_NUMBER]);
+  let template_bigint = v8::FunctionTemplate::builder(slow_fn)
+    .build_fast(scope, &[FAST_TEST_BIGINT]);
 
   let name_number = v8::String::new(scope, "func_number").unwrap();
   let name_bigint = v8::String::new(scope, "func_bigint").unwrap();
@@ -11338,10 +11422,16 @@ fn test_fast_calls_pointer() {
     std::ptr::null_mut()
   }
 
-  const FAST_TEST: fast_api::FastFunction = fast_api::FastFunction::new(
-    &[V8Value, Pointer],
-    fast_api::CType::Pointer,
+  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
+    &fast_api::CFunctionInfo::new(
+      fast_api::Type::Pointer.scalar(),
+      &[
+        fast_api::Type::V8Value.scalar(),
+        fast_api::Type::Pointer.scalar(),
+      ],
+      fast_api::Int64Representation::Number,
+    ),
   );
 
   fn slow_fn(
@@ -11363,8 +11453,8 @@ fn test_fast_calls_pointer() {
 
   let global = context.global(scope);
 
-  let template = v8::FunctionTemplate::builder(slow_fn)
-    .build_fast(scope, &FAST_TEST, None, None, None);
+  let template =
+    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
 
   let name = v8::String::new(scope, "func").unwrap();
   let value = template.get_function(scope).unwrap();
