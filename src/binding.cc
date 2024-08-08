@@ -3891,21 +3891,24 @@ extern "C" {
 
 class RustObj;
 
-using RustTraceFn = void (*)(const RustObj* obj, cppgc::Visitor*);
-using RustDestroyFn = void (*)(const RustObj* obj);
+void rusty_v8_RustObj_trace(const RustObj*, cppgc::Visitor*);
+const char* rusty_v8_RustObj_get_name(const RustObj*);
+void rusty_v8_RustObj_drop(RustObj*);
 
-class RustObj final : public cppgc::GarbageCollected<RustObj> {
+class RustObj final : public cppgc::GarbageCollected<RustObj>,
+                      public cppgc::NameProvider {
  public:
-  explicit RustObj(RustTraceFn trace, RustDestroyFn destroy)
-      : trace_(trace), destroy_(destroy) {}
+  ~RustObj() { rusty_v8_RustObj_drop(this); }
 
-  ~RustObj() { destroy_(this); }
+  void Trace(cppgc::Visitor* visitor) const {
+    rusty_v8_RustObj_trace(this, visitor);
+  }
 
-  void Trace(cppgc::Visitor* visitor) const { trace_(this, visitor); }
+  const char* GetHumanReadableName() const final {
+    return rusty_v8_RustObj_get_name(this);
+  }
 
- private:
-  RustTraceFn trace_;
-  RustDestroyFn destroy_;
+  uintptr_t data[2];
 };
 
 RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
@@ -3953,12 +3956,9 @@ void cppgc__heap__collect_garbage_for_testing(
   heap->CollectGarbageForTesting(stack_state);
 }
 
-RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size,
-                                         RustTraceFn trace,
-                                         RustDestroyFn destroy) {
+RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size) {
   return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(),
-                                              cppgc::AdditionalBytes(size),
-                                              trace, destroy);
+                                              cppgc::AdditionalBytes(size));
 }
 
 void cppgc__Visitor__Trace__Member(cppgc::Visitor* visitor,

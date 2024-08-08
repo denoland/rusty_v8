@@ -44,6 +44,10 @@ fn cppgc_object_wrap() {
       TRACE_COUNT.fetch_add(1, Ordering::SeqCst);
       visitor.trace(&self.value);
     }
+
+    fn get_name(&self) -> Option<&'static std::ffi::CStr> {
+      Some(c"Wrap")
+    }
   }
 
   impl Drop for Wrap {

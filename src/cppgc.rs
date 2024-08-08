@@ -7,6 +7,8 @@ use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::Data;
 use crate::TracedReference;
+use std::ffi::c_char;
+use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
@@ -20,11 +22,10 @@ extern "C" {
     sweeping_support: SweepingType,
   ) -> *mut Heap;
   fn cppgc__heap__DELETE(heap: *mut Heap);
+  #[allow(improper_ctypes)]
   fn cppgc__make_garbage_collectable(
     heap: *mut Heap,
     size: usize,
-    trace: TraceFn,
-    destroy: DestroyFn,
   ) -> *mut RustObj;
 
   fn cppgc__heap__enable_detached_garbage_collections_for_testing(
@@ -48,48 +49,92 @@ extern "C" {
     reference: *const TracedReference<Data>,
   );
 
+  #[allow(improper_ctypes)]
   fn cppgc__Member__CONSTRUCT(member: *mut MemberInner, obj: *mut RustObj);
   fn cppgc__Member__DESTRUCT(member: *mut MemberInner);
+  #[allow(improper_ctypes)]
   fn cppgc__Member__Get(member: *const MemberInner) -> *mut RustObj;
+  #[allow(improper_ctypes)]
   fn cppgc__Member__Assign(member: *mut MemberInner, other: *mut RustObj);
 
+  #[allow(improper_ctypes)]
   fn cppgc__WeakMember__CONSTRUCT(
     member: *mut WeakMemberInner,
     obj: *mut RustObj,
   );
   fn cppgc__WeakMember__DESTRUCT(member: *mut WeakMemberInner);
+  #[allow(improper_ctypes)]
   fn cppgc__WeakMember__Get(member: *const WeakMemberInner) -> *mut RustObj;
+  #[allow(improper_ctypes)]
   fn cppgc__WeakMember__Assign(
     member: *mut WeakMemberInner,
     other: *mut RustObj,
   );
 
+  #[allow(improper_ctypes)]
   fn cppgc__Persistent__CONSTRUCT(obj: *mut RustObj) -> *mut PersistentInner;
   fn cppgc__Persistent__DESTRUCT(this: *mut PersistentInner);
+  #[allow(improper_ctypes)]
   fn cppgc__Persistent__Assign(this: *mut PersistentInner, ptr: *mut RustObj);
+  #[allow(improper_ctypes)]
   fn cppgc__Persistent__Get(this: *const PersistentInner) -> *mut RustObj;
 
+  #[allow(improper_ctypes)]
   fn cppgc__WeakPersistent__CONSTRUCT(
     obj: *mut RustObj,
   ) -> *mut WeakPersistentInner;
   fn cppgc__WeakPersistent__DESTRUCT(this: *mut WeakPersistentInner);
+  #[allow(improper_ctypes)]
   fn cppgc__WeakPersistent__Assign(
     this: *mut WeakPersistentInner,
     ptr: *mut RustObj,
   );
+  #[allow(improper_ctypes)]
   fn cppgc__WeakPersistent__Get(
     this: *const WeakPersistentInner,
   ) -> *mut RustObj;
 }
 
-type TraceFn = unsafe extern "C" fn(*const RustObj, *mut Visitor);
-type DestroyFn = unsafe extern "C" fn(*const RustObj);
-
 #[doc(hidden)]
 #[repr(C)]
 pub struct RustObj {
-  trace: TraceFn,
-  destroy: DestroyFn,
+  data: *mut dyn GarbageCollected,
+}
+
+unsafe fn get_dyn<'s>(obj: *mut RustObj) -> &'s mut dyn GarbageCollected {
+  const {
+    assert!(
+      std::mem::size_of::<*mut dyn GarbageCollected>()
+        == std::mem::size_of::<[usize; 2]>()
+    );
+  }
+  &mut *(*obj).data
+}
+
+#[no_mangle]
+unsafe extern "C" fn rusty_v8_RustObj_trace(
+  obj: *mut RustObj,
+  visitor: *mut Visitor,
+) {
+  let r = get_dyn(obj);
+  r.trace(&*visitor);
+}
+
+#[no_mangle]
+unsafe extern "C" fn rusty_v8_RustObj_get_name(
+  obj: *mut RustObj,
+) -> *const c_char {
+  let r = get_dyn(obj);
+  match r.get_name() {
+    Some(s) => s.as_ptr(),
+    None => std::ptr::null(),
+  }
+}
+
+#[no_mangle]
+unsafe extern "C" fn rusty_v8_RustObj_drop(obj: *mut RustObj) {
+  let r = get_dyn(obj);
+  std::ptr::drop_in_place(r);
 }
 
 fn object_offset_for_rust_obj<T: GarbageCollected>() -> usize {
@@ -102,7 +147,10 @@ fn object_offset_for_rust_obj<T: GarbageCollected>() -> usize {
   std::mem::offset_of!(Calc<T>, data)
 }
 
-fn get_object_from_rust_obj<T: GarbageCollected>(
+/// # Safety
+///
+/// T must be the correct type for this specific RustObj
+unsafe fn get_object_from_rust_obj<T: GarbageCollected>(
   rust_obj: *const RustObj,
 ) -> *mut T {
   unsafe { rust_obj.byte_add(object_offset_for_rust_obj::<T>()) as *mut T }
@@ -267,7 +315,23 @@ impl Heap {
 
 /// Base trait for managed objects.
 pub trait GarbageCollected {
+  /// `trace` should call `Visitor::visit` for each
+  /// `Member`, `WeakMember`, or `TracedReference` in
+  /// by the managed object.
   fn trace(&self, _visitor: &Visitor) {}
+
+  /// Specifies a name for the garbage-collected object. Such names will never
+  /// be hidden, as they are explicitly specified by the user of this API.
+  ///
+  /// V8 may call this function while generating a heap snapshot or at other
+  /// times. If V8 is currently generating a heap snapshot (according to
+  /// HeapProfiler::IsTakingSnapshot), then the returned string must stay alive
+  /// until the snapshot generation has completed. Otherwise, the returned string
+  /// must stay alive forever. If you need a place to store a temporary string
+  /// during snapshot generation, use HeapProfiler::CopyNameForHeapSnapshot.
+  fn get_name(&self) -> Option<&'static CStr> {
+    None
+  }
 }
 
 /// Constructs an instance of T, which is a garbage collected type.
@@ -282,23 +346,10 @@ pub trait GarbageCollected {
 ///
 /// The caller must ensure that the returned pointer is always stored on
 /// the stack, or is safely moved into one of the other cppgc pointer types.
-pub unsafe fn make_garbage_collected<T: GarbageCollected>(
+pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
   heap: &Heap,
   obj: T,
 ) -> Ptr<T> {
-  unsafe extern "C" fn trace<T: GarbageCollected>(
-    obj: *const RustObj,
-    visitor: *mut Visitor,
-  ) {
-    let obj = unsafe { &*get_object_from_rust_obj::<T>(obj) };
-    obj.trace(unsafe { &*visitor });
-  }
-
-  unsafe extern "C" fn destroy<T: GarbageCollected>(obj: *const RustObj) {
-    let obj = get_object_from_rust_obj::<T>(obj);
-    std::ptr::drop_in_place(obj);
-  }
-
   let additional_bytes = (object_offset_for_rust_obj::<T>()
     - std::mem::size_of::<RustObj>())
     + std::mem::size_of::<T>();
@@ -307,13 +358,16 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected>(
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
       additional_bytes,
-      trace::<T>,
-      destroy::<T>,
     )
   };
 
   unsafe {
-    get_object_from_rust_obj::<T>(pointer).write(obj);
+    let inner = get_object_from_rust_obj::<T>(pointer);
+    inner.write(obj);
+
+    let rust_obj = &mut *pointer;
+    rust_obj.data =
+      (&mut *inner) as &mut dyn GarbageCollected as *mut dyn GarbageCollected;
   }
 
   Ptr {

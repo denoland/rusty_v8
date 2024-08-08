@@ -231,12 +231,14 @@ extern "C" {
     key: *const Name,
     out: *mut Maybe<PropertyAttribute>,
   );
+  #[allow(improper_ctypes)]
   fn v8__Object__Wrap(
     isolate: *const Isolate,
     wrapper: *const Object,
     value: *const RustObj,
     tag: u16,
   );
+  #[allow(improper_ctypes)]
   fn v8__Object__Unwrap(
     isolate: *const Isolate,
     wrapper: *const Object,
