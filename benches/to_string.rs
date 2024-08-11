@@ -71,7 +71,7 @@ fn main() {
         let first = arg.get(0);
         let string = first.to_string(scope).unwrap();
 
-        let mut buffer = [std::mem::MaybeUninit::<u8>::uninit(); 0];
+        let mut buffer: [std::mem::MaybeUninit<u8>; 0] = [];
         let out = string.to_rust_cow_lossy(scope, &mut buffer);
 
         rv.set_uint32(out.len() as u32);
