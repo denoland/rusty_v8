@@ -152,6 +152,7 @@ fn build_binding() {
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
     .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include", "-I."])
     .clang_args(args)
+    .generate_cstr(true)
     .rustified_enum(".*UseCounterFeature")
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")

@@ -169,5 +169,21 @@ pub use value_serializer::ValueSerializerImpl;
 pub use wasm::CompiledWasmModule;
 pub use wasm::WasmStreaming;
 
+/// https://v8.dev/docs/version-numbers
+pub const MAJOR_VERSION: u32 = binding::v8__MAJOR_VERSION;
+/// https://v8.dev/docs/version-numbers
+pub const MINOR_VERSION: u32 = binding::v8__MINOR_VERSION;
+/// https://v8.dev/docs/version-numbers
+pub const BUILD_NUMBER: u32 = binding::v8__BUILD_NUMBER;
+/// https://v8.dev/docs/version-numbers
+pub const PATCH_LEVEL: u32 = binding::v8__PATCH_LEVEL;
+/// https://v8.dev/docs/version-numbers
+pub const VERSION_STRING: &str =
+  // TODO: cleanup when Result::unwrap is const stable.
+  match binding::v8__VERSION_STRING.to_str() {
+    Ok(v) => v,
+    Err(_) => panic!("Unable to convert CStr to &str??"),
+  };
+
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;

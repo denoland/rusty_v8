@@ -1468,6 +1468,7 @@ fn script_origin() {
 
 #[test]
 fn get_version() {
+  assert_eq!(v8::V8::get_version(), v8::VERSION_STRING);
   assert!(v8::V8::get_version().len() > 3);
 }
 
