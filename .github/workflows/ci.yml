@@ -77,6 +77,16 @@ jobs:
             variant: release
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: debug
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: release
+            cargo: cargo
+
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
@@ -119,6 +129,15 @@ jobs:
 
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
+          
+      - name: Install musl tools
+        if: matrix.config.target == 'x86_64-unknown-linux-musl'
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+
+          sudo apt update
+          sudo apt install -yq --no-install-suggests --no-install-recommends \
+            musl-dev musl-tools
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
