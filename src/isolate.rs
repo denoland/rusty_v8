@@ -1,4 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+use crate::binding::v8__Isolate__UseCounterFeature;
 use crate::cppgc::Heap;
 use crate::function::FunctionCallbackInfo;
 use crate::gc::GCCallbackFlags;
@@ -406,6 +407,9 @@ pub type PrepareStackTraceCallback<'s> =
     Local<'s, Array>,
   ) -> PrepareStackTraceCallbackRet;
 
+pub type UseCounterFeature = v8__Isolate__UseCounterFeature;
+pub type UseCounterCallback = extern "C" fn(&mut Isolate, UseCounterFeature);
+
 extern "C" {
   static v8__internal__Internals__kIsolateEmbedderDataOffset: int;
 
@@ -500,6 +504,10 @@ extern "C" {
       rv: *mut *mut Context,
       initiator_context: Local<Context>,
     ) -> *mut *mut Context,
+  );
+  fn v8__Isolate__SetUseCounterCallback(
+    isolate: *mut Isolate,
+    callback: UseCounterCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -1123,6 +1131,14 @@ impl Isolate {
           rust_shadow_realm_callback,
         );
       }
+    }
+  }
+
+  /// Sets a callback for counting the number of times a feature of V8 is used.
+  #[inline(always)]
+  pub fn set_use_counter_callback(&mut self, callback: UseCounterCallback) {
+    unsafe {
+      v8__Isolate__SetUseCounterCallback(self, callback);
     }
   }
 

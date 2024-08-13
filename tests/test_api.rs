@@ -12017,3 +12017,28 @@ fn host_defined_options() {
   .unwrap();
   script.run(scope).unwrap();
 }
+
+#[test]
+fn use_counter_callback() {
+  static COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  extern "C" fn callback(
+    _isolate: &mut v8::Isolate,
+    feature: v8::UseCounterFeature,
+  ) {
+    if feature == v8::UseCounterFeature::kStrictMode {
+      COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+  }
+
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.set_use_counter_callback(callback);
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  eval(scope, "'use strict'; 1 + 1");
+
+  assert_eq!(COUNT.load(Ordering::Relaxed), 1);
+}

@@ -120,6 +120,8 @@ pub use isolate::PromiseHook;
 pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
 pub use isolate::TimeZoneDetection;
+pub use isolate::UseCounterCallback;
+pub use isolate::UseCounterFeature;
 pub use isolate::WasmAsyncSuccess;
 pub use isolate_create_params::CreateParams;
 pub use microtask::MicrotaskQueue;
