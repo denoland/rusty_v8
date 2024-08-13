@@ -32,3 +32,5 @@ EACH_TYPED_ARRAY(TYPED_ARRAY_MAX_LENGTH)
 
 using v8__CFunction = v8::CFunction;
 using v8__CFunctionInfo = v8::CFunctionInfo;
+
+using v8__Isolate__UseCounterFeature = v8::Isolate::UseCounterFeature;
