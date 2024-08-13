@@ -1,4 +1,5 @@
 #include <v8-cppgc.h>
+#include <v8-fast-api-calls.h>
 #include <v8-message.h>
 #include <v8-typed-array.h>
 
@@ -28,3 +29,6 @@ static size_t v8__TypedArray__kMaxByteLength = v8::TypedArray::kMaxByteLength;
   static size_t v8__##name##__kMaxLength = v8::name::kMaxLength;
 EACH_TYPED_ARRAY(TYPED_ARRAY_MAX_LENGTH)
 #undef TYPED_ARRAY_MAX_LENGTH
+
+using v8__CFunction = v8::CFunction;
+using v8__CFunctionInfo = v8::CFunctionInfo;
