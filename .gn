@@ -22,7 +22,6 @@ default_args = {
   linux_use_bundled_binutils = false
   use_dummy_lastchange = true
   use_sysroot = false
-  win_crt_flavor_agnostic = true
   simple_template_names = false
 
   # Minimize size of debuginfo in distributed static library.
