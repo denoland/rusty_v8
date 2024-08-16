@@ -126,11 +126,6 @@ name = "build"
 path = "build.rs"
 
 [[bench]]
-name = "to_string"
-path = "benches/to_string.rs"
-harness = false
-
-[[bench]]
 name = "function"
 path = "benches/function.rs"
 harness = false
