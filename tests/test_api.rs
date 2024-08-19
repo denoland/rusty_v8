@@ -10887,7 +10887,7 @@ fn test_fast_calls_overload() {
   ) {
     unsafe { WHO = "fast_buf" };
     let buf = unsafe { &*data };
-    assert_eq!(buf.length, 2);
+    assert_eq!(buf.length(), 2);
     assert_eq!(buf.get(0), 6);
     assert_eq!(buf.get(1), 9);
   }
@@ -10978,77 +10978,6 @@ fn test_fast_calls_overload() {
 }
 
 #[test]
-fn test_fast_calls_callback_options_fallback() {
-  static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    options: *mut fast_api::FastApiCallbackOptions,
-  ) {
-    if unsafe { WHO == "fast" } {
-      let options = unsafe { &mut *options };
-      options.fallback = true; // Go back to slow path.
-    } else {
-      unsafe { WHO = "fast" };
-    }
-  }
-
-  const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
-    fast_fn as _,
-    &fast_api::CFunctionInfo::new(
-      fast_api::Type::Void.scalar(),
-      &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::CallbackOptions.scalar(),
-      ],
-      fast_api::Int64Representation::Number,
-    ),
-  );
-
-  fn slow_fn(
-    scope: &mut v8::HandleScope,
-    _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue<v8::Value>,
-  ) {
-    unsafe { WHO = "slow" };
-    rv.set(v8::Boolean::new(scope, false).into());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  let global = context.global(scope);
-
-  let template =
-    v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
-
-  let name = v8::String::new(scope, "func").unwrap();
-  let value = template.get_function(scope).unwrap();
-  global.set(scope, name.into(), value.into()).unwrap();
-  let source = r#"
-  function f() { return func(); }
-  %PrepareFunctionForOptimization(f);
-  f();
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-
-  let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f();
-  "#;
-  eval(scope, source).unwrap();
-  assert_eq!("fast", unsafe { WHO });
-  let source = r#"
-  f(); // Second call fallbacks back to slow path.
-"#;
-  eval(scope, source).unwrap();
-  assert_eq!("slow", unsafe { WHO });
-}
-
-#[test]
 fn test_fast_calls_callback_options_data() {
   static mut DATA: bool = false;
   unsafe fn fast_fn(
@@ -11057,7 +10986,6 @@ fn test_fast_calls_callback_options_data() {
   ) {
     let options = &mut *options;
     if !options.data.is_external() {
-      options.fallback = true;
       return;
     }
 
@@ -11079,11 +11007,10 @@ fn test_fast_calls_callback_options_data() {
   );
 
   fn slow_fn(
-    scope: &mut v8::HandleScope,
+    _: &mut v8::HandleScope,
     _: v8::FunctionCallbackArguments,
-    mut rv: v8::ReturnValue<v8::Value>,
+    _: v8::ReturnValue<v8::Value>,
   ) {
-    rv.set(v8::Boolean::new(scope, false).into());
   }
 
   let _setup_guard = setup::parallel_test();

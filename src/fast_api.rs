@@ -1,9 +1,9 @@
-use std::ffi::c_void;
-
 use crate::binding::*;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
+use std::ffi::c_void;
+use std::marker::PhantomData;
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -140,42 +140,26 @@ bitflags::bitflags! {
 #[repr(C)]
 pub struct FastApiCallbackOptions<'a> {
   pub isolate: *mut Isolate,
-  /// If the callback wants to signal an error condition or to perform an
-  /// allocation, it must set options.fallback to true and do an early return
-  /// from the fast method. Then V8 checks the value of options.fallback and if
-  /// it's true, falls back to executing the SlowCallback, which is capable of
-  /// reporting the error (either by throwing a JS exception or logging to the
-  /// console) or doing the allocation. It's the embedder's responsibility to
-  /// ensure that the fast callback is idempotent up to the point where error and
-  /// fallback conditions are checked, because otherwise executing the slow
-  /// callback might produce visible side-effects twice.
-  pub fallback: bool,
   /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
   pub data: Local<'a, Value>,
-  /// When called from WebAssembly, a view of the calling module's memory.
-  pub wasm_memory: *const FastApiTypedArray<u8>,
 }
 
-// https://source.chromium.org/chromium/chromium/src/+/main:v8/include/v8-fast-api-calls.h;l=336
-#[repr(C)]
-pub struct FastApiTypedArray<T: Default> {
-  /// Returns the length in number of elements.
-  pub length: usize,
-  // This pointer should include the typed array offset applied.
-  // It's not guaranteed that it's aligned to sizeof(T), it's only
-  // guaranteed that it's 4-byte aligned, so for 8-byte types we need to
-  // provide a special implementation for reading from it, which hides
-  // the possibly unaligned read in the `get` method.
-  data: *mut T,
-}
+#[allow(unused)] // only constructed by V8
+#[repr(transparent)]
+pub struct FastApiTypedArray<T: Default>(v8__FastApiTypedArray, PhantomData<T>);
 
 impl<T: Default> FastApiTypedArray<T> {
+  /// Returns the length in number of elements.
+  pub const fn length(&self) -> usize {
+    self.0._base.length_
+  }
+
   /// Performs an unaligned-safe read of T from the underlying data.
   #[inline(always)]
   pub const fn get(&self, index: usize) -> T {
-    debug_assert!(index < self.length);
+    debug_assert!(index < self.length());
     // SAFETY: src is valid for reads, and is a valid value for T
-    unsafe { std::ptr::read_unaligned(self.data.add(index)) }
+    unsafe { std::ptr::read_unaligned((self.0.data_ as *const T).add(index)) }
   }
 
   /// Returns a slice pointing to the underlying data if safe to do so.
@@ -183,14 +167,16 @@ impl<T: Default> FastApiTypedArray<T> {
   pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
     // V8 may provide an invalid or null pointer when length is zero, so we just
     // ignore that value completely and create an empty slice in this case.
-    if self.length == 0 {
+    if self.length() == 0 {
       return Some(&mut []);
     }
+    let data = self.0.data_ as *mut T;
     // Ensure that we never return an unaligned or null buffer
-    if self.data.is_null() || (self.data as usize) % align_of::<T>() != 0 {
-      return None;
+    if data.is_null() || !data.is_aligned() {
+      None
+    } else {
+      Some(unsafe { std::slice::from_raw_parts_mut(data, self.length()) })
     }
-    Some(unsafe { std::slice::from_raw_parts_mut(self.data, self.length) })
   }
 }
 
@@ -200,19 +186,9 @@ impl<T: Default> FastApiTypedArray<T> {
 /// own instance type. It could be supported if we specify that
 /// TypedArray<T> always has precedence over the generic ArrayBufferView,
 /// but this complicates overload resolution.
-#[repr(C)]
-pub struct FastApiArrayBufferView {
-  pub data: *mut c_void,
-  pub byte_length: usize,
-}
+pub type FastApiArrayBufferView = v8__FastApiArrayBufferView;
 
-// FastApiOneByteString is an alias for SeqOneByteString and the type is widely used in deno_core.
-#[allow(unused)]
-#[repr(C)]
-pub struct FastApiOneByteString {
-  data: *const u8,
-  pub length: u32,
-}
+pub type FastApiOneByteString = v8__FastOneByteString;
 
 impl FastApiOneByteString {
   #[inline(always)]
@@ -224,6 +200,6 @@ impl FastApiOneByteString {
     }
 
     // SAFETY: The data is guaranteed to be valid for the length of the string.
-    unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
+    unsafe { std::slice::from_raw_parts(self.data as _, self.length as usize) }
   }
 }
