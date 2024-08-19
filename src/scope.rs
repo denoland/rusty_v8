@@ -102,6 +102,7 @@ use std::ops::DerefMut;
 use std::ptr;
 use std::ptr::NonNull;
 
+use crate::fast_api::FastApiCallbackOptions;
 use crate::function::FunctionCallbackInfo;
 use crate::function::PropertyCallbackInfo;
 use crate::Context;
@@ -628,6 +629,7 @@ where
 ///   - `&FunctionCallbackInfo`
 ///   - `&PropertyCallbackInfo`
 ///   - `&PromiseRejectMessage`
+///   - `&FastApiCallbackOptions`
 #[derive(Debug)]
 pub struct CallbackScope<'s, C = Context> {
   _data: NonNull<data::ScopeData>,
@@ -637,10 +639,23 @@ pub struct CallbackScope<'s, C = Context> {
 impl<'s> CallbackScope<'s> {
   #[allow(clippy::new_ret_no_self)]
   pub unsafe fn new<P: param::NewCallbackScope<'s>>(param: P) -> P::NewScope {
-    let (isolate, context) = param.get_isolate_mut_and_maybe_current_context();
-    data::ScopeData::get_current_mut(isolate)
-      .new_callback_scope_data(context)
-      .as_scope()
+    let context = param.get_context();
+    let scope_data = data::ScopeData::get_current_mut(param.get_isolate_mut());
+    // A HandleScope is not implicitly created for
+    // fast functions, so one must be opened here.
+    let scope_data = if P::NEEDS_SCOPE {
+      if let Some(context) = context {
+        scope_data.new_handle_scope_data_with_context(&context)
+      } else {
+        scope_data.new_handle_scope_data()
+      }
+    } else {
+      scope_data.new_callback_scope_data(context)
+    };
+    // This scope needs to exit when dropped, as it
+    // must not live beyond the callback activation.
+    scope_data.disable_zombie();
+    scope_data.as_scope()
   }
 }
 
@@ -1160,11 +1175,10 @@ mod param {
 
   pub trait NewCallbackScope<'s>: Sized + getter::GetIsolate<'s> {
     type NewScope: Scope;
+    const NEEDS_SCOPE: bool = false;
 
-    unsafe fn get_isolate_mut_and_maybe_current_context(
-      self,
-    ) -> (&'s mut Isolate, Option<Local<'s, Context>>) {
-      (self.get_isolate_mut(), None)
+    fn get_context(&self) -> Option<Local<'s, Context>> {
+      None
     }
   }
 
@@ -1184,13 +1198,16 @@ mod param {
     type NewScope = CallbackScope<'s>;
   }
 
+  impl<'s> NewCallbackScope<'s> for &'s FastApiCallbackOptions<'s> {
+    type NewScope = CallbackScope<'s>;
+    const NEEDS_SCOPE: bool = true;
+  }
+
   impl<'s> NewCallbackScope<'s> for Local<'s, Context> {
     type NewScope = CallbackScope<'s>;
 
-    unsafe fn get_isolate_mut_and_maybe_current_context(
-      self,
-    ) -> (&'s mut Isolate, Option<Local<'s, Context>>) {
-      (getter::GetIsolate::get_isolate_mut(self), Some(self))
+    fn get_context(&self) -> Option<Local<'s, Context>> {
+      Some(*self)
     }
   }
 
@@ -1238,6 +1255,12 @@ mod getter {
   impl<'s, T> GetIsolate<'s> for &'s PropertyCallbackInfo<T> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self.get_isolate_ptr()
+    }
+  }
+
+  impl<'s> GetIsolate<'s> for &'s FastApiCallbackOptions<'s> {
+    unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
+      &mut *self.isolate
     }
   }
 
@@ -1405,6 +1428,7 @@ pub(crate) mod data {
         let isolate = data.isolate;
         data.scope_type_specific_data.init_with(|| {
           ScopeTypeSpecificData::HandleScope {
+            allow_zombie: true,
             raw_handle_scope: unsafe { raw::HandleScope::uninit() },
             raw_context_scope: None,
           }
@@ -1413,6 +1437,7 @@ pub(crate) mod data {
           ScopeTypeSpecificData::HandleScope {
             raw_handle_scope,
             raw_context_scope,
+            ..
           } => {
             unsafe { raw_handle_scope.init(isolate) };
             init_context_fn(isolate, &mut data.context, raw_context_scope);
@@ -1420,6 +1445,15 @@ pub(crate) mod data {
           _ => unreachable!(),
         };
       })
+    }
+
+    #[inline(always)]
+    pub(super) fn disable_zombie(&mut self) {
+      if let ScopeTypeSpecificData::HandleScope { allow_zombie, .. } =
+        &mut self.scope_type_specific_data
+      {
+        *allow_zombie = false;
+      }
     }
 
     #[inline(always)]
@@ -1732,7 +1766,9 @@ pub(crate) mod data {
     #[inline(always)]
     pub(super) fn notify_scope_dropped(&mut self) {
       match &self.scope_type_specific_data {
-        ScopeTypeSpecificData::HandleScope { .. }
+        ScopeTypeSpecificData::HandleScope {
+          allow_zombie: true, ..
+        }
         | ScopeTypeSpecificData::EscapableHandleScope { .. } => {
           // Defer scope exit until the parent scope is touched.
           self.status.set(match self.status.get() {
@@ -1864,6 +1900,7 @@ pub(crate) mod data {
       _raw_context_scope: raw::ContextScope,
     },
     HandleScope {
+      allow_zombie: bool,
       raw_handle_scope: raw::HandleScope,
       raw_context_scope: Option<raw::ContextScope>,
     },

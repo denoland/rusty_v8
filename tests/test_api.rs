@@ -10451,7 +10451,13 @@ fn host_create_shadow_realm_context_callback() {
 #[test]
 fn test_fast_calls() {
   static mut WHO: &str = "none";
-  fn fast_fn(_recv: v8::Local<v8::Object>, a: u32, b: u32) -> u32 {
+  fn fast_fn(
+    _recv: v8::Local<v8::Object>,
+    a: u32,
+    b: u32,
+    options: &v8::fast_api::FastApiCallbackOptions,
+  ) -> u32 {
+    let _scope = unsafe { v8::CallbackScope::new(options) };
     unsafe { WHO = "fast" };
     a + b
   }
@@ -10464,6 +10470,7 @@ fn test_fast_calls() {
         fast_api::Type::V8Value.scalar(),
         fast_api::Type::Uint32.scalar(),
         fast_api::Type::Uint32.scalar(),
+        fast_api::Type::CallbackOptions.scalar(),
       ],
       fast_api::Int64Representation::Number,
     ),
