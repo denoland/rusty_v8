@@ -7,7 +7,7 @@ with open('./v8/DEPS') as f:
 import subprocess
 
 def process(name, dep):
-    if name == 'build':
+    if name == 'build' or name == 'third_party/icu':
         # We have our own fork of this
         return
 

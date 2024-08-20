@@ -47,7 +47,7 @@ fn main() {
     "PYTHON",
     "DISABLE_CLANG",
     "EXTRA_GN_ARGS",
-    "NO_PRINT_GN_ARGS",
+    "PRINT_GN_ARGS",
     "CARGO_ENCODED_RUSTFLAGS",
   ];
   for env in envs {
@@ -313,7 +313,7 @@ fn build_v8(is_asan: bool) {
   let gn_out = maybe_gen(gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
-  if env::var_os("NO_PRINT_GN_ARGS").is_none() {
+  if env_bool("PRINT_GN_ARGS") {
     print_gn_args(&gn_out);
   }
   build("rusty_v8", None);
