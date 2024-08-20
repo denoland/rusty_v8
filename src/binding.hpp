@@ -36,6 +36,8 @@ using v8__CFunctionInfo = v8::CFunctionInfo;
 
 using v8__Isolate__UseCounterFeature = v8::Isolate::UseCounterFeature;
 
+using v8__String__ExternalOneByteStringResource = v8::String::ExternalOneByteStringResource;
+
 static uint32_t v8__MAJOR_VERSION = V8_MAJOR_VERSION;
 static uint32_t v8__MINOR_VERSION = V8_MINOR_VERSION;
 static uint32_t v8__BUILD_NUMBER = V8_BUILD_NUMBER;
