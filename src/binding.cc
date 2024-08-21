@@ -162,7 +162,9 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
-v8::Isolate* v8__Isolate__GetCurrent() { return v8::Isolate::GetCurrent(); }
+v8::Isolate* v8__Isolate__TryGetCurrent() {
+  return v8::Isolate::TryGetCurrent();
+}
 
 const v8::Data* v8__Isolate__GetCurrentHostDefinedOptions(
     v8::Isolate* isolate) {

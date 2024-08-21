@@ -418,7 +418,7 @@ extern "C" {
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
-  fn v8__Isolate__GetCurrent() -> *mut Isolate;
+  fn v8__Isolate__TryGetCurrent() -> *mut Isolate;
   fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
@@ -622,15 +622,6 @@ impl Isolate {
     );
   }
 
-  fn new_impl(params: CreateParams) -> *mut Isolate {
-    crate::V8::assert_initialized();
-    let (raw_create_params, create_param_allocations) = params.finalize();
-    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    let isolate = unsafe { &mut *cxx_isolate };
-    isolate.initialize(create_param_allocations);
-    cxx_isolate
-  }
-
   pub(crate) fn initialize(&mut self, create_param_allocations: Box<dyn Any>) {
     self.assert_embedder_data_slot_count_and_offset_correct();
     self.create_annex(create_param_allocations);
@@ -645,7 +636,12 @@ impl Isolate {
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
   pub fn new(params: CreateParams) -> OwnedIsolate {
-    OwnedIsolate::new(Self::new_impl(params))
+    crate::V8::assert_initialized();
+    let (raw_create_params, create_param_allocations) = params.finalize();
+    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
+    let isolate = unsafe { &mut *cxx_isolate };
+    isolate.initialize(create_param_allocations);
+    OwnedIsolate::new(cxx_isolate)
   }
 
   #[allow(clippy::new_ret_no_self)]
@@ -903,6 +899,13 @@ impl Isolate {
   /// constructed and exited when dropped.
   #[inline(always)]
   pub unsafe fn enter(&mut self) {
+    assert!(
+      {
+        let current = unsafe { v8__Isolate__TryGetCurrent() };
+        current.is_null() || current == self
+      },
+      "Nesting v8::Isolate instances is not currently supported"
+    );
     v8__Isolate__Enter(self)
   }
 
@@ -1647,11 +1650,11 @@ impl Drop for OwnedIsolate {
       );
       // Safety: We need to check `this == Isolate::GetCurrent()` before calling exit()
       assert!(
-        self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__GetCurrent(),
+        self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__TryGetCurrent(),
         "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
-      self.exit();
       self.dispose_scope_root();
+      self.exit();
       self.dispose_annex();
       self.dispose();
     }

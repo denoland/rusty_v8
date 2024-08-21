@@ -38,6 +38,8 @@ default_args = {
   v8_use_external_startup_data = false
   v8_use_snapshot = true
 
+  v8_enable_pointer_compression_shared_cage = false
+
   # This flag speeds up the performance of fork/execve on Linux systems for
   # embedders which use it (like Node.js). It works by marking the pages that
   # V8 allocates as MADV_DONTFORK. Without MADV_DONTFORK, the Linux kernel
@@ -74,7 +76,7 @@ default_args = {
 
   # Enable V8 object print for debugging.
   # v8_enable_object_print = true
-  
+
   # V8 12.3 added google/fuzztest as a third party dependency.
   # https://chromium.googlesource.com/v8/v8.git/+/d5acece0c9b89b18716c177d1fcc8f734191e1e2%5E%21/#F4
   #
