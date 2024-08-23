@@ -1,3 +1,5 @@
+use crate::cppgc::GarbageCollected;
+use crate::cppgc::Traced;
 use crate::ArrayBuffer;
 use crate::CallbackScope;
 use crate::Context;
@@ -363,11 +365,11 @@ impl<'a> Drop for ValueSerializerHeap<'a> {
 /// Mostly used by the write_host_object callback function in the
 /// ValueSerializerImpl trait to create custom serialization logic.
 pub trait ValueSerializerHelper {
-  fn get_cxx_value_serializer(&mut self) -> &mut CxxValueSerializer;
+  fn get_cxx_value_serializer(&mut self) -> *mut CxxValueSerializer;
 
   fn write_header(&mut self) {
     unsafe {
-      v8__ValueSerializer__WriteHeader(self.get_cxx_value_serializer())
+      ValueSerializer::write_header_raw(self.get_cxx_value_serializer())
     };
   }
 
@@ -377,7 +379,7 @@ pub trait ValueSerializerHelper {
     value: Local<Value>,
   ) -> Option<bool> {
     unsafe {
-      v8__ValueSerializer__WriteValue(
+      ValueSerializer::write_value_raw(
         self.get_cxx_value_serializer(),
         context,
         value,
@@ -388,25 +390,25 @@ pub trait ValueSerializerHelper {
 
   fn write_uint32(&mut self, value: u32) {
     unsafe {
-      v8__ValueSerializer__WriteUint32(self.get_cxx_value_serializer(), value)
-    };
+      ValueSerializer::write_uint32_raw(self.get_cxx_value_serializer(), value);
+    }
   }
 
   fn write_uint64(&mut self, value: u64) {
     unsafe {
-      v8__ValueSerializer__WriteUint64(self.get_cxx_value_serializer(), value)
+      ValueSerializer::write_uint64_raw(self.get_cxx_value_serializer(), value)
     };
   }
 
   fn write_double(&mut self, value: f64) {
     unsafe {
-      v8__ValueSerializer__WriteDouble(self.get_cxx_value_serializer(), value)
+      ValueSerializer::write_double_raw(self.get_cxx_value_serializer(), value)
     };
   }
 
   fn write_raw_bytes(&mut self, source: &[u8]) {
     unsafe {
-      v8__ValueSerializer__WriteRawBytes(
+      ValueSerializer::write_raw_bytes_raw(
         self.get_cxx_value_serializer(),
         source.as_ptr() as *const _,
         source.len(),
@@ -420,7 +422,7 @@ pub trait ValueSerializerHelper {
     array_buffer: Local<ArrayBuffer>,
   ) {
     unsafe {
-      v8__ValueSerializer__TransferArrayBuffer(
+      ValueSerializer::transfer_array_buffer_raw(
         self.get_cxx_value_serializer(),
         transfer_id,
         array_buffer,
@@ -430,19 +432,19 @@ pub trait ValueSerializerHelper {
 }
 
 impl ValueSerializerHelper for CxxValueSerializer {
-  fn get_cxx_value_serializer(&mut self) -> &mut CxxValueSerializer {
+  fn get_cxx_value_serializer(&mut self) -> *mut CxxValueSerializer {
     self
   }
 }
 
 impl<'a> ValueSerializerHelper for ValueSerializerHeap<'a> {
-  fn get_cxx_value_serializer(&mut self) -> &mut CxxValueSerializer {
+  fn get_cxx_value_serializer(&mut self) -> *mut CxxValueSerializer {
     &mut self.cxx_value_serializer
   }
 }
 
 impl<'a> ValueSerializerHelper for ValueSerializer<'a> {
-  fn get_cxx_value_serializer(&mut self) -> &mut CxxValueSerializer {
+  fn get_cxx_value_serializer(&mut self) -> *mut CxxValueSerializer {
     &mut self.value_serializer_heap.cxx_value_serializer
   }
 }
@@ -501,6 +503,46 @@ impl<'a> ValueSerializer<'a> {
     Self {
       value_serializer_heap,
     }
+  }
+
+  pub unsafe fn write_uint32_raw(ser: *mut CxxValueSerializer, value: u32) {
+    v8__ValueSerializer__WriteUint32(ser, value);
+  }
+
+  pub unsafe fn write_uint64_raw(ser: *mut CxxValueSerializer, value: u64) {
+    v8__ValueSerializer__WriteUint64(ser, value);
+  }
+
+  pub unsafe fn write_double_raw(ser: *mut CxxValueSerializer, value: f64) {
+    v8__ValueSerializer__WriteDouble(ser, value);
+  }
+
+  pub unsafe fn write_raw_bytes_raw(
+    ser: *mut CxxValueSerializer,
+    source: *const c_void,
+    length: usize,
+  ) {
+    v8__ValueSerializer__WriteRawBytes(ser, source, length);
+  }
+
+  pub unsafe fn transfer_array_buffer_raw(
+    ser: *mut CxxValueSerializer,
+    transfer_id: u32,
+    array_buffer: Local<ArrayBuffer>,
+  ) {
+    v8__ValueSerializer__TransferArrayBuffer(ser, transfer_id, array_buffer);
+  }
+
+  pub unsafe fn write_header_raw(ser: *mut CxxValueSerializer) {
+    v8__ValueSerializer__WriteHeader(ser)
+  }
+
+  pub unsafe fn write_value_raw(
+    ser: *mut CxxValueSerializer,
+    context: Local<Context>,
+    value: Local<Value>,
+  ) -> MaybeBool {
+    v8__ValueSerializer__WriteValue(ser, context, value)
   }
 }
 
