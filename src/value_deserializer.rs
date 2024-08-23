@@ -489,6 +489,12 @@ impl<'a> ValueDeserializer<'a> {
   ) -> u32 {
     v8__ValueDeserializer__GetWireFormatVersion(de)
   }
+
+  pub unsafe fn get_cxx_value_deserializer_raw(
+    de: *mut Self,
+  ) -> *mut CxxValueDeserializer {
+    std::ptr::addr_of_mut!((*de).value_deserializer_heap.cxx_value_deserializer)
+  }
 }
 
 impl<'a> ValueDeserializer<'a> {

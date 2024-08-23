@@ -564,6 +564,12 @@ impl<'a> ValueSerializer<'a> {
   ) {
     v8__ValueSerializer__SetTreatArrayBufferViewsAsHostObjects(ser, mode)
   }
+
+  pub unsafe fn get_cxx_value_serializer_raw(
+    ser: *mut Self,
+  ) -> *mut CxxValueSerializer {
+    std::ptr::addr_of_mut!((*ser).value_serializer_heap.cxx_value_serializer)
+  }
 }
 
 impl<'a> ValueSerializer<'a> {
