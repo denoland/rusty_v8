@@ -238,6 +238,10 @@ extern "C" {
     source: *const c_void,
     length: usize,
   );
+  fn v8__ValueSerializer__SetTreatArrayBufferViewsAsHostObjects(
+    this: *mut CxxValueSerializer,
+    mode: bool,
+  );
 }
 
 /// The ValueSerializerImpl trait allows for
@@ -429,6 +433,15 @@ pub trait ValueSerializerHelper {
       )
     };
   }
+
+  fn set_treat_array_buffer_views_as_host_objects(&mut self, mode: bool) {
+    unsafe {
+      ValueSerializer::set_treat_array_buffer_views_as_host_objects_raw(
+        self.get_cxx_value_serializer(),
+        mode,
+      )
+    };
+  }
 }
 
 impl ValueSerializerHelper for CxxValueSerializer {
@@ -543,6 +556,13 @@ impl<'a> ValueSerializer<'a> {
     value: Local<Value>,
   ) -> MaybeBool {
     v8__ValueSerializer__WriteValue(ser, context, value)
+  }
+
+  pub unsafe fn set_treat_array_buffer_views_as_host_objects_raw(
+    ser: *mut CxxValueSerializer,
+    mode: bool,
+  ) {
+    v8__ValueSerializer__SetTreatArrayBufferViewsAsHostObjects(ser, mode)
   }
 }
 

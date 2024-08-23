@@ -155,6 +155,10 @@ extern "C" {
     length: usize,
     data: *mut *const c_void,
   ) -> bool;
+
+  fn v8__ValueDeserializer__GetWireFormatVersion(
+    this: *mut CxxValueDeserializer,
+  ) -> u32;
 }
 
 /// The ValueDeserializerImpl trait allows for
@@ -338,6 +342,14 @@ pub trait ValueDeserializerHelper {
       )
     }
   }
+
+  fn get_wire_format_version(&mut self) -> u32 {
+    unsafe {
+      ValueDeserializer::get_wire_format_version_raw(
+        self.get_cxx_value_deserializer(),
+      )
+    }
+  }
 }
 
 impl ValueDeserializerHelper for CxxValueDeserializer {
@@ -470,6 +482,12 @@ impl<'a> ValueDeserializer<'a> {
     array_buffer: Local<ArrayBuffer>,
   ) {
     v8__ValueDeserializer__TransferArrayBuffer(de, transfer_id, array_buffer)
+  }
+
+  pub unsafe fn get_wire_format_version_raw(
+    de: *mut CxxValueDeserializer,
+  ) -> u32 {
+    v8__ValueDeserializer__GetWireFormatVersion(de)
   }
 }
 
