@@ -240,7 +240,7 @@ extern "C" {
 
 /// The ValueSerializerImpl trait allows for
 /// custom callback functions used by v8.
-pub trait ValueSerializerImpl {
+pub trait ValueSerializerImpl: GarbageCollected {
   fn throw_data_clone_error<'s>(
     &mut self,
     scope: &mut HandleScope<'s>,
@@ -316,6 +316,13 @@ pub struct ValueSerializerHeap<'a> {
   buffer_size: usize,
   context: TracedReference<Context>,
   isolate_ptr: *mut Isolate,
+}
+
+impl<'a> crate::cppgc::GarbageCollected for ValueSerializerHeap<'a> {
+  fn trace(&self, visitor: &crate::cppgc::Visitor) {
+    self.value_serializer_impl.trace(visitor);
+    self.context.trace(visitor);
+  }
 }
 
 impl<'a> ValueSerializerHeap<'a> {
@@ -446,7 +453,7 @@ pub struct ValueSerializer<'a> {
 
 impl<'a> crate::cppgc::GarbageCollected for ValueSerializer<'a> {
   fn trace(&self, visitor: &crate::cppgc::Visitor) {
-    self.value_serializer_heap.context.trace(visitor);
+    self.value_serializer_heap.trace(visitor);
   }
 }
 
