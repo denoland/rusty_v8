@@ -41,6 +41,7 @@ fn main() {
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
     "RUSTY_V8_MIRROR",
+    "RUSTY_V8_SRC_BINDING_PATH",
     "SCCACHE",
     "V8_FORCE_DEBUG",
     "V8_FROM_SOURCE",
@@ -704,6 +705,10 @@ fn print_link_flags() {
 }
 
 fn print_prebuilt_src_binding_path() {
+  if let Ok(binding) = env::var("RUSTY_V8_SRC_BINDING_PATH") {
+    println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}", binding);
+    return;
+  }
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
   let src_binding_path = get_dirs()
