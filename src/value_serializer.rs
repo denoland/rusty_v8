@@ -475,6 +475,9 @@ impl<'a> ValueSerializerHelper for ValueSerializer<'a> {
 
 pub struct ValueSerializer<'a> {
   value_serializer_heap: Pin<Box<ValueSerializerHeap<'a>>>,
+  // ValueSerializerHeap is already !Send and !Sync
+  // but this is just making it explicit
+  _phantom: std::marker::PhantomData<*mut ()>,
 }
 
 impl<'a> crate::cppgc::GarbageCollected for ValueSerializer<'a> {
@@ -534,17 +537,18 @@ impl<'a> ValueSerializer<'a> {
 
     Self {
       value_serializer_heap,
+      _phantom: std::marker::PhantomData,
     }
   }
 }
 
 impl<'a> ValueSerializer<'a> {
-  pub fn release(mut self) -> Vec<u8> {
+  pub fn release(&self) -> Vec<u8> {
     unsafe {
       let mut size: usize = 0;
       let mut ptr: *mut u8 = &mut 0;
       v8__ValueSerializer__Release(
-        &mut self.value_serializer_heap.cxx_value_serializer,
+        cast_to_ptr(self.get_cxx_value_serializer()),
         &mut ptr,
         &mut size,
       );
@@ -554,7 +558,7 @@ impl<'a> ValueSerializer<'a> {
         self
           .value_serializer_heap
           .buffer_size
-          .load(std::sync::atomic::Ordering::Relaxed),
+          .swap(0, std::sync::atomic::Ordering::Relaxed),
       )
     }
   }
