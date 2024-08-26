@@ -346,7 +346,6 @@ impl<'a> ValueSerializerHeap<'a> {
   }
 
   /// Starting from 'this' pointer a ValueSerializerHeap ref can be created
-  #[allow(dead_code)]
   pub unsafe fn dispatch(
     value_serializer_delegate: &CxxValueSerializerDelegate,
   ) -> &Self {
