@@ -3080,6 +3080,9 @@ void v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
     const v8_inspector::StringView& message,
     const v8_inspector::StringView& url, unsigned lineNumber,
     unsigned columnNumber, v8_inspector::V8StackTrace* stackTrace);
+v8::Context* v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
+    v8_inspector::V8InspectorClient* self, int context_group_id);
+
 }  // extern "C"
 
 struct v8_inspector__V8InspectorClient__BASE
@@ -3109,6 +3112,12 @@ struct v8_inspector__V8InspectorClient__BASE
     v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
         this, contextGroupId, level, message, url, lineNumber, columnNumber,
         stackTrace);
+  }
+  v8::Local<v8::Context> ensureDefaultContextInGroup(
+      int context_group_id) override {
+    return ptr_to_local(
+        v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
+            this, context_group_id));
   }
 };
 
