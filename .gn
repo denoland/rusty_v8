@@ -86,4 +86,6 @@ default_args = {
   #
   # rusty_v8 scopes are not on the stack.
   v8_enable_v8_checks = false
+
+  use_relative_vtables_abi = false
 }
