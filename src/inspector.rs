@@ -137,7 +137,7 @@ extern "C" {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
+unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
   this: &mut Channel,
   call_id: int,
   message: UniquePtr<StringBuffer>,
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotification(
+unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotification(
   this: &mut Channel,
   message: UniquePtr<StringBuffer>,
 ) {
@@ -154,21 +154,21 @@ pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotificat
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
+unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
   this: &mut Channel,
 ) {
   ChannelBase::dispatch_mut(this).flush_protocol_notifications()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__generateUniqueId(
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__generateUniqueId(
   this: &mut V8InspectorClient,
 ) -> i64 {
   V8InspectorClientBase::dispatch_mut(this).generate_unique_id()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
   this: &mut V8InspectorClient,
   context_group_id: int,
 ) {
@@ -177,14 +177,14 @@ pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOn
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
   this: &mut V8InspectorClient,
 ) {
   V8InspectorClientBase::dispatch_mut(this).quit_message_loop_on_pause()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
   this: &mut V8InspectorClient,
   context_group_id: int,
 ) {
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForD
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
   this: &mut V8InspectorClient,
   context_group_id: int,
   level: int,
@@ -212,6 +212,19 @@ pub unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessag
     column_number,
     stack_trace,
   )
+}
+
+#[no_mangle]
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
+  this: &mut V8InspectorClient,
+  context_group_id: int,
+) -> *const Context {
+  match V8InspectorClientBase::dispatch_mut(this)
+    .ensure_default_context_in_group(context_group_id)
+  {
+    Some(h) => &*h,
+    None => std::ptr::null_mut(),
+  }
 }
 
 #[repr(C)]
@@ -552,6 +565,13 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
     column_number: u32,
     stack_trace: &mut V8StackTrace,
   ) {
+  }
+
+  fn ensure_default_context_in_group(
+    &mut self,
+    context_group_id: i32,
+  ) -> Option<Local<Context>> {
+    None
   }
 }
 
