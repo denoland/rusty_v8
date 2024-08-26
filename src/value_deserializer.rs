@@ -269,15 +269,16 @@ impl<'a> Drop for ValueDeserializerHeap<'a> {
 /// Mostly used by the read_host_object callback function in the
 /// ValueDeserializerImpl trait to create custom deserialization logic.
 pub trait ValueDeserializerHelper {
-  fn get_cxx_value_deserializer(&mut self) -> *mut CxxValueDeserializer;
+  fn get_cxx_value_deserializer(&mut self) -> &mut CxxValueDeserializer;
 
   fn read_header(&mut self, context: Local<Context>) -> Option<bool> {
     unsafe {
-      ValueDeserializer::read_header_raw(
+      v8__ValueDeserializer__ReadHeader(
         self.get_cxx_value_deserializer(),
         context,
       )
     }
+    .into()
   }
 
   fn read_value<'s>(
@@ -285,16 +286,16 @@ pub trait ValueDeserializerHelper {
     context: Local<'s, Context>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
-      ValueDeserializer::read_value_raw(
+      Local::from_raw(v8__ValueDeserializer__ReadValue(
         self.get_cxx_value_deserializer(),
         context,
-      )
+      ))
     }
   }
 
   fn read_uint32(&mut self, value: &mut u32) -> bool {
     unsafe {
-      ValueDeserializer::read_uint32_raw(
+      v8__ValueDeserializer__ReadUint32(
         self.get_cxx_value_deserializer(),
         value,
       )
@@ -303,7 +304,7 @@ pub trait ValueDeserializerHelper {
 
   fn read_uint64(&mut self, value: &mut u64) -> bool {
     unsafe {
-      ValueDeserializer::read_uint64_raw(
+      v8__ValueDeserializer__ReadUint64(
         self.get_cxx_value_deserializer(),
         value,
       )
@@ -312,7 +313,7 @@ pub trait ValueDeserializerHelper {
 
   fn read_double(&mut self, value: &mut f64) -> bool {
     unsafe {
-      ValueDeserializer::read_double_raw(
+      v8__ValueDeserializer__ReadDouble(
         self.get_cxx_value_deserializer(),
         value,
       )
@@ -320,12 +321,19 @@ pub trait ValueDeserializerHelper {
   }
 
   fn read_raw_bytes(&mut self, length: usize) -> Option<&[u8]> {
-    unsafe {
-      ValueDeserializer::read_raw_bytes_raw(
+    let mut data: *const c_void = std::ptr::null_mut();
+    let ok = unsafe {
+      v8__ValueDeserializer__ReadRawBytes(
         self.get_cxx_value_deserializer(),
         length,
+        &mut data,
       )
-      .map(|data| std::slice::from_raw_parts(data, length))
+    };
+    if ok {
+      assert!(!data.is_null());
+      unsafe { Some(std::slice::from_raw_parts(data as *const u8, length)) }
+    } else {
+      None
     }
   }
 
@@ -335,17 +343,17 @@ pub trait ValueDeserializerHelper {
     array_buffer: Local<ArrayBuffer>,
   ) {
     unsafe {
-      ValueDeserializer::transfer_array_buffer_raw(
+      v8__ValueDeserializer__TransferArrayBuffer(
         self.get_cxx_value_deserializer(),
         transfer_id,
         array_buffer,
       )
-    }
+    };
   }
 
   fn get_wire_format_version(&mut self) -> u32 {
     unsafe {
-      ValueDeserializer::get_wire_format_version_raw(
+      v8__ValueDeserializer__GetWireFormatVersion(
         self.get_cxx_value_deserializer(),
       )
     }
@@ -353,19 +361,19 @@ pub trait ValueDeserializerHelper {
 }
 
 impl ValueDeserializerHelper for CxxValueDeserializer {
-  fn get_cxx_value_deserializer(&mut self) -> *mut CxxValueDeserializer {
+  fn get_cxx_value_deserializer(&mut self) -> &mut CxxValueDeserializer {
     self
   }
 }
 
 impl<'a> ValueDeserializerHelper for ValueDeserializerHeap<'a> {
-  fn get_cxx_value_deserializer(&mut self) -> *mut CxxValueDeserializer {
+  fn get_cxx_value_deserializer(&mut self) -> &mut CxxValueDeserializer {
     &mut self.cxx_value_deserializer
   }
 }
 
 impl<'a> ValueDeserializerHelper for ValueDeserializer<'a> {
-  fn get_cxx_value_deserializer(&mut self) -> *mut CxxValueDeserializer {
+  fn get_cxx_value_deserializer(&mut self) -> &mut CxxValueDeserializer {
     &mut self.value_deserializer_heap.cxx_value_deserializer
   }
 }
@@ -425,75 +433,6 @@ impl<'a> ValueDeserializer<'a> {
     ValueDeserializer {
       value_deserializer_heap,
     }
-  }
-
-  pub unsafe fn read_header_raw(
-    de: *mut CxxValueDeserializer,
-    context: Local<Context>,
-  ) -> Option<bool> {
-    v8__ValueDeserializer__ReadHeader(de, context).into()
-  }
-
-  pub unsafe fn read_value_raw(
-    de: *mut CxxValueDeserializer,
-    context: Local<Context>,
-  ) -> Option<Local<Value>> {
-    Local::from_raw(v8__ValueDeserializer__ReadValue(de, context))
-  }
-
-  pub unsafe fn read_uint32_raw(
-    de: *mut CxxValueDeserializer,
-    value: &mut u32,
-  ) -> bool {
-    v8__ValueDeserializer__ReadUint32(de, value)
-  }
-
-  pub unsafe fn read_uint64_raw(
-    de: *mut CxxValueDeserializer,
-    value: &mut u64,
-  ) -> bool {
-    v8__ValueDeserializer__ReadUint64(de, value)
-  }
-
-  pub unsafe fn read_double_raw(
-    de: *mut CxxValueDeserializer,
-    value: &mut f64,
-  ) -> bool {
-    v8__ValueDeserializer__ReadDouble(de, value)
-  }
-
-  pub unsafe fn read_raw_bytes_raw(
-    de: *mut CxxValueDeserializer,
-    length: usize,
-  ) -> Option<*mut u8> {
-    let mut data: *const c_void = std::ptr::null_mut();
-    let ok = v8__ValueDeserializer__ReadRawBytes(de, length, &mut data);
-    if ok {
-      assert!(!data.is_null());
-      Some(data.cast_mut().cast())
-    } else {
-      None
-    }
-  }
-
-  pub unsafe fn transfer_array_buffer_raw(
-    de: *mut CxxValueDeserializer,
-    transfer_id: u32,
-    array_buffer: Local<ArrayBuffer>,
-  ) {
-    v8__ValueDeserializer__TransferArrayBuffer(de, transfer_id, array_buffer)
-  }
-
-  pub unsafe fn get_wire_format_version_raw(
-    de: *mut CxxValueDeserializer,
-  ) -> u32 {
-    v8__ValueDeserializer__GetWireFormatVersion(de)
-  }
-
-  pub unsafe fn get_cxx_value_deserializer_raw(
-    de: *mut Self,
-  ) -> *mut CxxValueDeserializer {
-    std::ptr::addr_of_mut!((*de).value_deserializer_heap.cxx_value_deserializer)
   }
 }
 
