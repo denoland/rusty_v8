@@ -3538,7 +3538,8 @@ void v8__ValueSerializer__Release(v8::ValueSerializer* self, uint8_t** ptr,
   *size = result.second;
 }
 
-void v8__ValueSerializer__SetTreatArrayBufferViewsAsHostObjects(v8::ValueSerializer* self, bool mode) {
+void v8__ValueSerializer__SetTreatArrayBufferViewsAsHostObjects(
+    v8::ValueSerializer* self, bool mode) {
   self->SetTreatArrayBufferViewsAsHostObjects(mode);
 }
 
@@ -3682,7 +3683,8 @@ bool v8__ValueDeserializer__ReadRawBytes(v8::ValueDeserializer* self,
   return self->ReadRawBytes(length, data);
 }
 
-uint32_t v8__ValueDeserializer__GetWireFormatVersion(v8::ValueDeserializer* self) {
+uint32_t v8__ValueDeserializer__GetWireFormatVersion(
+    v8::ValueDeserializer* self) {
   return self->GetWireFormatVersion();
 }
 }  // extern "C"
