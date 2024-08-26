@@ -1,17 +1,15 @@
-use crate::cppgc::GarbageCollected;
-use crate::cppgc::Traced;
 use crate::ArrayBuffer;
 use crate::CallbackScope;
 use crate::Context;
 use crate::ContextScope;
 use crate::Exception;
+use crate::Global;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Object;
 use crate::SharedArrayBuffer;
 use crate::String;
-use crate::TracedReference;
 use crate::Value;
 use crate::WasmModuleObject;
 
@@ -38,7 +36,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
 ) -> *const Object {
   let value_deserializer_heap = ValueDeserializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_deserializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
   match value_deserializer_heap
@@ -58,7 +56,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFr
 ) -> *const SharedArrayBuffer {
   let value_deserializer_heap = ValueDeserializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_deserializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
   match value_deserializer_heap
@@ -78,7 +76,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
 ) -> *const WasmModuleObject {
   let value_deserializer_heap = ValueDeserializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_deserializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
   match value_deserializer_heap
@@ -163,7 +161,7 @@ extern "C" {
 
 /// The ValueDeserializerImpl trait allows for
 /// custom callback functions used by v8.
-pub trait ValueDeserializerImpl: GarbageCollected {
+pub trait ValueDeserializerImpl {
   fn read_host_object<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -223,14 +221,7 @@ pub struct ValueDeserializerHeap<'a> {
   value_deserializer_impl: Box<dyn ValueDeserializerImpl + 'a>,
   cxx_value_deserializer: CxxValueDeserializer,
   cxx_value_deserializer_delegate: CxxValueDeserializerDelegate,
-  context: TracedReference<Context>,
-}
-
-impl<'a> GarbageCollected for ValueDeserializerHeap<'a> {
-  fn trace(&self, visitor: &crate::cppgc::Visitor) {
-    self.value_deserializer_impl.trace(visitor);
-    self.context.trace(visitor);
-  }
+  context: Global<Context>,
 }
 
 impl<'a> ValueDeserializerHeap<'a> {
@@ -384,12 +375,6 @@ pub struct ValueDeserializer<'a> {
   _phantom: std::marker::PhantomData<*mut ()>,
 }
 
-impl<'a> GarbageCollected for ValueDeserializer<'a> {
-  fn trace(&self, visitor: &crate::cppgc::Visitor) {
-    self.value_deserializer_heap.trace(visitor);
-  }
-}
-
 impl<'a> ValueDeserializer<'a> {
   pub fn new<D: ValueDeserializerImpl + 'a>(
     scope: &mut HandleScope,
@@ -407,7 +392,7 @@ impl<'a> ValueDeserializer<'a> {
         cxx_value_deserializer_delegate: CxxValueDeserializerDelegate {
           _cxx_vtable: CxxVTable(std::ptr::null()),
         },
-        context: TracedReference::new(scope, context),
+        context: Global::new(scope, context),
       }));
 
     unsafe {

@@ -15,7 +15,6 @@ use std::ptr::{addr_of, addr_of_mut, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use v8::cppgc::GarbageCollected;
 use v8::fast_api;
 use v8::inspector::ChannelBase;
 use v8::AccessorConfiguration;
@@ -7956,8 +7955,6 @@ struct Custom1Value<'a> {
   array_buffers: RefCell<&'a mut ArrayBuffers>,
 }
 
-impl<'a> GarbageCollected for Custom1Value<'a> {}
-
 impl<'a> Custom1Value<'a> {
   fn serializer<'s>(
     scope: &mut v8::HandleScope<'s>,
@@ -8329,8 +8326,6 @@ fn value_serializer_and_deserializer_embedder_host_object() {
 
 struct Custom2Value {}
 
-impl GarbageCollected for Custom2Value {}
-
 impl<'a> Custom2Value {
   fn serializer<'s>(
     scope: &mut v8::HandleScope<'s>,
@@ -8390,8 +8385,6 @@ fn value_serializer_not_implemented() {
 }
 
 struct Custom3Value {}
-
-impl GarbageCollected for Custom3Value {}
 
 impl<'a> Custom3Value {
   fn serializer<'s>(
@@ -11751,7 +11744,6 @@ fn allow_scope_in_read_host_object() {
   // internally a DisallowJavascriptExecutionScope, so an allow scope must be
   // created in order to run JS code in that callback.
   struct Serializer;
-  impl GarbageCollected for Serializer {}
   impl v8::ValueSerializerImpl for Serializer {
     fn write_host_object<'s>(
       &self,
@@ -11773,7 +11765,6 @@ fn allow_scope_in_read_host_object() {
   }
 
   struct Deserializer;
-  impl GarbageCollected for Deserializer {}
   impl v8::ValueDeserializerImpl for Deserializer {
     fn read_host_object<'s>(
       &self,

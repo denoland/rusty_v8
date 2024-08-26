@@ -1,17 +1,15 @@
-use crate::cppgc::GarbageCollected;
-use crate::cppgc::Traced;
 use crate::ArrayBuffer;
 use crate::CallbackScope;
 use crate::Context;
 use crate::ContextScope;
 use crate::Exception;
+use crate::Global;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Object;
 use crate::SharedArrayBuffer;
 use crate::String;
-use crate::TracedReference;
 use crate::Value;
 use crate::WasmModuleObject;
 
@@ -46,7 +44,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   let scope = &mut CallbackScope::new(
     value_serializer_heap.isolate_ptr.as_mut().unwrap(),
   );
-  let context = value_serializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   value_serializer_heap
     .value_serializer_impl
@@ -72,7 +70,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
 ) -> MaybeBool {
   let value_serializer_heap = ValueSerializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_serializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
   MaybeBool::from(
@@ -90,7 +88,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
 ) -> MaybeBool {
   let value_serializer_heap = ValueSerializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_serializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
@@ -110,7 +108,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
 ) -> bool {
   let value_serializer_heap = ValueSerializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_serializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
@@ -133,7 +131,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
 ) -> bool {
   let value_serializer_heap = ValueSerializerHeap::dispatch(this);
   let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
-  let context = value_serializer_heap.context.get(scope).unwrap();
+  let context = Local::new(scope, value_serializer_heap.context.clone());
   let scope = &mut ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
@@ -251,7 +249,7 @@ extern "C" {
 
 /// The ValueSerializerImpl trait allows for
 /// custom callback functions used by v8.
-pub trait ValueSerializerImpl: GarbageCollected {
+pub trait ValueSerializerImpl {
   fn throw_data_clone_error<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -325,15 +323,8 @@ pub struct ValueSerializerHeap<'a> {
   cxx_value_serializer_delegate: CxxValueSerializerDelegate,
   cxx_value_serializer: CxxValueSerializer,
   buffer_size: AtomicUsize,
-  context: TracedReference<Context>,
+  context: Global<Context>,
   isolate_ptr: *mut Isolate,
-}
-
-impl<'a> crate::cppgc::GarbageCollected for ValueSerializerHeap<'a> {
-  fn trace(&self, visitor: &crate::cppgc::Visitor) {
-    self.value_serializer_impl.trace(visitor);
-    self.context.trace(visitor);
-  }
 }
 
 impl<'a> ValueSerializerHeap<'a> {
@@ -479,12 +470,6 @@ pub struct ValueSerializer<'a> {
   _phantom: std::marker::PhantomData<*mut ()>,
 }
 
-impl<'a> crate::cppgc::GarbageCollected for ValueSerializer<'a> {
-  fn trace(&self, visitor: &crate::cppgc::Visitor) {
-    self.value_serializer_heap.trace(visitor);
-  }
-}
-
 /// ValueSerializer is a stack object used as entry-point for an owned and
 /// pinned heap object ValueSerializerHeap.
 /// The 'a lifetime is the lifetime of the ValueSerializerImpl implementation.
@@ -507,7 +492,7 @@ impl<'a> ValueSerializer<'a> {
           _cxx_vtable: CxxVTable(std::ptr::null()),
         },
         buffer_size: AtomicUsize::new(0),
-        context: TracedReference::new(scope, context),
+        context: Global::new(scope, context),
         isolate_ptr: scope.get_isolate_ptr(),
       }));
 
