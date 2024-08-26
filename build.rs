@@ -15,7 +15,6 @@ use std::io::Seek;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::exit;
 use std::process::Command;
 use std::process::Stdio;
 use which::which;
@@ -42,13 +41,14 @@ fn main() {
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
     "RUSTY_V8_MIRROR",
+    "RUSTY_V8_SRC_BINDING_PATH",
     "SCCACHE",
     "V8_FORCE_DEBUG",
     "V8_FROM_SOURCE",
     "PYTHON",
     "DISABLE_CLANG",
     "EXTRA_GN_ARGS",
-    "NO_PRINT_GN_ARGS",
+    "PRINT_GN_ARGS",
     "CARGO_ENCODED_RUSTFLAGS",
   ];
   for env in envs {
@@ -153,6 +153,8 @@ fn build_binding() {
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
     .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include", "-I."])
     .clang_args(args)
+    .generate_cstr(true)
+    .rustified_enum(".*UseCounterFeature")
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")
     .generate()
@@ -170,15 +172,6 @@ fn build_binding() {
 
 fn build_v8(is_asan: bool) {
   env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-
-  // git submodule update --init --recursive
-  let libcxx_src = PathBuf::from("buildtools/third_party/libc++/trunk/src");
-  if !libcxx_src.is_dir() {
-    eprintln!(
-      "missing source code. Run 'git submodule update --init --recursive'"
-    );
-    exit(1);
-  }
 
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
@@ -321,7 +314,7 @@ fn build_v8(is_asan: bool) {
   let gn_out = maybe_gen(gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
-  if env::var_os("NO_PRINT_GN_ARGS").is_none() {
+  if env_bool("PRINT_GN_ARGS") {
     print_gn_args(&gn_out);
   }
   build("rusty_v8", None);
@@ -410,7 +403,9 @@ fn download_ninja_gn_binaries() {
   assert!(gn.exists());
   assert!(ninja.exists());
   env::set_var("GN", gn);
-  env::set_var("NINJA", ninja);
+  if env::var("NINJA").is_err() {
+    env::set_var("NINJA", ninja);
+  }
 }
 
 fn prebuilt_profile() -> &'static str {
@@ -710,6 +705,10 @@ fn print_link_flags() {
 }
 
 fn print_prebuilt_src_binding_path() {
+  if let Ok(binding) = env::var("RUSTY_V8_SRC_BINDING_PATH") {
+    println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}", binding);
+    return;
+  }
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
   let src_binding_path = get_dirs()
@@ -910,12 +909,14 @@ type NinjaEnv = Vec<(String, String)>;
 
 fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let cmd_string = env::var("NINJA").unwrap_or_else(|_| "ninja".to_owned());
-  let mut cmd = Command::new(cmd_string);
+  let mut cmd = Command::new(&cmd_string);
   cmd.arg("-C");
   cmd.arg(gn_out_dir);
-  if let Ok(jobs) = env::var("NUM_JOBS") {
-    cmd.arg("-j");
-    cmd.arg(jobs);
+  if !cmd_string.ends_with("autoninja") {
+    if let Ok(jobs) = env::var("NUM_JOBS") {
+      cmd.arg("-j");
+      cmd.arg(jobs);
+    }
   }
   if let Some(env) = maybe_env {
     for item in env {

@@ -22,7 +22,7 @@ default_args = {
   linux_use_bundled_binutils = false
   use_dummy_lastchange = true
   use_sysroot = false
-  win_crt_flavor_agnostic = true
+  simple_template_names = false
 
   # Minimize size of debuginfo in distributed static library.
   line_tables_only = true
@@ -86,4 +86,6 @@ default_args = {
   #
   # rusty_v8 scopes are not on the stack.
   v8_enable_v8_checks = false
+
+  use_relative_vtables_abi = false
 }

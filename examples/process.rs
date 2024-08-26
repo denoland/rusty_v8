@@ -148,7 +148,13 @@ where
       v8::FunctionTemplate::new(isolate_scope, log_callback).into(),
     );
 
-    let context = v8::Context::new_from_template(isolate_scope, global);
+    let context = v8::Context::new(
+      isolate_scope,
+      v8::ContextOptions {
+        global_template: Some(global),
+        ..Default::default()
+      },
+    );
     let mut context_scope = v8::ContextScope::new(isolate_scope, context);
 
     let request_template = v8::ObjectTemplate::new(&mut context_scope);

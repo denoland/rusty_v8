@@ -1,4 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+use crate::binding::v8__Isolate__UseCounterFeature;
 use crate::cppgc::Heap;
 use crate::function::FunctionCallbackInfo;
 use crate::gc::GCCallbackFlags;
@@ -169,6 +170,9 @@ pub type WasmAsyncResolvePromiseCallback = extern "C" fn(
   Local<Value>,
   WasmAsyncSuccess,
 );
+
+pub type AllowWasmCodeGenerationCallback =
+  extern "C" fn(Local<Context>, Local<String>) -> bool;
 
 /// HostInitializeImportMetaObjectCallback is called the first time import.meta
 /// is accessed for a module. Subsequent access will reuse the same value.
@@ -403,6 +407,9 @@ pub type PrepareStackTraceCallback<'s> =
     Local<'s, Array>,
   ) -> PrepareStackTraceCallbackRet;
 
+pub type UseCounterFeature = v8__Isolate__UseCounterFeature;
+pub type UseCounterCallback = extern "C" fn(&mut Isolate, UseCounterFeature);
+
 extern "C" {
   static v8__internal__Internals__kIsolateEmbedderDataOffset: int;
 
@@ -473,6 +480,10 @@ extern "C" {
     isolate: *mut Isolate,
     callback: WasmAsyncResolvePromiseCallback,
   );
+  fn v8__Isolate__SetAllowWasmCodeGenerationCallback(
+    isolate: *mut Isolate,
+    callback: AllowWasmCodeGenerationCallback,
+  );
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
     isolate: *mut Isolate,
     callback: HostInitializeImportMetaObjectCallback,
@@ -493,6 +504,10 @@ extern "C" {
       rv: *mut *mut Context,
       initiator_context: Local<Context>,
     ) -> *mut *mut Context,
+  );
+  fn v8__Isolate__SetUseCounterCallback(
+    isolate: *mut Isolate,
+    callback: UseCounterCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -1033,6 +1048,16 @@ impl Isolate {
   }
 
   #[inline(always)]
+  pub fn set_allow_wasm_code_generation_callback(
+    &mut self,
+    callback: AllowWasmCodeGenerationCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetAllowWasmCodeGenerationCallback(self, callback);
+    }
+  }
+
+  #[inline(always)]
   /// This specifies the callback called by the upcoming importa.meta
   /// language feature to retrieve host-defined meta data for a module.
   pub fn set_host_initialize_import_meta_object_callback(
@@ -1106,6 +1131,14 @@ impl Isolate {
           rust_shadow_realm_callback,
         );
       }
+    }
+  }
+
+  /// Sets a callback for counting the number of times a feature of V8 is used.
+  #[inline(always)]
+  pub fn set_use_counter_callback(&mut self, callback: UseCounterCallback) {
+    unsafe {
+      v8__Isolate__SetUseCounterCallback(self, callback);
     }
   }
 

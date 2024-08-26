@@ -1,6 +1,6 @@
 [package]
 name = "v8"
-version = "0.101.0"
+version = "0.104.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -30,13 +30,13 @@ exclude = [
   "build/fuchsia/",
   "buildtools/checkdeps/",
   "buildtools/clang_format/",
-  "buildtools/third_party/libc++/trunk/benchmarks/",
-  "buildtools/third_party/libc++/trunk/docs/",
-  "buildtools/third_party/libc++/trunk/lib/",
-  "buildtools/third_party/libc++/trunk/test/",
-  "buildtools/third_party/libc++/trunk/utils/",
-  "buildtools/third_party/libc++/trunk/www/",
-  "buildtools/third_party/libc++abi/trunk/test/",
+  "third_party/libc++/src/benchmarks/",
+  "third_party/libc++/src/docs/",
+  "third_party/libc++/src/lib/",
+  "third_party/libc++/src/test/",
+  "third_party/libc++/src/utils/",
+  "third_party/libc++/src/www/",
+  "third_party/libc++abi/src/test/",
   "third_party/icu/android/",
   "third_party/icu/android_small/",
   "third_party/icu/cast/",
@@ -52,6 +52,7 @@ exclude = [
   "third_party/icu/source/io/",
   "third_party/icu/source/python/",
   "third_party/icu/source/samples/",
+  "third_party/icu/source/test/",
   "third_party/icu/source/tools/",
   "third_party/icu/tzres/",
   "third_party/abseil-cpp/*.def",

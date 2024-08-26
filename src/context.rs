@@ -22,6 +22,7 @@ extern "C" {
     isolate: *mut Isolate,
     templ: *const ObjectTemplate,
     global_object: *const Value,
+    microtask_queue: *mut MicrotaskQueue,
   ) -> *const Context;
   fn v8__Context__GetIsolate(this: *const Context) -> *mut Isolate;
   fn v8__Context__Global(this: *const Context) -> *const Object;
@@ -40,6 +41,8 @@ extern "C" {
   fn v8__Context__FromSnapshot(
     isolate: *mut Isolate,
     context_snapshot_index: usize,
+    global_object: *const Value,
+    microtask_queue: *mut MicrotaskQueue,
   ) -> *const Context;
   pub(super) fn v8__Context__GetSecurityToken(
     this: *const Context,
@@ -65,31 +68,45 @@ extern "C" {
   );
 }
 
+#[derive(Default)]
+pub struct ContextOptions<'s> {
+  /// An optional object template from which the global object for the newly created context will
+  /// be created.
+  pub global_template: Option<Local<'s, ObjectTemplate>>,
+  /// An optional global object to be reused for the newly created context. This global object
+  /// must have been created by a previous call to Context::New with the same global template.
+  /// The state of the global object will be completely reset and only object identify will
+  /// remain.
+  pub global_object: Option<Local<'s, Value>>,
+  /// An optional microtask queue used to manage the microtasks created in this context. If not
+  /// set the per-isolate default microtask queue would be used.
+  pub microtask_queue: Option<*mut MicrotaskQueue>,
+}
+
 impl Context {
   const ANNEX_SLOT: int = 1;
   const INTERNAL_SLOT_COUNT: int = 1;
 
   /// Creates a new context.
   #[inline(always)]
-  pub fn new<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Context> {
-    // TODO: optional arguments;
-    unsafe {
-      scope
-        .cast_local(|sd| v8__Context__New(sd.get_isolate_ptr(), null(), null()))
-    }
-    .unwrap()
-  }
-
-  /// Creates a new context using the object template as the template for
-  /// the global object.
-  #[inline(always)]
-  pub fn new_from_template<'s>(
+  pub fn new<'s>(
     scope: &mut HandleScope<'s, ()>,
-    templ: Local<ObjectTemplate>,
+    options: ContextOptions,
   ) -> Local<'s, Context> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Context__New(sd.get_isolate_ptr(), &*templ, null())
+        v8__Context__New(
+          sd.get_isolate_ptr(),
+          options
+            .global_template
+            .map(|t| &*t as *const _)
+            .unwrap_or_else(null),
+          options
+            .global_object
+            .map(|o| &*o as *const _)
+            .unwrap_or_else(null),
+          options.microtask_queue.unwrap_or_else(null_mut),
+        )
       })
     }
     .unwrap()
@@ -135,15 +152,11 @@ impl Context {
   }
 
   #[inline]
-  fn get_annex_mut<'a>(
-    &'a self,
-    isolate: &'a mut Isolate,
+  fn get_annex_mut(
+    &self,
     create_if_not_present: bool,
-  ) -> Option<&'a mut ContextAnnex> {
-    assert!(
-      std::ptr::eq(isolate, unsafe { v8__Context__GetIsolate(self) }),
-      "attempted to use Context slots with the wrong Isolate"
-    );
+  ) -> Option<&mut ContextAnnex> {
+    let isolate = unsafe { &mut *v8__Context__GetIsolate(self) };
 
     let num_data_fields =
       unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as int;
@@ -219,11 +232,8 @@ impl Context {
 
   /// Get a reference to embedder data added with [`Self::set_slot()`].
   #[inline(always)]
-  pub fn get_slot<'a, T: 'static>(
-    &'a self,
-    isolate: &'a mut Isolate,
-  ) -> Option<&'a T> {
-    if let Some(annex) = self.get_annex_mut(isolate, false) {
+  pub fn get_slot<T: 'static>(&self) -> Option<&T> {
+    if let Some(annex) = self.get_annex_mut(false) {
       annex.slots.get(&TypeId::of::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
@@ -236,11 +246,8 @@ impl Context {
 
   /// Get a mutable reference to embedder data added with [`Self::set_slot()`].
   #[inline(always)]
-  pub fn get_slot_mut<'a, T: 'static>(
-    &'a self,
-    isolate: &'a mut Isolate,
-  ) -> Option<&'a mut T> {
-    if let Some(annex) = self.get_annex_mut(isolate, false) {
+  pub fn get_slot_mut<T: 'static>(&self) -> Option<&mut T> {
+    if let Some(annex) = self.get_annex_mut(false) {
       annex.slots.get_mut(&TypeId::of::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
@@ -263,13 +270,9 @@ impl Context {
   ///
   /// The value will be dropped when the context is garbage collected.
   #[inline(always)]
-  pub fn set_slot<'a, T: 'static>(
-    &'a self,
-    isolate: &'a mut Isolate,
-    value: T,
-  ) -> bool {
+  pub fn set_slot<T: 'static>(&self, value: T) -> bool {
     self
-      .get_annex_mut(isolate, true)
+      .get_annex_mut(true)
       .unwrap()
       .slots
       .insert(TypeId::of::<T>(), RawSlot::new(value))
@@ -279,11 +282,8 @@ impl Context {
   /// Removes the embedder data added with [`Self::set_slot()`] and returns it
   /// if it exists.
   #[inline(always)]
-  pub fn remove_slot<'a, T: 'static>(
-    &'a self,
-    isolate: &'a mut Isolate,
-  ) -> Option<T> {
-    if let Some(annex) = self.get_annex_mut(isolate, false) {
+  pub fn remove_slot<T: 'static>(&self) -> Option<T> {
+    if let Some(annex) = self.get_annex_mut(false) {
       annex.slots.remove(&TypeId::of::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
@@ -302,8 +302,8 @@ impl Context {
   /// state uses [`Weak`] handles, which cannot be alive at the time of
   /// snapshotting.
   #[inline(always)]
-  pub fn clear_all_slots<'a>(&'a self, isolate: &'a mut Isolate) {
-    if let Some(annex_mut) = self.get_annex_mut(isolate, false) {
+  pub fn clear_all_slots(&self) {
+    if let Some(annex_mut) = self.get_annex_mut(false) {
       let annex_ptr = annex_mut as *mut ContextAnnex;
       let _ = unsafe { Box::from_raw(annex_ptr) };
       unsafe {
@@ -323,7 +323,7 @@ impl Context {
     data: *mut c_void,
   ) {
     // Initialize the annex when slot count > INTERNAL_SLOT_COUNT.
-    self.get_annex_mut(&mut *v8__Context__GetIsolate(self), true);
+    self.get_annex_mut(true);
 
     v8__Context__SetAlignedPointerInEmbedderData(
       self,
@@ -351,10 +351,19 @@ impl Context {
   pub fn from_snapshot<'s>(
     scope: &mut HandleScope<'s, ()>,
     context_snapshot_index: usize,
+    options: ContextOptions,
   ) -> Option<Local<'s, Context>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__Context__FromSnapshot(sd.get_isolate_mut(), context_snapshot_index)
+        v8__Context__FromSnapshot(
+          sd.get_isolate_mut(),
+          context_snapshot_index,
+          options
+            .global_object
+            .map(|o| &*o as *const _)
+            .unwrap_or_else(null),
+          options.microtask_queue.unwrap_or_else(null_mut),
+        )
       })
     }
   }

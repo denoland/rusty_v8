@@ -274,6 +274,11 @@ void v8__Isolate__SetHostCreateShadowRealmContextCallback(
   isolate->SetHostCreateShadowRealmContextCallback(callback);
 }
 
+void v8__Isolate__SetUseCounterCallback(
+    v8::Isolate* isolate, v8::Isolate::UseCounterCallback callback) {
+  isolate->SetUseCounterCallback(callback);
+}
+
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
                                      v8::MessageCallback callback) {
   return isolate->AddMessageListener(callback);
@@ -343,6 +348,11 @@ void v8__Isolate__SetAllowAtomicsWait(v8::Isolate* isolate, bool allow) {
 void v8__Isolate__SetWasmStreamingCallback(v8::Isolate* isolate,
                                            v8::WasmStreamingCallback callback) {
   isolate->SetWasmStreamingCallback(callback);
+}
+
+void v8__Isolate__SetAllowWasmCodeGenerationCallback(
+    v8::Isolate* isolate, v8::AllowWasmCodeGenerationCallback callback) {
+  isolate->SetAllowWasmCodeGenerationCallback(callback);
 }
 
 bool v8__Isolate__HasPendingBackgroundTasks(v8::Isolate* isolate) {
@@ -1651,6 +1661,13 @@ const v8::Value* v8__Object__GetRealNamedProperty(const v8::Object& self,
       ptr_to_local(&context), ptr_to_local(&key)));
 }
 
+MaybeBool v8__Object__HasRealNamedProperty(const v8::Object& self,
+                                           const v8::Context& context,
+                                           const v8::Name& key) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->HasRealNamedProperty(
+      ptr_to_local(&context), ptr_to_local(&key)));
+}
+
 void v8__Object__GetRealNamedPropertyAttributes(
     const v8::Object& self, const v8::Context& context, const v8::Name& key,
     v8::Maybe<v8::PropertyAttribute>* out) {
@@ -1943,12 +1960,13 @@ void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
 
 const v8::Context* v8__Context__New(v8::Isolate* isolate,
                                     const v8::ObjectTemplate* templ,
-                                    const v8::Value* global_object) {
-  return local_to_ptr(
-      v8::Context::New(isolate, nullptr, ptr_to_maybe_local(templ),
-                       ptr_to_maybe_local(global_object),
-                       v8::DeserializeInternalFieldsCallback(
-                           DeserializeInternalFields, nullptr)));
+                                    const v8::Value* global_object,
+                                    v8::MicrotaskQueue* microtask_queue) {
+  return local_to_ptr(v8::Context::New(
+      isolate, nullptr, ptr_to_maybe_local(templ),
+      ptr_to_maybe_local(global_object),
+      v8::DeserializeInternalFieldsCallback(DeserializeInternalFields, nullptr),
+      microtask_queue));
 }
 
 bool v8__Context__EQ(const v8::Context& self, const v8::Context& other) {
@@ -2035,10 +2053,13 @@ void v8__Context__SetMicrotaskQueue(v8::Context& self,
   ptr_to_local(&self)->SetMicrotaskQueue(microtask_queue);
 }
 
-const v8::Context* v8__Context__FromSnapshot(v8::Isolate* isolate,
-                                             size_t context_snapshot_index) {
-  v8::MaybeLocal<v8::Context> maybe_local =
-      v8::Context::FromSnapshot(isolate, context_snapshot_index);
+const v8::Context* v8__Context__FromSnapshot(
+    v8::Isolate* isolate, size_t context_snapshot_index,
+    v8::Value* global_object, v8::MicrotaskQueue* microtask_queue) {
+  v8::MaybeLocal<v8::Context> maybe_local = v8::Context::FromSnapshot(
+      isolate, context_snapshot_index,
+      v8::DeserializeInternalFieldsCallback(DeserializeInternalFields, nullptr),
+      nullptr, ptr_to_maybe_local(global_object), microtask_queue);
   return maybe_local_to_ptr(maybe_local);
 }
 
@@ -2231,70 +2252,17 @@ const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
   return local_to_ptr(v8::Signature::New(isolate, ptr_to_local(templ)));
 }
 
-v8::CTypeInfo* v8__CTypeInfo__New(v8::CTypeInfo::Type ty) {
-  std::unique_ptr<v8::CTypeInfo> u =
-      std::make_unique<v8::CTypeInfo>(v8::CTypeInfo(ty));
-  return u.release();
-}
-
-void v8__CTypeInfo__DELETE(v8::CTypeInfo* self) { delete self; }
-
-struct CTypeSequenceType {
-  v8::CTypeInfo::Type c_type;
-  v8::CTypeInfo::SequenceType sequence_type;
-};
-
-v8::CTypeInfo* v8__CTypeInfo__New__From__Slice(unsigned int len,
-                                               CTypeSequenceType* ty) {
-  v8::CTypeInfo* v = (v8::CTypeInfo*)malloc(sizeof(v8::CTypeInfo) * len);
-  for (size_t i = 0; i < len; i += 1) {
-    v[i] = v8::CTypeInfo(ty[i].c_type, ty[i].sequence_type);
-  }
-  return v;
-}
-
-v8::CFunctionInfo* v8__CFunctionInfo__New(
-    const v8::CTypeInfo& return_info, unsigned int args_len,
-    v8::CTypeInfo* args_info, v8::CFunctionInfo::Int64Representation repr) {
-  std::unique_ptr<v8::CFunctionInfo> info = std::make_unique<v8::CFunctionInfo>(
-      v8::CFunctionInfo(return_info, args_len, args_info, repr));
-  return info.release();
-}
-
-void v8__CFunctionInfo__DELETE(v8::CFunctionInfo* self) { delete self; }
-
 const v8::FunctionTemplate* v8__FunctionTemplate__New(
     v8::Isolate* isolate, v8::FunctionCallback callback,
     const v8::Value* data_or_null, const v8::Signature* signature_or_null,
     int length, v8::ConstructorBehavior constructor_behavior,
-    v8::SideEffectType side_effect_type, void* func_ptr1,
-    const v8::CFunctionInfo* c_function_info1, void* func_ptr2,
-    const v8::CFunctionInfo* c_function_info2) {
-  // Support upto 2 overloads. V8 requires TypedArray to have a
-  // v8::Array overload.
-  if (func_ptr1) {
-    if (func_ptr2 == nullptr) {
-      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1)};
-      auto overload = v8::MemorySpan<const v8::CFunction>{o, 1};
-      return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
-          isolate, callback, ptr_to_local(data_or_null),
-          ptr_to_local(signature_or_null), length, constructor_behavior,
-          side_effect_type, overload));
-    } else {
-      const v8::CFunction o[] = {v8::CFunction(func_ptr1, c_function_info1),
-                                 v8::CFunction(func_ptr2, c_function_info2)};
-      auto overload = v8::MemorySpan<const v8::CFunction>{o, 2};
-      return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
-          isolate, callback, ptr_to_local(data_or_null),
-          ptr_to_local(signature_or_null), length, constructor_behavior,
-          side_effect_type, overload));
-    }
-  }
-  auto overload = v8::MemorySpan<const v8::CFunction>{};
+    v8::SideEffectType side_effect_type, const v8::CFunction* c_functions,
+    size_t c_functions_len) {
+  v8::MemorySpan<const v8::CFunction> overloads{c_functions, c_functions_len};
   return local_to_ptr(v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, callback, ptr_to_local(data_or_null),
       ptr_to_local(signature_or_null), length, constructor_behavior,
-      side_effect_type, overload));
+      side_effect_type, overloads));
 }
 
 const v8::Function* v8__FunctionTemplate__GetFunction(

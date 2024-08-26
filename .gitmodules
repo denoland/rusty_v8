@@ -18,10 +18,7 @@
 	url = https://chromium.googlesource.com/chromium/src/third_party/markupsafe.git
 [submodule "buildtools"]
 	path = buildtools
-	url = https://github.com/denoland/chromium_buildtools.git
-[submodule "third_party/zlib"]
-	path = third_party/zlib
-	url = https://chromium.googlesource.com/chromium/src/third_party/zlib.git
+	url = https://chromium.googlesource.com/chromium/src/buildtools.git
 [submodule "third_party/icu"]
 	path = third_party/icu
 	url = https://github.com/denoland/icu.git
@@ -31,3 +28,12 @@
 [submodule "third_party/fp16/src"]
 	path = third_party/fp16/src
 	url = https://github.com/Maratyszcza/FP16.git
+[submodule "third_party/libc++/src"]
+	path = third_party/libc++/src
+	url = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git
+[submodule "third_party/libc++abi/src"]
+	path = third_party/libc++abi/src
+	url = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git
+[submodule "third_party/libunwind/src"]
+	path = third_party/libunwind/src
+	url = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git
