@@ -36,7 +36,7 @@ pub struct CxxValueSerializerDelegate {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   this: &CxxValueSerializerDelegate,
   message: Local<String>,
 ) {
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
 ) -> bool {
@@ -63,7 +63,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   object: Local<Object>,
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   object: Local<Object>,
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   shared_array_buffer: Local<SharedArrayBuffer>,
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   module: Local<WasmModuleObject>,
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ReallocateBufferMemory(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__ReallocateBufferMemory(
   this: &CxxValueSerializerDelegate,
   old_buffer: *mut c_void,
   size: usize,
@@ -170,7 +170,7 @@ pub unsafe extern "C" fn v8__ValueSerializer__Delegate__ReallocateBufferMemory(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueSerializer__Delegate__FreeBufferMemory(
+unsafe extern "C" fn v8__ValueSerializer__Delegate__FreeBufferMemory(
   this: &mut CxxValueSerializerDelegate,
   buffer: *mut c_void,
 ) {

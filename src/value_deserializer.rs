@@ -30,7 +30,7 @@ pub struct CxxValueDeserializerDelegate {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
+unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
   this: &CxxValueDeserializerDelegate,
   isolate: *mut Isolate,
 ) -> *const Object {
@@ -49,7 +49,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId(
+unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId(
   this: &CxxValueDeserializerDelegate,
   isolate: *mut Isolate,
   transfer_id: u32,
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFr
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
+unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   this: &mut CxxValueDeserializerDelegate,
   isolate: *mut Isolate,
   clone_id: u32,
