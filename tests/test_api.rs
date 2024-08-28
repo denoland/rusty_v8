@@ -7952,14 +7952,15 @@ fn bigint() {
 type ArrayBuffers = Vec<v8::SharedRef<v8::BackingStore>>;
 
 struct Custom1Value<'a> {
-  array_buffers: &'a mut ArrayBuffers,
+  array_buffers: RefCell<&'a mut ArrayBuffers>,
 }
 
 impl<'a> Custom1Value<'a> {
   fn serializer<'s>(
     scope: &mut v8::HandleScope<'s>,
     array_buffers: &'a mut ArrayBuffers,
-  ) -> v8::ValueSerializer<'a, 's> {
+  ) -> v8::ValueSerializer<'a> {
+    let array_buffers = RefCell::new(array_buffers);
     v8::ValueSerializer::new(scope, Box::new(Self { array_buffers }))
   }
 
@@ -7967,7 +7968,8 @@ impl<'a> Custom1Value<'a> {
     scope: &mut v8::HandleScope<'s>,
     data: &[u8],
     array_buffers: &'a mut ArrayBuffers,
-  ) -> v8::ValueDeserializer<'a, 's> {
+  ) -> v8::ValueDeserializer<'a> {
+    let array_buffers = RefCell::new(array_buffers);
     v8::ValueDeserializer::new(scope, Box::new(Self { array_buffers }), data)
   }
 }
@@ -7975,7 +7977,7 @@ impl<'a> Custom1Value<'a> {
 impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
   #[allow(unused_variables)]
   fn throw_data_clone_error<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     message: v8::Local<'s, v8::String>,
   ) {
@@ -7985,23 +7987,21 @@ impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
 
   #[allow(unused_variables)]
   fn get_shared_array_buffer_id<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     shared_array_buffer: v8::Local<'s, v8::SharedArrayBuffer>,
   ) -> Option<u32> {
-    self
-      .array_buffers
-      .push(v8::SharedArrayBuffer::get_backing_store(
-        &shared_array_buffer,
-      ));
-    Some((self.array_buffers.len() as u32) - 1)
+    self.array_buffers.borrow_mut().push(
+      v8::SharedArrayBuffer::get_backing_store(&shared_array_buffer),
+    );
+    Some((self.array_buffers.borrow().len() as u32) - 1)
   }
 
   fn write_host_object<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     object: v8::Local<'s, v8::Object>,
-    value_serializer: &mut dyn v8::ValueSerializerHelper,
+    value_serializer: &dyn v8::ValueSerializerHelper,
   ) -> Option<bool> {
     let key = v8::String::new(scope, "hostObject").unwrap();
     let value = object
@@ -8017,21 +8017,26 @@ impl<'a> v8::ValueSerializerImpl for Custom1Value<'a> {
 impl<'a> v8::ValueDeserializerImpl for Custom1Value<'a> {
   #[allow(unused_variables)]
   fn get_shared_array_buffer_from_id<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     transfer_id: u32,
   ) -> Option<v8::Local<'s, v8::SharedArrayBuffer>> {
-    let backing_store = self.array_buffers.get(transfer_id as usize).unwrap();
+    let backing_store = self
+      .array_buffers
+      .borrow()
+      .get(transfer_id as usize)
+      .unwrap()
+      .clone();
     Some(v8::SharedArrayBuffer::with_backing_store(
       scope,
-      backing_store,
+      &backing_store,
     ))
   }
 
   fn read_host_object<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
-    value_deserializer: &mut dyn v8::ValueDeserializerHelper,
+    value_deserializer: &dyn v8::ValueDeserializerHelper,
   ) -> Option<v8::Local<'s, v8::Object>> {
     let mut value = 0;
     value_deserializer.read_uint32(&mut value);
@@ -8060,8 +8065,7 @@ fn value_serializer_and_deserializer() {
   let scope = &mut v8::ContextScope::new(scope, context);
   let buffer;
   {
-    let mut value_serializer =
-      Custom1Value::serializer(scope, &mut array_buffers);
+    let value_serializer = Custom1Value::serializer(scope, &mut array_buffers);
     value_serializer.write_header();
     value_serializer.write_double(55.44);
     value_serializer.write_uint32(22);
@@ -8071,7 +8075,7 @@ fn value_serializer_and_deserializer() {
   let mut double: f64 = 0.0;
   let mut int32: u32 = 0;
   {
-    let mut value_deserializer =
+    let value_deserializer =
       Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
     assert_eq!(value_deserializer.read_header(context), Some(true));
     assert!(value_deserializer.read_double(&mut double));
@@ -8117,8 +8121,7 @@ fn value_serializer_and_deserializer_js_objects() {
       ]"#,
     )
     .unwrap();
-    let mut value_serializer =
-      Custom1Value::serializer(scope, &mut array_buffers);
+    let value_serializer = Custom1Value::serializer(scope, &mut array_buffers);
     value_serializer.write_header();
     assert_eq!(value_serializer.write_value(context, objects), Some(true));
 
@@ -8134,7 +8137,7 @@ fn value_serializer_and_deserializer_js_objects() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let mut value_deserializer =
+    let value_deserializer =
       Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
     assert_eq!(value_deserializer.read_header(context), Some(true));
     let name = v8::String::new(scope, "objects").unwrap();
@@ -8224,8 +8227,7 @@ fn value_serializer_and_deserializer_array_buffers() {
       }"#,
     )
     .unwrap();
-    let mut value_serializer =
-      Custom1Value::serializer(scope, &mut array_buffers);
+    let value_serializer = Custom1Value::serializer(scope, &mut array_buffers);
     assert_eq!(value_serializer.write_value(context, objects), Some(true));
 
     buffer = value_serializer.release();
@@ -8240,7 +8242,7 @@ fn value_serializer_and_deserializer_array_buffers() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let mut value_deserializer =
+    let value_deserializer =
       Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
     let name = v8::String::new(scope, "objects").unwrap();
     let objects: v8::Local<v8::Value> =
@@ -8286,8 +8288,7 @@ fn value_serializer_and_deserializer_embedder_host_object() {
     let value = v8::Integer::new_from_unsigned(scope, expected);
     host_object.set(scope, key.into(), value.into());
 
-    let mut value_serializer =
-      Custom1Value::serializer(scope, &mut array_buffers);
+    let value_serializer = Custom1Value::serializer(scope, &mut array_buffers);
     assert_eq!(
       value_serializer.write_value(context, host_object.into()),
       Some(true)
@@ -8305,7 +8306,7 @@ fn value_serializer_and_deserializer_embedder_host_object() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let mut value_deserializer =
+    let value_deserializer =
       Custom1Value::deserializer(scope, &buffer, &mut array_buffers);
     let host_object_out = value_deserializer
       .read_value(context)
@@ -8328,7 +8329,7 @@ struct Custom2Value {}
 impl<'a> Custom2Value {
   fn serializer<'s>(
     scope: &mut v8::HandleScope<'s>,
-  ) -> v8::ValueSerializer<'a, 's> {
+  ) -> v8::ValueSerializer<'a> {
     v8::ValueSerializer::new(scope, Box::new(Self {}))
   }
 }
@@ -8336,7 +8337,7 @@ impl<'a> Custom2Value {
 impl v8::ValueSerializerImpl for Custom2Value {
   #[allow(unused_variables)]
   fn throw_data_clone_error<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     message: v8::Local<'s, v8::String>,
   ) {
@@ -8367,7 +8368,7 @@ fn value_serializer_not_implemented() {
     }"#,
   )
   .unwrap();
-  let mut value_serializer = Custom2Value::serializer(scope);
+  let value_serializer = Custom2Value::serializer(scope);
   assert_eq!(value_serializer.write_value(context, objects), None);
 
   assert!(scope.exception().is_some());
@@ -8388,14 +8389,14 @@ struct Custom3Value {}
 impl<'a> Custom3Value {
   fn serializer<'s>(
     scope: &mut v8::HandleScope<'s>,
-  ) -> v8::ValueSerializer<'a, 's> {
+  ) -> v8::ValueSerializer<'a> {
     v8::ValueSerializer::new(scope, Box::new(Self {}))
   }
 
   fn deserializer<'s>(
     scope: &mut v8::HandleScope<'s>,
     data: &[u8],
-  ) -> v8::ValueDeserializer<'a, 's> {
+  ) -> v8::ValueDeserializer<'a> {
     v8::ValueDeserializer::new(scope, Box::new(Self {}), data)
   }
 }
@@ -8403,7 +8404,7 @@ impl<'a> Custom3Value {
 impl v8::ValueSerializerImpl for Custom3Value {
   #[allow(unused_variables)]
   fn throw_data_clone_error<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     message: v8::Local<'s, v8::String>,
   ) {
@@ -8411,12 +8412,12 @@ impl v8::ValueSerializerImpl for Custom3Value {
     scope.throw_exception(error);
   }
 
-  fn has_custom_host_object(&mut self, _isolate: &mut v8::Isolate) -> bool {
+  fn has_custom_host_object(&self, _isolate: &mut v8::Isolate) -> bool {
     true
   }
 
   fn is_host_object<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     object: v8::Local<'s, v8::Object>,
   ) -> Option<bool> {
@@ -8425,10 +8426,10 @@ impl v8::ValueSerializerImpl for Custom3Value {
   }
 
   fn write_host_object<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
     object: v8::Local<'s, v8::Object>,
-    value_serializer: &mut dyn v8::ValueSerializerHelper,
+    value_serializer: &dyn v8::ValueSerializerHelper,
   ) -> Option<bool> {
     let key = v8::String::new(scope, "hostObject").unwrap();
     let value = object
@@ -8443,9 +8444,9 @@ impl v8::ValueSerializerImpl for Custom3Value {
 
 impl v8::ValueDeserializerImpl for Custom3Value {
   fn read_host_object<'s>(
-    &mut self,
+    &self,
     scope: &mut v8::HandleScope<'s>,
-    value_deserializer: &mut dyn v8::ValueDeserializerHelper,
+    value_deserializer: &dyn v8::ValueDeserializerHelper,
   ) -> Option<v8::Local<'s, v8::Object>> {
     let mut value = 0;
     value_deserializer.read_uint32(&mut value);
@@ -8475,7 +8476,7 @@ fn value_serializer_and_deserializer_custom_host_object() {
     let value = v8::Integer::new_from_unsigned(scope, expected);
     host_object.set(scope, key.into(), value.into());
 
-    let mut value_serializer = Custom3Value::serializer(scope);
+    let value_serializer = Custom3Value::serializer(scope);
     assert_eq!(
       value_serializer.write_value(context, host_object.into()),
       Some(true)
@@ -8493,7 +8494,7 @@ fn value_serializer_and_deserializer_custom_host_object() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    let mut value_deserializer = Custom3Value::deserializer(scope, &buffer);
+    let value_deserializer = Custom3Value::deserializer(scope, &buffer);
     let host_object_out = value_deserializer
       .read_value(context)
       .unwrap()
@@ -11743,17 +11744,17 @@ fn allow_scope_in_read_host_object() {
   struct Serializer;
   impl v8::ValueSerializerImpl for Serializer {
     fn write_host_object<'s>(
-      &mut self,
+      &self,
       _scope: &mut v8::HandleScope<'s>,
       _object: v8::Local<'s, v8::Object>,
-      _value_serializer: &mut dyn v8::ValueSerializerHelper,
+      _value_serializer: &dyn v8::ValueSerializerHelper,
     ) -> Option<bool> {
       // Doesn't look at the object or writes anything.
       Some(true)
     }
 
     fn throw_data_clone_error<'s>(
-      &mut self,
+      &self,
       _scope: &mut v8::HandleScope<'s>,
       _message: v8::Local<'s, v8::String>,
     ) {
@@ -11764,9 +11765,9 @@ fn allow_scope_in_read_host_object() {
   struct Deserializer;
   impl v8::ValueDeserializerImpl for Deserializer {
     fn read_host_object<'s>(
-      &mut self,
+      &self,
       scope: &mut v8::HandleScope<'s>,
-      _value_deserializer: &mut dyn v8::ValueDeserializerHelper,
+      _value_deserializer: &dyn v8::ValueDeserializerHelper,
     ) -> Option<v8::Local<'s, v8::Object>> {
       let scope2 = &mut v8::AllowJavascriptExecutionScope::new(scope);
       let value = eval(scope2, "{}").unwrap();
@@ -11783,15 +11784,14 @@ fn allow_scope_in_read_host_object() {
   let mut scope = v8::ContextScope::new(&mut scope, context);
 
   let serialized = {
-    let mut serializer =
-      v8::ValueSerializer::new(&mut scope, Box::new(Serializer));
+    let serializer = v8::ValueSerializer::new(&mut scope, Box::new(Serializer));
     serializer
       .write_value(context, v8::Object::new(&mut scope).into())
       .unwrap();
     serializer.release()
   };
 
-  let mut deserializer =
+  let deserializer =
     v8::ValueDeserializer::new(&mut scope, Box::new(Deserializer), &serialized);
   let value = deserializer.read_value(context).unwrap();
   assert!(value.is_object());
