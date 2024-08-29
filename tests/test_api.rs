@@ -8070,6 +8070,7 @@ fn value_serializer_and_deserializer() {
     value_serializer.write_double(55.44);
     value_serializer.write_uint32(22);
     buffer = value_serializer.release();
+    assert_eq!(value_serializer.release(), Vec::new());
   }
 
   let mut double: f64 = 0.0;
