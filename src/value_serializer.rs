@@ -536,13 +536,13 @@ impl<'a> ValueSerializer<'a> {
         &mut ptr,
         &mut size,
       );
-      if ptr.is_null() {
-        return Vec::new();
-      }
       let capacity = self
         .value_serializer_heap
         .buffer_size
         .swap(0, std::sync::atomic::Ordering::Relaxed);
+      if ptr.is_null() {
+        return Vec::new();
+      }
       assert!(size <= capacity);
       // SAFETY: ptr is non-null, was allocated by us in `v8__ValueSerializer__Delegate__ReallocateBufferMemory`, and
       // the capacity is correctly updated during reallocation. Size is asserted to be valid above.
