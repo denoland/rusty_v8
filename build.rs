@@ -356,36 +356,11 @@ fn maybe_install_sysroot(arch: &str) {
   }
 }
 
-fn host_platform() -> String {
-  let os = if cfg!(target_os = "linux") {
-    "linux"
-  } else if cfg!(target_os = "macos") {
-    "mac"
-  } else if cfg!(target_os = "windows") {
-    "windows"
-  } else {
-    "unknown"
-  };
-
-  let arch = if cfg!(target_arch = "x86_64") {
-    "amd64"
-  } else if cfg!(target_arch = "aarch64") {
-    "arm64"
-  } else if cfg!(target_arch = "arm") {
-    "arm"
-  } else {
-    "unknown"
-  };
-  format!("{os}-{arch}")
-}
-
 fn download_ninja_gn_binaries() {
-  let target_dir = build_dir();
-  let bin_dir = target_dir
-    .join("ninja_gn_binaries-20221218")
-    .join(host_platform());
-  let gn = bin_dir.join("gn");
-  let ninja = bin_dir.join("ninja");
+  let target_dir = build_dir().join("ninja_gn_binaries");
+
+  let gn = target_dir.join("gn").join("gn");
+  let ninja = target_dir.join("ninja").join("ninja");
   #[cfg(windows)]
   let gn = gn.with_extension("exe");
   #[cfg(windows)]
@@ -990,8 +965,7 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
 fn rerun_if_changed(out_dir: &Path, maybe_env: Option<NinjaEnv>, target: &str) {
   let deps = ninja_get_deps(out_dir, maybe_env, target);
   for d in deps {
-    let p = out_dir.join(d);
-    if p.exists() {
+    if let Ok(p) = out_dir.join(d).canonicalize() {
       println!("cargo:rerun-if-changed={}", p.display());
     }
   }

@@ -1,9 +1,4 @@
-Str = str
-def Var(name):
-    return vars[name]
-with open('./v8/DEPS') as f:
-    exec(f.read())
-
+from v8_deps import deps
 import subprocess
 
 def process(name, dep):
