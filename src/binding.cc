@@ -3223,6 +3223,10 @@ const v8::Value* v8__Module__Evaluate(const v8::Module& self,
       ptr_to_local(&self)->Evaluate(ptr_to_local(&context)));
 }
 
+bool v8__Module__IsGraphAsync(const v8::Module& self) {
+  return ptr_to_local(&self)->IsGraphAsync();
+}
+
 bool v8__Module__IsSourceTextModule(const v8::Module& self) {
   return ptr_to_local(&self)->IsSourceTextModule();
 }

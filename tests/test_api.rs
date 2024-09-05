@@ -4989,6 +4989,7 @@ fn module_stalled_top_level_await() {
       .instantiate_module(scope, compile_specifier_as_module_resolve_callback);
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
+    assert!(module.is_graph_async());
 
     let result = module.evaluate(scope);
     assert!(result.is_some());
@@ -7756,6 +7757,7 @@ fn synthetic_module() {
     .instantiate_module(scope, unexpected_module_resolve_callback)
     .unwrap();
   assert_eq!(module.get_status(), v8::ModuleStatus::Instantiated);
+  assert!(!module.is_graph_async());
 
   module.evaluate(scope).unwrap();
   assert_eq!(module.get_status(), v8::ModuleStatus::Evaluated);

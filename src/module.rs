@@ -169,6 +169,7 @@ extern "C" {
     this: *const Module,
     context: *const Context,
   ) -> *const Value;
+  fn v8__Module__IsGraphAsync(this: *const Module) -> bool;
   fn v8__Module__IsSourceTextModule(this: *const Module) -> bool;
   fn v8__Module__IsSyntheticModule(this: *const Module) -> bool;
   fn v8__Module__CreateSyntheticModule(
@@ -347,6 +348,15 @@ impl Module {
       scope
         .cast_local(|sd| v8__Module__Evaluate(self, sd.get_current_context()))
     }
+  }
+
+  /// Returns whether this module or any of its requested modules is async,
+  /// i.e. contains top-level await.
+  ///
+  /// The module's status must be at least kInstantiated.
+  #[inline(always)]
+  pub fn is_graph_async(&self) -> bool {
+    unsafe { v8__Module__IsGraphAsync(self) }
   }
 
   /// Returns whether the module is a SourceTextModule.
