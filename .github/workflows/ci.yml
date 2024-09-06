@@ -98,7 +98,7 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11.x
           architecture: x64
@@ -124,7 +124,7 @@ jobs:
         run: git submodule status --recursive > git_submodule_status.txt
 
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           # Note: rusty_v8 targets always get get rebuilt, and their outputs
           # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
