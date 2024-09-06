@@ -44,6 +44,10 @@ fn cppgc_object_wrap() {
       TRACE_COUNT.fetch_add(1, Ordering::SeqCst);
       visitor.trace(&self.value);
     }
+
+    fn get_name(&self) -> Option<&'static std::ffi::CStr> {
+      Some(c"Eyecatcher")
+    }
   }
 
   impl Drop for Wrap {
@@ -133,6 +137,16 @@ fn cppgc_object_wrap() {
       );
 
       assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
+
+      {
+        let mut vec = Vec::<u8>::new();
+        scope.take_heap_snapshot(|chunk| {
+          vec.extend_from_slice(chunk);
+          true
+        });
+        let s = std::str::from_utf8(&vec).unwrap();
+        assert!(s.contains("Eyecatcher"));
+      }
 
       scope.request_garbage_collection_for_testing(
         v8::GarbageCollectionType::Full,

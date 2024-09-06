@@ -1,7 +1,7 @@
+use crate::binding::RustObj;
 use crate::cppgc::GarbageCollected;
 use crate::cppgc::GetRustObj;
 use crate::cppgc::Ptr;
-use crate::cppgc::RustObj;
 use crate::isolate::Isolate;
 use crate::support::int;
 use crate::support::MapFnTo;

@@ -11,8 +11,6 @@
  * and made available in `crate::binding` in rust.
  */
 
-class RustObj;
-
 static size_t v8__ScriptOrigin_SIZE = sizeof(v8::ScriptOrigin);
 
 static size_t cppgc__Member_SIZE = sizeof(cppgc::Member<RustObj>);
