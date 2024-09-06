@@ -18,6 +18,7 @@ use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::Opaque;
 use crate::support::ToCFn;
+use crate::support::UniqueRef;
 use crate::support::UnitType;
 use crate::wasm::trampoline;
 use crate::wasm::WasmStreaming;
@@ -467,6 +468,8 @@ extern "C" {
     change_in_bytes: i64,
   ) -> i64;
   fn v8__Isolate__GetCppHeap(isolate: *mut Isolate) -> *mut Heap;
+  fn v8__Isolate__AttachCppHeap(isolate: *mut Isolate, cpp_heap: *mut Heap);
+  fn v8__Isolate__DetachCppHeap(isolate: *mut Isolate);
   fn v8__Isolate__SetPrepareStackTraceCallback(
     isolate: *mut Isolate,
     callback: PrepareStackTraceCallback,
@@ -1219,8 +1222,19 @@ impl Isolate {
     }
   }
 
+  #[inline(always)]
   pub fn get_cpp_heap(&mut self) -> Option<&Heap> {
     unsafe { v8__Isolate__GetCppHeap(self).as_ref() }
+  }
+
+  #[inline(always)]
+  pub fn attach_cpp_heap(&mut self, cpp_heap: &mut UniqueRef<Heap>) {
+    unsafe { v8__Isolate__AttachCppHeap(self, cpp_heap.deref_mut()) }
+  }
+
+  #[inline(always)]
+  pub fn detach_cpp_heap(&mut self) {
+    unsafe { v8__Isolate__DetachCppHeap(self) }
   }
 
   #[inline(always)]

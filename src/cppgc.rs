@@ -14,12 +14,13 @@ extern "C" {
   fn cppgc__initialize_process(platform: *mut Platform);
   fn cppgc__shutdown_process();
 
-  fn cppgc__heap__create(
+  fn v8__CppHeap__Create(
     platform: *mut Platform,
     marking_support: MarkingType,
     sweeping_support: SweepingType,
   ) -> *mut Heap;
-  fn cppgc__heap__DELETE(heap: *mut Heap);
+  fn v8__CppHeap__Terminate(heap: *mut Heap);
+  fn v8__CppHeap__DELETE(heap: *mut Heap);
   fn cppgc__make_garbage_collectable(
     heap: *mut Heap,
     size: usize,
@@ -226,7 +227,9 @@ pub struct Heap(Opaque);
 
 impl Drop for Heap {
   fn drop(&mut self) {
-    unsafe { cppgc__heap__DELETE(self) }
+    unsafe {
+      v8__CppHeap__DELETE(self);
+    }
   }
 }
 
@@ -236,7 +239,7 @@ impl Heap {
     params: HeapCreateParams,
   ) -> UniqueRef<Heap> {
     unsafe {
-      UniqueRef::from_raw(cppgc__heap__create(
+      UniqueRef::from_raw(v8__CppHeap__Create(
         &*platform as *const Platform as *mut _,
         params.marking_support,
         params.sweeping_support,
@@ -261,6 +264,12 @@ impl Heap {
       cppgc__heap__enable_detached_garbage_collections_for_testing(
         self as *const Heap as *mut _,
       );
+    }
+  }
+
+  pub fn terminate(&mut self) {
+    unsafe {
+      v8__CppHeap__Terminate(self);
     }
   }
 }

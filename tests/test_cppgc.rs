@@ -94,31 +94,32 @@ fn cppgc_object_wrap() {
 
   {
     // Create a managed heap.
-    let heap = v8::cppgc::Heap::create(
+    let mut heap = v8::cppgc::Heap::create(
       guard.platform.clone(),
       v8::cppgc::HeapCreateParams::default(),
     );
-    let isolate =
-      &mut v8::Isolate::new(v8::CreateParams::default().cpp_heap(heap));
+    let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+    isolate.attach_cpp_heap(&mut heap);
 
-    let handle_scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(handle_scope, Default::default());
-    let scope = &mut v8::ContextScope::new(handle_scope, context);
-    let global = context.global(scope);
     {
-      let func = v8::Function::new(scope, op_wrap).unwrap();
-      let name = v8::String::new(scope, "wrap").unwrap();
-      global.set(scope, name.into(), func.into()).unwrap();
-    }
-    {
-      let func = v8::Function::new(scope, op_unwrap).unwrap();
-      let name = v8::String::new(scope, "unwrap").unwrap();
-      global.set(scope, name.into(), func.into()).unwrap();
-    }
+      let handle_scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(handle_scope, Default::default());
+      let scope = &mut v8::ContextScope::new(handle_scope, context);
+      let global = context.global(scope);
+      {
+        let func = v8::Function::new(scope, op_wrap).unwrap();
+        let name = v8::String::new(scope, "wrap").unwrap();
+        global.set(scope, name.into(), func.into()).unwrap();
+      }
+      {
+        let func = v8::Function::new(scope, op_unwrap).unwrap();
+        let name = v8::String::new(scope, "unwrap").unwrap();
+        global.set(scope, name.into(), func.into()).unwrap();
+      }
 
-    execute_script(
-      scope,
-      r#"
+      execute_script(
+        scope,
+        r#"
       {
         const x = {};
         const y = unwrap(wrap(x)); // collected
@@ -129,27 +130,34 @@ fn cppgc_object_wrap() {
 
       globalThis.wrapped = wrap(wrap({})); // not collected
     "#,
-    );
+      );
 
-    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
+      assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
 
-    scope
-      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+      scope.request_garbage_collection_for_testing(
+        v8::GarbageCollectionType::Full,
+      );
 
-    assert!(TRACE_COUNT.load(Ordering::SeqCst) > 0);
-    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 1);
+      assert!(TRACE_COUNT.load(Ordering::SeqCst) > 0);
+      assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 1);
 
-    execute_script(
-      scope,
-      r#"
+      execute_script(
+        scope,
+        r#"
       globalThis.wrapped = undefined;
     "#,
-    );
+      );
 
-    scope
-      .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+      scope.request_garbage_collection_for_testing(
+        v8::GarbageCollectionType::Full,
+      );
 
-    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 3);
+      assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 3);
+    }
+
+    isolate.detach_cpp_heap();
+    heap.terminate();
+    drop(heap);
   }
 }
 

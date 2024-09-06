@@ -3888,13 +3888,25 @@ void v8__Object__Wrap(v8::Isolate* isolate, const v8::Object& wrapper,
                    tag);
 }
 
+v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
+  return isolate->GetCppHeap();
+}
+
+void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) {
+  isolate->AttachCppHeap(cpp_heap);
+}
+
+void v8__Isolate__DetachCppHeap(v8::Isolate* isolate) {
+  isolate->DetachCppHeap();
+}
+
 void cppgc__initialize_process(v8::Platform* platform) {
   cppgc::InitializeProcess(platform->GetPageAllocator());
 }
 
 void cppgc__shutdown_process() { cppgc::ShutdownProcess(); }
 
-v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
+v8::CppHeap* v8__CppHeap__Create(v8::Platform* platform,
                                  cppgc::Heap::MarkingType marking_support,
                                  cppgc::Heap::SweepingType sweeping_support) {
   v8::CppHeapCreateParams params{{}};
@@ -3904,11 +3916,9 @@ v8::CppHeap* cppgc__heap__create(v8::Platform* platform,
   return heap.release();
 }
 
-v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
-  return isolate->GetCppHeap();
-}
+void v8__CppHeap__Terminate(v8::CppHeap* cpp_heap) { cpp_heap->Terminate(); }
 
-void cppgc__heap__DELETE(v8::CppHeap* self) { delete self; }
+void v8__CppHeap__DELETE(v8::CppHeap* self) { delete self; }
 
 void cppgc__heap__enable_detached_garbage_collections_for_testing(
     v8::CppHeap* heap) {
