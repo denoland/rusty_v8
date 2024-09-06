@@ -40,6 +40,8 @@ default_args = {
 
   v8_enable_pointer_compression = false
 
+  v8_imminent_deprecation_warnings = false
+
   # This flag speeds up the performance of fork/execve on Linux systems for
   # embedders which use it (like Node.js). It works by marking the pages that
   # V8 allocates as MADV_DONTFORK. Without MADV_DONTFORK, the Linux kernel
