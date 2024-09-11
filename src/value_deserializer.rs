@@ -118,6 +118,12 @@ extern "C" {
     array_buffer: Local<ArrayBuffer>,
   );
 
+  fn v8__ValueDeserializer__TransferSharedArrayBuffer(
+    this: *mut CxxValueDeserializer,
+    transfer_id: u32,
+    array_buffer: Local<SharedArrayBuffer>,
+  );
+
   fn v8__ValueDeserializer__SetSupportsLegacyWireFormat(
     this: *mut CxxValueDeserializer,
     supports_legacy_wire_format: bool,
@@ -332,6 +338,20 @@ pub trait ValueDeserializerHelper {
         cast_to_ptr(self.get_cxx_value_deserializer()),
         transfer_id,
         array_buffer,
+      )
+    };
+  }
+
+  fn transfer_shared_array_buffer(
+    &self,
+    transfer_id: u32,
+    shared_array_buffer: Local<SharedArrayBuffer>,
+  ) {
+    unsafe {
+      v8__ValueDeserializer__TransferSharedArrayBuffer(
+        cast_to_ptr(self.get_cxx_value_deserializer()),
+        transfer_id,
+        shared_array_buffer,
       )
     };
   }
