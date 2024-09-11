@@ -438,7 +438,7 @@ macro_rules! member {
         }
 
         #[doc = "Create a new "]
-        #[doc = stringify!(name)]
+        #[doc = stringify!($name)]
         #[doc = " and initialize it with an object."]
         pub fn new(other: &impl GetRustObj<T>) -> Self {
           Self {
@@ -535,7 +535,7 @@ macro_rules! persistent {
         }
 
         #[doc = "Create a new "]
-        #[doc = stringify!(name)]
+        #[doc = stringify!($name)]
         #[doc = " and initialize it with an object."]
         pub fn new(other: &impl GetRustObj<T>) -> Self {
           let this = unsafe { [< cppgc__ $name __CONSTRUCT >](other.get_rust_obj()) };
