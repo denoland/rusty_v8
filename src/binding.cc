@@ -359,6 +359,16 @@ bool v8__Isolate__HasPendingBackgroundTasks(v8::Isolate* isolate) {
   return isolate->HasPendingBackgroundTasks();
 }
 
+void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* locker, v8::Isolate* isolate) {
+  construct_in_place<v8::Locker>(locker, isolate);
+}
+
+void v8__Locker__DESTRUCT(v8::Locker* locker) { locker->~Locker(); }
+
+bool v8__Locker__IsLocked(v8::Isolate* isolate) {
+  return v8::Locker::IsLocked(isolate);
+}
+
 void v8__Isolate__RequestGarbageCollectionForTesting(
     v8::Isolate* isolate, v8::Isolate::GarbageCollectionType type) {
   isolate->RequestGarbageCollectionForTesting(type);
