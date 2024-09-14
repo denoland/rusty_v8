@@ -20,6 +20,8 @@ static size_t v8__TracedReference_SIZE = sizeof(v8::TracedReference<v8::Data>);
 
 static size_t v8__String__ValueView_SIZE = sizeof(v8::String::ValueView);
 
+static size_t v8__Locker__SIZE = sizeof(v8::Locker);
+
 static int v8__String__kMaxLength = v8::String::kMaxLength;
 
 static size_t v8__TypedArray__kMaxByteLength = v8::TypedArray::kMaxByteLength;

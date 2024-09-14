@@ -16,10 +16,14 @@ pub struct Locker<'a> {
 
 impl<'a> Locker<'a> {
   /// Claims the isolate, this should only be used from a shared isolate.
-  pub(crate) fn new(isolate: &'a mut Isolate) -> Self {
-    let s = Self {
-      _lock: raw::Locker::new(isolate),
-      locked: isolate,
+  pub(crate) fn new(isolate: &Isolate) -> Self {
+    let const_isolate = isolate as *const Isolate;
+    let mut_isolate = const_isolate as *mut Isolate;
+    let s = unsafe {
+      Self {
+        _lock: raw::Locker::new(isolate),
+        locked: &mut *mut_isolate,
+      }
     };
     ScopeData::new_root(s.locked);
     unsafe { s.locked.enter() };
@@ -76,15 +80,15 @@ mod raw {
 
   #[repr(C)]
   #[derive(Debug)]
-  pub(super) struct Locker([MaybeUninit<usize>; 2]);
+  pub(super) struct Locker([u8; crate::binding::v8__Locker__SIZE]);
 
   impl Locker {
     pub fn new(isolate: &Isolate) -> Self {
       unsafe {
-        let mut s = Self(MaybeUninit::uninit().assume_init());
-        v8__Locker__CONSTRUCT(&mut s, isolate);
+        let mut this = MaybeUninit::<Self>::uninit();
+        v8__Locker__CONSTRUCT(this.as_mut_ptr(), isolate);
         // v8-locker.h disallows copying and assigning, but it does not disallow moving so this is hopefully safe.
-        s
+        this.assume_init()
       }
     }
 
