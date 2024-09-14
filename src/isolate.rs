@@ -658,7 +658,7 @@ impl Isolate {
   /// Unlike V8 isolates, these do not currently support re-entrancy.
   /// Do not create multiple lockers to the same isolate in the same thread.
   pub fn new_shared(params: CreateParams) -> SharedIsolate {
-    SharedIsolate::new(Self::new_impl(params))
+    SharedIsolate::new(Self::new(params))
   }
 
   #[allow(clippy::new_ret_no_self)]
@@ -1648,7 +1648,7 @@ impl IsolateHandle {
 pub struct SharedIsolate {
   // We wrap an owned isolate to persist the cleanup operations of an owned isolate.
   // Lockers having a lifetime parameter ensures this can only be cleaned up after all lockers are dropped.
-  isolate: UnsafeCell<NonNull<Isolate>>,
+  isolate: UnsafeCell<OwnedIsolate>,
 }
 
 // OwnedIsolate doesn't support send and sync, but we're guarding them with lockers.
@@ -1656,21 +1656,20 @@ unsafe impl Send for SharedIsolate {}
 unsafe impl Sync for SharedIsolate {}
 
 impl SharedIsolate {
-  /// Consume an isolate, allowing it to be shared between threads as threads take a locker to the isolate.
-  pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
-    let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
+  /// Consume an owned isolate, allowing it to be shared between threads as threads take a locker to it.
+  pub(crate) fn new(owned_isolate: OwnedIsolate) -> Self {
     Self {
-      isolate: UnsafeCell::new(cxx_isolate),
+      isolate: UnsafeCell::new(owned_isolate),
     }
   }
 
   #[allow(clippy::mut_from_ref)]
-  fn internal_unsafe_isolate_mut(&self) -> &mut Isolate {
-    unsafe { (*self.isolate.get()).as_mut() }
+  fn internal_unsafe_cxx_isolate_mut(&self) -> &mut Isolate {
+    unsafe { (*self.isolate.get()).deref_mut() }
   }
 
-  fn internal_unsafe_isolate(&self) -> &Isolate {
-    unsafe { (*self.isolate.get()).as_ref() }
+  fn internal_unsafe_cxx_isolate(&self) -> &Isolate {
+    unsafe { (*self.isolate.get()).deref() }
   }
 
   /// Acquire a lock on the isolate, this allows the current thread to use the isolate.
@@ -1682,30 +1681,26 @@ impl SharedIsolate {
     // Only lock if the isolate is not currently locked in the current thread.
     // Re-entrant lockers may be supported later.
     assert!(!self.is_locked());
-    Locker::new(self.internal_unsafe_isolate_mut())
+    Locker::new(self.internal_unsafe_cxx_isolate_mut())
   }
 
   /// Gets if the shared isolate is locked by the current thread.
   pub fn is_locked(&self) -> bool {
-    Locker::is_locked(self.internal_unsafe_isolate())
+    Locker::is_locked(self.internal_unsafe_cxx_isolate())
   }
 
   /// Gets a thread safe handle to the isolate, this can be done without acquiring a lock on the isolate.
   pub fn thread_safe_handle(&self) -> IsolateHandle {
-    self.internal_unsafe_isolate().thread_safe_handle()
+    self.internal_unsafe_cxx_isolate().thread_safe_handle()
   }
 }
 
-impl Drop for SharedIsolate {
-  fn drop(&mut self) {
-    let isolate = self.internal_unsafe_isolate_mut();
-    unsafe {
-      // Stack roots are disposed by individual lockers.
-      isolate.dispose_annex();
-      isolate.dispose();
-    }
-  }
-}
+// SharedIsolate should be automatically implement drop.
+// impl Drop for SharedIsolate {
+//   fn drop(&mut self) {
+//     println!("SharedIsolate dropped!");
+//   }
+// }
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 #[derive(Debug)]

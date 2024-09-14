@@ -39,7 +39,7 @@ where
 {
   spawn_thread_locked(isolate, |locker| {
     let scope = &mut v8::HandleScope::new(locker.isolate_mut());
-    let context = v8::Context::new(scope);
+    let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     f(scope)
   })
