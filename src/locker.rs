@@ -2,11 +2,6 @@ use std::ops::{Deref, DerefMut};
 
 use crate::isolate::Isolate;
 use crate::scope::data::ScopeData;
-use crate::support::Opaque;
-
-#[repr(C)]
-#[derive(Debug)]
-struct LockerHandle(Opaque);
 
 /// A handle to a shared isolate, allowing access to the isolate in a thread safe way.
 ///
