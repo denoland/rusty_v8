@@ -16,6 +16,7 @@ pub struct Locker<'a> {
 
 impl<'a> Locker<'a> {
   /// Claims the isolate, this should only be used from a shared isolate.
+  #[allow(invalid_reference_casting)]
   pub(crate) fn new(isolate: &Isolate) -> Self {
     let const_isolate = isolate as *const Isolate;
     let mut_isolate = const_isolate as *mut Isolate;
