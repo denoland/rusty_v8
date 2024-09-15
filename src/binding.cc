@@ -3739,8 +3739,8 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 extern "C" {
 
 size_t icu_get_default_locale(char* output, size_t output_len) {
-  const icu_73::Locale& default_locale = icu::Locale::getDefault();
-  icu_73::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
+  const icu_74::Locale& default_locale = icu::Locale::getDefault();
+  icu_74::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
   UErrorCode status = U_ZERO_ERROR;
   default_locale.toLanguageTag(sink, status);
   assert(status == U_ZERO_ERROR);
