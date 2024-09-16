@@ -7,13 +7,13 @@ error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandl
   |                    required by a bound introduced by this call
   |
   = help: the following other types implement trait `v8::scope::param::NewEscapableHandleScope<'s, 'e>`:
-            <AllowJavascriptExecutionScope<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
-            <CallbackScope<'p, C> as v8::scope::param::NewEscapableHandleScope<'s, 'p>>
-            <ContextScope<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
-            <DisallowJavascriptExecutionScope<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
-            <EscapableHandleScope<'p, 'e, C> as v8::scope::param::NewEscapableHandleScope<'s, 'p>>
-            <HandleScope<'p, C> as v8::scope::param::NewEscapableHandleScope<'s, 'p>>
-            <TryCatch<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
+            `AllowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+            `CallbackScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
+            `ContextScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+            `DisallowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+            `EscapableHandleScope<'p, 'e, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
+            `HandleScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
+            `TryCatch<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
 note: required by a bound in `EscapableHandleScope::<'s, 'e>::new`
  --> src/scope.rs
   |
@@ -27,10 +27,10 @@ error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandl
   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
   |
   = help: the following other types implement trait `v8::scope::param::NewEscapableHandleScope<'s, 'e>`:
-            <AllowJavascriptExecutionScope<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
-            <CallbackScope<'p, C> as v8::scope::param::NewEscapableHandleScope<'s, 'p>>
-            <ContextScope<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
-            <DisallowJavascriptExecutionScope<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
-            <EscapableHandleScope<'p, 'e, C> as v8::scope::param::NewEscapableHandleScope<'s, 'p>>
-            <HandleScope<'p, C> as v8::scope::param::NewEscapableHandleScope<'s, 'p>>
-            <TryCatch<'p, P> as v8::scope::param::NewEscapableHandleScope<'s, 'e>>
+            `AllowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+            `CallbackScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
+            `ContextScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+            `DisallowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+            `EscapableHandleScope<'p, 'e, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
+            `HandleScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
+            `TryCatch<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`

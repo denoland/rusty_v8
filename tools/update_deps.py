@@ -2,7 +2,7 @@ from v8_deps import deps
 import subprocess
 
 def process(name, dep):
-    if name == 'build' or name == 'third_party/icu':
+    if name == 'build':
         # We have our own fork of this
         return
 
