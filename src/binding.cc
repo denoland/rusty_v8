@@ -3663,6 +3663,12 @@ void v8__ValueDeserializer__TransferArrayBuffer(
   self->TransferArrayBuffer(transfer_id, array_buffer);
 }
 
+void v8__ValueDeserializer__TransferSharedArrayBuffer(
+    v8::ValueDeserializer* self, uint32_t transfer_id,
+    v8::Local<v8::SharedArrayBuffer> shared_array_buffer) {
+  self->TransferSharedArrayBuffer(transfer_id, shared_array_buffer);
+}
+
 void v8__ValueDeserializer__SetSupportsLegacyWireFormat(
     v8::ValueDeserializer* self, bool supports_legacy_wire_format) {
   self->SetSupportsLegacyWireFormat(supports_legacy_wire_format);
