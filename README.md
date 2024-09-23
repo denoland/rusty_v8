@@ -30,6 +30,15 @@ V8 Version: 12.9.202.18
    Due to the complexity and size of V8's build, this is nontrivial. For example
    the crate size must be kept under 10 MiB in order to publish.
 
+## Versioning
+
+Rusty V8's major version maps to a Chrome release, which in turn maps to a
+specific V8 version. For exampe, Rusty V8 129.0.0 maps to Chrome 129.x.y.z,
+which maps to V8 12.9.x.y. Like other Rust crates, Rusty V8 follows semver and
+does not make breaking changes within a major version. However new major
+versions of Chrome are released on a 4 week cadence and Rusty V8 will follow
+those major version bumps accordingly.
+
 ## Binary Build
 
 V8 is very large and takes a long time to compile. Many users will prefer to use
