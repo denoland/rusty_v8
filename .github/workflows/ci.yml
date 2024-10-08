@@ -77,6 +77,16 @@ jobs:
             variant: release
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-freebsd
+            variant: debug
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-freebsd
+            variant: release
+            cargo: cargo
+
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
