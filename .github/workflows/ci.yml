@@ -137,9 +137,7 @@ jobs:
 
           sudo apt update
           sudo apt install -yq --no-install-suggests --no-install-recommends \
-            binfmt-support g++-10-aarch64-linux-gnu g++-10-multilib \
-            gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
-            qemu-user-binfmt
+            binfmt-support qemu qemu-user qemu-system-x86 qemu-user-binfmt
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
