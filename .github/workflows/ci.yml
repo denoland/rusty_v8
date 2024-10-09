@@ -141,6 +141,7 @@ jobs:
             qemu-utils ovmf
           wget https://download.freebsd.org/releases/VM-IMAGES/14.0-RELEASE/amd64/Latest/FreeBSD-14.0-RELEASE-amd64.qcow2.xz
           unxz FreeBSD-14.0-RELEASE-amd64.qcow2.xz
+          qemu-img resize FreeBSD-14.0-RELEASE-amd64.qcow2 +16G
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
