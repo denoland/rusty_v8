@@ -137,7 +137,10 @@ jobs:
 
           sudo apt update
           sudo apt install -yq --no-install-suggests --no-install-recommends \
-            binfmt-support qemu qemu-user qemu-system-x86 qemu-user-binfmt
+            binfmt-support qemu qemu-user qemu-system-x86 qemu-user-binfmt \
+            qemu-utils ovmf
+          wget https://download.freebsd.org/releases/VM-IMAGES/14.0-RELEASE/amd64/Latest/FreeBSD-14.0-RELEASE-amd64.qcow2.xz
+          unxz FreeBSD-14.0-RELEASE-amd64.qcow2.xz
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
