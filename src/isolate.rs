@@ -1630,6 +1630,7 @@ impl IsolateHandle {
 
 /// Same as Isolate but gets disposed when it goes out of scope.
 #[derive(Debug)]
+#[repr(transparent)]
 pub struct OwnedIsolate {
   cxx_isolate: NonNull<Isolate>,
 }
