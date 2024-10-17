@@ -130,12 +130,11 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
           
-      - name: Install cross compilation toolchain for x86-64 bsd
+      - name: Install cross compilation toolchain for x86-64 freebsd
         if: matrix.config.target == 'x86_64-unknown-freebsd'
         run: |
           rustup target add x86_64-unknown-freebsd
 
-          sudo apt update
           sudo apt install -yq --no-install-suggests --no-install-recommends \
             binfmt-support qemu qemu-user qemu-system-x86 qemu-user-binfmt \
             qemu-utils ovmf
