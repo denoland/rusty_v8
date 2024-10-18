@@ -111,7 +111,7 @@ jobs:
           sudo apt update
           sudo apt install -yq --no-install-suggests --no-install-recommends \
             binfmt-support g++-10-aarch64-linux-gnu g++-10-multilib \
-            gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
+            gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu-system qemu-user \
             qemu-user-binfmt
 
           sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
