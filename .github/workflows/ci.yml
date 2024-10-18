@@ -103,6 +103,11 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
+      - name: Install ubuntu deps
+        if: startsWith(matrix.config.os, 'ubuntu')
+        run: |
+          sudo apt-get install -y glib2.0
+
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
