@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
 use std::ffi::c_void;
+use std::hint::unreachable_unchecked;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
@@ -768,62 +769,12 @@ impl String {
     &self,
     scope: &mut Isolate,
   ) -> std::string::String {
-    let len_utf16 = self.length();
-
-    // No need to allocate or do any work for zero-length strings
-    if len_utf16 == 0 {
-      return std::string::String::new();
-    }
-
-    let len_utf8 = self.utf8_length(scope);
-
-    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
-    // string is 100% 7-bit ASCII.
-    if self.is_onebyte() && len_utf8 == len_utf16 {
-      unsafe {
-        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-        // accidentally creating a slice of u8 which would be invalid.
-        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
-        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
-
-        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        let length = self.write_one_byte_uninit(
-          scope,
-          &mut *buffer,
-          0,
-          WriteOptions::NO_NULL_TERMINATION
-            | WriteOptions::REPLACE_INVALID_UTF8,
-        );
-        debug_assert!(length == len_utf16);
-
-        // Return an owned string from this guaranteed now-initialized data
-        let buffer = data as *mut u8;
-        return std::string::String::from_raw_parts(buffer, length, len_utf16);
-      }
-    }
-
-    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
-    // We have a large number of invariants to uphold, so please check changes to this code carefully
-    unsafe {
-      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-      // accidentally creating a slice of u8 which would be invalid.
-      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
-      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
-
-      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit(
-        scope,
-        &mut *buffer,
-        None,
-        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
-      );
-      debug_assert!(length == len_utf8);
-
-      // Return an owned string from this guaranteed now-initialized data
-      let buffer = data as *mut u8;
-      std::string::String::from_raw_parts(buffer, length, len_utf8)
+    // SAFETY: @devsnek said it is fine.
+    let string = unsafe { Local::from_raw(self).unwrap_unchecked() };
+    let view = ValueView::new(scope, string);
+    match view.data() {
+      ValueViewData::OneByte(bytes) => latin1_to_string(bytes),
+      ValueViewData::TwoByte(code_points) => wtf16_to_string(code_points),
     }
   }
 
@@ -834,108 +785,306 @@ impl String {
     scope: &mut Isolate,
     buffer: &'a mut [MaybeUninit<u8>; N],
   ) -> Cow<'a, str> {
-    let len_utf16 = self.length();
-
-    // No need to allocate or do any work for zero-length strings
-    if len_utf16 == 0 {
-      return "".into();
-    }
-
-    // TODO(mmastrac): Ideally we should be able to access the string's internal representation
-    let len_utf8 = self.utf8_length(scope);
-
-    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
-    // string is 100% 7-bit ASCII.
-    if self.is_onebyte() && len_utf8 == len_utf16 {
-      if len_utf16 <= N {
-        let length = self.write_one_byte_uninit(
-          scope,
-          buffer,
-          0,
-          WriteOptions::NO_NULL_TERMINATION,
-        );
-        debug_assert!(length == len_utf16);
-        unsafe {
-          // Get a slice of &[u8] of what we know is initialized now
-          let buffer = &mut buffer[..length];
-          let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
-
-          // We know it's valid UTF-8, so make a string
-          return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
-        }
+    // SAFETY: @devsnek said it is fine.
+    let string = unsafe { Local::from_raw(self).unwrap_unchecked() };
+    let view = ValueView::new(scope, string);
+    match view.data() {
+      ValueViewData::OneByte(bytes) => latin1_to_cow_str(bytes, buffer),
+      ValueViewData::TwoByte(code_points) => {
+        wtf16_to_cow_str(code_points, buffer)
       }
-
-      unsafe {
-        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-        // accidentally creating a slice of u8 which would be invalid.
-        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
-        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
-
-        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        let length = self.write_one_byte_uninit(
-          scope,
-          &mut *buffer,
-          0,
-          WriteOptions::NO_NULL_TERMINATION
-            | WriteOptions::REPLACE_INVALID_UTF8,
-        );
-        debug_assert!(length == len_utf16);
-
-        // Return an owned string from this guaranteed now-initialized data
-        let buffer = data as *mut u8;
-        return Cow::Owned(std::string::String::from_raw_parts(
-          buffer, length, len_utf16,
-        ));
-      }
-    }
-
-    if len_utf8 <= N {
-      // No malloc path
-      let length = self.write_utf8_uninit(
-        scope,
-        buffer,
-        None,
-        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
-      );
-      debug_assert!(length == len_utf8);
-
-      // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
-      unsafe {
-        // Get a slice of &[u8] of what we know is initialized now
-        let buffer = &mut buffer[..length];
-        let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
-
-        // We know it's valid UTF-8, so make a string
-        return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
-      }
-    }
-
-    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
-    // We have a large number of invariants to uphold, so please check changes to this code carefully
-    unsafe {
-      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-      // accidentally creating a slice of u8 which would be invalid.
-      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
-      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
-
-      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit(
-        scope,
-        &mut *buffer,
-        None,
-        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
-      );
-      debug_assert!(length == len_utf8);
-
-      // Return an owned string from this guaranteed now-initialized data
-      let buffer = data as *mut u8;
-      Cow::Owned(std::string::String::from_raw_parts(
-        buffer, length, len_utf8,
-      ))
     }
   }
+}
+
+#[inline(always)]
+fn latin1_to_string(bytes: &[u8]) -> std::string::String {
+  // Perf: it seems to be faster to check if the string is ASCII first and
+  // then do a memcpy if it is, rather than checking and copying each byte
+  // individually.
+  if bytes.is_ascii() {
+    // SAFETY: The string is ASCII, so it's valid UTF-8.
+    (unsafe { std::str::from_utf8_unchecked(bytes) }).to_owned()
+  } else {
+    // TODO: this could likely be optimized for large strings by using SIMD to
+    // calculate the length of the resulting string and then allocating once,
+    // and then converting the string using SIMD.
+    std::string::String::from_utf8_lossy(bytes).into_owned()
+  }
+}
+
+/// The cutoff for when to use SIMD for converting WTF-16 to UTF-8. Any slice of
+/// code points longer than this will use SIMD, and any shorter will use the
+/// scalar implementation.
+const WTF16_CODE_POINT_LENGTH_CUTOFF_FOR_SIMD: usize = 96;
+
+#[inline(always)]
+fn wtf16_to_string(code_points: &[u16]) -> std::string::String {
+  // If the code points are longer than the cutoff and are valid UTF-16, use
+  // SIMD to convert them to UTF-8. Otherwise we use the scalar implementation.
+  if code_points.len() > WTF16_CODE_POINT_LENGTH_CUTOFF_FOR_SIMD
+    && simdutf::validate_utf16(code_points)
+  {
+    let len_utf8 = simdutf::utf8_length_from_utf16(code_points);
+
+    let buffer = allocate_byte_buffer(len_utf8);
+
+    // SAFETY: The buffer is large enough to hold the UTF-8 data.
+    let written = unsafe {
+      simdutf::convert_utf16_to_utf8(
+        code_points.as_ptr(),
+        code_points.len(),
+        buffer as *mut u8,
+      )
+    };
+    debug_assert_eq!(written, len_utf8);
+
+    // SAFETY: The buffer is filled with valid UTF-8 data.
+    unsafe {
+      std::string::String::from_raw_parts(buffer as *mut u8, written, len_utf8)
+    }
+  } else {
+    let len_utf8 = utf8_length_from_utf16_vectorized(code_points);
+
+    let buffer = allocate_byte_buffer(len_utf8);
+
+    // SAFETY: The buffer is large enough to hold the UTF-8 data.
+    let written =
+      unsafe { wtf16_to_utf8_lossy(code_points, buffer as *mut u8) };
+
+    // SAFETY: The buffer is filled with valid UTF-8 data.
+    unsafe {
+      std::string::String::from_raw_parts(buffer as *mut u8, written, len_utf8)
+    }
+  }
+}
+
+#[inline(always)]
+fn latin1_to_cow_str<'a, const N: usize>(
+  bytes: &[u8],
+  buffer: &'a mut [MaybeUninit<u8>; N],
+) -> Cow<'a, str> {
+  let is_ascii = bytes.is_ascii();
+  if is_ascii && bytes.len() <= N {
+    // SAFETY: The string is ASCII, so it's valid UTF-8. We know that the
+    // buffer can not be overlapping, as we never expose a &mut to the
+    // v8::ValueViewData buffer.
+    let str = unsafe {
+      std::ptr::copy_nonoverlapping(
+        bytes.as_ptr(),
+        buffer.as_mut_ptr() as *mut u8,
+        bytes.len(),
+      );
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        buffer.as_ptr() as *const u8,
+        bytes.len(),
+      ))
+    };
+    Cow::Borrowed(str)
+  } else if bytes.len() * 2 < N {
+    // SAFETY: The string is Latin1 - we need to convert to UTF-8. But it
+    // is short enough to fit into the buffer, because the buffer is at
+    // least twice as large as the string and any non-ASCII one-byte
+    // character will be encoded as exactly two bytes in UTF-8.
+    let written = unsafe {
+      latin1_to_utf8(
+        bytes.len(),
+        bytes.as_ptr(),
+        buffer.as_mut_ptr() as *mut u8,
+      )
+    };
+    debug_assert!(written <= buffer.len());
+
+    // SAFETY: The buffer is filled with valid UTF-8 data.
+    let str = unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        buffer.as_ptr() as *const u8,
+        written,
+      ))
+    };
+    Cow::Borrowed(str)
+  } else if is_ascii {
+    // Perf: it seems to be faster to check if the string is ASCII first and
+    // then do a memcpy if it is, rather than checking and copying each byte
+    // individually.
+
+    // SAFETY: The string is ASCII, so it's valid UTF-8.
+    Cow::Owned((unsafe { std::str::from_utf8_unchecked(bytes) }).to_owned())
+  } else {
+    // TODO: this could likely be optimized for large strings by using SIMD to
+    // calculate the length of the resulting string and then allocating once,
+    // and then converting the string using SIMD.
+    Cow::Owned(std::string::String::from_utf8_lossy(bytes).into_owned())
+  }
+}
+
+#[inline(always)]
+fn wtf16_to_cow_str<'a, const N: usize>(
+  code_points: &[u16],
+  buffer: &'a mut [MaybeUninit<u8>; N],
+) -> Cow<'a, str> {
+  if code_points.len() >= WTF16_CODE_POINT_LENGTH_CUTOFF_FOR_SIMD
+    && simdutf::validate_utf16(code_points)
+  {
+    let len_utf8 = simdutf::utf8_length_from_utf16(code_points);
+
+    let (buffer, owned) = if buffer.len() >= len_utf8 {
+      (buffer.as_mut_ptr(), false)
+    } else {
+      let buffer = allocate_byte_buffer(len_utf8);
+      (buffer, true)
+    };
+
+    // SAFETY: The buffer is large enough to hold the UTF-8 data.
+    let written = unsafe {
+      simdutf::convert_utf16_to_utf8(
+        code_points.as_ptr(),
+        code_points.len(),
+        buffer as *mut u8,
+      )
+    };
+
+    if owned {
+      // SAFETY: The buffer is filled with valid UTF-8 data.
+      let str = unsafe {
+        std::string::String::from_raw_parts(
+          buffer as *mut u8,
+          written,
+          len_utf8,
+        )
+      };
+      Cow::Owned(str)
+    } else {
+      // SAFETY: The buffer is filled with valid UTF-8 data.
+      let str = unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+          buffer as *const u8,
+          written,
+        ))
+      };
+      Cow::Borrowed(str)
+    }
+  } else {
+    let len_utf8 = utf8_length_from_utf16_vectorized(code_points);
+
+    let (buffer, owned) = if buffer.len() >= len_utf8 {
+      (buffer.as_mut_ptr(), false)
+    } else {
+      let buffer = allocate_byte_buffer(len_utf8);
+      (buffer, true)
+    };
+
+    // SAFETY: The buffer is large enough to hold the UTF-8 data.
+    let written =
+      unsafe { wtf16_to_utf8_lossy(code_points, buffer as *mut u8) };
+
+    if owned {
+      // SAFETY: The buffer is filled with valid UTF-8 data.
+      let str = unsafe {
+        std::string::String::from_raw_parts(
+          buffer as *mut u8,
+          written,
+          len_utf8,
+        )
+      };
+      Cow::Owned(str)
+    } else {
+      // SAFETY: The buffer is filled with valid UTF-8 data.
+      let str = unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+          buffer as *const u8,
+          written,
+        ))
+      };
+      Cow::Borrowed(str)
+    }
+  }
+}
+
+#[inline(always)]
+fn allocate_byte_buffer(len: usize) -> *mut MaybeUninit<u8> {
+  debug_assert!(len > 0);
+  let layout = std::alloc::Layout::from_size_align(len, 1).unwrap();
+  // SAFETY: The layout is valid.
+  (unsafe { std::alloc::alloc(layout) }) as *mut MaybeUninit<u8>
+}
+
+#[inline(always)]
+fn utf8_length_from_utf16_vectorized(code_points: &[u16]) -> usize {
+  std::char::decode_utf16(code_points.into_iter().copied())
+    .map(|c| c.unwrap_or(std::char::REPLACEMENT_CHARACTER))
+    .map(|c| c.len_utf8())
+    .sum()
+}
+
+/// Expands `inbuf` to `outbuf`, assuming that `outbuf` has at least 2x `input_length`.
+#[inline(always)]
+unsafe fn latin1_to_utf8(
+  input_length: usize,
+  inbuf: *const u8,
+  outbuf: *mut u8,
+) -> usize {
+  let mut output = 0;
+  let mut input = 0;
+  while input < input_length {
+    let char = *(inbuf.add(input));
+    if char < 0x80 {
+      *(outbuf.add(output)) = char;
+      output += 1;
+    } else {
+      // Top two bits
+      *(outbuf.add(output)) = (char >> 6) | 0b1100_0000;
+      // Bottom six bits
+      *(outbuf.add(output + 1)) = (char & 0b0011_1111) | 0b1000_0000;
+      output += 2;
+    }
+    input += 1;
+  }
+  output
+}
+
+#[inline(always)]
+unsafe fn wtf16_to_utf8_lossy(input: &[u16], outbuf: *mut u8) -> usize {
+  let utf8 = std::char::decode_utf16(input.into_iter().copied());
+  let mut output = 0;
+  for c in utf8 {
+    let c = c.unwrap_or(std::char::REPLACEMENT_CHARACTER);
+    let len = c.len_utf8();
+    let code = c as u32;
+    const TAG_TWO_BYTE: u8 = 0xC0;
+    const TAG_THREE_BYTE: u8 = 0xE0;
+    const TAG_FOUR_BYTE: u8 = 0xF0;
+    const TAG_CONT: u8 = 0x80;
+    match len {
+      1 => {
+        *(outbuf.add(output)) = c as u8;
+        output += 1;
+      }
+      2 => {
+        *(outbuf.add(output)) = TAG_TWO_BYTE | ((code >> 6) as u8);
+        *(outbuf.add(output + 1)) = TAG_CONT | ((code & 0x3F) as u8);
+        output += 2;
+      }
+      3 => {
+        *(outbuf.add(output)) = TAG_THREE_BYTE | ((code >> 12) as u8);
+        *(outbuf.add(output + 1)) = TAG_CONT | (((code >> 6) & 0x3F) as u8);
+        *(outbuf.add(output + 2)) = TAG_CONT | ((code & 0x3F) as u8);
+        output += 3;
+      }
+      4 => {
+        *(outbuf.add(output)) = TAG_FOUR_BYTE | ((code >> 18) as u8);
+        *(outbuf.add(output + 1)) = TAG_CONT | (((code >> 12) & 0x3F) as u8);
+        *(outbuf.add(output + 2)) = TAG_CONT | (((code >> 6) & 0x3F) as u8);
+        *(outbuf.add(output + 3)) = TAG_CONT | ((code & 0x3F) as u8);
+        output += 4;
+      }
+      _ => {
+        // SAFETY: We know that the length is 1, 2, 3, or 4.
+        unsafe { unreachable_unchecked() }
+      }
+    }
+  }
+  output
 }
 
 pub extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
@@ -970,7 +1119,7 @@ pub struct ValueView<'s>(
 impl<'s> ValueView<'s> {
   #[inline(always)]
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
-    let mut v = std::mem::MaybeUninit::uninit();
+    let mut v: MaybeUninit<ValueView<'_>> = std::mem::MaybeUninit::uninit();
     unsafe {
       v8__String__ValueView__CONSTRUCT(v.as_mut_ptr(), isolate, &*string);
       v.assume_init()
