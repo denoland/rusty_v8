@@ -32,4 +32,4 @@ if [ ! -d "./gn" ]; then
 fi
 
 # Build rusty_v8 and pass through the arguments
-cargo build -vv $@
+cargo build -vv $@ --target=x86_64-unknown-linux-musl
