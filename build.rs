@@ -265,6 +265,14 @@ fn build_v8(is_asan: bool) {
         target.replace("-unknown-", "-")
       ),
     );
+    env::set_var(
+      format!("CARGO_TARGET_{}_LINKER", target.replace('-', "_")),
+      format!(
+        "{}/bin/{}-gcc",
+        toolchain.display(),
+        target.replace("-unknown-", "-")
+      ),
+    );
   }
 
   if let Some(p) = env::var_os("SCCACHE") {
