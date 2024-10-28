@@ -778,7 +778,8 @@ impl String {
     }
   }
 
-  /// Converts a [`crate::String`] to either an owned [`std::string::String`], or a borrowed [`str`], depending on whether it fits into the
+  /// Converts a [`crate::String`] to either an owned [`std::string::String`],
+  /// or a borrowed [`str`], depending on whether it fits into the
   /// provided buffer.
   pub fn to_rust_cow_lossy<'a, const N: usize>(
     &self,
@@ -789,7 +790,9 @@ impl String {
     let string = unsafe { Local::from_raw(self).unwrap_unchecked() };
     let view = ValueView::new(scope, string);
     match view.data() {
-      ValueViewData::OneByte(bytes) => latin1_to_cow_str(bytes, buffer),
+      ValueViewData::OneByte(bytes) => {
+        latin1_to_cow_str_always_copy(bytes, buffer)
+      }
       ValueViewData::TwoByte(code_points) => {
         wtf16_to_cow_str(code_points, buffer)
       }
@@ -861,6 +864,44 @@ fn wtf16_to_string(code_points: &[u16]) -> std::string::String {
 
 #[inline(always)]
 fn latin1_to_cow_str<'a, const N: usize>(
+  bytes: &'a [u8],
+  buffer: &'a mut [MaybeUninit<u8>; N],
+) -> Cow<'a, str> {
+  if bytes.is_ascii() {
+    // SAFETY: The string is ASCII, so it's valid UTF-8.
+    Cow::Borrowed(unsafe { std::str::from_utf8_unchecked(bytes) })
+  } else if bytes.len() * 2 < N {
+    // SAFETY: The string is Latin1 - we need to convert to UTF-8. But it
+    // is short enough to fit into the buffer, because the buffer is at
+    // least twice as large as the string and any non-ASCII one-byte
+    // character will be encoded as exactly two bytes in UTF-8.
+    let written = unsafe {
+      latin1_to_utf8(
+        bytes.len(),
+        bytes.as_ptr(),
+        buffer.as_mut_ptr() as *mut u8,
+      )
+    };
+    debug_assert!(written <= buffer.len());
+
+    // SAFETY: The buffer is filled with valid UTF-8 data.
+    let str = unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        buffer.as_ptr() as *const u8,
+        written,
+      ))
+    };
+    Cow::Borrowed(str)
+  } else {
+    // TODO: this could likely be optimized for large strings by using SIMD to
+    // calculate the length of the resulting string and then allocating once,
+    // and then converting the string using SIMD.
+    Cow::Owned(std::string::String::from_utf8_lossy(bytes).into_owned())
+  }
+}
+
+#[inline(always)]
+fn latin1_to_cow_str_always_copy<'a, const N: usize>(
   bytes: &[u8],
   buffer: &'a mut [MaybeUninit<u8>; N],
 ) -> Cow<'a, str> {
@@ -1143,5 +1184,37 @@ impl<'s> ValueView<'s> {
 impl<'s> Drop for ValueView<'s> {
   fn drop(&mut self) {
     unsafe { v8__String__ValueView__DESTRUCT(self) }
+  }
+}
+
+impl ValueView<'_> {
+  /// Creates a copy of a [`ValueView`] in a [`std::string::String`].
+  /// Convenience function not present in the original V8 API.
+  pub fn to_rust_string_lossy(&self) -> std::string::String {
+    match self.data() {
+      ValueViewData::OneByte(bytes) => latin1_to_string(bytes),
+      ValueViewData::TwoByte(code_points) => wtf16_to_string(code_points),
+    }
+  }
+
+  /// Converts a [`ValueView`] to either an owned [`std::string::String`],
+  /// or a borrowed [`str`].
+  ///
+  /// If the [`ValueView`] is an ASCII one-byte string, a reference to the
+  /// string is returned and no copies are performed. If the string is not
+  /// ASCII, but fits into the provided buffer, it is copied into the buffer
+  /// and a reference to the buffer is returned. If the string does not fit
+  /// into the buffer, it is copied into a newly allocated
+  /// [`std::string::String`] and returned.
+  pub fn to_rust_cow_lossy<'a, const N: usize>(
+    &'a self,
+    buffer: &'a mut [MaybeUninit<u8>; N],
+  ) -> Cow<'a, str> {
+    match self.data() {
+      ValueViewData::OneByte(bytes) => latin1_to_cow_str(bytes, buffer),
+      ValueViewData::TwoByte(code_points) => {
+        wtf16_to_cow_str(code_points, buffer)
+      }
+    }
   }
 }
