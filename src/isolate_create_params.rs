@@ -181,8 +181,8 @@ impl CreateParams {
   /// * `virtual_memory_limit` - The amount of virtual memory on the current device, in bytes, or zero, if there is no limit.
   pub fn heap_limits_from_system_memory(
     mut self,
-    physical_memory: usize,
-    virtual_memory_limit: usize,
+    physical_memory: u64,
+    virtual_memory_limit: u64,
   ) -> Self {
     self
       .raw
