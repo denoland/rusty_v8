@@ -62,6 +62,11 @@ jobs:
             variant: release
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: release
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -107,6 +112,10 @@ jobs:
         if: startsWith(matrix.config.os, 'ubuntu')
         run: |
           sudo apt-get install -y glib2.0
+
+      - name: Install cross compilation toolchain (musl)
+        if: endsWith(matrix.config.target, '-musl')
+        run: rustup target add ${{ matrix.config.target }}
 
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
