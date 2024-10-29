@@ -388,8 +388,7 @@ void v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
 void v8__ResourceConstraints__ConfigureDefaults(
     v8::ResourceConstraints* constraints, uint64_t physical_memory,
     uint64_t virtual_memory_limit) {
-  constraints->ConfigureDefaults(physical_memory,
-                                             virtual_memory_limit);
+  constraints->ConfigureDefaults(physical_memory, virtual_memory_limit);
 }
 
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
