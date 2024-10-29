@@ -385,6 +385,12 @@ void v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
                                              maximum_heap_size_in_bytes);
 }
 
+void v8__ResourceConstraints__ConfigureDefaults(
+    v8::ResourceConstraints* constraints, uint64_t physical_memory,
+    uint64_t virtual_memory_limit) {
+  constraints->ConfigureDefaults(physical_memory, virtual_memory_limit);
+}
+
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
                                 v8::Isolate* isolate) {
   construct_in_place<v8::HandleScope>(buf, isolate);
