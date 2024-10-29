@@ -160,6 +160,37 @@ impl CreateParams {
     self
   }
 
+  /// Configures the constraints with reasonable default values based on the capabilities
+  /// of the current device the VM is running on.
+  ///
+  /// By default V8 starts with a small heap and dynamically grows it to match
+  /// the set of live objects. This may lead to ineffective garbage collections
+  /// at startup if the live set is large. Setting the initial heap size avoids
+  /// such garbage collections. Note that this does not affect young generation
+  /// garbage collections.
+  ///
+  /// When the heap size approaches its maximum, V8 will perform series of
+  /// garbage collections and invoke the
+  /// [NearHeapLimitCallback](struct.Isolate.html#method.add_near_heap_limit_callback).
+  /// If the garbage collections do not help and the callback does not
+  /// increase the limit, then V8 will crash with V8::FatalProcessOutOfMemory.
+  ///
+  /// # Arguments
+  ///
+  /// * `physical_memory` - The total amount of physical memory on the current device, in bytes.
+  /// * `virtual_memory_limit` - The amount of virtual memory on the current device, in bytes, or zero, if there is no limit.
+  pub fn heap_limits_from_system_memory(
+    mut self,
+    physical_memory: usize,
+    virtual_memory_limit: usize,
+  ) -> Self {
+    self
+      .raw
+      .constraints
+      .configure_defaults(physical_memory, virtual_memory_limit);
+    self
+  }
+
   /// A CppHeap used to construct the Isolate. V8 takes ownership of the
   /// CppHeap passed this way.
   pub fn cpp_heap(mut self, heap: UniqueRef<Heap>) -> Self {
@@ -269,6 +300,11 @@ pub(crate) mod raw {
       initial_heap_size_in_bytes: usize,
       maximum_heap_size_in_bytes: usize,
     );
+    fn v8__ResourceConstraints__ConfigureDefaults(
+      constraints: *mut ResourceConstraints,
+      physical_memory: u64,
+      virtual_memory_limit: u64,
+    );
   }
 
   impl ResourceConstraints {
@@ -284,6 +320,20 @@ pub(crate) mod raw {
           maximum_heap_size_in_bytes,
         )
       };
+    }
+
+    pub fn configure_defaults(
+      &mut self,
+      physical_memory: u64,
+      virtual_memory_limit: u64,
+    ) {
+      unsafe {
+        v8__ResourceConstraints__ConfigureDefaults(
+          self,
+          physical_memory,
+          virtual_memory_limit,
+        )
+      }
     }
   }
 }
