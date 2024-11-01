@@ -52,12 +52,12 @@ jobs:
             variant: release
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
             cargo: cargo
@@ -67,12 +67,12 @@ jobs:
             variant: release # Note: we do not support windows debug builds.
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
             cargo: cargo
@@ -103,11 +103,6 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
-      - name: Install ubuntu deps
-        if: startsWith(matrix.config.os, 'ubuntu')
-        run: |
-          sudo apt-get install -y glib2.0
-
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -116,7 +111,7 @@ jobs:
           sudo apt update
           sudo apt install -yq --no-install-suggests --no-install-recommends \
             binfmt-support g++-10-aarch64-linux-gnu g++-10-multilib \
-            gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu-system qemu-user \
+            gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
             qemu-user-binfmt
 
           sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
@@ -237,7 +232,7 @@ jobs:
 
   publish:
     needs: build
-    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
     if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Configure git
