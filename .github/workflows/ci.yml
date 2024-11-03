@@ -59,25 +59,25 @@ jobs:
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
-            container: quay.io/pypa/manylinux2014_x86_64
+            container: quay.io/pypa/manylinux_2_28_x86_64
             target: x86_64-unknown-linux-gnu
             variant: debug
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
-            container: quay.io/pypa/manylinux2014_x86_64
+            container: quay.io/pypa/manylinux_2_28_x86_64
             target: x86_64-unknown-linux-gnu
             variant: release
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
-            container: quay.io/pypa/manylinux2014_x86_64
+            container: quay.io/pypa/manylinux_2_28_x86_64
             target: aarch64-unknown-linux-gnu
             variant: debug
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
-            container: quay.io/pypa/manylinux2014_x86_64
+            container: quay.io/pypa/manylinux_2_28_x86_64
             target: aarch64-unknown-linux-gnu
             variant: release
             cargo: cargo
@@ -243,7 +243,7 @@ jobs:
   publish:
     needs: build
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-24.04-xl' || 'ubuntu-24.04' }}
-    container: quay.io/pypa/manylinux2014_x86_64
+    container: quay.io/pypa/manylinux_2_28_x86_64
     if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Configure git
