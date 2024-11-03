@@ -120,7 +120,9 @@ jobs:
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
-        run: git submodule status --recursive > git_submodule_status.txt
+        run: |
+          git config --global --add safe.directory .
+          git submodule status --recursive > git_submodule_status.txt
 
       - name: Cache
         uses: actions/cache@v4
