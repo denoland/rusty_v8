@@ -189,7 +189,10 @@ pub type HostInitializeImportMetaObjectCallback =
 /// HostImportModuleDynamicallyCallback is called when we require the embedder
 /// to load a module. This is used as part of the dynamic import syntax.
 ///
-/// The referrer contains metadata about the script/module that calls import.
+/// The host_defined_options are metadata provided by the host environment, which may be used
+/// to customize or further specify how the module should be imported.
+
+/// The resource_name is the identifier or path for the module or script making the import request.
 ///
 /// The specifier is the name of the module that should be imported.
 ///
