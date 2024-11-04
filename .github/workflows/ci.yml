@@ -164,6 +164,15 @@ jobs:
           . $basename/sccache --start-server
           echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Install Clang
+        if: startsWith(matrix.config.os, 'ubuntu')
+        run: |
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main" | sudo dd of=/etc/apt/sources.list.d/llvm-toolchain-jammy-19.list
+          curl https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo dd of=/etc/apt/trusted.gpg.d/llvm-snapshot.gpg
+          sudo apt-get update
+          sudo apt-get -qq remove 'clang-*'
+          sudo apt-get install lld clang clang-tools clang-tidy clang-format -y
+
       - name: Install Rust (nightly)
         uses: dtolnay/rust-toolchain@nightly
         if: matrix.config.variant == 'asan'
@@ -174,7 +183,6 @@ jobs:
       - name: check c++ code formatting
         if: startsWith(matrix.config.os, 'ubuntu')
         run: |
-          sudo apt-get install -y clang-format
           clang-format --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
       - name: Test (ASAN)
