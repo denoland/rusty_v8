@@ -11029,8 +11029,7 @@ fn test_fast_calls_callback_options_data() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let global = context.global(scope);
-  let external =
-    v8::External::new(scope, unsafe { addr_of_mut!(DATA) as *mut c_void });
+  let external = v8::External::new(scope, addr_of_mut!(DATA) as *mut c_void);
 
   let template = v8::FunctionTemplate::builder(slow_fn)
     .data(external.into())
