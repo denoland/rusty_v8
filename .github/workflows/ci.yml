@@ -183,7 +183,7 @@ jobs:
       - name: check c++ code formatting
         if: startsWith(matrix.config.os, 'ubuntu')
         run: |
-          clang-format --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
+          clang-format-19 --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
       - name: Test (ASAN)
         env:
