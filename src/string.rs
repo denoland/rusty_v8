@@ -10,6 +10,7 @@ use crate::String;
 use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
+use std::ffi::c_int;
 use std::ffi::c_void;
 use std::hint::unreachable_unchecked;
 use std::marker::PhantomData;
@@ -124,9 +125,14 @@ extern "C" {
     string: *const String,
   );
   fn v8__String__ValueView__DESTRUCT(this: *mut ValueView);
-  fn v8__String__ValueView__is_one_byte(this: *const ValueView) -> bool;
-  fn v8__String__ValueView__data(this: *const ValueView) -> *const c_void;
-  fn v8__String__ValueView__length(this: *const ValueView) -> int;
+}
+
+#[repr(C)]
+struct ValueViewRaw {
+  flat_str: Local<'static, String>,
+  data: *const c_void,
+  length: c_int,
+  is_one_byte: bool,
 }
 
 #[derive(PartialEq, Debug)]
@@ -1170,12 +1176,18 @@ impl<'s> ValueView<'s> {
   #[inline(always)]
   pub fn data(&self) -> ValueViewData<'_> {
     unsafe {
-      let data = v8__String__ValueView__data(self);
-      let length = v8__String__ValueView__length(self) as usize;
-      if v8__String__ValueView__is_one_byte(self) {
-        ValueViewData::OneByte(std::slice::from_raw_parts(data as _, length))
+      let this = &*(self as *const _ as *const ValueViewRaw);
+      let length = this.length as usize;
+      if this.is_one_byte {
+        ValueViewData::OneByte(std::slice::from_raw_parts(
+          this.data as _,
+          length,
+        ))
       } else {
-        ValueViewData::TwoByte(std::slice::from_raw_parts(data as _, length))
+        ValueViewData::TwoByte(std::slice::from_raw_parts(
+          this.data as _,
+          length,
+        ))
       }
     }
   }
