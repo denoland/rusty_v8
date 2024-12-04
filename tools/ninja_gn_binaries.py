@@ -27,6 +27,8 @@ def get_platform():
     machine = platform.machine().lower()
     if machine == 'x86_64':
         machine = 'amd64'
+    elif machine == 'aarch64':
+        machine = 'arm64'
 
     return f'{system}-{machine}'
 
