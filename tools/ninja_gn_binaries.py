@@ -15,7 +15,7 @@ import time
 import http.client
 from v8_deps import Var
 from urllib.error import HTTPError, URLError
-from stat import ST_MODE, S_IXOTH, S_IXGRP, S_IXUSR
+from stat import ST_MODE
 from urllib.request import urlopen
 from urllib.parse import urlparse
 
@@ -27,6 +27,8 @@ def get_platform():
     machine = platform.machine().lower()
     if machine == 'x86_64':
         machine = 'amd64'
+    elif machine == 'aarch64':
+        machine = 'arm64'
 
     return f'{system}-{machine}'
 
