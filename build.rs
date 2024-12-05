@@ -428,10 +428,10 @@ fn static_lib_path() -> PathBuf {
   static_lib_dir().join(static_lib_name(""))
 }
 
-fn static_checksum_path() -> PathBuf {
-  let mut t = static_lib_path();
-  t.set_extension("sum");
-  t
+fn static_checksum_path(path: &Path) -> PathBuf {
+  let mut path = path.to_path_buf();
+  path.set_extension("sum");
+  path
 }
 
 fn static_lib_dir() -> PathBuf {
@@ -471,6 +471,12 @@ fn download_file(url: String, filename: PathBuf) {
     copy_archive(&url, &filename);
     return;
   }
+
+  // Checksum (i.e: url) to avoid redownloads
+  match std::fs::read_to_string(static_checksum_path(&filename)) {
+    Ok(c) if c == static_lib_url() => return,
+    _ => {}
+  };
 
   // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead
   // of downloading.
@@ -528,12 +534,12 @@ fn download_file(url: String, filename: PathBuf) {
   assert!(tmpfile.exists());
 
   // Write checksum (i.e url) & move file
-  std::fs::write(static_checksum_path(), url).unwrap();
+  std::fs::write(static_checksum_path(&filename), url).unwrap();
   copy_archive(&tmpfile.to_string_lossy(), &filename);
   std::fs::remove_file(&tmpfile).unwrap();
 
   assert!(filename.exists());
-  assert!(static_checksum_path().exists());
+  assert!(static_checksum_path(&filename).exists());
   assert!(!tmpfile.exists());
 }
 
@@ -545,11 +551,6 @@ fn download_static_lib_binaries() {
   std::fs::create_dir_all(&dir).unwrap();
   println!("cargo:rustc-link-search={}", dir.display());
 
-  // Checksum (i.e: url) to avoid redownloads
-  match std::fs::read_to_string(static_checksum_path()) {
-    Ok(c) if c == static_lib_url() => return,
-    _ => {}
-  };
   download_file(url, static_lib_path());
 }
 
@@ -621,10 +622,10 @@ fn copy_archive(url: &str, filename: &Path) {
   src.read_exact(&mut header).unwrap();
   src.seek(io::SeekFrom::Start(0)).unwrap();
   if header == [0x1f, 0x8b] {
-    println!("Detected GZIP archive");
+    println!("Detected GZIP archive: {url}");
     decompress_to_writer(&mut src, &mut dst).unwrap();
   } else {
-    println!("Not a GZIP archive");
+    println!("Not a GZIP archive: {url}");
     io::copy(&mut src, &mut dst).unwrap();
   }
 }
@@ -685,12 +686,19 @@ fn print_prebuilt_src_binding_path() {
     println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}", binding);
     return;
   }
+
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
-  let src_binding_path = get_dirs()
-    .root
-    .join("gen")
-    .join(format!("src_binding_{}_{}.rs", profile, target));
+  let name = format!("src_binding_{}_{}.rs", profile, target);
+
+  let src_binding_path = get_dirs().root.join("gen").join(name.clone());
+
+  if let Ok(base) = env::var("RUSTY_V8_MIRROR") {
+    let version = env::var("CARGO_PKG_VERSION").unwrap();
+    let url = format!("{}/v{}/{}", base, version, name);
+    download_file(url, src_binding_path.clone());
+  }
+
   println!(
     "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
     src_binding_path.display()
