@@ -67,12 +67,12 @@ jobs:
             variant: release # Note: we do not support windows debug builds.
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-arm' || 'ubuntu-22.04-arm64' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-arm' || 'ubuntu-22.04-arm64' }}
             target: aarch64-unknown-linux-gnu
             variant: release
             cargo: cargo
@@ -101,24 +101,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.11.x
-          architecture: x64
-
-      - name: Install cross compilation toolchain
-        if: matrix.config.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          rustup target add aarch64-unknown-linux-gnu
-
-          sudo apt update
-          sudo apt install -yq --no-install-suggests --no-install-recommends \
-            binfmt-support g++-10-aarch64-linux-gnu g++-10-multilib \
-            gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
-            qemu-user-binfmt
-
-          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
-                     /lib/ld-linux-aarch64.so.1
-
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
-          echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
@@ -149,15 +131,16 @@ jobs:
           SCCACHE_CACHE_SIZE: 128M
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
-          $version = "0.2.12"
+          $version = "v0.8.2"
           $platform =
-            @{ "macOS"   = "x86_64-apple-darwin"
-               "Linux"   = "x86_64-unknown-linux-musl"
-               "Windows" = "x86_64-pc-windows-msvc"
-             }.${{ runner.os }}
+            @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
+               "aarch64-apple-darwin"      = "aarch64-apple-darwin"
+               "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
+               "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
+               "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
+             }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
-          $url = "https://github.com/mozilla/sccache/releases/download/" +
-                 "$version/$basename.tar.gz"
+          $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
@@ -259,7 +242,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.11.x
-          architecture: x64
 
       - name: Download CI artifacts
         uses: actions/download-artifact@v4
