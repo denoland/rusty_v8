@@ -441,28 +441,25 @@ const v8::Data* v8__TracedReference__Get(v8::TracedReference<v8::Data>* self,
   return local_to_ptr(self->Get(isolate));
 }
 
-void v8__Eternal__CONSTRUCT(
-    uninit_t<v8::Eternal<v8::Data>>* buf) {
+void v8__Eternal__CONSTRUCT(uninit_t<v8::Eternal<v8::Data>>* buf) {
   construct_in_place<v8::Eternal<v8::Data>>(buf);
 }
 
-void v8__Eternal__DESTRUCT(v8::Eternal<v8::Data>* self) {
-  self->~Eternal();
-}
+void v8__Eternal__DESTRUCT(v8::Eternal<v8::Data>* self) { self->~Eternal(); }
 
-void v8__Eternal__Clear(v8::Eternal<v8::Data>* self) {
-  self->Clear();
-}
+void v8__Eternal__Clear(v8::Eternal<v8::Data>* self) { self->Clear(); }
 
-bool v8__Eternal__IsEmpty(v8::Eternal<v8::Data>* self) { return self->IsEmpty(); }
+bool v8__Eternal__IsEmpty(v8::Eternal<v8::Data>* self) {
+  return self->IsEmpty();
+}
 
 void v8__Eternal__Set(v8::Eternal<v8::Data>* self, v8::Isolate* isolate,
-		      const v8::Data* value) {
+                      const v8::Data* value) {
   self->Set(isolate, ptr_to_local(value));
 }
 
 const v8::Data* v8__Eternal__Get(v8::Eternal<v8::Data>* self,
-                                         v8::Isolate* isolate) {
+                                 v8::Isolate* isolate) {
   return local_to_ptr(self->Get(isolate));
 }
 
