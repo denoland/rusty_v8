@@ -1147,7 +1147,7 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, T> {
+  pub fn get<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Option<Local<'s, T>> {
     unsafe {
       scope
         .cast_local(|sd| {
@@ -1156,7 +1156,6 @@ impl<T> Eternal<T> {
             sd.get_isolate_ptr(),
           ) as *const T
         })
-        .unwrap()
     }
   }
 

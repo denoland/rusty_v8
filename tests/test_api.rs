@@ -11990,14 +11990,16 @@ fn test_eternals() {
     let str1 = v8::String::new(&mut scope, "hello").unwrap();
 
     assert!(eternal1.is_empty());
+    assert!(eternal1.get(&mut scope).is_none());
     eternal1.set(&mut scope, str1);
     assert!(!eternal1.is_empty());
 
-    let str1_get = eternal1.get(&mut scope);
+    let str1_get = eternal1.get(&mut scope).unwrap();
     assert_eq!(str1, str1_get);
 
     eternal1.clear();
     assert!(eternal1.is_empty());
+    assert!(eternal1.get(&mut scope).is_none());
   }
 
   // Try all 'standalone' methods after isolate has dropped.
