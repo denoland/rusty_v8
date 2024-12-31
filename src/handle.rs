@@ -1147,15 +1147,17 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Option<Local<'s, T>> {
+  pub fn get<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+  ) -> Option<Local<'s, T>> {
     unsafe {
-      scope
-        .cast_local(|sd| {
-          v8__Eternal__Get(
-            self as *const Self as *const Eternal<Data>,
-            sd.get_isolate_ptr(),
-          ) as *const T
-        })
+      scope.cast_local(|sd| {
+        v8__Eternal__Get(
+          self as *const Self as *const Eternal<Data>,
+          sd.get_isolate_ptr(),
+        ) as *const T
+      })
     }
   }
 
