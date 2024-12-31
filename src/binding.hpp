@@ -18,6 +18,8 @@ static size_t cppgc__WeakMember_SIZE = sizeof(cppgc::WeakMember<RustObj>);
 
 static size_t v8__TracedReference_SIZE = sizeof(v8::TracedReference<v8::Data>);
 
+static size_t v8__Eternal_SIZE = sizeof(v8::Eternal<v8::Data>);
+
 static size_t v8__String__ValueView_SIZE = sizeof(v8::String::ValueView);
 
 static int v8__String__kMaxLength = v8::String::kMaxLength;

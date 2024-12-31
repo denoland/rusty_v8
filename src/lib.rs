@@ -96,6 +96,7 @@ pub use external_references::ExternalReferences;
 pub use function::*;
 pub use gc::*;
 pub use get_property_names_args_builder::*;
+pub use handle::Eternal;
 pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;

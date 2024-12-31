@@ -47,6 +47,20 @@ extern "C" {
     this: *const TracedReference<Data>,
     isolate: *mut Isolate,
   ) -> *const Data;
+
+  fn v8__Eternal__CONSTRUCT(this: *mut Eternal<Data>);
+  fn v8__Eternal__DESTRUCT(this: *mut Eternal<Data>);
+  fn v8__Eternal__Clear(this: *mut Eternal<Data>);
+  fn v8__Eternal__Get(
+    this: *const Eternal<Data>,
+    isolate: *mut Isolate,
+  ) -> *const Data;
+  fn v8__Eternal__Set(
+    this: *mut Eternal<Data>,
+    isolate: *mut Isolate,
+    data: *mut Data,
+  );
+  fn v8__Eternal__IsEmpty(this: *const Eternal<Data>) -> bool;
 }
 
 /// An object reference managed by the v8 garbage collector.
@@ -1097,6 +1111,64 @@ impl<T> Drop for TracedReference<T> {
       v8__TracedReference__DESTRUCT(
         self as *mut Self as *mut TracedReference<Data>,
       );
+    }
+  }
+}
+
+/// Eternal handles are set-once handles that live for the lifetime of the isolate.
+#[repr(C)]
+pub struct Eternal<T> {
+  data: [u8; crate::binding::v8__Eternal_SIZE],
+  _phantom: PhantomData<T>,
+}
+
+impl<T> Eternal<T> {
+  pub fn empty() -> Self {
+    let mut this = std::mem::MaybeUninit::uninit();
+    unsafe {
+      v8__Eternal__CONSTRUCT(this.as_mut_ptr() as _);
+      this.assume_init()
+    }
+  }
+
+  pub fn clear(&self) {
+    unsafe {
+      v8__Eternal__Clear(self as *const Self as *mut Eternal<Data>);
+    }
+  }
+
+  pub fn set(&self, scope: &mut HandleScope<()>, data: Local<T>) {
+    unsafe {
+      v8__Eternal__Set(
+        self as *const Self as *mut Eternal<Data>,
+        scope.get_isolate_ptr(),
+        data.as_non_null().as_ptr().cast(),
+      );
+    }
+  }
+
+  pub fn get<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, T> {
+    unsafe {
+      scope
+        .cast_local(|sd| {
+          v8__Eternal__Get(
+            self as *const Self as *const Eternal<Data>,
+            sd.get_isolate_ptr(),
+          ) as *const T
+        })
+        .unwrap()
+    }
+  }
+
+  pub fn is_empty(&self) -> bool {
+    unsafe { v8__Eternal__IsEmpty(self as *const Self as *const Eternal<Data>) }
+  }
+}
+
+impl<T> Drop for Eternal<T> {
+  fn drop(&mut self) {
+    unsafe {
+      v8__Eternal__DESTRUCT(self as *mut Self as *mut Eternal<Data>);
     }
   }
 }
