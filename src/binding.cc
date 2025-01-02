@@ -2373,8 +2373,8 @@ const v8::RegExp* v8__RegExp__new(const v8::Context& context,
       v8::RegExp::New(ptr_to_local(&context), ptr_to_local(&pattern), options));
 }
 
-v8::Object* v8__RegExp__Exec(const v8::RegExp& self, const v8::Context& context,
-                             const v8::String& subject) {
+const v8::Object* v8__RegExp__Exec(v8::RegExp& self, const v8::Context& context,
+                                   const v8::String& subject) {
   return maybe_local_to_ptr(
       self.Exec(ptr_to_local(&context), ptr_to_local(&subject)));
 }
