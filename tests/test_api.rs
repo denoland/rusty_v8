@@ -12006,3 +12006,36 @@ fn test_eternals() {
   assert!(eternal1.is_empty());
   eternal1.clear();
 }
+
+#[test]
+fn test_regexp() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  let pattern = v8::String::new(scope, "ab+c").unwrap();
+  let regexp =
+    v8::RegExp::new(scope, pattern, v8::RegExpCreationFlags::empty()).unwrap();
+  assert_eq!(regexp.get_source(scope).to_rust_string_lossy(scope), "ab+c");
+
+  let subject = v8::String::new(scope, "abbbc").unwrap();
+  let result = regexp.exec(scope, subject).unwrap();
+
+  let full = result.get_index(scope, 0).unwrap();
+  assert_eq!(full.to_rust_string_lossy(scope), "abbbc");
+
+  let index_key = v8::String::new(scope, "index").unwrap();
+  let index = result.get(scope, index_key.into()).unwrap();
+  assert_eq!(index.number_value(scope).unwrap(), 0.0);
+
+  let input_key = v8::String::new(scope, "input").unwrap();
+  let input = result.get(scope, input_key.into()).unwrap();
+  assert_eq!(input.to_rust_string_lossy(scope), "abbbc");
+
+  let groups_key = v8::String::new(scope, "groups").unwrap();
+  let groups = result.get(scope, groups_key.into()).unwrap();
+  assert!(groups.is_undefined());
+}
