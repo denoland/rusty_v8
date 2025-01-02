@@ -26,7 +26,7 @@ extern "C" {
   fn v8__RegExp__New(
     context: *const Context,
     pattern: *const String,
-    flags: *const RegExpCreationFlags,
+    flags: RegExpCreationFlags,
   ) -> *const RegExp;
   fn v8__RegExp__Exec(
     this: *const RegExp,
@@ -45,7 +45,7 @@ impl RegExp {
   ) -> Option<Local<'s, RegExp>> {
     unsafe {
       scope.cast_local(|sd| {
-        v8__RegExp__New(sd.get_current_context(), &*pattern, &*flags)
+        v8__RegExp__New(sd.get_current_context(), &*pattern, flags)
       })
     }
   }
