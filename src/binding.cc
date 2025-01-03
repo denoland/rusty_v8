@@ -2367,7 +2367,7 @@ bool v8__PropertyCallbackInfo__ShouldThrowOnError(
   return self.ShouldThrowOnError();
 }
 
-const v8::RegExp* v8__RegExp__new(const v8::Context& context,
+const v8::RegExp* v8__RegExp__New(const v8::Context& context,
                                   const v8::String& pattern,
                                   v8::RegExp::Flags flags) {
   return maybe_local_to_ptr(
