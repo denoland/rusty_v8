@@ -193,7 +193,7 @@ struct three_pointers_t {
 
 #endif  // SUPPORT_H_
 
-class RustObj final : public cppgc::GarbageCollected<RustObj>,
+class RustObj : public cppgc::GarbageCollected<RustObj>,
                       public cppgc::NameProvider {
  public:
   ~RustObj();

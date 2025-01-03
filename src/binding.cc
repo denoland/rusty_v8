@@ -3976,9 +3976,19 @@ void cppgc__heap__collect_garbage_for_testing(
   heap->CollectGarbageForTesting(stack_state);
 }
 
-RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size) {
-  return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(),
-                                              cppgc::AdditionalBytes(size));
+class alignas(16) RustObjButAlign16 : public RustObj {};
+
+RustObj* cppgc__make_garbage_collectable(v8::CppHeap* heap, size_t size,
+                                         size_t alignment) {
+  if (alignment <= 8) {
+    return cppgc::MakeGarbageCollected<RustObj>(heap->GetAllocationHandle(),
+                                                cppgc::AdditionalBytes(size));
+  }
+  if (alignment <= 16) {
+    return cppgc::MakeGarbageCollected<RustObjButAlign16>(
+        heap->GetAllocationHandle(), cppgc::AdditionalBytes(size));
+  }
+  return nullptr;
 }
 
 void cppgc__Visitor__Trace__Member(cppgc::Visitor* visitor,
