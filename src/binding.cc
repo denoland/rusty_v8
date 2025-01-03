@@ -1250,22 +1250,6 @@ void v8__String__ValueView__DESTRUCT(v8::String::ValueView* self) {
   self->~ValueView();
 }
 
-bool v8__String__ValueView__is_one_byte(const v8::String::ValueView& self) {
-  return self.is_one_byte();
-}
-
-const void* v8__String__ValueView__data(const v8::String::ValueView& self) {
-  if (self.is_one_byte()) {
-    return reinterpret_cast<const void*>(self.data8());
-  } else {
-    return reinterpret_cast<const void*>(self.data16());
-  }
-}
-
-int v8__String__ValueView__length(const v8::String::ValueView& self) {
-  return self.length();
-}
-
 const v8::Symbol* v8__Symbol__New(v8::Isolate* isolate,
                                   const v8::String* description) {
   return local_to_ptr(v8::Symbol::New(isolate, ptr_to_local(description)));
