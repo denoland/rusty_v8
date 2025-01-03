@@ -27,6 +27,7 @@ extern "C" {
   fn cppgc__make_garbage_collectable(
     heap: *mut Heap,
     size: usize,
+    alignment: usize,
   ) -> *mut RustObj;
 
   fn cppgc__heap__enable_detached_garbage_collections_for_testing(
@@ -145,7 +146,7 @@ unsafe fn get_object_from_rust_obj<T: GarbageCollected>(
 /// creating a Heap.
 ///
 /// Can be called multiple times when paired with `ShutdownProcess()`.
-pub fn initalize_process(platform: SharedRef<Platform>) {
+pub fn initialize_process(platform: SharedRef<Platform>) {
   unsafe {
     cppgc__initialize_process(&*platform as *const Platform as *mut _);
   }
@@ -155,7 +156,7 @@ pub fn initalize_process(platform: SharedRef<Platform>) {
 ///
 /// Must be called after destroying the last used heap. Some process-global
 /// metadata may not be returned and reused upon a subsequent
-/// `initalize_process()` call.
+/// `initialize_process()` call.
 pub unsafe fn shutdown_process() {
   cppgc__shutdown_process();
 }
@@ -343,6 +344,11 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
   heap: &Heap,
   obj: T,
 ) -> Ptr<T> {
+  const {
+    // max alignment in cppgc is 16
+    assert!(std::mem::align_of::<T>() <= 16);
+  }
+
   let additional_bytes = (object_offset_for_rust_obj::<T>()
     - std::mem::size_of::<RustObj>())
     + std::mem::size_of::<T>();
@@ -351,8 +357,11 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
       additional_bytes,
+      std::mem::align_of::<T>(),
     )
   };
+
+  assert!(!pointer.is_null());
 
   unsafe {
     let inner = get_object_from_rust_obj::<T>(pointer);
