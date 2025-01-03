@@ -2367,6 +2367,23 @@ bool v8__PropertyCallbackInfo__ShouldThrowOnError(
   return self.ShouldThrowOnError();
 }
 
+const v8::RegExp* v8__RegExp__New(const v8::Context& context,
+                                  const v8::String& pattern,
+                                  v8::RegExp::Flags flags) {
+  return maybe_local_to_ptr(
+      v8::RegExp::New(ptr_to_local(&context), ptr_to_local(&pattern), flags));
+}
+
+const v8::Object* v8__RegExp__Exec(v8::RegExp& self, const v8::Context& context,
+                                   const v8::String& subject) {
+  return maybe_local_to_ptr(
+      self.Exec(ptr_to_local(&context), ptr_to_local(&subject)));
+}
+
+const v8::String* v8__RegExp__GetSource(const v8::RegExp& self) {
+  return local_to_ptr(self.GetSource());
+}
+
 void v8__ReturnValue__Value__Set(v8::ReturnValue<v8::Value>* self,
                                  const v8::Value& value) {
   self->Set(ptr_to_local(&value));
