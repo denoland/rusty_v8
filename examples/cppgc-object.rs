@@ -27,7 +27,7 @@ fn main() {
   v8::V8::initialize_platform(platform.clone());
   v8::V8::initialize();
 
-  v8::cppgc::initalize_process(platform.clone());
+  v8::cppgc::initialize_process(platform.clone());
 
   {
     let heap =
