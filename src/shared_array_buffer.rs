@@ -166,16 +166,13 @@ impl SharedArrayBuffer {
   /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(bytes::BytesMut::new()));
   /// ```
   #[inline(always)]
-  pub fn new_backing_store_from_bytes<T, U>(
+  pub fn new_backing_store_from_bytes<T>(
     mut bytes: T,
   ) -> UniqueRef<BackingStore>
   where
-    U: ?Sized,
-    U: AsMut<[u8]>,
-    T: AsMut<U>,
-    T: crate::array_buffer::sealed::Rawable<U>,
+    T: crate::array_buffer::sealed::Rawable,
   {
-    let len = bytes.as_mut().as_mut().len();
+    let len = bytes.byte_len();
     if len == 0 {
       return unsafe {
         UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
@@ -184,17 +181,14 @@ impl SharedArrayBuffer {
 
     let (ptr, slice) = T::into_raw(bytes);
 
-    extern "C" fn drop_rawable<
-      T: crate::array_buffer::sealed::Rawable<U>,
-      U: ?Sized,
-    >(
+    extern "C" fn drop_rawable<T: crate::array_buffer::sealed::Rawable>(
       _ptr: *mut c_void,
       len: usize,
       data: *mut c_void,
     ) {
       // SAFETY: We know that data is a raw T from above
       unsafe {
-        <T as crate::array_buffer::sealed::Rawable<U>>::drop_raw(data as _, len)
+        <T as crate::array_buffer::sealed::Rawable>::drop_raw(data as _, len)
       }
     }
 
@@ -204,7 +198,7 @@ impl SharedArrayBuffer {
       Self::new_backing_store_from_ptr(
         slice as _,
         len,
-        drop_rawable::<T, U>,
+        drop_rawable::<T>,
         ptr as _,
       )
     }

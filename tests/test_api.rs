@@ -862,13 +862,14 @@ fn array_buffer() {
     // Empty but from vec
     let ab = v8::ArrayBuffer::with_backing_store(
       scope,
-      &v8::ArrayBuffer::new_backing_store_from_bytes(vec![]).make_shared(),
+      &v8::ArrayBuffer::new_backing_store_from_bytes(Vec::<u8>::new())
+        .make_shared(),
     );
     assert_eq!(0, ab.byte_length());
     assert!(!ab.get_backing_store().is_shared());
 
     // Empty but from vec with a huge capacity
-    let mut v = Vec::with_capacity(10_000_000);
+    let mut v: Vec<u8> = Vec::with_capacity(10_000_000);
     v.extend_from_slice(&[1, 2, 3, 4]);
     let ab = v8::ArrayBuffer::with_backing_store(
       scope,
