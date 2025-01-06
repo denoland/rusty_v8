@@ -38,7 +38,7 @@ default_args = {
   v8_use_external_startup_data = false
   v8_use_snapshot = true
 
-  v8_enable_pointer_compression = false
+  v8_enable_pointer_compression = true
 
   v8_imminent_deprecation_warnings = false
 
