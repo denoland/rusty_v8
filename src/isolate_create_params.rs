@@ -242,7 +242,6 @@ pub(crate) mod raw {
     pub array_buffer_allocator_shared: SharedPtr<ArrayBufferAllocator>,
     pub external_references: *const intptr_t,
     pub allow_atomics_wait: bool,
-    _only_terminate_in_safe_scope: bool,
     pub embedder_wrapper_type_index: int,
     pub embedder_wrapper_object_index: int,
     _fatal_error_handler: *const Opaque, // FatalErrorCallback

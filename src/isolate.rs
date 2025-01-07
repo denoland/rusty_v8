@@ -196,7 +196,7 @@ pub type HostInitializeImportMetaObjectCallback =
 ///
 /// The specifier is the name of the module that should be imported.
 ///
-/// The import_assertions are import assertions for this request in the form:
+/// The import_attributes are import assertions for this request in the form:
 /// [key1, value1, key2, value2, ...] where the keys and values are of type
 /// v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
 /// returned from ModuleRequest::GetImportAssertions(), this array does not
@@ -220,7 +220,7 @@ pub type HostInitializeImportMetaObjectCallback =
 ///   host_defined_options: v8::Local<'s, v8::Data>,
 ///   resource_name: v8::Local<'s, v8::Value>,
 ///   specifier: v8::Local<'s, v8::String>,
-///   import_assertions: v8::Local<'s, v8::FixedArray>,
+///   import_attributes: v8::Local<'s, v8::FixedArray>,
 /// ) -> Option<v8::Local<'s, v8::Promise>> {
 ///   todo!()
 /// }
@@ -278,7 +278,7 @@ where
       host_defined_options: Local<'s, Data>,
       resource_name: Local<'s, Value>,
       specifier: Local<'s, String>,
-      import_assertions: Local<'s, FixedArray>,
+      import_attributes: Local<'s, FixedArray>,
     ) -> Option<Local<'s, Promise>> {
       let scope = &mut unsafe { CallbackScope::new(context) };
       (F::get())(
@@ -286,7 +286,7 @@ where
         host_defined_options,
         resource_name,
         specifier,
-        import_assertions,
+        import_attributes,
       )
     }
 
@@ -297,14 +297,14 @@ where
       host_defined_options: Local<'s, Data>,
       resource_name: Local<'s, Value>,
       specifier: Local<'s, String>,
-      import_assertions: Local<'s, FixedArray>,
+      import_attributes: Local<'s, FixedArray>,
     ) -> *mut Promise {
       scope_adapter::<F>(
         context,
         host_defined_options,
         resource_name,
         specifier,
-        import_assertions,
+        import_attributes,
       )
       .map(|return_value| return_value.as_non_null().as_ptr())
       .unwrap_or_else(null_mut)
@@ -318,7 +318,7 @@ where
       host_defined_options: Local<'s, Data>,
       resource_name: Local<'s, Value>,
       specifier: Local<'s, String>,
-      import_assertions: Local<'s, FixedArray>,
+      import_attributes: Local<'s, FixedArray>,
     ) -> *mut *mut Promise {
       unsafe {
         std::ptr::write(
@@ -328,7 +328,7 @@ where
             host_defined_options,
             resource_name,
             specifier,
-            import_assertions,
+            import_attributes,
           )
           .map(|return_value| return_value.as_non_null().as_ptr())
           .unwrap_or_else(null_mut),
@@ -609,7 +609,7 @@ impl Isolate {
   // Byte offset inside `Isolate` where the isolate data slots are stored. This
   // should be the same as the value of `kIsolateEmbedderDataOffset` which is
   // defined in `v8-internal.h`.
-  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 67]>();
+  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 73]>();
 
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
@@ -1264,12 +1264,6 @@ impl Isolate {
   #[inline(always)]
   pub fn perform_microtask_checkpoint(&mut self) {
     unsafe { v8__Isolate__PerformMicrotaskCheckpoint(self) }
-  }
-
-  /// An alias for PerformMicrotaskCheckpoint.
-  #[deprecated(note = "Use Isolate::perform_microtask_checkpoint() instead")]
-  pub fn run_microtasks(&mut self) {
-    self.perform_microtask_checkpoint()
   }
 
   /// Enqueues the callback to the default MicrotaskQueue

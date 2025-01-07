@@ -21,7 +21,7 @@ use crate::UnboundModuleScript;
 use crate::Value;
 
 /// Called during Module::instantiate_module. Provided with arguments:
-/// (context, specifier, import_assertions, referrer). Return None on error.
+/// (context, specifier, import_attributes, referrer). Return None on error.
 ///
 /// Note: this callback has an unusual signature due to ABI incompatibilities
 /// between Rust and C++. However end users can implement the callback as
@@ -31,7 +31,7 @@ use crate::Value;
 ///   fn my_resolve_callback<'a>(
 ///      context: v8::Local<'a, v8::Context>,
 ///      specifier: v8::Local<'a, v8::String>,
-///      import_assertions: v8::Local<'a, v8::FixedArray>,
+///      import_attributes: v8::Local<'a, v8::FixedArray>,
 ///      referrer: v8::Local<'a, v8::Module>,
 ///   ) -> Option<v8::Local<'a, v8::Module>> {
 ///      // ...
@@ -74,9 +74,9 @@ where
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
-    let f = |context, specifier, import_assertions, referrer| {
+    let f = |context, specifier, import_attributes, referrer| {
       ResolveModuleCallbackRet(
-        (F::get())(context, specifier, import_assertions, referrer)
+        (F::get())(context, specifier, import_attributes, referrer)
           .map(|r| -> *const Module { &*r })
           .unwrap_or(null()),
       )
@@ -86,8 +86,8 @@ where
 
   #[cfg(target_os = "windows")]
   fn mapping() -> Self {
-    let f = |ret_ptr, context, specifier, import_assertions, referrer| {
-      let r = (F::get())(context, specifier, import_assertions, referrer)
+    let f = |ret_ptr, context, specifier, import_attributes, referrer| {
+      let r = (F::get())(context, specifier, import_attributes, referrer)
         .map(|r| -> *const Module { &*r })
         .unwrap_or(null());
       unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
@@ -313,8 +313,6 @@ impl Module {
   /// Returns an empty Maybe<bool> if an exception occurred during
   /// instantiation. (In the case where the callback throws an exception, that
   /// exception is propagated.)
-  ///
-  /// NOTE: requires to set `--harmony-import-assertions` V8 flag.
   #[must_use]
   #[inline(always)]
   pub fn instantiate_module<'a>(
@@ -506,11 +504,5 @@ impl ModuleRequest {
   pub fn get_import_attributes(&self) -> Local<FixedArray> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetImportAttributes(self)) }
       .unwrap()
-  }
-
-  #[inline(always)]
-  #[deprecated(note = "Use get_import_attributes instead")]
-  pub fn get_import_assertions(&self) -> Local<FixedArray> {
-    self.get_import_attributes()
   }
 }

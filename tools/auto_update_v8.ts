@@ -1,4 +1,4 @@
-const V8_TRACKING_BRANCH = "13.1-lkgr-denoland";
+const V8_TRACKING_BRANCH = "13.4-lkgr-denoland";
 const AUTOROLL_BRANCH = "autoroll";
 
 function extractVersion() {
@@ -27,14 +27,19 @@ await run("git", ["submodule", "update", "--init", "--recursive", "v8"]);
 const currentVersion = extractVersion();
 console.log(`Starting auto update. Currently on ${currentVersion}`);
 
-async function run(cmd: string, args: string[], cwd?: string) {
+async function run(
+  cmd: string,
+  args: string[],
+  cwd?: string,
+): Promise<Uint8Array> {
   console.log("$", cmd, ...args);
   const proc = new Deno.Command(cmd, { args, cwd });
-  const status = await proc.output();
-  if (!status.success) {
+  const output = await proc.output();
+  if (!output.success) {
     console.error(`Failed to run ${cmd} ${args.join(" ")}`);
     Deno.exit(1);
   }
+  return output.stdout;
 }
 
 // Update v8 submodule
@@ -49,6 +54,14 @@ if (currentVersion == newVersion) {
 
 console.log(`Updated to version ${newVersion}`);
 
+// Update V8 dependencies
+const depsOutput = await run("python", ["tools/update_deps.py"]);
+const depNames = new TextDecoder().decode(depsOutput).split("\n").filter((x) =>
+  x.length > 0
+).at(-1)!.split(
+  ",",
+);
+
 // Update version in readme
 let readme = Deno.readTextFileSync("README.md");
 readme = readme.replace(
@@ -58,7 +71,7 @@ readme = readme.replace(
 Deno.writeTextFileSync("README.md", readme);
 
 // Stage the changes
-await run("git", ["add", "v8", "README.md"]);
+await run("git", ["add", "v8", "README.md", ...depNames]);
 
 // Commit the changes
 await run("git", ["commit", "-m", `Rolling to V8 ${newVersion}`]);

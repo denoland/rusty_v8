@@ -202,8 +202,7 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run:
-          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }}
-          --target ${{ matrix.config.target }}
+          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:

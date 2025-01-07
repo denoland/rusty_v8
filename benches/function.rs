@@ -68,8 +68,8 @@ fn main() {
     const FAST_CALL: v8::fast_api::CFunction = v8::fast_api::CFunction::new(
       fast_fn as _,
       &v8::fast_api::CFunctionInfo::new(
-        v8::fast_api::Type::Int32.scalar(),
-        &[v8::fast_api::Type::V8Value.scalar()],
+        v8::fast_api::Type::Int32.as_info(),
+        &[v8::fast_api::Type::V8Value.as_info()],
         v8::fast_api::Int64Representation::Number,
       ),
     );

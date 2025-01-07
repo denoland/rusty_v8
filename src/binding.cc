@@ -1079,24 +1079,24 @@ const v8::String* v8__String__NewFromTwoByte(v8::Isolate* isolate,
 int v8__String__Length(const v8::String& self) { return self.Length(); }
 
 int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
-  return self.Utf8Length(isolate);
+  return self.Utf8LengthV2(isolate);
 }
 
-int v8__String__Write(const v8::String& self, v8::Isolate* isolate,
-                      uint16_t* buffer, int start, int length, int options) {
-  return self.Write(isolate, buffer, start, length, options);
+void v8__String__Write(const v8::String& self, v8::Isolate* isolate,
+                       uint32_t offset, uint32_t length, uint16_t* buffer,
+                       int flags) {
+  return self.WriteV2(isolate, offset, length, buffer, flags);
 }
 
-int v8__String__WriteOneByte(const v8::String& self, v8::Isolate* isolate,
-                             uint8_t* buffer, int start, int length,
-                             int options) {
-  return self.WriteOneByte(isolate, buffer, start, length, options);
+void v8__String__WriteOneByte(const v8::String& self, v8::Isolate* isolate,
+                              uint32_t offset, uint32_t length, uint8_t* buffer,
+                              int flags) {
+  return self.WriteOneByteV2(isolate, offset, length, buffer, flags);
 }
 
-int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
-                          char* buffer, int length, int* nchars_ref,
-                          int options) {
-  return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
+size_t v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
+                             char* buffer, size_t capacity, int flags) {
+  return self.WriteUtf8V2(isolate, buffer, capacity, flags);
 }
 
 const v8::String::ExternalStringResource* v8__String__GetExternalStringResource(
@@ -1149,31 +1149,6 @@ class ExternalStaticOneByteStringResource
 
  private:
   const char* _data;
-  const int _length;
-};
-
-// NOTE: This class is never used and only serves as a reference for
-// the OneByteConst struct created on Rust-side.
-class ExternalConstOneByteStringResource
-    : public v8::String::ExternalOneByteStringResource {
- public:
-  ExternalConstOneByteStringResource(int length) : _length(length) {
-    static_assert(offsetof(ExternalConstOneByteStringResource, _length) ==
-                      sizeof(size_t) * 2,
-                  "ExternalConstOneByteStringResource's length was not at "
-                  "offset of sizeof(size_t) * 2");
-    static_assert(
-        sizeof(ExternalConstOneByteStringResource) == sizeof(size_t) * 3,
-        "ExternalConstOneByteStringResource size was not sizeof(size_t) * 3");
-    static_assert(
-        alignof(ExternalConstOneByteStringResource) == sizeof(size_t),
-        "ExternalConstOneByteStringResource align was not sizeof(size_t)");
-  }
-  const char* data() const override { return nullptr; }
-  size_t length() const override { return _length; }
-  void Dispose() override {}
-
- private:
   const int _length;
 };
 
@@ -1890,12 +1865,18 @@ size_t v8__ArrayBufferView__CopyContents(const v8::ArrayBufferView& self,
   return ptr_to_local(&self)->CopyContents(dest, byte_length);
 }
 
+memory_span_t v8__ArrayBufferView__GetContents(const v8::ArrayBufferView& self,
+                                               memory_span_t rstorage) {
+  v8::MemorySpan<uint8_t> storage{static_cast<uint8_t*>(rstorage.data),
+                                  rstorage.size};
+  v8::MemorySpan<uint8_t> span = ptr_to_local(&self)->GetContents(storage);
+  return {span.data(), span.size()};
+}
+
 struct RustAllocatorVtable {
   void* (*allocate)(void* handle, size_t length);
   void* (*allocate_uninitialized)(void* handle, size_t length);
   void (*free)(void* handle, void* data, size_t length);
-  void* (*reallocate)(void* handle, void* data, size_t old_length,
-                      size_t new_length);
   void (*drop)(void* handle);
 };
 
@@ -1927,10 +1908,6 @@ class RustAllocator : public v8::ArrayBuffer::Allocator {
 
   void Free(void* data, size_t length) final {
     vtable->free(handle, data, length);
-  }
-
-  void* Reallocate(void* data, size_t old_length, size_t new_length) final {
-    return vtable->reallocate(handle, data, old_length, new_length);
   }
 };
 
