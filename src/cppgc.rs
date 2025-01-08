@@ -152,6 +152,12 @@ pub fn initialize_process(platform: SharedRef<Platform>) {
   }
 }
 
+#[deprecated(note = "use correctly spelled initialize_process")]
+#[inline]
+pub fn initalize_process(platform: SharedRef<Platform>) {
+  initialize_process(platform)
+}
+
 /// # Safety
 ///
 /// Must be called after destroying the last used heap. Some process-global
