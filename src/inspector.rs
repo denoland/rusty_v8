@@ -1041,12 +1041,12 @@ impl V8Inspector {
 
   pub fn create_stack_trace(
     &mut self,
-    stack_trace: Local<StackTrace>,
+    stack_trace: Option<Local<StackTrace>>,
   ) -> UniquePtr<V8StackTrace> {
     unsafe {
       UniquePtr::from_raw(v8_inspector__V8Inspector__createStackTrace(
         self,
-        &*stack_trace,
+        stack_trace.map_or(null(), |v| &*v),
       ))
     }
   }
