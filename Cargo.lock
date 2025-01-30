@@ -1261,6 +1261,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "simdutf"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1945a45633804474a6f1aef87f072d7564c6421025a865f6777709a571fdfae"
+dependencies = [
+ "bitflags 2.5.0",
+ "cc",
+]
+
+[[package]]
 name = "slotmap"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1456,6 +1466,7 @@ dependencies = [
  "once_cell",
  "paste",
  "rustversion",
+ "simdutf",
  "trybuild",
  "which",
 ]
