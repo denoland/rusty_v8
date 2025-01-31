@@ -237,8 +237,7 @@ jobs:
           (matrix.config.variant == 'debug' || matrix.config.variant ==
           'release' ) && matrix.config.pointer_compression == false
         run:
-          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{
-          env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
+          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
 
       - name: Test -- With Pointer Compression
         env:
@@ -247,10 +246,9 @@ jobs:
           (matrix.config.variant == 'debug' || matrix.config.variant == 'release') &&
           matrix.config.pointer_compression == true
         run:
-          // Enable pointer_compression sed -i 's/v8_enable_pointer_compression
-          = false/v8_enable_pointer_compression = true/s' .gn ${{
-          matrix.config.cargo }} test -vv --all-targets --locked ${{
-          env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
+          # Enable pointer_compression
+          sed -i 's/v8_enable_pointer_compression = false/v8_enable_pointer_compression = true/s' .gn
+          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:
