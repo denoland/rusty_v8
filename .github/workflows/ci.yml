@@ -30,94 +30,86 @@ jobs:
           - os: macos-13
             target: x86_64-apple-darwin
             variant: debug
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os: macos-13
             target: x86_64-apple-darwin
             variant: release
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: asan
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: debug
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: release
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl'
-              || 'ubuntu-22.04' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl'
-              || 'ubuntu-22.04' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl'
-              || 'ubuntu-22.04' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
-            pointer_compression: "true"
+            pointer_compression: true
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl'
-              || 'ubuntu-22.04' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
-            pointer_compression: "true"
+            pointer_compression: true
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl'
-              || 'windows-2022' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl'
-              || 'ubuntu-22.04' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
           - os:
-              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl'
-              || 'ubuntu-22.04' }}
+              ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
-            pointer_compression: "false"
+            pointer_compression: false
             cargo: cargo
 
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG:
         ${{ matrix.config.variant == 'release' && '--release' || '' }}
-      POINTER_COMPRESSION: ${{ matrix.config.pointer_compression }}
       LIB_NAME:
         ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' ||
         'librusty_v8' }}
@@ -243,7 +235,7 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         if:
           matrix.config.variant == 'debug' || matrix.config.variant ==
-          'release'|| matrix.config.pointer_compression == 'false'
+          'release'|| matrix.config.pointer_compression == false
         run:
           ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{
           env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
@@ -253,7 +245,7 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         if:
           matrix.config.variant == 'debug' || matrix.config.variant == 'release'
-          || matrix.config.pointer_compression == 'true'
+          || matrix.config.pointer_compression == true
         run:
           // Enable pointer_compression sed -i 's/v8_enable_pointer_compression
           = false/v8_enable_pointer_compression = true/s' .gn ${{
