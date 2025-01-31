@@ -247,7 +247,7 @@ jobs:
           matrix.config.pointer_compression == true
         run:
           # Enable pointer_compression
-          sed -i 's/v8_enable_pointer_compression = false/v8_enable_pointer_compression = true/s' .gn
+          sed -i 's/v8_enable_pointer_compression = false/v8_enable_pointer_compression = true/g' .gn
           ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
 
       - name: Clippy
