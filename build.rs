@@ -196,6 +196,11 @@ fn build_v8(is_asan: bool) {
   if env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_err() {
     gn_args.push("use_custom_libcxx=false".to_string());
   }
+  if env::var("POINTER_COMPRESSION_ENABLE").is_err() {
+    gn_args.push("v8_enable_pointer_compression = false".to_string())
+  } else {
+    gn_args.push("v8_enable_pointer_compression = true".to_string())
+  }
 
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {

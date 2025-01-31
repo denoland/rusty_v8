@@ -230,24 +230,15 @@ jobs:
           tar -C tools/clang/dsymutil/ -xvzf dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
           V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std test --lib --bins --tests -vv --target ${{ matrix.config.target }}
 
-      - name: Test -- No Pointer Compression
+      - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
+          POINTER_COMPRESSION_ENABLE: ${{ matrix.config.pointer_compression }}
         if:
           (matrix.config.variant == 'debug' || matrix.config.variant ==
-          'release' ) && matrix.config.pointer_compression == false
+          'release' )
         run:
           ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
-
-      - name: Test -- With Pointer Compression
-        env:
-          SCCACHE_IDLE_TIMEOUT: 0
-        if:
-          (matrix.config.variant == 'debug' || matrix.config.variant == 'release') &&
-          matrix.config.pointer_compression == true
-        run: |
-          sed -i 's/v8_enable_pointer_compression = false/v8_enable_pointer_compression = true/g' .gn
-          ${{ matrix.config.cargo }} test -vv --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }}
 
       - name: Clippy
         run:
@@ -259,11 +250,11 @@ jobs:
         if:
           matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run: |
-          gzip -9c target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} > target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
-          ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+          gzip -9c target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} > target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.${{ env.LIB_EXT }}.gz
+          ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.${{ env.LIB_EXT }}.gz
 
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant}}/gn_out/src_binding.rs target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
-          ls -l target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant}}/gn_out/src_binding.rs target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.rs
+          ls -l target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.rs
 
       - name: Binary publish
         uses: softprops/action-gh-release@v0.1.15
@@ -275,18 +266,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression }}.${{ env.LIB_EXT }}.gz
-            target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+            target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.${{ env.LIB_EXT }}.gz
+            target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.rs
 
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
           name:
-            src_binding_${{ matrix.config.variant }}_${{ matrix.config.target
-            }}.rs
+            src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.rs
           path:
-            target/src_binding_${{ matrix.config.variant }}_${{
-            matrix.config.target }}.rs
+            target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}_${{ matrix.config.pointer_compression && 'ptrcompress' || 'noptrcomp' }}.rs
 
   publish:
     needs: build
