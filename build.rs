@@ -312,7 +312,7 @@ fn build_v8(is_asan: bool) {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
-  let gn_out = maybe_gen(gn_args);
+  let gn_out = maybe_gen(&gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   if env_bool("PRINT_GN_ARGS") {
@@ -466,14 +466,14 @@ fn replace_non_alphanumeric(url: &str) -> String {
     .collect()
 }
 
-fn download_file(url: String, filename: PathBuf) {
+fn download_file(url: &str, filename: &Path) {
   if !url.starts_with("http:") && !url.starts_with("https:") {
-    copy_archive(&url, &filename);
+    copy_archive(url, filename);
     return;
   }
 
   // Checksum (i.e: url) to avoid redownloads
-  match std::fs::read_to_string(static_checksum_path(&filename)) {
+  match std::fs::read_to_string(static_checksum_path(filename)) {
     Ok(c) if c == static_lib_url() => return,
     _ => {}
   };
@@ -481,20 +481,15 @@ fn download_file(url: String, filename: PathBuf) {
   // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead
   // of downloading.
   if let Ok(mut path) = home::cargo_home() {
-    path = path.join(".rusty_v8").join(replace_non_alphanumeric(&url));
+    path = path.join(".rusty_v8").join(replace_non_alphanumeric(url));
     println!("Looking for download in '{path:?}'");
     if path.exists() {
-      copy_archive(&path.to_string_lossy(), &filename);
+      copy_archive(&path.to_string_lossy(), filename);
       return;
     }
   }
 
-  // tmp file to download to so we don't clobber the existing one
-  let tmpfile = {
-    let mut t = filename.clone();
-    t.set_extension("tmp");
-    t
-  };
+  let tmpfile = filename.with_extension("tmp");
   if tmpfile.exists() {
     println!("Deleting old tmpfile {}", tmpfile.display());
     std::fs::remove_file(&tmpfile).unwrap();
@@ -506,7 +501,7 @@ fn download_file(url: String, filename: PathBuf) {
   let status = Command::new(python())
     .arg("./tools/download_file.py")
     .arg("--url")
-    .arg(&url)
+    .arg(url)
     .arg("--filename")
     .arg(&tmpfile)
     .status();
@@ -523,7 +518,7 @@ fn download_file(url: String, filename: PathBuf) {
         .arg("-s")
         .arg("-o")
         .arg(&tmpfile)
-        .arg(&url)
+        .arg(url)
         .status()
         .unwrap()
     }
@@ -534,12 +529,12 @@ fn download_file(url: String, filename: PathBuf) {
   assert!(tmpfile.exists());
 
   // Write checksum (i.e url) & move file
-  std::fs::write(static_checksum_path(&filename), url).unwrap();
-  copy_archive(&tmpfile.to_string_lossy(), &filename);
+  std::fs::write(static_checksum_path(filename), url).unwrap();
+  copy_archive(&tmpfile.to_string_lossy(), filename);
   std::fs::remove_file(&tmpfile).unwrap();
 
   assert!(filename.exists());
-  assert!(static_checksum_path(&filename).exists());
+  assert!(static_checksum_path(filename).exists());
   assert!(!tmpfile.exists());
 }
 
@@ -551,7 +546,7 @@ fn download_static_lib_binaries() {
   std::fs::create_dir_all(&dir).unwrap();
   println!("cargo:rustc-link-search={}", dir.display());
 
-  download_file(url, static_lib_path());
+  download_file(&url, &static_lib_path());
 }
 
 fn decompress_to_writer<R, W>(input: &mut R, output: &mut W) -> io::Result<()>
@@ -696,7 +691,7 @@ fn print_prebuilt_src_binding_path() {
   if let Ok(base) = env::var("RUSTY_V8_MIRROR") {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
     let url = format!("{}/v{}/{}", base, version, name);
-    download_file(url, src_binding_path.clone());
+    download_file(&url, &src_binding_path);
   }
 
   println!(
@@ -708,8 +703,9 @@ fn print_prebuilt_src_binding_path() {
 // Chromium depot_tools contains helpers
 // which delegate to the "relevant" `buildtools`
 // directory when invoked, so they don't count.
+#[allow(clippy::needless_pass_by_value)]
 fn not_in_depot_tools(p: PathBuf) -> bool {
-  !p.as_path().to_str().unwrap().contains("depot_tools")
+  !p.to_str().unwrap().contains("depot_tools")
 }
 
 fn need_gn_ninja_download() -> bool {
@@ -910,18 +906,16 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   cmd
 }
 
-pub type GnArgs = Vec<String>;
-
-pub fn maybe_gen(gn_args: GnArgs) -> PathBuf {
+fn maybe_gen(gn_args: &[String]) -> PathBuf {
   let dirs = get_dirs();
   let gn_out_dir = dirs.out.join("gn_out");
 
   if !gn_out_dir.exists() || !gn_out_dir.join("build.ninja").exists() {
-    let args = if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
-      format!("{} {}", gn_args.join(" "), extra_args)
-    } else {
-      gn_args.join(" ")
-    };
+    let mut args = gn_args.join(" ");
+    if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
+      args.push(' ');
+      args.push_str(&extra_args);
+    }
 
     let path = env::current_dir().unwrap();
     println!("The current directory is {}", path.display());
