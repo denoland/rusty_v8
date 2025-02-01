@@ -360,13 +360,10 @@ fn assert_shared_ptr_use_count_eq<T: Shared>(
   };
   assert!(
     ok,
-    "assertion failed: `{}<{}>` reference count does not match expectation\
-       \n   actual: {}\
-       \n expected: {}",
-    wrapper_type_name,
+    "assertion failed: `{wrapper_type_name}<{}>` reference count does not match expectation\
+       \n   actual: {actual}\
+       \n expected: {expected}",
     type_name::<T>(),
-    actual,
-    expected
   );
 }
 

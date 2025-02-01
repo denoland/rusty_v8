@@ -134,7 +134,7 @@ fn acquire_lock() -> LockFile {
   let mut lockfile = LockFile::open(&lockfilepath)
     .expect("Couldn't open lib download lockfile.");
   lockfile.lock_with_pid().expect("Couldn't get lock");
-  println!("lockfile: {:?}", &lockfilepath);
+  println!("lockfile: {lockfilepath:?}");
   lockfile
 }
 
@@ -429,9 +429,7 @@ fn static_lib_url() -> String {
   let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
   format!(
-    "{}/v{}/{}.gz",
-    base,
-    version,
+    "{base}/v{version}/{}.gz",
     static_lib_name(&format!("{features}_{profile}_{target}")),
   )
 }
@@ -835,7 +833,7 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
     let symlink = &*out.join("gn_root");
     let target = &*root.canonicalize().unwrap();
 
-    println!("Creating symlink {:?} to {:?}", &symlink, &root);
+    println!("Creating symlink {symlink:?} to {root:?}");
 
     let mut retries = 0;
     loop {
@@ -843,19 +841,19 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
         Ok(existing) if existing == target => break,
         Ok(_) => remove_dir_all(symlink).expect("remove_dir_all failed"),
         Err(err) => {
-          println!("symlink.canonicalize failed: {:?}", err);
+          println!("symlink.canonicalize failed: {err:?}");
           // we're having very strange issues on GHA when the cache
           // is restored, so trying this out temporarily
           if let Err(err) = remove_dir_all(symlink) {
-            eprintln!("remove_dir_all failed: {:?}", err);
+            eprintln!("remove_dir_all failed: {err:?}");
             if let Err(err) = remove_file(symlink) {
-              eprintln!("remove_file failed: {:?}", err);
+              eprintln!("remove_file failed: {err:?}");
             }
           }
           match symlink_dir(target, symlink) {
             Ok(_) => break,
             Err(err) => {
-              println!("symlink_dir failed: {:?}", err);
+              println!("symlink_dir failed: {err:?}");
               retries += 1;
               std::thread::sleep(std::time::Duration::from_millis(
                 50 * retries,

@@ -6675,8 +6675,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
     println!(
-      "send_response call_id {} message {}",
-      call_id,
+      "send_response call_id {call_id} message {}",
       message.unwrap().string()
     );
     self.count_send_response += 1;

@@ -120,6 +120,6 @@ fn execute_script(
       .map(|value| value.to_rust_string_lossy(try_catch))
       .unwrap_or_else(|| "no stack trace".into());
 
-    panic!("{}", exception_string);
+    panic!("{exception_string}");
   }
 }
