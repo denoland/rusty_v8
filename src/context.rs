@@ -189,7 +189,7 @@ impl Context {
         self,
         Self::ANNEX_SLOT,
         annex_ptr as *mut _,
-      )
+      );
     };
     assert!(
       unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as int
@@ -311,7 +311,7 @@ impl Context {
           self,
           Self::ANNEX_SLOT,
           null_mut(),
-        )
+        );
       };
     }
   }
@@ -329,7 +329,7 @@ impl Context {
       self,
       slot + Self::INTERNAL_SLOT_COUNT,
       data,
-    )
+    );
   }
 
   #[inline(always)]

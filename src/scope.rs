@@ -1459,7 +1459,7 @@ pub(crate) mod data {
     #[inline(always)]
     pub(super) fn new_handle_scope_data(&mut self) -> &mut Self {
       self.new_handle_scope_data_with(|_, _, raw_context_scope| {
-        debug_assert!(raw_context_scope.is_none())
+        debug_assert!(raw_context_scope.is_none());
       })
     }
 
@@ -1776,7 +1776,7 @@ pub(crate) mod data {
               ScopeStatus::Current { zombie: true }
             }
             _ => unreachable!(),
-          })
+          });
         }
         _ => {
           // Regular, immediate exit.
@@ -1937,7 +1937,7 @@ pub(crate) mod data {
         raw_context_scope, ..
       } = self
       {
-        *raw_context_scope = None
+        *raw_context_scope = None;
       }
     }
   }

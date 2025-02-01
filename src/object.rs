@@ -926,7 +926,7 @@ impl Object {
         &*scope.get_current_context(),
         &*key,
         &mut out,
-      )
+      );
     };
     out.into()
   }
@@ -1019,7 +1019,7 @@ impl Object {
         &*scope.get_current_context(),
         &*key,
         &mut out,
-      )
+      );
     }
     out.into()
   }

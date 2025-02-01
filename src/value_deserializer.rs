@@ -251,7 +251,7 @@ impl<'a> ValueDeserializerHeap<'a> {
 impl<'a> Drop for ValueDeserializerHeap<'a> {
   fn drop(&mut self) {
     unsafe {
-      v8__ValueDeserializer__DESTRUCT(&mut self.cxx_value_deserializer)
+      v8__ValueDeserializer__DESTRUCT(&mut self.cxx_value_deserializer);
     };
   }
 }
@@ -338,7 +338,7 @@ pub trait ValueDeserializerHelper {
         cast_to_ptr(self.get_cxx_value_deserializer()),
         transfer_id,
         array_buffer,
-      )
+      );
     };
   }
 
@@ -352,7 +352,7 @@ pub trait ValueDeserializerHelper {
         cast_to_ptr(self.get_cxx_value_deserializer()),
         transfer_id,
         shared_array_buffer,
-      )
+      );
     };
   }
 

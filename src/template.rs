@@ -640,7 +640,7 @@ impl Template {
   /// Adds a property to each instance created by this template.
   #[inline(always)]
   pub fn set(&self, key: Local<Name>, value: Local<Data>) {
-    self.set_with_attr(key, value, PropertyAttribute::NONE)
+    self.set_with_attr(key, value, PropertyAttribute::NONE);
   }
 
   /// Adds a property to each instance created by this template with
@@ -665,7 +665,7 @@ impl Template {
     attr: PropertyAttribute,
   ) {
     unsafe {
-      v8__Template__SetIntrinsicDataProperty(self, &*key, intrinsic, attr)
+      v8__Template__SetIntrinsicDataProperty(self, &*key, intrinsic, attr);
     }
   }
 }
@@ -920,7 +920,7 @@ impl ObjectTemplate {
     getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
   ) {
     self
-      .set_accessor_with_configuration(key, AccessorConfiguration::new(getter))
+      .set_accessor_with_configuration(key, AccessorConfiguration::new(getter));
   }
 
   #[inline(always)]
@@ -950,7 +950,7 @@ impl ObjectTemplate {
         configuration.setter,
         configuration.data.map_or_else(null, |p| &*p),
         configuration.property_attribute,
-      )
+      );
     }
   }
 
@@ -973,7 +973,7 @@ impl ObjectTemplate {
         configuration.descriptor,
         configuration.data.map_or_else(null, |p| &*p),
         configuration.flags,
-      )
+      );
     }
   }
 
@@ -993,7 +993,7 @@ impl ObjectTemplate {
         configuration.definer,
         configuration.descriptor,
         configuration.data.map_or_else(null, |p| &*p),
-      )
+      );
     }
   }
 
@@ -1018,7 +1018,7 @@ impl ObjectTemplate {
       let setter = setter.map_or_else(std::ptr::null, |v| &*v);
       v8__ObjectTemplate__SetAccessorProperty(
         self, &*key, &*getter, &*setter, attr,
-      )
+      );
     }
   }
 

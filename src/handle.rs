@@ -294,7 +294,7 @@ impl<T> Drop for Global<T> {
         // been disposed.
       } else {
         // Destroy the storage cell that contains the contents of this Global.
-        v8__Global__Reset(self.data.cast().as_ptr())
+        v8__Global__Reset(self.data.cast().as_ptr());
       }
     }
   }
@@ -436,7 +436,7 @@ impl<T> Eq for Global<T> where T: Eq {}
 
 impl<'s, T: Hash> Hash for Local<'s, T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    (**self).hash(state)
+    (**self).hash(state);
   }
 }
 
@@ -562,7 +562,7 @@ impl HandleHost {
     assert!(
       self.match_host(other, scope_opt),
       "attempt to use Handle in an Isolate that is not its host"
-    )
+    );
   }
 
   #[allow(dead_code)]
@@ -571,7 +571,7 @@ impl HandleHost {
   }
 
   fn assert_match_isolate(self, isolate: &mut Isolate) {
-    self.assert_match_host(isolate.into(), Some(isolate))
+    self.assert_match_host(isolate.into(), Some(isolate));
   }
 
   fn get_isolate(self) -> NonNull<Isolate> {
@@ -873,7 +873,7 @@ impl<T> Weak<T> {
         v8__WeakCallbackInfo__SetSecondPassCallback(
           wci,
           Self::second_pass_callback,
-        )
+        );
       };
     }
   }

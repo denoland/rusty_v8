@@ -209,7 +209,7 @@ impl Platform {
         &**platform as *const Self as *mut _,
         isolate,
         idle_time_in_seconds,
-      )
+      );
     }
   }
 }

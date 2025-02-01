@@ -41,7 +41,11 @@ impl WasmStreaming {
   #[inline(always)]
   pub fn on_bytes_received(&mut self, data: &[u8]) {
     unsafe {
-      v8__WasmStreaming__OnBytesReceived(&mut self.0, data.as_ptr(), data.len())
+      v8__WasmStreaming__OnBytesReceived(
+        &mut self.0,
+        data.as_ptr(),
+        data.len(),
+      );
     }
   }
 
@@ -75,7 +79,7 @@ impl WasmStreaming {
         &mut self.0,
         null_terminated_url.as_ptr() as *const char,
         url.len(),
-      )
+      );
     }
   }
 }
@@ -198,7 +202,7 @@ where
     let zero = null_mut();
     let mut that = WasmStreamingSharedPtr([zero, zero]);
     unsafe {
-      v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), &*data, &mut that)
+      v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), &*data, &mut that);
     };
     let source = args.get(0);
     (F::get())(scope, source, WasmStreaming(that));
