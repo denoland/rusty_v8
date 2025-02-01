@@ -69,7 +69,7 @@ impl WasmStreaming {
   pub fn set_url(&mut self, url: &str) {
     // Although not documented, V8 requires the url to be null terminated.
     // See https://chromium-review.googlesource.com/c/v8/v8/+/3289148.
-    let null_terminated_url = format!("{}\0", url);
+    let null_terminated_url = format!("{url}\0");
     unsafe {
       v8__WasmStreaming__SetUrl(
         &mut self.0,

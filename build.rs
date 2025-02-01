@@ -52,7 +52,7 @@ fn main() {
     "CARGO_ENCODED_RUSTFLAGS",
   ];
   for env in envs {
-    println!("cargo:rerun-if-env-changed={}", env);
+    println!("cargo:rerun-if-env-changed={env}");
   }
 
   // Detect if trybuild tests are being compiled.
@@ -205,7 +205,7 @@ fn build_v8(is_asan: bool) {
   ));
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
-    gn_args.push("host_cpu=\"arm64\"".to_string())
+    gn_args.push("host_cpu=\"arm64\"".to_string());
   }
 
   if env::var_os("DISABLE_CLANG").is_some() {
@@ -214,12 +214,12 @@ fn build_v8(is_asan: bool) {
     gn_args.push("line_tables_only=false".into());
   } else if let Some(clang_base_path) = find_compatible_system_clang() {
     println!("clang_base_path (system): {}", clang_base_path.display());
-    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+    gn_args.push(format!("clang_base_path={clang_base_path:?}"));
     gn_args.push("treat_warnings_as_errors=false".to_string());
   } else {
     println!("using Chromium's clang");
     let clang_base_path = clang_download();
-    gn_args.push(format!("clang_base_path={:?}", clang_base_path));
+    gn_args.push(format!("clang_base_path={clang_base_path:?}"));
 
     if target_os == "android" && target_arch == "aarch64" {
       gn_args.push("treat_warnings_as_errors=false".to_string());
@@ -271,8 +271,8 @@ fn build_v8(is_asan: bool) {
     if target_arch == "x86_64" {
       maybe_install_sysroot("amd64");
     }
-    gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
-    gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
+    gn_args.push(format!(r#"v8_target_cpu="{arch}""#).to_string());
+    gn_args.push(format!(r#"target_cpu="{arch}""#).to_string());
     gn_args.push(r#"target_os="android""#.to_string());
     gn_args.push("treat_warnings_as_errors=false".to_string());
     gn_args.push("use_sysroot=true".to_string());
@@ -303,14 +303,11 @@ fn build_v8(is_asan: bool) {
     static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
     maybe_clone_repo(
       "./third_party/android_platform",
-      &format!(
-        "{}/chromium/src/third_party/android_platform.git",
-        CHROMIUM_URI
-      ),
+      &format!("{CHROMIUM_URI}/chromium/src/third_party/android_platform.git",),
     );
     maybe_clone_repo(
       "./third_party/catapult",
-      &format!("{}/catapult.git", CHROMIUM_URI),
+      &format!("{CHROMIUM_URI}/catapult.git"),
     );
   }
 
@@ -352,11 +349,11 @@ fn maybe_clone_repo(dest: &str, repo: &str) {
 }
 
 fn maybe_install_sysroot(arch: &str) {
-  let sysroot_path = format!("build/linux/debian_sid_{}-sysroot", arch);
+  let sysroot_path = format!("build/linux/debian_sid_{arch}-sysroot");
   if !PathBuf::from(sysroot_path).is_dir() {
     assert!(Command::new(python())
       .arg("./build/linux/sysroot_scripts/install-sysroot.py")
-      .arg(format!("--arch={}", arch))
+      .arg(format!("--arch={arch}"))
       .status()
       .unwrap()
       .success());
@@ -435,7 +432,7 @@ fn static_lib_url() -> String {
     "{}/v{}/{}.gz",
     base,
     version,
-    static_lib_name(&format!("{}_{}_{}", features, profile, target)),
+    static_lib_name(&format!("{features}_{profile}_{target}")),
   )
 }
 
@@ -512,7 +509,7 @@ fn download_file(url: &str, filename: &Path) {
 
   // Try downloading with python first. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
-  println!("Downloading (using Python) {}", url);
+  println!("Downloading (using Python) {url}");
   let status = Command::new(python())
     .arg("./tools/download_file.py")
     .arg("--url")
@@ -555,7 +552,7 @@ fn download_file(url: &str, filename: &Path) {
 
 fn download_static_lib_binaries() {
   let url = static_lib_url();
-  println!("static lib URL: {}", url);
+  println!("static lib URL: {url}");
 
   let dir = static_lib_dir();
   std::fs::create_dir_all(&dir).unwrap();
@@ -654,7 +651,7 @@ fn print_link_flags() {
     // Based on https://github.com/alexcrichton/cc-rs/blob/fba7feded71ee4f63cfe885673ead6d7b4f2f454/src/lib.rs#L2462
     if let Ok(stdlib) = env::var("CXXSTDLIB") {
       if !stdlib.is_empty() {
-        println!("cargo:rustc-link-lib=dylib={}", stdlib);
+        println!("cargo:rustc-link-lib=dylib={stdlib}");
       }
     } else {
       let target = env::var("TARGET").unwrap();
@@ -693,20 +690,20 @@ fn print_link_flags() {
 
 fn print_prebuilt_src_binding_path() {
   if let Ok(binding) = env::var("RUSTY_V8_SRC_BINDING_PATH") {
-    println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}", binding);
+    println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={binding}");
     return;
   }
 
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
-  let name = format!("src_binding{}_{}_{}.rs", features, profile, target);
+  let name = format!("src_binding{features}_{profile}_{target}.rs");
 
   let src_binding_path = get_dirs().root.join("gen").join(name.clone());
 
   if let Ok(base) = env::var("RUSTY_V8_MIRROR") {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
-    let url = format!("{}/v{}/{}", base, version, name);
+    let url = format!("{base}/v{version}/{name}");
     download_file(&url, &src_binding_path);
   }
 
@@ -779,7 +776,7 @@ fn clang_download() -> PathBuf {
 }
 
 fn cc_wrapper(gn_args: &mut Vec<String>, sccache_path: &Path) {
-  gn_args.push(format!("cc_wrapper={:?}", sccache_path));
+  gn_args.push(format!("cc_wrapper={sccache_path:?}"));
 }
 
 struct Dirs {
@@ -885,7 +882,7 @@ pub fn is_debug() -> bool {
   } else if m == "debug" {
     true
   } else {
-    panic!("unhandled PROFILE value {}", m)
+    panic!("unhandled PROFILE value {m}")
   }
 }
 

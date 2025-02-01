@@ -253,10 +253,10 @@ impl Display for DataError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Self::BadType { expected, actual } => {
-        write!(f, "expected type `{}`, got `{}`", expected, actual)
+        write!(f, "expected type `{expected}`, got `{actual}`")
       }
       Self::NoData { expected } => {
-        write!(f, "expected `Some({})`, found `None`", expected)
+        write!(f, "expected `Some({expected})`, found `None`")
       }
     }
   }
