@@ -99,12 +99,8 @@ impl Context {
           sd.get_isolate_ptr(),
           options
             .global_template
-            .map(|t| &*t as *const _)
-            .unwrap_or_else(null),
-          options
-            .global_object
-            .map(|o| &*o as *const _)
-            .unwrap_or_else(null),
+            .map_or_else(null, |t| &*t as *const _),
+          options.global_object.map_or_else(null, |o| &*o as *const _),
           options.microtask_queue.unwrap_or_else(null_mut),
         )
       })
@@ -358,10 +354,7 @@ impl Context {
         v8__Context__FromSnapshot(
           sd.get_isolate_mut(),
           context_snapshot_index,
-          options
-            .global_object
-            .map(|o| &*o as *const _)
-            .unwrap_or_else(null),
+          options.global_object.map_or_else(null, |o| &*o as *const _),
           options.microtask_queue.unwrap_or_else(null_mut),
         )
       })

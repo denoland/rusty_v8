@@ -127,9 +127,7 @@ where
   fn mapping() -> Self {
     let f = |context, module| {
       SyntheticModuleEvaluationStepsRet(
-        (F::get())(context, module)
-          .map(|r| -> *const Value { &*r })
-          .unwrap_or(null()),
+        (F::get())(context, module).map_or(null(), |r| -> *const Value { &*r }),
       )
     };
     f.to_c_fn()

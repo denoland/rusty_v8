@@ -482,7 +482,7 @@ impl ArrayBuffer {
     // V8 terminates when the ArrayBuffer is not detachable. Non-detachable
     // buffers are buffers that are in use by WebAssembly or asm.js.
     if self.is_detachable() {
-      let key = key.map(|v| &*v as *const Value).unwrap_or(null());
+      let key = key.map_or(null(), |v| &*v as *const Value);
       unsafe { v8__ArrayBuffer__Detach(self, key) }.into()
     } else {
       Some(true)

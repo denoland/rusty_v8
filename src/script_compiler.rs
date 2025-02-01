@@ -151,7 +151,7 @@ impl Source {
       v8__ScriptCompiler__Source__CONSTRUCT(
         &mut buf,
         &*source_string,
-        origin.map(|x| x as *const _).unwrap_or(std::ptr::null()),
+        origin.map_or(std::ptr::null(), |x| x as *const _),
         std::ptr::null_mut(),
       );
       buf.assume_init()
@@ -169,7 +169,7 @@ impl Source {
       v8__ScriptCompiler__Source__CONSTRUCT(
         &mut buf,
         &*source_string,
-        origin.map(|x| x as *const _).unwrap_or(std::ptr::null()),
+        origin.map_or(std::ptr::null(), |x| x as *const _),
         cached_data.into_raw(), // Source constructor takes ownership.
       );
       buf.assume_init()

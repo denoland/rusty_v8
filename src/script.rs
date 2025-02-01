@@ -68,7 +68,7 @@ impl Script {
         v8__Script__Compile(
           sd.get_current_context(),
           &*source,
-          origin.map(|r| r as *const _).unwrap_or_else(null),
+          origin.map_or_else(null, |r| r as *const _),
         )
       })
     }
@@ -128,15 +128,11 @@ impl<'s> ScriptOrigin<'s> {
         resource_column_offset,
         resource_is_shared_cross_origin,
         script_id,
-        source_map_url
-          .map(|l| &*l as *const Value)
-          .unwrap_or_else(null),
+        source_map_url.map_or_else(null, |l| &*l as *const Value),
         resource_is_opaque,
         is_wasm,
         is_module,
-        host_defined_options
-          .map(|l| &*l as *const Data)
-          .unwrap_or_else(null),
+        host_defined_options.map_or_else(null, |l| &*l as *const Data),
       );
       buf.assume_init()
     }

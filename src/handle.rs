@@ -508,8 +508,7 @@ impl From<&'_ mut Isolate> for HandleHost {
 impl From<&'_ IsolateHandle> for HandleHost {
   fn from(isolate_handle: &IsolateHandle) -> Self {
     NonNull::new(unsafe { isolate_handle.get_isolate_ptr() })
-      .map(Self::Isolate)
-      .unwrap_or(Self::DisposedIsolate)
+      .map_or(Self::DisposedIsolate, Self::Isolate)
   }
 }
 
@@ -1097,8 +1096,7 @@ impl<T> TracedReference<T> {
         self as *mut Self as *mut TracedReference<Data>,
         scope.get_isolate_ptr(),
         data
-          .map(|h| h.as_non_null().as_ptr())
-          .unwrap_or(std::ptr::null_mut())
+          .map_or(std::ptr::null_mut(), |h| h.as_non_null().as_ptr())
           .cast(),
       );
     }

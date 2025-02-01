@@ -67,8 +67,7 @@ fn main() {
     .as_ref()
     .and_then(|p| p.file_stem())
     .and_then(|f| f.to_str())
-    .map(|s| s.starts_with("rls"))
-    .unwrap_or(false);
+    .is_some_and(|s| s.starts_with("rls"));
 
   // Early exit
   if is_cargo_doc || is_rls {
