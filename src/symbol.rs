@@ -89,23 +89,6 @@ impl Symbol {
     .unwrap()
   }
 
-  #[deprecated(
-    since = "0.77.0",
-    note = "This was documented as `for_key` but implemented as `for_api`"
-  )]
-  #[inline(always)]
-  pub fn for_global<'s>(
-    scope: &mut HandleScope<'s, ()>,
-    description: Local<String>,
-  ) -> Local<'s, Symbol> {
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__Symbol__ForApi(sd.get_isolate_ptr(), &*description)
-      })
-    }
-    .unwrap()
-  }
-
   /// Returns the description string of the symbol, or undefined if none.
   #[inline(always)]
   pub fn description<'s>(

@@ -51,7 +51,7 @@ mod setup {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--no_freeze_flags_after_init --expose_gc --harmony-import-assertions --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
+      "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
     );
     v8::V8::initialize_platform(
       v8::new_unprotected_default_platform(0, false).make_shared(),
@@ -263,15 +263,12 @@ fn test_string() {
     assert_eq!(17, local.utf8_length(scope));
     assert_eq!(reference, local.to_rust_string_lossy(scope));
     let mut vec = vec![0; 17];
-    let options = v8::WriteOptions::NO_NULL_TERMINATION;
-    let mut nchars = 0;
     assert_eq!(
       17,
-      local.write_utf8(scope, &mut vec, Some(&mut nchars), options)
+      local.write_utf8(scope, &mut vec, v8::WriteFlags::empty())
     );
-    assert_eq!(15, nchars);
     let mut u16_buffer = [0u16; 16];
-    assert_eq!(15, local.write(scope, &mut u16_buffer, 0, options));
+    local.write(scope, 0, &mut u16_buffer, v8::WriteFlags::empty());
     assert_eq!(
       String::from(reference),
       String::from_utf16(&u16_buffer[..15]).unwrap()
@@ -299,9 +296,8 @@ fn test_string() {
         .unwrap();
     assert_eq!(3, local.length());
     assert_eq!(3, local.utf8_length(scope));
-    let options = v8::WriteOptions::NO_NULL_TERMINATION;
     let mut buffer = [0u8; 3];
-    assert_eq!(3, local.write_one_byte(scope, &mut buffer, 0, options));
+    local.write_one_byte(scope, 0, &mut buffer, v8::WriteFlags::empty());
     assert_eq!(b"foo", &buffer);
     assert_eq!("foo", local.to_rust_string_lossy(scope));
   }
@@ -639,6 +635,8 @@ fn microtasks() {
   expected = "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
 )]
 fn isolate_drop_order() {
+  let _setup_guard = setup::parallel_test();
+
   let isolate1 = v8::Isolate::new(Default::default());
   let isolate2 = v8::Isolate::new(Default::default());
   drop(isolate1);
@@ -1362,7 +1360,7 @@ fn add_message_listener() {
 fn unexpected_module_resolve_callback<'a>(
   _context: v8::Local<'a, v8::Context>,
   _specifier: v8::Local<'a, v8::String>,
-  _import_assertions: v8::Local<'a, v8::FixedArray>,
+  _import_attributes: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   unreachable!()
@@ -4882,7 +4880,7 @@ fn module_instantiation_failures1() {
       fn resolve_callback<'a>(
         context: v8::Local<'a, v8::Context>,
         _specifier: v8::Local<'a, v8::String>,
-        _import_assertions: v8::Local<'a, v8::FixedArray>,
+        _import_attributes: v8::Local<'a, v8::FixedArray>,
         _referrer: v8::Local<'a, v8::Module>,
       ) -> Option<v8::Local<'a, v8::Module>> {
         let scope = &mut unsafe { v8::CallbackScope::new(context) };
@@ -4909,7 +4907,7 @@ fn module_instantiation_failures1() {
 fn compile_specifier_as_module_resolve_callback<'a>(
   context: v8::Local<'a, v8::Context>,
   specifier: v8::Local<'a, v8::String>,
-  _import_assertions: v8::Local<'a, v8::FixedArray>,
+  _import_attributes: v8::Local<'a, v8::FixedArray>,
   _referrer: v8::Local<'a, v8::Module>,
 ) -> Option<v8::Local<'a, v8::Module>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
@@ -5026,10 +5024,7 @@ fn module_stalled_top_level_await() {
 }
 
 #[test]
-fn import_assertions() {
-  use std::sync::atomic::AtomicUsize;
-  use std::sync::atomic::Ordering;
-
+fn import_attributes() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
@@ -5039,22 +5034,22 @@ fn import_assertions() {
   fn module_resolve_callback<'a>(
     context: v8::Local<'a, v8::Context>,
     _specifier: v8::Local<'a, v8::String>,
-    import_assertions: v8::Local<'a, v8::FixedArray>,
+    import_attributes: v8::Local<'a, v8::FixedArray>,
     _referrer: v8::Local<'a, v8::Module>,
   ) -> Option<v8::Local<'a, v8::Module>> {
     let scope = &mut unsafe { v8::CallbackScope::new(context) };
 
     // "type" keyword, value and source offset of assertion
-    assert_eq!(import_assertions.length(), 3);
-    let assert1 = import_assertions.get(scope, 0).unwrap();
+    assert_eq!(import_attributes.length(), 3);
+    let assert1 = import_attributes.get(scope, 0).unwrap();
     let assert1_val = v8::Local::<v8::Value>::try_from(assert1).unwrap();
     assert_eq!(assert1_val.to_rust_string_lossy(scope), "type");
-    let assert2 = import_assertions.get(scope, 1).unwrap();
+    let assert2 = import_attributes.get(scope, 1).unwrap();
     let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
     assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
-    let assert3 = import_assertions.get(scope, 2).unwrap();
+    let assert3 = import_attributes.get(scope, 2).unwrap();
     let assert3_val = v8::Local::<v8::Value>::try_from(assert3).unwrap();
-    assert_eq!(assert3_val.to_rust_string_lossy(scope), "27");
+    assert_eq!(assert3_val.to_rust_string_lossy(scope), "25");
 
     let origin = mock_script_origin(scope, "module.js");
     let src = v8::String::new(scope, "export const a = 'a';").unwrap();
@@ -5069,33 +5064,19 @@ fn import_assertions() {
     _host_defined_options: v8::Local<'s, v8::Data>,
     _resource_name: v8::Local<'s, v8::Value>,
     _specifier: v8::Local<'s, v8::String>,
-    import_assertions: v8::Local<'s, v8::FixedArray>,
+    import_attributes: v8::Local<'s, v8::FixedArray>,
   ) -> Option<v8::Local<'s, v8::Promise>> {
     // "type" keyword, value
-    assert_eq!(import_assertions.length(), 2);
-    let assert1 = import_assertions.get(scope, 0).unwrap();
+    assert_eq!(import_attributes.length(), 2);
+    let assert1 = import_attributes.get(scope, 0).unwrap();
     let assert1_val = v8::Local::<v8::Value>::try_from(assert1).unwrap();
     assert_eq!(assert1_val.to_rust_string_lossy(scope), "type");
-    let assert2 = import_assertions.get(scope, 1).unwrap();
+    let assert2 = import_attributes.get(scope, 1).unwrap();
     let assert2_val = v8::Local::<v8::Value>::try_from(assert2).unwrap();
     assert_eq!(assert2_val.to_rust_string_lossy(scope), "json");
     None
   }
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
-
-  // TODO(@littledivy): this won't work when V8 removes `assert`.
-  static COUNTER: AtomicUsize = AtomicUsize::new(0);
-  extern "C" fn callback(
-    _msg: v8::Local<v8::Message>,
-    _: v8::Local<v8::Value>,
-  ) {
-    COUNTER.fetch_add(1, Ordering::SeqCst);
-  }
-
-  isolate.add_message_listener_with_error_level(
-    callback,
-    v8::MessageErrorLevel::ALL,
-  );
 
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -5104,8 +5085,8 @@ fn import_assertions() {
 
     let source_text = v8::String::new(
       scope,
-      "import 'foo.json' assert { type: \"json\" };\n\
-        import('foo.json', { assert: { type: 'json' } });",
+      "import 'foo.json' with { type: \"json\" };\n\
+        import('foo.json', { with: { type: 'json' } });",
     )
     .unwrap();
     let origin = mock_script_origin(scope, "foo.js");
@@ -5124,8 +5105,6 @@ fn import_assertions() {
     assert!(result.unwrap());
     assert_eq!(v8::ModuleStatus::Instantiated, module.get_status());
   }
-
-  assert_eq!(COUNTER.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -5936,7 +5915,7 @@ fn dynamic_import() {
     _host_defined_options: v8::Local<'s, v8::Data>,
     _resource_name: v8::Local<'s, v8::Value>,
     specifier: v8::Local<'s, v8::String>,
-    _import_assertions: v8::Local<'s, v8::FixedArray>,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
   ) -> Option<v8::Local<'s, v8::Promise>> {
     assert!(
       specifier.strict_equals(v8::String::new(scope, "bar.js").unwrap().into())
@@ -7692,6 +7671,8 @@ fn heap_statistics() {
 
 #[test]
 fn low_memory_notification() {
+  let _setup_guard = setup::parallel_test();
+
   let mut isolate = v8::Isolate::new(Default::default());
   isolate.low_memory_notification();
 }
@@ -8917,21 +8898,6 @@ fn run_with_rust_allocator() {
     count.fetch_sub(n, Ordering::SeqCst);
     let _ = Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n));
   }
-  unsafe extern "C" fn reallocate(
-    count: &AtomicUsize,
-    prev: *mut c_void,
-    oldlen: usize,
-    newlen: usize,
-  ) -> *mut c_void {
-    count.fetch_add(newlen.wrapping_sub(oldlen), Ordering::SeqCst);
-    let old_store =
-      Box::from_raw(std::slice::from_raw_parts_mut(prev as *mut u8, oldlen));
-    let mut new_store = Vec::with_capacity(newlen);
-    let copy_len = oldlen.min(newlen);
-    new_store.extend_from_slice(&old_store[..copy_len]);
-    new_store.resize(newlen, 0u8);
-    Box::into_raw(new_store.into_boxed_slice()) as *mut c_void
-  }
   unsafe extern "C" fn drop(count: *const AtomicUsize) {
     Arc::from_raw(count);
   }
@@ -8941,7 +8907,6 @@ fn run_with_rust_allocator() {
       allocate,
       allocate_uninitialized,
       free,
-      reallocate,
       drop,
     };
   let count = Arc::new(AtomicUsize::new(0));
@@ -9249,7 +9214,7 @@ fn code_cache() {
   fn resolve_callback<'a>(
     _context: v8::Local<'a, v8::Context>,
     _specifier: v8::Local<'a, v8::String>,
-    _import_assertions: v8::Local<'a, v8::FixedArray>,
+    _import_attributes: v8::Local<'a, v8::FixedArray>,
     _referrer: v8::Local<'a, v8::Module>,
   ) -> Option<v8::Local<'a, v8::Module>> {
     None
@@ -9608,7 +9573,7 @@ fn compiled_wasm_module() {
       0x6F, 0x6F, 0x62, 0x61, 0x72
     ]
   );
-  assert_eq!(compiled_module.source_url(), "wasm://wasm/3e495052");
+  assert_eq!(compiled_module.source_url(), "wasm://wasm/a1d4c596");
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
@@ -9643,6 +9608,8 @@ fn compiled_wasm_module() {
 
 #[test]
 fn function_names() {
+  let _setup_guard = setup::parallel_test();
+
   // Setup isolate
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -9786,6 +9753,8 @@ fn backing_store_resizable() {
 
 #[test]
 fn current_stack_trace() {
+  let _setup_guard = setup::parallel_test();
+
   // Setup isolate
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
@@ -10468,12 +10437,12 @@ fn test_fast_calls() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint32.scalar(),
+      fast_api::Type::Uint32.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::Uint32.scalar(),
-        fast_api::Type::Uint32.scalar(),
-        fast_api::Type::CallbackOptions.scalar(),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::CallbackOptions.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10525,11 +10494,17 @@ fn test_fast_calls_empty_buffer() {
   static mut WHO: &str = "none";
   unsafe fn fast_fn(
     _recv: v8::Local<v8::Object>,
-    buffer: *mut fast_api::FastApiTypedArray<u8>,
+    buffer: v8::Local<v8::Value>,
   ) {
     assert_eq!(WHO, "slow");
     WHO = "fast";
-    assert_eq!(0, (*buffer).get_storage_if_aligned().unwrap().len());
+    assert_eq!(
+      0,
+      buffer
+        .cast::<v8::Uint8Array>()
+        .get_contents(&mut [0; v8::TYPED_ARRAY_MAX_SIZE_IN_HEAP])
+        .len()
+    );
   }
 
   fn slow_fn(
@@ -10545,14 +10520,10 @@ fn test_fast_calls_empty_buffer() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Void.scalar(),
+      fast_api::Type::Void.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::CTypeInfo::new(
-          fast_api::Type::Uint8,
-          fast_api::SequenceType::IsTypedArray,
-          fast_api::Flags::empty(),
-        ),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::V8Value.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10600,16 +10571,12 @@ fn test_fast_calls_sequence() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint32.scalar(),
+      fast_api::Type::Uint32.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::Uint32.scalar(),
-        fast_api::Type::Uint32.scalar(),
-        fast_api::CTypeInfo::new(
-          fast_api::Type::Void,
-          fast_api::SequenceType::IsSequence,
-          fast_api::Flags::empty(),
-        ),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::V8Value.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10662,25 +10629,27 @@ fn test_fast_calls_arraybuffer() {
     _recv: v8::Local<v8::Object>,
     a: u32,
     b: u32,
-    data: *const fast_api::FastApiTypedArray<u32>,
+    data: v8::Local<v8::Value>,
   ) -> u32 {
     unsafe { WHO = "fast" };
-    a + b + unsafe { &*data }.get(0)
+    let data = data.cast::<v8::Uint32Array>();
+    let contents =
+      data.get_contents(&mut [0; v8::TYPED_ARRAY_MAX_SIZE_IN_HEAP]);
+    let (x, contents, y) = unsafe { contents.align_to::<u32>() };
+    assert_eq!(x.len(), 0);
+    assert_eq!(y.len(), 0);
+    a + b + contents[0]
   }
 
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint32.scalar(),
+      fast_api::Type::Uint32.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::Uint32.scalar(),
-        fast_api::Type::Uint32.scalar(),
-        fast_api::CTypeInfo::new(
-          fast_api::Type::Uint32,
-          fast_api::SequenceType::IsTypedArray,
-          fast_api::Flags::empty(),
-        ),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::V8Value.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10729,14 +10698,14 @@ fn test_fast_calls_arraybuffer() {
 #[test]
 fn test_fast_calls_typedarray() {
   static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    data: *const fast_api::FastApiTypedArray<u8>,
-  ) -> u32 {
+  fn fast_fn(_recv: v8::Local<v8::Object>, data: v8::Local<v8::Value>) -> u32 {
     unsafe { WHO = "fast" };
-    let first = unsafe { &*data }.get(0);
-    let second = unsafe { &*data }.get(1);
-    let third = unsafe { &*data }.get(2);
+    let data = data.cast::<v8::Uint8Array>();
+    let contents =
+      data.get_contents(&mut [0; v8::TYPED_ARRAY_MAX_SIZE_IN_HEAP]);
+    let first = contents[0];
+    let second = contents[1];
+    let third = contents[2];
     assert_eq!(first, 4);
     assert_eq!(second, 5);
     assert_eq!(third, 6);
@@ -10747,14 +10716,10 @@ fn test_fast_calls_typedarray() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint32.scalar(),
+      fast_api::Type::Uint32.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::CTypeInfo::new(
-          fast_api::Type::Uint8,
-          fast_api::SequenceType::IsTypedArray,
-          fast_api::Flags::empty(),
-        ),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::V8Value.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10824,8 +10789,8 @@ fn test_fast_calls_reciever() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint32.scalar(),
-      &[fast_api::Type::V8Value.scalar()],
+      fast_api::Type::Uint32.as_info(),
+      &[fast_api::Type::V8Value.as_info()],
       fast_api::Int64Representation::Number,
     ),
   );
@@ -10891,33 +10856,24 @@ fn test_fast_calls_reciever() {
 #[test]
 fn test_fast_calls_overload() {
   static mut WHO: &str = "none";
-  fn fast_fn(
-    _recv: v8::Local<v8::Object>,
-    data: *const fast_api::FastApiTypedArray<u32>,
-  ) {
-    unsafe { WHO = "fast_buf" };
-    let buf = unsafe { &*data };
-    assert_eq!(buf.length(), 2);
-    assert_eq!(buf.get(0), 6);
-    assert_eq!(buf.get(1), 9);
+  fn fast_fn(_recv: v8::Local<v8::Object>, p0: u32) {
+    unsafe { WHO = "fast_fn" };
+    assert_eq!(p0, 1);
   }
 
-  fn fast_fn2(_recv: v8::Local<v8::Object>, data: v8::Local<v8::Array>) {
-    unsafe { WHO = "fast_array" };
-    assert_eq!(data.length(), 2);
+  fn fast_fn2(_recv: v8::Local<v8::Object>, p0: u32, p1: u32) {
+    unsafe { WHO = "fast_fn2" };
+    assert_eq!(p0, 1);
+    assert_eq!(p1, 2);
   }
 
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Void.scalar(),
+      fast_api::Type::Void.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::CTypeInfo::new(
-          fast_api::Type::Uint32,
-          fast_api::SequenceType::IsTypedArray,
-          fast_api::Flags::empty(),
-        ),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint32.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10926,14 +10882,11 @@ fn test_fast_calls_overload() {
   const FAST_TEST2: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn2 as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Void.scalar(),
+      fast_api::Type::Void.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::CTypeInfo::new(
-          fast_api::Type::Void,
-          fast_api::SequenceType::IsSequence,
-          fast_api::Flags::empty(),
-        ),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint32.as_info(),
+        fast_api::Type::Uint32.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -10963,28 +10916,28 @@ fn test_fast_calls_overload() {
   let value = template.get_function(scope).unwrap();
   global.set(scope, name.into(), value.into()).unwrap();
   let source = r#"
-  function f(data) { return func(data); }
-  %PrepareFunctionForOptimization(f);
-  const arr = [6, 9];
-  const buf = new Uint32Array(arr);
-  f(buf);
-  f(arr);
+  function f1(p0) { return func(p0); }
+  function f2(p0, p1) { return func(p0, p1); }
+  %PrepareFunctionForOptimization(f1);
+  %PrepareFunctionForOptimization(f2);
+  f1(1);
+  f2(1, 2);
 "#;
   eval(scope, source).unwrap();
   assert_eq!("slow", unsafe { WHO });
 
   let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f(buf);
+    %OptimizeFunctionOnNextCall(f1);
+    f1(1);
   "#;
   eval(scope, source).unwrap();
-  assert_eq!("fast_buf", unsafe { WHO });
+  assert_eq!("fast_fn", unsafe { WHO });
   let source = r#"
-    %OptimizeFunctionOnNextCall(f);
-    f(arr);
+    %OptimizeFunctionOnNextCall(f2);
+    f2(1, 2);
   "#;
   eval(scope, source).unwrap();
-  assert_eq!("fast_array", unsafe { WHO });
+  assert_eq!("fast_fn2", unsafe { WHO });
 }
 
 #[test]
@@ -11007,10 +10960,10 @@ fn test_fast_calls_callback_options_data() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Void.scalar(),
+      fast_api::Type::Void.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::CallbackOptions.scalar(),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::CallbackOptions.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -11118,10 +11071,10 @@ fn test_fast_calls_onebytestring() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint32.scalar(),
+      fast_api::Type::Uint32.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::SeqOneByteString.scalar(),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::SeqOneByteString.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -11183,11 +11136,11 @@ fn test_fast_calls_i64representation() {
   const FAST_TEST_NUMBER: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint64.scalar(),
+      fast_api::Type::Uint64.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::Uint64.scalar(),
-        fast_api::Type::Uint64.scalar(),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint64.as_info(),
+        fast_api::Type::Uint64.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),
@@ -11196,11 +11149,11 @@ fn test_fast_calls_i64representation() {
   const FAST_TEST_BIGINT: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Uint64.scalar(),
+      fast_api::Type::Uint64.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::Uint64.scalar(),
-        fast_api::Type::Uint64.scalar(),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Uint64.as_info(),
+        fast_api::Type::Uint64.as_info(),
       ],
       fast_api::Int64Representation::BigInt,
     ),
@@ -11362,10 +11315,10 @@ fn test_fast_calls_pointer() {
   const FAST_TEST: fast_api::CFunction = fast_api::CFunction::new(
     fast_fn as _,
     &fast_api::CFunctionInfo::new(
-      fast_api::Type::Pointer.scalar(),
+      fast_api::Type::Pointer.as_info(),
       &[
-        fast_api::Type::V8Value.scalar(),
-        fast_api::Type::Pointer.scalar(),
+        fast_api::Type::V8Value.as_info(),
+        fast_api::Type::Pointer.as_info(),
       ],
       fast_api::Int64Representation::Number,
     ),

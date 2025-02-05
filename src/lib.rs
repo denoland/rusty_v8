@@ -157,7 +157,7 @@ pub use string::NewStringType;
 pub use string::OneByteConst;
 pub use string::ValueView;
 pub use string::ValueViewData;
-pub use string::WriteOptions;
+pub use string::WriteFlags;
 pub use support::SharedPtr;
 pub use support::SharedRef;
 pub use support::UniquePtr;
@@ -190,3 +190,17 @@ pub const VERSION_STRING: &str =
 
 // TODO(piscisaureus): Ideally this trait would not be exported.
 pub use support::MapFnTo;
+
+pub const TYPED_ARRAY_MAX_SIZE_IN_HEAP: usize =
+  binding::v8__TYPED_ARRAY_MAX_SIZE_IN_HEAP as _;
+
+#[cfg(test)]
+pub(crate) fn initialize_v8() {
+  use std::sync::Once;
+
+  static INIT: Once = Once::new();
+  INIT.call_once(|| {
+    V8::initialize_platform(new_default_platform(0, false).make_shared());
+    V8::initialize();
+  });
+}

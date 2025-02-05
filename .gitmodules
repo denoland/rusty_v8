@@ -37,3 +37,12 @@
 [submodule "third_party/fast_float/src"]
 	path = third_party/fast_float/src
 	url = https://chromium.googlesource.com/external/github.com/fastfloat/fast_float.git
+[submodule "third_party/llvm-libc/src"]
+	path = third_party/llvm-libc/src
+	url = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git
+[submodule "third_party/simdutf"]
+	path = third_party/simdutf
+	url = https://chromium.googlesource.com/chromium/src/third_party/simdutf
+[submodule "third_party/highway/src"]
+	path = third_party/highway/src
+	url = https://chromium.googlesource.com/external/github.com/google/highway.git

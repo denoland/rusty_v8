@@ -158,6 +158,8 @@ fn build_binding() {
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")
     .allowlist_item("RustObj")
+    .allowlist_item("memory_span_t")
+    .allowlist_item("ExternalConstOneByteStringResource")
     .generate()
     .expect("Unable to generate bindings");
 

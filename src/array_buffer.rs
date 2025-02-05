@@ -136,12 +136,6 @@ pub struct RustAllocatorVtable<T> {
   pub allocate_uninitialized:
     unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
   pub free: unsafe extern "C" fn(handle: &T, data: *mut c_void, len: usize),
-  pub reallocate: unsafe extern "C" fn(
-    handle: &T,
-    data: *mut c_void,
-    old_length: usize,
-    new_length: usize,
-  ) -> *mut c_void,
   pub drop: unsafe extern "C" fn(handle: *const T),
 }
 
@@ -207,14 +201,6 @@ fn test_rust_allocator() {
   unsafe extern "C" fn free(_: &AtomicUsize, _: *mut c_void, _: usize) {
     unimplemented!()
   }
-  unsafe extern "C" fn reallocate(
-    _: &AtomicUsize,
-    _: *mut c_void,
-    _: usize,
-    _: usize,
-  ) -> *mut c_void {
-    unimplemented!()
-  }
   unsafe extern "C" fn drop(x: *const AtomicUsize) {
     let arc = Arc::from_raw(x);
     arc.store(42, Ordering::SeqCst);
@@ -227,7 +213,6 @@ fn test_rust_allocator() {
       allocate,
       allocate_uninitialized,
       free,
-      reallocate,
       drop,
     };
   unsafe { new_rust_allocator(Arc::into_raw(retval.clone()), vtable) };

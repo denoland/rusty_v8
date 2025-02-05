@@ -28,6 +28,15 @@ macro_rules! typed_array {
   ($name:ident) => {
     paste! {
       use crate::$name;
+
+      extern "C" {
+        fn [< v8__ $name __New >](
+          buf_ptr: *const ArrayBuffer,
+          byte_offset: usize,
+          length: usize,
+        ) -> *const $name;
+      }
+
       impl $name {
         #[inline(always)]
         pub fn new<'s>(
@@ -36,13 +45,6 @@ macro_rules! typed_array {
           byte_offset: usize,
           length: usize,
         ) -> Option<Local<'s, $name>> {
-          extern "C" {
-            fn [< v8__ $name __New >](
-              buf_ptr: *const ArrayBuffer,
-              byte_offset: usize,
-              length: usize,
-            ) -> *const $name;
-          }
           unsafe { scope.cast_local(|_| [< v8__ $name __New >](&*buf, byte_offset, length)) }
         }
 
