@@ -12,7 +12,7 @@ permissions: write-all
 
 jobs:
   build:
-    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} {{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }}
+    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 180
     strategy:
