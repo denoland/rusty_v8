@@ -195,15 +195,14 @@ fn build_v8(is_asan: bool) {
   if is_asan {
     gn_args.push("is_asan=true".to_string());
   }
-  if env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_err() {
-    gn_args.push("use_custom_libcxx=false".to_string());
-  }
-  if env::var("POINTER_COMPRESSION_ENABLE").is_err() {
-    gn_args.push("v8_enable_pointer_compression = false".to_string())
-  } else {
-    gn_args.push("v8_enable_pointer_compression = true".to_string())
-  }
-
+  gn_args.push(format!(
+    "use_custom_libcxx={}",
+    env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_ok()
+  ));
+  gn_args.push(format!(
+    "v8_enable_pointer_compression={}",
+    env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
+  ));
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string())
@@ -404,6 +403,14 @@ fn prebuilt_profile() -> &'static str {
   }
 }
 
+fn prebuilt_features_suffix() -> String {
+  let mut features = String::new();
+  if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
+    features.push_str("_ptrcomp");
+  }
+  features
+}
+
 fn static_lib_name(suffix: &str) -> String {
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   if target_os == "windows" {
@@ -423,11 +430,12 @@ fn static_lib_url() -> String {
   let version = env::var("CARGO_PKG_VERSION").unwrap();
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
+  let features = prebuilt_features_suffix();
   format!(
     "{}/v{}/{}.gz",
     base,
     version,
-    static_lib_name(&format!("_{}_{}", profile, target)),
+    static_lib_name(&format!("{}_{}_{}", features, profile, target)),
   )
 }
 
@@ -696,7 +704,8 @@ fn print_prebuilt_src_binding_path() {
 
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
-  let name = format!("src_binding_{}_{}.rs", profile, target);
+  let features = prebuilt_features_suffix();
+  let name = format!("src_binding{}_{}_{}.rs", features, profile, target);
 
   let src_binding_path = get_dirs().root.join("gen").join(name.clone());
 
