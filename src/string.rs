@@ -47,28 +47,27 @@ extern "C" {
   fn v8__String__Write(
     this: *const String,
     isolate: *mut Isolate,
+    offset: u32,
+    length: u32,
     buffer: *mut u16,
-    start: int,
-    length: int,
-    options: WriteOptions,
-  ) -> int;
+    flags: int,
+  );
 
   fn v8__String__WriteOneByte(
     this: *const String,
     isolate: *mut Isolate,
+    offset: u32,
+    length: u32,
     buffer: *mut u8,
-    start: int,
-    length: int,
-    options: WriteOptions,
-  ) -> int;
+    flags: int,
+  );
 
   fn v8__String__WriteUtf8(
     this: *const String,
     isolate: *mut Isolate,
     buffer: *mut char,
-    length: int,
-    nchars_ref: *mut int,
-    options: WriteOptions,
+    capacity: size_t,
+    flags: int,
   ) -> int;
 
   fn v8__String__GetExternalStringResource(
@@ -246,11 +245,24 @@ extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
   // SAFETY: Only called from C++ with a valid OneByteConst pointer.
   unsafe { (*this).length }
 }
+extern "C" fn one_byte_const_unaccount(
+  _this: *const OneByteConst,
+  _isolate: *mut Isolate,
+) {
+}
+extern "C" fn one_byte_const_estimate_memory_usage(
+  _this: *const OneByteConst,
+) -> int {
+  -1
+}
 
 type OneByteConstNoOp = extern "C" fn(*const OneByteConst);
 type OneByteConstIsCacheable = extern "C" fn(*const OneByteConst) -> bool;
 type OneByteConstData = extern "C" fn(*const OneByteConst) -> *const char;
 type OneByteConstLength = extern "C" fn(*const OneByteConst) -> usize;
+type OneByteConstUnaccount = extern "C" fn(*const OneByteConst, *mut Isolate);
+type OneByteConstEstimateMemoryUsage =
+  extern "C" fn(*const OneByteConst) -> int;
 
 #[repr(C)]
 struct OneByteConstVtable {
@@ -279,6 +291,8 @@ struct OneByteConstVtable {
   #[cfg(not(target_family = "windows"))]
   delete2: OneByteConstNoOp,
   is_cacheable: OneByteConstIsCacheable,
+  unaccount: OneByteConstUnaccount,
+  estimate_memory_usage: OneByteConstEstimateMemoryUsage,
   dispose: OneByteConstNoOp,
   lock: OneByteConstNoOp,
   unlock: OneByteConstNoOp,
@@ -294,6 +308,8 @@ const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
   #[cfg(not(target_family = "windows"))]
   delete2: one_byte_const_no_op,
   is_cacheable: one_byte_const_is_cacheable,
+  unaccount: one_byte_const_unaccount,
+  estimate_memory_usage: one_byte_const_estimate_memory_usage,
   dispose: one_byte_const_no_op,
   lock: one_byte_const_no_op,
   unlock: one_byte_const_no_op,
@@ -312,15 +328,9 @@ pub enum NewStringType {
 bitflags! {
   #[derive(Clone, Copy, Default)]
   #[repr(transparent)]
-  pub struct WriteOptions: int {
-    const NO_OPTIONS = 0;
-    const HINT_MANY_WRITES_EXPECTED = 1;
-    const NO_NULL_TERMINATION = 2;
-    const PRESERVE_ONE_BYTE_NULL = 4;
-    // Used by WriteUtf8 to replace orphan surrogate code units with the
-    // unicode replacement character. Needs to be set to guarantee valid UTF-8
-    // output.
-    const REPLACE_INVALID_UTF8 = 8;
+  pub struct WriteFlags: int {
+    const kNullTerminate = crate::binding::v8_String_WriteFlags_kNullTerminate as _;
+    const kReplaceInvalidUtf8 = crate::binding::v8_String_WriteFlags_kReplaceInvalidUtf8 as _;
   }
 }
 
@@ -423,19 +433,19 @@ impl String {
   pub fn write(
     &self,
     scope: &mut Isolate,
+    offset: u32,
     buffer: &mut [u16],
-    start: usize,
-    options: WriteOptions,
-  ) -> usize {
+    flags: WriteFlags,
+  ) {
     unsafe {
       v8__String__Write(
         self,
         scope,
+        offset,
+        self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr(),
-        start.try_into().unwrap_or(int::MAX),
-        buffer.len().try_into().unwrap_or(int::MAX),
-        options,
-      ) as usize
+        flags.bits(),
+      )
     }
   }
 
@@ -445,19 +455,19 @@ impl String {
   pub fn write_one_byte(
     &self,
     scope: &mut Isolate,
+    offset: u32,
     buffer: &mut [u8],
-    start: usize,
-    options: WriteOptions,
-  ) -> usize {
+    flags: WriteFlags,
+  ) {
     unsafe {
       v8__String__WriteOneByte(
         self,
         scope,
+        offset,
+        self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr(),
-        start.try_into().unwrap_or(int::MAX),
-        buffer.len().try_into().unwrap_or(int::MAX),
-        options,
-      ) as usize
+        flags.bits(),
+      )
     }
   }
 
@@ -467,19 +477,19 @@ impl String {
   pub fn write_one_byte_uninit(
     &self,
     scope: &mut Isolate,
+    offset: u32,
     buffer: &mut [MaybeUninit<u8>],
-    start: usize,
-    options: WriteOptions,
-  ) -> usize {
+    flags: WriteFlags,
+  ) {
     unsafe {
       v8__String__WriteOneByte(
         self,
         scope,
-        buffer.as_mut_ptr() as *mut u8,
-        start.try_into().unwrap_or(int::MAX),
-        buffer.len().try_into().unwrap_or(int::MAX),
-        options,
-      ) as usize
+        offset,
+        self.length().min(buffer.len()) as _,
+        buffer.as_mut_ptr() as _,
+        flags.bits(),
+      )
     }
   }
 
@@ -489,8 +499,7 @@ impl String {
     &self,
     scope: &mut Isolate,
     buffer: &mut [u8],
-    nchars_ref: Option<&mut usize>,
-    options: WriteOptions,
+    flags: WriteFlags,
   ) -> usize {
     unsafe {
       // SAFETY:
@@ -502,7 +511,7 @@ impl String {
         let data = buffer.as_mut_ptr().cast();
         slice::from_raw_parts_mut(data, len)
       };
-      self.write_utf8_uninit(scope, buffer, nchars_ref, options)
+      self.write_utf8_uninit(scope, buffer, flags)
     }
   }
 
@@ -511,23 +520,17 @@ impl String {
     &self,
     scope: &mut Isolate,
     buffer: &mut [MaybeUninit<u8>],
-    nchars_ref: Option<&mut usize>,
-    options: WriteOptions,
+    flags: WriteFlags,
   ) -> usize {
-    let mut nchars_ref_int: int = 0;
     let bytes = unsafe {
       v8__String__WriteUtf8(
         self,
         scope,
-        buffer.as_mut_ptr() as *mut char,
-        buffer.len().try_into().unwrap_or(int::MAX),
-        &mut nchars_ref_int,
-        options,
+        buffer.as_mut_ptr() as _,
+        buffer.len(),
+        flags.bits(),
       )
     };
-    if let Some(r) = nchars_ref {
-      *r = nchars_ref_int as usize;
-    }
     bytes as usize
   }
 
@@ -788,18 +791,18 @@ impl String {
         let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
 
         // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        let length = self.write_one_byte_uninit(
+        self.write_one_byte_uninit(
           scope,
-          &mut *buffer,
           0,
-          WriteOptions::NO_NULL_TERMINATION
-            | WriteOptions::REPLACE_INVALID_UTF8,
+          &mut *buffer,
+          WriteFlags::kReplaceInvalidUtf8,
         );
-        debug_assert!(length == len_utf16);
 
         // Return an owned string from this guaranteed now-initialized data
         let buffer = data as *mut u8;
-        return std::string::String::from_raw_parts(buffer, length, len_utf16);
+        return std::string::String::from_raw_parts(
+          buffer, len_utf16, len_utf16,
+        );
       }
     }
 
@@ -816,8 +819,7 @@ impl String {
       let length = self.write_utf8_uninit(
         scope,
         &mut *buffer,
-        None,
-        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+        WriteFlags::kReplaceInvalidUtf8,
       );
       debug_assert!(length == len_utf8);
 
@@ -848,16 +850,10 @@ impl String {
     // string is 100% 7-bit ASCII.
     if self.is_onebyte() && len_utf8 == len_utf16 {
       if len_utf16 <= N {
-        let length = self.write_one_byte_uninit(
-          scope,
-          buffer,
-          0,
-          WriteOptions::NO_NULL_TERMINATION,
-        );
-        debug_assert!(length == len_utf16);
+        self.write_one_byte_uninit(scope, 0, buffer, WriteFlags::empty());
         unsafe {
           // Get a slice of &[u8] of what we know is initialized now
-          let buffer = &mut buffer[..length];
+          let buffer = &mut buffer[..len_utf16];
           let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
 
           // We know it's valid UTF-8, so make a string
@@ -873,31 +869,25 @@ impl String {
         let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
 
         // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        let length = self.write_one_byte_uninit(
+        self.write_one_byte_uninit(
           scope,
-          &mut *buffer,
           0,
-          WriteOptions::NO_NULL_TERMINATION
-            | WriteOptions::REPLACE_INVALID_UTF8,
+          &mut *buffer,
+          WriteFlags::kReplaceInvalidUtf8,
         );
-        debug_assert!(length == len_utf16);
 
         // Return an owned string from this guaranteed now-initialized data
         let buffer = data as *mut u8;
         return Cow::Owned(std::string::String::from_raw_parts(
-          buffer, length, len_utf16,
+          buffer, len_utf16, len_utf16,
         ));
       }
     }
 
     if len_utf8 <= N {
       // No malloc path
-      let length = self.write_utf8_uninit(
-        scope,
-        buffer,
-        None,
-        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
-      );
+      let length =
+        self.write_utf8_uninit(scope, buffer, WriteFlags::kReplaceInvalidUtf8);
       debug_assert!(length == len_utf8);
 
       // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
@@ -924,8 +914,7 @@ impl String {
       let length = self.write_utf8_uninit(
         scope,
         &mut *buffer,
-        None,
-        WriteOptions::NO_NULL_TERMINATION | WriteOptions::REPLACE_INVALID_UTF8,
+        WriteFlags::kReplaceInvalidUtf8,
       );
       debug_assert!(length == len_utf8);
 

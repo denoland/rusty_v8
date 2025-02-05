@@ -14,11 +14,14 @@ def process(name, dep):
 
 failed = False
 
+names = []
+
 with open('.gitmodules') as f:
     for line in f.readlines():
         if line.startswith('['):
             name = line.split(" ")[1][1:-3]
             if name in deps:
+                names.append(name)
                 try:
                     process(name, deps[name])
                 except:
@@ -28,3 +31,4 @@ if failed:
     import sys
     sys.exit(1)
 
+print(','.join(names))

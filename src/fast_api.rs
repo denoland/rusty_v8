@@ -3,7 +3,6 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use std::ffi::c_void;
-use std::marker::PhantomData;
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -65,14 +64,10 @@ pub enum Int64Representation {
 pub struct CTypeInfo(v8_CTypeInfo);
 
 impl CTypeInfo {
-  pub const fn new(
-    r#type: Type,
-    sequence_type: SequenceType,
-    flags: Flags,
-  ) -> Self {
+  pub const fn new(r#type: Type, flags: Flags) -> Self {
     Self(v8_CTypeInfo {
       flags_: flags.bits(),
-      sequence_type_: sequence_type as _,
+      sequence_type_: v8_CTypeInfo_SequenceType_kScalar,
       type_: r#type as _,
     })
   }
@@ -99,25 +94,16 @@ pub enum Type {
 }
 
 impl Type {
-  pub const fn scalar(self) -> CTypeInfo {
-    CTypeInfo::new(self, SequenceType::Scalar, Flags::empty())
-  }
-
-  pub const fn typed_array(self) -> CTypeInfo {
-    CTypeInfo::new(self, SequenceType::IsTypedArray, Flags::empty())
+  // const fn since From<T> is not const
+  pub const fn as_info(self) -> CTypeInfo {
+    CTypeInfo::new(self, Flags::empty())
   }
 }
 
-#[derive(Clone, Copy)]
-#[repr(u8)]
-pub enum SequenceType {
-  Scalar = v8_CTypeInfo_SequenceType_kScalar,
-  /// sequence<T>
-  IsSequence = v8_CTypeInfo_SequenceType_kIsSequence,
-  /// TypedArray of T or any ArrayBufferView if T is void
-  IsTypedArray = v8_CTypeInfo_SequenceType_kIsTypedArray,
-  /// ArrayBuffer
-  IsArrayBuffer = v8_CTypeInfo_SequenceType_kIsArrayBuffer,
+impl From<Type> for CTypeInfo {
+  fn from(t: Type) -> Self {
+    Self::new(t, Flags::empty())
+  }
 }
 
 bitflags::bitflags! {
@@ -143,50 +129,6 @@ pub struct FastApiCallbackOptions<'a> {
   /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
   pub data: Local<'a, Value>,
 }
-
-#[allow(unused)] // only constructed by V8
-#[repr(transparent)]
-pub struct FastApiTypedArray<T: Default>(v8__FastApiTypedArray, PhantomData<T>);
-
-impl<T: Default> FastApiTypedArray<T> {
-  /// Returns the length in number of elements.
-  pub const fn length(&self) -> usize {
-    self.0._base.length_
-  }
-
-  /// Performs an unaligned-safe read of T from the underlying data.
-  #[inline(always)]
-  pub const fn get(&self, index: usize) -> T {
-    debug_assert!(index < self.length());
-    // SAFETY: src is valid for reads, and is a valid value for T
-    unsafe { std::ptr::read_unaligned((self.0.data_ as *const T).add(index)) }
-  }
-
-  /// Returns a slice pointing to the underlying data if safe to do so.
-  #[inline(always)]
-  pub fn get_storage_if_aligned(&self) -> Option<&mut [T]> {
-    // V8 may provide an invalid or null pointer when length is zero, so we just
-    // ignore that value completely and create an empty slice in this case.
-    if self.length() == 0 {
-      return Some(&mut []);
-    }
-    let data = self.0.data_ as *mut T;
-    // Ensure that we never return an unaligned or null buffer
-    if data.is_null() || !data.is_aligned() {
-      None
-    } else {
-      Some(unsafe { std::slice::from_raw_parts_mut(data, self.length()) })
-    }
-  }
-}
-
-/// Any TypedArray. It uses kTypedArrayBit with base type void
-/// Overloaded args of ArrayBufferView and TypedArray are not supported
-/// (for now) because the generic “any” ArrayBufferView doesn’t have its
-/// own instance type. It could be supported if we specify that
-/// TypedArray<T> always has precedence over the generic ArrayBufferView,
-/// but this complicates overload resolution.
-pub type FastApiArrayBufferView = v8__FastApiArrayBufferView;
 
 pub type FastApiOneByteString = v8__FastOneByteString;
 

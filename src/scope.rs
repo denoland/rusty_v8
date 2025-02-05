@@ -2260,12 +2260,9 @@ mod raw {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::new_default_platform;
   use crate::ContextOptions;
   use crate::Global;
-  use crate::V8;
   use std::any::type_name;
-  use std::sync::Once;
 
   trait SameType {}
   impl<A> SameType for (A, A) {}
@@ -2284,17 +2281,9 @@ mod tests {
     }
   }
 
-  fn initialize_v8() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-      V8::initialize_platform(new_default_platform(0, false).make_shared());
-      V8::initialize();
-    });
-  }
-
   #[test]
   fn deref_types() {
-    initialize_v8();
+    crate::initialize_v8();
     let isolate = &mut Isolate::new(Default::default());
     AssertTypeOf(isolate).is::<OwnedIsolate>();
     let l1_hs = &mut HandleScope::new(isolate);
@@ -2468,7 +2457,7 @@ mod tests {
 
   #[test]
   fn new_scope_types() {
-    initialize_v8();
+    crate::initialize_v8();
     let isolate = &mut Isolate::new(Default::default());
     AssertTypeOf(isolate).is::<OwnedIsolate>();
     let global_context: Global<Context>;

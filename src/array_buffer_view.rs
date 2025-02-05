@@ -1,6 +1,4 @@
-use std::convert::TryInto;
-use std::ffi::c_void;
-
+use crate::binding::memory_span_t;
 use crate::support::int;
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
@@ -8,6 +6,8 @@ use crate::BackingStore;
 use crate::HandleScope;
 use crate::Local;
 use crate::SharedRef;
+use std::convert::TryInto;
+use std::ffi::c_void;
 
 extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -23,6 +23,10 @@ extern "C" {
     dest: *mut c_void,
     byte_length: int,
   ) -> usize;
+  fn v8__ArrayBufferView__GetContents(
+    this: *const ArrayBufferView,
+    storage: memory_span_t,
+  ) -> memory_span_t;
 }
 
 impl ArrayBufferView {
@@ -80,6 +84,23 @@ impl ArrayBufferView {
         dest.as_mut_ptr() as *mut c_void,
         dest.len().try_into().unwrap(),
       )
+    }
+  }
+
+  #[inline(always)]
+  pub fn get_contents<'s, 'a>(&'s self, storage: &'a mut [u8]) -> &'a [u8]
+  where
+    's: 'a,
+  {
+    unsafe {
+      let span = v8__ArrayBufferView__GetContents(
+        self,
+        memory_span_t {
+          data: storage.as_mut_ptr() as _,
+          size: storage.len(),
+        },
+      );
+      std::slice::from_raw_parts(span.data as _, span.size)
     }
   }
 }
