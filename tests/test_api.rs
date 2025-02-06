@@ -265,10 +265,10 @@ fn test_string() {
     let mut vec = vec![0; 17];
     assert_eq!(
       17,
-      local.write_utf8_2(scope, &mut vec, v8::WriteFlags::empty())
+      local.write_utf8_v2(scope, &mut vec, v8::WriteFlags::empty())
     );
     let mut u16_buffer = [0u16; 16];
-    local.write2(scope, 0, &mut u16_buffer, v8::WriteFlags::empty());
+    local.write_v2(scope, 0, &mut u16_buffer, v8::WriteFlags::empty());
     assert_eq!(
       String::from(reference),
       String::from_utf16(&u16_buffer[..15]).unwrap()
@@ -297,7 +297,7 @@ fn test_string() {
     assert_eq!(3, local.length());
     assert_eq!(3, local.utf8_length(scope));
     let mut buffer = [0u8; 3];
-    local.write_one_byte2(scope, 0, &mut buffer, v8::WriteFlags::empty());
+    local.write_one_byte_v2(scope, 0, &mut buffer, v8::WriteFlags::empty());
     assert_eq!(b"foo", &buffer);
     assert_eq!("foo", local.to_rust_string_lossy(scope));
   }

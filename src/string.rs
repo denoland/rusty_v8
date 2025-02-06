@@ -53,7 +53,7 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
-  fn v8__String__Write_2(
+  fn v8__String__Write_v2(
     this: *const String,
     isolate: *mut Isolate,
     offset: u32,
@@ -71,7 +71,7 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
-  fn v8__String__WriteOneByte_2(
+  fn v8__String__WriteOneByte_v2(
     this: *const String,
     isolate: *mut Isolate,
     offset: u32,
@@ -89,7 +89,7 @@ extern "C" {
     options: WriteOptions,
   ) -> int;
 
-  fn v8__String__WriteUtf8_2(
+  fn v8__String__WriteUtf8_v2(
     this: *const String,
     isolate: *mut Isolate,
     buffer: *mut char,
@@ -473,7 +473,7 @@ impl String {
   /// Writes the contents of the string to an external buffer, as 16-bit
   /// (UTF-16) character codes.
   #[inline(always)]
-  #[deprecated = "Use `v8::String::write2` instead"]
+  #[deprecated = "Use `v8::String::write_v2` instead"]
   pub fn write(
     &self,
     scope: &mut Isolate,
@@ -496,7 +496,7 @@ impl String {
   /// Writes the contents of the string to an external buffer, as 16-bit
   /// (UTF-16) character codes.
   #[inline(always)]
-  pub fn write2(
+  pub fn write_v2(
     &self,
     scope: &mut Isolate,
     offset: u32,
@@ -504,7 +504,7 @@ impl String {
     flags: WriteFlags,
   ) {
     unsafe {
-      v8__String__Write_2(
+      v8__String__Write_v2(
         self,
         scope,
         offset,
@@ -518,7 +518,7 @@ impl String {
   /// Writes the contents of the string to an external buffer, as one-byte
   /// (Latin-1) characters.
   #[inline(always)]
-  #[deprecated = "Use `v8::String::write_one_byte2` instead."]
+  #[deprecated = "Use `v8::String::write_one_byte_v2` instead."]
   pub fn write_one_byte(
     &self,
     scope: &mut Isolate,
@@ -541,7 +541,7 @@ impl String {
   /// Writes the contents of the string to an external buffer, as one-byte
   /// (Latin-1) characters.
   #[inline(always)]
-  pub fn write_one_byte2(
+  pub fn write_one_byte_v2(
     &self,
     scope: &mut Isolate,
     offset: u32,
@@ -549,7 +549,7 @@ impl String {
     flags: WriteFlags,
   ) {
     unsafe {
-      v8__String__WriteOneByte_2(
+      v8__String__WriteOneByte_v2(
         self,
         scope,
         offset,
@@ -563,7 +563,7 @@ impl String {
   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as one-byte
   /// (Latin-1) characters.
   #[inline(always)]
-  #[deprecated = "Use `v8::String::write_one_byte_uninit2` instead."]
+  #[deprecated = "Use `v8::String::write_one_byte_uninit_v2` instead."]
   pub fn write_one_byte_uninit(
     &self,
     scope: &mut Isolate,
@@ -586,7 +586,7 @@ impl String {
   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as one-byte
   /// (Latin-1) characters.
   #[inline(always)]
-  pub fn write_one_byte_uninit2(
+  pub fn write_one_byte_uninit_v2(
     &self,
     scope: &mut Isolate,
     offset: u32,
@@ -594,7 +594,7 @@ impl String {
     flags: WriteFlags,
   ) {
     unsafe {
-      v8__String__WriteOneByte_2(
+      v8__String__WriteOneByte_v2(
         self,
         scope,
         offset,
@@ -607,7 +607,7 @@ impl String {
 
   /// Writes the contents of the string to an external buffer, as UTF-8.
   #[inline(always)]
-  #[deprecated = "Use `v8::String::write_utf8_2` instead."]
+  #[deprecated = "Use `v8::String::write_utf8_v2` instead."]
   pub fn write_utf8(
     &self,
     scope: &mut Isolate,
@@ -631,7 +631,7 @@ impl String {
 
   /// Writes the contents of the string to an external buffer, as UTF-8.
   #[inline(always)]
-  pub fn write_utf8_2(
+  pub fn write_utf8_v2(
     &self,
     scope: &mut Isolate,
     buffer: &mut [u8],
@@ -647,12 +647,12 @@ impl String {
         let data = buffer.as_mut_ptr().cast();
         slice::from_raw_parts_mut(data, len)
       };
-      self.write_utf8_uninit2(scope, buffer, flags)
+      self.write_utf8_uninit_v2(scope, buffer, flags)
     }
   }
 
   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
-  #[deprecated = "Use `v8::String::write_utf8_uninit2` instead."]
+  #[deprecated = "Use `v8::String::write_utf8_uninit_v2` instead."]
   pub fn write_utf8_uninit(
     &self,
     scope: &mut Isolate,
@@ -678,14 +678,14 @@ impl String {
   }
 
   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
-  pub fn write_utf8_uninit2(
+  pub fn write_utf8_uninit_v2(
     &self,
     scope: &mut Isolate,
     buffer: &mut [MaybeUninit<u8>],
     flags: WriteFlags,
   ) -> usize {
     let bytes = unsafe {
-      v8__String__WriteUtf8_2(
+      v8__String__WriteUtf8_v2(
         self,
         scope,
         buffer.as_mut_ptr() as _,
@@ -953,7 +953,7 @@ impl String {
         let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
 
         // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        self.write_one_byte_uninit2(
+        self.write_one_byte_uninit_v2(
           scope,
           0,
           &mut *buffer,
@@ -978,7 +978,7 @@ impl String {
       let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
 
       // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit2(
+      let length = self.write_utf8_uninit_v2(
         scope,
         &mut *buffer,
         WriteFlags::kReplaceInvalidUtf8,
@@ -1012,7 +1012,7 @@ impl String {
     // string is 100% 7-bit ASCII.
     if self.is_onebyte() && len_utf8 == len_utf16 {
       if len_utf16 <= N {
-        self.write_one_byte_uninit2(scope, 0, buffer, WriteFlags::empty());
+        self.write_one_byte_uninit_v2(scope, 0, buffer, WriteFlags::empty());
         unsafe {
           // Get a slice of &[u8] of what we know is initialized now
           let buffer = &mut buffer[..len_utf16];
@@ -1031,7 +1031,7 @@ impl String {
         let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
 
         // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        self.write_one_byte_uninit2(
+        self.write_one_byte_uninit_v2(
           scope,
           0,
           &mut *buffer,
@@ -1048,8 +1048,11 @@ impl String {
 
     if len_utf8 <= N {
       // No malloc path
-      let length =
-        self.write_utf8_uninit2(scope, buffer, WriteFlags::kReplaceInvalidUtf8);
+      let length = self.write_utf8_uninit_v2(
+        scope,
+        buffer,
+        WriteFlags::kReplaceInvalidUtf8,
+      );
       debug_assert!(length == len_utf8);
 
       // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
@@ -1073,7 +1076,7 @@ impl String {
       let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
 
       // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit2(
+      let length = self.write_utf8_uninit_v2(
         scope,
         &mut *buffer,
         WriteFlags::kReplaceInvalidUtf8,
