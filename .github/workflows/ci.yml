@@ -12,7 +12,7 @@ permissions: write-all
 
 jobs:
   build:
-    name: ${{ matrix.config.variant }} ${{ matrix.config.target }}
+    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 180
     strategy:
@@ -30,58 +30,82 @@ jobs:
           - os: macos-13
             target: x86_64-apple-darwin
             variant: debug
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: macos-13
             target: x86_64-apple-darwin
             variant: release
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: asan
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: debug
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: macos-14
             target: aarch64-apple-darwin
             variant: release
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-gnu
+            variant: debug
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-gnu
+            variant: release
+            v8_enable_pointer_compression: true
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
+            v8_enable_pointer_compression: false
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: release
+            v8_enable_pointer_compression: false
             cargo: cargo
 
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
+      CARGO_FEATURE_FLAGS: ${{ matrix.config.v8_enable_pointer_compression && '--features v8_enable_pointer_compression' || '' }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
+      FEATURES_SUFFIX: ${{ matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '' }}
       RUSTFLAGS: -D warnings
 
     steps:
@@ -143,10 +167,8 @@ jobs:
             target/*/.*
             target/*/build
             target/*/deps
-          key:
-            cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
-          restore-keys:
-            cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-
+          key: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-{{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-{{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache
         shell: pwsh
@@ -207,21 +229,19 @@ jobs:
         env:
           SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
-        run:
-          ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }}
+        run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
-        run:
-          ${{ matrix.config.cargo }} clippy --all-targets --locked ${{ env.CARGO_VARIANT_FLAG }} --target ${{ matrix.config.target }} -- -D clippy::all
+        run: ${{ matrix.config.cargo }} clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }} -- -D clippy::all
 
       - name: Prepare binary publish
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run: |
-          gzip -9c target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} > target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
-          ls -l target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+          gzip -9c target/${{ matrix.config.target }}/${{ matrix.config.variant }}/gn_out/obj/${{ env.LIB_NAME }}.${{ env.LIB_EXT }} > target/${{ env.LIB_NAME }}${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+          ls -l target/${{ env.LIB_NAME }}${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
 
-          cp target/${{ matrix.config.target }}/${{ matrix.config.variant}}/gn_out/src_binding.rs target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
-          ls -l target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          cp target/${{ matrix.config.target }}/${{ matrix.config.variant}}/gn_out/src_binding.rs target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          ls -l target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
       - name: Binary publish
         uses: softprops/action-gh-release@v0.1.15
@@ -233,14 +253,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            target/${{ env.LIB_NAME }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
-            target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+            target/${{ env.LIB_NAME }}${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+            target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
       - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
-          path: target/src_binding_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          name: src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          path: target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
   publish:
     needs: build

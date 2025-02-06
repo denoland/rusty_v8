@@ -97,6 +97,7 @@ opt-level = 1
 [features]
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
+v8_enable_pointer_compression = []
 
 [dependencies]
 bitflags = "2.5"
