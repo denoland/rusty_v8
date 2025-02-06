@@ -651,10 +651,9 @@ impl String {
     }
   }
 
-
-   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
-   #[deprecated = "Use `v8::String::write_utf8_uninit2` instead."]
-   pub fn write_utf8_uninit(
+  /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
+  #[deprecated = "Use `v8::String::write_utf8_uninit2` instead."]
+  pub fn write_utf8_uninit(
     &self,
     scope: &mut Isolate,
     buffer: &mut [MaybeUninit<u8>],
