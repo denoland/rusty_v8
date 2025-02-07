@@ -1,6 +1,6 @@
 [package]
 name = "v8"
-version = "134.0.0"
+version = "134.1.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
