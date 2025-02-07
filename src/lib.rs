@@ -158,6 +158,7 @@ pub use string::OneByteConst;
 pub use string::ValueView;
 pub use string::ValueViewData;
 pub use string::WriteFlags;
+pub use string::WriteOptions;
 pub use support::SharedPtr;
 pub use support::SharedRef;
 pub use support::UniquePtr;
