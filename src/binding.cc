@@ -1103,8 +1103,8 @@ int v8__String__WriteOneByte(const v8::String& self, v8::Isolate* isolate,
 }
 
 void v8__String__WriteOneByte_v2(const v8::String& self, v8::Isolate* isolate,
-                                 uint32_t offset, uint32_t length, uint8_t* buffer,
-                                 int flags) {
+                                 uint32_t offset, uint32_t length,
+                                 uint8_t* buffer, int flags) {
   return self.WriteOneByteV2(isolate, offset, length, buffer, flags);
 }
 
