@@ -7735,7 +7735,7 @@ fn synthetic_module() {
   assert_eq!(module.get_status(), v8::ModuleStatus::Uninstantiated);
 
   module
-    .instantiate_module(scope, unexpected_module_resolve_callback)
+    .instantiate_module(scope, unexpected_module_resolve_callback,)
     .unwrap();
   assert_eq!(module.get_status(), v8::ModuleStatus::Instantiated);
   assert!(!module.is_graph_async());
