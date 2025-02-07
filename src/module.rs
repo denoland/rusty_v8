@@ -384,12 +384,11 @@ impl Module {
     callback: impl MapFnTo<ResolveModuleCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      
-        v8__Module__InstantiateModule(
-          self,
-          &*scope.get_current_context(),
-          callback.map_fn_to(),
-        )
+      v8__Module__InstantiateModule(
+        self,
+        &*scope.get_current_context(),
+        callback.map_fn_to(),
+      )
     }
     .into()
   }
@@ -412,7 +411,7 @@ impl Module {
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),
-        source_callback.map_fn_to()
+        source_callback.map_fn_to(),
       )
     }
     .into()

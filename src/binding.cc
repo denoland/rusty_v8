@@ -3259,12 +3259,12 @@ MaybeBool v8__Module__InstantiateModule(const v8::Module& self,
       ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb));
 }
 
-MaybeBool v8__Module__InstantiateModule2(const v8::Module& self,
-                                        const v8::Context& context,
-                                        v8::Module::ResolveModuleCallback cb,
-                                        v8::Module::ResolveSourceCallback source_callback) {
-  return maybe_to_maybe_bool(
-      ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb, source_callback));
+MaybeBool v8__Module__InstantiateModule2(
+    const v8::Module& self, const v8::Context& context,
+    v8::Module::ResolveModuleCallback cb,
+    v8::Module::ResolveSourceCallback source_callback) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->InstantiateModule(
+      ptr_to_local(&context), cb, source_callback));
 }
 
 const v8::Value* v8__Module__Evaluate(const v8::Module& self,
