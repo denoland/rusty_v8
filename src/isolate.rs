@@ -31,6 +31,7 @@ use crate::FixedArray;
 use crate::Function;
 use crate::FunctionCodeHandling;
 use crate::HandleScope;
+use crate::IsolateGroup;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -417,7 +418,10 @@ pub type UseCounterCallback = extern "C" fn(&mut Isolate, UseCounterFeature);
 extern "C" {
   static v8__internal__Internals__kIsolateEmbedderDataOffset: int;
 
-  fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
+  fn v8__Isolate__New(
+    group: *const IsolateGroup,
+    params: *const raw::CreateParams,
+  ) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
   fn v8__Isolate__Enter(this: *mut Isolate);
@@ -628,10 +632,10 @@ impl Isolate {
     );
   }
 
-  fn new_impl(params: CreateParams) -> *mut Isolate {
+  fn new_impl(group: &IsolateGroup, params: CreateParams) -> *mut Isolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
-    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
+    let cxx_isolate = unsafe { v8__Isolate__New(group, &raw_create_params) };
     let isolate = unsafe { &mut *cxx_isolate };
     isolate.initialize(create_param_allocations);
     cxx_isolate
@@ -642,16 +646,31 @@ impl Isolate {
     self.create_annex(create_param_allocations);
   }
 
-  /// Creates a new isolate.  Does not change the currently entered
+  /// Creates a new isolate. Does not change the currently entered
   /// isolate.
   ///
   /// When an isolate is no longer used its resources should be freed
-  /// by calling V8::dispose().  Using the delete operator is not allowed.
+  /// by calling V8::dispose(). Using the delete operator is not allowed.
   ///
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
   pub fn new(params: CreateParams) -> OwnedIsolate {
-    OwnedIsolate::new(Self::new_impl(params))
+    let group = IsolateGroup::get_default();
+    OwnedIsolate::new(Self::new_impl(&group, params))
+  }
+
+  /// Creates a new isolate. Does not change the currently entered
+  /// isolate.
+  ///
+  /// When an isolate is no longer used its resources should be freed
+  /// by calling V8::dispose(). Using the delete operator is not allowed.
+  ///
+  /// V8::initialize() must have run prior to this.
+  pub fn new_with_group(
+    group: &IsolateGroup,
+    params: CreateParams,
+  ) -> OwnedIsolate {
+    OwnedIsolate::new(Self::new_impl(group, params))
   }
 
   #[allow(clippy::new_ret_no_self)]
