@@ -355,7 +355,6 @@ pub enum NewStringType {
 bitflags! {
   #[derive(Clone, Copy, Default)]
   #[repr(transparent)]
-  #[deprecated = "Use APIs accepting `v8::WriteFlags` instead"]
   pub struct WriteOptions: int {
     const NO_OPTIONS = 0;
     const HINT_MANY_WRITES_EXPECTED = 1;
