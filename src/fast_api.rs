@@ -3,6 +3,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use std::ffi::c_void;
+use std::marker::PhantomData;
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -64,10 +65,26 @@ pub enum Int64Representation {
 pub struct CTypeInfo(v8_CTypeInfo);
 
 impl CTypeInfo {
-  pub const fn new(r#type: Type, flags: Flags) -> Self {
+  pub const fn new(
+    r#type: Type,
+    flags: Flags,
+  ) -> Self {
     Self(v8_CTypeInfo {
       flags_: flags.bits(),
       sequence_type_: v8_CTypeInfo_SequenceType_kScalar,
+      type_: r#type as _,
+    })
+  }
+
+  #[deprecated]
+  pub const fn new_deprecated(
+    r#type: Type,
+    sequence_type: SequenceType,
+    flags: Flags,
+  ) -> Self {
+    Self(v8_CTypeInfo {
+      flags_: flags.bits(),
+      sequence_type_: sequence_type as _,
       type_: r#type as _,
     })
   }
@@ -98,12 +115,28 @@ impl Type {
   pub const fn as_info(self) -> CTypeInfo {
     CTypeInfo::new(self, Flags::empty())
   }
+
+  #[deprecated]
+  pub const fn scalar(self) -> CTypeInfo {
+    CTypeInfo::new(self, Flags::empty())
+  }
+
+  #[deprecated]
+  pub const fn typed_array(self) -> CTypeInfo {
+    CTypeInfo::new_deprecated(self, SequenceType::IsTypedArray, Flags::empty())
+  }
 }
 
-impl From<Type> for CTypeInfo {
-  fn from(t: Type) -> Self {
-    Self::new(t, Flags::empty())
-  }
+#[derive(Clone, Copy)]
+#[repr(u8)]
+pub enum SequenceType {
+  Scalar = v8_CTypeInfo_SequenceType_kScalar,
+  /// sequence<T>
+  IsSequence = v8_CTypeInfo_SequenceType_kIsSequence,
+  /// TypedArray of T or any ArrayBufferView if T is void
+  IsTypedArray = v8_CTypeInfo_SequenceType_kIsTypedArray,
+  /// ArrayBuffer
+  IsArrayBuffer = v8_CTypeInfo_SequenceType_kIsArrayBuffer,
 }
 
 bitflags::bitflags! {
@@ -128,20 +161,4 @@ pub struct FastApiCallbackOptions<'a> {
   pub isolate: *mut Isolate,
   /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
   pub data: Local<'a, Value>,
-}
-
-pub type FastApiOneByteString = v8__FastOneByteString;
-
-impl FastApiOneByteString {
-  #[inline(always)]
-  pub fn as_bytes(&self) -> &[u8] {
-    // Ensure that we never create a null-ptr slice (even a zero-length null-ptr slice
-    // is invalid because of Rust's niche packing).
-    if self.data.is_null() {
-      return &mut [];
-    }
-
-    // SAFETY: The data is guaranteed to be valid for the length of the string.
-    unsafe { std::slice::from_raw_parts(self.data as _, self.length as usize) }
-  }
 }

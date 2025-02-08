@@ -163,7 +163,7 @@ pub type ResolveSourceCallback<'a> = extern "C" fn(
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
 pub type ResolveSourceCallback<'a> = extern "C" fn(
-  *mut *const Module,
+  *mut *const Object,
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, FixedArray>,
