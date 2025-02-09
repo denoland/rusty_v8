@@ -243,43 +243,45 @@ fn build_v8(is_asan: bool) {
       gn_args.push(arg.to_string());
     }
   }
-  // cross-compilation setup
-  if target_arch == "aarch64" {
-    gn_args.push(r#"target_cpu="arm64""#.to_string());
-    gn_args.push("use_sysroot=true".to_string());
-    maybe_install_sysroot("arm64");
-    maybe_install_sysroot("amd64");
-  }
-  if target_arch == "arm" {
-    gn_args.push(r#"target_cpu="arm""#.to_string());
-    gn_args.push(r#"v8_target_cpu="arm""#.to_string());
-    gn_args.push("use_sysroot=true".to_string());
-    maybe_install_sysroot("i386");
-    maybe_install_sysroot("arm");
-  }
 
   let target_triple = env::var("TARGET").unwrap();
+  let host_triple = env::var("HOST").unwrap();
   // check if the target triple describes a non-native environment
-  if target_triple != env::var("HOST").unwrap() && target_os == "android" {
-    let arch = if target_arch == "x86_64" {
-      "x64"
-    } else if target_arch == "aarch64" {
-      "arm64"
-    } else {
-      "unknown"
-    };
-    if target_arch == "x86_64" {
-      maybe_install_sysroot("amd64");
-    }
-    gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
-    gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
-    gn_args.push(r#"target_os="android""#.to_string());
-    gn_args.push("treat_warnings_as_errors=false".to_string());
-    gn_args.push("use_sysroot=true".to_string());
+  if target_triple != host_triple {
+    let arch = match target_arch.as_str() {
+      "x86_64" => {
+        maybe_install_sysroot("amd64");
 
-    // NDK 23 and above removes libgcc entirely.
-    // https://github.com/rust-lang/rust/pull/85806
-    if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
+        "x64"
+      }
+      "aarch64" => {
+        maybe_install_sysroot("arm64");
+        maybe_install_sysroot("amd64");
+
+        "arm64"
+      }
+      "arm" => {
+        maybe_install_sysroot("i386");
+        maybe_install_sysroot("arm");
+
+        "arm"
+      }
+      _ => "unknown", // bring your own sysroot and set target_cpu variables
+    };
+    if arch != "unknown" {
+      gn_args.push(format!(r#"v8_target_cpu="{}""#, arch).to_string());
+      gn_args.push(format!(r#"target_cpu="{}""#, arch).to_string());
+      gn_args.push("use_sysroot=true".to_string());
+    }
+
+    if target_os == "android" {
+      // Android cross-build logic
+      gn_args.push(r#"target_os="android""#.to_string());
+      gn_args.push("treat_warnings_as_errors=false".to_string());
+
+      // NDK 23 and above removes libgcc entirely.
+      // https://github.com/rust-lang/rust/pull/85806
+      if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
         assert!(Command::new("curl")
         .arg("-L")
         .arg("-o").arg("./third_party/android-ndk-r26c-linux.zip")
@@ -300,18 +302,19 @@ fn build_v8(is_asan: bool) {
         fs::rename("./third_party/android-ndk-r26c", "./third_party/android_ndk").unwrap();
         fs::remove_file("./third_party/android-ndk-r26c-linux.zip").unwrap();
       }
-    static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
-    maybe_clone_repo(
-      "./third_party/android_platform",
-      &format!(
-        "{}/chromium/src/third_party/android_platform.git",
-        CHROMIUM_URI
-      ),
-    );
-    maybe_clone_repo(
-      "./third_party/catapult",
-      &format!("{}/catapult.git", CHROMIUM_URI),
-    );
+      static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
+      maybe_clone_repo(
+        "./third_party/android_platform",
+        &format!(
+          "{}/chromium/src/third_party/android_platform.git",
+          CHROMIUM_URI
+        ),
+      );
+      maybe_clone_repo(
+        "./third_party/catapult",
+        &format!("{}/catapult.git", CHROMIUM_URI),
+      );
+    }
   }
 
   if target_triple.starts_with("i686-") {
