@@ -117,8 +117,10 @@ fn execute_script(
     let exception_string = try_catch
       .stack_trace()
       .or_else(|| try_catch.exception())
-      .map(|value| value.to_rust_string_lossy(try_catch))
-      .unwrap_or_else(|| "no stack trace".into());
+      .map_or_else(
+        || "no stack trace".into(),
+        |value| value.to_rust_string_lossy(try_catch),
+      );
 
     panic!("{}", exception_string);
   }

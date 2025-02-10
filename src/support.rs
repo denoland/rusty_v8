@@ -77,8 +77,7 @@ impl<T> UniquePtr<T> {
   pub fn into_raw(self) -> *mut T {
     self
       .0
-      .map(|unique_ref| unique_ref.into_raw())
-      .unwrap_or_else(null_mut)
+      .map_or_else(null_mut, |unique_ref| unique_ref.into_raw())
   }
 }
 

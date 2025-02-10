@@ -233,8 +233,10 @@ fn execute_script(
     let exception_string = scope
       .stack_trace()
       .or_else(|| scope.exception())
-      .map(|value| value.to_rust_string_lossy(scope))
-      .unwrap_or_else(|| "no stack trace".into());
+      .map_or_else(
+        || "no stack trace".into(),
+        |value| value.to_rust_string_lossy(scope),
+      );
 
     panic!("{}", exception_string);
   }

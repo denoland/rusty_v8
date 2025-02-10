@@ -59,7 +59,7 @@ impl WasmStreaming {
   /// {exception} does not have value, the promise does not get rejected.
   #[inline(always)]
   pub fn abort(mut self, exception: Option<Local<Value>>) {
-    let exception = exception.map(|v| &*v as *const Value).unwrap_or(null());
+    let exception = exception.map_or(null(), |v| &*v as *const Value);
     unsafe { v8__WasmStreaming__Abort(&mut self.0, exception) }
   }
 

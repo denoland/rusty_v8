@@ -306,8 +306,7 @@ where
         specifier,
         import_attributes,
       )
-      .map(|return_value| return_value.as_non_null().as_ptr())
-      .unwrap_or_else(null_mut)
+      .map_or_else(null_mut, |return_value| return_value.as_non_null().as_ptr())
     }
 
     #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
@@ -846,8 +845,7 @@ impl Isolate {
   ) {
     let scope_data_ptr = scope_data
       .map(NonNull::cast)
-      .map(NonNull::as_ptr)
-      .unwrap_or_else(null_mut);
+      .map_or_else(null_mut, NonNull::as_ptr);
     self.set_data_internal(Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr);
   }
 
@@ -1105,9 +1103,7 @@ impl Isolate {
         .get_slot::<HostCreateShadowRealmContextCallback>()
         .unwrap();
       let context = callback(&mut scope);
-      context
-        .map(|l| l.as_non_null().as_ptr())
-        .unwrap_or_else(null_mut)
+      context.map_or_else(null_mut, |l| l.as_non_null().as_ptr())
     }
 
     // Windows x64 ABI: MaybeLocal<Context> must be returned on the stack.
