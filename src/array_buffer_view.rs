@@ -101,11 +101,11 @@ impl ArrayBufferView {
       let span = v8__ArrayBufferView__GetContents(
         self,
         memory_span_t {
-          data: storage.as_mut_ptr() as _,
+          data: storage.as_mut_ptr(),
           size: storage.len(),
         },
       );
-      (span.data as _, span.size)
+      (span.data, span.size)
     }
   }
 

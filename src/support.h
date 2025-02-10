@@ -179,7 +179,7 @@ struct three_pointers_t {
 }  // namespace support
 
 struct memory_span_t {
-  void* data;
+  uint8_t* data;
   size_t size;
 };
 
