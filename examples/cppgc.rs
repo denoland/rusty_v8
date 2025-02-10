@@ -14,7 +14,7 @@ impl std::fmt::Display for Rope {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.part)?;
     if let Some(next) = self.next.borrow() {
-      write!(f, "{}", next)?;
+      write!(f, "{next}")?;
     }
     Ok(())
   }
@@ -67,7 +67,7 @@ fn main() {
       )
     };
 
-    println!("{}", rope);
+    println!("{rope}");
 
     // Manually trigger garbage collection.
     heap.enable_detached_garbage_collections_for_testing();
@@ -80,7 +80,7 @@ fn main() {
     }
 
     // Should still be live here:
-    println!("{}", rope);
+    println!("{rope}");
 
     println!("Collect: NoHeapPointers");
     unsafe {

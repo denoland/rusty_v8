@@ -12,7 +12,7 @@ fn concurrent_isolate_creation_and_disposal() {
   v8::V8::initialize();
 
   for round in 0..1000 {
-    eprintln!("round {}", round);
+    eprintln!("round {round}");
 
     let threads = repeat_with(|| {
       thread::spawn(|| {

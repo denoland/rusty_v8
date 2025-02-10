@@ -130,17 +130,16 @@ fn main() {
       &["undefined_from_scope", "undefined_from_isolate"][..],
     ),
   ] {
-    println!("Running {} ...", group_name);
+    println!("Running {group_name} ...");
     for x in benches {
       let code = format!(
         "
-            function bench() {{ return {}(); }};
-            runs = {};
+            function bench() {{ return {x}(); }};
+            runs = {runs};
             start = Date.now();
             for (i = 0; i < runs; i++) bench();
             Date.now() - start;
           ",
-        x, runs
       );
 
       let r = eval(scope, &code).unwrap();
@@ -150,8 +149,7 @@ fn main() {
       let ns_per_run = total_ns / (runs as f64);
       let mops_per_sec = (runs as f64) / (total_ms / 1000.0) / 1e6;
       println!(
-        "  {:.1} ns per run {:.1} million ops/sec → {}",
-        ns_per_run, mops_per_sec, x
+        "  {ns_per_run:.1} ns per run {mops_per_sec:.1} million ops/sec → {x}"
       );
     }
   }

@@ -13,7 +13,7 @@ fn log_callback(
     .unwrap()
     .to_rust_string_lossy(scope);
 
-  println!("Logged: {}", message);
+  println!("Logged: {message}");
 }
 
 fn main() {
@@ -32,7 +32,7 @@ fn main() {
   let mut scope = v8::HandleScope::new(&mut isolate);
 
   let source = std::fs::read_to_string(&file)
-    .unwrap_or_else(|err| panic!("failed to open {}: {}", file, err));
+    .unwrap_or_else(|err| panic!("failed to open {file}: {err}"));
   let source = v8::String::new(&mut scope, &source).unwrap();
 
   let mut processor = JsHttpRequestProcessor::new(&mut scope, source, options);
@@ -223,7 +223,7 @@ where
         .unwrap()
         .to_rust_string_lossy(try_catch);
 
-      panic!("{}", exception_string);
+      panic!("{exception_string}");
     }
   }
 
@@ -251,7 +251,7 @@ where
         .unwrap()
         .to_rust_string_lossy(try_catch);
 
-      panic!("{}", exception_string);
+      panic!("{exception_string}");
     }
   }
 
@@ -376,7 +376,7 @@ where
       let key = key.to_string(scope).unwrap().to_rust_string_lossy(scope);
       let value = value.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-      println!("{}: {}", key, value);
+      println!("{key}: {value}");
     }
   }
 }

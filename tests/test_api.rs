@@ -4140,7 +4140,7 @@ fn function_script_origin_and_id() {
   let mut num_cases = 10;
   let mut prev_id = None;
   while num_cases > 0 {
-    let resource_name = format!("google.com/{}", num_cases);
+    let resource_name = format!("google.com/{num_cases}");
     let mut source = mock_source(
       scope,
       resource_name.as_str(), // make sure each source has a different resource name
@@ -6675,8 +6675,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
     println!(
-      "send_response call_id {} message {}",
-      call_id,
+      "send_response call_id {call_id} message {}",
       message.unwrap().string()
     );
     self.count_send_response += 1;
@@ -6686,7 +6685,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
     let msg = message.unwrap().string().to_string();
-    println!("send_notification message {}", msg);
+    println!("send_notification message {msg}");
     self.count_send_notification += 1;
     self.notifications.push(msg);
   }

@@ -238,6 +238,6 @@ fn execute_script(
         |value| value.to_rust_string_lossy(scope),
       );
 
-    panic!("{}", exception_string);
+    panic!("{exception_string}");
   }
 }

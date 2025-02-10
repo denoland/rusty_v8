@@ -122,6 +122,6 @@ fn execute_script(
         |value| value.to_rust_string_lossy(try_catch),
       );
 
-    panic!("{}", exception_string);
+    panic!("{exception_string}");
   }
 }
