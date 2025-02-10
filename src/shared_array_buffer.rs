@@ -188,7 +188,7 @@ impl SharedArrayBuffer {
     ) {
       // SAFETY: We know that data is a raw T from above
       unsafe {
-        <T as crate::array_buffer::sealed::Rawable>::drop_raw(data as _, len)
+        <T as crate::array_buffer::sealed::Rawable>::drop_raw(data as _, len);
       }
     }
 

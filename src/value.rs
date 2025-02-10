@@ -667,7 +667,7 @@ impl Value {
   pub fn number_value(&self, scope: &mut HandleScope) -> Option<f64> {
     let mut out = Maybe::<f64>::default();
     unsafe {
-      v8__Value__NumberValue(self, &*scope.get_current_context(), &mut out)
+      v8__Value__NumberValue(self, &*scope.get_current_context(), &mut out);
     };
     out.into()
   }
@@ -676,7 +676,7 @@ impl Value {
   pub fn integer_value(&self, scope: &mut HandleScope) -> Option<i64> {
     let mut out = Maybe::<i64>::default();
     unsafe {
-      v8__Value__IntegerValue(self, &*scope.get_current_context(), &mut out)
+      v8__Value__IntegerValue(self, &*scope.get_current_context(), &mut out);
     };
     out.into()
   }
@@ -685,7 +685,7 @@ impl Value {
   pub fn uint32_value(&self, scope: &mut HandleScope) -> Option<u32> {
     let mut out = Maybe::<u32>::default();
     unsafe {
-      v8__Value__Uint32Value(self, &*scope.get_current_context(), &mut out)
+      v8__Value__Uint32Value(self, &*scope.get_current_context(), &mut out);
     };
     out.into()
   }
@@ -694,7 +694,7 @@ impl Value {
   pub fn int32_value(&self, scope: &mut HandleScope) -> Option<i32> {
     let mut out = Maybe::<i32>::default();
     unsafe {
-      v8__Value__Int32Value(self, &*scope.get_current_context(), &mut out)
+      v8__Value__Int32Value(self, &*scope.get_current_context(), &mut out);
     };
     out.into()
   }

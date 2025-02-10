@@ -142,7 +142,7 @@ unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
   call_id: int,
   message: UniquePtr<StringBuffer>,
 ) {
-  ChannelBase::dispatch_mut(this).send_response(call_id, message)
+  ChannelBase::dispatch_mut(this).send_response(call_id, message);
 }
 
 #[no_mangle]
@@ -150,14 +150,14 @@ unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotification(
   this: &mut Channel,
   message: UniquePtr<StringBuffer>,
 ) {
-  ChannelBase::dispatch_mut(this).send_notification(message)
+  ChannelBase::dispatch_mut(this).send_notification(message);
 }
 
 #[no_mangle]
 unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
   this: &mut Channel,
 ) {
-  ChannelBase::dispatch_mut(this).flush_protocol_notifications()
+  ChannelBase::dispatch_mut(this).flush_protocol_notifications();
 }
 
 #[no_mangle]
@@ -173,14 +173,14 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPaus
   context_group_id: int,
 ) {
   V8InspectorClientBase::dispatch_mut(this)
-    .run_message_loop_on_pause(context_group_id)
+    .run_message_loop_on_pause(context_group_id);
 }
 
 #[no_mangle]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
   this: &mut V8InspectorClient,
 ) {
-  V8InspectorClientBase::dispatch_mut(this).quit_message_loop_on_pause()
+  V8InspectorClientBase::dispatch_mut(this).quit_message_loop_on_pause();
 }
 
 #[no_mangle]
@@ -189,7 +189,7 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebug
   context_group_id: int,
 ) {
   V8InspectorClientBase::dispatch_mut(this)
-    .run_if_waiting_for_debugger(context_group_id)
+    .run_if_waiting_for_debugger(context_group_id);
 }
 
 #[no_mangle]
@@ -211,7 +211,7 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
     line_number,
     column_number,
     stack_trace,
-  )
+  );
 }
 
 #[no_mangle]
@@ -240,17 +240,17 @@ impl Channel {
     message: UniquePtr<StringBuffer>,
   ) {
     unsafe {
-      v8_inspector__V8Inspector__Channel__sendResponse(self, call_id, message)
+      v8_inspector__V8Inspector__Channel__sendResponse(self, call_id, message);
     }
   }
   pub fn send_notification(&mut self, message: UniquePtr<StringBuffer>) {
     unsafe {
-      v8_inspector__V8Inspector__Channel__sendNotification(self, message)
+      v8_inspector__V8Inspector__Channel__sendNotification(self, message);
     }
   }
   pub fn flush_protocol_notifications(&mut self) {
     unsafe {
-      v8_inspector__V8Inspector__Channel__flushProtocolNotifications(self)
+      v8_inspector__V8Inspector__Channel__flushProtocolNotifications(self);
     }
   }
 }
@@ -419,7 +419,7 @@ mod tests {
       self.log_call();
     }
     fn flush_protocol_notifications(&mut self) {
-      self.log_call()
+      self.log_call();
     }
   }
 
@@ -464,7 +464,7 @@ impl V8InspectorClient {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
         self,
         context_group_id,
-      )
+      );
     }
   }
 
@@ -477,7 +477,7 @@ impl V8InspectorClient {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
         self,
         context_group_id,
-      )
+      );
     }
   }
 
@@ -502,7 +502,7 @@ impl V8InspectorClient {
         line_number,
         column_number,
         stack_trace,
-      )
+      );
     }
   }
 
@@ -668,7 +668,7 @@ impl V8InspectorSession {
 
   pub fn dispatch_protocol_message(&mut self, message: StringView) {
     unsafe {
-      v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message)
+      v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message);
     }
   }
 
@@ -680,7 +680,7 @@ impl V8InspectorSession {
     unsafe {
       v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
         self, reason, detail,
-      )
+      );
     }
   }
 }
@@ -899,7 +899,7 @@ impl<'a, T> Deref for CharacterArray<'a, T> {
     } = *self;
     if m_characters.is_null() {
       assert_eq!(m_length, 0);
-      m_characters = NonNull::dangling().as_ptr()
+      m_characters = NonNull::dangling().as_ptr();
     };
     unsafe { slice::from_raw_parts(m_characters, m_length) }
   }
@@ -1002,7 +1002,7 @@ impl V8Inspector {
         context_group_id,
         human_readable_name,
         aux_data,
-      )
+      );
     }
   }
 

@@ -791,7 +791,7 @@ impl Isolate {
   /// between 0 and `Isolate::get_number_of_data_slots()`.
   #[inline(always)]
   pub fn set_data(&mut self, slot: u32, data: *mut c_void) {
-    self.set_data_internal(Self::INTERNAL_DATA_SLOT_COUNT + slot, data)
+    self.set_data_internal(Self::INTERNAL_DATA_SLOT_COUNT + slot, data);
   }
 
   /// Returns the maximum number of available embedder data slots. Valid slots
@@ -907,7 +907,7 @@ impl Isolate {
   /// constructed and exited when dropped.
   #[inline(always)]
   pub unsafe fn enter(&mut self) {
-    v8__Isolate__Enter(self)
+    v8__Isolate__Enter(self);
   }
 
   /// Exits this isolate by restoring the previously entered one in the
@@ -920,7 +920,7 @@ impl Isolate {
   /// constructed and exited when dropped.
   #[inline(always)]
   pub unsafe fn exit(&mut self) {
-    v8__Isolate__Exit(self)
+    v8__Isolate__Exit(self);
   }
 
   /// Optional notification that the system is running low on memory.
@@ -974,7 +974,7 @@ impl Isolate {
         self,
         capture,
         frame_limit,
-      )
+      );
     }
   }
 
@@ -1022,7 +1022,7 @@ impl Isolate {
     // it's empty. That is, you can't return None and that's why the Rust API
     // expects Local<Value> instead of Option<Local<Value>>.
     unsafe {
-      v8__Isolate__SetPrepareStackTraceCallback(self, callback.map_fn_to())
+      v8__Isolate__SetPrepareStackTraceCallback(self, callback.map_fn_to());
     };
   }
 
@@ -1069,7 +1069,7 @@ impl Isolate {
     callback: HostInitializeImportMetaObjectCallback,
   ) {
     unsafe {
-      v8__Isolate__SetHostInitializeImportMetaObjectCallback(self, callback)
+      v8__Isolate__SetHostInitializeImportMetaObjectCallback(self, callback);
     }
   }
 
@@ -1084,7 +1084,7 @@ impl Isolate {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(
         self,
         callback.to_c_fn(),
-      )
+      );
     }
   }
 
@@ -1160,7 +1160,7 @@ impl Isolate {
     gc_type_filter: GCType,
   ) {
     unsafe {
-      v8__Isolate__AddGCPrologueCallback(self, callback, data, gc_type_filter)
+      v8__Isolate__AddGCPrologueCallback(self, callback, data, gc_type_filter);
     }
   }
 
@@ -1200,7 +1200,7 @@ impl Isolate {
     heap_limit: usize,
   ) {
     unsafe {
-      v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit)
+      v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit);
     };
   }
 
@@ -1308,7 +1308,7 @@ impl Isolate {
       v8__Isolate__DateTimeConfigurationChangeNotification(
         self,
         time_zone_detection,
-      )
+      );
     }
   }
 
@@ -1341,7 +1341,7 @@ impl Isolate {
           GarbageCollectionType::Full => 0,
           GarbageCollectionType::Minor => 1,
         },
-      )
+      );
     }
   }
 
@@ -1381,7 +1381,7 @@ impl Isolate {
 
     let arg = addr_of_mut!(callback);
     unsafe {
-      v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg as _)
+      v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg as _);
     }
   }
 

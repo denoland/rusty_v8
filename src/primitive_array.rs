@@ -60,7 +60,7 @@ impl PrimitiveArray {
         scope.get_isolate_ptr(),
         index as int,
         &*item,
-      )
+      );
     }
   }
 

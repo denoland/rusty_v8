@@ -185,7 +185,7 @@ pub fn initialize_platform(platform: SharedRef<Platform>) {
 
   {
     unsafe {
-      v8__V8__InitializePlatform(&*platform as *const Platform as *mut _)
+      v8__V8__InitializePlatform(&*platform as *const Platform as *mut _);
     };
   }
 }

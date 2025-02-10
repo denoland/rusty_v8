@@ -124,7 +124,7 @@ impl BigInt {
         sign_bit.as_mut_ptr(),
         &mut word_count,
         words.as_mut_ptr(),
-      )
+      );
     }
 
     let sign_bit = unsafe { sign_bit.assume_init() };

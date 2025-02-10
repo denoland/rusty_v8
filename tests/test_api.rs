@@ -1581,7 +1581,7 @@ fn create_message_argument_lifetimes() {
        mut rv: v8::ReturnValue<v8::Value>| {
         let message = v8::Exception::create_message(scope, args.get(0));
         let message_str = message.get(scope);
-        rv.set(message_str.into())
+        rv.set(message_str.into());
       },
     )
     .unwrap();
@@ -1936,7 +1936,7 @@ fn instance_template_with_internal_field() {
     assert!(args.data().is_undefined());
 
     assert!(this.set_internal_field(0, v8::Integer::new(scope, 42).into()));
-    retval.set(this.into())
+    retval.set(this.into());
   }
 
   let function_templ = v8::FunctionTemplate::new(scope, constructor_callback);
@@ -8698,7 +8698,7 @@ fn get_source_mapping_from_comment() {
     .get_unbound_script(scope)
     .get_source_mapping_url(scope)
     .to_rust_string_lossy(scope);
-  assert_eq!("foo.js.map", source_mapping_url)
+  assert_eq!("foo.js.map", source_mapping_url);
 }
 
 #[test]
@@ -8750,7 +8750,7 @@ fn origin_source_map_overrides_source_mapping_url_comment() {
     .get_unbound_script(scope)
     .get_source_mapping_url(scope)
     .to_rust_string_lossy(scope);
-  assert_eq!(expected_source_map_url, source_mapping_url)
+  assert_eq!(expected_source_map_url, source_mapping_url);
 }
 
 #[test]
@@ -8801,7 +8801,7 @@ fn ignore_origin_source_map_empty_string() {
     .get_unbound_script(scope)
     .get_source_mapping_url(scope)
     .to_rust_string_lossy(scope);
-  assert_eq!("foo.js.map", source_mapping_url)
+  assert_eq!("foo.js.map", source_mapping_url);
 }
 
 #[test]
@@ -8850,7 +8850,7 @@ fn no_source_map_comment() {
     .get_unbound_script(scope)
     .get_source_mapping_url(scope)
     .to_rust_string_lossy(scope);
-  assert_eq!("undefined", source_mapping_url)
+  assert_eq!("undefined", source_mapping_url);
 }
 
 #[test]
@@ -9622,7 +9622,7 @@ fn function_names() {
     _args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue<v8::Value>,
   ) {
-    rv.set(v8::Integer::new(scope, 42).into())
+    rv.set(v8::Integer::new(scope, 42).into());
   }
 
   // named v8 function
@@ -9769,7 +9769,7 @@ fn current_stack_trace() {
   ) {
     let stack = v8::StackTrace::current_stack_trace(scope, 5).unwrap();
     let count = stack.get_frame_count();
-    rv.set(v8::Integer::new(scope, count as i32).into())
+    rv.set(v8::Integer::new(scope, count as i32).into());
   }
 
   let key = v8::String::new(scope, "callDepth").unwrap();
@@ -9814,7 +9814,7 @@ fn current_script_name_or_source_url() {
     let maybe_name = v8::StackTrace::current_script_name_or_source_url(scope);
     assert!(maybe_name.is_some());
     unsafe { USED = 1 };
-    assert_eq!(maybe_name.unwrap().to_rust_string_lossy(scope), "foo.js")
+    assert_eq!(maybe_name.unwrap().to_rust_string_lossy(scope), "foo.js");
   }
 
   // Setup isolate

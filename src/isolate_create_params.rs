@@ -317,7 +317,7 @@ pub(crate) mod raw {
           self,
           initial_heap_size_in_bytes,
           maximum_heap_size_in_bytes,
-        )
+        );
       };
     }
 
@@ -331,7 +331,7 @@ pub(crate) mod raw {
           self,
           physical_memory,
           virtual_memory_limit,
-        )
+        );
       }
     }
   }

@@ -155,7 +155,7 @@ pub fn initialize_process(platform: SharedRef<Platform>) {
 #[deprecated(note = "use correctly spelled initialize_process")]
 #[inline]
 pub fn initalize_process(platform: SharedRef<Platform>) {
-  initialize_process(platform)
+  initialize_process(platform);
 }
 
 /// # Safety
@@ -203,7 +203,7 @@ impl<T> Traced for TracedReference<T> {
       cppgc__Visitor__Trace__TracedReference(
         visitor,
         self as *const TracedReference<T> as *const TracedReference<Data>,
-      )
+      );
     }
   }
 }

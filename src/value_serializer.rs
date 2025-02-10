@@ -48,7 +48,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   let scope = &mut ContextScope::new(scope, context);
   value_serializer_heap
     .value_serializer_impl
-    .throw_data_clone_error(scope, message)
+    .throw_data_clone_error(scope, message);
 }
 
 #[no_mangle]
@@ -181,7 +181,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__FreeBufferMemory(
       1,
     )
     .unwrap();
-    dealloc(buffer as *mut _, layout)
+    dealloc(buffer as *mut _, layout);
   };
 }
 
@@ -365,7 +365,7 @@ pub trait ValueSerializerHelper {
     unsafe {
       v8__ValueSerializer__WriteHeader(cast_to_ptr(
         self.get_cxx_value_serializer(),
-      ))
+      ));
     };
   }
 
@@ -389,7 +389,7 @@ pub trait ValueSerializerHelper {
       v8__ValueSerializer__WriteUint32(
         cast_to_ptr(self.get_cxx_value_serializer()),
         value,
-      )
+      );
     };
   }
 
@@ -398,7 +398,7 @@ pub trait ValueSerializerHelper {
       v8__ValueSerializer__WriteUint64(
         cast_to_ptr(self.get_cxx_value_serializer()),
         value,
-      )
+      );
     };
   }
 
@@ -407,7 +407,7 @@ pub trait ValueSerializerHelper {
       v8__ValueSerializer__WriteDouble(
         cast_to_ptr(self.get_cxx_value_serializer()),
         value,
-      )
+      );
     };
   }
 
@@ -417,7 +417,7 @@ pub trait ValueSerializerHelper {
         cast_to_ptr(self.get_cxx_value_serializer()),
         source.as_ptr() as *const _,
         source.len(),
-      )
+      );
     };
   }
 
@@ -431,7 +431,7 @@ pub trait ValueSerializerHelper {
         cast_to_ptr(self.get_cxx_value_serializer()),
         transfer_id,
         array_buffer,
-      )
+      );
     };
   }
 
@@ -440,7 +440,7 @@ pub trait ValueSerializerHelper {
       v8__ValueSerializer__SetTreatArrayBufferViewsAsHostObjects(
         cast_to_ptr(self.get_cxx_value_serializer()),
         mode,
-      )
+      );
     };
   }
 }
