@@ -1,5 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::binding::v8__Isolate__UseCounterFeature;
+pub use crate::binding::v8__ModuleImportPhase as ModuleImportPhase;
 use crate::cppgc::Heap;
 use crate::function::FunctionCallbackInfo;
 use crate::gc::GCCallbackFlags;
@@ -340,6 +341,171 @@ where
   }
 }
 
+/// HostImportModuleWithPhaseDynamicallyCallback is called when we
+/// require the embedder to load a module with a specific phase. This is used
+/// as part of the dynamic import syntax.
+///
+/// The referrer contains metadata about the script/module that calls
+/// import.
+///
+/// The specifier is the name of the module that should be imported.
+///
+/// The phase is the phase of the import requested.
+///
+/// The import_attributes are import attributes for this request in the form:
+/// [key1, value1, key2, value2, ...] where the keys and values are of type
+/// v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
+/// returned from ModuleRequest::GetImportAttributes(), this array does not
+/// contain the source Locations of the attributes.
+///
+/// The Promise returned from this function is forwarded to userland
+/// JavaScript. The embedder must resolve this promise according to the phase
+/// requested:
+/// - For ModuleImportPhase::kSource, the promise must be resolved with a
+///   compiled ModuleSource object, or rejected with a SyntaxError if the
+///   module does not support source representation.
+/// - For ModuleImportPhase::kEvaluation, the promise must be resolved with a
+///   ModuleNamespace object of a module that has been compiled, instantiated,
+///   and evaluated.
+///
+/// In case of an exception, the embedder must reject this promise with the
+/// exception. If the promise creation itself fails (e.g. due to stack
+/// overflow), the embedder must propagate that exception by returning an empty
+/// MaybeLocal.
+///
+/// This callback is still experimental and is only invoked for source phase
+/// imports.
+pub trait HostImportModuleWithPhaseDynamicallyCallback:
+  UnitType
+  + for<'s> FnOnce(
+    &mut HandleScope<'s>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    ModuleImportPhase,
+    Local<'s, FixedArray>,
+  ) -> Option<Local<'s, Promise>>
+{
+  fn to_c_fn(self) -> RawHostImportModuleWithPhaseDynamicallyCallback;
+}
+
+#[cfg(target_family = "unix")]
+pub(crate) type RawHostImportModuleWithPhaseDynamicallyCallback =
+  for<'s> extern "C" fn(
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    ModuleImportPhase,
+    Local<'s, FixedArray>,
+  ) -> *mut Promise;
+
+#[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+pub type RawHostImportModuleWithPhaseDynamicallyCallback =
+  for<'s> extern "C" fn(
+    *mut *mut Promise,
+    Local<'s, Context>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    ModuleImportPhase,
+    Local<'s, FixedArray>,
+  ) -> *mut *mut Promise;
+
+impl<F> HostImportModuleWithPhaseDynamicallyCallback for F
+where
+  F: UnitType
+    + for<'s> FnOnce(
+      &mut HandleScope<'s>,
+      Local<'s, Data>,
+      Local<'s, Value>,
+      Local<'s, String>,
+      ModuleImportPhase,
+      Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>>,
+{
+  #[inline(always)]
+  fn to_c_fn(self) -> RawHostImportModuleWithPhaseDynamicallyCallback {
+    #[inline(always)]
+    fn scope_adapter<'s, F: HostImportModuleWithPhaseDynamicallyCallback>(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_phase: ModuleImportPhase,
+      import_attributes: Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>> {
+      let scope = &mut unsafe { CallbackScope::new(context) };
+      (F::get())(
+        scope,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_phase,
+        import_attributes,
+      )
+    }
+
+    #[cfg(target_family = "unix")]
+    #[inline(always)]
+    extern "C" fn abi_adapter<
+      's,
+      F: HostImportModuleWithPhaseDynamicallyCallback,
+    >(
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_phase: ModuleImportPhase,
+      import_attributes: Local<'s, FixedArray>,
+    ) -> *mut Promise {
+      scope_adapter::<F>(
+        context,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_phase,
+        import_attributes,
+      )
+      .map_or_else(null_mut, |return_value| return_value.as_non_null().as_ptr())
+    }
+
+    #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+    #[inline(always)]
+    extern "C" fn abi_adapter<
+      's,
+      F: HostImportModuleWithPhaseDynamicallyCallback,
+    >(
+      return_value: *mut *mut Promise,
+      context: Local<'s, Context>,
+      host_defined_options: Local<'s, Data>,
+      resource_name: Local<'s, Value>,
+      specifier: Local<'s, String>,
+      import_phase: ModuleImportPhase,
+      import_attributes: Local<'s, FixedArray>,
+    ) -> *mut *mut Promise {
+      unsafe {
+        std::ptr::write(
+          return_value,
+          scope_adapter::<F>(
+            context,
+            host_defined_options,
+            resource_name,
+            specifier,
+            import_phase,
+            import_attributes,
+          )
+          .map(|return_value| return_value.as_non_null().as_ptr())
+          .unwrap_or_else(null_mut),
+        );
+        return_value
+      }
+    }
+
+    abi_adapter::<F>
+  }
+}
+
 /// `HostCreateShadowRealmContextCallback` is called each time a `ShadowRealm`
 /// is being constructed. You can use [`HandleScope::get_current_context`] to
 /// get the [`Context`] in which the constructor is being run.
@@ -496,6 +662,10 @@ extern "C" {
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
     isolate: *mut Isolate,
     callback: RawHostImportModuleDynamicallyCallback,
+  );
+  fn v8__Isolate__SetHostImportModuleWithPhaseDynamicallyCallback(
+    isolate: *mut Isolate,
+    callback: RawHostImportModuleWithPhaseDynamicallyCallback,
   );
   #[cfg(not(target_os = "windows"))]
   fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
@@ -1082,6 +1252,26 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(
+        self,
+        callback.to_c_fn(),
+      );
+    }
+  }
+
+  /// This specifies the callback called by the upcoming dynamic
+  /// import() and import.source() language feature to load modules.
+  ///
+  /// This API is experimental and is expected to be changed or removed in the
+  /// future. The callback is currently only called when for source-phase
+  /// imports. Evaluation-phase imports use the existing
+  /// HostImportModuleDynamicallyCallback callback.
+  #[inline(always)]
+  pub fn set_host_import_module_with_phase_dynamically_callback(
+    &mut self,
+    callback: impl HostImportModuleWithPhaseDynamicallyCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetHostImportModuleWithPhaseDynamicallyCallback(
         self,
         callback.to_c_fn(),
       );
