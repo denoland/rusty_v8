@@ -221,12 +221,7 @@ extern "C" {
     this: *const Module,
     context: *const Context,
     cb: ResolveModuleCallback,
-  ) -> MaybeBool;
-  fn v8__Module__InstantiateModule2(
-    this: *const Module,
-    context: *const Context,
-    cb: ResolveModuleCallback,
-    source_callback: ResolveSourceCallback,
+    source_callback: Option<ResolveSourceCallback>,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *const Module,
@@ -388,6 +383,7 @@ impl Module {
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),
+        None,
       )
     }
     .into()
@@ -407,11 +403,11 @@ impl Module {
     source_callback: impl MapFnTo<ResolveSourceCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
-      v8__Module__InstantiateModule2(
+      v8__Module__InstantiateModule(
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),
-        source_callback.map_fn_to(),
+        Some(source_callback.map_fn_to()),
       )
     }
     .into()

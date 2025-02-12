@@ -3252,14 +3252,7 @@ int v8__Module__ScriptId(const v8::Module& self) {
   return const_cast<v8::Module&>(self).ScriptId();
 }
 
-MaybeBool v8__Module__InstantiateModule(const v8::Module& self,
-                                        const v8::Context& context,
-                                        v8::Module::ResolveModuleCallback cb) {
-  return maybe_to_maybe_bool(
-      ptr_to_local(&self)->InstantiateModule(ptr_to_local(&context), cb));
-}
-
-MaybeBool v8__Module__InstantiateModule2(
+MaybeBool v8__Module__InstantiateModule(
     const v8::Module& self, const v8::Context& context,
     v8::Module::ResolveModuleCallback cb,
     v8::Module::ResolveSourceCallback source_callback) {

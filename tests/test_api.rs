@@ -51,7 +51,7 @@ mod setup {
     ))
     .is_ok());
     v8::V8::set_flags_from_string(
-      "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls",
+      "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
     );
     v8::V8::initialize_platform(
       v8::new_unprotected_default_platform(0, false).make_shared(),
@@ -7753,6 +7753,52 @@ fn synthetic_module() {
   };
   check("a", 1.0);
   check("b", 2.0);
+}
+
+#[test]
+fn static_source_phase_import() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let module = create_module(
+    scope,
+    "import source mod from 'z'; export default mod;",
+    None,
+    v8::script_compiler::CompileOptions::NoCompileOptions,
+  );
+
+  let obj = eval(scope, "new WebAssembly.Module(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]))").unwrap().cast::<v8::Object>();
+
+  context.set_slot(v8::Global::new(scope, obj));
+
+  fn resolve_source<'a>(
+    context: v8::Local<'a, v8::Context>,
+    _specifier: v8::Local<'a, v8::String>,
+    _import_attributes: v8::Local<'a, v8::FixedArray>,
+    _referrer: v8::Local<'a, v8::Module>,
+  ) -> Option<v8::Local<'a, v8::Object>> {
+    let scope = unsafe { &mut v8::CallbackScope::new(context) };
+    let global = context.get_slot::<v8::Global<v8::Object>>().unwrap();
+    Some(v8::Local::new(scope, global))
+  }
+
+  module
+    .instantiate_module2(
+      scope,
+      unexpected_module_resolve_callback,
+      resolve_source,
+    )
+    .unwrap();
+  module.evaluate(scope).unwrap();
+
+  let ns = module.get_module_namespace().cast::<v8::Object>();
+  let default = v8::String::new(scope, "default").unwrap();
+  assert_eq!(obj, ns.get(scope, default.into()).unwrap());
 }
 
 #[allow(clippy::float_cmp)]
