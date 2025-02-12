@@ -1887,8 +1887,7 @@ size_t v8__ArrayBufferView__CopyContents(const v8::ArrayBufferView& self,
 
 memory_span_t v8__ArrayBufferView__GetContents(const v8::ArrayBufferView& self,
                                                memory_span_t rstorage) {
-  v8::MemorySpan<uint8_t> storage{static_cast<uint8_t*>(rstorage.data),
-                                  rstorage.size};
+  v8::MemorySpan<uint8_t> storage{rstorage.data, rstorage.size};
   v8::MemorySpan<uint8_t> span = ptr_to_local(&self)->GetContents(storage);
   return {span.data(), span.size()};
 }

@@ -87,20 +87,41 @@ impl ArrayBufferView {
     }
   }
 
+  /// Returns the contents of the ArrayBufferView's buffer as a MemorySpan. If
+  /// the contents are on the V8 heap, they get copied into `storage`. Otherwise
+  /// a view into the off-heap backing store is returned. The provided storage
+  /// should be at least as large as the maximum on-heap size of a TypedArray,
+  /// which is available as `v8::TYPED_ARRAY_MAX_SIZE_IN_HEAP`.
+  #[inline(always)]
+  pub unsafe fn get_contents_raw_parts(
+    &self,
+    storage: &mut [u8],
+  ) -> (*mut u8, usize) {
+    unsafe {
+      let span = v8__ArrayBufferView__GetContents(
+        self,
+        memory_span_t {
+          data: storage.as_mut_ptr(),
+          size: storage.len(),
+        },
+      );
+      (span.data, span.size)
+    }
+  }
+
+  /// Returns the contents of the ArrayBufferView's buffer as a MemorySpan. If
+  /// the contents are on the V8 heap, they get copied into `storage`. Otherwise
+  /// a view into the off-heap backing store is returned. The provided storage
+  /// should be at least as large as the maximum on-heap size of a TypedArray,
+  /// which is available as `v8::TYPED_ARRAY_MAX_SIZE_IN_HEAP`.
   #[inline(always)]
   pub fn get_contents<'s, 'a>(&'s self, storage: &'a mut [u8]) -> &'a [u8]
   where
     's: 'a,
   {
     unsafe {
-      let span = v8__ArrayBufferView__GetContents(
-        self,
-        memory_span_t {
-          data: storage.as_mut_ptr() as _,
-          size: storage.len(),
-        },
-      );
-      std::slice::from_raw_parts(span.data as _, span.size)
+      let (data, size) = self.get_contents_raw_parts(storage);
+      std::slice::from_raw_parts(data, size)
     }
   }
 }
