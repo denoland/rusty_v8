@@ -16,6 +16,7 @@ use crate::Local;
 use crate::Message;
 use crate::Module;
 use crate::ModuleRequest;
+use crate::Object;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
@@ -146,6 +147,64 @@ where
   }
 }
 
+// System V ABI
+#[cfg(not(target_os = "windows"))]
+#[repr(C)]
+pub struct ResolveSourceCallbackRet(*const Object);
+
+#[cfg(not(target_os = "windows"))]
+pub type ResolveSourceCallback<'a> = extern "C" fn(
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, FixedArray>,
+  Local<'a, Module>,
+) -> ResolveSourceCallbackRet;
+
+// Windows x64 ABI: Local<Module> returned on the stack.
+#[cfg(target_os = "windows")]
+pub type ResolveSourceCallback<'a> = extern "C" fn(
+  *mut *const Object,
+  Local<'a, Context>,
+  Local<'a, String>,
+  Local<'a, FixedArray>,
+  Local<'a, Module>,
+) -> *mut *const Object;
+
+impl<'a, F> MapFnFrom<F> for ResolveSourceCallback<'a>
+where
+  F: UnitType
+    + Fn(
+      Local<'a, Context>,
+      Local<'a, String>,
+      Local<'a, FixedArray>,
+      Local<'a, Module>,
+    ) -> Option<Local<'a, Object>>,
+{
+  #[cfg(not(target_os = "windows"))]
+  fn mapping() -> Self {
+    let f = |context, specifier, import_attributes, referrer| {
+      ResolveSourceCallbackRet(
+        (F::get())(context, specifier, import_attributes, referrer)
+          .map(|r| -> *const Object { &*r })
+          .unwrap_or(null()),
+      )
+    };
+    f.to_c_fn()
+  }
+
+  #[cfg(target_os = "windows")]
+  fn mapping() -> Self {
+    let f = |ret_ptr, context, specifier, import_attributes, referrer| {
+      let r = (F::get())(context, specifier, import_attributes, referrer)
+        .map(|r| -> *const Object { &*r })
+        .unwrap_or(null());
+      unsafe { std::ptr::write(ret_ptr, r) }; // Write result to stack.
+      ret_ptr // Return stack pointer to the return value.
+    };
+    f.to_c_fn()
+  }
+}
+
 extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
   fn v8__Module__GetException(this: *const Module) -> *const Value;
@@ -162,6 +221,7 @@ extern "C" {
     this: *const Module,
     context: *const Context,
     cb: ResolveModuleCallback,
+    source_callback: Option<ResolveSourceCallback>,
   ) -> MaybeBool;
   fn v8__Module__Evaluate(
     this: *const Module,
@@ -323,6 +383,31 @@ impl Module {
         self,
         &*scope.get_current_context(),
         callback.map_fn_to(),
+        None,
+      )
+    }
+    .into()
+  }
+
+  /// Instantiates the module and its dependencies.
+  ///
+  /// Returns an empty Maybe<bool> if an exception occurred during
+  /// instantiation. (In the case where the callback throws an exception, that
+  /// exception is propagated.)
+  #[must_use]
+  #[inline(always)]
+  pub fn instantiate_module2<'a>(
+    &self,
+    scope: &mut HandleScope,
+    callback: impl MapFnTo<ResolveModuleCallback<'a>>,
+    source_callback: impl MapFnTo<ResolveSourceCallback<'a>>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Module__InstantiateModule(
+        self,
+        &*scope.get_current_context(),
+        callback.map_fn_to(),
+        Some(source_callback.map_fn_to()),
       )
     }
     .into()
