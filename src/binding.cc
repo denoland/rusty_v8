@@ -272,6 +272,12 @@ void v8__Isolate__SetHostImportModuleDynamicallyCallback(
   isolate->SetHostImportModuleDynamicallyCallback(callback);
 }
 
+void v8__Isolate__SetHostImportModuleWithPhaseDynamicallyCallback(
+    v8::Isolate* isolate,
+    v8::HostImportModuleWithPhaseDynamicallyCallback callback) {
+  isolate->SetHostImportModuleWithPhaseDynamicallyCallback(callback);
+}
+
 void v8__Isolate__SetHostCreateShadowRealmContextCallback(
     v8::Isolate* isolate, v8::HostCreateShadowRealmContextCallback callback) {
   isolate->SetHostCreateShadowRealmContextCallback(callback);

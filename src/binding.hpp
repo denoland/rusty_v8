@@ -39,6 +39,7 @@ using v8__CFunctionInfo = v8::CFunctionInfo;
 using v8__FastOneByteString = v8::FastOneByteString;
 using v8__Isolate__UseCounterFeature = v8::Isolate::UseCounterFeature;
 using v8__String__WriteFlags = v8::String::WriteFlags;
+using v8__ModuleImportPhase = v8::ModuleImportPhase;
 
 static uint32_t v8__MAJOR_VERSION = V8_MAJOR_VERSION;
 static uint32_t v8__MINOR_VERSION = V8_MINOR_VERSION;

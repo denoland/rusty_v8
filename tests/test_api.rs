@@ -7801,6 +7801,62 @@ fn static_source_phase_import() {
   assert_eq!(obj, ns.get(scope, default.into()).unwrap());
 }
 
+#[test]
+fn dynamic_source_phase_import() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let scope = &mut v8::HandleScope::new(isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let obj = eval(scope, "new WebAssembly.Module(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]))").unwrap().cast::<v8::Object>();
+
+  context.set_slot(v8::Global::new(scope, obj));
+
+  fn dynamic_import_cb<'s>(
+    _scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    _specifier: v8::Local<'s, v8::String>,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
+    unreachable!()
+  }
+
+  fn dynamic_import_phase_cb<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    _specifier: v8::Local<'s, v8::String>,
+    phase: v8::ModuleImportPhase,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
+  ) -> Option<v8::Local<'s, v8::Promise>> {
+    assert_eq!(phase, v8::ModuleImportPhase::kSource);
+
+    let resolver = v8::PromiseResolver::new(scope).unwrap();
+
+    let context = scope.get_current_context();
+    let global = context.get_slot::<v8::Global<v8::Object>>().unwrap();
+    let obj = v8::Local::new(scope, global);
+    resolver.resolve(scope, obj.into());
+
+    Some(resolver.get_promise(scope))
+  }
+
+  scope.set_host_import_module_dynamically_callback(dynamic_import_cb);
+  scope.set_host_import_module_with_phase_dynamically_callback(
+    dynamic_import_phase_cb,
+  );
+
+  let promise = eval(scope, "import.source('a')")
+    .unwrap()
+    .cast::<v8::Promise>();
+  eprintln!("{}", promise.result(scope).to_rust_string_lossy(scope));
+  assert_eq!(obj, promise.result(scope));
+}
+
 #[allow(clippy::float_cmp)]
 #[test]
 fn date() {

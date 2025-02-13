@@ -154,6 +154,7 @@ fn build_binding() {
     .clang_args(args)
     .generate_cstr(true)
     .rustified_enum(".*UseCounterFeature")
+    .rustified_enum(".*ModuleImportPhase")
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")
     .allowlist_item("RustObj")
