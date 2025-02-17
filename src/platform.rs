@@ -14,10 +14,6 @@ extern "C" {
     thread_pool_size: int,
     idle_task_support: bool,
   ) -> *mut Platform;
-  fn v8__Platform__NewUnprotectedDefaultPlatform(
-    thread_pool_size: int,
-    idle_task_support: bool,
-  ) -> *mut Platform;
   fn v8__Platform__NewSingleThreadedDefaultPlatform(
     idle_task_support: bool,
   ) -> *mut Platform;
@@ -80,18 +76,6 @@ pub fn new_default_platform(
   Platform::new(thread_pool_size, idle_task_support)
 }
 
-/// Creates a platform that is identical to the default platform, but does not
-/// enforce thread-isolated allocations. This may reduce security in some cases,
-/// so this method should be used with caution in cases where the threading
-/// guarantees of `new_default_platform` cannot be upheld (generally for tests).
-#[inline(always)]
-pub fn new_unprotected_default_platform(
-  thread_pool_size: u32,
-  idle_task_support: bool,
-) -> UniqueRef<Platform> {
-  Platform::new_unprotected(thread_pool_size, idle_task_support)
-}
-
 /// The same as new_default_platform() but disables the worker thread pool.
 /// It must be used with the --single-threaded V8 flag.
 ///
@@ -131,24 +115,6 @@ impl Platform {
   ) -> UniqueRef<Self> {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewDefaultPlatform(
-        thread_pool_size.min(16) as i32,
-        idle_task_support,
-      ))
-    }
-  }
-
-  /// Creates a platform that is identical to the default platform, but does not
-  /// enforce thread-isolated allocations. This may reduce security in some
-  /// cases, so this method should be used with caution in cases where the
-  /// threading guarantees of `new_default_platform` cannot be upheld (generally
-  /// for tests).
-  #[inline(always)]
-  pub fn new_unprotected(
-    thread_pool_size: u32,
-    idle_task_support: bool,
-  ) -> UniqueRef<Self> {
-    unsafe {
-      UniqueRef::from_raw(v8__Platform__NewUnprotectedDefaultPlatform(
         thread_pool_size.min(16) as i32,
         idle_task_support,
       ))
