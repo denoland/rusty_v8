@@ -190,14 +190,6 @@ increasing amount of V8's API in Rust.
 
 Use `export GN_ARGS="no_inline_line_tables=false"` during build.
 
-**My program crashes when initializing on non-main thread**
-
-Initializing V8 on a non-main thread with the CPUs PKU feature enabled might
-lead to crashes. You can work around this problem by using
-`v8::new_unprotected_default_platform`.
-
-See https://github.com/denoland/rusty_v8/issues/1381
-
 ## Download cache
 
 The v8 archives used for linking in prebuilt mode can be cached to avoid

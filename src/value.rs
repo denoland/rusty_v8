@@ -1,6 +1,3 @@
-use std::num::NonZeroI32;
-
-use crate::support::int;
 use crate::support::Maybe;
 use crate::BigInt;
 use crate::Boolean;
@@ -10,6 +7,7 @@ use crate::Int32;
 use crate::Integer;
 use crate::Isolate;
 use crate::Local;
+use crate::Name;
 use crate::Number;
 use crate::Object;
 use crate::String;
@@ -142,11 +140,11 @@ extern "C" {
   );
   fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
     -> bool;
-  fn v8__Value__GetHash(this: *const Value) -> int;
   fn v8__Value__TypeOf(
     this: *const Value,
     isolate: *mut Isolate,
   ) -> *const String;
+  fn v8__Value__GetHash(this: *const Value) -> u32;
 }
 
 impl Value {
@@ -704,14 +702,9 @@ impl Value {
     unsafe { v8__Value__BooleanValue(self, scope.get_isolate_ptr()) }
   }
 
-  /// Returns the V8 hash value for this value. The current implementation
-  /// uses a hidden property to store the identity hash on some object types.
-  ///
-  /// The return value will never be 0. Also, it is not guaranteed to be
-  /// unique.
   #[inline(always)]
-  pub fn get_hash(&self) -> NonZeroI32 {
-    unsafe { NonZeroI32::new_unchecked(v8__Value__GetHash(self)) }
+  pub fn get_hash(&self) -> u32 {
+    unsafe { v8__Value__GetHash(self) }
   }
 
   #[inline(always)]
