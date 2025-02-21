@@ -2,8 +2,6 @@
 
 use std::convert::TryInto;
 
-use crate::isolate::Isolate;
-use crate::support::int;
 use crate::Context;
 use crate::HandleScope;
 use crate::Local;
@@ -12,8 +10,10 @@ use crate::StackFrame;
 use crate::StackTrace;
 use crate::String;
 use crate::Value;
+use crate::isolate::Isolate;
+use crate::support::int;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Message__Get(this: *const Message) -> *const String;
   fn v8__Message__GetSourceLine(
     this: *const Message,
@@ -72,7 +72,7 @@ extern "C" {
     exception: *const Value,
   ) -> *const Message;
   fn v8__Exception__GetStackTrace(exception: *const Value)
-    -> *const StackTrace;
+  -> *const StackTrace;
 }
 
 impl StackTrace {
@@ -265,11 +265,7 @@ impl Message {
     let i = unsafe {
       v8__Message__GetLineNumber(self, &*scope.get_current_context())
     };
-    if i < 0 {
-      None
-    } else {
-      Some(i as usize)
-    }
+    if i < 0 { None } else { Some(i as usize) }
   }
 
   /// Returns the index within the script of the first character where

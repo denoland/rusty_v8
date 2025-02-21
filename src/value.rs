@@ -1,7 +1,5 @@
 use std::num::NonZeroI32;
 
-use crate::support::int;
-use crate::support::Maybe;
 use crate::BigInt;
 use crate::Boolean;
 use crate::Context;
@@ -15,8 +13,10 @@ use crate::Object;
 use crate::String;
 use crate::Uint32;
 use crate::Value;
+use crate::support::Maybe;
+use crate::support::int;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Value__IsUndefined(this: *const Value) -> bool;
   fn v8__Value__IsNull(this: *const Value) -> bool;
   fn v8__Value__IsNullOrUndefined(this: *const Value) -> bool;
@@ -141,7 +141,7 @@ extern "C" {
     out: *mut Maybe<i32>,
   );
   fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
-    -> bool;
+  -> bool;
   fn v8__Value__GetHash(this: *const Value) -> int;
   fn v8__Value__TypeOf(
     this: *const Value,

@@ -1,19 +1,19 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license
 
+use crate::Data;
+use crate::TracedReference;
 use crate::binding::RustObj;
 use crate::platform::Platform;
-use crate::support::int;
 use crate::support::Opaque;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
-use crate::Data;
-use crate::TracedReference;
-use std::ffi::c_char;
+use crate::support::int;
 use std::ffi::CStr;
+use std::ffi::c_char;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-extern "C" {
+unsafe extern "C" {
   fn cppgc__initialize_process(platform: *mut Platform);
   fn cppgc__shutdown_process();
 
@@ -86,41 +86,49 @@ extern "C" {
 }
 
 unsafe fn get_rust_obj<'s>(obj: *const RustObj) -> &'s dyn GarbageCollected {
-  &*std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>((*obj).data)
+  unsafe {
+    &*std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>((*obj).data)
+  }
 }
 
 unsafe fn get_rust_obj_mut<'s>(
   obj: *mut RustObj,
 ) -> &'s mut dyn GarbageCollected {
-  &mut *std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>(
-    (*obj).data,
-  )
+  unsafe {
+    &mut *std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>(
+      (*obj).data,
+    )
+  }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn rusty_v8_RustObj_trace(
   obj: *const RustObj,
   visitor: *mut Visitor,
 ) {
-  let r = get_rust_obj(obj);
-  r.trace(&*visitor);
+  unsafe {
+    let r = get_rust_obj(obj);
+    r.trace(&*visitor);
+  }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn rusty_v8_RustObj_get_name(
   obj: *const RustObj,
 ) -> *const c_char {
-  let r = get_rust_obj(obj);
+  let r = unsafe { get_rust_obj(obj) };
   match r.get_name() {
     Some(s) => s.as_ptr(),
     None => std::ptr::null(),
   }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn rusty_v8_RustObj_drop(obj: *mut RustObj) {
-  let r = get_rust_obj_mut(obj);
-  std::ptr::drop_in_place(r);
+  unsafe {
+    let r = get_rust_obj_mut(obj);
+    std::ptr::drop_in_place(r);
+  }
 }
 
 fn object_offset_for_rust_obj<T: GarbageCollected>() -> usize {
@@ -164,7 +172,9 @@ pub fn initalize_process(platform: SharedRef<Platform>) {
 /// metadata may not be returned and reused upon a subsequent
 /// `initialize_process()` call.
 pub unsafe fn shutdown_process() {
-  cppgc__shutdown_process();
+  unsafe {
+    cppgc__shutdown_process();
+  }
 }
 
 /// Visitor passed to trace methods. All managed pointers must have called the
@@ -380,7 +390,7 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
   }
 
   Ptr {
-    pointer: NonNull::new_unchecked(pointer),
+    pointer: unsafe { NonNull::new_unchecked(pointer) },
     _phantom: PhantomData,
   }
 }

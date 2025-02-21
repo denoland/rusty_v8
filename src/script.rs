@@ -19,7 +19,7 @@ pub struct ScriptOrigin<'s>(
   PhantomData<&'s ()>,
 );
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Script__Compile(
     context: *const Context,
     source: *const String,

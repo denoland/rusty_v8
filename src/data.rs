@@ -12,10 +12,10 @@ use std::hash::Hasher;
 use std::mem::transmute;
 use std::ops::Deref;
 
-use crate::support::Opaque;
 use crate::Local;
+use crate::support::Opaque;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
   fn v8__Data__IsBigInt(this: *const Data) -> bool;
   fn v8__Data__IsBoolean(this: *const Data) -> bool;

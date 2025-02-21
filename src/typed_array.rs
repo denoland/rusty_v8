@@ -1,13 +1,13 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::binding::v8__TypedArray__kMaxByteLength;
-use crate::support::size_t;
 use crate::ArrayBuffer;
 use crate::HandleScope;
 use crate::Local;
 use crate::TypedArray;
+use crate::binding::v8__TypedArray__kMaxByteLength;
+use crate::support::size_t;
 use paste::paste;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__TypedArray__Length(this: *const TypedArray) -> size_t;
 }
 
@@ -29,7 +29,7 @@ macro_rules! typed_array {
     paste! {
       use crate::$name;
 
-      extern "C" {
+      unsafe extern "C" {
         fn [< v8__ $name __New >](
           buf_ptr: *const ArrayBuffer,
           byte_offset: usize,

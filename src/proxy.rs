@@ -5,7 +5,7 @@ use crate::Object;
 use crate::Proxy;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Proxy__New(
     context: *const Context,
     target: *const Object,

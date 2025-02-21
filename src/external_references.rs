@@ -1,7 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
-use crate::fast_api::CFunctionInfo;
-use crate::support::intptr_t;
 use crate::FunctionCallback;
 use crate::IndexedDefinerCallback;
 use crate::IndexedDeleterCallback;
@@ -15,6 +13,8 @@ use crate::NamedGetterCallback;
 use crate::NamedQueryCallback;
 use crate::NamedSetterCallback;
 use crate::PropertyEnumeratorCallback;
+use crate::fast_api::CFunctionInfo;
+use crate::support::intptr_t;
 use std::ffi::c_void;
 use std::fmt::Debug;
 
@@ -37,7 +37,7 @@ pub union ExternalReference<'s> {
   pub type_info: *const CFunctionInfo,
 }
 
-impl<'s> Debug for ExternalReference<'s> {
+impl Debug for ExternalReference<'_> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     // SAFETY: All union fields are the same size
     unsafe { (self.pointer).fmt(f) }

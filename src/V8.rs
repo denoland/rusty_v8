@@ -6,12 +6,12 @@ use std::sync::Mutex;
 use std::vec::Vec;
 
 use crate::platform::Platform;
-use crate::support::char;
-use crate::support::int;
 use crate::support::SharedRef;
 use crate::support::UnitType;
+use crate::support::char;
+use crate::support::int;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__V8__SetFlagsFromCommandLine(
     argc: *mut int,
     argv: *mut *mut char,
@@ -42,7 +42,7 @@ impl<F> IntoEntropySource for F where
 {
 }
 
-type RawEntropySource = extern "C" fn(*mut u8, usize) -> bool;
+type RawEntropySource = unsafe extern "C" fn(*mut u8, usize) -> bool;
 
 impl<F> From<F> for EntropySource
 where
@@ -50,7 +50,7 @@ where
 {
   fn from(_: F) -> Self {
     #[inline(always)]
-    extern "C" fn adapter<F: IntoEntropySource>(
+    unsafe extern "C" fn adapter<F: IntoEntropySource>(
       buffer: *mut u8,
       length: usize,
     ) -> bool {
@@ -229,7 +229,7 @@ pub unsafe fn dispose() -> bool {
     Initialized(ref platform) => Disposed(platform.clone()),
     _ => panic!("Invalid global state"),
   };
-  assert!(v8__V8__Dispose());
+  assert!(unsafe { v8__V8__Dispose() });
   true
 }
 

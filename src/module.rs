@@ -2,12 +2,6 @@ use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
 use std::ptr::null;
 
-use crate::support::int;
-use crate::support::MapFnFrom;
-use crate::support::MapFnTo;
-use crate::support::MaybeBool;
-use crate::support::ToCFn;
-use crate::support::UnitType;
 use crate::Context;
 use crate::FixedArray;
 use crate::HandleScope;
@@ -20,6 +14,12 @@ use crate::Object;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
+use crate::support::MaybeBool;
+use crate::support::ToCFn;
+use crate::support::UnitType;
+use crate::support::int;
 
 /// Called during Module::instantiate_module. Provided with arguments:
 /// (context, specifier, import_attributes, referrer). Return None on error.
@@ -39,29 +39,30 @@ use crate::Value;
 ///      Some(resolved_module)
 ///   }
 /// ```
-
-// System V ABI
 #[cfg(not(target_os = "windows"))]
 #[repr(C)]
+// System V ABI
 pub struct ResolveModuleCallbackRet(*const Module);
 
 #[cfg(not(target_os = "windows"))]
-pub type ResolveModuleCallback<'a> = extern "C" fn(
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, FixedArray>,
-  Local<'a, Module>,
-) -> ResolveModuleCallbackRet;
+pub type ResolveModuleCallback<'a> =
+  unsafe extern "C" fn(
+    Local<'a, Context>,
+    Local<'a, String>,
+    Local<'a, FixedArray>,
+    Local<'a, Module>,
+  ) -> ResolveModuleCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveModuleCallback<'a> = extern "C" fn(
+pub type ResolveModuleCallback<'a> = unsafe extern "C" fn(
   *mut *const Module,
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, FixedArray>,
   Local<'a, Module>,
-) -> *mut *const Module;
+)
+  -> *mut *const Module;
 
 impl<'a, F> MapFnFrom<F> for ResolveModuleCallback<'a>
 where
@@ -105,7 +106,7 @@ pub struct SyntheticModuleEvaluationStepsRet(*const Value);
 
 #[cfg(not(target_os = "windows"))]
 pub type SyntheticModuleEvaluationSteps<'a> =
-  extern "C" fn(
+  unsafe extern "C" fn(
     Local<'a, Context>,
     Local<'a, Module>,
   ) -> SyntheticModuleEvaluationStepsRet;
@@ -113,7 +114,7 @@ pub type SyntheticModuleEvaluationSteps<'a> =
 // Windows x64 ABI: Local<Value> returned on the stack.
 #[cfg(target_os = "windows")]
 pub type SyntheticModuleEvaluationSteps<'a> =
-  extern "C" fn(
+  unsafe extern "C" fn(
     *mut *const Value,
     Local<'a, Context>,
     Local<'a, Module>,
@@ -153,22 +154,24 @@ where
 pub struct ResolveSourceCallbackRet(*const Object);
 
 #[cfg(not(target_os = "windows"))]
-pub type ResolveSourceCallback<'a> = extern "C" fn(
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, FixedArray>,
-  Local<'a, Module>,
-) -> ResolveSourceCallbackRet;
+pub type ResolveSourceCallback<'a> =
+  unsafe extern "C" fn(
+    Local<'a, Context>,
+    Local<'a, String>,
+    Local<'a, FixedArray>,
+    Local<'a, Module>,
+  ) -> ResolveSourceCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveSourceCallback<'a> = extern "C" fn(
+pub type ResolveSourceCallback<'a> = unsafe extern "C" fn(
   *mut *const Object,
   Local<'a, Context>,
   Local<'a, String>,
   Local<'a, FixedArray>,
   Local<'a, Module>,
-) -> *mut *const Object;
+)
+  -> *mut *const Object;
 
 impl<'a, F> MapFnFrom<F> for ResolveSourceCallback<'a>
 where
@@ -205,7 +208,7 @@ where
   }
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Module__GetStatus(this: *const Module) -> ModuleStatus;
   fn v8__Module__GetException(this: *const Module) -> *const Value;
   fn v8__Module__GetModuleRequests(this: *const Module) -> *const FixedArray;

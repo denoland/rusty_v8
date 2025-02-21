@@ -9,7 +9,7 @@ use crate::Local;
 use crate::Number;
 use crate::Uint32;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *const Number;
   fn v8__Number__Value(this: *const Number) -> f64;
   fn v8__Integer__New(isolate: *mut Isolate, value: i32) -> *const Integer;
