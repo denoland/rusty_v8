@@ -1,10 +1,10 @@
-use std::mem::size_of;
 use std::mem::MaybeUninit;
+use std::mem::size_of;
 
 use crate::Local;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__PropertyDescriptor__CONSTRUCT(out: *mut PropertyDescriptor);
   fn v8__PropertyDescriptor__CONSTRUCT__Value(
     this: *const PropertyDescriptor,
@@ -47,7 +47,7 @@ extern "C" {
     this: *const PropertyDescriptor,
   ) -> bool;
   fn v8__PropertyDescriptor__has_value(this: *const PropertyDescriptor)
-    -> bool;
+  -> bool;
   fn v8__PropertyDescriptor__has_get(this: *const PropertyDescriptor) -> bool;
   fn v8__PropertyDescriptor__has_set(this: *const PropertyDescriptor) -> bool;
   fn v8__PropertyDescriptor__set_enumerable(

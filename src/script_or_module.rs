@@ -4,7 +4,7 @@ use crate::Local;
 use crate::ScriptOrModule;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ScriptOrModule__GetResourceName(
     this: *const ScriptOrModule,
   ) -> *const Value;

@@ -1,12 +1,12 @@
-use crate::binding::v8__String__kMaxLength;
-use crate::support::char;
-use crate::support::int;
-use crate::support::size_t;
-use crate::support::Opaque;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::String;
+use crate::binding::v8__String__kMaxLength;
+use crate::support::Opaque;
+use crate::support::char;
+use crate::support::int;
+use crate::support::size_t;
 use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
@@ -16,7 +16,7 @@ use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::slice;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
 
   fn v8__String__NewFromUtf8(
@@ -120,7 +120,7 @@ extern "C" {
     isolate: *mut Isolate,
     buffer: *mut char,
     length: size_t,
-    free: extern "C" fn(*mut char, size_t),
+    free: unsafe extern "C" fn(*mut char, size_t),
   ) -> *const String;
 
   fn v8__String__NewExternalTwoByteStatic(
@@ -260,36 +260,43 @@ impl std::ops::Deref for OneByteConst {
 // can use the same OneByteConst statics simultaneously.
 unsafe impl Sync for OneByteConst {}
 
-extern "C" fn one_byte_const_no_op(_this: *const OneByteConst) {}
-extern "C" fn one_byte_const_is_cacheable(_this: *const OneByteConst) -> bool {
+unsafe extern "C" fn one_byte_const_no_op(_this: *const OneByteConst) {}
+unsafe extern "C" fn one_byte_const_is_cacheable(
+  _this: *const OneByteConst,
+) -> bool {
   true
 }
-extern "C" fn one_byte_const_data(this: *const OneByteConst) -> *const char {
+unsafe extern "C" fn one_byte_const_data(
+  this: *const OneByteConst,
+) -> *const char {
   // SAFETY: Only called from C++ with a valid OneByteConst pointer.
   unsafe { (*this).cached_data }
 }
-extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
+unsafe extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
   // SAFETY: Only called from C++ with a valid OneByteConst pointer.
   unsafe { (*this).length }
 }
-extern "C" fn one_byte_const_unaccount(
+unsafe extern "C" fn one_byte_const_unaccount(
   _this: *const OneByteConst,
   _isolate: *mut Isolate,
 ) {
 }
-extern "C" fn one_byte_const_estimate_memory_usage(
+unsafe extern "C" fn one_byte_const_estimate_memory_usage(
   _this: *const OneByteConst,
 ) -> int {
   -1
 }
 
-type OneByteConstNoOp = extern "C" fn(*const OneByteConst);
-type OneByteConstIsCacheable = extern "C" fn(*const OneByteConst) -> bool;
-type OneByteConstData = extern "C" fn(*const OneByteConst) -> *const char;
-type OneByteConstLength = extern "C" fn(*const OneByteConst) -> usize;
-type OneByteConstUnaccount = extern "C" fn(*const OneByteConst, *mut Isolate);
+type OneByteConstNoOp = unsafe extern "C" fn(*const OneByteConst);
+type OneByteConstIsCacheable =
+  unsafe extern "C" fn(*const OneByteConst) -> bool;
+type OneByteConstData =
+  unsafe extern "C" fn(*const OneByteConst) -> *const char;
+type OneByteConstLength = unsafe extern "C" fn(*const OneByteConst) -> usize;
+type OneByteConstUnaccount =
+  unsafe extern "C" fn(*const OneByteConst, *mut Isolate);
 type OneByteConstEstimateMemoryUsage =
-  extern "C" fn(*const OneByteConst) -> int;
+  unsafe extern "C" fn(*const OneByteConst) -> int;
 
 #[repr(C)]
 struct OneByteConstVtable {
@@ -808,7 +815,7 @@ impl String {
     scope: &mut HandleScope<'s, ()>,
     buffer: *mut char,
     buffer_len: usize,
-    destructor: extern "C" fn(*mut char, usize),
+    destructor: unsafe extern "C" fn(*mut char, usize),
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -1091,7 +1098,7 @@ impl String {
   }
 }
 
-pub extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
+pub unsafe extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
   unsafe {
     let slice = std::slice::from_raw_parts_mut(s, len);
 
@@ -1144,7 +1151,7 @@ impl<'s> ValueView<'s> {
   }
 }
 
-impl<'s> Drop for ValueView<'s> {
+impl Drop for ValueView<'_> {
   fn drop(&mut self) {
     unsafe { v8__String__ValueView__DESTRUCT(self) }
   }

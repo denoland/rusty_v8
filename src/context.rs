@@ -1,9 +1,4 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::handle::UnsafeRefHandle;
-use crate::isolate::BuildTypeIdHasher;
-use crate::isolate::Isolate;
-use crate::isolate::RawSlot;
-use crate::support::int;
 use crate::Context;
 use crate::HandleScope;
 use crate::Local;
@@ -12,12 +7,17 @@ use crate::Object;
 use crate::ObjectTemplate;
 use crate::Value;
 use crate::Weak;
+use crate::handle::UnsafeRefHandle;
+use crate::isolate::BuildTypeIdHasher;
+use crate::isolate::Isolate;
+use crate::isolate::RawSlot;
+use crate::support::int;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Context__New(
     isolate: *mut Isolate,
     templ: *const ObjectTemplate,
@@ -27,7 +27,7 @@ extern "C" {
   fn v8__Context__GetIsolate(this: *const Context) -> *mut Isolate;
   fn v8__Context__Global(this: *const Context) -> *const Object;
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
-    -> *const Object;
+  -> *const Object;
   fn v8__Context__GetNumberOfEmbedderDataFields(this: *const Context) -> u32;
   fn v8__Context__GetAlignedPointerFromEmbedderData(
     this: *const Context,
@@ -321,11 +321,13 @@ impl Context {
     // Initialize the annex when slot count > INTERNAL_SLOT_COUNT.
     self.get_annex_mut(true);
 
-    v8__Context__SetAlignedPointerInEmbedderData(
-      self,
-      slot + Self::INTERNAL_SLOT_COUNT,
-      data,
-    );
+    unsafe {
+      v8__Context__SetAlignedPointerInEmbedderData(
+        self,
+        slot + Self::INTERNAL_SLOT_COUNT,
+        data,
+      );
+    }
   }
 
   #[inline(always)]

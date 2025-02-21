@@ -1,17 +1,17 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use std::{marker::PhantomData, mem::MaybeUninit};
 
-use crate::support::int;
 use crate::Function;
 use crate::Local;
 use crate::Module;
 use crate::Object;
 use crate::ScriptOrigin;
 use crate::String;
+use crate::support::int;
 use crate::{Context, Isolate, Script, UnboundScript};
 use crate::{HandleScope, UniqueRef};
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ScriptCompiler__Source__CONSTRUCT(
     buf: *mut MaybeUninit<Source>,
     source_string: *const String,
@@ -91,7 +91,7 @@ pub struct CachedData<'a> {
   _phantom: PhantomData<&'a ()>,
 }
 
-impl<'a> Drop for CachedData<'a> {
+impl Drop for CachedData<'_> {
   fn drop(&mut self) {
     unsafe {
       v8__ScriptCompiler__CachedData__DELETE(self);
@@ -125,7 +125,7 @@ impl<'a> CachedData<'a> {
   }
 }
 
-impl<'a> std::ops::Deref for CachedData<'a> {
+impl std::ops::Deref for CachedData<'_> {
   type Target = [u8];
   fn deref(&self) -> &Self::Target {
     unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }

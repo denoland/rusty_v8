@@ -1,12 +1,3 @@
-use crate::data::Data;
-use crate::data::FunctionTemplate;
-use crate::data::Name;
-use crate::data::ObjectTemplate;
-use crate::data::Template;
-use crate::fast_api::CFunction;
-use crate::isolate::Isolate;
-use crate::support::int;
-use crate::support::MapFnTo;
 use crate::ConstructorBehavior;
 use crate::Context;
 use crate::Function;
@@ -34,10 +25,19 @@ use crate::SideEffectType;
 use crate::Signature;
 use crate::String;
 use crate::Value;
+use crate::data::Data;
+use crate::data::FunctionTemplate;
+use crate::data::Name;
+use crate::data::ObjectTemplate;
+use crate::data::Template;
+use crate::fast_api::CFunction;
+use crate::isolate::Isolate;
+use crate::support::MapFnTo;
+use crate::support::int;
 use std::convert::TryFrom;
 use std::ptr::null;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Template__Set(
     this: *const Template,
     key: *const Name,
@@ -96,7 +96,7 @@ extern "C" {
     context: *const Context,
   ) -> *const Object;
   fn v8__ObjectTemplate__InternalFieldCount(this: *const ObjectTemplate)
-    -> int;
+  -> int;
   fn v8__ObjectTemplate__SetInternalFieldCount(
     this: *const ObjectTemplate,
     value: int,

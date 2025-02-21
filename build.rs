@@ -1,11 +1,11 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use fslock::LockFile;
-use miniz_oxide::inflate::stream::inflate;
-use miniz_oxide::inflate::stream::InflateState;
 use miniz_oxide::MZFlush;
 use miniz_oxide::MZResult;
 use miniz_oxide::MZStatus;
 use miniz_oxide::StreamResult;
+use miniz_oxide::inflate::stream::InflateState;
+use miniz_oxide::inflate::stream::inflate;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
@@ -103,11 +103,15 @@ fn main() {
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
     if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
-      panic!("v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues.");
+      panic!(
+        "v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues."
+      );
     }
 
     // cargo publish doesn't like pyc files.
-    env::set_var("PYTHONDONTWRITEBYTECODE", "1");
+    unsafe {
+      env::set_var("PYTHONDONTWRITEBYTECODE", "1");
+    }
 
     build_v8(is_asan);
     build_binding();
@@ -174,7 +178,9 @@ fn build_binding() {
 }
 
 fn build_v8(is_asan: bool) {
-  env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+  unsafe {
+    env::set_var("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+  }
 
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
@@ -325,38 +331,44 @@ fn build_v8(is_asan: bool) {
 }
 
 fn print_gn_args(gn_out_dir: &Path) {
-  assert!(Command::new(gn())
-    .arg(format!("--script-executable={}", python()))
-    .arg("args")
-    .arg(gn_out_dir)
-    .arg("--list")
-    .status()
-    .unwrap()
-    .success());
+  assert!(
+    Command::new(gn())
+      .arg(format!("--script-executable={}", python()))
+      .arg("args")
+      .arg(gn_out_dir)
+      .arg("--list")
+      .status()
+      .unwrap()
+      .success()
+  );
 }
 
 fn maybe_clone_repo(dest: &str, repo: &str) {
   if !Path::new(&dest).exists() {
-    assert!(Command::new("git")
-      .arg("clone")
-      .arg("--depth=1")
-      .arg(repo)
-      .arg(dest)
-      .status()
-      .unwrap()
-      .success());
+    assert!(
+      Command::new("git")
+        .arg("clone")
+        .arg("--depth=1")
+        .arg(repo)
+        .arg(dest)
+        .status()
+        .unwrap()
+        .success()
+    );
   }
 }
 
 fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{arch}-sysroot");
   if !PathBuf::from(sysroot_path).is_dir() {
-    assert!(Command::new(python())
-      .arg("./build/linux/sysroot_scripts/install-sysroot.py")
-      .arg(format!("--arch={arch}"))
-      .status()
-      .unwrap()
-      .success());
+    assert!(
+      Command::new(python())
+        .arg("./build/linux/sysroot_scripts/install-sysroot.py")
+        .arg(format!("--arch={arch}"))
+        .status()
+        .unwrap()
+        .success()
+    );
   }
 }
 
@@ -371,19 +383,25 @@ fn download_ninja_gn_binaries() {
   let ninja = ninja.with_extension("exe");
 
   if !gn.exists() || !ninja.exists() {
-    assert!(Command::new(python())
-      .arg("./tools/ninja_gn_binaries.py")
-      .arg("--dir")
-      .arg(&target_dir)
-      .status()
-      .unwrap()
-      .success());
+    assert!(
+      Command::new(python())
+        .arg("./tools/ninja_gn_binaries.py")
+        .arg("--dir")
+        .arg(&target_dir)
+        .status()
+        .unwrap()
+        .success()
+    );
   }
   assert!(gn.exists());
   assert!(ninja.exists());
-  env::set_var("GN", gn);
+  unsafe {
+    env::set_var("GN", gn);
+  }
   if env::var("NINJA").is_err() {
-    env::set_var("NINJA", ninja);
+    unsafe {
+      env::set_var("NINJA", ninja);
+    }
   }
 }
 
@@ -639,7 +657,7 @@ fn print_link_flags() {
   println!("cargo:rustc-link-lib=static=rusty_v8");
   let should_dyn_link_libcxx = env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX")
     .is_err()
-    || env::var("GN_ARGS").map_or(false, |gn_args| {
+    || env::var("GN_ARGS").is_ok_and(|gn_args| {
       gn_args
         .split_whitespace()
         .any(|ba| ba == "use_custom_libcxx=false")
@@ -720,10 +738,10 @@ fn not_in_depot_tools(p: PathBuf) -> bool {
 }
 
 fn need_gn_ninja_download() -> bool {
-  let has_ninja = which("ninja").map_or(false, not_in_depot_tools)
+  let has_ninja = which("ninja").is_ok_and(not_in_depot_tools)
     || env::var_os("NINJA").is_some();
-  let has_gn = which("gn").map_or(false, not_in_depot_tools)
-    || env::var_os("GN").is_some();
+  let has_gn =
+    which("gn").is_ok_and(not_in_depot_tools) || env::var_os("GN").is_some();
 
   !has_ninja || !has_gn
 }
@@ -762,13 +780,15 @@ fn find_compatible_system_clang() -> Option<PathBuf> {
 fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path (downloaded) {}", clang_base_path.display());
-  assert!(Command::new(python())
-    .arg("./tools/clang/scripts/update.py")
-    .arg("--output-dir")
-    .arg(&clang_base_path)
-    .status()
-    .unwrap()
-    .success());
+  assert!(
+    Command::new(python())
+      .arg("./tools/clang/scripts/update.py")
+      .arg("--output-dir")
+      .arg(&clang_base_path)
+      .status()
+      .unwrap()
+      .success()
+  );
   assert!(clang_base_path.exists());
   clang_base_path
 }
@@ -935,19 +955,21 @@ fn maybe_gen(gn_args: &[String]) -> PathBuf {
       dirs.root.display(),
       gn_out_dir.display()
     );
-    assert!(Command::new(gn())
-      .arg(format!("--root={}", dirs.root.display()))
-      .arg(format!("--script-executable={}", python()))
-      .arg("gen")
-      .arg(&gn_out_dir)
-      .arg("--ide=json")
-      .arg("--args=".to_owned() + &args)
-      .stdout(Stdio::inherit())
-      .stderr(Stdio::inherit())
-      .envs(env::vars())
-      .status()
-      .expect("Could not run `gn`")
-      .success());
+    assert!(
+      Command::new(gn())
+        .arg(format!("--root={}", dirs.root.display()))
+        .arg(format!("--script-executable={}", python()))
+        .arg("gen")
+        .arg(&gn_out_dir)
+        .arg("--ide=json")
+        .arg("--args=".to_owned() + &args)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .envs(env::vars())
+        .status()
+        .expect("Could not run `gn`")
+        .success()
+    );
   }
   gn_out_dir
 }
@@ -960,11 +982,13 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
   // This helps Rust source files locate the snapshot, source map etc.
   println!("cargo:rustc-env=GN_OUT_DIR={}", gn_out_dir.display());
 
-  assert!(ninja(&gn_out_dir, maybe_env)
-    .arg(target)
-    .status()
-    .unwrap()
-    .success());
+  assert!(
+    ninja(&gn_out_dir, maybe_env)
+      .arg(target)
+      .status()
+      .unwrap()
+      .success()
+  );
 
   // TODO This is not sufficent. We need to use "gn desc" to query the target
   // and figure out what else we need to add to the link.

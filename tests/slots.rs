@@ -6,9 +6,9 @@
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::rc::Rc;
+use std::sync::Once;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::Once;
 
 fn setup() {
   static START: Once = Once::new();

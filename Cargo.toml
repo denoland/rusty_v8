@@ -5,7 +5,7 @@ description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
 license = "MIT"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/denoland/rusty_v8"
 exclude = [
   # To keep the package under the 10mb limit imposed by crates.io we exclude
@@ -110,7 +110,7 @@ gzip-header = "1.0.0"
 fslock = "0.2"
 which = "6"
 home = "0"
-bindgen = "0.70"
+bindgen = "0.71"
 
 [dev-dependencies]
 miniz_oxide = "0.7.3"
@@ -122,7 +122,7 @@ trybuild = "1.0.96"
 which = "6"
 home = "0"
 rustversion = "1"
-bindgen = "0.70"
+bindgen = "0.71"
 
 [[example]]
 name = "hello_world"

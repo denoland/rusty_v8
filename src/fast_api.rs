@@ -1,7 +1,7 @@
-use crate::binding::*;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
+use crate::binding::*;
 use std::ffi::c_void;
 
 #[derive(Clone, Copy)]

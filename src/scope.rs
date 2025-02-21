@@ -88,8 +88,8 @@
 //!   - `P` is `DisallowJavascriptExecutionScope`.
 //!   - Derefs to `HandleScope<'s, ()>`.
 
-use std::alloc::alloc;
 use std::alloc::Layout;
+use std::alloc::alloc;
 use std::any::type_name;
 use std::cell::Cell;
 use std::convert::TryInto;
@@ -102,9 +102,6 @@ use std::ops::DerefMut;
 use std::ptr;
 use std::ptr::NonNull;
 
-use crate::fast_api::FastApiCallbackOptions;
-use crate::function::FunctionCallbackInfo;
-use crate::function::PropertyCallbackInfo;
 use crate::Context;
 use crate::Data;
 use crate::DataError;
@@ -118,6 +115,9 @@ use crate::OwnedIsolate;
 use crate::Primitive;
 use crate::PromiseRejectMessage;
 use crate::Value;
+use crate::fast_api::FastApiCallbackOptions;
+use crate::function::FunctionCallbackInfo;
+use crate::function::PropertyCallbackInfo;
 
 /// Stack-allocated class which sets the execution context for all operations
 /// executed within a local scope. After entering a context, all code compiled
@@ -250,7 +250,7 @@ impl<'s> HandleScope<'s, ()> {
     &mut self,
     f: impl FnOnce(&mut data::ScopeData) -> *const T,
   ) -> Option<Local<'s, T>> {
-    Local::from_raw(f(data::ScopeData::get_mut(self)))
+    unsafe { Local::from_raw(f(data::ScopeData::get_mut(self))) }
   }
 
   #[inline(always)]
@@ -454,7 +454,7 @@ impl<'s, P: param::NewTryCatch<'s>> TryCatch<'s, P> {
   }
 }
 
-impl<'s, P> TryCatch<'s, P> {
+impl<P> TryCatch<'_, P> {
   /// Returns true if an exception has been caught by this try/catch block.
   #[inline(always)]
   pub fn has_caught(&self) -> bool {
@@ -640,7 +640,8 @@ impl<'s> CallbackScope<'s> {
   #[allow(clippy::new_ret_no_self)]
   pub unsafe fn new<P: param::NewCallbackScope<'s>>(param: P) -> P::NewScope {
     let context = param.get_context();
-    let scope_data = data::ScopeData::get_current_mut(param.get_isolate_mut());
+    let scope_data =
+      data::ScopeData::get_current_mut(unsafe { param.get_isolate_mut() });
     // A HandleScope is not implicitly created for
     // fast functions, so one must be opened here.
     let scope_data = if P::NEEDS_SCOPE {
@@ -1001,13 +1002,13 @@ mod param {
     fn get_isolate_mut(&mut self) -> &mut Isolate;
   }
 
-  impl<'s> NewHandleScopeWithContext<'s> for Isolate {
+  impl NewHandleScopeWithContext<'_> for Isolate {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       self
     }
   }
 
-  impl<'s> NewHandleScopeWithContext<'s> for OwnedIsolate {
+  impl NewHandleScopeWithContext<'_> for OwnedIsolate {
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       &mut *self
     }
@@ -1248,45 +1249,45 @@ mod getter {
 
   impl<'s> GetIsolate<'s> for &'s FunctionCallbackInfo {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *self.get_isolate_ptr()
+      unsafe { &mut *self.get_isolate_ptr() }
     }
   }
 
   impl<'s, T> GetIsolate<'s> for &'s PropertyCallbackInfo<T> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *self.get_isolate_ptr()
+      unsafe { &mut *self.get_isolate_ptr() }
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s FastApiCallbackOptions<'s> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *self.isolate
+      unsafe { &mut *self.isolate }
     }
   }
 
   impl<'s> GetIsolate<'s> for Local<'s, Context> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *raw::v8__Context__GetIsolate(&*self)
+      unsafe { &mut *raw::v8__Context__GetIsolate(&*self) }
     }
   }
 
   impl<'s> GetIsolate<'s> for Local<'s, Message> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      &mut *raw::v8__Message__GetIsolate(&*self)
+      unsafe { &mut *raw::v8__Message__GetIsolate(&*self) }
     }
   }
 
   impl<'s, T: Into<Local<'s, Object>>> GetIsolate<'s> for T {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       let object: Local<Object> = self.into();
-      &mut *raw::v8__Object__GetIsolate(&*object)
+      unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s PromiseRejectMessage<'s> {
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       let object: Local<Object> = self.get_promise().into();
-      &mut *raw::v8__Object__GetIsolate(&*object)
+      unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
     }
   }
 
@@ -2000,7 +2001,7 @@ mod raw {
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      Self(MaybeUninit::uninit().assume_init())
+      Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
@@ -2008,7 +2009,9 @@ mod raw {
     /// `HandleScope::uninit()`.
     pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
       let buf = NonNull::from(self).cast();
-      v8__HandleScope__CONSTRUCT(buf.as_ptr(), isolate.as_ptr());
+      unsafe {
+        v8__HandleScope__CONSTRUCT(buf.as_ptr(), isolate.as_ptr());
+      }
     }
   }
 
@@ -2059,7 +2062,7 @@ mod raw {
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      Self(MaybeUninit::uninit().assume_init())
+      Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
@@ -2067,7 +2070,9 @@ mod raw {
     /// `TryCatch::uninit()`.
     pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
       let buf = NonNull::from(self).cast();
-      v8__TryCatch__CONSTRUCT(buf.as_ptr(), isolate.as_ptr());
+      unsafe {
+        v8__TryCatch__CONSTRUCT(buf.as_ptr(), isolate.as_ptr());
+      }
     }
   }
 
@@ -2088,7 +2093,7 @@ mod raw {
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      Self(MaybeUninit::uninit().assume_init())
+      Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
@@ -2101,11 +2106,13 @@ mod raw {
       on_failure: OnFailure,
     ) {
       let buf = NonNull::from(self).cast();
-      v8__DisallowJavascriptExecutionScope__CONSTRUCT(
-        buf.as_ptr(),
-        isolate.as_ptr(),
-        on_failure,
-      );
+      unsafe {
+        v8__DisallowJavascriptExecutionScope__CONSTRUCT(
+          buf.as_ptr(),
+          isolate.as_ptr(),
+          on_failure,
+        );
+      }
     }
   }
 
@@ -2126,7 +2133,7 @@ mod raw {
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
     pub unsafe fn uninit() -> Self {
-      Self(MaybeUninit::uninit().assume_init())
+      Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
 
     /// This function is marked unsafe because `init()` must be called exactly
@@ -2134,11 +2141,13 @@ mod raw {
     /// `AllowJavascriptExecutionScope` value with
     /// `AllowJavascriptExecutionScope::uninit()`.
     pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
-      let buf = NonNull::from(self).cast();
-      v8__AllowJavascriptExecutionScope__CONSTRUCT(
-        buf.as_ptr(),
-        isolate.as_ptr(),
-      );
+      unsafe {
+        let buf = NonNull::from(self).cast();
+        v8__AllowJavascriptExecutionScope__CONSTRUCT(
+          buf.as_ptr(),
+          isolate.as_ptr(),
+        );
+      }
     }
   }
 
@@ -2149,7 +2158,7 @@ mod raw {
     }
   }
 
-  extern "C" {
+  unsafe extern "C" {
     pub(super) fn v8__Isolate__GetCurrentContext(
       isolate: *mut Isolate,
     ) -> *const Context;
@@ -2175,7 +2184,7 @@ mod raw {
     pub(super) fn v8__Context__Enter(this: *const Context);
     pub(super) fn v8__Context__Exit(this: *const Context);
     pub(super) fn v8__Context__GetIsolate(this: *const Context)
-      -> *mut Isolate;
+    -> *mut Isolate;
     pub(super) fn v8__Context__GetDataFromSnapshotOnce(
       this: *const Context,
       index: usize,
@@ -2252,7 +2261,7 @@ mod raw {
     );
 
     pub(super) fn v8__Message__GetIsolate(this: *const Message)
-      -> *mut Isolate;
+    -> *mut Isolate;
     pub(super) fn v8__Object__GetIsolate(this: *const Object) -> *mut Isolate;
   }
 }
@@ -2272,7 +2281,7 @@ mod tests {
   /// latter allows coercions and dereferencing to change the type, whereas
   /// `AssertTypeOf` requires the compared types to match exactly.
   struct AssertTypeOf<'a, T>(#[allow(dead_code)] &'a T);
-  impl<'a, T> AssertTypeOf<'a, T> {
+  impl<T> AssertTypeOf<'_, T> {
     pub fn is<A>(self)
     where
       (A, T): SameType,

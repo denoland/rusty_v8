@@ -1,20 +1,20 @@
-use crate::external_references::ExternalReferences;
-use crate::isolate_create_params::raw;
-use crate::support::char;
-use crate::support::int;
-use crate::support::Allocated;
 use crate::Context;
 use crate::Data;
 use crate::Isolate;
 use crate::Local;
 use crate::OwnedIsolate;
+use crate::external_references::ExternalReferences;
+use crate::isolate_create_params::raw;
+use crate::support::Allocated;
+use crate::support::char;
+use crate::support::int;
 
 use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
     buf: *mut MaybeUninit<SnapshotCreator>,
     params: *const raw::CreateParams,

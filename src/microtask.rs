@@ -1,14 +1,14 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
-use crate::support::int;
-use crate::support::Opaque;
 use crate::Function;
 use crate::Isolate;
 use crate::Local;
 use crate::MicrotasksPolicy;
 use crate::UniqueRef;
+use crate::support::Opaque;
+use crate::support::int;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__MicrotaskQueue__New(
     isolate: *mut Isolate,
     policy: MicrotasksPolicy,

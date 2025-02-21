@@ -1,25 +1,26 @@
 use crate::array_buffer;
 use crate::array_buffer::Allocator as ArrayBufferAllocator;
 use crate::cppgc::Heap;
-use crate::support::char;
-use crate::support::int;
-use crate::support::intptr_t;
 use crate::support::Allocated;
 use crate::support::Allocation;
 use crate::support::Opaque;
 use crate::support::SharedPtr;
 use crate::support::UniqueRef;
+use crate::support::char;
+use crate::support::int;
+use crate::support::intptr_t;
 
 use std::any::Any;
 use std::convert::TryFrom;
 use std::iter::once;
-use std::mem::size_of;
 use std::mem::MaybeUninit;
+use std::mem::size_of;
 use std::ptr::null;
 
 /// Should return a pointer to memory that persists for the lifetime of the
 /// isolate.
-pub type CounterLookupCallback = extern "C" fn(name: *const char) -> *mut i32;
+pub type CounterLookupCallback =
+  unsafe extern "C" fn(name: *const char) -> *mut i32;
 
 /// Initial configuration parameters for a new Isolate.
 #[must_use]
@@ -249,7 +250,7 @@ pub(crate) mod raw {
     pub cpp_heap: *const Heap,
   }
 
-  extern "C" {
+  unsafe extern "C" {
     fn v8__Isolate__CreateParams__CONSTRUCT(
       buf: *mut MaybeUninit<CreateParams>,
     );
@@ -293,7 +294,7 @@ pub(crate) mod raw {
     stack_limit_: *mut u32,
   }
 
-  extern "C" {
+  unsafe extern "C" {
     fn v8__ResourceConstraints__ConfigureDefaultsFromHeapSize(
       constraints: *mut ResourceConstraints,
       initial_heap_size_in_bytes: usize,
