@@ -1,15 +1,15 @@
-use crate::support::int;
 use crate::Isolate;
+use crate::support::int;
 
-use crate::support::long;
 use crate::support::Opaque;
 use crate::support::Shared;
 use crate::support::SharedPtrBase;
 use crate::support::SharedRef;
 use crate::support::UniquePtr;
 use crate::support::UniqueRef;
+use crate::support::long;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Platform__NewDefaultPlatform(
     thread_pool_size: int,
     idle_task_support: bool,

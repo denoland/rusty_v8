@@ -5,7 +5,7 @@ use crate::Date;
 use crate::HandleScope;
 use crate::Local;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Date__New(context: *const Context, value: f64) -> *const Date;
   fn v8__Date__ValueOf(this: *const Date) -> f64;
 }

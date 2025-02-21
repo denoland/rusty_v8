@@ -7,7 +7,7 @@ use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__External__New(
     isolate: *mut Isolate,
     value: *mut c_void,

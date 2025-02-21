@@ -13,10 +13,10 @@ use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
 
+use std::alloc::Layout;
 use std::alloc::alloc;
 use std::alloc::dealloc;
 use std::alloc::realloc;
-use std::alloc::Layout;
 use std::mem::MaybeUninit;
 use std::ptr::addr_of;
 use std::sync::atomic::AtomicUsize;
@@ -35,15 +35,15 @@ pub struct CxxValueSerializerDelegate {
   _cxx_vtable: CxxVTable,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   this: &CxxValueSerializerDelegate,
   message: Local<String>,
 ) {
-  let value_serializer_heap = ValueSerializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(
-    value_serializer_heap.isolate_ptr.as_mut().unwrap(),
-  );
+  let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let scope = unsafe {
+    &mut CallbackScope::new(value_serializer_heap.isolate_ptr.as_mut().unwrap())
+  };
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   value_serializer_heap
@@ -51,25 +51,25 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
     .throw_data_clone_error(scope, message);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
 ) -> bool {
-  let value_serializer_heap = ValueSerializerHeap::dispatch(this);
+  let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
   value_serializer_heap
     .value_serializer_impl
-    .has_custom_host_object(&mut *isolate)
+    .has_custom_host_object(unsafe { &mut *isolate })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   object: Local<Object>,
 ) -> MaybeBool {
-  let value_serializer_heap = ValueSerializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
@@ -80,14 +80,14 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   object: Local<Object>,
 ) -> MaybeBool {
-  let value_serializer_heap = ValueSerializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   let value_serializer_impl =
@@ -99,15 +99,15 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   ))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   shared_array_buffer: Local<SharedArrayBuffer>,
   clone_id: *mut u32,
 ) -> bool {
-  let value_serializer_heap = ValueSerializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   match value_serializer_heap
@@ -115,22 +115,24 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
     .get_shared_array_buffer_id(scope, shared_array_buffer)
   {
     Some(x) => {
-      *clone_id = x;
+      unsafe {
+        *clone_id = x;
+      }
       true
     }
     None => false,
   }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   this: &CxxValueSerializerDelegate,
   isolate: *mut Isolate,
   module: Local<WasmModuleObject>,
   transfer_id: *mut u32,
 ) -> bool {
-  let value_serializer_heap = ValueSerializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, value_serializer_heap.context.clone());
   let scope = &mut ContextScope::new(scope, context);
   match value_serializer_heap
@@ -138,54 +140,58 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
     .get_wasm_module_transfer_id(scope, module)
   {
     Some(x) => {
-      *transfer_id = x;
+      unsafe {
+        *transfer_id = x;
+      }
       true
     }
     None => false,
   }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__ReallocateBufferMemory(
   this: &CxxValueSerializerDelegate,
   old_buffer: *mut c_void,
   size: usize,
   actual_size: *mut usize,
 ) -> *mut c_void {
-  let base = ValueSerializerHeap::dispatch(this);
+  let base = unsafe { ValueSerializerHeap::dispatch(this) };
 
   let buffer_size = base
     .buffer_size
     .swap(size, std::sync::atomic::Ordering::Release);
   let new_buffer = if old_buffer.is_null() {
     let layout = Layout::from_size_align(size, 1).unwrap();
-    alloc(layout)
+    unsafe { alloc(layout) }
   } else {
     let old_layout = Layout::from_size_align(buffer_size, 1).unwrap();
-    realloc(old_buffer as *mut _, old_layout, size)
+    unsafe { realloc(old_buffer as *mut _, old_layout, size) }
   };
 
-  *actual_size = size;
+  unsafe {
+    *actual_size = size;
+  }
   new_buffer as *mut c_void
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__FreeBufferMemory(
   this: &mut CxxValueSerializerDelegate,
   buffer: *mut c_void,
 ) {
-  let base = ValueSerializerHeap::dispatch(this);
+  let base = unsafe { ValueSerializerHeap::dispatch(this) };
   if !buffer.is_null() {
     let layout = Layout::from_size_align(
       base.buffer_size.load(std::sync::atomic::Ordering::Relaxed),
       1,
     )
     .unwrap();
-    dealloc(buffer as *mut _, layout);
+    unsafe { dealloc(buffer as *mut _, layout) };
   };
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ValueSerializer__Delegate__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueSerializerDelegate>,
   );
@@ -197,7 +203,7 @@ pub struct CxxValueSerializer {
   _cxx_vtable: CxxVTable,
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ValueSerializer__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueSerializer>,
     isolate: *mut Isolate,
@@ -327,9 +333,9 @@ pub struct ValueSerializerHeap<'a> {
   isolate_ptr: *mut Isolate,
 }
 
-impl<'a> ValueSerializerHeap<'a> {
-  fn get_cxx_value_serializer_delegate_offset(
-  ) -> FieldOffset<CxxValueSerializerDelegate> {
+impl ValueSerializerHeap<'_> {
+  fn get_cxx_value_serializer_delegate_offset()
+  -> FieldOffset<CxxValueSerializerDelegate> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
     let delegate =
       unsafe { addr_of!((*buf.as_ptr()).cxx_value_serializer_delegate) };
@@ -340,12 +346,14 @@ impl<'a> ValueSerializerHeap<'a> {
   pub unsafe fn dispatch(
     value_serializer_delegate: &CxxValueSerializerDelegate,
   ) -> &Self {
-    Self::get_cxx_value_serializer_delegate_offset()
-      .to_embedder::<Self>(value_serializer_delegate)
+    unsafe {
+      Self::get_cxx_value_serializer_delegate_offset()
+        .to_embedder::<Self>(value_serializer_delegate)
+    }
   }
 }
 
-impl<'a> Drop for ValueSerializerHeap<'a> {
+impl Drop for ValueSerializerHeap<'_> {
   fn drop(&mut self) {
     unsafe { v8__ValueSerializer__DESTRUCT(&mut self.cxx_value_serializer) };
   }
@@ -451,13 +459,13 @@ impl ValueSerializerHelper for CxxValueSerializer {
   }
 }
 
-impl<'a> ValueSerializerHelper for ValueSerializerHeap<'a> {
+impl ValueSerializerHelper for ValueSerializerHeap<'_> {
   fn get_cxx_value_serializer(&self) -> &CxxValueSerializer {
     &self.cxx_value_serializer
   }
 }
 
-impl<'a> ValueSerializerHelper for ValueSerializer<'a> {
+impl ValueSerializerHelper for ValueSerializer<'_> {
   fn get_cxx_value_serializer(&self) -> &CxxValueSerializer {
     &self.value_serializer_heap.cxx_value_serializer
   }
@@ -526,7 +534,7 @@ impl<'a> ValueSerializer<'a> {
   }
 }
 
-impl<'a> ValueSerializer<'a> {
+impl ValueSerializer<'_> {
   pub fn release(&self) -> Vec<u8> {
     unsafe {
       let mut size: usize = 0;

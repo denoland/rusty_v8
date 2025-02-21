@@ -2,10 +2,10 @@
 
 use std::num::NonZeroI32;
 
-use crate::support::int;
 use crate::Name;
+use crate::support::int;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Name__GetIdentityHash(this: *const Name) -> int;
 }
 

@@ -1,11 +1,11 @@
-use std::any::type_name;
 use std::any::Any;
+use std::any::type_name;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
-use std::convert::identity;
 use std::convert::AsMut;
 use std::convert::AsRef;
 use std::convert::TryFrom;
+use std::convert::identity;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
 use std::mem::align_of;
@@ -16,9 +16,9 @@ use std::mem::take;
 use std::mem::transmute_copy;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::NonNull;
 use std::ptr::drop_in_place;
 use std::ptr::null_mut;
-use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::yield_now;
@@ -71,7 +71,7 @@ impl<T: ?Sized> UniquePtr<T> {
 impl<T> UniquePtr<T> {
   pub unsafe fn from_raw(ptr: *mut T) -> Self {
     assert_unique_ptr_layout_compatible::<Self, T>();
-    Self(UniqueRef::try_from_raw(ptr))
+    Self(unsafe { UniqueRef::try_from_raw(ptr) })
   }
 
   pub fn into_raw(self) -> *mut T {
@@ -114,7 +114,7 @@ impl<T> UniqueRef<T> {
 
   pub(crate) unsafe fn from_raw(ptr: *mut T) -> Self {
     assert_unique_ptr_layout_compatible::<Self, T>();
-    Self::try_from_raw(ptr).unwrap()
+    unsafe { Self::try_from_raw(ptr).unwrap() }
   }
 
   pub fn into_raw(self) -> *mut T {
@@ -397,7 +397,7 @@ impl<T: ?Sized + 'static> Allocation<T> {
     wrap: fn(Concrete) -> Self,
   ) -> Self {
     assert_eq!(size_of::<Abstract>(), size_of::<Concrete>());
-    let wrapped = wrap(transmute_copy(&value));
+    let wrapped = wrap(unsafe { transmute_copy(&value) });
     forget(value);
     wrapped
   }
@@ -526,16 +526,20 @@ impl<F> FieldOffset<F> {
 
   #[allow(clippy::wrong_self_convention)]
   pub unsafe fn to_embedder<E>(self, field: &F) -> &E {
-    (((field as *const _ as usize) - self.0) as *const E)
-      .as_ref()
-      .unwrap()
+    unsafe {
+      (((field as *const _ as usize) - self.0) as *const E)
+        .as_ref()
+        .unwrap()
+    }
   }
 
   #[allow(clippy::wrong_self_convention)]
   pub unsafe fn to_embedder_mut<E>(self, field: &mut F) -> &mut E {
-    (((field as *mut _ as usize) - self.0) as *mut E)
-      .as_mut()
-      .unwrap()
+    unsafe {
+      (((field as *mut _ as usize) - self.0) as *mut E)
+        .as_mut()
+        .unwrap()
+    }
   }
 }
 
@@ -670,13 +674,13 @@ where
 
 macro_rules! impl_c_fn_from {
   ($($arg:ident: $ty:ident),*) => {
-    impl<F, R, $($ty),*> CFnFrom<F> for extern "C" fn($($ty),*) -> R
+    impl<F, R, $($ty),*> CFnFrom<F> for unsafe extern "C" fn($($ty),*) -> R
     where
       F: UnitType + Fn($($ty),*) -> R,
     {
       #[inline(always)]
       fn mapping() -> Self {
-        extern "C" fn c_fn<F, R, $($ty),*>($($arg: $ty),*) -> R
+        unsafe extern "C" fn c_fn<F, R, $($ty),*>($($arg: $ty),*) -> R
         where
           F: UnitType + Fn($($ty),*) -> R,
         {

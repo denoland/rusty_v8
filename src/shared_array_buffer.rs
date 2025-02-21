@@ -2,16 +2,16 @@
 
 use std::ffi::c_void;
 
-use crate::support::SharedRef;
-use crate::support::UniqueRef;
 use crate::BackingStore;
 use crate::BackingStoreDeleterCallback;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
+use crate::support::SharedRef;
+use crate::support::UniqueRef;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__SharedArrayBuffer__New__with_byte_length(
     isolate: *mut Isolate,
     byte_length: usize,
@@ -21,7 +21,7 @@ extern "C" {
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const SharedArrayBuffer;
   fn v8__SharedArrayBuffer__ByteLength(this: *const SharedArrayBuffer)
-    -> usize;
+  -> usize;
   fn v8__SharedArrayBuffer__GetBackingStore(
     this: *const SharedArrayBuffer,
   ) -> SharedRef<BackingStore>;
@@ -181,7 +181,9 @@ impl SharedArrayBuffer {
 
     let (ptr, slice) = T::into_raw(bytes);
 
-    extern "C" fn drop_rawable<T: crate::array_buffer::sealed::Rawable>(
+    unsafe extern "C" fn drop_rawable<
+      T: crate::array_buffer::sealed::Rawable,
+    >(
       _ptr: *mut c_void,
       len: usize,
       data: *mut c_void,
@@ -215,11 +217,13 @@ impl SharedArrayBuffer {
     deleter_callback: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> UniqueRef<BackingStore> {
-    UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
-      data_ptr,
-      byte_length,
-      deleter_callback,
-      deleter_data,
-    ))
+    unsafe {
+      UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        deleter_callback,
+        deleter_data,
+      ))
+    }
   }
 }

@@ -1,12 +1,3 @@
-use crate::binding::RustObj;
-use crate::cppgc::GarbageCollected;
-use crate::cppgc::GetRustObj;
-use crate::cppgc::Ptr;
-use crate::isolate::Isolate;
-use crate::support::int;
-use crate::support::MapFnTo;
-use crate::support::Maybe;
-use crate::support::MaybeBool;
 use crate::AccessorConfiguration;
 use crate::AccessorNameGetterCallback;
 use crate::AccessorNameSetterCallback;
@@ -29,13 +20,22 @@ use crate::PropertyFilter;
 use crate::Set;
 use crate::String;
 use crate::Value;
+use crate::binding::RustObj;
+use crate::cppgc::GarbageCollected;
+use crate::cppgc::GetRustObj;
+use crate::cppgc::Ptr;
+use crate::isolate::Isolate;
+use crate::support::MapFnTo;
+use crate::support::Maybe;
+use crate::support::MaybeBool;
+use crate::support::int;
 use std::convert::TryFrom;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
 use std::ptr::null;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Object__New(isolate: *mut Isolate) -> *const Object;
   fn v8__Object__New__with_prototype_and_properties(
     isolate: *mut Isolate,
@@ -742,7 +742,7 @@ impl Object {
     &self,
     index: i32,
   ) -> *const c_void {
-    v8__Object__GetAlignedPointerFromInternalField(self, index)
+    unsafe { v8__Object__GetAlignedPointerFromInternalField(self, index) }
   }
 
   /// Sets a 2-byte-aligned native pointer in an internal field.
@@ -791,7 +791,7 @@ impl Object {
       assert!(TAG < LAST_TAG);
     }
     let ptr = unsafe { v8__Object__Unwrap(isolate as *mut _, &*wrapper, TAG) };
-    Ptr::new(&ptr)
+    unsafe { Ptr::new(&ptr) }
   }
 
   /// Returns true if this object can be generally used to wrap object objects.

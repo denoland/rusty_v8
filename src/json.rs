@@ -6,7 +6,7 @@ use crate::Local;
 use crate::String;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__JSON__Parse(
     context: *const Context,
     json_string: *const String,

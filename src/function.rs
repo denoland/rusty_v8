@@ -1,16 +1,8 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::ptr::null;
 use std::ptr::NonNull;
+use std::ptr::null;
 
-use crate::scope::CallbackScope;
-use crate::script_compiler::CachedData;
-use crate::support::MapFnFrom;
-use crate::support::MapFnTo;
-use crate::support::ToCFn;
-use crate::support::UnitType;
-use crate::support::{int, Opaque};
-use crate::template::Intercepted;
 use crate::Array;
 use crate::Boolean;
 use crate::Context;
@@ -26,9 +18,17 @@ use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
 use crate::Value;
-use crate::{undefined, ScriptOrigin};
+use crate::scope::CallbackScope;
+use crate::script_compiler::CachedData;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
+use crate::support::ToCFn;
+use crate::support::UnitType;
+use crate::support::{Opaque, int};
+use crate::template::Intercepted;
+use crate::{ScriptOrigin, undefined};
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Function__New(
     context: *const Context,
     callback: FunctionCallback,
@@ -162,14 +162,14 @@ impl<'cb> ReturnValue<'cb, Value> {
   }
 }
 
-impl<'cb> ReturnValue<'cb, ()> {
+impl ReturnValue<'_, ()> {
   #[inline(always)]
   pub fn set_bool(&mut self, value: bool) {
     unsafe { v8__ReturnValue__Value__Set__Bool(&mut self.0, value) }
   }
 }
 
-impl<'cb, T> ReturnValue<'cb, T>
+impl<T> ReturnValue<'_, T>
 where
   for<'s> Local<'s, T>: Into<Local<'s, Value>>,
 {
@@ -325,17 +325,17 @@ impl FunctionCallbackInfo {
   #[inline(always)]
   unsafe fn get_implicit_arg_local<T>(&self, index: i32) -> Local<T> {
     let nn = self.get_implicit_arg_non_null::<T>(index);
-    Local::from_non_null(nn)
+    unsafe { Local::from_non_null(nn) }
   }
 
   // SAFETY: caller must guarantee that the `index` value lies between -1 and
   // self.length.
   #[inline(always)]
   unsafe fn get_arg_local<T>(&self, index: i32) -> Local<T> {
-    let ptr = self.values.offset(index as _) as *mut T;
+    let ptr = unsafe { self.values.offset(index as _) } as *mut T;
     debug_assert!(!ptr.is_null());
-    let nn = NonNull::new_unchecked(ptr);
-    Local::from_non_null(nn)
+    let nn = unsafe { NonNull::new_unchecked(ptr) };
+    unsafe { Local::from_non_null(nn) }
   }
 }
 
@@ -371,7 +371,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// not be called.
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    &mut *self.0.get_isolate_ptr()
+    unsafe { &mut *self.0.get_isolate_ptr() }
   }
 
   /// If the callback was created without a Signature, this is the same value as
@@ -510,7 +510,7 @@ impl<'s> PropertyCallbackArguments<'s> {
   }
 }
 
-pub type FunctionCallback = extern "C" fn(*const FunctionCallbackInfo);
+pub type FunctionCallback = unsafe extern "C" fn(*const FunctionCallbackInfo);
 
 impl<F> MapFnFrom<F> for FunctionCallback
 where
@@ -534,7 +534,7 @@ where
 }
 
 pub(crate) type NamedGetterCallbackForAccessor<'s> =
-  extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo<Value>);
+  unsafe extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo<Value>);
 
 impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor<'_>
 where
@@ -558,7 +558,7 @@ where
   }
 }
 
-pub(crate) type NamedGetterCallback<'s> = extern "C" fn(
+pub(crate) type NamedGetterCallback<'s> = unsafe extern "C" fn(
   Local<'s, Name>,
   *const PropertyCallbackInfo<Value>,
 ) -> Intercepted;
@@ -585,7 +585,7 @@ where
   }
 }
 
-pub(crate) type NamedQueryCallback<'s> = extern "C" fn(
+pub(crate) type NamedQueryCallback<'s> = unsafe extern "C" fn(
   Local<'s, Name>,
   *const PropertyCallbackInfo<Integer>,
 ) -> Intercepted;
@@ -612,7 +612,7 @@ where
   }
 }
 
-pub(crate) type NamedSetterCallbackForAccessor<'s> = extern "C" fn(
+pub(crate) type NamedSetterCallbackForAccessor<'s> = unsafe extern "C" fn(
   Local<'s, Name>,
   Local<'s, Value>,
   *const PropertyCallbackInfo<()>,
@@ -643,7 +643,7 @@ where
   }
 }
 
-pub(crate) type NamedSetterCallback<'s> = extern "C" fn(
+pub(crate) type NamedSetterCallback<'s> = unsafe extern "C" fn(
   Local<'s, Name>,
   Local<'s, Value>,
   *const PropertyCallbackInfo<()>,
@@ -676,7 +676,7 @@ where
 
 // Should return an Array in Return Value
 pub(crate) type PropertyEnumeratorCallback<'s> =
-  extern "C" fn(*const PropertyCallbackInfo<Array>);
+  unsafe extern "C" fn(*const PropertyCallbackInfo<Array>);
 
 impl<F> MapFnFrom<F> for PropertyEnumeratorCallback<'_>
 where
@@ -699,7 +699,7 @@ where
   }
 }
 
-pub(crate) type NamedDefinerCallback<'s> = extern "C" fn(
+pub(crate) type NamedDefinerCallback<'s> = unsafe extern "C" fn(
   Local<'s, Name>,
   *const PropertyDescriptor,
   *const PropertyCallbackInfo<()>,
@@ -731,7 +731,7 @@ where
   }
 }
 
-pub(crate) type NamedDeleterCallback<'s> = extern "C" fn(
+pub(crate) type NamedDeleterCallback<'s> = unsafe extern "C" fn(
   Local<'s, Name>,
   *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
@@ -759,7 +759,7 @@ where
 }
 
 pub(crate) type IndexedGetterCallback<'s> =
-  extern "C" fn(u32, *const PropertyCallbackInfo<Value>) -> Intercepted;
+  unsafe extern "C" fn(u32, *const PropertyCallbackInfo<Value>) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedGetterCallback<'_>
 where
@@ -783,8 +783,10 @@ where
   }
 }
 
-pub(crate) type IndexedQueryCallback<'s> =
-  extern "C" fn(u32, *const PropertyCallbackInfo<Integer>) -> Intercepted;
+pub(crate) type IndexedQueryCallback<'s> = unsafe extern "C" fn(
+  u32,
+  *const PropertyCallbackInfo<Integer>,
+) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedQueryCallback<'_>
 where
@@ -808,11 +810,12 @@ where
   }
 }
 
-pub(crate) type IndexedSetterCallback<'s> = extern "C" fn(
+pub(crate) type IndexedSetterCallback<'s> = unsafe extern "C" fn(
   u32,
   Local<'s, Value>,
   *const PropertyCallbackInfo<()>,
-) -> Intercepted;
+)
+  -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedSetterCallback<'_>
 where
@@ -839,11 +842,12 @@ where
   }
 }
 
-pub(crate) type IndexedDefinerCallback<'s> = extern "C" fn(
-  u32,
-  *const PropertyDescriptor,
-  *const PropertyCallbackInfo<()>,
-) -> Intercepted;
+pub(crate) type IndexedDefinerCallback<'s> =
+  unsafe extern "C" fn(
+    u32,
+    *const PropertyDescriptor,
+    *const PropertyCallbackInfo<()>,
+  ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedDefinerCallback<'_>
 where
@@ -872,7 +876,10 @@ where
 }
 
 pub(crate) type IndexedDeleterCallback<'s> =
-  extern "C" fn(u32, *const PropertyCallbackInfo<Boolean>) -> Intercepted;
+  unsafe extern "C" fn(
+    u32,
+    *const PropertyCallbackInfo<Boolean>,
+  ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedDeleterCallback<'_>
 where

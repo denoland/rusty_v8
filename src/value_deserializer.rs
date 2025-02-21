@@ -29,13 +29,14 @@ pub struct CxxValueDeserializerDelegate {
   _cxx_vtable: CxxVTable,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
   this: &CxxValueDeserializerDelegate,
   isolate: *mut Isolate,
 ) -> *const Object {
-  let value_deserializer_heap = ValueDeserializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_deserializer_heap =
+    unsafe { ValueDeserializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
@@ -48,14 +49,15 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
   }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId(
   this: &CxxValueDeserializerDelegate,
   isolate: *mut Isolate,
   transfer_id: u32,
 ) -> *const SharedArrayBuffer {
-  let value_deserializer_heap = ValueDeserializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_deserializer_heap =
+    unsafe { ValueDeserializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
@@ -68,14 +70,15 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
   }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   this: &mut CxxValueDeserializerDelegate,
   isolate: *mut Isolate,
   clone_id: u32,
 ) -> *const WasmModuleObject {
-  let value_deserializer_heap = ValueDeserializerHeap::dispatch(this);
-  let scope = &mut CallbackScope::new(isolate.as_mut().unwrap());
+  let value_deserializer_heap =
+    unsafe { ValueDeserializerHeap::dispatch(this) };
+  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
   let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
 
@@ -88,7 +91,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   }
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ValueDeserializer__Delegate__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueDeserializerDelegate>,
   );
@@ -101,7 +104,7 @@ pub struct CxxValueDeserializer {
   _cxx_vtable: CxxVTable,
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ValueDeserializer__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueDeserializer>,
     isolate: *mut Isolate,
@@ -230,9 +233,9 @@ pub struct ValueDeserializerHeap<'a> {
   context: Global<Context>,
 }
 
-impl<'a> ValueDeserializerHeap<'a> {
-  fn get_cxx_value_deserializer_delegate_offset(
-  ) -> FieldOffset<CxxValueDeserializerDelegate> {
+impl ValueDeserializerHeap<'_> {
+  fn get_cxx_value_deserializer_delegate_offset()
+  -> FieldOffset<CxxValueDeserializerDelegate> {
     let buf = std::mem::MaybeUninit::<Self>::uninit();
     let delegate =
       unsafe { addr_of!((*buf.as_ptr()).cxx_value_deserializer_delegate) };
@@ -243,12 +246,14 @@ impl<'a> ValueDeserializerHeap<'a> {
   pub unsafe fn dispatch(
     value_serializer_delegate: &CxxValueDeserializerDelegate,
   ) -> &Self {
-    Self::get_cxx_value_deserializer_delegate_offset()
-      .to_embedder::<Self>(value_serializer_delegate)
+    unsafe {
+      Self::get_cxx_value_deserializer_delegate_offset()
+        .to_embedder::<Self>(value_serializer_delegate)
+    }
   }
 }
 
-impl<'a> Drop for ValueDeserializerHeap<'a> {
+impl Drop for ValueDeserializerHeap<'_> {
   fn drop(&mut self) {
     unsafe {
       v8__ValueDeserializer__DESTRUCT(&mut self.cxx_value_deserializer);
@@ -371,13 +376,13 @@ impl ValueDeserializerHelper for CxxValueDeserializer {
   }
 }
 
-impl<'a> ValueDeserializerHelper for ValueDeserializerHeap<'a> {
+impl ValueDeserializerHelper for ValueDeserializerHeap<'_> {
   fn get_cxx_value_deserializer(&self) -> &CxxValueDeserializer {
     &self.cxx_value_deserializer
   }
 }
 
-impl<'a> ValueDeserializerHelper for ValueDeserializer<'a> {
+impl ValueDeserializerHelper for ValueDeserializer<'_> {
   fn get_cxx_value_deserializer(&self) -> &CxxValueDeserializer {
     &self.value_deserializer_heap.cxx_value_deserializer
   }
@@ -447,7 +452,7 @@ impl<'a> ValueDeserializer<'a> {
   }
 }
 
-impl<'a> ValueDeserializer<'a> {
+impl ValueDeserializer<'_> {
   pub fn set_supports_legacy_wire_format(
     &self,
     supports_legacy_wire_format: bool,

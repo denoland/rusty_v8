@@ -5,7 +5,7 @@ use crate::Private;
 use crate::String;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Private__New(
     isolate: *mut Isolate,
     name: *const String,

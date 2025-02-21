@@ -9,20 +9,20 @@ use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
 
-use crate::support::Opaque;
 use crate::Data;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::IsolateHandle;
+use crate::support::Opaque;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Local__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
   fn v8__Global__New(isolate: *mut Isolate, data: *const Data) -> *const Data;
   fn v8__Global__NewWeak(
     isolate: *mut Isolate,
     data: *const Data,
     parameter: *const c_void,
-    callback: extern "C" fn(*const WeakCallbackInfo),
+    callback: unsafe extern "C" fn(*const WeakCallbackInfo),
   ) -> *const Data;
   fn v8__Global__Reset(data: *const Data);
   fn v8__WeakCallbackInfo__GetIsolate(
@@ -33,7 +33,7 @@ extern "C" {
   ) -> *mut c_void;
   fn v8__WeakCallbackInfo__SetSecondPassCallback(
     this: *const WeakCallbackInfo,
-    callback: extern "C" fn(*const WeakCallbackInfo),
+    callback: unsafe extern "C" fn(*const WeakCallbackInfo),
   );
 
   fn v8__TracedReference__CONSTRUCT(this: *mut TracedReference<Data>);
@@ -124,17 +124,20 @@ impl<'s, T> Local<'s, T> {
   where
     Local<'s, A>: TryFrom<Self>,
   {
-    transmute(other)
+    unsafe { transmute(other) }
   }
 
   #[inline(always)]
   pub(crate) unsafe fn from_raw(ptr: *const T) -> Option<Self> {
-    NonNull::new(ptr as *mut _).map(|nn| Self::from_non_null(nn))
+    NonNull::new(ptr as *mut _).map(|nn| unsafe { Self::from_non_null(nn) })
   }
 
   #[inline(always)]
   pub(crate) unsafe fn from_raw_unchecked(ptr: *const T) -> Self {
-    Self(NonNull::new_unchecked(ptr as *mut _), PhantomData)
+    Self(
+      unsafe { NonNull::new_unchecked(ptr as *mut _) },
+      PhantomData,
+    )
   }
 
   #[inline(always)]
@@ -153,15 +156,15 @@ impl<'s, T> Local<'s, T> {
   }
 }
 
-impl<'s, T> Copy for Local<'s, T> {}
+impl<T> Copy for Local<'_, T> {}
 
-impl<'s, T> Clone for Local<'s, T> {
+impl<T> Clone for Local<'_, T> {
   fn clone(&self) -> Self {
     *self
   }
 }
 
-impl<'s, T> Deref for Local<'s, T> {
+impl<T> Deref for Local<'_, T> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_ref() }
@@ -240,12 +243,14 @@ impl<T> Global<T> {
   #[inline(always)]
   unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
-    let data = v8__Global__New(isolate, data) as *const T;
-    let data = NonNull::new_unchecked(data as *mut _);
-    let isolate_handle = (*isolate).thread_safe_handle();
-    Self {
-      data,
-      isolate_handle,
+    unsafe {
+      let data = v8__Global__New(isolate, data) as *const T;
+      let data = NonNull::new_unchecked(data as *mut _);
+      let isolate_handle = (*isolate).thread_safe_handle();
+      Self {
+        data,
+        isolate_handle,
+      }
     }
   }
 
@@ -363,11 +368,11 @@ pub trait Handle: Sized {
     if let HandleHost::DisposedIsolate = host {
       panic!("attempt to access Handle hosted by disposed Isolate");
     }
-    &*data.as_ptr()
+    unsafe { &*data.as_ptr() }
   }
 }
 
-impl<'s, T> Handle for Local<'s, T> {
+impl<T> Handle for Local<'_, T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.as_non_null(), HandleHost::Scope)
@@ -388,14 +393,14 @@ impl<T> Handle for Global<T> {
   }
 }
 
-impl<'a, T> Handle for &'a Global<T> {
+impl<T> Handle for &Global<T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(self.data, (&self.isolate_handle).into())
   }
 }
 
-impl<'a, T> Handle for UnsafeRefHandle<'a, T> {
+impl<T> Handle for UnsafeRefHandle<'_, T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(
@@ -405,7 +410,7 @@ impl<'a, T> Handle for UnsafeRefHandle<'a, T> {
   }
 }
 
-impl<'a, T> Handle for &'a UnsafeRefHandle<'_, T> {
+impl<T> Handle for &UnsafeRefHandle<'_, T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
     HandleInfo::new(
@@ -415,7 +420,7 @@ impl<'a, T> Handle for &'a UnsafeRefHandle<'_, T> {
   }
 }
 
-impl<'s, T> Borrow<T> for Local<'s, T> {
+impl<T> Borrow<T> for Local<'_, T> {
   fn borrow(&self) -> &T {
     self
   }
@@ -431,10 +436,10 @@ impl<T> Borrow<T> for Global<T> {
   }
 }
 
-impl<'s, T> Eq for Local<'s, T> where T: Eq {}
+impl<T> Eq for Local<'_, T> where T: Eq {}
 impl<T> Eq for Global<T> where T: Eq {}
 
-impl<'s, T: Hash> Hash for Local<'s, T> {
+impl<T: Hash> Hash for Local<'_, T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     (**self).hash(state);
   }
@@ -451,7 +456,7 @@ impl<T: Hash> Hash for Global<T> {
   }
 }
 
-impl<'s, T, Rhs: Handle> PartialEq<Rhs> for Local<'s, T>
+impl<T, Rhs: Handle> PartialEq<Rhs> for Local<'_, T>
 where
   T: PartialEq<Rhs::Data>,
 {
@@ -760,7 +765,7 @@ impl<T> Weak<T> {
     data: Option<NonNull<WeakData<T>>>,
   ) -> Self {
     Weak {
-      data: data.map(|raw| Box::from_raw(raw.cast().as_ptr())),
+      data: data.map(|raw| unsafe { Box::from_raw(raw.cast().as_ptr()) }),
       isolate_handle: isolate.thread_safe_handle(),
     }
   }
@@ -852,7 +857,7 @@ impl<T> Weak<T> {
 
   // Finalization callbacks.
 
-  extern "C" fn first_pass_callback(wci: *const WeakCallbackInfo) {
+  unsafe extern "C" fn first_pass_callback(wci: *const WeakCallbackInfo) {
     // SAFETY: If this callback is called, then the weak handle hasn't been
     // reset, which means the `Weak` instance which owns the pinned box that the
     // parameter points to hasn't been dropped.
@@ -877,7 +882,7 @@ impl<T> Weak<T> {
     }
   }
 
-  extern "C" fn second_pass_callback(wci: *const WeakCallbackInfo) {
+  unsafe extern "C" fn second_pass_callback(wci: *const WeakCallbackInfo) {
     // SAFETY: This callback is guaranteed by V8 to be called in the isolate's
     // thread before the isolate is disposed.
     let isolate = unsafe { &mut *v8__WeakCallbackInfo__GetIsolate(wci) };
