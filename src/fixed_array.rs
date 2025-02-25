@@ -1,12 +1,12 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::support::int;
 use crate::Context;
 use crate::Data;
 use crate::FixedArray;
 use crate::HandleScope;
 use crate::Local;
+use crate::support::int;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__FixedArray__Length(this: *const FixedArray) -> int;
 
   fn v8__FixedArray__Get(

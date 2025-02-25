@@ -5,7 +5,7 @@ use crate::UnboundModuleScript;
 use crate::UniqueRef;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__UnboundModuleScript__CreateCodeCache(
     script: *const UnboundModuleScript,
   ) -> *mut CachedData<'static>;

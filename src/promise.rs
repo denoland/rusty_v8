@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::support::MaybeBool;
 use crate::Context;
 use crate::Function;
 use crate::HandleScope;
@@ -8,8 +7,9 @@ use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
 use crate::Value;
+use crate::support::MaybeBool;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Promise__Resolver__New(
     context: *const Context,
   ) -> *const PromiseResolver;

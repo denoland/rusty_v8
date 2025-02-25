@@ -6,7 +6,7 @@ use crate::UnboundScript;
 use crate::UniqueRef;
 use crate::Value;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__UnboundScript__BindToCurrentContext(
     script: *const UnboundScript,
   ) -> *const Script;

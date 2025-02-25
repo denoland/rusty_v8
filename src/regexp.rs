@@ -1,10 +1,10 @@
-use crate::support::int;
 use crate::Context;
 use crate::HandleScope;
 use crate::Local;
 use crate::Object;
 use crate::RegExp;
 use crate::String;
+use crate::support::int;
 
 bitflags! {
   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,7 +22,7 @@ bitflags! {
   }
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__RegExp__New(
     context: *const Context,
     pattern: *const String,

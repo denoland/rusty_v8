@@ -85,11 +85,15 @@ fn test_attr() {
   assert!(
     PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_only_intercept_strings()
   );
-  assert!(!PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_has_no_side_effect());
+  assert!(
+    !PropertyHandlerFlags::ONLY_INTERCEPT_STRINGS.is_has_no_side_effect()
+  );
 
   assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_none());
   assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_non_masking());
-  assert!(!PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_only_intercept_strings());
+  assert!(
+    !PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_only_intercept_strings()
+  );
   assert!(PropertyHandlerFlags::HAS_NO_SIDE_EFFECT.is_has_no_side_effect());
 
   assert_eq!(PropertyHandlerFlags::NONE, Default::default());

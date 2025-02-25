@@ -3,11 +3,16 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
-use std::ptr::null;
 use std::ptr::NonNull;
+use std::ptr::null;
 use std::slice;
 
-use crate::support::long;
+use crate::ArrayBuffer;
+use crate::DataView;
+use crate::HandleScope;
+use crate::Isolate;
+use crate::Local;
+use crate::Value;
 use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::support::Shared;
@@ -15,14 +20,9 @@ use crate::support::SharedPtrBase;
 use crate::support::SharedRef;
 use crate::support::UniquePtr;
 use crate::support::UniqueRef;
-use crate::ArrayBuffer;
-use crate::DataView;
-use crate::HandleScope;
-use crate::Isolate;
-use crate::Local;
-use crate::Value;
+use crate::support::long;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__NewRustAllocator(
     handle: *const c_void,
@@ -177,17 +177,19 @@ pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
   handle: *const T,
   vtable: &'static RustAllocatorVtable<T>,
 ) -> UniqueRef<Allocator> {
-  UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewRustAllocator(
-    handle as *const c_void,
-    vtable as *const RustAllocatorVtable<T>
-      as *const RustAllocatorVtable<c_void>,
-  ))
+  unsafe {
+    UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewRustAllocator(
+      handle as *const c_void,
+      vtable as *const RustAllocatorVtable<T>
+        as *const RustAllocatorVtable<c_void>,
+    ))
+  }
 }
 
 #[test]
 fn test_rust_allocator() {
-  use std::sync::atomic::{AtomicUsize, Ordering};
   use std::sync::Arc;
+  use std::sync::atomic::{AtomicUsize, Ordering};
 
   unsafe extern "C" fn allocate(_: &AtomicUsize, _: usize) -> *mut c_void {
     unimplemented!()
@@ -202,8 +204,10 @@ fn test_rust_allocator() {
     unimplemented!()
   }
   unsafe extern "C" fn drop(x: *const AtomicUsize) {
-    let arc = Arc::from_raw(x);
-    arc.store(42, Ordering::SeqCst);
+    unsafe {
+      let arc = Arc::from_raw(x);
+      arc.store(42, Ordering::SeqCst);
+    }
   }
 
   let retval = Arc::new(AtomicUsize::new(0));
@@ -261,7 +265,9 @@ macro_rules! rawable {
 
       unsafe fn drop_raw(ptr: *const (), len: usize) {
         // Fatten the thin pointer
-        _ = Self::from_raw(std::ptr::slice_from_raw_parts_mut(ptr as _, len));
+        _ = unsafe {
+          Self::from_raw(std::ptr::slice_from_raw_parts_mut(ptr as _, len))
+        };
       }
     }
 
@@ -271,7 +277,9 @@ macro_rules! rawable {
       }
 
       unsafe fn drop_raw(ptr: *const (), size: usize) {
-        <Box<[$ty]> as sealed::Rawable>::drop_raw(ptr, size);
+        unsafe {
+          <Box<[$ty]> as sealed::Rawable>::drop_raw(ptr, size);
+        }
       }
 
       fn into_raw(self) -> (*const (), *const u8) {
@@ -305,7 +313,9 @@ where
   }
 
   unsafe fn drop_raw(ptr: *const (), _len: usize) {
-    _ = Self::from_raw(ptr as _);
+    unsafe {
+      _ = Self::from_raw(ptr as _);
+    }
   }
 }
 
@@ -591,7 +601,7 @@ impl ArrayBuffer {
 
     let (ptr, slice) = T::into_raw(bytes);
 
-    extern "C" fn drop_rawable<T: sealed::Rawable>(
+    unsafe extern "C" fn drop_rawable<T: sealed::Rawable>(
       _ptr: *mut c_void,
       len: usize,
       data: *mut c_void,
@@ -623,12 +633,14 @@ impl ArrayBuffer {
     deleter_callback: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> UniqueRef<BackingStore> {
-    UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
-      data_ptr,
-      byte_length,
-      deleter_callback,
-      deleter_data,
-    ))
+    unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        deleter_callback,
+        deleter_data,
+      ))
+    }
   }
 }
 

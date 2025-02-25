@@ -2,7 +2,7 @@ use crate::support::char;
 
 use std::ffi::CString;
 
-extern "C" {
+unsafe extern "C" {
   fn icu_get_default_locale(output: *mut char, output_len: usize) -> usize;
   fn icu_set_default_locale(locale: *const char);
   fn udata_setCommonData_74(this: *const u8, error_code: *mut i32);

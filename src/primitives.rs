@@ -1,9 +1,9 @@
-use crate::isolate::Isolate;
 use crate::Boolean;
 use crate::Local;
 use crate::Primitive;
+use crate::isolate::Isolate;
 
-extern "C" {
+unsafe extern "C" {
   fn v8__Null(isolate: *mut Isolate) -> *const Primitive;
   fn v8__Undefined(isolate: *mut Isolate) -> *const Primitive;
 

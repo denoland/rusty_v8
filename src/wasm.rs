@@ -1,18 +1,18 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
-use crate::function::FunctionCallbackArguments;
-use crate::function::FunctionCallbackInfo;
-use crate::scope::CallbackScope;
-use crate::scope::HandleScope;
-use crate::support::char;
-use crate::support::Opaque;
-use crate::support::UnitType;
 use crate::ArrayBuffer;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::WasmMemoryObject;
 use crate::WasmModuleObject;
+use crate::function::FunctionCallbackArguments;
+use crate::function::FunctionCallbackInfo;
+use crate::scope::CallbackScope;
+use crate::scope::HandleScope;
+use crate::support::Opaque;
+use crate::support::UnitType;
+use crate::support::char;
 use std::ptr::null;
 use std::ptr::null_mut;
 
@@ -187,11 +187,12 @@ impl WasmMemoryObject {
   }
 }
 
-pub(crate) fn trampoline<F>() -> extern "C" fn(*const FunctionCallbackInfo)
+pub(crate) fn trampoline<F>()
+-> unsafe extern "C" fn(*const FunctionCallbackInfo)
 where
   F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
 {
-  extern "C" fn c_fn<F>(info: *const FunctionCallbackInfo)
+  unsafe extern "C" fn c_fn<F>(info: *const FunctionCallbackInfo)
   where
     F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
   {
@@ -210,7 +211,7 @@ where
   c_fn::<F>
 }
 
-extern "C" {
+unsafe extern "C" {
   fn v8__WasmStreaming__Unpack(
     isolate: *mut Isolate,
     value: *const Value,
