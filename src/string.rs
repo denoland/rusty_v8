@@ -286,6 +286,11 @@ unsafe extern "C" fn one_byte_const_estimate_memory_usage(
 ) -> int {
   -1
 }
+unsafe extern "C" fn one_byte_const_estimate_shared_memory_usage(
+  _this: *const OneByteConst,
+  _recorder: *mut (),
+) {
+}
 
 type OneByteConstNoOp = unsafe extern "C" fn(*const OneByteConst);
 type OneByteConstIsCacheable =
@@ -297,6 +302,8 @@ type OneByteConstUnaccount =
   unsafe extern "C" fn(*const OneByteConst, *mut Isolate);
 type OneByteConstEstimateMemoryUsage =
   unsafe extern "C" fn(*const OneByteConst) -> int;
+type OneByteConstEstimateSharedMemoryUsage =
+  unsafe extern "C" fn(*const OneByteConst, *mut ());
 
 #[repr(C)]
 struct OneByteConstVtable {
@@ -327,6 +334,7 @@ struct OneByteConstVtable {
   is_cacheable: OneByteConstIsCacheable,
   unaccount: OneByteConstUnaccount,
   estimate_memory_usage: OneByteConstEstimateMemoryUsage,
+  estimate_shared_memory_usage: OneByteConstEstimateSharedMemoryUsage,
   dispose: OneByteConstNoOp,
   lock: OneByteConstNoOp,
   unlock: OneByteConstNoOp,
@@ -344,6 +352,7 @@ const ONE_BYTE_CONST_VTABLE: OneByteConstVtable = OneByteConstVtable {
   is_cacheable: one_byte_const_is_cacheable,
   unaccount: one_byte_const_unaccount,
   estimate_memory_usage: one_byte_const_estimate_memory_usage,
+  estimate_shared_memory_usage: one_byte_const_estimate_shared_memory_usage,
   dispose: one_byte_const_no_op,
   lock: one_byte_const_no_op,
   unlock: one_byte_const_no_op,
