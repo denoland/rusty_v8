@@ -9,9 +9,9 @@
 #include <type_traits>
 #include <utility>
 
-#include "v8/include/cppgc/name-provider.h"
-#include "v8/include/v8-cppgc.h"
-#include "v8/include/v8.h"
+#include "cppgc/name-provider.h"
+#include "v8-cppgc.h"
+#include "v8.h"
 
 // Work around a bug in the V8 headers.
 //
