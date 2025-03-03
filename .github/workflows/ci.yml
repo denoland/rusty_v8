@@ -213,6 +213,16 @@ jobs:
         run: |
           clang-format-19 --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
+      - name: Setup env
+        if: startsWith(matrix.config.os, 'ubuntu')
+        run: |-
+          echo "
+          RUSTFLAGS<<__1
+            -C link-arg=-fuse-ld=lld
+            $RUSTFLAGS
+          __1
+          " > $GITHUB_ENV
+
       - name: Test (ASAN)
         env:
           SCCACHE_IDLE_TIMEOUT: 0
