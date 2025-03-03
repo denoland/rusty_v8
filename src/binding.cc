@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 
+#include "cppgc/allocation.h"
 #include "cppgc/platform.h"
 #include "support.h"
 #include "unicode/locid.h"

@@ -46,3 +46,6 @@
 [submodule "third_party/highway/src"]
 	path = third_party/highway/src
 	url = https://chromium.googlesource.com/external/github.com/google/highway.git
+[submodule "third_party/partition_alloc"]
+	path = third_party/partition_alloc
+	url = https://chromium.googlesource.com/chromium/src/base/allocator/partition_allocator.git
