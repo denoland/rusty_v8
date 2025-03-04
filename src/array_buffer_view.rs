@@ -121,7 +121,12 @@ impl ArrayBufferView {
   {
     unsafe {
       let (data, size) = self.get_contents_raw_parts(storage);
-      std::slice::from_raw_parts(data, size)
+      if data.is_null() {
+        debug_assert_eq!(size, 0);
+        std::slice::from_raw_parts(std::ptr::dangling(), size)
+      } else {
+        std::slice::from_raw_parts(data, size)
+      }
     }
   }
 }

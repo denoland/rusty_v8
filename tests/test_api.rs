@@ -1938,7 +1938,6 @@ fn instance_template_with_internal_field() {
   ) {
     let this = args.this();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
 
     assert!(this.set_internal_field(0, v8::Integer::new(scope, 42).into()));
@@ -2135,7 +2134,6 @@ fn object_template_set_accessor() {
     ) {
       let this = args.this();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
 
       let ret = v8::Integer::new(scope, 69);

@@ -243,7 +243,7 @@ pub struct FunctionCallbackInfo {
 impl FunctionCallbackInfo {
   const kHolderIndex: i32 = 0;
   const kIsolateIndex: i32 = 1;
-  const kUnusedIndex: i32 = 2;
+  const kContextIndex: i32 = 2;
   const kReturnValueIndex: i32 = 3;
   const kTargetIndex: i32 = 4;
   const kNewTargetIndex: i32 = 5;
@@ -261,11 +261,6 @@ impl FunctionCallbackInfo {
   #[inline(always)]
   pub(crate) fn get_return_value_non_null(&self) -> NonNull<Value> {
     self.get_implicit_arg_non_null::<Value>(Self::kReturnValueIndex)
-  }
-
-  #[inline(always)]
-  pub(crate) fn holder(&self) -> Local<Object> {
-    unsafe { self.get_implicit_arg_local(Self::kHolderIndex) }
   }
 
   #[inline(always)]
@@ -372,19 +367,6 @@ impl<'s> FunctionCallbackArguments<'s> {
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { &mut *self.0.get_isolate_ptr() }
-  }
-
-  /// If the callback was created without a Signature, this is the same value as
-  /// `this()`. If there is a signature, and the signature didn't match `this()`
-  /// but one of its hidden prototypes, this will be the respective hidden
-  /// prototype.
-  ///
-  /// Note that this is not the prototype of `this()` on which the accessor
-  /// referencing this callback was found (which in V8 internally is often
-  /// referred to as holder [sic]).
-  #[inline(always)]
-  pub fn holder(&self) -> Local<'s, Object> {
-    self.0.holder()
   }
 
   /// For construct calls, this returns the "new.target" value.
