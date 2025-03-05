@@ -1122,8 +1122,10 @@ int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
 }
 
 size_t v8__String__WriteUtf8_v2(const v8::String& self, v8::Isolate* isolate,
-                                char* buffer, size_t capacity, int flags) {
-  return self.WriteUtf8V2(isolate, buffer, capacity, flags);
+                                char* buffer, size_t capacity, int flags,
+                                size_t* processed_characters_return) {
+  return self.WriteUtf8V2(isolate, buffer, capacity, flags,
+                          processed_characters_return);
 }
 
 const v8::String::ExternalStringResource* v8__String__GetExternalStringResource(

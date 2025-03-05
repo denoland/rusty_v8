@@ -95,6 +95,7 @@ unsafe extern "C" {
     buffer: *mut char,
     capacity: size_t,
     flags: int,
+    processed_characters_return: *mut size_t,
   ) -> int;
 
   fn v8__String__GetExternalStringResource(
@@ -651,6 +652,7 @@ impl String {
     scope: &mut Isolate,
     buffer: &mut [u8],
     flags: WriteFlags,
+    processed_characters_return: Option<&mut usize>,
   ) -> usize {
     unsafe {
       // SAFETY:
@@ -662,7 +664,12 @@ impl String {
         let data = buffer.as_mut_ptr().cast();
         slice::from_raw_parts_mut(data, len)
       };
-      self.write_utf8_uninit_v2(scope, buffer, flags)
+      self.write_utf8_uninit_v2(
+        scope,
+        buffer,
+        flags,
+        processed_characters_return,
+      )
     }
   }
 
@@ -698,6 +705,7 @@ impl String {
     scope: &mut Isolate,
     buffer: &mut [MaybeUninit<u8>],
     flags: WriteFlags,
+    processed_characters_return: Option<&mut usize>,
   ) -> usize {
     let bytes = unsafe {
       v8__String__WriteUtf8_v2(
@@ -706,6 +714,9 @@ impl String {
         buffer.as_mut_ptr() as _,
         buffer.len(),
         flags.bits(),
+        processed_characters_return
+          .map(|p| p as *mut _)
+          .unwrap_or(std::ptr::null_mut()),
       )
     };
     bytes as usize
@@ -997,6 +1008,7 @@ impl String {
         scope,
         &mut *buffer,
         WriteFlags::kReplaceInvalidUtf8,
+        None,
       );
       debug_assert!(length == len_utf8);
 
@@ -1067,6 +1079,7 @@ impl String {
         scope,
         buffer,
         WriteFlags::kReplaceInvalidUtf8,
+        None,
       );
       debug_assert!(length == len_utf8);
 
@@ -1095,6 +1108,7 @@ impl String {
         scope,
         &mut *buffer,
         WriteFlags::kReplaceInvalidUtf8,
+        None,
       );
       debug_assert!(length == len_utf8);
 
