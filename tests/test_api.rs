@@ -638,6 +638,41 @@ fn microtasks() {
 }
 
 #[test]
+fn isolate_groups() {
+  let _setup_guard = setup::parallel_test();
+
+  if !v8::IsolateGroup::can_create_new_groups() {
+    println!("Skipping 'isolate_groups' test: current build does not support isolate groups");
+    return;
+  }
+
+  fn test_isolate_with_group(
+    group: v8::IsolateGroup,
+  ) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+      let isolate =
+        &mut v8::Isolate::new_with_group(&group, Default::default());
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope, Default::default());
+      let scope = &mut v8::ContextScope::new(scope, context);
+      let result = eval(scope, "1 + 1").unwrap().int32_value(scope).unwrap();
+      assert_eq!(result, 2);
+    })
+  }
+
+  let group1 = v8::IsolateGroup::create();
+  let group2 = v8::IsolateGroup::create();
+
+  let t0 = test_isolate_with_group(Default::default());
+  let t1 = test_isolate_with_group(group1);
+  let t2 = test_isolate_with_group(group2);
+
+  t0.join().unwrap();
+  t1.join().unwrap();
+  t2.join().unwrap();
+}
+
+#[test]
 #[should_panic(
   expected = "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
 )]
