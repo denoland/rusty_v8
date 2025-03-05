@@ -11,7 +11,7 @@ use std::ffi::c_void;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::ptr::{NonNull, addr_of, addr_of_mut};
+use std::ptr::{addr_of, addr_of_mut};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -644,85 +644,6 @@ fn isolate_drop_order() {
 }
 
 #[test]
-fn get_isolate_from_handle() {
-  unsafe extern "C" {
-    fn v8__internal__GetIsolateFromHeapObject(
-      location: *const v8::Data,
-    ) -> *mut v8::Isolate;
-  }
-
-  fn check_handle_helper(
-    isolate: &mut v8::Isolate,
-    expect_some: Option<bool>,
-    local: v8::Local<v8::Data>,
-  ) {
-    let isolate_ptr = NonNull::from(isolate);
-    let maybe_ptr = unsafe { v8__internal__GetIsolateFromHeapObject(&*local) };
-    let maybe_ptr = NonNull::new(maybe_ptr);
-    if let Some(ptr) = maybe_ptr {
-      assert_eq!(ptr, isolate_ptr);
-    }
-    if let Some(expected_some) = expect_some {
-      assert_eq!(maybe_ptr.is_some(), expected_some);
-    }
-  }
-
-  fn check_handle<'s, F, D>(
-    scope: &mut v8::HandleScope<'s>,
-    expect_some: Option<bool>,
-    f: F,
-  ) where
-    F: Fn(&mut v8::HandleScope<'s>) -> D,
-    D: Into<v8::Local<'s, v8::Data>>,
-  {
-    let local = f(scope).into();
-
-    // Check that we can get the isolate from a Local.
-    check_handle_helper(scope, expect_some, local);
-
-    // Check that we can still get it after converting it to a Global.
-    let global = v8::Global::new(scope, local);
-    let local2 = v8::Local::new(scope, &global);
-    check_handle_helper(scope, expect_some, local2);
-  }
-
-  fn check_eval(
-    scope: &mut v8::HandleScope,
-    expect_some: Option<bool>,
-    code: &str,
-  ) {
-    check_handle(scope, expect_some, |scope| eval(scope, code).unwrap());
-  }
-
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-
-  let scope = &mut v8::HandleScope::new(isolate);
-  let context = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(scope, context);
-
-  check_handle(scope, None, v8::null);
-  check_handle(scope, None, v8::undefined);
-  check_handle(scope, None, |s| v8::Boolean::new(s, true));
-  check_handle(scope, None, |s| v8::Boolean::new(s, false));
-  check_handle(scope, None, |s| v8::String::new(s, "").unwrap());
-  check_eval(scope, None, "''");
-  check_handle(scope, Some(true), |s| v8::String::new(s, "Words").unwrap());
-  check_eval(scope, Some(true), "'Hello'");
-  check_eval(scope, Some(true), "Symbol()");
-  check_handle(scope, Some(true), v8::Object::new);
-  check_eval(scope, Some(true), "this");
-  check_handle(scope, Some(true), |s| s.get_current_context());
-  check_eval(scope, Some(true), "({ foo: 'bar' })");
-  check_eval(scope, Some(true), "() => {}");
-  check_handle(scope, Some(true), |s| v8::Number::new(s, 4.2f64));
-  check_handle(scope, Some(true), |s| v8::Number::new(s, -0f64));
-  check_handle(scope, Some(false), |s| v8::Integer::new(s, 0));
-  check_eval(scope, Some(true), "3.3");
-  check_eval(scope, Some(false), "3.3 / 3.3");
-}
-
-#[test]
 fn handles_from_isolate() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -854,7 +775,7 @@ fn array_buffer() {
     assert_eq!(shared_bs_2[9].get(), 9);
 
     // Empty
-    let ab = v8::ArrayBuffer::empty(scope);
+    let ab = v8::ArrayBuffer::new(scope, 0);
     assert_eq!(0, ab.byte_length());
     assert!(!ab.get_backing_store().is_shared());
 
@@ -3002,8 +2923,8 @@ fn object() {
     let object_ = v8::Object::new(scope);
     assert!(!object_.is_null_or_undefined());
     let id = object_.get_identity_hash();
-    assert_eq!(id, object_.get_hash());
-    assert_ne!(id, v8::Object::new(scope).get_hash());
+    assert_eq!(id.get() as u32, object_.get_hash());
+    assert_ne!(id.get() as u32, v8::Object::new(scope).get_hash());
 
     assert!(object.has(scope, n1.into()).unwrap());
     assert!(object.has_own_property(scope, n1).unwrap());
@@ -5329,7 +5250,7 @@ fn get_hash() {
     let hash = pri1.get_hash();
     assert_eq!(hash, pri2.get_hash());
     if let Ok(name) = v8::Local::<v8::Name>::try_from(pri1) {
-      assert_eq!(hash, name.get_identity_hash());
+      assert_eq!(hash, name.get_identity_hash().get() as u32);
       name_count += 1;
     }
     if !hashes.insert(hash) {
@@ -5374,7 +5295,7 @@ fn get_hash() {
       let val = objects.get_index(scope, i).unwrap();
       let hash = val.get_hash();
       let obj = v8::Local::<v8::Object>::try_from(val).unwrap();
-      assert_eq!(hash, obj.get_identity_hash());
+      assert_eq!(hash, obj.get_identity_hash().get() as u32);
       if !hashes.insert(hash) {
         collision_count += 1;
       }
@@ -6048,7 +5969,7 @@ fn shared_array_buffer() {
     assert_eq!(shared_bs_3[9].get(), 9);
 
     // Empty
-    let ab = v8::SharedArrayBuffer::empty(scope);
+    let ab = v8::SharedArrayBuffer::new(scope, 0).unwrap();
     assert_eq!(ab.byte_length(), 0);
     assert!(ab.get_backing_store().is_shared());
   }
