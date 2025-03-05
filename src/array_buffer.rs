@@ -59,7 +59,6 @@ unsafe extern "C" {
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
-  fn v8__BackingStore__EmptyBackingStore(shared: bool) -> *mut BackingStore;
 
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
@@ -450,16 +449,6 @@ impl ArrayBuffer {
     .unwrap()
   }
 
-  /// Create a new, empty ArrayBuffer.
-  #[inline(always)]
-  pub fn empty<'s>(scope: &mut HandleScope<'s>) -> Local<'s, ArrayBuffer> {
-    // SAFETY: This is a v8-provided empty backing store
-    let backing_store = unsafe {
-      UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
-    };
-    Self::with_backing_store(scope, &backing_store.make_shared())
-  }
-
   /// Data length in bytes.
   #[inline(always)]
   pub fn byte_length(&self) -> usize {
@@ -593,11 +582,6 @@ impl ArrayBuffer {
     T: sealed::Rawable,
   {
     let len = bytes.byte_len();
-    if len == 0 {
-      return unsafe {
-        UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
-      };
-    }
 
     let (ptr, slice) = T::into_raw(bytes);
 

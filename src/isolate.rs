@@ -588,11 +588,15 @@ pub type UseCounterCallback =
   unsafe extern "C" fn(&mut Isolate, UseCounterFeature);
 
 unsafe extern "C" {
-  static v8__internal__Internals__kIsolateEmbedderDataOffset: int;
-
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
   fn v8__Isolate__Dispose(this: *mut Isolate);
   fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
+  fn v8__Isolate__GetData(isolate: *const Isolate, slot: u32) -> *mut c_void;
+  fn v8__Isolate__SetData(
+    isolate: *const Isolate,
+    slot: u32,
+    data: *mut c_void,
+  );
   fn v8__Isolate__Enter(this: *mut Isolate);
   fn v8__Isolate__Exit(this: *mut Isolate);
   fn v8__Isolate__GetCurrent() -> *mut Isolate;
@@ -782,14 +786,6 @@ unsafe extern "C" {
 pub struct Isolate(Opaque);
 
 impl Isolate {
-  // Total number of isolate data slots provided by V8.
-  const EMBEDDER_DATA_SLOT_COUNT: u32 = 4;
-
-  // Byte offset inside `Isolate` where the isolate data slots are stored. This
-  // should be the same as the value of `kIsolateEmbedderDataOffset` which is
-  // defined in `v8-internal.h`.
-  const EMBEDDER_DATA_OFFSET: usize = size_of::<[*const (); 73]>();
-
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
   const CURRENT_SCOPE_DATA_SLOT: u32 = 1;
@@ -797,14 +793,10 @@ impl Isolate {
 
   #[inline(always)]
   fn assert_embedder_data_slot_count_and_offset_correct(&self) {
-    assert_eq!(
-      unsafe { v8__Isolate__GetNumberOfDataSlots(self) },
-      Self::EMBEDDER_DATA_SLOT_COUNT
-    );
-    assert_eq!(
-      unsafe { v8__internal__Internals__kIsolateEmbedderDataOffset } as usize,
-      Self::EMBEDDER_DATA_OFFSET
-    );
+    assert!(
+      unsafe { v8__Isolate__GetNumberOfDataSlots(self) }
+        >= Self::INTERNAL_DATA_SLOT_COUNT
+    )
   }
 
   fn new_impl(params: CreateParams) -> *mut Isolate {
@@ -977,29 +969,18 @@ impl Isolate {
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of `0 <= n < Isolate::get_number_of_data_slots()`.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    Self::EMBEDDER_DATA_SLOT_COUNT - Self::INTERNAL_DATA_SLOT_COUNT
+    let n = unsafe { v8__Isolate__GetNumberOfDataSlots(self) };
+    n - Self::INTERNAL_DATA_SLOT_COUNT
   }
 
   #[inline(always)]
   pub(crate) fn get_data_internal(&self, slot: u32) -> *mut c_void {
-    let slots = unsafe {
-      let p = self as *const Self as *const u8;
-      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
-      let p = p as *const [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
-      &*p
-    };
-    slots[slot as usize]
+    unsafe { v8__Isolate__GetData(self, slot) }
   }
 
   #[inline(always)]
   pub(crate) fn set_data_internal(&mut self, slot: u32, data: *mut c_void) {
-    let slots = unsafe {
-      let p = self as *mut Self as *mut u8;
-      let p = p.add(Self::EMBEDDER_DATA_OFFSET);
-      let p = p as *mut [*mut c_void; Self::EMBEDDER_DATA_SLOT_COUNT as _];
-      &mut *p
-    };
-    slots[slot as usize] = data;
+    unsafe { v8__Isolate__SetData(self, slot, data) }
   }
 
   pub(crate) fn init_scope_root(&mut self) {

@@ -35,7 +35,6 @@ unsafe extern "C" {
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
   ) -> *mut BackingStore;
-  fn v8__BackingStore__EmptyBackingStore(shared: bool) -> *mut BackingStore;
 }
 
 impl SharedArrayBuffer {
@@ -72,17 +71,6 @@ impl SharedArrayBuffer {
       })
     }
     .unwrap()
-  }
-
-  /// Create a new, empty SharedArrayBuffer.
-  #[inline(always)]
-  pub fn empty<'s>(
-    scope: &mut HandleScope<'s>,
-  ) -> Local<'s, SharedArrayBuffer> {
-    // SAFETY: This is a v8-provided empty backing store
-    let backing_store =
-      unsafe { UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(true)) };
-    Self::with_backing_store(scope, &backing_store.make_shared())
   }
 
   /// Data length in bytes.
@@ -173,11 +161,6 @@ impl SharedArrayBuffer {
     T: crate::array_buffer::sealed::Rawable,
   {
     let len = bytes.byte_len();
-    if len == 0 {
-      return unsafe {
-        UniqueRef::from_raw(v8__BackingStore__EmptyBackingStore(false))
-      };
-    }
 
     let (ptr, slice) = T::into_raw(bytes);
 

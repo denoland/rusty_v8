@@ -4,34 +4,24 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <iostream>
-#include <memory>
+#include <thread>
 
 #include "cppgc/allocation.h"
+#include "cppgc/persistent.h"
 #include "cppgc/platform.h"
+#include "libplatform/libplatform.h"
 #include "support.h"
 #include "unicode/locid.h"
 #include "v8-callbacks.h"
-#include "v8/include/cppgc/persistent.h"
-#include "v8/include/libplatform/libplatform.h"
-#include "v8/include/v8-cppgc.h"
-#include "v8/include/v8-fast-api-calls.h"
-#include "v8/include/v8-inspector.h"
-#include "v8/include/v8-internal.h"
-#include "v8/include/v8-platform.h"
-#include "v8/include/v8-profiler.h"
-#include "v8/include/v8.h"
-#include "v8/src/api/api-inl.h"
-#include "v8/src/api/api.h"
-#include "v8/src/base/debug/stack_trace.h"
-#include "v8/src/base/sys-info.h"
-#include "v8/src/execution/isolate-utils-inl.h"
-#include "v8/src/execution/isolate-utils.h"
+#include "v8-cppgc.h"
+#include "v8-fast-api-calls.h"
+#include "v8-inspector.h"
+#include "v8-internal.h"
+#include "v8-platform.h"
+#include "v8-profiler.h"
+#include "v8.h"
 #include "v8/src/flags/flags.h"
 #include "v8/src/libplatform/default-platform.h"
-#include "v8/src/objects/objects-inl.h"
-#include "v8/src/objects/objects.h"
-#include "v8/src/objects/smi.h"
 
 using namespace support;
 
@@ -125,9 +115,6 @@ static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 12,
 #endif
 
 extern "C" {
-const extern int v8__internal__Internals__kIsolateEmbedderDataOffset =
-    v8::internal::Internals::kIsolateEmbedderDataOffset;
-
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
                                      const char* usage) {
   namespace i = v8::internal;
@@ -202,6 +189,14 @@ const v8::Context* v8__Isolate__GetEnteredOrMicrotaskContext(
 
 uint32_t v8__Isolate__GetNumberOfDataSlots(v8::Isolate* isolate) {
   return isolate->GetNumberOfDataSlots();
+}
+
+void* v8__Isolate__GetData(v8::Isolate* isolate, uint32_t slot) {
+  return isolate->GetData(slot);
+}
+
+void v8__Isolate__SetData(v8::Isolate* isolate, uint32_t slot, void* data) {
+  isolate->SetData(slot, data);
 }
 
 const v8::Data* v8__Isolate__GetDataFromSnapshotOnce(v8::Isolate* isolate,
@@ -577,17 +572,17 @@ bool v8__Data__EQ(const v8::Data& self, const v8::Data& other) {
 }
 
 bool v8__Data__IsBigInt(const v8::Data& self) {
-  return IsBigInt(*v8::Utils::OpenHandle(&self));
+  return self.IsValue() && reinterpret_cast<const v8::Value&>(self).IsBigInt();
 }
 
 bool v8__Data__IsBoolean(const v8::Data& self) {
-  return IsBoolean(*v8::Utils::OpenHandle(&self));
+  return self.IsValue() && reinterpret_cast<const v8::Value&>(self).IsBoolean();
 }
 
 bool v8__Data__IsContext(const v8::Data& self) { return self.IsContext(); }
 
 bool v8__Data__IsFixedArray(const v8::Data& self) {
-  return IsFixedArray(*v8::Utils::OpenHandle(&self));
+  return self.IsFixedArray();
 }
 
 bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
@@ -597,15 +592,15 @@ bool v8__Data__IsFunctionTemplate(const v8::Data& self) {
 bool v8__Data__IsModule(const v8::Data& self) { return self.IsModule(); }
 
 bool v8__Data__IsModuleRequest(const v8::Data& self) {
-  return IsModuleRequest(*v8::Utils::OpenHandle(&self));
+  return self.IsModuleRequest();
 }
 
 bool v8__Data__IsName(const v8::Data& self) {
-  return IsName(*v8::Utils::OpenHandle(&self));
+  return self.IsValue() && reinterpret_cast<const v8::Value&>(self).IsName();
 }
 
 bool v8__Data__IsNumber(const v8::Data& self) {
-  return IsNumber(*v8::Utils::OpenHandle(&self));
+  return self.IsValue() && reinterpret_cast<const v8::Value&>(self).IsNumber();
 }
 
 bool v8__Data__IsObjectTemplate(const v8::Data& self) {
@@ -613,17 +608,18 @@ bool v8__Data__IsObjectTemplate(const v8::Data& self) {
 }
 
 bool v8__Data__IsPrimitive(const v8::Data& self) {
-  return IsPrimitive(*v8::Utils::OpenHandle(&self)) && !self.IsPrivate();
+  return self.IsValue() &&
+         reinterpret_cast<const v8::Value&>(self).IsPrimitive();
 }
 
 bool v8__Data__IsPrivate(const v8::Data& self) { return self.IsPrivate(); }
 
 bool v8__Data__IsString(const v8::Data& self) {
-  return IsString(*v8::Utils::OpenHandle(&self));
+  return self.IsValue() && reinterpret_cast<const v8::Value&>(self).IsString();
 }
 
 bool v8__Data__IsSymbol(const v8::Data& self) {
-  return IsPublicSymbol(*v8::Utils::OpenHandle(&self));
+  return self.IsValue() && reinterpret_cast<const v8::Value&>(self).IsSymbol();
 }
 
 bool v8__Data__IsValue(const v8::Data& self) { return self.IsValue(); }
@@ -896,6 +892,8 @@ const v8::String* v8__Value__TypeOf(v8::Value& self, v8::Isolate* isolate) {
   return local_to_ptr(self.TypeOf(isolate));
 }
 
+uint32_t v8__Value__GetHash(v8::Value& self) { return self.GetHash(); }
+
 const v8::Primitive* v8__Null(v8::Isolate* isolate) {
   return local_to_ptr(v8::Null(isolate));
 }
@@ -952,12 +950,6 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
 
 two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
-}
-
-v8::BackingStore* v8__BackingStore__EmptyBackingStore(bool shared) {
-  std::unique_ptr<i::BackingStoreBase> u = i::BackingStore::EmptyBackingStore(
-      shared ? i::SharedFlag::kShared : i::SharedFlag::kNotShared);
-  return static_cast<v8::BackingStore*>(u.release());
 }
 
 bool v8__BackingStore__IsResizableByUserJavaScript(
@@ -2361,10 +2353,10 @@ const v8::Object* v8__PropertyCallbackInfo__Holder(
   return local_to_ptr(self.HolderV2());
 }
 
-v8::internal::Address* v8__PropertyCallbackInfo__GetReturnValue(
+uintptr_t* v8__PropertyCallbackInfo__GetReturnValue(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   v8::ReturnValue<v8::Value> rv = self.GetReturnValue();
-  return *reinterpret_cast<v8::internal::Address**>(&rv);
+  return *reinterpret_cast<uintptr_t**>(&rv);
 }
 
 bool v8__PropertyCallbackInfo__ShouldThrowOnError(
@@ -2877,8 +2869,6 @@ class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
   using PriorityMode = v8::platform::PriorityMode;
   using TracingController = v8::TracingController;
 
-  static constexpr int kMaxThreadPoolSize = 16;
-
  public:
   explicit UnprotectedDefaultPlatform(
       int thread_pool_size, IdleTaskSupport idle_task_support,
@@ -2888,28 +2878,8 @@ class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
                                       std::move(tracing_controller),
                                       priority_mode) {}
 
-  static std::unique_ptr<v8::Platform> New(
-      int thread_pool_size, IdleTaskSupport idle_task_support,
-      InProcessStackDumping in_process_stack_dumping,
-      std::unique_ptr<TracingController> tracing_controller = {},
-      PriorityMode priority_mode = PriorityMode::kDontApply) {
-    // This implementation is semantically equivalent to the implementation of
-    // `v8::platform::NewDefaultPlatform()`.
-    DCHECK_GE(thread_pool_size, 0);
-    if (thread_pool_size < 1) {
-      thread_pool_size =
-          std::max(v8::base::SysInfo::NumberOfProcessors() - 1, 1);
-    }
-    thread_pool_size = std::min(thread_pool_size, kMaxThreadPoolSize);
-    if (in_process_stack_dumping == InProcessStackDumping::kEnabled) {
-      v8::base::debug::EnableInProcessStackDumping();
-    }
-    return std::make_unique<UnprotectedDefaultPlatform>(
-        thread_pool_size, idle_task_support, std::move(tracing_controller),
-        priority_mode);
-  }
-
   v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
+    // DefaultThreadIsolatedAllocator is PKU protected
     return nullptr;
   }
 };
@@ -2926,11 +2896,14 @@ v8::Platform* v8__Platform__NewDefaultPlatform(int thread_pool_size,
 
 v8::Platform* v8__Platform__NewUnprotectedDefaultPlatform(
     int thread_pool_size, bool idle_task_support) {
-  return UnprotectedDefaultPlatform::New(
-             thread_pool_size,
-             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
-                               : v8::platform::IdleTaskSupport::kDisabled,
-             v8::platform::InProcessStackDumping::kDisabled, nullptr)
+  if (thread_pool_size < 1) {
+    thread_pool_size = std::thread::hardware_concurrency();
+  }
+  thread_pool_size = std::max(std::min(thread_pool_size, 16), 1);
+  return std::make_unique<UnprotectedDefaultPlatform>(
+             thread_pool_size, idle_task_support
+                                   ? v8::platform::IdleTaskSupport::kEnabled
+                                   : v8::platform::IdleTaskSupport::kDisabled)
       .release();
 }
 
@@ -3420,28 +3393,6 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
   // in node-heapdump for the last 8 years and I think there is a pretty
   // good chance it'll keep working for 8 more.
   const_cast<v8::HeapSnapshot*>(snapshot)->Delete();
-}
-
-v8::Isolate* v8__internal__GetIsolateFromHeapObject(const v8::Data& data) {
-  namespace i = v8::internal;
-  i::Tagged<i::Object> object(reinterpret_cast<const i::Address&>(data));
-  i::Isolate* isolate;
-  return IsHeapObject(object) &&
-                 i::GetIsolateFromHeapObject(object.GetHeapObject(), &isolate)
-             ? reinterpret_cast<v8::Isolate*>(isolate)
-             : nullptr;
-}
-
-int v8__Value__GetHash(const v8::Value& data) {
-  namespace i = v8::internal;
-  i::Tagged<i::Object> object(reinterpret_cast<const i::Address&>(data));
-  i::Isolate* isolate;
-  int hash = IsHeapObject(object) && i::GetIsolateFromHeapObject(
-                                         object.GetHeapObject(), &isolate)
-                 ? i::Object::GetOrCreateHash(object, isolate).value()
-                 : i::Smi::ToInt(i::Object::GetHash(object));
-  assert(hash != 0);
-  return hash;
 }
 
 void v8__HeapStatistics__CONSTRUCT(uninit_t<v8::HeapStatistics>* buf) {
