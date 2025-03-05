@@ -13663,6 +13663,68 @@ fn use_counter_callback() {
 }
 
 #[test]
+fn code_generation_from_strings_callback() {
+  static CODEGEN_ALLOWED: AtomicBool = AtomicBool::new(false);
+  static MODIFY_SOURCE: AtomicBool = AtomicBool::new(false);
+  static COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  fn callback<'s, 'i>(
+    scope: &mut v8::PinScope<'s, 'i>,
+    source: v8::Local<'s, v8::Value>,
+    is_code_like: bool,
+  ) -> v8::ModifyCodeGenerationFromStringsResult<'s> {
+    COUNT.fetch_add(1, Ordering::Relaxed);
+    assert!(!is_code_like);
+    assert_eq!(source.to_rust_string_lossy(scope), "1 + 1");
+    let modified_source = if MODIFY_SOURCE.load(Ordering::Relaxed) {
+      Some(v8::String::new(scope, "40 + 2").unwrap())
+    } else {
+      None
+    };
+    v8::ModifyCodeGenerationFromStringsResult {
+      codegen_allowed: CODEGEN_ALLOWED.load(Ordering::Relaxed),
+      modified_source,
+    }
+  }
+
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.set_modify_code_generation_from_strings_callback(callback);
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  // Must be set to false, otherwise code generation is unconditionally allowed
+  // and the callback is never consulted.
+  context.set_allow_generation_from_strings(false);
+
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Code generation should be disallowed.
+  {
+    let tc = pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+    eval(tc, "eval('1 + 1')");
+    assert_eq!(
+      tc.message().unwrap().get(tc).to_rust_string_lossy(tc),
+      "Uncaught EvalError: Code generation from strings disallowed for this context"
+    );
+    assert_eq!(COUNT.load(Ordering::Relaxed), 1);
+  }
+
+  // Enable code generation.
+  CODEGEN_ALLOWED.store(true, Ordering::Relaxed);
+  let result: Option<v8::Local<'_, v8::Value>> = eval(scope, "eval('1 + 1')");
+  assert_eq!(result.unwrap().number_value(scope).unwrap(), 2.0);
+  assert_eq!(COUNT.load(Ordering::Relaxed), 2);
+
+  // Replace the source that is about to be compiled.
+  MODIFY_SOURCE.store(true, Ordering::Relaxed);
+  let result: Option<v8::Local<'_, v8::Value>> = eval(scope, "eval('1 + 1')");
+  assert_eq!(result.unwrap().number_value(scope).unwrap(), 42.0);
+  assert_eq!(COUNT.load(Ordering::Relaxed), 3);
+}
+
+#[test]
 fn test_eternals() {
   let _setup_guard = setup::parallel_test();
   let eternal1 = v8::Eternal::empty();

@@ -576,6 +576,50 @@ pub struct OomDetails {
 pub type OomErrorCallback =
   unsafe extern "C" fn(location: *const char, details: &OomDetails);
 
+/// The outcome of a [`ModifyCodeGenerationFromStringsCallback`].
+#[repr(C)]
+pub struct ModifyCodeGenerationFromStringsResult<'s> {
+  /// If true, proceed with the code generation. Otherwise, block it.
+  pub codegen_allowed: bool,
+  /// Compile this source instead of the original one, if present. This field
+  /// is only considered when `codegen_allowed` is true.
+  pub modified_source: Option<Local<'s, String>>,
+}
+
+/// Called when JavaScript dynamically generates code, i.e. through `eval` or
+/// the `Function` constructor. The callback decides whether the code generation
+/// is allowed, and may substitute the source that is about to be compiled.
+///
+/// V8 only consults this callback for contexts that have code generation from
+/// strings disabled, see [`Context::set_allow_generation_from_strings`].
+///
+/// `source` is the value that was handed to `eval`/`Function`; it is not
+/// necessarily a string. `is_code_like` is true when that value is an object
+/// that the host marked as "code like".
+pub type ModifyCodeGenerationFromStringsCallback =
+  for<'s, 'i> fn(
+    scope: &mut PinScope<'s, 'i>,
+    source: Local<'s, Value>,
+    is_code_like: bool,
+  ) -> ModifyCodeGenerationFromStringsResult<'s>;
+
+// The layout that V8 actually sees. It matches
+// `v8::ModifyCodeGenerationFromStringsResult`, with the `MaybeLocal<String>`
+// spelled as a nullable raw pointer so that the `improper_ctypes` lints — which
+// don't recognize the niche in `Option<Local<T>>` — are satisfied.
+#[repr(C)]
+struct RawModifyCodeGenerationFromStringsResult {
+  codegen_allowed: bool,
+  modified_source: *mut String,
+}
+
+type RawModifyCodeGenerationFromStringsCallback =
+  for<'s> unsafe extern "C" fn(
+    context: Local<'s, Context>,
+    source: Local<'s, Value>,
+    is_code_like: bool,
+  ) -> RawModifyCodeGenerationFromStringsResult;
+
 // Windows x64 ABI: MaybeLocal<Value> returned on the stack.
 #[cfg(target_os = "windows")]
 pub type PrepareStackTraceCallback<'s> =
@@ -748,6 +792,10 @@ unsafe extern "C" {
   fn v8__Isolate__SetUseCounterCallback(
     isolate: *mut RealIsolate,
     callback: UseCounterCallback,
+  );
+  fn v8__Isolate__SetModifyCodeGenerationFromStringsCallback(
+    isolate: *mut RealIsolate,
+    callback: RawModifyCodeGenerationFromStringsCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const RealIsolate,
@@ -1757,6 +1805,49 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__RemoveGCEpilogueCallback(self.as_real_ptr(), callback, data)
+    }
+  }
+
+  /// This specifies the callback called by V8 when JS is trying to dynamically
+  /// execute code using `eval` or the `Function` constructor.
+  ///
+  /// The callback can decide whether to allow code generation and, if so,
+  /// modify the source code beforehand. It is only consulted for contexts that
+  /// have code generation from strings disabled, see
+  /// [`Context::set_allow_generation_from_strings`].
+  pub fn set_modify_code_generation_from_strings_callback(
+    &mut self,
+    callback: ModifyCodeGenerationFromStringsCallback,
+  ) {
+    #[inline]
+    unsafe extern "C" fn rust_modify_code_generation_callback<'s>(
+      context: Local<'s, Context>,
+      source: Local<'s, Value>,
+      is_code_like: bool,
+    ) -> RawModifyCodeGenerationFromStringsResult {
+      let scope = pin!(unsafe { CallbackScope::new(context) });
+      let mut scope = scope.init();
+      let callback = *scope
+        .as_ref()
+        .get_slot::<ModifyCodeGenerationFromStringsCallback>()
+        .unwrap();
+      let result = callback(&mut scope, source, is_code_like);
+      RawModifyCodeGenerationFromStringsResult {
+        codegen_allowed: result.codegen_allowed,
+        modified_source: result
+          .modified_source
+          .map_or_else(null_mut, |s| s.as_non_null().as_ptr()),
+      }
+    }
+
+    let slot_didnt_exist_before = self.set_slot(callback);
+    if slot_didnt_exist_before {
+      unsafe {
+        v8__Isolate__SetModifyCodeGenerationFromStringsCallback(
+          self.as_real_ptr(),
+          rust_modify_code_generation_callback,
+        );
+      }
     }
   }
 
