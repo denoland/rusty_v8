@@ -12019,6 +12019,52 @@ fn use_counter_callback() {
 }
 
 #[test]
+fn code_generation_from_strings_callback() {
+  static CODEGEN_ALLOWED: AtomicBool = AtomicBool::new(false);
+  static COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  #[allow(improper_ctypes_definitions)]
+  extern "C" fn callback<'s>(
+    _context: v8::Local<'s, v8::Context>,
+    _source: v8::Local<'s, v8::Value>,
+    _is_code_like: bool,
+  ) -> v8::ModifyCodeGenerationFromStringsResult<'s> {
+    COUNT.fetch_add(1, Ordering::Relaxed);
+    v8::ModifyCodeGenerationFromStringsResult {
+      codegen_allowed: CODEGEN_ALLOWED.load(Ordering::Relaxed),
+      modified_source: None,
+    }
+  }
+
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.set_modify_code_generation_from_strings_callback(callback);
+  let mut scope = v8::HandleScope::new(&mut isolate);
+  let context = v8::Context::new(&mut scope, Default::default());
+  // Must be set to false, otherwise code generation is unconditionally allowed and the callback is never used
+  context.set_allow_generation_from_strings(false);
+
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Code generation should be disallowed
+  {
+    let tc = &mut v8::TryCatch::new(scope);
+    eval(tc, "eval('1 + 1')");
+    assert_eq!(
+      tc.message().unwrap().get(tc).to_rust_string_lossy(tc),
+      "Uncaught EvalError: Code generation from strings disallowed for this context"
+    );
+    assert_eq!(COUNT.load(Ordering::Relaxed), 1);
+  }
+
+  // Enable code generation
+  CODEGEN_ALLOWED.store(true, Ordering::Relaxed);
+  let result: Option<v8::Local<'_, v8::Value>> = eval(scope, "eval('1 + 1')");
+  assert_eq!(result.unwrap().number_value(scope).unwrap(), 2.0);
+  assert_eq!(COUNT.load(Ordering::Relaxed), 2);
+}
+
+#[test]
 fn test_eternals() {
   let _setup_guard = setup::parallel_test();
   let eternal1 = v8::Eternal::empty();

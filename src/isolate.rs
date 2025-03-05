@@ -554,6 +554,22 @@ pub struct OomDetails {
 pub type OomErrorCallback =
   unsafe extern "C" fn(location: *const char, details: &OomDetails);
 
+#[repr(C)]
+pub struct ModifyCodeGenerationFromStringsResult<'s> {
+  pub codegen_allowed: bool,
+  pub modified_source: Option<Local<'s, String>>,
+}
+
+// We use Option<NonNull<T>> which _is_ FFI-safe.
+// See https://doc.rust-lang.org/nomicon/other-reprs.html
+#[allow(improper_ctypes_definitions)]
+pub type ModifyCodeGenerationFromStringsCallback<'s> =
+  extern "C" fn(
+    context: Local<'s, Context>,
+    source: Local<'s, Value>,
+    is_code_like: bool,
+  ) -> ModifyCodeGenerationFromStringsResult<'s>;
+
 // Windows x64 ABI: MaybeLocal<Value> returned on the stack.
 #[cfg(target_os = "windows")]
 pub type PrepareStackTraceCallback<'s> =
@@ -712,6 +728,13 @@ unsafe extern "C" {
   fn v8__Isolate__SetUseCounterCallback(
     isolate: *mut Isolate,
     callback: UseCounterCallback,
+  );
+  // We use Option<NonNull<T>> which _is_ FFI-safe.
+  // See https://doc.rust-lang.org/nomicon/other-reprs.html
+  #[allow(improper_ctypes)]
+  fn v8__Isolate__SetModifyCodeGenerationFromStringsCallback(
+    isolate: *mut Isolate,
+    callback: ModifyCodeGenerationFromStringsCallback,
   );
   fn v8__Isolate__RequestInterrupt(
     isolate: *const Isolate,
@@ -1403,6 +1426,20 @@ impl Isolate {
     data: *mut c_void,
   ) {
     unsafe { v8__Isolate__RemoveGCEpilogueCallback(self, callback, data) }
+  }
+
+  /// This specifies the callback called by v8 when JS is trying to dynamically execute
+  /// code using `eval` or the `Function` constructor.
+  ///
+  /// The callback can decide whether to allow code generation and, if so, modify
+  /// the source code beforehand.
+  pub fn set_modify_code_generation_from_strings_callback(
+    &mut self,
+    callback: ModifyCodeGenerationFromStringsCallback,
+  ) {
+    unsafe {
+      v8__Isolate__SetModifyCodeGenerationFromStringsCallback(self, callback)
+    }
   }
 
   /// Add a callback to invoke in case the heap size is close to the heap limit.
