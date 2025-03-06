@@ -284,8 +284,8 @@ unsafe extern "C" fn one_byte_const_unaccount(
 }
 unsafe extern "C" fn one_byte_const_estimate_memory_usage(
   _this: *const OneByteConst,
-) -> int {
-  -1
+) -> size_t {
+  usize::MAX // ExternalStringResource::kDefaultMemoryEstimate
 }
 unsafe extern "C" fn one_byte_const_estimate_shared_memory_usage(
   _this: *const OneByteConst,
@@ -302,7 +302,7 @@ type OneByteConstLength = unsafe extern "C" fn(*const OneByteConst) -> usize;
 type OneByteConstUnaccount =
   unsafe extern "C" fn(*const OneByteConst, *mut Isolate);
 type OneByteConstEstimateMemoryUsage =
-  unsafe extern "C" fn(*const OneByteConst) -> int;
+  unsafe extern "C" fn(*const OneByteConst) -> size_t;
 type OneByteConstEstimateSharedMemoryUsage =
   unsafe extern "C" fn(*const OneByteConst, *mut ());
 
