@@ -1,7 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 use fslock::LockFile;
 use miniz_oxide::MZFlush;
-use miniz_oxide::MZResult;
 use miniz_oxide::MZStatus;
 use miniz_oxide::StreamResult;
 use miniz_oxide::inflate::stream::InflateState;
@@ -102,7 +101,7 @@ fn main() {
 
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
-    if is_asan && std::env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
+    if is_asan && env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
       panic!(
         "v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues."
       );
@@ -407,14 +406,12 @@ fn download_ninja_gn_binaries() {
 
 fn prebuilt_profile() -> &'static str {
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-  // Note: we always use the release build on windows.
-  if target_os == "windows" {
-    return "release";
-  }
   // Use v8 in release mode unless $V8_FORCE_DEBUG=true
-  match env_bool("V8_FORCE_DEBUG") {
-    true => "debug",
-    _ => "release",
+  // Note: we always use the release build on windows.
+  if target_os != "windows" && env_bool("V8_FORCE_DEBUG") {
+    "debug"
+  } else {
+    "release"
   }
 }
 
@@ -476,7 +473,7 @@ fn build_dir() -> PathBuf {
   );
   let out_dir_abs = cwd.join(out_dir);
 
-  // This would be target/debug or target/release
+  // This would be `target/debug` or `target/release`
   out_dir_abs
     .parent()
     .unwrap()
@@ -500,8 +497,8 @@ fn download_file(url: &str, filename: &Path) {
     return;
   }
 
-  // Checksum (i.e: url) to avoid redownloads
-  match std::fs::read_to_string(static_checksum_path(filename)) {
+  // Checksum (i.e: url) to avoid re-downloads
+  match fs::read_to_string(static_checksum_path(filename)) {
     Ok(c) if c == static_lib_url() => return,
     _ => {}
   };
@@ -520,7 +517,7 @@ fn download_file(url: &str, filename: &Path) {
   let tmpfile = filename.with_extension("tmp");
   if tmpfile.exists() {
     println!("Deleting old tmpfile {}", tmpfile.display());
-    std::fs::remove_file(&tmpfile).unwrap();
+    fs::remove_file(&tmpfile).unwrap();
   }
 
   // Try downloading with python first. Python is a V8 build dependency,
@@ -557,9 +554,9 @@ fn download_file(url: &str, filename: &Path) {
   assert!(tmpfile.exists());
 
   // Write checksum (i.e url) & move file
-  std::fs::write(static_checksum_path(filename), url).unwrap();
+  fs::write(static_checksum_path(filename), url).unwrap();
   copy_archive(&tmpfile.to_string_lossy(), filename);
-  std::fs::remove_file(&tmpfile).unwrap();
+  fs::remove_file(&tmpfile).unwrap();
 
   assert!(filename.exists());
   assert!(static_checksum_path(filename).exists());
@@ -571,7 +568,7 @@ fn download_static_lib_binaries() {
   println!("static lib URL: {url}");
 
   let dir = static_lib_dir();
-  std::fs::create_dir_all(&dir).unwrap();
+  fs::create_dir_all(&dir).unwrap();
   println!("cargo:rustc-link-search={}", dir.display());
 
   download_file(&url, &static_lib_path());
@@ -588,7 +585,7 @@ where
   let mut input_offset = 0;
 
   // Skip the gzip header
-  gzip_header::read_gz_header(input).unwrap();
+  gzip_header::read_gz_header(input)?;
 
   loop {
     let bytes_read = input.read(&mut input_buffer[input_offset..])?;
@@ -605,9 +602,7 @@ where
       MZFlush::None,
     );
 
-    if status != MZResult::Ok(MZStatus::Ok)
-      && status != MZResult::Ok(MZStatus::StreamEnd)
-    {
+    if status != Ok(MZStatus::Ok) && status != Ok(MZStatus::StreamEnd) {
       return Err(io::Error::new(
         io::ErrorKind::Other,
         format!("Decompression error {status:?}"),
@@ -620,7 +615,7 @@ where
     input_buffer.copy_within(bytes_consumed..bytes_avail, 0);
     input_offset = bytes_avail - bytes_consumed;
 
-    if status == MZResult::Ok(MZStatus::StreamEnd) {
+    if status == Ok(MZStatus::StreamEnd) {
       break; // End of decompression
     }
   }
@@ -630,8 +625,8 @@ where
 
 /// Copy the V8 archive at `url` to `filename`.
 ///
-/// This function doesn't use `std::fs::copy` because that would
-/// preveserve the file attributes such as ownership and mode flags.
+/// This function doesn't use [`fs::copy`] because that would
+/// preserve the file attributes such as ownership and mode flags.
 /// Instead, it copies the file contents to a new file.
 /// This is necessary because the V8 archive could live inside a read-only
 /// filesystem, and subsequent builds would fail to overwrite it.
@@ -835,8 +830,7 @@ fn maybe_symlink_root_dir(dirs: &mut Dirs) {
   // different drive than the output. If this is the case we'll create a
   // symlink called 'gn_root' in the out directory, next to 'gn_out', so it
   // appears as if they're both on the same drive.
-  use std::fs::remove_dir_all;
-  use std::fs::remove_file;
+  use fs::{remove_dir_all, remove_file};
   use std::os::windows::fs::symlink_dir;
 
   let get_prefix = |p: &Path| {
@@ -990,7 +984,7 @@ pub fn build(target: &str, maybe_env: Option<NinjaEnv>) {
       .success()
   );
 
-  // TODO This is not sufficent. We need to use "gn desc" to query the target
+  // TODO This is not sufficient. We need to use "gn desc" to query the target
   // and figure out what else we need to add to the link.
   println!(
     "cargo:rustc-link-search=native={}/obj/",
@@ -1044,8 +1038,7 @@ pub fn parse_ninja_deps(s: &str) -> HashSet<String> {
   out
 }
 
-/// A parser for the output of "ninja -t graph". It returns all of the input
-/// files.
+/// A parser for the output of "ninja -t graph". It returns all the input files.
 pub fn parse_ninja_graph(s: &str) -> HashSet<String> {
   let mut out = HashSet::new();
   // This is extremely hacky and likely to break.
