@@ -307,10 +307,32 @@ void v8__Isolate__RemoveGCPrologueCallback(
   isolate->RemoveGCPrologueCallback(callback, data);
 }
 
+void v8__Isolate__AddGCEpilogueCallback(
+    v8::Isolate* isolate, v8::Isolate::GCCallbackWithData callback, void* data,
+    v8::GCType gc_type_filter) {
+  isolate->AddGCEpilogueCallback(callback, data, gc_type_filter);
+}
+
+void v8__Isolate__RemoveGCEpilogueCallback(
+    v8::Isolate* isolate, v8::Isolate::GCCallbackWithData callback,
+    void* data) {
+  isolate->RemoveGCEpilogueCallback(callback, data);
+}
+
 void v8__Isolate__AddNearHeapLimitCallback(v8::Isolate* isolate,
                                            v8::NearHeapLimitCallback callback,
                                            void* data) {
   isolate->AddNearHeapLimitCallback(callback, data);
+}
+
+size_t v8__Isolate__NumberOfHeapSpaces(v8::Isolate* isolate) {
+  return isolate->NumberOfHeapSpaces();
+}
+
+bool v8__Isolate__GetHeapSpaceStatistics(
+    v8::Isolate* isolate, v8::HeapSpaceStatistics* space_statistics,
+    size_t index) {
+  return isolate->GetHeapSpaceStatistics(space_statistics, index);
 }
 
 void v8__Isolate__RemoveNearHeapLimitCallback(
@@ -3395,36 +3417,6 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
   const_cast<v8::HeapSnapshot*>(snapshot)->Delete();
 }
 
-void v8__HeapStatistics__CONSTRUCT(uninit_t<v8::HeapStatistics>* buf) {
-  // Should be <= than its counterpart in src/isolate.rs
-  static_assert(sizeof(v8::HeapStatistics) <= sizeof(uintptr_t[16]),
-                "HeapStatistics mismatch");
-  construct_in_place<v8::HeapStatistics>(buf);
-}
-
-// The const_cast doesn't violate const correctness, the methods
-// are simple getters that don't mutate the object or global state.
-#define V(name)                                                    \
-  size_t v8__HeapStatistics__##name(const v8::HeapStatistics* s) { \
-    return const_cast<v8::HeapStatistics*>(s)->name();             \
-  }
-
-V(total_heap_size)
-V(total_heap_size_executable)
-V(total_physical_size)
-V(total_available_size)
-V(total_global_handles_size)
-V(used_global_handles_size)
-V(used_heap_size)
-V(heap_size_limit)
-V(malloced_memory)
-V(external_memory)
-V(peak_malloced_memory)
-V(number_of_native_contexts)
-V(number_of_detached_contexts)
-V(does_zap_garbage)  // Returns size_t, not bool like you'd expect.
-
-#undef V
 }  // extern "C"
 
 // v8::ValueSerializer::Delegate

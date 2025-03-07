@@ -40,6 +40,10 @@ using v8__FastOneByteString = v8::FastOneByteString;
 using v8__Isolate__UseCounterFeature = v8::Isolate::UseCounterFeature;
 using v8__String__WriteFlags = v8::String::WriteFlags;
 using v8__ModuleImportPhase = v8::ModuleImportPhase;
+using v8__HeapStatistics = v8::HeapStatistics;
+using v8__HeapSpaceStatistics = v8::HeapSpaceStatistics;
+using v8__GCType = v8::GCType;
+using v8__GCCallbackFlags = v8::GCCallbackFlags;
 
 static uint32_t v8__MAJOR_VERSION = V8_MAJOR_VERSION;
 static uint32_t v8__MINOR_VERSION = V8_MINOR_VERSION;
