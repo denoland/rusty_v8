@@ -7617,8 +7617,7 @@ fn heap_statistics() {
   let params = v8::CreateParams::default().heap_limits(0, 10 << 20); // 10 MB.
   let isolate = &mut v8::Isolate::new(params);
 
-  let mut s = v8::HeapStatistics::default();
-  isolate.get_heap_statistics(&mut s);
+  let s = isolate.get_heap_statistics();
 
   assert!(s.used_heap_size() > 0);
   assert!(s.total_heap_size() > 0);
@@ -7644,7 +7643,7 @@ fn heap_statistics() {
   let local = eval(scope, "").unwrap();
   let _global = v8::Global::new(scope, local);
 
-  scope.get_heap_statistics(&mut s);
+  let s = scope.get_heap_statistics();
 
   assert_ne!(s.used_global_handles_size(), 0);
   assert_ne!(s.total_global_handles_size(), 0);
@@ -9026,8 +9025,7 @@ fn run_with_rust_allocator() {
     let result = script.run(scope).unwrap();
     assert_eq!(result.to_rust_string_lossy(scope), "OK");
   }
-  let mut stats = v8::HeapStatistics::default();
-  isolate.get_heap_statistics(&mut stats);
+  let stats = isolate.get_heap_statistics();
   let count_loaded = count.load(Ordering::SeqCst);
   assert!(count_loaded > 0);
   assert!(count_loaded <= stats.external_memory());
@@ -11335,43 +11333,35 @@ fn gc_callbacks() {
 
   #[derive(Default)]
   struct GCCallbackState {
-    mark_sweep_calls: u64,
-    incremental_marking_calls: u64,
+    prologue_calls: u64,
+    epilogue_calls: u64,
   }
 
-  extern "C" fn callback(
+  extern "C" fn prologue(
     _isolate: *mut v8::Isolate,
-    r#type: v8::GCType,
+    _type: v8::GCType,
     _flags: v8::GCCallbackFlags,
     data: *mut c_void,
   ) {
-    // We should get a mark-sweep GC here.
-    assert_eq!(r#type, v8::GCType::MARK_SWEEP_COMPACT);
     let state = unsafe { &mut *(data as *mut GCCallbackState) };
-    state.mark_sweep_calls += 1;
+    state.prologue_calls += 1;
   }
 
-  extern "C" fn callback2(
+  extern "C" fn epilogue(
     _isolate: *mut v8::Isolate,
-    r#type: v8::GCType,
+    _type: v8::GCType,
     _flags: v8::GCCallbackFlags,
     data: *mut c_void,
   ) {
-    // We should get a mark-sweep GC here.
-    assert_eq!(r#type, v8::GCType::INCREMENTAL_MARKING);
     let state = unsafe { &mut *(data as *mut GCCallbackState) };
-    state.incremental_marking_calls += 1;
+    state.epilogue_calls += 1;
   }
 
   let mut state = GCCallbackState::default();
   let state_ptr = &mut state as *mut _ as *mut c_void;
   let isolate = &mut v8::Isolate::new(Default::default());
-  isolate.add_gc_prologue_callback(callback, state_ptr, v8::GCType::ALL);
-  isolate.add_gc_prologue_callback(
-    callback2,
-    state_ptr,
-    v8::GCType::INCREMENTAL_MARKING | v8::GCType::PROCESS_WEAK_CALLBACKS,
-  );
+  isolate.add_gc_prologue_callback(prologue, state_ptr, v8::GCType::kGCTypeAll);
+  isolate.add_gc_epilogue_callback(epilogue, state_ptr, v8::GCType::kGCTypeAll);
 
   {
     let scope = &mut v8::HandleScope::new(isolate);
@@ -11380,12 +11370,12 @@ fn gc_callbacks() {
 
     scope
       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
-    assert_eq!(state.mark_sweep_calls, 1);
-    assert_eq!(state.incremental_marking_calls, 0);
+    assert_eq!(state.prologue_calls, 1);
+    assert_eq!(state.prologue_calls, state.epilogue_calls);
   }
 
-  isolate.remove_gc_prologue_callback(callback, state_ptr);
-  isolate.remove_gc_prologue_callback(callback2, state_ptr);
+  isolate.remove_gc_prologue_callback(prologue, state_ptr);
+  isolate.remove_gc_epilogue_callback(epilogue, state_ptr);
   {
     let scope = &mut v8::HandleScope::new(isolate);
     let context = v8::Context::new(scope, Default::default());
@@ -11393,9 +11383,8 @@ fn gc_callbacks() {
 
     scope
       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
-    // Assert callback was removed and not called again.
-    assert_eq!(state.mark_sweep_calls, 1);
-    assert_eq!(state.incremental_marking_calls, 0);
+    assert_eq!(state.prologue_calls, 1);
+    assert_eq!(state.prologue_calls, state.epilogue_calls);
   }
 }
 
