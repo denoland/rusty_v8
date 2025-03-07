@@ -17,6 +17,8 @@ use crate::PromiseResolver;
 use crate::StartupData;
 use crate::String;
 use crate::Value;
+use crate::binding::v8__HeapSpaceStatistics;
+use crate::binding::v8__HeapStatistics;
 use crate::binding::v8__Isolate__UseCounterFeature;
 pub use crate::binding::v8__ModuleImportPhase as ModuleImportPhase;
 use crate::cppgc::Heap;
@@ -39,8 +41,10 @@ use crate::support::UniqueRef;
 use crate::support::UnitType;
 use crate::support::char;
 use crate::support::int;
+use crate::support::size_t;
 use crate::wasm::WasmStreaming;
 use crate::wasm::trampoline;
+use std::ffi::CStr;
 
 use std::any::Any;
 use std::any::TypeId;
@@ -550,15 +554,6 @@ pub struct OomDetails {
 pub type OomErrorCallback =
   unsafe extern "C" fn(location: *const char, details: &OomDetails);
 
-/// Collection of V8 heap information.
-///
-/// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
-/// get heap statistics from V8.
-// Must be >= sizeof(v8::HeapStatistics), see v8__HeapStatistics__CONSTRUCT().
-#[repr(C)]
-#[derive(Debug)]
-pub struct HeapStatistics([usize; 16]);
-
 // Windows x64 ABI: MaybeLocal<Value> returned on the stack.
 #[cfg(target_os = "windows")]
 pub type PrepareStackTraceCallback<'s> =
@@ -603,7 +598,10 @@ unsafe extern "C" {
   fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
-  fn v8__Isolate__GetHeapStatistics(this: *mut Isolate, s: *mut HeapStatistics);
+  fn v8__Isolate__GetHeapStatistics(
+    this: *mut Isolate,
+    s: *mut v8__HeapStatistics,
+  );
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
     this: *mut Isolate,
     capture: bool,
@@ -629,6 +627,23 @@ unsafe extern "C" {
     callback: GcCallbackWithData,
     data: *mut c_void,
   );
+  fn v8__Isolate__AddGCEpilogueCallback(
+    isolate: *mut Isolate,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+    gc_type_filter: GCType,
+  );
+  fn v8__Isolate__RemoveGCEpilogueCallback(
+    isolate: *mut Isolate,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+  );
+  fn v8__Isolate__NumberOfHeapSpaces(isolate: *mut Isolate) -> size_t;
+  fn v8__Isolate__GetHeapSpaceStatistics(
+    isolate: *mut Isolate,
+    space_statistics: *mut v8__HeapSpaceStatistics,
+    index: size_t,
+  ) -> bool;
   fn v8__Isolate__AddNearHeapLimitCallback(
     isolate: *mut Isolate,
     callback: NearHeapLimitCallback,
@@ -738,37 +753,6 @@ unsafe extern "C" {
     callback: unsafe extern "C" fn(*mut c_void, *const u8, usize) -> bool,
     arg: *mut c_void,
   );
-
-  fn v8__HeapStatistics__CONSTRUCT(s: *mut MaybeUninit<HeapStatistics>);
-  fn v8__HeapStatistics__total_heap_size(s: *const HeapStatistics) -> usize;
-  fn v8__HeapStatistics__total_heap_size_executable(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__total_physical_size(s: *const HeapStatistics)
-  -> usize;
-  fn v8__HeapStatistics__total_available_size(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__total_global_handles_size(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__used_global_handles_size(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__used_heap_size(s: *const HeapStatistics) -> usize;
-  fn v8__HeapStatistics__heap_size_limit(s: *const HeapStatistics) -> usize;
-  fn v8__HeapStatistics__malloced_memory(s: *const HeapStatistics) -> usize;
-  fn v8__HeapStatistics__external_memory(s: *const HeapStatistics) -> usize;
-  fn v8__HeapStatistics__peak_malloced_memory(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__number_of_native_contexts(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__number_of_detached_contexts(
-    s: *const HeapStatistics,
-  ) -> usize;
-  fn v8__HeapStatistics__does_zap_garbage(s: *const HeapStatistics) -> usize;
 }
 
 /// Isolate represents an isolated instance of the V8 engine.  V8 isolates have
@@ -1122,8 +1106,41 @@ impl Isolate {
 
   /// Get statistics about the heap memory usage.
   #[inline(always)]
-  pub fn get_heap_statistics(&mut self, s: &mut HeapStatistics) {
-    unsafe { v8__Isolate__GetHeapStatistics(self, s) }
+  pub fn get_heap_statistics(&mut self) -> HeapStatistics {
+    let inner = unsafe {
+      let mut s = MaybeUninit::zeroed();
+      v8__Isolate__GetHeapStatistics(self, s.as_mut_ptr());
+      s.assume_init()
+    };
+    HeapStatistics(inner)
+  }
+
+  /// Returns the number of spaces in the heap.
+  #[inline(always)]
+  pub fn number_of_heap_spaces(&mut self) -> usize {
+    unsafe { v8__Isolate__NumberOfHeapSpaces(self) }
+  }
+
+  /// Get the memory usage of a space in the heap.
+  ///
+  /// \param space_statistics The HeapSpaceStatistics object to fill in
+  ///   statistics.
+  /// \param index The index of the space to get statistics from, which ranges
+  ///   from 0 to NumberOfHeapSpaces() - 1.
+  /// \returns true on success.
+  #[inline(always)]
+  pub fn get_heap_space_statistics(
+    &mut self,
+    index: usize,
+  ) -> Option<HeapSpaceStatistics> {
+    let inner = unsafe {
+      let mut s = MaybeUninit::zeroed();
+      if !v8__Isolate__GetHeapSpaceStatistics(self, s.as_mut_ptr(), index) {
+        return None;
+      }
+      s.assume_init()
+    };
+    Some(HeapSpaceStatistics(inner))
   }
 
   /// Tells V8 to capture current stack trace when uncaught exception occurs
@@ -1359,6 +1376,33 @@ impl Isolate {
     data: *mut c_void,
   ) {
     unsafe { v8__Isolate__RemoveGCPrologueCallback(self, callback, data) }
+  }
+
+  /// Enables the host application to receive a notification after a
+  /// garbage collection.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
+  pub fn add_gc_epilogue_callback(
+    &mut self,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+    gc_type_filter: GCType,
+  ) {
+    unsafe {
+      v8__Isolate__AddGCEpilogueCallback(self, callback, data, gc_type_filter);
+    }
+  }
+
+  /// This function removes a callback which was added by
+  /// `AddGCEpilogueCallback`.
+  #[allow(clippy::not_unsafe_ptr_arg_deref)] // False positive.
+  #[inline(always)]
+  pub fn remove_gc_epilogue_callback(
+    &mut self,
+    callback: GcCallbackWithData,
+    data: *mut c_void,
+  ) {
+    unsafe { v8__Isolate__RemoveGCEpilogueCallback(self, callback, data) }
   }
 
   /// Add a callback to invoke in case the heap size is close to the heap limit.
@@ -1904,87 +1948,107 @@ impl AsMut<Isolate> for Isolate {
   }
 }
 
+/// Collection of V8 heap information.
+///
+/// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
+/// get heap statistics from V8.
+pub struct HeapStatistics(v8__HeapStatistics);
+
 impl HeapStatistics {
   #[inline(always)]
   pub fn total_heap_size(&self) -> usize {
-    unsafe { v8__HeapStatistics__total_heap_size(self) }
+    self.0.total_heap_size_
   }
 
   #[inline(always)]
   pub fn total_heap_size_executable(&self) -> usize {
-    unsafe { v8__HeapStatistics__total_heap_size_executable(self) }
+    self.0.total_heap_size_executable_
   }
 
   #[inline(always)]
   pub fn total_physical_size(&self) -> usize {
-    unsafe { v8__HeapStatistics__total_physical_size(self) }
+    self.0.total_physical_size_
   }
 
   #[inline(always)]
   pub fn total_available_size(&self) -> usize {
-    unsafe { v8__HeapStatistics__total_available_size(self) }
+    self.0.total_available_size_
   }
 
   #[inline(always)]
   pub fn total_global_handles_size(&self) -> usize {
-    unsafe { v8__HeapStatistics__total_global_handles_size(self) }
+    self.0.total_global_handles_size_
   }
 
   #[inline(always)]
   pub fn used_global_handles_size(&self) -> usize {
-    unsafe { v8__HeapStatistics__used_global_handles_size(self) }
+    self.0.used_global_handles_size_
   }
 
   #[inline(always)]
   pub fn used_heap_size(&self) -> usize {
-    unsafe { v8__HeapStatistics__used_heap_size(self) }
+    self.0.used_heap_size_
   }
 
   #[inline(always)]
   pub fn heap_size_limit(&self) -> usize {
-    unsafe { v8__HeapStatistics__heap_size_limit(self) }
+    self.0.heap_size_limit_
   }
 
   #[inline(always)]
   pub fn malloced_memory(&self) -> usize {
-    unsafe { v8__HeapStatistics__malloced_memory(self) }
+    self.0.malloced_memory_
   }
 
   #[inline(always)]
   pub fn external_memory(&self) -> usize {
-    unsafe { v8__HeapStatistics__external_memory(self) }
+    self.0.external_memory_
   }
 
   #[inline(always)]
   pub fn peak_malloced_memory(&self) -> usize {
-    unsafe { v8__HeapStatistics__peak_malloced_memory(self) }
+    self.0.peak_malloced_memory_
   }
 
   #[inline(always)]
   pub fn number_of_native_contexts(&self) -> usize {
-    unsafe { v8__HeapStatistics__number_of_native_contexts(self) }
+    self.0.number_of_native_contexts_
   }
 
   #[inline(always)]
   pub fn number_of_detached_contexts(&self) -> usize {
-    unsafe { v8__HeapStatistics__number_of_detached_contexts(self) }
+    self.0.number_of_detached_contexts_
   }
 
   /// Returns a 0/1 boolean, which signifies whether the V8 overwrite heap
   /// garbage with a bit pattern.
   #[inline(always)]
-  pub fn does_zap_garbage(&self) -> usize {
-    unsafe { v8__HeapStatistics__does_zap_garbage(self) }
+  pub fn does_zap_garbage(&self) -> bool {
+    self.0.does_zap_garbage_
   }
 }
 
-impl Default for HeapStatistics {
-  fn default() -> Self {
-    let mut s = MaybeUninit::<Self>::uninit();
-    unsafe {
-      v8__HeapStatistics__CONSTRUCT(&mut s);
-      s.assume_init()
-    }
+pub struct HeapSpaceStatistics(v8__HeapSpaceStatistics);
+
+impl HeapSpaceStatistics {
+  pub fn space_name(&self) -> &CStr {
+    unsafe { CStr::from_ptr(self.0.space_name_) }
+  }
+
+  pub fn space_size(&self) -> usize {
+    self.0.space_size_
+  }
+
+  pub fn space_used_size(&self) -> usize {
+    self.0.space_used_size_
+  }
+
+  pub fn space_available_size(&self) -> usize {
+    self.0.space_available_size_
+  }
+
+  pub fn physical_space_size(&self) -> usize {
+    self.0.physical_space_size_
   }
 }
 

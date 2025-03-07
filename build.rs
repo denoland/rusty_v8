@@ -159,6 +159,8 @@ fn build_binding() {
     .generate_cstr(true)
     .rustified_enum(".*UseCounterFeature")
     .rustified_enum(".*ModuleImportPhase")
+    .bitfield_enum(".*GCType")
+    .bitfield_enum(".*GCCallbackFlags")
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")
     .allowlist_item("RustObj")
