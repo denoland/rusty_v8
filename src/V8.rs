@@ -1,5 +1,4 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use once_cell::sync::Lazy;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::sync::Mutex;
@@ -72,8 +71,7 @@ enum GlobalState {
 }
 use GlobalState::*;
 
-static GLOBAL_STATE: Lazy<Mutex<GlobalState>> =
-  Lazy::new(|| Mutex::new(Uninitialized));
+static GLOBAL_STATE: Mutex<GlobalState> = Mutex::new(Uninitialized);
 
 pub fn assert_initialized() {
   let global_state_guard = GLOBAL_STATE.lock().unwrap();
