@@ -1453,7 +1453,6 @@ dependencies = [
  "gzip-header",
  "home",
  "miniz_oxide",
- "once_cell",
  "paste",
  "rustversion",
  "trybuild",
