@@ -2031,7 +2031,7 @@ impl HeapStatistics {
 pub struct HeapSpaceStatistics(v8__HeapSpaceStatistics);
 
 impl HeapSpaceStatistics {
-  pub fn space_name(&self) -> &CStr {
+  pub fn space_name(&self) -> &'static CStr {
     unsafe { CStr::from_ptr(self.0.space_name_) }
   }
 
