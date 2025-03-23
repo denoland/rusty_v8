@@ -1,5 +1,4 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use once_cell::sync::Lazy;
 use std::any::type_name;
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -13,6 +12,7 @@ use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 use std::ptr::{addr_of, addr_of_mut};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use v8::AccessorConfiguration;
@@ -9598,7 +9598,8 @@ fn counter_lookup_callback() {
   unsafe impl Send for Name {}
   unsafe impl Send for Count {}
 
-  static MAP: Lazy<Arc<Mutex<HashMap<Name, Count>>>> = Lazy::new(Arc::default);
+  static MAP: LazyLock<Arc<Mutex<HashMap<Name, Count>>>> =
+    LazyLock::new(Arc::default);
 
   // |name| points to a static zero-terminated C string.
   extern "C" fn callback(name: *const c_char) -> *mut i32 {
