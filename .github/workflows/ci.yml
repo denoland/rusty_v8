@@ -263,10 +263,9 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11.x
-          architecture: x64
 
       - name: Download CI artifacts
         uses: actions/download-artifact@v4
