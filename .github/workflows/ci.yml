@@ -153,7 +153,7 @@ jobs:
           restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache
-        if: ! (startsWith(matrix.config.os, 'ubuntu') && endsWith(matrix.config.os, 'arm'))
+        if: ${{ ! (startsWith(matrix.config.os, 'ubuntu') && endsWith(matrix.config.os, 'arm')) }}
         shell: pwsh
         env:
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
