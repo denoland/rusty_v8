@@ -131,7 +131,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.11.x
-          architecture: x64
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
