@@ -152,28 +152,41 @@ jobs:
           key: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
-      - name: Install and start sccache
-        if: ${{ ! (startsWith(matrix.config.os, 'ubuntu') && endsWith(matrix.config.os, 'arm')) }}
-        shell: pwsh
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+        with:
+          version: "v0.4.0"
+
+      - name: Start sccache
         env:
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
           SCCACHE_CACHE_SIZE: 128M
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
-          $version = "0.2.12"
-          $platform =
-            @{ "macOS"   = "x86_64-apple-darwin"
-               "Linux"   = "x86_64-unknown-linux-musl"
-               "Windows" = "x86_64-pc-windows-msvc"
-             }.${{ runner.os }}
-          $basename = "sccache-$version-$platform"
-          $url = "https://github.com/mozilla/sccache/releases/download/" +
-                 "$version/$basename.tar.gz"
-          cd ~
-          curl -LO $url
-          tar -xzvf "$basename.tar.gz"
-          . $basename/sccache --start-server
-          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          sccache --start-server
+
+      # - name: Install and start sccache
+      #   if: ${{ ! (startsWith(matrix.config.os, 'ubuntu') && endsWith(matrix.config.os, 'arm')) }}
+      #   shell: pwsh
+      #   env:
+      #     SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+      #     SCCACHE_CACHE_SIZE: 128M
+      #     SCCACHE_IDLE_TIMEOUT: 0
+      #   run: |
+      #     $version = "0.2.12"
+      #     $platform =
+      #       @{ "macOS"   = "x86_64-apple-darwin"
+      #          "Linux"   = "x86_64-unknown-linux-musl"
+      #          "Windows" = "x86_64-pc-windows-msvc"
+      #        }.${{ runner.os }}
+      #     $basename = "sccache-$version-$platform"
+      #     $url = "https://github.com/mozilla/sccache/releases/download/" +
+      #            "$version/$basename.tar.gz"
+      #     cd ~
+      #     curl -LO $url
+      #     tar -xzvf "$basename.tar.gz"
+      #     . $basename/sccache --start-server
+      #     echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Clang
         if: startsWith(matrix.config.os, 'ubuntu')
