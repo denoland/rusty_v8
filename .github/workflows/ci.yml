@@ -175,6 +175,8 @@ jobs:
 
       - name: Start sccache
         env:
+          # Start sccache server instead of using `RUSTC_WRAPPER`/`SCCACHE_GHA_ENABLED` environment variable (recommended by `sccache-action`).
+          # Because it cannot compile `syn` lib correctly on windows.
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
           SCCACHE_CACHE_SIZE: 128M
           SCCACHE_IDLE_TIMEOUT: 0
