@@ -206,10 +206,16 @@ jobs:
           V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std nextest run --lib --bins --tests -v --cargo-verbose --cargo-verbose --target ${{ matrix.config.target }}
 
       - name: Test
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
         run: ${{ matrix.config.cargo }} clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }} -- -D clippy::all
 
       - name: Prepare binary publish
