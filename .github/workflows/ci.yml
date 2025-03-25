@@ -160,10 +160,8 @@ jobs:
           # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
           # quite big, so we cache only those subdirectories of
           # target/{debug|release} that contain the build output for crates that
-          # come from the registry. By additionally saving the sccache cache
-          # directory it's still possible to build v8 fast.
+          # come from the registry.
           path: |-
-            target/sccache
             target/*/.*
             target/*/build
             target/*/deps
