@@ -160,28 +160,16 @@ jobs:
           # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
           # quite big, so we cache only those subdirectories of
           # target/{debug|release} that contain the build output for crates that
-          # come from the registry. By additionally saving the sccache cache
-          # directory it's still possible to build v8 fast.
+          # come from the registry.
           path: |-
-            target/sccache
             target/*/.*
             target/*/build
             target/*/deps
           key: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
-      - name: Install sccache
+      - name: Sccache
         uses: mozilla-actions/sccache-action@v0.0.8
-
-      - name: Start sccache
-        env:
-          # Start sccache server instead of using `RUSTC_WRAPPER`/`SCCACHE_GHA_ENABLED` environment variable (recommended by `sccache-action`).
-          # Because it cannot compile `syn` lib correctly on windows.
-          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
-          SCCACHE_CACHE_SIZE: 128M
-          SCCACHE_IDLE_TIMEOUT: 0
-        run: |
-          sccache --start-server
 
       - name: Install Clang
         if: startsWith(matrix.config.os, 'ubuntu')
@@ -206,7 +194,8 @@ jobs:
 
       - name: Test (ASAN)
         env:
-          SCCACHE_IDLE_TIMEOUT: 0
+          RUSTC_WRAPPER: "sccache"
+          SCCACHE_GHA_ENABLED: "true"
         if: matrix.config.variant == 'asan'
         # https://github.com/rust-lang/rust/issues/87215
         run: |
@@ -218,8 +207,13 @@ jobs:
 
       - name: Test
         env:
-          SCCACHE_IDLE_TIMEOUT: 0
-        if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
+          RUSTC_WRAPPER: "sccache"
+          SCCACHE_GHA_ENABLED: "true"
+        if: ${{ (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && ! contains(matrix.config.target, 'windows') }}
+        run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
+
+      - name: Test (Without Sccache)
+        if : ${{ contains(matrix.config.target, 'windows') }}
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
