@@ -107,6 +107,8 @@ jobs:
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
       FEATURES_SUFFIX: ${{ matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '' }}
       RUSTFLAGS: -D warnings
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
 
     steps:
       - name: Configure git
@@ -168,27 +170,8 @@ jobs:
           key: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
-      - name: Install and start sccache
-        shell: pwsh
-        env:
-          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
-          SCCACHE_CACHE_SIZE: 128M
-          SCCACHE_IDLE_TIMEOUT: 0
-        run: |
-          $version = "0.2.12"
-          $platform =
-            @{ "macOS"   = "x86_64-apple-darwin"
-               "Linux"   = "x86_64-unknown-linux-musl"
-               "Windows" = "x86_64-pc-windows-msvc"
-             }.${{ runner.os }}
-          $basename = "sccache-$version-$platform"
-          $url = "https://github.com/mozilla/sccache/releases/download/" +
-                 "$version/$basename.tar.gz"
-          cd ~
-          curl -LO $url
-          tar -xzvf "$basename.tar.gz"
-          . $basename/sccache --start-server
-          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.8
 
       - name: Install Clang
         if: startsWith(matrix.config.os, 'ubuntu')
@@ -212,8 +195,6 @@ jobs:
           clang-format-19 --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
       - name: Test (ASAN)
-        env:
-          SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'asan'
         # https://github.com/rust-lang/rust/issues/87215
         run: |
@@ -224,8 +205,6 @@ jobs:
           V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std nextest run --lib --bins --tests -v --cargo-verbose --cargo-verbose --target ${{ matrix.config.target }}
 
       - name: Test
-        env:
-          SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
