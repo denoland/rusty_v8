@@ -160,16 +160,26 @@ jobs:
           # ('librusty_v8.rlib', the whole 'gn_out' directory, etc.) can be
           # quite big, so we cache only those subdirectories of
           # target/{debug|release} that contain the build output for crates that
-          # come from the registry.
+          # come from the registry. By additionally saving the sccache cache
+          # directory it's still possible to build v8 fast.
           path: |-
+            target/sccache
             target/*/.*
             target/*/build
             target/*/deps
           key: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
-      - name: Sccache
+      - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.8
+
+      - name: Start sccache
+        env:
+          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+          SCCACHE_CACHE_SIZE: 128M
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: |
+          sccache --start-server
 
       - name: Install Clang
         if: startsWith(matrix.config.os, 'ubuntu')
@@ -194,8 +204,7 @@ jobs:
 
       - name: Test (ASAN)
         env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
+          SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'asan'
         # https://github.com/rust-lang/rust/issues/87215
         run: |
@@ -207,15 +216,11 @@ jobs:
 
       - name: Test
         env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
+          SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
         run: ${{ matrix.config.cargo }} clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }} -- -D clippy::all
 
       - name: Prepare binary publish
