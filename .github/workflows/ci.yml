@@ -207,6 +207,7 @@ jobs:
       - name: Test (ASAN)
         env:
           SCCACHE_IDLE_TIMEOUT: 0
+          RUSTC_WRAPPER: "sccache"
         if: matrix.config.variant == 'asan'
         # https://github.com/rust-lang/rust/issues/87215
         run: |
@@ -219,7 +220,14 @@ jobs:
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
-        if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
+          RUSTC_WRAPPER: "sccache"
+        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && ! contains(matrix.config.target, 'windows')
+        run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
+
+      - name: Test
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && contains(matrix.config.target, 'windows')
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
