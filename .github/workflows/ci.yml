@@ -107,8 +107,6 @@ jobs:
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
       FEATURES_SUFFIX: ${{ matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '' }}
       RUSTFLAGS: -D warnings
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
 
     steps:
       - name: Configure git
@@ -195,6 +193,9 @@ jobs:
           clang-format-19 --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
       - name: Test (ASAN)
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
         if: matrix.config.variant == 'asan'
         # https://github.com/rust-lang/rust/issues/87215
         run: |
