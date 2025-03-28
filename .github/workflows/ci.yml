@@ -81,6 +81,30 @@ jobs:
             v8_enable_pointer_compression: true
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: debug
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: debug
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-musl
+            variant: release
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -133,7 +157,7 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
-      - name: Install cross compilation toolchain
+      - name: Install cross compilation toolchain (aarch64-unknown-linux-gnu)
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
           rustup target add aarch64-unknown-linux-gnu
@@ -149,6 +173,19 @@ jobs:
 
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
+
+      - name: Install cross compilation toolchain (x86_64-unknown-linux-musl)
+        if: matrix.config.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt install -yq musl-tools musl-dev
+          rustup target add x86_64-unknown-linux-musl
+
+          ln -s /usr/include/linux /usr/include/x86_64-linux-musl/
+          ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl/
+          ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/
+
+          echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> ${GITHUB_ENV}
+          echo "CC=musl-gcc" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
