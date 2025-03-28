@@ -185,8 +185,8 @@ jobs:
           sudo ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/
 
           echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> ${GITHUB_ENV}
-          echo "CC_x86_64-unknown-linux-musl=x86_64-unknown-linux-musl-cc" >> ${{GITHUB_ENV}}
-          echo "AR_x86_64-unknown-linux-musl=x86_64-unknown-linux-musl-ar" >> ${{GITHUB_ENV}}
+          echo "CC_x86_64-unknown-linux-musl=x86_64-unknown-linux-musl-cc" >> ${GITHUB_ENV}
+          echo "AR_x86_64-unknown-linux-musl=x86_64-unknown-linux-musl-ar" >> ${GITHUB_ENV}
           echo "CC=musl-gcc" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
