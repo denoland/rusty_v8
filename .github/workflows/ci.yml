@@ -267,7 +267,7 @@ jobs:
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
-        if: （matrix.config.variant == 'debug' || matrix.config.variant == 'release') && matrix.config.target != 'x86_64-unknown-linux-musl'
+        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && matrix.config.target != 'x86_64-unknown-linux-musl'
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Build (x86_64-unknown-linux-musl)
