@@ -198,18 +198,19 @@ jobs:
         shell: pwsh
         env:
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
-          SCCACHE_CACHE_SIZE: 128M
+          SCCACHE_CACHE_SIZE: 256M
           SCCACHE_IDLE_TIMEOUT: 0
         run: |
-          $version = "0.2.12"
+          $version = "v0.8.2"
           $platform =
-            @{ "macOS"   = "x86_64-apple-darwin"
-               "Linux"   = "x86_64-unknown-linux-musl"
-               "Windows" = "x86_64-pc-windows-msvc"
-             }.${{ runner.os }}
+            @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
+               "aarch64-apple-darwin"      = "aarch64-apple-darwin"
+               "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
+               "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
+               "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
+             }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
-          $url = "https://github.com/mozilla/sccache/releases/download/" +
-                 "$version/$basename.tar.gz"
+          $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
           curl -LO $url
           tar -xzvf "$basename.tar.gz"
@@ -304,7 +305,7 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11.x
           architecture: x64
