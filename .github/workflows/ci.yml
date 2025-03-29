@@ -111,6 +111,12 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+            target: x86_64-pc-windows-msvc
+            variant: release
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
@@ -121,6 +127,18 @@ jobs:
             target: aarch64-unknown-linux-gnu
             variant: release
             v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-unknown-linux-gnu
+            variant: debug
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-unknown-linux-gnu
+            variant: release
+            v8_enable_pointer_compression: true
             cargo: cargo
 
     env:
