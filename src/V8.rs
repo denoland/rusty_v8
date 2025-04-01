@@ -5,7 +5,10 @@ use std::sync::Mutex;
 use std::vec::Vec;
 
 use crate::platform::Platform;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
 use crate::support::SharedRef;
+use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::char;
 use crate::support::int;
@@ -23,7 +26,14 @@ unsafe extern "C" {
   fn v8__V8__Initialize();
   fn v8__V8__Dispose() -> bool;
   fn v8__V8__DisposePlatform();
+  fn v8__V8__SetFatalErrorHandler(that: V8FatalErrorCallback);
 }
+
+pub type V8FatalErrorCallback = unsafe extern "C" fn(
+  file: *const std::ffi::c_char,
+  line: std::ffi::c_int,
+  message: *const std::ffi::c_char,
+);
 
 /// EntropySource is used as a callback function when v8 needs a source
 /// of entropy.
@@ -244,4 +254,29 @@ pub fn dispose_platform() {
     }
     _ => panic!("Invalid global state"),
   };
+}
+
+impl<F> MapFnFrom<F> for V8FatalErrorCallback
+where
+  F: UnitType + Fn(&str, i32, &str),
+{
+  fn mapping() -> Self {
+    let f = |file, line, message| unsafe {
+      let file = std::ffi::CStr::from_ptr(file).to_str().unwrap_or_default();
+      let message = std::ffi::CStr::from_ptr(message)
+        .to_str()
+        .unwrap_or_default();
+      (F::get())(file, line, message);
+    };
+    f.to_c_fn()
+  }
+}
+
+/// Set the callback to invoke in the case of CHECK failures or fatal
+/// errors. This is distinct from Isolate::SetFatalErrorHandler, which
+/// is invoked in response to API usage failures.
+pub fn set_fatal_error_handler(that: impl MapFnTo<V8FatalErrorCallback>) {
+  unsafe {
+    v8__V8__SetFatalErrorHandler(that.map_fn_to());
+  }
 }

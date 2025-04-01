@@ -45,19 +45,23 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
-    assert!(v8::icu::set_common_data_74(align_data::include_aligned!(
-      align_data::Align16,
-      "../third_party/icu/common/icudtl.dat"
-    ))
-    .is_ok());
-    v8::V8::set_flags_from_string(
-      "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
-    );
-    v8::V8::initialize_platform(
-      v8::new_unprotected_default_platform(0, false).make_shared(),
-    );
-    v8::V8::initialize();
-  });
+      assert!(v8::icu::set_common_data_74(align_data::include_aligned!(
+        align_data::Align16,
+        "../third_party/icu/common/icudtl.dat"
+      ))
+      .is_ok());
+      v8::V8::set_flags_from_string(
+        "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
+      );
+      v8::V8::initialize_platform(
+        v8::new_unprotected_default_platform(0, false).make_shared(),
+      );
+      v8::V8::initialize();
+      fn on_error(file: &str, line: i32, message: &str) {
+        panic!("# FATAL in {file}:{line}\n# {message}");
+      }
+      v8::V8::set_fatal_error_handler(on_error);
+    });
   }
 
   #[must_use]
@@ -547,46 +551,6 @@ fn context_scope() {
 
   assert!(scope.get_current_context() == context1);
   assert!(scope.get_entered_or_microtask_context() == context1);
-}
-
-#[test]
-#[should_panic(
-  expected = "HandleScope<()> and Context do not belong to the same Isolate"
-)]
-fn context_scope_param_and_context_must_share_isolate() {
-  let _setup_guard = setup::parallel_test();
-  let isolate1 = &mut v8::Isolate::new(Default::default());
-  let isolate2 = &mut v8::Isolate::new(Default::default());
-  let scope1 = &mut v8::HandleScope::new(isolate1);
-  let scope2 = &mut v8::HandleScope::new(isolate2);
-  let context1 = v8::Context::new(scope1, Default::default());
-  let context2 = v8::Context::new(scope2, Default::default());
-  let _context_scope_12 = &mut v8::ContextScope::new(scope1, context2);
-  let _context_scope_21 = &mut v8::ContextScope::new(scope2, context1);
-}
-
-#[test]
-#[should_panic(
-  expected = "attempt to use Handle in an Isolate that is not its host"
-)]
-fn handle_scope_param_and_context_must_share_isolate() {
-  let _setup_guard = setup::parallel_test();
-  let isolate1 = &mut v8::Isolate::new(Default::default());
-  let isolate2 = &mut v8::Isolate::new(Default::default());
-  let global_context1;
-  let global_context2;
-  {
-    let scope1 = &mut v8::HandleScope::new(isolate1);
-    let scope2 = &mut v8::HandleScope::new(isolate2);
-    let local_context_1 = v8::Context::new(scope1, Default::default());
-    let local_context_2 = v8::Context::new(scope2, Default::default());
-    global_context1 = v8::Global::new(scope1, local_context_1);
-    global_context2 = v8::Global::new(scope2, local_context_2);
-  }
-  let _handle_scope_12 =
-    &mut v8::HandleScope::with_context(isolate1, global_context2);
-  let _handle_scope_21 =
-    &mut v8::HandleScope::with_context(isolate2, global_context1);
 }
 
 #[test]

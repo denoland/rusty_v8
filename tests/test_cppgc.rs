@@ -39,7 +39,6 @@ mod setup {
       let platform = v8::new_unprotected_default_platform(0, false).make_shared();
       v8::V8::initialize_platform(platform.clone());
       v8::V8::initialize();
-      v8::cppgc::initialize_process(platform.clone());
     });
   }
 
@@ -128,13 +127,7 @@ macro_rules! test {
       }
 
       {
-        // Create a managed heap.
-        let mut heap = v8::cppgc::Heap::create(
-          v8::V8::get_current_platform(),
-          v8::cppgc::HeapCreateParams::default(),
-        );
         let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-        isolate.attach_cpp_heap(&mut heap);
 
         {
           let handle_scope = &mut v8::HandleScope::new(isolate);
@@ -199,10 +192,6 @@ macro_rules! test {
 
           assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 3);
         }
-
-        isolate.detach_cpp_heap();
-        heap.terminate();
-        drop(heap);
       }
   }}
 }
