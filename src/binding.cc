@@ -143,6 +143,10 @@ bool v8__V8__Dispose() { return v8::V8::Dispose(); }
 
 void v8__V8__DisposePlatform() { v8::V8::DisposePlatform(); }
 
+void v8__V8__SetFatalErrorHandler(v8::V8FatalErrorCallback that) {
+  v8::V8::SetFatalErrorHandler(that);
+}
+
 v8::Isolate* v8__Isolate__New(const v8::Isolate::CreateParams& params) {
   return v8::Isolate::New(params);
 }
@@ -3885,14 +3889,6 @@ void v8__Object__Wrap(v8::Isolate* isolate, const v8::Object& wrapper,
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
   return isolate->GetCppHeap();
-}
-
-void v8__Isolate__AttachCppHeap(v8::Isolate* isolate, v8::CppHeap* cpp_heap) {
-  isolate->AttachCppHeap(cpp_heap);
-}
-
-void v8__Isolate__DetachCppHeap(v8::Isolate* isolate) {
-  isolate->DetachCppHeap();
 }
 
 void cppgc__initialize_process(v8::Platform* platform) {

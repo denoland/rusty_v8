@@ -37,7 +37,6 @@ use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::Opaque;
 use crate::support::ToCFn;
-use crate::support::UniqueRef;
 use crate::support::UnitType;
 use crate::support::char;
 use crate::support::int;
@@ -663,8 +662,6 @@ unsafe extern "C" {
     change_in_bytes: i64,
   ) -> i64;
   fn v8__Isolate__GetCppHeap(isolate: *mut Isolate) -> *mut Heap;
-  fn v8__Isolate__AttachCppHeap(isolate: *mut Isolate, cpp_heap: *mut Heap);
-  fn v8__Isolate__DetachCppHeap(isolate: *mut Isolate);
   fn v8__Isolate__SetPrepareStackTraceCallback(
     isolate: *mut Isolate,
     callback: PrepareStackTraceCallback,
@@ -1456,16 +1453,6 @@ impl Isolate {
   }
 
   #[inline(always)]
-  pub fn attach_cpp_heap(&mut self, cpp_heap: &mut UniqueRef<Heap>) {
-    unsafe { v8__Isolate__AttachCppHeap(self, cpp_heap.deref_mut()) }
-  }
-
-  #[inline(always)]
-  pub fn detach_cpp_heap(&mut self) {
-    unsafe { v8__Isolate__DetachCppHeap(self) }
-  }
-
-  #[inline(always)]
   pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {
     unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
   }
@@ -1890,8 +1877,8 @@ impl Drop for OwnedIsolate {
         self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__GetCurrent(),
         "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
-      self.exit();
       self.dispose_scope_root();
+      self.exit();
       self.dispose_annex();
       self.dispose();
     }
