@@ -11,6 +11,7 @@ use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 use std::ptr::{addr_of, addr_of_mut};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
@@ -7722,7 +7723,7 @@ fn static_source_phase_import() {
 
   let obj = eval(scope, "new WebAssembly.Module(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]))").unwrap().cast::<v8::Object>();
 
-  context.set_slot(v8::Global::new(scope, obj));
+  context.set_slot(Rc::new(v8::Global::new(scope, obj)));
 
   fn resolve_source<'a>(
     context: v8::Local<'a, v8::Context>,
@@ -7731,7 +7732,9 @@ fn static_source_phase_import() {
     _referrer: v8::Local<'a, v8::Module>,
   ) -> Option<v8::Local<'a, v8::Object>> {
     let scope = unsafe { &mut v8::CallbackScope::new(context) };
-    let global = context.get_slot::<v8::Global<v8::Object>>().unwrap();
+    let global =
+      Rc::into_inner(context.remove_slot::<v8::Global<v8::Object>>().unwrap())
+        .unwrap();
     Some(v8::Local::new(scope, global))
   }
 
@@ -7761,7 +7764,7 @@ fn dynamic_source_phase_import() {
 
   let obj = eval(scope, "new WebAssembly.Module(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]))").unwrap().cast::<v8::Object>();
 
-  context.set_slot(v8::Global::new(scope, obj));
+  context.set_slot(Rc::new(v8::Global::new(scope, obj)));
 
   fn dynamic_import_cb<'s>(
     _scope: &mut v8::HandleScope<'s>,
@@ -7786,7 +7789,9 @@ fn dynamic_source_phase_import() {
     let resolver = v8::PromiseResolver::new(scope).unwrap();
 
     let context = scope.get_current_context();
-    let global = context.get_slot::<v8::Global<v8::Object>>().unwrap();
+    let global =
+      Rc::into_inner(context.remove_slot::<v8::Global<v8::Object>>().unwrap())
+        .unwrap();
     let obj = v8::Local::new(scope, global);
     resolver.resolve(scope, obj.into());
 

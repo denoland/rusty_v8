@@ -16,6 +16,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
+use std::rc::Rc;
 
 unsafe extern "C" {
   fn v8__Context__New(
@@ -228,26 +229,12 @@ impl Context {
 
   /// Get a reference to embedder data added with [`Self::set_slot()`].
   #[inline(always)]
-  pub fn get_slot<T: 'static>(&self) -> Option<&T> {
+  pub fn get_slot<T: 'static>(&self) -> Option<Rc<T>> {
     if let Some(annex) = self.get_annex_mut(false) {
       annex.slots.get(&TypeId::of::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
-        unsafe { slot.borrow::<T>() }
-      })
-    } else {
-      None
-    }
-  }
-
-  /// Get a mutable reference to embedder data added with [`Self::set_slot()`].
-  #[inline(always)]
-  pub fn get_slot_mut<T: 'static>(&self) -> Option<&mut T> {
-    if let Some(annex) = self.get_annex_mut(false) {
-      annex.slots.get_mut(&TypeId::of::<T>()).map(|slot| {
-        // SAFETY: `Self::set_slot` guarantees that only values of type T will be
-        // stored with T's TypeId as their key.
-        unsafe { slot.borrow_mut::<T>() }
+        unsafe { slot.borrow::<Rc<T>>().clone() }
       })
     } else {
       None
@@ -266,24 +253,28 @@ impl Context {
   ///
   /// The value will be dropped when the context is garbage collected.
   #[inline(always)]
-  pub fn set_slot<T: 'static>(&self, value: T) -> bool {
+  pub fn set_slot<T: 'static>(&self, value: Rc<T>) -> Option<Rc<T>> {
     self
       .get_annex_mut(true)
       .unwrap()
       .slots
       .insert(TypeId::of::<T>(), RawSlot::new(value))
-      .is_none()
+      .map(|slot| {
+        // SAFETY: `Self::set_slot` guarantees that only values of type T will be
+        // stored with T's TypeId as their key.
+        unsafe { slot.into_inner::<Rc<T>>() }
+      })
   }
 
   /// Removes the embedder data added with [`Self::set_slot()`] and returns it
   /// if it exists.
   #[inline(always)]
-  pub fn remove_slot<T: 'static>(&self) -> Option<T> {
+  pub fn remove_slot<T: 'static>(&self) -> Option<Rc<T>> {
     if let Some(annex) = self.get_annex_mut(false) {
       annex.slots.remove(&TypeId::of::<T>()).map(|slot| {
         // SAFETY: `Self::set_slot` guarantees that only values of type T will be
         // stored with T's TypeId as their key.
-        unsafe { slot.into_inner::<T>() }
+        unsafe { slot.into_inner::<Rc<T>>() }
       })
     } else {
       None
