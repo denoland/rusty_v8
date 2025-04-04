@@ -69,9 +69,9 @@ use std::sync::Mutex;
 
 /// Policy for running microtasks:
 ///   - explicit: microtasks are invoked with the
-///               Isolate::PerformMicrotaskCheckpoint() method;
+///     Isolate::PerformMicrotaskCheckpoint() method;
 ///   - auto: microtasks are invoked when the script call depth decrements
-///           to zero.
+///     to zero.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum MicrotasksPolicy {
