@@ -245,7 +245,7 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         if: matrix.config.target == 'x86_64-unknown-linux-musl'
         run: |
-          docker run -v "$PWD":/usr/src/rusty_v8 -w /usr/src/rusty_v8 rust:alpine3.21 ./musl-build.sh ${{ env.CARGO_VARIANT_FLAG }}
+          docker run -v "$PWD":/usr/src/rusty_v8 -w /usr/src/rusty_v8 rust:alpine3.16 ./musl-build.sh ${{ env.CARGO_VARIANT_FLAG }}
           docker cp $(docker ps -lq):/usr/src/rusty_v8/target/${{ matrix.config.variant }}/gn_out/obj/librusty_v8.a target/librusty_v8_${{ matrix.config.variant }}_x86_64-unknown-linux-musl.a
           sudo chown -R $(id -u):$(id -g) /home/runner/work/rusty_v8/rusty_v8/target/
 
