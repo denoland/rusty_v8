@@ -8,7 +8,7 @@ apk add git \
     g++ \
     pkgconfig \
     glib-dev \
-    llvm13-dev \
+    llvm15-dev \
     binutils-gold \
     sccache
 ln -s /usr/bin/python3 /usr/bin/python
