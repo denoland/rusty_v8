@@ -4,17 +4,13 @@ apk add git \
     gcc \
     ninja \
     python3 \
-    clang \
     g++ \
     pkgconfig \
     glib-dev \
-    binutils-gold \
-    sccache
+    binutils-gold
 ln -s /usr/bin/python3 /usr/bin/python
 
 export V8_FROM_SOURCE="yes"
-export SCCACHE_DIR="./target/sccache"
-export SCCACHE="/usr/bin/sccache"
 export GN_ARGS="use_custom_libcxx=false use_lld=false v8_enable_backtrace=false v8_enable_debugging_features=false"
 GN="$(pwd)/gn/out/gn"
 export GN
