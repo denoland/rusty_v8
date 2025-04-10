@@ -1907,6 +1907,10 @@ size_t v8__ArrayBufferView__ByteOffset(const v8::ArrayBufferView& self) {
   return ptr_to_local(&self)->ByteOffset();
 }
 
+bool v8__ArrayBufferView__HasBuffer(const v8::ArrayBufferView& self) {
+  return ptr_to_local(&self)->HasBuffer();
+}
+
 size_t v8__ArrayBufferView__CopyContents(const v8::ArrayBufferView& self,
                                          void* dest, int byte_length) {
   return ptr_to_local(&self)->CopyContents(dest, byte_length);
