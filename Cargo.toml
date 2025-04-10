@@ -104,7 +104,7 @@ bitflags = "2.5"
 paste = "1.0"
 
 [build-dependencies]
-miniz_oxide = "0.7.2"
+miniz_oxide = "0.8.8"
 gzip-header = "1.0.0"
 fslock = "0.2"
 which = "6"
@@ -112,7 +112,7 @@ home = "0"
 bindgen = "0.71"
 
 [dev-dependencies]
-miniz_oxide = "0.7.3"
+miniz_oxide = "0.8.8"
 gzip-header = "1.0.0"
 bytes = "1"
 align-data = "0.1.0"
