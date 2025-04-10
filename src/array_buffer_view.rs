@@ -18,6 +18,7 @@ extern "C" {
   ) -> *mut c_void;
   fn v8__ArrayBufferView__ByteLength(this: *const ArrayBufferView) -> usize;
   fn v8__ArrayBufferView__ByteOffset(this: *const ArrayBufferView) -> usize;
+  fn v8__ArrayBufferView__HasBuffer(this: *const ArrayBufferView) -> bool;
   fn v8__ArrayBufferView__CopyContents(
     this: *const ArrayBufferView,
     dest: *mut c_void,
@@ -37,6 +38,11 @@ impl ArrayBufferView {
     scope: &mut HandleScope<'s>,
   ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
+  }
+
+  /// Returns true if ArrayBufferView's backing ArrayBuffer has already been allocated.
+  pub fn has_buffer(&self) -> bool {
+    unsafe { v8__ArrayBufferView__HasBuffer(self) }
   }
 
   /// Get a shared pointer to the backing store of this array buffer. This
