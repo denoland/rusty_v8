@@ -39,6 +39,18 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
+          - os: macos-13
+            target: x86_64-apple-darwin
+            variant: debug
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
+          - os: macos-13
+            target: x86_64-apple-darwin
+            variant: release
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
           - os: macos-14
             target: aarch64-apple-darwin
             variant: asan
@@ -55,6 +67,18 @@ jobs:
             target: aarch64-apple-darwin
             variant: release
             v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: debug
+            v8_enable_pointer_compression: true
+            cargo: cargo
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            variant: release
+            v8_enable_pointer_compression: true
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
