@@ -86,6 +86,8 @@ pub enum MicrotasksPolicy {
 /// of higher latency due to garbage collection pauses.
 /// Critical hints V8 to free memory as soon as possible. Garbage collection
 /// pauses at this level will be large.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
 pub enum MemoryPressureLevel {
   None = 0,
   Moderate = 1,
