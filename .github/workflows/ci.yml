@@ -149,7 +149,7 @@ jobs:
           submodules: recursive
 
       - name: Install rust
-        uses: dsherret/rust-toolchain-file@v1
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main
