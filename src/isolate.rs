@@ -12,10 +12,12 @@ use crate::Local;
 use crate::Message;
 use crate::Module;
 use crate::Object;
+use crate::Platform;
 use crate::Promise;
 use crate::PromiseResolver;
 use crate::StartupData;
 use crate::String;
+use crate::V8::get_current_platform;
 use crate::Value;
 use crate::binding::v8__HeapSpaceStatistics;
 use crate::binding::v8__HeapStatistics;
@@ -1882,6 +1884,7 @@ impl Drop for OwnedIsolate {
       self.dispose_scope_root();
       self.exit();
       self.dispose_annex();
+      Platform::notify_isolate_shutdown(&get_current_platform(), self);
       self.dispose();
     }
   }
