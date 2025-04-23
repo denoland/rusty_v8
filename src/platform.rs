@@ -35,6 +35,11 @@ unsafe extern "C" {
     idle_time_in_seconds: f64,
   );
 
+  fn v8__Platform__NotifyIsolateShutdown(
+    platform: *mut Platform,
+    isolate: *mut Isolate,
+  );
+
   fn std__shared_ptr__v8__Platform__CONVERT__std__unique_ptr(
     unique_ptr: UniquePtr<Platform>,
   ) -> SharedPtrBase<Platform>;
@@ -209,6 +214,24 @@ impl Platform {
         &**platform as *const Self as *mut _,
         isolate,
         idle_time_in_seconds,
+      );
+    }
+  }
+
+  /// Notifies the given platform about the Isolate getting deleted soon. Has to
+  /// be called for all Isolates which are deleted - unless we're shutting down
+  /// the platform.
+  ///
+  /// The |platform| has to be created using |NewDefaultPlatform|.
+  #[inline(always)]
+  pub(crate) unsafe fn notify_isolate_shutdown(
+    platform: &SharedRef<Self>,
+    isolate: &mut Isolate,
+  ) {
+    unsafe {
+      v8__Platform__NotifyIsolateShutdown(
+        &**platform as *const Self as *mut _,
+        isolate,
       );
     }
   }

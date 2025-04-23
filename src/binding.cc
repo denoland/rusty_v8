@@ -2959,6 +2959,11 @@ void v8__Platform__RunIdleTasks(v8::Platform* platform, v8::Isolate* isolate,
   v8::platform::RunIdleTasks(platform, isolate, idle_time_in_seconds);
 }
 
+void v8__Platform__NotifyIsolateShutdown(v8::Platform* platform,
+                                         v8::Isolate* isolate) {
+  v8::platform::NotifyIsolateShutdown(platform, isolate);
+}
+
 void v8__Platform__DELETE(v8::Platform* self) { delete self; }
 
 two_pointers_t std__shared_ptr__v8__Platform__CONVERT__std__unique_ptr(
