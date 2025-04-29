@@ -189,6 +189,10 @@ pub unsafe fn shutdown_process() {
 ///   fn trace(&self, visitor: &Visitor) {
 ///     visitor.trace(&self.foo);
 ///   }
+///
+///   fn get_name(&self) -> &'static CStr {
+///     c"Foo"
+///   }
 /// }
 /// ```
 #[repr(C)]
@@ -339,9 +343,7 @@ pub trait GarbageCollected {
   /// until the snapshot generation has completed. Otherwise, the returned string
   /// must stay alive forever. If you need a place to store a temporary string
   /// during snapshot generation, use HeapProfiler::CopyNameForHeapSnapshot.
-  fn get_name(&self) -> Option<&'static CStr> {
-    None
-  }
+  fn get_name(&self) -> &'static CStr;
 }
 
 /// Constructs an instance of T, which is a garbage collected type.
