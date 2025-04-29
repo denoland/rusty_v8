@@ -117,10 +117,7 @@ unsafe extern "C" fn rusty_v8_RustObj_get_name(
   obj: *const RustObj,
 ) -> *const c_char {
   let r = unsafe { get_rust_obj(obj) };
-  match r.get_name() {
-    Some(s) => s.as_ptr(),
-    None => std::ptr::null(),
-  }
+  r.get_name().as_ptr()
 }
 
 #[unsafe(no_mangle)]
