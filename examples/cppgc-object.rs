@@ -11,6 +11,10 @@ impl v8::cppgc::GarbageCollected for Wrappable {
     println!("Wrappable::trace() {}", self.id);
     self.trace_count.set(self.trace_count.get() + 1);
   }
+
+  fn get_name(&self) -> &'static std::ffi::CStr {
+    c"Wrappable"
+  }
 }
 
 impl Drop for Wrappable {

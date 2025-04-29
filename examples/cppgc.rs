@@ -34,6 +34,10 @@ impl v8::cppgc::GarbageCollected for Rope {
   fn trace(&self, visitor: &v8::cppgc::Visitor) {
     visitor.trace(&self.next);
   }
+
+  fn get_name(&self) -> &'static std::ffi::CStr {
+    c"Rope"
+  }
 }
 
 impl Drop for Rope {
