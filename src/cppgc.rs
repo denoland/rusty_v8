@@ -117,10 +117,7 @@ unsafe extern "C" fn rusty_v8_RustObj_get_name(
   obj: *const RustObj,
 ) -> *const c_char {
   let r = unsafe { get_rust_obj(obj) };
-  match r.get_name() {
-    Some(s) => s.as_ptr(),
-    None => std::ptr::null(),
-  }
+  r.get_name().as_ptr()
 }
 
 #[unsafe(no_mangle)]
@@ -188,6 +185,10 @@ pub unsafe fn shutdown_process() {
 /// impl GarbageCollected for Foo {
 ///   fn trace(&self, visitor: &Visitor) {
 ///     visitor.trace(&self.foo);
+///   }
+///
+///   fn get_name(&self) -> &'static CStr {
+///     c"Foo"
 ///   }
 /// }
 /// ```
@@ -339,9 +340,7 @@ pub trait GarbageCollected {
   /// until the snapshot generation has completed. Otherwise, the returned string
   /// must stay alive forever. If you need a place to store a temporary string
   /// during snapshot generation, use HeapProfiler::CopyNameForHeapSnapshot.
-  fn get_name(&self) -> Option<&'static CStr> {
-    None
-  }
+  fn get_name(&self) -> &'static CStr;
 }
 
 /// Constructs an instance of T, which is a garbage collected type.

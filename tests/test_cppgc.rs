@@ -74,8 +74,8 @@ macro_rules! test {
           visitor.trace(&self.value);
         }
 
-        fn get_name(&self) -> Option<&'static std::ffi::CStr> {
-          Some(c"Eyecatcher")
+        fn get_name(&self) -> &'static std::ffi::CStr {
+          c"Eyecatcher"
         }
       }
 
