@@ -5615,19 +5615,17 @@ fn external_references() {
     v8::ExternalReference {
       pointer: external_ptr,
     },
+    v8::ExternalReference {
+      pointer: std::ptr::null_mut(),
+    },
   ];
   // Exercise the Debug impl
   println!("{refs:?}");
-  let refs = v8::ExternalReferences::new(&refs);
-  // TODO(piscisaureus): leaking the `ExternalReferences` collection shouldn't
-  // be necessary. The reference needs to remain valid for the lifetime of the
-  // `SnapshotCreator` or `Isolate` that uses it, which would be the case here
-  // even without leaking.
-  let refs: &'static v8::ExternalReferences = Box::leak(Box::new(refs));
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
-    let mut snapshot_creator = v8::Isolate::snapshot_creator(Some(refs), None);
+    let mut snapshot_creator =
+      v8::Isolate::snapshot_creator(Some(refs.to_vec().into()), None);
     {
       let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
       let context = v8::Context::new(scope, Default::default());
@@ -5658,7 +5656,7 @@ fn external_references() {
   {
     let params = v8::Isolate::create_params()
       .snapshot_blob(startup_data)
-      .external_references(&**refs);
+      .external_references(refs.to_vec().into());
     let isolate = &mut v8::Isolate::new(params);
     {
       let scope = &mut v8::HandleScope::new(isolate);
@@ -5672,22 +5670,6 @@ fn external_references() {
       assert!(result.is_some());
     }
   }
-}
-
-#[test]
-fn create_params_snapshot_blob() {
-  let static_data = b"abcd";
-  let _ = v8::CreateParams::default().snapshot_blob(&static_data[..]);
-
-  let vec_1 = Vec::from(&b"defg"[..]);
-  let _ = v8::CreateParams::default().snapshot_blob(vec_1);
-
-  let vec_2 = std::fs::read(file!()).unwrap();
-  let _ = v8::CreateParams::default().snapshot_blob(vec_2);
-
-  let arc_slice: std::sync::Arc<[u8]> = std::fs::read(file!()).unwrap().into();
-  let _ = v8::CreateParams::default().snapshot_blob(arc_slice.clone());
-  let _ = v8::CreateParams::default().snapshot_blob(arc_slice);
 }
 
 #[test]

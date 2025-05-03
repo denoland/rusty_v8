@@ -93,7 +93,6 @@ pub use array_buffer::*;
 pub use data::*;
 pub use exception::*;
 pub use external_references::ExternalReference;
-pub use external_references::ExternalReferences;
 pub use function::*;
 pub use gc::*;
 pub use get_property_names_args_builder::*;

@@ -17,20 +17,18 @@ fn external_deserialize() {
   v8::V8::initialize();
 
   let blob = {
-    let external_references = v8::ExternalReferences::new(&[
+    let external_references = [
       v8::ExternalReference {
         function: callback.map_fn_to(),
       },
       v8::ExternalReference { pointer: 1 as _ },
-    ]);
+      v8::ExternalReference {
+        pointer: std::ptr::null_mut(),
+      },
+    ];
 
     let mut isolate = v8::Isolate::snapshot_creator(
-      Some(unsafe {
-        std::mem::transmute::<
-          &v8::ExternalReferences,
-          &'static v8::ExternalReferences,
-        >(&external_references)
-      }),
+      Some(external_references.to_vec().into()),
       Some(v8::CreateParams::default()),
     );
 
@@ -55,30 +53,36 @@ fn external_deserialize() {
   };
 
   {
-    let external_references = v8::ExternalReferences::new(&[
+    let external_references = [
       v8::ExternalReference {
         function: callback.map_fn_to(),
       },
       v8::ExternalReference { pointer: 2 as _ },
-    ]);
+      v8::ExternalReference {
+        pointer: std::ptr::null_mut(),
+      },
+    ];
 
     let mut _isolate_a = v8::Isolate::new(
       v8::CreateParams::default()
-        .snapshot_blob(blob.to_vec())
-        .external_references(external_references),
+        .snapshot_blob(blob.clone())
+        .external_references(external_references.to_vec().into()),
     );
 
-    let external_references = v8::ExternalReferences::new(&[
+    let external_references = [
       v8::ExternalReference {
         function: callback.map_fn_to(),
       },
       v8::ExternalReference { pointer: 3 as _ },
-    ]);
+      v8::ExternalReference {
+        pointer: std::ptr::null_mut(),
+      },
+    ];
 
     let mut isolate_b = v8::Isolate::new(
       v8::CreateParams::default()
         .snapshot_blob(blob)
-        .external_references(external_references),
+        .external_references(external_references.to_vec().into()),
     );
 
     {

@@ -3,16 +3,13 @@ use crate::Data;
 use crate::Isolate;
 use crate::Local;
 use crate::OwnedIsolate;
-use crate::external_references::ExternalReferences;
+use crate::external_references::ExternalReference;
 use crate::isolate_create_params::raw;
-use crate::support::Allocated;
 use crate::support::char;
 use crate::support::int;
 
-use std::borrow::Borrow;
-use std::convert::TryFrom;
+use std::borrow::Cow;
 use std::mem::MaybeUninit;
-use std::ops::Deref;
 
 unsafe extern "C" {
   fn v8__SnapshotCreator__CONSTRUCT(
@@ -26,7 +23,7 @@ unsafe extern "C" {
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
     function_code_handling: FunctionCodeHandling,
-  ) -> StartupData;
+  ) -> RawStartupData;
   fn v8__SnapshotCreator__SetDefaultContext(
     this: *mut SnapshotCreator,
     context: *const Context,
@@ -44,42 +41,60 @@ unsafe extern "C" {
     context: *const Context,
     data: *const Data,
   ) -> usize;
-  fn v8__StartupData__DESTRUCT(this: *mut StartupData);
+  fn v8__StartupData__CanBeRehashed(this: *const RawStartupData) -> bool;
+  fn v8__StartupData__IsValid(this: *const RawStartupData) -> bool;
+  fn v8__StartupData__data__DELETE(this: *const char);
 }
 
-// TODO(piscisaureus): merge this struct with
-// `isolate_create_params::raw::StartupData`.
 #[repr(C)]
 #[derive(Debug)]
+pub(crate) struct RawStartupData {
+  pub(crate) data: *const char,
+  pub(crate) raw_size: int,
+}
+
+#[derive(Clone, Debug)]
 pub struct StartupData {
-  data: *const char,
-  raw_size: int,
+  data: Cow<'static, [u8]>,
 }
 
-impl Drop for StartupData {
-  fn drop(&mut self) {
-    unsafe { v8__StartupData__DESTRUCT(self) }
+impl StartupData {
+  /// Whether the data created can be rehashed and and the hash seed can be
+  /// recomputed when deserialized.
+  /// Only valid for StartupData returned by SnapshotCreator::CreateBlob().
+  pub fn can_be_rehashed(self) -> bool {
+    let tmp = RawStartupData {
+      data: self.data.as_ptr() as _,
+      raw_size: self.data.len() as _,
+    };
+    unsafe { v8__StartupData__CanBeRehashed(&tmp) }
+  }
+
+  /// Allows embedders to verify whether the data is valid for the current
+  /// V8 instance.
+  pub fn is_valid(&self) -> bool {
+    let tmp = RawStartupData {
+      data: self.data.as_ptr() as _,
+      raw_size: self.data.len() as _,
+    };
+    unsafe { v8__StartupData__IsValid(&tmp) }
   }
 }
 
-impl Deref for StartupData {
+impl std::ops::Deref for StartupData {
   type Target = [u8];
+
   fn deref(&self) -> &Self::Target {
-    let data = self.data;
-    let len = usize::try_from(self.raw_size).unwrap();
-    unsafe { std::slice::from_raw_parts(data as _, len) }
+    &self.data
   }
 }
 
-impl AsRef<[u8]> for StartupData {
-  fn as_ref(&self) -> &[u8] {
-    self
-  }
-}
-
-impl Borrow<[u8]> for StartupData {
-  fn borrow(&self) -> &[u8] {
-    self
+impl<T> From<T> for StartupData
+where
+  T: Into<Cow<'static, [u8]>>,
+{
+  fn from(value: T) -> Self {
+    Self { data: value.into() }
   }
 }
 
@@ -101,10 +116,10 @@ impl SnapshotCreator {
   #[inline(always)]
   #[allow(clippy::new_ret_no_self)]
   pub(crate) fn new(
-    external_references: Option<&'static ExternalReferences>,
+    external_references: Option<Cow<'static, [ExternalReference]>>,
     params: Option<crate::CreateParams>,
   ) -> OwnedIsolate {
-    Self::new_impl(external_references, None::<&[u8]>, params)
+    Self::new_impl(external_references, None, params)
   }
 
   /// Create an isolate, and set it up for serialization.
@@ -112,8 +127,8 @@ impl SnapshotCreator {
   #[inline(always)]
   #[allow(clippy::new_ret_no_self)]
   pub(crate) fn from_existing_snapshot(
-    existing_snapshot_blob: impl Allocated<[u8]>,
-    external_references: Option<&'static ExternalReferences>,
+    existing_snapshot_blob: StartupData,
+    external_references: Option<Cow<'static, [ExternalReference]>>,
     params: Option<crate::CreateParams>,
   ) -> OwnedIsolate {
     Self::new_impl(external_references, Some(existing_snapshot_blob), params)
@@ -124,15 +139,15 @@ impl SnapshotCreator {
   #[inline(always)]
   #[allow(clippy::new_ret_no_self)]
   fn new_impl(
-    external_references: Option<&'static ExternalReferences>,
-    existing_snapshot_blob: Option<impl Allocated<[u8]>>,
+    external_references: Option<Cow<'static, [ExternalReference]>>,
+    existing_snapshot_blob: Option<StartupData>,
     params: Option<crate::CreateParams>,
   ) -> OwnedIsolate {
     let mut snapshot_creator: MaybeUninit<Self> = MaybeUninit::uninit();
 
     let mut params = params.unwrap_or_default();
     if let Some(external_refs) = external_references {
-      params = params.external_references(&**external_refs);
+      params = params.external_references(external_refs);
     }
     if let Some(snapshot_blob) = existing_snapshot_blob {
       params = params.snapshot_blob(snapshot_blob);
@@ -221,7 +236,19 @@ impl SnapshotCreator {
       None
     } else {
       debug_assert!(blob.raw_size > 0);
-      Some(blob)
+
+      let data = Cow::from(
+        unsafe {
+          std::slice::from_raw_parts(blob.data as _, blob.raw_size as _)
+        }
+        .to_owned(),
+      );
+
+      unsafe {
+        v8__StartupData__data__DELETE(blob.data);
+      }
+
+      Some(StartupData { data })
     }
   }
 }

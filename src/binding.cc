@@ -2844,7 +2844,15 @@ void v8__SnapshotCreator__DESTRUCT(v8::SnapshotCreator* self) {
   self->~SnapshotCreator();
 }
 
-void v8__StartupData__DESTRUCT(v8::StartupData* self) { delete[] self->data; }
+bool v8__StartupData__CanBeRehashed(const v8::StartupData& self) {
+  return self.CanBeRehashed();
+}
+
+bool v8__StartupData__IsValid(const v8::StartupData& self) {
+  return self.IsValid();
+}
+
+void v8__StartupData__data__DELETE(const char* data) { delete[] data; }
 
 v8::Isolate* v8__SnapshotCreator__GetIsolate(const v8::SnapshotCreator& self) {
   // `v8::SnapshotCreator::GetIsolate()` is not declared as a const method, but

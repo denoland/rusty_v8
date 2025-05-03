@@ -3,7 +3,6 @@ use crate::Array;
 use crate::CallbackScope;
 use crate::Context;
 use crate::Data;
-use crate::ExternalReferences;
 use crate::FixedArray;
 use crate::Function;
 use crate::FunctionCodeHandling;
@@ -24,6 +23,7 @@ use crate::binding::v8__HeapStatistics;
 use crate::binding::v8__Isolate__UseCounterFeature;
 pub use crate::binding::v8__ModuleImportPhase as ModuleImportPhase;
 use crate::cppgc::Heap;
+use crate::external_references::ExternalReference;
 use crate::function::FunctionCallbackInfo;
 use crate::gc::GCCallbackFlags;
 use crate::gc::GCType;
@@ -34,7 +34,6 @@ use crate::isolate_create_params::raw;
 use crate::promise::PromiseRejectMessage;
 use crate::scope::data::ScopeData;
 use crate::snapshot::SnapshotCreator;
-use crate::support::Allocated;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::Opaque;
@@ -49,6 +48,7 @@ use std::ffi::CStr;
 
 use std::any::Any;
 use std::any::TypeId;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
@@ -812,7 +812,7 @@ impl Isolate {
 
   #[allow(clippy::new_ret_no_self)]
   pub fn snapshot_creator(
-    external_references: Option<&'static ExternalReferences>,
+    external_references: Option<Cow<'static, [ExternalReference]>>,
     params: Option<CreateParams>,
   ) -> OwnedIsolate {
     SnapshotCreator::new(external_references, params)
@@ -820,8 +820,8 @@ impl Isolate {
 
   #[allow(clippy::new_ret_no_self)]
   pub fn snapshot_creator_from_existing_snapshot(
-    existing_snapshot_blob: impl Allocated<[u8]>,
-    external_references: Option<&'static ExternalReferences>,
+    existing_snapshot_blob: StartupData,
+    external_references: Option<Cow<'static, [ExternalReference]>>,
     params: Option<CreateParams>,
   ) -> OwnedIsolate {
     SnapshotCreator::from_existing_snapshot(
@@ -870,7 +870,7 @@ impl Isolate {
     self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
-  unsafe fn dispose_annex(&mut self) {
+  unsafe fn dispose_annex(&mut self) -> Box<dyn Any> {
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.
@@ -881,7 +881,8 @@ impl Isolate {
     }
 
     // Clear slots and drop owned objects that were taken out of `CreateParams`.
-    annex.create_param_allocations = Box::new(());
+    let create_param_allocations =
+      std::mem::replace(&mut annex.create_param_allocations, Box::new(()));
     annex.slots.clear();
 
     // Run through any remaining guaranteed finalizers.
@@ -894,6 +895,8 @@ impl Isolate {
     // Subtract one from the Arc<IsolateAnnex> reference count.
     unsafe { Arc::from_raw(annex) };
     self.set_data(0, null_mut());
+
+    create_param_allocations
   }
 
   #[inline(always)]
@@ -1904,10 +1907,14 @@ impl OwnedIsolate {
   ) -> Option<StartupData> {
     let mut snapshot_creator =
       self.get_annex_mut().maybe_snapshot_creator.take().unwrap();
-    unsafe {
+
+    // create_param_allocations is needed during CreateBlob
+    // so v8 can read external references
+    let _create_param_allocations = unsafe {
       self.dispose_scope_root();
-      self.dispose_annex();
-    }
+      self.dispose_annex()
+    };
+
     // The isolate is owned by the snapshot creator; we need to forget it
     // here as the snapshot creator will drop it when running the destructor.
     std::mem::forget(self);

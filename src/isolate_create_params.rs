@@ -1,8 +1,9 @@
+use crate::ExternalReference;
 use crate::array_buffer;
 use crate::array_buffer::Allocator as ArrayBufferAllocator;
 use crate::cppgc::Heap;
-use crate::support::Allocated;
-use crate::support::Allocation;
+use crate::snapshot::RawStartupData;
+use crate::snapshot::StartupData;
 use crate::support::Opaque;
 use crate::support::SharedPtr;
 use crate::support::UniqueRef;
@@ -11,7 +12,7 @@ use crate::support::int;
 use crate::support::intptr_t;
 
 use std::any::Any;
-use std::convert::TryFrom;
+use std::borrow::Cow;
 use std::iter::once;
 use std::mem::MaybeUninit;
 use std::mem::size_of;
@@ -42,9 +43,11 @@ impl CreateParams {
   }
 
   /// Explicitly specify a startup snapshot blob.
-  pub fn snapshot_blob(mut self, data: impl Allocated<[u8]>) -> Self {
-    let data = Allocation::of(data);
-    let header = Allocation::of(raw::StartupData::boxed_header(&data));
+  pub fn snapshot_blob(mut self, data: StartupData) -> Self {
+    let header = Box::new(RawStartupData {
+      data: data.as_ptr() as _,
+      raw_size: data.len() as _,
+    });
     self.raw.snapshot_blob = &*header;
     self.allocations.snapshot_blob_data = Some(data);
     self.allocations.snapshot_blob_header = Some(header);
@@ -74,41 +77,33 @@ impl CreateParams {
   /// entire lifetime of the isolate.
   pub fn external_references(
     mut self,
-    ext_refs: impl Allocated<[intptr_t]>,
+    ext_refs: Cow<'static, [ExternalReference]>,
   ) -> Self {
-    let last_non_null = ext_refs
-      .iter()
-      .cloned()
-      .enumerate()
-      .rev()
-      .find_map(|(idx, value)| if value != 0 { Some(idx) } else { None });
-    let first_null = ext_refs
-      .iter()
-      .cloned()
-      .enumerate()
-      .find_map(|(idx, value)| if value == 0 { Some(idx) } else { None });
-    match (last_non_null, first_null) {
-      (None, _) => {
-        // Empty list.
-        self.raw.external_references = null();
-        self.allocations.external_references = None;
-      }
-      (_, None) => {
-        // List does not have null terminator. Make a copy and add it.
-        let ext_refs =
-          ext_refs.iter().cloned().chain(once(0)).collect::<Vec<_>>();
-        let ext_refs = Allocation::of(ext_refs);
-        self.raw.external_references = &ext_refs[0];
-        self.allocations.external_references = Some(ext_refs);
-      }
-      (Some(idx1), Some(idx2)) if idx1 + 1 == idx2 => {
-        // List is properly null terminated, we'll use it as-is.
-        let ext_refs = Allocation::of(ext_refs);
-        self.raw.external_references = &ext_refs[0];
-        self.allocations.external_references = Some(ext_refs);
-      }
-      _ => panic!("unexpected null pointer in external references list"),
-    }
+    let ext_refs = if ext_refs.last()
+      == Some(&ExternalReference {
+        pointer: std::ptr::null_mut(),
+      }) {
+      ext_refs
+    } else {
+      Cow::from(
+        ext_refs
+          .into_owned()
+          .into_iter()
+          .chain(once(ExternalReference {
+            pointer: std::ptr::null_mut(),
+          }))
+          .collect::<Vec<_>>(),
+      )
+    };
+
+    self.allocations.external_references = Some(ext_refs);
+    self.raw.external_references = self
+      .allocations
+      .external_references
+      .as_ref()
+      .map(|c| c.as_ptr() as _)
+      .unwrap_or_else(null);
+
     self
   }
 
@@ -211,12 +206,12 @@ impl CreateParams {
 #[derive(Debug, Default)]
 struct CreateParamAllocations {
   // Owner of the snapshot data buffer itself.
-  snapshot_blob_data: Option<Allocation<[u8]>>,
+  snapshot_blob_data: Option<StartupData>,
   // Owns `struct StartupData` which contains just the (ptr, len) tuple in V8's
   // preferred format. We have to heap allocate this because we need to put a
   // stable pointer to it in `CreateParams`.
-  snapshot_blob_header: Option<Allocation<raw::StartupData>>,
-  external_references: Option<Allocation<[intptr_t]>>,
+  snapshot_blob_header: Option<Box<RawStartupData>>,
+  external_references: Option<Cow<'static, [ExternalReference<'static>]>>,
 }
 
 #[test]
@@ -235,7 +230,7 @@ pub(crate) mod raw {
   pub(crate) struct CreateParams {
     pub code_event_handler: *const Opaque, // JitCodeEventHandler
     pub constraints: ResourceConstraints,
-    pub snapshot_blob: *const StartupData,
+    pub snapshot_blob: *const RawStartupData,
     pub counter_lookup_callback: Option<CounterLookupCallback>,
     pub create_histogram_callback: *const Opaque, // CreateHistogramCallback
     pub add_histogram_sample_callback: *const Opaque, // AddHistogramSampleCallback
@@ -264,22 +259,6 @@ pub(crate) mod raw {
       let mut buf = MaybeUninit::<Self>::uninit();
       unsafe { v8__Isolate__CreateParams__CONSTRUCT(&mut buf) };
       unsafe { buf.assume_init() }
-    }
-  }
-
-  #[repr(C)]
-  #[derive(Debug)]
-  pub(crate) struct StartupData {
-    pub data: *const char,
-    pub raw_size: int,
-  }
-
-  impl StartupData {
-    pub(crate) fn boxed_header(data: &Allocation<[u8]>) -> Box<Self> {
-      Box::new(Self {
-        data: &data[0] as *const _ as *const char,
-        raw_size: int::try_from(data.len()).unwrap(),
-      })
     }
   }
 

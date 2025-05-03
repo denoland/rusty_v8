@@ -14,7 +14,6 @@ use crate::NamedQueryCallback;
 use crate::NamedSetterCallback;
 use crate::PropertyEnumeratorCallback;
 use crate::fast_api::CFunctionInfo;
-use crate::support::intptr_t;
 use std::ffi::c_void;
 use std::fmt::Debug;
 
@@ -44,39 +43,8 @@ impl Debug for ExternalReference<'_> {
   }
 }
 
-#[derive(Debug, Clone)]
-pub struct ExternalReferences {
-  null_terminated: Vec<intptr_t>,
-}
-
-unsafe impl Sync for ExternalReferences {}
-
-impl ExternalReferences {
-  #[inline(always)]
-  pub fn new(refs: &[ExternalReference]) -> Self {
-    let null_terminated = refs
-      .iter()
-      .map(|&r| unsafe { std::mem::transmute(r) })
-      .chain(std::iter::once(0)) // Add null terminator.
-      .collect::<Vec<intptr_t>>();
-    Self { null_terminated }
-  }
-
-  #[inline(always)]
-  pub fn as_ptr(&self) -> *const intptr_t {
-    self.null_terminated.as_ptr()
-  }
-}
-
-impl std::ops::Deref for ExternalReferences {
-  type Target = [intptr_t];
-  fn deref(&self) -> &Self::Target {
-    &self.null_terminated
-  }
-}
-
-impl std::borrow::Borrow<[intptr_t]> for ExternalReferences {
-  fn borrow(&self) -> &[intptr_t] {
-    self
+impl PartialEq for ExternalReference<'_> {
+  fn eq(&self, other: &Self) -> bool {
+    unsafe { self.pointer.eq(&other.pointer) }
   }
 }
