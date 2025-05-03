@@ -154,10 +154,10 @@ pub enum Intercepted {
   Yes,
 }
 
-pub type AccessorNameGetterCallback<'s> = NamedGetterCallbackForAccessor<'s>;
+pub type AccessorNameGetterCallback = NamedGetterCallbackForAccessor;
 
 /// Note: [ReturnValue] is ignored for accessors.
-pub type AccessorNameSetterCallback<'s> = NamedSetterCallbackForAccessor<'s>;
+pub type AccessorNameSetterCallback = NamedSetterCallbackForAccessor;
 
 /// Interceptor for get requests on an object.
 ///
@@ -166,7 +166,7 @@ pub type AccessorNameSetterCallback<'s> = NamedSetterCallbackForAccessor<'s>;
 /// not produce side effects.
 ///
 /// See also [ObjectTemplate::set_handler].
-pub type NamedPropertyGetterCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyGetterCallback = NamedGetterCallback;
 
 /// Interceptor for set requests on an object.
 ///
@@ -178,7 +178,7 @@ pub type NamedPropertyGetterCallback<'s> = NamedGetterCallback<'s>;
 /// effects.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
+pub type NamedPropertySetterCallback = NamedSetterCallback;
 
 /// Intercepts all requests that query the attributes of the property, e.g.,
 /// getOwnPropertyDescriptor(), propertyIsEnumerable(), and defineProperty().
@@ -192,7 +192,7 @@ pub type NamedPropertySetterCallback<'s> = NamedSetterCallback<'s>;
 /// this interceptor depending on the state of the object.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyQueryCallback<'s> = NamedQueryCallback<'s>;
+pub type NamedPropertyQueryCallback = NamedQueryCallback;
 
 /// Interceptor for delete requests on an object.
 ///
@@ -209,14 +209,14 @@ pub type NamedPropertyQueryCallback<'s> = NamedQueryCallback<'s>;
 /// in strict mode.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDeleterCallback<'s> = NamedDeleterCallback<'s>;
+pub type NamedPropertyDeleterCallback = NamedDeleterCallback;
 
 /// Returns an array containing the names of the properties the named property getter intercepts.
 ///
 /// Note: The values in the array must be of type v8::Name.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyEnumeratorCallback<'s> = PropertyEnumeratorCallback<'s>;
+pub type NamedPropertyEnumeratorCallback = PropertyEnumeratorCallback;
 
 /// Interceptor for defineProperty requests on an object.
 ///
@@ -228,7 +228,7 @@ pub type NamedPropertyEnumeratorCallback<'s> = PropertyEnumeratorCallback<'s>;
 /// effects.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDefinerCallback<'s> = NamedDefinerCallback<'s>;
+pub type NamedPropertyDefinerCallback = NamedDefinerCallback;
 
 /// Interceptor for getOwnPropertyDescriptor requests on an object.
 ///
@@ -241,38 +241,38 @@ pub type NamedPropertyDefinerCallback<'s> = NamedDefinerCallback<'s>;
 /// true, i.e., indicate that the property was found.
 ///
 /// See also [ObjectTemplate::set_named_property_handler].
-pub type NamedPropertyDescriptorCallback<'s> = NamedGetterCallback<'s>;
+pub type NamedPropertyDescriptorCallback = NamedGetterCallback;
 
 /// See [GenericNamedPropertyGetterCallback].
-pub type IndexedPropertyGetterCallback<'s> = IndexedGetterCallback<'s>;
+pub type IndexedPropertyGetterCallback = IndexedGetterCallback;
 
 /// See [GenericNamedPropertySetterCallback].
-pub type IndexedPropertySetterCallback<'s> = IndexedSetterCallback<'s>;
+pub type IndexedPropertySetterCallback = IndexedSetterCallback;
 
 /// See [GenericNamedPropertyQueryCallback].
-pub type IndexedPropertyQueryCallback<'s> = IndexedQueryCallback<'s>;
+pub type IndexedPropertyQueryCallback = IndexedQueryCallback;
 
 /// See [GenericNamedPropertyDeleterCallback].
-pub type IndexedPropertyDeleterCallback<'s> = IndexedDeleterCallback<'s>;
+pub type IndexedPropertyDeleterCallback = IndexedDeleterCallback;
 
 /// See [GenericNamedPropertyEnumeratorCallback].
-pub type IndexedPropertyEnumeratorCallback<'s> = PropertyEnumeratorCallback<'s>;
+pub type IndexedPropertyEnumeratorCallback = PropertyEnumeratorCallback;
 
 /// See [GenericNamedPropertyDefinerCallback].
-pub type IndexedPropertyDefinerCallback<'s> = IndexedDefinerCallback<'s>;
+pub type IndexedPropertyDefinerCallback = IndexedDefinerCallback;
 
 /// See [GenericNamedPropertyDescriptorCallback].
-pub type IndexedPropertyDescriptorCallback<'s> = IndexedGetterCallback<'s>;
+pub type IndexedPropertyDescriptorCallback = IndexedGetterCallback;
 
 pub struct AccessorConfiguration<'s> {
-  pub(crate) getter: AccessorNameGetterCallback<'s>,
-  pub(crate) setter: Option<AccessorNameSetterCallback<'s>>,
+  pub(crate) getter: AccessorNameGetterCallback,
+  pub(crate) setter: Option<AccessorNameSetterCallback>,
   pub(crate) data: Option<Local<'s, Value>>,
   pub(crate) property_attribute: PropertyAttribute,
 }
 
 impl<'s> AccessorConfiguration<'s> {
-  pub fn new(getter: impl MapFnTo<AccessorNameGetterCallback<'s>>) -> Self {
+  pub fn new(getter: impl MapFnTo<AccessorNameGetterCallback>) -> Self {
     Self {
       getter: getter.map_fn_to(),
       setter: None,
@@ -283,7 +283,7 @@ impl<'s> AccessorConfiguration<'s> {
 
   pub fn setter(
     mut self,
-    setter: impl MapFnTo<AccessorNameSetterCallback<'s>>,
+    setter: impl MapFnTo<AccessorNameSetterCallback>,
   ) -> Self {
     self.setter = Some(setter.map_fn_to());
     self
@@ -306,13 +306,13 @@ impl<'s> AccessorConfiguration<'s> {
 
 #[derive(Default)]
 pub struct NamedPropertyHandlerConfiguration<'s> {
-  pub(crate) getter: Option<NamedPropertyGetterCallback<'s>>,
-  pub(crate) setter: Option<NamedPropertySetterCallback<'s>>,
-  pub(crate) query: Option<NamedPropertyQueryCallback<'s>>,
-  pub(crate) deleter: Option<NamedPropertyDeleterCallback<'s>>,
-  pub(crate) enumerator: Option<NamedPropertyEnumeratorCallback<'s>>,
-  pub(crate) definer: Option<NamedPropertyDefinerCallback<'s>>,
-  pub(crate) descriptor: Option<NamedPropertyDescriptorCallback<'s>>,
+  pub(crate) getter: Option<NamedPropertyGetterCallback>,
+  pub(crate) setter: Option<NamedPropertySetterCallback>,
+  pub(crate) query: Option<NamedPropertyQueryCallback>,
+  pub(crate) deleter: Option<NamedPropertyDeleterCallback>,
+  pub(crate) enumerator: Option<NamedPropertyEnumeratorCallback>,
+  pub(crate) definer: Option<NamedPropertyDefinerCallback>,
+  pub(crate) descriptor: Option<NamedPropertyDescriptorCallback>,
   pub(crate) data: Option<Local<'s, Value>>,
   pub(crate) flags: PropertyHandlerFlags,
 }
@@ -345,62 +345,59 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn getter(
     mut self,
-    getter: impl MapFnTo<NamedPropertyGetterCallback<'s>>,
+    getter: impl MapFnTo<NamedPropertyGetterCallback>,
   ) -> Self {
     self.getter = Some(getter.map_fn_to());
     self
   }
 
-  pub fn getter_raw(mut self, getter: NamedPropertyGetterCallback<'s>) -> Self {
+  pub fn getter_raw(mut self, getter: NamedPropertyGetterCallback) -> Self {
     self.getter = Some(getter);
     self
   }
 
   pub fn setter(
     mut self,
-    setter: impl MapFnTo<NamedPropertySetterCallback<'s>>,
+    setter: impl MapFnTo<NamedPropertySetterCallback>,
   ) -> Self {
     self.setter = Some(setter.map_fn_to());
     self
   }
 
-  pub fn setter_raw(mut self, setter: NamedPropertySetterCallback<'s>) -> Self {
+  pub fn setter_raw(mut self, setter: NamedPropertySetterCallback) -> Self {
     self.setter = Some(setter);
     self
   }
 
   pub fn query(
     mut self,
-    query: impl MapFnTo<NamedPropertyQueryCallback<'s>>,
+    query: impl MapFnTo<NamedPropertyQueryCallback>,
   ) -> Self {
     self.query = Some(query.map_fn_to());
     self
   }
 
-  pub fn query_raw(mut self, query: NamedPropertyQueryCallback<'s>) -> Self {
+  pub fn query_raw(mut self, query: NamedPropertyQueryCallback) -> Self {
     self.query = Some(query);
     self
   }
 
   pub fn deleter(
     mut self,
-    deleter: impl MapFnTo<NamedPropertyDeleterCallback<'s>>,
+    deleter: impl MapFnTo<NamedPropertyDeleterCallback>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
     self
   }
 
-  pub fn deleter_raw(
-    mut self,
-    deleter: NamedPropertyDeleterCallback<'s>,
-  ) -> Self {
+  pub fn deleter_raw(mut self, deleter: NamedPropertyDeleterCallback) -> Self {
     self.deleter = Some(deleter);
     self
   }
 
   pub fn enumerator(
     mut self,
-    enumerator: impl MapFnTo<NamedPropertyEnumeratorCallback<'s>>,
+    enumerator: impl MapFnTo<NamedPropertyEnumeratorCallback>,
   ) -> Self {
     self.enumerator = Some(enumerator.map_fn_to());
     self
@@ -408,7 +405,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn enumerator_raw(
     mut self,
-    enumerator: NamedPropertyEnumeratorCallback<'s>,
+    enumerator: NamedPropertyEnumeratorCallback,
   ) -> Self {
     self.enumerator = Some(enumerator);
     self
@@ -416,23 +413,20 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn definer(
     mut self,
-    definer: impl MapFnTo<NamedPropertyDefinerCallback<'s>>,
+    definer: impl MapFnTo<NamedPropertyDefinerCallback>,
   ) -> Self {
     self.definer = Some(definer.map_fn_to());
     self
   }
 
-  pub fn definer_raw(
-    mut self,
-    definer: NamedPropertyDefinerCallback<'s>,
-  ) -> Self {
+  pub fn definer_raw(mut self, definer: NamedPropertyDefinerCallback) -> Self {
     self.definer = Some(definer);
     self
   }
 
   pub fn descriptor(
     mut self,
-    descriptor: impl MapFnTo<NamedPropertyDescriptorCallback<'s>>,
+    descriptor: impl MapFnTo<NamedPropertyDescriptorCallback>,
   ) -> Self {
     self.descriptor = Some(descriptor.map_fn_to());
     self
@@ -440,7 +434,7 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
   pub fn descriptor_raw(
     mut self,
-    descriptor: NamedPropertyDescriptorCallback<'s>,
+    descriptor: NamedPropertyDescriptorCallback,
   ) -> Self {
     self.descriptor = Some(descriptor);
     self
@@ -461,13 +455,13 @@ impl<'s> NamedPropertyHandlerConfiguration<'s> {
 
 #[derive(Default)]
 pub struct IndexedPropertyHandlerConfiguration<'s> {
-  pub(crate) getter: Option<IndexedPropertyGetterCallback<'s>>,
-  pub(crate) setter: Option<IndexedPropertySetterCallback<'s>>,
-  pub(crate) query: Option<IndexedPropertyQueryCallback<'s>>,
-  pub(crate) deleter: Option<IndexedPropertyDeleterCallback<'s>>,
-  pub(crate) enumerator: Option<IndexedPropertyEnumeratorCallback<'s>>,
-  pub(crate) definer: Option<IndexedPropertyDefinerCallback<'s>>,
-  pub(crate) descriptor: Option<IndexedPropertyDescriptorCallback<'s>>,
+  pub(crate) getter: Option<IndexedPropertyGetterCallback>,
+  pub(crate) setter: Option<IndexedPropertySetterCallback>,
+  pub(crate) query: Option<IndexedPropertyQueryCallback>,
+  pub(crate) deleter: Option<IndexedPropertyDeleterCallback>,
+  pub(crate) enumerator: Option<IndexedPropertyEnumeratorCallback>,
+  pub(crate) definer: Option<IndexedPropertyDefinerCallback>,
+  pub(crate) descriptor: Option<IndexedPropertyDescriptorCallback>,
   pub(crate) data: Option<Local<'s, Value>>,
   pub(crate) flags: PropertyHandlerFlags,
 }
@@ -500,52 +494,46 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn getter(
     mut self,
-    getter: impl MapFnTo<IndexedPropertyGetterCallback<'s>>,
+    getter: impl MapFnTo<IndexedPropertyGetterCallback>,
   ) -> Self {
     self.getter = Some(getter.map_fn_to());
     self
   }
 
-  pub fn getter_raw(
-    mut self,
-    getter: IndexedPropertyGetterCallback<'s>,
-  ) -> Self {
+  pub fn getter_raw(mut self, getter: IndexedPropertyGetterCallback) -> Self {
     self.getter = Some(getter);
     self
   }
 
   pub fn setter(
     mut self,
-    setter: impl MapFnTo<IndexedPropertySetterCallback<'s>>,
+    setter: impl MapFnTo<IndexedPropertySetterCallback>,
   ) -> Self {
     self.setter = Some(setter.map_fn_to());
     self
   }
 
-  pub fn setter_raw(
-    mut self,
-    setter: IndexedPropertySetterCallback<'s>,
-  ) -> Self {
+  pub fn setter_raw(mut self, setter: IndexedPropertySetterCallback) -> Self {
     self.setter = Some(setter);
     self
   }
 
   pub fn query(
     mut self,
-    query: impl MapFnTo<IndexedPropertyQueryCallback<'s>>,
+    query: impl MapFnTo<IndexedPropertyQueryCallback>,
   ) -> Self {
     self.query = Some(query.map_fn_to());
     self
   }
 
-  pub fn query_raw(mut self, query: IndexedPropertyQueryCallback<'s>) -> Self {
+  pub fn query_raw(mut self, query: IndexedPropertyQueryCallback) -> Self {
     self.query = Some(query);
     self
   }
 
   pub fn deleter(
     mut self,
-    deleter: impl MapFnTo<IndexedPropertyDeleterCallback<'s>>,
+    deleter: impl MapFnTo<IndexedPropertyDeleterCallback>,
   ) -> Self {
     self.deleter = Some(deleter.map_fn_to());
     self
@@ -553,7 +541,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn deleter_raw(
     mut self,
-    deleter: IndexedPropertyDeleterCallback<'s>,
+    deleter: IndexedPropertyDeleterCallback,
   ) -> Self {
     self.deleter = Some(deleter);
     self
@@ -561,7 +549,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn enumerator(
     mut self,
-    enumerator: impl MapFnTo<IndexedPropertyEnumeratorCallback<'s>>,
+    enumerator: impl MapFnTo<IndexedPropertyEnumeratorCallback>,
   ) -> Self {
     self.enumerator = Some(enumerator.map_fn_to());
     self
@@ -569,7 +557,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn enumerator_raw(
     mut self,
-    enumerator: IndexedPropertyEnumeratorCallback<'s>,
+    enumerator: IndexedPropertyEnumeratorCallback,
   ) -> Self {
     self.enumerator = Some(enumerator);
     self
@@ -577,7 +565,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn definer(
     mut self,
-    definer: impl MapFnTo<IndexedPropertyDefinerCallback<'s>>,
+    definer: impl MapFnTo<IndexedPropertyDefinerCallback>,
   ) -> Self {
     self.definer = Some(definer.map_fn_to());
     self
@@ -585,7 +573,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn definer_raw(
     mut self,
-    definer: IndexedPropertyDefinerCallback<'s>,
+    definer: IndexedPropertyDefinerCallback,
   ) -> Self {
     self.definer = Some(definer);
     self
@@ -593,7 +581,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn descriptor(
     mut self,
-    descriptor: impl MapFnTo<IndexedPropertyDescriptorCallback<'s>>,
+    descriptor: impl MapFnTo<IndexedPropertyDescriptorCallback>,
   ) -> Self {
     self.descriptor = Some(descriptor.map_fn_to());
     self
@@ -601,7 +589,7 @@ impl<'s> IndexedPropertyHandlerConfiguration<'s> {
 
   pub fn descriptor_raw(
     mut self,
-    descriptor: IndexedPropertyDescriptorCallback<'s>,
+    descriptor: IndexedPropertyDescriptorCallback,
   ) -> Self {
     self.descriptor = Some(descriptor);
     self
@@ -917,7 +905,7 @@ impl ObjectTemplate {
   pub fn set_accessor(
     &self,
     key: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
   ) {
     self
       .set_accessor_with_configuration(key, AccessorConfiguration::new(getter));
@@ -927,8 +915,8 @@ impl ObjectTemplate {
   pub fn set_accessor_with_setter(
     &self,
     key: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
-    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+    setter: impl MapFnTo<AccessorNameSetterCallback>,
   ) {
     self.set_accessor_with_configuration(
       key,

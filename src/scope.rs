@@ -114,6 +114,7 @@ use crate::Object;
 use crate::OwnedIsolate;
 use crate::Primitive;
 use crate::PromiseRejectMessage;
+use crate::SealedLocal;
 use crate::Value;
 use crate::fast_api::FastApiCallbackOptions;
 use crate::function::FunctionCallbackInfo;
@@ -256,6 +257,16 @@ impl<'s> HandleScope<'s, ()> {
   #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
     data::ScopeData::get(self).get_isolate_ptr()
+  }
+
+  /// Open a handle passed from V8 in the current scope.
+  ///
+  /// # Safety
+  ///
+  /// The handle must be rooted in this scope.
+  #[inline(always)]
+  pub unsafe fn unseal<T>(&self, v: SealedLocal<T>) -> Local<'s, T> {
+    unsafe { Local::from_non_null(v.0) }
   }
 }
 

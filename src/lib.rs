@@ -100,6 +100,7 @@ pub use handle::Eternal;
 pub use handle::Global;
 pub use handle::Handle;
 pub use handle::Local;
+pub use handle::SealedLocal;
 pub use handle::TracedReference;
 pub use handle::Weak;
 pub use isolate::GarbageCollectionType;

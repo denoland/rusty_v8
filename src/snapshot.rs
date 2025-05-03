@@ -47,25 +47,32 @@ unsafe extern "C" {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct RawStartupData {
   pub(crate) data: *const char,
   pub(crate) raw_size: int,
 }
 
-#[derive(Clone, Debug)]
-pub struct StartupData {
-  data: Cow<'static, [u8]>,
+#[derive(Debug, Clone)]
+pub struct StartupData(StartupDataInner);
+
+#[derive(Debug)]
+enum StartupDataInner {
+  Cpp(RawStartupData),
+  Cow(Cow<'static, [u8]>),
 }
 
 impl StartupData {
   /// Whether the data created can be rehashed and and the hash seed can be
   /// recomputed when deserialized.
   /// Only valid for StartupData returned by SnapshotCreator::CreateBlob().
-  pub fn can_be_rehashed(self) -> bool {
-    let tmp = RawStartupData {
-      data: self.data.as_ptr() as _,
-      raw_size: self.data.len() as _,
+  pub fn can_be_rehashed(&self) -> bool {
+    let tmp = match &self.0 {
+      StartupDataInner::Cpp(t) => *t,
+      StartupDataInner::Cow(c) => RawStartupData {
+        data: c.as_ptr() as _,
+        raw_size: c.len() as _,
+      },
     };
     unsafe { v8__StartupData__CanBeRehashed(&tmp) }
   }
@@ -73,9 +80,12 @@ impl StartupData {
   /// Allows embedders to verify whether the data is valid for the current
   /// V8 instance.
   pub fn is_valid(&self) -> bool {
-    let tmp = RawStartupData {
-      data: self.data.as_ptr() as _,
-      raw_size: self.data.len() as _,
+    let tmp = match &self.0 {
+      StartupDataInner::Cpp(t) => *t,
+      StartupDataInner::Cow(c) => RawStartupData {
+        data: c.as_ptr() as _,
+        raw_size: c.len() as _,
+      },
     };
     unsafe { v8__StartupData__IsValid(&tmp) }
   }
@@ -85,7 +95,12 @@ impl std::ops::Deref for StartupData {
   type Target = [u8];
 
   fn deref(&self) -> &Self::Target {
-    &self.data
+    match &self.0 {
+      StartupDataInner::Cpp(t) => unsafe {
+        std::slice::from_raw_parts(t.data as _, t.raw_size as _)
+      },
+      StartupDataInner::Cow(c) => c,
+    }
   }
 }
 
@@ -94,7 +109,31 @@ where
   T: Into<Cow<'static, [u8]>>,
 {
   fn from(value: T) -> Self {
-    Self { data: value.into() }
+    Self(StartupDataInner::Cow(value.into()))
+  }
+}
+
+impl Drop for StartupData {
+  fn drop(&mut self) {
+    if let StartupDataInner::Cpp(raw) = self.0 {
+      unsafe {
+        v8__StartupData__data__DELETE(raw.data);
+      }
+    }
+  }
+}
+
+impl Clone for StartupDataInner {
+  fn clone(&self) -> Self {
+    match self {
+      // Cpp -> Cow to maintain unique ownership of the underlying pointer
+      Self::Cpp(r) => Self::Cow(
+        unsafe { std::slice::from_raw_parts(r.data as _, r.raw_size as _) }
+          .to_vec()
+          .into(),
+      ),
+      Self::Cow(c) => Self::Cow(c.clone()),
+    }
   }
 }
 
@@ -236,19 +275,7 @@ impl SnapshotCreator {
       None
     } else {
       debug_assert!(blob.raw_size > 0);
-
-      let data = Cow::from(
-        unsafe {
-          std::slice::from_raw_parts(blob.data as _, blob.raw_size as _)
-        }
-        .to_owned(),
-      );
-
-      unsafe {
-        v8__StartupData__data__DELETE(blob.data);
-      }
-
-      Some(StartupData { data })
+      Some(StartupData(StartupDataInner::Cpp(blob)))
     }
   }
 }

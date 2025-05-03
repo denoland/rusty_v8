@@ -211,7 +211,7 @@ struct CreateParamAllocations {
   // preferred format. We have to heap allocate this because we need to put a
   // stable pointer to it in `CreateParams`.
   snapshot_blob_header: Option<Box<RawStartupData>>,
-  external_references: Option<Cow<'static, [ExternalReference<'static>]>>,
+  external_references: Option<Cow<'static, [ExternalReference]>>,
 }
 
 #[test]

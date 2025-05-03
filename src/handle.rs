@@ -1176,3 +1176,10 @@ impl<T> Drop for Eternal<T> {
     }
   }
 }
+
+/// A Local<T> passed from V8 without an inherent scope.
+/// The value must be "unsealed" with Scope::unseal to bind
+/// it to a lifetime.
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct SealedLocal<T>(pub(crate) NonNull<T>);

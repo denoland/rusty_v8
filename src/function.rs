@@ -14,6 +14,7 @@ use crate::Local;
 use crate::Name;
 use crate::Object;
 use crate::PropertyDescriptor;
+use crate::SealedLocal;
 use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
@@ -515,10 +516,10 @@ where
   }
 }
 
-pub(crate) type NamedGetterCallbackForAccessor<'s> =
-  unsafe extern "C" fn(Local<'s, Name>, *const PropertyCallbackInfo<Value>);
+pub(crate) type NamedGetterCallbackForAccessor =
+  unsafe extern "C" fn(SealedLocal<Name>, *const PropertyCallbackInfo<Value>);
 
-impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor<'_>
+impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor
 where
   F: UnitType
     + for<'s> Fn(
@@ -529,9 +530,11 @@ where
     ),
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>, info: *const PropertyCallbackInfo<Value>| {
+    let f = |key: SealedLocal<Name>,
+             info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv);
@@ -540,12 +543,12 @@ where
   }
 }
 
-pub(crate) type NamedGetterCallback<'s> = unsafe extern "C" fn(
-  Local<'s, Name>,
+pub(crate) type NamedGetterCallback = unsafe extern "C" fn(
+  SealedLocal<Name>,
   *const PropertyCallbackInfo<Value>,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedGetterCallback<'_>
+impl<F> MapFnFrom<F> for NamedGetterCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -556,9 +559,11 @@ where
     ) -> Intercepted,
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>, info: *const PropertyCallbackInfo<Value>| {
+    let f = |key: SealedLocal<Name>,
+             info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv)
@@ -567,12 +572,12 @@ where
   }
 }
 
-pub(crate) type NamedQueryCallback<'s> = unsafe extern "C" fn(
-  Local<'s, Name>,
+pub(crate) type NamedQueryCallback = unsafe extern "C" fn(
+  SealedLocal<Name>,
   *const PropertyCallbackInfo<Integer>,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedQueryCallback<'_>
+impl<F> MapFnFrom<F> for NamedQueryCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -583,9 +588,11 @@ where
     ) -> Intercepted,
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>, info: *const PropertyCallbackInfo<Integer>| {
+    let f = |key: SealedLocal<Name>,
+             info: *const PropertyCallbackInfo<Integer>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv)
@@ -594,13 +601,13 @@ where
   }
 }
 
-pub(crate) type NamedSetterCallbackForAccessor<'s> = unsafe extern "C" fn(
-  Local<'s, Name>,
-  Local<'s, Value>,
+pub(crate) type NamedSetterCallbackForAccessor = unsafe extern "C" fn(
+  SealedLocal<Name>,
+  SealedLocal<Value>,
   *const PropertyCallbackInfo<()>,
 );
 
-impl<F> MapFnFrom<F> for NamedSetterCallbackForAccessor<'_>
+impl<F> MapFnFrom<F> for NamedSetterCallbackForAccessor
 where
   F: UnitType
     + for<'s> Fn(
@@ -612,11 +619,13 @@ where
     ),
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>,
-             value: Local<Value>,
+    let f = |key: SealedLocal<Name>,
+             value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
+      let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, value, args, rv);
@@ -625,13 +634,13 @@ where
   }
 }
 
-pub(crate) type NamedSetterCallback<'s> = unsafe extern "C" fn(
-  Local<'s, Name>,
-  Local<'s, Value>,
+pub(crate) type NamedSetterCallback = unsafe extern "C" fn(
+  SealedLocal<Name>,
+  SealedLocal<Value>,
   *const PropertyCallbackInfo<()>,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedSetterCallback<'_>
+impl<F> MapFnFrom<F> for NamedSetterCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -643,11 +652,13 @@ where
     ) -> Intercepted,
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>,
-             value: Local<Value>,
+    let f = |key: SealedLocal<Name>,
+             value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
+      let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, value, args, rv)
@@ -657,10 +668,10 @@ where
 }
 
 // Should return an Array in Return Value
-pub(crate) type PropertyEnumeratorCallback<'s> =
+pub(crate) type PropertyEnumeratorCallback =
   unsafe extern "C" fn(*const PropertyCallbackInfo<Array>);
 
-impl<F> MapFnFrom<F> for PropertyEnumeratorCallback<'_>
+impl<F> MapFnFrom<F> for PropertyEnumeratorCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -681,13 +692,13 @@ where
   }
 }
 
-pub(crate) type NamedDefinerCallback<'s> = unsafe extern "C" fn(
-  Local<'s, Name>,
+pub(crate) type NamedDefinerCallback = unsafe extern "C" fn(
+  SealedLocal<Name>,
   *const PropertyDescriptor,
   *const PropertyCallbackInfo<()>,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedDefinerCallback<'_>
+impl<F> MapFnFrom<F> for NamedDefinerCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -699,11 +710,12 @@ where
     ) -> Intercepted,
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>,
+    let f = |key: SealedLocal<Name>,
              desc: *const PropertyDescriptor,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let desc = unsafe { &*desc };
       let rv = ReturnValue::from_property_callback_info(info);
@@ -713,12 +725,12 @@ where
   }
 }
 
-pub(crate) type NamedDeleterCallback<'s> = unsafe extern "C" fn(
-  Local<'s, Name>,
+pub(crate) type NamedDeleterCallback = unsafe extern "C" fn(
+  SealedLocal<Name>,
   *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for NamedDeleterCallback<'_>
+impl<F> MapFnFrom<F> for NamedDeleterCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -729,9 +741,11 @@ where
     ) -> Intercepted,
 {
   fn mapping() -> Self {
-    let f = |key: Local<Name>, info: *const PropertyCallbackInfo<Boolean>| {
+    let f = |key: SealedLocal<Name>,
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv)
@@ -740,10 +754,10 @@ where
   }
 }
 
-pub(crate) type IndexedGetterCallback<'s> =
+pub(crate) type IndexedGetterCallback =
   unsafe extern "C" fn(u32, *const PropertyCallbackInfo<Value>) -> Intercepted;
 
-impl<F> MapFnFrom<F> for IndexedGetterCallback<'_>
+impl<F> MapFnFrom<F> for IndexedGetterCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -765,12 +779,12 @@ where
   }
 }
 
-pub(crate) type IndexedQueryCallback<'s> = unsafe extern "C" fn(
+pub(crate) type IndexedQueryCallback = unsafe extern "C" fn(
   u32,
   *const PropertyCallbackInfo<Integer>,
 ) -> Intercepted;
 
-impl<F> MapFnFrom<F> for IndexedQueryCallback<'_>
+impl<F> MapFnFrom<F> for IndexedQueryCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -792,14 +806,13 @@ where
   }
 }
 
-pub(crate) type IndexedSetterCallback<'s> = unsafe extern "C" fn(
+pub(crate) type IndexedSetterCallback = unsafe extern "C" fn(
   u32,
-  Local<'s, Value>,
+  SealedLocal<Value>,
   *const PropertyCallbackInfo<()>,
-)
-  -> Intercepted;
+) -> Intercepted;
 
-impl<F> MapFnFrom<F> for IndexedSetterCallback<'_>
+impl<F> MapFnFrom<F> for IndexedSetterCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -812,10 +825,11 @@ where
 {
   fn mapping() -> Self {
     let f = |index: u32,
-             value: Local<Value>,
+             value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       let scope = &mut unsafe { CallbackScope::new(info) };
+      let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, index, value, args, rv)
@@ -824,14 +838,13 @@ where
   }
 }
 
-pub(crate) type IndexedDefinerCallback<'s> =
-  unsafe extern "C" fn(
-    u32,
-    *const PropertyDescriptor,
-    *const PropertyCallbackInfo<()>,
-  ) -> Intercepted;
+pub(crate) type IndexedDefinerCallback = unsafe extern "C" fn(
+  u32,
+  *const PropertyDescriptor,
+  *const PropertyCallbackInfo<()>,
+) -> Intercepted;
 
-impl<F> MapFnFrom<F> for IndexedDefinerCallback<'_>
+impl<F> MapFnFrom<F> for IndexedDefinerCallback
 where
   F: UnitType
     + for<'s> Fn(
@@ -857,13 +870,12 @@ where
   }
 }
 
-pub(crate) type IndexedDeleterCallback<'s> =
-  unsafe extern "C" fn(
-    u32,
-    *const PropertyCallbackInfo<Boolean>,
-  ) -> Intercepted;
+pub(crate) type IndexedDeleterCallback = unsafe extern "C" fn(
+  u32,
+  *const PropertyCallbackInfo<Boolean>,
+) -> Intercepted;
 
-impl<F> MapFnFrom<F> for IndexedDeleterCallback<'_>
+impl<F> MapFnFrom<F> for IndexedDeleterCallback
 where
   F: UnitType
     + for<'s> Fn(
