@@ -537,7 +537,7 @@ impl Object {
     &self,
     scope: &mut HandleScope,
     name: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
   ) -> Option<bool> {
     self.set_accessor_with_configuration(
       scope,
@@ -551,8 +551,8 @@ impl Object {
     &self,
     scope: &mut HandleScope,
     name: Local<Name>,
-    getter: impl for<'s> MapFnTo<AccessorNameGetterCallback<'s>>,
-    setter: impl for<'s> MapFnTo<AccessorNameSetterCallback<'s>>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+    setter: impl MapFnTo<AccessorNameSetterCallback>,
   ) -> Option<bool> {
     self.set_accessor_with_configuration(
       scope,
