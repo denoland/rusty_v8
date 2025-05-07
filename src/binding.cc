@@ -3148,6 +3148,10 @@ void v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
     unsigned columnNumber, v8_inspector::V8StackTrace* stackTrace);
 v8::Context* v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
     v8_inspector::V8InspectorClient* self, int context_group_id);
+v8_inspector::StringBuffer*
+v8_inspector__V8InspectorClient__BASE__resourceNameToUrl(
+    v8_inspector::V8InspectorClient* self,
+    const v8_inspector::StringView& resource_name_view);
 
 }  // extern "C"
 
@@ -3184,6 +3188,13 @@ struct v8_inspector__V8InspectorClient__BASE
     return ptr_to_local(
         v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
             this, context_group_id));
+  }
+  std::unique_ptr<v8_inspector::StringBuffer> resourceNameToUrl(
+      const v8_inspector::StringView& resource_name_view) override {
+    v8_inspector::StringBuffer* b =
+        v8_inspector__V8InspectorClient__BASE__resourceNameToUrl(
+            this, resource_name_view);
+    return std::unique_ptr<v8_inspector::StringBuffer>(b);
   }
 };
 

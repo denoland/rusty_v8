@@ -243,6 +243,20 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__ensureDefaultContext
   }
 }
 
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__resourceNameToUrl(
+  this: &mut V8InspectorClient,
+  resource_name: &StringView,
+) -> *mut StringBuffer {
+  unsafe {
+    V8InspectorClientBase::dispatch_mut(this)
+      .resource_name_to_url(resource_name)
+      .and_then(|mut v| v.take())
+      .map(|r| r.into_raw())
+      .unwrap_or(std::ptr::null_mut())
+  }
+}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct Channel {
@@ -592,6 +606,13 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
     &mut self,
     context_group_id: i32,
   ) -> Option<Local<Context>> {
+    None
+  }
+
+  fn resource_name_to_url(
+    &mut self,
+    resource_name: &StringView,
+  ) -> Option<UniquePtr<StringBuffer>> {
     None
   }
 }
