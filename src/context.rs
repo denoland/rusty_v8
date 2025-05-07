@@ -39,6 +39,15 @@ unsafe extern "C" {
     index: int,
     value: *mut c_void,
   );
+  fn v8__Context__GetEmbedderData(
+    this: *const Context,
+    index: int,
+  ) -> *const Value;
+  fn v8__Context__SetEmbedderData(
+    this: *const Context,
+    index: int,
+    value: *const Value,
+  );
   fn v8__Context__FromSnapshot(
     isolate: *mut Isolate,
     context_snapshot_index: usize,
@@ -301,6 +310,27 @@ impl Context {
         );
       };
     }
+  }
+
+  /// Sets the embedder data with the given index, growing the data as needed.
+  ///
+  /// Note that index 0 currently has a special meaning for Chrome's debugger.
+  #[inline(always)]
+  pub fn set_embedder_data(&self, slot: i32, data: Local<'_, Value>) {
+    unsafe {
+      v8__Context__SetEmbedderData(self, slot, &*data);
+    }
+  }
+
+  /// Gets the embedder data with the given index, which must have been set by
+  /// a previous call to SetEmbedderData with the same index.
+  #[inline(always)]
+  pub fn get_embedder_data<'s>(
+    &self,
+    scope: &mut HandleScope<'s, ()>,
+    slot: i32,
+  ) -> Option<Local<'s, Value>> {
+    unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
   }
 
   #[inline(always)]
