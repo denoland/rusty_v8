@@ -191,6 +191,13 @@ impl CreateParams {
     self
   }
 
+  /// Sets the size of V8's CodeRange (executable-memory cage) in megabytes. Use multiples of 16MB for best compatibility.
+  pub fn code_range_size(mut self, size_mb: usize) -> Self {
+    const MB: usize = 1024 * 1024;
+    self.raw.constraints.set_code_range_size(size_mb * MB);
+    self
+  }
+
   /// A CppHeap used to construct the Isolate. V8 takes ownership of the
   /// CppHeap passed this way.
   pub fn cpp_heap(mut self, heap: UniqueRef<Heap>) -> Self {
@@ -334,6 +341,11 @@ pub(crate) mod raw {
           virtual_memory_limit,
         )
       }
+    }
+
+    /// Sets the CodeRange size in bytes. Must be a multiple of 16MB.
+    pub fn set_code_range_size(&mut self, bytes: usize) {
+      self.code_range_size_ = bytes;
     }
   }
 }
