@@ -2056,6 +2056,11 @@ void v8__Context__SetAlignedPointerInEmbedderData(v8::Context& self, int index,
   ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value);
 }
 
+void v8__Context__SetEmbedderData(v8::Context& self, int index,
+                                  const v8::Value* value) {
+  ptr_to_local(&self)->SetEmbedderData(index, ptr_to_local(value));
+}
+
 const v8::Data* v8__Context__GetDataFromSnapshotOnce(v8::Context& self,
                                                      size_t index) {
   return maybe_local_to_ptr(
