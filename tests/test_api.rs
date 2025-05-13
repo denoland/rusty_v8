@@ -5599,6 +5599,85 @@ fn snapshot_creator_multiple_contexts() {
 }
 
 #[test]
+fn snapshot_creator_context_embedder_data() {
+  let _setup_guard = setup::sequential_test();
+  let startup_data = {
+    let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
+    {
+      let mut scope = v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::new(&mut scope, Default::default());
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      let x = eval(scope, "({ prop: 1 })").unwrap();
+      context.set_embedder_data(1, x);
+      {
+        let value = context.get_embedder_data(scope, 1).unwrap();
+        let key = v8::String::new(scope, "prop").unwrap();
+        let prop = value.cast::<v8::Object>().get(scope, key.into()).unwrap();
+        let one_val = v8::Number::new(scope, 1.0).into();
+        assert!(prop.same_value(one_val));
+      }
+      scope.set_default_context(context);
+    }
+
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+
+  let startup_data = {
+    let mut snapshot_creator =
+      v8::Isolate::snapshot_creator_from_existing_snapshot(
+        startup_data,
+        None,
+        None,
+      );
+    {
+      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let context = v8::Context::new(scope, Default::default());
+      let scope = &mut v8::ContextScope::new(scope, context);
+      {
+        let value = context.get_embedder_data(scope, 1).unwrap();
+        let key = v8::String::new(scope, "prop").unwrap();
+        let prop = value.cast::<v8::Object>().get(scope, key.into()).unwrap();
+        let one_val = v8::Number::new(scope, 1.0).into();
+        assert!(prop.same_value(one_val));
+      }
+      {
+        let x = v8::String::new(scope, "prop2").unwrap().into();
+        context.set_embedder_data(2, x);
+        let value = context.get_embedder_data(scope, 2).unwrap();
+        assert!(value.same_value(x));
+      }
+      scope.set_default_context(context);
+    }
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .unwrap()
+  };
+  {
+    let params = v8::Isolate::create_params().snapshot_blob(startup_data);
+    let isolate = &mut v8::Isolate::new(params);
+    {
+      let scope = &mut v8::HandleScope::new(isolate);
+      let context = v8::Context::new(scope, Default::default());
+      let scope = &mut v8::ContextScope::new(scope, context);
+      {
+        let value = context.get_embedder_data(scope, 1).unwrap();
+        let key = v8::String::new(scope, "prop").unwrap();
+        let prop = value.cast::<v8::Object>().get(scope, key.into()).unwrap();
+        let one_val = v8::Number::new(scope, 1.0).into();
+        assert!(prop.same_value(one_val));
+      }
+      {
+        let x = v8::String::new(scope, "prop2").unwrap().into();
+        let value = context.get_embedder_data(scope, 2).unwrap();
+        assert!(value.same_value(x));
+      }
+    }
+  }
+}
+
+#[test]
 fn external_references() {
   let _setup_guard = setup::sequential_test();
   // Allocate externals for the test.
