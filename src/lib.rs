@@ -116,6 +116,8 @@ pub use isolate::MemoryPressureLevel;
 pub use isolate::MessageCallback;
 pub use isolate::MessageErrorLevel;
 pub use isolate::MicrotasksPolicy;
+pub use isolate::ModifyCodeGenerationFromStringsCallback;
+pub use isolate::ModifyCodeGenerationFromStringsResult;
 pub use isolate::ModuleImportPhase;
 pub use isolate::NearHeapLimitCallback;
 pub use isolate::OomDetails;
