@@ -195,12 +195,18 @@ impl Drop for Source {
   }
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CompileOptions {
-  NoCompileOptions = 0,
-  ConsumeCodeCache,
-  EagerCompile,
+bitflags! {
+  #[derive(Debug, Clone, Copy, PartialEq)]
+  #[repr(transparent)]
+  pub struct CompileOptions: int {
+    const NoCompileOptions = 0;
+    const ConsumeCodeCache = 1 << 0;
+    const EagerCompile = 1 << 1;
+    const ProduceCompileHints = 1 << 2;
+    const ConsumeCompileHints = 1 << 3;
+    const FollowCompileHintsMagicComment = 1 << 4;
+    const FollowCompileHintsPerFunctionMagicComment = 1 << 5;
+  }
 }
 
 /// The reason for which we are not requesting or providing a code cache.
