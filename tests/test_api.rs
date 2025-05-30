@@ -3596,6 +3596,7 @@ fn fn_callback_new(
 ) {
   assert_eq!(args.length(), 0);
   assert!(args.new_target().is_object());
+  assert!(args.is_construct_call());
   let recv = args.this();
   let key = v8::String::new(scope, "works").unwrap();
   let value = v8::Boolean::new(scope, true);

@@ -274,6 +274,12 @@ impl FunctionCallbackInfo {
     unsafe { self.get_arg_local(-1) }
   }
 
+  #[inline]
+  pub fn is_construct_call(&self) -> bool {
+    // The "new.target" value is only set for construct calls.
+    !self.new_target().is_undefined()
+  }
+
   #[inline(always)]
   pub(crate) fn data(&self) -> Local<Value> {
     unsafe {
@@ -374,6 +380,13 @@ impl<'s> FunctionCallbackArguments<'s> {
   #[inline(always)]
   pub fn new_target(&self) -> Local<'s, Value> {
     self.0.new_target()
+  }
+
+  /// Returns true if this is a construct call, i.e., if the function was
+  /// called with the `new` operator.
+  #[inline]
+  pub fn is_construct_call(&self) -> bool {
+    self.0.is_construct_call()
   }
 
   /// Returns the receiver. This corresponds to the "this" value.
