@@ -9,7 +9,9 @@ struct Wrappable {
 unsafe impl v8::cppgc::GarbageCollected for Wrappable {
   fn trace(&self, _visitor: &v8::cppgc::Visitor) {
     println!("Wrappable::trace() {}", self.id);
-    self.trace_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    self
+      .trace_count
+      .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
   }
 
   fn get_name(&self) -> &'static std::ffi::CStr {
