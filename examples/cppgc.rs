@@ -13,8 +13,11 @@ struct Rope {
 impl std::fmt::Display for Rope {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.part)?;
-    if let Some(next) = self.next.borrow() {
-      write!(f, "{next}")?;
+    unsafe {
+      // SAFETY: `next` is visited in `trace()`.
+      if let Some(next) = self.next.get() {
+        write!(f, "{next}")?;
+      }
     }
     Ok(())
   }
@@ -30,7 +33,7 @@ impl Rope {
   }
 }
 
-impl v8::cppgc::GarbageCollected for Rope {
+unsafe impl v8::cppgc::GarbageCollected for Rope {
   fn trace(&self, visitor: &v8::cppgc::Visitor) {
     visitor.trace(&self.next);
   }
