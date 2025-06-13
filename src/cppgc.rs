@@ -324,12 +324,26 @@ impl Heap {
   }
 }
 
-/// Base trait for managed objects.
-pub trait GarbageCollected {
-  /// `trace` should call `Visitor::visit` for each
-  /// `Member`, `WeakMember`, or `TracedReference` in
-  /// by the managed object.
-  fn trace(&self, _visitor: &Visitor) {}
+/// Base trait for objects supporting garbage collection.
+///
+/// Objects implementing this trait must also implement `Send + Sync` because
+/// the garbage collector may perform concurrent mark/sweep phases (depending on
+/// the cppgc heap settings). In particular, the object's `drop()` method may be
+/// invoked from a different thread than the one that created the object.
+///
+/// # Safety
+///
+/// implementors must guarantee that the `trace()`
+/// method correctly visits all [`Member`], [`WeakMember`], and
+/// [`TraceReference`] pointers held by this object. Failing to do so will leave
+/// dangling pointers in the heap as objects are garbage collected.
+pub unsafe trait GarbageCollected: Send + Sync {
+  /// `trace` must call [`Visitor::trace`] for each
+  /// [`Member`], [`WeakMember`], or [`TracedReference`] reachable
+  /// from `self`.
+  fn trace(&self, visitor: &Visitor) {
+    _ = visitor;
+  }
 
   /// Specifies a name for the garbage-collected object. Such names will never
   /// be hidden, as they are explicitly specified by the user of this API.
@@ -479,16 +493,22 @@ macro_rules! member {
           self.inner.assign(ptr);
         }
 
-        #[doc = "Borrow the object pointed to by this "]
+        #[doc = "Get the object pointed to by this "]
         #[doc = stringify!($name)]
-        #[doc = "."]
-        pub fn borrow(&self) -> Option<&T> {
+        #[doc = ", returning `None` if the pointer is empty or has been garbage-collected."]
+        #[doc = ""]
+        #[doc = "# Safety"]
+        #[doc = ""]
+        #[doc = "The caller must ensure that this pointer is being traced correctly by appearing in the [`trace`](GarbageCollected::trace)"]
+        #[doc = "implementation of the object that owns the pointer. Between initializing the pointer and calling `get()`, the pointer must be reachable by the garbage collector."]
+        pub unsafe fn get(&self) -> Option<&T> {
           let ptr = self.inner.get();
           if ptr.is_null() {
             None
           } else {
-            // SAFETY: Either this is a strong reference and the pointer is always valid
-            // or this is a weak reference and the ptr will be null if it was collected.
+            // SAFETY: Either this is a strong reference and the pointer is valid according
+            // to the safety contract of this method, or this is a weak reference and the
+            // ptr will be null if it was collected.
             Some(unsafe { &*get_object_from_rust_obj(ptr) })
           }
         }

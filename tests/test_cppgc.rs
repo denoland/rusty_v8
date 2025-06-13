@@ -68,7 +68,7 @@ macro_rules! test {
         value: v8::TracedReference<v8::Value>,
       }
 
-      impl GarbageCollected for Wrap {
+      unsafe impl GarbageCollected for Wrap {
         fn trace(&self, visitor: &Visitor) {
           TRACE_COUNT.fetch_add(1, Ordering::SeqCst);
           visitor.trace(&self.value);

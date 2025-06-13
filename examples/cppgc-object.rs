@@ -1,15 +1,17 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use std::cell::Cell;
+use std::sync::atomic::AtomicU16;
 
 struct Wrappable {
   id: String,
-  trace_count: Cell<u16>,
+  trace_count: AtomicU16,
 }
 
-impl v8::cppgc::GarbageCollected for Wrappable {
+unsafe impl v8::cppgc::GarbageCollected for Wrappable {
   fn trace(&self, _visitor: &v8::cppgc::Visitor) {
     println!("Wrappable::trace() {}", self.id);
-    self.trace_count.set(self.trace_count.get() + 1);
+    self
+      .trace_count
+      .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
   }
 
   fn get_name(&self) -> &'static std::ffi::CStr {
@@ -67,7 +69,7 @@ fn main() {
             v8::cppgc::make_garbage_collected(
               scope.get_cpp_heap().unwrap(),
               Wrappable {
-                trace_count: Cell::new(0),
+                trace_count: AtomicU16::new(0),
                 id,
               },
             )
