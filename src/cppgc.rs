@@ -333,12 +333,12 @@ impl Heap {
 ///
 /// # Safety
 ///
-/// This trait is unsafe because implementors must guarantee that the `trace()`
+/// implementors must guarantee that the `trace()`
 /// method correctly visits all [`Member`], [`WeakMember`], and
 /// [`TraceReference`] pointers held by this object. Failing to do so will leave
 /// dangling pointers in the heap as objects are garbage collected.
 pub unsafe trait GarbageCollected: Send + Sync {
-  /// `trace` must call [`Visitor::trace()`] for each
+  /// `trace` must call [`Visitor::trace`] for each
   /// [`Member`], [`WeakMember`], or [`TracedReference`] reachable
   /// from `self`.
   fn trace(&self, visitor: &Visitor) {
