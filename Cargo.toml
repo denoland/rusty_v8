@@ -30,6 +30,9 @@ exclude = [
   "build/fuchsia/",
   "buildtools/checkdeps/",
   "buildtools/clang_format/",
+  "third_party/dragonbox/src/cmake/",
+  "third_party/dragonbox/src/other_files/",
+  "third_party/dragonbox/src/subproject/",
   "third_party/libc++/src/benchmarks/",
   "third_party/libc++/src/docs/",
   "third_party/libc++/src/lib/",
@@ -109,7 +112,7 @@ gzip-header = "1.0.0"
 fslock = "0.2"
 which = "6"
 home = "0"
-bindgen = "0.71"
+bindgen = "0.72"
 
 [dev-dependencies]
 miniz_oxide = "0.8.8"
@@ -121,7 +124,7 @@ trybuild = "1.0.96"
 which = "6"
 home = "0"
 rustversion = "1"
-bindgen = "0.71"
+bindgen = "0.72"
 
 [[example]]
 name = "hello_world"

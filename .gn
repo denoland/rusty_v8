@@ -94,4 +94,10 @@ default_args = {
 
   v8_depend_on_icu_data_file = false
   icu_copy_icudata_to_root_build_dir = false
+
+  # TODO: third_party/compiler-rt missing?
+  use_llvm_libatomic = false
+
+  # TODO: wants to download rust nightly toolchain from GCS
+  v8_enable_temporal_support = false
 }
