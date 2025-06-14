@@ -8,6 +8,7 @@ use crate::support::Opaque;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::support::int;
+use std::cell::UnsafeCell;
 use std::ffi::CStr;
 use std::ffi::c_char;
 use std::marker::PhantomData;
@@ -203,9 +204,19 @@ impl Visitor {
   }
 }
 
-#[doc(hidden)]
+/// Trace fields for garbage collection.
+///
+/// Implement this for reference types or structs that contain reference types.
 pub trait Traced {
   fn trace(&self, visitor: &Visitor);
+}
+
+impl<T: Traced> Traced for Option<T> {
+  fn trace(&self, visitor: &Visitor) {
+    if let Some(value) = self {
+      value.trace(visitor);
+    }
+  }
 }
 
 impl<T> Traced for TracedReference<T> {
@@ -712,5 +723,81 @@ impl<T: GarbageCollected + std::fmt::Debug> std::fmt::Debug for Ptr<T> {
 impl<T: GarbageCollected + std::fmt::Display> std::fmt::Display for Ptr<T> {
   fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
     std::fmt::Display::fmt(&**self, fmt)
+  }
+}
+
+/// `GcCell` is a zero-overhead memory cell that provides interior mutability
+/// for garbage collected types.
+///
+/// Mutable access to the value inside the `GcCell` is granted by delivering
+/// proof that the caller has mutable access to the V8 Isolate (such as through
+/// a [`HandleScope`](crate::HandleScope)). This statically guarantees that
+/// access patterns follow the rules of both the garbage collector and the Rust
+/// borrow checker.
+///
+/// `GcCell` also implements [`Traced`], which means that it can hold other
+/// garbage collected references, like [`Member`] or [`WeakMember`]. If the
+/// `GcCell` holds other garbage collected objects, those objects cannot be
+/// accessed while the `GcCell` is borrowed, and the caller must construct
+/// temporary pointers ([`Ptr<T>`]) on the stack in order to access nested
+/// objects in the object graph.
+pub struct GcCell<T: ?Sized> {
+  // Contents guarded by access to the `Isolate`.
+  value: UnsafeCell<T>,
+}
+
+unsafe impl<T: Send + ?Sized> Send for GcCell<T> {}
+unsafe impl<T: Sync + ?Sized> Sync for GcCell<T> {}
+
+impl<T> GcCell<T> {
+  pub fn new(value: T) -> Self {
+    Self {
+      value: UnsafeCell::new(value),
+    }
+  }
+
+  pub fn set(&self, isolate: &mut crate::Isolate, value: T) {
+    _ = isolate;
+    unsafe {
+      // SAFETY: The `isolate` argument is proof that we have mutable access to
+      // the value.
+      *self.value.get() = value;
+    }
+  }
+}
+
+impl<T: ?Sized> GcCell<T> {
+  pub fn get<'a>(
+    &'a self,
+    isolate: &'a crate::Isolate,
+  ) -> &'a T {
+    _ = isolate;
+    unsafe {
+      // SAFETY: The `isolate` argument is proof that we have access to the
+      // value, and the returned reference binds the isolate's lifetime.
+      &*self.value.get()
+    }
+  }
+
+  pub fn get_mut<'a>(
+    &'a self,
+    isolate: &'a mut crate::Isolate,
+  ) -> &'a mut T {
+    _ = isolate;
+    unsafe {
+      // SAFETY: The `isolate` argument is proof that we have mutable access to
+      // the value, and the returned reference binds the isolate's lifetime.
+      &mut *self.value.get()
+    }
+  }
+}
+
+impl<T: Traced + ?Sized> Traced for GcCell<T> {
+  fn trace(&self, visitor: &Visitor) {
+    unsafe {
+      // SAFETY: This is invoked by the GC, so access is guaranteed to follow
+      // its rules.
+      (*self.value.get()).trace(visitor);
+    }
   }
 }
