@@ -767,10 +767,7 @@ impl<T> GcCell<T> {
 }
 
 impl<T: ?Sized> GcCell<T> {
-  pub fn get<'a>(
-    &'a self,
-    isolate: &'a crate::Isolate,
-  ) -> &'a T {
+  pub fn get<'a>(&'a self, isolate: &'a crate::Isolate) -> &'a T {
     _ = isolate;
     unsafe {
       // SAFETY: The `isolate` argument is proof that we have access to the
@@ -779,10 +776,7 @@ impl<T: ?Sized> GcCell<T> {
     }
   }
 
-  pub fn get_mut<'a>(
-    &'a self,
-    isolate: &'a mut crate::Isolate,
-  ) -> &'a mut T {
+  pub fn get_mut<'a>(&'a self, isolate: &'a mut crate::Isolate) -> &'a mut T {
     _ = isolate;
     unsafe {
       // SAFETY: The `isolate` argument is proof that we have mutable access to
