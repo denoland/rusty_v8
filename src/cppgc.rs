@@ -182,12 +182,12 @@ pub unsafe fn shutdown_process() {
 ///
 /// struct Foo { foo: Member<Foo> }
 ///
-/// impl GarbageCollected for Foo {
+/// unsafe impl GarbageCollected for Foo {
 ///   fn trace(&self, visitor: &Visitor) {
 ///     visitor.trace(&self.foo);
 ///   }
 ///
-///   fn get_name(&self) -> &'static CStr {
+///   fn get_name(&self) -> &'static std::ffi::CStr {
 ///     c"Foo"
 ///   }
 /// }
