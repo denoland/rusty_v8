@@ -7,7 +7,7 @@ struct Wrappable {
 }
 
 unsafe impl v8::cppgc::GarbageCollected for Wrappable {
-  fn trace(&self, _visitor: &v8::cppgc::Visitor) {
+  fn trace(&self, _visitor: &mut v8::cppgc::Visitor) {
     println!("Wrappable::trace() {}", self.id);
     self
       .trace_count
