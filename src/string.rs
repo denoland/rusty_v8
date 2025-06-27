@@ -182,17 +182,20 @@ impl ExternalOneByteStringResource {
   /// Returns a pointer to the data owned by this resource.
   /// This pointer is valid as long as the resource is alive.
   /// The data is guaranteed to be Latin-1.
+  #[inline]
   pub fn data(&self) -> *const char {
     unsafe { v8__ExternalOneByteStringResource__data(self) }
   }
 
   /// Returns the length of the data owned by this resource.
+  #[inline]
   pub fn length(&self) -> usize {
     unsafe { v8__ExternalOneByteStringResource__length(self) }
   }
 
   /// Returns the data owned by this resource as a string slice.
   /// The data is guaranteed to be Latin-1.
+  #[inline]
   pub fn as_bytes(&self) -> &[u8] {
     let len = self.length();
     if len == 0 {
@@ -870,6 +873,7 @@ impl String {
   /// Get the ExternalStringResource for an external string.
   ///
   /// Returns None if is_external() doesn't return true.
+  #[inline]
   pub fn get_external_string_resource(
     &self,
   ) -> Option<NonNull<ExternalStringResource>> {
@@ -879,6 +883,7 @@ impl String {
   /// Get the ExternalOneByteStringResource for an external one-byte string.
   ///
   /// Returns None if is_external_onebyte() doesn't return true.
+  #[inline]
   pub fn get_external_onebyte_string_resource(
     &self,
   ) -> Option<NonNull<ExternalOneByteStringResource>> {
@@ -1121,6 +1126,7 @@ impl String {
   }
 }
 
+#[inline]
 pub unsafe extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
   unsafe {
     let slice = std::slice::from_raw_parts_mut(s, len);

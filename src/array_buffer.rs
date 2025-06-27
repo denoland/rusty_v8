@@ -374,6 +374,7 @@ impl Deref for BackingStore {
   type Target = [Cell<u8>];
 
   /// Returns a [u8] slice refencing the data in the backing store.
+  #[inline]
   fn deref(&self) -> &Self::Target {
     // We use a dangling pointer if `self.data()` returns None because it's UB
     // to create even an empty slice from a null pointer.
@@ -387,26 +388,32 @@ impl Deref for BackingStore {
 }
 
 impl Drop for BackingStore {
+  #[inline]
   fn drop(&mut self) {
     unsafe { v8__BackingStore__DELETE(self) };
   }
 }
 
 impl Shared for BackingStore {
+  #[inline]
   fn clone(ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
     unsafe { std__shared_ptr__v8__BackingStore__COPY(ptr) }
   }
+  #[inline]
   fn from_unique_ptr(unique_ptr: UniquePtr<Self>) -> SharedPtrBase<Self> {
     unsafe {
       std__shared_ptr__v8__BackingStore__CONVERT__std__unique_ptr(unique_ptr)
     }
   }
+  #[inline]
   fn get(ptr: &SharedPtrBase<Self>) -> *const Self {
     unsafe { std__shared_ptr__v8__BackingStore__get(ptr) }
   }
+  #[inline]
   fn reset(ptr: &mut SharedPtrBase<Self>) {
     unsafe { std__shared_ptr__v8__BackingStore__reset(ptr) }
   }
+  #[inline]
   fn use_count(ptr: &SharedPtrBase<Self>) -> long {
     unsafe { std__shared_ptr__v8__BackingStore__use_count(ptr) }
   }

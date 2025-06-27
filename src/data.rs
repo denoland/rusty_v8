@@ -133,6 +133,7 @@ macro_rules! impl_deref {
   { $target:ident for $type:ident } => {
     impl Deref for $type {
       type Target = $target;
+      #[inline]
       fn deref(&self) -> &Self::Target {
         unsafe { &*(self as *const _ as *const Self::Target) }
       }
@@ -143,6 +144,7 @@ macro_rules! impl_deref {
 macro_rules! impl_from {
   { $source:ident for $type:ident } => {
     impl<'s> From<Local<'s, $source>> for Local<'s, $type> {
+      #[inline]
       fn from(l: Local<'s, $source>) -> Self {
         unsafe { transmute(l) }
       }
@@ -154,9 +156,11 @@ macro_rules! impl_try_from {
   { $source:ident for $target:ident if $value:pat => $check:expr } => {
     impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
       type Error = DataError;
+      #[inline]
       fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
         // Not dead: `cast()` is sometimes used in the $check expression.
         #[allow(dead_code)]
+        #[inline(always)]
         fn cast<T>(l: Local<$source>) -> Local<T> {
           unsafe { transmute::<Local<$source>, Local<T>>(l) }
         }
@@ -190,6 +194,7 @@ macro_rules! impl_hash {
 macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
     impl<'s> PartialEq<$rhs> for $type {
+      #[inline]
       fn eq(&self, other: &$rhs) -> bool {
         let a = self as *const _ as *const Data;
         let b = other as *const _ as *const Data;
@@ -199,6 +204,7 @@ macro_rules! impl_partial_eq {
   };
   { $rhs:ident for $type:ident use strict_equals } => {
     impl<'s> PartialEq<$rhs> for $type {
+      #[inline]
       fn eq(&self, other: &$rhs) -> bool {
         let a = self as *const _ as *const Value;
         let b = other as *const _ as *const Value;
@@ -209,6 +215,7 @@ macro_rules! impl_partial_eq {
 
   { $rhs:ident for $type:ident use same_value_zero } => {
     impl<'s> PartialEq<$rhs> for $type {
+      #[inline]
       fn eq(&self, other: &$rhs) -> bool {
         let a = self as *const _ as *const Value;
         let b = other as *const _ as *const Value;

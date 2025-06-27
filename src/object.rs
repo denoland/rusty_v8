@@ -694,6 +694,7 @@ impl Object {
       .into()
   }
 
+  #[inline]
   pub fn delete_index(
     &self,
     scope: &mut HandleScope,
@@ -933,6 +934,7 @@ impl Object {
 
   /// Implements Object.getOwnPropertyDescriptor(O, P), see
   /// https://tc39.es/ecma262/#sec-object.getownpropertydescriptor.
+  #[inline]
   pub fn get_own_property_descriptor<'s>(
     &self,
     scope: &mut HandleScope<'s>,
@@ -956,6 +958,7 @@ impl Object {
   ///
   /// Also returns a boolean, indicating whether the returned array contains
   /// key & values (for example when the value is Set.entries()).
+  #[inline]
   pub fn preview_entries<'s>(
     &self,
     scope: &mut HandleScope<'s>,
