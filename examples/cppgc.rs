@@ -34,7 +34,7 @@ impl Rope {
 }
 
 unsafe impl v8::cppgc::GarbageCollected for Rope {
-  fn trace(&self, visitor: &v8::cppgc::Visitor) {
+  fn trace(&self, visitor: &mut v8::cppgc::Visitor) {
     visitor.trace(&self.next);
   }
 
