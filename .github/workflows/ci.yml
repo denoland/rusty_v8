@@ -105,6 +105,12 @@ jobs:
             v8_enable_pointer_compression: true
             cargo: cargo
 
+          - os: ubuntu-22.04
+            target: aarch64-linux-android
+            variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo    
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -229,6 +235,17 @@ jobs:
       - name: Install Rust (nightly)
         uses: dtolnay/rust-toolchain@nightly
         if: matrix.config.variant == 'asan'
+
+      - name: Install Android target
+        if: matrix.config.target == 'aarch64-linux-android'
+        run: |
+          rustup target add aarch64-linux-android
+          sudo apt update
+          sudo apt install -yq unzip curl
+          curl -sSL https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
+          unzip ndk.zip
+          mv android-ndk-r26b $HOME/ndk
+          echo "CC_aarch64_linux_android=$HOME/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang" >> $GITHUB_ENV
 
       - name: check rust code formatting
         run: cargo fmt --check
