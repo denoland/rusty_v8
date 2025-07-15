@@ -94,4 +94,6 @@ default_args = {
 
   v8_depend_on_icu_data_file = false
   icu_copy_icudata_to_root_build_dir = false
+
+  v8_safe_string_hasher = true
 }
