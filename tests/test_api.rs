@@ -5435,7 +5435,7 @@ fn snapshot_creator() {
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
-  assert!(startup_data.len() > 0);
+  assert!(!startup_data.is_empty());
   // Now we try to load up the snapshot and check that 'a' has the correct
   // value.
   {
@@ -5687,7 +5687,7 @@ fn external_references() {
       .create_blob(v8::FunctionCodeHandling::Clear)
       .unwrap()
   };
-  assert!(startup_data.len() > 0);
+  assert!(!startup_data.is_empty());
   // Now we try to load up the snapshot and check that 'a' has the correct
   // value.
   {
@@ -7533,7 +7533,7 @@ fn module_snapshot() {
       .create_blob(v8::FunctionCodeHandling::Keep)
       .unwrap()
   };
-  assert!(startup_data.len() > 0);
+  assert!(!startup_data.is_empty());
   {
     let params = v8::Isolate::create_params().snapshot_blob(startup_data);
     let isolate = &mut v8::Isolate::new(params);
@@ -9664,7 +9664,7 @@ fn compiled_wasm_module() {
       0x6F, 0x6F, 0x62, 0x61, 0x72
     ]
   );
-  assert_eq!(compiled_module.source_url(), "wasm://wasm/a1d4c596");
+  assert_eq!(compiled_module.source_url(), "wasm://wasm/3e495052");
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
