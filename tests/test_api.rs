@@ -9695,7 +9695,7 @@ fn compiled_wasm_module() {
       0x6F, 0x6F, 0x62, 0x61, 0x72
     ]
   );
-  assert_eq!(compiled_module.source_url(), "wasm://wasm/a1d4c596");
+  assert_eq!(compiled_module.source_url(), "wasm://wasm/3e495052");
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
