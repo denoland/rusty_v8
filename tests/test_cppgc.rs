@@ -1,4 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use v8::cppgc::{GarbageCollected, GcCell, Member, Ptr, Traced, Visitor};
 
@@ -69,7 +70,7 @@ macro_rules! test {
       }
 
       unsafe impl GarbageCollected for Wrap {
-        fn trace(&self, visitor: &Visitor) {
+        fn trace(&self, visitor: &mut Visitor) {
           TRACE_COUNT.fetch_add(1, Ordering::SeqCst);
           visitor.trace(&self.value);
         }
@@ -243,16 +244,17 @@ fn cppgc_cell() {
   }
 
   unsafe impl GarbageCollected for Wrap {
-    fn trace(&self, visitor: &Visitor) {
+    fn trace(&self, visitor: &mut Visitor) {
       visitor.trace(&self.inner);
     }
+
     fn get_name(&self) -> &'static std::ffi::CStr {
       c"GcCellWrap"
     }
   }
 
   impl Traced for Inner {
-    fn trace(&self, visitor: &Visitor) {
+    fn trace(&self, visitor: &mut Visitor) {
       visitor.trace(&self.other);
     }
   }

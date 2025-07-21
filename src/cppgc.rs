@@ -40,15 +40,15 @@ unsafe extern "C" {
   );
 
   fn cppgc__Visitor__Trace__Member(
-    visitor: *const Visitor,
+    visitor: *mut Visitor,
     member: *const MemberInner,
   );
   fn cppgc__Visitor__Trace__WeakMember(
-    visitor: *const Visitor,
+    visitor: *mut Visitor,
     member: *const WeakMemberInner,
   );
   fn cppgc__Visitor__Trace__TracedReference(
-    visitor: *const Visitor,
+    visitor: *mut Visitor,
     reference: *const TracedReference<Data>,
   );
 
@@ -109,7 +109,7 @@ unsafe extern "C" fn rusty_v8_RustObj_trace(
 ) {
   unsafe {
     let r = get_rust_obj(obj);
-    r.trace(&*visitor);
+    r.trace(&mut *visitor);
   }
 }
 
@@ -158,12 +158,6 @@ pub fn initialize_process(platform: SharedRef<Platform>) {
   }
 }
 
-#[deprecated(note = "use correctly spelled initialize_process")]
-#[inline]
-pub fn initalize_process(platform: SharedRef<Platform>) {
-  initialize_process(platform);
-}
-
 /// # Safety
 ///
 /// Must be called after destroying the last used heap. Some process-global
@@ -184,7 +178,7 @@ pub unsafe fn shutdown_process() {
 /// struct Foo { foo: Member<Foo> }
 ///
 /// unsafe impl GarbageCollected for Foo {
-///   fn trace(&self, visitor: &Visitor) {
+///   fn trace(&self, visitor: &mut Visitor) {
 ///     visitor.trace(&self.foo);
 ///   }
 ///
@@ -198,29 +192,30 @@ pub unsafe fn shutdown_process() {
 pub struct Visitor(Opaque);
 
 impl Visitor {
+  /// Trace a managed object.
   #[inline(always)]
-  pub fn trace(&self, member: &impl Traced) {
+  pub fn trace(&mut self, member: &impl Traced) {
     member.trace(self);
   }
 }
 
-/// Trace fields for garbage collection.
-///
-/// Implement this for reference types or structs that contain reference types.
+/// Trait for inlined objects that are not allocated
+/// themselves but otherwise follow managed heap layout.
 pub trait Traced {
-  fn trace(&self, visitor: &Visitor);
+  /// Called by the `Visitor` when tracing managed objects.
+  fn trace(&self, visitor: &mut Visitor);
 }
 
 impl<T: Traced> Traced for Option<T> {
-  fn trace(&self, visitor: &Visitor) {
+  fn trace(&self, visitor: &mut Visitor) {
     if let Some(value) = self {
-      value.trace(visitor);
+      visitor.trace(value);
     }
   }
 }
 
 impl<T> Traced for TracedReference<T> {
-  fn trace(&self, visitor: &Visitor) {
+  fn trace(&self, visitor: &mut Visitor) {
     unsafe {
       cppgc__Visitor__Trace__TracedReference(
         visitor,
@@ -352,9 +347,7 @@ pub unsafe trait GarbageCollected: Send + Sync {
   /// `trace` must call [`Visitor::trace`] for each
   /// [`Member`], [`WeakMember`], or [`TracedReference`] reachable
   /// from `self`.
-  fn trace(&self, visitor: &Visitor) {
-    _ = visitor;
-  }
+  fn trace(&self, visitor: &mut Visitor);
 
   /// Specifies a name for the garbage-collected object. Such names will never
   /// be hidden, as they are explicitly specified by the user of this API.
@@ -532,7 +525,7 @@ macro_rules! member {
       }
 
       impl<T: GarbageCollected> Traced for $name<T> {
-        fn trace(&self, visitor: &Visitor) {
+        fn trace(&self, visitor: &mut Visitor) {
           unsafe { [< cppgc__Visitor__Trace__ $name >](visitor, &self.inner) }
         }
       }
@@ -635,7 +628,6 @@ macro_rules! persistent {
             [< cppgc__ $name __Get >](self.inner)
           }
         }
-
       }
 
       impl<T: GarbageCollected> Drop for $name<T> {
@@ -741,13 +733,13 @@ impl<T: GarbageCollected + std::fmt::Display> std::fmt::Display for Ptr<T> {
 /// accessed while the `GcCell` is borrowed, and the caller must construct
 /// temporary pointers ([`Ptr<T>`]) on the stack in order to access nested
 /// objects in the object graph.
-pub struct GcCell<T: ?Sized> {
+pub struct GcCell<T> {
   // Contents guarded by access to the `Isolate`.
   value: UnsafeCell<T>,
 }
 
-unsafe impl<T: Send + ?Sized> Send for GcCell<T> {}
-unsafe impl<T: Sync + ?Sized> Sync for GcCell<T> {}
+unsafe impl<T: Send> Send for GcCell<T> {}
+unsafe impl<T: Sync> Sync for GcCell<T> {}
 
 impl<T> GcCell<T> {
   pub fn new(value: T) -> Self {
@@ -766,7 +758,7 @@ impl<T> GcCell<T> {
   }
 }
 
-impl<T: ?Sized> GcCell<T> {
+impl<T> GcCell<T> {
   pub fn get<'a>(&'a self, isolate: &'a crate::Isolate) -> &'a T {
     _ = isolate;
     unsafe {
@@ -786,12 +778,12 @@ impl<T: ?Sized> GcCell<T> {
   }
 }
 
-impl<T: Traced + ?Sized> Traced for GcCell<T> {
-  fn trace(&self, visitor: &Visitor) {
+impl<T: Traced> Traced for GcCell<T> {
+  fn trace(&self, visitor: &mut Visitor) {
     unsafe {
       // SAFETY: This is invoked by the GC, so access is guaranteed to follow
       // its rules.
-      (*self.value.get()).trace(visitor);
+      visitor.trace(&(*self.value.get()));
     }
   }
 }
