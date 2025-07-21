@@ -1460,6 +1460,8 @@ fn exception() {
     v8::String::new(scope, "Uncaught TypeError: This is a test error").unwrap();
   assert!(actual_msg_out.strict_equals(expected_msg_out.into()));
   assert!(v8::Exception::get_stack_trace(scope, exception).is_none());
+  assert!(v8::Exception::capture_stack_trace(scope.get_current_context(), exception.into()).is_some());
+  assert!(v8::Exception::get_stack_trace(scope, exception).is_some());
 }
 
 #[test]
