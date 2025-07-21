@@ -10,8 +10,10 @@ use crate::StackFrame;
 use crate::StackTrace;
 use crate::String;
 use crate::Value;
+use crate::Object;
 use crate::isolate::Isolate;
 use crate::support::int;
+use crate::support::MaybeBool;
 
 unsafe extern "C" {
   fn v8__Message__Get(this: *const Message) -> *const String;
@@ -73,6 +75,10 @@ unsafe extern "C" {
   ) -> *const Message;
   fn v8__Exception__GetStackTrace(exception: *const Value)
   -> *const StackTrace;
+  fn v8__Exception__CaptureStackTrace(
+    context: *const Context,
+    object: *const Object
+  ) -> MaybeBool;
 }
 
 impl StackTrace {
@@ -407,5 +413,15 @@ impl Exception {
     exception: Local<Value>,
   ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.cast_local(|_| v8__Exception__GetStackTrace(&*exception)) }
+  }
+
+  /// Captures the current stack trace and attaches it to the given object in the
+  ///  form of `stack` property.
+  #[inline(always)]
+  pub fn capture_stack_trace<'s>(
+    context: Local<Context>,
+    object: Local<Object>,
+  ) -> Option<bool> {
+    unsafe { v8__Exception__CaptureStackTrace(&*context, &*object).into() }
   }
 }
