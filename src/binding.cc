@@ -2258,6 +2258,12 @@ const v8::StackTrace* v8__Exception__GetStackTrace(const v8::Value& exception) {
   return local_to_ptr(v8::Exception::GetStackTrace(ptr_to_local(&exception)));
 }
 
+MaybeBool v8__Exception__CaptureStackTrace(const v8::Context& context,
+                                           const v8::Object& object) {
+  return maybe_to_maybe_bool(v8::Exception::CaptureStackTrace(
+      ptr_to_local(&context), ptr_to_local(&object)));
+}
+
 const v8::Function* v8__Function__New(
     const v8::Context& context, v8::FunctionCallback callback,
     const v8::Value* data_or_null, int length,
