@@ -418,7 +418,7 @@ impl Exception {
   /// Captures the current stack trace and attaches it to the given object in the
   ///  form of `stack` property.
   #[inline(always)]
-  pub fn capture_stack_trace<'s>(
+  pub fn capture_stack_trace(
     context: Local<Context>,
     object: Local<Object>,
   ) -> Option<bool> {
