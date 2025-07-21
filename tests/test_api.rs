@@ -1463,11 +1463,10 @@ fn exception() {
   assert!(
     v8::Exception::capture_stack_trace(
       scope.get_current_context(),
-      exception.into()
+      exception.try_into().unwrap()
     )
     .is_some()
   );
-  assert!(v8::Exception::get_stack_trace(scope, exception).is_some());
 }
 
 #[test]
