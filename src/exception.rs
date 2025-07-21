@@ -6,14 +6,14 @@ use crate::Context;
 use crate::HandleScope;
 use crate::Local;
 use crate::Message;
+use crate::Object;
 use crate::StackFrame;
 use crate::StackTrace;
 use crate::String;
 use crate::Value;
-use crate::Object;
 use crate::isolate::Isolate;
-use crate::support::int;
 use crate::support::MaybeBool;
+use crate::support::int;
 
 unsafe extern "C" {
   fn v8__Message__Get(this: *const Message) -> *const String;
@@ -77,7 +77,7 @@ unsafe extern "C" {
   -> *const StackTrace;
   fn v8__Exception__CaptureStackTrace(
     context: *const Context,
-    object: *const Object
+    object: *const Object,
   ) -> MaybeBool;
 }
 
