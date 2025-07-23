@@ -23,6 +23,7 @@ default_args = {
   use_dummy_lastchange = true
   use_sysroot = false
   simple_template_names = false
+  mac_sdk_min = "14"
 
   # Minimize size of debuginfo in distributed static library.
   line_tables_only = true
