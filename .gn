@@ -23,6 +23,7 @@ default_args = {
   use_dummy_lastchange = true
   use_sysroot = false
   simple_template_names = false
+  mac_sdk_min = "14"
 
   # Minimize size of debuginfo in distributed static library.
   line_tables_only = true
@@ -100,4 +101,7 @@ default_args = {
 
   # TODO: wants to download rust nightly toolchain from GCS
   v8_enable_temporal_support = false
+
+  # prevent hashdos
+  v8_use_default_hasher_secret = false
 }
