@@ -255,7 +255,7 @@ pub(crate) mod raw {
   impl Default for CreateParams {
     fn default() -> Self {
       let size = unsafe { v8__Isolate__CreateParams__SIZEOF() };
-      assert!(size <= size_of::<Self>());
+      assert_eq!(size, size_of::<Self>());
       let mut buf = MaybeUninit::<Self>::uninit();
       unsafe { v8__Isolate__CreateParams__CONSTRUCT(&mut buf) };
       unsafe { buf.assume_init() }
@@ -270,6 +270,7 @@ pub(crate) mod raw {
     max_young_generation_size_: usize,
     initial_old_generation_size_: usize,
     initial_young_generation_size_: usize,
+    physical_memory_size_: u64,
     stack_limit_: *mut u32,
   }
 

@@ -157,6 +157,12 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
+      - name: Install Xcode SDK
+        if: startsWith(matrix.config.os, 'macos')
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 15
+
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
