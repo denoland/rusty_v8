@@ -99,8 +99,9 @@ default_args = {
   # TODO: third_party/compiler-rt missing?
   use_llvm_libatomic = false
 
-  # TODO: wants to download rust nightly toolchain from GCS
-  v8_enable_temporal_support = false
+  enable_rust = true
+  enable_rust_cxx = true
+  v8_enable_temporal_support = true
 
   # prevent hashdos
   v8_use_default_hasher_secret = false
