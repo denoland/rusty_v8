@@ -1,5 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
+use std::pin::Pin;
+
 use crate::Context;
 use crate::Date;
 use crate::HandleScope;
@@ -13,10 +15,10 @@ unsafe extern "C" {
 /// An instance of the built-in Date constructor (ECMA-262, 15.9).
 impl Date {
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s>>,
     value: f64,
-  ) -> Option<Local<'s, Date>> {
+  ) -> Option<Local<'a, Date>> {
     unsafe {
       scope.cast_local(|sd| v8__Date__New(sd.get_current_context(), value))
     }

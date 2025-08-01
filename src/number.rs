@@ -1,4 +1,5 @@
 use std::alloc::Layout;
+use std::pin::Pin;
 use std::ptr::NonNull;
 
 use crate::HandleScope;
@@ -24,8 +25,8 @@ unsafe extern "C" {
 
 impl Number {
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     value: f64,
   ) -> Local<'s, Number> {
     unsafe {
@@ -42,8 +43,8 @@ impl Number {
 
 impl Integer {
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     value: i32,
   ) -> Local<'s, Integer> {
     unsafe {
@@ -53,8 +54,8 @@ impl Integer {
   }
 
   #[inline(always)]
-  pub fn new_from_unsigned<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new_from_unsigned<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     value: u32,
   ) -> Local<'s, Integer> {
     unsafe {

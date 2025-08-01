@@ -1,5 +1,6 @@
 use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
+use std::pin::Pin;
 use std::ptr::null;
 
 use crate::Context;
@@ -14,6 +15,7 @@ use crate::Object;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
+use crate::scope2::GetIsolate;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::MaybeBool;
@@ -378,7 +380,7 @@ impl Module {
   #[inline(always)]
   pub fn instantiate_module<'a>(
     &self,
-    scope: &mut HandleScope,
+    scope: &Pin<&mut HandleScope>,
     callback: impl MapFnTo<ResolveModuleCallback<'a>>,
   ) -> Option<bool> {
     unsafe {
@@ -401,7 +403,7 @@ impl Module {
   #[inline(always)]
   pub fn instantiate_module2<'a>(
     &self,
-    scope: &mut HandleScope,
+    scope: &Pin<&'a mut HandleScope>,
     callback: impl MapFnTo<ResolveModuleCallback<'a>>,
     source_callback: impl MapFnTo<ResolveSourceCallback<'a>>,
   ) -> Option<bool> {
@@ -424,9 +426,9 @@ impl Module {
   /// via |GetException|).
   #[must_use]
   #[inline(always)]
-  pub fn evaluate<'s>(
+  pub fn evaluate<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope
@@ -462,7 +464,7 @@ impl Module {
   /// behavior.
   #[inline(always)]
   pub fn create_synthetic_module<'s, 'a>(
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
     module_name: Local<String>,
     export_names: &[Local<String>],
     evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
@@ -510,9 +512,9 @@ impl Module {
   }
 
   #[inline(always)]
-  pub fn get_unbound_module_script<'s>(
+  pub fn get_unbound_module_script<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, UnboundModuleScript> {
     unsafe {
       scope
@@ -526,9 +528,9 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message(
+  pub fn get_stalled_top_level_await_message<'a>  (
     &self,
-    scope: &mut HandleScope,
+    scope: &Pin<&'a mut HandleScope>,
   ) -> Vec<(Local<Module>, Local<Message>)> {
     let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
     for _i in 0..16 {

@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
+use std::pin::Pin;
 
 use crate::External;
 use crate::HandleScope;
@@ -18,10 +19,10 @@ unsafe extern "C" {
 impl External {
   #[inline(always)]
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
     value: *mut c_void,
-  ) -> Local<'s, Self> {
+  ) -> Local<'a, Self> {
     unsafe {
       scope.cast_local(|sd| v8__External__New(sd.get_isolate_ptr(), value))
     }

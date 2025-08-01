@@ -35,6 +35,7 @@ use crate::isolate::Isolate;
 use crate::support::MapFnTo;
 use crate::support::int;
 use std::convert::TryFrom;
+use std::pin::Pin;
 use std::ptr::null;
 
 unsafe extern "C" {
@@ -668,9 +669,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
 
   /// Creates the function template.
   #[inline(always)]
-  pub fn build(
+  pub fn build<'a>(
     self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
       scope.cast_local(|sd| {
@@ -695,9 +696,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   /// useful to pass them explicitly - eg. when you are snapshotting you'd provide
   /// the overloads and `CFunctionInfo` that would be placed in the external
   /// references array.
-  pub fn build_fast(
+  pub fn build_fast<'a>(
     self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
     overloads: &[CFunction],
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
@@ -727,8 +728,8 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
 /// signature's FunctionTemplate.
 impl Signature {
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, Self> {
     unsafe {
@@ -757,16 +758,16 @@ impl FunctionTemplate {
 
   /// Creates a function template.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder(callback).build(scope)
   }
 
   #[inline(always)]
-  pub fn new_raw<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new_raw<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     callback: FunctionCallback,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder_raw(callback).build(scope)
@@ -774,9 +775,9 @@ impl FunctionTemplate {
 
   /// Returns the unique function instance in the current execution context.
   #[inline(always)]
-  pub fn get_function<'s>(
+  pub fn get_function<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -796,9 +797,9 @@ impl FunctionTemplate {
   /// Returns the ObjectTemplate that is used by this
   /// FunctionTemplate as a PrototypeTemplate
   #[inline(always)]
-  pub fn prototype_template<'s>(
+  pub fn prototype_template<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__PrototypeTemplate(self))
@@ -809,9 +810,9 @@ impl FunctionTemplate {
   /// Returns the object template that is used for instances created when this function
   /// template is called as a constructor.
   #[inline(always)]
-  pub fn instance_template<'s>(
+  pub fn instance_template<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__InstanceTemplate(self))
@@ -843,7 +844,9 @@ impl FunctionTemplate {
 impl ObjectTemplate {
   /// Creates an object template.
   #[inline(always)]
-  pub fn new<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, ObjectTemplate> {
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
+  ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ObjectTemplate__New(sd.get_isolate_ptr(), std::ptr::null())
@@ -854,8 +857,8 @@ impl ObjectTemplate {
 
   /// Creates an object template from a function template.
   #[inline(always)]
-  pub fn new_from_template<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new_from_template<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
@@ -867,9 +870,9 @@ impl ObjectTemplate {
 
   /// Creates a new instance of this object template.
   #[inline(always)]
-  pub fn new_instance<'s>(
+  pub fn new_instance<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
       scope.cast_local(|sd| {

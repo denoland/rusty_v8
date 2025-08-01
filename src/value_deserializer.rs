@@ -1,10 +1,7 @@
 use crate::ArrayBuffer;
-use crate::CallbackScope;
 use crate::Context;
-use crate::ContextScope;
 use crate::Exception;
 use crate::Global;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Object;
@@ -12,6 +9,11 @@ use crate::SharedArrayBuffer;
 use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
+use crate::scope2::AsRef2;
+use crate::scope2::CallbackScope;
+use crate::scope2::ContextScope;
+use crate::scope2::GetIsolate;
+use crate::scope2::HandleScope;
 
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
@@ -20,6 +22,7 @@ use crate::support::MaybeBool;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
+use std::pin::pin;
 use std::ptr::addr_of;
 
 // Must be == sizeof(v8::ValueDeserializer::Delegate),
@@ -36,14 +39,19 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
 ) -> *const Object {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, &value_deserializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
 
   match value_deserializer_heap
     .value_deserializer_impl
-    .read_host_object(scope, &value_deserializer_heap.cxx_value_deserializer)
-  {
+    .read_host_object(
+      scope.as_ref(),
+      &value_deserializer_heap.cxx_value_deserializer,
+    ) {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
   }
@@ -57,13 +65,16 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
 ) -> *const SharedArrayBuffer {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, &value_deserializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
 
   match value_deserializer_heap
     .value_deserializer_impl
-    .get_shared_array_buffer_from_id(scope, transfer_id)
+    .get_shared_array_buffer_from_id(scope.casted(), transfer_id)
   {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
@@ -78,13 +89,16 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
 ) -> *const WasmModuleObject {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, &value_deserializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
 
   match value_deserializer_heap
     .value_deserializer_impl
-    .get_wasm_module_from_id(scope, clone_id)
+    .get_wasm_module_from_id(scope.casted(), clone_id)
   {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
@@ -171,26 +185,28 @@ unsafe extern "C" {
 /// The ValueDeserializerImpl trait allows for
 /// custom callback functions used by v8.
 pub trait ValueDeserializerImpl {
-  fn read_host_object<'s>(
+  fn read_host_object<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
     _value_deserializer: &dyn ValueDeserializerHelper,
-  ) -> Option<Local<'s, Object>> {
-    let msg =
-      String::new(scope, "Deno deserializer: read_host_object not implemented")
-        .unwrap();
+  ) -> Option<Local<'a, Object>> {
+    let msg = String::new(
+      scope.casted(),
+      "Deno deserializer: read_host_object not implemented",
+    )
+    .unwrap();
     let exc = Exception::error(scope, msg);
     scope.throw_exception(exc);
     None
   }
 
-  fn get_shared_array_buffer_from_id<'s>(
+  fn get_shared_array_buffer_from_id<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
     _transfer_id: u32,
-  ) -> Option<Local<'s, SharedArrayBuffer>> {
+  ) -> Option<Local<'a, SharedArrayBuffer>> {
     let msg = String::new(
-      scope,
+      scope.casted(),
       "Deno deserializer: get_shared_array_buffer_from_id not implemented",
     )
     .unwrap();
@@ -199,13 +215,13 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  fn get_wasm_module_from_id<'s>(
+  fn get_wasm_module_from_id<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
     _clone_id: u32,
-  ) -> Option<Local<'s, WasmModuleObject>> {
+  ) -> Option<Local<'a, WasmModuleObject>> {
     let msg = String::new(
-      scope,
+      scope.casted(),
       "Deno deserializer: get_wasm_module_from_id not implemented",
     )
     .unwrap();
@@ -401,8 +417,8 @@ pub struct ValueDeserializer<'a> {
 }
 
 impl<'a> ValueDeserializer<'a> {
-  pub fn new<D: ValueDeserializerImpl + 'a>(
-    scope: &mut HandleScope,
+  pub fn new<'s, D: ValueDeserializerImpl + 'a>(
+    scope: &Pin<&'a mut HandleScope<'s>>,
     value_deserializer_impl: Box<D>,
     data: &[u8],
   ) -> Self {

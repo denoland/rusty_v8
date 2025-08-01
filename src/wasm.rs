@@ -8,11 +8,15 @@ use crate::WasmMemoryObject;
 use crate::WasmModuleObject;
 use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
-use crate::scope::CallbackScope;
-use crate::scope::HandleScope;
+use crate::scope2::AsRef2;
+use crate::scope2::CallbackScope;
+use crate::scope2::GetIsolate;
+use crate::scope2::HandleScope;
+use crate::scope2::bind_callbackscope;
 use crate::support::Opaque;
 use crate::support::UnitType;
 use crate::support::char;
+use std::pin::Pin;
 use std::ptr::null;
 use std::ptr::null_mut;
 
@@ -94,8 +98,8 @@ impl WasmModuleObject {
   /// Efficiently re-create a WasmModuleObject, without recompiling, from
   /// a CompiledWasmModule.
   #[inline(always)]
-  pub fn from_compiled_module<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn from_compiled_module<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     compiled_module: &CompiledWasmModule,
   ) -> Option<Local<'s, WasmModuleObject>> {
     unsafe {
@@ -118,8 +122,8 @@ impl WasmModuleObject {
 
   /// Compile a Wasm module from the provided uncompiled bytes.
   #[inline(always)]
-  pub fn compile<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn compile<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     wire_bytes: &[u8],
   ) -> Option<Local<'s, WasmModuleObject>> {
     unsafe {
@@ -190,14 +194,14 @@ impl WasmMemoryObject {
 pub(crate) fn trampoline<F>()
 -> unsafe extern "C" fn(*const FunctionCallbackInfo)
 where
-  F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
+  F: UnitType + Fn(&Pin<&mut HandleScope>, Local<Value>, WasmStreaming),
 {
   unsafe extern "C" fn c_fn<F>(info: *const FunctionCallbackInfo)
   where
-    F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
+    F: UnitType + Fn(&Pin<&mut HandleScope>, Local<Value>, WasmStreaming),
   {
     let info = unsafe { &*info };
-    let scope = &mut unsafe { CallbackScope::new(info) };
+    bind_callbackscope!(unsafe scope, info);
     let args = FunctionCallbackArguments::from_function_callback_info(info);
     let data = args.data();
     let zero = null_mut();
@@ -206,7 +210,7 @@ where
       v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), &*data, &mut that);
     };
     let source = args.get(0);
-    (F::get())(scope, source, WasmStreaming(that));
+    (F::get())(scope.casted(), source, WasmStreaming(that));
   }
   c_fn::<F>
 }

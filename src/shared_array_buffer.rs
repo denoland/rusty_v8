@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
+use std::pin::Pin;
 
 use crate::BackingStore;
 use crate::BackingStoreDeleterCallback;
@@ -8,6 +9,7 @@ use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
+use crate::scope2::GetIsolate;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 
@@ -43,8 +45,8 @@ impl SharedArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     byte_length: usize,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     unsafe {
@@ -58,8 +60,8 @@ impl SharedArrayBuffer {
   }
 
   #[inline(always)]
-  pub fn with_backing_store<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn with_backing_store<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'s, SharedArrayBuffer> {
     unsafe {
@@ -96,14 +98,14 @@ impl SharedArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   #[inline(always)]
-  pub fn new_backing_store(
-    scope: &mut Isolate,
+  pub fn new_backing_store<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {
       UniqueRef::from_raw(
         v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
-          scope,
+          scope.get_isolate_ptr(),
           byte_length,
         ),
       )

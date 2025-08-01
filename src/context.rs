@@ -15,6 +15,7 @@ use crate::support::int;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::pin::Pin;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
 
@@ -99,10 +100,10 @@ impl Context {
 
   /// Creates a new context.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
     options: ContextOptions,
-  ) -> Local<'s, Context> {
+  ) -> Local<'a, Context> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__New(
@@ -119,10 +120,10 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn get_extras_binding_object<'s>(
+  pub fn get_extras_binding_object<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, Object> {
+    scope: &Pin<&'a mut HandleScope<'s>>,
+  ) -> Local<'a, Object> {
     unsafe { scope.cast_local(|_| v8__Context__GetExtrasBindingObject(self)) }
       .unwrap()
   }
@@ -138,10 +139,10 @@ impl Context {
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
   #[inline(always)]
-  pub fn global<'s>(
+  pub fn global<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, Object> {
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+  ) -> Local<'a, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
@@ -325,11 +326,11 @@ impl Context {
   /// Gets the embedder data with the given index, which must have been set by
   /// a previous call to SetEmbedderData with the same index.
   #[inline(always)]
-  pub fn get_embedder_data<'s>(
+  pub fn get_embedder_data<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
     slot: i32,
-  ) -> Option<Local<'s, Value>> {
+  ) -> Option<Local<'a, Value>> {
     unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
   }
 
@@ -367,15 +368,15 @@ impl Context {
   /// Create a new context from a (non-default) context snapshot. There
   /// is no way to provide a global object template since we do not create
   /// a new global object from template, but we can reuse a global object.
-  pub fn from_snapshot<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn from_snapshot<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
     context_snapshot_index: usize,
     options: ContextOptions,
-  ) -> Option<Local<'s, Context>> {
+  ) -> Option<Local<'a, Context>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__FromSnapshot(
-          sd.get_isolate_mut(),
+          sd.get_isolate_ptr(),
           context_snapshot_index,
           options.global_object.map_or_else(null, |o| &*o as *const _),
           options.microtask_queue.unwrap_or_else(null_mut),
@@ -385,10 +386,10 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn get_security_token<'s>(
+  pub fn get_security_token<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, Value> {
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+  ) -> Local<'a, Value> {
     unsafe { scope.cast_local(|_| v8__Context__GetSecurityToken(self)) }
       .unwrap()
   }

@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use crate::Context;
 use crate::HandleScope;
 use crate::Local;
@@ -38,8 +40,8 @@ unsafe extern "C" {
 
 impl RegExp {
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     pattern: Local<String>,
     flags: RegExpCreationFlags,
   ) -> Option<Local<'s, RegExp>> {
@@ -51,9 +53,9 @@ impl RegExp {
   }
 
   #[inline(always)]
-  pub fn exec<'s>(
+  pub fn exec<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
     subject: Local<String>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
@@ -64,9 +66,9 @@ impl RegExp {
   }
 
   #[inline(always)]
-  pub fn get_source<'s>(
+  pub fn get_source<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__RegExp__GetSource(self)) }.unwrap()
   }

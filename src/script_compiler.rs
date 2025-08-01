@@ -1,5 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use std::{marker::PhantomData, mem::MaybeUninit};
+use std::{marker::PhantomData, mem::MaybeUninit, pin::Pin};
 
 use crate::Function;
 use crate::Local;
@@ -236,8 +236,8 @@ pub enum NoCacheReason {
 /// Corresponds to the ParseModule abstract operation in the ECMAScript
 /// specification.
 #[inline(always)]
-pub fn compile_module<'s>(
-  scope: &mut HandleScope<'s>,
+pub fn compile_module<'s, 'a>(
+  scope: &Pin<&'s mut HandleScope<'a>>,
   source: &mut Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
@@ -250,8 +250,8 @@ pub fn compile_module<'s>(
 
 /// Same as compile_module with more options.
 #[inline(always)]
-pub fn compile_module2<'s>(
-  scope: &mut HandleScope<'s>,
+pub fn compile_module2<'s, 'a>(
+  scope: &Pin<&'s mut HandleScope<'a>>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -269,8 +269,8 @@ pub fn compile_module2<'s>(
 }
 
 #[inline(always)]
-pub fn compile<'s>(
-  scope: &mut HandleScope<'s>,
+pub fn compile<'s, 'a>(
+  scope: &Pin<&'s mut HandleScope<'a>>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -288,8 +288,8 @@ pub fn compile<'s>(
 }
 
 #[inline(always)]
-pub fn compile_function<'s>(
-  scope: &mut HandleScope<'s>,
+pub fn compile_function<'s, 'a>(
+  scope: &Pin<&'s mut HandleScope<'a>>,
   source: &mut Source,
   arguments: &[Local<String>],
   context_extensions: &[Local<Object>],
@@ -315,8 +315,8 @@ pub fn compile_function<'s>(
 }
 
 #[inline(always)]
-pub fn compile_unbound_script<'s>(
-  scope: &mut HandleScope<'s>,
+pub fn compile_unbound_script<'s, 'a>(
+  scope: &Pin<&'s mut HandleScope<'a>>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,

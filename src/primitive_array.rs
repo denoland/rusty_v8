@@ -1,3 +1,6 @@
+use std::pin::Pin;
+
+use crate::scope2::GetIsolate;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::HandleScope;
 use crate::Isolate;
@@ -30,8 +33,8 @@ unsafe extern "C" {
 
 impl PrimitiveArray {
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     length: usize,
   ) -> Local<'s, PrimitiveArray> {
     unsafe {
@@ -48,9 +51,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn set(
+  pub fn set<'s, 'a>(
     &self,
-    scope: &mut HandleScope,
+    scope: &Pin<&'s mut HandleScope<'a>>,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
@@ -65,9 +68,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn get<'s>(
+  pub fn get<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
     index: usize,
   ) -> Local<'s, Primitive> {
     unsafe {

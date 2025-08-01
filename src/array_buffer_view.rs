@@ -8,6 +8,7 @@ use crate::binding::memory_span_t;
 use crate::support::int;
 use std::convert::TryInto;
 use std::ffi::c_void;
+use std::pin::Pin;
 
 unsafe extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -33,10 +34,10 @@ unsafe extern "C" {
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
   #[inline(always)]
-  pub fn buffer<'s>(
+  pub fn buffer<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
-  ) -> Option<Local<'s, ArrayBuffer>> {
+    scope: &Pin<&'a mut HandleScope<'s>>,
+  ) -> Option<Local<'a, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }
 

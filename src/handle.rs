@@ -7,12 +7,14 @@ use std::marker::PhantomData;
 use std::mem::forget;
 use std::mem::transmute;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::ptr::NonNull;
 
 use crate::Data;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::IsolateHandle;
+use crate::scope2::GetIsolate;
+use crate::scope2::HandleScope;
 use crate::support::Opaque;
 
 unsafe extern "C" {
@@ -103,8 +105,8 @@ pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 impl<'s, T> Local<'s, T> {
   /// Construct a new Local from an existing Handle.
   #[inline(always)]
-  pub fn new(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'a>(
+    scope: &Pin<&'s mut HandleScope<'a, ()>>,
     handle: impl Handle<Data = T>,
   ) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
@@ -232,10 +234,10 @@ pub struct Global<T> {
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
   #[inline(always)]
-  pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
+  pub fn new(isolate: &Isolate, handle: impl Handle<Data = T>) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(isolate);
-    unsafe { Self::new_raw(isolate, data) }
+    unsafe { Self::new_raw(isolate as *const Isolate as *mut Isolate, data) }
   }
 
   /// Implementation helper function that contains the code that can be shared
@@ -504,8 +506,8 @@ enum HandleHost {
   DisposedIsolate,
 }
 
-impl From<&'_ mut Isolate> for HandleHost {
-  fn from(isolate: &'_ mut Isolate) -> Self {
+impl From<&'_ Isolate> for HandleHost {
+  fn from(isolate: &'_ Isolate) -> Self {
     Self::Isolate(NonNull::from(isolate))
   }
 }
@@ -539,7 +541,7 @@ impl HandleHost {
   fn match_host(
     self,
     other: Self,
-    scope_isolate_opt: Option<&mut Isolate>,
+    scope_isolate_opt: Option<&Isolate>,
   ) -> bool {
     let scope_isolate_opt_nn = scope_isolate_opt.map(NonNull::from);
     match (self, other, scope_isolate_opt_nn) {
@@ -562,7 +564,7 @@ impl HandleHost {
     }
   }
 
-  fn assert_match_host(self, other: Self, scope_opt: Option<&mut Isolate>) {
+  fn assert_match_host(self, other: Self, scope_opt: Option<&Isolate>) {
     assert!(
       self.match_host(other, scope_opt),
       "attempt to use Handle in an Isolate that is not its host"
@@ -570,11 +572,11 @@ impl HandleHost {
   }
 
   #[allow(dead_code)]
-  fn match_isolate(self, isolate: &mut Isolate) -> bool {
+  fn match_isolate(self, isolate: &Isolate) -> bool {
     self.match_host(isolate.into(), Some(isolate))
   }
 
-  fn assert_match_isolate(self, isolate: &mut Isolate) {
+  fn assert_match_isolate(self, isolate: &Isolate) {
     self.assert_match_host(isolate.into(), Some(isolate));
   }
 
@@ -837,9 +839,9 @@ impl<T> Weak<T> {
     }
   }
 
-  pub fn to_local<'s>(
+  pub fn to_local<'a, 's>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
   ) -> Option<Local<'s, T>> {
     if let Some(data) = self.get_pointer() {
       let handle_host: HandleHost = (&self.isolate_handle).into();
@@ -1073,16 +1075,19 @@ impl<T> TracedReference<T> {
   /// Construct a TracedReference from a Local.
   ///
   /// A new storage cell is created pointing to the same object.
-  pub fn new(scope: &mut HandleScope<()>, data: Local<T>) -> Self {
+  pub fn new<'a, 's>(
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    data: Local<'a, T>,
+  ) -> Self {
     let mut this = Self::empty();
     this.reset(scope, Some(data));
     this
   }
 
-  pub fn get<'s>(
+  pub fn get<'a, 's>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Option<Local<'s, T>> {
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+  ) -> Option<Local<'a, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(
@@ -1095,7 +1100,11 @@ impl<T> TracedReference<T> {
 
   /// Always resets the reference. Creates a new reference from `other` if it is
   /// non-empty.
-  pub fn reset(&mut self, scope: &mut HandleScope<()>, data: Option<Local<T>>) {
+  pub fn reset<'a, 's>(
+    &mut self,
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    data: Option<Local<'a, T>>,
+  ) {
     unsafe {
       v8__TracedReference__Reset(
         self as *mut Self as *mut TracedReference<Data>,
@@ -1140,7 +1149,11 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn set(&self, scope: &mut HandleScope<()>, data: Local<T>) {
+  pub fn set<'a, 's>(
+    &self,
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    data: Local<'a, T>,
+  ) {
     unsafe {
       v8__Eternal__Set(
         self as *const Self as *mut Eternal<Data>,
@@ -1150,10 +1163,10 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'s>(
+  pub fn get<'a, 's>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Option<Local<'s, T>> {
+    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+  ) -> Option<Local<'a, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Eternal__Get(
