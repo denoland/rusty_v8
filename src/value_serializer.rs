@@ -1,10 +1,7 @@
 use crate::ArrayBuffer;
-use crate::CallbackScope;
 use crate::Context;
-use crate::ContextScope;
 use crate::Exception;
 use crate::Global;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Object;
@@ -12,12 +9,18 @@ use crate::SharedArrayBuffer;
 use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
+use crate::scope2::AsRef2;
+use crate::scope2::CallbackScope;
+use crate::scope2::ContextScope;
+use crate::scope2::GetIsolate;
+use crate::scope2::HandleScope;
 
 use std::alloc::Layout;
 use std::alloc::alloc;
 use std::alloc::dealloc;
 use std::alloc::realloc;
 use std::mem::MaybeUninit;
+use std::pin::pin;
 use std::ptr::addr_of;
 use std::sync::atomic::AtomicUsize;
 
@@ -42,13 +45,16 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
 ) {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
   let scope = unsafe {
-    &mut CallbackScope::new(value_serializer_heap.isolate_ptr.as_mut().unwrap())
+    CallbackScope::new(value_serializer_heap.isolate_ptr.as_mut().unwrap())
   };
-  let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
   value_serializer_heap
     .value_serializer_impl
-    .throw_data_clone_error(scope, message);
+    .throw_data_clone_error(scope.casted(), message);
 }
 
 #[unsafe(no_mangle)]
@@ -69,14 +75,17 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   object: Local<Object>,
 ) -> MaybeBool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
 
   MaybeBool::from(
     value_serializer_heap
       .value_serializer_impl
-      .is_host_object(scope, object),
+      .is_host_object(scope.casted(), object),
   )
 }
 
@@ -87,13 +96,16 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   object: Local<Object>,
 ) -> MaybeBool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
   MaybeBool::from(value_serializer_impl.write_host_object(
-    scope,
+    scope.casted(),
     object,
     &value_serializer_heap.cxx_value_serializer,
   ))
@@ -107,12 +119,15 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   clone_id: *mut u32,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_shared_array_buffer_id(scope, shared_array_buffer)
+    .get_shared_array_buffer_id(scope.casted(), shared_array_buffer)
   {
     Some(x) => {
       unsafe {
@@ -132,12 +147,15 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   transfer_id: *mut u32,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, value_serializer_heap.context.clone());
-  let scope = &mut ContextScope::new(scope, context);
+  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let scope = pin!(scope);
+  let scope = &scope.init_stack();
+  let context =
+    Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
+  let scope = ContextScope::new(scope.as_handle_scope(), context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_wasm_module_transfer_id(scope, module)
+    .get_wasm_module_transfer_id(scope.casted(), module)
   {
     Some(x) => {
       unsafe {
@@ -256,58 +274,62 @@ unsafe extern "C" {
 /// The ValueSerializerImpl trait allows for
 /// custom callback functions used by v8.
 pub trait ValueSerializerImpl {
-  fn throw_data_clone_error<'s>(
+  fn throw_data_clone_error<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
-    message: Local<'s, String>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
+    message: Local<'a, String>,
   );
 
   fn has_custom_host_object(&self, _isolate: &mut Isolate) -> bool {
     false
   }
 
-  fn is_host_object<'s>(
+  fn is_host_object<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
-    _object: Local<'s, Object>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
+    _object: Local<'a, Object>,
   ) -> Option<bool> {
-    let msg =
-      String::new(scope, "Deno serializer: is_host_object not implemented")
-        .unwrap();
+    let msg = String::new(
+      scope.casted(),
+      "Deno serializer: is_host_object not implemented",
+    )
+    .unwrap();
     let exc = Exception::error(scope, msg);
     scope.throw_exception(exc);
     None
   }
 
-  fn write_host_object<'s>(
+  fn write_host_object<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
-    _object: Local<'s, Object>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
+    _object: Local<'a, Object>,
     _value_serializer: &dyn ValueSerializerHelper,
   ) -> Option<bool> {
-    let msg =
-      String::new(scope, "Deno serializer: write_host_object not implemented")
-        .unwrap();
+    let msg = String::new(
+      scope.casted(),
+      "Deno serializer: write_host_object not implemented",
+    )
+    .unwrap();
     let exc = Exception::error(scope, msg);
     scope.throw_exception(exc);
     None
   }
 
-  fn get_shared_array_buffer_id<'s>(
+  fn get_shared_array_buffer_id<'s, 'a>(
     &self,
-    _scope: &mut HandleScope<'s>,
-    _shared_array_buffer: Local<'s, SharedArrayBuffer>,
+    _scope: &Pin<&'a mut HandleScope<'s>>,
+    _shared_array_buffer: Local<'a, SharedArrayBuffer>,
   ) -> Option<u32> {
     None
   }
 
-  fn get_wasm_module_transfer_id(
+  fn get_wasm_module_transfer_id<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'_>,
+    scope: &Pin<&'a mut HandleScope<'s>>,
     _module: Local<WasmModuleObject>,
   ) -> Option<u32> {
     let msg = String::new(
-      scope,
+      scope.casted(),
       "Deno serializer: get_wasm_module_transfer_id not implemented",
     )
     .unwrap();
@@ -484,8 +506,8 @@ pub struct ValueSerializer<'a> {
 /// The 's lifetime is the lifetime of the HandleScope which is used to retrieve
 /// a Local<'s, Context> for the CallbackScopes
 impl<'a> ValueSerializer<'a> {
-  pub fn new<D: ValueSerializerImpl + 'a>(
-    scope: &mut HandleScope,
+  pub fn new<'s, D: ValueSerializerImpl + 'a>(
+    scope: &Pin<&'a mut HandleScope<'s>>,
     value_serializer_impl: Box<D>,
   ) -> Self {
     let context = scope.get_current_context();

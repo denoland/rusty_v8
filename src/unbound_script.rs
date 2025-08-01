@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use crate::CachedData;
 use crate::HandleScope;
 use crate::Local;
@@ -26,9 +28,9 @@ unsafe extern "C" {
 impl UnboundScript {
   /// Binds the script to the currently entered context.
   #[inline(always)]
-  pub fn bind_to_current_context<'s>(
+  pub fn bind_to_current_context<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, Script> {
     unsafe {
       scope.cast_local(|_| v8__UnboundScript__BindToCurrentContext(self))
@@ -54,9 +56,9 @@ impl UnboundScript {
   }
 
   #[inline(always)]
-  pub fn get_source_mapping_url<'s>(
+  pub fn get_source_mapping_url<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -66,9 +68,9 @@ impl UnboundScript {
   }
 
   #[inline(always)]
-  pub fn get_source_url<'s>(
+  pub fn get_source_url<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

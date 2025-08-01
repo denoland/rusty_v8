@@ -11,29 +11,39 @@ unsafe extern "C" {
 }
 
 #[inline(always)]
-pub fn null<'a, R>(scope: &mut R) -> Local<'a, Primitive>
+pub fn null<'a, R>(scope: &R) -> Local<'a, Primitive>
 where
-  R: AsMut<Isolate>,
+  R: AsRef<Isolate>,
 {
-  unsafe { Local::from_raw_unchecked(v8__Null(scope.as_mut())) }
+  unsafe {
+    Local::from_raw_unchecked(v8__Null(scope.as_ref() as *const _ as *mut _))
+  }
 }
 
 #[inline(always)]
-pub fn undefined<'a, R>(scope: &mut R) -> Local<'a, Primitive>
+pub fn undefined<'a, R>(scope: &R) -> Local<'a, Primitive>
 where
-  R: AsMut<Isolate>,
+  R: AsRef<Isolate>,
 {
-  unsafe { Local::from_raw_unchecked(v8__Undefined(scope.as_mut())) }
+  unsafe {
+    Local::from_raw_unchecked(v8__Undefined(
+      scope.as_ref() as *const _ as *mut _
+    ))
+  }
 }
 
 impl Boolean {
   #[inline(always)]
-  pub fn new<'a, R>(scope: &mut R, value: bool) -> Local<'a, Boolean>
+  pub fn new<'a, R>(scope: &R, value: bool) -> Local<'a, Boolean>
   where
-    R: AsMut<Isolate>,
+    R: AsRef<Isolate>,
   {
     unsafe {
-      Local::from_raw_unchecked(v8__Boolean__New(scope.as_mut(), value))
+      Local::from_raw_unchecked(v8__Boolean__New(
+        scope.as_ref() as *const _ as *mut _,
+        value,
+      ))
     }
   }
 }
+

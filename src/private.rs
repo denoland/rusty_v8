@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
@@ -20,8 +22,8 @@ unsafe extern "C" {
 impl Private {
   /// Create a private symbol. If name is not empty, it will be the description.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -43,8 +45,8 @@ impl Private {
   /// To minimize the potential for clashes, use qualified names as keys,
   /// e.g., "Class#property".
   #[inline(always)]
-  pub fn for_api<'s>(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn for_api<'s, 'a>(
+    scope: &Pin<&'s mut HandleScope<'a>>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -60,7 +62,10 @@ impl Private {
 
   /// Returns the print name string of the private symbol, or undefined if none.
   #[inline(always)]
-  pub fn name<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, Value> {
+  pub fn name<'s, 'a>(
+    &self,
+    scope: &Pin<&'s mut HandleScope<'a>>,
+  ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Private__Name(self)) }.unwrap()
   }
 }

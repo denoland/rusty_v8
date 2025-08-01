@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use crate::CachedData;
 use crate::HandleScope;
 use crate::Local;
@@ -37,9 +39,9 @@ impl UnboundModuleScript {
     code_cache
   }
 
-  pub fn get_source_mapping_url<'s>(
+  pub fn get_source_mapping_url<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -48,9 +50,9 @@ impl UnboundModuleScript {
     }
   }
 
-  pub fn get_source_url<'s>(
+  pub fn get_source_url<'s, 'a>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &Pin<&'s mut HandleScope<'a>>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

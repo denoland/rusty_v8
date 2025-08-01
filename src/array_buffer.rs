@@ -3,6 +3,7 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::ptr::NonNull;
 use std::ptr::null;
 use std::slice;
@@ -425,10 +426,10 @@ impl ArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s>>,
     byte_length: usize,
-  ) -> Local<'s, ArrayBuffer> {
+  ) -> Local<'a, ArrayBuffer> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ArrayBuffer__New__with_byte_length(
@@ -441,10 +442,10 @@ impl ArrayBuffer {
   }
 
   #[inline(always)]
-  pub fn with_backing_store<'s>(
-    scope: &mut HandleScope<'s>,
+  pub fn with_backing_store<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s>>,
     backing_store: &SharedRef<BackingStore>,
-  ) -> Local<'s, ArrayBuffer> {
+  ) -> Local<'a, ArrayBuffer> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ArrayBuffer__New__with_backing_store(
@@ -638,12 +639,12 @@ impl ArrayBuffer {
 impl DataView {
   /// Returns a new DataView.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
-    arraybuffer: Local<'s, ArrayBuffer>,
+  pub fn new<'s, 'a>(
+    scope: &Pin<&'a mut HandleScope<'s>>,
+    arraybuffer: Local<'a, ArrayBuffer>,
     byte_offset: usize,
     length: usize,
-  ) -> Local<'s, DataView> {
+  ) -> Local<'a, DataView> {
     unsafe {
       scope
         .cast_local(|_| v8__DataView__New(&*arraybuffer, byte_offset, length))
