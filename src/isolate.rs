@@ -793,12 +793,8 @@ unsafe extern "C" {
 #[derive(Debug)]
 pub struct Isolate(NonNull<RealIsolate>);
 
-
-
 #[repr(C)]
 pub struct RealIsolate(Opaque);
-
-
 
 impl Isolate {
   // Isolate data slots used internally by rusty_v8.
@@ -2109,7 +2105,7 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
-      let ctx: *const Local<Context> = &raw const context;
+      let ctx: &Local<'_, Context> = &context;
       let scope = unsafe { CallbackScope::new(ctx) };
       let mut scope = Box::pin(scope).init_box();
       let sc = scope.as_mut();
