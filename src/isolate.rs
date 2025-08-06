@@ -788,9 +788,17 @@ unsafe extern "C" {
 /// rusty_v8 note: Unlike in the C++ API, the Isolate is entered when it is
 /// constructed and exited when dropped. Because of that v8::OwnedIsolate
 /// instances must be dropped in the reverse order of creation
+
 #[repr(C)]
 #[derive(Debug)]
-pub struct Isolate(Opaque);
+pub struct Isolate(NonNull<RealIsolate>);
+
+
+
+#[repr(C)]
+pub struct RealIsolate(Opaque);
+
+
 
 impl Isolate {
   // Isolate data slots used internally by rusty_v8.

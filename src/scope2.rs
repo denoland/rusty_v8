@@ -785,7 +785,6 @@ impl<'s, 'b, 'c, C> AsRef2<'b, Pin<&'s mut HandleScope<'c, C>>>
   }
 }
 
-
 // impl<'a, C> CallbackScope<'a, C> {
 //   pub fn as_handle_scope<'b, 'c, 'd>(
 //     self: &'b Pin<&'d mut Self>,
