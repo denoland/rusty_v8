@@ -39,7 +39,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
 ) -> *const Object {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate) };
+  let scope = unsafe { CallbackScope::new(&*isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =

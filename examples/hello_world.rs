@@ -1,3 +1,5 @@
+use v8::AsRef2;
+
 fn main() {
   // Initialize V8.
   let platform = v8::new_default_platform(0, false).make_shared();
@@ -10,15 +12,19 @@ fn main() {
 
     // Create a stack-allocated handle scope.
     let handle_scope = v8::HandleScope::new(isolate);
+    let handle_scope = std::pin::pin!(handle_scope);
+    let handle_scope = handle_scope.init_stack();
+    let handle_scope = &handle_scope;
 
     // Create a new context.
     let context = v8::Context::new(handle_scope, Default::default());
 
     // Enter the context for compiling and running the hello world script.
-    let scope = &v8::ContextScope::new(handle_scope, context);
+    let scope = v8::ContextScope::new(handle_scope, context);
 
     // Create a string containing the JavaScript source code.
-    let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
+    let code =
+      v8::String::new(scope.casted(), "'Hello' + ' World!'").unwrap();
 
     // Compile the source code.
     let script = v8::Script::compile(scope, code, None).unwrap();
@@ -50,7 +56,7 @@ fn main() {
           instance.exports.add(3, 4);
         "#;
     // Create a string containing the JavaScript source code.
-    let source = v8::String::new(scope, c_source).unwrap();
+    let source = v8::String::new(scope.casted(), c_source).unwrap();
 
     // Compile the source code.
     let script = v8::Script::compile(scope, source, None).unwrap();
