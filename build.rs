@@ -322,7 +322,7 @@ fn build_v8(is_asan: bool) {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
-  let gn_out = maybe_gen(&gn_args);
+  let gn_out = run_gn_gen(&gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   if env_bool("PRINT_GN_ARGS") {
@@ -933,40 +933,44 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   cmd
 }
 
-fn maybe_gen(gn_args: &[String]) -> PathBuf {
+fn run_gn_gen(gn_args: &[String]) -> PathBuf {
   let dirs = get_dirs();
   let gn_out_dir = dirs.out.join("gn_out");
 
-  if !gn_out_dir.exists() || !gn_out_dir.join("build.ninja").exists() {
-    let mut args = gn_args.join(" ");
-    if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
-      args.push(' ');
-      args.push_str(&extra_args);
-    }
-
-    let path = env::current_dir().unwrap();
-    println!("The current directory is {}", path.display());
-    println!(
-      "gn gen --root={} {}",
-      dirs.root.display(),
-      gn_out_dir.display()
-    );
-    assert!(
-      Command::new(gn())
-        .arg(format!("--root={}", dirs.root.display()))
-        .arg(format!("--script-executable={}", python()))
-        .arg("gen")
-        .arg(&gn_out_dir)
-        .arg("--ide=json")
-        .arg("--args=".to_owned() + &args)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .envs(env::vars())
-        .status()
-        .expect("Could not run `gn`")
-        .success()
-    );
+  // Remove existing directory to ensure clean regeneration
+  if gn_out_dir.exists() {
+    fs::remove_dir_all(&gn_out_dir).expect("Failed to remove gn_out directory");
   }
+
+  let mut args = gn_args.join(" ");
+  if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
+    args.push(' ');
+    args.push_str(&extra_args);
+  }
+
+  let path = env::current_dir().unwrap();
+  println!("The current directory is {}", path.display());
+  println!(
+    "gn gen --root={} {}",
+    dirs.root.display(),
+    gn_out_dir.display()
+  );
+  assert!(
+    Command::new(gn())
+      .arg(format!("--root={}", dirs.root.display()))
+      .arg(format!("--script-executable={}", python()))
+      .arg("gen")
+      .arg(&gn_out_dir)
+      .arg("--ide=json")
+      .arg("--args=".to_owned() + &args)
+      .stdout(Stdio::inherit())
+      .stderr(Stdio::inherit())
+      .envs(env::vars())
+      .status()
+      .expect("Could not run `gn`")
+      .success()
+  );
+
   gn_out_dir
 }
 
