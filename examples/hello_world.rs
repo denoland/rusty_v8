@@ -11,29 +11,26 @@ fn main() {
     let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
     // Create a stack-allocated handle scope.
-    let handle_scope = v8::HandleScope::new(isolate);
-    let handle_scope = std::pin::pin!(handle_scope);
+    eprintln!("isolate: {:?}", isolate);
+    let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
     let handle_scope = handle_scope.init_stack();
-    let handle_scope = &handle_scope;
 
     // Create a new context.
-    let context = v8::Context::new(handle_scope, Default::default());
+    let context = v8::Context::new(&handle_scope, Default::default());
 
     // Enter the context for compiling and running the hello world script.
-    let scope = v8::ContextScope::new(handle_scope, context);
-
+    let scope = v8::ContextScope::new(&handle_scope, context);
     // Create a string containing the JavaScript source code.
-    let code =
-      v8::String::new(scope.casted(), "'Hello' + ' World!'").unwrap();
+    let code = v8::String::new(scope.casted(), "'Hello' + ' World!'").unwrap();
 
     // Compile the source code.
-    let script = v8::Script::compile(scope, code, None).unwrap();
+    let script = v8::Script::compile(scope.casted(), code, None).unwrap();
     // Run the script to get the result.
-    let result = script.run(scope).unwrap();
+    let result = script.run(scope.casted()).unwrap();
 
     // Convert the result to a string and print it.
-    let result = result.to_string(scope).unwrap();
-    println!("{}", result.to_rust_string_lossy(scope));
+    let result = result.to_string(scope.casted()).unwrap();
+    // println!("{}", result.to_rust_string_lossy(scope.casted()));
 
     // Use the JavaScript API to generate a WebAssembly module.
     //
@@ -59,13 +56,13 @@ fn main() {
     let source = v8::String::new(scope.casted(), c_source).unwrap();
 
     // Compile the source code.
-    let script = v8::Script::compile(scope, source, None).unwrap();
+    let script = v8::Script::compile(scope.casted(), source, None).unwrap();
 
     // Run the script to get the result.
-    let result = script.run(scope).unwrap();
+    let result = script.run(scope.casted()).unwrap();
 
     // Print the result.
-    let result = result.to_uint32(scope).unwrap();
+    let result = result.to_uint32(scope.casted()).unwrap();
     println!("3 + 4 = {}", result.value());
   }
 

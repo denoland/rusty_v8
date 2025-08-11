@@ -9,13 +9,14 @@ use crate::Isolate;
 use crate::Local;
 use crate::Number;
 use crate::Uint32;
+use crate::isolate::RealIsolate;
 
 unsafe extern "C" {
-  fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *const Number;
+  fn v8__Number__New(isolate: *mut RealIsolate, value: f64) -> *const Number;
   fn v8__Number__Value(this: *const Number) -> f64;
-  fn v8__Integer__New(isolate: *mut Isolate, value: i32) -> *const Integer;
+  fn v8__Integer__New(isolate: *mut RealIsolate, value: i32) -> *const Integer;
   fn v8__Integer__NewFromUnsigned(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: u32,
   ) -> *const Integer;
   fn v8__Integer__Value(this: *const Integer) -> i64;

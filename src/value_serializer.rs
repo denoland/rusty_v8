@@ -9,6 +9,7 @@ use crate::SharedArrayBuffer;
 use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
+use crate::isolate::RealIsolate;
 use crate::scope2::AsRef2;
 use crate::scope2::CallbackScope;
 use crate::scope2::ContextScope;
@@ -44,9 +45,9 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   message: Local<String>,
 ) {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe {
-    CallbackScope::new(value_serializer_heap.isolate_ptr.as_mut().unwrap())
-  };
+  let isolate =
+    unsafe { Isolate::from_raw_ptr(value_serializer_heap.isolate_ptr) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -60,22 +61,24 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   value_serializer_heap
     .value_serializer_impl
-    .has_custom_host_object(unsafe { &mut *isolate })
+    .has_custom_host_object(&isolate)
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   object: Local<Object>,
 ) -> MaybeBool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -92,11 +95,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   object: Local<Object>,
 ) -> MaybeBool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -114,12 +118,13 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   shared_array_buffer: Local<SharedArrayBuffer>,
   clone_id: *mut u32,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -142,12 +147,13 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   module: Local<WasmModuleObject>,
   transfer_id: *mut u32,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -224,7 +230,7 @@ pub struct CxxValueSerializer {
 unsafe extern "C" {
   fn v8__ValueSerializer__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueSerializer>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     delegate: *mut CxxValueSerializerDelegate,
   );
 
@@ -280,7 +286,7 @@ pub trait ValueSerializerImpl {
     message: Local<'a, String>,
   );
 
-  fn has_custom_host_object(&self, _isolate: &mut Isolate) -> bool {
+  fn has_custom_host_object(&self, _isolate: &Isolate) -> bool {
     false
   }
 
@@ -352,7 +358,7 @@ pub struct ValueSerializerHeap<'a> {
   cxx_value_serializer: CxxValueSerializer,
   buffer_size: AtomicUsize,
   context: Global<Context>,
-  isolate_ptr: *mut Isolate,
+  isolate_ptr: *mut RealIsolate,
 }
 
 impl ValueSerializerHeap<'_> {

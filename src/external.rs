@@ -7,10 +7,11 @@ use crate::External;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
+use crate::isolate::RealIsolate;
 
 unsafe extern "C" {
   fn v8__External__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: *mut c_void,
   ) -> *const External;
   fn v8__External__Value(this: *const External) -> *mut c_void;

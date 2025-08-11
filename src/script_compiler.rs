@@ -7,6 +7,7 @@ use crate::Module;
 use crate::Object;
 use crate::ScriptOrigin;
 use crate::String;
+use crate::isolate::RealIsolate;
 use crate::support::int;
 use crate::{Context, Isolate, Script, UnboundScript};
 use crate::{HandleScope, UniqueRef};
@@ -28,7 +29,7 @@ unsafe extern "C" {
   ) -> *mut CachedData<'a>;
   fn v8__ScriptCompiler__CachedData__DELETE<'a>(this: *mut CachedData<'a>);
   fn v8__ScriptCompiler__CompileModule(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     source: *mut Source,
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
@@ -50,7 +51,7 @@ unsafe extern "C" {
     no_cache_reason: NoCacheReason,
   ) -> *const Function;
   fn v8__ScriptCompiler__CompileUnboundScript(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     source: *mut Source,
     options: CompileOptions,
     no_cache_reason: NoCacheReason,

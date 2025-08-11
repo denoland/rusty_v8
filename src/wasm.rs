@@ -8,6 +8,7 @@ use crate::WasmMemoryObject;
 use crate::WasmModuleObject;
 use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
+use crate::isolate::RealIsolate;
 use crate::scope2::AsRef2;
 use crate::scope2::CallbackScope;
 use crate::scope2::GetIsolate;
@@ -217,7 +218,7 @@ where
 
 unsafe extern "C" {
   fn v8__WasmStreaming__Unpack(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: *const Value,
     that: *mut WasmStreamingSharedPtr, // Out parameter.
   );
@@ -239,14 +240,14 @@ unsafe extern "C" {
   );
 
   fn v8__WasmModuleObject__FromCompiledModule(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     compiled_module: *const InternalCompiledWasmModule,
   ) -> *const WasmModuleObject;
   fn v8__WasmModuleObject__GetCompiledModule(
     this: *const WasmModuleObject,
   ) -> *mut InternalCompiledWasmModule;
   fn v8__WasmModuleObject__Compile(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     wire_bytes_data: *const u8,
     length: usize,
   ) -> *mut WasmModuleObject;

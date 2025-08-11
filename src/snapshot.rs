@@ -1,9 +1,9 @@
 use crate::Context;
 use crate::Data;
-use crate::Isolate;
 use crate::Local;
 use crate::OwnedIsolate;
 use crate::external_references::ExternalReference;
+use crate::isolate::RealIsolate;
 use crate::isolate_create_params::raw;
 use crate::support::char;
 use crate::support::int;
@@ -19,7 +19,7 @@ unsafe extern "C" {
   fn v8__SnapshotCreator__DESTRUCT(this: *mut SnapshotCreator);
   fn v8__SnapshotCreator__GetIsolate(
     this: *const SnapshotCreator,
-  ) -> *mut Isolate;
+  ) -> *mut RealIsolate;
   fn v8__SnapshotCreator__CreateBlob(
     this: *mut SnapshotCreator,
     function_code_handling: FunctionCodeHandling,

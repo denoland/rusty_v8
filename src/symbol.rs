@@ -1,28 +1,28 @@
 use std::pin::Pin;
 
 use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::Symbol;
 use crate::Value;
+use crate::isolate::RealIsolate;
 
 unsafe extern "C" {
   fn v8__Symbol__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__For(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__ForApi(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__Description(
     this: *const Symbol,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Value;
 }
 
@@ -32,7 +32,7 @@ macro_rules! well_known {
       scope: &std::pin::Pin<&'s mut HandleScope<'a>>,
     ) -> Local<'s, Symbol> {
       unsafe extern "C" {
-        fn $binding(isolate: *mut Isolate) -> *const Symbol;
+        fn $binding(isolate: *mut RealIsolate) -> *const Symbol;
       }
       unsafe { scope.cast_local(|sd| $binding(sd.get_isolate_ptr())) }.unwrap()
     }

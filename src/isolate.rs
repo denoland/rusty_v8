@@ -178,7 +178,7 @@ pub enum WasmAsyncSuccess {
   Fail,
 }
 pub type WasmAsyncResolvePromiseCallback = unsafe extern "C" fn(
-  *mut Isolate,
+  *mut RealIsolate,
   Local<Context>,
   Local<PromiseResolver>,
   Local<Value>,
@@ -555,7 +555,7 @@ pub type HostCreateShadowRealmContextCallback =
   ) -> Option<Local<'s, Context>>;
 
 pub type GcCallbackWithData = unsafe extern "C" fn(
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   r#type: GCType,
   flags: GCCallbackFlags,
   data: *mut c_void,
@@ -608,171 +608,176 @@ pub type UseCounterCallback =
   unsafe extern "C" fn(&mut Isolate, UseCounterFeature);
 
 unsafe extern "C" {
-  fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut Isolate;
-  fn v8__Isolate__Dispose(this: *mut Isolate);
-  fn v8__Isolate__GetNumberOfDataSlots(this: *const Isolate) -> u32;
-  fn v8__Isolate__GetData(isolate: *const Isolate, slot: u32) -> *mut c_void;
+  fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut RealIsolate;
+  fn v8__Isolate__Dispose(this: *mut RealIsolate);
+  fn v8__Isolate__GetNumberOfDataSlots(this: *const RealIsolate) -> u32;
+  fn v8__Isolate__GetData(
+    isolate: *const RealIsolate,
+    slot: u32,
+  ) -> *mut c_void;
   fn v8__Isolate__SetData(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     slot: u32,
     data: *mut c_void,
   );
-  fn v8__Isolate__Enter(this: *mut Isolate);
-  fn v8__Isolate__Exit(this: *mut Isolate);
-  fn v8__Isolate__GetCurrent() -> *mut Isolate;
-  fn v8__Isolate__MemoryPressureNotification(this: *mut Isolate, level: u8);
-  fn v8__Isolate__ClearKeptObjects(isolate: *mut Isolate);
-  fn v8__Isolate__LowMemoryNotification(isolate: *mut Isolate);
+  fn v8__Isolate__Enter(this: *mut RealIsolate);
+  fn v8__Isolate__Exit(this: *mut RealIsolate);
+  fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
+  fn v8__Isolate__MemoryPressureNotification(this: *mut RealIsolate, level: u8);
+  fn v8__Isolate__ClearKeptObjects(isolate: *mut RealIsolate);
+  fn v8__Isolate__LowMemoryNotification(isolate: *mut RealIsolate);
   fn v8__Isolate__GetHeapStatistics(
-    this: *mut Isolate,
+    this: *mut RealIsolate,
     s: *mut v8__HeapStatistics,
   );
   fn v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
-    this: *mut Isolate,
+    this: *mut RealIsolate,
     capture: bool,
     frame_limit: i32,
   );
   fn v8__Isolate__AddMessageListener(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: MessageCallback,
   ) -> bool;
   fn v8__Isolate__AddMessageListenerWithErrorLevel(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: MessageCallback,
     message_levels: MessageErrorLevel,
   ) -> bool;
   fn v8__Isolate__AddGCPrologueCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: GcCallbackWithData,
     data: *mut c_void,
     gc_type_filter: GCType,
   );
   fn v8__Isolate__RemoveGCPrologueCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: GcCallbackWithData,
     data: *mut c_void,
   );
   fn v8__Isolate__AddGCEpilogueCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: GcCallbackWithData,
     data: *mut c_void,
     gc_type_filter: GCType,
   );
   fn v8__Isolate__RemoveGCEpilogueCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: GcCallbackWithData,
     data: *mut c_void,
   );
-  fn v8__Isolate__NumberOfHeapSpaces(isolate: *mut Isolate) -> size_t;
+  fn v8__Isolate__NumberOfHeapSpaces(isolate: *mut RealIsolate) -> size_t;
   fn v8__Isolate__GetHeapSpaceStatistics(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     space_statistics: *mut v8__HeapSpaceStatistics,
     index: size_t,
   ) -> bool;
   fn v8__Isolate__AddNearHeapLimitCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: NearHeapLimitCallback,
     data: *mut c_void,
   );
   fn v8__Isolate__RemoveNearHeapLimitCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: NearHeapLimitCallback,
     heap_limit: usize,
   );
   fn v8__Isolate__SetOOMErrorHandler(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: OomErrorCallback,
   );
   fn v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     change_in_bytes: i64,
   ) -> i64;
-  fn v8__Isolate__GetCppHeap(isolate: *mut Isolate) -> *mut Heap;
+  fn v8__Isolate__GetCppHeap(isolate: *mut RealIsolate) -> *mut Heap;
   fn v8__Isolate__SetPrepareStackTraceCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: PrepareStackTraceCallback,
   );
-  fn v8__Isolate__SetPromiseHook(isolate: *mut Isolate, hook: PromiseHook);
+  fn v8__Isolate__SetPromiseHook(isolate: *mut RealIsolate, hook: PromiseHook);
   fn v8__Isolate__SetPromiseRejectCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: PromiseRejectCallback,
   );
   fn v8__Isolate__SetWasmAsyncResolvePromiseCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: WasmAsyncResolvePromiseCallback,
   );
   fn v8__Isolate__SetAllowWasmCodeGenerationCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: AllowWasmCodeGenerationCallback,
   );
   fn v8__Isolate__SetHostInitializeImportMetaObjectCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: HostInitializeImportMetaObjectCallback,
   );
   fn v8__Isolate__SetHostImportModuleDynamicallyCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: RawHostImportModuleDynamicallyCallback,
   );
   fn v8__Isolate__SetHostImportModuleWithPhaseDynamicallyCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: RawHostImportModuleWithPhaseDynamicallyCallback,
   );
   #[cfg(not(target_os = "windows"))]
   fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: unsafe extern "C" fn(
       initiator_context: Local<Context>,
     ) -> *mut Context,
   );
   #[cfg(target_os = "windows")]
   fn v8__Isolate__SetHostCreateShadowRealmContextCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: unsafe extern "C" fn(
       rv: *mut *mut Context,
       initiator_context: Local<Context>,
     ) -> *mut *mut Context,
   );
   fn v8__Isolate__SetUseCounterCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: UseCounterCallback,
   );
   fn v8__Isolate__RequestInterrupt(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     callback: InterruptCallback,
     data: *mut c_void,
   );
-  fn v8__Isolate__TerminateExecution(isolate: *const Isolate);
-  fn v8__Isolate__IsExecutionTerminating(isolate: *const Isolate) -> bool;
-  fn v8__Isolate__CancelTerminateExecution(isolate: *const Isolate);
+  fn v8__Isolate__TerminateExecution(isolate: *const RealIsolate);
+  fn v8__Isolate__IsExecutionTerminating(isolate: *const RealIsolate) -> bool;
+  fn v8__Isolate__CancelTerminateExecution(isolate: *const RealIsolate);
   fn v8__Isolate__GetMicrotasksPolicy(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
   ) -> MicrotasksPolicy;
   fn v8__Isolate__SetMicrotasksPolicy(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     policy: MicrotasksPolicy,
   );
-  fn v8__Isolate__PerformMicrotaskCheckpoint(isolate: *mut Isolate);
+  fn v8__Isolate__PerformMicrotaskCheckpoint(isolate: *mut RealIsolate);
   fn v8__Isolate__EnqueueMicrotask(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     function: *const Function,
   );
-  fn v8__Isolate__SetAllowAtomicsWait(isolate: *mut Isolate, allow: bool);
+  fn v8__Isolate__SetAllowAtomicsWait(isolate: *mut RealIsolate, allow: bool);
   fn v8__Isolate__SetWasmStreamingCallback(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: unsafe extern "C" fn(*const FunctionCallbackInfo),
   );
   fn v8__Isolate__DateTimeConfigurationChangeNotification(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     time_zone_detection: TimeZoneDetection,
   );
-  fn v8__Isolate__HasPendingBackgroundTasks(isolate: *const Isolate) -> bool;
+  fn v8__Isolate__HasPendingBackgroundTasks(
+    isolate: *const RealIsolate,
+  ) -> bool;
   fn v8__Isolate__RequestGarbageCollectionForTesting(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     r#type: usize,
   );
 
   fn v8__HeapProfiler__TakeHeapSnapshot(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: unsafe extern "C" fn(*mut c_void, *const u8, usize) -> bool,
     arg: *mut c_void,
   );
@@ -797,6 +802,14 @@ pub struct Isolate(NonNull<RealIsolate>);
 pub struct RealIsolate(Opaque);
 
 impl Isolate {
+  pub(crate) fn as_real_ptr(&self) -> *mut RealIsolate {
+    self.0.as_ptr()
+  }
+
+  pub(crate) unsafe fn from_raw_ptr(ptr: *mut RealIsolate) -> Self {
+    Self(NonNull::new(ptr).unwrap())
+  }
+
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
   const CURRENT_SCOPE_DATA_SLOT: u32 = 1;
@@ -805,16 +818,17 @@ impl Isolate {
   #[inline(always)]
   fn assert_embedder_data_slot_count_and_offset_correct(&self) {
     assert!(
-      unsafe { v8__Isolate__GetNumberOfDataSlots(self) }
+      unsafe { v8__Isolate__GetNumberOfDataSlots(self.as_real_ptr()) }
         >= Self::INTERNAL_DATA_SLOT_COUNT
     )
   }
 
-  fn new_impl(params: CreateParams) -> *mut Isolate {
+  fn new_impl(params: CreateParams) -> *mut RealIsolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    let isolate = unsafe { &mut *cxx_isolate };
+    eprintln!("new_impl: {:p}", cxx_isolate);
+    let mut isolate = unsafe { Isolate::from_raw_ptr(cxx_isolate) };
     isolate.initialize(create_param_allocations);
     cxx_isolate
   }
@@ -983,46 +997,47 @@ impl Isolate {
   /// Returns the maximum number of available embedder data slots. Valid slots
   /// are in the range of `0 <= n < Isolate::get_number_of_data_slots()`.
   pub fn get_number_of_data_slots(&self) -> u32 {
-    let n = unsafe { v8__Isolate__GetNumberOfDataSlots(self) };
+    let n = unsafe { v8__Isolate__GetNumberOfDataSlots(self.as_real_ptr()) };
     n - Self::INTERNAL_DATA_SLOT_COUNT
   }
 
   #[inline(always)]
   pub(crate) fn get_data_internal(&self, slot: u32) -> *mut c_void {
-    unsafe { v8__Isolate__GetData(self, slot) }
+    eprintln!("get_data_internal: {:p}", self.as_real_ptr());
+    unsafe { v8__Isolate__GetData(self.as_real_ptr(), slot) }
   }
 
   #[inline(always)]
   pub(crate) fn set_data_internal(&mut self, slot: u32, data: *mut c_void) {
-    unsafe { v8__Isolate__SetData(self, slot, data) }
+    unsafe { v8__Isolate__SetData(self.as_real_ptr(), slot, data) }
   }
 
-  pub(crate) fn init_scope_root(&mut self) {
-    ScopeData::new_root(self);
-  }
+  // pub(crate) fn init_scope_root(&mut self) {
+  //   ScopeData::new_root(self);
+  // }
 
-  pub(crate) fn dispose_scope_root(&mut self) {
-    ScopeData::drop_root(self);
-  }
+  // pub(crate) fn dispose_scope_root(&mut self) {
+  //   ScopeData::drop_root(self);
+  // }
 
-  /// Returns a pointer to the `ScopeData` struct for the current scope.
-  #[inline(always)]
-  pub(crate) fn get_current_scope_data(&self) -> Option<NonNull<ScopeData>> {
-    let scope_data_ptr = self.get_data_internal(Self::CURRENT_SCOPE_DATA_SLOT);
-    NonNull::new(scope_data_ptr).map(NonNull::cast)
-  }
+  // /// Returns a pointer to the `ScopeData` struct for the current scope.
+  // #[inline(always)]
+  // pub(crate) fn get_current_scope_data(&self) -> Option<NonNull<ScopeData>> {
+  //   let scope_data_ptr = self.get_data_internal(Self::CURRENT_SCOPE_DATA_SLOT);
+  //   NonNull::new(scope_data_ptr).map(NonNull::cast)
+  // }
 
-  /// Updates the slot that stores a `ScopeData` pointer for the current scope.
-  #[inline(always)]
-  pub(crate) fn set_current_scope_data(
-    &mut self,
-    scope_data: Option<NonNull<ScopeData>>,
-  ) {
-    let scope_data_ptr = scope_data
-      .map(NonNull::cast)
-      .map_or_else(null_mut, NonNull::as_ptr);
-    self.set_data_internal(Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr);
-  }
+  // /// Updates the slot that stores a `ScopeData` pointer for the current scope.
+  // #[inline(always)]
+  // pub(crate) fn set_current_scope_data(
+  //   &mut self,
+  //   scope_data: Option<NonNull<ScopeData>>,
+  // ) {
+  //   let scope_data_ptr = scope_data
+  //     .map(NonNull::cast)
+  //     .map_or_else(null_mut, NonNull::as_ptr);
+  //   self.set_data_internal(Self::CURRENT_SCOPE_DATA_SLOT, scope_data_ptr);
+  // }
 
   /// Get a reference to embedder data added with `set_slot()`.
   #[inline(always)]
@@ -1083,7 +1098,7 @@ impl Isolate {
   #[inline(always)]
   pub unsafe fn enter(&self) {
     unsafe {
-      v8__Isolate__Enter(self as *const _ as *mut _);
+      v8__Isolate__Enter(self.as_real_ptr());
     }
   }
 
@@ -1098,7 +1113,7 @@ impl Isolate {
   #[inline(always)]
   pub unsafe fn exit(&self) {
     unsafe {
-      v8__Isolate__Exit(self as *const _ as *mut _);
+      v8__Isolate__Exit(self.as_real_ptr());
     }
   }
 
@@ -1108,7 +1123,9 @@ impl Isolate {
   /// the isolate is executing long running JavaScript code.
   #[inline(always)]
   pub fn memory_pressure_notification(&mut self, level: MemoryPressureLevel) {
-    unsafe { v8__Isolate__MemoryPressureNotification(self, level as u8) }
+    unsafe {
+      v8__Isolate__MemoryPressureNotification(self.as_real_ptr(), level as u8)
+    }
   }
 
   /// Clears the set of objects held strongly by the heap. This set of
@@ -1124,14 +1141,14 @@ impl Isolate {
   /// time which does not interrupt synchronous ECMAScript code execution.
   #[inline(always)]
   pub fn clear_kept_objects(&mut self) {
-    unsafe { v8__Isolate__ClearKeptObjects(self) }
+    unsafe { v8__Isolate__ClearKeptObjects(self.as_real_ptr()) }
   }
 
   /// Optional notification that the system is running low on memory.
   /// V8 uses these notifications to attempt to free memory.
   #[inline(always)]
   pub fn low_memory_notification(&mut self) {
-    unsafe { v8__Isolate__LowMemoryNotification(self) }
+    unsafe { v8__Isolate__LowMemoryNotification(self.as_real_ptr()) }
   }
 
   /// Get statistics about the heap memory usage.
@@ -1139,7 +1156,7 @@ impl Isolate {
   pub fn get_heap_statistics(&mut self) -> HeapStatistics {
     let inner = unsafe {
       let mut s = MaybeUninit::zeroed();
-      v8__Isolate__GetHeapStatistics(self, s.as_mut_ptr());
+      v8__Isolate__GetHeapStatistics(self.as_real_ptr(), s.as_mut_ptr());
       s.assume_init()
     };
     HeapStatistics(inner)
@@ -1148,7 +1165,7 @@ impl Isolate {
   /// Returns the number of spaces in the heap.
   #[inline(always)]
   pub fn number_of_heap_spaces(&mut self) -> usize {
-    unsafe { v8__Isolate__NumberOfHeapSpaces(self) }
+    unsafe { v8__Isolate__NumberOfHeapSpaces(self.as_real_ptr()) }
   }
 
   /// Get the memory usage of a space in the heap.
@@ -1165,7 +1182,11 @@ impl Isolate {
   ) -> Option<HeapSpaceStatistics> {
     let inner = unsafe {
       let mut s = MaybeUninit::zeroed();
-      if !v8__Isolate__GetHeapSpaceStatistics(self, s.as_mut_ptr(), index) {
+      if !v8__Isolate__GetHeapSpaceStatistics(
+        self.as_real_ptr(),
+        s.as_mut_ptr(),
+        index,
+      ) {
         return None;
       }
       s.assume_init()
@@ -1183,7 +1204,7 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(
-        self,
+        self.as_real_ptr(),
         capture,
         frame_limit,
       );
@@ -1198,7 +1219,7 @@ impl Isolate {
   /// The exception object will be passed to the callback.
   #[inline(always)]
   pub fn add_message_listener(&mut self, callback: MessageCallback) -> bool {
-    unsafe { v8__Isolate__AddMessageListener(self, callback) }
+    unsafe { v8__Isolate__AddMessageListener(self.as_real_ptr(), callback) }
   }
 
   /// Adds a message listener for the specified message levels.
@@ -1210,7 +1231,7 @@ impl Isolate {
   ) -> bool {
     unsafe {
       v8__Isolate__AddMessageListenerWithErrorLevel(
-        self,
+        self.as_real_ptr(),
         callback,
         message_levels,
       )
@@ -1234,7 +1255,10 @@ impl Isolate {
     // it's empty. That is, you can't return None and that's why the Rust API
     // expects Local<Value> instead of Option<Local<Value>>.
     unsafe {
-      v8__Isolate__SetPrepareStackTraceCallback(self, callback.map_fn_to());
+      v8__Isolate__SetPrepareStackTraceCallback(
+        self.as_real_ptr(),
+        callback.map_fn_to(),
+      );
     };
   }
 
@@ -1242,7 +1266,7 @@ impl Isolate {
   /// events.
   #[inline(always)]
   pub fn set_promise_hook(&mut self, hook: PromiseHook) {
-    unsafe { v8__Isolate__SetPromiseHook(self, hook) }
+    unsafe { v8__Isolate__SetPromiseHook(self.as_real_ptr(), hook) }
   }
 
   /// Set callback to notify about promise reject with no handler, or
@@ -1252,7 +1276,9 @@ impl Isolate {
     &mut self,
     callback: PromiseRejectCallback,
   ) {
-    unsafe { v8__Isolate__SetPromiseRejectCallback(self, callback) }
+    unsafe {
+      v8__Isolate__SetPromiseRejectCallback(self.as_real_ptr(), callback)
+    }
   }
 
   #[inline(always)]
@@ -1260,7 +1286,12 @@ impl Isolate {
     &mut self,
     callback: WasmAsyncResolvePromiseCallback,
   ) {
-    unsafe { v8__Isolate__SetWasmAsyncResolvePromiseCallback(self, callback) }
+    unsafe {
+      v8__Isolate__SetWasmAsyncResolvePromiseCallback(
+        self.as_real_ptr(),
+        callback,
+      )
+    }
   }
 
   #[inline(always)]
@@ -1269,7 +1300,10 @@ impl Isolate {
     callback: AllowWasmCodeGenerationCallback,
   ) {
     unsafe {
-      v8__Isolate__SetAllowWasmCodeGenerationCallback(self, callback);
+      v8__Isolate__SetAllowWasmCodeGenerationCallback(
+        self.as_real_ptr(),
+        callback,
+      );
     }
   }
 
@@ -1281,7 +1315,10 @@ impl Isolate {
     callback: HostInitializeImportMetaObjectCallback,
   ) {
     unsafe {
-      v8__Isolate__SetHostInitializeImportMetaObjectCallback(self, callback);
+      v8__Isolate__SetHostInitializeImportMetaObjectCallback(
+        self.as_real_ptr(),
+        callback,
+      );
     }
   }
 
@@ -1294,7 +1331,7 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleDynamicallyCallback(
-        self,
+        self.as_real_ptr(),
         callback.to_c_fn(),
       );
     }
@@ -1314,7 +1351,7 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__SetHostImportModuleWithPhaseDynamicallyCallback(
-        self,
+        self.as_real_ptr(),
         callback.to_c_fn(),
       );
     }
@@ -1359,12 +1396,12 @@ impl Isolate {
       unsafe {
         #[cfg(target_os = "windows")]
         v8__Isolate__SetHostCreateShadowRealmContextCallback(
-          self,
+          self.as_real_ptr(),
           rust_shadow_realm_callback_windows,
         );
         #[cfg(not(target_os = "windows"))]
         v8__Isolate__SetHostCreateShadowRealmContextCallback(
-          self,
+          self.as_real_ptr(),
           rust_shadow_realm_callback,
         );
       }
@@ -1375,7 +1412,7 @@ impl Isolate {
   #[inline(always)]
   pub fn set_use_counter_callback(&mut self, callback: UseCounterCallback) {
     unsafe {
-      v8__Isolate__SetUseCounterCallback(self, callback);
+      v8__Isolate__SetUseCounterCallback(self.as_real_ptr(), callback);
     }
   }
 
@@ -1395,7 +1432,12 @@ impl Isolate {
     gc_type_filter: GCType,
   ) {
     unsafe {
-      v8__Isolate__AddGCPrologueCallback(self, callback, data, gc_type_filter);
+      v8__Isolate__AddGCPrologueCallback(
+        self.as_real_ptr(),
+        callback,
+        data,
+        gc_type_filter,
+      );
     }
   }
 
@@ -1408,7 +1450,9 @@ impl Isolate {
     callback: GcCallbackWithData,
     data: *mut c_void,
   ) {
-    unsafe { v8__Isolate__RemoveGCPrologueCallback(self, callback, data) }
+    unsafe {
+      v8__Isolate__RemoveGCPrologueCallback(self.as_real_ptr(), callback, data)
+    }
   }
 
   /// Enables the host application to receive a notification after a
@@ -1422,7 +1466,12 @@ impl Isolate {
     gc_type_filter: GCType,
   ) {
     unsafe {
-      v8__Isolate__AddGCEpilogueCallback(self, callback, data, gc_type_filter);
+      v8__Isolate__AddGCEpilogueCallback(
+        self.as_real_ptr(),
+        callback,
+        data,
+        gc_type_filter,
+      );
     }
   }
 
@@ -1435,7 +1484,9 @@ impl Isolate {
     callback: GcCallbackWithData,
     data: *mut c_void,
   ) {
-    unsafe { v8__Isolate__RemoveGCEpilogueCallback(self, callback, data) }
+    unsafe {
+      v8__Isolate__RemoveGCEpilogueCallback(self.as_real_ptr(), callback, data)
+    }
   }
 
   /// Add a callback to invoke in case the heap size is close to the heap limit.
@@ -1448,7 +1499,9 @@ impl Isolate {
     callback: NearHeapLimitCallback,
     data: *mut c_void,
   ) {
-    unsafe { v8__Isolate__AddNearHeapLimitCallback(self, callback, data) };
+    unsafe {
+      v8__Isolate__AddNearHeapLimitCallback(self.as_real_ptr(), callback, data)
+    };
   }
 
   /// Remove the given callback and restore the heap limit to the given limit.
@@ -1462,7 +1515,11 @@ impl Isolate {
     heap_limit: usize,
   ) {
     unsafe {
-      v8__Isolate__RemoveNearHeapLimitCallback(self, callback, heap_limit);
+      v8__Isolate__RemoveNearHeapLimitCallback(
+        self.as_real_ptr(),
+        callback,
+        heap_limit,
+      );
     };
   }
 
@@ -1479,30 +1536,33 @@ impl Isolate {
     change_in_bytes: i64,
   ) -> i64 {
     unsafe {
-      v8__Isolate__AdjustAmountOfExternalAllocatedMemory(self, change_in_bytes)
+      v8__Isolate__AdjustAmountOfExternalAllocatedMemory(
+        self.as_real_ptr(),
+        change_in_bytes,
+      )
     }
   }
 
   #[inline(always)]
   pub fn get_cpp_heap(&mut self) -> Option<&Heap> {
-    unsafe { v8__Isolate__GetCppHeap(self).as_ref() }
+    unsafe { v8__Isolate__GetCppHeap(self.as_real_ptr()).as_ref() }
   }
 
   #[inline(always)]
   pub fn set_oom_error_handler(&mut self, callback: OomErrorCallback) {
-    unsafe { v8__Isolate__SetOOMErrorHandler(self, callback) };
+    unsafe { v8__Isolate__SetOOMErrorHandler(self.as_real_ptr(), callback) };
   }
 
   /// Returns the policy controlling how Microtasks are invoked.
   #[inline(always)]
   pub fn get_microtasks_policy(&self) -> MicrotasksPolicy {
-    unsafe { v8__Isolate__GetMicrotasksPolicy(self) }
+    unsafe { v8__Isolate__GetMicrotasksPolicy(self.as_real_ptr()) }
   }
 
   /// Returns the policy controlling how Microtasks are invoked.
   #[inline(always)]
   pub fn set_microtasks_policy(&mut self, policy: MicrotasksPolicy) {
-    unsafe { v8__Isolate__SetMicrotasksPolicy(self, policy) }
+    unsafe { v8__Isolate__SetMicrotasksPolicy(self.as_real_ptr(), policy) }
   }
 
   /// Runs the default MicrotaskQueue until it gets empty and perform other
@@ -1511,13 +1571,13 @@ impl Isolate {
   /// callbacks are swallowed.
   #[inline(always)]
   pub fn perform_microtask_checkpoint(&mut self) {
-    unsafe { v8__Isolate__PerformMicrotaskCheckpoint(self) }
+    unsafe { v8__Isolate__PerformMicrotaskCheckpoint(self.as_real_ptr()) }
   }
 
   /// Enqueues the callback to the default MicrotaskQueue
   #[inline(always)]
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
-    unsafe { v8__Isolate__EnqueueMicrotask(self, &*microtask) }
+    unsafe { v8__Isolate__EnqueueMicrotask(self.as_real_ptr(), &*microtask) }
   }
 
   /// Set whether calling Atomics.wait (a function that may block) is allowed in
@@ -1525,7 +1585,7 @@ impl Isolate {
   /// CreateParams::allow_atomics_wait.
   #[inline(always)]
   pub fn set_allow_atomics_wait(&mut self, allow: bool) {
-    unsafe { v8__Isolate__SetAllowAtomicsWait(self, allow) }
+    unsafe { v8__Isolate__SetAllowAtomicsWait(self.as_real_ptr(), allow) }
   }
 
   /// Embedder injection point for `WebAssembly.compileStreaming(source)`.
@@ -1540,7 +1600,12 @@ impl Isolate {
   where
     F: UnitType + Fn(&Pin<&mut HandleScope>, Local<Value>, WasmStreaming),
   {
-    unsafe { v8__Isolate__SetWasmStreamingCallback(self, trampoline::<F>()) }
+    unsafe {
+      v8__Isolate__SetWasmStreamingCallback(
+        self.as_real_ptr(),
+        trampoline::<F>(),
+      )
+    }
   }
 
   /// Notification that the embedder has changed the time zone, daylight savings
@@ -1558,7 +1623,7 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__DateTimeConfigurationChangeNotification(
-        self,
+        self.as_real_ptr(),
         time_zone_detection,
       );
     }
@@ -1569,7 +1634,7 @@ impl Isolate {
   /// compilation.
   #[inline(always)]
   pub fn has_pending_background_tasks(&self) -> bool {
-    unsafe { v8__Isolate__HasPendingBackgroundTasks(self) }
+    unsafe { v8__Isolate__HasPendingBackgroundTasks(self.as_real_ptr()) }
   }
 
   /// Request garbage collection with a specific embedderstack state in this
@@ -1588,7 +1653,7 @@ impl Isolate {
   ) {
     unsafe {
       v8__Isolate__RequestGarbageCollectionForTesting(
-        self,
+        self.as_real_ptr(),
         match r#type {
           GarbageCollectionType::Full => 0,
           GarbageCollectionType::Minor => 1,
@@ -1603,7 +1668,7 @@ impl Isolate {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
     unsafe {
-      v8__Isolate__Dispose(self);
+      v8__Isolate__Dispose(self.as_real_ptr());
     }
   }
 
@@ -1637,7 +1702,11 @@ impl Isolate {
 
     let arg = addr_of_mut!(callback);
     unsafe {
-      v8__HeapProfiler__TakeHeapSnapshot(self, trampoline::<F>, arg as _);
+      v8__HeapProfiler__TakeHeapSnapshot(
+        self.as_real_ptr(),
+        trampoline::<F>,
+        arg as _,
+      );
     }
   }
 
@@ -1735,7 +1804,7 @@ pub(crate) struct IsolateAnnex {
   //   before the isolate is disposed.
   // - Any other thread must lock the mutex while it's reading/using the
   //   `isolate` pointer.
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   isolate_mutex: Mutex<()>,
 }
 
@@ -1752,7 +1821,7 @@ impl IsolateAnnex {
       slots: HashMap::default(),
       finalizer_map: FinalizerMap::default(),
       maybe_snapshot_creator: None,
-      isolate,
+      isolate: isolate.as_real_ptr(),
       isolate_mutex: Mutex::new(()),
     }
   }
@@ -1780,7 +1849,7 @@ impl IsolateHandle {
   // This function is marked unsafe because it must be called only with either
   // IsolateAnnex::mutex locked, or from the main thread associated with the V8
   // isolate.
-  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut RealIsolate {
     self.0.isolate
   }
 
@@ -1880,11 +1949,11 @@ impl IsolateHandle {
 /// Same as Isolate but gets disposed when it goes out of scope.
 #[derive(Debug)]
 pub struct OwnedIsolate {
-  cxx_isolate: NonNull<Isolate>,
+  cxx_isolate: NonNull<RealIsolate>,
 }
 
 impl OwnedIsolate {
-  pub(crate) fn new(cxx_isolate: *mut Isolate) -> Self {
+  pub(crate) fn new(cxx_isolate: *mut RealIsolate) -> Self {
     let isolate = Self::new_already_entered(cxx_isolate);
     unsafe {
       isolate.enter();
@@ -1892,10 +1961,13 @@ impl OwnedIsolate {
     isolate
   }
 
-  pub(crate) fn new_already_entered(cxx_isolate: *mut Isolate) -> Self {
+  pub(crate) fn new_already_entered(cxx_isolate: *mut RealIsolate) -> Self {
+    eprintln!("new_already_entered: {:p}", cxx_isolate);
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
-    let mut owned_isolate = Self { cxx_isolate };
-    owned_isolate.init_scope_root();
+    eprintln!("new_already_entered: {:p}", cxx_isolate.as_ptr());
+    let mut owned_isolate: OwnedIsolate = Self { cxx_isolate };
+    eprintln!("new_already_entered: {:p}", owned_isolate.as_real_ptr());
+    // owned_isolate.init_scope_root();
     owned_isolate
   }
 }
@@ -1910,10 +1982,11 @@ impl Drop for OwnedIsolate {
       );
       // Safety: We need to check `this == Isolate::GetCurrent()` before calling exit()
       assert!(
-        self.cxx_isolate.as_mut() as *mut Isolate == v8__Isolate__GetCurrent(),
+        self.cxx_isolate.as_mut() as *mut RealIsolate
+          == v8__Isolate__GetCurrent(),
         "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
       );
-      self.dispose_scope_root();
+      // self.dispose_scope_root();
       self.exit();
       self.dispose_annex();
       Platform::notify_isolate_shutdown(&get_current_platform(), self);
@@ -1940,7 +2013,7 @@ impl OwnedIsolate {
     // create_param_allocations is needed during CreateBlob
     // so v8 can read external references
     let _create_param_allocations = unsafe {
-      self.dispose_scope_root();
+      // self.dispose_scope_root();
       self.dispose_annex()
     };
 
@@ -1954,13 +2027,19 @@ impl OwnedIsolate {
 impl Deref for OwnedIsolate {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe { self.cxx_isolate.as_ref() }
+    unsafe {
+      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.cxx_isolate)
+    }
   }
 }
 
 impl DerefMut for OwnedIsolate {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.cxx_isolate.as_mut() }
+    unsafe {
+      std::mem::transmute::<&mut NonNull<RealIsolate>, &mut Isolate>(
+        &mut self.cxx_isolate,
+      )
+    }
   }
 }
 

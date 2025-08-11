@@ -1,5 +1,6 @@
 use std::pin::Pin;
 
+use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::HandleScope;
@@ -11,7 +12,7 @@ use crate::support::int;
 
 unsafe extern "C" {
   fn v8__PrimitiveArray__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     length: int,
   ) -> *const PrimitiveArray;
 
@@ -19,14 +20,14 @@ unsafe extern "C" {
 
   fn v8__PrimitiveArray__Set(
     this: *const PrimitiveArray,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     index: int,
     item: *const Primitive,
   );
 
   fn v8__PrimitiveArray__Get(
     this: *const PrimitiveArray,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     index: int,
   ) -> *const Primitive;
 }

@@ -1,3 +1,4 @@
+use crate::isolate::RealIsolate;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
 use crate::HandleScope;
@@ -21,12 +22,12 @@ use std::rc::Rc;
 
 unsafe extern "C" {
   fn v8__Context__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     templ: *const ObjectTemplate,
     global_object: *const Value,
     microtask_queue: *mut MicrotaskQueue,
   ) -> *const Context;
-  fn v8__Context__GetIsolate(this: *const Context) -> *mut Isolate;
+  fn v8__Context__GetIsolate(this: *const Context) -> *mut RealIsolate;
   fn v8__Context__Global(this: *const Context) -> *const Object;
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
   -> *const Object;
@@ -50,7 +51,7 @@ unsafe extern "C" {
     value: *const Value,
   );
   fn v8__Context__FromSnapshot(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     context_snapshot_index: usize,
     global_object: *const Value,
     microtask_queue: *mut MicrotaskQueue,
@@ -163,7 +164,8 @@ impl Context {
     &self,
     create_if_not_present: bool,
   ) -> Option<&mut ContextAnnex> {
-    let isolate = unsafe { &mut *v8__Context__GetIsolate(self) };
+    let isolate = unsafe { v8__Context__GetIsolate(self) };
+    let mut isolate = unsafe { crate::isolate::Isolate::from_raw_ptr(isolate) };
 
     let num_data_fields =
       unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as int;
@@ -188,7 +190,7 @@ impl Context {
     let annex = Box::new(ContextAnnex {
       slots: Default::default(),
       // Gets replaced later in the method.
-      self_weak: Weak::empty(isolate),
+      self_weak: Weak::empty(&mut isolate),
     });
     let annex_ptr = Box::into_raw(annex);
     unsafe {
@@ -211,10 +213,10 @@ impl Context {
       // and assuming the caller is only using safe code, the `Local` or
       // `Global` must still be alive, so `self_ref_handle` won't outlive it.
       // We also check above that `isolate` is the context's isolate.
-      let self_ref_handle = unsafe { UnsafeRefHandle::new(self, isolate) };
+      let self_ref_handle = unsafe { UnsafeRefHandle::new(self, &mut isolate) };
 
       Weak::with_guaranteed_finalizer(
-        isolate,
+        &mut isolate,
         self_ref_handle,
         Box::new(move || {
           // SAFETY: The lifetimes of references to the annex returned by this

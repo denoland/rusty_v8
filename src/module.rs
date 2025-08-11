@@ -15,6 +15,7 @@ use crate::Object;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
+use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -236,7 +237,7 @@ unsafe extern "C" {
   fn v8__Module__IsSourceTextModule(this: *const Module) -> bool;
   fn v8__Module__IsSyntheticModule(this: *const Module) -> bool;
   fn v8__Module__CreateSyntheticModule(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     module_name: *const String,
     export_names_len: usize,
     export_names_raw: *const *const String,
@@ -244,7 +245,7 @@ unsafe extern "C" {
   ) -> *const Module;
   fn v8__Module__SetSyntheticModuleExport(
     this: *const Module,
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     export_name: *const String,
     export_value: *const Value,
   ) -> MaybeBool;
@@ -262,7 +263,7 @@ unsafe extern "C" {
   ) -> *const FixedArray;
   fn v8__Module__GetStalledTopLevelAwaitMessage(
     this: *const Module,
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     out_vec: *mut StalledTopLevelAwaitMessage,
     vec_len: usize,
   ) -> usize;
@@ -528,7 +529,7 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message<'a>  (
+  pub fn get_stalled_top_level_await_message<'a>(
     &self,
     scope: &Pin<&'a mut HandleScope>,
   ) -> Vec<(Local<Module>, Local<Message>)> {

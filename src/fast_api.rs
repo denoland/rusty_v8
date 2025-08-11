@@ -2,6 +2,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::binding::*;
+use crate::isolate::RealIsolate;
 use std::ffi::c_void;
 
 #[derive(Clone, Copy)]
@@ -125,7 +126,7 @@ bitflags::bitflags! {
 /// ```
 #[repr(C)]
 pub struct FastApiCallbackOptions<'a> {
-  pub isolate: *mut Isolate,
+  pub isolate: *mut RealIsolate,
   /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
   pub data: Local<'a, Value>,
 }

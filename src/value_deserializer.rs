@@ -9,6 +9,7 @@ use crate::SharedArrayBuffer;
 use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
+use crate::isolate::RealIsolate;
 use crate::scope2::AsRef2;
 use crate::scope2::CallbackScope;
 use crate::scope2::ContextScope;
@@ -35,11 +36,12 @@ pub struct CxxValueDeserializerDelegate {
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
   this: &CxxValueDeserializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
 ) -> *const Object {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(&*isolate) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -60,12 +62,13 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId(
   this: &CxxValueDeserializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   transfer_id: u32,
 ) -> *const SharedArrayBuffer {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -84,12 +87,13 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   this: &mut CxxValueDeserializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   clone_id: u32,
 ) -> *const WasmModuleObject {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let scope = unsafe { CallbackScope::new(isolate.as_mut().unwrap()) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
   let scope = &scope.init_stack();
   let context =
@@ -121,7 +125,7 @@ pub struct CxxValueDeserializer {
 unsafe extern "C" {
   fn v8__ValueDeserializer__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueDeserializer>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const u8,
     size: usize,
     delegate: *mut CxxValueDeserializerDelegate,

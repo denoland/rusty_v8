@@ -1,8 +1,8 @@
 /// The `raw` module contains prototypes for all the `extern C` functions that
 /// are used in this file, as well as definitions for the types they operate on.
 use crate::{
-  Context, Data, Function, Isolate, Local, Message, Object, OnFailure,
-  Primitive, Value,
+  Context, Data, Function, Local, Message, Object, OnFailure, Primitive, Value,
+  isolate::RealIsolate,
 };
 use std::alloc::Layout;
 use std::num::NonZeroUsize;
@@ -46,13 +46,14 @@ impl HandleScope {
   /// This function is marked unsafe because the caller must ensure that the
   /// returned value isn't dropped before `init()` has been called.
   pub unsafe fn uninit() -> Self {
-    Self([MaybeUninit::uninit(); 3])
+    unsafe { MaybeUninit::uninit().assume_init() }
+    // Self([MaybeUninit::uninit(); 3])
   }
 
   /// This function is marked unsafe because `init()` must be called exactly
   /// once, no more and no less, after creating a `HandleScope` value with
   /// `HandleScope::uninit()`.
-  pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
+  pub unsafe fn init(&mut self, isolate: NonNull<RealIsolate>) {
     let buf = NonNull::from(self).as_ptr().cast();
     unsafe {
       v8__HandleScope__CONSTRUCT(buf, isolate.as_ptr());
@@ -72,7 +73,7 @@ impl Drop for HandleScope {
 pub(super) struct EscapeSlot(NonNull<Address>);
 
 impl EscapeSlot {
-  pub fn new(isolate: NonNull<Isolate>) -> Self {
+  pub fn new(isolate: NonNull<RealIsolate>) -> Self {
     unsafe {
       let undefined = v8__Undefined(isolate.as_ptr()) as *const _;
       let local = v8__Local__New(isolate.as_ptr(), undefined);
@@ -113,7 +114,7 @@ impl TryCatch {
   /// This function is marked unsafe because `init()` must be called exactly
   /// once, no more and no less, after creating a `TryCatch` value with
   /// `TryCatch::uninit()`.
-  pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
+  pub unsafe fn init(&mut self, isolate: NonNull<RealIsolate>) {
     let buf = NonNull::from(self).cast();
     unsafe {
       v8__TryCatch__CONSTRUCT(buf.as_ptr(), isolate.as_ptr());
@@ -149,7 +150,7 @@ impl DisallowJavascriptExecutionScope {
   #[inline]
   pub unsafe fn init(
     &mut self,
-    isolate: NonNull<Isolate>,
+    isolate: NonNull<RealIsolate>,
     on_failure: OnFailure,
   ) {
     let buf = NonNull::from(self).cast();
@@ -189,7 +190,7 @@ impl AllowJavascriptExecutionScope {
   /// `AllowJavascriptExecutionScope` value with
   /// `AllowJavascriptExecutionScope::uninit()`.
   #[inline]
-  pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
+  pub unsafe fn init(&mut self, isolate: NonNull<RealIsolate>) {
     unsafe {
       let buf = NonNull::from(self).cast();
       v8__AllowJavascriptExecutionScope__CONSTRUCT(
@@ -209,21 +210,21 @@ impl Drop for AllowJavascriptExecutionScope {
 
 unsafe extern "C" {
   pub(super) fn v8__Isolate__GetCurrentContext(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Context;
   pub(super) fn v8__Isolate__GetEnteredOrMicrotaskContext(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Context;
   pub(super) fn v8__Isolate__ThrowException(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     exception: *const Value,
   ) -> *const Value;
   pub(super) fn v8__Isolate__GetDataFromSnapshotOnce(
-    this: *mut Isolate,
+    this: *mut RealIsolate,
     index: usize,
   ) -> *const Data;
   pub(super) fn v8__Isolate__GetCurrentHostDefinedOptions(
-    this: *mut Isolate,
+    this: *mut RealIsolate,
   ) -> *const Data;
 
   pub(super) fn v8__Context__EQ(
@@ -232,7 +233,9 @@ unsafe extern "C" {
   ) -> bool;
   pub(super) fn v8__Context__Enter(this: *const Context);
   pub(super) fn v8__Context__Exit(this: *const Context);
-  pub(super) fn v8__Context__GetIsolate(this: *const Context) -> *mut Isolate;
+  pub(super) fn v8__Context__GetIsolate(
+    this: *const Context,
+  ) -> *mut RealIsolate;
   pub(super) fn v8__Context__GetDataFromSnapshotOnce(
     this: *const Context,
     index: usize,
@@ -245,28 +248,28 @@ unsafe extern "C" {
     resolve_hook: *const Function,
   );
   pub(super) fn v8__Context__SetContinuationPreservedEmbedderData(
-    this: *mut Isolate,
+    this: *mut RealIsolate,
     value: *const Value,
   );
   pub(super) fn v8__Context__GetContinuationPreservedEmbedderData(
-    this: *mut Isolate,
+    this: *mut RealIsolate,
   ) -> *const Value;
 
   pub(super) fn v8__HandleScope__CONSTRUCT(
     buf: *mut MaybeUninit<HandleScope>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   );
   pub(super) fn v8__HandleScope__DESTRUCT(this: *mut HandleScope);
 
   pub(super) fn v8__Local__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     other: *const Data,
   ) -> *const Data;
-  pub(super) fn v8__Undefined(isolate: *mut Isolate) -> *const Primitive;
+  pub(super) fn v8__Undefined(isolate: *mut RealIsolate) -> *const Primitive;
 
   pub(super) fn v8__TryCatch__CONSTRUCT(
     buf: *mut MaybeUninit<TryCatch>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   );
   pub(super) fn v8__TryCatch__DESTRUCT(this: *mut TryCatch);
   pub(super) fn v8__TryCatch__HasCaught(this: *const TryCatch) -> bool;
@@ -289,7 +292,7 @@ unsafe extern "C" {
 
   pub(super) fn v8__DisallowJavascriptExecutionScope__CONSTRUCT(
     buf: *mut MaybeUninit<DisallowJavascriptExecutionScope>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     on_failure: OnFailure,
   );
   pub(super) fn v8__DisallowJavascriptExecutionScope__DESTRUCT(
@@ -298,12 +301,15 @@ unsafe extern "C" {
 
   pub(super) fn v8__AllowJavascriptExecutionScope__CONSTRUCT(
     buf: *mut MaybeUninit<AllowJavascriptExecutionScope>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   );
   pub(super) fn v8__AllowJavascriptExecutionScope__DESTRUCT(
     this: *mut AllowJavascriptExecutionScope,
   );
 
-  pub(super) fn v8__Message__GetIsolate(this: *const Message) -> *mut Isolate;
-  pub(super) fn v8__Object__GetIsolate(this: *const Object) -> *mut Isolate;
+  pub(super) fn v8__Message__GetIsolate(
+    this: *const Message,
+  ) -> *mut RealIsolate;
+  pub(super) fn v8__Object__GetIsolate(this: *const Object)
+  -> *mut RealIsolate;
 }

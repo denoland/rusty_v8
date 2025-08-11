@@ -13,6 +13,7 @@ use crate::Object;
 use crate::String;
 use crate::Uint32;
 use crate::Value;
+use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
 use crate::support::Maybe;
 
@@ -117,7 +118,7 @@ unsafe extern "C" {
   ) -> *const Int32;
   fn v8__Value__ToBoolean(
     this: *const Value,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Boolean;
 
   fn v8__Value__NumberValue(
@@ -140,12 +141,14 @@ unsafe extern "C" {
     context: *const Context,
     out: *mut Maybe<i32>,
   );
-  fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
-  -> bool;
+  fn v8__Value__BooleanValue(
+    this: *const Value,
+    isolate: *mut RealIsolate,
+  ) -> bool;
   fn v8__Value__GetHash(this: *const Value) -> u32;
   fn v8__Value__TypeOf(
     this: *const Value,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const String;
 }
 

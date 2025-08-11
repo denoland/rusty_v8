@@ -6,20 +6,20 @@ use std::pin::Pin;
 use crate::BackingStore;
 use crate::BackingStoreDeleterCallback;
 use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
+use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__New__with_byte_length(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *const SharedArrayBuffer;
   fn v8__SharedArrayBuffer__New__with_backing_store(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const SharedArrayBuffer;
   fn v8__SharedArrayBuffer__ByteLength(this: *const SharedArrayBuffer)
@@ -28,7 +28,7 @@ unsafe extern "C" {
     this: *const SharedArrayBuffer,
   ) -> SharedRef<BackingStore>;
   fn v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *mut BackingStore;
   fn v8__SharedArrayBuffer__NewBackingStore__with_data(

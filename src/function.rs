@@ -20,6 +20,7 @@ use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
 use crate::Value;
+use crate::isolate::RealIsolate;
 use crate::scope2::AsRef2;
 use crate::scope2::bind_callbackscope;
 use crate::script_compiler::CachedData;
@@ -74,7 +75,7 @@ unsafe extern "C" {
 
   fn v8__PropertyCallbackInfo__GetIsolate(
     this: *const RawPropertyCallbackInfo,
-  ) -> *mut Isolate;
+  ) -> *mut RealIsolate;
   fn v8__PropertyCallbackInfo__Data(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Value;
@@ -258,9 +259,9 @@ impl FunctionCallbackInfo {
 
 impl FunctionCallbackInfo {
   #[inline(always)]
-  pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     let arg_nn =
-      self.get_implicit_arg_non_null::<*mut Isolate>(Self::kIsolateIndex);
+      self.get_implicit_arg_non_null::<*mut RealIsolate>(Self::kIsolateIndex);
     *unsafe { arg_nn.as_ref() }
   }
 
@@ -304,8 +305,10 @@ impl FunctionCallbackInfo {
     if index >= 0 && index < self.length {
       unsafe { self.get_arg_local(index) }
     } else {
-      let isolate = unsafe { &*self.get_isolate_ptr() };
-      undefined(isolate).into()
+      let isolate = unsafe {
+        crate::isolate::Isolate::from_raw_ptr(self.get_isolate_ptr())
+      };
+      undefined(&isolate).into()
     }
   }
 
@@ -358,7 +361,7 @@ pub struct PropertyCallbackInfo<T>(RawPropertyCallbackInfo, PhantomData<T>);
 
 impl<T> PropertyCallbackInfo<T> {
   #[inline(always)]
-  pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     unsafe { v8__PropertyCallbackInfo__GetIsolate(&self.0) }
   }
 }
@@ -377,8 +380,8 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// in the current function, `FunctionCallbackArguments::get_isolate()` should
   /// not be called.
   #[inline(always)]
-  pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *self.0.get_isolate_ptr() }
+  pub unsafe fn get_isolate(&mut self) -> &mut RealIsolate {
+    unsafe { std::mem::transmute(self.0.get_isolate_ptr()) }
   }
 
   /// For construct calls, this returns the "new.target" value.

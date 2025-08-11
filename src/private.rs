@@ -6,14 +6,15 @@ use crate::Local;
 use crate::Private;
 use crate::String;
 use crate::Value;
+use crate::isolate::RealIsolate;
 
 unsafe extern "C" {
   fn v8__Private__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     name: *const String,
   ) -> *const Private;
   fn v8__Private__ForApi(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     name: *const String,
   ) -> *const Private;
   fn v8__Private__Name(this: *const Private) -> *const Value;
