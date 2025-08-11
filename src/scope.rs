@@ -1269,21 +1269,21 @@ mod getter {
   impl<'s> GetIsolate<'s> for &'s FunctionCallbackInfo {
     #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *self.get_isolate_ptr() }
+      unsafe { std::mem::transmute(self.get_isolate_ptr()) }
     }
   }
 
   impl<'s, T> GetIsolate<'s> for &'s PropertyCallbackInfo<T> {
     #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *self.get_isolate_ptr() }
+      unsafe { std::mem::transmute(self.get_isolate_ptr()) }
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s FastApiCallbackOptions<'s> {
     #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
-      unsafe { &mut *self.isolate }
+      unsafe { std::mem::transmute(self.isolate) }
     }
   }
 
@@ -1375,15 +1375,16 @@ pub(crate) mod data {
     /// scopes, so it might return a zombie ScopeData reference.
     #[inline(always)]
     pub(crate) fn get_current_mut(isolate: &mut Isolate) -> &mut Self {
-      let self_mut = isolate
-        .get_current_scope_data()
-        .map(NonNull::as_ptr)
-        .map(|p| unsafe { &mut *p })
-        .unwrap();
-      match self_mut.status.get() {
-        ScopeStatus::Current { .. } => self_mut,
-        _ => unreachable!(),
-      }
+      // let self_mut = isolate
+      //   .get_current_scope_data()
+      //   .map(NonNull::as_ptr)
+      //   .map(|p| unsafe { &mut *p })
+      //   .unwrap();
+      // match self_mut.status.get() {
+      //   ScopeStatus::Current { .. } => self_mut,
+      //   _ => unreachable!(),
+      // }
+      todo!()
     }
 
     /// Initializes the scope stack by creating a 'dummy' `ScopeData` at the
@@ -1392,8 +1393,9 @@ pub(crate) mod data {
     pub(crate) fn new_root(isolate: &mut Isolate) {
       let root = Box::leak(Self::boxed(isolate.into()));
       root.status = ScopeStatus::Current { zombie: false }.into();
-      debug_assert!(isolate.get_current_scope_data().is_none());
-      isolate.set_current_scope_data(Some(root.into()));
+      // debug_assert!(isolate.get_current_scope_data().is_none());
+      // isolate.set_current_scope_data(Some(root.into()));
+      todo!()
     }
 
     /// Activates and returns the 'root' `ScopeData` object that is created when
@@ -1422,7 +1424,8 @@ pub(crate) mod data {
       unsafe {
         let _ = Box::from_raw(root);
       };
-      isolate.set_current_scope_data(None);
+      // isolate.set_current_scope_data(None);
+      todo!()
     }
 
     #[inline(always)]
@@ -1651,9 +1654,9 @@ pub(crate) mod data {
       (init_fn)(new_scope_data);
       // Make the newly created scope the 'current' scope for this isolate.
       let new_scope_nn = unsafe { NonNull::new_unchecked(new_scope_data) };
-      new_scope_data
-        .get_isolate_mut()
-        .set_current_scope_data(Some(new_scope_nn));
+      new_scope_data.get_isolate_mut();
+      // .set_current_scope_data(Some(new_scope_nn));
+      todo!();
       new_scope_data
     }
 
@@ -1721,10 +1724,11 @@ pub(crate) mod data {
         }
         _ => unreachable!(),
       };
-      debug_assert_eq!(
-        self.get_isolate().get_current_scope_data(),
-        NonNull::new(self as *mut _)
-      );
+      // debug_assert_eq!(
+      //   self.get_isolate().get_current_scope_data(),
+      //   NonNull::new(self as *mut _)
+      // );
+      todo!();
       self
     }
 
@@ -1758,9 +1762,10 @@ pub(crate) mod data {
 
       // Point the Isolate's current scope data slot at our parent scope.
       let previous_nn = self.previous.unwrap();
-      self
-        .get_isolate_mut()
-        .set_current_scope_data(Some(previous_nn));
+      // self
+      //   .get_isolate_mut()
+      //   .set_current_scope_data(Some(previous_nn));
+      todo!();
 
       // Update the parent scope's status field to reflect that it is now
       // 'Current' again an no longer 'Shadowed'.

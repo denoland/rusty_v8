@@ -13,6 +13,7 @@ use crate::String;
 use crate::Value;
 use crate::isolate::Isolate;
 use crate::support::MaybeBool;
+use crate::isolate::RealIsolate;
 use crate::scope2::HandleScope;
 use crate::support::int;
 
@@ -38,16 +39,16 @@ unsafe extern "C" {
   fn v8__Message__GetStackTrace(this: *const Message) -> *const StackTrace;
 
   fn v8__StackTrace__CurrentStackTrace(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     frame_limit: int,
   ) -> *const StackTrace;
   fn v8__StackTrace__CurrentScriptNameOrSourceURL(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const String;
   fn v8__StackTrace__GetFrameCount(this: *const StackTrace) -> int;
   fn v8__StackTrace__GetFrame(
     this: *const StackTrace,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     index: u32,
   ) -> *const StackFrame;
 
@@ -71,7 +72,7 @@ unsafe extern "C" {
   fn v8__Exception__TypeError(message: *const String) -> *const Value;
 
   fn v8__Exception__CreateMessage(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     exception: *const Value,
   ) -> *const Message;
   fn v8__Exception__GetStackTrace(exception: *const Value)

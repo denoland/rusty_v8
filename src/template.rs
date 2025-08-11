@@ -31,7 +31,7 @@ use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::fast_api::CFunction;
-use crate::isolate::Isolate;
+use crate::isolate::RealIsolate;
 use crate::support::MapFnTo;
 use crate::support::int;
 use std::convert::TryFrom;
@@ -53,11 +53,11 @@ unsafe extern "C" {
   );
 
   fn v8__Signature__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     templ: *const FunctionTemplate,
   ) -> *const Signature;
   fn v8__FunctionTemplate__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: FunctionCallback,
     data_or_null: *const Value,
     signature_or_null: *const Signature,
@@ -89,7 +89,7 @@ unsafe extern "C" {
   fn v8__FunctionTemplate__RemovePrototype(this: *const FunctionTemplate);
 
   fn v8__ObjectTemplate__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     templ: *const FunctionTemplate,
   ) -> *const ObjectTemplate;
   fn v8__ObjectTemplate__NewInstance(

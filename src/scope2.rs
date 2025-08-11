@@ -2,9 +2,10 @@
 use crate::{
   Context, FunctionCallbackInfo, Isolate, Local, Message, Object, OwnedIsolate,
   PromiseRejectMessage, PropertyCallbackInfo, SealedLocal, Value,
-  fast_api::FastApiCallbackOptions,
+  fast_api::FastApiCallbackOptions, isolate::RealIsolate,
 };
 use std::{
+  cell::Cell,
   marker::{PhantomData, PhantomPinned},
   mem::ManuallyDrop,
   ops::{Deref, DerefMut},
@@ -167,7 +168,7 @@ impl<'s, C> ScopeInit for HandleScope<'s, C> {
 #[derive(Debug)]
 pub struct HandleScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
-  isolate: NonNull<Isolate>,
+  isolate: NonNull<RealIsolate>,
   context: Option<NonNull<Context>>,
   _phantom: PhantomData<&'s C>,
 }
@@ -176,7 +177,7 @@ impl<'s, C> sealed::Sealed for HandleScope<'s, C> {}
 impl<'s, C> Scope for HandleScope<'s, C> {}
 
 pub trait GetIsolate {
-  fn get_isolate_ptr(&self) -> *mut Isolate;
+  fn get_isolate_ptr(&self) -> *mut RealIsolate;
 }
 
 mod get_isolate_impls {
@@ -184,56 +185,57 @@ mod get_isolate_impls {
 
   use super::*;
   impl GetIsolate for Isolate {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
-      self as *const _ as *mut _
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      self.as_real_ptr()
     }
   }
 
   impl GetIsolate for OwnedIsolate {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
-      self as *const _ as *mut _
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      eprintln!("get_isolate_ptr: {:p}", self.as_real_ptr());
+      self.as_real_ptr()
     }
   }
 
   impl GetIsolate for FunctionCallbackInfo {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.get_isolate_ptr()
     }
   }
 
   impl<T> GetIsolate for PropertyCallbackInfo<T> {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.get_isolate_ptr()
     }
   }
 
   impl<'s> GetIsolate for FastApiCallbackOptions<'s> {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.isolate
     }
   }
 
   impl<'s> GetIsolate for Local<'s, Context> {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       unsafe { raw::v8__Context__GetIsolate(&**self) }
     }
   }
 
   impl<'s> GetIsolate for Local<'s, Message> {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       unsafe { raw::v8__Message__GetIsolate(&**self) }
     }
   }
 
   impl<'s, T: Into<Local<'s, Object>> + Copy> GetIsolate for T {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       let object: Local<Object> = (*self).into();
       unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
     }
   }
 
   impl<'s> GetIsolate for PromiseRejectMessage<'s> {
-    fn get_isolate_ptr(&self) -> *mut Isolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
       let object: Local<Object> = self.get_promise().into();
       unsafe { raw::v8__Object__GetIsolate(&*object) }
     }
@@ -252,8 +254,8 @@ impl<'s, 'p: 's, C> NewHandleScope<'s> for HandleScope<'p, C> {
   fn make_new_scope(me: &Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate: unsafe { (*me).isolate },
-      context: unsafe { (*me).context },
+      isolate: (*me).isolate,
+      context: (*me).context,
       _phantom: PhantomData,
     }
   }
@@ -265,7 +267,7 @@ impl<'s> NewHandleScope<'s> for Isolate {
   fn make_new_scope(me: &Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate: NonNull::new(me as *const _ as *mut _).unwrap(),
+      isolate: unsafe { NonNull::new_unchecked(me.as_real_ptr()) },
       context: None,
       _phantom: PhantomData,
     }
@@ -276,9 +278,10 @@ impl<'s> NewHandleScope<'s> for OwnedIsolate {
   type NewScope = HandleScope<'s, ()>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
+    let isolate = NonNull::new(me.get_isolate_ptr()).unwrap();
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate: NonNull::new(me.get_isolate_ptr()).unwrap(),
+      isolate,
       context: None,
       _phantom: PhantomData,
     }
@@ -291,25 +294,33 @@ impl<'s, 'p: 's, C> NewHandleScope<'s> for CallbackScope<'p, C> {
   fn make_new_scope(me: &Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate: unsafe { (*me).isolate },
-      context: unsafe { (*me).context },
+      isolate: (*me).isolate,
+      context: (*me).context,
       _phantom: PhantomData,
     }
   }
 }
 
 pub(crate) struct ScopeData {
-  isolate: Option<NonNull<Isolate>>,
-  context: Option<NonNull<Context>>,
+  isolate: Option<NonNull<RealIsolate>>,
+  context: Cell<Option<NonNull<Context>>>,
 }
 
 impl ScopeData {
-  pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     self.isolate.unwrap().as_ptr()
   }
 
   pub(crate) fn get_current_context(&self) -> *mut Context {
-    self.context.unwrap().as_ptr()
+    if let Some(context) = self.context.get() {
+      context.as_ptr()
+    } else {
+      let isolate = self.get_isolate_ptr();
+      let context =
+        unsafe { raw::v8__Isolate__GetCurrentContext(isolate) }.cast_mut();
+      self.context.set(Some(NonNull::new(context).unwrap()));
+      context
+    }
   }
 }
 
@@ -330,7 +341,7 @@ impl<'s> HandleScope<'s> {
 impl<'a, C> Deref for HandleScope<'a, C> {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe { &*self.isolate.as_ptr() }
+    unsafe { std::mem::transmute(&*self.isolate.as_ptr()) }
   }
 }
 
@@ -354,12 +365,12 @@ impl<'a, 'b> AsRef<Pin<&'a mut HandleScope<'b, ()>>>
 
 impl<'s, C> HandleScope<'s, C> {
   #[inline(always)]
-  pub(crate) unsafe fn cast_local<T>(
-    self: &Pin<&mut Self>,
+  pub(crate) unsafe fn cast_local<'a, T>(
+    self: &Pin<&'a mut Self>,
     _f: impl FnOnce(&mut ScopeData) -> *const T,
-  ) -> Option<Local<'s, T>> {
+  ) -> Option<Local<'a, T>> {
     let mut data = ScopeData {
-      context: self.context,
+      context: Cell::new(self.context),
       isolate: Some(self.isolate),
     };
     let ptr = _f(&mut data);
@@ -393,7 +404,7 @@ impl<'s, C> HandleScope<'s, C> {
 }
 
 impl<'a, 's, C> GetIsolate for Pin<&'a mut HandleScope<'s, C>> {
-  fn get_isolate_ptr(&self) -> *mut Isolate {
+  fn get_isolate_ptr(&self) -> *mut RealIsolate {
     self.isolate.as_ptr()
   }
 }
@@ -520,7 +531,7 @@ impl<'s, P> AsRef<Pin<&'s mut P>> for ContextScope<'s, P> {
 
 pub struct CallbackScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
-  isolate: NonNull<Isolate>,
+  isolate: NonNull<RealIsolate>,
   context: Option<NonNull<Context>>,
   _phantom: PhantomData<&'s C>,
   needs_scope: bool,
@@ -671,7 +682,7 @@ impl<'s> NewCallbackScope<'s> for Isolate {
   type NewScope = CallbackScope<'s, ()>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -679,7 +690,7 @@ impl<'s> NewCallbackScope<'s> for OwnedIsolate {
   type NewScope = CallbackScope<'s, ()>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -687,7 +698,7 @@ impl<'s> NewCallbackScope<'s> for FunctionCallbackInfo {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -695,7 +706,7 @@ impl<'s, T> NewCallbackScope<'s> for PropertyCallbackInfo<T> {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -704,11 +715,11 @@ impl<'s> NewCallbackScope<'s> for FastApiCallbackOptions<'s> {
   const NEEDS_SCOPE: bool = true;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    let isolate = unsafe { (*me).get_isolate_ptr() };
+    let isolate = (*me).get_isolate_ptr();
     CallbackScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: NonNull::new(isolate).unwrap(),
-      context: unsafe { (*me).get_context() }.map(|c| c.as_non_null()),
+      context: (*me).get_context().map(|c| c.as_non_null()),
       _phantom: PhantomData,
       needs_scope: true,
     }
@@ -724,10 +735,7 @@ impl<'s> NewCallbackScope<'s> for Local<'s, Context> {
   }
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(
-      unsafe { &*me },
-      Some(unsafe { (*me).as_non_null() }),
-    )
+    make_new_callback_scope(&*me, Some((*me).as_non_null()))
   }
 }
 
@@ -735,7 +743,7 @@ impl<'s> NewCallbackScope<'s> for Local<'s, Message> {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -743,7 +751,7 @@ impl<'s, T: Into<Local<'s, Object>> + GetIsolate> NewCallbackScope<'s> for T {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -751,7 +759,7 @@ impl<'s> NewCallbackScope<'s> for PromiseRejectMessage<'s> {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    make_new_callback_scope(unsafe { &*me }, None)
+    make_new_callback_scope(&*me, None)
   }
 }
 
@@ -763,7 +771,7 @@ impl<'s> AsRef<Pin<&'s mut HandleScope<'s, ()>>> for CallbackScope<'s, ()> {
 
 pub struct TryCatch<'s, P> {
   raw_try_catch: raw::TryCatch,
-  isolate: NonNull<Isolate>,
+  isolate: NonNull<RealIsolate>,
   _phantom: PhantomData<&'s mut P>,
 }
 
@@ -837,18 +845,33 @@ impl<'s, 'b, 'c> AsRef2<'b, Pin<&'s mut HandleScope<'c, ()>>>
   }
 }
 
-impl<'s, 'b> AsRef2<'b, Pin<&'s mut HandleScope<'b, ()>>>
-  for &'b ContextScope<'s, HandleScope<'b, ()>>
+impl<'s, 'r, 'c> AsRef2<'r, Pin<&'s mut HandleScope<'c, ()>>>
+  for &'r ContextScope<'s, HandleScope<'c, ()>>
 {
-  fn casted(self) -> &'b Pin<&'s mut HandleScope<'b, ()>> {
+  fn casted(self) -> &'r Pin<&'s mut HandleScope<'c, ()>> {
     unsafe { std::mem::transmute(self.scope) }
   }
 }
-impl<'s, 'b> AsRef2<'b, Pin<&'s mut HandleScope<'b>>>
-  for ContextScope<'s, HandleScope<'b>>
+impl<'s, 'r, 'c> AsRef2<'r, Pin<&'s mut HandleScope<'c, Context>>>
+  for &'r ContextScope<'s, HandleScope<'c, Context>>
 {
-  fn casted(self) -> &'b Pin<&'s mut HandleScope<'b>> {
-    self.scope
+  fn casted(self) -> &'r Pin<&'s mut HandleScope<'c, Context>> {
+    unsafe { std::mem::transmute(self.scope) }
+  }
+}
+impl<'s, 'r, 'c> AsRef2<'r, Pin<&'s mut HandleScope<'c, ()>>>
+  for &'r ContextScope<'s, HandleScope<'c, Context>>
+{
+  fn casted(self) -> &'r Pin<&'s mut HandleScope<'c, ()>> {
+    unsafe { std::mem::transmute(self.scope) }
+  }
+}
+
+impl<'s, 'r, 'c> AsRef2<'r, Isolate>
+  for &'r ContextScope<'s, HandleScope<'c, Context>>
+{
+  fn casted(self) -> &'c Isolate {
+    unsafe { std::mem::transmute(self.scope.isolate) }
   }
 }
 
@@ -880,6 +903,7 @@ impl<'s, 'b, 'c, C> AsRef2<'b, Pin<&'s mut HandleScope<'c, C>>>
 //   }
 // }
 
+#[allow(unused_macros)]
 macro_rules! bind_callbackscope {
   (unsafe $scope: ident, $param: expr) => {
     let $scope = unsafe { $crate::CallbackScope::new($param) };
@@ -888,4 +912,5 @@ macro_rules! bind_callbackscope {
   };
 }
 
+#[allow(unused_imports)]
 pub(crate) use bind_callbackscope;

@@ -13,15 +13,22 @@ use std::ptr::NonNull;
 use crate::Data;
 use crate::Isolate;
 use crate::IsolateHandle;
+use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
 use crate::scope2::HandleScope;
 use crate::support::Opaque;
 
 unsafe extern "C" {
-  fn v8__Local__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
-  fn v8__Global__New(isolate: *mut Isolate, data: *const Data) -> *const Data;
+  fn v8__Local__New(
+    isolate: *mut RealIsolate,
+    other: *const Data,
+  ) -> *const Data;
+  fn v8__Global__New(
+    isolate: *mut RealIsolate,
+    data: *const Data,
+  ) -> *const Data;
   fn v8__Global__NewWeak(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const Data,
     parameter: *const c_void,
     callback: unsafe extern "C" fn(*const WeakCallbackInfo),
@@ -42,12 +49,12 @@ unsafe extern "C" {
   fn v8__TracedReference__DESTRUCT(this: *mut TracedReference<Data>);
   fn v8__TracedReference__Reset(
     this: *mut TracedReference<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *mut Data,
   );
   fn v8__TracedReference__Get(
     this: *const TracedReference<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Data;
 
   fn v8__Eternal__CONSTRUCT(this: *mut Eternal<Data>);
@@ -55,11 +62,11 @@ unsafe extern "C" {
   fn v8__Eternal__Clear(this: *mut Eternal<Data>);
   fn v8__Eternal__Get(
     this: *const Eternal<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Data;
   fn v8__Eternal__Set(
     this: *mut Eternal<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *mut Data,
   );
   fn v8__Eternal__IsEmpty(this: *const Eternal<Data>) -> bool;
@@ -246,7 +253,7 @@ impl<T> Global<T> {
   unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     unsafe {
-      let data = v8__Global__New(isolate, data) as *const T;
+      let data = v8__Global__New((*isolate).as_real_ptr(), data) as *const T;
       let data = NonNull::new_unchecked(data as *mut _);
       let isolate_handle = (*isolate).thread_safe_handle();
       Self {
@@ -289,7 +296,9 @@ impl<T> Global<T> {
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();
-    unsafe { Self::new_raw(host.get_isolate().as_mut(), data) }
+    let mut isolate =
+      unsafe { Isolate::from_raw_ptr(host.get_isolate().as_ptr()) };
+    unsafe { Self::new_raw(isolate.as_mut(), data) }
   }
 }
 
@@ -502,13 +511,13 @@ enum HandleHost {
   // the `Isolate` that hosts it (the handle) and the currently entered
   // scope.
   Scope,
-  Isolate(NonNull<Isolate>),
+  Isolate(NonNull<RealIsolate>),
   DisposedIsolate,
 }
 
 impl From<&'_ Isolate> for HandleHost {
   fn from(isolate: &'_ Isolate) -> Self {
-    Self::Isolate(NonNull::from(isolate))
+    Self::Isolate(unsafe { NonNull::new_unchecked(isolate.as_real_ptr()) })
   }
 }
 
@@ -543,7 +552,8 @@ impl HandleHost {
     other: Self,
     scope_isolate_opt: Option<&Isolate>,
   ) -> bool {
-    let scope_isolate_opt_nn = scope_isolate_opt.map(NonNull::from);
+    let scope_isolate_opt_nn = scope_isolate_opt
+      .map(|isolate| unsafe { NonNull::new_unchecked(isolate.as_real_ptr()) });
     match (self, other, scope_isolate_opt_nn) {
       (Self::Scope, Self::Scope, _) => true,
       (Self::Isolate(ile1), Self::Isolate(ile2), _) => ile1 == ile2,
@@ -580,7 +590,7 @@ impl HandleHost {
     self.assert_match_host(isolate.into(), Some(isolate));
   }
 
-  fn get_isolate(self) -> NonNull<Isolate> {
+  fn get_isolate(self) -> NonNull<RealIsolate> {
     match self {
       Self::Scope => panic!("host Isolate for Handle not available"),
       Self::Isolate(ile) => ile,
@@ -590,7 +600,8 @@ impl HandleHost {
 
   #[allow(dead_code)]
   fn get_isolate_handle(self) -> IsolateHandle {
-    unsafe { self.get_isolate().as_ref() }.thread_safe_handle()
+    let isolate = unsafe { Isolate::from_raw_ptr(self.get_isolate().as_ptr()) };
+    isolate.thread_safe_handle()
   }
 }
 
@@ -683,7 +694,7 @@ impl<T> Weak<T> {
     let data = data.cast().as_ptr();
     let data = unsafe {
       v8__Global__NewWeak(
-        isolate,
+        (*isolate).as_real_ptr(),
         data,
         weak_data.deref() as *const _ as *const c_void,
         Self::first_pass_callback,
@@ -739,14 +750,13 @@ impl<T> Weak<T> {
       if isolate_ptr.is_null() {
         unreachable!("Isolate was dropped but weak handle wasn't reset.");
       }
-
+      let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
       let finalizer_id = if let Some(finalizer) = finalizer {
-        let isolate = unsafe { &mut *isolate_ptr };
         Some(isolate.get_finalizer_map_mut().add(finalizer))
       } else {
         None
       };
-      Self::new_raw(isolate_ptr, data, finalizer_id)
+      Self::new_raw(&mut isolate, data, finalizer_id)
     } else {
       Weak {
         data: None,
@@ -791,7 +801,7 @@ impl<T> Weak<T> {
           // Disposed isolates have no finalizers.
           false
         } else {
-          let isolate = unsafe { &mut *isolate_ptr };
+          let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
           isolate.get_finalizer_map().map.contains_key(&finalizer_id)
         }
       } else {
@@ -842,7 +852,7 @@ impl<T> Weak<T> {
   pub fn to_local<'a, 's>(
     &self,
     scope: &Pin<&'a mut HandleScope<'s, ()>>,
-  ) -> Option<Local<'s, T>> {
+  ) -> Option<Local<'a, T>> {
     if let Some(data) = self.get_pointer() {
       let handle_host: HandleHost = (&self.isolate_handle).into();
       handle_host.assert_match_isolate(scope);
@@ -933,7 +943,7 @@ impl<T> Drop for Weak<T> {
         // SAFETY: We're in the isolate's thread because `Weak` isn't Send or Sync.
         let isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
         if !isolate_ptr.is_null() {
-          let isolate = unsafe { &mut *isolate_ptr };
+          let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
           let finalizer =
             isolate.get_finalizer_map_mut().map.remove(&finalizer_id);
           return finalizer.is_some();

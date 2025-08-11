@@ -25,6 +25,7 @@ use crate::cppgc::GarbageCollected;
 use crate::cppgc::GetRustObj;
 use crate::cppgc::UnsafePtr;
 use crate::isolate::Isolate;
+use crate::isolate::RealIsolate;
 use crate::support::MapFnTo;
 use crate::support::Maybe;
 use crate::support::MaybeBool;
@@ -37,9 +38,9 @@ use std::pin::Pin;
 use std::ptr::null;
 
 unsafe extern "C" {
-  fn v8__Object__New(isolate: *mut Isolate) -> *const Object;
+  fn v8__Object__New(isolate: *mut RealIsolate) -> *const Object;
   fn v8__Object__New__with_prototype_and_properties(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     prototype_or_null: *const Value,
     names: *const *const Name,
     values: *const *const Value,
@@ -233,26 +234,26 @@ unsafe extern "C" {
     out: *mut Maybe<PropertyAttribute>,
   );
   fn v8__Object__Wrap(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     wrapper: *const Object,
     value: *const RustObj,
     tag: u16,
   );
   fn v8__Object__Unwrap(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     wrapper: *const Object,
     tag: u16,
   ) -> *mut RustObj;
   fn v8__Object__IsApiWrapper(this: *const Object) -> bool;
 
-  fn v8__Array__New(isolate: *mut Isolate, length: int) -> *const Array;
+  fn v8__Array__New(isolate: *mut RealIsolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     elements: *const *const Value,
     length: usize,
   ) -> *const Array;
   fn v8__Array__Length(array: *const Array) -> u32;
-  fn v8__Map__New(isolate: *mut Isolate) -> *const Map;
+  fn v8__Map__New(isolate: *mut RealIsolate) -> *const Map;
   fn v8__Map__Clear(this: *const Map);
   fn v8__Map__Get(
     this: *const Map,
@@ -277,7 +278,7 @@ unsafe extern "C" {
   ) -> MaybeBool;
   fn v8__Map__Size(map: *const Map) -> usize;
   fn v8__Map__As__Array(this: *const Map) -> *const Array;
-  fn v8__Set__New(isolate: *mut Isolate) -> *const Set;
+  fn v8__Set__New(isolate: *mut RealIsolate) -> *const Set;
   fn v8__Set__Clear(this: *const Set);
   fn v8__Set__Add(
     this: *const Set,
@@ -701,7 +702,6 @@ impl Object {
       .into()
   }
 
-  
   #[inline]
   pub fn delete_index<'s, 'a>(
     &self,
@@ -782,7 +782,7 @@ impl Object {
       assert!(TAG < LAST_TAG);
     }
     let ptr = value.get_rust_obj();
-    unsafe { v8__Object__Wrap(isolate as *mut _, &*wrapper, ptr, TAG) }
+    unsafe { v8__Object__Wrap(isolate.as_real_ptr(), &*wrapper, ptr, TAG) }
   }
 
   /// Unwraps a JS wrapper object.
@@ -799,7 +799,8 @@ impl Object {
     const {
       assert!(TAG < LAST_TAG);
     }
-    let ptr = unsafe { v8__Object__Unwrap(isolate as *mut _, &*wrapper, TAG) };
+    let ptr =
+      unsafe { v8__Object__Unwrap(isolate.as_real_ptr(), &*wrapper, TAG) };
     unsafe { UnsafePtr::new(&ptr) }
   }
 

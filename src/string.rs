@@ -2,6 +2,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::binding::v8__String__kMaxLength;
+use crate::isolate::RealIsolate;
 use crate::scope2::HandleScope;
 use crate::support::Opaque;
 use crate::support::char;
@@ -18,24 +19,24 @@ use std::ptr::NonNull;
 use std::slice;
 
 unsafe extern "C" {
-  fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
+  fn v8__String__Empty(isolate: *mut RealIsolate) -> *const String;
 
   fn v8__String__NewFromUtf8(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const char,
     new_type: NewStringType,
     length: int,
   ) -> *const String;
 
   fn v8__String__NewFromOneByte(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const u8,
     new_type: NewStringType,
     length: int,
   ) -> *const String;
 
   fn v8__String__NewFromTwoByte(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const u16,
     new_type: NewStringType,
     length: int,
@@ -43,11 +44,14 @@ unsafe extern "C" {
 
   fn v8__String__Length(this: *const String) -> int;
 
-  fn v8__String__Utf8Length(this: *const String, isolate: *mut Isolate) -> int;
+  fn v8__String__Utf8Length(
+    this: *const String,
+    isolate: *mut RealIsolate,
+  ) -> int;
 
   fn v8__String__Write(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut u16,
     start: int,
     length: int,
@@ -56,7 +60,7 @@ unsafe extern "C" {
 
   fn v8__String__Write_v2(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     offset: u32,
     length: u32,
     buffer: *mut u16,
@@ -65,7 +69,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteOneByte(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut u8,
     start: int,
     length: int,
@@ -74,7 +78,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteOneByte_v2(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     offset: u32,
     length: u32,
     buffer: *mut u8,
@@ -83,7 +87,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteUtf8(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut char,
     length: int,
     nchars_ref: *mut int,
@@ -92,7 +96,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteUtf8_v2(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut char,
     capacity: size_t,
     flags: int,
@@ -108,25 +112,25 @@ unsafe extern "C" {
   ) -> *mut ExternalStringResourceBase;
 
   fn v8__String__NewExternalOneByteConst(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     onebyte_const: *const OneByteConst,
   ) -> *const String;
 
   fn v8__String__NewExternalOneByteStatic(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *const char,
     length: int,
   ) -> *const String;
 
   fn v8__String__NewExternalOneByte(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut char,
     length: size_t,
     free: unsafe extern "C" fn(*mut char, size_t),
   ) -> *const String;
 
   fn v8__String__NewExternalTwoByteStatic(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *const u16,
     length: int,
   ) -> *const String;
@@ -147,7 +151,7 @@ unsafe extern "C" {
 
   fn v8__String__ValueView__CONSTRUCT(
     buf: *mut ValueView,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     string: *const String,
   );
   fn v8__String__ValueView__DESTRUCT(this: *mut ValueView);
@@ -283,7 +287,7 @@ unsafe extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
 }
 unsafe extern "C" fn one_byte_const_unaccount(
   _this: *const OneByteConst,
-  _isolate: *mut Isolate,
+  _isolate: *mut RealIsolate,
 ) {
 }
 unsafe extern "C" fn one_byte_const_estimate_memory_usage(
@@ -304,7 +308,7 @@ type OneByteConstData =
   unsafe extern "C" fn(*const OneByteConst) -> *const char;
 type OneByteConstLength = unsafe extern "C" fn(*const OneByteConst) -> usize;
 type OneByteConstUnaccount =
-  unsafe extern "C" fn(*const OneByteConst, *mut Isolate);
+  unsafe extern "C" fn(*const OneByteConst, *mut RealIsolate);
 type OneByteConstEstimateMemoryUsage =
   unsafe extern "C" fn(*const OneByteConst) -> size_t;
 type OneByteConstEstimateSharedMemoryUsage =
@@ -508,7 +512,7 @@ impl String {
     unsafe {
       v8__String__Write(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr(),
         start.try_into().unwrap_or(int::MAX),
         buffer.len().try_into().unwrap_or(int::MAX),
@@ -530,7 +534,7 @@ impl String {
     unsafe {
       v8__String__Write_v2(
         self,
-        scope,
+        scope.as_real_ptr(),
         offset,
         self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr(),
@@ -553,7 +557,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr(),
         start.try_into().unwrap_or(int::MAX),
         buffer.len().try_into().unwrap_or(int::MAX),
@@ -1163,7 +1167,11 @@ impl<'s> ValueView<'s> {
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
     let mut v = std::mem::MaybeUninit::uninit();
     unsafe {
-      v8__String__ValueView__CONSTRUCT(v.as_mut_ptr(), isolate, &*string);
+      v8__String__ValueView__CONSTRUCT(
+        v.as_mut_ptr(),
+        isolate.as_real_ptr(),
+        &*string,
+      );
       v.assume_init()
     }
   }

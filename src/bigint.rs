@@ -1,17 +1,17 @@
 use crate::BigInt;
 use crate::Context;
 use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
+use crate::isolate::RealIsolate;
 use crate::support::int;
 
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 unsafe extern "C" {
-  fn v8__BigInt__New(isolate: *mut Isolate, value: i64) -> *const BigInt;
+  fn v8__BigInt__New(isolate: *mut RealIsolate, value: i64) -> *const BigInt;
   fn v8__BigInt__NewFromUnsigned(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: u64,
   ) -> *const BigInt;
   fn v8__BigInt__NewFromWords(

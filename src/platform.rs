@@ -1,4 +1,5 @@
 use crate::Isolate;
+use crate::isolate::RealIsolate;
 use crate::support::int;
 
 use crate::support::Opaque;
@@ -25,19 +26,19 @@ unsafe extern "C" {
 
   fn v8__Platform__PumpMessageLoop(
     platform: *mut Platform,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     wait_for_work: bool,
   ) -> bool;
 
   fn v8__Platform__RunIdleTasks(
     platform: *mut Platform,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     idle_time_in_seconds: f64,
   );
 
   fn v8__Platform__NotifyIsolateShutdown(
     platform: *mut Platform,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   );
 
   fn std__shared_ptr__v8__Platform__CONVERT__std__unique_ptr(
@@ -193,7 +194,7 @@ impl Platform {
     unsafe {
       v8__Platform__PumpMessageLoop(
         &**platform as *const Self as *mut _,
-        isolate,
+        isolate.as_real_ptr(),
         wait_for_work,
       )
     }
@@ -212,7 +213,7 @@ impl Platform {
     unsafe {
       v8__Platform__RunIdleTasks(
         &**platform as *const Self as *mut _,
-        isolate,
+        isolate.as_real_ptr(),
         idle_time_in_seconds,
       );
     }
@@ -231,7 +232,7 @@ impl Platform {
     unsafe {
       v8__Platform__NotifyIsolateShutdown(
         &**platform as *const Self as *mut _,
-        isolate,
+        isolate.as_real_ptr(),
       );
     }
   }
