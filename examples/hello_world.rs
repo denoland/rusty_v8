@@ -1,5 +1,3 @@
-use v8::AsRef2;
-
 fn main() {
   // Initialize V8.
   let platform = v8::new_default_platform(0, false).make_shared();
@@ -13,24 +11,40 @@ fn main() {
     // Create a stack-allocated handle scope.
     eprintln!("isolate: {:?}", isolate);
     let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
-    let handle_scope = handle_scope.init_stack();
+    let handle_scope = handle_scope.init();
 
     // Create a new context.
     let context = v8::Context::new(&handle_scope, Default::default());
 
     // Enter the context for compiling and running the hello world script.
-    let scope = v8::ContextScope::new(&handle_scope, context);
+    let scope = &v8::ContextScope::new(&handle_scope, context);
     // Create a string containing the JavaScript source code.
-    let code = v8::String::new(scope.casted(), "'Hello' + ' World!'").unwrap();
+    let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
 
     // Compile the source code.
-    let script = v8::Script::compile(scope.casted(), code, None).unwrap();
+    let script = v8::Script::compile(scope, code, None).unwrap();
     // Run the script to get the result.
-    let result = script.run(scope.casted()).unwrap();
+    let result = script.run(scope).unwrap();
 
     // Convert the result to a string and print it.
-    let result = result.to_string(scope.casted()).unwrap();
-    // println!("{}", result.to_rust_string_lossy(scope.casted()));
+    let result = result.to_string(scope).unwrap();
+    println!("{}", result.to_rust_string_lossy(scope));
+
+    let string = {
+      let scope2 = std::pin::pin!(v8::HandleScope::new(isolate));
+      let scope2_ = scope2.init();
+
+      let string = v8::Object::new(&scope);
+
+      drop(scope2_);
+      eprintln!("here");
+
+      std::thread::sleep(std::time::Duration::from_secs(1));
+      string
+    };
+
+    let r = string.to_rust_string_lossy(scope);
+    println!("{}", r);
 
     // Use the JavaScript API to generate a WebAssembly module.
     //
@@ -53,16 +67,16 @@ fn main() {
           instance.exports.add(3, 4);
         "#;
     // Create a string containing the JavaScript source code.
-    let source = v8::String::new(scope.casted(), c_source).unwrap();
+    let source = v8::String::new(scope, c_source).unwrap();
 
     // Compile the source code.
-    let script = v8::Script::compile(scope.casted(), source, None).unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
 
     // Run the script to get the result.
-    let result = script.run(scope.casted()).unwrap();
+    let result = script.run(scope).unwrap();
 
     // Print the result.
-    let result = result.to_uint32(scope.casted()).unwrap();
+    let result = result.to_uint32(scope).unwrap();
     println!("3 + 4 = {}", result.value());
   }
 

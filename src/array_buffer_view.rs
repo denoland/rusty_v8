@@ -36,7 +36,7 @@ impl ArrayBufferView {
   #[inline(always)]
   pub fn buffer<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
   ) -> Option<Local<'a, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }

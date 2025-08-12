@@ -23,9 +23,9 @@ unsafe extern "C" {
 /// successful.
 #[inline(always)]
 pub fn parse<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'a HandleScope<'s>,
   json_string: Local<'_, String>,
-) -> Option<Local<'s, Value>> {
+) -> Option<Local<'a, Value>> {
   unsafe {
     scope
       .cast_local(|sd| v8__JSON__Parse(sd.get_current_context(), &*json_string))
@@ -36,9 +36,9 @@ pub fn parse<'s, 'a>(
 /// it as string if successful.
 #[inline(always)]
 pub fn stringify<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'a HandleScope<'s>,
   json_object: Local<'_, Value>,
-) -> Option<Local<'s, String>> {
+) -> Option<Local<'a, String>> {
   unsafe {
     scope.cast_local(|sd| {
       v8__JSON__Stringify(sd.get_current_context(), &*json_object)

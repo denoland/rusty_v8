@@ -16,7 +16,7 @@ unsafe extern "C" {
 impl Date {
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     value: f64,
   ) -> Option<Local<'a, Date>> {
     unsafe {

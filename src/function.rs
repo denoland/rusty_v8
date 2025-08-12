@@ -221,10 +221,7 @@ where
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
   #[inline(always)]
-  pub fn get<'s, 'a>(
-    &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
-  ) -> Local<'a, Value> {
+  pub fn get<'s, 'a>(&self, scope: &'a HandleScope<'s>) -> Local<'a, Value> {
     unsafe { scope.cast_local(|_| v8__ReturnValue__Value__Get(&self.0)) }
       .unwrap()
   }
@@ -520,7 +517,7 @@ impl<F> MapFnFrom<F> for FunctionCallback
 where
   F: UnitType
     + for<'s> Fn(
-      &Pin<&'s mut HandleScope<'_>>,
+      &'s HandleScope<'_>,
       FunctionCallbackArguments<'s>,
       ReturnValue<Value>,
     ),
@@ -544,7 +541,7 @@ impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       Local<'a, Name>,
       PropertyCallbackArguments<'a>,
       ReturnValue<Value>,
@@ -573,7 +570,7 @@ impl<F> MapFnFrom<F> for NamedGetterCallback
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       Local<'a, Name>,
       PropertyCallbackArguments<'a>,
       ReturnValue<Value>,
@@ -602,7 +599,7 @@ impl<F> MapFnFrom<F> for NamedQueryCallback
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       Local<'a, Name>,
       PropertyCallbackArguments<'a>,
       ReturnValue<Integer>,
@@ -632,7 +629,7 @@ impl<F> MapFnFrom<F> for NamedSetterCallbackForAccessor
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       Local<'a, Name>,
       Local<'a, Value>,
       PropertyCallbackArguments<'a>,
@@ -665,7 +662,7 @@ impl<F> MapFnFrom<F> for NamedSetterCallback
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       Local<'a, Name>,
       Local<'a, Value>,
       PropertyCallbackArguments<'a>,
@@ -696,7 +693,7 @@ impl<F> MapFnFrom<F> for PropertyEnumeratorCallback
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       PropertyCallbackArguments<'a>,
       ReturnValue<Array>,
     ),
@@ -723,7 +720,7 @@ impl<F> MapFnFrom<F> for NamedDefinerCallback
 where
   F: UnitType
     + for<'s, 'a> Fn(
-      &Pin<&'a mut HandleScope<'s>>,
+      &'a HandleScope<'s>,
       Local<'a, Name>,
       &PropertyDescriptor,
       PropertyCallbackArguments<'a>,
@@ -986,8 +983,8 @@ impl<'s> FunctionBuilder<'s, Function> {
   #[inline(always)]
   pub fn build<'a>(
     self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
-  ) -> Option<Local<'s, Function>> {
+    scope: &'a HandleScope<'s>,
+  ) -> Option<Local<'a, Function>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Function__New(
@@ -1024,17 +1021,17 @@ impl Function {
   /// for a given FunctionCallback.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'a HandleScope<'s>,
     callback: impl MapFnTo<FunctionCallback>,
-  ) -> Option<Local<'s, Function>> {
+  ) -> Option<Local<'a, Function>> {
     Self::builder(callback).build(scope)
   }
 
   #[inline(always)]
   pub fn new_raw<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'a HandleScope<'s>,
     callback: FunctionCallback,
-  ) -> Option<Local<'s, Function>> {
+  ) -> Option<Local<'a, Function>> {
     Self::builder_raw(callback).build(scope)
   }
 
@@ -1042,10 +1039,10 @@ impl Function {
   #[inline]
   pub fn call<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'a HandleScope<'s>,
     recv: Local<Value>,
     args: &[Local<Value>],
-  ) -> Option<Local<'s, Value>> {
+  ) -> Option<Local<'a, Value>> {
     let args = Local::slice_into_raw(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
@@ -1060,11 +1057,11 @@ impl Function {
   #[inline]
   pub fn call_with_context<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     context: Local<Context>,
     recv: Local<Value>,
     args: &[Local<Value>],
-  ) -> Option<Local<'s, Value>> {
+  ) -> Option<Local<'a, Value>> {
     let args = Local::slice_into_raw(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
@@ -1087,9 +1084,9 @@ impl Function {
   #[inline(always)]
   pub fn new_instance<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'a HandleScope<'s>,
     args: &[Local<Value>],
-  ) -> Option<Local<'s, Object>> {
+  ) -> Option<Local<'a, Object>> {
     let args = Local::slice_into_raw(args);
     let argc = int::try_from(args.len()).unwrap();
     let argv = args.as_ptr();
@@ -1103,8 +1100,8 @@ impl Function {
   #[inline(always)]
   pub fn get_name<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
-  ) -> Local<'s, String> {
+    scope: &'a HandleScope<'s>,
+  ) -> Local<'a, String> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }
 

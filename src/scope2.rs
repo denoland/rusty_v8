@@ -7,7 +7,7 @@ use crate::{
 use std::{
   cell::Cell,
   marker::{PhantomData, PhantomPinned},
-  mem::ManuallyDrop,
+  mem::{ManuallyDrop, offset_of},
   ops::{Deref, DerefMut},
   pin::Pin,
   ptr::NonNull,
@@ -35,7 +35,7 @@ impl<T: ScopeInit> ScopeStorage<T> {
     }
   }
 
-  pub fn init_stack(mut self: Pin<&mut Self>) -> Pin<&mut T> {
+  pub fn init(mut self: Pin<&mut Self>) -> Pin<&mut T> {
     if self.inited {
       // free old, going to reuse this storage
       unsafe {
@@ -79,6 +79,7 @@ impl<T: ScopeInit> ScopeStorage<T> {
   /// SAFEFTY: `self.inited` must be true, and therefore must be pinned
   unsafe fn drop_inner(&mut self) {
     unsafe {
+      eprintln!("deinit");
       T::deinit(&mut self.scope);
     }
     self.inited = false;
@@ -161,10 +162,12 @@ impl<'s, C> ScopeInit for HandleScope<'s, C> {
   }
 
   unsafe fn deinit(me: &mut Self) {
+    eprintln!("deinit handle scope");
     unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
   }
 }
 
+#[repr(C)]
 #[derive(Debug)]
 pub struct HandleScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
@@ -192,7 +195,6 @@ mod get_isolate_impls {
 
   impl GetIsolate for OwnedIsolate {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
-      eprintln!("get_isolate_ptr: {:p}", self.as_real_ptr());
       self.as_real_ptr()
     }
   }
@@ -278,10 +280,9 @@ impl<'s> NewHandleScope<'s> for OwnedIsolate {
   type NewScope = HandleScope<'s, ()>;
 
   fn make_new_scope(me: &Self) -> Self::NewScope {
-    let isolate = NonNull::new(me.get_isolate_ptr()).unwrap();
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate,
+      isolate: unsafe { NonNull::new_unchecked(me.get_isolate_ptr()) },
       context: None,
       _phantom: PhantomData,
     }
@@ -331,29 +332,36 @@ impl<'s> HandleScope<'s> {
     ScopeStorage::new(P::make_new_scope(scope))
   }
 
-  pub fn get_current_context<'a>(
-    self: &Pin<&'a mut Self>,
-  ) -> Local<'a, Context> {
+  pub fn get_current_context<'a>(self: &'a Self) -> Local<'a, Context> {
     unsafe { Local::from_raw(self.context.unwrap().as_ptr()).unwrap() }
   }
 }
 
-impl<'a, C> Deref for HandleScope<'a, C> {
+impl<'a> Deref for HandleScope<'a, ()> {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(&*self.isolate.as_ptr()) }
+    unsafe {
+      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
+    }
   }
 }
 
-impl<'a, T, C> AsRef<T> for HandleScope<'a, C>
-where
-  T: ?Sized,
-  <HandleScope<'a, C> as Deref>::Target: AsRef<T>,
-{
-  fn as_ref(&self) -> &T {
-    self.deref().as_ref()
+impl<'a> Deref for HandleScope<'a> {
+  type Target = HandleScope<'a, ()>;
+  fn deref(&self) -> &Self::Target {
+    unsafe { std::mem::transmute(self) }
   }
 }
+
+// impl<'a, T, C> AsRef<T> for HandleScope<'a, C>
+// where
+//     T: ?Sized,
+//     <HandleScope<'a, C> as Deref>::Target: AsRef<T>,
+// {
+//     fn as_ref(&self) -> &T {
+//         self.deref().as_ref()
+//     }
+// }
 
 impl<'a, 'b> AsRef<Pin<&'a mut HandleScope<'b, ()>>>
   for Pin<&'a mut HandleScope<'b>>
@@ -366,7 +374,7 @@ impl<'a, 'b> AsRef<Pin<&'a mut HandleScope<'b, ()>>>
 impl<'s, C> HandleScope<'s, C> {
   #[inline(always)]
   pub(crate) unsafe fn cast_local<'a, T>(
-    self: &Pin<&'a mut Self>,
+    &'a self,
     _f: impl FnOnce(&mut ScopeData) -> *const T,
   ) -> Option<Local<'a, T>> {
     let mut data = ScopeData {
@@ -378,7 +386,7 @@ impl<'s, C> HandleScope<'s, C> {
   }
 
   pub fn throw_exception<'a>(
-    self: &Pin<&'a mut Self>,
+    self: &'a Self,
     exception: Local<Value>,
   ) -> Local<'a, Value> {
     unsafe {
@@ -396,7 +404,7 @@ impl<'s, C> HandleScope<'s, C> {
   /// The handle must be rooted in this scope.
   #[inline(always)]
   pub unsafe fn unseal<'a, T>(
-    self: &Pin<&'a mut Self>,
+    self: &'a Self,
     v: SealedLocal<T>,
   ) -> Local<'a, T> {
     unsafe { Local::from_non_null(v.0) }
@@ -430,6 +438,13 @@ impl<'s, P> ScopeInit for ContextScope<'s, P> {
   unsafe fn deinit(_me: &mut Self) {
     // let me = unsafe { me.get_unchecked_mut() };
     // unsafe { raw::v8__ContextScope__DESTRUCT(&mut me.raw_handle_scope) };
+  }
+}
+
+impl<'s, P> Deref for ContextScope<'s, P> {
+  type Target = P;
+  fn deref(&self) -> &Self::Target {
+    self.scope
   }
 }
 
@@ -494,12 +509,12 @@ impl<'s, P: NewContextScope<'s>> ContextScope<'s, P> {
   }
 }
 
-impl<'s, P> Deref for ContextScope<'s, P> {
-  type Target = Pin<&'s mut P>;
-  fn deref(&self) -> &Self::Target {
-    self.scope
-  }
-}
+// impl<'s, P> Deref for ContextScope<'s, P> {
+//     type Target = Pin<&'s mut P>;
+//     fn deref(&self) -> &Self::Target {
+//         self.scope
+//     }
+// }
 
 impl<'s, P> AsRef<Pin<&'s mut P>> for ContextScope<'s, P> {
   fn as_ref(&self) -> &Pin<&'s mut P> {
@@ -529,6 +544,7 @@ impl<'s, P> AsRef<Pin<&'s mut P>> for ContextScope<'s, P> {
 
 // callback scope
 
+#[repr(C)]
 pub struct CallbackScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
@@ -550,6 +566,19 @@ impl<'s> CallbackScope<'s> {
     param: &P,
   ) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(param))
+  }
+}
+
+impl<'s> Deref for CallbackScope<'s> {
+  type Target = HandleScope<'s>;
+  fn deref(&self) -> &Self::Target {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+impl<'s> Deref for CallbackScope<'s, ()> {
+  type Target = HandleScope<'s, ()>;
+  fn deref(&self) -> &Self::Target {
+    unsafe { std::mem::transmute(self) }
   }
 }
 
@@ -582,22 +611,22 @@ impl<'s> CallbackScope<'s> {
 //   }
 // }
 
-impl<'a, C> Deref for CallbackScope<'a, C> {
-  type Target = HandleScope<'a, C>;
-  fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
-  }
-}
+// impl<'a, C> Deref for CallbackScope<'a, C> {
+//     type Target = HandleScope<'a, C>;
+//     fn deref(&self) -> &Self::Target {
+//         unsafe { std::mem::transmute(self) }
+//     }
+// }
 
-impl<'a, T, C> AsRef<T> for CallbackScope<'a, C>
-where
-  T: ?Sized,
-  <CallbackScope<'a, C> as Deref>::Target: AsRef<T>,
-{
-  fn as_ref(&self) -> &T {
-    self.deref().as_ref()
-  }
-}
+// impl<'a, T, C> AsRef<T> for CallbackScope<'a, C>
+// where
+//   T: ?Sized,
+//   <CallbackScope<'a, C> as Deref>::Target: AsRef<T>,
+// {
+//   fn as_ref(&self) -> &T {
+//     self.deref().as_ref()
+//   }
+// }
 
 impl<'a, C> CallbackScope<'a, C> {
   pub fn as_handle_scope<'b, 'c, 'd>(
@@ -664,6 +693,43 @@ pub trait NewCallbackScope<'s>: Sized + GetIsolate {
 
   fn make_new_scope(me: &Self) -> Self::NewScope;
 }
+
+const ASSERT_CALLBACK_SCOPE_SUBSET_OF_HANDLE_SCOPE: () = {
+  if !(std::mem::size_of::<CallbackScope<'static, ()>>()
+    > std::mem::size_of::<HandleScope<'static, ()>>())
+  {
+    panic!("CallbackScope must be larger than HandleScope");
+  }
+  if offset_of!(CallbackScope<'static, ()>, raw_handle_scope)
+    != offset_of!(HandleScope<'static, ()>, raw_handle_scope)
+  {
+    panic!(
+      "CallbackScope and HandleScope have different offsets for raw_handle_scope"
+    );
+  }
+  if offset_of!(CallbackScope<'static, ()>, isolate)
+    != offset_of!(HandleScope<'static, ()>, isolate)
+  {
+    panic!("CallbackScope and HandleScope have different offsets for isolate");
+  }
+  if offset_of!(CallbackScope<'static, ()>, context)
+    != offset_of!(HandleScope<'static, ()>, context)
+  {
+    panic!("CallbackScope and HandleScope have different offsets for context");
+  }
+  if offset_of!(CallbackScope<'static, ()>, _phantom)
+    != offset_of!(HandleScope<'static, ()>, _phantom)
+  {
+    panic!("CallbackScope and HandleScope have different offsets for _phantom");
+  }
+  if std::mem::align_of::<CallbackScope<'static, ()>>()
+    != std::mem::align_of::<HandleScope<'static, ()>>()
+  {
+    panic!(
+      "CallbackScope and HandleScope have different alignments for _phantom"
+    );
+  }
+};
 
 fn make_new_callback_scope<'a, C>(
   isolate: &impl GetIsolate,
@@ -845,33 +911,25 @@ impl<'s, 'b, 'c> AsRef2<'b, Pin<&'s mut HandleScope<'c, ()>>>
   }
 }
 
+impl<'s, 'b> AsRef2<'b, Pin<&'s mut HandleScope<'b, ()>>>
+  for &'b ContextScope<'s, HandleScope<'b, ()>>
+{
+  fn casted(self) -> &'b Pin<&'s mut HandleScope<'b, ()>> {
+    unsafe { std::mem::transmute(self.scope) }
+  }
+}
+impl<'s, 'b> AsRef2<'b, Pin<&'s mut HandleScope<'b, Context>>>
+  for &'b ContextScope<'s, HandleScope<'b, Context>>
+{
+  fn casted(self) -> &'b Pin<&'s mut HandleScope<'b, Context>> {
+    unsafe { std::mem::transmute(self.scope) }
+  }
+}
 impl<'s, 'r, 'c> AsRef2<'r, Pin<&'s mut HandleScope<'c, ()>>>
-  for &'r ContextScope<'s, HandleScope<'c, ()>>
+  for &'r ContextScope<'s, HandleScope<'c, Context>>
 {
   fn casted(self) -> &'r Pin<&'s mut HandleScope<'c, ()>> {
     unsafe { std::mem::transmute(self.scope) }
-  }
-}
-impl<'s, 'r, 'c> AsRef2<'r, Pin<&'s mut HandleScope<'c, Context>>>
-  for &'r ContextScope<'s, HandleScope<'c, Context>>
-{
-  fn casted(self) -> &'r Pin<&'s mut HandleScope<'c, Context>> {
-    unsafe { std::mem::transmute(self.scope) }
-  }
-}
-impl<'s, 'r, 'c> AsRef2<'r, Pin<&'s mut HandleScope<'c, ()>>>
-  for &'r ContextScope<'s, HandleScope<'c, Context>>
-{
-  fn casted(self) -> &'r Pin<&'s mut HandleScope<'c, ()>> {
-    unsafe { std::mem::transmute(self.scope) }
-  }
-}
-
-impl<'s, 'r, 'c> AsRef2<'r, Isolate>
-  for &'r ContextScope<'s, HandleScope<'c, Context>>
-{
-  fn casted(self) -> &'c Isolate {
-    unsafe { std::mem::transmute(self.scope.isolate) }
   }
 }
 
@@ -906,9 +964,8 @@ impl<'s, 'b, 'c, C> AsRef2<'b, Pin<&'s mut HandleScope<'c, C>>>
 #[allow(unused_macros)]
 macro_rules! bind_callbackscope {
   (unsafe $scope: ident, $param: expr) => {
-    let $scope = unsafe { $crate::CallbackScope::new($param) };
-    let $scope = std::pin::pin!($scope);
-    let $scope = &$scope.init_stack();
+    let $scope = std::pin::pin!(unsafe { $crate::CallbackScope::new($param) });
+    let $scope = &$scope.init();
   };
 }
 

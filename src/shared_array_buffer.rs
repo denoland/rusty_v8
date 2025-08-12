@@ -46,7 +46,7 @@ impl SharedArrayBuffer {
   /// unless the object is externalized.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     byte_length: usize,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     unsafe {
@@ -61,7 +61,7 @@ impl SharedArrayBuffer {
 
   #[inline(always)]
   pub fn with_backing_store<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'s, SharedArrayBuffer> {
     unsafe {
@@ -99,7 +99,7 @@ impl SharedArrayBuffer {
   /// function will crash with an out-of-memory error.
   #[inline(always)]
   pub fn new_backing_store<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

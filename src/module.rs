@@ -429,8 +429,8 @@ impl Module {
   #[inline(always)]
   pub fn evaluate<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
-  ) -> Option<Local<'s, Value>> {
+    scope: &'a HandleScope<'s>,
+  ) -> Option<Local<'a, Value>> {
     unsafe {
       scope
         .cast_local(|sd| v8__Module__Evaluate(self, sd.get_current_context()))
@@ -465,7 +465,7 @@ impl Module {
   /// behavior.
   #[inline(always)]
   pub fn create_synthetic_module<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     module_name: Local<String>,
     export_names: &[Local<String>],
     evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
@@ -515,7 +515,7 @@ impl Module {
   #[inline(always)]
   pub fn get_unbound_module_script<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, UnboundModuleScript> {
     unsafe {
       scope

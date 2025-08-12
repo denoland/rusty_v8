@@ -43,7 +43,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
@@ -70,7 +70,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
@@ -95,7 +95,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);

@@ -40,7 +40,7 @@ macro_rules! typed_array {
       impl $name {
         #[inline(always)]
         pub fn new<'s, 'a>(
-          scope: &std::pin::Pin<&'s mut HandleScope<'a>>,
+          scope: &'s HandleScope<'a>,
           buf: Local<ArrayBuffer>,
           byte_offset: usize,
           length: usize,

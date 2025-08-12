@@ -102,7 +102,7 @@ impl Context {
   /// Creates a new context.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     options: ContextOptions,
   ) -> Local<'a, Context> {
     unsafe {
@@ -123,7 +123,7 @@ impl Context {
   #[inline(always)]
   pub fn get_extras_binding_object<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
   ) -> Local<'a, Object> {
     unsafe { scope.cast_local(|_| v8__Context__GetExtrasBindingObject(self)) }
       .unwrap()
@@ -142,7 +142,7 @@ impl Context {
   #[inline(always)]
   pub fn global<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
   ) -> Local<'a, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
@@ -330,7 +330,7 @@ impl Context {
   #[inline(always)]
   pub fn get_embedder_data<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     slot: i32,
   ) -> Option<Local<'a, Value>> {
     unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
@@ -371,7 +371,7 @@ impl Context {
   /// is no way to provide a global object template since we do not create
   /// a new global object from template, but we can reuse a global object.
   pub fn from_snapshot<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     context_snapshot_index: usize,
     options: ContextOptions,
   ) -> Option<Local<'a, Context>> {
@@ -390,7 +390,7 @@ impl Context {
   #[inline(always)]
   pub fn get_security_token<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
   ) -> Local<'a, Value> {
     unsafe { scope.cast_local(|_| v8__Context__GetSecurityToken(self)) }
       .unwrap()

@@ -28,9 +28,7 @@ unsafe extern "C" {
 
 macro_rules! well_known {
   ($name:ident, $binding:ident) => {
-    pub fn $name<'s, 'a>(
-      scope: &std::pin::Pin<&'s mut HandleScope<'a>>,
-    ) -> Local<'s, Symbol> {
+    pub fn $name<'s, 'a>(scope: &'s HandleScope<'a>) -> Local<'s, Symbol> {
       unsafe extern "C" {
         fn $binding(isolate: *mut RealIsolate) -> *const Symbol;
       }
@@ -44,7 +42,7 @@ impl Symbol {
   /// description.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     description: Option<Local<String>>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -67,7 +65,7 @@ impl Symbol {
   /// Corresponds to v8::Symbol::For() in C++.
   #[inline(always)]
   pub fn for_key<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -82,7 +80,7 @@ impl Symbol {
   /// Corresponds to v8::Symbol::ForApi() in C++.
   #[inline(always)]
   pub fn for_api<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -97,7 +95,7 @@ impl Symbol {
   #[inline(always)]
   pub fn description<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Value> {
     unsafe {
       scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))
