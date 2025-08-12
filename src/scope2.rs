@@ -247,13 +247,13 @@ mod get_isolate_impls {
 pub trait NewHandleScope<'s> {
   type NewScope: Scope;
 
-  fn make_new_scope(me: &mut Self) -> Self::NewScope;
+  fn make_new_scope(me: Self) -> Self::NewScope;
 }
 
-impl<'s, 'p: 's, C> NewHandleScope<'s> for HandleScope<'p, C> {
+impl<'s, 'p: 's, C> NewHandleScope<'s> for &mut HandleScope<'p, C> {
   type NewScope = HandleScope<'s, C>;
 
-  fn make_new_scope(me: &mut Self) -> Self::NewScope {
+  fn make_new_scope(me: Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: (*me).isolate,
@@ -263,10 +263,10 @@ impl<'s, 'p: 's, C> NewHandleScope<'s> for HandleScope<'p, C> {
   }
 }
 
-impl<'s> NewHandleScope<'s> for Isolate {
+impl<'s> NewHandleScope<'s> for &'s mut Isolate {
   type NewScope = HandleScope<'s, ()>;
 
-  fn make_new_scope(me: &mut Self) -> Self::NewScope {
+  fn make_new_scope(me: Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.as_real_ptr()) },
@@ -276,10 +276,10 @@ impl<'s> NewHandleScope<'s> for Isolate {
   }
 }
 
-impl<'s> NewHandleScope<'s> for OwnedIsolate {
+impl<'s> NewHandleScope<'s> for &'s mut OwnedIsolate {
   type NewScope = HandleScope<'s, ()>;
 
-  fn make_new_scope(me: &mut Self) -> Self::NewScope {
+  fn make_new_scope(me: Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.get_isolate_ptr()) },
@@ -289,10 +289,10 @@ impl<'s> NewHandleScope<'s> for OwnedIsolate {
   }
 }
 
-impl<'s, 'p: 's, C> NewHandleScope<'s> for CallbackScope<'p, C> {
+impl<'s, 'p: 's, C> NewHandleScope<'s> for &mut CallbackScope<'p, C> {
   type NewScope = HandleScope<'s, C>;
 
-  fn make_new_scope(me: &mut Self) -> Self::NewScope {
+  fn make_new_scope(me: Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: (*me).isolate,
@@ -328,9 +328,7 @@ impl ScopeData {
 // stuff ported over-ish from scope.rs
 
 impl<'s> HandleScope<'s> {
-  pub fn new<P: NewHandleScope<'s>>(
-    scope: &mut P,
-  ) -> ScopeStorage<P::NewScope> {
+  pub fn new<P: NewHandleScope<'s>>(scope: P) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(scope))
   }
 
@@ -423,7 +421,7 @@ impl<'a, 's, C> GetIsolate for Pin<&'a mut HandleScope<'s, C>> {
 
 pub struct ContextScope<'s, 'p, P> {
   raw_handle_scope: raw::ContextScope,
-  scope: &'p mut Pin<&'s mut P>,
+  scope: &'p Pin<&'s mut P>,
 }
 
 impl<'s, 'p, P> ScopeInit for ContextScope<'s, 'p, P> {
@@ -453,49 +451,45 @@ impl<'s, 'p, P> Deref for ContextScope<'s, 'p, P> {
 impl<'s, 'p, P> sealed::Sealed for ContextScope<'s, 'p, P> {}
 impl<'s, 'p, P> Scope for ContextScope<'s, 'p, P> {}
 
-pub trait NewContextScope<'s, 'p> {
+pub trait NewContextScope<'s, 'p, 'i> {
   type NewScope: Scope;
 
-  fn make_new_scope(
-    me: &'p mut Pin<&'s mut Self>,
-    context: Local<Context>,
-  ) -> Self::NewScope;
+  fn make_new_scope(me: Self, context: Local<'s, Context>) -> Self::NewScope;
 }
 
-impl<'s, 'p, P: Scope> NewContextScope<'s, 'p> for ContextScope<'s, 'p, P> {
-  type NewScope = ContextScope<'s, 'p, P>;
+// impl<'s, 'p, P: Scope> NewContextScope<'s, 'p> for ContextScope<'s, 'p, P> {
+//     type NewScope = ContextScope<'s, 'p, P>;
 
-  fn make_new_scope(
-    me: &'p mut Pin<&'s mut Self>,
-    context: Local<Context>,
-  ) -> Self::NewScope {
+//     fn make_new_scope(me: &'p Pin<&'s mut Self>, context: Local<Context>) -> Self::NewScope {
+//         ContextScope {
+//             raw_handle_scope: raw::ContextScope::new(context),
+//             scope: me.scope,
+//         }
+//     }
+// }
+
+impl<'s, 'p, 'i, C> NewContextScope<'s, 'p, 'i>
+  for &'p Pin<&'s mut HandleScope<'i, C>>
+{
+  type NewScope = ContextScope<'s, 'p, HandleScope<'i>>;
+
+  fn make_new_scope(me: Self, context: Local<'s, Context>) -> Self::NewScope {
     ContextScope {
       raw_handle_scope: raw::ContextScope::new(context),
-      scope: me.scope,
+      scope: unsafe {
+        // we are adding the context, so we can mark that it now has a context.
+        std::mem::transmute::<
+          &'p Pin<&'s mut HandleScope<'i, C>>,
+          &'p Pin<&'s mut HandleScope<'i, Context>>,
+        >(me)
+      },
     }
   }
 }
 
-impl<'s: 'p, 'p, C> NewContextScope<'s, 'p> for HandleScope<'s, C> {
-  type NewScope = ContextScope<'s, 'p, HandleScope<'s>>;
-
-  fn make_new_scope(
-    me: &'p mut Pin<&'s mut Self>,
-    context: Local<Context>,
-  ) -> Self::NewScope {
-    ContextScope {
-      raw_handle_scope: raw::ContextScope::new(context),
-      scope: unsafe { std::mem::transmute(me) },
-    }
-  }
-}
-
-impl<'s, 'p, P: NewContextScope<'s, 'p>> ContextScope<'s, 'p, P> {
+impl<'s, 'p, 'i, P: NewContextScope<'s, 'p, 'i>> ContextScope<'s, 'p, P> {
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(
-    param: &'p mut Pin<&'s mut P>,
-    context: Local<'s, Context>,
-  ) -> P::NewScope {
+  pub fn new(param: P, context: Local<'s, Context>) -> P::NewScope {
     // let scope_data = param.get_scope_data_mut();
     // if scope_data.get_isolate_ptr()
     //   != unsafe { raw::v8__Context__GetIsolate(&*context) }
@@ -518,11 +512,11 @@ impl<'s, 'p, P: NewContextScope<'s, 'p>> ContextScope<'s, 'p, P> {
 //     }
 // }
 
-impl<'s, 'p, P> AsRef<Pin<&'s mut P>> for ContextScope<'s, 'p, P> {
-  fn as_ref(&self) -> &Pin<&'s mut P> {
-    self.scope
-  }
-}
+// impl<'s, 'p, P> AsRef<Pin<&'s mut P>> for ContextScope<'s, 'p, P> {
+//     fn as_ref(&self) -> &Pin<&'s mut P> {
+//         self.scope
+//     }
+// }
 
 // impl<'s, 'p: 's, 'e: 'p, C> NewContextScope<'s> for EscapableHandleScope<'p, 'e, C> {
 //     type NewScope = ContextScope<'s, EscapableHandleScope<'p, 'e>>;
@@ -557,9 +551,9 @@ pub struct CallbackScope<'s, C = Context> {
 
 impl<'s, C> Drop for CallbackScope<'s, C> {
   fn drop(&mut self) {
-    if self.needs_scope {
-      unsafe { raw::v8__HandleScope__DESTRUCT(&mut self.raw_handle_scope) };
-    }
+    // if self.needs_scope {
+    unsafe { raw::v8__HandleScope__DESTRUCT(&mut self.raw_handle_scope) };
+    // }
   }
 }
 
@@ -647,14 +641,11 @@ impl<'s, C> ScopeInit for CallbackScope<'s, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.isolate;
-    if storage_mut.scope.needs_scope {
-      unsafe {
-        raw::HandleScope::init(
-          &mut storage_mut.scope.raw_handle_scope,
-          isolate,
-        );
-      }
+    // if storage_mut.scope.needs_scope {
+    unsafe {
+      raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate);
     }
+    // }
 
     let projected = &mut storage_mut.scope;
     unsafe { Pin::new_unchecked(projected) }
@@ -667,22 +658,21 @@ impl<'s, C> ScopeInit for CallbackScope<'s, C> {
     let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
     {
       let isolate = storage_mut.scope.isolate;
-      if storage_mut.scope.needs_scope {
-        unsafe {
-          raw::HandleScope::init(
-            &mut storage_mut.scope.raw_handle_scope,
-            isolate,
-          );
-        }
+      // if storage_mut.scope.needs_scope {
+      unsafe {
+        raw::HandleScope::init(
+          &mut storage_mut.scope.raw_handle_scope,
+          isolate,
+        );
       }
+      // }
     }
 
     BoxedStorage::casted(storage)
   }
 
-  unsafe fn deinit(_me: &mut Self) {
-    // let me = unsafe { me.get_unchecked_mut() };
-    // unsafe { raw::v8__ContextScope__DESTRUCT(&mut me.raw_handle_scope) };
+  unsafe fn deinit(me: &mut Self) {
+    unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
   }
 }
 
