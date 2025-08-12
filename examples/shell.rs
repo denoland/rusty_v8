@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 fn main() {
   // Initialize V8.
   let platform = v8::new_default_platform(0, false).make_shared();
@@ -10,22 +12,23 @@ fn main() {
 
   let mut run_shell_flag = args.len() == 1;
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-  let handle_scope = &mut v8::HandleScope::new(isolate);
+  let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
+  let mut handle_scope = handle_scope.init();
 
-  let context = v8::Context::new(handle_scope, Default::default());
+  let context = v8::Context::new(&handle_scope, Default::default());
 
-  let context_scope = &mut v8::ContextScope::new(handle_scope, context);
-  let scope = &mut v8::HandleScope::new(context_scope);
+  let context = context.erased();
+  let scope = unsafe { v8::ContextScope::new(handle_scope.as_mut(), context) };
 
-  run_main(scope, &args, &mut run_shell_flag);
+  run_main(&scope, &args, &mut run_shell_flag);
 
   if run_shell_flag {
-    run_shell(scope);
+    run_shell(&scope);
   }
 }
 
 /// Process remaining command line arguments and execute files
-fn run_shell(scope: &mut v8::HandleScope) {
+fn run_shell(scope: &v8::HandleScope) {
   use std::io::{self, Write};
 
   println!("V8 version {} [sample shell]", v8::V8::get_version());
@@ -50,11 +53,7 @@ fn run_shell(scope: &mut v8::HandleScope) {
 }
 
 /// Process remaining command line arguments and execute files
-fn run_main(
-  scope: &mut v8::HandleScope,
-  args: &[String],
-  run_shell: &mut bool,
-) {
+fn run_main(scope: &v8::HandleScope, args: &[String], run_shell: &mut bool) {
   let mut skip_next = false;
 
   // Parse command-line arguments.
@@ -110,18 +109,19 @@ fn run_main(
 }
 
 fn execute_string(
-  scope: &mut v8::HandleScope,
+  scope: &v8::HandleScope,
   script: &str,
   filename: &str,
   print_result: bool,
   report_exceptions_flag: bool,
 ) {
-  let mut scope = v8::TryCatch::new(scope);
+  let tc = std::pin::pin!(v8::TryCatch::new(scope));
+  let tc = tc.init();
 
-  let filename = v8::String::new(&mut scope, filename).unwrap();
-  let script = v8::String::new(&mut scope, script).unwrap();
+  let filename = v8::String::new(&scope, filename).unwrap();
+  let script = v8::String::new(&scope, script).unwrap();
   let origin = v8::ScriptOrigin::new(
-    &mut scope,
+    &scope,
     filename.into(),
     0,
     0,
@@ -134,44 +134,43 @@ fn execute_string(
     None,
   );
 
-  let script = if let Some(script) =
-    v8::Script::compile(&mut scope, script, Some(&origin))
-  {
-    script
-  } else {
-    assert!(scope.has_caught());
+  let script =
+    if let Some(script) = v8::Script::compile(&scope, script, Some(&origin)) {
+      script
+    } else {
+      assert!(tc.has_caught());
 
-    if report_exceptions_flag {
-      report_exceptions(scope);
-    }
-    return;
-  };
+      if report_exceptions_flag {
+        report_exceptions(&tc, &scope);
+      }
+      return;
+    };
 
-  if let Some(result) = script.run(&mut scope) {
+  if let Some(result) = script.run(&scope) {
     if print_result {
       println!(
         "{}",
         result
-          .to_string(&mut scope)
+          .to_string(&scope)
           .unwrap()
-          .to_rust_string_lossy(&mut scope)
+          .to_rust_string_lossy(&scope)
       );
     }
   } else {
-    assert!(scope.has_caught());
+    assert!(tc.has_caught());
     if report_exceptions_flag {
-      report_exceptions(scope);
+      report_exceptions(&tc, &scope);
     }
   }
 }
 
-fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
-  let exception = try_catch.exception().unwrap();
+fn report_exceptions(try_catch: &v8::TryCatch, scope: &v8::HandleScope) {
+  let exception = try_catch.exception(scope).unwrap();
   let exception_string = exception
-    .to_string(&mut try_catch)
+    .to_string(&scope)
     .unwrap()
-    .to_rust_string_lossy(&mut try_catch);
-  let message = if let Some(message) = try_catch.message() {
+    .to_rust_string_lossy(&scope);
+  let message = if let Some(message) = try_catch.message(&scope) {
     message
   } else {
     eprintln!("{exception_string}");
@@ -179,28 +178,18 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
   };
 
   // Print (filename):(line number): (message).
-  let filename = message
-    .get_script_resource_name(&mut try_catch)
-    .map_or_else(
-      || "(unknown)".into(),
-      |s| {
-        s.to_string(&mut try_catch)
-          .unwrap()
-          .to_rust_string_lossy(&mut try_catch)
-      },
-    );
-  let line_number = message.get_line_number(&mut try_catch).unwrap_or_default();
+  let filename = message.get_script_resource_name(&scope).map_or_else(
+    || "(unknown)".into(),
+    |s| s.to_string(&scope).unwrap().to_rust_string_lossy(&scope),
+  );
+  let line_number = message.get_line_number(&scope).unwrap_or_default();
 
   eprintln!("{filename}:{line_number}: {exception_string}");
 
   // Print line of source code.
   let source_line = message
-    .get_source_line(&mut try_catch)
-    .map(|s| {
-      s.to_string(&mut try_catch)
-        .unwrap()
-        .to_rust_string_lossy(&mut try_catch)
-    })
+    .get_source_line(&scope)
+    .map(|s| s.to_string(&scope).unwrap().to_rust_string_lossy(&scope))
     .unwrap();
   eprintln!("{source_line}");
 
@@ -219,7 +208,7 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
   eprintln!();
 
   // Print stack trace
-  let stack_trace = if let Some(stack_trace) = try_catch.stack_trace() {
+  let stack_trace = if let Some(stack_trace) = try_catch.stack_trace(&scope) {
     stack_trace
   } else {
     return;
@@ -227,8 +216,8 @@ fn report_exceptions(mut try_catch: v8::TryCatch<v8::HandleScope>) {
   let stack_trace =
     unsafe { v8::Local::<v8::String>::cast_unchecked(stack_trace) };
   let stack_trace = stack_trace
-    .to_string(&mut try_catch)
-    .map(|s| s.to_rust_string_lossy(&mut try_catch));
+    .to_string(&scope)
+    .map(|s| s.to_rust_string_lossy(&scope));
 
   if let Some(stack_trace) = stack_trace {
     eprintln!("{stack_trace}");

@@ -1,9 +1,11 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::pin::Pin;
 
 #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
-  scope: &mut v8::HandleScope,
+  scope: &v8::HandleScope,
   args: v8::FunctionCallbackArguments,
   mut _retval: v8::ReturnValue,
 ) {
@@ -29,11 +31,12 @@ fn main() {
   }
 
   let mut isolate = v8::Isolate::new(v8::CreateParams::default());
-  let mut scope = v8::HandleScope::new(&mut isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = RefCell::new(scope.init());
 
   let source = std::fs::read_to_string(&file)
     .unwrap_or_else(|err| panic!("failed to open {file}: {err}"));
-  let source = v8::String::new(&mut scope, &source).unwrap();
+  let source = v8::String::new(&scope.borrow(), &source).unwrap();
 
   let mut processor = JsHttpRequestProcessor::new(&mut scope, source, options);
 
@@ -125,44 +128,46 @@ impl HttpRequest for StringHttpRequest {
 
 /// An http request processor that is scriptable using JavaScript.
 struct JsHttpRequestProcessor<'s, 'i> {
-  context: v8::Local<'s, v8::Context>,
+  context: v8::Local<'i, v8::Context>,
   context_scope: v8::ContextScope<'i, v8::HandleScope<'s>>,
-  process_fn: Option<v8::Local<'s, v8::Function>>,
+  process_fn: Option<v8::Local<'i, v8::Function>>,
   request_template: v8::Global<v8::ObjectTemplate>,
   _map_template: Option<v8::Global<v8::ObjectTemplate>>,
 }
 
 impl<'s, 'i> JsHttpRequestProcessor<'s, 'i>
 where
-  's: 'i,
+  'i: 's,
 {
   /// Creates a scriptable HTTP request processor.
   pub fn new(
-    isolate_scope: &'i mut v8::HandleScope<'s, ()>,
-    source: v8::Local<'s, v8::String>,
+    isolate_scope: &RefCell<Pin<&'i mut v8::HandleScope<'s, ()>>>,
+    source: v8::Local<'i, v8::String>,
     options: HashMap<String, String>,
   ) -> Self {
-    let global = v8::ObjectTemplate::new(isolate_scope);
+    let global = v8::ObjectTemplate::new(&isolate_scope.borrow());
     global.set(
-      v8::String::new(isolate_scope, "log").unwrap().into(),
-      v8::FunctionTemplate::new(isolate_scope, log_callback).into(),
+      v8::String::new(&isolate_scope.borrow(), "log").unwrap().into(),
+      v8::FunctionTemplate::new(&isolate_scope.borrow(), log_callback).into(),
     );
 
     let context = v8::Context::new(
-      isolate_scope,
+      &isolate_scope.borrow(),
       v8::ContextOptions {
         global_template: Some(global),
         ..Default::default()
       },
     );
-    let mut context_scope = v8::ContextScope::new(isolate_scope, context);
+    let mut context_scope = unsafe {
+      let context = context.erased();
+      v8::ContextScope::new(isolate_scope.borrow_mut().as_mut(), context)
+    };
 
-    let request_template = v8::ObjectTemplate::new(&mut context_scope);
+    let request_template = v8::ObjectTemplate::new(&context_scope);
     request_template.set_internal_field_count(1);
 
     // make it global
-    let request_template =
-      v8::Global::new(&mut context_scope, request_template);
+    let request_template = v8::Global::new(&context_scope, request_template);
 
     let mut self_ = JsHttpRequestProcessor {
       context,
@@ -338,16 +343,16 @@ where
   }
 
   fn wrap_map(
-    &mut self,
+    &'i mut self,
     options: HashMap<String, String>,
-  ) -> v8::Local<'s, v8::Object> {
+  ) -> v8::Local<'i, v8::Object> {
     // TODO: wrap map, not convert into Object
-    let scope = &mut self.context_scope;
-    let result = v8::Object::new(scope);
+    let scope = &self.context_scope;
+    let result = v8::Object::new(&**scope);
 
     for (key, value) in options {
-      let key = v8::String::new(scope, &key).unwrap().into();
-      let value = v8::String::new(scope, &value).unwrap().into();
+      let key = v8::String::new(&**scope, &key).unwrap().into();
+      let value = v8::String::new(&**scope, &value).unwrap().into();
       result.set(scope, key, value);
     }
 
@@ -356,7 +361,10 @@ where
 
   /// Prints the output.
   pub fn print_output(&mut self) {
-    let scope = &mut v8::HandleScope::new(&mut self.context_scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(
+      self.context_scope.as_handle_scope_mut()
+    ));
+    let scope = &scope.init();
     let key = v8::String::new(scope, "output").unwrap();
     let output = self
       .context

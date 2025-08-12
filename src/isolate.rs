@@ -827,7 +827,6 @@ impl Isolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
-    eprintln!("new_impl: {:p}", cxx_isolate);
     let mut isolate = unsafe { Isolate::from_raw_ptr(cxx_isolate) };
     isolate.initialize(create_param_allocations);
     cxx_isolate
@@ -1003,7 +1002,6 @@ impl Isolate {
 
   #[inline(always)]
   pub(crate) fn get_data_internal(&self, slot: u32) -> *mut c_void {
-    eprintln!("get_data_internal: {:p}", self.as_real_ptr());
     unsafe { v8__Isolate__GetData(self.as_real_ptr(), slot) }
   }
 
@@ -1373,7 +1371,7 @@ impl Isolate {
       let callback = isolate
         .get_slot::<HostCreateShadowRealmContextCallback>()
         .unwrap();
-      let context = callback(scope.casted());
+      let context = callback(scope.as_handle_scope());
       context.map_or_else(null_mut, |l| l.as_non_null().as_ptr())
     }
 
@@ -1961,11 +1959,8 @@ impl OwnedIsolate {
   }
 
   pub(crate) fn new_already_entered(cxx_isolate: *mut RealIsolate) -> Self {
-    eprintln!("new_already_entered: {:p}", cxx_isolate);
     let cxx_isolate = NonNull::new(cxx_isolate).unwrap();
-    eprintln!("new_already_entered: {:p}", cxx_isolate.as_ptr());
-    let mut owned_isolate: OwnedIsolate = Self { cxx_isolate };
-    eprintln!("new_already_entered: {:p}", owned_isolate.as_real_ptr());
+    let owned_isolate: OwnedIsolate = Self { cxx_isolate };
     // owned_isolate.init_scope_root();
     owned_isolate
   }

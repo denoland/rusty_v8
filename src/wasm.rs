@@ -211,7 +211,7 @@ where
       v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), &*data, &mut that);
     };
     let source = args.get(0);
-    (F::get())(scope.casted(), source, WasmStreaming(that));
+    (F::get())(scope.as_handle_scope(), source, WasmStreaming(that));
   }
   c_fn::<F>
 }

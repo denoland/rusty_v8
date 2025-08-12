@@ -5,6 +5,7 @@
 
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::pin::pin;
 use std::rc::Rc;
 use std::sync::Once;
 use std::sync::atomic::AtomicUsize;
@@ -45,7 +46,8 @@ impl CoreIsolate {
 
   // Returns false if there was an error.
   fn execute(&mut self, code: &str) -> bool {
-    let scope = &mut v8::HandleScope::new(&mut self.0);
+    let scope = pin!(v8::HandleScope::new(&mut self.0));
+    let scope = &scope.init();
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, code).unwrap();

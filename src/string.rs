@@ -488,9 +488,7 @@ impl String {
   /// string.
   #[inline(always)]
   pub fn utf8_length(&self, scope: &Isolate) -> usize {
-    unsafe {
-      v8__String__Utf8Length(self, scope as *const _ as *mut _) as usize
-    }
+    unsafe { v8__String__Utf8Length(self, scope.as_real_ptr()) as usize }
   }
 
   /// Writes the contents of the string to an external buffer, as 16-bit
@@ -574,7 +572,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte_v2(
         self,
-        scope as *const _ as *mut _,
+        scope.as_real_ptr(),
         offset,
         self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr(),
@@ -597,7 +595,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte(
         self,
-        scope as *const _ as *mut _,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr() as *mut u8,
         start.try_into().unwrap_or(int::MAX),
         buffer.len().try_into().unwrap_or(int::MAX),
@@ -619,7 +617,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte_v2(
         self,
-        scope as *const _ as *mut _,
+        scope.as_real_ptr(),
         offset,
         self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr() as _,
@@ -693,7 +691,7 @@ impl String {
     let bytes = unsafe {
       v8__String__WriteUtf8(
         self,
-        scope as *const _ as *mut _,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr() as *mut char,
         buffer.len().try_into().unwrap_or(int::MAX),
         &mut nchars_ref_int,
@@ -717,7 +715,7 @@ impl String {
     let bytes = unsafe {
       v8__String__WriteUtf8_v2(
         self,
-        scope as *const _ as *mut _,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr() as _,
         buffer.len(),
         flags.bits(),

@@ -377,7 +377,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// in the current function, `FunctionCallbackArguments::get_isolate()` should
   /// not be called.
   #[inline(always)]
-  pub unsafe fn get_isolate(&mut self) -> &mut RealIsolate {
+  pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
     unsafe { std::mem::transmute(self.0.get_isolate_ptr()) }
   }
 
@@ -581,10 +581,10 @@ where
              info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let key = unsafe { scope.casted().unseal(key) };
+      let key = unsafe { scope.as_handle_scope().unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, args, rv)
+      (F::get())(scope.as_handle_scope(), key, args, rv)
     };
     f.to_c_fn()
   }
@@ -610,10 +610,10 @@ where
              info: *const PropertyCallbackInfo<Integer>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let key = unsafe { scope.casted().unseal(key) };
+      let key = unsafe { scope.as_handle_scope().unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, args, rv)
+      (F::get())(scope.as_handle_scope(), key, args, rv)
     };
     f.to_c_fn()
   }
@@ -642,11 +642,11 @@ where
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let key = unsafe { scope.casted().unseal(key) };
-      let value = unsafe { scope.casted().unseal(value) };
+      let key = unsafe { scope.as_handle_scope().unseal(key) };
+      let value = unsafe { scope.as_handle_scope().unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, value, args, rv);
+      (F::get())(scope.as_handle_scope(), key, value, args, rv);
     };
     f.to_c_fn()
   }
@@ -675,11 +675,11 @@ where
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let key = unsafe { scope.casted().unseal(key) };
-      let value = unsafe { scope.casted().unseal(value) };
+      let key = unsafe { scope.as_handle_scope().unseal(key) };
+      let value = unsafe { scope.as_handle_scope().unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, value, args, rv)
+      (F::get())(scope.as_handle_scope(), key, value, args, rv)
     };
     f.to_c_fn()
   }
@@ -704,7 +704,7 @@ where
       bind_callbackscope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), args, rv);
+      (F::get())(scope.as_handle_scope(), args, rv);
     };
     f.to_c_fn()
   }
@@ -733,11 +733,11 @@ where
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let key = unsafe { scope.casted().unseal(key) };
+      let key = unsafe { scope.as_handle_scope().unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let desc = unsafe { &*desc };
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, desc, args, rv)
+      (F::get())(scope.as_handle_scope(), key, desc, args, rv)
     };
     f.to_c_fn()
   }
@@ -763,10 +763,10 @@ where
              info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let key = unsafe { scope.casted().unseal(key) };
+      let key = unsafe { scope.as_handle_scope().unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, args, rv)
+      (F::get())(scope.as_handle_scope(), key, args, rv)
     };
     f.to_c_fn()
   }
@@ -791,7 +791,7 @@ where
       bind_callbackscope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), index, args, rv)
+      (F::get())(scope.as_handle_scope(), index, args, rv)
     };
     f.to_c_fn()
   }
@@ -818,7 +818,7 @@ where
       bind_callbackscope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), key, args, rv)
+      (F::get())(scope.as_handle_scope(), key, args, rv)
     };
     f.to_c_fn()
   }
@@ -847,10 +847,10 @@ where
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
       bind_callbackscope!(unsafe scope, info);
-      let value = unsafe { scope.casted().unseal(value) };
+      let value = unsafe { scope.as_handle_scope().unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), index, value, args, rv)
+      (F::get())(scope.as_handle_scope(), index, value, args, rv)
     };
     f.to_c_fn()
   }
@@ -882,7 +882,7 @@ where
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       let desc = unsafe { &*desc };
-      (F::get())(scope.casted(), index, desc, args, rv)
+      (F::get())(scope.as_handle_scope(), index, desc, args, rv)
     };
     f.to_c_fn()
   }
@@ -909,7 +909,7 @@ where
       bind_callbackscope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
-      (F::get())(scope.casted(), index, args, rv)
+      (F::get())(scope.as_handle_scope(), index, args, rv)
     };
     f.to_c_fn()
   }

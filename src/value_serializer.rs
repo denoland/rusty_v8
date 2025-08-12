@@ -49,10 +49,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
     unsafe { Isolate::from_raw_ptr(value_serializer_heap.isolate_ptr) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init();
+  let mut scope = scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
-  let scope = ContextScope::new(scope.as_handle_scope(), context);
+  let context = context.erased();
+  let scope =
+    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
   value_serializer_heap
     .value_serializer_impl
     .throw_data_clone_error(&scope, message);
@@ -80,10 +82,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init();
+  let mut scope = scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
-  let scope = ContextScope::new(scope.as_handle_scope(), context);
+  let context = context.erased();
+  let scope =
+    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
 
   MaybeBool::from(
     value_serializer_heap
@@ -102,10 +106,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init();
+  let mut scope = scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
-  let scope = ContextScope::new(scope.as_handle_scope(), context);
+  let context = context.erased();
+  let scope =
+    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
   MaybeBool::from(value_serializer_impl.write_host_object(
@@ -126,10 +132,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init();
+  let mut scope = scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
-  let scope = ContextScope::new(scope.as_handle_scope(), context);
+  let context = context.erased();
+  let scope =
+    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
   match value_serializer_heap
     .value_serializer_impl
     .get_shared_array_buffer_id(&scope, shared_array_buffer)
@@ -155,10 +163,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init();
+  let mut scope = scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
-  let scope = ContextScope::new(scope.as_handle_scope(), context);
+  let context = context.erased();
+  let scope =
+    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
   match value_serializer_heap
     .value_serializer_impl
     .get_wasm_module_transfer_id(&scope, module)
