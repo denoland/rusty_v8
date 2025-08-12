@@ -421,6 +421,12 @@ impl Context {
   }
 }
 
+impl<'s> Local<'s, Context> {
+  pub fn erased(self) -> crate::scope2::ContextPtr {
+    crate::scope2::ContextPtr(unsafe { std::mem::transmute(self) })
+  }
+}
+
 struct ContextAnnex {
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
   // In order to run the finalizer that drops the ContextAnnex when the Context

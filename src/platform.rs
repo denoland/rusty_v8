@@ -188,7 +188,7 @@ impl Platform {
   #[inline(always)]
   pub fn pump_message_loop(
     platform: &SharedRef<Self>,
-    isolate: &mut Isolate,
+    isolate: &Isolate,
     wait_for_work: bool,
   ) -> bool {
     unsafe {
@@ -207,7 +207,7 @@ impl Platform {
   #[inline(always)]
   pub fn run_idle_tasks(
     platform: &SharedRef<Self>,
-    isolate: &mut Isolate,
+    isolate: &Isolate,
     idle_time_in_seconds: f64,
   ) {
     unsafe {
@@ -227,7 +227,7 @@ impl Platform {
   #[inline(always)]
   pub(crate) unsafe fn notify_isolate_shutdown(
     platform: &SharedRef<Self>,
-    isolate: &mut Isolate,
+    isolate: &Isolate,
   ) {
     unsafe {
       v8__Platform__NotifyIsolateShutdown(

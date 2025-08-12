@@ -10,14 +10,15 @@ fn main() {
   v8::V8::initialize_platform(platform);
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-  let handle_scope = &mut v8::HandleScope::new(isolate);
+  let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
+  let handle_scope = &handle_scope.init();
   let context = v8::Context::new(handle_scope, Default::default());
   let scope = &mut v8::ContextScope::new(handle_scope, context);
   let global = context.global(scope);
   {
     let func = v8::Function::new(
       scope,
-      |scope: &mut v8::HandleScope,
+      |scope: &v8::HandleScope,
        _: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
         rv.set(v8::Integer::new(scope, 42).into());
@@ -30,7 +31,8 @@ fn main() {
   {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
       let info = unsafe { &*info };
-      let scope = unsafe { &mut v8::CallbackScope::new(info) };
+      let scope = std::pin::pin!(unsafe { v8::CallbackScope::new(info) });
+      let scope = &scope.init();
       let mut rv = v8::ReturnValue::from_function_callback_info(info);
       rv.set(v8::Integer::new(scope, 42).into());
     }
@@ -51,7 +53,7 @@ fn main() {
   {
     let func = v8::Function::new(
       scope,
-      |_: &mut v8::HandleScope,
+      |_: &v8::HandleScope,
        _: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
         rv.set_uint32(42);
@@ -74,7 +76,7 @@ fn main() {
       ),
     );
     let template = v8::FunctionTemplate::builder(
-      |scope: &mut v8::HandleScope,
+      |scope: &v8::HandleScope,
        _: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
         rv.set(v8::Integer::new(scope, 42).into());
@@ -90,9 +92,10 @@ fn main() {
   {
     extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
       let info = unsafe { &*info };
-      let scope = unsafe { &mut v8::CallbackScope::new(info) };
+      let scope = std::pin::pin!(unsafe { v8::CallbackScope::new(info) });
+      let scope = &scope.init();
       let mut rv = v8::ReturnValue::from_function_callback_info(info);
-      rv.set(v8::undefined(scope).into());
+      rv.set(v8::undefined(&*scope).into());
     }
     let func = v8::Function::new_raw(scope, callback).unwrap();
     let name = v8::String::new(scope, "undefined_from_scope").unwrap();
@@ -156,7 +159,7 @@ fn main() {
 }
 
 fn eval<'s>(
-  scope: &mut v8::HandleScope<'s>,
+  scope: &v8::HandleScope<'s>,
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
   let scope = &mut v8::EscapableHandleScope::new(scope);

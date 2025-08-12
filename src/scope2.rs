@@ -35,6 +35,7 @@ impl<T: ScopeInit> ScopeStorage<T> {
     }
   }
 
+  #[must_use]
   pub fn init(mut self: Pin<&mut Self>) -> Pin<&mut T> {
     if self.inited {
       // free old, going to reuse this storage
@@ -79,7 +80,6 @@ impl<T: ScopeInit> ScopeStorage<T> {
   /// SAFEFTY: `self.inited` must be true, and therefore must be pinned
   unsafe fn drop_inner(&mut self) {
     unsafe {
-      eprintln!("deinit");
       T::deinit(&mut self.scope);
     }
     self.inited = false;
@@ -162,7 +162,6 @@ impl<'s, C> ScopeInit for HandleScope<'s, C> {
   }
 
   unsafe fn deinit(me: &mut Self) {
-    eprintln!("deinit handle scope");
     unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
   }
 }
@@ -170,9 +169,9 @@ impl<'s, C> ScopeInit for HandleScope<'s, C> {
 #[repr(C)]
 #[derive(Debug)]
 pub struct HandleScope<'s, C = Context> {
-  raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
-  context: Option<NonNull<Context>>,
+  raw_handle_scope: raw::HandleScope,
+  context: Cell<Option<NonNull<Context>>>,
   _phantom: PhantomData<&'s C>,
 }
 
@@ -250,14 +249,16 @@ pub trait NewHandleScope<'s> {
   fn make_new_scope(me: Self) -> Self::NewScope;
 }
 
-impl<'s, 'p: 's, C> NewHandleScope<'s> for &mut HandleScope<'p, C> {
-  type NewScope = HandleScope<'s, C>;
+impl<'s, 'p: 's, C> NewHandleScope<'s>
+  for &mut Pin<&'s mut HandleScope<'p, C>>
+{
+  type NewScope = HandleScope<'p, C>;
 
   fn make_new_scope(me: Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: (*me).isolate,
-      context: (*me).context,
+      context: (*me).context.clone(),
       _phantom: PhantomData,
     }
   }
@@ -270,7 +271,7 @@ impl<'s> NewHandleScope<'s> for &'s mut Isolate {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.as_real_ptr()) },
-      context: None,
+      context: Cell::new(None),
       _phantom: PhantomData,
     }
   }
@@ -283,7 +284,7 @@ impl<'s> NewHandleScope<'s> for &'s mut OwnedIsolate {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.get_isolate_ptr()) },
-      context: None,
+      context: Cell::new(None),
       _phantom: PhantomData,
     }
   }
@@ -296,11 +297,20 @@ impl<'s, 'p: 's, C> NewHandleScope<'s> for &mut CallbackScope<'p, C> {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: (*me).isolate,
-      context: (*me).context,
+      context: (*me).context.clone(),
       _phantom: PhantomData,
     }
   }
 }
+
+// impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s>
+//   for ContextScope<'s, 'p, P>
+// {
+//   type NewScope = <P as NewHandleScope<'s>>::NewScope;
+//   fn make_new_scope(me: Self) -> Self::NewScope {
+//     P::make_new_scope(me.scope)
+//   }
+// }
 
 pub(crate) struct ScopeData {
   isolate: Option<NonNull<RealIsolate>>,
@@ -333,7 +343,15 @@ impl<'s> HandleScope<'s> {
   }
 
   pub fn get_current_context<'a>(self: &'a Self) -> Local<'a, Context> {
-    unsafe { Local::from_raw(self.context.unwrap().as_ptr()).unwrap() }
+    if let Some(context) = self.context.get() {
+      unsafe { Local::from_non_null(context) }
+    } else {
+      let isolate = self.get_isolate_ptr();
+      let context =
+        unsafe { raw::v8__Isolate__GetCurrentContext(isolate) }.cast_mut();
+      self.context.set(Some(NonNull::new(context).unwrap()));
+      unsafe { Local::from_raw(context) }.unwrap()
+    }
   }
 }
 
@@ -378,7 +396,7 @@ impl<'s, C> HandleScope<'s, C> {
     _f: impl FnOnce(&mut ScopeData) -> *const T,
   ) -> Option<Local<'a, T>> {
     let mut data = ScopeData {
-      context: Cell::new(self.context),
+      context: self.context.clone(),
       isolate: Some(self.isolate),
     };
     let ptr = _f(&mut data);
@@ -419,12 +437,12 @@ impl<'a, 's, C> GetIsolate for Pin<&'a mut HandleScope<'s, C>> {
 
 // ContextScope
 
-pub struct ContextScope<'s, 'p, P> {
+pub struct ContextScope<'s, P> {
   raw_handle_scope: raw::ContextScope,
-  scope: &'p Pin<&'s mut P>,
+  scope: Pin<&'s mut P>,
 }
 
-impl<'s, 'p, P> ScopeInit for ContextScope<'s, 'p, P> {
+impl<'s, P> ScopeInit for ContextScope<'s, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     storage.projected()
   }
@@ -441,20 +459,32 @@ impl<'s, 'p, P> ScopeInit for ContextScope<'s, 'p, P> {
   }
 }
 
-impl<'s, 'p, P> Deref for ContextScope<'s, 'p, P> {
+impl<'s, P> Deref for ContextScope<'s, P> {
   type Target = P;
   fn deref(&self) -> &Self::Target {
-    self.scope
+    &*self.scope
   }
 }
 
-impl<'s, 'p, P> sealed::Sealed for ContextScope<'s, 'p, P> {}
-impl<'s, 'p, P> Scope for ContextScope<'s, 'p, P> {}
+impl<'s> ContextScope<'s, HandleScope<'s>> {
+  pub fn as_handle_scope_mut<'a>(
+    &'a mut self,
+  ) -> &'a mut Pin<&'s mut HandleScope<'s>> {
+    &mut self.scope
+  }
 
-pub trait NewContextScope<'s, 'p, 'i> {
+  pub fn as_handle_scope<'a>(&'a self) -> &'a Pin<&'s mut HandleScope<'s>> {
+    &self.scope
+  }
+}
+
+impl<'s, P> sealed::Sealed for ContextScope<'s, P> {}
+impl<'s, P> Scope for ContextScope<'s, P> {}
+
+pub trait NewContextScope<'s> {
   type NewScope: Scope;
 
-  fn make_new_scope(me: Self, context: Local<'s, Context>) -> Self::NewScope;
+  unsafe fn make_new_scope(me: Self, context: ContextPtr) -> Self::NewScope;
 }
 
 // impl<'s, 'p, P: Scope> NewContextScope<'s, 'p> for ContextScope<'s, 'p, P> {
@@ -468,28 +498,28 @@ pub trait NewContextScope<'s, 'p, 'i> {
 //     }
 // }
 
-impl<'s, 'p, 'i, C> NewContextScope<'s, 'p, 'i>
-  for &'p Pin<&'s mut HandleScope<'i, C>>
-{
-  type NewScope = ContextScope<'s, 'p, HandleScope<'i>>;
+impl<'s, 'p, C> NewContextScope<'s> for Pin<&'s mut HandleScope<'p, C>> {
+  type NewScope = ContextScope<'s, HandleScope<'p>>;
 
-  fn make_new_scope(me: Self, context: Local<'s, Context>) -> Self::NewScope {
+  unsafe fn make_new_scope(me: Self, context: ContextPtr) -> Self::NewScope {
     ContextScope {
-      raw_handle_scope: raw::ContextScope::new(context),
+      raw_handle_scope: raw::ContextScope::new(context.0),
       scope: unsafe {
         // we are adding the context, so we can mark that it now has a context.
         std::mem::transmute::<
-          &'p Pin<&'s mut HandleScope<'i, C>>,
-          &'p Pin<&'s mut HandleScope<'i, Context>>,
+          Pin<&'s mut HandleScope<'p, C>>,
+          Pin<&'s mut HandleScope<'p, Context>>,
         >(me)
       },
     }
   }
 }
 
-impl<'s, 'p, 'i, P: NewContextScope<'s, 'p, 'i>> ContextScope<'s, 'p, P> {
+pub struct ContextPtr(pub(crate) Local<'static, Context>);
+
+impl<'s, 'p, P: NewContextScope<'s>> ContextScope<'s, P> {
   #[allow(clippy::new_ret_no_self)]
-  pub fn new(param: P, context: Local<'s, Context>) -> P::NewScope {
+  pub unsafe fn new(param: P, context: ContextPtr) -> P::NewScope {
     // let scope_data = param.get_scope_data_mut();
     // if scope_data.get_isolate_ptr()
     //   != unsafe { raw::v8__Context__GetIsolate(&*context) }
@@ -501,7 +531,7 @@ impl<'s, 'p, 'i, P: NewContextScope<'s, 'p, 'i>> ContextScope<'s, 'p, P> {
     // }
     // let new_scope_data = scope_data.new_context_scope_data(context);
     // new_scope_data.as_scope()
-    P::make_new_scope(param, context)
+    unsafe { P::make_new_scope(param, context) }
   }
 }
 
@@ -542,9 +572,9 @@ impl<'s, 'p, 'i, P: NewContextScope<'s, 'p, 'i>> ContextScope<'s, 'p, P> {
 
 #[repr(C)]
 pub struct CallbackScope<'s, C = Context> {
-  raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
-  context: Option<NonNull<Context>>,
+  raw_handle_scope: raw::HandleScope,
+  context: Cell<Option<NonNull<Context>>>,
   _phantom: PhantomData<&'s C>,
   needs_scope: bool,
 }
@@ -575,6 +605,14 @@ impl<'s> Deref for CallbackScope<'s, ()> {
   type Target = HandleScope<'s, ()>;
   fn deref(&self) -> &Self::Target {
     unsafe { std::mem::transmute(self) }
+  }
+}
+
+impl<'s, C> AsRef<Isolate> for CallbackScope<'s, C> {
+  fn as_ref(&self) -> &Isolate {
+    unsafe {
+      &std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
+    }
   }
 }
 
@@ -735,7 +773,7 @@ fn make_new_callback_scope<'a, C>(
   CallbackScope {
     raw_handle_scope: unsafe { raw::HandleScope::uninit() },
     isolate: NonNull::new(isolate.get_isolate_ptr()).unwrap(),
-    context,
+    context: Cell::new(context),
     _phantom: PhantomData,
     needs_scope: false,
   }
@@ -782,7 +820,7 @@ impl<'s> NewCallbackScope<'s> for FastApiCallbackOptions<'s> {
     CallbackScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: NonNull::new(isolate).unwrap(),
-      context: (*me).get_context().map(|c| c.as_non_null()),
+      context: Cell::new((*me).get_context().map(|c| c.as_non_null())),
       _phantom: PhantomData,
       needs_scope: true,
     }
@@ -832,13 +870,142 @@ impl<'s> AsRef<Pin<&'s mut HandleScope<'s, ()>>> for CallbackScope<'s, ()> {
   }
 }
 
-pub struct TryCatch<'s, P> {
-  raw_try_catch: raw::TryCatch,
+#[repr(C)]
+pub struct TryCatch<'s> {
   isolate: NonNull<RealIsolate>,
-  _phantom: PhantomData<&'s mut P>,
+  raw_try_catch: raw::TryCatch,
+  _phantom: PhantomData<&'s Isolate>,
 }
 
-impl<'s, P> ScopeInit for TryCatch<'s, P> {
+impl<'s> TryCatch<'s> {
+  pub fn new<Q: NewTryCatch<'s>>(param: Q) -> ScopeStorage<TryCatch<'s>> {
+    ScopeStorage::new(Q::make_new_scope(param))
+  }
+
+  /// Returns true if an exception has been caught by this try/catch block.
+  #[inline(always)]
+  pub fn has_caught(&self) -> bool {
+    unsafe { raw::v8__TryCatch__HasCaught(self.get_raw()) }
+  }
+
+  /// For certain types of exceptions, it makes no sense to continue execution.
+  ///
+  /// If CanContinue returns false, the correct action is to perform any C++
+  /// cleanup needed and then return. If CanContinue returns false and
+  /// HasTerminated returns true, it is possible to call
+  /// CancelTerminateExecution in order to continue calling into the engine.
+  #[inline(always)]
+  pub fn can_continue(&self) -> bool {
+    unsafe { raw::v8__TryCatch__CanContinue(self.get_raw()) }
+  }
+
+  /// Returns true if an exception has been caught due to script execution
+  /// being terminated.
+  ///
+  /// There is no JavaScript representation of an execution termination
+  /// exception. Such exceptions are thrown when the TerminateExecution
+  /// methods are called to terminate a long-running script.
+  ///
+  /// If such an exception has been thrown, HasTerminated will return true,
+  /// indicating that it is possible to call CancelTerminateExecution in order
+  /// to continue calling into the engine.
+  #[inline(always)]
+  pub fn has_terminated(&self) -> bool {
+    unsafe { raw::v8__TryCatch__HasTerminated(self.get_raw()) }
+  }
+
+  /// Returns true if verbosity is enabled.
+  #[inline(always)]
+  pub fn is_verbose(&self) -> bool {
+    unsafe { raw::v8__TryCatch__IsVerbose(self.get_raw()) }
+  }
+
+  /// Set verbosity of the external exception handler.
+  ///
+  /// By default, exceptions that are caught by an external exception
+  /// handler are not reported. Call SetVerbose with true on an
+  /// external exception handler to have exceptions caught by the
+  /// handler reported as if they were not caught.
+  #[inline(always)]
+  pub fn set_verbose(self: Pin<&mut Self>, value: bool) {
+    unsafe { raw::v8__TryCatch__SetVerbose(self.get_raw_mut(), value) };
+  }
+
+  /// Set whether or not this TryCatch should capture a Message object
+  /// which holds source information about where the exception
+  /// occurred. True by default.
+  #[inline(always)]
+  pub fn set_capture_message(self: Pin<&mut Self>, value: bool) {
+    unsafe { raw::v8__TryCatch__SetCaptureMessage(self.get_raw_mut(), value) };
+  }
+
+  /// Clears any exceptions that may have been caught by this try/catch block.
+  /// After this method has been called, HasCaught() will return false. Cancels
+  /// the scheduled exception if it is caught and ReThrow() is not called
+  /// before.
+  ///
+  /// It is not necessary to clear a try/catch block before using it again; if
+  /// another exception is thrown the previously caught exception will just be
+  /// overwritten. However, it is often a good idea since it makes it easier
+  /// to determine which operation threw a given exception.
+  #[inline(always)]
+  pub fn reset(self: Pin<&mut Self>) {
+    unsafe { raw::v8__TryCatch__Reset(self.get_raw_mut()) };
+  }
+
+  #[inline(always)]
+  fn get_raw(&self) -> &raw::TryCatch {
+    &self.raw_try_catch
+  }
+
+  #[inline(always)]
+  unsafe fn get_raw_mut(self: Pin<&mut Self>) -> &mut raw::TryCatch {
+    &mut unsafe { self.get_unchecked_mut() }.raw_try_catch
+  }
+
+  pub fn exception<'b>(
+    &self,
+    scope: &'b HandleScope<'s>,
+  ) -> Option<Local<'b, Value>> {
+    unsafe {
+      scope.cast_local(|_data| raw::v8__TryCatch__Exception(self.get_raw()))
+    }
+  }
+
+  pub fn message<'b>(
+    &self,
+    scope: &'b HandleScope<'s>,
+  ) -> Option<Local<'b, Message>> {
+    unsafe {
+      scope.cast_local(|_data| raw::v8__TryCatch__Message(self.get_raw()))
+    }
+  }
+
+  pub fn rethrow<'a, 'b>(
+    self: Pin<&'a mut Self>,
+    scope: &'b HandleScope<'s>,
+  ) -> Option<Local<'b, Value>> {
+    unsafe {
+      scope.cast_local(|_data| raw::v8__TryCatch__ReThrow(self.get_raw_mut()))
+    }
+  }
+
+  pub fn stack_trace<'b>(
+    &self,
+    scope: &'b HandleScope<'s>,
+  ) -> Option<Local<'b, Value>> {
+    unsafe {
+      scope.cast_local(|_data| {
+        raw::v8__TryCatch__StackTrace(
+          self.get_raw(),
+          _data.get_current_context(),
+        )
+      })
+    }
+  }
+}
+
+impl<'s> ScopeInit for TryCatch<'s> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.isolate;
@@ -866,17 +1033,15 @@ impl<'s, P> ScopeInit for TryCatch<'s, P> {
   }
 }
 
-impl<'s, P> sealed::Sealed for TryCatch<'s, P> {}
-impl<'s, P> Scope for TryCatch<'s, P> {}
+impl<'s> sealed::Sealed for TryCatch<'s> {}
+impl<'s> Scope for TryCatch<'s> {}
 
 pub trait NewTryCatch<'s> {
-  type NewScope: Scope;
-  fn make_new_scope(me: &Self) -> Self::NewScope;
+  fn make_new_scope(me: Self) -> TryCatch<'s>;
 }
 
-impl<'s, 'p: 's, C> NewTryCatch<'s> for HandleScope<'p, C> {
-  type NewScope = TryCatch<'s, HandleScope<'p, C>>;
-  fn make_new_scope(me: &Self) -> Self::NewScope {
+impl<'s, 'p: 's, C> NewTryCatch<'s> for &'s HandleScope<'p, C> {
+  fn make_new_scope(me: Self) -> TryCatch<'s> {
     TryCatch {
       _phantom: PhantomData,
       isolate: me.isolate,
@@ -885,13 +1050,21 @@ impl<'s, 'p: 's, C> NewTryCatch<'s> for HandleScope<'p, C> {
   }
 }
 
-impl<'s, 'p: 's, C> NewTryCatch<'s> for CallbackScope<'p, C> {
-  type NewScope = TryCatch<'s, HandleScope<'p, C>>;
-  fn make_new_scope(me: &Self) -> Self::NewScope {
+impl<'s, 'p: 's, C> NewTryCatch<'s> for &mut CallbackScope<'p, C> {
+  fn make_new_scope(me: Self) -> TryCatch<'s> {
     TryCatch {
       _phantom: PhantomData,
       isolate: me.isolate,
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
+    }
+  }
+}
+
+impl<'s> Deref for TryCatch<'s> {
+  type Target = Isolate;
+  fn deref(&self) -> &Self::Target {
+    unsafe {
+      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
     }
   }
 }
