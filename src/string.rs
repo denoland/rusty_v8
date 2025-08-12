@@ -408,9 +408,7 @@ impl String {
   pub const MAX_LENGTH: usize = v8__String__kMaxLength as _;
 
   #[inline(always)]
-  pub fn empty<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
-  ) -> Local<'a, String> {
+  pub fn empty<'s, 'a>(scope: &'a HandleScope<'s, ()>) -> Local<'a, String> {
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
     unsafe { scope.cast_local(|sd| v8__String__Empty(sd.get_isolate_ptr())) }
@@ -421,7 +419,7 @@ impl String {
   /// length > kMaxLength
   #[inline(always)]
   pub fn new_from_utf8<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'a, String>> {
@@ -445,7 +443,7 @@ impl String {
   /// length > kMaxLength.
   #[inline(always)]
   pub fn new_from_one_byte<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'a, String>> {
@@ -466,7 +464,7 @@ impl String {
   /// length > kMaxLength.
   #[inline(always)]
   pub fn new_from_two_byte<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: &[u16],
     new_type: NewStringType,
   ) -> Option<Local<'a, String>> {
@@ -737,7 +735,7 @@ impl String {
   // Convenience function not present in the original V8 API.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     value: &str,
   ) -> Option<Local<'a, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
@@ -785,7 +783,7 @@ impl String {
   /// OneByte string resources to contain Latin-1.
   #[inline(always)]
   pub fn new_from_onebyte_const<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     onebyte_const: &'static OneByteConst,
   ) -> Option<Local<'a, String>> {
     unsafe {
@@ -799,7 +797,7 @@ impl String {
   /// must be Latin-1 or ASCII, not UTF-8!
   #[inline(always)]
   pub fn new_external_onebyte_static<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: &'static [u8],
   ) -> Option<Local<'a, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
@@ -819,7 +817,7 @@ impl String {
   /// V8 will take ownership of the buffer and free it when the string is garbage collected.
   #[inline(always)]
   pub fn new_external_onebyte<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: Box<[u8]>,
   ) -> Option<Local<'a, String>> {
     let buffer_len = buffer.len();
@@ -844,7 +842,7 @@ impl String {
   /// The destructor will be called with the buffer and length when the string is garbage collected.
   #[inline(always)]
   pub unsafe fn new_external_onebyte_raw<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: *mut char,
     buffer_len: usize,
     destructor: unsafe extern "C" fn(*mut char, usize),
@@ -864,7 +862,7 @@ impl String {
   /// Creates a v8::String from a `&'static [u16]`.
   #[inline(always)]
   pub fn new_external_twobyte_static<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     buffer: &'static [u16],
   ) -> Option<Local<'a, String>> {
     let buffer_len = buffer.len().try_into().ok()?;

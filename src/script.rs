@@ -60,7 +60,7 @@ impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   #[inline(always)]
   pub fn compile<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'s, Script>> {
@@ -79,7 +79,7 @@ impl Script {
   #[inline(always)]
   pub fn get_unbound_script<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, UnboundScript> {
     unsafe {
       scope
@@ -94,7 +94,7 @@ impl Script {
   #[inline]
   pub fn run<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope.cast_local(|sd| v8__Script__Run(self, sd.get_current_context()))
@@ -108,7 +108,7 @@ impl<'s> ScriptOrigin<'s> {
   #[inline(always)]
   pub fn new<'a>(
     // TODO(littledivy): remove
-    _scope: &Pin<&'s mut HandleScope<'a>>,
+    _scope: &'s HandleScope<'a>,
     resource_name: Local<'s, Value>,
     resource_line_offset: i32,
     resource_column_offset: i32,

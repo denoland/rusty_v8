@@ -113,9 +113,9 @@ impl<'s, T> Local<'s, T> {
   /// Construct a new Local from an existing Handle.
   #[inline(always)]
   pub fn new<'a>(
-    scope: &Pin<&'s mut HandleScope<'a, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     handle: impl Handle<Data = T>,
-  ) -> Self {
+  ) -> Local<'a, T> {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(scope);
     unsafe {
@@ -851,7 +851,7 @@ impl<T> Weak<T> {
 
   pub fn to_local<'a, 's>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
   ) -> Option<Local<'a, T>> {
     if let Some(data) = self.get_pointer() {
       let handle_host: HandleHost = (&self.isolate_handle).into();
@@ -1096,7 +1096,7 @@ impl<T> TracedReference<T> {
 
   pub fn get<'a, 's>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
   ) -> Option<Local<'a, T>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -1175,7 +1175,7 @@ impl<T> Eternal<T> {
 
   pub fn get<'a, 's>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
   ) -> Option<Local<'a, T>> {
     unsafe {
       scope.cast_local(|sd| {

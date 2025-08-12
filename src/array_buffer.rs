@@ -428,7 +428,7 @@ impl ArrayBuffer {
   /// unless the object is externalized.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     byte_length: usize,
   ) -> Local<'a, ArrayBuffer> {
     unsafe {
@@ -444,7 +444,7 @@ impl ArrayBuffer {
 
   #[inline(always)]
   pub fn with_backing_store<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'a, ArrayBuffer> {
     unsafe {
@@ -641,7 +641,7 @@ impl DataView {
   /// Returns a new DataView.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     arraybuffer: Local<'a, ArrayBuffer>,
     byte_offset: usize,
     length: usize,

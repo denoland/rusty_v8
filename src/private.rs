@@ -24,7 +24,7 @@ impl Private {
   /// Create a private symbol. If name is not empty, it will be the description.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -47,7 +47,7 @@ impl Private {
   /// e.g., "Class#property".
   #[inline(always)]
   pub fn for_api<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -63,10 +63,7 @@ impl Private {
 
   /// Returns the print name string of the private symbol, or undefined if none.
   #[inline(always)]
-  pub fn name<'s, 'a>(
-    &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
-  ) -> Local<'s, Value> {
+  pub fn name<'s, 'a>(&self, scope: &'s HandleScope<'a>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Private__Name(self)) }.unwrap()
   }
 }

@@ -30,7 +30,7 @@ impl UnboundScript {
   #[inline(always)]
   pub fn bind_to_current_context<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Script> {
     unsafe {
       scope.cast_local(|_| v8__UnboundScript__BindToCurrentContext(self))
@@ -58,7 +58,7 @@ impl UnboundScript {
   #[inline(always)]
   pub fn get_source_mapping_url<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -70,7 +70,7 @@ impl UnboundScript {
   #[inline(always)]
   pub fn get_source_url<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

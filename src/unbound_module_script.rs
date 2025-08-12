@@ -41,7 +41,7 @@ impl UnboundModuleScript {
 
   pub fn get_source_mapping_url<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -52,7 +52,7 @@ impl UnboundModuleScript {
 
   pub fn get_source_url<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

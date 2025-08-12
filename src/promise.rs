@@ -83,10 +83,7 @@ impl Promise {
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
   #[inline(always)]
-  pub fn result<'s, 'a>(
-    &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
-  ) -> Local<'s, Value> {
+  pub fn result<'s, 'a>(&self, scope: &'s HandleScope<'a>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Promise__Result(self)) }.unwrap()
   }
 
@@ -96,7 +93,7 @@ impl Promise {
   #[inline(always)]
   pub fn catch<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
@@ -112,7 +109,7 @@ impl Promise {
   #[inline(always)]
   pub fn then<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
@@ -129,7 +126,7 @@ impl Promise {
   #[inline(always)]
   pub fn then2<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     on_fulfilled: Local<Function>,
     on_rejected: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
@@ -150,7 +147,7 @@ impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   #[inline(always)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Option<Local<'s, PromiseResolver>> {
     unsafe {
       scope
@@ -162,7 +159,7 @@ impl PromiseResolver {
   #[inline(always)]
   pub fn get_promise<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
   ) -> Local<'s, Promise> {
     unsafe { scope.cast_local(|_| v8__Promise__Resolver__GetPromise(self)) }
       .unwrap()
@@ -173,7 +170,7 @@ impl PromiseResolver {
   #[inline(always)]
   pub fn resolve<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     value: Local<'_, Value>,
   ) -> Option<bool> {
     unsafe {
@@ -191,7 +188,7 @@ impl PromiseResolver {
   #[inline(always)]
   pub fn reject<'s, 'a>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &'s HandleScope<'a>,
     value: Local<'_, Value>,
   ) -> Option<bool> {
     unsafe {

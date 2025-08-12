@@ -21,7 +21,7 @@ impl External {
   #[inline(always)]
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
   pub fn new<'s, 'a>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
+    scope: &'a HandleScope<'s, ()>,
     value: *mut c_void,
   ) -> Local<'a, Self> {
     unsafe {

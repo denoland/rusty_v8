@@ -238,7 +238,7 @@ pub enum NoCacheReason {
 /// specification.
 #[inline(always)]
 pub fn compile_module<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'s HandleScope<'a>,
   source: &mut Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
@@ -252,7 +252,7 @@ pub fn compile_module<'s, 'a>(
 /// Same as compile_module with more options.
 #[inline(always)]
 pub fn compile_module2<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'s HandleScope<'a>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -271,7 +271,7 @@ pub fn compile_module2<'s, 'a>(
 
 #[inline(always)]
 pub fn compile<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'s HandleScope<'a>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -290,7 +290,7 @@ pub fn compile<'s, 'a>(
 
 #[inline(always)]
 pub fn compile_function<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'s HandleScope<'a>,
   source: &mut Source,
   arguments: &[Local<String>],
   context_extensions: &[Local<Object>],
@@ -317,7 +317,7 @@ pub fn compile_function<'s, 'a>(
 
 #[inline(always)]
 pub fn compile_unbound_script<'s, 'a>(
-  scope: &Pin<&'s mut HandleScope<'a>>,
+  scope: &'s HandleScope<'a>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,

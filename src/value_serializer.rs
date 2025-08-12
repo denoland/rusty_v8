@@ -49,13 +49,13 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
     unsafe { Isolate::from_raw_ptr(value_serializer_heap.isolate_ptr) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
   value_serializer_heap
     .value_serializer_impl
-    .throw_data_clone_error(scope.casted(), message);
+    .throw_data_clone_error(&scope, message);
 }
 
 #[unsafe(no_mangle)]
@@ -80,7 +80,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
@@ -88,7 +88,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   MaybeBool::from(
     value_serializer_heap
       .value_serializer_impl
-      .is_host_object(scope.casted(), object),
+      .is_host_object(&scope, object),
   )
 }
 
@@ -102,14 +102,14 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
   MaybeBool::from(value_serializer_impl.write_host_object(
-    scope.casted(),
+    &scope,
     object,
     &value_serializer_heap.cxx_value_serializer,
   ))
@@ -126,13 +126,13 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_shared_array_buffer_id(scope.casted(), shared_array_buffer)
+    .get_shared_array_buffer_id(&scope, shared_array_buffer)
   {
     Some(x) => {
       unsafe {
@@ -155,13 +155,13 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let scope = &scope.init_stack();
+  let scope = &scope.init();
   let context =
     Local::new(scope.as_handle_scope(), &value_serializer_heap.context);
   let scope = ContextScope::new(scope.as_handle_scope(), context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_wasm_module_transfer_id(scope.casted(), module)
+    .get_wasm_module_transfer_id(&scope, module)
   {
     Some(x) => {
       unsafe {
@@ -282,7 +282,7 @@ unsafe extern "C" {
 pub trait ValueSerializerImpl {
   fn throw_data_clone_error<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     message: Local<'a, String>,
   );
 
@@ -292,14 +292,12 @@ pub trait ValueSerializerImpl {
 
   fn is_host_object<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     _object: Local<'a, Object>,
   ) -> Option<bool> {
-    let msg = String::new(
-      scope.casted(),
-      "Deno serializer: is_host_object not implemented",
-    )
-    .unwrap();
+    let msg =
+      String::new(scope, "Deno serializer: is_host_object not implemented")
+        .unwrap();
     let exc = Exception::error(scope, msg);
     scope.throw_exception(exc);
     None
@@ -307,15 +305,13 @@ pub trait ValueSerializerImpl {
 
   fn write_host_object<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     _object: Local<'a, Object>,
     _value_serializer: &dyn ValueSerializerHelper,
   ) -> Option<bool> {
-    let msg = String::new(
-      scope.casted(),
-      "Deno serializer: write_host_object not implemented",
-    )
-    .unwrap();
+    let msg =
+      String::new(scope, "Deno serializer: write_host_object not implemented")
+        .unwrap();
     let exc = Exception::error(scope, msg);
     scope.throw_exception(exc);
     None
@@ -323,7 +319,7 @@ pub trait ValueSerializerImpl {
 
   fn get_shared_array_buffer_id<'s, 'a>(
     &self,
-    _scope: &Pin<&'a mut HandleScope<'s>>,
+    _scope: &'a HandleScope<'s>,
     _shared_array_buffer: Local<'a, SharedArrayBuffer>,
   ) -> Option<u32> {
     None
@@ -331,11 +327,11 @@ pub trait ValueSerializerImpl {
 
   fn get_wasm_module_transfer_id<'s, 'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope<'s>>,
+    scope: &'a HandleScope<'s>,
     _module: Local<WasmModuleObject>,
   ) -> Option<u32> {
     let msg = String::new(
-      scope.casted(),
+      scope,
       "Deno serializer: get_wasm_module_transfer_id not implemented",
     )
     .unwrap();

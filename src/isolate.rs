@@ -1367,9 +1367,8 @@ impl Isolate {
     unsafe extern "C" fn rust_shadow_realm_callback(
       initiator_context: Local<Context>,
     ) -> *mut Context {
-      let mut scope = unsafe { CallbackScope::new(&initiator_context) };
-      let scope = pin!(scope);
-      let scope = scope.init_stack();
+      let scope = pin!(unsafe { CallbackScope::new(&initiator_context) });
+      let scope = scope.init();
       let isolate = scope.as_ref();
       let callback = isolate
         .get_slot::<HostCreateShadowRealmContextCallback>()
