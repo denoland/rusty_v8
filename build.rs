@@ -937,11 +937,6 @@ fn run_gn_gen(gn_args: &[String]) -> PathBuf {
   let dirs = get_dirs();
   let gn_out_dir = dirs.out.join("gn_out");
 
-  // Remove existing directory to ensure clean regeneration
-  if gn_out_dir.exists() {
-    fs::remove_dir_all(&gn_out_dir).expect("Failed to remove gn_out directory");
-  }
-
   let mut args = gn_args.join(" ");
   if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
     args.push(' ');
