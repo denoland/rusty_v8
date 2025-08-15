@@ -8,6 +8,7 @@ use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
 use crate::Value;
+use crate::scope2::PinScope;
 use crate::support::MaybeBool;
 
 unsafe extern "C" {
@@ -83,7 +84,7 @@ impl Promise {
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
   #[inline(always)]
-  pub fn result<'s, 'a>(&self, scope: &'s HandleScope<'a>) -> Local<'s, Value> {
+  pub fn result<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Promise__Result(self)) }.unwrap()
   }
 
@@ -91,9 +92,9 @@ impl Promise {
   ///
   /// See `Self::then2`.
   #[inline(always)]
-  pub fn catch<'s, 'a>(
+  pub fn catch<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
@@ -107,9 +108,9 @@ impl Promise {
   ///
   /// See `Self::then2`.
   #[inline(always)]
-  pub fn then<'s, 'a>(
+  pub fn then<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
@@ -124,9 +125,9 @@ impl Promise {
   /// an argument. If the promise is already resolved/rejected, the handler is
   /// invoked at the end of turn.
   #[inline(always)]
-  pub fn then2<'s, 'a>(
+  pub fn then2<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     on_fulfilled: Local<Function>,
     on_rejected: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
@@ -146,8 +147,8 @@ impl Promise {
 impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
   ) -> Option<Local<'s, PromiseResolver>> {
     unsafe {
       scope
@@ -157,9 +158,9 @@ impl PromiseResolver {
 
   /// Extract the associated promise.
   #[inline(always)]
-  pub fn get_promise<'s, 'a>(
+  pub fn get_promise<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Local<'s, Promise> {
     unsafe { scope.cast_local(|_| v8__Promise__Resolver__GetPromise(self)) }
       .unwrap()
@@ -168,9 +169,9 @@ impl PromiseResolver {
   /// Resolve the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
   #[inline(always)]
-  pub fn resolve<'s, 'a>(
+  pub fn resolve<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     value: Local<'_, Value>,
   ) -> Option<bool> {
     unsafe {
@@ -186,9 +187,9 @@ impl PromiseResolver {
   /// Reject the associated promise with a given value.
   /// Ignored if the promise is no longer pending.
   #[inline(always)]
-  pub fn reject<'s, 'a>(
+  pub fn reject<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     value: Local<'_, Value>,
   ) -> Option<bool> {
     unsafe {

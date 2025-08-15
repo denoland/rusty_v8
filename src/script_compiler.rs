@@ -8,6 +8,7 @@ use crate::Object;
 use crate::ScriptOrigin;
 use crate::String;
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 use crate::support::int;
 use crate::{Context, Isolate, Script, UnboundScript};
 use crate::{HandleScope, UniqueRef};
@@ -237,8 +238,8 @@ pub enum NoCacheReason {
 /// Corresponds to the ParseModule abstract operation in the ECMAScript
 /// specification.
 #[inline(always)]
-pub fn compile_module<'s, 'a>(
-  scope: &'s HandleScope<'a>,
+pub fn compile_module<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   source: &mut Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
@@ -251,8 +252,8 @@ pub fn compile_module<'s, 'a>(
 
 /// Same as compile_module with more options.
 #[inline(always)]
-pub fn compile_module2<'s, 'a>(
-  scope: &'s HandleScope<'a>,
+pub fn compile_module2<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -270,8 +271,8 @@ pub fn compile_module2<'s, 'a>(
 }
 
 #[inline(always)]
-pub fn compile<'s, 'a>(
-  scope: &'s HandleScope<'a>,
+pub fn compile<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -289,8 +290,8 @@ pub fn compile<'s, 'a>(
 }
 
 #[inline(always)]
-pub fn compile_function<'s, 'a>(
-  scope: &'s HandleScope<'a>,
+pub fn compile_function<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   source: &mut Source,
   arguments: &[Local<String>],
   context_extensions: &[Local<Object>],
@@ -316,8 +317,8 @@ pub fn compile_function<'s, 'a>(
 }
 
 #[inline(always)]
-pub fn compile_unbound_script<'s, 'a>(
-  scope: &'s HandleScope<'a>,
+pub fn compile_unbound_script<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,

@@ -1,4 +1,5 @@
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
 use crate::HandleScope;
@@ -101,10 +102,10 @@ impl Context {
 
   /// Creates a new context.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     options: ContextOptions,
-  ) -> Local<'a, Context> {
+  ) -> Local<'s, Context> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__New(
@@ -121,10 +122,10 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn get_extras_binding_object<'s, 'a>(
+  pub fn get_extras_binding_object<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Local<'a, Object> {
+    scope: &PinScope<'s, 'i, ()>,
+  ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__GetExtrasBindingObject(self)) }
       .unwrap()
   }
@@ -140,10 +141,10 @@ impl Context {
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
   #[inline(always)]
-  pub fn global<'s, 'a>(
+  pub fn global<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s, ()>,
-  ) -> Local<'a, Object> {
+    scope: &PinScope<'s, 'i, ()>,
+  ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
@@ -328,11 +329,11 @@ impl Context {
   /// Gets the embedder data with the given index, which must have been set by
   /// a previous call to SetEmbedderData with the same index.
   #[inline(always)]
-  pub fn get_embedder_data<'s, 'a>(
+  pub fn get_embedder_data<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s, ()>,
+    scope: &PinScope<'s, 'i, ()>,
     slot: i32,
-  ) -> Option<Local<'a, Value>> {
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
   }
 
@@ -370,11 +371,11 @@ impl Context {
   /// Create a new context from a (non-default) context snapshot. There
   /// is no way to provide a global object template since we do not create
   /// a new global object from template, but we can reuse a global object.
-  pub fn from_snapshot<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn from_snapshot<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     context_snapshot_index: usize,
     options: ContextOptions,
-  ) -> Option<Local<'a, Context>> {
+  ) -> Option<Local<'s, Context>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__FromSnapshot(
@@ -388,10 +389,10 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn get_security_token<'s, 'a>(
+  pub fn get_security_token<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s, ()>,
-  ) -> Local<'a, Value> {
+    scope: &PinScope<'s, 'i, ()>,
+  ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Context__GetSecurityToken(self)) }
       .unwrap()
   }
@@ -418,12 +419,6 @@ impl Context {
 
   pub fn is_code_generation_from_strings_allowed(&self) -> bool {
     unsafe { v8__Context_IsCodeGenerationFromStringsAllowed(self) }
-  }
-}
-
-impl<'s> Local<'s, Context> {
-  pub fn erased(self) -> crate::scope2::ContextPtr {
-    crate::scope2::ContextPtr(unsafe { std::mem::transmute(self) })
   }
 }
 

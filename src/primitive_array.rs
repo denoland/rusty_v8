@@ -2,6 +2,7 @@ use std::pin::Pin;
 
 use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
+use crate::scope2::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::HandleScope;
 use crate::Isolate;
@@ -34,8 +35,8 @@ unsafe extern "C" {
 
 impl PrimitiveArray {
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     length: usize,
   ) -> Local<'s, PrimitiveArray> {
     unsafe {
@@ -52,9 +53,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn set<'s, 'a>(
+  pub fn set<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
@@ -69,9 +70,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn get<'s, 'a>(
+  pub fn get<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     index: usize,
   ) -> Local<'s, Primitive> {
     unsafe {

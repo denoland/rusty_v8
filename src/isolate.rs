@@ -1,6 +1,8 @@
 use crate::scope2::AsRef2;
 use crate::scope2::BoxedStorage;
-use crate::scope2::bind_callbackscope;
+use crate::scope2::PinScope;
+use crate::scope2::PinnedRef;
+use crate::scope2::make_callback_scope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Array;
 use crate::CallbackScope;
@@ -240,13 +242,13 @@ pub type HostInitializeImportMetaObjectCallback =
 /// ```
 pub trait HostImportModuleDynamicallyCallback:
   UnitType
-  + for<'s, 'a> FnOnce(
-    Pin<&'a mut HandleScope<'s>>,
-    Local<'a, Data>,
-    Local<'a, Value>,
-    Local<'a, String>,
-    Local<'a, FixedArray>,
-  ) -> Option<Local<'a, Promise>>
+  + for<'s, 'i> FnOnce(
+    &mut PinScope<'s, 'i>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+  ) -> Option<Local<'s, Promise>>
 {
   fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback;
 }
@@ -275,38 +277,38 @@ pub type RawHostImportModuleDynamicallyCallback =
 impl<F> HostImportModuleDynamicallyCallback for F
 where
   F: UnitType
-    + for<'s, 'a> FnOnce(
-      Pin<&'a mut HandleScope<'s>>,
-      Local<'a, Data>,
-      Local<'a, Value>,
-      Local<'a, String>,
-      Local<'a, FixedArray>,
-    ) -> Option<Local<'a, Promise>>,
+    + for<'s, 'i> FnOnce(
+      &mut PinScope<'s, 'i>,
+      Local<'s, Data>,
+      Local<'s, Value>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>>,
 {
   #[inline(always)]
   fn to_c_fn(self) -> RawHostImportModuleDynamicallyCallback {
+    #[allow(unused_variables)]
     #[inline(always)]
-    fn scope_adapter<'s, F: HostImportModuleDynamicallyCallback>(
+    fn scope_adapter<'s, 'i: 's, F: HostImportModuleDynamicallyCallback>(
       context: Local<'s, Context>,
       host_defined_options: Local<'s, Data>,
       resource_name: Local<'s, Value>,
       specifier: Local<'s, String>,
       import_attributes: Local<'s, FixedArray>,
     ) -> Option<Local<'s, Promise>> {
-      let scope = unsafe { CallbackScope::new(&context) };
-      let scope = Box::pin(scope);
-      let mut scope = scope.init_box();
-      let scope = scope.as_mut();
-      let scope = unsafe {
-        std::mem::transmute::<_, Pin<&'s mut HandleScope<'s>>>(scope)
-      };
-      (F::get())(
-        scope,
-        host_defined_options,
-        resource_name,
-        specifier,
-        import_attributes,
-      )
+      // let scope = unsafe { CallbackScope::new(&context) };
+      // let scope = Box::pin(scope);
+      // let mut scope = scope.init_box();
+      // let scope = PinnedRef::from(scope.as_mut());
+      // (F::get())(
+      //   &mut scope,
+      //   host_defined_options,
+      //   resource_name,
+      //   specifier,
+      //   import_attributes,
+      // )
+      // todo(nathanwhit): this is fucked
+      todo!()
     }
 
     #[cfg(target_family = "unix")]
@@ -401,14 +403,14 @@ where
 /// imports.
 pub trait HostImportModuleWithPhaseDynamicallyCallback:
   UnitType
-  + for<'s, 'a> FnOnce(
-    &Pin<&'a mut HandleScope<'s>>,
-    Local<'a, Data>,
-    Local<'a, Value>,
-    Local<'a, String>,
+  + for<'s, 'i> FnOnce(
+    PinScope<'s, 'i, ()>,
+    Local<'s, Data>,
+    Local<'s, Value>,
+    Local<'s, String>,
     ModuleImportPhase,
-    Local<'a, FixedArray>,
-  ) -> Option<Local<'a, Promise>>
+    Local<'s, FixedArray>,
+  ) -> Option<Local<'s, Promise>>
 {
   fn to_c_fn(self) -> RawHostImportModuleWithPhaseDynamicallyCallback;
 }
@@ -439,14 +441,14 @@ pub type RawHostImportModuleWithPhaseDynamicallyCallback =
 impl<F> HostImportModuleWithPhaseDynamicallyCallback for F
 where
   F: UnitType
-    + for<'s, 'a> FnOnce(
-      &Pin<&'a mut HandleScope<'s>>,
-      Local<'a, Data>,
-      Local<'a, Value>,
-      Local<'a, String>,
+    + for<'s, 'i> FnOnce(
+      PinScope<'s, 'i, ()>,
+      Local<'s, Data>,
+      Local<'s, Value>,
+      Local<'s, String>,
       ModuleImportPhase,
-      Local<'a, FixedArray>,
-    ) -> Option<Local<'a, Promise>>,
+      Local<'s, FixedArray>,
+    ) -> Option<Local<'s, Promise>>,
 {
   #[inline(always)]
   fn to_c_fn(self) -> RawHostImportModuleWithPhaseDynamicallyCallback {
@@ -550,9 +552,7 @@ where
 /// creation fails, the embedder must propagate that exception by returning
 /// [`None`].
 pub type HostCreateShadowRealmContextCallback =
-  for<'s, 'a> fn(
-    scope: &Pin<&'s mut HandleScope<'a>>,
-  ) -> Option<Local<'s, Context>>;
+  for<'s, 'i> fn(scope: &PinScope<'s, 'i, ()>) -> Option<Local<'s, Context>>;
 
 pub type GcCallbackWithData = unsafe extern "C" fn(
   isolate: *mut RealIsolate,
@@ -1371,7 +1371,7 @@ impl Isolate {
       let callback = isolate
         .get_slot::<HostCreateShadowRealmContextCallback>()
         .unwrap();
-      let context = callback(scope.as_handle_scope());
+      let context = callback(&scope);
       context.map_or_else(null_mut, |l| l.as_non_null().as_ptr())
     }
 
@@ -1595,7 +1595,7 @@ impl Isolate {
   #[inline(always)]
   pub fn set_wasm_streaming_callback<F>(&mut self, _: F)
   where
-    F: UnitType + Fn(&Pin<&mut HandleScope>, Local<Value>, WasmStreaming),
+    F: UnitType + Fn(&PinScope, Local<Value>, WasmStreaming),
   {
     unsafe {
       v8__Isolate__SetWasmStreamingCallback(

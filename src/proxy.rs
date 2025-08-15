@@ -6,6 +6,7 @@ use crate::Local;
 use crate::Object;
 use crate::Proxy;
 use crate::Value;
+use crate::scope2::PinScope;
 
 unsafe extern "C" {
   fn v8__Proxy__New(
@@ -21,8 +22,8 @@ unsafe extern "C" {
 
 impl Proxy {
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     target: Local<Object>,
     handler: Local<Object>,
   ) -> Option<Local<'s, Proxy>> {
@@ -34,17 +35,17 @@ impl Proxy {
   }
 
   #[inline(always)]
-  pub fn get_handler<'s, 'a>(
+  pub fn get_handler<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(self)) }.unwrap()
   }
 
   #[inline(always)]
-  pub fn get_target<'s, 'a>(
+  pub fn get_target<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(self)) }.unwrap()
   }
