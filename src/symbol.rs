@@ -6,6 +6,7 @@ use crate::String;
 use crate::Symbol;
 use crate::Value;
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 
 unsafe extern "C" {
   fn v8__Symbol__New(
@@ -28,7 +29,7 @@ unsafe extern "C" {
 
 macro_rules! well_known {
   ($name:ident, $binding:ident) => {
-    pub fn $name<'s, 'a>(scope: &'s HandleScope<'a>) -> Local<'s, Symbol> {
+    pub fn $name<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Symbol> {
       unsafe extern "C" {
         fn $binding(isolate: *mut RealIsolate) -> *const Symbol;
       }
@@ -41,8 +42,8 @@ impl Symbol {
   /// Create a symbol. If description is not empty, it will be used as the
   /// description.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     description: Option<Local<String>>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -64,8 +65,8 @@ impl Symbol {
   /// To minimize the potential for clashes, use qualified descriptions as keys.
   /// Corresponds to v8::Symbol::For() in C++.
   #[inline(always)]
-  pub fn for_key<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn for_key<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -79,8 +80,8 @@ impl Symbol {
   /// registry that is not accessible by (and cannot clash with) JavaScript code.
   /// Corresponds to v8::Symbol::ForApi() in C++.
   #[inline(always)]
-  pub fn for_api<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn for_api<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -93,9 +94,9 @@ impl Symbol {
 
   /// Returns the description string of the symbol, or undefined if none.
   #[inline(always)]
-  pub fn description<'s, 'a>(
+  pub fn description<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Local<'s, Value> {
     unsafe {
       scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))

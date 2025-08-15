@@ -10,6 +10,7 @@ use crate::Local;
 use crate::Number;
 use crate::Uint32;
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 
 unsafe extern "C" {
   fn v8__Number__New(isolate: *mut RealIsolate, value: f64) -> *const Number;
@@ -26,8 +27,8 @@ unsafe extern "C" {
 
 impl Number {
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a, ()>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     value: f64,
   ) -> Local<'s, Number> {
     unsafe {
@@ -44,8 +45,8 @@ impl Number {
 
 impl Integer {
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a, ()>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     value: i32,
   ) -> Local<'s, Integer> {
     unsafe {
@@ -55,8 +56,8 @@ impl Integer {
   }
 
   #[inline(always)]
-  pub fn new_from_unsigned<'s, 'a>(
-    scope: &'s HandleScope<'a, ()>,
+  pub fn new_from_unsigned<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     value: u32,
   ) -> Local<'s, Integer> {
     unsafe {

@@ -16,6 +16,7 @@ use crate::IsolateHandle;
 use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
 use crate::scope2::HandleScope;
+use crate::scope2::PinScope;
 use crate::support::Opaque;
 
 unsafe extern "C" {
@@ -112,10 +113,10 @@ pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 impl<'s, T> Local<'s, T> {
   /// Construct a new Local from an existing Handle.
   #[inline(always)]
-  pub fn new<'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new<'i>(
+    scope: &PinScope<'s, 'i, ()>,
     handle: impl Handle<Data = T>,
-  ) -> Local<'a, T> {
+  ) -> Local<'s, T> {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(scope);
     unsafe {
@@ -849,10 +850,10 @@ impl<T> Weak<T> {
     }
   }
 
-  pub fn to_local<'a, 's>(
+  pub fn to_local<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s, ()>,
-  ) -> Option<Local<'a, T>> {
+    scope: &PinScope<'s, 'i, ()>,
+  ) -> Option<Local<'s, T>> {
     if let Some(data) = self.get_pointer() {
       let handle_host: HandleHost = (&self.isolate_handle).into();
       handle_host.assert_match_isolate(scope);
@@ -1085,19 +1086,16 @@ impl<T> TracedReference<T> {
   /// Construct a TracedReference from a Local.
   ///
   /// A new storage cell is created pointing to the same object.
-  pub fn new<'a, 's>(
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
-    data: Local<'a, T>,
-  ) -> Self {
+  pub fn new<'s, 'i>(scope: &PinScope<'s, 'i, ()>, data: Local<'s, T>) -> Self {
     let mut this = Self::empty();
     this.reset(scope, Some(data));
     this
   }
 
-  pub fn get<'a, 's>(
+  pub fn get<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s, ()>,
-  ) -> Option<Local<'a, T>> {
+    scope: &PinScope<'s, 'i, ()>,
+  ) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(
@@ -1110,10 +1108,10 @@ impl<T> TracedReference<T> {
 
   /// Always resets the reference. Creates a new reference from `other` if it is
   /// non-empty.
-  pub fn reset<'a, 's>(
+  pub fn reset<'s, 'i>(
     &mut self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
-    data: Option<Local<'a, T>>,
+    scope: &PinScope<'s, 'i, ()>,
+    data: Option<Local<'s, T>>,
   ) {
     unsafe {
       v8__TracedReference__Reset(
@@ -1159,11 +1157,7 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn set<'a, 's>(
-    &self,
-    scope: &Pin<&'a mut HandleScope<'s, ()>>,
-    data: Local<'a, T>,
-  ) {
+  pub fn set<'s, 'i>(&self, scope: &PinScope<'s, 'i, ()>, data: Local<'s, T>) {
     unsafe {
       v8__Eternal__Set(
         self as *const Self as *mut Eternal<Data>,
@@ -1173,10 +1167,10 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'a, 's>(
+  pub fn get<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s, ()>,
-  ) -> Option<Local<'a, T>> {
+    scope: &PinScope<'s, 'i, ()>,
+  ) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Eternal__Get(

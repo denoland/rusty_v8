@@ -1255,11 +1255,11 @@ fn add_message_listener() {
 }
 
 fn unexpected_module_resolve_callback<'a>(
-  _context: v8::Local<'a, v8::Context>,
-  _specifier: v8::Local<'a, v8::String>,
-  _import_attributes: v8::Local<'a, v8::FixedArray>,
-  _referrer: v8::Local<'a, v8::Module>,
-) -> Option<v8::Local<'a, v8::Module>> {
+  _context: v8::Local<'s, v8::Context>,
+  _specifier: v8::Local<'s, v8::String>,
+  _import_attributes: v8::Local<'s, v8::FixedArray>,
+  _referrer: v8::Local<'s, v8::Module>,
+) -> Option<v8::Local<'s, v8::Module>> {
   unreachable!()
 }
 
@@ -4823,11 +4823,11 @@ fn module_instantiation_failures1() {
     {
       let tc = &mut v8::TryCatch::new(scope);
       fn resolve_callback<'a>(
-        context: v8::Local<'a, v8::Context>,
-        _specifier: v8::Local<'a, v8::String>,
-        _import_attributes: v8::Local<'a, v8::FixedArray>,
-        _referrer: v8::Local<'a, v8::Module>,
-      ) -> Option<v8::Local<'a, v8::Module>> {
+        context: v8::Local<'s, v8::Context>,
+        _specifier: v8::Local<'s, v8::String>,
+        _import_attributes: v8::Local<'s, v8::FixedArray>,
+        _referrer: v8::Local<'s, v8::Module>,
+      ) -> Option<v8::Local<'s, v8::Module>> {
         let scope = &mut unsafe { v8::CallbackScope::new(context) };
         let scope = &mut v8::HandleScope::new(scope);
         let e = v8::String::new(scope, "boom").unwrap();
@@ -4851,11 +4851,11 @@ fn module_instantiation_failures1() {
 // of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
 #[allow(clippy::unnecessary_wraps)]
 fn compile_specifier_as_module_resolve_callback<'a>(
-  context: v8::Local<'a, v8::Context>,
-  specifier: v8::Local<'a, v8::String>,
-  _import_attributes: v8::Local<'a, v8::FixedArray>,
-  _referrer: v8::Local<'a, v8::Module>,
-) -> Option<v8::Local<'a, v8::Module>> {
+  context: v8::Local<'s, v8::Context>,
+  specifier: v8::Local<'s, v8::String>,
+  _import_attributes: v8::Local<'s, v8::FixedArray>,
+  _referrer: v8::Local<'s, v8::Module>,
+) -> Option<v8::Local<'s, v8::Module>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
   let origin = mock_script_origin(scope, "module.js");
   let mut source = v8::script_compiler::Source::new(specifier, Some(&origin));
@@ -4978,11 +4978,11 @@ fn import_attributes() {
   // of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
   #[allow(clippy::unnecessary_wraps)]
   fn module_resolve_callback<'a>(
-    context: v8::Local<'a, v8::Context>,
-    _specifier: v8::Local<'a, v8::String>,
-    import_attributes: v8::Local<'a, v8::FixedArray>,
-    _referrer: v8::Local<'a, v8::Module>,
-  ) -> Option<v8::Local<'a, v8::Module>> {
+    context: v8::Local<'s, v8::Context>,
+    _specifier: v8::Local<'s, v8::String>,
+    import_attributes: v8::Local<'s, v8::FixedArray>,
+    _referrer: v8::Local<'s, v8::Module>,
+  ) -> Option<v8::Local<'s, v8::Module>> {
     let scope = &mut unsafe { v8::CallbackScope::new(context) };
 
     // "type" keyword, value and source offset of assertion
@@ -7696,9 +7696,9 @@ fn low_memory_notification() {
 // of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
 #[allow(clippy::unnecessary_wraps)]
 fn synthetic_evaluation_steps<'a>(
-  context: v8::Local<'a, v8::Context>,
+  context: v8::Local<'s, v8::Context>,
   module: v8::Local<v8::Module>,
-) -> Option<v8::Local<'a, v8::Value>> {
+) -> Option<v8::Local<'s, v8::Value>> {
   let scope = &mut unsafe { v8::CallbackScope::new(context) };
   let mut set = |name, value| {
     let name = v8::String::new(scope, name).unwrap();
@@ -7795,11 +7795,11 @@ fn static_source_phase_import() {
   context.set_slot(Rc::new(v8::Global::new(scope, obj)));
 
   fn resolve_source<'a>(
-    context: v8::Local<'a, v8::Context>,
-    _specifier: v8::Local<'a, v8::String>,
-    _import_attributes: v8::Local<'a, v8::FixedArray>,
-    _referrer: v8::Local<'a, v8::Module>,
-  ) -> Option<v8::Local<'a, v8::Object>> {
+    context: v8::Local<'s, v8::Context>,
+    _specifier: v8::Local<'s, v8::String>,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
+    _referrer: v8::Local<'s, v8::Module>,
+  ) -> Option<v8::Local<'s, v8::Object>> {
     let scope = unsafe { &mut v8::CallbackScope::new(context) };
     let global =
       Rc::into_inner(context.remove_slot::<v8::Global<v8::Object>>().unwrap())
@@ -9338,11 +9338,11 @@ fn cached_data_version_tag() {
 #[test]
 fn code_cache() {
   fn resolve_callback<'a>(
-    _context: v8::Local<'a, v8::Context>,
-    _specifier: v8::Local<'a, v8::String>,
-    _import_attributes: v8::Local<'a, v8::FixedArray>,
-    _referrer: v8::Local<'a, v8::Module>,
-  ) -> Option<v8::Local<'a, v8::Module>> {
+    _context: v8::Local<'s, v8::Context>,
+    _specifier: v8::Local<'s, v8::String>,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
+    _referrer: v8::Local<'s, v8::Module>,
+  ) -> Option<v8::Local<'s, v8::Module>> {
     None
   }
 

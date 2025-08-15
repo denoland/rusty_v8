@@ -2,6 +2,7 @@
 //! A JSON Parser and Stringifier.
 use std::pin::Pin;
 
+use crate::scope2::PinScope;
 use crate::Context;
 use crate::HandleScope;
 use crate::Local;
@@ -22,10 +23,10 @@ unsafe extern "C" {
 /// Tries to parse the string `json_string` and returns it as value if
 /// successful.
 #[inline(always)]
-pub fn parse<'s, 'a>(
-  scope: &'a HandleScope<'s>,
+pub fn parse<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   json_string: Local<'_, String>,
-) -> Option<Local<'a, Value>> {
+) -> Option<Local<'s, Value>> {
   unsafe {
     scope
       .cast_local(|sd| v8__JSON__Parse(sd.get_current_context(), &*json_string))
@@ -35,10 +36,10 @@ pub fn parse<'s, 'a>(
 /// Tries to stringify the JSON-serializable object `json_object` and returns
 /// it as string if successful.
 #[inline(always)]
-pub fn stringify<'s, 'a>(
-  scope: &'a HandleScope<'s>,
+pub fn stringify<'s, 'i>(
+  scope: &PinScope<'s, 'i>,
   json_object: Local<'_, Value>,
-) -> Option<Local<'a, String>> {
+) -> Option<Local<'s, String>> {
   unsafe {
     scope.cast_local(|sd| {
       v8__JSON__Stringify(sd.get_current_context(), &*json_object)

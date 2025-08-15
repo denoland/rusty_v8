@@ -11,6 +11,7 @@ use crate::Script;
 use crate::String;
 use crate::UnboundScript;
 use crate::Value;
+use crate::scope2::PinScope;
 
 /// The origin, within a file, of a script.
 #[repr(C)]
@@ -59,8 +60,8 @@ unsafe extern "C" {
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   #[inline(always)]
-  pub fn compile<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn compile<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'s, Script>> {
@@ -77,9 +78,9 @@ impl Script {
 
   /// Returns the corresponding context-unbound script.
   #[inline(always)]
-  pub fn get_unbound_script<'s, 'a>(
+  pub fn get_unbound_script<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Local<'s, UnboundScript> {
     unsafe {
       scope
@@ -92,9 +93,9 @@ impl Script {
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
   #[inline]
-  pub fn run<'s, 'a>(
+  pub fn run<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope.cast_local(|sd| v8__Script__Run(self, sd.get_current_context()))
@@ -106,9 +107,9 @@ impl Script {
 impl<'s> ScriptOrigin<'s> {
   #[allow(clippy::too_many_arguments)]
   #[inline(always)]
-  pub fn new<'a>(
+  pub fn new<'i>(
     // TODO(littledivy): remove
-    _scope: &'s HandleScope<'a>,
+    _scope: &PinScope<'s, 'i>,
     resource_name: Local<'s, Value>,
     resource_line_offset: i32,
     resource_column_offset: i32,

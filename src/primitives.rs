@@ -11,7 +11,7 @@ unsafe extern "C" {
 }
 
 #[inline(always)]
-pub fn null<'a, R>(scope: &R) -> Local<'a, Primitive>
+pub fn null<'s, R>(scope: &R) -> Local<'s, Primitive>
 where
   R: AsRef<Isolate>,
 {
@@ -21,7 +21,7 @@ where
 }
 
 #[inline(always)]
-pub fn undefined<'a, R>(scope: &R) -> Local<'a, Primitive>
+pub fn undefined<'s, R>(scope: &R) -> Local<'s, Primitive>
 where
   R: AsRef<Isolate>,
 {
@@ -34,7 +34,7 @@ where
 
 impl Boolean {
   #[inline(always)]
-  pub fn new<'a, R>(scope: &R, value: bool) -> Local<'a, Boolean>
+  pub fn new<'s, R>(scope: &R, value: bool) -> Local<'s, Boolean>
   where
     R: AsRef<Isolate>,
   {
@@ -46,4 +46,3 @@ impl Boolean {
     }
   }
 }
-

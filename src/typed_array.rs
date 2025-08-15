@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::ArrayBuffer;
 use crate::HandleScope;
+use crate::PinScope;
 use crate::Local;
 use crate::TypedArray;
 use crate::binding::v8__TypedArray__kMaxByteLength;
@@ -39,8 +40,8 @@ macro_rules! typed_array {
 
       impl $name {
         #[inline(always)]
-        pub fn new<'s, 'a>(
-          scope: &'s HandleScope<'a>,
+        pub fn new<'s, 'i>(
+          scope: &PinScope<'s, 'i>,
           buf: Local<ArrayBuffer>,
           byte_offset: usize,
           length: usize,

@@ -1793,7 +1793,7 @@ pub(crate) mod data {
     /// Instead, the current scope is marked as being a 'zombie': the scope
     /// itself is gone, but its data still on the stack. The zombie's data will
     /// be dropped when the user touches the parent scope; when that happens, it
-    /// is certain that there are no accessible `Local<'a, T>` handles left,
+    /// is certain that there are no accessible `Local<'s, T>` handles left,
     /// because the 'a lifetime ends there.
     ///
     /// Scope types that do no store local handles are exited immediately.

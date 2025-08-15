@@ -17,6 +17,7 @@ use crate::UnboundModuleScript;
 use crate::Value;
 use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
+use crate::scope2::PinScope;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::MaybeBool;
@@ -33,11 +34,11 @@ use crate::support::int;
 ///
 /// ```rust,ignore
 ///   fn my_resolve_callback<'a>(
-///      context: v8::Local<'a, v8::Context>,
-///      specifier: v8::Local<'a, v8::String>,
-///      import_attributes: v8::Local<'a, v8::FixedArray>,
-///      referrer: v8::Local<'a, v8::Module>,
-///   ) -> Option<v8::Local<'a, v8::Module>> {
+///      context: v8::Local<'s, v8::Context>,
+///      specifier: v8::Local<'s, v8::String>,
+///      import_attributes: v8::Local<'s, v8::FixedArray>,
+///      referrer: v8::Local<'s, v8::Module>,
+///   ) -> Option<v8::Local<'s, v8::Module>> {
 ///      // ...
 ///      Some(resolved_module)
 ///   }
@@ -48,34 +49,34 @@ use crate::support::int;
 pub struct ResolveModuleCallbackRet(*const Module);
 
 #[cfg(not(target_os = "windows"))]
-pub type ResolveModuleCallback<'a> =
+pub type ResolveModuleCallback<'s> =
   unsafe extern "C" fn(
-    Local<'a, Context>,
-    Local<'a, String>,
-    Local<'a, FixedArray>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+    Local<'s, Module>,
   ) -> ResolveModuleCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveModuleCallback<'a> = unsafe extern "C" fn(
+pub type ResolveModuleCallback<'s> = unsafe extern "C" fn(
   *mut *const Module,
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, FixedArray>,
-  Local<'a, Module>,
+  Local<'s, Context>,
+  Local<'s, String>,
+  Local<'s, FixedArray>,
+  Local<'s, Module>,
 )
   -> *mut *const Module;
 
-impl<'a, F> MapFnFrom<F> for ResolveModuleCallback<'a>
+impl<'s, F> MapFnFrom<F> for ResolveModuleCallback<'s>
 where
   F: UnitType
     + Fn(
-      Local<'a, Context>,
-      Local<'a, String>,
-      Local<'a, FixedArray>,
-      Local<'a, Module>,
-    ) -> Option<Local<'a, Module>>,
+      Local<'s, Context>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+      Local<'s, Module>,
+    ) -> Option<Local<'s, Module>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -108,25 +109,25 @@ where
 pub struct SyntheticModuleEvaluationStepsRet(*const Value);
 
 #[cfg(not(target_os = "windows"))]
-pub type SyntheticModuleEvaluationSteps<'a> =
+pub type SyntheticModuleEvaluationSteps<'s> =
   unsafe extern "C" fn(
-    Local<'a, Context>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, Module>,
   ) -> SyntheticModuleEvaluationStepsRet;
 
 // Windows x64 ABI: Local<Value> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type SyntheticModuleEvaluationSteps<'a> =
+pub type SyntheticModuleEvaluationSteps<'s> =
   unsafe extern "C" fn(
     *mut *const Value,
-    Local<'a, Context>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, Module>,
   ) -> *mut *const Value;
 
-impl<'a, F> MapFnFrom<F> for SyntheticModuleEvaluationSteps<'a>
+impl<'s, F> MapFnFrom<F> for SyntheticModuleEvaluationSteps<'s>
 where
   F: UnitType
-    + Fn(Local<'a, Context>, Local<'a, Module>) -> Option<Local<'a, Value>>,
+    + Fn(Local<'s, Context>, Local<'s, Module>) -> Option<Local<'s, Value>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -157,34 +158,34 @@ where
 pub struct ResolveSourceCallbackRet(*const Object);
 
 #[cfg(not(target_os = "windows"))]
-pub type ResolveSourceCallback<'a> =
+pub type ResolveSourceCallback<'s> =
   unsafe extern "C" fn(
-    Local<'a, Context>,
-    Local<'a, String>,
-    Local<'a, FixedArray>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+    Local<'s, Module>,
   ) -> ResolveSourceCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveSourceCallback<'a> = unsafe extern "C" fn(
+pub type ResolveSourceCallback<'s> = unsafe extern "C" fn(
   *mut *const Object,
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, FixedArray>,
-  Local<'a, Module>,
+  Local<'s, Context>,
+  Local<'s, String>,
+  Local<'s, FixedArray>,
+  Local<'s, Module>,
 )
   -> *mut *const Object;
 
-impl<'a, F> MapFnFrom<F> for ResolveSourceCallback<'a>
+impl<'s, F> MapFnFrom<F> for ResolveSourceCallback<'s>
 where
   F: UnitType
     + Fn(
-      Local<'a, Context>,
-      Local<'a, String>,
-      Local<'a, FixedArray>,
-      Local<'a, Module>,
-    ) -> Option<Local<'a, Object>>,
+      Local<'s, Context>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+      Local<'s, Module>,
+    ) -> Option<Local<'s, Object>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -379,10 +380,10 @@ impl Module {
   /// exception is propagated.)
   #[must_use]
   #[inline(always)]
-  pub fn instantiate_module<'a>(
+  pub fn instantiate_module<'s, 'i>(
     &self,
-    scope: &Pin<&mut HandleScope>,
-    callback: impl MapFnTo<ResolveModuleCallback<'a>>,
+    scope: &PinScope<'s, 'i>,
+    callback: impl MapFnTo<ResolveModuleCallback<'s>>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__InstantiateModule(
@@ -402,11 +403,11 @@ impl Module {
   /// exception is propagated.)
   #[must_use]
   #[inline(always)]
-  pub fn instantiate_module2<'a>(
+  pub fn instantiate_module2<'s, 'i>(
     &self,
-    scope: &Pin<&'a mut HandleScope>,
-    callback: impl MapFnTo<ResolveModuleCallback<'a>>,
-    source_callback: impl MapFnTo<ResolveSourceCallback<'a>>,
+    scope: &PinScope<'s, 'i>,
+    callback: impl MapFnTo<ResolveModuleCallback<'s>>,
+    source_callback: impl MapFnTo<ResolveSourceCallback<'s>>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__InstantiateModule(
@@ -427,10 +428,10 @@ impl Module {
   /// via |GetException|).
   #[must_use]
   #[inline(always)]
-  pub fn evaluate<'s, 'a>(
+  pub fn evaluate<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, Value>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, Value>> {
     unsafe {
       scope
         .cast_local(|sd| v8__Module__Evaluate(self, sd.get_current_context()))
@@ -464,11 +465,11 @@ impl Module {
   /// module_name is used solely for logging/debugging and doesn't affect module
   /// behavior.
   #[inline(always)]
-  pub fn create_synthetic_module<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn create_synthetic_module<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     module_name: Local<String>,
     export_names: &[Local<String>],
-    evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
+    evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'s>>,
   ) -> Local<'s, Module> {
     let export_names = Local::slice_into_raw(export_names);
     let export_names_len = export_names.len();
@@ -513,9 +514,9 @@ impl Module {
   }
 
   #[inline(always)]
-  pub fn get_unbound_module_script<'s, 'a>(
+  pub fn get_unbound_module_script<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Local<'s, UnboundModuleScript> {
     unsafe {
       scope

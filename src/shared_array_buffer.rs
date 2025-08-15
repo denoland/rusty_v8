@@ -10,6 +10,7 @@ use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
+use crate::scope2::PinScope;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 
@@ -45,8 +46,8 @@ impl SharedArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     byte_length: usize,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     unsafe {
@@ -60,8 +61,8 @@ impl SharedArrayBuffer {
   }
 
   #[inline(always)]
-  pub fn with_backing_store<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn with_backing_store<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'s, SharedArrayBuffer> {
     unsafe {
@@ -98,8 +99,8 @@ impl SharedArrayBuffer {
   /// given isolate and re-try the allocation. If GCs do not help, then the
   /// function will crash with an out-of-memory error.
   #[inline(always)]
-  pub fn new_backing_store<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new_backing_store<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {

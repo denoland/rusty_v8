@@ -15,6 +15,7 @@ use crate::isolate::Isolate;
 use crate::support::MaybeBool;
 use crate::isolate::RealIsolate;
 use crate::scope2::HandleScope;
+use crate::scope2::PinScope;
 use crate::support::int;
 
 unsafe extern "C" {
@@ -86,10 +87,10 @@ unsafe extern "C" {
 impl StackTrace {
   /// Grab a snapshot of the current JavaScript execution stack.
   #[inline(always)]
-  pub fn current_stack_trace<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn current_stack_trace<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     frame_limit: usize,
-  ) -> Option<Local<'a, StackTrace>> {
+  ) -> Option<Local<'s, StackTrace>> {
     let frame_limit = frame_limit.try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
@@ -108,9 +109,9 @@ impl StackTrace {
   /// a stack trace.
   ///
   #[inline(always)]
-  pub fn current_script_name_or_source_url<'s, 'a>(
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, String>> {
+  pub fn current_script_name_or_source_url<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__StackTrace__CurrentScriptNameOrSourceURL(sd.get_isolate_ptr())
@@ -126,11 +127,11 @@ impl StackTrace {
 
   /// Returns a StackFrame at a particular index.
   #[inline(always)]
-  pub fn get_frame<'s, 'a>(
+  pub fn get_frame<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     index: usize,
-  ) -> Option<Local<'a, StackFrame>> {
+  ) -> Option<Local<'s, StackFrame>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__StackTrace__GetFrame(self, sd.get_isolate_ptr(), index as u32)
@@ -171,10 +172,10 @@ impl StackFrame {
   /// Returns the name of the resource that contains the script for the
   /// function for this StackFrame.
   #[inline(always)]
-  pub fn get_script_name<'s, 'a>(
+  pub fn get_script_name<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, String>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, String>> {
     unsafe { scope.cast_local(|_| v8__StackFrame__GetScriptName(self)) }
   }
 
@@ -183,10 +184,10 @@ impl StackFrame {
   /// is undefined and its source ends with //# sourceURL=... string or
   /// deprecated //@ sourceURL=... string.
   #[inline(always)]
-  pub fn get_script_name_or_source_url<'s, 'a>(
+  pub fn get_script_name_or_source_url<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, String>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|_| v8__StackFrame__GetScriptNameOrSourceURL(self))
     }
@@ -194,10 +195,10 @@ impl StackFrame {
 
   /// Returns the name of the function associated with this stack frame.
   #[inline(always)]
-  pub fn get_function_name<'s, 'a>(
+  pub fn get_function_name<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, String>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, String>> {
     unsafe { scope.cast_local(|_| v8__StackFrame__GetFunctionName(self)) }
   }
 
@@ -230,7 +231,7 @@ impl StackFrame {
 
 impl Message {
   #[inline(always)]
-  pub fn get<'s, 'a>(&self, scope: &'a HandleScope<'s>) -> Local<'a, String> {
+  pub fn get<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Message__Get(self)) }.unwrap()
   }
 
@@ -238,18 +239,18 @@ impl Message {
   /// uncaught exceptions. SetCaptureStackTraceForUncaughtExceptions allows
   /// to change this option.
   #[inline(always)]
-  pub fn get_stack_trace<'s, 'a>(
+  pub fn get_stack_trace<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, StackTrace>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.cast_local(|_| v8__Message__GetStackTrace(self)) }
   }
 
   #[inline(always)]
-  pub fn get_source_line<'s, 'a>(
+  pub fn get_source_line<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, String>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Message__GetSourceLine(self, sd.get_current_context())
@@ -260,18 +261,18 @@ impl Message {
   /// Returns the resource name for the script from where the function causing
   /// the error originates.
   #[inline(always)]
-  pub fn get_script_resource_name<'s, 'a>(
+  pub fn get_script_resource_name<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
-  ) -> Option<Local<'a, Value>> {
+    scope: &PinScope<'s, 'i>,
+  ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Message__GetScriptResourceName(self)) }
   }
 
   /// Returns the number, 1-based, of the line where the error occurred.
   #[inline(always)]
-  pub fn get_line_number<'s, 'a>(
+  pub fn get_line_number<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
   ) -> Option<usize> {
     let i = unsafe {
       v8__Message__GetLineNumber(self, &*scope.get_current_context())
@@ -340,52 +341,52 @@ pub struct Exception;
 
 impl Exception {
   #[inline(always)]
-  pub fn error<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn error<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     message: Local<String>,
-  ) -> Local<'a, Value> {
+  ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__Error)
   }
 
   #[inline(always)]
-  pub fn range_error<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn range_error<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     message: Local<String>,
-  ) -> Local<'a, Value> {
+  ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__RangeError)
   }
 
   #[inline(always)]
-  pub fn reference_error<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn reference_error<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     message: Local<String>,
-  ) -> Local<'a, Value> {
+  ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__ReferenceError)
   }
 
   #[inline(always)]
-  pub fn syntax_error<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn syntax_error<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     message: Local<String>,
-  ) -> Local<'a, Value> {
+  ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__SyntaxError)
   }
 
   #[inline(always)]
-  pub fn type_error<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn type_error<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     message: Local<String>,
-  ) -> Local<'a, Value> {
+  ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__TypeError)
   }
 
   /// Internal helper to make the above error constructors less repetitive.
   #[inline(always)]
-  fn new_error_with<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  fn new_error_with<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     message: Local<String>,
     contructor: unsafe extern "C" fn(*const String) -> *const Value,
-  ) -> Local<'a, Value> {
+  ) -> Local<'s, Value> {
     unsafe {
       scope.enter();
       let error = scope.cast_local(|_| (contructor)(&*message)).unwrap();
@@ -398,10 +399,10 @@ impl Exception {
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
   #[inline(always)]
-  pub fn create_message<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn create_message<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     exception: Local<Value>,
-  ) -> Local<'a, Message> {
+  ) -> Local<'s, Message> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Exception__CreateMessage(sd.get_isolate_ptr(), &*exception)
@@ -413,10 +414,10 @@ impl Exception {
   /// Returns the original stack trace that was captured at the creation time
   /// of a given exception, or an empty handle if not available.
   #[inline(always)]
-  pub fn get_stack_trace<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn get_stack_trace<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     exception: Local<Value>,
-  ) -> Option<Local<'a, StackTrace>> {
+  ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.cast_local(|_| v8__Exception__GetStackTrace(&*exception)) }
   }
 

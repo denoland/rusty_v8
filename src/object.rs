@@ -26,6 +26,7 @@ use crate::cppgc::GetRustObj;
 use crate::cppgc::UnsafePtr;
 use crate::isolate::Isolate;
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 use crate::support::MapFnTo;
 use crate::support::Maybe;
 use crate::support::MaybeBool;
@@ -304,7 +305,7 @@ const LAST_TAG: u16 = 0x7fff;
 impl Object {
   /// Creates an empty object.
   #[inline(always)]
-  pub fn new<'s, 'a>(scope: &'s HandleScope<'a>) -> Local<'s, Object> {
+  pub fn new<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Object> {
     unsafe { scope.cast_local(|sd| v8__Object__New(sd.get_isolate_ptr())) }
       .unwrap()
   }
@@ -315,8 +316,8 @@ impl Object {
   /// to Object.create(). All properties will be created as enumerable,
   /// configurable and writable properties.
   #[inline(always)]
-  pub fn with_prototype_and_properties<'s>(
-    scope: &'s HandleScope<'s>,
+  pub fn with_prototype_and_properties<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     prototype_or_null: Local<'s, Value>,
     names: &[Local<Name>],
     values: &[Local<Value>],
@@ -341,9 +342,9 @@ impl Object {
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
   #[inline(always)]
-  pub fn set<'s, 'a>(
+  pub fn set<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
     value: Local<Value>,
   ) -> Option<bool> {
@@ -356,9 +357,9 @@ impl Object {
   /// SetWithReceiver only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
   #[inline(always)]
-  pub fn set_with_receiver<'s, 'a>(
+  pub fn set_with_receiver<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
     value: Local<Value>,
     receiver: Local<Object>,
@@ -378,9 +379,9 @@ impl Object {
   /// Set only return Just(true) or Empty(), so if it should never fail, use
   /// result.Check().
   #[inline(always)]
-  pub fn set_index<'s, 'a>(
+  pub fn set_index<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     index: u32,
     value: Local<Value>,
   ) -> Option<bool> {
@@ -393,9 +394,9 @@ impl Object {
   /// Set the prototype object. This does not skip objects marked to be
   /// skipped by proto and it does not consult the security handler.
   #[inline(always)]
-  pub fn set_prototype<'s, 'a>(
+  pub fn set_prototype<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     prototype: Local<Value>,
   ) -> Option<bool> {
     unsafe {
@@ -418,9 +419,9 @@ impl Object {
   ///
   /// Returns true on success.
   #[inline(always)]
-  pub fn create_data_property<'s, 'a>(
+  pub fn create_data_property<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
     value: Local<Value>,
   ) -> Option<bool> {
@@ -442,9 +443,9 @@ impl Object {
   ///
   /// Returns true on success.
   #[inline(always)]
-  pub fn define_own_property<'s, 'a>(
+  pub fn define_own_property<'s, 'i>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
     value: Local<Value>,
     attr: PropertyAttribute,
@@ -462,9 +463,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn define_property<'s, 'a>(
+  pub fn define_property<'s, 'i>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
     descriptor: &PropertyDescriptor,
   ) -> Option<bool> {
@@ -480,9 +481,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn get<'s, 'a>(
+  pub fn get<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
@@ -492,9 +493,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn get_with_receiver<'s, 'a>(
+  pub fn get_with_receiver<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
     receiver: Local<Object>,
   ) -> Option<Local<'s, Value>> {
@@ -511,9 +512,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn get_index<'s, 'a>(
+  pub fn get_index<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     index: u32,
   ) -> Option<Local<'s, Value>> {
     unsafe {
@@ -526,18 +527,18 @@ impl Object {
   /// Get the prototype object. This does not skip objects marked to be
   /// skipped by proto and it does not consult the security handler.
   #[inline(always)]
-  pub fn get_prototype<'s, 'a>(
+  pub fn get_prototype<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Object__GetPrototype(self)) }
   }
 
   /// Note: SideEffectType affects the getter only, not the setter.
   #[inline(always)]
-  pub fn set_accessor<'s, 'a>(
+  pub fn set_accessor<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     name: Local<Name>,
     getter: impl MapFnTo<AccessorNameGetterCallback>,
   ) -> Option<bool> {
@@ -549,9 +550,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn set_accessor_with_setter<'s, 'a>(
+  pub fn set_accessor_with_setter<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     name: Local<Name>,
     getter: impl MapFnTo<AccessorNameGetterCallback>,
     setter: impl MapFnTo<AccessorNameSetterCallback>,
@@ -563,9 +564,9 @@ impl Object {
     )
   }
   #[inline(always)]
-  pub fn set_accessor_with_configuration<'s, 'a>(
+  pub fn set_accessor_with_configuration<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     name: Local<Name>,
     configuration: AccessorConfiguration,
   ) -> Option<bool> {
@@ -595,9 +596,9 @@ impl Object {
 
   /// Returns the context in which the object was created.
   #[inline(always)]
-  pub fn get_creation_context<'s, 'a>(
+  pub fn get_creation_context<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> Option<Local<'s, Context>> {
     unsafe { scope.cast_local(|_| v8__Object__GetCreationContext(self)) }
   }
@@ -606,9 +607,9 @@ impl Object {
   /// returned array doesn't contain the names of properties from prototype
   /// objects.
   #[inline(always)]
-  pub fn get_own_property_names<'s, 'a>(
+  pub fn get_own_property_names<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     args: GetPropertyNamesArgs,
   ) -> Option<Local<'s, Array>> {
     unsafe {
@@ -628,9 +629,9 @@ impl Object {
   /// this method contains the same values as would be enumerated by a for-in
   /// statement over this object.
   #[inline(always)]
-  pub fn get_property_names<'s, 'a>(
+  pub fn get_property_names<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     args: GetPropertyNamesArgs,
   ) -> Option<Local<'s, Array>> {
     unsafe {
@@ -658,9 +659,9 @@ impl Object {
   // Note: This function converts the key to a name, which possibly calls back
   // into JavaScript.
   #[inline(always)]
-  pub fn has<'s, 'a>(
+  pub fn has<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Has(self, &*scope.get_current_context(), &*key) }
@@ -668,9 +669,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn has_index<'s, 'a>(
+  pub fn has_index<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     index: u32,
   ) -> Option<bool> {
     unsafe { v8__Object__HasIndex(self, &*scope.get_current_context(), index) }
@@ -679,9 +680,9 @@ impl Object {
 
   /// HasOwnProperty() is like JavaScript's Object.prototype.hasOwnProperty().
   #[inline(always)]
-  pub fn has_own_property<'s, 'a>(
+  pub fn has_own_property<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
   ) -> Option<bool> {
     unsafe {
@@ -691,9 +692,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn delete<'s, 'a>(
+  pub fn delete<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Object__Delete(self, &*scope.get_current_context(), &*key) }
@@ -701,9 +702,9 @@ impl Object {
   }
 
   #[inline]
-  pub fn delete_index<'s, 'a>(
+  pub fn delete_index<'s, 'i>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &PinScope<'s, 'i>,
     index: u32,
   ) -> Option<bool> {
     unsafe {
@@ -721,9 +722,9 @@ impl Object {
 
   /// Gets the data from an internal field.
   #[inline(always)]
-  pub fn get_internal_field<'s, 'a>(
+  pub fn get_internal_field<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     index: usize,
   ) -> Option<Local<'s, Data>> {
     // Trying to access out-of-bounds internal fields makes V8 abort
@@ -818,9 +819,9 @@ impl Object {
 
   /// Sets the integrity level of the object.
   #[inline(always)]
-  pub fn set_integrity_level<'s, 'a>(
+  pub fn set_integrity_level<'s, 'i>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &PinScope<'s, 'i>,
     level: IntegrityLevel,
   ) -> Option<bool> {
     unsafe {
@@ -851,9 +852,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn get_private<'s, 'a>(
+  pub fn get_private<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Private>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
@@ -868,9 +869,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn set_private<'s, 'a>(
+  pub fn set_private<'s, 'i>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Private>,
     value: Local<Value>,
   ) -> Option<bool> {
@@ -890,9 +891,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn delete_private<'s, 'a>(
+  pub fn delete_private<'s, 'i>(
     &self,
-    scope: &Pin<&'s mut HandleScope<'a>>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Private>,
   ) -> Option<bool> {
     unsafe {
@@ -906,9 +907,9 @@ impl Object {
   /// Note: Private properties are not inherited. Do not rely on this, since it
   /// may change.
   #[inline(always)]
-  pub fn has_private<'s, 'a>(
+  pub fn has_private<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Private>,
   ) -> Option<bool> {
     unsafe {
@@ -922,9 +923,9 @@ impl Object {
   /// [PropertyAttribute::READ_ONLY], [PropertyAttribute::DONT_ENUM] and
   /// [PropertyAttribute::DONT_DELETE].
   /// Returns [PropertyAttribute::NONE] when the property doesn't exist.
-  pub fn get_property_attributes<'s, 'a>(
+  pub fn get_property_attributes<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<PropertyAttribute> {
     let mut out = Maybe::<PropertyAttribute>::default();
@@ -942,9 +943,9 @@ impl Object {
   /// Implements Object.getOwnPropertyDescriptor(O, P), see
   /// https://tc39.es/ecma262/#sec-object.getownpropertydescriptor.
   #[inline]
-  pub fn get_own_property_descriptor<'s, 'a>(
+  pub fn get_own_property_descriptor<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
@@ -966,9 +967,9 @@ impl Object {
   /// Also returns a boolean, indicating whether the returned array contains
   /// key & values (for example when the value is Set.entries()).
   #[inline]
-  pub fn preview_entries<'s, 'a>(
+  pub fn preview_entries<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
   ) -> (Option<Local<'s, Array>>, bool) {
     let mut is_key_value = MaybeUninit::uninit();
     unsafe {
@@ -985,9 +986,9 @@ impl Object {
   /// in the prototype chain.
   /// This means interceptors in the prototype chain are not called.
   #[inline(always)]
-  pub fn get_real_named_property<'s, 'a>(
+  pub fn get_real_named_property<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
@@ -998,9 +999,9 @@ impl Object {
   }
 
   #[inline(always)]
-  pub fn has_real_named_property<'s, 'a>(
+  pub fn has_real_named_property<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
   ) -> Option<bool> {
     unsafe {
@@ -1017,9 +1018,9 @@ impl Object {
   /// None or any combination of ReadOnly, DontEnum and DontDelete.
   /// Interceptors in the prototype chain are not called.
   #[inline(always)]
-  pub fn get_real_named_property_attributes<'s, 'a>(
+  pub fn get_real_named_property_attributes<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Name>,
   ) -> Option<PropertyAttribute> {
     let mut out = Maybe::<PropertyAttribute>::default();
@@ -1053,8 +1054,8 @@ impl Array {
   /// Creates a JavaScript array with the given length. If the length
   /// is negative the returned array will have length 0.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     length: i32,
   ) -> Local<'s, Array> {
     unsafe {
@@ -1066,8 +1067,8 @@ impl Array {
   /// Creates a JavaScript array out of a Local<Value> array with a known
   /// length.
   #[inline(always)]
-  pub fn new_with_elements<'s, 'a>(
-    scope: &'s HandleScope<'a>,
+  pub fn new_with_elements<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     elements: &[Local<Value>],
   ) -> Local<'s, Array> {
     if elements.is_empty() {
@@ -1094,7 +1095,7 @@ impl Array {
 
 impl Map {
   #[inline(always)]
-  pub fn new<'s, 'a>(scope: &'s HandleScope<'a>) -> Local<'s, Map> {
+  pub fn new<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Map> {
     unsafe { scope.cast_local(|sd| v8__Map__New(sd.get_isolate_ptr())) }
       .unwrap()
   }
@@ -1110,9 +1111,9 @@ impl Map {
   }
 
   #[inline(always)]
-  pub fn get<'s, 'a>(
+  pub fn get<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
@@ -1121,9 +1122,9 @@ impl Map {
   }
 
   #[inline(always)]
-  pub fn set<'s, 'a>(
+  pub fn set<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
     value: Local<Value>,
   ) -> Option<Local<'s, Map>> {
@@ -1135,18 +1136,18 @@ impl Map {
   }
 
   #[inline(always)]
-  pub fn has<'s, 'a>(
+  pub fn has<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Map__Has(self, &*scope.get_current_context(), &*key) }.into()
   }
 
   #[inline(always)]
-  pub fn delete<'s, 'a>(
+  pub fn delete<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Map__Delete(self, &*scope.get_current_context(), &*key) }
@@ -1156,17 +1157,14 @@ impl Map {
   /// Returns an array of length size() * 2, where index N is the Nth key and
   /// index N + 1 is the Nth value.
   #[inline(always)]
-  pub fn as_array<'s, 'a>(
-    &self,
-    scope: &'s HandleScope<'a>,
-  ) -> Local<'s, Array> {
+  pub fn as_array<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, Array> {
     unsafe { scope.cast_local(|_| v8__Map__As__Array(self)) }.unwrap()
   }
 }
 
 impl Set {
   #[inline(always)]
-  pub fn new<'s, 'a>(scope: &'s HandleScope<'a>) -> Local<'s, Set> {
+  pub fn new<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Set> {
     unsafe { scope.cast_local(|sd| v8__Set__New(sd.get_isolate_ptr())) }
       .unwrap()
   }
@@ -1182,9 +1180,9 @@ impl Set {
   }
 
   #[inline(always)]
-  pub fn add<'s, 'a>(
+  pub fn add<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<Local<'s, Set>> {
     unsafe {
@@ -1193,18 +1191,18 @@ impl Set {
   }
 
   #[inline(always)]
-  pub fn has<'s, 'a>(
+  pub fn has<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Set__Has(self, &*scope.get_current_context(), &*key) }.into()
   }
 
   #[inline(always)]
-  pub fn delete<'s, 'a>(
+  pub fn delete<'s, 'i>(
     &self,
-    scope: &'s HandleScope<'a>,
+    scope: &PinScope<'s, 'i>,
     key: Local<Value>,
   ) -> Option<bool> {
     unsafe { v8__Set__Delete(self, &*scope.get_current_context(), &*key) }
@@ -1214,10 +1212,7 @@ impl Set {
   /// Returns an array of length size() * 2, where index N is the Nth key and
   /// index N + 1 is the Nth value.
   #[inline(always)]
-  pub fn as_array<'s, 'a>(
-    &self,
-    scope: &'s HandleScope<'a>,
-  ) -> Local<'s, Array> {
+  pub fn as_array<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, Array> {
     unsafe { scope.cast_local(|_| v8__Set__As__Array(self)) }.unwrap()
   }
 }

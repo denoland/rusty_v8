@@ -6,6 +6,7 @@ use crate::Context;
 use crate::Date;
 use crate::HandleScope;
 use crate::Local;
+use crate::scope2::PinScope;
 
 unsafe extern "C" {
   fn v8__Date__New(context: *const Context, value: f64) -> *const Date;
@@ -15,10 +16,10 @@ unsafe extern "C" {
 /// An instance of the built-in Date constructor (ECMA-262, 15.9).
 impl Date {
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     value: f64,
-  ) -> Option<Local<'a, Date>> {
+  ) -> Option<Local<'s, Date>> {
     unsafe {
       scope.cast_local(|sd| v8__Date__New(sd.get_current_context(), value))
     }

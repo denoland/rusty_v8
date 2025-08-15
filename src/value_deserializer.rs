@@ -5,6 +5,7 @@ use crate::Global;
 use crate::Isolate;
 use crate::Local;
 use crate::Object;
+use crate::PinScope;
 use crate::SharedArrayBuffer;
 use crate::String;
 use crate::Value;
@@ -42,13 +43,11 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
     unsafe { ValueDeserializerHeap::dispatch(this) };
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
-  let scope = pin!(scope);
-  let mut scope = scope.init();
-  let context =
-    Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
-  let context = context.erased();
-  let scope =
-    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
+  let scope: Pin<&mut crate::scope2::ScopeStorage<CallbackScope<'_, ()>>> =
+    pin!(scope);
+  let mut scope = &mut scope.init();
+  let context = Local::new(scope, &value_deserializer_heap.context);
+  let scope = { ContextScope::new(scope, context) };
 
   match value_deserializer_heap
     .value_deserializer_impl
@@ -70,12 +69,10 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = scope.init();
-  // let hs = scope.as_handle_scope();
-  let context = Local::new(&scope, &value_deserializer_heap.context);
-  let context = context.erased();
-  let scope =
-    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
+  let mut scope = &mut scope.init();
+  // let hs = scope;
+  let context = Local::new(scope, &value_deserializer_heap.context);
+  let scope = { ContextScope::new(scope, context) };
 
   match value_deserializer_heap
     .value_deserializer_impl
@@ -97,12 +94,9 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = scope.init();
-  let context =
-    Local::new(scope.as_handle_scope(), &value_deserializer_heap.context);
-  let context = context.erased();
-  let scope =
-    unsafe { ContextScope::new(scope.as_handle_scope_mut().as_mut(), context) };
+  let mut scope = &mut scope.init();
+  let context = Local::new(scope, &value_deserializer_heap.context);
+  let scope = { ContextScope::new(scope, context) };
 
   match value_deserializer_heap
     .value_deserializer_impl
@@ -193,11 +187,11 @@ unsafe extern "C" {
 /// The ValueDeserializerImpl trait allows for
 /// custom callback functions used by v8.
 pub trait ValueDeserializerImpl {
-  fn read_host_object<'s, 'a>(
+  fn read_host_object<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     _value_deserializer: &dyn ValueDeserializerHelper,
-  ) -> Option<Local<'a, Object>> {
+  ) -> Option<Local<'s, Object>> {
     let msg =
       String::new(scope, "Deno deserializer: read_host_object not implemented")
         .unwrap();
@@ -206,11 +200,11 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  fn get_shared_array_buffer_from_id<'s, 'a>(
+  fn get_shared_array_buffer_from_id<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     _transfer_id: u32,
-  ) -> Option<Local<'a, SharedArrayBuffer>> {
+  ) -> Option<Local<'s, SharedArrayBuffer>> {
     let msg = String::new(
       scope,
       "Deno deserializer: get_shared_array_buffer_from_id not implemented",
@@ -221,11 +215,11 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  fn get_wasm_module_from_id<'s, 'a>(
+  fn get_wasm_module_from_id<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     _clone_id: u32,
-  ) -> Option<Local<'a, WasmModuleObject>> {
+  ) -> Option<Local<'s, WasmModuleObject>> {
     let msg = String::new(
       scope,
       "Deno deserializer: get_wasm_module_from_id not implemented",
@@ -423,8 +417,8 @@ pub struct ValueDeserializer<'a> {
 }
 
 impl<'a> ValueDeserializer<'a> {
-  pub fn new<'s, D: ValueDeserializerImpl + 'a>(
-    scope: &Pin<&'a mut HandleScope<'s>>,
+  pub fn new<'s, 'i, D: ValueDeserializerImpl + 'a>(
+    scope: &PinScope<'s, 'i>,
     value_deserializer_impl: Box<D>,
     data: &[u8],
   ) -> Self {

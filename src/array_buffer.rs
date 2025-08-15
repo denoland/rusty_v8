@@ -15,6 +15,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::support::Shared;
@@ -427,10 +428,10 @@ impl ArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     byte_length: usize,
-  ) -> Local<'a, ArrayBuffer> {
+  ) -> Local<'s, ArrayBuffer> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ArrayBuffer__New__with_byte_length(
@@ -443,10 +444,10 @@ impl ArrayBuffer {
   }
 
   #[inline(always)]
-  pub fn with_backing_store<'s, 'a>(
-    scope: &'a HandleScope<'s>,
+  pub fn with_backing_store<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     backing_store: &SharedRef<BackingStore>,
-  ) -> Local<'a, ArrayBuffer> {
+  ) -> Local<'s, ArrayBuffer> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ArrayBuffer__New__with_backing_store(
@@ -640,12 +641,12 @@ impl ArrayBuffer {
 impl DataView {
   /// Returns a new DataView.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'a HandleScope<'s>,
-    arraybuffer: Local<'a, ArrayBuffer>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
+    arraybuffer: Local<'s, ArrayBuffer>,
     byte_offset: usize,
     length: usize,
-  ) -> Local<'a, DataView> {
+  ) -> Local<'s, DataView> {
     unsafe {
       scope
         .cast_local(|_| v8__DataView__New(&*arraybuffer, byte_offset, length))

@@ -4,6 +4,7 @@ use crate::String;
 use crate::binding::v8__String__kMaxLength;
 use crate::isolate::RealIsolate;
 use crate::scope2::HandleScope;
+use crate::scope2::PinScope;
 use crate::support::Opaque;
 use crate::support::char;
 use crate::support::int;
@@ -408,7 +409,7 @@ impl String {
   pub const MAX_LENGTH: usize = v8__String__kMaxLength as _;
 
   #[inline(always)]
-  pub fn empty<'s, 'a>(scope: &'a HandleScope<'s, ()>) -> Local<'a, String> {
+  pub fn empty<'s, 'i>(scope: &PinScope<'s, 'i, ()>) -> Local<'s, String> {
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
     unsafe { scope.cast_local(|sd| v8__String__Empty(sd.get_isolate_ptr())) }
@@ -418,11 +419,11 @@ impl String {
   /// Allocates a new string from UTF-8 data. Only returns an empty value when
   /// length > kMaxLength
   #[inline(always)]
-  pub fn new_from_utf8<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_from_utf8<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: &[u8],
     new_type: NewStringType,
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     if buffer.is_empty() {
       return Some(Self::empty(scope));
     }
@@ -442,11 +443,11 @@ impl String {
   /// Allocates a new string from Latin-1 data.  Only returns an empty value when
   /// length > kMaxLength.
   #[inline(always)]
-  pub fn new_from_one_byte<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_from_one_byte<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: &[u8],
     new_type: NewStringType,
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
@@ -463,11 +464,11 @@ impl String {
   /// Allocates a new string from UTF-16 data. Only returns an empty value when
   /// length > kMaxLength.
   #[inline(always)]
-  pub fn new_from_two_byte<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_from_two_byte<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: &[u16],
     new_type: NewStringType,
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
@@ -732,10 +733,10 @@ impl String {
 
   // Convenience function not present in the original V8 API.
   #[inline(always)]
-  pub fn new<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     value: &str,
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
   }
 
@@ -780,10 +781,10 @@ impl String {
   /// Note that OneByteConst guarantees ASCII even though V8 would allow
   /// OneByte string resources to contain Latin-1.
   #[inline(always)]
-  pub fn new_from_onebyte_const<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_from_onebyte_const<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     onebyte_const: &'static OneByteConst,
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByteConst(sd.get_isolate_ptr(), onebyte_const)
@@ -794,10 +795,10 @@ impl String {
   /// Creates a v8::String from a `&'static [u8]`,
   /// must be Latin-1 or ASCII, not UTF-8!
   #[inline(always)]
-  pub fn new_external_onebyte_static<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_external_onebyte_static<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: &'static [u8],
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {
@@ -814,10 +815,10 @@ impl String {
   /// The bytes must be Latin-1 or ASCII.
   /// V8 will take ownership of the buffer and free it when the string is garbage collected.
   #[inline(always)]
-  pub fn new_external_onebyte<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_external_onebyte<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: Box<[u8]>,
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len();
     unsafe {
       scope.cast_local(|sd| {
@@ -839,12 +840,12 @@ impl String {
   /// `destructor` must be a valid function pointer that can free the buffer.
   /// The destructor will be called with the buffer and length when the string is garbage collected.
   #[inline(always)]
-  pub unsafe fn new_external_onebyte_raw<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub unsafe fn new_external_onebyte_raw<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: *mut char,
     buffer_len: usize,
     destructor: unsafe extern "C" fn(*mut char, usize),
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__String__NewExternalOneByte(
@@ -859,10 +860,10 @@ impl String {
 
   /// Creates a v8::String from a `&'static [u16]`.
   #[inline(always)]
-  pub fn new_external_twobyte_static<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new_external_twobyte_static<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     buffer: &'static [u16],
-  ) -> Option<Local<'a, String>> {
+  ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {
       scope.cast_local(|sd| {

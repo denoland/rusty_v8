@@ -8,6 +8,7 @@ use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::isolate::RealIsolate;
+use crate::scope2::PinScope;
 
 unsafe extern "C" {
   fn v8__External__New(
@@ -20,10 +21,10 @@ unsafe extern "C" {
 impl External {
   #[inline(always)]
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
-  pub fn new<'s, 'a>(
-    scope: &'a HandleScope<'s, ()>,
+  pub fn new<'s, 'i>(
+    scope: &PinScope<'s, 'i, ()>,
     value: *mut c_void,
-  ) -> Local<'a, Self> {
+  ) -> Local<'s, Self> {
     unsafe {
       scope.cast_local(|sd| v8__External__New(sd.get_isolate_ptr(), value))
     }

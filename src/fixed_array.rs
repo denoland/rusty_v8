@@ -1,5 +1,6 @@
 use std::pin::Pin;
 
+use crate::scope2::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
 use crate::Data;
@@ -25,11 +26,11 @@ impl FixedArray {
   }
 
   #[inline(always)]
-  pub fn get<'s, 'a>(
+  pub fn get<'s, 'i>(
     &self,
-    scope: &'a HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
     index: usize,
-  ) -> Option<Local<'a, Data>> {
+  ) -> Option<Local<'s, Data>> {
     if index >= self.length() {
       return None;
     }

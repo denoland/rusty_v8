@@ -10,16 +10,13 @@ fn main() {
 
     // Create a stack-allocated handle scope.
     let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
-    let mut handle_scope = handle_scope.init();
+    let handle_scope = &mut handle_scope.init();
 
     // Create a new context.
-    let context = v8::Context::new(&handle_scope, Default::default());
+    let context = v8::Context::new(handle_scope, Default::default());
 
     // Enter the context for compiling and running the hello world script.
-    let scope = &unsafe {
-      let context = context.erased();
-      v8::ContextScope::new(handle_scope.as_mut(), context)
-    };
+    let scope = &v8::ContextScope::new(handle_scope, context);
     // Create a string containing the JavaScript source code.
     let code = v8::String::new(scope, "'Hello' + ' World!'").unwrap();
 

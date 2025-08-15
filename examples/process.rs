@@ -145,7 +145,7 @@ where
     source: v8::Local<'i, v8::String>,
     options: HashMap<String, String>,
   ) -> Self {
-    let global = v8::ObjectTemplate::new(&isolate_scope.borrow());
+    let global = v8::ObjectTemplate::new(isolate_scope.borrow());
     global.set(
       v8::String::new(&isolate_scope.borrow(), "log").unwrap().into(),
       v8::FunctionTemplate::new(&isolate_scope.borrow(), log_callback).into(),
