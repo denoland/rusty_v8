@@ -103,25 +103,25 @@ use_custom_libcxx = []
 v8_enable_pointer_compression = []
 
 [dependencies]
-bitflags = "2.5"
+bitflags = "2.9"
 paste = "1.0"
 
 [build-dependencies]
-miniz_oxide = "0.8.8"
+miniz_oxide = "0.8.9"
 gzip-header = "1.0.0"
 fslock = "0.2"
-which = "6"
+which = "8"
 home = "0"
 bindgen = "0.72"
 
 [dev-dependencies]
-miniz_oxide = "0.8.8"
+miniz_oxide = "0.8.9"
 gzip-header = "1.0.0"
 bytes = "1"
 align-data = "0.1.0"
 fslock = "0.2"
-trybuild = "1.0.96"
-which = "6"
+trybuild = "1.0"
+which = "8"
 home = "0"
 rustversion = "1"
 bindgen = "0.72"
