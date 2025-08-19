@@ -1,4 +1,3 @@
-use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::binding::*;

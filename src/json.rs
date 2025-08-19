@@ -1,10 +1,8 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 //! A JSON Parser and Stringifier.
-use std::pin::Pin;
 
 use crate::scope2::PinScope;
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::String;
 use crate::Value;

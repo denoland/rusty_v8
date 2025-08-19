@@ -1,5 +1,5 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use std::{marker::PhantomData, mem::MaybeUninit, pin::Pin};
+use std::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::Function;
 use crate::Local;
@@ -10,8 +10,8 @@ use crate::String;
 use crate::isolate::RealIsolate;
 use crate::scope2::PinScope;
 use crate::support::int;
-use crate::{Context, Isolate, Script, UnboundScript};
-use crate::{HandleScope, UniqueRef};
+use crate::{Context, Script, UnboundScript};
+use crate::UniqueRef;
 
 unsafe extern "C" {
   fn v8__ScriptCompiler__Source__CONSTRUCT(

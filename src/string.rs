@@ -3,7 +3,6 @@ use crate::Local;
 use crate::String;
 use crate::binding::v8__String__kMaxLength;
 use crate::isolate::RealIsolate;
-use crate::scope2::HandleScope;
 use crate::scope2::PinScope;
 use crate::support::Opaque;
 use crate::support::char;
@@ -15,7 +14,6 @@ use std::default::Default;
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::pin::Pin;
 use std::ptr::NonNull;
 use std::slice;
 

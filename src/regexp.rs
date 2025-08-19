@@ -1,7 +1,5 @@
-use std::pin::Pin;
 
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::Object;
 use crate::RegExp;

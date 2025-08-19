@@ -11,11 +11,9 @@ use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
 use crate::isolate::RealIsolate;
-use crate::scope2::AsRef2;
 use crate::scope2::CallbackScope;
 use crate::scope2::ContextScope;
 use crate::scope2::GetIsolate;
-use crate::scope2::HandleScope;
 
 use std::alloc::Layout;
 use std::alloc::alloc;
@@ -50,7 +48,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
     unsafe { Isolate::from_raw_ptr(value_serializer_heap.isolate_ptr) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = unsafe { ContextScope::new(scope, context) };
   value_serializer_heap
@@ -80,7 +78,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = unsafe { ContextScope::new(scope, context) };
 
@@ -101,7 +99,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = unsafe { ContextScope::new(scope, context) };
   let value_serializer_impl =
@@ -124,7 +122,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = unsafe { ContextScope::new(scope, context) };
   match value_serializer_heap
@@ -152,7 +150,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
   let scope = unsafe { ContextScope::new(scope, context) };
   match value_serializer_heap

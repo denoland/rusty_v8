@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::pin::Pin;
 use std::ptr::NonNull;
 use std::ptr::null;
 
@@ -8,7 +7,6 @@ use crate::Array;
 use crate::Boolean;
 use crate::Context;
 use crate::Function;
-use crate::HandleScope;
 use crate::Integer;
 use crate::Isolate;
 use crate::Local;
@@ -21,7 +19,6 @@ use crate::String;
 use crate::UniqueRef;
 use crate::Value;
 use crate::isolate::RealIsolate;
-use crate::scope2::AsRef2;
 use crate::scope2::PinScope;
 use crate::scope2::make_callback_scope;
 use crate::script_compiler::CachedData;

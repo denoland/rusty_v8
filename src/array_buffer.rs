@@ -3,14 +3,12 @@
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::ops::Deref;
-use std::pin::Pin;
 use std::ptr::NonNull;
 use std::ptr::null;
 use std::slice;
 
 use crate::ArrayBuffer;
 use crate::DataView;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;

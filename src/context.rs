@@ -2,7 +2,6 @@ use crate::isolate::RealIsolate;
 use crate::scope2::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::MicrotaskQueue;
 use crate::Object;
@@ -11,13 +10,11 @@ use crate::Value;
 use crate::Weak;
 use crate::handle::UnsafeRefHandle;
 use crate::isolate::BuildTypeIdHasher;
-use crate::isolate::Isolate;
 use crate::isolate::RawSlot;
 use crate::support::int;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::pin::Pin;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
 

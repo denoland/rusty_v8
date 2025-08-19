@@ -1,14 +1,11 @@
-use std::pin::Pin;
-
-use crate::isolate::RealIsolate;
-use crate::scope2::GetIsolate;
-use crate::scope2::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::HandleScope;
-use crate::Isolate;
+
 use crate::Local;
 use crate::Primitive;
 use crate::PrimitiveArray;
+use crate::isolate::RealIsolate;
+use crate::scope2::GetIsolate;
+use crate::scope2::PinScope;
 use crate::support::int;
 
 unsafe extern "C" {

@@ -1,7 +1,6 @@
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
 use crate::BackingStore;
-use crate::HandleScope;
 use crate::Local;
 use crate::SharedRef;
 use crate::binding::memory_span_t;
@@ -9,7 +8,6 @@ use crate::scope2::PinScope;
 use crate::support::int;
 use std::convert::TryInto;
 use std::ffi::c_void;
-use std::pin::Pin;
 
 unsafe extern "C" {
   fn v8__ArrayBufferView__Buffer(

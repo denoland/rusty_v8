@@ -3,7 +3,6 @@ use crate::Context;
 use crate::Function;
 use crate::FunctionBuilder;
 use crate::FunctionCallback;
-use crate::HandleScope;
 use crate::IndexedDefinerCallback;
 use crate::IndexedDeleterCallback;
 use crate::IndexedGetterCallback;
@@ -36,7 +35,6 @@ use crate::scope2::PinScope;
 use crate::support::MapFnTo;
 use crate::support::int;
 use std::convert::TryFrom;
-use std::pin::Pin;
 use std::ptr::null;
 
 unsafe extern "C" {

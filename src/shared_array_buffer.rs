@@ -1,11 +1,9 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
-use std::pin::Pin;
 
 use crate::BackingStore;
 use crate::BackingStoreDeleterCallback;
-use crate::HandleScope;
 use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::isolate::RealIsolate;

@@ -1,7 +1,6 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use crate::ArrayBuffer;
-use crate::Isolate;
 use crate::Local;
 use crate::PinScope;
 use crate::Value;
@@ -10,15 +9,11 @@ use crate::WasmModuleObject;
 use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
 use crate::isolate::RealIsolate;
-use crate::scope2::AsRef2;
-use crate::scope2::CallbackScope;
 use crate::scope2::GetIsolate;
-use crate::scope2::HandleScope;
 use crate::scope2::make_callback_scope;
 use crate::support::Opaque;
 use crate::support::UnitType;
 use crate::support::char;
-use std::pin::Pin;
 use std::ptr::null;
 use std::ptr::null_mut;
 

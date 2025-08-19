@@ -1,8 +1,3 @@
-use crate::scope2::AsRef2;
-use crate::scope2::BoxedStorage;
-use crate::scope2::PinScope;
-use crate::scope2::PinnedRef;
-use crate::scope2::make_callback_scope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Array;
 use crate::CallbackScope;
@@ -37,7 +32,8 @@ use crate::handle::FinalizerMap;
 use crate::isolate_create_params::CreateParams;
 use crate::isolate_create_params::raw;
 use crate::promise::PromiseRejectMessage;
-use crate::scope::data::ScopeData;
+use crate::scope2::BoxedStorage;
+use crate::scope2::PinScope;
 use crate::snapshot::SnapshotCreator;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -466,7 +462,7 @@ where
     )> {
       let scope = unsafe { CallbackScope::new(&context) };
       let scope = Box::pin(scope);
-      let mut scope = scope.init_box();
+      let scope = scope.init_box();
 
       // (F::get())(
       //   scope,

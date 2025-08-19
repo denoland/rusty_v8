@@ -1,11 +1,8 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
-use std::pin::Pin;
 
 use crate::External;
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::isolate::RealIsolate;
 use crate::scope2::PinScope;
