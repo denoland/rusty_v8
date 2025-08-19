@@ -6,7 +6,6 @@ use std::ptr::null;
 use crate::Context;
 use crate::FixedArray;
 use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::Message;
 use crate::Module;

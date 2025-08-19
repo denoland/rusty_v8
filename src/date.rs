@@ -1,10 +1,8 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
-use std::pin::Pin;
 
 use crate::Context;
 use crate::Date;
-use crate::HandleScope;
 use crate::Local;
 use crate::scope2::PinScope;
 

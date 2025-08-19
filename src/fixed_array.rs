@@ -1,11 +1,9 @@
-use std::pin::Pin;
 
 use crate::scope2::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
 use crate::Data;
 use crate::FixedArray;
-use crate::HandleScope;
 use crate::Local;
 use crate::support::int;
 

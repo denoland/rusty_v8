@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 
 use std::convert::TryInto;
-use std::pin::Pin;
 
 use crate::Context;
 use crate::Local;
@@ -11,10 +10,8 @@ use crate::StackFrame;
 use crate::StackTrace;
 use crate::String;
 use crate::Value;
-use crate::isolate::Isolate;
 use crate::support::MaybeBool;
 use crate::isolate::RealIsolate;
-use crate::scope2::HandleScope;
 use crate::scope2::PinScope;
 use crate::support::int;
 

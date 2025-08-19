@@ -1,11 +1,8 @@
 use std::alloc::Layout;
-use std::pin::Pin;
 use std::ptr::NonNull;
 
-use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
-use crate::Isolate;
 use crate::Local;
 use crate::Number;
 use crate::Uint32;

@@ -1,7 +1,3 @@
-use std::pin::Pin;
-
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::Private;
 use crate::String;

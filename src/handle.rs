@@ -7,7 +7,6 @@ use std::marker::PhantomData;
 use std::mem::forget;
 use std::mem::transmute;
 use std::ops::Deref;
-use std::pin::Pin;
 use std::ptr::NonNull;
 
 use crate::Data;
@@ -15,7 +14,6 @@ use crate::Isolate;
 use crate::IsolateHandle;
 use crate::isolate::RealIsolate;
 use crate::scope2::GetIsolate;
-use crate::scope2::HandleScope;
 use crate::scope2::PinScope;
 use crate::support::Opaque;
 
@@ -802,7 +800,7 @@ impl<T> Weak<T> {
           // Disposed isolates have no finalizers.
           false
         } else {
-          let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
+          let isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
           isolate.get_finalizer_map().map.contains_key(&finalizer_id)
         }
       } else {

@@ -1,7 +1,5 @@
-use std::pin::Pin;
 
 use crate::CachedData;
-use crate::HandleScope;
 use crate::Local;
 use crate::PinScope;
 use crate::Script;

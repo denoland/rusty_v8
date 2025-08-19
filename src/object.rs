@@ -5,7 +5,6 @@ use crate::Array;
 use crate::Context;
 use crate::Data;
 use crate::GetPropertyNamesArgs;
-use crate::HandleScope;
 use crate::IndexFilter;
 use crate::KeyCollectionMode;
 use crate::KeyConversionMode;
@@ -35,7 +34,6 @@ use std::convert::TryFrom;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
-use std::pin::Pin;
 use std::ptr::null;
 
 unsafe extern "C" {

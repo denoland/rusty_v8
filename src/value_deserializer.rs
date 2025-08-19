@@ -11,11 +11,9 @@ use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
 use crate::isolate::RealIsolate;
-use crate::scope2::AsRef2;
 use crate::scope2::CallbackScope;
 use crate::scope2::ContextScope;
 use crate::scope2::GetIsolate;
-use crate::scope2::HandleScope;
 
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
@@ -45,7 +43,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope: Pin<&mut crate::scope2::ScopeStorage<CallbackScope<'_, ()>>> =
     pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = { ContextScope::new(scope, context) };
 
@@ -69,7 +67,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   // let hs = scope;
   let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = { ContextScope::new(scope, context) };
@@ -94,7 +92,7 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
   let scope = pin!(scope);
-  let mut scope = &mut scope.init();
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_deserializer_heap.context);
   let scope = { ContextScope::new(scope, context) };
 

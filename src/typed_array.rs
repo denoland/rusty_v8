@@ -1,8 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::ArrayBuffer;
-use crate::HandleScope;
-use crate::PinScope;
 use crate::Local;
+use crate::PinScope;
 use crate::TypedArray;
 use crate::binding::v8__TypedArray__kMaxByteLength;
 use crate::support::size_t;

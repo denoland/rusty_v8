@@ -1,6 +1,3 @@
-use std::pin::Pin;
-
-use crate::HandleScope;
 use crate::Local;
 use crate::String;
 use crate::Symbol;

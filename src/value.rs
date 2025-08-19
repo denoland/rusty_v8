@@ -1,12 +1,8 @@
-use std::pin::Pin;
-
 use crate::BigInt;
 use crate::Boolean;
 use crate::Context;
-use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
-use crate::Isolate;
 use crate::Local;
 use crate::Number;
 use crate::Object;

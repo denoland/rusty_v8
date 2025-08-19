@@ -1,11 +1,9 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::pin::Pin;
 use std::ptr::null;
 
 use crate::Context;
 use crate::Data;
-use crate::HandleScope;
 use crate::Local;
 use crate::Script;
 use crate::String;
