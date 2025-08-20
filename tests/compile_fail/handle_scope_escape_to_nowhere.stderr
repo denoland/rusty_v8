@@ -1,36 +1,26 @@
-error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
+error[E0277]: the trait bound `&mut OwnedIsolate: v8::scope2::NewEscapableHandleScope<'_>` is not satisfied
  --> tests/compile_fail/handle_scope_escape_to_nowhere.rs:5:50
   |
 5 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-  |                    ----------------------------- ^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
+  |                    ----------------------------- ^^^^^^^^^^^^ the trait `v8::scope2::NewEscapableHandleScope<'_>` is not implemented for `&mut OwnedIsolate`
   |                    |
   |                    required by a bound introduced by this call
   |
-  = help: the following other types implement trait `v8::scope::param::NewEscapableHandleScope<'s, 'e>`:
-            `AllowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-            `CallbackScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
-            `ContextScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-            `DisallowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-            `EscapableHandleScope<'p, 'e, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
-            `HandleScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
-            `TryCatch<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-note: required by a bound in `EscapableHandleScope::<'s, 'e>::new`
- --> src/scope.rs
+  = help: the following other types implement trait `v8::scope2::NewEscapableHandleScope<'s>`:
+            &'borrow mut PinnedRef<'p, HandleScope<'s>>
+            PinnedRef<'s, HandleScope<'p>>
+note: required by a bound in `EscapableHandleScope::<'s, 'esc>::new`
+ --> src/scope2.rs
   |
-  |   pub fn new<P: param::NewEscapableHandleScope<'s, 'e>>(
-  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `EscapableHandleScope::<'s, 'e>::new`
+  |   pub fn new<P: NewEscapableHandleScope<'s>>(
+  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `EscapableHandleScope::<'s, 'esc>::new`
 
-error[E0277]: the trait bound `OwnedIsolate: v8::scope::param::NewEscapableHandleScope<'_, '_>` is not satisfied
+error[E0277]: the trait bound `&mut OwnedIsolate: v8::scope2::NewEscapableHandleScope<'_>` is not satisfied
  --> tests/compile_fail/handle_scope_escape_to_nowhere.rs:5:20
   |
 5 |   let mut _scope = v8::EscapableHandleScope::new(&mut isolate);
-  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `v8::scope::param::NewEscapableHandleScope<'_, '_>` is not implemented for `OwnedIsolate`
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `v8::scope2::NewEscapableHandleScope<'_>` is not implemented for `&mut OwnedIsolate`
   |
-  = help: the following other types implement trait `v8::scope::param::NewEscapableHandleScope<'s, 'e>`:
-            `AllowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-            `CallbackScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
-            `ContextScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-            `DisallowJavascriptExecutionScope<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
-            `EscapableHandleScope<'p, 'e, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
-            `HandleScope<'p, C>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'p>`
-            `TryCatch<'p, P>` implements `v8::scope::param::NewEscapableHandleScope<'s, 'e>`
+  = help: the following other types implement trait `v8::scope2::NewEscapableHandleScope<'s>`:
+            &'borrow mut PinnedRef<'p, HandleScope<'s>>
+            PinnedRef<'s, HandleScope<'p>>

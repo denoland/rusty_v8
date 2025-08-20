@@ -1,9 +1,10 @@
 error[E0499]: cannot borrow `scope1` as mutable more than once at a time
- --> $DIR/handle_scope_lifetime_1.rs:7:33
-  |
-6 |   let mut _scope2 = v8::EscapableHandleScope::new(&mut scope1);
-  |                                                   ----------- first mutable borrow occurs here
-7 |   let _local = v8::Integer::new(&mut scope1, 123);
-  |                                 ^^^^^^^^^^^ second mutable borrow occurs here
-8 | }
-  | - first borrow might be used here, when `_scope2` is dropped and runs the `Drop` code for type `EscapableHandleScope`
+  --> tests/compile_fail/handle_scope_lifetime_1.rs:12:33
+   |
+9  |   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
+   |                                                 ----------- first mutable borrow occurs here
+...
+12 |   let _local = v8::Integer::new(&mut scope1, 123);
+   |                                 ^^^^^^^^^^^ second mutable borrow occurs here
+13 | }
+   | - first borrow might be used here, when `_scope2` is dropped and runs the `Drop` code for type `v8::scope2::ScopeStorage`
