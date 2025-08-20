@@ -17,7 +17,7 @@ pub(super) struct Address(NonZeroUsize);
 
 #[derive(Debug)]
 pub(super) struct ContextScope {
-  entered_context: NonNull<Context>,
+  pub(super) entered_context: NonNull<Context>,
 }
 
 impl ContextScope {

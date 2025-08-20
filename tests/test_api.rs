@@ -82,9 +82,13 @@ fn handle_scope_nested() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope1 = &mut v8::HandleScope::new(isolate);
+    let scope1 = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope1 = &mut scope1.init();
+
     {
-      let _scope2 = &mut v8::HandleScope::new(scope1);
+      let _scope2 = std::pin::pin!(v8::HandleScope::new(scope1));
+    let _scope2 = &mut _scope2.init();
+
     }
   }
 }
@@ -95,11 +99,15 @@ fn handle_scope_numbers() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope1 = &mut v8::HandleScope::new(isolate);
+    let scope1 = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope1 = &mut scope1.init();
+
     let l1 = v8::Integer::new(scope1, -123);
     let l2 = v8::Integer::new_from_unsigned(scope1, 456);
     {
-      let scope2 = &mut v8::HandleScope::new(scope1);
+      let scope2 = std::pin::pin!(v8::HandleScope::new(scope1));
+    let scope2 = &mut scope2.init();
+
       let l3 = v8::Number::new(scope2, 78.9);
       let l4 = l1.cast::<v8::Int32>();
       let l5 = l2.cast::<v8::Uint32>();
@@ -118,12 +126,16 @@ fn handle_scope_numbers() {
 fn handle_scope_non_lexical_lifetime() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope1 = &mut v8::HandleScope::new(isolate);
+  let scope1 = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope1 = &mut scope1.init();
+
 
   // Despite `local` living slightly longer than `scope2`, this test should
   // not crash.
   let local = {
-    let scope2 = &mut v8::HandleScope::new(scope1);
+    let scope2 = std::pin::pin!(v8::HandleScope::new(scope1));
+    let scope2 = &mut scope2.init();
+
     v8::Integer::new(scope2, 123)
   };
   assert_eq!(local.value(), 123);
@@ -140,7 +152,9 @@ fn global_handles() {
   let mut g5: Option<v8::Global<v8::Integer>> = None;
   let g6;
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let l1 = v8::String::new(scope, "bla").unwrap();
     let l2 = v8::Integer::new(scope, 123);
     g1 = v8::Global::new(scope, l1);
@@ -152,7 +166,9 @@ fn global_handles() {
     g6 = g1.clone();
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     assert_eq!(g1.open(scope).to_rust_string_lossy(scope), "bla");
     assert_eq!(g2.as_ref().unwrap().open(scope).value(), 123);
     assert_eq!(g3.open(scope).value(), 123);
@@ -177,12 +193,16 @@ fn global_from_into_raw() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let (raw, weak) = {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let local = v8::Object::new(scope);
     let global = v8::Global::new(scope, local);
 
@@ -209,7 +229,9 @@ fn global_from_into_raw() {
 fn local_handle_deref() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   let key = v8::String::new(scope, "key").unwrap();
@@ -231,7 +253,9 @@ fn global_handle_drop() {
   let _g1: v8::Global<v8::String>;
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let l1 = v8::String::new(scope, "foo").unwrap();
   _g1 = v8::Global::new(scope, l1);
@@ -247,7 +271,9 @@ fn test_string() {
   let isolate = &mut v8::Isolate::new(Default::default());
   {
     // Ensure that a Latin-1 string correctly round-trips
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let reference = "\u{00a0}";
     assert_eq!(2, reference.len());
     let local = v8::String::new(scope, reference).unwrap();
@@ -261,7 +287,9 @@ fn test_string() {
     assert_eq!(2, local.to_rust_cow_lossy(scope, &mut buf).len());
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let reference = "Hello 🦕 world!";
     let local = v8::String::new(scope, reference).unwrap();
     assert_eq!(15, local.length());
@@ -287,14 +315,18 @@ fn test_string() {
     );
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let local = v8::String::empty(scope);
     assert_eq!(0, local.length());
     assert_eq!(0, local.utf8_length(scope));
     assert_eq!("", local.to_rust_string_lossy(scope));
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let local =
       v8::String::new_from_utf8(scope, b"", v8::NewStringType::Normal).unwrap();
     assert_eq!(0, local.length());
@@ -302,7 +334,9 @@ fn test_string() {
     assert_eq!("", local.to_rust_string_lossy(scope));
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let local =
       v8::String::new_from_one_byte(scope, b"foo", v8::NewStringType::Normal)
         .unwrap();
@@ -314,7 +348,9 @@ fn test_string() {
     assert_eq!("foo", local.to_rust_string_lossy(scope));
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let local = v8::String::new_from_two_byte(
       scope,
       &[0xD83E, 0xDD95],
@@ -326,7 +362,9 @@ fn test_string() {
     assert_eq!("🦕", local.to_rust_string_lossy(scope));
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let mut buffer = Vec::with_capacity(v8::String::MAX_LENGTH);
     for _ in 0..buffer.capacity() / 4 {
       // U+10348 in UTF-8
@@ -359,7 +397,9 @@ fn test_string() {
     assert!(none.is_none());
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let invalid_sequence_identifier = v8::String::new_from_utf8(
       scope,
       &[0xa0, 0xa1],
@@ -433,7 +473,9 @@ fn test_string() {
     assert_eq!(invalid_4_octet_sequence.length(), 6);
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let s = "Lorem ipsum dolor sit amet. Qui inventore debitis et voluptas cupiditate qui recusandae molestias et ullam possimus";
     let one_byte = v8::String::new_from_one_byte(
       scope,
@@ -479,7 +521,9 @@ fn escapable_handle_scope() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let handle_scope = &mut v8::HandleScope::new(isolate);
+    let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let handle_scope = &mut handle_scope.init();
+
 
     // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
@@ -518,7 +562,9 @@ fn escapable_handle_scope_can_escape_only_once() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope1 = &mut v8::HandleScope::new(isolate);
+  let scope1 = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope1 = &mut scope1.init();
+
   let scope2 = &mut v8::EscapableHandleScope::new(scope1);
 
   let local1 = v8::Integer::new(scope2, -123);
@@ -535,7 +581,9 @@ fn context_scope() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context1 = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context1);
 
@@ -569,7 +617,9 @@ fn microtasks() {
   isolate.perform_microtask_checkpoint();
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -629,7 +679,9 @@ fn data_view() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -645,7 +697,9 @@ fn array_buffer() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -806,7 +860,9 @@ fn backing_store_segfault() {
     array_buffer_allocator.assert_use_count_eq(2);
     let isolate = &mut v8::Isolate::new(params);
     array_buffer_allocator.assert_use_count_eq(2);
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let ab = v8::ArrayBuffer::new(scope, 10);
@@ -845,7 +901,9 @@ fn array_buffer_with_shared_backing_store() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -926,7 +984,9 @@ fn eval<'s>(
 fn external() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let ex1_value = 1usize as *mut std::ffi::c_void;
   let ex1_handle_a = v8::External::new(scope, ex1_value);
@@ -987,12 +1047,16 @@ fn try_catch() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     {
       // Error thrown - should be caught.
-      let tc = &mut v8::TryCatch::new(scope);
+      let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+
       let result = eval(tc, "throw new Error('foo')");
       assert!(result.is_none());
       assert!(tc.has_caught());
@@ -1006,7 +1070,9 @@ fn try_catch() {
     };
     {
       // No error thrown.
-      let tc = &mut v8::TryCatch::new(scope);
+      let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+
       let result = eval(tc, "1 + 1");
       assert!(result.is_some());
       assert!(!tc.has_caught());
@@ -1017,9 +1083,13 @@ fn try_catch() {
     };
     {
       // Rethrow and reset.
-      let tc1 = &mut v8::TryCatch::new(scope);
+      let tc1 = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc1 = &mut tc1.init();
+
       {
-        let tc2 = &mut v8::TryCatch::new(tc1);
+        let tc2 = std::pin::pin!(v8::TryCatch::new(tc1));
+    let tc2 = &mut tc2.init();
+
         eval(tc2, "throw 'bar'");
         assert!(tc2.has_caught());
         assert!(tc2.rethrow().is_some());
@@ -1037,11 +1107,15 @@ fn try_catch() {
 fn try_catch_caught_lifetime() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   let (caught_exc, caught_msg) = {
-    let tc = &mut v8::TryCatch::new(scope);
+    let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+
     // Throw exception.
     let msg = v8::String::new(tc, "DANG!").unwrap();
     let exc = v8::Exception::type_error(tc, msg);
@@ -1068,11 +1142,15 @@ fn throw_exception() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     {
-      let tc = &mut v8::TryCatch::new(scope);
+      let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+
       let exception = v8::String::new(tc, "boom").unwrap();
       tc.throw_exception(exception.into());
       assert!(tc.has_caught());
@@ -1144,7 +1222,9 @@ fn terminate_execution() {
   let (tx, rx) = std::sync::mpsc::channel::<bool>();
   let handle = isolate.thread_safe_handle();
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -1179,7 +1259,9 @@ fn request_interrupt_small_scripts() {
   let isolate = &mut v8::Isolate::new(Default::default());
   let handle = isolate.thread_safe_handle();
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -1210,7 +1292,9 @@ fn add_message_listener() {
     _exception: v8::Local<v8::Value>,
   ) {
     let scope = &mut unsafe { v8::CallbackScope::new(message) };
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let message_str = message.get(scope);
     assert_eq!(message_str.to_rust_string_lossy(scope), "Uncaught foo");
     assert_eq!(Some(1), message.get_line_number(scope));
@@ -1244,7 +1328,9 @@ fn add_message_listener() {
   isolate.add_message_listener(check_message_0);
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "throw 'foo'").unwrap();
@@ -1277,7 +1363,9 @@ fn set_host_initialize_import_meta_object_callback() {
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let key = v8::String::new(scope, "foo").unwrap();
     let value = v8::String::new(scope, "bar").unwrap();
     meta.create_data_property(scope, key.into(), value.into());
@@ -1285,7 +1373,9 @@ fn set_host_initialize_import_meta_object_callback() {
   isolate.set_host_initialize_import_meta_object_callback(callback);
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let mut source = mock_source(
@@ -1309,7 +1399,9 @@ fn script_compile_and_run() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "'Hello ' + 13 + 'th planet'").unwrap();
@@ -1326,7 +1418,9 @@ fn script_origin() {
   let isolate = &mut v8::Isolate::new(Default::default());
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -1414,7 +1508,9 @@ fn test_primitives() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let null = v8::null(scope);
     assert!(!null.is_undefined());
     assert!(null.is_null());
@@ -1443,7 +1539,9 @@ fn test_primitives() {
 fn exception() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -1473,7 +1571,9 @@ fn exception() {
 fn create_message_argument_lifetimes() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -1506,7 +1606,9 @@ fn json() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let json_string = v8::String::new(scope, "{\"a\": 1, \"b\": 2}").unwrap();
@@ -1526,7 +1628,9 @@ fn no_internal_field() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let object = v8::Object::new(scope);
@@ -1545,7 +1649,9 @@ fn object_template() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let object_templ = v8::ObjectTemplate::new(scope);
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8::String::new(scope, "f").unwrap();
@@ -1609,7 +1715,9 @@ fn object_template_from_function_template() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let expected_class_name = v8::String::new(scope, "fortytwo").unwrap();
     function_templ.set_class_name(expected_class_name);
@@ -1632,7 +1740,9 @@ fn object_template_immutable_proto() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let object_templ = v8::ObjectTemplate::new(scope);
     object_templ.set_immutable_proto();
     let context = v8::Context::new(
@@ -1668,7 +1778,9 @@ fn function_template_signature() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let templ0 = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let signature = v8::Signature::new(scope, templ0);
@@ -1678,7 +1790,9 @@ fn function_template_signature() {
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
-    let scope = &mut v8::TryCatch::new(scope);
+    let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
     let global = context.global(scope);
 
     let name = v8::String::new(scope, "C").unwrap();
@@ -1707,11 +1821,15 @@ fn function_template_prototype() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
-    let scope = &mut v8::TryCatch::new(scope);
+    let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let prototype_templ = function_templ.prototype_template(scope);
 
@@ -1780,7 +1898,9 @@ fn function_template_intrinsic_data_property() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
 
@@ -1827,7 +1947,9 @@ fn function_template_intrinsic_data_property() {
 fn instance_template_with_internal_field() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -1867,7 +1989,9 @@ fn instance_template_with_internal_field() {
 fn object_template_set_accessor() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -2084,7 +2208,9 @@ fn object_template_set_accessor() {
 fn object_template_set_named_property_handler() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -2579,7 +2705,9 @@ fn object_template_set_named_property_handler() {
 fn object_template_set_indexed_property_handler() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -2879,7 +3007,9 @@ fn object() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let null: v8::Local<v8::Value> = v8::null(scope).into();
@@ -2965,7 +3095,9 @@ fn map() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3009,7 +3141,9 @@ fn set() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3047,7 +3181,9 @@ fn array() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let s1 = v8::String::new(scope, "a").unwrap();
@@ -3091,7 +3227,9 @@ fn create_data_property() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3122,7 +3260,9 @@ fn create_data_property() {
 fn object_set_accessor() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3180,7 +3320,9 @@ fn object_set_accessor() {
 fn object_set_accessor_with_setter() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3217,7 +3359,7 @@ fn object_set_accessor_with_setter() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
                   _rv: v8::ReturnValue<()>| {
-      println!("setter called");
+      log::info!("setter called");
 
       let this = args.this();
 
@@ -3282,7 +3424,9 @@ fn object_set_accessor_with_setter() {
 fn object_set_accessor_with_setter_with_property() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3319,7 +3463,7 @@ fn object_set_accessor_with_setter_with_property() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
                   _rv: v8::ReturnValue<()>| {
-      println!("setter called");
+      log::info!("setter called");
 
       let this = args.this();
 
@@ -3385,7 +3529,9 @@ fn object_set_accessor_with_setter_with_property() {
 fn object_set_accessor_with_data() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -3425,7 +3571,7 @@ fn object_set_accessor_with_data() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
                   _rv: v8::ReturnValue<()>| {
-      println!("setter called");
+      log::info!("setter called");
 
       let this = args.this();
 
@@ -3497,7 +3643,9 @@ fn promise_resolved() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let maybe_resolver = v8::PromiseResolver::new(scope);
@@ -3525,7 +3673,9 @@ fn promise_rejected() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let maybe_resolver = v8::PromiseResolver::new(scope);
@@ -3553,7 +3703,9 @@ fn proxy() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let target = v8::Object::new(scope);
@@ -3670,7 +3822,9 @@ fn function_builder_raw() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
@@ -3705,7 +3859,9 @@ fn return_value() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
@@ -3878,7 +4034,9 @@ fn function() {
   let isolate = &mut v8::Isolate::new(Default::default());
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
@@ -4016,7 +4174,9 @@ fn function_column_and_line_numbers() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let mut source = mock_source(
@@ -4076,7 +4236,9 @@ fn function_script_origin_and_id() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -4155,7 +4317,9 @@ fn constructor() {
   let isolate = &mut v8::Isolate::new(Default::default());
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let global = context.global(scope);
@@ -4176,7 +4340,9 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
   let value = msg.get_value().unwrap();
   {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let value_str = value.to_rust_string_lossy(scope);
     assert_eq!(value_str, "promise rejected".to_string());
   }
@@ -4188,7 +4354,9 @@ fn set_promise_reject_callback() {
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_reject_callback(promise_reject_callback);
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let resolver = v8::PromiseResolver::new(scope).unwrap();
@@ -4212,7 +4380,9 @@ fn promise_reject_callback_no_value() {
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_reject_callback(promise_reject_callback);
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = r#"
@@ -4250,7 +4420,9 @@ fn promise_hook() {
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_hook(hook);
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = r#"
@@ -4285,7 +4457,9 @@ fn context_get_extras_binding_object() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let extras_binding = context.get_extras_binding_object(scope);
@@ -4306,7 +4480,9 @@ fn context_promise_hooks() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let init_hook = v8::Local::<v8::Function>::try_from(
@@ -4412,7 +4588,9 @@ fn context_promise_hooks_partial() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let init_hook = v8::Local::<v8::Function>::try_from(
@@ -4486,7 +4664,9 @@ fn security_token() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -4539,7 +4719,9 @@ fn security_token() {
       // Without the security context, the variable can not be shared
       child_context.set_security_token(security_token);
       let child_scope = &mut v8::ContextScope::new(scope, child_context);
-      let try_catch = &mut v8::TryCatch::new(child_scope);
+      let try_catch = std::pin::pin!(v8::TryCatch::new(child_scope));
+    let try_catch = &mut try_catch.init();
+
       let result = eval(try_catch, source);
       assert!(!try_catch.has_caught());
       assert!(result.unwrap().is_undefined());
@@ -4555,7 +4737,9 @@ fn security_token() {
         },
       );
       let child_scope = &mut v8::ContextScope::new(scope, child_context);
-      let try_catch = &mut v8::TryCatch::new(child_scope);
+      let try_catch = std::pin::pin!(v8::TryCatch::new(child_scope));
+    let try_catch = &mut try_catch.init();
+
       let result = eval(try_catch, source);
       assert!(try_catch.has_caught());
       let exc = try_catch.exception().unwrap();
@@ -4597,7 +4781,9 @@ fn context_with_object_template() {
   }
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let object_template = v8::ObjectTemplate::new(scope);
     let mut config = v8::NamedPropertyHandlerConfiguration::new().flags(
       v8::PropertyHandlerFlags::NON_MASKING
@@ -4631,7 +4817,9 @@ fn allow_code_generation_from_strings() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     // The code generation is allowed by default
     assert!(context.is_code_generation_from_strings_allowed());
@@ -4642,7 +4830,9 @@ fn allow_code_generation_from_strings() {
     {
       let scope = &mut v8::ContextScope::new(scope, context);
 
-      let try_catch = &mut v8::TryCatch::new(scope);
+      let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
+    let try_catch = &mut try_catch.init();
+
       let result = eval(try_catch, source).unwrap();
       let expected = v8::Integer::new(try_catch, 1);
       assert!(expected.strict_equals(result));
@@ -4653,7 +4843,9 @@ fn allow_code_generation_from_strings() {
     {
       let scope = &mut v8::ContextScope::new(scope, context);
 
-      let try_catch = &mut v8::TryCatch::new(scope);
+      let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
+    let try_catch = &mut try_catch.init();
+
       let result = eval(try_catch, source);
       assert!(try_catch.has_caught());
       let exc = try_catch.exception().unwrap();
@@ -4676,7 +4868,9 @@ fn allow_atomics_wait() {
     let allow = *allow;
     isolate.set_allow_atomics_wait(allow);
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       let source = r#"
@@ -4684,7 +4878,9 @@ fn allow_atomics_wait() {
         const a = new Int32Array(b);
         "timed-out" === Atomics.wait(a, 0, 0, 1);
       "#;
-      let try_catch = &mut v8::TryCatch::new(scope);
+      let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
+    let try_catch = &mut try_catch.init();
+
       let result = eval(try_catch, source);
       if allow {
         assert!(!try_catch.has_caught());
@@ -4755,7 +4951,9 @@ fn script_compiler_source() {
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_promise_reject_callback(promise_reject_callback);
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -4778,7 +4976,9 @@ fn module_instantiation_failures1() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -4821,7 +5021,9 @@ fn module_instantiation_failures1() {
 
     // Instantiation should fail.
     {
-      let tc = &mut v8::TryCatch::new(scope);
+      let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+
       fn resolve_callback<'a>(
         context: v8::Local<'s, v8::Context>,
         _specifier: v8::Local<'s, v8::String>,
@@ -4829,7 +5031,9 @@ fn module_instantiation_failures1() {
         _referrer: v8::Local<'s, v8::Module>,
       ) -> Option<v8::Local<'s, v8::Module>> {
         let scope = &mut unsafe { v8::CallbackScope::new(context) };
-        let scope = &mut v8::HandleScope::new(scope);
+        let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
         let e = v8::String::new(scope, "boom").unwrap();
         scope.throw_exception(e.into());
         None
@@ -4868,7 +5072,9 @@ fn module_evaluation() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -4911,7 +5117,9 @@ fn module_stalled_top_level_await() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5025,7 +5233,9 @@ fn import_attributes() {
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5058,7 +5268,9 @@ fn primitive_array() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5089,7 +5301,9 @@ fn equality() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5123,7 +5337,9 @@ fn equality_edge_cases() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5182,7 +5398,9 @@ fn get_hash() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5296,7 +5514,9 @@ fn array_buffer_view() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(
@@ -5337,7 +5557,9 @@ fn continuation_preserved_embedder_data() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let data = scope.get_continuation_preserved_embedder_data();
@@ -5367,7 +5589,9 @@ fn snapshot_creator() {
   let startup_data = {
     let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "b = 2 + 3").unwrap();
@@ -5390,7 +5614,9 @@ fn snapshot_creator() {
       // Check that the SnapshotCreator isolate has been set up correctly.
       let _ = snapshot_creator.thread_safe_handle();
 
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "a = 1 + 2").unwrap();
@@ -5415,7 +5641,9 @@ fn snapshot_creator() {
     let params = v8::Isolate::create_params().snapshot_blob(startup_data);
     let isolate = &mut v8::Isolate::new(params);
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       let result = eval(scope, "a === 3").unwrap();
@@ -5472,7 +5700,9 @@ fn snapshot_creator_multiple_contexts() {
       scope.set_default_context(context);
     }
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       eval(scope, "globalThis.__bootstrap = { context0Prop: 2 };").unwrap();
@@ -5497,7 +5727,9 @@ fn snapshot_creator_multiple_contexts() {
         None,
       );
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       {
@@ -5520,7 +5752,9 @@ fn snapshot_creator_multiple_contexts() {
       scope.set_default_context(context);
     }
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context =
         v8::Context::from_snapshot(scope, 0, Default::default()).unwrap();
       let scope = &mut v8::ContextScope::new(scope, context);
@@ -5551,7 +5785,9 @@ fn snapshot_creator_multiple_contexts() {
     let params = v8::Isolate::create_params().snapshot_blob(startup_data);
     let isolate = &mut v8::Isolate::new(params);
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       {
@@ -5577,7 +5813,9 @@ fn snapshot_creator_multiple_contexts() {
       }
     }
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context =
         v8::Context::from_snapshot(scope, 0, Default::default()).unwrap();
       let scope = &mut v8::ContextScope::new(scope, context);
@@ -5640,7 +5878,9 @@ fn snapshot_creator_context_embedder_data() {
         None,
       );
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       {
@@ -5666,7 +5906,9 @@ fn snapshot_creator_context_embedder_data() {
     let params = v8::Isolate::create_params().snapshot_blob(startup_data);
     let isolate = &mut v8::Isolate::new(params);
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       {
@@ -5707,14 +5949,16 @@ fn external_references() {
     },
   ];
   // Exercise the Debug impl
-  println!("{refs:?}");
+  log::info!("{refs:?}");
   // First we create the snapshot, there is a single global variable 'a' set to
   // the value 3.
   let startup_data = {
     let mut snapshot_creator =
       v8::Isolate::snapshot_creator(Some(refs.to_vec().into()), None);
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5746,7 +5990,9 @@ fn external_references() {
       .external_references(refs.to_vec().into());
     let isolate = &mut v8::Isolate::new(params);
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5764,7 +6010,9 @@ fn uint8_array() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source =
@@ -5791,7 +6039,9 @@ fn uint8_array() {
 fn typed_array_constructors() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5908,7 +6158,9 @@ fn typed_array_constructors() {
   // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
   {
-    let scope = &mut v8::TryCatch::new(scope);
+    let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
     eval(
       scope,
       &format!("new Uint8Array({})", v8::Uint8Array::MAX_LENGTH + 1),
@@ -5943,7 +6195,9 @@ fn dynamic_import() {
   isolate.set_host_import_module_dynamically_callback(dynamic_import_cb);
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -5963,7 +6217,9 @@ fn shared_array_buffer() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -6021,7 +6277,9 @@ fn typeof_checker() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -6042,7 +6300,9 @@ fn value_checker() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -6412,7 +6672,9 @@ fn try_from_data() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -6489,7 +6751,9 @@ fn try_from_value() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -6689,10 +6953,8 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     call_id: i32,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!(
-      "send_response call_id {call_id} message {}",
-      message.unwrap().string()
-    );
+    log::info!("send_response call_id {call_id} message {}",
+    message.unwrap().string());
     self.count_send_response += 1;
   }
   fn send_notification(
@@ -6700,7 +6962,7 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
     let msg = message.unwrap().string().to_string();
-    println!("send_notification message {msg}");
+    log::info!("send_notification message {msg}");
     self.count_send_notification += 1;
     self.notifications.push(msg);
   }
@@ -6763,7 +7025,9 @@ fn inspector_dispatch_protocol_message() {
   let mut default_client = ClientCounter::new();
   let mut inspector = V8Inspector::create(isolate, &mut default_client);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let mut _scope = v8::ContextScope::new(scope, context);
 
@@ -6801,7 +7065,9 @@ fn inspector_exception_thrown() {
   let mut default_client = ClientCounter::new();
   let mut inspector = V8Inspector::create(isolate, &mut default_client);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let mut context_scope = v8::ContextScope::new(scope, context);
 
@@ -6869,7 +7135,9 @@ fn inspector_schedule_pause_on_next_statement() {
   let mut client = ClientCounter::new();
   let mut inspector = V8Inspector::create(isolate, &mut client);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -6980,7 +7248,9 @@ fn inspector_console_api_message() {
   let mut client = Client::new();
   let mut inspector = V8Inspector::create(isolate, &mut client);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7004,7 +7274,9 @@ fn context_from_object_template() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let object_templ = v8::ObjectTemplate::new(scope);
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let name = v8::String::new(scope, "f").unwrap();
@@ -7028,7 +7300,9 @@ fn take_heap_snapshot() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = r#"
@@ -7053,7 +7327,9 @@ fn take_heap_snapshot() {
 fn get_constructor_name() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7092,7 +7368,9 @@ fn get_constructor_name() {
 fn get_property_attributes() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7121,7 +7399,9 @@ fn get_property_attributes() {
 
   // exception
   let key = eval(scope, "({ toString() { throw 'foo' } })").unwrap();
-  let tc = &mut v8::TryCatch::new(scope);
+  let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+
   assert!(obj.get_property_attributes(tc, key).is_none());
   assert!(tc.has_caught());
 }
@@ -7130,7 +7410,9 @@ fn get_property_attributes() {
 fn get_own_property_descriptor() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7178,7 +7460,9 @@ fn get_own_property_descriptor() {
 fn preview_entries() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7258,7 +7542,9 @@ fn test_prototype_api() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7283,7 +7569,9 @@ fn test_prototype_api() {
     assert_eq!(sub_gotten.to_rust_string_lossy(scope), "test_proto_value");
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7294,7 +7582,9 @@ fn test_prototype_api() {
     assert!(obj.get_prototype(scope).unwrap().is_null());
   }
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7310,7 +7600,9 @@ fn test_map_api() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7346,7 +7638,9 @@ fn test_object_get_property_names() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
@@ -7527,7 +7821,9 @@ fn module_snapshot() {
   let startup_data = {
     let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
     {
-      let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+      let scope = std::pin::pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7572,7 +7868,9 @@ fn module_snapshot() {
     let params = v8::Isolate::create_params().snapshot_blob(startup_data);
     let isolate = &mut v8::Isolate::new(params);
     {
-      let scope = &mut v8::HandleScope::new(isolate);
+      let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7618,7 +7916,9 @@ fn heap_limits() {
   let state_ptr = &mut test_state as *mut _ as *mut c_void;
   isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7670,7 +7970,9 @@ fn heap_statistics() {
   assert_eq!(s.total_global_handles_size(), 0);
   assert_eq!(s.number_of_native_contexts(), 0);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -7711,7 +8013,9 @@ fn synthetic_evaluation_steps<'a>(
   set("b", 2.0);
 
   {
-    let scope = &mut v8::TryCatch::new(scope);
+    let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
     let name = v8::String::new(scope, "does not exist").unwrap();
     let value = v8::undefined(scope).into();
     assert!(
@@ -7731,7 +8035,9 @@ fn synthetic_module() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
@@ -7778,7 +8084,9 @@ fn static_source_phase_import() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
@@ -7826,7 +8134,9 @@ fn dynamic_source_phase_import() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
@@ -7887,7 +8197,9 @@ fn date() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
@@ -7913,7 +8225,9 @@ fn date() {
 fn symbol() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let desc = v8::String::new(scope, "a description").unwrap();
 
@@ -7952,7 +8266,9 @@ fn symbol() {
 fn private() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let p = v8::Private::new(scope, None);
   assert!(p.name(scope) == v8::undefined(scope));
@@ -7996,7 +8312,9 @@ fn private() {
 fn external_onebyte_string() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   // "hello©"
   // Note that we're specifically testing a byte array that is not ASCII nor
@@ -8022,7 +8340,9 @@ fn bigint() {
   let _setup_guard: setup::SetupGuard<std::sync::RwLockReadGuard<'_, ()>> =
     setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8168,7 +8488,9 @@ fn value_serializer_and_deserializer() {
   let mut array_buffers = ArrayBuffers::new();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
@@ -8209,7 +8531,9 @@ fn value_serializer_and_deserializer_js_objects() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8242,7 +8566,9 @@ fn value_serializer_and_deserializer_js_objects() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8322,7 +8648,9 @@ fn value_serializer_and_deserializer_array_buffers() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8347,7 +8675,9 @@ fn value_serializer_and_deserializer_array_buffers() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8386,7 +8716,9 @@ fn value_serializer_and_deserializer_embedder_host_object() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8411,7 +8743,9 @@ fn value_serializer_and_deserializer_embedder_host_object() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8451,7 +8785,9 @@ impl v8::ValueSerializerImpl for Custom2Value {
     scope: &mut v8::HandleScope<'s>,
     message: v8::Local<'s, v8::String>,
   ) {
-    let scope = &mut v8::TryCatch::new(scope);
+    let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
     let error = v8::Exception::error(scope, message);
     scope.throw_exception(error);
   }
@@ -8462,11 +8798,15 @@ fn value_serializer_not_implemented() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
 
   let objects: v8::Local<v8::Value> = eval(
     scope,
@@ -8576,7 +8916,9 @@ fn value_serializer_and_deserializer_custom_host_object() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8599,7 +8941,9 @@ fn value_serializer_and_deserializer_custom_host_object() {
     let _setup_guard = setup::parallel_test();
     let isolate = &mut v8::Isolate::new(Default::default());
 
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8641,7 +8985,9 @@ fn clear_kept_objects() {
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_microtasks_policy(v8::MicrotasksPolicy::Explicit);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8683,7 +9029,9 @@ fn wasm_streaming_callback() {
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
   isolate.set_wasm_streaming_callback(callback);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8748,7 +9096,9 @@ fn wasm_streaming_callback() {
 fn unbound_script_conversion() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let unbound_script = {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
@@ -8780,7 +9130,9 @@ fn unbound_script_conversion() {
 fn get_source_mapping_from_comment() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8830,7 +9182,9 @@ fn get_source_mapping_from_comment() {
 fn origin_source_map_overrides_source_mapping_url_comment() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8882,7 +9236,9 @@ fn origin_source_map_overrides_source_mapping_url_comment() {
 fn ignore_origin_source_map_empty_string() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8933,7 +9289,9 @@ fn ignore_origin_source_map_empty_string() {
 fn no_source_map_comment() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -8985,7 +9343,9 @@ fn ept_torture_test() {
   // This should not OOM or crash when we run in a tight loop as the EPT should be subject
   // to GC.
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(
@@ -9048,7 +9408,9 @@ fn run_with_rust_allocator() {
   let isolate = &mut v8::Isolate::new(create_params);
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(
@@ -9076,7 +9438,9 @@ fn run_with_rust_allocator() {
   // This should not OOM or crash when we run in a tight loop as the EPT should be subject
   // to GC.
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(
@@ -9133,10 +9497,14 @@ fn prepare_stack_trace_callback() {
   let isolate = &mut v8::Isolate::new(Default::default());
   isolate.set_prepare_stack_trace_callback(callback);
 
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
 
   let result = eval(scope, script).unwrap();
   assert_eq!(Some(42), result.uint32_value(scope));
@@ -9195,7 +9563,9 @@ fn icu_date() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = r#"
@@ -9225,7 +9595,9 @@ fn icu_format() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = r#"
@@ -9244,7 +9616,9 @@ fn icu_format() {
 fn icu_collator() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   let source = v8::String::new(scope, "new Intl.Collator('en-US')").unwrap();
@@ -9315,7 +9689,9 @@ fn create_unbound_module_script<'s>(
 fn unbound_module_script_conversion() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let mut scope = v8::ContextScope::new(scope, context);
   create_unbound_module_script(&mut scope, "'Hello ' + value", None);
@@ -9351,7 +9727,9 @@ fn code_cache() {
 
   let code_cache = {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let mut scope = v8::ContextScope::new(scope, context);
     let unbound_module_script =
@@ -9360,7 +9738,9 @@ fn code_cache() {
   };
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let mut scope = v8::ContextScope::new(scope, context);
   let module = create_module(
@@ -9391,7 +9771,9 @@ fn function_code_cache() {
 
   let code_cache = {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let mut source = v8::script_compiler::Source::new(
@@ -9412,7 +9794,9 @@ fn function_code_cache() {
   };
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9442,7 +9826,9 @@ fn function_code_cache() {
 fn eager_compile_script() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9465,7 +9851,9 @@ fn code_cache_script() {
   let _setup_guard = setup::parallel_test();
   let code_cache = {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9482,7 +9870,9 @@ fn code_cache_script() {
   };
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9510,7 +9900,9 @@ fn code_cache_script() {
 fn compile_function() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9547,7 +9939,9 @@ static EXAMPLE_STRING: v8::OneByteConst =
 fn external_strings() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9652,7 +10046,9 @@ fn counter_lookup_callback() {
   let _setup_guard = setup::parallel_test();
   let params = v8::CreateParams::default().counter_lookup_callback(callback);
   let isolate = &mut v8::Isolate::new(params);
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   let _ = eval(scope, "console.log(42);").unwrap();
@@ -9682,7 +10078,9 @@ fn compiled_wasm_module() {
 
   let compiled_module = {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9706,7 +10104,9 @@ fn compiled_wasm_module() {
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9741,7 +10141,9 @@ fn function_names() {
 
   // Setup isolate
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9886,7 +10288,9 @@ fn current_stack_trace() {
 
   // Setup isolate
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -9948,7 +10352,9 @@ fn current_script_name_or_source_url() {
 
   // Setup isolate
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let key = v8::String::new(scope, "analyzeScriptURLInStack").unwrap();
   let tmpl = v8::FunctionTemplate::new(scope, analyze_script_url_in_stack);
   let obj_template = v8::ObjectTemplate::new(scope);
@@ -10027,12 +10433,16 @@ fn weak_handle() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let weak = {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let local = v8::Object::new(scope);
 
     let weak = v8::Weak::new(scope, local);
@@ -10043,7 +10453,9 @@ fn weak_handle() {
     weak
   };
 
-  let scope = &mut v8::HandleScope::new(scope);
+  let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
 
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
 
@@ -10060,27 +10472,35 @@ fn finalizers() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   // The finalizer for a dropped Weak is never called.
   {
     {
-      let scope = &mut v8::HandleScope::new(scope);
+      let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
       let local = v8::Object::new(scope);
       let _ =
         v8::Weak::with_finalizer(scope, local, Box::new(|_| unreachable!()));
     }
 
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     scope
       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   }
 
   let finalizer_called = Rc::new(Cell::new(false));
   let weak = {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let local = v8::Object::new(scope);
 
     // We use a channel to send data into the finalizer without having to worry
@@ -10109,7 +10529,9 @@ fn finalizers() {
     weak
   };
 
-  let scope = &mut v8::HandleScope::new(scope);
+  let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
   assert!(finalizer_called.get());
@@ -10127,14 +10549,18 @@ fn guaranteed_finalizers() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   // The finalizer for a dropped Weak is never called.
   {
     {
-      let scope = &mut v8::HandleScope::new(scope);
+      let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
       let local = v8::Object::new(scope);
       let _ = v8::Weak::with_guaranteed_finalizer(
         scope,
@@ -10143,14 +10569,18 @@ fn guaranteed_finalizers() {
       );
     }
 
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     scope
       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   }
 
   let finalizer_called = Rc::new(Cell::new(false));
   let weak = {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let local = v8::Object::new(scope);
 
     // We use a channel to send data into the finalizer without having to worry
@@ -10179,7 +10609,9 @@ fn guaranteed_finalizers() {
     weak
   };
 
-  let scope = &mut v8::HandleScope::new(scope);
+  let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
   assert!(finalizer_called.get());
@@ -10190,12 +10622,16 @@ fn weak_from_global() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let global = {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let object = v8::Object::new(scope);
     v8::Global::new(scope, object)
   };
@@ -10217,7 +10653,9 @@ fn weak_from_into_raw() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10230,7 +10668,9 @@ fn weak_from_into_raw() {
   {
     finalizer_called.take();
     let (weak1, weak2) = {
-      let scope = &mut v8::HandleScope::new(scope);
+      let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
       let local = v8::Object::new(scope);
       let weak = v8::Weak::new(scope, local);
       let weak_with_finalizer = v8::Weak::with_finalizer(
@@ -10264,7 +10704,9 @@ fn weak_from_into_raw() {
   // into_raw from a GC'd pointer
   {
     let weak = {
-      let scope = &mut v8::HandleScope::new(scope);
+      let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
       let local = v8::Object::new(scope);
       v8::Weak::new(scope, local)
     };
@@ -10279,7 +10721,9 @@ fn weak_from_into_raw() {
   {
     finalizer_called.take();
     let (weak, weak_with_finalizer) = {
-      let scope = &mut v8::HandleScope::new(scope);
+      let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
       let local = v8::Object::new(scope);
       let weak = v8::Weak::new(scope, local);
       let weak_with_finalizer = v8::Weak::with_finalizer(
@@ -10312,7 +10756,9 @@ fn weak_from_into_raw() {
 
   // Leaking a Weak will not crash the isolate.
   {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let local = v8::Object::new(scope);
     v8::Weak::new(scope, local).into_raw();
     v8::Weak::with_finalizer(scope, local, Box::new(|_| {})).into_raw();
@@ -10330,7 +10776,9 @@ fn drop_weak_from_raw_in_finalizer() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10338,7 +10786,9 @@ fn drop_weak_from_raw_in_finalizer() {
   let finalized = Rc::new(Cell::new(false));
 
   {
-    let scope = &mut v8::HandleScope::new(scope);
+    let scope = std::pin::pin!(v8::HandleScope::new(scope));
+    let scope = &mut scope.init();
+
     let local = v8::Object::new(scope);
     let weak = v8::Weak::with_finalizer(
       scope,
@@ -10381,7 +10831,9 @@ fn finalizer_on_kept_global() {
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10445,7 +10897,9 @@ fn context_embedder_data() {
   let expected0 = "Bla";
   let expected1 = 123.456f64;
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
 
     unsafe {
@@ -10463,7 +10917,9 @@ fn context_embedder_data() {
   }
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = global_context.open(scope);
     let actual0 =
       context.get_aligned_pointer_from_embedder_data(0) as *mut &str;
@@ -10481,12 +10937,16 @@ fn host_create_shadow_realm_context_callback() {
   let _setup_guard = setup::parallel_test();
 
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   {
-    let tc_scope = &mut v8::TryCatch::new(scope);
+    let tc_scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc_scope = &mut tc_scope.init();
+
     assert!(eval(tc_scope, "new ShadowRealm()").is_none());
     assert!(tc_scope.has_caught());
   }
@@ -10518,7 +10978,9 @@ fn host_create_shadow_realm_context_callback() {
   });
 
   {
-    let tc_scope = &mut v8::TryCatch::new(scope);
+    let tc_scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc_scope = &mut tc_scope.init();
+
     assert!(eval(tc_scope, "new ShadowRealm()").is_none());
     assert!(tc_scope.has_caught());
     assert!(tc_scope.get_slot::<CheckData>().unwrap().callback_called);
@@ -10590,7 +11052,9 @@ fn test_fast_calls() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10662,7 +11126,9 @@ fn test_fast_calls_empty_buffer() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10724,7 +11190,9 @@ fn test_fast_calls_sequence() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10797,7 +11265,9 @@ fn test_fast_calls_arraybuffer() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10867,7 +11337,9 @@ fn test_fast_calls_typedarray() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -10942,7 +11414,9 @@ fn test_fast_calls_reciever() {
       V8_WRAPPER_OBJECT_INDEX,
     ),
   );
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11036,7 +11510,9 @@ fn test_fast_calls_overload() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11112,7 +11588,9 @@ fn test_fast_calls_callback_options_data() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11146,7 +11624,9 @@ fn test_fast_calls_callback_options_data() {
 fn test_detach_key() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11224,7 +11704,9 @@ fn test_fast_calls_onebytestring() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11303,7 +11785,9 @@ fn test_fast_calls_i64representation() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11403,7 +11887,9 @@ fn gc_callbacks() {
   isolate.add_gc_epilogue_callback(epilogue, state_ptr, v8::GCType::kGCTypeAll);
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11416,7 +11902,9 @@ fn gc_callbacks() {
   isolate.remove_gc_prologue_callback(prologue, state_ptr);
   isolate.remove_gc_epilogue_callback(epilogue, state_ptr);
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11461,7 +11949,9 @@ fn test_fast_calls_pointer() {
 
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11507,7 +11997,9 @@ fn object_define_property() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11531,7 +12023,9 @@ fn object_define_property() {
   }
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11558,7 +12052,9 @@ fn object_define_property() {
   }
 
   {
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11589,7 +12085,9 @@ fn object_define_property() {
 fn bubbling_up_exception() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11621,7 +12119,9 @@ try {
   let source = v8::String::new(scope, code).unwrap();
   let script = v8::Script::compile(scope, source, None).unwrap();
 
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
   let _result = script.run(scope);
   // This fails in debug build, but passes in release build.
   assert!(!scope.has_caught());
@@ -11633,7 +12133,9 @@ try {
 fn bubbling_up_exception_in_function_call() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11669,12 +12171,16 @@ fn bubbling_up_exception_in_function_call() {
   let source = v8::String::new(scope, code).unwrap();
   let script = v8::Script::compile(scope, source, None).unwrap();
 
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
   let call_boom_fn_val = script.run(scope).unwrap();
   let call_boom_fn =
     v8::Local::<v8::Function>::try_from(call_boom_fn_val).unwrap();
 
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
   let this = v8::undefined(scope);
   let result = call_boom_fn.call(scope, this.into(), &[]).unwrap();
   assert!(result.is_undefined());
@@ -11688,7 +12194,9 @@ fn bubbling_up_exception_in_function_call() {
 fn exception_thrown_but_continues_execution() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
@@ -11727,7 +12235,7 @@ fn exception_thrown_but_continues_execution() {
     } else {
       "Unknown type".to_owned()
     };
-    println!("{print_str}");
+    log::info!("{print_str}");
   }
 
   let global_proxy = scope.get_current_context().global(scope);
@@ -11752,7 +12260,9 @@ fn exception_thrown_but_continues_execution() {
   let source = v8::String::new(scope, code).unwrap();
   let script = v8::Script::compile(scope, source, None).unwrap();
 
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+    let scope = &mut scope.init();
+
   let _result = script.run(scope);
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
 }
@@ -11773,7 +12283,9 @@ fn disallow_javascript_execution_scope() {
   );
 
   {
-    let try_catch = &mut v8::TryCatch::new(&mut scope);
+    let try_catch = std::pin::pin!(v8::TryCatch::new(&mut scope));
+    let try_catch = &mut try_catch.init();
+
     {
       let scope = &mut v8::DisallowJavascriptExecutionScope::new(
         try_catch,

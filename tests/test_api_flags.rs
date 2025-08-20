@@ -9,7 +9,9 @@ fn set_flags_from_string() {
   );
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
+
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   let source = "(function() { return this })()";
