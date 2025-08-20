@@ -1,15 +1,15 @@
 error[E0308]: mismatched types
  --> tests/compile_fail/object_without_context_scope.rs:6:33
   |
-6 |   let _object = v8::Object::new(&mut scope);
-  |                 --------------- ^^^^^^^^^^ expected `&mut HandleScope<'_>`, found `&mut HandleScope<'_, ()>`
+6 |   let _object = v8::Object::new(&*scope);
+  |                 --------------- ^^^^^^^ expected `&PinnedRef<'_, HandleScope<'_>>`, found `&PinnedRef<'_, HandleScope<'_, ()>>`
   |                 |
   |                 arguments to this function are incorrect
   |
-  = note: expected mutable reference `&mut HandleScope<'_, v8::Context>`
-             found mutable reference `&mut HandleScope<'_, ()>`
+  = note: expected reference `&PinnedRef<'_, HandleScope<'_, v8::Context>>`
+             found reference `&PinnedRef<'_, HandleScope<'_, ()>>`
 note: associated function defined here
  --> src/object.rs
   |
-  |   pub fn new<'s>(scope: &mut HandleScope<'s>) -> Local<'s, Object> {
+  |   pub fn new<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Object> {
   |          ^^^
