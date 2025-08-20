@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 
 #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
-  scope: &v8::PinScope,
+  scope: &mut v8::PinScope,
   args: v8::FunctionCallbackArguments,
   mut _retval: v8::ReturnValue,
 ) {

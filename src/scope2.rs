@@ -1396,6 +1396,7 @@ where
 }
 
 #[allow(unused_macros)]
+#[macro_export]
 macro_rules! make_callback_scope {
   (unsafe $scope: ident, $param: expr) => {
     let $scope = std::pin::pin!(unsafe { $crate::CallbackScope::new($param) });
@@ -1407,6 +1408,7 @@ macro_rules! make_callback_scope {
 pub(crate) use make_callback_scope;
 
 #[allow(unused_macros)]
+#[macro_export]
 macro_rules! make_handle_scope {
   ($scope: ident, $param: expr) => {
     let $scope = std::pin::pin!($crate::HandleScope::new($param));
@@ -1444,11 +1446,25 @@ impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i>> {
   }
 }
 
+impl<'p, 'i> DerefMut for PinnedRef<'p, HandleScope<'i>> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+
 impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i, ()>> {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
     unsafe {
       std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.0.isolate)
+    }
+  }
+}
+
+impl<'p, 'i> DerefMut for PinnedRef<'p, HandleScope<'i, ()>> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe {
+      std::mem::transmute(&mut self.0.as_mut().get_unchecked_mut().isolate)
     }
   }
 }
@@ -1459,9 +1475,22 @@ impl<'p, 'i> Deref for PinnedRef<'p, CallbackScope<'i>> {
     unsafe { std::mem::transmute(self) }
   }
 }
+
+impl<'p, 'i> DerefMut for PinnedRef<'p, CallbackScope<'i>> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+
 impl<'p, 'i> Deref for PinnedRef<'p, CallbackScope<'i, ()>> {
   type Target = PinnedRef<'p, HandleScope<'i, ()>>;
   fn deref(&self) -> &Self::Target {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+
+impl<'p, 'i> DerefMut for PinnedRef<'p, CallbackScope<'i, ()>> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
   }
 }
@@ -1475,9 +1504,17 @@ impl<'p, 'i, C> From<PinnedRef<'p, CallbackScope<'i, C>>>
 }
 
 impl<'p, 's, 'i, C> Deref for PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>> {
-  type Target = PinnedRef<'p, HandleScope<'i, C>>;
+  type Target = PinnedRef<'s, HandleScope<'i, C>>;
   fn deref(&self) -> &Self::Target {
     &self.0.scope
+  }
+}
+
+impl<'p, 's, 'i, C> DerefMut
+  for PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>>
+{
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { &mut self.0.as_mut().get_unchecked_mut().scope }
   }
 }
 
@@ -1530,4 +1567,335 @@ where
   }
 }
 
-// temporary
+// WIP
+/*
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::ContextOptions;
+  use crate::Global;
+  use std::any::type_name;
+  use std::pin::pin;
+
+  trait SameType {}
+  impl<A> SameType for (A, A) {}
+
+  /// `AssertTypeOf` facilitates comparing types. The important difference with
+  /// assigning a value to a variable with an explicitly stated type is that the
+  /// latter allows coercions and dereferencing to change the type, whereas
+  /// `AssertTypeOf` requires the compared types to match exactly.
+  struct AssertTypeOf<'a, T>(#[allow(dead_code)] &'a T);
+  impl<T> AssertTypeOf<'_, T> {
+    pub fn is<A>(self)
+    where
+      (A, T): SameType,
+    {
+      assert_eq!(type_name::<A>(), type_name::<T>());
+    }
+  }
+
+  #[test]
+  fn deref_types() {
+    crate::initialize_v8();
+    let isolate = &mut Isolate::new(Default::default());
+    AssertTypeOf(isolate).is::<OwnedIsolate>();
+    let l1_hs = pin!(HandleScope::new(isolate));
+    let l1_hs = &mut l1_hs.init();
+    AssertTypeOf(l1_hs).is::<PinnedRef<HandleScope<()>>>();
+    let context = Context::new(l1_hs, ContextOptions::default());
+    {
+      let l2_cxs = &mut ContextScope::new(l1_hs, context);
+      AssertTypeOf(l2_cxs).is::<ContextScope<HandleScope>>();
+      {
+        let d = l2_cxs.deref_mut();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+      }
+      {
+        let l3_tc = &mut TryCatch::new(&mut **l2_cxs);
+        AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
+        let d = l3_tc.deref_mut();
+        AssertTypeOf(d).is::<HandleScope>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+      }
+      {
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
+          l2_cxs,
+          OnFailure::CrashOnFailure,
+        );
+        AssertTypeOf(l3_djses)
+          .is::<DisallowJavascriptExecutionScope<HandleScope>>();
+        let d = l3_djses.deref_mut();
+        AssertTypeOf(d).is::<HandleScope>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+        {
+          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
+          AssertTypeOf(l4_ajses).is::<HandleScope>();
+          let d = l4_ajses.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
+      {
+        let l3_ehs = &mut EscapableHandleScope::new(l2_cxs);
+        AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
+        {
+          let l4_cxs = &mut ContextScope::new(l3_ehs, context);
+          AssertTypeOf(l4_cxs).is::<ContextScope<EscapableHandleScope>>();
+          let d = l4_cxs.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+        {
+          let l4_tc = &mut TryCatch::new(l3_ehs);
+          AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
+          let d = l4_tc.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+        {
+          let l4_djses = &mut DisallowJavascriptExecutionScope::new(
+            l3_ehs,
+            OnFailure::CrashOnFailure,
+          );
+          AssertTypeOf(l4_djses)
+            .is::<DisallowJavascriptExecutionScope<EscapableHandleScope>>();
+          let d = l4_djses.deref_mut();
+          AssertTypeOf(d).is::<EscapableHandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+          {
+            let l5_ajses = &mut AllowJavascriptExecutionScope::new(l4_djses);
+            AssertTypeOf(l5_ajses).is::<EscapableHandleScope>();
+            let d = l5_ajses.deref_mut();
+            AssertTypeOf(d).is::<HandleScope>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<HandleScope<()>>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<Isolate>();
+          }
+        }
+      }
+    }
+    {
+      let l2_tc = &mut TryCatch::new(l1_hs);
+      AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
+      let d = l2_tc.deref_mut();
+      AssertTypeOf(d).is::<HandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<Isolate>();
+      {
+        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
+          l2_tc,
+          OnFailure::CrashOnFailure,
+        );
+        AssertTypeOf(l3_djses)
+          .is::<DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>>();
+        let d = l3_djses.deref_mut();
+        AssertTypeOf(d).is::<TryCatch<HandleScope<()>>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<HandleScope<()>>();
+        let d = d.deref_mut();
+        AssertTypeOf(d).is::<Isolate>();
+        {
+          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
+          AssertTypeOf(l4_ajses).is::<TryCatch<HandleScope<()>>>();
+          let d = l4_ajses.deref_mut();
+          AssertTypeOf(d).is::<HandleScope<()>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<Isolate>();
+        }
+      }
+    }
+    {
+      let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
+      AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
+      let l3_tc = &mut TryCatch::new(l2_ehs);
+      AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
+      let d = l3_tc.deref_mut();
+      AssertTypeOf(d).is::<EscapableHandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<HandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<Isolate>();
+    }
+    {
+      // `CallbackScope` is meant to be used inside V8 API callback functions
+      // only. It assumes that a `HandleScope` already exists on the stack, and
+      // that a context has been entered. Push a `ContextScope` onto the stack
+      // to also meet the second expectation.
+      let _ = ContextScope::new(l1_hs, context);
+      let l2_cbs = &mut unsafe { CallbackScope::new(context) };
+      AssertTypeOf(l2_cbs).is::<CallbackScope>();
+      let d = l2_cbs.deref_mut();
+      AssertTypeOf(d).is::<HandleScope>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<HandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<Isolate>();
+    }
+    {
+      let isolate: &mut Isolate = l1_hs.as_mut();
+      let l2_cbs = &mut unsafe { CallbackScope::new(isolate) };
+      AssertTypeOf(l2_cbs).is::<CallbackScope<()>>();
+      let d = l2_cbs.deref_mut();
+      AssertTypeOf(d).is::<HandleScope<()>>();
+      let d = d.deref_mut();
+      AssertTypeOf(d).is::<Isolate>();
+    }
+  }
+
+  #[test]
+  fn new_scope_types() {
+    crate::initialize_v8();
+    let isolate = &mut Isolate::new(Default::default());
+    AssertTypeOf(isolate).is::<OwnedIsolate>();
+    let global_context: Global<Context>;
+    {
+      let l1_hs = &mut HandleScope::new(isolate);
+      AssertTypeOf(l1_hs).is::<HandleScope<()>>();
+      let context = Context::new(l1_hs, Default::default());
+      global_context = Global::new(l1_hs, context);
+      AssertTypeOf(&HandleScope::new(l1_hs)).is::<HandleScope<()>>();
+      {
+        let l2_cxs = &mut ContextScope::new(l1_hs, context);
+        AssertTypeOf(l2_cxs).is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&ContextScope::new(l2_cxs, context))
+          .is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&HandleScope::new(l2_cxs)).is::<HandleScope>();
+        AssertTypeOf(&EscapableHandleScope::new(l2_cxs))
+          .is::<EscapableHandleScope>();
+        AssertTypeOf(&TryCatch::new(l2_cxs)).is::<TryCatch<HandleScope>>();
+      }
+      {
+        let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
+        AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&HandleScope::new(l2_ehs))
+          .is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&EscapableHandleScope::new(l2_ehs))
+          .is::<EscapableHandleScope<()>>();
+        {
+          let l3_cxs = &mut ContextScope::new(l2_ehs, context);
+          AssertTypeOf(l3_cxs).is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&ContextScope::new(l3_cxs, context))
+            .is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_cxs)).is::<EscapableHandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_cxs))
+            .is::<EscapableHandleScope>();
+          {
+            let l4_tc = &mut TryCatch::new(l3_cxs);
+            AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
+            AssertTypeOf(&ContextScope::new(l4_tc, context))
+              .is::<ContextScope<EscapableHandleScope>>();
+            AssertTypeOf(&HandleScope::new(l4_tc)).is::<EscapableHandleScope>();
+            AssertTypeOf(&EscapableHandleScope::new(l4_tc))
+              .is::<EscapableHandleScope>();
+            AssertTypeOf(&TryCatch::new(l4_tc))
+              .is::<TryCatch<EscapableHandleScope>>();
+          }
+        }
+        {
+          let l3_tc = &mut TryCatch::new(l2_ehs);
+          AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
+          AssertTypeOf(&ContextScope::new(l3_tc, context))
+            .is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_tc))
+            .is::<EscapableHandleScope<()>>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+            .is::<EscapableHandleScope<()>>();
+          AssertTypeOf(&TryCatch::new(l3_tc))
+            .is::<TryCatch<EscapableHandleScope<()>>>();
+        }
+      }
+      {
+        let l2_tc = &mut TryCatch::new(l1_hs);
+        AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
+        AssertTypeOf(&ContextScope::new(l2_tc, context))
+          .is::<ContextScope<HandleScope>>();
+        AssertTypeOf(&HandleScope::new(l2_tc)).is::<HandleScope<()>>();
+        AssertTypeOf(&EscapableHandleScope::new(l2_tc))
+          .is::<EscapableHandleScope<()>>();
+        AssertTypeOf(&TryCatch::new(l2_tc)).is::<TryCatch<HandleScope<()>>>();
+      }
+      {
+        let l2_cbs = &mut unsafe { CallbackScope::new(context) };
+        AssertTypeOf(l2_cbs).is::<CallbackScope>();
+        AssertTypeOf(&ContextScope::new(l2_cbs, context))
+          .is::<ContextScope<HandleScope>>();
+        {
+          let l3_hs = &mut HandleScope::new(l2_cbs);
+          AssertTypeOf(l3_hs).is::<HandleScope>();
+          AssertTypeOf(&ContextScope::new(l3_hs, context))
+            .is::<ContextScope<HandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_hs)).is::<HandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_hs))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l3_hs)).is::<TryCatch<HandleScope>>();
+        }
+        {
+          let l3_ehs = &mut EscapableHandleScope::new(l2_cbs);
+          AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
+          AssertTypeOf(&ContextScope::new(l3_ehs, context))
+            .is::<ContextScope<EscapableHandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_ehs)).is::<EscapableHandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_ehs))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l3_ehs))
+            .is::<TryCatch<EscapableHandleScope>>();
+        }
+        {
+          let l3_tc = &mut TryCatch::new(l2_cbs);
+          AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
+          AssertTypeOf(&ContextScope::new(l3_tc, context))
+            .is::<ContextScope<HandleScope>>();
+          AssertTypeOf(&HandleScope::new(l3_tc)).is::<HandleScope>();
+          AssertTypeOf(&EscapableHandleScope::new(l3_tc))
+            .is::<EscapableHandleScope>();
+          AssertTypeOf(&TryCatch::new(l3_tc)).is::<TryCatch<HandleScope>>();
+        }
+      }
+    }
+    {
+      let l1_cbs = &mut unsafe { CallbackScope::new(&mut *isolate) };
+      AssertTypeOf(l1_cbs).is::<CallbackScope<()>>();
+      let context = Context::new(l1_cbs, Default::default());
+      AssertTypeOf(&ContextScope::new(l1_cbs, context))
+        .is::<ContextScope<HandleScope>>();
+      AssertTypeOf(&HandleScope::new(l1_cbs)).is::<HandleScope<()>>();
+      AssertTypeOf(&EscapableHandleScope::new(l1_cbs))
+        .is::<EscapableHandleScope<()>>();
+      AssertTypeOf(&TryCatch::new(l1_cbs)).is::<TryCatch<HandleScope<()>>>();
+    }
+    {
+      AssertTypeOf(&HandleScope::with_context(isolate, &global_context))
+        .is::<HandleScope>();
+      AssertTypeOf(&HandleScope::with_context(isolate, global_context))
+        .is::<HandleScope>();
+    }
+  }
+}
+*/

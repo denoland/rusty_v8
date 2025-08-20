@@ -242,6 +242,7 @@ impl DataError {
     }
   }
 
+  #[allow(dead_code)]
   pub(crate) fn no_data<E: 'static>() -> Self {
     Self::NoData {
       expected: type_name::<E>(),

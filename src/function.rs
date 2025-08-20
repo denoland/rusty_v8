@@ -515,7 +515,7 @@ impl<F> MapFnFrom<F> for FunctionCallback
 where
   F: UnitType
     + for<'s> Fn(
-      &PinScope<'s, '_>,
+      &mut PinScope<'s, '_>,
       FunctionCallbackArguments<'s>,
       ReturnValue<Value>,
     ),
@@ -1019,7 +1019,7 @@ impl Function {
   /// for a given FunctionCallback.
   #[inline(always)]
   pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
     Self::builder(callback).build(scope)
@@ -1027,7 +1027,7 @@ impl Function {
 
   #[inline(always)]
   pub fn new_raw<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     callback: FunctionCallback,
   ) -> Option<Local<'s, Function>> {
     Self::builder_raw(callback).build(scope)
