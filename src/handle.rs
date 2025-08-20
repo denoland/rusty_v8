@@ -35,7 +35,7 @@ unsafe extern "C" {
   fn v8__Global__Reset(data: *const Data);
   fn v8__WeakCallbackInfo__GetIsolate(
     this: *const WeakCallbackInfo,
-  ) -> *mut Isolate;
+  ) -> *mut RealIsolate;
   fn v8__WeakCallbackInfo__GetParameter(
     this: *const WeakCallbackInfo,
   ) -> *mut c_void;
@@ -895,7 +895,7 @@ impl<T> Weak<T> {
   unsafe extern "C" fn second_pass_callback(wci: *const WeakCallbackInfo) {
     // SAFETY: This callback is guaranteed by V8 to be called in the isolate's
     // thread before the isolate is disposed.
-    let isolate = unsafe { &mut *v8__WeakCallbackInfo__GetIsolate(wci) };
+    let isolate = unsafe { v8__WeakCallbackInfo__GetIsolate(wci) };
 
     // SAFETY: This callback might be called well after the first pass callback,
     // which means the corresponding Weak might have been dropped. In Weak's
@@ -906,6 +906,8 @@ impl<T> Weak<T> {
       let ptr = v8__WeakCallbackInfo__GetParameter(wci);
       &*(ptr as *mut WeakData<T>)
     };
+
+    let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
     let finalizer: Option<FinalizerCallback> = {
       let finalizer_id = weak_data.finalizer_id.unwrap();
       isolate.get_finalizer_map_mut().map.remove(&finalizer_id)
@@ -920,7 +922,7 @@ impl<T> Weak<T> {
     }
 
     match finalizer {
-      Some(FinalizerCallback::Regular(finalizer)) => finalizer(isolate),
+      Some(FinalizerCallback::Regular(finalizer)) => finalizer(&mut isolate),
       Some(FinalizerCallback::Guaranteed(finalizer)) => finalizer(),
       None => {}
     }

@@ -18,6 +18,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::StackTrace;
 use crate::Value;
+use crate::isolate::RealIsolate;
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;
 use crate::support::Opaque;
@@ -96,7 +97,7 @@ unsafe extern "C" {
 
   fn v8_inspector__V8Inspector__DELETE(this: *mut V8Inspector);
   fn v8_inspector__V8Inspector__create(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     client: *mut V8InspectorClient,
   ) -> *mut V8Inspector;
   fn v8_inspector__V8Inspector__connect(
@@ -1006,7 +1007,7 @@ impl V8Inspector {
   {
     unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__create(
-        isolate,
+        isolate.as_real_ptr(),
         client.as_client_mut(),
       ))
     }
