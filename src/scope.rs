@@ -823,14 +823,12 @@ macro_rules! impl_deref {
   (<$($params:tt),+> $src_type:ty as $tgt_type:ty) => {
     impl<$($params),*> Deref for $src_type {
       type Target = $tgt_type;
-      #[inline]
       fn deref(&self) -> &Self::Target {
         self.as_ref()
       }
     }
 
     impl<$($params),*> DerefMut for $src_type {
-      #[inline]
       fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
       }
@@ -1016,14 +1014,12 @@ mod param {
   }
 
   impl NewHandleScopeWithContext<'_> for Isolate {
-    #[inline]
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       self
     }
   }
 
   impl NewHandleScopeWithContext<'_> for OwnedIsolate {
-    #[inline]
     fn get_isolate_mut(&mut self) -> &mut Isolate {
       &mut *self
     }
@@ -1193,7 +1189,6 @@ mod param {
     type NewScope: Scope;
     const NEEDS_SCOPE: bool = false;
 
-    #[inline]
     fn get_context(&self) -> Option<Local<'s, Context>> {
       None
     }
@@ -1223,7 +1218,6 @@ mod param {
   impl<'s> NewCallbackScope<'s> for Local<'s, Context> {
     type NewScope = CallbackScope<'s>;
 
-    #[inline]
     fn get_context(&self) -> Option<Local<'s, Context>> {
       Some(*self)
     }
@@ -1253,56 +1247,48 @@ mod getter {
   }
 
   impl<'s> GetIsolate<'s> for &'s mut Isolate {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       self
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s mut OwnedIsolate {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       &mut *self
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s FunctionCallbackInfo {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       unsafe { std::mem::transmute(self.get_isolate_ptr()) }
     }
   }
 
   impl<'s, T> GetIsolate<'s> for &'s PropertyCallbackInfo<T> {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       unsafe { std::mem::transmute(self.get_isolate_ptr()) }
     }
   }
 
   impl<'s> GetIsolate<'s> for &'s FastApiCallbackOptions<'s> {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       unsafe { std::mem::transmute(self.isolate) }
     }
   }
 
   impl<'s> GetIsolate<'s> for Local<'s, Context> {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       unsafe { &mut *raw::v8__Context__GetIsolate(&*self) }
     }
   }
 
   impl<'s> GetIsolate<'s> for Local<'s, Message> {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       unsafe { &mut *raw::v8__Message__GetIsolate(&*self) }
     }
   }
 
   impl<'s, T: Into<Local<'s, Object>>> GetIsolate<'s> for T {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       let object: Local<Object> = self.into();
       unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
@@ -1310,7 +1296,6 @@ mod getter {
   }
 
   impl<'s> GetIsolate<'s> for &'s PromiseRejectMessage<'s> {
-    #[inline]
     unsafe fn get_isolate_mut(self) -> &'s mut Isolate {
       let object: Local<Object> = self.get_promise().into();
       unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
@@ -1328,14 +1313,12 @@ mod getter {
   }
 
   impl GetScopeData for Isolate {
-    #[inline]
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self)
     }
   }
 
   impl GetScopeData for OwnedIsolate {
-    #[inline]
     fn get_scope_data_mut(&mut self) -> &mut data::ScopeData {
       data::ScopeData::get_root_mut(self)
     }
@@ -2125,7 +2108,6 @@ mod raw {
     ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
-    #[inline]
     pub unsafe fn uninit() -> Self {
       Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
@@ -2134,7 +2116,6 @@ mod raw {
     /// once, no more and no less, after creating a
     /// `DisallowJavascriptExecutionScope` value with
     /// `DisallowJavascriptExecutionScope::uninit()`.
-    #[inline]
     pub unsafe fn init(
       &mut self,
       isolate: NonNull<Isolate>,
@@ -2167,7 +2148,6 @@ mod raw {
     ///
     /// This function is marked unsafe because the caller must ensure that the
     /// returned value isn't dropped before `init()` has been called.
-    #[inline]
     pub unsafe fn uninit() -> Self {
       Self(unsafe { MaybeUninit::uninit().assume_init() })
     }
@@ -2176,7 +2156,6 @@ mod raw {
     /// once, no more and no less, after creating an
     /// `AllowJavascriptExecutionScope` value with
     /// `AllowJavascriptExecutionScope::uninit()`.
-    #[inline]
     pub unsafe fn init(&mut self, isolate: NonNull<Isolate>) {
       unsafe {
         let buf = NonNull::from(self).cast();

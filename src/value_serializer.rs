@@ -50,7 +50,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = unsafe { ContextScope::new(scope, context) };
+  let scope = ContextScope::new(scope, context);
   value_serializer_heap
     .value_serializer_impl
     .throw_data_clone_error(&scope, message);
@@ -80,7 +80,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = unsafe { ContextScope::new(scope, context) };
+  let scope = ContextScope::new(scope, context);
 
   MaybeBool::from(
     value_serializer_heap
@@ -101,7 +101,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = unsafe { ContextScope::new(scope, context) };
+  let scope = ContextScope::new(scope, context);
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
   MaybeBool::from(value_serializer_impl.write_host_object(
@@ -124,7 +124,7 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = unsafe { ContextScope::new(scope, context) };
+  let scope = ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
     .get_shared_array_buffer_id(&scope, shared_array_buffer)
@@ -152,10 +152,10 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = unsafe { ContextScope::new(scope, context) };
+  let scope = &mut ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_wasm_module_transfer_id(&scope, module)
+    .get_wasm_module_transfer_id(scope, module)
   {
     Some(x) => {
       unsafe {

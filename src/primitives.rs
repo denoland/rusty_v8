@@ -1,13 +1,14 @@
+use crate::isolate::RealIsolate;
 use crate::Boolean;
 use crate::Local;
 use crate::Primitive;
 use crate::isolate::Isolate;
 
 unsafe extern "C" {
-  fn v8__Null(isolate: *mut Isolate) -> *const Primitive;
-  fn v8__Undefined(isolate: *mut Isolate) -> *const Primitive;
+  fn v8__Null(isolate: *mut RealIsolate) -> *const Primitive;
+  fn v8__Undefined(isolate: *mut RealIsolate) -> *const Primitive;
 
-  fn v8__Boolean__New(isolate: *mut Isolate, value: bool) -> *const Boolean;
+  fn v8__Boolean__New(isolate: *mut RealIsolate, value: bool) -> *const Boolean;
 }
 
 #[inline(always)]

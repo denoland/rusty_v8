@@ -65,7 +65,6 @@ mod property_filter;
 mod property_handler_flags;
 mod proxy;
 mod regexp;
-mod scope;
 mod scope2;
 mod script;
 mod script_or_module;

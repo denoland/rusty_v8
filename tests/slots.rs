@@ -47,7 +47,7 @@ impl CoreIsolate {
   // Returns false if there was an error.
   fn execute(&mut self, code: &str) -> bool {
     let scope = pin!(v8::HandleScope::new(&mut self.0));
-    let scope = &scope.init();
+    let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, code).unwrap();
@@ -256,7 +256,8 @@ fn slots_auto_boxing() {
 fn context_slots() {
   setup();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = &mut v8::HandleScope::new(isolate);
+  let scope = pin!(v8::HandleScope::new(isolate));
+  let scope = &mut scope.init();
   let context = v8::Context::new(scope, Default::default());
 
   assert!(context.set_slot(Rc::new(TestState(0))).is_none());
@@ -283,7 +284,8 @@ fn dropped_context_slots() {
   let mut isolate = CoreIsolate::new(Default::default());
   let dropped = Rc::new(Cell::new(false));
   {
-    let scope = &mut v8::HandleScope::new(isolate.deref_mut());
+    let scope = pin!(v8::HandleScope::new(isolate.deref_mut()));
+    let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
 
     context.set_slot(Rc::new(DropMarker(dropped.clone())));
@@ -309,7 +311,8 @@ fn dropped_context_slots_on_kept_context() {
   let dropped = Rc::new(Cell::new(false));
   let _global_context;
   {
-    let scope = &mut v8::HandleScope::new(isolate.deref_mut());
+    let scope = pin!(v8::HandleScope::new(isolate.deref_mut()));
+    let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
 
     context.set_slot(Rc::new(DropMarker(dropped.clone())));
@@ -328,7 +331,8 @@ fn clear_all_context_slots() {
   let mut snapshot_creator = v8::Isolate::snapshot_creator(None, None);
 
   {
-    let scope = &mut v8::HandleScope::new(&mut snapshot_creator);
+    let scope = pin!(v8::HandleScope::new(&mut snapshot_creator));
+    let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 

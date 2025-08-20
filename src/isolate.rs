@@ -448,6 +448,7 @@ where
 {
   #[inline(always)]
   fn to_c_fn(self) -> RawHostImportModuleWithPhaseDynamicallyCallback {
+    #[allow(unused_variables)]
     #[inline(always)]
     fn scope_adapter<'s, F: HostImportModuleWithPhaseDynamicallyCallback>(
       context: Local<'s, Context>,
@@ -462,7 +463,7 @@ where
     )> {
       let scope = unsafe { CallbackScope::new(&context) };
       let scope = Box::pin(scope);
-      let scope = scope.init_box();
+      let _scope = scope.init_box();
 
       // (F::get())(
       //   scope,
@@ -808,7 +809,6 @@ impl Isolate {
 
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
-  const CURRENT_SCOPE_DATA_SLOT: u32 = 1;
   const INTERNAL_DATA_SLOT_COUNT: u32 = 2;
 
   #[inline(always)]
