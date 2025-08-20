@@ -295,8 +295,7 @@ impl<T> Global<T> {
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();
-    let mut isolate =
-      unsafe { Isolate::from_raw_ptr(host.get_isolate().as_ptr()) };
+    let mut isolate = unsafe { Isolate::from_non_null(host.get_isolate()) };
     unsafe { Self::new_raw(isolate.as_mut(), data) }
   }
 }
@@ -599,7 +598,7 @@ impl HandleHost {
 
   #[allow(dead_code)]
   fn get_isolate_handle(self) -> IsolateHandle {
-    let isolate = unsafe { Isolate::from_raw_ptr(self.get_isolate().as_ptr()) };
+    let isolate = unsafe { Isolate::from_non_null(self.get_isolate()) };
     isolate.thread_safe_handle()
   }
 }

@@ -322,14 +322,18 @@ impl<'s, 'p: 's, C> NewHandleScope<'s> for &mut CallbackScope<'p, C> {
   }
 }
 
-// impl<'s, 'p: 's, P: NewHandleScope<'s>> NewHandleScope<'s>
-//   for ContextScope<'s, 'p, P>
-// {
-//   type NewScope = <P as NewHandleScope<'s>>::NewScope;
-//   fn make_new_scope(me: Self) -> Self::NewScope {
-//     P::make_new_scope(me.scope)
-//   }
-// }
+impl<'s, 'p> NewHandleScope<'s> for &mut ContextScope<'s, HandleScope<'p>> {
+  type NewScope = HandleScope<'s>;
+  fn make_new_scope(me: Self) -> Self::NewScope {
+    HandleScope {
+      raw_handle_scope: unsafe { raw::HandleScope::uninit() },
+      isolate: unsafe { NonNull::new_unchecked(me.scope.get_isolate_ptr()) },
+      context: Cell::new(Some(me.raw_handle_scope.entered_context)),
+      _phantom: PhantomData,
+      _pinned: PhantomPinned,
+    }
+  }
+}
 
 pub(crate) struct ScopeData {
   isolate: Option<NonNull<RealIsolate>>,
@@ -1564,6 +1568,61 @@ where
 {
   fn get_isolate_ptr(&self) -> *mut RealIsolate {
     self.0.get_isolate_ptr()
+  }
+}
+
+impl<'s, 'i, C> AsRef<Isolate> for PinnedRef<'s, HandleScope<'i, C>> {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.0.isolate) }
+  }
+}
+
+impl<'s, 'i, C> AsRef<Isolate> for PinnedRef<'s, CallbackScope<'i, C>> {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.0.isolate) }
+  }
+}
+
+impl<'s, 'i, C> AsRef<Isolate>
+  for PinnedRef<'s, TryCatch<'i, HandleScope<'i, C>>>
+{
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
+  }
+}
+
+impl<'s, 'i, C> AsRef<Isolate>
+  for PinnedRef<'s, DisallowJavascriptExecutionScope<'i, HandleScope<'i, C>>>
+{
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
+  }
+}
+
+impl<'s, 'i, C> AsRef<Isolate>
+  for PinnedRef<'s, AllowJavascriptExecutionScope<'i, HandleScope<'i, C>>>
+{
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
+  }
+}
+
+impl<'p, 's, 'esc> AsRef<Isolate>
+  for PinnedRef<'p, EscapableHandleScope<'s, 'esc>>
+{
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.0.isolate) }
+  }
+}
+
+impl<'s, 'i, C> AsRef<Isolate> for ContextScope<'s, HandleScope<'i, C>> {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.scope.0.isolate) }
+  }
+}
+impl<'s, 'i, C> AsRef<Isolate> for ContextScope<'s, CallbackScope<'i, C>> {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.scope.0.isolate) }
   }
 }
 

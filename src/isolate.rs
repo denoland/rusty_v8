@@ -791,7 +791,7 @@ unsafe extern "C" {
 /// constructed and exited when dropped. Because of that v8::OwnedIsolate
 /// instances must be dropped in the reverse order of creation
 
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Debug)]
 pub struct Isolate(NonNull<RealIsolate>);
 
@@ -805,6 +805,15 @@ impl Isolate {
 
   pub(crate) unsafe fn from_raw_ptr(ptr: *mut RealIsolate) -> Self {
     Self(NonNull::new(ptr).unwrap())
+  }
+
+  pub(crate) unsafe fn from_non_null(ptr: NonNull<RealIsolate>) -> Self {
+    Self(ptr)
+  }
+
+  pub(crate) unsafe fn from_raw_ref(ptr: &NonNull<RealIsolate>) -> &Self {
+    // SAFETY: Isolate is a repr(transparent) wrapper around NonNull<RealIsolate>
+    unsafe { &*(ptr as *const NonNull<RealIsolate> as *const Isolate) }
   }
 
   // Isolate data slots used internally by rusty_v8.
