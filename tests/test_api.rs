@@ -504,12 +504,13 @@ fn escapable_handle_scope() {
     let handle_scope = std::pin::pin!(v8::HandleScope::new(&mut *isolate));
     let handle_scope = &mut handle_scope.init();
     let context = v8::Context::new(handle_scope, Default::default());
-    let context_scope = &mut v8::ContextScope::new(handle_scope, context);
+    let context_scope = &mut v8::ContextScope::new(&mut *handle_scope, context);
 
     // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
     let number = {
-      let escapable_scope = pin!(v8::EscapableHandleScope::new(context_scope));
+      let escapable_scope =
+        pin!(v8::EscapableHandleScope::new(&mut *context_scope));
       let escapable_scope = &mut escapable_scope.init();
       let number = v8::Number::new(escapable_scope, 78.9);
       escapable_scope.escape(number)
@@ -517,19 +518,24 @@ fn escapable_handle_scope() {
     assert_eq!(number.value(), 78.9);
 
     let string = {
-      let escapable_scope = pin!(v8::EscapableHandleScope::new(context_scope));
+      let escapable_scope =
+        pin!(v8::EscapableHandleScope::new(&mut *context_scope));
       let escapable_scope = &mut escapable_scope.init();
       let string = v8::String::new(escapable_scope, "Hello 🦕 world!").unwrap();
       escapable_scope.escape(string)
     };
-    assert_eq!("Hello 🦕 world!", string.to_rust_string_lossy(handle_scope));
+    assert_eq!(
+      "Hello 🦕 world!",
+      string.to_rust_string_lossy(context_scope)
+    );
 
     let string = {
-      let escapable_scope = pin!(v8::EscapableHandleScope::new(context_scope));
+      let escapable_scope =
+        pin!(v8::EscapableHandleScope::new(&mut *context_scope));
       let escapable_scope = &mut escapable_scope.init();
       let nested_str_val = {
         let nested_escapable_scope =
-          pin!(v8::EscapableHandleScope::new(**escapable_scope));
+          pin!(v8::EscapableHandleScope::new(escapable_scope.as_mut()));
         let nested_escapable_scope = &mut nested_escapable_scope.init();
         let string =
           v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
@@ -576,14 +582,14 @@ fn context_scope() {
   let scope = &mut scope.init();
 
   let context1 = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(scope, context1);
+  let scope = &mut v8::ContextScope::new(scope.as_mut(), context1);
 
   assert!(scope.get_current_context() == context1);
   assert!(scope.get_entered_or_microtask_context() == context1);
 
   {
     let context2 = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope, context2);
+    let scope = &mut v8::ContextScope::new(scope.as_mut(), context2);
 
     assert!(scope.get_current_context() == context2);
     assert!(scope.get_entered_or_microtask_context() == context2);
@@ -612,7 +618,7 @@ fn microtasks() {
     let scope = &mut scope.init();
 
     let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope, context);
+    let scope = &mut v8::ContextScope::new(scope.as_mut(), context);
 
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
     let function = v8::Function::new(
@@ -674,7 +680,7 @@ fn data_view() {
     let scope = &mut scope.init();
 
     let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope, context);
+    let scope = &mut v8::ContextScope::new(scope.as_mut(), context);
 
     let ab = v8::ArrayBuffer::new(scope, 42);
 
@@ -1041,10 +1047,10 @@ fn try_catch() {
     let scope = &mut scope.init();
 
     let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope, context);
+    let scope = &mut v8::ContextScope::new(scope.as_mut(), context);
     {
       // Error thrown - should be caught.
-      let tc = std::pin::pin!(v8::TryCatch::new(scope));
+      let tc = std::pin::pin!(v8::TryCatch::new(scope.as_mut()));
       let tc = &mut tc.init();
 
       let result = eval(tc, "throw new Error('foo')");
@@ -1060,7 +1066,7 @@ fn try_catch() {
     };
     {
       // No error thrown.
-      let tc = std::pin::pin!(v8::TryCatch::new(scope));
+      let tc = std::pin::pin!(v8::TryCatch::new(scope.as_mut()));
       let tc = &mut tc.init();
 
       let result = eval(tc, "1 + 1");
@@ -1077,7 +1083,7 @@ fn try_catch() {
       let tc1 = &mut tc1.init();
 
       {
-        let tc2 = std::pin::pin!(v8::TryCatch::new(tc1));
+        let tc2 = std::pin::pin!(v8::TryCatch::new(tc1.as_mut()));
         let tc2 = &mut tc2.init();
 
         eval(tc2, "throw 'bar'");
@@ -1101,9 +1107,9 @@ fn try_catch_caught_lifetime() {
   let scope = &mut scope.init();
 
   let context = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(scope, context);
+  let mut scope = &mut v8::ContextScope::new(scope, context);
   let (caught_exc, caught_msg) = {
-    let tc = std::pin::pin!(v8::TryCatch::new(scope));
+    let tc = std::pin::pin!(v8::TryCatch::new_cs(scope));
     let tc = &mut tc.init();
 
     // Throw exception.
@@ -1118,11 +1124,11 @@ fn try_catch_caught_lifetime() {
     (caught_exc, caught_msg)
   };
   // This should not crash.
-  assert!(caught_exc.to_rust_string_lossy(scope).contains("DANG"));
+  assert!(caught_exc.to_rust_string_lossy(&scope).contains("DANG"));
   assert!(
     caught_msg
-      .get(scope)
-      .to_rust_string_lossy(scope)
+      .get(&scope)
+      .to_rust_string_lossy(&scope)
       .contains("DANG")
   );
 }
@@ -8143,8 +8149,8 @@ fn dynamic_source_phase_import() {
     unreachable!()
   }
 
-  fn dynamic_import_phase_cb<'s>(
-    scope: &mut v8::PinScope<'s, '_>,
+  fn dynamic_import_phase_cb<'a, 's, 'i>(
+    scope: &'a mut v8::PinScope<'s, 'i>,
     _host_defined_options: v8::Local<'s, v8::Data>,
     _resource_name: v8::Local<'s, v8::Value>,
     _specifier: v8::Local<'s, v8::String>,
@@ -9601,7 +9607,7 @@ fn icu_collator() {
 }
 
 fn create_module<'s>(
-  scope: &mut v8::HandleScope<'s, v8::Context>,
+  scope: &mut v8::PinScope<'s, '_, v8::Context>,
   source: &str,
   code_cache: Option<v8::UniqueRef<v8::CachedData>>,
   options: v8::script_compiler::CompileOptions,
@@ -9646,7 +9652,7 @@ fn create_module<'s>(
 }
 
 fn create_unbound_module_script<'s>(
-  scope: &mut v8::HandleScope<'s, v8::Context>,
+  scope: &mut v8::PinScope<'s, '_, v8::Context>,
   source: &str,
   code_cache: Option<v8::UniqueRef<v8::CachedData>>,
 ) -> v8::Local<'s, v8::UnboundModuleScript> {
@@ -11840,7 +11846,7 @@ fn gc_callbacks() {
   }
 
   extern "C" fn prologue(
-    _isolate: *mut v8::Isolate,
+    _isolate: *mut v8::RealIsolate,
     _type: v8::GCType,
     _flags: v8::GCCallbackFlags,
     data: *mut c_void,
@@ -11850,7 +11856,7 @@ fn gc_callbacks() {
   }
 
   extern "C" fn epilogue(
-    _isolate: *mut v8::Isolate,
+    _isolate: *mut v8::RealIsolate,
     _type: v8::GCType,
     _flags: v8::GCCallbackFlags,
     data: *mut c_void,
@@ -12268,7 +12274,7 @@ fn disallow_javascript_execution_scope() {
 
     {
       let scope = pin!(v8::DisallowJavascriptExecutionScope::new(
-        try_catch,
+        &mut **try_catch,
         v8::OnFailure::ThrowOnFailure,
       ));
       let scope = &mut scope.init();
@@ -12303,10 +12309,10 @@ fn allow_javascript_execution_scope() {
     &mut scope,
     v8::OnFailure::CrashOnFailure,
   ));
-  let disallow_scope = &mut scope.init();
+  let disallow_scope = &mut disallow_scope.init();
   let allow_scope =
     pin!(v8::AllowJavascriptExecutionScope::new(disallow_scope));
-  let allow_scope = &mut scope.init();
+  let allow_scope = &mut allow_scope.init();
   assert_eq!(
     eval(allow_scope, "42").unwrap().uint32_value(allow_scope),
     Some(42)

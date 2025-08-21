@@ -303,6 +303,12 @@ mod get_isolate_impls {
       self.scope.get_isolate_ptr()
     }
   }
+
+  impl<'s, C> GetIsolate for CallbackScope<'s, C> {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      self.isolate.as_ptr()
+    }
+  }
 }
 
 pub trait NewHandleScope<'s> {
@@ -552,6 +558,18 @@ impl<'s, 'i> PinnedRef<'s, HandleScope<'i>> {
         .unwrap()
     }
   }
+
+  /// Returns the host defined options set for currently running script or
+  /// module, if available.
+  #[inline(always)]
+  pub fn get_current_host_defined_options(&self) -> Option<Local<'s, Data>> {
+    let isolate_ptr = self.0.isolate.as_ptr();
+    unsafe {
+      Local::from_raw(raw::v8__Isolate__GetCurrentHostDefinedOptions(
+        isolate_ptr,
+      ))
+    }
+  }
 }
 
 // for<'l> DataError: From<<Local<'s, Data> as TryInto<Local<'l, T>>>::Error>,
@@ -592,10 +610,10 @@ impl<'a> Deref for HandleScope<'a> {
 
 impl<'p, 'i> PinnedRef<'p, HandleScope<'i, ()>> {
   #[inline(always)]
-  pub(crate) unsafe fn cast_local<'a, 'b, T>(
+  pub(crate) unsafe fn cast_local<T>(
     &self,
     _f: impl FnOnce(&mut ScopeData) -> *const T,
-  ) -> Option<Local<'b, T>> {
+  ) -> Option<Local<'p, T>> {
     let mut data: ScopeData = ScopeData {
       context: Cell::new(self.0.context.get()),
       isolate: Some(self.0.isolate),
@@ -800,9 +818,9 @@ pub struct CallbackScope<'s, C = Context> {
 
 impl<'s, C> Drop for CallbackScope<'s, C> {
   fn drop(&mut self) {
-    // if self.needs_scope {
-    unsafe { raw::v8__HandleScope__DESTRUCT(&mut self.raw_handle_scope) };
-    // }
+    if self.needs_scope {
+      unsafe { raw::v8__HandleScope__DESTRUCT(&mut self.raw_handle_scope) };
+    }
   }
 }
 
@@ -885,11 +903,14 @@ impl<'s, C> ScopeInit for CallbackScope<'s, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.isolate;
-    // if storage_mut.scope.needs_scope {
-    unsafe {
-      raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate);
+    if storage_mut.scope.needs_scope {
+      unsafe {
+        raw::HandleScope::init(
+          &mut storage_mut.scope.raw_handle_scope,
+          isolate,
+        );
+      }
     }
-    // }
 
     let projected = &mut storage_mut.scope;
     unsafe { Pin::new_unchecked(projected) }
@@ -900,21 +921,23 @@ impl<'s, C> ScopeInit for CallbackScope<'s, C> {
     let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
     {
       let isolate = storage_mut.scope.isolate;
-      // if storage_mut.scope.needs_scope {
-      unsafe {
-        raw::HandleScope::init(
-          &mut storage_mut.scope.raw_handle_scope,
-          isolate,
-        );
+      if storage_mut.scope.needs_scope {
+        unsafe {
+          raw::HandleScope::init(
+            &mut storage_mut.scope.raw_handle_scope,
+            isolate,
+          );
+        }
       }
-      // }
     }
 
     PinnedBox(storage)
   }
 
   unsafe fn deinit(me: &mut Self) {
-    unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
+    if me.needs_scope {
+      unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
+    }
   }
 }
 
@@ -1028,7 +1051,7 @@ impl<'s> NewCallbackScope<'s> for &FastApiCallbackOptions<'s> {
       context: me.get_context().map(|c| c.as_non_null()),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
-      needs_scope: true,
+      needs_scope: Self::NEEDS_SCOPE,
     }
   }
 }
@@ -1085,6 +1108,17 @@ pub struct TryCatch<'s, P> {
 impl<'s, P: NewTryCatch<'s>> TryCatch<'s, P> {
   pub fn new(param: P) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(param))
+  }
+}
+
+impl<'s, S: Scope + GetIsolate> TryCatch<'s, ContextScope<'s, S>> {
+  pub fn new_cs<'a>(
+    cs: &'a mut ContextScope<'s, S>,
+  ) -> ScopeStorage<<&'a mut ContextScope<'s, S> as NewTryCatch<'s>>::NewScope>
+  {
+    let scope =
+      <&'a mut ContextScope<'s, S> as NewTryCatch<'s>>::make_new_scope(cs);
+    ScopeStorage::new(scope)
   }
 }
 
@@ -1218,7 +1252,7 @@ impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
     }
   }
 
-  pub fn rethrow<'a, 'b>(&'a mut self) -> Option<Local<'b, Value>> {
+  pub fn rethrow(&mut self) -> Option<Local<'s, Value>> {
     let raw_mut = unsafe { self.get_raw_mut() as *mut raw::TryCatch };
     unsafe {
       self
@@ -1259,22 +1293,33 @@ impl<'s, 'p, C> NewTryCatch<'s> for PinnedRef<'s, HandleScope<'p, C>> {
   }
 }
 
-impl<'borrow, 's, 'p, C> NewTryCatch<'s>
-  for &'borrow mut PinnedRef<'s, HandleScope<'p, C>>
-{
-  type NewScope = TryCatch<'borrow, HandleScope<'p, C>>;
-  fn make_new_scope(me: Self) -> Self::NewScope {
-    NewTryCatch::make_new_scope(me.as_mut())
-  }
-}
+// impl<'borrow, 's, 'p, C> NewTryCatch<'s>
+//   for &'borrow mut PinnedRef<'s, HandleScope<'p, C>>
+// {
+//   type NewScope = TryCatch<'borrow, HandleScope<'p, C>>;
+//   fn make_new_scope(me: Self) -> Self::NewScope {
+//     NewTryCatch::make_new_scope(me.as_mut())
+//   }
+// }
 
 impl<'borrow, 's, 'i, T: GetIsolate + Scope> NewTryCatch<'s>
   for &'borrow mut ContextScope<'s, T>
 {
-  type NewScope = TryCatch<'borrow, T>;
+  type NewScope = TryCatch<'s, T>;
   fn make_new_scope(me: Self) -> Self::NewScope {
     TryCatch {
-      scope: me.scope.as_mut(),
+      scope: unsafe { std::ptr::read(&mut me.scope) },
+      raw_try_catch: unsafe { raw::TryCatch::uninit() },
+      _pinned: PhantomPinned,
+    }
+  }
+}
+
+impl<'s, 'p, C> NewTryCatch<'s> for PinnedRef<'s, CallbackScope<'p, C>> {
+  type NewScope = TryCatch<'s, HandleScope<'p, C>>;
+  fn make_new_scope(me: Self) -> Self::NewScope {
+    TryCatch {
+      scope: unsafe { std::mem::transmute(me) },
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
@@ -1294,14 +1339,24 @@ impl<'p, 's, 'i, C> NewTryCatch<'p>
   }
 }
 
-impl<'borrow, 'p, 's, 'i, C> NewTryCatch<'borrow>
-  for &'borrow mut PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>>
+// impl<'borrow, 'p, 's, 'i, C> NewTryCatch<'borrow>
+//   for &'borrow mut PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>>
+// {
+//   type NewScope = TryCatch<'borrow, HandleScope<'i, C>>;
+//   fn make_new_scope(me: Self) -> Self::NewScope {
+//     <PinnedRef<'borrow, TryCatch<'s, HandleScope<'i, C>>> as NewTryCatch<
+//       'borrow,
+//     >>::make_new_scope(me.as_mut())
+//   }
+// }
+
+impl<'borrow: 'p, 'p, P> NewTryCatch<'borrow> for &'borrow mut PinnedRef<'p, P>
+where
+  PinnedRef<'borrow, P>: NewTryCatch<'borrow>,
 {
-  type NewScope = TryCatch<'borrow, HandleScope<'i, C>>;
+  type NewScope = <PinnedRef<'borrow, P> as NewTryCatch<'borrow>>::NewScope;
   fn make_new_scope(me: Self) -> Self::NewScope {
-    <PinnedRef<'borrow, TryCatch<'s, HandleScope<'i, C>>> as NewTryCatch<
-      'borrow,
-    >>::make_new_scope(me.as_mut())
+    PinnedRef::<'borrow, P>::make_new_scope(me.as_mut())
   }
 }
 
@@ -1424,12 +1479,15 @@ impl<'s, 'p: 's> NewEscapableHandleScope<'s>
   }
 }
 
-impl<'borrow, 's, 'p: 's> NewEscapableHandleScope<'s>
-  for &'borrow mut PinnedRef<'p, HandleScope<'s, Context>>
+impl<'borrow, 's, 'p: 's, P> NewEscapableHandleScope<'s>
+  for &'borrow mut PinnedRef<'p, P>
+where
+  PinnedRef<'borrow, P>: NewEscapableHandleScope<'borrow>,
 {
-  type NewScope = EscapableHandleScope<'borrow, 'p>;
+  type NewScope =
+    <PinnedRef<'borrow, P> as NewEscapableHandleScope<'borrow>>::NewScope;
   fn make_new_scope(me: Self) -> Self::NewScope {
-    NewEscapableHandleScope::make_new_scope(me.as_mut())
+    PinnedRef::<'borrow, P>::make_new_scope(me.as_mut())
   }
 }
 
@@ -1439,6 +1497,29 @@ impl<'borrow, 's, 'p: 's> NewEscapableHandleScope<'s>
   type NewScope = EscapableHandleScope<'borrow, 'p>;
   fn make_new_scope(me: Self) -> Self::NewScope {
     NewEscapableHandleScope::make_new_scope(me.scope.as_mut())
+  }
+}
+
+impl<'p, 's, 'esc: 's> NewEscapableHandleScope<'s>
+  for PinnedRef<'p, EscapableHandleScope<'s, 'esc>>
+{
+  type NewScope = EscapableHandleScope<'p, 's>;
+  fn make_new_scope(me: Self) -> Self::NewScope {
+    // Note: the `raw_escape_slot` field must be initialized _before_ the
+    // `raw_handle_scope` field, otherwise the escaped local handle ends up
+    // inside the `EscapableHandleScope` that's being constructed here,
+    // rather than escaping from it.
+    let isolate = me.0.isolate;
+    let raw_escape_slot = raw::EscapeSlot::new(isolate);
+    let raw_handle_scope = unsafe { raw::HandleScope::uninit() };
+    EscapableHandleScope {
+      isolate,
+      context: Cell::new(me.0.context.get()),
+      raw_escape_slot: Some(raw_escape_slot),
+      raw_handle_scope,
+      _phantom: PhantomData,
+      _pinned: PhantomPinned,
+    }
   }
 }
 
@@ -1639,6 +1720,19 @@ impl<'s, 'i, C> NewAllowJavascriptExecutionScope<'s>
     AllowJavascriptExecutionScope {
       raw: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
       scope: me,
+      _pinned: PhantomPinned,
+    }
+  }
+}
+
+impl<'s, 'i, P: Scope + GetIsolate> NewAllowJavascriptExecutionScope<'s>
+  for PinnedRef<'s, DisallowJavascriptExecutionScope<'i, P>>
+{
+  type NewScope = AllowJavascriptExecutionScope<'s, P>;
+  fn make_new_scope(me: Self) -> Self::NewScope {
+    AllowJavascriptExecutionScope {
+      raw: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
+      scope: unsafe { std::ptr::read(&mut me.0.get_unchecked_mut().scope) },
       _pinned: PhantomPinned,
     }
   }

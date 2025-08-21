@@ -7,11 +7,11 @@ use crate::Data;
 use crate::FixedArray;
 use crate::Function;
 use crate::FunctionCodeHandling;
-use crate::HandleScope;
 use crate::Local;
 use crate::Message;
 use crate::Module;
 use crate::Object;
+use crate::PinScope;
 use crate::Platform;
 use crate::Promise;
 use crate::PromiseResolver;
@@ -33,8 +33,6 @@ use crate::handle::FinalizerMap;
 use crate::isolate_create_params::CreateParams;
 use crate::isolate_create_params::raw;
 use crate::promise::PromiseRejectMessage;
-use crate::scope2::BoxedStorage;
-use crate::scope2::PinScope;
 use crate::snapshot::SnapshotCreator;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -400,7 +398,7 @@ where
 pub trait HostImportModuleWithPhaseDynamicallyCallback:
   UnitType
   + for<'s, 'i> FnOnce(
-    PinScope<'s, 'i, ()>,
+    &mut PinScope<'s, 'i>,
     Local<'s, Data>,
     Local<'s, Value>,
     Local<'s, String>,
@@ -438,7 +436,7 @@ impl<F> HostImportModuleWithPhaseDynamicallyCallback for F
 where
   F: UnitType
     + for<'s, 'i> FnOnce(
-      PinScope<'s, 'i, ()>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Data>,
       Local<'s, Value>,
       Local<'s, String>,
@@ -546,9 +544,7 @@ where
 /// creation fails, the embedder must propagate that exception by returning
 /// [`None`].
 pub type HostCreateShadowRealmContextCallback =
-  for<'s, 'i> fn(
-    scope: &mut PinScope<'s, 'i, ()>,
-  ) -> Option<Local<'s, Context>>;
+  for<'s, 'i> fn(scope: &mut PinScope<'s, 'i>) -> Option<Local<'s, Context>>;
 
 pub type GcCallbackWithData = unsafe extern "C" fn(
   isolate: *mut RealIsolate,
@@ -1599,7 +1595,7 @@ impl Isolate {
   #[inline(always)]
   pub fn set_wasm_streaming_callback<F>(&mut self, _: F)
   where
-    F: UnitType + Fn(&PinScope, Local<Value>, WasmStreaming),
+    F: UnitType + Fn(&mut PinScope, Local<Value>, WasmStreaming),
   {
     unsafe {
       v8__Isolate__SetWasmStreamingCallback(
@@ -2182,14 +2178,15 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
-      let scope = unsafe { CallbackScope::new(context) };
-      let mut scope = Box::pin(scope).init_box();
-      let mut sc = scope.as_mut();
-      crate::make_handle_scope!(hs, &mut sc);
+      let scope = pin!(unsafe { CallbackScope::new(context) });
+      let mut scope: crate::PinnedRef<CallbackScope> = scope.init();
 
-      // bind_callbackscope!(unsafe scope, ctx);
-      // let hs: &Pin<&mut HandleScope<'_>> = sc.casted();
-      let r = (F::get())(hs, error, sites);
+      let r = (F::get())(
+        // SAFETY: sus
+        unsafe { std::mem::transmute(scope.deref_mut()) },
+        error,
+        sites,
+      );
       PrepareStackTraceCallbackRet(&*r as *const _)
     };
     f.to_c_fn()

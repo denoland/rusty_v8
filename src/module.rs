@@ -4,7 +4,6 @@ use std::ptr::null;
 
 use crate::Context;
 use crate::FixedArray;
-use crate::HandleScope;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -494,11 +493,11 @@ impl Module {
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
   #[inline(always)]
-  pub fn set_synthetic_module_export(
+  pub fn set_synthetic_module_export<'s, 'i>(
     &self,
-    scope: &mut HandleScope,
-    export_name: Local<String>,
-    export_value: Local<Value>,
+    scope: &mut PinScope<'s, 'i>,
+    export_name: Local<'s, String>,
+    export_value: Local<'s, Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__SetSyntheticModuleExport(
