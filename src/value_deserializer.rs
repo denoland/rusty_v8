@@ -39,8 +39,8 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
 ) -> *const Object {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
-  let scope = unsafe { CallbackScope::new(&isolate) };
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_deserializer_heap.context);
@@ -65,8 +65,8 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
 ) -> *const SharedArrayBuffer {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
-  let scope = unsafe { CallbackScope::new(&isolate) };
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
   let scope = pin!(scope);
   let scope = &mut scope.init();
   // let hs = scope;
@@ -90,8 +90,8 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
 ) -> *const WasmModuleObject {
   let value_deserializer_heap =
     unsafe { ValueDeserializerHeap::dispatch(this) };
-  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
-  let scope = unsafe { CallbackScope::new(&isolate) };
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_deserializer_heap.context);

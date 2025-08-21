@@ -493,11 +493,11 @@ impl Module {
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
   #[inline(always)]
-  pub fn set_synthetic_module_export<'s, 'i>(
+  pub fn set_synthetic_module_export<'a, 's, 'i, 'l>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
-    export_name: Local<'s, String>,
-    export_value: Local<'s, Value>,
+    scope: &'a mut PinScope<'s, 'i>,
+    export_name: Local<'l, String>,
+    export_value: Local<'l, Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__SetSyntheticModuleExport(
