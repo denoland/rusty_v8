@@ -731,8 +731,8 @@ impl String {
 
   // Convenience function not present in the original V8 API.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'a, 's, 'i>(
+    scope: &'a PinScope<'s, 'i, ()>,
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)

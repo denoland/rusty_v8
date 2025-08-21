@@ -44,7 +44,6 @@ fn main() {
     v8::make_handle_scope!(handle_scope, isolate);
     let context = v8::Context::new(handle_scope, Default::default());
     let scope = &mut v8::ContextScope::new(handle_scope, context);
-    scope.get_cpp_heap().unwrap();
     let global = context.global(scope);
     {
       let func = v8::Function::new(

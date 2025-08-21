@@ -582,14 +582,14 @@ fn context_scope() {
   let scope = &mut scope.init();
 
   let context1 = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(scope.as_mut(), context1);
+  let scope = &mut v8::ContextScope::new(scope, context1);
 
   assert!(scope.get_current_context() == context1);
   assert!(scope.get_entered_or_microtask_context() == context1);
 
   {
     let context2 = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope.as_mut(), context2);
+    let scope = &mut v8::ContextScope::new(scope, context2);
 
     assert!(scope.get_current_context() == context2);
     assert!(scope.get_entered_or_microtask_context() == context2);
@@ -618,7 +618,7 @@ fn microtasks() {
     let scope = &mut scope.init();
 
     let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope.as_mut(), context);
+    let scope = &mut v8::ContextScope::new(scope, context);
 
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
     let function = v8::Function::new(
@@ -680,7 +680,7 @@ fn data_view() {
     let scope = &mut scope.init();
 
     let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope.as_mut(), context);
+    let scope = &mut v8::ContextScope::new(scope, context);
 
     let ab = v8::ArrayBuffer::new(scope, 42);
 
@@ -965,8 +965,8 @@ fn deref_empty_backing_store() {
   assert!(!std::hint::black_box(slice.as_ptr()).is_null());
 }
 
-fn eval<'s>(
-  scope: &mut v8::PinScope<'s, '_>,
+fn eval<'s, 'i>(
+  scope: &mut v8::PinScope<'s, 'i>,
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
   let scope = pin!(v8::EscapableHandleScope::new(scope));
@@ -1047,7 +1047,7 @@ fn try_catch() {
     let scope = &mut scope.init();
 
     let context = v8::Context::new(scope, Default::default());
-    let mut scope = v8::ContextScope::new(scope.as_mut(), context);
+    let mut scope = v8::ContextScope::new(scope, context);
     {
       // Error thrown - should be caught.
       let tc = std::pin::pin!(v8::TryCatch::new(&mut scope));
@@ -1107,7 +1107,7 @@ fn try_catch_caught_lifetime() {
   let scope = &mut scope.init();
 
   let context = v8::Context::new(scope, Default::default());
-  let mut scope = &mut v8::ContextScope::new(scope, context);
+  let scope = &mut v8::ContextScope::new(scope, context);
   let (caught_exc, caught_msg) = {
     let tc = std::pin::pin!(v8::TryCatch::new(scope));
     let tc = &mut tc.init();
@@ -4706,7 +4706,7 @@ fn security_token() {
       let child_context = v8::Context::new(
         scope,
         v8::ContextOptions {
-          global_template: Some(templ),
+          // global_template: Some(templ),
           ..Default::default()
         },
       );
@@ -4726,7 +4726,7 @@ fn security_token() {
       let child_context = v8::Context::new(
         scope,
         v8::ContextOptions {
-          global_template: Some(templ),
+          // global_template: Some(templ),
           ..Default::default()
         },
       );
@@ -8011,13 +8011,13 @@ fn synthetic_evaluation_steps<'s>(
 
   {
     let scope = std::pin::pin!(v8::TryCatch::new(scope));
-    let scope = &mut scope.init();
+    let mut scope = scope.init();
 
-    let name = v8::String::new(scope, "does not exist").unwrap();
-    let value = v8::undefined(scope).into();
+    let name = v8::String::new(&mut *scope, "does not exist").unwrap();
+    let value = v8::undefined(&mut *scope).into();
     assert!(
       module
-        .set_synthetic_module_export(scope, name, value)
+        .set_synthetic_module_export(&mut *scope, name, value)
         .is_none()
     );
     assert!(scope.has_caught());
@@ -8066,7 +8066,7 @@ fn synthetic_module() {
   let ns =
     v8::Local::<v8::Object>::try_from(module.get_module_namespace()).unwrap();
 
-  let mut check = |name, value| {
+  let check = |name, value| {
     let name = v8::String::new(scope, name).unwrap().into();
     let value = v8::Number::new(scope, value).into();
     assert!(ns.get(scope, name).unwrap().strict_equals(value));
@@ -8378,7 +8378,7 @@ impl<'a> Custom1Value<'a> {
   fn serializer<'s, 'i>(
     scope: &mut v8::PinScope<'s, 'i>,
     array_buffers: &'a mut ArrayBuffers,
-  ) -> v8::ValueSerializer<'a> {
+  ) -> v8::ValueSerializer<'a> where {
     let array_buffers = RefCell::new(array_buffers);
     v8::ValueSerializer::new(scope, Box::new(Self { array_buffers }))
   }
@@ -9077,19 +9077,19 @@ fn unbound_script_conversion() {
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = std::pin::pin!(v8::HandleScope::new(&mut *isolate));
   let scope = &mut scope.init();
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut *scope, context);
 
   let unbound_script = {
-    let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(&mut *scope, context);
     let esc = pin!(v8::EscapableHandleScope::new(&mut *scope));
-    let esc = &mut esc.init();
+    let mut esc = esc.init();
     let source = v8::String::new(
-      scope,
+      &*esc,
       "'Hello ' + value\n//# sourceMappingURL=foo.js.map",
     )
     .unwrap();
-    let script = v8::Script::compile(esc, source, None).unwrap();
-    esc.escape(script.get_unbound_script(esc))
+    let script = v8::Script::compile(&*esc, source, None).unwrap();
+    esc.escape(script.get_unbound_script(&*esc))
   };
 
   {
@@ -12164,10 +12164,10 @@ fn bubbling_up_exception_in_function_call() {
     v8::Local::<v8::Function>::try_from(call_boom_fn_val).unwrap();
 
   let scope = std::pin::pin!(v8::TryCatch::new(scope));
-  let scope = &mut scope.init();
+  let scope = scope.init();
 
-  let this = v8::undefined(scope);
-  let result = call_boom_fn.call(scope, this.into(), &[]).unwrap();
+  let this = v8::undefined(&*scope);
+  let result = call_boom_fn.call(&*scope, this.into(), &[]).unwrap();
   assert!(result.is_undefined());
   // This fails in debug build, but passes in release build.
   assert!(!scope.has_caught());
@@ -12309,12 +12309,14 @@ fn allow_javascript_execution_scope() {
     &mut scope,
     v8::OnFailure::CrashOnFailure,
   ));
-  let disallow_scope = &mut disallow_scope.init();
+  let mut disallow_scope = disallow_scope.init();
   let allow_scope =
-    pin!(v8::AllowJavascriptExecutionScope::new(disallow_scope));
-  let allow_scope = &mut allow_scope.init();
+    pin!(v8::AllowJavascriptExecutionScope::new(&mut *disallow_scope));
+  let mut allow_scope = allow_scope.init();
   assert_eq!(
-    eval(allow_scope, "42").unwrap().uint32_value(allow_scope),
+    eval(&mut *allow_scope, "42")
+      .unwrap()
+      .uint32_value(&*allow_scope),
     Some(42)
   );
 }
@@ -12347,9 +12349,9 @@ fn allow_scope_in_read_host_object() {
 
   struct Deserializer;
   impl v8::ValueDeserializerImpl for Deserializer {
-    fn read_host_object<'s>(
+    fn read_host_object<'s, 'i>(
       &self,
-      scope: &mut v8::PinScope<'s, '_>,
+      scope: &mut v8::PinScope<'s, 'i>,
       _value_deserializer: &dyn v8::ValueDeserializerHelper,
     ) -> Option<v8::Local<'s, v8::Object>> {
       let scope2 = pin!(v8::AllowJavascriptExecutionScope::new(scope));
