@@ -1,3 +1,4 @@
+use crate::scope2::PinnedBox;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Array;
 use crate::CallbackScope;
@@ -62,7 +63,6 @@ use std::mem::needs_drop;
 use std::mem::size_of;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::pin::Pin;
 use std::pin::pin;
 use std::ptr;
 use std::ptr::NonNull;
@@ -457,10 +457,7 @@ where
       specifier: Local<'s, String>,
       import_phase: ModuleImportPhase,
       import_attributes: Local<'s, FixedArray>,
-    ) -> Option<(
-      Pin<Box<BoxedStorage<CallbackScope<'s>>>>,
-      Local<'s, Promise>,
-    )> {
+    ) -> Option<(PinnedBox<CallbackScope<'s>>, Local<'s, Promise>)> {
       let scope = unsafe { CallbackScope::new(context) };
       let scope = Box::pin(scope);
       let _scope = scope.init_box();
@@ -2164,7 +2161,7 @@ impl<'s, F> MapFnFrom<F> for PrepareStackTraceCallback<'s>
 where
   F: UnitType
     + for<'a> Fn(
-      Pin<&'s mut HandleScope<'a>>,
+      &mut PinScope<'s, 'a>,
       Local<'s, Value>,
       Local<'s, Array>,
     ) -> Local<'s, Value>,
@@ -2187,9 +2184,9 @@ where
     let f = |context, error, sites| {
       let scope = unsafe { CallbackScope::new(context) };
       let mut scope = Box::pin(scope).init_box();
-      let sc = scope.as_mut();
-      let hs =
-        unsafe { std::mem::transmute::<_, Pin<&mut HandleScope<'_>>>(sc) };
+      let mut sc = scope.as_mut();
+      crate::make_handle_scope!(hs, &mut sc);
+
       // bind_callbackscope!(unsafe scope, ctx);
       // let hs: &Pin<&mut HandleScope<'_>> = sc.casted();
       let r = (F::get())(hs, error, sites);

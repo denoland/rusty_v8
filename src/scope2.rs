@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use crate::{
-  Context, FunctionCallbackInfo, Isolate, Local, Message, Object, OwnedIsolate,
-  PromiseRejectMessage, PropertyCallbackInfo, SealedLocal, Value,
-  fast_api::FastApiCallbackOptions, isolate::RealIsolate,
+  Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
+  Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
+  SealedLocal, Value, fast_api::FastApiCallbackOptions, isolate::RealIsolate,
 };
 use std::{
   cell::Cell,
@@ -442,6 +442,135 @@ impl<'s, 'i> PinnedRef<'s, HandleScope<'i>> {
       raw::v8__Isolate__GetEnteredOrMicrotaskContext(self.0.isolate.as_ptr())
     };
     unsafe { Local::from_raw(context_ptr) }.unwrap()
+  }
+
+  /// Return data that was previously attached to the isolate snapshot via
+  /// SnapshotCreator, and removes the reference to it. If called again with
+  /// same `index` argument, this function returns `DataError::NoData`.
+  ///
+  /// The value that was stored in the snapshot must either match or be
+  /// convertible to type parameter `T`, otherwise `DataError::BadType` is
+  /// returned.
+  pub fn get_isolate_data_from_snapshot_once<T>(
+    &self,
+    index: usize,
+  ) -> Result<Local<'s, T>, DataError>
+  where
+    T: 'static,
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
+      get_data_sealed::ToDataError,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
+  {
+    unsafe {
+      let Some(res) = self.cast_local(|sd| {
+        raw::v8__Isolate__GetDataFromSnapshotOnce(sd.get_isolate_ptr(), index)
+      }) else {
+        return Err(DataError::no_data::<T>());
+      };
+      use get_data_sealed::ToDataError;
+      match res.try_into() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(e.to_data_error()),
+      }
+    }
+  }
+
+  /// Return data that was previously attached to the context snapshot via
+  /// SnapshotCreator, and removes the reference to it. If called again with
+  /// same `index` argument, this function returns `DataError::NoData`.
+  ///
+  /// The value that was stored in the snapshot must either match or be
+  /// convertible to type parameter `T`, otherwise `DataError::BadType` is
+  /// returned.
+  pub fn get_context_data_from_snapshot_once<T>(
+    &self,
+    index: usize,
+  ) -> Result<Local<'s, T>, DataError>
+  where
+    T: 'static,
+    for<'l> <Local<'l, Data> as TryInto<Local<'l, T>>>::Error:
+      get_data_sealed::ToDataError,
+    for<'l> Local<'l, Data>: TryInto<Local<'l, T>>,
+  {
+    unsafe {
+      let Some(res) = self.cast_local(|sd| {
+        raw::v8__Context__GetDataFromSnapshotOnce(
+          sd.get_current_context(),
+          index,
+        )
+      }) else {
+        return Err(DataError::no_data::<T>());
+      };
+      use get_data_sealed::ToDataError;
+      match res.try_into() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(e.to_data_error()),
+      }
+    }
+  }
+
+  #[inline(always)]
+  pub fn set_promise_hooks(
+    &self,
+    init_hook: Option<Local<Function>>,
+    before_hook: Option<Local<Function>>,
+    after_hook: Option<Local<Function>>,
+    resolve_hook: Option<Local<Function>>,
+  ) {
+    unsafe {
+      let context = self.get_current_context();
+      raw::v8__Context__SetPromiseHooks(
+        context.as_non_null().as_ptr(),
+        init_hook.map_or_else(std::ptr::null, |v| &*v),
+        before_hook.map_or_else(std::ptr::null, |v| &*v),
+        after_hook.map_or_else(std::ptr::null, |v| &*v),
+        resolve_hook.map_or_else(std::ptr::null, |v| &*v),
+      );
+    }
+  }
+
+  #[inline(always)]
+  pub fn set_continuation_preserved_embedder_data(&self, data: Local<Value>) {
+    unsafe {
+      let isolate = self.0.isolate;
+      raw::v8__Context__SetContinuationPreservedEmbedderData(
+        isolate.as_ptr(),
+        &*data,
+      );
+    }
+  }
+
+  #[inline(always)]
+  pub fn get_continuation_preserved_embedder_data(&self) -> Local<'s, Value> {
+    unsafe {
+      self
+        .cast_local(|sd| {
+          raw::v8__Context__GetContinuationPreservedEmbedderData(
+            sd.get_isolate_ptr(),
+          )
+        })
+        .unwrap()
+    }
+  }
+}
+
+// for<'l> DataError: From<<Local<'s, Data> as TryInto<Local<'l, T>>>::Error>,
+mod get_data_sealed {
+  use crate::DataError;
+  use std::convert::Infallible;
+
+  pub trait ToDataError {
+    fn to_data_error(self) -> DataError;
+  }
+  impl ToDataError for DataError {
+    fn to_data_error(self) -> DataError {
+      self
+    }
+  }
+  impl ToDataError for Infallible {
+    fn to_data_error(self) -> DataError {
+      unreachable!()
+    }
   }
 }
 

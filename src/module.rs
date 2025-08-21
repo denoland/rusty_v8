@@ -1,6 +1,5 @@
 use std::mem::MaybeUninit;
 use std::num::NonZeroI32;
-use std::pin::Pin;
 use std::ptr::null;
 
 use crate::Context;
@@ -531,7 +530,7 @@ impl Module {
   /// An embedder may call this before exiting to improve error messages.
   pub fn get_stalled_top_level_await_message<'a>(
     &self,
-    scope: &Pin<&'a mut HandleScope>,
+    scope: &PinScope<'a, '_, ()>,
   ) -> Vec<(Local<Module>, Local<Message>)> {
     let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
     for _i in 0..16 {
