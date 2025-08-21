@@ -41,16 +41,17 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__ReadHostObject(
     unsafe { ValueDeserializerHeap::dispatch(this) };
   let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   let scope = unsafe { CallbackScope::new(&isolate) };
-  let scope: Pin<&mut crate::scope2::ScopeStorage<CallbackScope<'_, ()>>> =
-    pin!(scope);
+  let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_deserializer_heap.context);
-  let scope = { ContextScope::new(scope, context) };
+  let mut scope = { ContextScope::new(scope, context) };
 
   match value_deserializer_heap
     .value_deserializer_impl
-    .read_host_object(&scope, &value_deserializer_heap.cxx_value_deserializer)
-  {
+    .read_host_object(
+      &mut scope,
+      &value_deserializer_heap.cxx_value_deserializer,
+    ) {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
   }
@@ -70,11 +71,11 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetSharedArrayBufferFromId
   let scope = &mut scope.init();
   // let hs = scope;
   let context = Local::new(scope, &value_deserializer_heap.context);
-  let scope = { ContextScope::new(scope, context) };
+  let mut scope = { ContextScope::new(scope, context) };
 
   match value_deserializer_heap
     .value_deserializer_impl
-    .get_shared_array_buffer_from_id(&scope, transfer_id)
+    .get_shared_array_buffer_from_id(&mut scope, transfer_id)
   {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
@@ -94,11 +95,11 @@ unsafe extern "C" fn v8__ValueDeserializer__Delegate__GetWasmModuleFromId(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_deserializer_heap.context);
-  let scope = { ContextScope::new(scope, context) };
+  let mut scope = { ContextScope::new(scope, context) };
 
   match value_deserializer_heap
     .value_deserializer_impl
-    .get_wasm_module_from_id(&scope, clone_id)
+    .get_wasm_module_from_id(&mut scope, clone_id)
   {
     None => std::ptr::null(),
     Some(x) => x.as_non_null().as_ptr(),
@@ -187,7 +188,7 @@ unsafe extern "C" {
 pub trait ValueDeserializerImpl {
   fn read_host_object<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     _value_deserializer: &dyn ValueDeserializerHelper,
   ) -> Option<Local<'s, Object>> {
     let msg =
@@ -200,7 +201,7 @@ pub trait ValueDeserializerImpl {
 
   fn get_shared_array_buffer_from_id<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     _transfer_id: u32,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     let msg = String::new(
@@ -215,7 +216,7 @@ pub trait ValueDeserializerImpl {
 
   fn get_wasm_module_from_id<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     _clone_id: u32,
   ) -> Option<Local<'s, WasmModuleObject>> {
     let msg = String::new(

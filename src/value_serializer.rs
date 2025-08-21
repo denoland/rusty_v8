@@ -50,10 +50,10 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
   value_serializer_heap
     .value_serializer_impl
-    .throw_data_clone_error(&scope, message);
+    .throw_data_clone_error(&mut scope, message);
 }
 
 #[unsafe(no_mangle)]
@@ -80,12 +80,12 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
 
   MaybeBool::from(
     value_serializer_heap
       .value_serializer_impl
-      .is_host_object(&scope, object),
+      .is_host_object(&mut scope, object),
   )
 }
 
@@ -101,11 +101,11 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
   MaybeBool::from(value_serializer_impl.write_host_object(
-    &scope,
+    &mut scope,
     object,
     &value_serializer_heap.cxx_value_serializer,
   ))
@@ -124,10 +124,10 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   let scope = pin!(scope);
   let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_shared_array_buffer_id(&scope, shared_array_buffer)
+    .get_shared_array_buffer_id(&mut scope, shared_array_buffer)
   {
     Some(x) => {
       unsafe {
@@ -276,7 +276,7 @@ unsafe extern "C" {
 pub trait ValueSerializerImpl {
   fn throw_data_clone_error<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     message: Local<'s, String>,
   );
 
@@ -286,7 +286,7 @@ pub trait ValueSerializerImpl {
 
   fn is_host_object<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     _object: Local<'s, Object>,
   ) -> Option<bool> {
     let msg =
@@ -299,7 +299,7 @@ pub trait ValueSerializerImpl {
 
   fn write_host_object<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     _object: Local<'s, Object>,
     _value_serializer: &dyn ValueSerializerHelper,
   ) -> Option<bool> {
@@ -313,7 +313,7 @@ pub trait ValueSerializerImpl {
 
   fn get_shared_array_buffer_id<'s, 'i>(
     &self,
-    _scope: &PinScope<'s, 'i>,
+    _scope: &mut PinScope<'s, 'i>,
     _shared_array_buffer: Local<'s, SharedArrayBuffer>,
   ) -> Option<u32> {
     None
@@ -321,7 +321,7 @@ pub trait ValueSerializerImpl {
 
   fn get_wasm_module_transfer_id<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, 'i>,
     _module: Local<WasmModuleObject>,
   ) -> Option<u32> {
     let msg = String::new(

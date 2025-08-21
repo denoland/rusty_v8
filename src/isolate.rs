@@ -461,7 +461,7 @@ where
       Pin<Box<BoxedStorage<CallbackScope<'s>>>>,
       Local<'s, Promise>,
     )> {
-      let scope = unsafe { CallbackScope::new(&context) };
+      let scope = unsafe { CallbackScope::new(context) };
       let scope = Box::pin(scope);
       let _scope = scope.init_box();
 
@@ -549,7 +549,9 @@ where
 /// creation fails, the embedder must propagate that exception by returning
 /// [`None`].
 pub type HostCreateShadowRealmContextCallback =
-  for<'s, 'i> fn(scope: &PinScope<'s, 'i, ()>) -> Option<Local<'s, Context>>;
+  for<'s, 'i> fn(
+    scope: &mut PinScope<'s, 'i, ()>,
+  ) -> Option<Local<'s, Context>>;
 
 pub type GcCallbackWithData = unsafe extern "C" fn(
   isolate: *mut RealIsolate,
@@ -1370,13 +1372,13 @@ impl Isolate {
     unsafe extern "C" fn rust_shadow_realm_callback(
       initiator_context: Local<Context>,
     ) -> *mut Context {
-      let scope = pin!(unsafe { CallbackScope::new(&initiator_context) });
-      let scope = scope.init();
+      let scope = pin!(unsafe { CallbackScope::new(initiator_context) });
+      let mut scope = scope.init();
       let isolate = scope.as_ref();
       let callback = isolate
         .get_slot::<HostCreateShadowRealmContextCallback>()
         .unwrap();
-      let context = callback(&scope);
+      let context = callback(&mut scope);
       context.map_or_else(null_mut, |l| l.as_non_null().as_ptr())
     }
 
@@ -2183,8 +2185,7 @@ where
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
     let f = |context, error, sites| {
-      let ctx: &Local<'_, Context> = &context;
-      let scope = unsafe { CallbackScope::new(ctx) };
+      let scope = unsafe { CallbackScope::new(context) };
       let mut scope = Box::pin(scope).init_box();
       let sc = scope.as_mut();
       let hs =
@@ -2347,6 +2348,11 @@ impl Drop for RawSlot {
   }
 }
 
+impl AsRef<Isolate> for OwnedIsolate {
+  fn as_ref(&self) -> &Isolate {
+    unsafe { Isolate::from_raw_ref(&self.cxx_isolate) }
+  }
+}
 impl AsRef<Isolate> for Isolate {
   fn as_ref(&self) -> &Isolate {
     self

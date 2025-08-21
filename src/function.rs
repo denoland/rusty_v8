@@ -539,7 +539,7 @@ impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Value>,
@@ -568,7 +568,7 @@ impl<F> MapFnFrom<F> for NamedGetterCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Value>,
@@ -597,7 +597,7 @@ impl<F> MapFnFrom<F> for NamedQueryCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Integer>,
@@ -627,7 +627,7 @@ impl<F> MapFnFrom<F> for NamedSetterCallbackForAccessor
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
@@ -660,7 +660,7 @@ impl<F> MapFnFrom<F> for NamedSetterCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
@@ -691,7 +691,7 @@ impl<F> MapFnFrom<F> for PropertyEnumeratorCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Array>,
     ),
@@ -718,7 +718,7 @@ impl<F> MapFnFrom<F> for NamedDefinerCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
@@ -750,7 +750,7 @@ impl<F> MapFnFrom<F> for NamedDeleterCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Boolean>,
@@ -777,7 +777,7 @@ impl<F> MapFnFrom<F> for IndexedGetterCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue<Value>,
@@ -804,7 +804,7 @@ impl<F> MapFnFrom<F> for IndexedQueryCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue<Integer>,
@@ -832,7 +832,7 @@ impl<F> MapFnFrom<F> for IndexedSetterCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       u32,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
@@ -864,7 +864,7 @@ impl<F> MapFnFrom<F> for IndexedDefinerCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       u32,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
@@ -895,7 +895,7 @@ impl<F> MapFnFrom<F> for IndexedDeleterCallback
 where
   F: UnitType
     + for<'s, 'i> Fn(
-      &PinScope<'s, 'i>,
+      &mut PinScope<'s, 'i>,
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue<Boolean>,
@@ -1055,7 +1055,7 @@ impl Function {
   #[inline]
   pub fn call_with_context<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
     context: Local<Context>,
     recv: Local<Value>,
     args: &[Local<Value>],
