@@ -1050,7 +1050,7 @@ fn try_catch() {
     let scope = &mut v8::ContextScope::new(scope.as_mut(), context);
     {
       // Error thrown - should be caught.
-      let tc = std::pin::pin!(v8::TryCatch::new(scope.as_mut()));
+      let tc = std::pin::pin!(v8::TryCatch::new(scope));
       let tc = &mut tc.init();
 
       let result = eval(tc, "throw new Error('foo')");
@@ -1066,7 +1066,7 @@ fn try_catch() {
     };
     {
       // No error thrown.
-      let tc = std::pin::pin!(v8::TryCatch::new(scope.as_mut()));
+      let tc = std::pin::pin!(v8::TryCatch::new(scope));
       let tc = &mut tc.init();
 
       let result = eval(tc, "1 + 1");
@@ -1083,7 +1083,7 @@ fn try_catch() {
       let tc1 = &mut tc1.init();
 
       {
-        let tc2 = std::pin::pin!(v8::TryCatch::new(tc1.as_mut()));
+        let tc2 = std::pin::pin!(v8::TryCatch::new(tc1));
         let tc2 = &mut tc2.init();
 
         eval(tc2, "throw 'bar'");
@@ -1109,7 +1109,7 @@ fn try_catch_caught_lifetime() {
   let context = v8::Context::new(scope, Default::default());
   let mut scope = &mut v8::ContextScope::new(scope, context);
   let (caught_exc, caught_msg) = {
-    let tc = std::pin::pin!(v8::TryCatch::new_cs(scope));
+    let tc = std::pin::pin!(v8::TryCatch::new(scope));
     let tc = &mut tc.init();
 
     // Throw exception.
