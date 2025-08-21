@@ -26,7 +26,7 @@ unsafe extern "C" {
 
 macro_rules! well_known {
   ($name:ident, $binding:ident) => {
-    pub fn $name<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Symbol> {
+    pub fn $name<'s, 'i>(scope: &PinScope<'s, 'i, ()>) -> Local<'s, Symbol> {
       unsafe extern "C" {
         fn $binding(isolate: *mut RealIsolate) -> *const Symbol;
       }
@@ -40,7 +40,7 @@ impl Symbol {
   /// description.
   #[inline(always)]
   pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
     description: Option<Local<String>>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -63,7 +63,7 @@ impl Symbol {
   /// Corresponds to v8::Symbol::For() in C++.
   #[inline(always)]
   pub fn for_key<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -78,7 +78,7 @@ impl Symbol {
   /// Corresponds to v8::Symbol::ForApi() in C++.
   #[inline(always)]
   pub fn for_api<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -93,7 +93,7 @@ impl Symbol {
   #[inline(always)]
   pub fn description<'s, 'i>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
   ) -> Local<'s, Value> {
     unsafe {
       scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))

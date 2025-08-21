@@ -21,7 +21,7 @@ impl Private {
   /// Create a private symbol. If name is not empty, it will be the description.
   #[inline(always)]
   pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -44,7 +44,7 @@ impl Private {
   /// e.g., "Class#property".
   #[inline(always)]
   pub fn for_api<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, 'i, ()>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -60,7 +60,7 @@ impl Private {
 
   /// Returns the print name string of the private symbol, or undefined if none.
   #[inline(always)]
-  pub fn name<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, Value> {
+  pub fn name<'s, 'i>(&self, scope: &PinScope<'s, 'i, ()>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Private__Name(self)) }.unwrap()
   }
 }
