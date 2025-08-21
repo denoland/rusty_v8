@@ -298,7 +298,7 @@ mod get_isolate_impls {
     }
   }
 
-  impl<'s, P: GetIsolate> GetIsolate for TryCatch<'s, P> {
+  impl<'p, 's, P: GetIsolate> GetIsolate for TryCatch<'p, 's, P> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.scope.get_isolate_ptr()
     }
@@ -1099,14 +1099,14 @@ impl<'s> AsRef<Pin<&'s mut HandleScope<'s, ()>>> for CallbackScope<'s, ()> {
   }
 }
 
-pub struct TryCatch<'s, P> {
+pub struct TryCatch<'scope, 'obj, P> {
   raw_try_catch: raw::TryCatch,
-  scope: PinnedRef<'s, P>,
+  scope: &'scope mut PinnedRef<'obj, P>,
   _pinned: PhantomPinned,
 }
 
-impl<'s, P: NewTryCatch<'s>> TryCatch<'s, P> {
-  pub fn new(param: &mut P) -> ScopeStorage<P::NewScope<'_>> {
+impl<'scope, 'obj, P: NewTryCatch<'scope>> TryCatch<'scope, 'obj, P> {
+  pub fn new(param: &'scope mut P) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(param))
   }
 }
@@ -1120,7 +1120,7 @@ impl<'s, P: NewTryCatch<'s>> TryCatch<'s, P> {
 //     }
 // }
 
-impl<'s, P: GetIsolate> ScopeInit for TryCatch<'s, P> {
+impl<'p, 's, P: GetIsolate> ScopeInit for TryCatch<'p, 's, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = unsafe {
@@ -1150,7 +1150,9 @@ impl<'s, P: GetIsolate> ScopeInit for TryCatch<'s, P> {
   }
 }
 
-impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
+impl<'tc, 'scope, 'obj: 'scope, 'iso: 'obj>
+  PinnedRef<'tc, TryCatch<'scope, 'obj, HandleScope<'iso>>>
+{
   /// Returns true if an exception has been caught by this try/catch block.
   #[inline(always)]
   pub fn has_caught(&self) -> bool {
@@ -1232,7 +1234,7 @@ impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
     unsafe { &mut self.0.as_mut().get_unchecked_mut().raw_try_catch }
   }
 
-  pub fn exception(&self) -> Option<Local<'s, Value>> {
+  pub fn exception(&self) -> Option<Local<'obj, Value>> {
     unsafe {
       self
         .0
@@ -1241,7 +1243,7 @@ impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
     }
   }
 
-  pub fn message(&self) -> Option<Local<'s, Message>> {
+  pub fn message(&self) -> Option<Local<'obj, Message>> {
     unsafe {
       self
         .0
@@ -1250,7 +1252,7 @@ impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
     }
   }
 
-  pub fn rethrow(&mut self) -> Option<Local<'s, Value>> {
+  pub fn rethrow(&mut self) -> Option<Local<'obj, Value>> {
     let raw_mut = unsafe { self.get_raw_mut() as *mut raw::TryCatch };
     unsafe {
       self
@@ -1260,7 +1262,7 @@ impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
     }
   }
 
-  pub fn stack_trace(&self) -> Option<Local<'s, Value>> {
+  pub fn stack_trace(&self) -> Option<Local<'obj, Value>> {
     unsafe {
       self.0.scope.cast_local(|_data| {
         raw::v8__TryCatch__StackTrace(
@@ -1272,24 +1274,21 @@ impl<'t, 's, 'i> PinnedRef<'t, TryCatch<'s, HandleScope<'i>>> {
   }
 }
 
-impl<'s, P> sealed::Sealed for TryCatch<'s, P> {}
-impl<'s, P: Scope + GetIsolate> Scope for TryCatch<'s, P> {}
+impl<'p, 's, P> sealed::Sealed for TryCatch<'p, 's, P> {}
+impl<'p, 's, P: Scope + GetIsolate> Scope for TryCatch<'p, 's, P> {}
 
-pub trait NewTryCatch<'s>: GetIsolate {
-  type NewScope<'a>: Scope
-  where
-    Self: 'a;
-  fn make_new_scope<'a>(me: &'a mut Self) -> Self::NewScope<'a>;
+pub trait NewTryCatch<'scope>: GetIsolate {
+  type NewScope: Scope;
+  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope;
 }
 
-impl<'s, 'p, C> NewTryCatch<'s> for PinnedRef<'s, HandleScope<'p, C>> {
-  type NewScope<'a>
-    = TryCatch<'a, HandleScope<'p, C>>
-  where
-    Self: 'a;
-  fn make_new_scope<'a>(me: &'a mut Self) -> Self::NewScope<'a> {
+impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
+  for PinnedRef<'obj, HandleScope<'i, C>>
+{
+  type NewScope = TryCatch<'scope, 'obj, HandleScope<'i, C>>;
+  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
-      scope: me.as_mut(),
+      scope: me,
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
@@ -1305,26 +1304,24 @@ impl<'s, 'p, C> NewTryCatch<'s> for PinnedRef<'s, HandleScope<'p, C>> {
 //   }
 // }
 
-impl<'s, T: GetIsolate + Scope> NewTryCatch<'s> for ContextScope<'s, T> {
-  type NewScope<'a>
-    = TryCatch<'a, T>
-  where
-    Self: 'a;
-  fn make_new_scope<'a>(me: &'a mut Self) -> Self::NewScope<'a> {
+impl<'scope, 'obj: 'scope, T: GetIsolate + Scope> NewTryCatch<'scope>
+  for ContextScope<'obj, T>
+{
+  type NewScope = TryCatch<'scope, 'obj, T>;
+  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
-      scope: unsafe { std::ptr::read(&mut me.scope) },
+      scope: me,
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
   }
 }
 
-impl<'s, 'p, C> NewTryCatch<'s> for PinnedRef<'s, CallbackScope<'p, C>> {
-  type NewScope<'a>
-    = TryCatch<'a, HandleScope<'p, C>>
-  where
-    Self: 'a;
-  fn make_new_scope<'a>(me: &'a mut Self) -> Self::NewScope<'a> {
+impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
+  for PinnedRef<'obj, CallbackScope<'i, C>>
+{
+  type NewScope = TryCatch<'scope, 'obj, HandleScope<'i, C>>;
+  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
       scope: unsafe { std::mem::transmute(me) },
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
@@ -1333,18 +1330,14 @@ impl<'s, 'p, C> NewTryCatch<'s> for PinnedRef<'s, CallbackScope<'p, C>> {
   }
 }
 
-impl<'p, 's, 'i, C> NewTryCatch<'p>
-  for PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>>
+impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'scope_outer, 'iso, C>
+  NewTryCatch<'scope>
+  for PinnedRef<'obj, TryCatch<'scope_outer, 'obj_outer, HandleScope<'iso, C>>>
 {
-  type NewScope<'a>
-    = TryCatch<'a, HandleScope<'i, C>>
-  where
-    Self: 'a;
-  fn make_new_scope<'a>(me: &'a mut Self) -> Self::NewScope<'a> {
+  type NewScope = TryCatch<'scope, 'obj_outer, HandleScope<'iso, C>>;
+  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
-      scope: unsafe {
-        std::ptr::read(&mut me.0.as_mut().get_unchecked_mut().scope)
-      },
+      scope: unsafe { &mut me.as_mut().0.get_unchecked_mut().scope },
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
@@ -1860,18 +1853,20 @@ impl<'p, 'i, C> From<PinnedRef<'p, CallbackScope<'i, C>>>
   }
 }
 
-impl<'p, 's, 'i, C> Deref for PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>> {
-  type Target = PinnedRef<'s, HandleScope<'i, C>>;
+impl<'scope_inner, 'obj, 'obj_inner, 'iso, C> Deref
+  for PinnedRef<'obj, TryCatch<'scope_inner, 'obj_inner, HandleScope<'iso, C>>>
+{
+  type Target = PinnedRef<'obj_inner, HandleScope<'iso, C>>;
   fn deref(&self) -> &Self::Target {
     &self.0.scope
   }
 }
 
-impl<'p, 's, 'i, C> DerefMut
-  for PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>>
+impl<'scope, 'scope_inner, 'obj, 'obj_inner, 'iso, C> DerefMut
+  for PinnedRef<'obj, TryCatch<'scope_inner, 'obj_inner, HandleScope<'iso, C>>>
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { &mut self.0.as_mut().get_unchecked_mut().scope }
+    unsafe { &mut self.as_mut().0.get_unchecked_mut().scope }
   }
 }
 
@@ -1927,8 +1922,8 @@ impl<'s, 'i, C> AsRef<Isolate> for PinnedRef<'s, CallbackScope<'i, C>> {
   }
 }
 
-impl<'s, 'i, C> AsRef<Isolate>
-  for PinnedRef<'s, TryCatch<'i, HandleScope<'i, C>>>
+impl<'p, 's, 'i, C> AsRef<Isolate>
+  for PinnedRef<'p, TryCatch<'p, 's, HandleScope<'i, C>>>
 {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
