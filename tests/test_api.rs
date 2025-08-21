@@ -4152,14 +4152,13 @@ fn function() {
         .unwrap()
         .try_into()
         .unwrap();
-    drop(scope);
 
-    let recv = v8::undefined(&mut root_scope).into();
+    let recv = v8::undefined(&scope).into();
     let ret = function
-      .call_with_context(&root_scope, context, recv, &[])
+      .call_with_context(&scope, context, recv, &[])
       .unwrap();
     let integer: v8::Local<v8::Integer> = ret.try_into().unwrap();
-    let mut scope = v8::ContextScope::new(&mut root_scope, context);
+    let mut scope = v8::ContextScope::new(&mut scope, context);
     assert_eq!(integer.int32_value(&mut scope).unwrap(), 1);
   }
 }
@@ -4823,7 +4822,7 @@ fn allow_code_generation_from_strings() {
      eval("const i = 1; i")
     "#;
     {
-      let scope = &mut v8::ContextScope::new(scope, context);
+      let scope = &mut v8::ContextScope::new(&mut *scope, context);
 
       let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
       let try_catch = &mut try_catch.init();
