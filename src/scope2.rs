@@ -361,8 +361,8 @@ impl<'s> NewHandleScope<'s> for &'s mut OwnedIsolate {
   }
 }
 
-impl<'s, 'p: 's, C> NewHandleScope<'s>
-  for &mut PinnedRef<'p, CallbackScope<'s, C>>
+impl<'s, 'p: 's, 'i, C> NewHandleScope<'s>
+  for &'s mut PinnedRef<'p, CallbackScope<'i, C>>
 {
   type NewScope = HandleScope<'s, C>;
 

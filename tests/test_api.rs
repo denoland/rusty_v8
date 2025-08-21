@@ -1283,11 +1283,12 @@ fn add_message_listener() {
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-  extern "C" fn check_message_0(
-    message: v8::Local<v8::Message>,
-    _exception: v8::Local<v8::Value>,
+  extern "C" fn check_message_0<'s>(
+    message: v8::Local<'s, v8::Message>,
+    _exception: v8::Local<'s, v8::Value>,
   ) {
-    v8::make_callback_scope!(unsafe scope, message);
+    let scope = pin!(unsafe { v8::CallbackScope::new(message) });
+    let scope = &mut scope.init();
     let scope = std::pin::pin!(v8::HandleScope::new(scope));
     let scope = &mut scope.init();
 
