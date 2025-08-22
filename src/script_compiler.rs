@@ -7,11 +7,11 @@ use crate::Module;
 use crate::Object;
 use crate::ScriptOrigin;
 use crate::String;
+use crate::UniqueRef;
 use crate::isolate::RealIsolate;
 use crate::scope2::PinScope;
 use crate::support::int;
 use crate::{Context, Script, UnboundScript};
-use crate::UniqueRef;
 
 unsafe extern "C" {
   fn v8__ScriptCompiler__Source__CONSTRUCT(
