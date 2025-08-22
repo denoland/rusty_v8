@@ -5,6 +5,7 @@ use crate::{
   SealedLocal, Value, fast_api::FastApiCallbackOptions, isolate::RealIsolate,
 };
 use std::{
+  any::type_name,
   cell::Cell,
   marker::{PhantomData, PhantomPinned},
   mem::{ManuallyDrop, offset_of},
@@ -336,6 +337,7 @@ impl<'a, 's, 'p: 's, C> NewHandleScope<'s>
 impl<'s> NewHandleScope<'s> for &'s mut Isolate {
   type NewScope = HandleScope<'s, ()>;
 
+  #[inline(always)]
   fn make_new_scope(me: Self) -> Self::NewScope {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
@@ -393,13 +395,14 @@ impl<'scope, 'obj, 'i> NewHandleScope<'scope>
 }
 
 pub(crate) struct ScopeData {
-  isolate: Option<NonNull<RealIsolate>>,
+  isolate: NonNull<RealIsolate>,
   context: Cell<Option<NonNull<Context>>>,
 }
 
 impl ScopeData {
+  #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
-    self.isolate.unwrap().as_ptr()
+    self.isolate.as_ptr()
   }
 
   pub(crate) fn get_current_context(&self) -> *mut Context {
@@ -618,7 +621,7 @@ impl<'p, 'i> PinnedRef<'p, HandleScope<'i, ()>> {
   ) -> Option<Local<'p, T>> {
     let mut data: ScopeData = ScopeData {
       context: Cell::new(self.0.context.get()),
-      isolate: Some(self.0.isolate),
+      isolate: self.0.isolate,
     };
     let ptr = _f(&mut data);
     unsafe { Local::from_raw(ptr) }
@@ -692,7 +695,7 @@ impl<'s, 'p, P> DerefMut for ContextScope<'s, 'p, P> {
 impl<'s, 'p, P> sealed::Sealed for ContextScope<'s, 'p, P> {}
 impl<'s, 'p, P> Scope for ContextScope<'s, 'p, P> {}
 
-pub trait NewContextScope<'s, 'c> {
+pub trait NewContextScope<'s, 'c>: GetIsolate {
   type NewScope: Scope;
 
   fn make_new_scope(
@@ -701,7 +704,7 @@ pub trait NewContextScope<'s, 'c> {
   ) -> Self::NewScope;
 }
 
-impl<'scope, 'scope_outer, 'obj: 'scope, 'ct, P: Scope>
+impl<'scope, 'scope_outer, 'obj: 'scope, 'ct, P: Scope + GetIsolate>
   NewContextScope<'scope, 'ct> for ContextScope<'scope_outer, 'obj, P>
 {
   type NewScope = ContextScope<'scope, 'obj, P>;
@@ -770,14 +773,14 @@ impl<'scope, 'obj: 'scope, 'ct, P: NewContextScope<'scope, 'ct>>
     context: Local<'ct, Context>,
   ) -> P::NewScope {
     // let scope_data = param.get_scope_data_mut();
-    // if scope_data.get_isolate_ptr()
-    //   != unsafe { raw::v8__Context__GetIsolate(&*context) }
-    // {
-    //   panic!(
-    //     "{} and Context do not belong to the same Isolate",
-    //     type_name::<P>()
-    //   )
-    // }
+    if param.get_isolate_ptr()
+      != unsafe { raw::v8__Context__GetIsolate(&*context) }
+    {
+      panic!(
+        "{} and Context do not belong to the same Isolate",
+        type_name::<P>()
+      )
+    }
     // let new_scope_data = scope_data.new_context_scope_data(context);
     // new_scope_data.as_scope()
     P::make_new_scope(param, context)
@@ -1815,6 +1818,7 @@ impl<'p, 'i> DerefMut for PinnedRef<'p, HandleScope<'i>> {
 
 impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i, ()>> {
   type Target = Isolate;
+  #[inline(always)]
   fn deref(&self) -> &Self::Target {
     unsafe {
       std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.0.isolate)

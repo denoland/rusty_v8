@@ -5,6 +5,7 @@ use std::ptr::null;
 
 use crate::Array;
 use crate::Boolean;
+use crate::CallbackScope;
 use crate::Context;
 use crate::Function;
 use crate::Integer;
@@ -523,10 +524,11 @@ where
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      let scope = std::pin::pin!(unsafe { CallbackScope::new(info) });
+      let mut scope = scope.init();
       let args = FunctionCallbackArguments::from_function_callback_info(info);
       let rv = ReturnValue::from_function_callback_info(info);
-      (F::get())(scope, args, rv);
+      (F::get())(&mut *scope, args, rv);
     };
     f.to_c_fn()
   }
