@@ -1,4 +1,3 @@
-use crate::scope2::PinnedBox;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Array;
 use crate::CallbackScope;
@@ -290,19 +289,15 @@ where
       specifier: Local<'s, String>,
       import_attributes: Local<'s, FixedArray>,
     ) -> Option<Local<'s, Promise>> {
-      // let scope = unsafe { CallbackScope::new(&context) };
-      // let scope = Box::pin(scope);
-      // let mut scope = scope.init_box();
-      // let scope = PinnedRef::from(scope.as_mut());
-      // (F::get())(
-      //   &mut scope,
-      //   host_defined_options,
-      //   resource_name,
-      //   specifier,
-      //   import_attributes,
-      // )
-      // todo(nathanwhit): this is fucked
-      todo!()
+      let scope = pin!(unsafe { CallbackScope::new(context) });
+      let mut scope = scope.init();
+      (F::get())(
+        &mut scope,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_attributes,
+      )
     }
 
     #[cfg(target_family = "unix")]
@@ -455,20 +450,17 @@ where
       specifier: Local<'s, String>,
       import_phase: ModuleImportPhase,
       import_attributes: Local<'s, FixedArray>,
-    ) -> Option<(PinnedBox<CallbackScope<'s>>, Local<'s, Promise>)> {
-      let scope = unsafe { CallbackScope::new(context) };
-      let scope = Box::pin(scope);
-      let _scope = scope.init_box();
-
-      // (F::get())(
-      //   scope,
-      //   host_defined_options,
-      //   resource_name,
-      //   specifier,
-      //   import_phase,
-      //   import_attributes,
-      // )
-      todo!()
+    ) -> Option<Local<'s, Promise>> {
+      let scope = pin!(unsafe { CallbackScope::new(context) });
+      let mut scope = scope.init();
+      (F::get())(
+        &mut scope,
+        host_defined_options,
+        resource_name,
+        specifier,
+        import_phase,
+        import_attributes,
+      )
     }
 
     #[cfg(target_family = "unix")]
@@ -492,9 +484,7 @@ where
         import_phase,
         import_attributes,
       )
-      .map_or_else(null_mut, |(_, return_value)| {
-        return_value.as_non_null().as_ptr()
-      })
+      .map_or_else(null_mut, |return_value| return_value.as_non_null().as_ptr())
     }
 
     #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
