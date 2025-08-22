@@ -12,36 +12,6 @@ error[E0597]: `scope2` does not live long enough
 20 |   };
    |   - `scope2` dropped here while still borrowed
 
-error[E0597]: `scope3` does not live long enough
-  --> tests/compile_fail/handle_scope_escape_lifetime.rs:15:44
-   |
-9  |   let _local = {
-   |       ------ borrow later stored here
-...
-13 |     let mut scope3 = scope3.init();
-   |         ---------- binding `scope3` declared here
-14 |     let context = v8::Context::new(&mut scope3, v8::ContextOptions::default());
-15 |     let mut scope3 = v8::ContextScope::new(&mut scope3, context);
-   |                                            ^^^^^^^^^^^ borrowed value does not live long enough
-...
-20 |   };
-   |   - `scope3` dropped here while still borrowed
-
-error[E0716]: temporary value dropped while borrowed
-  --> tests/compile_fail/handle_scope_escape_lifetime.rs:12:18
-   |
-9  |   let _local = {
-   |       ------ borrow later stored here
-...
-12 |     let scope3 = pin!(v8::HandleScope::new(&mut scope2));
-   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
-...
-20 |   };
-   |   - temporary value is freed at the end of this statement
-   |
-   = note: consider using a `let` binding to create a longer lived value
-   = note: this error originates in the macro `pin` (in Nightly builds, run with -Z macro-backtrace for more info)
-
 error[E0716]: temporary value dropped while borrowed
   --> tests/compile_fail/handle_scope_escape_lifetime.rs:10:18
    |
