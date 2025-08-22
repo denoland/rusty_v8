@@ -751,7 +751,6 @@ where
     me: &'scope mut Self,
     context: Local<'ct, Context>,
   ) -> Self::NewScope {
-    me.scope.0.clear_cached_context();
     ContextScope {
       raw_handle_scope: raw::ContextScope::new(context),
       scope: me.scope,
@@ -833,6 +832,7 @@ impl<
         type_name::<P>()
       )
     }
+    param.clear_cached_context();
     // let new_scope_data = scope_data.new_context_scope_data(context);
     // new_scope_data.as_scope()
     P::make_new_scope(param, context)
