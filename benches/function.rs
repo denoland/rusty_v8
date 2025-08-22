@@ -11,14 +11,14 @@ fn main() {
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
   let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
-  let handle_scope = &handle_scope.init();
+  let handle_scope = &mut handle_scope.init();
   let context = v8::Context::new(handle_scope, Default::default());
   let scope = &mut v8::ContextScope::new(handle_scope, context);
   let global = context.global(scope);
   {
     let func = v8::Function::new(
       scope,
-      |scope: &v8::HandleScope,
+      |scope: &mut v8::PinScope,
        _: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
         rv.set(v8::Integer::new(scope, 42).into());
@@ -53,7 +53,7 @@ fn main() {
   {
     let func = v8::Function::new(
       scope,
-      |_: &v8::HandleScope,
+      |_: &mut v8::PinScope,
        _: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
         rv.set_uint32(42);
@@ -76,7 +76,7 @@ fn main() {
       ),
     );
     let template = v8::FunctionTemplate::builder(
-      |scope: &v8::HandleScope,
+      |scope: &mut v8::PinScope,
        _: v8::FunctionCallbackArguments,
        mut rv: v8::ReturnValue| {
         rv.set(v8::Integer::new(scope, 42).into());
@@ -158,11 +158,12 @@ fn main() {
   }
 }
 
-fn eval<'s>(
-  scope: &v8::HandleScope<'s>,
+fn eval<'s, 'i>(
+  scope: &mut v8::PinScope<'s, 'i>,
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
-  let scope = &mut v8::EscapableHandleScope::new(scope);
+  let scope = std::pin::pin!(v8::EscapableHandleScope::new(scope));
+  let scope = &mut scope.init();
   let source = v8::String::new(scope, code).unwrap();
   let script = v8::Script::compile(scope, source, None).unwrap();
   let r = script.run(scope);
