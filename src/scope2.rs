@@ -281,7 +281,9 @@ mod get_isolate_impls {
     }
   }
 
-  impl<'s, 'p, P: GetIsolate> GetIsolate for ContextScope<'s, 'p, P> {
+  impl<'s, 'p, P: GetIsolate + ClearCachedContext> GetIsolate
+    for ContextScope<'s, 'p, P>
+  {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.scope.get_isolate_ptr()
     }
@@ -372,7 +374,7 @@ impl<'s, 'p: 's, 'i, C> NewHandleScope<'s>
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: me.0.isolate,
-      context: Cell::new(me.0.context),
+      context: Cell::new(me.0.context.get()),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
     }
@@ -659,12 +661,12 @@ impl<'a, 's, C> GetIsolate for Pin<&'a mut HandleScope<'s, C>> {
 // ContextScope
 
 #[repr(C)]
-pub struct ContextScope<'scope, 'obj, P> {
+pub struct ContextScope<'scope, 'obj, P: ClearCachedContext> {
   raw_handle_scope: raw::ContextScope,
   scope: &'scope mut PinnedRef<'obj, P>,
 }
 
-impl<'s, 'p, P> ScopeInit for ContextScope<'s, 'p, P> {
+impl<'s, 'p, P: ClearCachedContext> ScopeInit for ContextScope<'s, 'p, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     storage.projected()
   }
@@ -679,21 +681,21 @@ impl<'s, 'p, P> ScopeInit for ContextScope<'s, 'p, P> {
   }
 }
 
-impl<'s, 'p, P> Deref for ContextScope<'s, 'p, P> {
+impl<'s, 'p, P: ClearCachedContext> Deref for ContextScope<'s, 'p, P> {
   type Target = PinnedRef<'p, P>;
   fn deref(&self) -> &Self::Target {
     &self.scope
   }
 }
 
-impl<'s, 'p, P> DerefMut for ContextScope<'s, 'p, P> {
+impl<'s, 'p, P: ClearCachedContext> DerefMut for ContextScope<'s, 'p, P> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.scope
   }
 }
 
-impl<'s, 'p, P> sealed::Sealed for ContextScope<'s, 'p, P> {}
-impl<'s, 'p, P> Scope for ContextScope<'s, 'p, P> {}
+impl<'s, 'p, P: ClearCachedContext> sealed::Sealed for ContextScope<'s, 'p, P> {}
+impl<'s, 'p, P: ClearCachedContext> Scope for ContextScope<'s, 'p, P> {}
 
 pub trait NewContextScope<'s, 'c>: GetIsolate {
   type NewScope: Scope;
@@ -704,8 +706,44 @@ pub trait NewContextScope<'s, 'c>: GetIsolate {
   ) -> Self::NewScope;
 }
 
+mod clear_cached_context {
+  pub trait ClearCachedContext {
+    fn clear_cached_context(&self);
+  }
+}
+use clear_cached_context::ClearCachedContext;
+
+impl<'isolate, C> ClearCachedContext for HandleScope<'isolate, C> {
+  fn clear_cached_context(&self) {
+    self.context.set(None);
+  }
+}
+
+impl<'isolate, C> ClearCachedContext for CallbackScope<'isolate, C> {
+  fn clear_cached_context(&self) {}
+}
+
+impl<'scope, 'isolate, P: ClearCachedContext> ClearCachedContext
+  for PinnedRef<'scope, P>
+{
+  fn clear_cached_context(&self) {
+    self.0.clear_cached_context();
+  }
+}
+
+impl<'scope, 'obj, P> Drop for ContextScope<'scope, 'obj, P>
+where
+  P: ClearCachedContext,
+{
+  fn drop(&mut self) {
+    self.scope.0.clear_cached_context();
+  }
+}
+
 impl<'scope, 'scope_outer, 'obj: 'scope, 'ct, P: Scope + GetIsolate>
   NewContextScope<'scope, 'ct> for ContextScope<'scope_outer, 'obj, P>
+where
+  P: ClearCachedContext,
 {
   type NewScope = ContextScope<'scope, 'obj, P>;
 
@@ -713,6 +751,7 @@ impl<'scope, 'scope_outer, 'obj: 'scope, 'ct, P: Scope + GetIsolate>
     me: &'scope mut Self,
     context: Local<'ct, Context>,
   ) -> Self::NewScope {
+    me.scope.0.clear_cached_context();
     ContextScope {
       raw_handle_scope: raw::ContextScope::new(context),
       scope: me.scope,
@@ -729,6 +768,7 @@ impl<'scope, 'obj: 'scope, 'ct, 'i, C> NewContextScope<'scope, 'ct>
     me: &'scope mut Self,
     context: Local<'ct, Context>,
   ) -> Self::NewScope {
+    me.0.context.set(None);
     ContextScope {
       raw_handle_scope: raw::ContextScope::new(context),
       scope: unsafe {
@@ -764,8 +804,20 @@ impl<'scope, 'obj: 'scope, 'i, 'ct, C> NewContextScope<'scope, 'ct>
   }
 }
 
-impl<'scope, 'obj: 'scope, 'ct, P: NewContextScope<'scope, 'ct>>
-  ContextScope<'scope, 'obj, P>
+impl<'scope, 'obj, P: ClearCachedContext> ClearCachedContext
+  for ContextScope<'scope, 'obj, P>
+{
+  fn clear_cached_context(&self) {
+    self.scope.0.clear_cached_context();
+  }
+}
+
+impl<
+  'scope,
+  'obj: 'scope,
+  'ct,
+  P: NewContextScope<'scope, 'ct> + ClearCachedContext,
+> ContextScope<'scope, 'obj, P>
 {
   #[allow(clippy::new_ret_no_self)]
   pub fn new(
@@ -826,7 +878,7 @@ impl<'scope, 'obj: 'scope, 'ct, P: NewContextScope<'scope, 'ct>>
 pub struct CallbackScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
-  context: Option<NonNull<Context>>,
+  context: Cell<Option<NonNull<Context>>>,
   _phantom: PhantomData<&'s C>,
   _pinned: PhantomPinned,
   needs_scope: bool,
@@ -1016,7 +1068,7 @@ fn make_new_callback_scope<'a, C>(
   CallbackScope {
     raw_handle_scope: unsafe { raw::HandleScope::uninit() },
     isolate: NonNull::new(isolate.get_isolate_ptr()).unwrap(),
-    context,
+    context: Cell::new(context),
     _phantom: PhantomData,
     _pinned: PhantomPinned,
     needs_scope: false,
@@ -1064,7 +1116,7 @@ impl<'s> NewCallbackScope<'s> for &'s FastApiCallbackOptions<'s> {
     CallbackScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: NonNull::new(isolate).unwrap(),
-      context: me.get_context().map(|c| c.as_non_null()),
+      context: Cell::new(me.get_context().map(|c| c.as_non_null())),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
       needs_scope: Self::NEEDS_SCOPE,
@@ -1320,8 +1372,12 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
 //   }
 // }
 
-impl<'scope, 'ctx_scope, 'obj: 'scope, T: GetIsolate + Scope>
-  NewTryCatch<'scope> for ContextScope<'ctx_scope, 'obj, T>
+impl<
+  'scope,
+  'ctx_scope,
+  'obj: 'scope,
+  T: GetIsolate + Scope + ClearCachedContext,
+> NewTryCatch<'scope> for ContextScope<'ctx_scope, 'obj, T>
 {
   type NewScope = TryCatch<'scope, 'obj, T>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
@@ -1651,6 +1707,7 @@ impl<'scope, 'obj: 'scope, 'i, C> NewDisallowJavascriptExecutionScope<'scope>
 impl<'scope, 'sc, 'obj, 'p, P> NewDisallowJavascriptExecutionScope<'scope>
   for ContextScope<'sc, 'obj, P>
 where
+  P: ClearCachedContext,
   PinnedRef<'obj, P>: NewDisallowJavascriptExecutionScope<'scope>,
 {
   type NewScope = <PinnedRef<'obj, P> as NewDisallowJavascriptExecutionScope<
