@@ -499,7 +499,7 @@ impl String {
   #[deprecated = "Use `v8::String::write_v2` instead"]
   pub fn write(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [u16],
     start: usize,
     options: WriteOptions,
@@ -521,7 +521,7 @@ impl String {
   #[inline(always)]
   pub fn write_v2(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     offset: u32,
     buffer: &mut [u16],
     flags: WriteFlags,
@@ -544,7 +544,7 @@ impl String {
   #[deprecated = "Use `v8::String::write_one_byte_v2` instead."]
   pub fn write_one_byte(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [u8],
     start: usize,
     options: WriteOptions,

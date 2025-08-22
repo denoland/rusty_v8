@@ -15,7 +15,7 @@ fn main() {
 
   let context = v8::Context::new(&handle_scope, Default::default());
 
-  let mut scope = v8::ContextScope::new(handle_scope.as_mut(), context);
+  let mut scope = v8::ContextScope::new(&mut handle_scope, context);
 
   run_main(&mut scope, &args, &mut run_shell_flag);
 
@@ -112,7 +112,7 @@ fn execute_string(
   print_result: bool,
   report_exceptions_flag: bool,
 ) {
-  let tc = std::pin::pin!(v8::TryCatch::new(scope.as_mut()));
+  let tc = std::pin::pin!(v8::TryCatch::new(scope));
   let tc = &mut tc.init();
 
   let filename = v8::String::new(tc, filename).unwrap();

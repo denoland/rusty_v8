@@ -125,19 +125,19 @@ impl HttpRequest for StringHttpRequest {
 }
 
 /// An http request processor that is scriptable using JavaScript.
-struct JsHttpRequestProcessor<'scope, 'isolate> {
-  context: v8::Local<'scope, v8::Context>,
-  context_scope: v8::ContextScope<'scope, v8::HandleScope<'isolate>>,
-  process_fn: Option<v8::Local<'scope, v8::Function>>,
+struct JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
+  context: v8::Local<'obj, v8::Context>,
+  context_scope: v8::ContextScope<'scope, 'obj, v8::HandleScope<'isolate>>,
+  process_fn: Option<v8::Local<'obj, v8::Function>>,
   request_template: v8::Global<v8::ObjectTemplate>,
   _map_template: Option<v8::Global<v8::ObjectTemplate>>,
 }
 
-impl<'scope, 'isolate> JsHttpRequestProcessor<'scope, 'isolate> {
+impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   /// Creates a scriptable HTTP request processor.
-  pub fn new<'s>(
-    isolate_scope: &'scope mut v8::PinScope<'s, 'isolate, ()>,
-    source: v8::Local<'s, v8::String>,
+  pub fn new(
+    isolate_scope: &'scope mut v8::PinScope<'obj, 'isolate, ()>,
+    source: v8::Local<'obj, v8::String>,
     options: HashMap<String, String>,
   ) -> Self {
     let global = v8::ObjectTemplate::new(isolate_scope);
@@ -153,7 +153,7 @@ impl<'scope, 'isolate> JsHttpRequestProcessor<'scope, 'isolate> {
         ..Default::default()
       },
     );
-    let context_scope = v8::ContextScope::new(isolate_scope.as_mut(), context);
+    let context_scope = v8::ContextScope::new(isolate_scope, context);
 
     let request_template = v8::ObjectTemplate::new(&context_scope);
     request_template.set_internal_field_count(1);
@@ -294,7 +294,7 @@ impl<'scope, 'isolate> JsHttpRequestProcessor<'scope, 'isolate> {
   /// This handles the properties of `HttpRequest`
   #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
   fn request_prop_handler(
-    scope: &v8::PinScope,
+    scope: &mut v8::PinScope,
     key: v8::Local<v8::Name>,
     args: v8::PropertyCallbackArguments,
     mut rv: v8::ReturnValue,
@@ -355,7 +355,8 @@ impl<'scope, 'isolate> JsHttpRequestProcessor<'scope, 'isolate> {
 
   /// Prints the output.
   pub fn print_output(&mut self) {
-    let scope = std::pin::pin!(v8::HandleScope::new(&mut *self.context_scope));
+    let scope: std::pin::Pin<&mut v8::ScopeStorage<v8::HandleScope<'_>>> =
+      std::pin::pin!(v8::HandleScope::new(&mut self.context_scope));
     let scope = &scope.init();
     let key = v8::String::new(scope, "output").unwrap();
     let output = self
