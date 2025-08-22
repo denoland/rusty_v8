@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ["**"]
   pull_request:
-    branches: [main]
+    branches: [main, "137.2.1"]
     types: [labeled, opened, synchronize, reopened]
 
 permissions: write-all
