@@ -1,16 +1,11 @@
 error[E0499]: cannot borrow `scope1` as mutable more than once at a time
   --> tests/compile_fail/handle_scope_lifetime_2.rs:14:34
    |
-9  |     let mut context_scope = v8::ContextScope::new(&mut scope1, context);
-   |                                                   ----------- first mutable borrow occurs here
-10 |     let scope2 = pin!(v8::EscapableHandleScope::new(
-   |  ________________-
-11 | |     (&mut *context_scope).as_mut()
-12 | |   ));
-   | |____- a temporary with access to the first borrow is created here ...
-13 |     let mut scope2 = scope2.init();
-14 |     let _local1 = v8::Integer::new(&mut scope1, 123);
-   |                                    ^^^^^^^^^^^ second mutable borrow occurs here
-15 |     let _local2 = v8::Integer::new(&mut scope2, 123);
-16 |   }
-   |   - ... and the first borrow might be used here, when that temporary is dropped and runs the `Drop` code for type `v8::scope2::ScopeStorage`
+9  |   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
+   |                                                 ----------- first mutable borrow occurs here
+...
+14 |   let _local1 = v8::Integer::new(&mut scope1, 123);
+   |                                  ^^^^^^^^^^^ second mutable borrow occurs here
+15 |   let _local2 = v8::Integer::new(&mut scope2, 123);
+16 | }
+   | - first borrow might be used here, when `context_scope` is dropped and runs the `Drop` code for type `ContextScope`

@@ -206,6 +206,7 @@ pub const TYPED_ARRAY_MAX_SIZE_IN_HEAP: usize =
   binding::v8__TYPED_ARRAY_MAX_SIZE_IN_HEAP as _;
 
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) fn initialize_v8() {
   use std::sync::Once;
 

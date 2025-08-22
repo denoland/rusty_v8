@@ -4706,7 +4706,7 @@ fn security_token() {
       let child_context = v8::Context::new(
         scope,
         v8::ContextOptions {
-          // global_template: Some(templ),
+          global_template: Some(templ),
           ..Default::default()
         },
       );
@@ -4726,7 +4726,7 @@ fn security_token() {
       let child_context = v8::Context::new(
         scope,
         v8::ContextOptions {
-          // global_template: Some(templ),
+          global_template: Some(templ),
           ..Default::default()
         },
       );
@@ -10085,7 +10085,7 @@ fn compiled_wasm_module() {
       0x6F, 0x6F, 0x62, 0x61, 0x72
     ]
   );
-  // assert_eq!(compiled_module.source_url(), "wasm://wasm/3e495052");
+  assert_eq!(compiled_module.source_url(), "wasm://wasm/3e495052");
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
