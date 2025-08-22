@@ -1,19 +1,4 @@
 error[E0716]: temporary value dropped while borrowed
-  --> tests/compile_fail/try_catch_message_lifetime.rs:11:5
-   |
-9  |   let _message = {
-   |       -------- borrow later stored here
-10 |     v8::make_handle_scope!(scope3, &mut *scope2);
-11 |     v8::make_handle_scope!(scope4, scope3);
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
-...
-15 |   };
-   |   - temporary value is freed at the end of this statement
-   |
-   = note: consider using a `let` binding to create a longer lived value
-   = note: this error originates in the macro `v8::make_handle_scope` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0716]: temporary value dropped while borrowed
   --> tests/compile_fail/try_catch_message_lifetime.rs:10:5
    |
 9  |   let _message = {

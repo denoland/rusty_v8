@@ -1,0 +1,13 @@
+error[E0716]: temporary value dropped while borrowed
+  --> tests/compile_fail/local_outlive_handle_scope.rs:7:18
+   |
+6  |   let _local = {
+   |       ------ borrow later stored here
+7  |     let scope2 = std::pin::pin!(v8::HandleScope::new(scope1));
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
+...
+11 |   };
+   |   - temporary value is freed at the end of this statement
+   |
+   = note: consider using a `let` binding to create a longer lived value
+   = note: this error originates in the macro `std::pin::pin` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -7,8 +7,10 @@ error[E0277]: the trait bound `&mut OwnedIsolate: v8::scope2::NewEscapableHandle
   |                    required by a bound introduced by this call
   |
   = help: the following other types implement trait `v8::scope2::NewEscapableHandleScope<'s>`:
-            &'borrow mut PinnedRef<'p, HandleScope<'s>>
-            PinnedRef<'s, HandleScope<'p>>
+            `&'borrow mut ContextScope<'scope, 'obj, HandleScope<'i>>` implements `v8::scope2::NewEscapableHandleScope<'scope>`
+            `&'borrow mut PinnedRef<'p, P>` implements `v8::scope2::NewEscapableHandleScope<'s>`
+            `PinnedRef<'p, EscapableHandleScope<'s, 'esc>>` implements `v8::scope2::NewEscapableHandleScope<'s>`
+            `PinnedRef<'s, HandleScope<'p>>` implements `v8::scope2::NewEscapableHandleScope<'s>`
 note: required by a bound in `EscapableHandleScope::<'s, 'esc>::new`
  --> src/scope2.rs
   |
@@ -22,5 +24,7 @@ error[E0277]: the trait bound `&mut OwnedIsolate: v8::scope2::NewEscapableHandle
   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `v8::scope2::NewEscapableHandleScope<'_>` is not implemented for `&mut OwnedIsolate`
   |
   = help: the following other types implement trait `v8::scope2::NewEscapableHandleScope<'s>`:
-            &'borrow mut PinnedRef<'p, HandleScope<'s>>
-            PinnedRef<'s, HandleScope<'p>>
+            `&'borrow mut ContextScope<'scope, 'obj, HandleScope<'i>>` implements `v8::scope2::NewEscapableHandleScope<'scope>`
+            `&'borrow mut PinnedRef<'p, P>` implements `v8::scope2::NewEscapableHandleScope<'s>`
+            `PinnedRef<'p, EscapableHandleScope<'s, 'esc>>` implements `v8::scope2::NewEscapableHandleScope<'s>`
+            `PinnedRef<'s, HandleScope<'p>>` implements `v8::scope2::NewEscapableHandleScope<'s>`
