@@ -5565,7 +5565,6 @@ fn continuation_preserved_embedder_data() {
   }
 }
 
-#[ignore]
 #[test]
 fn snapshot_creator() {
   let _setup_guard = setup::sequential_test();
@@ -5668,7 +5667,6 @@ fn snapshot_creator() {
   }
 }
 
-#[ignore]
 #[test]
 fn snapshot_creator_multiple_contexts() {
   let _setup_guard = setup::sequential_test();
@@ -5834,7 +5832,6 @@ fn snapshot_creator_multiple_contexts() {
   }
 }
 
-#[ignore]
 #[test]
 fn snapshot_creator_context_embedder_data() {
   let _setup_guard = setup::sequential_test();
@@ -7807,7 +7804,6 @@ fn test_object_get_property_names() {
   }
 }
 
-#[ignore]
 #[test]
 fn module_snapshot() {
   let _setup_guard = setup::sequential_test();
