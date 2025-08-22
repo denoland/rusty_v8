@@ -1,14 +1,15 @@
-use crate::isolate::RealIsolate;
 use crate::Boolean;
 use crate::Local;
 use crate::Primitive;
 use crate::isolate::Isolate;
+use crate::isolate::RealIsolate;
 
 unsafe extern "C" {
   fn v8__Null(isolate: *mut RealIsolate) -> *const Primitive;
   fn v8__Undefined(isolate: *mut RealIsolate) -> *const Primitive;
 
-  fn v8__Boolean__New(isolate: *mut RealIsolate, value: bool) -> *const Boolean;
+  fn v8__Boolean__New(isolate: *mut RealIsolate, value: bool)
+  -> *const Boolean;
 }
 
 #[inline(always)]
@@ -16,9 +17,7 @@ pub fn null<'s, R>(scope: &R) -> Local<'s, Primitive>
 where
   R: AsRef<Isolate>,
 {
-  unsafe {
-    Local::from_raw_unchecked(v8__Null(scope.as_ref() as *const _ as *mut _))
-  }
+  unsafe { Local::from_raw_unchecked(v8__Null(scope.as_ref().as_real_ptr())) }
 }
 
 #[inline(always)]
@@ -27,9 +26,7 @@ where
   R: AsRef<Isolate>,
 {
   unsafe {
-    Local::from_raw_unchecked(v8__Undefined(
-      scope.as_ref() as *const _ as *mut _
-    ))
+    Local::from_raw_unchecked(v8__Undefined(scope.as_ref().as_real_ptr()))
   }
 }
 
@@ -41,7 +38,7 @@ impl Boolean {
   {
     unsafe {
       Local::from_raw_unchecked(v8__Boolean__New(
-        scope.as_ref() as *const _ as *mut _,
+        scope.as_ref().as_real_ptr(),
         value,
       ))
     }

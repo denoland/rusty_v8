@@ -347,7 +347,7 @@ impl Object {
     value: Local<Value>,
   ) -> Option<bool> {
     unsafe {
-      v8__Object__Set(self, &*scope.get_current_context(), &*key, &*value)
+      v8__Object__Set(self, &*dbg!(scope.get_current_context()), &*key, &*value)
     }
     .into()
   }

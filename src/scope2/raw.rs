@@ -45,6 +45,7 @@ impl HandleScope {
   ///
   /// This function is marked unsafe because the caller must ensure that the
   /// returned value isn't dropped before `init()` has been called.
+  #[inline(always)]
   pub unsafe fn uninit() -> Self {
     unsafe { MaybeUninit::uninit().assume_init() }
     // Self([MaybeUninit::uninit(); 3])
@@ -53,6 +54,7 @@ impl HandleScope {
   /// This function is marked unsafe because `init()` must be called exactly
   /// once, no more and no less, after creating a `HandleScope` value with
   /// `HandleScope::uninit()`.
+  #[inline(always)]
   pub unsafe fn init(&mut self, isolate: NonNull<RealIsolate>) {
     let buf = NonNull::from(self).as_ptr().cast();
     unsafe {
