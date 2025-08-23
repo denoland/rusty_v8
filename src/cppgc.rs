@@ -179,6 +179,7 @@ pub unsafe fn shutdown_process() {
 ///
 /// ```
 /// use v8::cppgc::{Member, Visitor, GarbageCollected};
+/// use std::ffi::CStr;
 ///
 /// struct Foo { foo: Member<Foo> }
 ///

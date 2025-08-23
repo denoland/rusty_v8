@@ -1,12 +1,16 @@
 // Copyright 2019-2020 the Deno authors. All rights reserved. MIT license.
+use std::pin::pin;
 
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
-  let mut scope1 = v8::HandleScope::new(&mut isolate);
+  let scope1 = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope1 = scope1.init();
 
   let _boxed_local = {
-    let mut scope2 = v8::HandleScope::new(&mut scope1);
-    let mut scope3 = v8::HandleScope::new(&mut scope2);
+    let scope2 = pin!(v8::HandleScope::new(&mut scope1));
+    let mut scope2 = scope2.init();
+    let scope3 = pin!(v8::HandleScope::new(&mut scope2));
+    let mut scope3 = scope3.init();
     Box::new(v8::Integer::new(&mut scope3, 123))
   };
 }

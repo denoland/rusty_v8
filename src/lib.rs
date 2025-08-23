@@ -9,7 +9,8 @@
 //!
 //! let isolate = &mut v8::Isolate::new(Default::default());
 //!
-//! let scope = &mut v8::HandleScope::new(isolate);
+//! let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+//! let scope = &mut scope.init();
 //! let context = v8::Context::new(scope, Default::default());
 //! let scope = &mut v8::ContextScope::new(scope, context);
 //!
@@ -64,7 +65,7 @@ mod property_filter;
 mod property_handler_flags;
 mod proxy;
 mod regexp;
-mod scope;
+mod scope2;
 mod script;
 mod script_or_module;
 mod shared_array_buffer;
@@ -124,6 +125,7 @@ pub use isolate::OwnedIsolate;
 pub use isolate::PromiseHook;
 pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
+pub use isolate::RealIsolate;
 pub use isolate::TimeZoneDetection;
 pub use isolate::UseCounterCallback;
 pub use isolate::UseCounterFeature;
@@ -143,14 +145,21 @@ pub use property_descriptor::*;
 pub use property_filter::*;
 pub use property_handler_flags::*;
 pub use regexp::RegExpCreationFlags;
-pub use scope::AllowJavascriptExecutionScope;
-pub use scope::CallbackScope;
-pub use scope::ContextScope;
-pub use scope::DisallowJavascriptExecutionScope;
-pub use scope::EscapableHandleScope;
-pub use scope::HandleScope;
-pub use scope::OnFailure;
-pub use scope::TryCatch;
+pub use scope2::AllowJavascriptExecutionScope;
+// pub use scope::CallbackScope;
+pub use scope2::CallbackScope;
+pub use scope2::ContextScope;
+pub use scope2::DisallowJavascriptExecutionScope;
+pub use scope2::EscapableHandleScope;
+pub use scope2::PinCallbackScope;
+pub use scope2::PinScope;
+pub use scope2::PinnedRef;
+pub use scope2::ScopeStorage;
+// pub use scope::HandleScope;
+pub use isolate::UnsafeRawIsolatePtr;
+pub use scope2::HandleScope;
+pub use scope2::OnFailure;
+pub use scope2::TryCatch;
 pub use script::ScriptOrigin;
 pub use script_compiler::CachedData;
 pub use snapshot::FunctionCodeHandling;
@@ -199,6 +208,7 @@ pub const TYPED_ARRAY_MAX_SIZE_IN_HEAP: usize =
   binding::v8__TYPED_ARRAY_MAX_SIZE_IN_HEAP as _;
 
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) fn initialize_v8() {
   use std::sync::Once;
 

@@ -8,7 +8,8 @@ fn single_threaded_default_platform() {
 
   {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+    let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     let source = v8::String::new(scope, "Math.random()").unwrap();

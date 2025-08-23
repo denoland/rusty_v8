@@ -2,14 +2,15 @@
 
 pub fn main() {
   let mut isolate = v8::Isolate::new(mock());
-  let mut scope1 = v8::HandleScope::new(&mut isolate);
-  let context = v8::Context::new(&mut scope1, Default::default());
-  let mut scope2 = v8::ContextScope::new(&mut scope1, context);
+  v8::make_handle_scope!(scope1, &mut isolate);
+  let context = v8::Context::new(scope1, Default::default());
+  let mut scope2 = v8::ContextScope::new(scope1, context);
 
   let _message = {
-    let mut scope3 = v8::HandleScope::new(&mut scope2);
-    let mut scope4 = v8::HandleScope::new(&mut scope3);
-    let mut try_catch = v8::TryCatch::new(&mut scope4);
+    v8::make_handle_scope!(scope3, &mut *scope2);
+    v8::make_handle_scope!(scope4, scope3);
+    let try_catch = std::pin::pin!(v8::TryCatch::new(&mut *scope4));
+    let try_catch = try_catch.init();
     try_catch.message().unwrap()
   };
 }

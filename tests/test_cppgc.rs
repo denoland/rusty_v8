@@ -86,12 +86,12 @@ macro_rules! test {
       }
 
       fn op_wrap(
-        scope: &mut v8::HandleScope,
+        scope: &mut v8::PinScope<'_, '_>,
         args: v8::FunctionCallbackArguments,
         mut rv: v8::ReturnValue<v8::Value>,
       ) {
         fn empty(
-          _scope: &mut v8::HandleScope,
+          _scope: &mut v8::PinScope<'_, '_>,
           _args: v8::FunctionCallbackArguments,
           _rv: v8::ReturnValue<v8::Value>,
         ) {
@@ -117,7 +117,7 @@ macro_rules! test {
       }
 
       fn op_unwrap(
-        scope: &mut v8::HandleScope,
+        scope: &mut v8::PinScope<'_, '_>,
         args: v8::FunctionCallbackArguments,
         mut rv: v8::ReturnValue,
       ) {
@@ -130,7 +130,8 @@ macro_rules! test {
         let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
         {
-          let handle_scope = &mut v8::HandleScope::new(isolate);
+          let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
+          let handle_scope = &mut handle_scope.init();
           let context = v8::Context::new(handle_scope, Default::default());
           let scope = &mut v8::ContextScope::new(handle_scope, context);
           let global = context.global(scope);
@@ -210,8 +211,11 @@ fn execute_script(
   context_scope: &mut v8::ContextScope<v8::HandleScope>,
   source: &str,
 ) {
-  let scope = &mut v8::HandleScope::new(context_scope);
-  let scope = &mut v8::TryCatch::new(scope);
+  let scope = std::pin::pin!(v8::HandleScope::new(context_scope));
+  let scope = &mut scope.init();
+
+  let scope = std::pin::pin!(v8::TryCatch::new(scope));
+  let scope = &mut scope.init();
 
   let source = v8::String::new(scope, source).unwrap();
 
