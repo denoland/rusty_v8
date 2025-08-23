@@ -800,6 +800,13 @@ impl Isolate {
     unsafe { &*(ptr as *const NonNull<RealIsolate> as *const Isolate) }
   }
 
+  pub(crate) unsafe fn from_raw_ref_mut(
+    ptr: &mut NonNull<RealIsolate>,
+  ) -> &mut Self {
+    // SAFETY: Isolate is a repr(transparent) wrapper around NonNull<RealIsolate>
+    unsafe { &mut *(ptr as *mut NonNull<RealIsolate> as *mut Isolate) }
+  }
+
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
   const INTERNAL_DATA_SLOT_COUNT: u32 = 2;
