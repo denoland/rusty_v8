@@ -64,10 +64,7 @@ impl RegExp {
   }
 
   #[inline(always)]
-  pub fn get_source<'s>(
-    &self,
-    scope: &PinScope<'s, '_>,
-  ) -> Local<'s, String> {
+  pub fn get_source<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__RegExp__GetSource(self)) }.unwrap()
   }
 }

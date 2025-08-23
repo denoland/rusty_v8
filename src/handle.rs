@@ -749,7 +749,8 @@ impl<T> Weak<T> {
         unreachable!("Isolate was dropped but weak handle wasn't reset.");
       }
       let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
-      let finalizer_id = finalizer.map(|finalizer| isolate.get_finalizer_map_mut().add(finalizer));
+      let finalizer_id = finalizer
+        .map(|finalizer| isolate.get_finalizer_map_mut().add(finalizer));
       Self::new_raw(&mut isolate, data, finalizer_id)
     } else {
       Weak {
@@ -1087,10 +1088,7 @@ impl<T> TracedReference<T> {
     this
   }
 
-  pub fn get<'s>(
-    &self,
-    scope: &PinScope<'s, '_, ()>,
-  ) -> Option<Local<'s, T>> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(
@@ -1162,10 +1160,7 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'s>(
-    &self,
-    scope: &PinScope<'s, '_, ()>,
-  ) -> Option<Local<'s, T>> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Eternal__Get(

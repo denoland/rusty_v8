@@ -377,9 +377,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// not be called.
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe {
-      &mut *(self.0.get_isolate_ptr() as *mut crate::isolate::Isolate)
-    }
+    unsafe { &mut *(self.0.get_isolate_ptr() as *mut crate::isolate::Isolate) }
   }
 
   /// For construct calls, this returns the "new.target" value.
@@ -1100,10 +1098,7 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_name<'s>(
-    &self,
-    scope: &PinScope<'s, '_>,
-  ) -> Local<'s, String> {
+  pub fn get_name<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }
 
