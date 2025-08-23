@@ -515,10 +515,10 @@ pub type FunctionCallback = unsafe extern "C" fn(*const FunctionCallbackInfo);
 impl<F> MapFnFrom<F> for FunctionCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut PinScope<'s, '_>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       FunctionCallbackArguments<'s>,
-      ReturnValue<Value>,
+      ReturnValue<'s, Value>,
     ),
 {
   fn mapping() -> Self {
