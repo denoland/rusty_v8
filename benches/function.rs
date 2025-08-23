@@ -95,7 +95,7 @@ fn main() {
       let scope = std::pin::pin!(unsafe { v8::CallbackScope::new(info) });
       let scope = &scope.init();
       let mut rv = v8::ReturnValue::from_function_callback_info(info);
-      rv.set(v8::undefined(&*scope).into());
+      rv.set(v8::undefined(scope).into());
     }
     let func = v8::Function::new_raw(scope, callback).unwrap();
     let name = v8::String::new(scope, "undefined_from_scope").unwrap();
@@ -158,8 +158,8 @@ fn main() {
   }
 }
 
-fn eval<'s, 'i>(
-  scope: &mut v8::PinScope<'s, 'i>,
+fn eval<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
   let scope = std::pin::pin!(v8::EscapableHandleScope::new(scope));

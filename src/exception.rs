@@ -84,8 +84,8 @@ unsafe extern "C" {
 impl StackTrace {
   /// Grab a snapshot of the current JavaScript execution stack.
   #[inline(always)]
-  pub fn current_stack_trace<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn current_stack_trace<'s>(
+    scope: &PinScope<'s, '_>,
     frame_limit: usize,
   ) -> Option<Local<'s, StackTrace>> {
     let frame_limit = frame_limit.try_into().ok()?;
@@ -106,8 +106,8 @@ impl StackTrace {
   /// a stack trace.
   ///
   #[inline(always)]
-  pub fn current_script_name_or_source_url<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn current_script_name_or_source_url<'s>(
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -124,9 +124,9 @@ impl StackTrace {
 
   /// Returns a StackFrame at a particular index.
   #[inline(always)]
-  pub fn get_frame<'s, 'i>(
+  pub fn get_frame<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
     index: usize,
   ) -> Option<Local<'s, StackFrame>> {
     unsafe {
@@ -169,9 +169,9 @@ impl StackFrame {
   /// Returns the name of the resource that contains the script for the
   /// function for this StackFrame.
   #[inline(always)]
-  pub fn get_script_name<'s, 'i>(
+  pub fn get_script_name<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe { scope.cast_local(|_| v8__StackFrame__GetScriptName(self)) }
   }
@@ -181,9 +181,9 @@ impl StackFrame {
   /// is undefined and its source ends with //# sourceURL=... string or
   /// deprecated //@ sourceURL=... string.
   #[inline(always)]
-  pub fn get_script_name_or_source_url<'s, 'i>(
+  pub fn get_script_name_or_source_url<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|_| v8__StackFrame__GetScriptNameOrSourceURL(self))
@@ -192,9 +192,9 @@ impl StackFrame {
 
   /// Returns the name of the function associated with this stack frame.
   #[inline(always)]
-  pub fn get_function_name<'s, 'i>(
+  pub fn get_function_name<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe { scope.cast_local(|_| v8__StackFrame__GetFunctionName(self)) }
   }
@@ -228,7 +228,7 @@ impl StackFrame {
 
 impl Message {
   #[inline(always)]
-  pub fn get<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, String> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Message__Get(self)) }.unwrap()
   }
 
@@ -236,17 +236,17 @@ impl Message {
   /// uncaught exceptions. SetCaptureStackTraceForUncaughtExceptions allows
   /// to change this option.
   #[inline(always)]
-  pub fn get_stack_trace<'s, 'i>(
+  pub fn get_stack_trace<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.cast_local(|_| v8__Message__GetStackTrace(self)) }
   }
 
   #[inline(always)]
-  pub fn get_source_line<'s, 'i>(
+  pub fn get_source_line<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -258,18 +258,18 @@ impl Message {
   /// Returns the resource name for the script from where the function causing
   /// the error originates.
   #[inline(always)]
-  pub fn get_script_resource_name<'s, 'i>(
+  pub fn get_script_resource_name<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Message__GetScriptResourceName(self)) }
   }
 
   /// Returns the number, 1-based, of the line where the error occurred.
   #[inline(always)]
-  pub fn get_line_number<'s, 'i>(
+  pub fn get_line_number(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'_, '_>,
   ) -> Option<usize> {
     let i = unsafe {
       v8__Message__GetLineNumber(self, &*scope.get_current_context())
@@ -338,40 +338,40 @@ pub struct Exception;
 
 impl Exception {
   #[inline(always)]
-  pub fn error<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn error<'s>(
+    scope: &PinScope<'s, '_>,
     message: Local<String>,
   ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__Error)
   }
 
   #[inline(always)]
-  pub fn range_error<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn range_error<'s>(
+    scope: &PinScope<'s, '_>,
     message: Local<String>,
   ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__RangeError)
   }
 
   #[inline(always)]
-  pub fn reference_error<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn reference_error<'s>(
+    scope: &PinScope<'s, '_>,
     message: Local<String>,
   ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__ReferenceError)
   }
 
   #[inline(always)]
-  pub fn syntax_error<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn syntax_error<'s>(
+    scope: &PinScope<'s, '_>,
     message: Local<String>,
   ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__SyntaxError)
   }
 
   #[inline(always)]
-  pub fn type_error<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn type_error<'s>(
+    scope: &PinScope<'s, '_>,
     message: Local<String>,
   ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__TypeError)
@@ -379,8 +379,8 @@ impl Exception {
 
   /// Internal helper to make the above error constructors less repetitive.
   #[inline(always)]
-  fn new_error_with<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  fn new_error_with<'s>(
+    scope: &PinScope<'s, '_>,
     message: Local<String>,
     contructor: unsafe extern "C" fn(*const String) -> *const Value,
   ) -> Local<'s, Value> {
@@ -396,8 +396,8 @@ impl Exception {
   /// Will try to reconstruct the original stack trace from the exception value,
   /// or capture the current stack trace if not available.
   #[inline(always)]
-  pub fn create_message<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn create_message<'s>(
+    scope: &PinScope<'s, '_>,
     exception: Local<Value>,
   ) -> Local<'s, Message> {
     unsafe {
@@ -411,8 +411,8 @@ impl Exception {
   /// Returns the original stack trace that was captured at the creation time
   /// of a given exception, or an empty handle if not available.
   #[inline(always)]
-  pub fn get_stack_trace<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn get_stack_trace<'s>(
+    scope: &PinScope<'s, '_>,
     exception: Local<Value>,
   ) -> Option<Local<'s, StackTrace>> {
     unsafe { scope.cast_local(|_| v8__Exception__GetStackTrace(&*exception)) }

@@ -13,8 +13,8 @@ unsafe extern "C" {
 /// An instance of the built-in Date constructor (ECMA-262, 15.9).
 impl Date {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_>,
     value: f64,
   ) -> Option<Local<'s, Date>> {
     unsafe {

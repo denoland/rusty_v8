@@ -965,8 +965,8 @@ fn deref_empty_backing_store() {
   assert!(!std::hint::black_box(slice.as_ptr()).is_null());
 }
 
-fn eval<'s, 'i>(
-  scope: &mut v8::PinScope<'s, 'i>,
+fn eval<'s>(
+  scope: &mut v8::PinScope<'s, '_>,
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
   let scope = pin!(v8::EscapableHandleScope::new(scope));
@@ -1124,11 +1124,11 @@ fn try_catch_caught_lifetime() {
     (caught_exc, caught_msg)
   };
   // This should not crash.
-  assert!(caught_exc.to_rust_string_lossy(&scope).contains("DANG"));
+  assert!(caught_exc.to_rust_string_lossy(scope).contains("DANG"));
   assert!(
     caught_msg
-      .get(&scope)
-      .to_rust_string_lossy(&scope)
+      .get(scope)
+      .to_rust_string_lossy(scope)
       .contains("DANG")
   );
 }
@@ -8013,11 +8013,11 @@ fn synthetic_evaluation_steps<'s>(
     let scope = std::pin::pin!(v8::TryCatch::new(scope));
     let mut scope = scope.init();
 
-    let name = v8::String::new(&mut *scope, "does not exist").unwrap();
+    let name = v8::String::new(&mut scope, "does not exist").unwrap();
     let value = v8::undefined(&mut *scope).into();
     assert!(
       module
-        .set_synthetic_module_export(&mut *scope, name, value)
+        .set_synthetic_module_export(&mut scope, name, value)
         .is_none()
     );
     assert!(scope.has_caught());
@@ -8149,8 +8149,8 @@ fn dynamic_source_phase_import() {
     unreachable!()
   }
 
-  fn dynamic_import_phase_cb<'a, 's, 'i>(
-    scope: &'a mut v8::PinScope<'s, 'i>,
+  fn dynamic_import_phase_cb<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
     _host_defined_options: v8::Local<'s, v8::Data>,
     _resource_name: v8::Local<'s, v8::Value>,
     _specifier: v8::Local<'s, v8::String>,
@@ -8395,9 +8395,9 @@ impl<'a> Custom1Value<'a> {
 
 impl v8::ValueSerializerImpl for Custom1Value<'_> {
   #[allow(unused_variables)]
-  fn throw_data_clone_error<'s, 'i>(
+  fn throw_data_clone_error<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     message: v8::Local<'s, v8::String>,
   ) {
     let error = v8::Exception::error(scope, message);
@@ -8405,9 +8405,9 @@ impl v8::ValueSerializerImpl for Custom1Value<'_> {
   }
 
   #[allow(unused_variables)]
-  fn get_shared_array_buffer_id<'s, 'i>(
+  fn get_shared_array_buffer_id<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     shared_array_buffer: v8::Local<'s, v8::SharedArrayBuffer>,
   ) -> Option<u32> {
     self.array_buffers.borrow_mut().push(
@@ -8416,9 +8416,9 @@ impl v8::ValueSerializerImpl for Custom1Value<'_> {
     Some((self.array_buffers.borrow().len() as u32) - 1)
   }
 
-  fn write_host_object<'s, 'i>(
+  fn write_host_object<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     object: v8::Local<'s, v8::Object>,
     value_serializer: &dyn v8::ValueSerializerHelper,
   ) -> Option<bool> {
@@ -8435,9 +8435,9 @@ impl v8::ValueSerializerImpl for Custom1Value<'_> {
 
 impl v8::ValueDeserializerImpl for Custom1Value<'_> {
   #[allow(unused_variables)]
-  fn get_shared_array_buffer_from_id<'s, 'i>(
+  fn get_shared_array_buffer_from_id<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     transfer_id: u32,
   ) -> Option<v8::Local<'s, v8::SharedArrayBuffer>> {
     let backing_store = self
@@ -8452,9 +8452,9 @@ impl v8::ValueDeserializerImpl for Custom1Value<'_> {
     ))
   }
 
-  fn read_host_object<'s, 'i>(
+  fn read_host_object<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     value_deserializer: &dyn v8::ValueDeserializerHelper,
   ) -> Option<v8::Local<'s, v8::Object>> {
     let mut value = 0;
@@ -8754,8 +8754,8 @@ fn value_serializer_and_deserializer_embedder_host_object() {
 struct Custom2Value {}
 
 impl Custom2Value {
-  fn serializer<'s, 'i>(
-    scope: &mut v8::PinScope<'s, 'i>,
+  fn serializer<'i>(
+    scope: &mut v8::PinScope<'_, 'i>,
   ) -> v8::ValueSerializer<'i> {
     v8::ValueSerializer::new(scope, Box::new(Self {}))
   }
@@ -8763,9 +8763,9 @@ impl Custom2Value {
 
 impl v8::ValueSerializerImpl for Custom2Value {
   #[allow(unused_variables)]
-  fn throw_data_clone_error<'s, 'i>(
+  fn throw_data_clone_error<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     message: v8::Local<'s, v8::String>,
   ) {
     let scope = std::pin::pin!(v8::TryCatch::new(scope));
@@ -8818,14 +8818,14 @@ fn value_serializer_not_implemented() {
 struct Custom3Value {}
 
 impl Custom3Value {
-  fn serializer<'s, 'i>(
-    scope: &mut v8::PinScope<'s, 'i>,
+  fn serializer<'i>(
+    scope: &mut v8::PinScope<'_, 'i>,
   ) -> v8::ValueSerializer<'i> {
     v8::ValueSerializer::new(scope, Box::new(Self {}))
   }
 
-  fn deserializer<'s, 'i>(
-    scope: &mut v8::PinScope<'s, 'i>,
+  fn deserializer<'i>(
+    scope: &mut v8::PinScope<'_, 'i>,
     data: &[u8],
   ) -> v8::ValueDeserializer<'i> {
     v8::ValueDeserializer::new(scope, Box::new(Self {}), data)
@@ -8834,9 +8834,9 @@ impl Custom3Value {
 
 impl v8::ValueSerializerImpl for Custom3Value {
   #[allow(unused_variables)]
-  fn throw_data_clone_error<'s, 'i>(
+  fn throw_data_clone_error<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     message: v8::Local<'s, v8::String>,
   ) {
     let error = v8::Exception::error(scope, message);
@@ -8847,18 +8847,18 @@ impl v8::ValueSerializerImpl for Custom3Value {
     true
   }
 
-  fn is_host_object<'s, 'i>(
+  fn is_host_object<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     object: v8::Local<'s, v8::Object>,
   ) -> Option<bool> {
     let key = v8::String::new(scope, "hostObject").unwrap();
     object.has_own_property(scope, key.into())
   }
 
-  fn write_host_object<'s, 'i>(
+  fn write_host_object<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     object: v8::Local<'s, v8::Object>,
     value_serializer: &dyn v8::ValueSerializerHelper,
   ) -> Option<bool> {
@@ -8874,9 +8874,9 @@ impl v8::ValueSerializerImpl for Custom3Value {
 }
 
 impl v8::ValueDeserializerImpl for Custom3Value {
-  fn read_host_object<'s, 'i>(
+  fn read_host_object<'s>(
     &self,
-    scope: &mut v8::PinScope<'s, 'i>,
+    scope: &mut v8::PinScope<'s, '_>,
     value_deserializer: &dyn v8::ValueDeserializerHelper,
   ) -> Option<v8::Local<'s, v8::Object>> {
     let mut value = 0;
@@ -9084,12 +9084,12 @@ fn unbound_script_conversion() {
     let esc = pin!(v8::EscapableHandleScope::new(&mut *scope));
     let mut esc = esc.init();
     let source = v8::String::new(
-      &*esc,
+      &esc,
       "'Hello ' + value\n//# sourceMappingURL=foo.js.map",
     )
     .unwrap();
-    let script = v8::Script::compile(&*esc, source, None).unwrap();
-    esc.escape(script.get_unbound_script(&*esc))
+    let script = v8::Script::compile(&esc, source, None).unwrap();
+    esc.escape(script.get_unbound_script(&esc))
   };
 
   {
@@ -12167,7 +12167,7 @@ fn bubbling_up_exception_in_function_call() {
   let scope = scope.init();
 
   let this = v8::undefined(&*scope);
-  let result = call_boom_fn.call(&*scope, this.into(), &[]).unwrap();
+  let result = call_boom_fn.call(&scope, this.into(), &[]).unwrap();
   assert!(result.is_undefined());
   // This fails in debug build, but passes in release build.
   assert!(!scope.has_caught());
@@ -12314,9 +12314,9 @@ fn allow_javascript_execution_scope() {
     pin!(v8::AllowJavascriptExecutionScope::new(&mut *disallow_scope));
   let mut allow_scope = allow_scope.init();
   assert_eq!(
-    eval(&mut *allow_scope, "42")
+    eval(&mut allow_scope, "42")
       .unwrap()
-      .uint32_value(&*allow_scope),
+      .uint32_value(&allow_scope),
     Some(42)
   );
 }
@@ -12349,9 +12349,9 @@ fn allow_scope_in_read_host_object() {
 
   struct Deserializer;
   impl v8::ValueDeserializerImpl for Deserializer {
-    fn read_host_object<'s, 'i>(
+    fn read_host_object<'s>(
       &self,
-      scope: &mut v8::PinScope<'s, 'i>,
+      scope: &mut v8::PinScope<'s, '_>,
       _value_deserializer: &dyn v8::ValueDeserializerHelper,
     ) -> Option<v8::Local<'s, v8::Object>> {
       let scope2 = pin!(v8::AllowJavascriptExecutionScope::new(scope));

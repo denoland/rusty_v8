@@ -775,7 +775,6 @@ unsafe extern "C" {
 /// rusty_v8 note: Unlike in the C++ API, the Isolate is entered when it is
 /// constructed and exited when dropped. Because of that v8::OwnedIsolate
 /// instances must be dropped in the reverse order of creation
-
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct Isolate(NonNull<RealIsolate>);
@@ -2173,7 +2172,13 @@ where
 
       let r = (F::get())(
         // SAFETY: sus
-        unsafe { std::mem::transmute(scope.deref_mut()) },
+        unsafe {
+          use crate::{HandleScope, PinnedRef};
+          std::mem::transmute::<
+            &mut PinnedRef<'_, HandleScope<'_>>,
+            &mut PinnedRef<'_, HandleScope<'_>>,
+          >(scope.deref_mut())
+        },
         error,
         sites,
       );

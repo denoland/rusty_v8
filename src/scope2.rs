@@ -138,13 +138,13 @@ impl<T: ScopeInit> BoxedStorage<T> {
 impl<T: Scope> Deref for BoxedStorage<T> {
   type Target = T;
   fn deref(&self) -> &Self::Target {
-    &*self.0.scope
+    &self.0.scope
   }
 }
 
 impl<T: Scope> DerefMut for BoxedStorage<T> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut *self.0.scope
+    &mut self.0.scope
   }
 }
 
@@ -156,7 +156,7 @@ pub trait ScopeInit: Sized {
   unsafe fn deinit(me: &mut Self);
 }
 
-impl<'s, C> ScopeInit for HandleScope<'s, C> {
+impl<C> ScopeInit for HandleScope<'_, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     unsafe {
@@ -195,8 +195,8 @@ pub struct HandleScope<'s, C = Context> {
   _pinned: PhantomPinned,
 }
 
-impl<'s, C> sealed::Sealed for HandleScope<'s, C> {}
-impl<'s, C> Scope for HandleScope<'s, C> {}
+impl<C> sealed::Sealed for HandleScope<'_, C> {}
+impl<C> Scope for HandleScope<'_, C> {}
 
 pub trait GetIsolate {
   fn get_isolate_ptr(&self) -> *mut RealIsolate;
@@ -230,19 +230,19 @@ mod get_isolate_impls {
     }
   }
 
-  impl<'s> GetIsolate for FastApiCallbackOptions<'s> {
+  impl GetIsolate for FastApiCallbackOptions<'_> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.isolate
     }
   }
 
-  impl<'s> GetIsolate for Local<'s, Context> {
+  impl GetIsolate for Local<'_, Context> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       unsafe { raw::v8__Context__GetIsolate(&**self) }
     }
   }
 
-  impl<'s> GetIsolate for Local<'s, Message> {
+  impl GetIsolate for Local<'_, Message> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       unsafe { raw::v8__Message__GetIsolate(&**self) }
     }
@@ -270,21 +270,21 @@ mod get_isolate_impls {
 
   impl_get_isolate_for_object_like!(Promise,);
 
-  impl<'s> GetIsolate for PromiseRejectMessage<'s> {
+  impl GetIsolate for PromiseRejectMessage<'_> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       let object: Local<Object> = self.get_promise().into();
       unsafe { raw::v8__Object__GetIsolate(&*object) }
     }
   }
 
-  impl<'s, C> GetIsolate for HandleScope<'s, C> {
+  impl<C> GetIsolate for HandleScope<'_, C> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.isolate.as_ptr()
     }
   }
 
-  impl<'s, 'p, P: GetIsolate + ClearCachedContext> GetIsolate
-    for ContextScope<'s, 'p, P>
+  impl<P: GetIsolate + ClearCachedContext> GetIsolate
+    for ContextScope<'_, '_, P>
   {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.scope.get_isolate_ptr()
@@ -303,13 +303,13 @@ mod get_isolate_impls {
     }
   }
 
-  impl<'p, 's, P: GetIsolate> GetIsolate for TryCatch<'p, 's, P> {
+  impl<P: GetIsolate> GetIsolate for TryCatch<'_, '_, P> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.scope.get_isolate_ptr()
     }
   }
 
-  impl<'s, C> GetIsolate for CallbackScope<'s, C> {
+  impl<C> GetIsolate for CallbackScope<'_, C> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.isolate.as_ptr()
     }
@@ -322,9 +322,7 @@ pub trait NewHandleScope<'s> {
   fn make_new_scope(me: &'s mut Self) -> Self::NewScope;
 }
 
-impl<'s, 'scope, 'p: 's, C> NewHandleScope<'s>
-  for PinnedRef<'scope, HandleScope<'p, C>>
-{
+impl<'s, 'p: 's, C> NewHandleScope<'s> for PinnedRef<'_, HandleScope<'p, C>> {
   type NewScope = HandleScope<'s, C>;
 
   fn make_new_scope(me: &'s mut Self) -> Self::NewScope {
@@ -383,9 +381,7 @@ impl<'s, 'p: 's, 'i, C> NewHandleScope<'s>
   }
 }
 
-impl<'a, 'scope, 'obj, 'i> NewHandleScope<'a>
-  for ContextScope<'scope, 'obj, HandleScope<'i>>
-{
+impl<'a, 'i> NewHandleScope<'a> for ContextScope<'_, '_, HandleScope<'i>> {
   type NewScope = HandleScope<'i>;
   fn make_new_scope(me: &'a mut Self) -> Self::NewScope {
     HandleScope {
@@ -422,9 +418,8 @@ impl ScopeData {
   }
 }
 
-// stuff ported over-ish from scope.rs
-
 impl<'s> HandleScope<'s> {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new<P: NewHandleScope<'s>>(
     scope: &'s mut P,
   ) -> ScopeStorage<P::NewScope> {
@@ -432,7 +427,7 @@ impl<'s> HandleScope<'s> {
   }
 }
 
-impl<'s, 'i> PinnedRef<'s, HandleScope<'i>> {
+impl<'s> PinnedRef<'s, HandleScope<'_>> {
   /// Returns the context of the currently running JavaScript, or the context
   /// on the top of the stack if no JavaScript is running
   pub fn get_current_context(&self) -> Local<'s, Context> {
@@ -603,7 +598,7 @@ mod get_data_sealed {
   }
 }
 
-impl<'a> Deref for HandleScope<'a, ()> {
+impl Deref for HandleScope<'_, ()> {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
     unsafe {
@@ -619,7 +614,7 @@ impl<'a> Deref for HandleScope<'a> {
   }
 }
 
-impl<'p, 'i> PinnedRef<'p, HandleScope<'i, ()>> {
+impl<'p> PinnedRef<'p, HandleScope<'_, ()>> {
   #[inline(always)]
   pub(crate) unsafe fn cast_local<T>(
     &self,
@@ -654,9 +649,9 @@ impl<'p, 'i> PinnedRef<'p, HandleScope<'i, ()>> {
   }
 }
 
-impl<'s, C> HandleScope<'s, C> {}
+impl<C> HandleScope<'_, C> {}
 
-impl<'a, 's, C> GetIsolate for Pin<&'a mut HandleScope<'s, C>> {
+impl<C> GetIsolate for Pin<&mut HandleScope<'_, C>> {
   fn get_isolate_ptr(&self) -> *mut RealIsolate {
     self.isolate.as_ptr()
   }
@@ -670,7 +665,7 @@ pub struct ContextScope<'scope, 'obj, P: ClearCachedContext> {
   scope: &'scope mut PinnedRef<'obj, P>,
 }
 
-impl<'s, 'p, P: ClearCachedContext> ScopeInit for ContextScope<'s, 'p, P> {
+impl<P: ClearCachedContext> ScopeInit for ContextScope<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     storage.projected()
   }
@@ -685,21 +680,21 @@ impl<'s, 'p, P: ClearCachedContext> ScopeInit for ContextScope<'s, 'p, P> {
   }
 }
 
-impl<'s, 'p, P: ClearCachedContext> Deref for ContextScope<'s, 'p, P> {
+impl<'p, P: ClearCachedContext> Deref for ContextScope<'_, 'p, P> {
   type Target = PinnedRef<'p, P>;
   fn deref(&self) -> &Self::Target {
-    &self.scope
+    self.scope
   }
 }
 
-impl<'s, 'p, P: ClearCachedContext> DerefMut for ContextScope<'s, 'p, P> {
+impl<P: ClearCachedContext> DerefMut for ContextScope<'_, '_, P> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.scope
+    self.scope
   }
 }
 
-impl<'s, 'p, P: ClearCachedContext> sealed::Sealed for ContextScope<'s, 'p, P> {}
-impl<'s, 'p, P: ClearCachedContext> Scope for ContextScope<'s, 'p, P> {}
+impl<P: ClearCachedContext> sealed::Sealed for ContextScope<'_, '_, P> {}
+impl<P: ClearCachedContext> Scope for ContextScope<'_, '_, P> {}
 
 pub trait NewContextScope<'s, 'c>: GetIsolate {
   type NewScope: Scope;
@@ -717,25 +712,23 @@ mod clear_cached_context {
 }
 use clear_cached_context::ClearCachedContext;
 
-impl<'isolate, C> ClearCachedContext for HandleScope<'isolate, C> {
+impl<C> ClearCachedContext for HandleScope<'_, C> {
   fn clear_cached_context(&self) {
     self.context.set(None);
   }
 }
 
-impl<'isolate, C> ClearCachedContext for CallbackScope<'isolate, C> {
+impl<C> ClearCachedContext for CallbackScope<'_, C> {
   fn clear_cached_context(&self) {}
 }
 
-impl<'scope, 'isolate, P: ClearCachedContext> ClearCachedContext
-  for PinnedRef<'scope, P>
-{
+impl<P: ClearCachedContext> ClearCachedContext for PinnedRef<'_, P> {
   fn clear_cached_context(&self) {
     self.0.clear_cached_context();
   }
 }
 
-impl<'scope, 'obj, P> Drop for ContextScope<'scope, 'obj, P>
+impl<P> Drop for ContextScope<'_, '_, P>
 where
   P: ClearCachedContext,
 {
@@ -744,8 +737,8 @@ where
   }
 }
 
-impl<'scope, 'scope_outer, 'obj: 'scope, 'ct, P: Scope + GetIsolate>
-  NewContextScope<'scope, 'ct> for ContextScope<'scope_outer, 'obj, P>
+impl<'scope, 'obj: 'scope, 'ct, P: Scope + GetIsolate>
+  NewContextScope<'scope, 'ct> for ContextScope<'_, 'obj, P>
 where
   P: ClearCachedContext,
 {
@@ -807,9 +800,7 @@ impl<'scope, 'obj: 'scope, 'i, 'ct, C> NewContextScope<'scope, 'ct>
   }
 }
 
-impl<'scope, 'obj, P: ClearCachedContext> ClearCachedContext
-  for ContextScope<'scope, 'obj, P>
-{
+impl<P: ClearCachedContext> ClearCachedContext for ContextScope<'_, '_, P> {
   fn clear_cached_context(&self) {
     self.scope.0.clear_cached_context();
   }
@@ -888,7 +879,7 @@ pub struct CallbackScope<'s, C = Context> {
   needs_scope: bool,
 }
 
-impl<'s, C> Drop for CallbackScope<'s, C> {
+impl<C> Drop for CallbackScope<'_, C> {
   fn drop(&mut self) {
     if self.needs_scope {
       unsafe { raw::v8__HandleScope__DESTRUCT(&mut self.raw_handle_scope) };
@@ -897,6 +888,7 @@ impl<'s, C> Drop for CallbackScope<'s, C> {
 }
 
 impl<'s> CallbackScope<'s> {
+  #[allow(clippy::new_ret_no_self)]
   pub unsafe fn new<P: NewCallbackScope<'s>>(
     param: P,
   ) -> ScopeStorage<P::NewScope> {
@@ -917,10 +909,10 @@ impl<'s> Deref for CallbackScope<'s, ()> {
   }
 }
 
-impl<'s, C> AsRef<Isolate> for CallbackScope<'s, C> {
+impl<C> AsRef<Isolate> for CallbackScope<'_, C> {
   fn as_ref(&self) -> &Isolate {
     unsafe {
-      &std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
+      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
     }
   }
 }
@@ -971,7 +963,7 @@ impl<'s, C> AsRef<Isolate> for CallbackScope<'s, C> {
 //   }
 // }
 
-impl<'s, C> ScopeInit for CallbackScope<'s, C> {
+impl<C> ScopeInit for CallbackScope<'_, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.isolate;
@@ -1013,8 +1005,8 @@ impl<'s, C> ScopeInit for CallbackScope<'s, C> {
   }
 }
 
-impl<'s, C> sealed::Sealed for CallbackScope<'s, C> {}
-impl<'s, C> Scope for CallbackScope<'s, C> {}
+impl<C> sealed::Sealed for CallbackScope<'_, C> {}
+impl<C> Scope for CallbackScope<'_, C> {}
 
 pub trait NewCallbackScope<'s>: Sized + GetIsolate {
   type NewScope: Scope;
@@ -1099,7 +1091,7 @@ impl<'s> NewCallbackScope<'s> for &'s FunctionCallbackInfo {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: Self) -> Self::NewScope {
-    make_new_callback_scope(&*me, None)
+    make_new_callback_scope(me, None)
   }
 }
 
@@ -1107,7 +1099,7 @@ impl<'s, T> NewCallbackScope<'s> for &'s PropertyCallbackInfo<T> {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: Self) -> Self::NewScope {
-    make_new_callback_scope(&*me, None)
+    make_new_callback_scope(me, None)
   }
 }
 
@@ -1145,7 +1137,7 @@ impl<'s> NewCallbackScope<'s> for Local<'s, Message> {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: Self) -> Self::NewScope {
-    make_new_callback_scope(&me, None)
+    make_new_callback_scope(me, None)
   }
 }
 
@@ -1177,7 +1169,8 @@ pub struct TryCatch<'scope, 'obj, P> {
   _pinned: PhantomPinned,
 }
 
-impl<'scope, 'obj, P: NewTryCatch<'scope>> TryCatch<'scope, 'obj, P> {
+impl<'scope, P: NewTryCatch<'scope>> TryCatch<'scope, '_, P> {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new(param: &'scope mut P) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(param))
   }
@@ -1192,7 +1185,7 @@ impl<'scope, 'obj, P: NewTryCatch<'scope>> TryCatch<'scope, 'obj, P> {
 //     }
 // }
 
-impl<'p, 's, P: GetIsolate> ScopeInit for TryCatch<'p, 's, P> {
+impl<P: GetIsolate> ScopeInit for TryCatch<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = unsafe {
@@ -1222,8 +1215,8 @@ impl<'p, 's, P: GetIsolate> ScopeInit for TryCatch<'p, 's, P> {
   }
 }
 
-impl<'tc, 'scope, 'obj: 'scope, 'iso: 'obj>
-  PinnedRef<'tc, TryCatch<'scope, 'obj, HandleScope<'iso>>>
+impl<'scope, 'obj: 'scope, 'iso: 'obj>
+  PinnedRef<'_, TryCatch<'scope, 'obj, HandleScope<'iso>>>
 {
   /// Returns true if an exception has been caught by this try/catch block.
   #[inline(always)]
@@ -1302,7 +1295,7 @@ impl<'tc, 'scope, 'obj: 'scope, 'iso: 'obj>
   }
 
   #[inline(always)]
-  unsafe fn get_raw_mut<'a>(&'a mut self) -> &'a mut raw::TryCatch {
+  unsafe fn get_raw_mut(&mut self) -> &mut raw::TryCatch {
     unsafe { &mut self.0.as_mut().get_unchecked_mut().raw_try_catch }
   }
 
@@ -1346,8 +1339,8 @@ impl<'tc, 'scope, 'obj: 'scope, 'iso: 'obj>
   }
 }
 
-impl<'p, 's, P> sealed::Sealed for TryCatch<'p, 's, P> {}
-impl<'p, 's, P: Scope + GetIsolate> Scope for TryCatch<'p, 's, P> {}
+impl<P> sealed::Sealed for TryCatch<'_, '_, P> {}
+impl<P: Scope + GetIsolate> Scope for TryCatch<'_, '_, P> {}
 
 pub trait NewTryCatch<'scope>: GetIsolate {
   type NewScope: Scope;
@@ -1376,12 +1369,8 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
 //   }
 // }
 
-impl<
-  'scope,
-  'ctx_scope,
-  'obj: 'scope,
-  T: GetIsolate + Scope + ClearCachedContext,
-> NewTryCatch<'scope> for ContextScope<'ctx_scope, 'obj, T>
+impl<'scope, 'obj: 'scope, T: GetIsolate + Scope + ClearCachedContext>
+  NewTryCatch<'scope> for ContextScope<'_, 'obj, T>
 {
   type NewScope = TryCatch<'scope, 'obj, T>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
@@ -1399,21 +1388,25 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
   type NewScope = TryCatch<'scope, 'i, HandleScope<'i, C>>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
-      scope: unsafe { std::mem::transmute(me) },
+      scope: unsafe {
+        std::mem::transmute::<
+          &mut PinnedRef<'_, CallbackScope<'_, C>>,
+          &mut PinnedRef<'_, HandleScope<'_, C>>,
+        >(me)
+      },
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
   }
 }
 
-impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'scope_outer, 'iso, C>
-  NewTryCatch<'scope>
-  for PinnedRef<'obj, TryCatch<'scope_outer, 'obj_outer, HandleScope<'iso, C>>>
+impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'iso, C> NewTryCatch<'scope>
+  for PinnedRef<'obj, TryCatch<'_, 'obj_outer, HandleScope<'iso, C>>>
 {
   type NewScope = TryCatch<'scope, 'obj_outer, HandleScope<'iso, C>>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
-      scope: unsafe { &mut me.as_mut().0.get_unchecked_mut().scope },
+      scope: unsafe { me.as_mut().0.get_unchecked_mut().scope },
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
@@ -1486,6 +1479,7 @@ impl<'s, 'esc: 's> ScopeInit for EscapableHandleScope<'s, 'esc> {
 }
 
 impl<'s, 'esc: 's> EscapableHandleScope<'s, 'esc> {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new<P: NewEscapableHandleScope<'s>>(
     scope: P,
   ) -> ScopeStorage<P::NewScope> {
@@ -1493,7 +1487,7 @@ impl<'s, 'esc: 's> EscapableHandleScope<'s, 'esc> {
   }
 }
 
-impl<'p, 's, 'esc: 's> PinnedRef<'p, EscapableHandleScope<'s, 'esc>> {
+impl<'s, 'esc: 's> PinnedRef<'_, EscapableHandleScope<'s, 'esc>> {
   pub fn escape<'a, T>(&mut self, value: Local<'a, T>) -> Local<'esc, T>
   where
     for<'l> Local<'l, T>: Into<Local<'l, crate::Data>>,
@@ -1513,9 +1507,7 @@ impl<'p, 's, 'esc: 's> Deref for PinnedRef<'p, EscapableHandleScope<'s, 'esc>> {
   }
 }
 
-impl<'p, 's, 'esc: 's> DerefMut
-  for PinnedRef<'p, EscapableHandleScope<'s, 'esc>>
-{
+impl<'s, 'esc: 's> DerefMut for PinnedRef<'_, EscapableHandleScope<'s, 'esc>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
   }
@@ -1543,7 +1535,7 @@ impl<'s, 'p: 's> NewEscapableHandleScope<'s>
       isolate,
       context: Cell::new(me.0.context.get()),
       raw_escape_slot: Some(raw_escape_slot),
-      raw_handle_scope: raw_handle_scope,
+      raw_handle_scope,
       _phantom: PhantomData,
       _pinned: PhantomPinned,
     }
@@ -1562,7 +1554,7 @@ where
   }
 }
 
-impl<'borrow, 'scope, 'obj: 'scope, 'i, 'ct> NewEscapableHandleScope<'scope>
+impl<'borrow, 'scope, 'obj: 'scope, 'i> NewEscapableHandleScope<'scope>
   for &'borrow mut ContextScope<'scope, 'obj, HandleScope<'i, Context>>
 {
   type NewScope = EscapableHandleScope<'borrow, 'i>;
@@ -1625,9 +1617,7 @@ pub struct DisallowJavascriptExecutionScope<'scope, 'obj, P> {
   _pinned: PhantomPinned,
 }
 
-impl<'scope, 'obj, P: GetIsolate> ScopeInit
-  for DisallowJavascriptExecutionScope<'scope, 'obj, P>
-{
+impl<P: GetIsolate> ScopeInit for DisallowJavascriptExecutionScope<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.scope.get_isolate_ptr();
@@ -1662,18 +1652,19 @@ impl<'scope, 'obj, P: GetIsolate> ScopeInit
   }
 }
 
-impl<'scope, 'obj, P: GetIsolate> sealed::Sealed
-  for DisallowJavascriptExecutionScope<'scope, 'obj, P>
+impl<P: GetIsolate> sealed::Sealed
+  for DisallowJavascriptExecutionScope<'_, '_, P>
 {
 }
-impl<'scope, 'obj, P: Scope + GetIsolate> Scope
-  for DisallowJavascriptExecutionScope<'scope, 'obj, P>
+impl<P: Scope + GetIsolate> Scope
+  for DisallowJavascriptExecutionScope<'_, '_, P>
 {
 }
 
-impl<'scope, 'obj, P: NewDisallowJavascriptExecutionScope<'scope>>
-  DisallowJavascriptExecutionScope<'scope, 'obj, P>
+impl<'scope, P: NewDisallowJavascriptExecutionScope<'scope>>
+  DisallowJavascriptExecutionScope<'scope, '_, P>
 {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new(
     param: &'scope mut P,
     on_failure: OnFailure,
@@ -1708,8 +1699,8 @@ impl<'scope, 'obj: 'scope, 'i, C> NewDisallowJavascriptExecutionScope<'scope>
   }
 }
 
-impl<'scope, 'sc, 'obj, 'p, P> NewDisallowJavascriptExecutionScope<'scope>
-  for ContextScope<'sc, 'obj, P>
+impl<'scope, 'obj, P> NewDisallowJavascriptExecutionScope<'scope>
+  for ContextScope<'_, 'obj, P>
 where
   P: ClearCachedContext,
   PinnedRef<'obj, P>: NewDisallowJavascriptExecutionScope<'scope>,
@@ -1721,7 +1712,7 @@ where
     me: &'scope mut Self,
     on_failure: OnFailure,
   ) -> Self::NewScope {
-    PinnedRef::<'obj, P>::make_new_scope(&mut me.scope, on_failure)
+    PinnedRef::<'obj, P>::make_new_scope(me.scope, on_failure)
   }
 }
 
@@ -1732,9 +1723,7 @@ pub struct AllowJavascriptExecutionScope<'scope, 'obj, P> {
   _pinned: PhantomPinned,
 }
 
-impl<'scope, 'obj, P: GetIsolate> ScopeInit
-  for AllowJavascriptExecutionScope<'scope, 'obj, P>
-{
+impl<P: GetIsolate> ScopeInit for AllowJavascriptExecutionScope<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = unsafe {
@@ -1770,18 +1759,16 @@ impl<'scope, 'obj, P: GetIsolate> ScopeInit
   }
 }
 
-impl<'scope, 'obj, P: GetIsolate> sealed::Sealed
-  for AllowJavascriptExecutionScope<'scope, 'obj, P>
+impl<P: GetIsolate> sealed::Sealed
+  for AllowJavascriptExecutionScope<'_, '_, P>
 {
 }
-impl<'scope, 'obj, P: Scope + GetIsolate> Scope
-  for AllowJavascriptExecutionScope<'scope, 'obj, P>
-{
-}
+impl<P: Scope + GetIsolate> Scope for AllowJavascriptExecutionScope<'_, '_, P> {}
 
-impl<'scope, 'obj, P: NewAllowJavascriptExecutionScope<'scope>>
-  AllowJavascriptExecutionScope<'scope, 'obj, P>
+impl<'scope, P: NewAllowJavascriptExecutionScope<'scope>>
+  AllowJavascriptExecutionScope<'scope, '_, P>
 {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new(param: &'scope mut P) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(param))
   }
@@ -1806,24 +1793,25 @@ impl<'scope, 'obj: 'scope, 'i, C> NewAllowJavascriptExecutionScope<'scope>
   }
 }
 
-impl<'pin, 'scope, 'obj, 'i, P: Scope + GetIsolate>
+impl<'scope, 'obj, P: Scope + GetIsolate>
   NewAllowJavascriptExecutionScope<'scope>
-  for PinnedRef<'pin, DisallowJavascriptExecutionScope<'scope, 'obj, P>>
+  for PinnedRef<'_, DisallowJavascriptExecutionScope<'scope, 'obj, P>>
 {
   type NewScope = AllowJavascriptExecutionScope<'scope, 'obj, P>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     AllowJavascriptExecutionScope {
       raw: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
-      scope: unsafe { &mut me.0.as_mut().get_unchecked_mut().scope },
+      scope: unsafe { me.0.as_mut().get_unchecked_mut().scope },
       _pinned: PhantomPinned,
     }
   }
 }
 
-#[allow(unused_macros)]
+#[allow(unused_macros, clippy::macro_metavars_in_unsafe)]
 #[macro_export]
 macro_rules! make_callback_scope {
   (unsafe $scope: ident, $param: expr) => {
+    #[allow(clippy::macro_metavars_in_unsafe)]
     let $scope = std::pin::pin!(unsafe { $crate::CallbackScope::new($param) });
     let $scope = &mut $scope.init();
   };
@@ -1876,7 +1864,7 @@ impl<'p, T> From<Pin<&'p mut T>> for PinnedRef<'p, T> {
   }
 }
 
-impl<'p, T> PinnedRef<'p, T> {
+impl<T> PinnedRef<'_, T> {
   pub fn as_mut(&mut self) -> PinnedRef<'_, T> {
     PinnedRef(self.0.as_mut())
   }
@@ -1894,13 +1882,13 @@ impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i>> {
   }
 }
 
-impl<'p, 'i> DerefMut for PinnedRef<'p, HandleScope<'i>> {
+impl DerefMut for PinnedRef<'_, HandleScope<'_>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
   }
 }
 
-impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i, ()>> {
+impl Deref for PinnedRef<'_, HandleScope<'_, ()>> {
   type Target = Isolate;
   #[inline(always)]
   fn deref(&self) -> &Self::Target {
@@ -1910,7 +1898,7 @@ impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i, ()>> {
   }
 }
 
-impl<'p, 'i> DerefMut for PinnedRef<'p, HandleScope<'i, ()>> {
+impl DerefMut for PinnedRef<'_, HandleScope<'_, ()>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe {
       std::mem::transmute(&mut self.0.as_mut().get_unchecked_mut().isolate)
@@ -1918,27 +1906,27 @@ impl<'p, 'i> DerefMut for PinnedRef<'p, HandleScope<'i, ()>> {
   }
 }
 
-impl<'p, 'i> Deref for PinnedRef<'p, CallbackScope<'i>> {
+impl<'i> Deref for PinnedRef<'_, CallbackScope<'i>> {
   type Target = PinnedRef<'i, HandleScope<'i>>;
   fn deref(&self) -> &Self::Target {
     unsafe { std::mem::transmute(self) }
   }
 }
 
-impl<'p, 'i> DerefMut for PinnedRef<'p, CallbackScope<'i>> {
+impl DerefMut for PinnedRef<'_, CallbackScope<'_>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
   }
 }
 
-impl<'p, 'i> Deref for PinnedRef<'p, CallbackScope<'i, ()>> {
+impl<'i> Deref for PinnedRef<'_, CallbackScope<'i, ()>> {
   type Target = PinnedRef<'i, HandleScope<'i, ()>>;
   fn deref(&self) -> &Self::Target {
     unsafe { std::mem::transmute(self) }
   }
 }
 
-impl<'p, 'i> DerefMut for PinnedRef<'p, CallbackScope<'i, ()>> {
+impl DerefMut for PinnedRef<'_, CallbackScope<'_, ()>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
   }
@@ -1952,57 +1940,53 @@ impl<'p, 'i, C> From<PinnedRef<'p, CallbackScope<'i, C>>>
   }
 }
 
-impl<'pin, 'scope, 'obj, 'iso, C> Deref
-  for PinnedRef<'pin, TryCatch<'scope, 'obj, HandleScope<'iso, C>>>
+impl<'obj, 'iso, C> Deref
+  for PinnedRef<'_, TryCatch<'_, 'obj, HandleScope<'iso, C>>>
 {
   type Target = PinnedRef<'obj, HandleScope<'iso, C>>;
   fn deref(&self) -> &Self::Target {
-    &self.0.scope
+    self.0.scope
   }
 }
 
-impl<'pin, 'scope, 'obj, 'iso, C> DerefMut
-  for PinnedRef<'pin, TryCatch<'scope, 'obj, HandleScope<'iso, C>>>
-{
+impl<C> DerefMut for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { &mut self.as_mut().0.get_unchecked_mut().scope }
+    unsafe { self.as_mut().0.get_unchecked_mut().scope }
   }
 }
 
-impl<'p, 'scope, 'obj, P> Deref
-  for PinnedRef<'p, DisallowJavascriptExecutionScope<'scope, 'obj, P>>
+impl<'obj, P> Deref
+  for PinnedRef<'_, DisallowJavascriptExecutionScope<'_, 'obj, P>>
 {
   type Target = PinnedRef<'obj, P>;
   fn deref(&self) -> &Self::Target {
-    &self.0.scope
+    self.0.scope
   }
 }
 
-impl<'p, 'scope, 'obj, P> DerefMut
-  for PinnedRef<'p, DisallowJavascriptExecutionScope<'scope, 'obj, P>>
+impl<P> DerefMut
+  for PinnedRef<'_, DisallowJavascriptExecutionScope<'_, '_, P>>
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { &mut self.0.as_mut().get_unchecked_mut().scope }
+    unsafe { self.0.as_mut().get_unchecked_mut().scope }
   }
 }
 
-impl<'pin, 'scope, 'obj, P> Deref
-  for PinnedRef<'pin, AllowJavascriptExecutionScope<'scope, 'obj, P>>
+impl<'obj, P> Deref
+  for PinnedRef<'_, AllowJavascriptExecutionScope<'_, 'obj, P>>
 {
   type Target = PinnedRef<'obj, P>;
   fn deref(&self) -> &Self::Target {
-    &self.0.scope
+    self.0.scope
   }
 }
-impl<'pin, 'scope, 'obj, P> DerefMut
-  for PinnedRef<'pin, AllowJavascriptExecutionScope<'scope, 'obj, P>>
-{
+impl<P> DerefMut for PinnedRef<'_, AllowJavascriptExecutionScope<'_, '_, P>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { &mut self.0.as_mut().get_unchecked_mut().scope }
+    unsafe { self.0.as_mut().get_unchecked_mut().scope }
   }
 }
 
-impl<'s, P> GetIsolate for PinnedRef<'s, P>
+impl<P> GetIsolate for PinnedRef<'_, P>
 where
   P: GetIsolate,
 {
@@ -2011,30 +1995,28 @@ where
   }
 }
 
-impl<'s, 'i, C> AsRef<Isolate> for PinnedRef<'s, HandleScope<'i, C>> {
+impl<C> AsRef<Isolate> for PinnedRef<'_, HandleScope<'_, C>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.isolate) }
   }
 }
 
-impl<'s, 'i, C> AsRef<Isolate> for PinnedRef<'s, CallbackScope<'i, C>> {
+impl<C> AsRef<Isolate> for PinnedRef<'_, CallbackScope<'_, C>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.isolate) }
   }
 }
 
-impl<'o, 'p, 's, 'i, C> AsRef<Isolate>
-  for PinnedRef<'o, TryCatch<'p, 's, HandleScope<'i, C>>>
-{
+impl<C> AsRef<Isolate> for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
   }
 }
 
-impl<'s, 'scope, 'obj, 'i, C> AsRef<Isolate>
+impl<C> AsRef<Isolate>
   for PinnedRef<
-    's,
-    DisallowJavascriptExecutionScope<'scope, 'obj, HandleScope<'i, C>>,
+    '_,
+    DisallowJavascriptExecutionScope<'_, '_, HandleScope<'_, C>>,
   >
 {
   fn as_ref(&self) -> &Isolate {
@@ -2042,35 +2024,26 @@ impl<'s, 'scope, 'obj, 'i, C> AsRef<Isolate>
   }
 }
 
-impl<'s, 'scope, 'obj, 'i, C> AsRef<Isolate>
-  for PinnedRef<
-    's,
-    AllowJavascriptExecutionScope<'scope, 'obj, HandleScope<'i, C>>,
-  >
+impl<C> AsRef<Isolate>
+  for PinnedRef<'_, AllowJavascriptExecutionScope<'_, '_, HandleScope<'_, C>>>
 {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
   }
 }
 
-impl<'p, 's, 'esc> AsRef<Isolate>
-  for PinnedRef<'p, EscapableHandleScope<'s, 'esc>>
-{
+impl AsRef<Isolate> for PinnedRef<'_, EscapableHandleScope<'_, '_>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.isolate) }
   }
 }
 
-impl<'s, 'obj, 'i, C> AsRef<Isolate>
-  for ContextScope<'s, 'obj, HandleScope<'i, C>>
-{
+impl<C> AsRef<Isolate> for ContextScope<'_, '_, HandleScope<'_, C>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.scope.0.isolate) }
   }
 }
-impl<'s, 'obj, 'i, C> AsRef<Isolate>
-  for ContextScope<'s, 'obj, CallbackScope<'i, C>>
-{
+impl<C> AsRef<Isolate> for ContextScope<'_, '_, CallbackScope<'_, C>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.scope.0.isolate) }
   }

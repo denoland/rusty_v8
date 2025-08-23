@@ -186,9 +186,9 @@ unsafe extern "C" {
 /// The ValueDeserializerImpl trait allows for
 /// custom callback functions used by v8.
 pub trait ValueDeserializerImpl {
-  fn read_host_object<'s, 'i>(
+  fn read_host_object<'s>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     _value_deserializer: &dyn ValueDeserializerHelper,
   ) -> Option<Local<'s, Object>> {
     let msg =
@@ -199,9 +199,9 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  fn get_shared_array_buffer_from_id<'s, 'i>(
+  fn get_shared_array_buffer_from_id<'s>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     _transfer_id: u32,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     let msg = String::new(
@@ -214,9 +214,9 @@ pub trait ValueDeserializerImpl {
     None
   }
 
-  fn get_wasm_module_from_id<'s, 'i>(
+  fn get_wasm_module_from_id<'s>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     _clone_id: u32,
   ) -> Option<Local<'s, WasmModuleObject>> {
     let msg = String::new(

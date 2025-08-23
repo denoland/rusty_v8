@@ -23,9 +23,9 @@ impl FixedArray {
   }
 
   #[inline(always)]
-  pub fn get<'s, 'i>(
+  pub fn get<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
     index: usize,
   ) -> Option<Local<'s, Data>> {
     if index >= self.length() {

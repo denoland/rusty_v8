@@ -33,9 +33,9 @@ unsafe extern "C" {
 impl ArrayBufferView {
   /// Returns underlying ArrayBuffer.
   #[inline(always)]
-  pub fn buffer<'s, 'i>(
+  pub fn buffer<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }

@@ -220,7 +220,7 @@ where
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
   #[inline(always)]
-  pub fn get<'s, 'i>(&self, scope: &PinScope<'s, 'i>) -> Local<'s, Value> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__ReturnValue__Value__Get(&self.0)) }
       .unwrap()
   }
@@ -377,7 +377,9 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// not be called.
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { std::mem::transmute(self.0.get_isolate_ptr()) }
+    unsafe {
+      &mut *(self.0.get_isolate_ptr() as *mut crate::isolate::Isolate)
+    }
   }
 
   /// For construct calls, this returns the "new.target" value.
@@ -528,7 +530,7 @@ where
       let mut scope = scope.init();
       let args = FunctionCallbackArguments::from_function_callback_info(info);
       let rv = ReturnValue::from_function_callback_info(info);
-      (F::get())(&mut *scope, args, rv);
+      (F::get())(&mut scope, args, rv);
     };
     f.to_c_fn()
   }
@@ -1020,16 +1022,16 @@ impl Function {
   /// Create a function in the current execution context
   /// for a given FunctionCallback.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &mut PinScope<'s, 'i>,
+  pub fn new<'s>(
+    scope: &mut PinScope<'s, '_>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
     Self::builder(callback).build(scope)
   }
 
   #[inline(always)]
-  pub fn new_raw<'s, 'i>(
-    scope: &mut PinScope<'s, 'i>,
+  pub fn new_raw<'s>(
+    scope: &mut PinScope<'s, '_>,
     callback: FunctionCallback,
   ) -> Option<Local<'s, Function>> {
     Self::builder_raw(callback).build(scope)
@@ -1037,9 +1039,9 @@ impl Function {
 
   /// Call a function in a context scope.
   #[inline]
-  pub fn call<'s, 'i>(
+  pub fn call<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
     recv: Local<Value>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Value>> {
@@ -1055,9 +1057,9 @@ impl Function {
 
   /// Call a function in a given context.
   #[inline]
-  pub fn call_with_context<'s, 'i>(
+  pub fn call_with_context<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
     context: Local<Context>,
     recv: Local<Value>,
     args: &[Local<Value>],
@@ -1082,9 +1084,9 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn new_instance<'s, 'i>(
+  pub fn new_instance<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Object>> {
     let args = Local::slice_into_raw(args);
@@ -1098,9 +1100,9 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_name<'s, 'i>(
+  pub fn get_name<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }

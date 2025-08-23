@@ -426,8 +426,8 @@ impl ArrayBuffer {
   /// will be deallocated when it is garbage-collected,
   /// unless the object is externalized.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     byte_length: usize,
   ) -> Local<'s, ArrayBuffer> {
     unsafe {
@@ -442,8 +442,8 @@ impl ArrayBuffer {
   }
 
   #[inline(always)]
-  pub fn with_backing_store<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn with_backing_store<'s>(
+    scope: &PinScope<'s, '_, ()>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'s, ArrayBuffer> {
     unsafe {
@@ -639,8 +639,8 @@ impl ArrayBuffer {
 impl DataView {
   /// Returns a new DataView.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     arraybuffer: Local<'s, ArrayBuffer>,
     byte_offset: usize,
     length: usize,

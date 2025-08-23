@@ -39,8 +39,8 @@ macro_rules! typed_array {
 
       impl $name {
         #[inline(always)]
-        pub fn new<'s, 'i>(
-          scope: &PinScope<'s, 'i>,
+        pub fn new<'s>(
+          scope: &PinScope<'s, '_>,
           buf: Local<ArrayBuffer>,
           byte_offset: usize,
           length: usize,

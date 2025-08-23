@@ -26,7 +26,7 @@ unsafe extern "C" {
 
 macro_rules! well_known {
   ($name:ident, $binding:ident) => {
-    pub fn $name<'s, 'i>(scope: &PinScope<'s, 'i, ()>) -> Local<'s, Symbol> {
+    pub fn $name<'s>(scope: &PinScope<'s, '_, ()>) -> Local<'s, Symbol> {
       unsafe extern "C" {
         fn $binding(isolate: *mut RealIsolate) -> *const Symbol;
       }
@@ -39,8 +39,8 @@ impl Symbol {
   /// Create a symbol. If description is not empty, it will be used as the
   /// description.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     description: Option<Local<String>>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -62,8 +62,8 @@ impl Symbol {
   /// To minimize the potential for clashes, use qualified descriptions as keys.
   /// Corresponds to v8::Symbol::For() in C++.
   #[inline(always)]
-  pub fn for_key<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn for_key<'s>(
+    scope: &PinScope<'s, '_, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -77,8 +77,8 @@ impl Symbol {
   /// registry that is not accessible by (and cannot clash with) JavaScript code.
   /// Corresponds to v8::Symbol::ForApi() in C++.
   #[inline(always)]
-  pub fn for_api<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn for_api<'s>(
+    scope: &PinScope<'s, '_, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -91,9 +91,9 @@ impl Symbol {
 
   /// Returns the description string of the symbol, or undefined if none.
   #[inline(always)]
-  pub fn description<'s, 'i>(
+  pub fn description<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Value> {
     unsafe {
       scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))

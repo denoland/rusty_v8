@@ -727,8 +727,8 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
 /// signature's FunctionTemplate.
 impl Signature {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, Self> {
     unsafe {
@@ -757,16 +757,16 @@ impl FunctionTemplate {
 
   /// Creates a function template.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder(callback).build(scope)
   }
 
   #[inline(always)]
-  pub fn new_raw<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new_raw<'s>(
+    scope: &PinScope<'s, '_, ()>,
     callback: FunctionCallback,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder_raw(callback).build(scope)
@@ -774,9 +774,9 @@ impl FunctionTemplate {
 
   /// Returns the unique function instance in the current execution context.
   #[inline(always)]
-  pub fn get_function<'s, 'i>(
+  pub fn get_function<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -796,9 +796,9 @@ impl FunctionTemplate {
   /// Returns the ObjectTemplate that is used by this
   /// FunctionTemplate as a PrototypeTemplate
   #[inline(always)]
-  pub fn prototype_template<'s, 'i>(
+  pub fn prototype_template<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__PrototypeTemplate(self))
@@ -809,9 +809,9 @@ impl FunctionTemplate {
   /// Returns the object template that is used for instances created when this function
   /// template is called as a constructor.
   #[inline(always)]
-  pub fn instance_template<'s, 'i>(
+  pub fn instance_template<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__InstanceTemplate(self))
@@ -843,8 +843,8 @@ impl FunctionTemplate {
 impl ObjectTemplate {
   /// Creates an object template.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|sd| {
@@ -856,8 +856,8 @@ impl ObjectTemplate {
 
   /// Creates an object template from a function template.
   #[inline(always)]
-  pub fn new_from_template<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new_from_template<'s>(
+    scope: &PinScope<'s, '_, ()>,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
@@ -869,9 +869,9 @@ impl ObjectTemplate {
 
   /// Creates a new instance of this object template.
   #[inline(always)]
-  pub fn new_instance<'s, 'i>(
+  pub fn new_instance<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
       scope.cast_local(|sd| {

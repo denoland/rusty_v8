@@ -24,8 +24,8 @@ unsafe extern "C" {
 
 impl Number {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     value: f64,
   ) -> Local<'s, Number> {
     unsafe {
@@ -42,8 +42,8 @@ impl Number {
 
 impl Integer {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     value: i32,
   ) -> Local<'s, Integer> {
     unsafe {
@@ -53,8 +53,8 @@ impl Integer {
   }
 
   #[inline(always)]
-  pub fn new_from_unsigned<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new_from_unsigned<'s>(
+    scope: &PinScope<'s, '_, ()>,
     value: u32,
   ) -> Local<'s, Integer> {
     unsafe {
