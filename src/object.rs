@@ -1052,10 +1052,7 @@ impl Array {
   /// Creates a JavaScript array with the given length. If the length
   /// is negative the returned array will have length 0.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &PinScope<'s, '_>,
-    length: i32,
-  ) -> Local<'s, Array> {
+  pub fn new<'s>(scope: &PinScope<'s, '_>, length: i32) -> Local<'s, Array> {
     unsafe {
       scope.cast_local(|sd| v8__Array__New(sd.get_isolate_ptr(), length))
     }

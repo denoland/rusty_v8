@@ -267,10 +267,7 @@ impl Message {
 
   /// Returns the number, 1-based, of the line where the error occurred.
   #[inline(always)]
-  pub fn get_line_number(
-    &self,
-    scope: &PinScope<'_, '_>,
-  ) -> Option<usize> {
+  pub fn get_line_number(&self, scope: &PinScope<'_, '_>) -> Option<usize> {
     let i = unsafe {
       v8__Message__GetLineNumber(self, &*scope.get_current_context())
     };

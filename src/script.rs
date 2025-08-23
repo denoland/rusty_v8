@@ -91,10 +91,7 @@ impl Script {
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
   #[inline]
-  pub fn run<'s>(
-    &self,
-    scope: &PinScope<'s, '_>,
-  ) -> Option<Local<'s, Value>> {
+  pub fn run<'s>(&self, scope: &PinScope<'s, '_>) -> Option<Local<'s, Value>> {
     unsafe {
       scope.cast_local(|sd| v8__Script__Run(self, sd.get_current_context()))
     }

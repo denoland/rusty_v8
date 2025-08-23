@@ -138,10 +138,7 @@ impl Context {
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
   #[inline(always)]
-  pub fn global<'s>(
-    &self,
-    scope: &PinScope<'s, '_, ()>,
-  ) -> Local<'s, Object> {
+  pub fn global<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 

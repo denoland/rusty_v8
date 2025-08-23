@@ -843,9 +843,7 @@ impl FunctionTemplate {
 impl ObjectTemplate {
   /// Creates an object template.
   #[inline(always)]
-  pub fn new<'s>(
-    scope: &PinScope<'s, '_, ()>,
-  ) -> Local<'s, ObjectTemplate> {
+  pub fn new<'s>(scope: &PinScope<'s, '_, ()>) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ObjectTemplate__New(sd.get_isolate_ptr(), std::ptr::null())

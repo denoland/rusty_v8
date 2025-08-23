@@ -635,10 +635,7 @@ impl Value {
 
   /// Perform the equivalent of Boolean(value) in JS. This can never fail.
   #[inline(always)]
-  pub fn to_boolean<'s>(
-    &self,
-    scope: &PinScope<'s, '_>,
-  ) -> Local<'s, Boolean> {
+  pub fn to_boolean<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Boolean> {
     unsafe {
       scope.cast_local(|sd| v8__Value__ToBoolean(self, sd.get_isolate_ptr()))
     }
