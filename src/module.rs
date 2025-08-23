@@ -313,7 +313,7 @@ impl Module {
 
   /// For a module in kErrored status, this returns the corresponding exception.
   #[inline(always)]
-  pub fn get_exception(&self) -> Local<Value> {
+  pub fn get_exception<'s, 'o>(&'s self) -> Local<'o, Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
@@ -321,7 +321,7 @@ impl Module {
 
   /// Returns the ModuleRequests for this module.
   #[inline(always)]
-  pub fn get_module_requests(&self) -> Local<FixedArray> {
+  pub fn get_module_requests<'s, 'o>(&'s self) -> Local<'o, FixedArray> {
     unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
   }
 
@@ -364,7 +364,7 @@ impl Module {
   ///
   /// The module's status must be at least kInstantiated.
   #[inline(always)]
-  pub fn get_module_namespace(&self) -> Local<Value> {
+  pub fn get_module_namespace<'s, 'o>(&'s self) -> Local<'o, Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
@@ -493,11 +493,11 @@ impl Module {
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
   #[inline(always)]
-  pub fn set_synthetic_module_export<'a, 's, 'i, 'l>(
+  pub fn set_synthetic_module_export<'a, 's, 'i>(
     &self,
     scope: &'a mut PinScope<'s, 'i>,
-    export_name: Local<'l, String>,
-    export_value: Local<'l, Value>,
+    export_name: Local<'s, String>,
+    export_value: Local<'s, Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__SetSyntheticModuleExport(
@@ -564,7 +564,7 @@ impl Module {
 impl ModuleRequest {
   /// Returns the module specifier for this ModuleRequest.
   #[inline(always)]
-  pub fn get_specifier(&self) -> Local<String> {
+  pub fn get_specifier<'s, 'o>(&'s self) -> Local<'o, String> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
   }
 
@@ -588,7 +588,7 @@ impl ModuleRequest {
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
   #[inline(always)]
-  pub fn get_import_attributes(&self) -> Local<FixedArray> {
+  pub fn get_import_attributes<'s, 'o>(&'s self) -> Local<'o, FixedArray> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetImportAttributes(self)) }
       .unwrap()
   }

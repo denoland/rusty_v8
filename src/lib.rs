@@ -152,6 +152,7 @@ pub use scope2::CallbackScope;
 pub use scope2::ContextScope;
 pub use scope2::DisallowJavascriptExecutionScope;
 pub use scope2::EscapableHandleScope;
+pub use scope2::PinCallbackScope;
 pub use scope2::PinScope;
 pub use scope2::PinnedRef;
 pub use scope2::ScopeStorage;
