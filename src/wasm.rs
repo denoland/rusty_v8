@@ -95,8 +95,8 @@ impl WasmModuleObject {
   /// Efficiently re-create a WasmModuleObject, without recompiling, from
   /// a CompiledWasmModule.
   #[inline(always)]
-  pub fn from_compiled_module<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn from_compiled_module<'s>(
+    scope: &PinScope<'s, '_>,
     compiled_module: &CompiledWasmModule,
   ) -> Option<Local<'s, WasmModuleObject>> {
     unsafe {
@@ -119,8 +119,8 @@ impl WasmModuleObject {
 
   /// Compile a Wasm module from the provided uncompiled bytes.
   #[inline(always)]
-  pub fn compile<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn compile<'s>(
+    scope: &PinScope<'s, '_>,
     wire_bytes: &[u8],
   ) -> Option<Local<'s, WasmModuleObject>> {
     unsafe {

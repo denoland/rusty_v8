@@ -99,8 +99,8 @@ impl Context {
 
   /// Creates a new context.
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     options: ContextOptions,
   ) -> Local<'s, Context> {
     unsafe {
@@ -119,9 +119,9 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn get_extras_binding_object<'s, 'i>(
+  pub fn get_extras_binding_object<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__GetExtrasBindingObject(self)) }
       .unwrap()
@@ -138,9 +138,9 @@ impl Context {
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
   #[inline(always)]
-  pub fn global<'s, 'i>(
+  pub fn global<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
@@ -326,9 +326,9 @@ impl Context {
   /// Gets the embedder data with the given index, which must have been set by
   /// a previous call to SetEmbedderData with the same index.
   #[inline(always)]
-  pub fn get_embedder_data<'s, 'i>(
+  pub fn get_embedder_data<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
     slot: i32,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
@@ -368,8 +368,8 @@ impl Context {
   /// Create a new context from a (non-default) context snapshot. There
   /// is no way to provide a global object template since we do not create
   /// a new global object from template, but we can reuse a global object.
-  pub fn from_snapshot<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn from_snapshot<'s>(
+    scope: &PinScope<'s, '_, ()>,
     context_snapshot_index: usize,
     options: ContextOptions,
   ) -> Option<Local<'s, Context>> {
@@ -386,9 +386,9 @@ impl Context {
   }
 
   #[inline(always)]
-  pub fn get_security_token<'s, 'i>(
+  pub fn get_security_token<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Context__GetSecurityToken(self)) }
       .unwrap()

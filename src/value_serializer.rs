@@ -274,9 +274,9 @@ unsafe extern "C" {
 /// The ValueSerializerImpl trait allows for
 /// custom callback functions used by v8.
 pub trait ValueSerializerImpl {
-  fn throw_data_clone_error<'s, 'i>(
+  fn throw_data_clone_error<'s>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     message: Local<'s, String>,
   );
 
@@ -284,9 +284,9 @@ pub trait ValueSerializerImpl {
     false
   }
 
-  fn is_host_object<'s, 'i>(
+  fn is_host_object<'s>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     _object: Local<'s, Object>,
   ) -> Option<bool> {
     let msg =
@@ -297,9 +297,9 @@ pub trait ValueSerializerImpl {
     None
   }
 
-  fn write_host_object<'s, 'i>(
+  fn write_host_object<'s>(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     _object: Local<'s, Object>,
     _value_serializer: &dyn ValueSerializerHelper,
   ) -> Option<bool> {
@@ -311,17 +311,17 @@ pub trait ValueSerializerImpl {
     None
   }
 
-  fn get_shared_array_buffer_id<'s, 'i>(
+  fn get_shared_array_buffer_id<'s>(
     &self,
-    _scope: &mut PinScope<'s, 'i>,
+    _scope: &mut PinScope<'s, '_>,
     _shared_array_buffer: Local<'s, SharedArrayBuffer>,
   ) -> Option<u32> {
     None
   }
 
-  fn get_wasm_module_transfer_id<'s, 'i>(
+  fn get_wasm_module_transfer_id(
     &self,
-    scope: &mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'_, '_>,
     _module: Local<WasmModuleObject>,
   ) -> Option<u32> {
     let msg = String::new(

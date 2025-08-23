@@ -21,8 +21,8 @@ unsafe extern "C" {
 /// Tries to parse the string `json_string` and returns it as value if
 /// successful.
 #[inline(always)]
-pub fn parse<'s, 'i>(
-  scope: &PinScope<'s, 'i>,
+pub fn parse<'s>(
+  scope: &PinScope<'s, '_>,
   json_string: Local<'_, String>,
 ) -> Option<Local<'s, Value>> {
   unsafe {
@@ -34,8 +34,8 @@ pub fn parse<'s, 'i>(
 /// Tries to stringify the JSON-serializable object `json_object` and returns
 /// it as string if successful.
 #[inline(always)]
-pub fn stringify<'s, 'i>(
-  scope: &PinScope<'s, 'i>,
+pub fn stringify<'s>(
+  scope: &PinScope<'s, '_>,
   json_object: Local<'_, Value>,
 ) -> Option<Local<'s, String>> {
   unsafe {

@@ -26,9 +26,9 @@ unsafe extern "C" {
 impl UnboundScript {
   /// Binds the script to the currently entered context.
   #[inline(always)]
-  pub fn bind_to_current_context<'s, 'i>(
+  pub fn bind_to_current_context<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Script> {
     unsafe {
       scope.cast_local(|_| v8__UnboundScript__BindToCurrentContext(self))
@@ -54,9 +54,9 @@ impl UnboundScript {
   }
 
   #[inline(always)]
-  pub fn get_source_mapping_url<'s, 'i>(
+  pub fn get_source_mapping_url<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -66,9 +66,9 @@ impl UnboundScript {
   }
 
   #[inline(always)]
-  pub fn get_source_url<'s, 'i>(
+  pub fn get_source_url<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

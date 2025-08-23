@@ -749,11 +749,7 @@ impl<T> Weak<T> {
         unreachable!("Isolate was dropped but weak handle wasn't reset.");
       }
       let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
-      let finalizer_id = if let Some(finalizer) = finalizer {
-        Some(isolate.get_finalizer_map_mut().add(finalizer))
-      } else {
-        None
-      };
+      let finalizer_id = finalizer.map(|finalizer| isolate.get_finalizer_map_mut().add(finalizer));
       Self::new_raw(&mut isolate, data, finalizer_id)
     } else {
       Weak {
@@ -847,9 +843,9 @@ impl<T> Weak<T> {
     }
   }
 
-  pub fn to_local<'s, 'i>(
+  pub fn to_local<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, T>> {
     if let Some(data) = self.get_pointer() {
       let handle_host: HandleHost = (&self.isolate_handle).into();
@@ -1085,15 +1081,15 @@ impl<T> TracedReference<T> {
   /// Construct a TracedReference from a Local.
   ///
   /// A new storage cell is created pointing to the same object.
-  pub fn new<'s, 'i>(scope: &PinScope<'s, 'i, ()>, data: Local<'s, T>) -> Self {
+  pub fn new<'s>(scope: &PinScope<'s, '_, ()>, data: Local<'s, T>) -> Self {
     let mut this = Self::empty();
     this.reset(scope, Some(data));
     this
   }
 
-  pub fn get<'s, 'i>(
+  pub fn get<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -1107,9 +1103,9 @@ impl<T> TracedReference<T> {
 
   /// Always resets the reference. Creates a new reference from `other` if it is
   /// non-empty.
-  pub fn reset<'s, 'i>(
+  pub fn reset<'s>(
     &mut self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
     data: Option<Local<'s, T>>,
   ) {
     unsafe {
@@ -1156,7 +1152,7 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn set<'s, 'i>(&self, scope: &PinScope<'s, 'i, ()>, data: Local<'s, T>) {
+  pub fn set<'s>(&self, scope: &PinScope<'s, '_, ()>, data: Local<'s, T>) {
     unsafe {
       v8__Eternal__Set(
         self as *const Self as *mut Eternal<Data>,
@@ -1166,9 +1162,9 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'s, 'i>(
+  pub fn get<'s>(
     &self,
-    scope: &PinScope<'s, 'i, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {

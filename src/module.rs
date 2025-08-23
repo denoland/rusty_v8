@@ -313,7 +313,7 @@ impl Module {
 
   /// For a module in kErrored status, this returns the corresponding exception.
   #[inline(always)]
-  pub fn get_exception<'s, 'o>(&'s self) -> Local<'o, Value> {
+  pub fn get_exception<'o>(&self) -> Local<'o, Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
@@ -321,7 +321,7 @@ impl Module {
 
   /// Returns the ModuleRequests for this module.
   #[inline(always)]
-  pub fn get_module_requests<'s, 'o>(&'s self) -> Local<'o, FixedArray> {
+  pub fn get_module_requests<'o>(&self) -> Local<'o, FixedArray> {
     unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
   }
 
@@ -364,7 +364,7 @@ impl Module {
   ///
   /// The module's status must be at least kInstantiated.
   #[inline(always)]
-  pub fn get_module_namespace<'s, 'o>(&'s self) -> Local<'o, Value> {
+  pub fn get_module_namespace<'o>(&self) -> Local<'o, Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
@@ -425,9 +425,9 @@ impl Module {
   /// via |GetException|).
   #[must_use]
   #[inline(always)]
-  pub fn evaluate<'s, 'i>(
+  pub fn evaluate<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope
@@ -493,9 +493,9 @@ impl Module {
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
   #[inline(always)]
-  pub fn set_synthetic_module_export<'a, 's, 'i>(
+  pub fn set_synthetic_module_export<'s>(
     &self,
-    scope: &'a mut PinScope<'s, 'i>,
+    scope: &mut PinScope<'s, '_>,
     export_name: Local<'s, String>,
     export_value: Local<'s, Value>,
   ) -> Option<bool> {
@@ -511,9 +511,9 @@ impl Module {
   }
 
   #[inline(always)]
-  pub fn get_unbound_module_script<'s, 'i>(
+  pub fn get_unbound_module_script<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, UnboundModuleScript> {
     unsafe {
       scope
@@ -527,9 +527,9 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message<'a>(
+  pub fn get_stalled_top_level_await_message(
     &self,
-    scope: &PinScope<'a, '_, ()>,
+    scope: &PinScope<'_, '_, ()>,
   ) -> Vec<(Local<Module>, Local<Message>)> {
     let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
     for _i in 0..16 {
@@ -564,7 +564,7 @@ impl Module {
 impl ModuleRequest {
   /// Returns the module specifier for this ModuleRequest.
   #[inline(always)]
-  pub fn get_specifier<'s, 'o>(&'s self) -> Local<'o, String> {
+  pub fn get_specifier<'o>(&self) -> Local<'o, String> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
   }
 
@@ -588,7 +588,7 @@ impl ModuleRequest {
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
   #[inline(always)]
-  pub fn get_import_attributes<'s, 'o>(&'s self) -> Local<'o, FixedArray> {
+  pub fn get_import_attributes<'o>(&self) -> Local<'o, FixedArray> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetImportAttributes(self)) }
       .unwrap()
   }

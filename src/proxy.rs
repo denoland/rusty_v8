@@ -19,8 +19,8 @@ unsafe extern "C" {
 
 impl Proxy {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_>,
     target: Local<Object>,
     handler: Local<Object>,
   ) -> Option<Local<'s, Proxy>> {
@@ -32,17 +32,17 @@ impl Proxy {
   }
 
   #[inline(always)]
-  pub fn get_handler<'s, 'i>(
+  pub fn get_handler<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Proxy__GetHandler(self)) }.unwrap()
   }
 
   #[inline(always)]
-  pub fn get_target<'s, 'i>(
+  pub fn get_target<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Proxy__GetTarget(self)) }.unwrap()
   }

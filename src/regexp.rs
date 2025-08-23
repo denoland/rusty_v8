@@ -38,8 +38,8 @@ unsafe extern "C" {
 
 impl RegExp {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_>,
     pattern: Local<String>,
     flags: RegExpCreationFlags,
   ) -> Option<Local<'s, RegExp>> {
@@ -51,9 +51,9 @@ impl RegExp {
   }
 
   #[inline(always)]
-  pub fn exec<'s, 'i>(
+  pub fn exec<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
     subject: Local<String>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
@@ -64,9 +64,9 @@ impl RegExp {
   }
 
   #[inline(always)]
-  pub fn get_source<'s, 'i>(
+  pub fn get_source<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__RegExp__GetSource(self)) }.unwrap()
   }

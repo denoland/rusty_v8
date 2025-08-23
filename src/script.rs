@@ -58,8 +58,8 @@ unsafe extern "C" {
 impl Script {
   /// A shorthand for ScriptCompiler::Compile().
   #[inline(always)]
-  pub fn compile<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn compile<'s>(
+    scope: &PinScope<'s, '_>,
     source: Local<String>,
     origin: Option<&ScriptOrigin>,
   ) -> Option<Local<'s, Script>> {
@@ -76,9 +76,9 @@ impl Script {
 
   /// Returns the corresponding context-unbound script.
   #[inline(always)]
-  pub fn get_unbound_script<'s, 'i>(
+  pub fn get_unbound_script<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, UnboundScript> {
     unsafe {
       scope
@@ -91,9 +91,9 @@ impl Script {
   /// context in which it was created (ScriptCompiler::CompileBound or
   /// UnboundScript::BindToCurrentContext()).
   #[inline]
-  pub fn run<'s, 'i>(
+  pub fn run<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope.cast_local(|sd| v8__Script__Run(self, sd.get_current_context()))

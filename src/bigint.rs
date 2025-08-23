@@ -32,8 +32,8 @@ unsafe extern "C" {
 
 impl BigInt {
   #[inline(always)]
-  pub fn new_from_i64<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new_from_i64<'s>(
+    scope: &PinScope<'s, '_, ()>,
     value: i64,
   ) -> Local<'s, BigInt> {
     unsafe {
@@ -43,8 +43,8 @@ impl BigInt {
   }
 
   #[inline(always)]
-  pub fn new_from_u64<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new_from_u64<'s>(
+    scope: &PinScope<'s, '_, ()>,
     value: u64,
   ) -> Local<'s, BigInt> {
     unsafe {
@@ -61,8 +61,8 @@ impl BigInt {
   ///
   /// (-1)^sign_bit * (words[0] * (2^64)^0 + words[1] * (2^64)^1 + ...)
   #[inline(always)]
-  pub fn new_from_words<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new_from_words<'s>(
+    scope: &PinScope<'s, '_, ()>,
     sign_bit: bool,
     words: &[u64],
   ) -> Option<Local<'s, BigInt>> {

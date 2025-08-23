@@ -37,9 +37,9 @@ impl UnboundModuleScript {
     code_cache
   }
 
-  pub fn get_source_mapping_url<'s, 'i>(
+  pub fn get_source_mapping_url<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -48,9 +48,9 @@ impl UnboundModuleScript {
     }
   }
 
-  pub fn get_source_url<'s, 'i>(
+  pub fn get_source_url<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

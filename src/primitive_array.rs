@@ -32,8 +32,8 @@ unsafe extern "C" {
 
 impl PrimitiveArray {
   #[inline(always)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_>,
     length: usize,
   ) -> Local<'s, PrimitiveArray> {
     unsafe {
@@ -50,9 +50,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn set<'s, 'i>(
+  pub fn set(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'_, '_>,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
@@ -67,9 +67,9 @@ impl PrimitiveArray {
   }
 
   #[inline(always)]
-  pub fn get<'s, 'i>(
+  pub fn get<'s>(
     &self,
-    scope: &PinScope<'s, 'i>,
+    scope: &PinScope<'s, '_>,
     index: usize,
   ) -> Local<'s, Primitive> {
     unsafe {

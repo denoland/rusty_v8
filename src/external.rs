@@ -18,8 +18,8 @@ unsafe extern "C" {
 impl External {
   #[inline(always)]
   #[allow(clippy::not_unsafe_ptr_arg_deref)]
-  pub fn new<'s, 'i>(
-    scope: &PinScope<'s, 'i, ()>,
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
     value: *mut c_void,
   ) -> Local<'s, Self> {
     unsafe {

@@ -193,8 +193,8 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
       v8::String::new(&mut self_.context_scope, "Process").unwrap();
     let process_fn = self_
       .context
-      .global(&mut self_.context_scope)
-      .get(&mut self_.context_scope, process_str.into())
+      .global(&self_.context_scope)
+      .get(&self_.context_scope, process_str.into())
       .expect("missing function Process");
 
     let process_fn = v8::Local::<v8::Function>::try_from(process_fn)
@@ -342,11 +342,11 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   ) -> v8::Local<'scope, v8::Object> {
     // TODO: wrap map, not convert into Object
     let scope = &self.context_scope;
-    let result = v8::Object::new(&**scope);
+    let result = v8::Object::new(scope);
 
     for (key, value) in options {
-      let key = v8::String::new(&**scope, &key).unwrap().into();
-      let value = v8::String::new(&**scope, &value).unwrap().into();
+      let key = v8::String::new(scope, &key).unwrap().into();
+      let value = v8::String::new(scope, &value).unwrap().into();
       result.set(scope, key, value);
     }
 
