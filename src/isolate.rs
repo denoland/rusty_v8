@@ -779,12 +779,38 @@ unsafe extern "C" {
 #[derive(Debug)]
 pub struct Isolate(NonNull<RealIsolate>);
 
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct UnsafeRawIsolatePtr(*mut RealIsolate);
+
+impl UnsafeRawIsolatePtr {
+  pub fn null() -> Self {
+    Self(std::ptr::null_mut())
+  }
+
+  pub fn is_null(&self) -> bool {
+    self.0.is_null()
+  }
+}
+
 #[repr(C)]
 pub struct RealIsolate(Opaque);
 
 impl Isolate {
   pub(crate) fn as_real_ptr(&self) -> *mut RealIsolate {
     self.0.as_ptr()
+  }
+
+  pub unsafe fn as_raw_isolate_ptr(&self) -> UnsafeRawIsolatePtr {
+    UnsafeRawIsolatePtr(self.0.as_ptr())
+  }
+
+  pub unsafe fn from_raw_isolate_ptr(ptr: UnsafeRawIsolatePtr) -> Self {
+    Self(NonNull::new(ptr.0).unwrap())
+  }
+
+  pub unsafe fn from_raw_ptr_unchecked(ptr: *mut RealIsolate) -> Self {
+    Self(unsafe { NonNull::new_unchecked(ptr) })
   }
 
   pub(crate) unsafe fn from_raw_ptr(ptr: *mut RealIsolate) -> Self {
