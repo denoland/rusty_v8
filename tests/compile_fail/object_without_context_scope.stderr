@@ -11,5 +11,5 @@ error[E0308]: mismatched types
 note: associated function defined here
  --> src/object.rs
   |
-  |   pub fn new<'s, 'i>(scope: &PinScope<'s, 'i>) -> Local<'s, Object> {
+  |   pub fn new<'s>(scope: &PinScope<'s, '_>) -> Local<'s, Object> {
   |          ^^^
