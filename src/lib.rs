@@ -26,6 +26,7 @@
 
 #[macro_use]
 extern crate bitflags;
+extern crate temporal_capi;
 
 mod array_buffer;
 mod array_buffer_view;
