@@ -186,6 +186,9 @@ fn build_v8(is_asan: bool) {
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
   }
+
+  download_rust_toolchain();
+
   // `#[cfg(...)]` attributes don't work as expected from build.rs -- they refer to the configuration
   // of the host system which the build.rs script will be running on. In short, `cfg!(target_<os/arch>)`
   // is actually the host os/arch instead of target os/arch while cross compiling. Instead, Environment variables
@@ -404,6 +407,16 @@ fn download_ninja_gn_binaries() {
       env::set_var("NINJA", ninja);
     }
   }
+}
+
+fn download_rust_toolchain() {
+  assert!(
+    Command::new(python())
+      .arg("./tools/rust_toolchain.py")
+      .status()
+      .unwrap()
+      .success()
+  );
 }
 
 fn prebuilt_profile() -> &'static str {
