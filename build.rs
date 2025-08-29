@@ -325,6 +325,16 @@ fn build_v8(is_asan: bool) {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
+  let repo_root = env::current_dir().unwrap();
+  let abseil_options_path = repo_root
+    .join("third_party")
+    .join("abseil-cpp")
+    .join("absl")
+    .join("base")
+    .join("options.h");
+
+  set_abseil_options_to_use_namespace(&abseil_options_path).expect("Failed to modify options.h");
+
   let gn_out = run_gn_gen(&gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
@@ -1077,6 +1087,34 @@ fn env_bool(key: &str) -> bool {
     env::var(key).unwrap_or_default().as_str(),
     "true" | "1" | "yes"
   )
+}
+
+fn set_abseil_options_to_use_namespace(options_path: &PathBuf) -> io::Result<()> {
+  // Read the contents of options.h
+  let current_content = fs::read_to_string(&options_path)?;
+  
+  // Create the expected content
+  let new_content = current_content
+      .lines()
+      .map(|line| {
+          if line.contains("#define ABSL_OPTION_USE_INLINE_NAMESPACE") {
+              "#define ABSL_OPTION_USE_INLINE_NAMESPACE 1".to_string()
+          } else if line.contains("#define ABSL_OPTION_INLINE_NAMESPACE_NAME") {
+              "#define ABSL_OPTION_INLINE_NAMESPACE_NAME v8".to_string()
+          } else {
+              line.to_string()
+          }
+      })
+      .collect::<Vec<String>>()
+      .join("\n");
+  
+  // Only write if content actually changed
+  if current_content != new_content {
+      let mut file = fs::File::create(&options_path)?;
+      file.write_all(new_content.as_bytes())?;
+  }
+
+  Ok(())
 }
 
 #[cfg(test)]
