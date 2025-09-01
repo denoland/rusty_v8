@@ -65,6 +65,7 @@ exclude = [
   "third_party/icu/tzres/",
   "third_party/abseil-cpp/*.def",
   "third_party/abseil-cpp/absl/time/internal/cctz/testdata",
+  "third_party/abseil-cpp/absl/base/options.h",
   "third_party/highway/src/hwy/tests",
   "third_party/highway/src/docs",
   "third_party/highway/src/g3doc",
