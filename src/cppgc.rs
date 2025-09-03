@@ -332,18 +332,13 @@ impl Heap {
 
 /// Base trait for objects supporting garbage collection.
 ///
-/// Objects implementing this trait must also implement `Send + Sync` because
-/// the garbage collector may perform concurrent mark/sweep phases (depending on
-/// the cppgc heap settings). In particular, the object's `drop()` method may be
-/// invoked from a different thread than the one that created the object.
-///
 /// # Safety
 ///
 /// implementors must guarantee that the `trace()`
 /// method correctly visits all [`Member`], [`WeakMember`], and
 /// [`TraceReference`] pointers held by this object. Failing to do so will leave
 /// dangling pointers in the heap as objects are garbage collected.
-pub unsafe trait GarbageCollected: Send + Sync {
+pub unsafe trait GarbageCollected {
   /// `trace` must call [`Visitor::trace`] for each
   /// [`Member`], [`WeakMember`], or [`TracedReference`] reachable
   /// from `self`.
@@ -376,7 +371,7 @@ pub unsafe trait GarbageCollected: Send + Sync {
 pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
   heap: &Heap,
   obj: T,
-) -> Ptr<T> {
+) -> UnsafePtr<T> {
   const {
     // max alignment in cppgc is 16
     assert!(std::mem::align_of::<T>() <= 16);
@@ -406,7 +401,7 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
     );
   }
 
-  Ptr {
+  UnsafePtr {
     pointer: unsafe { NonNull::new_unchecked(pointer) },
     _phantom: PhantomData,
   }
@@ -604,8 +599,8 @@ macro_rules! persistent {
         #[doc = "Borrow the object pointed to by this "]
         #[doc = stringify!($name)]
         #[doc = "."]
-        pub fn borrow(&self) -> Option<&T> {
-          let ptr = self.get();
+        pub fn get(&self) -> Option<&T> {
+          let ptr = self.get_rust_obj();
           if ptr.is_null() {
             None
           } else {
@@ -619,13 +614,6 @@ macro_rules! persistent {
         fn assign(&mut self, ptr: *mut RustObj) {
           unsafe {
             [< cppgc__ $name __Assign >](self.inner, ptr);
-          }
-        }
-
-        #[inline(always)]
-        fn get(&self) -> *mut RustObj {
-          unsafe {
-            [< cppgc__ $name __Get >](self.inner)
           }
         }
       }
@@ -646,7 +634,9 @@ macro_rules! persistent {
 
       impl<T: GarbageCollected> GetRustObj<T> for $name<T> {
         fn get_rust_obj(&self) -> *mut RustObj {
-          self.get()
+          unsafe {
+            [< cppgc__ $name __Get >](self.inner)
+          }
         }
       }
     }
@@ -670,15 +660,15 @@ persistent! {
   WeakPersistent
 }
 
-/// Ptr is used to refer to an on-heap object from the stack.
+/// UnsafePtr is used to refer to an on-heap object from the stack.
 #[derive(Clone, Copy)]
-pub struct Ptr<T: GarbageCollected> {
+pub struct UnsafePtr<T: GarbageCollected> {
   pointer: NonNull<RustObj>,
   _phantom: PhantomData<T>,
 }
 
-impl<T: GarbageCollected> Ptr<T> {
-  /// Create a new Ptr.
+impl<T: GarbageCollected> UnsafePtr<T> {
+  /// Create a new UnsafePtr.
   ///
   /// # Safety
   ///
@@ -692,29 +682,15 @@ impl<T: GarbageCollected> Ptr<T> {
   }
 }
 
-impl<T: GarbageCollected> std::ops::Deref for Ptr<T> {
-  type Target = T;
-
-  fn deref(&self) -> &T {
+impl<T: GarbageCollected> UnsafePtr<T> {
+  pub unsafe fn as_ref(&self) -> &T {
     unsafe { &*get_object_from_rust_obj(self.pointer.as_ptr()) }
   }
 }
 
-impl<T: GarbageCollected> GetRustObj<T> for Ptr<T> {
+impl<T: GarbageCollected> GetRustObj<T> for UnsafePtr<T> {
   fn get_rust_obj(&self) -> *mut RustObj {
     self.pointer.as_ptr()
-  }
-}
-
-impl<T: GarbageCollected + std::fmt::Debug> std::fmt::Debug for Ptr<T> {
-  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-    std::fmt::Debug::fmt(&**self, fmt)
-  }
-}
-
-impl<T: GarbageCollected + std::fmt::Display> std::fmt::Display for Ptr<T> {
-  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-    std::fmt::Display::fmt(&**self, fmt)
   }
 }
 
@@ -731,11 +707,17 @@ impl<T: GarbageCollected + std::fmt::Display> std::fmt::Display for Ptr<T> {
 /// garbage collected references, like [`Member`] or [`WeakMember`]. If the
 /// `GcCell` holds other garbage collected objects, those objects cannot be
 /// accessed while the `GcCell` is borrowed, and the caller must construct
-/// temporary pointers ([`Ptr<T>`]) on the stack in order to access nested
+/// temporary pointers ([`UnsafePtr<T>`]) on the stack in order to access nested
 /// objects in the object graph.
 pub struct GcCell<T> {
   // Contents guarded by access to the `Isolate`.
   value: UnsafeCell<T>,
+}
+
+impl<T> std::fmt::Debug for GcCell<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("GcCell").finish()
+  }
 }
 
 unsafe impl<T: Send> Send for GcCell<T> {}
@@ -775,6 +757,14 @@ impl<T> GcCell<T> {
       // the value, and the returned reference binds the isolate's lifetime.
       &mut *self.value.get()
     }
+  }
+
+  pub fn with<'a, 's, R>(
+    &'a self,
+    scope: &'a mut crate::HandleScope<'s>,
+    f: impl FnOnce(&'a mut crate::HandleScope<'s>, &'a mut T) -> R,
+  ) -> R {
+    f(scope, unsafe { &mut *self.value.get() })
   }
 }
 
