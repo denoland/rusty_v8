@@ -23,7 +23,7 @@ use crate::Value;
 use crate::binding::RustObj;
 use crate::cppgc::GarbageCollected;
 use crate::cppgc::GetRustObj;
-use crate::cppgc::Ptr;
+use crate::cppgc::UnsafePtr;
 use crate::isolate::Isolate;
 use crate::support::MapFnTo;
 use crate::support::Maybe;
@@ -787,12 +787,12 @@ impl Object {
   pub unsafe fn unwrap<const TAG: u16, T: GarbageCollected>(
     isolate: &mut Isolate,
     wrapper: Local<Object>,
-  ) -> Option<Ptr<T>> {
+  ) -> Option<UnsafePtr<T>> {
     const {
       assert!(TAG < LAST_TAG);
     }
     let ptr = unsafe { v8__Object__Unwrap(isolate as *mut _, &*wrapper, TAG) };
-    unsafe { Ptr::new(&ptr) }
+    unsafe { UnsafePtr::new(&ptr) }
   }
 
   /// Returns true if this object can be generally used to wrap object objects.
