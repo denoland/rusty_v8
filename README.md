@@ -2,7 +2,7 @@
 
 V8 Version: 14.0.365.4
 
-[![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=main)](https://github.com/denoland/rusty_v8/actions)
+[![ci](https://github.com/denoland/rusty_v8/actions/workflows/ci.yml/badge.svg)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
 [![docs](https://docs.rs/v8/badge.svg)](https://docs.rs/v8)
 
