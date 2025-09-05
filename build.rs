@@ -1094,7 +1094,7 @@ fn set_abseil_options_to_use_namespace(
   options_path: &PathBuf,
 ) -> io::Result<()> {
   // Read the contents of options.h
-  let current_content = fs::read_to_string(&options_path)?;
+  let current_content = fs::read_to_string(options_path)?;
 
   // Create the expected content
   let new_content = current_content
@@ -1113,7 +1113,7 @@ fn set_abseil_options_to_use_namespace(
 
   // Only write if content actually changed
   if current_content != new_content {
-    let mut file = fs::File::create(&options_path)?;
+    let mut file = fs::File::create(options_path)?;
     file.write_all(new_content.as_bytes())?;
   }
 
