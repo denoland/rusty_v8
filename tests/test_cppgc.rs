@@ -1,7 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use v8::cppgc::{GarbageCollected, GcCell, Member, Ptr, Traced, Visitor};
+use v8::cppgc::{GarbageCollected, GcCell, Member, Traced, Visitor};
 
 mod setup {
   use std::sync::Once;
@@ -124,7 +124,7 @@ macro_rules! test {
       ) {
         let obj = args.get(0).try_into().unwrap();
         let member = unsafe { v8::Object::unwrap::<TAG, Wrap>(scope, obj) };
-        rv.set(member.unwrap().value.get(scope).unwrap());
+        rv.set(unsafe { member.unwrap().as_ref().value.get(scope).unwrap() });
       }
 
       {
@@ -296,7 +296,11 @@ fn cppgc_cell() {
     };
     if let Some(other) = other {
       // Initialize the member with the other object.
-      wrapped.inner.get_mut(scope).other.set(&other);
+      unsafe { wrapped.as_ref() }
+        .inner
+        .get_mut(scope)
+        .other
+        .set(&other);
     }
 
     unsafe {
@@ -314,10 +318,10 @@ fn cppgc_cell() {
     let obj = args.get(0).try_into().unwrap();
     let wrapped =
       unsafe { v8::Object::unwrap::<TAG, Wrap>(scope, obj) }.unwrap();
-    let inner = wrapped.inner.get(scope);
+    let inner = unsafe { wrapped.as_ref() }.inner.get(scope);
     let Some(other) = (unsafe {
       // SAFETY: Constructing on the stack.
-      Ptr::new(&inner.other)
+      inner.other.get()
     }) else {
       return;
     };
