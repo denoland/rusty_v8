@@ -264,12 +264,12 @@ fn cppgc_cell() {
   }
 
   fn op_wrap(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue<v8::Value>,
   ) {
     fn empty(
-      _scope: &mut v8::HandleScope,
+      _scope: &mut v8::PinScope<'_, '_>,
       _args: v8::FunctionCallbackArguments,
       _rv: v8::ReturnValue<v8::Value>,
     ) {
@@ -315,7 +315,7 @@ fn cppgc_cell() {
   }
 
   fn op_unwrap(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
   ) {
@@ -339,7 +339,7 @@ fn cppgc_cell() {
     let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
     {
-      let handle_scope = &mut v8::HandleScope::new(isolate);
+      v8::make_handle_scope!(handle_scope, isolate);
       let context = v8::Context::new(handle_scope, Default::default());
       let scope = &mut v8::ContextScope::new(handle_scope, context);
       let global = context.global(scope);
