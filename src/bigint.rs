@@ -2,7 +2,7 @@ use crate::BigInt;
 use crate::Context;
 use crate::Local;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::int;
 
 use std::mem::MaybeUninit;

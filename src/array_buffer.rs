@@ -13,7 +13,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::support::Shared;

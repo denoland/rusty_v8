@@ -1,24 +1,24 @@
-error[E0597]: `scope2` does not live long enough
+error[E0597]: `scope` does not live long enough
   --> tests/compile_fail/handle_scope_escape_lifetime.rs:12:44
    |
 9  |   let _local = {
    |       ------ borrow later stored here
-10 |     let scope2 = pin!(v8::HandleScope::new(&mut scope1));
-11 |     let mut scope2 = scope2.init();
-   |         ---------- binding `scope2` declared here
-12 |     let scope3 = pin!(v8::HandleScope::new(&mut scope2));
-   |                                            ^^^^^^^^^^^ borrowed value does not live long enough
+10 |     let scope = pin!(v8::HandleScope::new(&mut scope1));
+11 |     let mut scope = scope.init();
+   |         --------- binding `scope` declared here
+12 |     let scope3 = pin!(v8::HandleScope::new(&mut scope));
+   |                                            ^^^^^^^^^^ borrowed value does not live long enough
 ...
 20 |   };
-   |   - `scope2` dropped here while still borrowed
+   |   - `scope` dropped here while still borrowed
 
 error[E0716]: temporary value dropped while borrowed
-  --> tests/compile_fail/handle_scope_escape_lifetime.rs:10:18
+  --> tests/compile_fail/handle_scope_escape_lifetime.rs:10:17
    |
 9  |   let _local = {
    |       ------ borrow later stored here
-10 |     let scope2 = pin!(v8::HandleScope::new(&mut scope1));
-   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
+10 |     let scope = pin!(v8::HandleScope::new(&mut scope1));
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
 ...
 20 |   };
    |   - temporary value is freed at the end of this statement

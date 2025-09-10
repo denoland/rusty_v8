@@ -10,9 +10,9 @@ pub fn main() {
   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
 
   let mut _scope3 = {
-    let scope2 = pin!(v8::HandleScope::new(&mut *context_scope));
-    let mut scope2 = scope2.init();
-    v8::EscapableHandleScope::new(&mut scope2)
+    let scope = pin!(v8::HandleScope::new(&mut *context_scope));
+    let mut scope = scope.init();
+    v8::EscapableHandleScope::new(&mut scope)
   };
 }
 

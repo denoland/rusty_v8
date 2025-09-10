@@ -4,8 +4,8 @@ use crate::Local;
 use crate::Primitive;
 use crate::PrimitiveArray;
 use crate::isolate::RealIsolate;
-use crate::scope2::GetIsolate;
-use crate::scope2::PinScope;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::int;
 
 unsafe extern "C" {

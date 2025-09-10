@@ -7,12 +7,12 @@ pub fn main() {
   let mut scope1 = scope1.init();
   let context = v8::Context::new(&mut scope1, v8::ContextOptions::default());
   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
-  let scope2 = pin!(v8::EscapableHandleScope::new(
+  let scope = pin!(v8::EscapableHandleScope::new(
     (&mut *context_scope).as_mut()
   ));
-  let mut scope2 = scope2.init();
+  let mut scope = scope.init();
   let _local1 = v8::Integer::new(&mut scope1, 123);
-  let _local2 = v8::Integer::new(&mut scope2, 123);
+  let _local2 = v8::Integer::new(&mut scope, 123);
 }
 
 fn mock<T>() -> T {

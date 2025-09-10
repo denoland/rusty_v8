@@ -11,9 +11,9 @@ use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
 use crate::isolate::RealIsolate;
-use crate::scope2::CallbackScope;
-use crate::scope2::ContextScope;
-use crate::scope2::GetIsolate;
+use crate::scope::CallbackScope;
+use crate::scope::ContextScope;
+use crate::scope::GetIsolate;
 
 use crate::support::CxxVTable;
 use crate::support::FieldOffset;

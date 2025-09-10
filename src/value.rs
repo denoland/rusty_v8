@@ -11,7 +11,7 @@ use crate::String;
 use crate::Uint32;
 use crate::Value;
 use crate::isolate::RealIsolate;
-use crate::scope2::GetIsolate;
+use crate::scope::GetIsolate;
 use crate::support::Maybe;
 
 unsafe extern "C" {

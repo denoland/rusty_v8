@@ -7,8 +7,8 @@ use crate::BackingStoreDeleterCallback;
 use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::isolate::RealIsolate;
-use crate::scope2::GetIsolate;
-use crate::scope2::PinScope;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 

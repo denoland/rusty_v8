@@ -105,10 +105,10 @@ fn handle_scope_numbers() {
     let l1 = v8::Integer::new(scope1, -123);
     let l2 = v8::Integer::new_from_unsigned(scope1, 456);
     {
-      let scope2 = std::pin::pin!(v8::HandleScope::new(scope1));
-      let scope2 = &mut scope2.init();
+      let scope = std::pin::pin!(v8::HandleScope::new(scope1));
+      let scope = &mut scope.init();
 
-      let l3 = v8::Number::new(scope2, 78.9);
+      let l3 = v8::Number::new(scope, 78.9);
       let l4 = l1.cast::<v8::Int32>();
       let l5 = l2.cast::<v8::Uint32>();
       assert_eq!(l1.value(), -123);
@@ -561,15 +561,15 @@ fn escapable_handle_scope_can_escape_only_once() {
   let context = v8::Context::new(scope1, Default::default());
   let scope1 = &mut v8::ContextScope::new(scope1, context);
 
-  let scope2 = pin!(v8::EscapableHandleScope::new(scope1));
-  let scope2 = &mut scope2.init();
+  let scope = pin!(v8::EscapableHandleScope::new(scope1));
+  let scope = &mut scope.init();
 
-  let local1 = v8::Integer::new(scope2, -123);
-  let escaped1 = scope2.escape(local1);
+  let local1 = v8::Integer::new(scope, -123);
+  let escaped1 = scope.escape(local1);
   assert!(escaped1 == local1);
 
-  let local2 = v8::Integer::new(scope2, 456);
-  let escaped2 = scope2.escape(local2);
+  let local2 = v8::Integer::new(scope, 456);
+  let escaped2 = scope.escape(local2);
   assert!(escaped2 == local2);
 }
 
@@ -12354,9 +12354,9 @@ fn allow_scope_in_read_host_object() {
       scope: &mut v8::PinScope<'s, '_>,
       _value_deserializer: &dyn v8::ValueDeserializerHelper,
     ) -> Option<v8::Local<'s, v8::Object>> {
-      let scope2 = pin!(v8::AllowJavascriptExecutionScope::new(scope));
-      let scope2 = &mut scope2.init();
-      let value = eval(scope2, "{}").unwrap();
+      let scope = pin!(v8::AllowJavascriptExecutionScope::new(scope));
+      let scope = &mut scope.init();
+      let value = eval(scope, "{}").unwrap();
       let object = v8::Local::<v8::Object>::try_from(value).unwrap();
       Some(object)
     }

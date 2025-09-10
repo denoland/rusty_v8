@@ -3,7 +3,7 @@ use crate::Local;
 use crate::String;
 use crate::binding::v8__String__kMaxLength;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::Opaque;
 use crate::support::char;
 use crate::support::int;

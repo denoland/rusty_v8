@@ -25,7 +25,7 @@ use crate::cppgc::GetRustObj;
 use crate::cppgc::UnsafePtr;
 use crate::isolate::Isolate;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::MapFnTo;
 use crate::support::Maybe;
 use crate::support::MaybeBool;

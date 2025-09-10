@@ -4,9 +4,9 @@ fn main() {
   let scope1 = &mut scope1.init();
 
   let _local = {
-    let scope2 = std::pin::pin!(v8::HandleScope::new(scope1));
-    let scope2 = &mut scope2.init();
+    let scope = std::pin::pin!(v8::HandleScope::new(scope1));
+    let scope = &mut scope.init();
 
-    v8::Integer::new(scope2, 123)
+    v8::Integer::new(scope, 123)
   };
 }

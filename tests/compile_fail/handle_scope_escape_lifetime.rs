@@ -7,9 +7,9 @@ pub fn main() {
   let mut scope1 = scope1.init();
 
   let _local = {
-    let scope2 = pin!(v8::HandleScope::new(&mut scope1));
-    let mut scope2 = scope2.init();
-    let scope3 = pin!(v8::HandleScope::new(&mut scope2));
+    let scope = pin!(v8::HandleScope::new(&mut scope1));
+    let mut scope = scope.init();
+    let scope3 = pin!(v8::HandleScope::new(&mut scope));
     let mut scope3 = scope3.init();
     let context = v8::Context::new(&mut scope3, v8::ContextOptions::default());
     let mut scope3 = v8::ContextScope::new(&mut scope3, context);

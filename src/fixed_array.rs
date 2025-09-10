@@ -1,4 +1,4 @@
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
 use crate::Data;

@@ -9,7 +9,7 @@ use crate::Script;
 use crate::String;
 use crate::UnboundScript;
 use crate::Value;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 /// The origin, within a file, of a script.
 #[repr(C)]

@@ -3,7 +3,7 @@
 use crate::Context;
 use crate::Date;
 use crate::Local;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Date__New(context: *const Context, value: f64) -> *const Date;

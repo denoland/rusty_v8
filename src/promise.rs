@@ -6,7 +6,7 @@ use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
 use crate::Value;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::MaybeBool;
 
 unsafe extern "C" {

@@ -5,7 +5,7 @@ use crate::Context;
 use crate::Local;
 use crate::String;
 use crate::Value;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__JSON__Parse(

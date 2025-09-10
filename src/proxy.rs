@@ -3,7 +3,7 @@ use crate::Local;
 use crate::Object;
 use crate::Proxy;
 use crate::Value;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Proxy__New(

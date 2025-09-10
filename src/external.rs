@@ -5,7 +5,7 @@ use std::ffi::c_void;
 use crate::External;
 use crate::Local;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__External__New(

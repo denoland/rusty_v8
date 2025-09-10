@@ -10,9 +10,9 @@ use crate::StackFrame;
 use crate::StackTrace;
 use crate::String;
 use crate::Value;
-use crate::support::MaybeBool;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
+use crate::support::MaybeBool;
 use crate::support::int;
 
 unsafe extern "C" {

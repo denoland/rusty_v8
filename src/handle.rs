@@ -13,8 +13,8 @@ use crate::Data;
 use crate::Isolate;
 use crate::IsolateHandle;
 use crate::isolate::RealIsolate;
-use crate::scope2::GetIsolate;
-use crate::scope2::PinScope;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::Opaque;
 
 unsafe extern "C" {

@@ -9,7 +9,7 @@ use crate::ScriptOrigin;
 use crate::String;
 use crate::UniqueRef;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::int;
 use crate::{Context, Script, UnboundScript};
 

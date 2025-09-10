@@ -3,7 +3,7 @@ use crate::Local;
 use crate::Object;
 use crate::RegExp;
 use crate::String;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::int;
 
 bitflags! {

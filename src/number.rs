@@ -7,7 +7,7 @@ use crate::Local;
 use crate::Number;
 use crate::Uint32;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Number__New(isolate: *mut RealIsolate, value: f64) -> *const Number;

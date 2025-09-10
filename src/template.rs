@@ -31,7 +31,7 @@ use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::fast_api::CFunction;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 use crate::support::MapFnTo;
 use crate::support::int;
 use std::convert::TryFrom;

@@ -3,7 +3,7 @@ use crate::String;
 use crate::Symbol;
 use crate::Value;
 use crate::isolate::RealIsolate;
-use crate::scope2::PinScope;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Symbol__New(
