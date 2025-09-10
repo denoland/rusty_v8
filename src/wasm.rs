@@ -183,7 +183,7 @@ impl Drop for CompiledWasmModule {
 impl WasmMemoryObject {
   /// Returns underlying ArrayBuffer.
   #[inline(always)]
-  pub fn buffer(&self) -> Local<ArrayBuffer> {
+  pub fn buffer(&self) -> Local<'_, ArrayBuffer> {
     unsafe { Local::from_raw(v8__WasmMemoryObject__Buffer(self)) }.unwrap()
   }
 }

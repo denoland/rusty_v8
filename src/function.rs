@@ -267,12 +267,12 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn new_target(&self) -> Local<Value> {
+  pub(crate) fn new_target(&self) -> Local<'_, Value> {
     unsafe { self.get_implicit_arg_local(Self::kNewTargetIndex) }
   }
 
   #[inline(always)]
-  pub(crate) fn this(&self) -> Local<Object> {
+  pub(crate) fn this(&self) -> Local<'_, Object> {
     unsafe { self.get_arg_local(-1) }
   }
 
@@ -283,7 +283,7 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn data(&self) -> Local<Value> {
+  pub(crate) fn data(&self) -> Local<'_, Value> {
     unsafe {
       let ptr = v8__FunctionCallbackInfo__Data(self);
       let nn = NonNull::new_unchecked(ptr as *mut Value);
@@ -297,7 +297,7 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn get(&self, index: int) -> Local<Value> {
+  pub(crate) fn get(&self, index: int) -> Local<'_, Value> {
     if index >= 0 && index < self.length {
       unsafe { self.get_arg_local(index) }
     } else {
@@ -329,7 +329,7 @@ impl FunctionCallbackInfo {
   // SAFETY: caller must guarantee that the implicit argument at `index`
   // contains a valid V8 handle.
   #[inline(always)]
-  unsafe fn get_implicit_arg_local<T>(&self, index: i32) -> Local<T> {
+  unsafe fn get_implicit_arg_local<T>(&self, index: i32) -> Local<'_, T> {
     let nn = self.get_implicit_arg_non_null::<T>(index);
     unsafe { Local::from_non_null(nn) }
   }
@@ -337,7 +337,7 @@ impl FunctionCallbackInfo {
   // SAFETY: caller must guarantee that the `index` value lies between -1 and
   // self.length.
   #[inline(always)]
-  unsafe fn get_arg_local<T>(&self, index: i32) -> Local<T> {
+  unsafe fn get_arg_local<T>(&self, index: i32) -> Local<'_, T> {
     let ptr = unsafe { self.values.offset(index as _) } as *mut T;
     debug_assert!(!ptr.is_null());
     let nn = unsafe { NonNull::new_unchecked(ptr) };
@@ -1122,7 +1122,7 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_script_origin(&self) -> &ScriptOrigin {
+  pub fn get_script_origin(&self) -> &ScriptOrigin<'_> {
     unsafe {
       let ptr = v8__Function__GetScriptOrigin(self);
       &*ptr

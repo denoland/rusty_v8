@@ -18,7 +18,7 @@ impl ScriptOrModule {
   /// The name that was passed by the embedder as ResourceName to the
   /// ScriptOrigin. This can be either a v8::String or v8::Undefined.
   #[inline(always)]
-  pub fn get_resource_name(&self) -> Local<Value> {
+  pub fn get_resource_name(&self) -> Local<'_, Value> {
     // Note: the C++ `v8::ScriptOrModule::GetResourceName()` does not actually
     // return a local handle, but rather a handle whose lifetime is bound to
     // the related `ScriptOrModule` object.
@@ -31,7 +31,7 @@ impl ScriptOrModule {
   /// The options that were passed by the embedder as HostDefinedOptions to the
   /// ScriptOrigin.
   #[inline(always)]
-  pub fn host_defined_options(&self) -> Local<Data> {
+  pub fn host_defined_options(&self) -> Local<'_, Data> {
     // Note: the C++ `v8::ScriptOrModule::HostDefinedOptions()` does not
     // actually return a local handle, but rather a handle whose lifetime is
     // bound to the related `ScriptOrModule` object.

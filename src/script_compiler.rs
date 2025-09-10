@@ -179,7 +179,7 @@ impl Source {
   }
 
   #[inline(always)]
-  pub fn get_cached_data(&self) -> Option<&CachedData> {
+  pub fn get_cached_data(&self) -> Option<&CachedData<'_>> {
     unsafe {
       let cached_data = v8__ScriptCompiler__Source__GetCachedData(self);
       if cached_data.is_null() {

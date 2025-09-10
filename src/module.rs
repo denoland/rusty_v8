@@ -527,10 +527,10 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message(
+  pub fn get_stalled_top_level_await_message<'s>(
     &self,
-    scope: &PinScope<'_, '_, ()>,
-  ) -> Vec<(Local<Module>, Local<Message>)> {
+    scope: &PinScope<'s, '_, ()>,
+  ) -> Vec<(Local<'s, Module>, Local<'s, Message>)> {
     let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
     for _i in 0..16 {
       out_vec.push(StalledTopLevelAwaitMessage {

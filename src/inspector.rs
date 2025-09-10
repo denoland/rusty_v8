@@ -90,7 +90,7 @@ unsafe extern "C" {
   ) -> bool;
 
   fn v8_inspector__StringBuffer__DELETE(this: *mut StringBuffer);
-  fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView;
+  fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView<'_>;
   fn v8_inspector__StringBuffer__create(
     source: StringView,
   ) -> UniquePtr<StringBuffer>;
@@ -606,7 +606,7 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
   fn ensure_default_context_in_group(
     &mut self,
     context_group_id: i32,
-  ) -> Option<Local<Context>> {
+  ) -> Option<Local<'_, Context>> {
     None
   }
 
@@ -756,7 +756,7 @@ impl StringBuffer {
   // therefore we declare self as mutable here.
   // TODO: figure out whether it'd be safe to assume a const receiver here.
   // That would make it possible to implement `Deref<Target = StringBuffer>`.
-  pub fn string(&self) -> StringView {
+  pub fn string(&self) -> StringView<'_> {
     unsafe { v8_inspector__StringBuffer__string(self) }
   }
 

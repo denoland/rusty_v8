@@ -405,7 +405,7 @@ impl Object {
 
   /// Returns the name of the function invoked as a constructor for this object.
   #[inline(always)]
-  pub fn get_constructor_name(&self) -> Local<String> {
+  pub fn get_constructor_name(&self) -> Local<'_, String> {
     unsafe { Local::from_raw(v8__Object__GetConstructorName(self)) }.unwrap()
   }
 
