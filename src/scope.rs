@@ -3,6 +3,7 @@ use crate::{
   Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
   SealedLocal, Value, fast_api::FastApiCallbackOptions, isolate::RealIsolate,
+  support::assert_layout_subset,
 };
 use std::{
   any::type_name,
@@ -310,6 +311,12 @@ mod get_isolate_impls {
   }
 
   impl<C> GetIsolate for CallbackScope<'_, C> {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      self.isolate.as_ptr()
+    }
+  }
+
+  impl GetIsolate for EscapableHandleScope<'_, '_> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.isolate.as_ptr()
     }
@@ -757,6 +764,8 @@ where
 
 impl<'scope, 'obj: 'scope, 'ct, 'i, C> NewContextScope<'scope, 'ct>
   for PinnedRef<'obj, HandleScope<'i, C>>
+where
+  'ct: 'scope,
 {
   type NewScope = ContextScope<'scope, 'obj, HandleScope<'i>>;
 
@@ -1020,6 +1029,8 @@ pub trait NewCallbackScope<'s>: Sized + GetIsolate {
   fn make_new_scope(me: Self) -> Self::NewScope;
 }
 
+assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, context, _phantom, _pinned });
+
 const ASSERT_CALLBACK_SCOPE_SUBSET_OF_HANDLE_SCOPE: () = {
   if !(std::mem::size_of::<CallbackScope<'static, ()>>()
     > std::mem::size_of::<HandleScope<'static, ()>>())
@@ -1215,8 +1226,10 @@ impl<P: GetIsolate> ScopeInit for TryCatch<'_, '_, P> {
   }
 }
 
-impl<'scope, 'obj: 'scope, 'iso: 'obj>
-  PinnedRef<'_, TryCatch<'scope, 'obj, HandleScope<'iso>>>
+impl<'scope, 'obj: 'scope, 'iso: 'obj, P: GetIsolate>
+  PinnedRef<'_, TryCatch<'scope, 'obj, P>>
+where
+  PinnedRef<'obj, P>: AsRef<PinnedRef<'obj, HandleScope<'iso>>>,
 {
   /// Returns true if an exception has been caught by this try/catch block.
   #[inline(always)]
@@ -1304,6 +1317,7 @@ impl<'scope, 'obj: 'scope, 'iso: 'obj>
       self
         .0
         .scope
+        .as_ref()
         .cast_local(|_data| raw::v8__TryCatch__Exception(self.get_raw()))
     }
   }
@@ -1313,6 +1327,7 @@ impl<'scope, 'obj: 'scope, 'iso: 'obj>
       self
         .0
         .scope
+        .as_ref()
         .cast_local(|_data| raw::v8__TryCatch__Message(self.get_raw()))
     }
   }
@@ -1323,13 +1338,14 @@ impl<'scope, 'obj: 'scope, 'iso: 'obj>
       self
         .0
         .scope
+        .as_ref()
         .cast_local(|_data| raw::v8__TryCatch__ReThrow(raw_mut))
     }
   }
 
   pub fn stack_trace(&self) -> Option<Local<'obj, Value>> {
     unsafe {
-      self.0.scope.cast_local(|_data| {
+      self.0.scope.as_ref().cast_local(|_data| {
         raw::v8__TryCatch__StackTrace(
           self.get_raw(),
           _data.get_current_context(),
@@ -1351,6 +1367,20 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
   for PinnedRef<'obj, HandleScope<'i, C>>
 {
   type NewScope = TryCatch<'scope, 'obj, HandleScope<'i, C>>;
+  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
+    TryCatch {
+      scope: me,
+      raw_try_catch: unsafe { raw::TryCatch::uninit() },
+      _pinned: PhantomPinned,
+    }
+  }
+}
+
+impl<'esc: 'scope, 'scope, 'pin: 'scope, 'i> NewTryCatch<'scope>
+  for PinnedRef<'pin, EscapableHandleScope<'i, 'esc>>
+{
+  type NewScope = TryCatch<'scope, 'pin, EscapableHandleScope<'i, 'esc>>;
+
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
       scope: me,
@@ -1438,20 +1468,17 @@ impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'iso, C> NewTryCatch<'scope>
 // }
 
 #[repr(C)]
-pub struct EscapableHandleScope<'s, 'esc: 's> {
+pub struct EscapableHandleScope<'s, 'esc: 's, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
   context: Cell<Option<NonNull<Context>>>,
   raw_escape_slot: Option<raw::EscapeSlot>,
-  _phantom: PhantomData<(
-    &'s mut raw::HandleScope,
-    &'esc mut raw::EscapeSlot,
-    &'s Context,
-  )>,
+  _phantom:
+    PhantomData<(&'s mut raw::HandleScope, &'esc mut raw::EscapeSlot, &'s C)>,
   _pinned: PhantomPinned,
 }
 
-impl<'s, 'esc: 's> ScopeInit for EscapableHandleScope<'s, 'esc> {
+impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     unsafe {
@@ -1487,7 +1514,7 @@ impl<'s, 'esc: 's> EscapableHandleScope<'s, 'esc> {
   }
 }
 
-impl<'s, 'esc: 's> PinnedRef<'_, EscapableHandleScope<'s, 'esc>> {
+impl<'s, 'esc: 's, C> PinnedRef<'_, EscapableHandleScope<'s, 'esc, C>> {
   pub fn escape<'a, T>(&mut self, value: Local<'a, T>) -> Local<'esc, T>
   where
     for<'l> Local<'l, T>: Into<Local<'l, crate::Data>>,
@@ -1500,14 +1527,18 @@ impl<'s, 'esc: 's> PinnedRef<'_, EscapableHandleScope<'s, 'esc>> {
   }
 }
 
-impl<'p, 's, 'esc: 's> Deref for PinnedRef<'p, EscapableHandleScope<'s, 'esc>> {
-  type Target = PinnedRef<'p, HandleScope<'s>>;
+impl<'p, 's, 'esc: 's, C> Deref
+  for PinnedRef<'p, EscapableHandleScope<'s, 'esc, C>>
+{
+  type Target = PinnedRef<'p, HandleScope<'s, C>>;
   fn deref(&self) -> &Self::Target {
     unsafe { std::mem::transmute(self) }
   }
 }
 
-impl<'s, 'esc: 's> DerefMut for PinnedRef<'_, EscapableHandleScope<'s, 'esc>> {
+impl<'s, 'esc: 's, C> DerefMut
+  for PinnedRef<'_, EscapableHandleScope<'s, 'esc, C>>
+{
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
   }
@@ -1518,10 +1549,10 @@ pub trait NewEscapableHandleScope<'s> {
   fn make_new_scope(me: Self) -> Self::NewScope;
 }
 
-impl<'s, 'p: 's> NewEscapableHandleScope<'s>
-  for PinnedRef<'s, HandleScope<'p, Context>>
+impl<'s, 'p: 's, C> NewEscapableHandleScope<'s>
+  for PinnedRef<'s, HandleScope<'p, C>>
 {
-  type NewScope = EscapableHandleScope<'s, 'p>;
+  type NewScope = EscapableHandleScope<'s, 'p, C>;
   fn make_new_scope(me: Self) -> Self::NewScope {
     // Note: the `raw_escape_slot` field must be initialized _before_ the
     // `raw_handle_scope` field, otherwise the escaped local handle ends up
@@ -1554,19 +1585,19 @@ where
   }
 }
 
-impl<'borrow, 'scope, 'obj: 'scope, 'i> NewEscapableHandleScope<'scope>
-  for &'borrow mut ContextScope<'scope, 'obj, HandleScope<'i, Context>>
+impl<'borrow, 'scope, 'obj: 'scope, 'i, C> NewEscapableHandleScope<'scope>
+  for &'borrow mut ContextScope<'scope, 'obj, HandleScope<'i, C>>
 {
-  type NewScope = EscapableHandleScope<'borrow, 'i>;
+  type NewScope = EscapableHandleScope<'borrow, 'obj, C>;
   fn make_new_scope(me: Self) -> Self::NewScope {
     NewEscapableHandleScope::make_new_scope(me.scope.as_mut())
   }
 }
 
-impl<'p, 's, 'esc: 's> NewEscapableHandleScope<'s>
-  for PinnedRef<'p, EscapableHandleScope<'s, 'esc>>
+impl<'p, 's, 'esc: 's, C> NewEscapableHandleScope<'s>
+  for PinnedRef<'p, EscapableHandleScope<'s, 'esc, C>>
 {
-  type NewScope = EscapableHandleScope<'p, 's>;
+  type NewScope = EscapableHandleScope<'p, 's, C>;
   fn make_new_scope(me: Self) -> Self::NewScope {
     // Note: the `raw_escape_slot` field must be initialized _before_ the
     // `raw_handle_scope` field, otherwise the escaped local handle ends up
@@ -1586,8 +1617,8 @@ impl<'p, 's, 'esc: 's> NewEscapableHandleScope<'s>
   }
 }
 
-impl<'s, 'esc: 's> sealed::Sealed for EscapableHandleScope<'s, 'esc> {}
-impl<'s, 'esc: 's> Scope for EscapableHandleScope<'s, 'esc> {}
+impl<'s, 'esc: 's, C> sealed::Sealed for EscapableHandleScope<'s, 'esc, C> {}
+impl<'s, 'esc: 's, C> Scope for EscapableHandleScope<'s, 'esc, C> {}
 
 // impl<'s, 'p: 's, C> NewTryCatch<'s> for &mut CallbackScope<'p, C> {
 //   type NewScope = TryCatch<'s, HandleScope<'p, C>>;
@@ -1958,6 +1989,24 @@ impl<C> DerefMut for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   }
 }
 
+impl<'pin, 'obj, 'esc: 'obj, C> Deref
+  for PinnedRef<'pin, TryCatch<'_, 'obj, EscapableHandleScope<'obj, 'esc, C>>>
+{
+  type Target = PinnedRef<'pin, EscapableHandleScope<'obj, 'esc, C>>;
+
+  fn deref(&self) -> &Self::Target {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+
+impl<'obj, 'esc: 'obj, C> DerefMut
+  for PinnedRef<'_, TryCatch<'_, 'obj, EscapableHandleScope<'obj, 'esc, C>>>
+{
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+
 impl<'obj, P> Deref
   for PinnedRef<'_, DisallowJavascriptExecutionScope<'_, 'obj, P>>
 {
@@ -2052,6 +2101,21 @@ impl<C> AsRef<Isolate> for ContextScope<'_, '_, CallbackScope<'_, C>> {
   }
 }
 
+impl<'pin, 's, 'esc: 's, C> AsRef<PinnedRef<'pin, HandleScope<'s, C>>>
+  for PinnedRef<'pin, EscapableHandleScope<'s, 'esc, C>>
+{
+  fn as_ref(&self) -> &PinnedRef<'pin, HandleScope<'s, C>> {
+    unsafe { std::mem::transmute(self) }
+  }
+}
+
+impl<'obj, 'inner, C> AsRef<PinnedRef<'obj, HandleScope<'inner, C>>>
+  for PinnedRef<'obj, HandleScope<'inner, C>>
+{
+  fn as_ref(&self) -> &PinnedRef<'obj, HandleScope<'inner, C>> {
+    self
+  }
+}
 // WIP
 /*
 #[cfg(test)]
