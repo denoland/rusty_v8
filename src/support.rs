@@ -621,6 +621,46 @@ where
   }
 }
 
+macro_rules! assert_layout_subset {
+  ($subset: ty, $superset: ty { $($field: ident),* $(,)? }) => {
+    const _: () = {
+      if !(std::mem::size_of::<$superset>() > std::mem::size_of::<$subset>()) {
+        panic!(concat!(
+          "assertion failed: `",
+          stringify!($subset),
+          "` and `",
+          stringify!($superset),
+          "` have different sizes"
+        ));
+      }
+      if !(std::mem::align_of::<$subset>() == std::mem::align_of::<$superset>()) {
+        panic!(concat!(
+          "assertion failed: `",
+          stringify!($subset),
+          "` and `",
+          stringify!($superset),
+          "` have different alignments"
+        ));
+      }
+      $(
+        if std::mem::offset_of!($subset, $field) != std::mem::offset_of!($superset, $field) {
+          panic!(concat!(
+            "assertion failed: `",
+            stringify!($subset),
+            "` and `",
+            stringify!($superset),
+            "` have different offsets for field `",
+            stringify!($field),
+            "`"
+          ));
+        }
+      )*
+    };
+  };
+}
+
+pub(crate) use assert_layout_subset;
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -726,43 +766,3 @@ mod tests {
     shared_ref.assert_use_count_eq(7);
   }
 }
-
-macro_rules! assert_layout_subset {
-  ($subset: ty, $superset: ty { $($field: ident),* $(,)? }) => {
-    const _: () = {
-      if !(std::mem::size_of::<$superset>() > std::mem::size_of::<$subset>()) {
-        panic!(concat!(
-          "assertion failed: `",
-          stringify!($subset),
-          "` and `",
-          stringify!($superset),
-          "` have different sizes"
-        ));
-      }
-      if !(std::mem::align_of::<$subset>() == std::mem::align_of::<$superset>()) {
-        panic!(concat!(
-          "assertion failed: `",
-          stringify!($subset),
-          "` and `",
-          stringify!($superset),
-          "` have different alignments"
-        ));
-      }
-      $(
-        if std::mem::offset_of!($subset, $field) != std::mem::offset_of!($superset, $field) {
-          panic!(concat!(
-            "assertion failed: `",
-            stringify!($subset),
-            "` and `",
-            stringify!($superset),
-            "` have different offsets for field `",
-            stringify!($field),
-            "`"
-          ));
-        }
-      )*
-    };
-  };
-}
-
-pub(crate) use assert_layout_subset;

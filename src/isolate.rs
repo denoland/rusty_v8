@@ -173,7 +173,7 @@ pub enum WasmAsyncSuccess {
   Fail,
 }
 pub type WasmAsyncResolvePromiseCallback = unsafe extern "C" fn(
-  *mut RealIsolate,
+  UnsafeRawIsolatePtr,
   Local<Context>,
   Local<PromiseResolver>,
   Local<Value>,
@@ -537,7 +537,7 @@ pub type HostCreateShadowRealmContextCallback =
   for<'s, 'i> fn(scope: &mut PinScope<'s, 'i>) -> Option<Local<'s, Context>>;
 
 pub type GcCallbackWithData = unsafe extern "C" fn(
-  isolate: *mut RealIsolate,
+  isolate: UnsafeRawIsolatePtr,
   r#type: GCType,
   flags: GCCallbackFlags,
   data: *mut c_void,

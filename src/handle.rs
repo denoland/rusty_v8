@@ -1088,7 +1088,10 @@ impl<T> TracedReference<T> {
     this
   }
 
-  pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
+  pub fn get<'s>(
+    &self,
+    scope: &PinScope<'s, '_, ()>,
+  ) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(

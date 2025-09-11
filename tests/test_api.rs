@@ -535,7 +535,7 @@ fn escapable_handle_scope() {
       let escapable_scope = &mut escapable_scope.init();
       let nested_str_val = {
         let nested_escapable_scope =
-          pin!(v8::EscapableHandleScope::new(escapable_scope.as_mut()));
+          pin!(v8::EscapableHandleScope::new(escapable_scope));
         let nested_escapable_scope = &mut nested_escapable_scope.init();
         let string =
           v8::String::new(nested_escapable_scope, "Hello 🦕 world!").unwrap();
@@ -11843,7 +11843,7 @@ fn gc_callbacks() {
   }
 
   extern "C" fn prologue(
-    _isolate: *mut v8::RealIsolate,
+    _isolate: v8::UnsafeRawIsolatePtr,
     _type: v8::GCType,
     _flags: v8::GCCallbackFlags,
     data: *mut c_void,
@@ -11853,7 +11853,7 @@ fn gc_callbacks() {
   }
 
   extern "C" fn epilogue(
-    _isolate: *mut v8::RealIsolate,
+    _isolate: v8::UnsafeRawIsolatePtr,
     _type: v8::GCType,
     _flags: v8::GCCallbackFlags,
     data: *mut c_void,

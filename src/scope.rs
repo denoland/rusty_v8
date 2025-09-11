@@ -9,7 +9,7 @@ use std::{
   any::type_name,
   cell::Cell,
   marker::{PhantomData, PhantomPinned},
-  mem::{ManuallyDrop, offset_of},
+  mem::ManuallyDrop,
   ops::{Deref, DerefMut},
   pin::Pin,
   ptr::NonNull,
@@ -1031,43 +1031,6 @@ pub trait NewCallbackScope<'s>: Sized + GetIsolate {
 
 assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, context, _phantom, _pinned });
 
-const ASSERT_CALLBACK_SCOPE_SUBSET_OF_HANDLE_SCOPE: () = {
-  if !(std::mem::size_of::<CallbackScope<'static, ()>>()
-    > std::mem::size_of::<HandleScope<'static, ()>>())
-  {
-    panic!("CallbackScope must be larger than HandleScope");
-  }
-  if offset_of!(CallbackScope<'static, ()>, raw_handle_scope)
-    != offset_of!(HandleScope<'static, ()>, raw_handle_scope)
-  {
-    panic!(
-      "CallbackScope and HandleScope have different offsets for raw_handle_scope"
-    );
-  }
-  if offset_of!(CallbackScope<'static, ()>, isolate)
-    != offset_of!(HandleScope<'static, ()>, isolate)
-  {
-    panic!("CallbackScope and HandleScope have different offsets for isolate");
-  }
-  if offset_of!(CallbackScope<'static, ()>, context)
-    != offset_of!(HandleScope<'static, ()>, context)
-  {
-    panic!("CallbackScope and HandleScope have different offsets for context");
-  }
-  if offset_of!(CallbackScope<'static, ()>, _phantom)
-    != offset_of!(HandleScope<'static, ()>, _phantom)
-  {
-    panic!("CallbackScope and HandleScope have different offsets for _phantom");
-  }
-  if std::mem::align_of::<CallbackScope<'static, ()>>()
-    != std::mem::align_of::<HandleScope<'static, ()>>()
-  {
-    panic!(
-      "CallbackScope and HandleScope have different alignments for _phantom"
-    );
-  }
-};
-
 fn make_new_callback_scope<'a, C>(
   isolate: impl GetIsolate,
   context: Option<NonNull<Context>>,
@@ -1376,12 +1339,12 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
   }
 }
 
-impl<'esc: 'scope, 'scope, 'pin: 'scope, 'i> NewTryCatch<'scope>
-  for PinnedRef<'pin, EscapableHandleScope<'i, 'esc>>
+impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj> NewTryCatch<'borrow>
+  for PinnedRef<'scope, EscapableHandleScope<'obj, 'esc>>
 {
-  type NewScope = TryCatch<'scope, 'pin, EscapableHandleScope<'i, 'esc>>;
+  type NewScope = TryCatch<'borrow, 'scope, EscapableHandleScope<'obj, 'esc>>;
 
-  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
+  fn make_new_scope(me: &'borrow mut Self) -> Self::NewScope {
     TryCatch {
       scope: me,
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
@@ -1472,11 +1435,19 @@ pub struct EscapableHandleScope<'s, 'esc: 's, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
   context: Cell<Option<NonNull<Context>>>,
-  raw_escape_slot: Option<raw::EscapeSlot>,
   _phantom:
     PhantomData<(&'s mut raw::HandleScope, &'esc mut raw::EscapeSlot, &'s C)>,
   _pinned: PhantomPinned,
+  raw_escape_slot: Option<raw::EscapeSlot>,
 }
+
+assert_layout_subset!(HandleScope<'static, ()>, EscapableHandleScope<'static, 'static, ()> {
+  raw_handle_scope,
+  isolate,
+  context,
+  _phantom,
+  _pinned,
+});
 
 impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
@@ -1508,7 +1479,7 @@ impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
 impl<'s, 'esc: 's> EscapableHandleScope<'s, 'esc> {
   #[allow(clippy::new_ret_no_self)]
   pub fn new<P: NewEscapableHandleScope<'s>>(
-    scope: P,
+    scope: &'s mut P,
   ) -> ScopeStorage<P::NewScope> {
     ScopeStorage::new(P::make_new_scope(scope))
   }
@@ -1546,14 +1517,14 @@ impl<'s, 'esc: 's, C> DerefMut
 
 pub trait NewEscapableHandleScope<'s> {
   type NewScope: Scope;
-  fn make_new_scope(me: Self) -> Self::NewScope;
+  fn make_new_scope(me: &'s mut Self) -> Self::NewScope;
 }
 
-impl<'s, 'p: 's, C> NewEscapableHandleScope<'s>
-  for PinnedRef<'s, HandleScope<'p, C>>
+impl<'s, 'obj: 's, C> NewEscapableHandleScope<'s>
+  for PinnedRef<'obj, HandleScope<'_, C>>
 {
-  type NewScope = EscapableHandleScope<'s, 'p, C>;
-  fn make_new_scope(me: Self) -> Self::NewScope {
+  type NewScope = EscapableHandleScope<'s, 'obj, C>;
+  fn make_new_scope(me: &'s mut Self) -> Self::NewScope {
     // Note: the `raw_escape_slot` field must be initialized _before_ the
     // `raw_handle_scope` field, otherwise the escaped local handle ends up
     // inside the `EscapableHandleScope` that's being constructed here,
@@ -1573,32 +1544,20 @@ impl<'s, 'p: 's, C> NewEscapableHandleScope<'s>
   }
 }
 
-impl<'borrow, 's, 'p: 's, P> NewEscapableHandleScope<'s>
-  for &'borrow mut PinnedRef<'p, P>
-where
-  PinnedRef<'borrow, P>: NewEscapableHandleScope<'borrow>,
-{
-  type NewScope =
-    <PinnedRef<'borrow, P> as NewEscapableHandleScope<'borrow>>::NewScope;
-  fn make_new_scope(me: Self) -> Self::NewScope {
-    PinnedRef::<'borrow, P>::make_new_scope(me.as_mut())
-  }
-}
-
-impl<'borrow, 'scope, 'obj: 'scope, 'i, C> NewEscapableHandleScope<'scope>
-  for &'borrow mut ContextScope<'scope, 'obj, HandleScope<'i, C>>
+impl<'borrow, 'obj: 'borrow, C> NewEscapableHandleScope<'borrow>
+  for ContextScope<'_, 'obj, HandleScope<'_, C>>
 {
   type NewScope = EscapableHandleScope<'borrow, 'obj, C>;
-  fn make_new_scope(me: Self) -> Self::NewScope {
-    NewEscapableHandleScope::make_new_scope(me.scope.as_mut())
+  fn make_new_scope(me: &'borrow mut Self) -> Self::NewScope {
+    NewEscapableHandleScope::make_new_scope(me.scope)
   }
 }
 
-impl<'p, 's, 'esc: 's, C> NewEscapableHandleScope<'s>
-  for PinnedRef<'p, EscapableHandleScope<'s, 'esc, C>>
+impl<'borrow, 's: 'borrow, 'esc: 'borrow, C> NewEscapableHandleScope<'borrow>
+  for PinnedRef<'_, EscapableHandleScope<'s, 'esc, C>>
 {
-  type NewScope = EscapableHandleScope<'p, 's, C>;
-  fn make_new_scope(me: Self) -> Self::NewScope {
+  type NewScope = EscapableHandleScope<'borrow, 's, C>;
+  fn make_new_scope(me: &'borrow mut Self) -> Self::NewScope {
     // Note: the `raw_escape_slot` field must be initialized _before_ the
     // `raw_handle_scope` field, otherwise the escaped local handle ends up
     // inside the `EscapableHandleScope` that's being constructed here,
@@ -1989,21 +1948,27 @@ impl<C> DerefMut for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   }
 }
 
-impl<'pin, 'obj, 'esc: 'obj, C> Deref
-  for PinnedRef<'pin, TryCatch<'_, 'obj, EscapableHandleScope<'obj, 'esc, C>>>
+impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C> Deref
+  for PinnedRef<
+    '_,
+    TryCatch<'borrow, 'scope, EscapableHandleScope<'obj, 'esc, C>>,
+  >
 {
-  type Target = PinnedRef<'pin, EscapableHandleScope<'obj, 'esc, C>>;
+  type Target = PinnedRef<'scope, EscapableHandleScope<'obj, 'esc, C>>;
 
   fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
+    &self.0.scope
   }
 }
 
-impl<'obj, 'esc: 'obj, C> DerefMut
-  for PinnedRef<'_, TryCatch<'_, 'obj, EscapableHandleScope<'obj, 'esc, C>>>
+impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C> DerefMut
+  for PinnedRef<
+    '_,
+    TryCatch<'borrow, 'scope, EscapableHandleScope<'obj, 'esc, C>>,
+  >
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { std::mem::transmute(self) }
+    unsafe { self.0.as_mut().get_unchecked_mut().scope }
   }
 }
 
