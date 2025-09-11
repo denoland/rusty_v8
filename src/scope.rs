@@ -1957,7 +1957,7 @@ impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C> Deref
   type Target = PinnedRef<'scope, EscapableHandleScope<'obj, 'esc, C>>;
 
   fn deref(&self) -> &Self::Target {
-    &self.0.scope
+    self.0.scope
   }
 }
 
