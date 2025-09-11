@@ -419,7 +419,9 @@ impl ScopeData {
       let isolate = self.get_isolate_ptr();
       let context =
         unsafe { raw::v8__Isolate__GetCurrentContext(isolate) }.cast_mut();
-      self.context.set(Some(NonNull::new(context).unwrap()));
+      self
+        .context
+        .set(Some(unsafe { NonNull::new_unchecked(context) }));
       context
     }
   }
@@ -447,7 +449,7 @@ impl<'s> PinnedRef<'s, HandleScope<'_>> {
           .cast_mut();
       unsafe {
         self.0.context.set(Some(NonNull::new_unchecked(context)));
-        Local::from_raw(context).unwrap()
+        Local::from_raw_unchecked(context)
       }
     }
   }
@@ -460,7 +462,7 @@ impl<'s> PinnedRef<'s, HandleScope<'_>> {
     let context_ptr = unsafe {
       raw::v8__Isolate__GetEnteredOrMicrotaskContext(self.0.isolate.as_ptr())
     };
-    unsafe { Local::from_raw(context_ptr) }.unwrap()
+    unsafe { Local::from_raw_unchecked(context_ptr) }
   }
 
   /// Return data that was previously attached to the isolate snapshot via
@@ -1037,7 +1039,7 @@ fn make_new_callback_scope<'a, C>(
 ) -> CallbackScope<'a, C> {
   CallbackScope {
     raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-    isolate: NonNull::new(isolate.get_isolate_ptr()).unwrap(),
+    isolate: unsafe { NonNull::new_unchecked(isolate.get_isolate_ptr()) },
     context: Cell::new(context),
     _phantom: PhantomData,
     _pinned: PhantomPinned,
@@ -1085,7 +1087,7 @@ impl<'s> NewCallbackScope<'s> for &'s FastApiCallbackOptions<'s> {
     let isolate = (*me).get_isolate_ptr();
     CallbackScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate: NonNull::new(isolate).unwrap(),
+      isolate: unsafe { NonNull::new_unchecked(isolate) },
       context: Cell::new(me.get_context().map(|c| c.as_non_null())),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
