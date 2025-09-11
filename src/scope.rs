@@ -1812,7 +1812,10 @@ impl<'scope, 'obj, P: Scope + GetIsolate>
 macro_rules! make_callback_scope {
   (unsafe $scope: ident, $param: expr) => {
     #[allow(clippy::macro_metavars_in_unsafe)]
-    let $scope = std::pin::pin!(unsafe { $crate::CallbackScope::new($param) });
+    let $scope = std::pin::pin!({
+      let param = $param;
+      unsafe { $crate::CallbackScope::new(param) }
+    });
     let $scope = &mut $scope.init();
   };
 }

@@ -805,27 +805,70 @@ impl Isolate {
     UnsafeRawIsolatePtr(self.0.as_ptr())
   }
 
+  #[inline]
   pub unsafe fn from_raw_isolate_ptr(ptr: UnsafeRawIsolatePtr) -> Self {
     Self(NonNull::new(ptr.0).unwrap())
+  }
+
+  #[inline]
+  pub unsafe fn from_raw_isolate_ptr_unchecked(
+    ptr: UnsafeRawIsolatePtr,
+  ) -> Self {
+    Self(unsafe { NonNull::new_unchecked(ptr.0) })
   }
 
   pub unsafe fn from_raw_ptr_unchecked(ptr: *mut RealIsolate) -> Self {
     Self(unsafe { NonNull::new_unchecked(ptr) })
   }
 
-  pub(crate) unsafe fn from_raw_ptr(ptr: *mut RealIsolate) -> Self {
+  pub unsafe fn from_raw_ptr(ptr: *mut RealIsolate) -> Self {
     Self(NonNull::new(ptr).unwrap())
   }
 
+  #[inline]
+  pub unsafe fn ref_from_raw_isolate_ptr(ptr: &UnsafeRawIsolatePtr) -> &Self {
+    if ptr.is_null() {
+      panic!("UnsafeRawIsolatePtr is null");
+    }
+    unsafe { &*(ptr as *const UnsafeRawIsolatePtr as *const Isolate) }
+  }
+
+  #[inline]
+  pub unsafe fn ref_from_raw_isolate_ptr_unchecked(
+    ptr: &UnsafeRawIsolatePtr,
+  ) -> &Self {
+    unsafe { &*(ptr as *const UnsafeRawIsolatePtr as *const Isolate) }
+  }
+
+  #[inline]
+  pub unsafe fn ref_from_raw_isolate_ptr_mut(
+    ptr: &mut UnsafeRawIsolatePtr,
+  ) -> &mut Self {
+    if ptr.is_null() {
+      panic!("UnsafeRawIsolatePtr is null");
+    }
+    unsafe { &mut *(ptr as *mut UnsafeRawIsolatePtr as *mut Isolate) }
+  }
+
+  #[inline]
+  pub unsafe fn ref_from_raw_isolate_ptr_mut_unchecked(
+    ptr: &mut UnsafeRawIsolatePtr,
+  ) -> &mut Self {
+    unsafe { &mut *(ptr as *mut UnsafeRawIsolatePtr as *mut Isolate) }
+  }
+
+  #[inline]
   pub(crate) unsafe fn from_non_null(ptr: NonNull<RealIsolate>) -> Self {
     Self(ptr)
   }
 
+  #[inline]
   pub(crate) unsafe fn from_raw_ref(ptr: &NonNull<RealIsolate>) -> &Self {
     // SAFETY: Isolate is a repr(transparent) wrapper around NonNull<RealIsolate>
     unsafe { &*(ptr as *const NonNull<RealIsolate> as *const Isolate) }
   }
 
+  #[inline]
   pub(crate) unsafe fn from_raw_ref_mut(
     ptr: &mut NonNull<RealIsolate>,
   ) -> &mut Self {
