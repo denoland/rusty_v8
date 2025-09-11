@@ -9,8 +9,7 @@ pub fn main() {
   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
 
   let _local = {
-    let mut _scope2 =
-      v8::EscapableHandleScope::new((&mut *context_scope).as_mut());
+    let mut _scope2 = v8::EscapableHandleScope::new(&mut context_scope);
     v8::Integer::new(&mut scope1, 123)
   };
 }

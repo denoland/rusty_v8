@@ -13,6 +13,21 @@ error[E0597]: `scope` does not live long enough
    |   - `scope` dropped here while still borrowed
 
 error[E0716]: temporary value dropped while borrowed
+  --> tests/compile_fail/handle_scope_escape_lifetime.rs:12:18
+   |
+9  |   let _local = {
+   |       ------ borrow later stored here
+...
+12 |     let scope3 = pin!(v8::HandleScope::new(&mut scope));
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
+...
+20 |   };
+   |   - temporary value is freed at the end of this statement
+   |
+   = note: consider using a `let` binding to create a longer lived value
+   = note: this error originates in the macro `pin` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0716]: temporary value dropped while borrowed
   --> tests/compile_fail/handle_scope_escape_lifetime.rs:10:17
    |
 9  |   let _local = {
