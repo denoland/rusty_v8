@@ -189,8 +189,7 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
     // execute script
     self_.execute_script(source);
 
-    let process_str =
-      v8::String::new(&self_.context_scope, "Process").unwrap();
+    let process_str = v8::String::new(&self_.context_scope, "Process").unwrap();
     let process_fn = self_
       .context
       .global(&self_.context_scope)
