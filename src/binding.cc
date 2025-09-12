@@ -33,14 +33,20 @@ constexpr size_t align_to(size_t size) {
   return (size + sizeof(T) - 1) & ~(sizeof(T) - 1);
 }
 
+#ifdef V8_ENABLE_CHECKS
+constexpr size_t handle_scope_size = 4;
+#else
+constexpr size_t handle_scope_size = 3;
+#endif
+
 static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
               "std::shared_ptr<v8::BackingStore> size mismatch");
 
-static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
+static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * handle_scope_size,
               "HandleScope size mismatch");
 
-static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * 4,
+static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * (handle_scope_size + 1),
               "EscapableHandleScope size mismatch");
 
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,

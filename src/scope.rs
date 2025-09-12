@@ -2006,7 +2006,7 @@ impl<C> AsRef<Isolate> for PinnedRef<'_, HandleScope<'_, C>> {
   }
 }
 
-impl<'s, 'i, C> AsMut<Isolate> for PinnedRef<'s, HandleScope<'i, C>> {
+impl<C> AsMut<Isolate> for PinnedRef<'_, HandleScope<'_, C>> {
   fn as_mut(&mut self) -> &mut Isolate {
     unsafe {
       Isolate::from_raw_ref_mut(

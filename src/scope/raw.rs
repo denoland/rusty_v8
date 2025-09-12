@@ -4,7 +4,6 @@ use crate::{
   Context, Data, Function, Local, Message, Object, OnFailure, Primitive, Value,
   isolate::RealIsolate,
 };
-use std::alloc::Layout;
 use std::num::NonZeroUsize;
 use std::{
   mem::MaybeUninit,
@@ -37,9 +36,14 @@ impl Drop for ContextScope {
   }
 }
 
+#[cfg(feature = "v8_enable_v8_checks")]
+pub const HANDLE_SCOPE_SIZE: usize = 4;
+#[cfg(not(feature = "v8_enable_v8_checks"))]
+pub const HANDLE_SCOPE_SIZE: usize = 3;
+
 #[repr(C)]
 #[derive(Debug)]
-pub(super) struct HandleScope([MaybeUninit<usize>; 3]);
+pub(super) struct HandleScope([MaybeUninit<usize>; HANDLE_SCOPE_SIZE]);
 
 impl HandleScope {
   /// Creates an uninitialized `HandleScope`.
@@ -49,7 +53,6 @@ impl HandleScope {
   #[inline(always)]
   pub unsafe fn uninit() -> Self {
     unsafe { MaybeUninit::uninit().assume_init() }
-    // Self([MaybeUninit::uninit(); 3])
   }
 
   /// This function is marked unsafe because `init()` must be called exactly
@@ -90,7 +93,10 @@ impl EscapeSlot {
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
-    assert_eq!(Layout::new::<Self>(), Layout::new::<Local<T>>());
+    const {
+      assert!(size_of::<Self>() == size_of::<Local<T>>());
+      assert!(align_of::<Self>() == align_of::<Local<T>>());
+    }
     unsafe {
       let undefined = Local::<Value>::from_non_null(self.0.cast());
       debug_assert!(undefined.is_undefined());
