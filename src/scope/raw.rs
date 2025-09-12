@@ -229,10 +229,6 @@ unsafe extern "C" {
     this: *mut RealIsolate,
   ) -> *const Data;
 
-  pub(super) fn v8__Context__EQ(
-    this: *const Context,
-    other: *const Context,
-  ) -> bool;
   pub(super) fn v8__Context__Enter(this: *const Context);
   pub(super) fn v8__Context__Exit(this: *const Context);
   pub(super) fn v8__Context__GetIsolate(

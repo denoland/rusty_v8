@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::{
   Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
@@ -102,13 +101,6 @@ impl<T: ScopeInit> PinnedBox<T> {
   }
 }
 
-impl<T: ScopeInit> BoxedStorage<T> {
-  pub fn into_ref(self: Pin<&mut BoxedStorage<T>>) -> PinnedRef<'_, T> {
-    let self_mut = unsafe { self.get_unchecked_mut() };
-    PinnedRef(unsafe { Pin::new_unchecked(&mut self_mut.0.scope) })
-  }
-}
-
 impl<T: ScopeInit> Drop for ScopeStorage<T> {
   fn drop(&mut self) {
     if self.inited {
@@ -129,12 +121,6 @@ mod sealed {
 /// boxed scope.
 #[repr(transparent)]
 pub struct BoxedStorage<T: ScopeInit>(Box<ScopeStorage<T>>);
-
-impl<T: ScopeInit> BoxedStorage<T> {
-  pub fn casted(value: Pin<Box<ScopeStorage<T>>>) -> Pin<BoxedStorage<T>> {
-    unsafe { std::mem::transmute::<_, Pin<BoxedStorage<T>>>(value) }
-  }
-}
 
 impl<T: Scope> Deref for BoxedStorage<T> {
   type Target = T;
