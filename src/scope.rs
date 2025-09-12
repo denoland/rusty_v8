@@ -1387,7 +1387,7 @@ impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'iso, C> NewTryCatch<'scope>
   type NewScope = TryCatch<'scope, 'obj_outer, HandleScope<'iso, C>>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     TryCatch {
-      scope: unsafe { me.as_mut().0.get_unchecked_mut().scope },
+      scope: unsafe { me.as_mut_ref().0.get_unchecked_mut().scope },
       raw_try_catch: unsafe { raw::TryCatch::uninit() },
       _pinned: PhantomPinned,
     }
@@ -1846,7 +1846,7 @@ impl<'p, T> From<Pin<&'p mut T>> for PinnedRef<'p, T> {
 }
 
 impl<T> PinnedRef<'_, T> {
-  pub fn as_mut(&mut self) -> PinnedRef<'_, T> {
+  pub fn as_mut_ref(&mut self) -> PinnedRef<'_, T> {
     PinnedRef(self.0.as_mut())
   }
 }
@@ -1932,7 +1932,7 @@ impl<'obj, 'iso, C> Deref
 
 impl<C> DerefMut for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { self.as_mut().0.get_unchecked_mut().scope }
+    unsafe { self.as_mut_ref().0.get_unchecked_mut().scope }
   }
 }
 
@@ -2006,15 +2006,53 @@ impl<C> AsRef<Isolate> for PinnedRef<'_, HandleScope<'_, C>> {
   }
 }
 
+impl<'s, 'i, C> AsMut<Isolate> for PinnedRef<'s, HandleScope<'i, C>> {
+  fn as_mut(&mut self) -> &mut Isolate {
+    unsafe {
+      Isolate::from_raw_ref_mut(
+        &mut self.0.as_mut().get_unchecked_mut().isolate,
+      )
+    }
+  }
+}
+
 impl<C> AsRef<Isolate> for PinnedRef<'_, CallbackScope<'_, C>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.isolate) }
   }
 }
 
+impl<C> AsMut<Isolate> for PinnedRef<'_, CallbackScope<'_, C>> {
+  fn as_mut(&mut self) -> &mut Isolate {
+    unsafe {
+      Isolate::from_raw_ref_mut(
+        &mut self.0.as_mut().get_unchecked_mut().isolate,
+      )
+    }
+  }
+}
+
 impl<C> AsRef<Isolate> for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   fn as_ref(&self) -> &Isolate {
     unsafe { Isolate::from_raw_ref(&self.0.scope.0.isolate) }
+  }
+}
+
+impl<C> AsMut<Isolate> for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
+  fn as_mut(&mut self) -> &mut Isolate {
+    unsafe {
+      Isolate::from_raw_ref_mut(
+        &mut self
+          .0
+          .as_mut()
+          .get_unchecked_mut()
+          .scope
+          .0
+          .as_mut()
+          .get_unchecked_mut()
+          .isolate,
+      )
+    }
   }
 }
 
