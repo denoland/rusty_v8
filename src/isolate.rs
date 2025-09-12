@@ -2232,7 +2232,7 @@ where
   fn mapping() -> Self {
     let f = |ret_ptr, context, error, sites| {
       let scope = pin!(unsafe { CallbackScope::new(context) });
-      let mut scope = scope.init();
+      let mut scope: crate::PinnedRef<CallbackScope> = scope.init();
       let r = (F::get())(&mut scope, error, sites);
       unsafe { std::ptr::write(ret_ptr, &*r as *const _) };
       ret_ptr
