@@ -16,6 +16,7 @@ use std::{
 pub(super) struct Address(NonZeroUsize);
 
 #[derive(Debug)]
+#[repr(transparent)]
 pub(super) struct ContextScope {
   pub(super) entered_context: NonNull<Context>,
 }
@@ -110,6 +111,7 @@ impl TryCatch {
   /// This function is marked unsafe because the caller must ensure that the
   /// returned value isn't dropped before `init()` has been called.
   pub unsafe fn uninit() -> Self {
+    // SAFETY: All bit patterns are valid, since the struct is made up of MaybeUninit.
     Self(unsafe { MaybeUninit::uninit().assume_init() })
   }
 
@@ -142,6 +144,7 @@ impl DisallowJavascriptExecutionScope {
   /// returned value isn't dropped before `init()` has been called.
   #[inline]
   pub unsafe fn uninit() -> Self {
+    // SAFETY: All bit patterns are valid, since the struct is made up of MaybeUninit.
     Self(unsafe { MaybeUninit::uninit().assume_init() })
   }
 
