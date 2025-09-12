@@ -2231,7 +2231,8 @@ where
   #[cfg(target_os = "windows")]
   fn mapping() -> Self {
     let f = |ret_ptr, context, error, sites| {
-      let mut scope: CallbackScope = unsafe { CallbackScope::new(context) };
+      let scope = pin!(unsafe { CallbackScope::new(context) });
+      let mut scope = scope.init();
       let r = (F::get())(&mut scope, error, sites);
       unsafe { std::ptr::write(ret_ptr, &*r as *const _) };
       ret_ptr
@@ -2246,18 +2247,7 @@ where
       let scope = pin!(unsafe { CallbackScope::new(context) });
       let mut scope: crate::PinnedRef<CallbackScope> = scope.init();
 
-      let r = (F::get())(
-        // SAFETY: sus
-        unsafe {
-          use crate::{HandleScope, PinnedRef};
-          std::mem::transmute::<
-            &mut PinnedRef<'_, HandleScope<'_>>,
-            &mut PinnedRef<'_, HandleScope<'_>>,
-          >(scope.deref_mut())
-        },
-        error,
-        sites,
-      );
+      let r = (F::get())(&mut scope, error, sites);
       PrepareStackTraceCallbackRet(&*r as *const _)
     };
     f.to_c_fn()
