@@ -6,7 +6,7 @@
 //!
 //! There are a few important properties that make v8 scopes challenging to model in rust.
 //! - `HandleScope`s can (and almost certainly will be) nested, but handles are only
-//!     bound to the innermost `HandleScope`
+//!   bound to the innermost `HandleScope`
 //!   - Importantly, this means that the Handle lifetimes are determined by the innermost `HandleScope`
 //! - Both `HandleScope` and `TryCatch`  cannot be moved, because V8 holds direct pointers to them
 //! - The C++ API relies heavily on inheritance, which is a bit awkward to model in rust
@@ -191,43 +191,12 @@ impl<T: ScopeInit> ScopeStorage<T> {
     PinnedRef(ret)
   }
 
-  pub fn init_box(mut self: Pin<Box<Self>>) -> PinnedBox<T> {
-    if self.inited {
-      // free old, going to reuse this storage
-      unsafe {
-        let self_mut = self.as_mut().get_unchecked_mut();
-        self_mut.drop_inner();
-        self_mut.inited = false;
-      }
-    }
-
-    // hold onto a pointer so we can set this after initialization. we can't use a normal
-    // mutable reference because the borrow checker will see overlapping borrows. this is
-    // safe, however, because we lose our mutable reference to the storage in `init_stack`
-    // as it gets projected to the inner type
-    let inited_ptr =
-      unsafe { &raw mut self.as_mut().get_unchecked_mut().inited };
-    let ret = T::init_box(self);
-    unsafe { inited_ptr.write(true) };
-    ret
-  }
   /// SAFEFTY: `self.inited` must be true, and therefore must be pinned
   unsafe fn drop_inner(&mut self) {
     unsafe {
       T::deinit(&mut self.scope);
     }
     self.inited = false;
-  }
-}
-
-#[repr(transparent)]
-pub struct PinnedBox<T: ScopeInit>(Pin<Box<ScopeStorage<T>>>);
-
-impl<T: ScopeInit> PinnedBox<T> {
-  pub fn as_mut(&mut self) -> PinnedRef<'_, T> {
-    let storage = self.0.as_mut();
-    let scope = unsafe { &mut storage.get_unchecked_mut().scope };
-    PinnedRef(unsafe { Pin::new_unchecked(scope) })
   }
 }
 
@@ -250,8 +219,6 @@ mod sealed {
 pub trait ScopeInit: Sized {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self>;
 
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self>;
-
   unsafe fn deinit(me: &mut Self);
 }
 
@@ -266,17 +233,6 @@ impl<C> ScopeInit for HandleScope<'_, C> {
     let projected = &mut storage_mut.scope;
 
     unsafe { Pin::new_unchecked(projected) }
-  }
-
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    let mut storage = storage;
-    let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
-    unsafe {
-      let isolate = storage_mut.scope.isolate;
-      raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate)
-    };
-
-    PinnedBox(storage)
   }
 
   unsafe fn deinit(me: &mut Self) {
@@ -297,9 +253,13 @@ pub struct HandleScope<'s, C = Context> {
 impl<C> sealed::Sealed for HandleScope<'_, C> {}
 impl<C> Scope for HandleScope<'_, C> {}
 
-pub trait GetIsolate {
-  fn get_isolate_ptr(&self) -> *mut RealIsolate;
+mod get_isolate {
+  use crate::RealIsolate;
+  pub trait GetIsolate {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate;
+  }
 }
+pub(crate) use get_isolate::GetIsolate;
 
 mod get_isolate_impls {
   use crate::{Promise, PromiseRejectMessage};
@@ -414,9 +374,21 @@ mod get_isolate_impls {
     }
   }
 
-  impl GetIsolate for EscapableHandleScope<'_, '_> {
+  impl<C> GetIsolate for EscapableHandleScope<'_, '_, C> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.isolate.as_ptr()
+    }
+  }
+
+  impl<P: GetIsolate> GetIsolate for AllowJavascriptExecutionScope<'_, '_, P> {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      self.scope.get_isolate_ptr()
+    }
+  }
+
+  impl<P: GetIsolate> GetIsolate for DisallowJavascriptExecutionScope<'_, '_, P> {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      self.scope.get_isolate_ptr()
     }
   }
 }
@@ -776,15 +748,7 @@ impl<P: ClearCachedContext> ScopeInit for ContextScope<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     storage.projected()
   }
-
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    PinnedBox(storage)
-  }
-
-  unsafe fn deinit(_me: &mut Self) {
-    // let me = unsafe { me.get_unchecked_mut() };
-    // unsafe { raw::v8__ContextScope__DESTRUCT(&mut me.raw_handle_scope) };
-  }
+  unsafe fn deinit(_me: &mut Self) {}
 }
 
 impl<'p, P: ClearCachedContext> Deref for ContextScope<'_, 'p, P> {
@@ -803,14 +767,21 @@ impl<P: ClearCachedContext> DerefMut for ContextScope<'_, '_, P> {
 impl<P: ClearCachedContext> sealed::Sealed for ContextScope<'_, '_, P> {}
 impl<P: ClearCachedContext> Scope for ContextScope<'_, '_, P> {}
 
-pub trait NewContextScope<'s, 'c>: GetIsolate {
-  type NewScope: Scope;
+mod new_context_scope {
 
-  fn make_new_scope(
-    me: &'s mut Self,
-    context: Local<'c, Context>,
-  ) -> Self::NewScope;
+  use super::{GetIsolate, Scope};
+  use crate::{Context, Local};
+
+  pub trait NewContextScope<'s, 'c>: GetIsolate {
+    type NewScope: Scope;
+
+    fn make_new_scope(
+      me: &'s mut Self,
+      context: Local<'c, Context>,
+    ) -> Self::NewScope;
+  }
 }
+use new_context_scope::NewContextScope;
 
 mod clear_cached_context {
   pub trait ClearCachedContext {
@@ -832,6 +803,12 @@ impl<C> ClearCachedContext for CallbackScope<'_, C> {
 impl<P: ClearCachedContext> ClearCachedContext for PinnedRef<'_, P> {
   fn clear_cached_context(&self) {
     self.0.clear_cached_context();
+  }
+}
+
+impl<C> ClearCachedContext for EscapableHandleScope<'_, '_, C> {
+  fn clear_cached_context(&self) {
+    self.context.set(None);
   }
 }
 
@@ -909,6 +886,27 @@ impl<'scope, 'obj: 'scope, 'i, 'ct, C> NewContextScope<'scope, 'ct>
   }
 }
 
+impl<'scope, 'obj: 'scope, 'i, 'esc: 'i, 'ct, C> NewContextScope<'scope, 'ct>
+  for PinnedRef<'obj, EscapableHandleScope<'i, 'esc, C>>
+{
+  type NewScope = ContextScope<'scope, 'obj, EscapableHandleScope<'i, 'esc>>;
+
+  fn make_new_scope(
+    me: &'scope mut Self,
+    context: Local<'ct, Context>,
+  ) -> Self::NewScope {
+    ContextScope {
+      raw_handle_scope: raw::ContextScope::new(context),
+      scope: unsafe {
+        std::mem::transmute::<
+          &'scope mut PinnedRef<'obj, EscapableHandleScope<'i, 'esc, C>>,
+          &'scope mut PinnedRef<'obj, EscapableHandleScope<'i, 'esc, Context>>,
+        >(me)
+      },
+    }
+  }
+}
+
 impl<P: ClearCachedContext> ClearCachedContext for ContextScope<'_, '_, P> {
   fn clear_cached_context(&self) {
     self.scope.0.clear_cached_context();
@@ -927,7 +925,6 @@ impl<
     param: &'scope mut P,
     context: Local<'ct, Context>,
   ) -> P::NewScope {
-    // let scope_data = param.get_scope_data_mut();
     if param.get_isolate_ptr()
       != unsafe { raw::v8__Context__GetIsolate(&*context) }
     {
@@ -937,44 +934,9 @@ impl<
       )
     }
     param.clear_cached_context();
-    // let new_scope_data = scope_data.new_context_scope_data(context);
-    // new_scope_data.as_scope()
     P::make_new_scope(param, context)
   }
 }
-
-// impl<'s, P> Deref for ContextScope<'s, P> {
-//     type Target = Pin<&'s mut P>;
-//     fn deref(&self) -> &Self::Target {
-//         self.scope
-//     }
-// }
-
-// impl<'s, 'p, P> AsRef<Pin<&'s mut P>> for ContextScope<'s, 'p, P> {
-//     fn as_ref(&self) -> &Pin<&'s mut P> {
-//         self.scope
-//     }
-// }
-
-// impl<'s, 'p: 's, 'e: 'p, C> NewContextScope<'s> for EscapableHandleScope<'p, 'e, C> {
-//     type NewScope = ContextScope<'s, EscapableHandleScope<'p, 'e>>;
-// }
-
-// impl<'s, 'p: 's, P: NewContextScope<'s>> NewContextScope<'s> for TryCatch<'p, P> {
-//     type NewScope = <P as NewContextScope<'s>>::NewScope;
-// }
-
-// impl<'s, 'p: 's, P: NewContextScope<'s>> NewContextScope<'s>
-//     for DisallowJavascriptExecutionScope<'p, P>
-// {
-//     type NewScope = <P as NewContextScope<'s>>::NewScope;
-// }
-
-// impl<'s, 'p: 's, P: NewContextScope<'s>> NewContextScope<'s>
-//     for AllowJavascriptExecutionScope<'p, P>
-// {
-//     type NewScope = <P as NewContextScope<'s>>::NewScope;
-// }
 
 // callback scope
 
@@ -987,6 +949,8 @@ pub struct CallbackScope<'s, C = Context> {
   _pinned: PhantomPinned,
   needs_scope: bool,
 }
+
+assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, context, _phantom, _pinned });
 
 impl<C> Drop for CallbackScope<'_, C> {
   fn drop(&mut self) {
@@ -1026,52 +990,6 @@ impl<C> AsRef<Isolate> for CallbackScope<'_, C> {
   }
 }
 
-// impl<'a, C> Deref for CallbackScope<'a, C> {
-//   type Target = Isolate;
-//   fn deref(&self) -> &Self::Target {
-//     unsafe { &*self.isolate.as_ptr() }
-//   }
-// }
-
-// impl<'a, T, C> AsRef<T> for CallbackScope<'a, C>
-// where
-//   T: ?Sized,
-//   <CallbackScope<'a, C> as Deref>::Target: AsRef<T>,
-// {
-//   fn as_ref(&self) -> &T {
-//     self.deref().as_ref()
-//   }
-// }
-
-// impl<'a, C> AsRef<Isolate> for CallbackScope<'a, C> {
-//   fn as_ref(&self) -> &Isolate {
-//     unsafe { &*self.isolate.as_ptr() }
-//   }
-// }
-
-// impl<'a, C> AsRef<HandleScope<'a, C>> for CallbackScope<'a, C> {
-//   fn as_ref(&self) -> &HandleScope<'a, C> {
-//     unsafe { std::mem::transmute(self) }
-//   }
-// }
-
-// impl<'a, C> Deref for CallbackScope<'a, C> {
-//     type Target = HandleScope<'a, C>;
-//     fn deref(&self) -> &Self::Target {
-//         unsafe { std::mem::transmute(self) }
-//     }
-// }
-
-// impl<'a, T, C> AsRef<T> for CallbackScope<'a, C>
-// where
-//   T: ?Sized,
-//   <CallbackScope<'a, C> as Deref>::Target: AsRef<T>,
-// {
-//   fn as_ref(&self) -> &T {
-//     self.deref().as_ref()
-//   }
-// }
-
 impl<C> ScopeInit for CallbackScope<'_, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
@@ -1087,24 +1005,6 @@ impl<C> ScopeInit for CallbackScope<'_, C> {
 
     let projected = &mut storage_mut.scope;
     unsafe { Pin::new_unchecked(projected) }
-  }
-
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    let mut storage = storage;
-    let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
-    {
-      let isolate = storage_mut.scope.isolate;
-      if storage_mut.scope.needs_scope {
-        unsafe {
-          raw::HandleScope::init(
-            &mut storage_mut.scope.raw_handle_scope,
-            isolate,
-          );
-        }
-      }
-    }
-
-    PinnedBox(storage)
   }
 
   unsafe fn deinit(me: &mut Self) {
@@ -1128,8 +1028,6 @@ pub trait NewCallbackScope<'s>: Sized + GetIsolate {
 
   fn make_new_scope(me: Self) -> Self::NewScope;
 }
-
-assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, context, _phantom, _pinned });
 
 fn make_new_callback_scope<'a, C>(
   isolate: impl GetIsolate,
@@ -1250,15 +1148,6 @@ impl<'scope, P: NewTryCatch<'scope>> TryCatch<'scope, '_, P> {
   }
 }
 
-// impl<'s, S: Scope + GetIsolate> TryCatch<'s, ContextScope<'s, S>> {
-//     pub fn new_cs<'a>(
-//         cs: &'a mut ContextScope<'s, S>,
-//     ) -> ScopeStorage<<&'a mut ContextScope<'s, S> as NewTryCatch<'s>>::NewScope> {
-//         let scope = <&'a mut ContextScope<'s, S> as NewTryCatch<'s>>::make_new_scope(cs);
-//         ScopeStorage::new(scope)
-//     }
-// }
-
 impl<P: GetIsolate> ScopeInit for TryCatch<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
@@ -1270,18 +1159,6 @@ impl<P: GetIsolate> ScopeInit for TryCatch<'_, '_, P> {
     }
     let projected = &mut storage_mut.scope;
     unsafe { Pin::new_unchecked(projected) }
-  }
-
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    let mut storage = storage;
-    let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
-    let isolate = unsafe {
-      NonNull::new_unchecked(storage_mut.scope.scope.get_isolate_ptr())
-    };
-    unsafe {
-      raw::TryCatch::init(&mut storage_mut.scope.raw_try_catch, isolate);
-    }
-    PinnedBox(storage)
   }
 
   unsafe fn deinit(me: &mut Self) {
@@ -1439,10 +1316,12 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
   }
 }
 
-impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj> NewTryCatch<'borrow>
-  for PinnedRef<'scope, EscapableHandleScope<'obj, 'esc>>
+impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C>
+  NewTryCatch<'borrow>
+  for PinnedRef<'scope, EscapableHandleScope<'obj, 'esc, C>>
 {
-  type NewScope = TryCatch<'borrow, 'scope, EscapableHandleScope<'obj, 'esc>>;
+  type NewScope =
+    TryCatch<'borrow, 'scope, EscapableHandleScope<'obj, 'esc, C>>;
 
   fn make_new_scope(me: &'borrow mut Self) -> Self::NewScope {
     TryCatch {
@@ -1559,16 +1438,6 @@ impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
     let projected = &mut storage_mut.scope;
 
     unsafe { Pin::new_unchecked(projected) }
-  }
-
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    let mut storage = storage;
-    let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
-    unsafe {
-      let isolate = storage_mut.scope.isolate;
-      raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate);
-    }
-    PinnedBox(storage)
   }
 
   unsafe fn deinit(me: &mut Self) {
@@ -1722,21 +1591,6 @@ impl<P: GetIsolate> ScopeInit for DisallowJavascriptExecutionScope<'_, '_, P> {
     }
   }
 
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    let mut storage = storage;
-    let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
-    let isolate = storage_mut.scope.scope.get_isolate_ptr();
-    let on_failure = storage_mut.scope.on_failure;
-    unsafe {
-      raw::DisallowJavascriptExecutionScope::init(
-        &mut storage_mut.scope.raw,
-        NonNull::new_unchecked(isolate),
-        on_failure,
-      );
-    }
-    PinnedBox(storage)
-  }
-
   unsafe fn deinit(me: &mut Self) {
     unsafe { raw::v8__DisallowJavascriptExecutionScope__DESTRUCT(&mut me.raw) };
   }
@@ -1771,24 +1625,6 @@ pub trait NewDisallowJavascriptExecutionScope<'scope> {
   ) -> Self::NewScope;
 }
 
-impl<'scope, 'obj: 'scope, 'i, C> NewDisallowJavascriptExecutionScope<'scope>
-  for PinnedRef<'obj, HandleScope<'i, C>>
-{
-  type NewScope =
-    DisallowJavascriptExecutionScope<'scope, 'obj, HandleScope<'i, C>>;
-  fn make_new_scope(
-    me: &'scope mut Self,
-    on_failure: OnFailure,
-  ) -> Self::NewScope {
-    DisallowJavascriptExecutionScope {
-      raw: unsafe { raw::DisallowJavascriptExecutionScope::uninit() },
-      scope: me,
-      on_failure,
-      _pinned: PhantomPinned,
-    }
-  }
-}
-
 impl<'scope, 'obj, P> NewDisallowJavascriptExecutionScope<'scope>
   for ContextScope<'_, 'obj, P>
 where
@@ -1803,6 +1639,24 @@ where
     on_failure: OnFailure,
   ) -> Self::NewScope {
     PinnedRef::<'obj, P>::make_new_scope(me.scope, on_failure)
+  }
+}
+
+impl<'scope, 'obj: 'scope, P: Scope + GetIsolate>
+  NewDisallowJavascriptExecutionScope<'scope> for PinnedRef<'obj, P>
+{
+  type NewScope = DisallowJavascriptExecutionScope<'scope, 'obj, P>;
+
+  fn make_new_scope(
+    me: &'scope mut Self,
+    on_failure: OnFailure,
+  ) -> Self::NewScope {
+    DisallowJavascriptExecutionScope {
+      raw: unsafe { raw::DisallowJavascriptExecutionScope::uninit() },
+      scope: me,
+      on_failure,
+      _pinned: PhantomPinned,
+    }
   }
 }
 
@@ -1827,21 +1681,6 @@ impl<P: GetIsolate> ScopeInit for AllowJavascriptExecutionScope<'_, '_, P> {
     }
     let projected = &mut storage_mut.scope;
     unsafe { Pin::new_unchecked(projected) }
-  }
-
-  fn init_box(storage: Pin<Box<ScopeStorage<Self>>>) -> PinnedBox<Self> {
-    let mut storage = storage;
-    let storage_mut = unsafe { storage.as_mut().get_unchecked_mut() };
-    let isolate = unsafe {
-      NonNull::new_unchecked(storage_mut.scope.scope.get_isolate_ptr())
-    };
-    unsafe {
-      raw::AllowJavascriptExecutionScope::init(
-        &mut storage_mut.scope.raw,
-        isolate,
-      );
-    }
-    PinnedBox(storage)
   }
 
   unsafe fn deinit(me: &mut Self) {
@@ -1869,29 +1708,14 @@ pub trait NewAllowJavascriptExecutionScope<'scope> {
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope;
 }
 
-impl<'scope, 'obj: 'scope, 'i, C> NewAllowJavascriptExecutionScope<'scope>
-  for PinnedRef<'obj, HandleScope<'i, C>>
-{
-  type NewScope =
-    AllowJavascriptExecutionScope<'scope, 'obj, HandleScope<'i, C>>;
-  fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
-    AllowJavascriptExecutionScope {
-      raw: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
-      scope: me,
-      _pinned: PhantomPinned,
-    }
-  }
-}
-
-impl<'scope, 'obj, P: Scope + GetIsolate>
-  NewAllowJavascriptExecutionScope<'scope>
-  for PinnedRef<'_, DisallowJavascriptExecutionScope<'scope, 'obj, P>>
+impl<'scope, 'obj: 'scope, P: Scope + GetIsolate>
+  NewAllowJavascriptExecutionScope<'scope> for PinnedRef<'obj, P>
 {
   type NewScope = AllowJavascriptExecutionScope<'scope, 'obj, P>;
   fn make_new_scope(me: &'scope mut Self) -> Self::NewScope {
     AllowJavascriptExecutionScope {
       raw: unsafe { raw::AllowJavascriptExecutionScope::uninit() },
-      scope: unsafe { me.0.as_mut().get_unchecked_mut().scope },
+      scope: me,
       _pinned: PhantomPinned,
     }
   }
@@ -1921,7 +1745,12 @@ macro_rules! make_handle_scope {
     let $scope = &mut $scope.init();
   };
   (let $scope: ident, $param: expr) => {
-    $crate::make_handle_scope!($scope, $param);
+    let $scope = std::pin::pin!($crate::HandleScope::new($param));
+    let $scope = &mut $scope.init();
+  };
+  (let $scope: ident = $param: expr) => {
+    let $scope = std::pin::pin!($crate::HandleScope::new($param));
+    let $scope = &mut $scope.init();
   };
 }
 
@@ -1956,6 +1785,56 @@ macro_rules! make_try_catch {
     $crate::make_try_catch!($scope, $param);
   };
 }
+
+#[macro_export]
+macro_rules! make_disallow_javascript_execution_scope {
+  ($scope: ident, $param: expr, $on_failure: expr) => {
+    let $scope = std::pin::pin!($crate::DisallowJavascriptExecutionScope::new(
+      $param,
+      $on_failure
+    ));
+    let $scope = &mut $scope.init();
+  };
+  (let $scope: ident, $param: expr, $on_failure: expr) => {
+    $crate::make_disallow_javascript_execution_scope!(
+      $scope,
+      $param,
+      $on_failure
+    );
+  };
+}
+
+#[allow(unused_imports)]
+pub(crate) use make_disallow_javascript_execution_scope;
+
+#[macro_export]
+macro_rules! make_allow_javascript_execution_scope {
+  ($scope: ident, $param: expr) => {
+    let $scope =
+      std::pin::pin!($crate::AllowJavascriptExecutionScope::new($param));
+    let $scope = &mut $scope.init();
+  };
+  (let $scope: ident, $param: expr) => {
+    $crate::make_allow_javascript_execution_scope!($scope, $param);
+  };
+}
+
+#[allow(unused_imports)]
+pub(crate) use make_allow_javascript_execution_scope;
+
+#[macro_export]
+macro_rules! make_escapable_handle_scope {
+  ($scope: ident, $param: expr) => {
+    let $scope = std::pin::pin!($crate::EscapableHandleScope::new($param));
+    let $scope = &mut $scope.init();
+  };
+  (let $scope: ident, $param: expr) => {
+    $crate::make_escapable_handle_scope!($scope, $param);
+  };
+}
+
+#[allow(unused_imports)]
+pub(crate) use make_escapable_handle_scope;
 
 #[repr(transparent)]
 pub struct PinnedRef<'p, T>(Pin<&'p mut T>);
@@ -2228,13 +2107,11 @@ impl<'obj, 'inner, C> AsRef<PinnedRef<'obj, HandleScope<'inner, C>>>
     self
   }
 }
-// WIP
-/*
+
 #[cfg(test)]
 mod tests {
   use super::*;
   use crate::ContextOptions;
-  use crate::Global;
   use std::any::type_name;
   use std::pin::pin;
 
@@ -2276,86 +2153,97 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
-        let l3_tc = &mut TryCatch::new(&mut **l2_cxs);
-        AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
+        make_try_catch!(let l3_tc, &mut **l2_cxs);
+        AssertTypeOf(l3_tc).is::<PinnedRef<TryCatch<HandleScope>>>();
         let d = l3_tc.deref_mut();
-        AssertTypeOf(d).is::<HandleScope>();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
         let d = d.deref_mut();
-        AssertTypeOf(d).is::<HandleScope<()>>();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
         let d = d.deref_mut();
         AssertTypeOf(d).is::<Isolate>();
       }
       {
-        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
-          l2_cxs,
-          OnFailure::CrashOnFailure,
-        );
+        make_disallow_javascript_execution_scope!(let l3_djses, l2_cxs, OnFailure::CrashOnFailure);
         AssertTypeOf(l3_djses)
-          .is::<DisallowJavascriptExecutionScope<HandleScope>>();
+          .is::<PinnedRef<DisallowJavascriptExecutionScope<HandleScope>>>();
         let d = l3_djses.deref_mut();
-        AssertTypeOf(d).is::<HandleScope>();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
         let d = d.deref_mut();
-        AssertTypeOf(d).is::<HandleScope<()>>();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
         let d = d.deref_mut();
         AssertTypeOf(d).is::<Isolate>();
         {
-          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
-          AssertTypeOf(l4_ajses).is::<HandleScope>();
+          make_allow_javascript_execution_scope!(let l4_ajses, l3_djses);
+          AssertTypeOf(l4_ajses).is::<PinnedRef<
+            AllowJavascriptExecutionScope<
+              DisallowJavascriptExecutionScope<HandleScope>,
+            >,
+          >>();
           let d = l4_ajses.deref_mut();
-          AssertTypeOf(d).is::<HandleScope<()>>();
+          AssertTypeOf(d)
+            .is::<PinnedRef<DisallowJavascriptExecutionScope<HandleScope>>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
         }
       }
       {
-        let l3_ehs = &mut EscapableHandleScope::new(l2_cxs);
-        AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
+        make_escapable_handle_scope!(let l3_ehs, l2_cxs);
+        AssertTypeOf(l3_ehs).is::<PinnedRef<EscapableHandleScope>>();
         {
           let l4_cxs = &mut ContextScope::new(l3_ehs, context);
           AssertTypeOf(l4_cxs).is::<ContextScope<EscapableHandleScope>>();
           let d = l4_cxs.deref_mut();
-          AssertTypeOf(d).is::<EscapableHandleScope>();
+          AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope>>();
           let d = d.deref_mut();
-          AssertTypeOf(d).is::<HandleScope>();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
           let d = d.deref_mut();
-          AssertTypeOf(d).is::<HandleScope<()>>();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
         }
         {
-          let l4_tc = &mut TryCatch::new(l3_ehs);
-          AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
+          make_try_catch!(let l4_tc, l3_ehs);
+          AssertTypeOf(l4_tc).is::<PinnedRef<TryCatch<EscapableHandleScope>>>();
           let d = l4_tc.deref_mut();
-          AssertTypeOf(d).is::<EscapableHandleScope>();
+          AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope>>();
           let d = d.deref_mut();
-          AssertTypeOf(d).is::<HandleScope>();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
           let d = d.deref_mut();
-          AssertTypeOf(d).is::<HandleScope<()>>();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
         }
         {
-          let l4_djses = &mut DisallowJavascriptExecutionScope::new(
-            l3_ehs,
-            OnFailure::CrashOnFailure,
-          );
+          make_disallow_javascript_execution_scope!(let l4_djses, l3_ehs, OnFailure::CrashOnFailure);
           AssertTypeOf(l4_djses)
-            .is::<DisallowJavascriptExecutionScope<EscapableHandleScope>>();
+            .is::<PinnedRef<DisallowJavascriptExecutionScope<EscapableHandleScope>>>();
           let d = l4_djses.deref_mut();
-          AssertTypeOf(d).is::<EscapableHandleScope>();
+          AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope>>();
           let d = d.deref_mut();
-          AssertTypeOf(d).is::<HandleScope>();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
           let d = d.deref_mut();
-          AssertTypeOf(d).is::<HandleScope<()>>();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
           {
-            let l5_ajses = &mut AllowJavascriptExecutionScope::new(l4_djses);
-            AssertTypeOf(l5_ajses).is::<EscapableHandleScope>();
+            make_allow_javascript_execution_scope!(let l5_ajses, l4_djses);
+            AssertTypeOf(l5_ajses).is::<PinnedRef<
+              AllowJavascriptExecutionScope<
+                DisallowJavascriptExecutionScope<EscapableHandleScope>,
+              >,
+            >>();
             let d = l5_ajses.deref_mut();
-            AssertTypeOf(d).is::<HandleScope>();
+            AssertTypeOf(d).is::<PinnedRef<DisallowJavascriptExecutionScope<EscapableHandleScope>>>();
             let d = d.deref_mut();
-            AssertTypeOf(d).is::<HandleScope<()>>();
+            AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope>>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
+            let d = d.deref_mut();
+            AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
             let d = d.deref_mut();
             AssertTypeOf(d).is::<Isolate>();
           }
@@ -2363,44 +2251,52 @@ mod tests {
       }
     }
     {
-      let l2_tc = &mut TryCatch::new(l1_hs);
-      AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
+      make_try_catch!(let l2_tc, l1_hs);
+      AssertTypeOf(l2_tc).is::<PinnedRef<TryCatch<HandleScope<()>>>>();
       let d = l2_tc.deref_mut();
-      AssertTypeOf(d).is::<HandleScope<()>>();
+      AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
       {
-        let l3_djses = &mut DisallowJavascriptExecutionScope::new(
-          l2_tc,
-          OnFailure::CrashOnFailure,
-        );
-        AssertTypeOf(l3_djses)
-          .is::<DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>>();
+        make_disallow_javascript_execution_scope!(let l3_djses, l2_tc, OnFailure::CrashOnFailure);
+        AssertTypeOf(l3_djses).is::<PinnedRef<
+          DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>,
+        >>();
         let d = l3_djses.deref_mut();
-        AssertTypeOf(d).is::<TryCatch<HandleScope<()>>>();
+        AssertTypeOf(d).is::<PinnedRef<TryCatch<HandleScope<()>>>>();
         let d = d.deref_mut();
-        AssertTypeOf(d).is::<HandleScope<()>>();
+        AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
         let d = d.deref_mut();
         AssertTypeOf(d).is::<Isolate>();
         {
-          let l4_ajses = &mut AllowJavascriptExecutionScope::new(l3_djses);
-          AssertTypeOf(l4_ajses).is::<TryCatch<HandleScope<()>>>();
+          make_allow_javascript_execution_scope!(let l4_ajses, l3_djses);
+          AssertTypeOf(l4_ajses).is::<PinnedRef<
+            AllowJavascriptExecutionScope<
+              DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>,
+            >,
+          >>();
           let d = l4_ajses.deref_mut();
-          AssertTypeOf(d).is::<HandleScope<()>>();
+          AssertTypeOf(d).is::<PinnedRef<
+            DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>,
+          >>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<PinnedRef<TryCatch<HandleScope<()>>>>();
+          let d = d.deref_mut();
+          AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
         }
       }
     }
     {
-      let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
-      AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
-      let l3_tc = &mut TryCatch::new(l2_ehs);
-      AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
+      make_escapable_handle_scope!(let l2_ehs, l1_hs);
+      AssertTypeOf(l2_ehs).is::<PinnedRef<EscapableHandleScope<()>>>();
+      make_try_catch!(let l3_tc, l2_ehs);
+      AssertTypeOf(l3_tc).is::<PinnedRef<TryCatch<EscapableHandleScope<()>>>>();
       let d = l3_tc.deref_mut();
-      AssertTypeOf(d).is::<EscapableHandleScope<()>>();
+      AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope<()>>>();
       let d = d.deref_mut();
-      AssertTypeOf(d).is::<HandleScope<()>>();
+      AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
     }
@@ -2410,153 +2306,23 @@ mod tests {
       // that a context has been entered. Push a `ContextScope` onto the stack
       // to also meet the second expectation.
       let _ = ContextScope::new(l1_hs, context);
-      let l2_cbs = &mut unsafe { CallbackScope::new(context) };
-      AssertTypeOf(l2_cbs).is::<CallbackScope>();
+      make_callback_scope!(unsafe l2_cbs, context);
+      AssertTypeOf(l2_cbs).is::<PinnedRef<CallbackScope>>();
       let d = l2_cbs.deref_mut();
-      AssertTypeOf(d).is::<HandleScope>();
+      AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
       let d = d.deref_mut();
-      AssertTypeOf(d).is::<HandleScope<()>>();
+      AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
     }
     {
       let isolate: &mut Isolate = l1_hs.as_mut();
-      let l2_cbs = &mut unsafe { CallbackScope::new(isolate) };
-      AssertTypeOf(l2_cbs).is::<CallbackScope<()>>();
+      make_callback_scope!(unsafe l2_cbs, isolate);
+      AssertTypeOf(l2_cbs).is::<PinnedRef<CallbackScope<()>>>();
       let d = l2_cbs.deref_mut();
-      AssertTypeOf(d).is::<HandleScope<()>>();
+      AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
     }
   }
-
-  #[test]
-  fn new_scope_types() {
-    crate::initialize_v8();
-    let isolate = &mut Isolate::new(Default::default());
-    AssertTypeOf(isolate).is::<OwnedIsolate>();
-    let global_context: Global<Context>;
-    {
-      let l1_hs = &mut HandleScope::new(isolate);
-      AssertTypeOf(l1_hs).is::<HandleScope<()>>();
-      let context = Context::new(l1_hs, Default::default());
-      global_context = Global::new(l1_hs, context);
-      AssertTypeOf(&HandleScope::new(l1_hs)).is::<HandleScope<()>>();
-      {
-        let l2_cxs = &mut ContextScope::new(l1_hs, context);
-        AssertTypeOf(l2_cxs).is::<ContextScope<HandleScope>>();
-        AssertTypeOf(&ContextScope::new(l2_cxs, context))
-          .is::<ContextScope<HandleScope>>();
-        AssertTypeOf(&HandleScope::new(l2_cxs)).is::<HandleScope>();
-        AssertTypeOf(&EscapableHandleScope::new(l2_cxs))
-          .is::<EscapableHandleScope>();
-        AssertTypeOf(&TryCatch::new(l2_cxs)).is::<TryCatch<HandleScope>>();
-      }
-      {
-        let l2_ehs = &mut EscapableHandleScope::new(l1_hs);
-        AssertTypeOf(l2_ehs).is::<EscapableHandleScope<()>>();
-        AssertTypeOf(&HandleScope::new(l2_ehs))
-          .is::<EscapableHandleScope<()>>();
-        AssertTypeOf(&EscapableHandleScope::new(l2_ehs))
-          .is::<EscapableHandleScope<()>>();
-        {
-          let l3_cxs = &mut ContextScope::new(l2_ehs, context);
-          AssertTypeOf(l3_cxs).is::<ContextScope<EscapableHandleScope>>();
-          AssertTypeOf(&ContextScope::new(l3_cxs, context))
-            .is::<ContextScope<EscapableHandleScope>>();
-          AssertTypeOf(&HandleScope::new(l3_cxs)).is::<EscapableHandleScope>();
-          AssertTypeOf(&EscapableHandleScope::new(l3_cxs))
-            .is::<EscapableHandleScope>();
-          {
-            let l4_tc = &mut TryCatch::new(l3_cxs);
-            AssertTypeOf(l4_tc).is::<TryCatch<EscapableHandleScope>>();
-            AssertTypeOf(&ContextScope::new(l4_tc, context))
-              .is::<ContextScope<EscapableHandleScope>>();
-            AssertTypeOf(&HandleScope::new(l4_tc)).is::<EscapableHandleScope>();
-            AssertTypeOf(&EscapableHandleScope::new(l4_tc))
-              .is::<EscapableHandleScope>();
-            AssertTypeOf(&TryCatch::new(l4_tc))
-              .is::<TryCatch<EscapableHandleScope>>();
-          }
-        }
-        {
-          let l3_tc = &mut TryCatch::new(l2_ehs);
-          AssertTypeOf(l3_tc).is::<TryCatch<EscapableHandleScope<()>>>();
-          AssertTypeOf(&ContextScope::new(l3_tc, context))
-            .is::<ContextScope<EscapableHandleScope>>();
-          AssertTypeOf(&HandleScope::new(l3_tc))
-            .is::<EscapableHandleScope<()>>();
-          AssertTypeOf(&EscapableHandleScope::new(l3_tc))
-            .is::<EscapableHandleScope<()>>();
-          AssertTypeOf(&TryCatch::new(l3_tc))
-            .is::<TryCatch<EscapableHandleScope<()>>>();
-        }
-      }
-      {
-        let l2_tc = &mut TryCatch::new(l1_hs);
-        AssertTypeOf(l2_tc).is::<TryCatch<HandleScope<()>>>();
-        AssertTypeOf(&ContextScope::new(l2_tc, context))
-          .is::<ContextScope<HandleScope>>();
-        AssertTypeOf(&HandleScope::new(l2_tc)).is::<HandleScope<()>>();
-        AssertTypeOf(&EscapableHandleScope::new(l2_tc))
-          .is::<EscapableHandleScope<()>>();
-        AssertTypeOf(&TryCatch::new(l2_tc)).is::<TryCatch<HandleScope<()>>>();
-      }
-      {
-        let l2_cbs = &mut unsafe { CallbackScope::new(context) };
-        AssertTypeOf(l2_cbs).is::<CallbackScope>();
-        AssertTypeOf(&ContextScope::new(l2_cbs, context))
-          .is::<ContextScope<HandleScope>>();
-        {
-          let l3_hs = &mut HandleScope::new(l2_cbs);
-          AssertTypeOf(l3_hs).is::<HandleScope>();
-          AssertTypeOf(&ContextScope::new(l3_hs, context))
-            .is::<ContextScope<HandleScope>>();
-          AssertTypeOf(&HandleScope::new(l3_hs)).is::<HandleScope>();
-          AssertTypeOf(&EscapableHandleScope::new(l3_hs))
-            .is::<EscapableHandleScope>();
-          AssertTypeOf(&TryCatch::new(l3_hs)).is::<TryCatch<HandleScope>>();
-        }
-        {
-          let l3_ehs = &mut EscapableHandleScope::new(l2_cbs);
-          AssertTypeOf(l3_ehs).is::<EscapableHandleScope>();
-          AssertTypeOf(&ContextScope::new(l3_ehs, context))
-            .is::<ContextScope<EscapableHandleScope>>();
-          AssertTypeOf(&HandleScope::new(l3_ehs)).is::<EscapableHandleScope>();
-          AssertTypeOf(&EscapableHandleScope::new(l3_ehs))
-            .is::<EscapableHandleScope>();
-          AssertTypeOf(&TryCatch::new(l3_ehs))
-            .is::<TryCatch<EscapableHandleScope>>();
-        }
-        {
-          let l3_tc = &mut TryCatch::new(l2_cbs);
-          AssertTypeOf(l3_tc).is::<TryCatch<HandleScope>>();
-          AssertTypeOf(&ContextScope::new(l3_tc, context))
-            .is::<ContextScope<HandleScope>>();
-          AssertTypeOf(&HandleScope::new(l3_tc)).is::<HandleScope>();
-          AssertTypeOf(&EscapableHandleScope::new(l3_tc))
-            .is::<EscapableHandleScope>();
-          AssertTypeOf(&TryCatch::new(l3_tc)).is::<TryCatch<HandleScope>>();
-        }
-      }
-    }
-    {
-      let l1_cbs = &mut unsafe { CallbackScope::new(&mut *isolate) };
-      AssertTypeOf(l1_cbs).is::<CallbackScope<()>>();
-      let context = Context::new(l1_cbs, Default::default());
-      AssertTypeOf(&ContextScope::new(l1_cbs, context))
-        .is::<ContextScope<HandleScope>>();
-      AssertTypeOf(&HandleScope::new(l1_cbs)).is::<HandleScope<()>>();
-      AssertTypeOf(&EscapableHandleScope::new(l1_cbs))
-        .is::<EscapableHandleScope<()>>();
-      AssertTypeOf(&TryCatch::new(l1_cbs)).is::<TryCatch<HandleScope<()>>>();
-    }
-    {
-      AssertTypeOf(&HandleScope::with_context(isolate, &global_context))
-        .is::<HandleScope>();
-      AssertTypeOf(&HandleScope::with_context(isolate, global_context))
-        .is::<HandleScope>();
-    }
-  }
 }
-*/
