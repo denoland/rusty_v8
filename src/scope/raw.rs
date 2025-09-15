@@ -1,5 +1,5 @@
 /// The `raw` module contains prototypes for all the `extern C` functions that
-/// are used in this file, as well as definitions for the types they operate on.
+/// are used in the scope module, as well as definitions for the types they operate on.
 use crate::{
   Context, Data, Function, Local, Message, Object, OnFailure, Primitive, Value,
   isolate::RealIsolate,

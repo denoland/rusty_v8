@@ -46,7 +46,8 @@ static_assert(sizeof(two_pointers_t) ==
 static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * handle_scope_size,
               "HandleScope size mismatch");
 
-static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * (handle_scope_size + 1),
+static_assert(sizeof(v8::EscapableHandleScope) ==
+                  sizeof(size_t) * (handle_scope_size + 1),
               "EscapableHandleScope size mismatch");
 
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
