@@ -1663,16 +1663,27 @@ impl<'scope, 'obj: 'scope, P: Scope + GetIsolate>
   }
 }
 
+// Note: the macros below _do not_ use std::pin::pin! because
+// it leads to worse compiler errors when the scope doesn't live long enough.
+// Instead, we do the same thing as std::pin::pin! but without the additional temporary scope.
+
 #[allow(unused_macros, clippy::macro_metavars_in_unsafe)]
 #[macro_export]
 macro_rules! make_callback_scope {
   (unsafe $scope: ident, $param: expr) => {
     #[allow(clippy::macro_metavars_in_unsafe)]
-    let $scope = std::pin::pin!({
+    let mut $scope = {
+      // force the caller to put a separate unsafe block around the param expr
       let param = $param;
       unsafe { $crate::CallbackScope::new(param) }
-    });
-    let $scope = &mut $scope.init();
+    };
+    // SAFETY: we are shadowing the original binding, so it can't be accessed
+    // ever again
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
   };
   (unsafe let $scope: ident, $param: expr) => {
     $crate::make_callback_scope!(unsafe $scope, $param);
@@ -1686,8 +1697,14 @@ pub(crate) use make_callback_scope;
 #[macro_export]
 macro_rules! make_handle_scope {
   ($scope: ident, $param: expr) => {
-    let $scope = std::pin::pin!($crate::HandleScope::new($param));
-    let $scope = &mut $scope.init();
+    let mut $scope = $crate::HandleScope::new($param);
+    // SAFETY: we are shadowing the original binding, so it can't be accessed
+    // ever again
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr) => {
     $crate::make_handle_scope!($scope, $param);
@@ -1701,8 +1718,14 @@ pub(crate) use make_handle_scope;
 #[macro_export]
 macro_rules! make_handle_scope_with_context {
   ($scope: ident, $param: expr, $context: expr $(,)?) => {
-    let $scope = std::pin::pin!($crate::HandleScope::new($param));
-    let $scope = &mut $scope.init();
+    let mut $scope = $crate::HandleScope::new($param);
+    // SAFETY: we are shadowing the original binding, so it can't be accessed
+    // ever again
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
     let context = v8::Local::new($scope, $context);
     let $scope = &mut $crate::ContextScope::new($scope, context);
   };
@@ -1718,8 +1741,14 @@ pub(crate) use make_handle_scope_with_context;
 #[macro_export]
 macro_rules! make_try_catch {
   ($scope: ident, $param: expr) => {
-    let $scope = std::pin::pin!($crate::TryCatch::new($param));
-    let $scope = &mut $scope.init();
+    let mut $scope = $crate::TryCatch::new($param);
+    // SAFETY: we are shadowing the original binding, so it can't be accessed
+    // ever again
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr) => {
     $crate::make_try_catch!($scope, $param);
@@ -1729,11 +1758,15 @@ macro_rules! make_try_catch {
 #[macro_export]
 macro_rules! make_disallow_javascript_execution_scope {
   ($scope: ident, $param: expr, $on_failure: expr) => {
-    let $scope = std::pin::pin!($crate::DisallowJavascriptExecutionScope::new(
-      $param,
-      $on_failure
-    ));
-    let $scope = &mut $scope.init();
+    let mut $scope =
+      $crate::DisallowJavascriptExecutionScope::new($param, $on_failure);
+    // SAFETY: we are shadowing the original binding, so it can't be accessed
+    // ever again
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr, $on_failure: expr) => {
     $crate::make_disallow_javascript_execution_scope!(
@@ -1750,9 +1783,12 @@ pub(crate) use make_disallow_javascript_execution_scope;
 #[macro_export]
 macro_rules! make_allow_javascript_execution_scope {
   ($scope: ident, $param: expr) => {
-    let $scope =
-      std::pin::pin!($crate::AllowJavascriptExecutionScope::new($param));
-    let $scope = &mut $scope.init();
+    let mut $scope = $crate::AllowJavascriptExecutionScope::new($param);
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr) => {
     $crate::make_allow_javascript_execution_scope!($scope, $param);
@@ -1765,8 +1801,12 @@ pub(crate) use make_allow_javascript_execution_scope;
 #[macro_export]
 macro_rules! make_escapable_handle_scope {
   ($scope: ident, $param: expr) => {
-    let $scope = std::pin::pin!($crate::EscapableHandleScope::new($param));
-    let $scope = &mut $scope.init();
+    let mut $scope = $crate::EscapableHandleScope::new($param);
+    let mut $scope = {
+      let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
+      scope_pinned.init()
+    };
+    let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr) => {
     $crate::make_escapable_handle_scope!($scope, $param);

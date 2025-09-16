@@ -1,26 +1,31 @@
 error[E0597]: `scope` does not live long enough
-  --> tests/compile_fail/handle_scope_lifetime_4.rs:15:35
+  --> tests/compile_fail/handle_scope_lifetime_4.rs:13:5
    |
 12 |   let mut _scope3 = {
    |       ----------- borrow later stored here
-13 |     let scope = pin!(v8::HandleScope::new(&mut *context_scope));
-14 |     let mut scope = scope.init();
-   |         --------- binding `scope` declared here
-15 |     v8::EscapableHandleScope::new(&mut scope)
-   |                                   ^^^^^^^^^^ borrowed value does not live long enough
-16 |   };
+13 |     v8::make_handle_scope!(scope, &mut context_scope);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     |
+   |     borrowed value does not live long enough
+   |     binding `scope` declared here
+14 |     v8::EscapableHandleScope::new(scope)
+15 |   };
    |   - `scope` dropped here while still borrowed
+   |
+   = note: this error originates in the macro `v8::make_handle_scope` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0716]: temporary value dropped while borrowed
-  --> tests/compile_fail/handle_scope_lifetime_4.rs:13:17
+error[E0597]: `scope` does not live long enough
+  --> tests/compile_fail/handle_scope_lifetime_4.rs:13:5
    |
 12 |   let mut _scope3 = {
    |       ----------- borrow later stored here
-13 |     let scope = pin!(v8::HandleScope::new(&mut *context_scope));
-   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
-...
-16 |   };
-   |   - temporary value is freed at the end of this statement
+13 |     v8::make_handle_scope!(scope, &mut context_scope);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     |
+   |     borrowed value does not live long enough
+   |     binding `scope` declared here
+14 |     v8::EscapableHandleScope::new(scope)
+15 |   };
+   |   - `scope` dropped here while still borrowed
    |
-   = note: consider using a `let` binding to create a longer lived value
-   = note: this error originates in the macro `pin` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `v8::make_handle_scope` (in Nightly builds, run with -Z macro-backtrace for more info)
