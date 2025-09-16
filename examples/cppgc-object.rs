@@ -113,7 +113,7 @@ fn execute_script(
   context_scope: &mut v8::ContextScope<v8::HandleScope>,
   script: v8::Local<v8::String>,
 ) {
-  v8::make_handle_scope!(handle_scope, &mut **context_scope);
+  v8::make_handle_scope!(handle_scope, context_scope);
   v8::make_try_catch!(let try_catch, handle_scope);
 
   let script = v8::Script::compile(try_catch, script, None)

@@ -9,7 +9,7 @@ pub fn main() {
   let _exception = {
     v8::make_handle_scope!(scope3, &mut scope);
     v8::make_handle_scope!(scope4, scope3);
-    let try_catch = std::pin::pin!(v8::TryCatch::new(&mut *scope4));
+    let try_catch = std::pin::pin!(v8::TryCatch::new(scope4));
     let try_catch = try_catch.init();
     try_catch.exception().unwrap()
   };

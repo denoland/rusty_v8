@@ -174,7 +174,7 @@ fn global_from_into_raw() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let (raw, weak) = {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let local = v8::Object::new(scope);
     let global = v8::Global::new(scope, local);
@@ -485,13 +485,12 @@ fn escapable_handle_scope() {
     v8::make_handle_scope!(let handle_scope, isolate);
 
     let context = v8::Context::new(handle_scope, Default::default());
-    let context_scope = &mut v8::ContextScope::new(&mut *handle_scope, context);
+    let context_scope = &mut v8::ContextScope::new(handle_scope, context);
 
     // After dropping EscapableHandleScope, we should be able to
     // read escaped values.
     let number = {
-      let escapable_scope =
-        pin!(v8::EscapableHandleScope::new(&mut *context_scope));
+      let escapable_scope = pin!(v8::EscapableHandleScope::new(context_scope));
       let escapable_scope = &mut escapable_scope.init();
       let number = v8::Number::new(escapable_scope, 78.9);
       escapable_scope.escape(number)
@@ -499,8 +498,7 @@ fn escapable_handle_scope() {
     assert_eq!(number.value(), 78.9);
 
     let string = {
-      let escapable_scope =
-        pin!(v8::EscapableHandleScope::new(&mut *context_scope));
+      let escapable_scope = pin!(v8::EscapableHandleScope::new(context_scope));
       let escapable_scope = &mut escapable_scope.init();
       let string = v8::String::new(escapable_scope, "Hello 🦕 world!").unwrap();
       escapable_scope.escape(string)
@@ -511,8 +509,7 @@ fn escapable_handle_scope() {
     );
 
     let string = {
-      let escapable_scope =
-        pin!(v8::EscapableHandleScope::new(&mut *context_scope));
+      let escapable_scope = pin!(v8::EscapableHandleScope::new(context_scope));
       let escapable_scope = &mut escapable_scope.init();
       let nested_str_val = {
         let nested_escapable_scope =
@@ -1321,7 +1318,7 @@ fn set_host_initialize_import_meta_object_callback() {
   ) {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     v8::make_callback_scope!(unsafe scope, context);
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let key = v8::String::new(scope, "foo").unwrap();
     let value = v8::String::new(scope, "bar").unwrap();
@@ -4256,7 +4253,7 @@ extern "C" fn promise_reject_callback(msg: v8::PromiseRejectMessage) {
   assert_eq!(promise.state(), v8::PromiseState::Rejected);
   let value = msg.get_value().unwrap();
   {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let value_str = value.to_rust_string_lossy(scope);
     assert_eq!(value_str, "promise rejected".to_string());
@@ -4732,7 +4729,7 @@ fn allow_code_generation_from_strings() {
      eval("const i = 1; i")
     "#;
     {
-      let scope = &mut v8::ContextScope::new(&mut *scope, context);
+      let scope = &mut v8::ContextScope::new(scope, context);
 
       v8::make_try_catch!(let try_catch, scope);
 
@@ -4928,7 +4925,7 @@ fn module_instantiation_failures1() {
         _referrer: v8::Local<'s, v8::Module>,
       ) -> Option<v8::Local<'s, v8::Module>> {
         v8::make_callback_scope!(unsafe scope, context);
-        v8::make_handle_scope!(let scope, &mut *scope);
+        v8::make_handle_scope!(let scope, scope);
 
         let e = v8::String::new(scope, "boom").unwrap();
         scope.throw_exception(e.into());
@@ -8907,10 +8904,10 @@ fn unbound_script_conversion() {
   v8::make_handle_scope!(let scope, isolate);
 
   let context = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(&mut *scope, context);
+  let scope = &mut v8::ContextScope::new(scope, context);
 
   let unbound_script = {
-    let esc = pin!(v8::EscapableHandleScope::new(&mut *scope));
+    let esc = pin!(v8::EscapableHandleScope::new(scope));
     let mut esc = esc.init();
     let source = v8::String::new(
       &esc,
@@ -8924,7 +8921,7 @@ fn unbound_script_conversion() {
   {
     // Execute the script in another context.
     let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(&mut *scope, context);
+    let scope = &mut v8::ContextScope::new(scope, context);
     let global_object = scope.get_current_context().global(scope);
     let key = v8::String::new(scope, "value").unwrap();
     let value = v8::String::new(scope, "world").unwrap();
@@ -10224,7 +10221,7 @@ fn weak_handle() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let weak = {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let local = v8::Object::new(scope);
 
@@ -10236,7 +10233,7 @@ fn weak_handle() {
     weak
   };
 
-  v8::make_handle_scope!(let scope, &mut *scope);
+  v8::make_handle_scope!(let scope, scope);
 
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
 
@@ -10261,14 +10258,14 @@ fn finalizers() {
   // The finalizer for a dropped Weak is never called.
   {
     {
-      v8::make_handle_scope!(let scope, &mut *scope);
+      v8::make_handle_scope!(let scope, scope);
 
       let local = v8::Object::new(scope);
       let _ =
         v8::Weak::with_finalizer(scope, local, Box::new(|_| unreachable!()));
     }
 
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     scope
       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
@@ -10276,7 +10273,7 @@ fn finalizers() {
 
   let finalizer_called = Rc::new(Cell::new(false));
   let weak = {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let local = v8::Object::new(scope);
 
@@ -10306,7 +10303,7 @@ fn finalizers() {
     weak
   };
 
-  v8::make_handle_scope!(let scope, &mut *scope);
+  v8::make_handle_scope!(let scope, scope);
 
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
@@ -10333,7 +10330,7 @@ fn guaranteed_finalizers() {
   // The finalizer for a dropped Weak is never called.
   {
     {
-      v8::make_handle_scope!(let scope, &mut *scope);
+      v8::make_handle_scope!(let scope, scope);
 
       let local = v8::Object::new(scope);
       let _ = v8::Weak::with_guaranteed_finalizer(
@@ -10343,7 +10340,7 @@ fn guaranteed_finalizers() {
       );
     }
 
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     scope
       .request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
@@ -10351,7 +10348,7 @@ fn guaranteed_finalizers() {
 
   let finalizer_called = Rc::new(Cell::new(false));
   let weak = {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let local = v8::Object::new(scope);
 
@@ -10381,7 +10378,7 @@ fn guaranteed_finalizers() {
     weak
   };
 
-  v8::make_handle_scope!(let scope, &mut *scope);
+  v8::make_handle_scope!(let scope, scope);
 
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
   assert!(weak.is_empty());
@@ -10399,7 +10396,7 @@ fn weak_from_global() {
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let global = {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let object = v8::Object::new(scope);
     v8::Global::new(scope, object)
@@ -10436,7 +10433,7 @@ fn weak_from_into_raw() {
   {
     finalizer_called.take();
     let (weak1, weak2) = {
-      v8::make_handle_scope!(let scope, &mut *scope);
+      v8::make_handle_scope!(let scope, scope);
 
       let local = v8::Object::new(scope);
       let weak = v8::Weak::new(scope, local);
@@ -10471,7 +10468,7 @@ fn weak_from_into_raw() {
   // into_raw from a GC'd pointer
   {
     let weak = {
-      v8::make_handle_scope!(let scope, &mut *scope);
+      v8::make_handle_scope!(let scope, scope);
 
       let local = v8::Object::new(scope);
       v8::Weak::new(scope, local)
@@ -10487,7 +10484,7 @@ fn weak_from_into_raw() {
   {
     finalizer_called.take();
     let (weak, weak_with_finalizer) = {
-      v8::make_handle_scope!(let scope, &mut *scope);
+      v8::make_handle_scope!(let scope, scope);
 
       let local = v8::Object::new(scope);
       let weak = v8::Weak::new(scope, local);
@@ -10521,7 +10518,7 @@ fn weak_from_into_raw() {
 
   // Leaking a Weak will not crash the isolate.
   {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let local = v8::Object::new(scope);
     v8::Weak::new(scope, local).into_raw();
@@ -10549,7 +10546,7 @@ fn drop_weak_from_raw_in_finalizer() {
   let finalized = Rc::new(Cell::new(false));
 
   {
-    v8::make_handle_scope!(let scope, &mut *scope);
+    v8::make_handle_scope!(let scope, scope);
 
     let local = v8::Object::new(scope);
     let weak = v8::Weak::with_finalizer(
@@ -12021,7 +12018,7 @@ fn disallow_javascript_execution_scope() {
 
     {
       let scope = pin!(v8::DisallowJavascriptExecutionScope::new(
-        &mut **try_catch,
+        try_catch,
         v8::OnFailure::ThrowOnFailure,
       ));
       let scope = &mut scope.init();
@@ -12058,7 +12055,7 @@ fn allow_javascript_execution_scope() {
   ));
   let mut disallow_scope = disallow_scope.init();
   let allow_scope =
-    pin!(v8::AllowJavascriptExecutionScope::new(&mut *disallow_scope));
+    pin!(v8::AllowJavascriptExecutionScope::new(&mut disallow_scope));
   let mut allow_scope = allow_scope.init();
   assert_eq!(
     eval(&mut allow_scope, "42")

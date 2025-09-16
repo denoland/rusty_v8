@@ -13,7 +13,7 @@ pub fn main() {
     let mut scope3 = scope3.init();
     let context = v8::Context::new(&mut scope3, v8::ContextOptions::default());
     let mut scope3 = v8::ContextScope::new(&mut scope3, context);
-    let scope4 = pin!(v8::EscapableHandleScope::new(&mut *scope3));
+    let scope4 = pin!(v8::EscapableHandleScope::new(&mut scope3));
     let mut scope4 = scope4.init();
     let value = v8::Integer::new(&mut scope4, 42);
     scope4.escape(value)

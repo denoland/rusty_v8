@@ -203,7 +203,7 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   }
 
   fn execute_script(&mut self, script: v8::Local<'scope, v8::String>) {
-    v8::make_handle_scope!(let scope, &mut *self.context_scope);
+    v8::make_handle_scope!(let scope, &mut self.context_scope);
 
     v8::make_try_catch!(let try_catch, scope);
 
@@ -229,7 +229,7 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
     let request: Box<dyn HttpRequest> = Box::new(request);
     let request = self.wrap_request(request);
 
-    v8::make_handle_scope!(let scope, &mut *self.context_scope);
+    v8::make_handle_scope!(let scope, &mut self.context_scope);
 
     v8::make_try_catch!(let try_catch, scope);
 
