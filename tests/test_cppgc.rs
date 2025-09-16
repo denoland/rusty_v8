@@ -215,7 +215,6 @@ fn execute_script(
   v8::make_handle_scope!(let scope, context_scope);
 
   v8::make_try_catch!(let scope, scope);
-  
 
   let source = v8::String::new(scope, source).unwrap();
 

@@ -162,7 +162,7 @@ fn eval<'s>(
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
   v8::make_escapable_handle_scope!(let scope, scope);
-  
+
   let source = v8::String::new(scope, code).unwrap();
   let script = v8::Script::compile(scope, source, None).unwrap();
   let r = script.run(scope);

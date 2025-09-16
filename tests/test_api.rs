@@ -1024,7 +1024,6 @@ fn try_catch() {
     {
       // Error thrown - should be caught.
       v8::make_try_catch!(let tc, &mut scope);
-      
 
       let result = eval(tc, "throw new Error('foo')");
       assert!(result.is_none());
@@ -1040,7 +1039,6 @@ fn try_catch() {
     {
       // No error thrown.
       v8::make_try_catch!(let tc, &mut scope);
-      
 
       let result = eval(tc, "1 + 1");
       assert!(result.is_some());
@@ -1053,11 +1051,9 @@ fn try_catch() {
     {
       // Rethrow and reset.
       v8::make_try_catch!(let tc1, &mut scope);
-      
 
       {
         v8::make_try_catch!(let tc2, tc1);
-        
 
         eval(tc2, "throw 'bar'");
         assert!(tc2.has_caught());
@@ -1082,7 +1078,6 @@ fn try_catch_caught_lifetime() {
   let scope = &mut v8::ContextScope::new(scope, context);
   let (caught_exc, caught_msg) = {
     v8::make_try_catch!(let tc, scope);
-    
 
     // Throw exception.
     let msg = v8::String::new(tc, "DANG!").unwrap();
@@ -1116,7 +1111,6 @@ fn throw_exception() {
     let scope = &mut v8::ContextScope::new(scope, context);
     {
       v8::make_try_catch!(let tc, scope);
-      
 
       let exception = v8::String::new(tc, "boom").unwrap();
       tc.throw_exception(exception.into());
@@ -1741,7 +1735,6 @@ fn function_template_signature() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     v8::make_try_catch!(let scope, scope);
-    
 
     let global = context.global(scope);
 
@@ -1776,7 +1769,6 @@ fn function_template_prototype() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
     v8::make_try_catch!(let scope, scope);
-    
 
     let function_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
     let prototype_templ = function_templ.prototype_template(scope);
@@ -4636,7 +4628,6 @@ fn security_token() {
       child_context.set_security_token(security_token);
       let child_scope = &mut v8::ContextScope::new(scope, child_context);
       v8::make_try_catch!(let try_catch, child_scope);
-      
 
       let result = eval(try_catch, source);
       assert!(!try_catch.has_caught());
@@ -4654,7 +4645,6 @@ fn security_token() {
       );
       let child_scope = &mut v8::ContextScope::new(scope, child_context);
       v8::make_try_catch!(let try_catch, child_scope);
-      
 
       let result = eval(try_catch, source);
       assert!(try_catch.has_caught());
@@ -4745,7 +4735,6 @@ fn allow_code_generation_from_strings() {
       let scope = &mut v8::ContextScope::new(&mut *scope, context);
 
       v8::make_try_catch!(let try_catch, scope);
-      
 
       let result = eval(try_catch, source).unwrap();
       let expected = v8::Integer::new(try_catch, 1);
@@ -4758,7 +4747,6 @@ fn allow_code_generation_from_strings() {
       let scope = &mut v8::ContextScope::new(scope, context);
 
       v8::make_try_catch!(let try_catch, scope);
-      
 
       let result = eval(try_catch, source);
       assert!(try_catch.has_caught());
@@ -4792,7 +4780,6 @@ fn allow_atomics_wait() {
         "timed-out" === Atomics.wait(a, 0, 0, 1);
       "#;
       v8::make_try_catch!(let try_catch, scope);
-      
 
       let result = eval(try_catch, source);
       if allow {
@@ -4933,7 +4920,6 @@ fn module_instantiation_failures1() {
     // Instantiation should fail.
     {
       v8::make_try_catch!(let tc, scope);
-      
 
       fn resolve_callback<'s>(
         context: v8::Local<'s, v8::Context>,
@@ -6048,7 +6034,6 @@ fn typed_array_constructors() {
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
   {
     v8::make_try_catch!(let scope, scope);
-    
 
     eval(
       scope,
@@ -7276,7 +7261,6 @@ fn get_property_attributes() {
   // exception
   let key = eval(scope, "({ toString() { throw 'foo' } })").unwrap();
   v8::make_try_catch!(let tc, scope);
-  
 
   assert!(obj.get_property_attributes(tc, key).is_none());
   assert!(tc.has_caught());
@@ -8621,7 +8605,6 @@ impl v8::ValueSerializerImpl for Custom2Value {
     message: v8::Local<'s, v8::String>,
   ) {
     v8::make_try_catch!(let scope, scope);
-    
 
     let error = v8::Exception::error(scope, message);
     scope.throw_exception(error);
@@ -8638,7 +8621,6 @@ fn value_serializer_not_implemented() {
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   v8::make_try_catch!(let scope, scope);
-  
 
   let objects: v8::Local<v8::Value> = eval(
     scope,
@@ -9323,7 +9305,6 @@ fn prepare_stack_trace_callback() {
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
   v8::make_try_catch!(let scope, scope);
-  
 
   let result = eval(scope, script).unwrap();
   assert_eq!(Some(42), result.uint32_value(scope));
@@ -10722,7 +10703,6 @@ fn host_create_shadow_realm_context_callback() {
 
   {
     v8::make_try_catch!(let tc_scope, scope);
-    
 
     assert!(eval(tc_scope, "new ShadowRealm()").is_none());
     assert!(tc_scope.has_caught());
@@ -10756,7 +10736,6 @@ fn host_create_shadow_realm_context_callback() {
 
   {
     v8::make_try_catch!(let tc_scope, scope);
-    
 
     assert!(eval(tc_scope, "new ShadowRealm()").is_none());
     assert!(tc_scope.has_caught());
@@ -11879,7 +11858,6 @@ try {
   let script = v8::Script::compile(scope, source, None).unwrap();
 
   v8::make_try_catch!(let scope, scope);
-  
 
   let _result = script.run(scope);
   // This fails in debug build, but passes in release build.
@@ -11930,7 +11908,6 @@ fn bubbling_up_exception_in_function_call() {
   let script = v8::Script::compile(scope, source, None).unwrap();
 
   v8::make_try_catch!(let scope, scope);
-  
 
   let call_boom_fn_val = script.run(scope).unwrap();
   let call_boom_fn =
@@ -12018,7 +11995,6 @@ fn exception_thrown_but_continues_execution() {
   let script = v8::Script::compile(scope, source, None).unwrap();
 
   v8::make_try_catch!(let scope, scope);
-  
 
   let _result = script.run(scope);
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
@@ -12042,7 +12018,6 @@ fn disallow_javascript_execution_scope() {
 
   {
     v8::make_try_catch!(let try_catch, &mut scope);
-    
 
     {
       let scope = pin!(v8::DisallowJavascriptExecutionScope::new(
