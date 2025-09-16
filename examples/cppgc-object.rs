@@ -114,8 +114,8 @@ fn execute_script(
   script: v8::Local<v8::String>,
 ) {
   v8::make_handle_scope!(handle_scope, &mut **context_scope);
-  let try_catch = std::pin::pin!(v8::TryCatch::new(handle_scope));
-  let try_catch = &mut try_catch.init();
+  v8::make_try_catch!(let try_catch, handle_scope);
+  
 
   let script = v8::Script::compile(try_catch, script, None)
     .expect("failed to compile script");

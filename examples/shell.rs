@@ -111,8 +111,8 @@ fn execute_string(
   print_result: bool,
   report_exceptions_flag: bool,
 ) {
-  let tc = std::pin::pin!(v8::TryCatch::new(scope));
-  let tc = &mut tc.init();
+  v8::make_try_catch!(let tc, scope);
+  
 
   let filename = v8::String::new(tc, filename).unwrap();
   let script = v8::String::new(tc, script).unwrap();

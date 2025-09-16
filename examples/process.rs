@@ -205,8 +205,8 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   fn execute_script(&mut self, script: v8::Local<'scope, v8::String>) {
     v8::make_handle_scope!(let scope, &mut *self.context_scope);
 
-    let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
-    let try_catch = &mut try_catch.init();
+    v8::make_try_catch!(let try_catch, scope);
+    
 
     let script = v8::Script::compile(try_catch, script, None)
       .expect("failed to compile script");
@@ -232,8 +232,8 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
 
     v8::make_handle_scope!(let scope, &mut *self.context_scope);
 
-    let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
-    let try_catch = &mut try_catch.init();
+    v8::make_try_catch!(let try_catch, scope);
+    
 
     let process_fn = self.process_fn.as_mut().unwrap();
     let global = self.context.global(try_catch).into();

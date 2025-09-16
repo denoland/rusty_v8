@@ -214,8 +214,8 @@ fn execute_script(
 ) {
   v8::make_handle_scope!(let scope, context_scope);
 
-  let scope = std::pin::pin!(v8::TryCatch::new(scope));
-  let scope = &mut scope.init();
+  v8::make_try_catch!(let scope, scope);
+  
 
   let source = v8::String::new(scope, source).unwrap();
 
