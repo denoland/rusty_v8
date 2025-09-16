@@ -728,12 +728,10 @@ impl<C> GetIsolate for Pin<&mut HandleScope<'_, C>> {
   }
 }
 
-// ContextScope
-
 #[repr(C)]
-pub struct ContextScope<'scope, 'obj, P: ClearCachedContext> {
+pub struct ContextScope<'borrow, 'scope, P: ClearCachedContext> {
   raw_handle_scope: raw::ContextScope,
-  scope: &'scope mut PinnedRef<'obj, P>,
+  scope: &'borrow mut PinnedRef<'scope, P>,
 }
 
 impl<P: ClearCachedContext> ScopeInit for ContextScope<'_, '_, P> {
@@ -882,13 +880,20 @@ impl<'scope, 'obj: 'scope, 'i, 'ct, C> NewContextScope<'scope, 'ct>
   }
 }
 
-impl<'scope, 'obj: 'scope, 'i, 'esc: 'i, 'ct, C> NewContextScope<'scope, 'ct>
-  for PinnedRef<'obj, EscapableHandleScope<'i, 'esc, C>>
+// these lifetimes are crazy. basically we have
+// - 'borrow: the borrow of the scope
+// - 'scope: the lifetime of the scope. this must be longer than 'borrow. this is the lifetime of the handles created from the scope.
+// - 'i: the lifetime of the inner the `EscapableHandleScope` is made from
+// - 'esc: the lifetime of the slot that the `EscapableHandleScope` will eventually escape to. this must be longer than 'i
+// - 'ct: the lifetime of the context (this is _not_ the same as 'scope, it can be longer or shorter)
+impl<'borrow, 'scope: 'borrow, 'i, 'esc: 'i, 'ct, C>
+  NewContextScope<'borrow, 'ct>
+  for PinnedRef<'scope, EscapableHandleScope<'i, 'esc, C>>
 {
-  type NewScope = ContextScope<'scope, 'obj, EscapableHandleScope<'i, 'esc>>;
+  type NewScope = ContextScope<'borrow, 'scope, EscapableHandleScope<'i, 'esc>>;
 
   fn make_new_scope(
-    me: &'scope mut Self,
+    me: &'borrow mut Self,
     context: Local<'ct, Context>,
   ) -> Self::NewScope {
     ContextScope {
@@ -896,8 +901,11 @@ impl<'scope, 'obj: 'scope, 'i, 'esc: 'i, 'ct, C> NewContextScope<'scope, 'ct>
       scope: unsafe {
         // SAFETY: layouts are the same aside from the type parameter, which is only used in a ZST
         std::mem::transmute::<
-          &'scope mut PinnedRef<'obj, EscapableHandleScope<'i, 'esc, C>>,
-          &'scope mut PinnedRef<'obj, EscapableHandleScope<'i, 'esc, Context>>,
+          &'borrow mut PinnedRef<'scope, EscapableHandleScope<'i, 'esc, C>>,
+          &'borrow mut PinnedRef<
+            'scope,
+            EscapableHandleScope<'i, 'esc, Context>,
+          >,
         >(me)
       },
     }
@@ -934,8 +942,6 @@ impl<
     P::make_new_scope(param, context)
   }
 }
-
-// callback scope
 
 #[repr(C)]
 pub struct CallbackScope<'s, C = Context> {
@@ -1290,6 +1296,11 @@ impl<'scope, 'obj: 'scope, 'i, C> NewTryCatch<'scope>
   }
 }
 
+// the lifetimes here are:
+// - 'borrow: the lifetime of the borrow of the scope
+// - 'scope: the lifetime of the escapable handle scope
+// - 'obj: the lifetime of the handles created from the escapable handle scope
+// - 'esc: the lifetime of the slot that the escapable handle scope will eventually escape to. this must be longer than 'obj
 impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C>
   NewTryCatch<'borrow>
   for PinnedRef<'scope, EscapableHandleScope<'obj, 'esc, C>>
@@ -1305,15 +1316,6 @@ impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C>
     }
   }
 }
-
-// impl<'borrow, 's, 'p, C> NewTryCatch<'s>
-//   for &'borrow mut PinnedRef<'s, HandleScope<'p, C>>
-// {
-//   type NewScope = TryCatch<'borrow, HandleScope<'p, C>>;
-//   fn make_new_scope(me: Self) -> Self::NewScope {
-//     NewTryCatch::make_new_scope(me.as_mut())
-//   }
-// }
 
 impl<'scope, 'obj: 'scope, T: GetIsolate + Scope + ClearCachedContext>
   NewTryCatch<'scope> for ContextScope<'_, 'obj, T>
@@ -1828,6 +1830,11 @@ impl DerefMut for PinnedRef<'_, HandleScope<'_, ()>> {
 }
 
 impl<'i> Deref for PinnedRef<'_, CallbackScope<'i>> {
+  // You may notice the output lifetime is a little bit weird here.
+  // Basically, we're saying that any Handles created from this `CallbackScope`
+  // will live as long as the thing that we made the `CallbackScope` from.
+  // In practice, this means that the caller of `CallbackScope::new` needs to
+  // be careful to ensure that the input lifetime is a safe approximation.
   type Target = PinnedRef<'i, HandleScope<'i>>;
   fn deref(&self) -> &Self::Target {
     unsafe { std::mem::transmute(self) }
@@ -1864,6 +1871,7 @@ impl<'obj, 'iso, C> Deref
 
 impl<C> DerefMut for PinnedRef<'_, TryCatch<'_, '_, HandleScope<'_, C>>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
+    // SAFETY: we're just projecting the pinned reference, it still can't be moved
     unsafe { self.as_mut_ref().0.get_unchecked_mut().scope }
   }
 }
@@ -1888,6 +1896,7 @@ impl<'borrow, 'scope: 'borrow, 'obj: 'borrow, 'esc: 'obj, C> DerefMut
   >
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
+    // SAFETY: we're just projecting the pinned reference, it still can't be moved
     unsafe { self.0.as_mut().get_unchecked_mut().scope }
   }
 }
@@ -1905,6 +1914,7 @@ impl<P> DerefMut
   for PinnedRef<'_, DisallowJavascriptExecutionScope<'_, '_, P>>
 {
   fn deref_mut(&mut self) -> &mut Self::Target {
+    // SAFETY: we're just projecting the pinned reference, it still can't be moved
     unsafe { self.0.as_mut().get_unchecked_mut().scope }
   }
 }
@@ -1919,6 +1929,7 @@ impl<'obj, P> Deref
 }
 impl<P> DerefMut for PinnedRef<'_, AllowJavascriptExecutionScope<'_, '_, P>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
+    // SAFETY: we're just projecting the pinned reference, it still can't be moved
     unsafe { self.0.as_mut().get_unchecked_mut().scope }
   }
 }
