@@ -158,8 +158,11 @@ pub struct ScopeStorage<T: ScopeInit> {
 
 impl<T: ScopeInit> ScopeStorage<T> {
   pub(crate) fn projected(self: Pin<&mut Self>) -> Pin<&mut T> {
-    let self_mut = unsafe { self.get_unchecked_mut() };
-    unsafe { Pin::new_unchecked(&mut self_mut.scope) }
+    // SAFETY: we are just projecting to a field, so the scope remains pinned
+    unsafe {
+      let self_mut = self.get_unchecked_mut();
+      Pin::new_unchecked(&mut self_mut.scope)
+    }
   }
 
   pub fn new(scope: T) -> Self {
@@ -224,6 +227,7 @@ pub trait ScopeInit: Sized {
 
 impl<C> ScopeInit for HandleScope<'_, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
+    // SAFETY: no moving the scope from this point on
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     unsafe {
       let isolate = storage_mut.scope.isolate;
@@ -232,6 +236,7 @@ impl<C> ScopeInit for HandleScope<'_, C> {
 
     let projected = &mut storage_mut.scope;
 
+    // SAFETY: scope is still pinned
     unsafe { Pin::new_unchecked(projected) }
   }
 
@@ -307,7 +312,7 @@ mod get_isolate_impls {
     }
   }
 
-  impl<'s> GetIsolate for Local<'s, Promise> {
+  impl GetIsolate for Local<'_, Promise> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       let object: Local<Object> = (*self).into();
       unsafe { raw::v8__Object__GetIsolate(&*object) }
@@ -665,16 +670,18 @@ mod get_data_sealed {
 impl Deref for HandleScope<'_, ()> {
   type Target = Isolate;
   fn deref(&self) -> &Self::Target {
-    unsafe {
-      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
-    }
+    // SAFETY: isolate is still valid
+    unsafe { Isolate::from_raw_ref(&self.isolate) }
   }
 }
 
 impl<'a> Deref for HandleScope<'a> {
   type Target = HandleScope<'a, ()>;
   fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
+    // SAFETY: these have the same exact layout, as the type parameter is used in a ZST
+    unsafe {
+      std::mem::transmute::<&HandleScope<'a>, &HandleScope<'a, ()>>(self)
+    }
   }
 }
 
@@ -839,7 +846,8 @@ where
     ContextScope {
       raw_handle_scope: raw::ContextScope::new(context),
       scope: unsafe {
-        // we are adding the context, so we can mark that it now has a context.
+        // SAFETY: we are adding the context, so we can mark that it now has a context.
+        // the types are the same aside from the type parameter, which is only used in a ZST
         std::mem::transmute::<
           &'scope mut PinnedRef<'obj, HandleScope<'i, C>>,
           &'scope mut PinnedRef<'obj, HandleScope<'i, Context>>,
@@ -862,6 +870,9 @@ impl<'scope, 'obj: 'scope, 'i, 'ct, C> NewContextScope<'scope, 'ct>
       raw_handle_scope: raw::ContextScope::new(context),
       scope: unsafe {
         // we are adding the context, so we can mark that it now has a context.
+        // SAFETY: CallbackScope is a superset of HandleScope, so giving a "view" of
+        // the CallbackScope as a HandleScope is valid, and we won't ever move out of the transmuted
+        // value
         std::mem::transmute::<
           &'scope mut PinnedRef<'obj, CallbackScope<'i, C>>,
           &'scope mut PinnedRef<'obj, HandleScope<'i, Context>>,
@@ -883,6 +894,7 @@ impl<'scope, 'obj: 'scope, 'i, 'esc: 'i, 'ct, C> NewContextScope<'scope, 'ct>
     ContextScope {
       raw_handle_scope: raw::ContextScope::new(context),
       scope: unsafe {
+        // SAFETY: layouts are the same aside from the type parameter, which is only used in a ZST
         std::mem::transmute::<
           &'scope mut PinnedRef<'obj, EscapableHandleScope<'i, 'esc, C>>,
           &'scope mut PinnedRef<'obj, EscapableHandleScope<'i, 'esc, Context>>,
@@ -937,14 +949,6 @@ pub struct CallbackScope<'s, C = Context> {
 
 assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, context, _phantom, _pinned });
 
-impl<C> Drop for CallbackScope<'_, C> {
-  fn drop(&mut self) {
-    if self.needs_scope {
-      unsafe { raw::v8__HandleScope__DESTRUCT(&mut self.raw_handle_scope) };
-    }
-  }
-}
-
 impl<'s> CallbackScope<'s> {
   #[allow(clippy::new_ret_no_self)]
   pub unsafe fn new<P: NewCallbackScope<'s>>(
@@ -954,24 +958,9 @@ impl<'s> CallbackScope<'s> {
   }
 }
 
-impl<'s> Deref for CallbackScope<'s> {
-  type Target = HandleScope<'s>;
-  fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
-  }
-}
-impl<'s> Deref for CallbackScope<'s, ()> {
-  type Target = HandleScope<'s, ()>;
-  fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
-  }
-}
-
 impl<C> AsRef<Isolate> for CallbackScope<'_, C> {
   fn as_ref(&self) -> &Isolate {
-    unsafe {
-      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.isolate)
-    }
+    unsafe { Isolate::from_raw_ref(&self.isolate) }
   }
 }
 
@@ -1509,18 +1498,6 @@ impl<'borrow, 's: 'borrow, 'esc: 'borrow, C> NewEscapableHandleScope<'borrow>
 impl<'s, 'esc: 's, C> sealed::Sealed for EscapableHandleScope<'s, 'esc, C> {}
 impl<'s, 'esc: 's, C> Scope for EscapableHandleScope<'s, 'esc, C> {}
 
-// impl<'s, 'p: 's, C> NewTryCatch<'s> for &mut CallbackScope<'p, C> {
-//   type NewScope = TryCatch<'s, HandleScope<'p, C>>;
-//   fn make_new_scope(me: Self) -> Self::NewScope {
-//     TryCatch {
-//       scope: me,
-//       raw_try_catch: unsafe { raw::TryCatch::uninit() },
-//     }
-//   }
-// }
-//
-//
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum OnFailure {
@@ -1539,9 +1516,11 @@ pub struct DisallowJavascriptExecutionScope<'scope, 'obj, P> {
 
 impl<P: GetIsolate> ScopeInit for DisallowJavascriptExecutionScope<'_, '_, P> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
+    // SAFETY: we aren't going to move the raw scope out
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.scope.get_isolate_ptr();
     let on_failure = storage_mut.scope.on_failure;
+    // SAFETY: calling the raw function, isolate is valid, and the raw scope won't be moved
     unsafe {
       raw::DisallowJavascriptExecutionScope::init(
         &mut storage_mut.scope.raw,
@@ -1834,16 +1813,16 @@ impl Deref for PinnedRef<'_, HandleScope<'_, ()>> {
   type Target = Isolate;
   #[inline(always)]
   fn deref(&self) -> &Self::Target {
-    unsafe {
-      std::mem::transmute::<&NonNull<RealIsolate>, &Isolate>(&self.0.isolate)
-    }
+    unsafe { Isolate::from_raw_ref(&self.0.isolate) }
   }
 }
 
 impl DerefMut for PinnedRef<'_, HandleScope<'_, ()>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe {
-      std::mem::transmute(&mut self.0.as_mut().get_unchecked_mut().isolate)
+      Isolate::from_raw_ref_mut(
+        &mut self.0.as_mut().get_unchecked_mut().isolate,
+      )
     }
   }
 }
@@ -1871,14 +1850,6 @@ impl<'i> Deref for PinnedRef<'_, CallbackScope<'i, ()>> {
 impl DerefMut for PinnedRef<'_, CallbackScope<'_, ()>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { std::mem::transmute(self) }
-  }
-}
-
-impl<'p, 'i, C> From<PinnedRef<'p, CallbackScope<'i, C>>>
-  for PinnedRef<'p, HandleScope<'i, C>>
-{
-  fn from(value: PinnedRef<'p, CallbackScope<'i, C>>) -> Self {
-    unsafe { std::mem::transmute(value) }
   }
 }
 
