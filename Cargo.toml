@@ -17,7 +17,6 @@ exclude = [
   "*.m4",
   "*.md",
   "*.settings",
-  "*.txt",
   "*OWNERS*",
   ".*",
   "AUTHORS",
@@ -147,3 +146,4 @@ harness = false
 
 [workspace]
 members = ["examples/android"]
+

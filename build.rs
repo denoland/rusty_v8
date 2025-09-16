@@ -19,6 +19,9 @@ use std::process::Stdio;
 use which::which;
 
 fn main() {
+  // Ensure chromium_crates_io directory exists for build dependencies
+  ensure_chromium_crates_io();
+
   println!("cargo:rerun-if-changed=.gn");
   println!("cargo:rerun-if-changed=BUILD.gn");
   println!("cargo:rerun-if-changed=src/binding.cc");
@@ -1077,6 +1080,121 @@ fn env_bool(key: &str) -> bool {
     env::var(key).unwrap_or_default().as_str(),
     "true" | "1" | "yes"
   )
+}
+
+fn ensure_chromium_crates_io() {
+  let chromium_crates_io_path =
+    Path::new("third_party/rust/chromium_crates_io");
+
+  if !chromium_crates_io_path.exists() {
+    // The third_party/rust/chromium_crates_io directory contains a Cargo.toml that uses
+    // unstable Rust features and is intended to be built with nightly Rust via
+    // third_party/rust-toolchain. This makes it incompatible with cargo package,
+    // which cannot include workspace members that require different toolchains.
+    // We fetch it at build time for crates installed from crates.io.
+    println!(
+      "cargo:warning=chromium_crates_io directory not found, cloning from upstream..."
+    );
+
+    // Get the exact commit hash from v8/DEPS to ensure version consistency
+    let commit_hash = get_third_party_rust_commit()
+      .expect("Failed to determine third_party/rust commit hash from v8/DEPS");
+
+    println!(
+      "cargo:warning=Using third_party/rust commit: {}",
+      commit_hash
+    );
+
+    // Clone the third_party/rust repository temporarily to get chromium_crates_io
+    let temp_dir = env::temp_dir().join("rusty_v8_chromium_crates_io");
+
+    // Clean up any existing temp directory
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    // Create the target directory first
+    fs::create_dir_all("third_party/rust")
+      .expect("Failed to create third_party/rust directory");
+
+    // Clone the repository at the specific commit
+    let status = Command::new("git")
+      .args(&[
+        "clone",
+        "https://chromium.googlesource.com/chromium/src/third_party/rust",
+        temp_dir.to_str().unwrap(),
+      ])
+      .status()
+      .expect("Failed to execute git clone");
+
+    if !status.success() {
+      panic!("Failed to clone chromium third_party/rust repository");
+    }
+
+    // Checkout the specific commit
+    let status = Command::new("git")
+      .args(&["checkout", &commit_hash])
+      .current_dir(&temp_dir)
+      .status()
+      .expect("Failed to execute git checkout");
+
+    if !status.success() {
+      panic!(
+        "Failed to checkout commit {} in third_party/rust",
+        commit_hash
+      );
+    }
+
+    // Copy chromium_crates_io directory
+    let src_path = temp_dir.join("chromium_crates_io");
+    copy_dir(&src_path, chromium_crates_io_path)
+      .expect("Failed to copy chromium_crates_io");
+
+    // Clean up temp directory
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    println!("cargo:warning=Successfully fetched chromium_crates_io directory");
+  }
+}
+
+fn get_third_party_rust_commit() -> Option<String> {
+  // Try to parse from v8/DEPS file
+  if let Ok(deps_content) = fs::read_to_string("v8/DEPS") {
+    for line in deps_content.lines() {
+      if line.contains("third_party/rust") && line.contains("@") {
+        // Line format: Var('chromium_url') + '/chromium/src/third_party/rust' + '@' + 'HASH',
+        if let Some(at_pos) = line.rfind("@") {
+          let after_at = &line[at_pos + 1..];
+          // Extract hash between quotes
+          if let Some(start_quote) = after_at.find("'") {
+            if let Some(end_quote) = after_at[start_quote + 1..].find("'") {
+              let hash =
+                &after_at[start_quote + 1..start_quote + 1 + end_quote];
+              return Some(hash.to_string());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  None
+}
+
+fn copy_dir(src: &Path, dst: &Path) -> io::Result<()> {
+  fs::create_dir_all(dst)?;
+
+  for entry in fs::read_dir(src)? {
+    let entry = entry?;
+    let src_path = entry.path();
+    let dst_path = dst.join(entry.file_name());
+
+    if src_path.is_dir() {
+      copy_dir(&src_path, &dst_path)?;
+    } else {
+      fs::copy(&src_path, &dst_path)?;
+    }
+  }
+
+  Ok(())
 }
 
 #[cfg(test)]
