@@ -29,8 +29,7 @@ fn main() {
   }
 
   let mut isolate = v8::Isolate::new(v8::CreateParams::default());
-  let scope = std::pin::pin!(v8::HandleScope::new(&mut isolate));
-  let scope = &mut scope.init();
+  v8::make_handle_scope!(let scope, &mut isolate);
 
   let source = std::fs::read_to_string(&file)
     .unwrap_or_else(|err| panic!("failed to open {file}: {err}"));
@@ -204,8 +203,8 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   }
 
   fn execute_script(&mut self, script: v8::Local<'scope, v8::String>) {
-    let scope = std::pin::pin!(v8::HandleScope::new(&mut *self.context_scope));
-    let scope = &mut scope.init();
+    v8::make_handle_scope!(let scope, &mut *self.context_scope);
+
     let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
     let try_catch = &mut try_catch.init();
 
@@ -231,8 +230,8 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
     let request: Box<dyn HttpRequest> = Box::new(request);
     let request = self.wrap_request(request);
 
-    let scope = std::pin::pin!(v8::HandleScope::new(&mut *self.context_scope));
-    let scope = &mut scope.init();
+    v8::make_handle_scope!(let scope, &mut *self.context_scope);
+
     let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
     let try_catch = &mut try_catch.init();
 

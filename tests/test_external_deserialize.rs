@@ -33,8 +33,7 @@ fn external_deserialize() {
     );
 
     {
-      let scope = std::pin::pin!(v8::HandleScope::new(&mut isolate));
-      let scope = &mut scope.init();
+      v8::make_handle_scope!(let scope, &mut isolate);
 
       let context = v8::Context::new(scope, Default::default());
       scope.set_default_context(context);
@@ -88,8 +87,7 @@ fn external_deserialize() {
     );
 
     {
-      let scope = std::pin::pin!(v8::HandleScope::new(&mut isolate_b));
-      let scope = &mut scope.init();
+      v8::make_handle_scope!(let scope, &mut isolate_b);
 
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);

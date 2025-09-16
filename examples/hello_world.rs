@@ -9,8 +9,7 @@ fn main() {
     let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
     // Create a stack-allocated handle scope.
-    let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
-    let handle_scope = &mut handle_scope.init();
+    v8::make_handle_scope!(let handle_scope, isolate);
 
     // Create a new context.
     let context = v8::Context::new(handle_scope, Default::default());

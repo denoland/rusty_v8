@@ -10,8 +10,7 @@ fn main() {
   v8::V8::initialize_platform(platform);
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-  let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
-  let handle_scope = &mut handle_scope.init();
+  v8::make_handle_scope!(let handle_scope, isolate);
   let context = v8::Context::new(handle_scope, Default::default());
   let scope = &mut v8::ContextScope::new(handle_scope, context);
   let global = context.global(scope);

@@ -27,8 +27,7 @@ fn set_entropy_source() {
   let mut results = vec![];
   for _ in 0..N {
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = std::pin::pin!(v8::HandleScope::new(isolate));
-    let scope = &mut scope.init();
+    v8::make_handle_scope!(let scope, isolate);
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);

@@ -1674,6 +1674,9 @@ macro_rules! make_callback_scope {
     });
     let $scope = &mut $scope.init();
   };
+  (unsafe let $scope: ident, $param: expr) => {
+    $crate::make_callback_scope!(unsafe $scope, $param);
+  }
 }
 
 #[allow(unused_imports)]
@@ -1687,12 +1690,7 @@ macro_rules! make_handle_scope {
     let $scope = &mut $scope.init();
   };
   (let $scope: ident, $param: expr) => {
-    let $scope = std::pin::pin!($crate::HandleScope::new($param));
-    let $scope = &mut $scope.init();
-  };
-  (let $scope: ident = $param: expr) => {
-    let $scope = std::pin::pin!($crate::HandleScope::new($param));
-    let $scope = &mut $scope.init();
+    $crate::make_handle_scope!($scope, $param);
   };
 }
 

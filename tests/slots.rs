@@ -256,8 +256,7 @@ fn slots_auto_boxing() {
 fn context_slots() {
   setup();
   let isolate = &mut v8::Isolate::new(Default::default());
-  let scope = pin!(v8::HandleScope::new(isolate));
-  let scope = &mut scope.init();
+  v8::make_handle_scope!(let scope, isolate);
   let context = v8::Context::new(scope, Default::default());
 
   assert!(context.set_slot(Rc::new(TestState(0))).is_none());

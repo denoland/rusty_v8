@@ -212,8 +212,7 @@ fn execute_script(
   context_scope: &mut v8::ContextScope<v8::HandleScope>,
   source: &str,
 ) {
-  let scope = std::pin::pin!(v8::HandleScope::new(context_scope));
-  let scope = &mut scope.init();
+  v8::make_handle_scope!(let scope, context_scope);
 
   let scope = std::pin::pin!(v8::TryCatch::new(scope));
   let scope = &mut scope.init();

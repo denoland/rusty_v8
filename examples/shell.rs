@@ -10,12 +10,11 @@ fn main() {
 
   let mut run_shell_flag = args.len() == 1;
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-  let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
-  let mut handle_scope = handle_scope.init();
+  v8::make_handle_scope!(let handle_scope, isolate);
 
-  let context = v8::Context::new(&handle_scope, Default::default());
+  let context = v8::Context::new(handle_scope, Default::default());
 
-  let mut scope = v8::ContextScope::new(&mut handle_scope, context);
+  let mut scope = v8::ContextScope::new(handle_scope, context);
 
   run_main(&mut scope, &args, &mut run_shell_flag);
 
