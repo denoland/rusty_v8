@@ -624,13 +624,14 @@ where
 macro_rules! assert_layout_subset {
   ($subset: ty, $superset: ty { $($field: ident),* $(,)? }) => {
     const _: () = {
-      if !(std::mem::size_of::<$superset>() > std::mem::size_of::<$subset>()) {
+      if !(std::mem::size_of::<$subset>() < std::mem::size_of::<$superset>()) {
         panic!(concat!(
-          "assertion failed: `",
+          "assertion failed: ",
+          "size of `",
           stringify!($subset),
-          "` and `",
+          "` is greater than `",
           stringify!($superset),
-          "` have different sizes"
+          "`"
         ));
       }
       if !(std::mem::align_of::<$subset>() == std::mem::align_of::<$superset>()) {

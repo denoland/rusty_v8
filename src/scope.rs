@@ -307,27 +307,12 @@ mod get_isolate_impls {
     }
   }
 
-  // impl<'s, T: Into<Local<'s, Object>> + Copy> GetIsolate for T {
-  //   fn get_isolate_ptr(&self) -> *mut RealIsolate {
-  //     let object: Local<Object> = (*self).into();
-  //     unsafe { &mut *raw::v8__Object__GetIsolate(&*object) }
-  //   }
-  // }
-
-  macro_rules! impl_get_isolate_for_object_like {
-      ($($t:ty),* $(,)? ) => {
-          $(
-              impl<'s> GetIsolate for Local<'s, $t> {
-                  fn get_isolate_ptr(&self) -> *mut RealIsolate {
-                      let object: Local<Object> = (*self).into();
-                      unsafe { raw::v8__Object__GetIsolate(&*object) }
-                  }
-              }
-          )*
-      };
+  impl<'s> GetIsolate for Local<'s, Promise> {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      let object: Local<Object> = (*self).into();
+      unsafe { raw::v8__Object__GetIsolate(&*object) }
+    }
   }
-
-  impl_get_isolate_for_object_like!(Promise,);
 
   impl GetIsolate for PromiseRejectMessage<'_> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
@@ -1384,30 +1369,6 @@ impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'iso, C> NewTryCatch<'scope>
     }
   }
 }
-
-// impl<'borrow, 'p, 's, 'i, C> NewTryCatch<'borrow>
-//   for &'borrow mut PinnedRef<'p, TryCatch<'s, HandleScope<'i, C>>>
-// {
-//   type NewScope = TryCatch<'borrow, HandleScope<'i, C>>;
-//   fn make_new_scope(me: Self) -> Self::NewScope {
-//     <PinnedRef<'borrow, TryCatch<'s, HandleScope<'i, C>>> as NewTryCatch<
-//       'borrow,
-//     >>::make_new_scope(me.as_mut())
-//   }
-// }
-
-// impl<'borrow, 's, 'i, C> NewTryCatch<'borrow>
-//   for PinnedRef<'borrow, TryCatch<'s, HandleScope<'i, C>>>
-// {
-//   type NewScope = TryCatch<'borrow, HandleScope<'i, C>>;
-//   fn make_new_scope(me: Self) -> Self::NewScope {
-//     TryCatch {
-//       scope: unsafe { PinnedRef(me.0.get_unchecked_mut().scope.0) },
-//       raw_try_catch: unsafe { raw::TryCatch::uninit() },
-//       _pinned: PhantomPinned,
-//     }
-//   }
-// }
 
 #[repr(C)]
 pub struct EscapableHandleScope<'s, 'esc: 's, C = Context> {
