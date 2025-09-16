@@ -1156,22 +1156,25 @@ fn ensure_chromium_crates_io() {
 }
 
 fn get_third_party_rust_commit() -> Option<String> {
-  // Try to parse from v8/DEPS file
-  if let Ok(deps_content) = fs::read_to_string("v8/DEPS") {
-    for line in deps_content.lines() {
-      if line.contains("third_party/rust") && line.contains("@") {
-        // Line format: Var('chromium_url') + '/chromium/src/third_party/rust' + '@' + 'HASH',
-        if let Some(at_pos) = line.rfind("@") {
-          let after_at = &line[at_pos + 1..];
-          // Extract hash between quotes
-          if let Some(start_quote) = after_at.find("'") {
-            if let Some(end_quote) = after_at[start_quote + 1..].find("'") {
-              let hash =
-                &after_at[start_quote + 1..start_quote + 1 + end_quote];
-              return Some(hash.to_string());
-            }
-          }
-        }
+  // Execute v8/DEPS as Python to extract the third_party/rust commit hash
+  let python_code = r#"
+def Var(x): return {'chromium_url': 'https://chromium.googlesource.com'}.get(x, '')
+def Str(x): return x
+deps = {}
+exec(open('v8/DEPS').read())
+print(deps['third_party/rust'].split('@')[-1].strip("'"))
+"#;
+
+  if let Ok(output) = Command::new(python())
+    .arg("-c")
+    .arg(python_code)
+    .output()
+  {
+    if output.status.success() {
+      let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
+      // Validate it looks like a git commit hash (40 hex characters)
+      if hash.len() == 40 && hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Some(hash);
       }
     }
   }
