@@ -424,7 +424,7 @@ pub struct RawV8InspectorClient {
 }
 
 impl V8InspectorClient {
-  pub fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
+  pub fn run_message_loop_on_pause(&self, context_group_id: i32) {
     unsafe {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
         self.raw(),
@@ -433,13 +433,13 @@ impl V8InspectorClient {
     }
   }
 
-  pub fn quit_message_loop_on_pause(&mut self) {
+  pub fn quit_message_loop_on_pause(&self) {
     unsafe {
       v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self.raw())
     }
   }
 
-  pub fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {
+  pub fn run_if_waiting_for_debugger(&self, context_group_id: i32) {
     unsafe {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
         self.raw(),
@@ -450,7 +450,7 @@ impl V8InspectorClient {
 
   #[allow(clippy::too_many_arguments)]
   pub fn console_api_message(
-    &mut self,
+    &self,
     context_group_id: i32,
     level: i32,
     message: &StringView,
@@ -473,7 +473,7 @@ impl V8InspectorClient {
     }
   }
 
-  pub fn generate_unique_id(&mut self) -> i64 {
+  pub fn generate_unique_id(&self) -> i64 {
     unsafe { v8_inspector__V8InspectorClient__generateUniqueId(self.raw()) }
   }
 }
