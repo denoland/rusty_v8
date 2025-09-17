@@ -427,15 +427,6 @@ impl<F> FieldOffset<F> {
         .unwrap()
     }
   }
-
-  #[allow(clippy::wrong_self_convention)]
-  pub unsafe fn to_embedder_mut<E>(self, field: &mut F) -> &mut E {
-    unsafe {
-      (((field as *mut _ as usize) - self.0) as *mut E)
-        .as_mut()
-        .unwrap()
-    }
-  }
 }
 
 #[repr(C)]
