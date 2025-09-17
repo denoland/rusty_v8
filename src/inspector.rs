@@ -895,7 +895,11 @@ impl V8Inspector {
     }
   }
 
-  pub fn raw(&self) -> *mut RawV8Inspector {
+  // note: in theory v8 could mutate through this pointer.
+  // this is fine, though, because we never create a rust reference
+  // to the actual RawV8Inspector, we only use raw pointers which
+  // don't enforce the immutability guarantee
+  fn raw(&self) -> *mut RawV8Inspector {
     self.raw.as_ptr()
   }
 
