@@ -10,7 +10,7 @@ use std::ffi::c_void;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::ptr::{addr_of, addr_of_mut};
+use std::ptr::addr_of_mut;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -18,7 +18,6 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use v8::AccessorConfiguration;
 use v8::fast_api;
-use v8::inspector::ChannelBase;
 
 // TODO(piscisaureus): Ideally there would be no need to import this trait.
 use v8::MapFnTo;
@@ -6593,18 +6592,16 @@ fn try_from_value() {
   }
 }
 
-struct ClientCounter {
-  base: v8::inspector::V8InspectorClientBase,
+struct ClientCounterState {
   count_run_message_loop_on_pause: usize,
   count_quit_message_loop_on_pause: usize,
   count_run_if_waiting_for_debugger: usize,
   count_generate_unique_id: i64,
 }
 
-impl ClientCounter {
+impl ClientCounterState {
   fn new() -> Self {
     Self {
-      base: v8::inspector::V8InspectorClientBase::new::<Self>(),
       count_run_message_loop_on_pause: 0,
       count_quit_message_loop_on_pause: 0,
       count_run_if_waiting_for_debugger: 0,
@@ -6612,57 +6609,50 @@ impl ClientCounter {
     }
   }
 }
+#[derive(Clone)]
+struct ClientCounter {
+  state: Rc<RefCell<ClientCounterState>>,
+}
 
-impl v8::inspector::V8InspectorClientImpl for ClientCounter {
-  fn base(&self) -> &v8::inspector::V8InspectorClientBase {
-    &self.base
-  }
-
-  fn base_mut(&mut self) -> &mut v8::inspector::V8InspectorClientBase {
-    &mut self.base
-  }
-
-  unsafe fn base_ptr(
-    this: *const Self,
-  ) -> *const v8::inspector::V8InspectorClientBase
-  where
-    Self: Sized,
-  {
-    unsafe { addr_of!((*this).base) }
-  }
-
-  fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
-    assert_eq!(context_group_id, 1);
-    self.count_run_message_loop_on_pause += 1;
-  }
-
-  fn quit_message_loop_on_pause(&mut self) {
-    self.count_quit_message_loop_on_pause += 1;
-  }
-
-  fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {
-    assert_eq!(context_group_id, 1);
-    self.count_run_message_loop_on_pause += 1;
-  }
-
-  fn generate_unique_id(&mut self) -> i64 {
-    self.count_generate_unique_id += 1;
-    self.count_generate_unique_id
+impl ClientCounter {
+  fn new() -> Self {
+    Self {
+      state: Rc::new(RefCell::new(ClientCounterState::new())),
+    }
   }
 }
 
-struct ChannelCounter {
-  base: v8::inspector::ChannelBase,
+impl v8::inspector::V8InspectorClientImpl for ClientCounter {
+  fn run_message_loop_on_pause(&self, context_group_id: i32) {
+    assert_eq!(context_group_id, 1);
+    self.state.borrow_mut().count_run_message_loop_on_pause += 1;
+  }
+
+  fn quit_message_loop_on_pause(&self) {
+    self.state.borrow_mut().count_quit_message_loop_on_pause += 1;
+  }
+
+  fn run_if_waiting_for_debugger(&self, context_group_id: i32) {
+    assert_eq!(context_group_id, 1);
+    self.state.borrow_mut().count_run_message_loop_on_pause += 1;
+  }
+
+  fn generate_unique_id(&self) -> i64 {
+    self.state.borrow_mut().count_generate_unique_id += 1;
+    self.state.borrow().count_generate_unique_id
+  }
+}
+
+struct ChannelCounterState {
   count_send_response: usize,
   count_send_notification: usize,
   notifications: Vec<String>,
   count_flush_protocol_notifications: usize,
 }
 
-impl ChannelCounter {
+impl ChannelCounterState {
   pub fn new() -> Self {
     Self {
-      base: v8::inspector::ChannelBase::new::<Self>(),
       count_send_response: 0,
       count_send_notification: 0,
       notifications: vec![],
@@ -6671,21 +6661,22 @@ impl ChannelCounter {
   }
 }
 
+#[derive(Clone)]
+pub struct ChannelCounter {
+  state: Rc<RefCell<ChannelCounterState>>,
+}
+
+impl ChannelCounter {
+  fn new() -> Self {
+    Self {
+      state: Rc::new(RefCell::new(ChannelCounterState::new())),
+    }
+  }
+}
+
 impl v8::inspector::ChannelImpl for ChannelCounter {
-  fn base(&self) -> &v8::inspector::ChannelBase {
-    &self.base
-  }
-  fn base_mut(&mut self) -> &mut v8::inspector::ChannelBase {
-    &mut self.base
-  }
-  unsafe fn base_ptr(_this: *const Self) -> *const ChannelBase
-  where
-    Self: Sized,
-  {
-    unsafe { addr_of!((*_this).base) }
-  }
   fn send_response(
-    &mut self,
+    &self,
     call_id: i32,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
@@ -6693,19 +6684,20 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
       "send_response call_id {call_id} message {}",
       message.unwrap().string()
     );
-    self.count_send_response += 1;
+    self.state.borrow_mut().count_send_response += 1;
   }
   fn send_notification(
-    &mut self,
+    &self,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
     let msg = message.unwrap().string().to_string();
     println!("send_notification message {msg}");
-    self.count_send_notification += 1;
-    self.notifications.push(msg);
+    let mut state = self.state.borrow_mut();
+    state.count_send_notification += 1;
+    state.notifications.push(msg);
   }
-  fn flush_protocol_notifications(&mut self) {
-    self.count_flush_protocol_notifications += 1;
+  fn flush_protocol_notifications(&self) {
+    self.state.borrow_mut().count_flush_protocol_notifications += 1;
   }
 }
 
@@ -6760,8 +6752,10 @@ fn inspector_dispatch_protocol_message() {
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
-  let mut default_client = ClientCounter::new();
-  let mut inspector = V8Inspector::create(isolate, &mut default_client);
+  let default_client = ClientCounter::new();
+  let inspector_client =
+    V8InspectorClient::new(Box::new(default_client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope, Default::default());
@@ -6771,12 +6765,13 @@ fn inspector_dispatch_protocol_message() {
   let name_view = StringView::from(&name[..]);
   let aux_data = StringView::from(&name[..]);
   inspector.context_created(context, 1, name_view, aux_data);
-  let mut channel = ChannelCounter::new();
+
+  let counter = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(
+  let session = inspector.connect(
     1,
-    &mut channel,
+    Channel::new(Box::new(counter.clone())),
     state_view,
     V8InspectorClientTrustLevel::Untrusted,
   );
@@ -6786,9 +6781,10 @@ fn inspector_dispatch_protocol_message() {
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
   session.dispatch_protocol_message(string_view);
-  assert_eq!(channel.count_send_response, 1);
-  assert_eq!(channel.count_send_notification, 0);
-  assert_eq!(channel.count_flush_protocol_notifications, 0);
+  let state = counter.state.borrow();
+  assert_eq!(state.count_send_response, 1);
+  assert_eq!(state.count_send_notification, 0);
+  assert_eq!(state.count_flush_protocol_notifications, 0);
   inspector.context_destroyed(context);
 }
 
@@ -6798,8 +6794,10 @@ fn inspector_exception_thrown() {
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
-  let mut default_client = ClientCounter::new();
-  let mut inspector = V8Inspector::create(isolate, &mut default_client);
+  let default_client = ClientCounter::new();
+  let inspector_client =
+    V8InspectorClient::new(Box::new(default_client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope, Default::default());
@@ -6810,12 +6808,12 @@ fn inspector_exception_thrown() {
   let aux_data = b"";
   let aux_data_view = StringView::from(&aux_data[..]);
   inspector.context_created(context, 1, name_view, aux_data_view);
-  let mut channel = ChannelCounter::new();
+  let channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(
+  let session = inspector.connect(
     1,
-    &mut channel,
+    Channel::new(Box::new(channel.clone())),
     state_view,
     V8InspectorClientTrustLevel::Untrusted,
   );
@@ -6823,9 +6821,12 @@ fn inspector_exception_thrown() {
   let message = &message.into_bytes()[..];
   let string_view = StringView::from(message);
   session.dispatch_protocol_message(string_view);
-  assert_eq!(channel.count_send_response, 1);
-  assert_eq!(channel.count_send_notification, 1);
-  assert_eq!(channel.count_flush_protocol_notifications, 0);
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.count_send_response, 1);
+    assert_eq!(state.count_send_notification, 1);
+    assert_eq!(state.count_flush_protocol_notifications, 0);
+  }
 
   let message = "test exception".to_string();
   let message = &message.into_bytes()[..];
@@ -6854,8 +6855,9 @@ fn inspector_exception_thrown() {
     1,
   );
 
-  assert_eq!(channel.count_send_notification, 2);
-  let notification = channel.notifications.get(1).unwrap().clone();
+  assert_eq!(channel.state.borrow().count_send_notification, 2);
+  let notification =
+    channel.state.borrow().notifications.get(1).unwrap().clone();
   let expected_notification = "{\"method\":\"Runtime.exceptionThrown\",\"params\":{\"timestamp\":0,\"exceptionDetails\":{\"exceptionId\":1,\"text\":\"test exception\",\"lineNumber\":0,\"columnNumber\":0,\"scriptId\":\"1\",\"url\":\"file://exception.js\",\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":\"Error: This is a test error\",\"objectId\":\"1.1.1\",\"preview\":{\"type\":\"object\",\"subtype\":\"error\",\"description\":\"Error: This is a test error\",\"overflow\":false,\"properties\":[{\"name\":\"stack\",\"type\":\"string\",\"value\":\"Error: This is a test error\"},{\"name\":\"message\",\"type\":\"string\",\"value\":\"This is a test error\"}]}},\"executionContextId\":1}}}";
   assert_eq!(notification, expected_notification);
 }
@@ -6866,19 +6868,20 @@ fn inspector_schedule_pause_on_next_statement() {
   let isolate = &mut v8::Isolate::new(Default::default());
 
   use v8::inspector::*;
-  let mut client = ClientCounter::new();
-  let mut inspector = V8Inspector::create(isolate, &mut client);
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
-  let mut channel = ChannelCounter::new();
+  let channel = ChannelCounter::new();
   let state = b"{}";
   let state_view = StringView::from(&state[..]);
-  let mut session = inspector.connect(
+  let session = inspector.connect(
     1,
-    &mut channel,
+    Channel::new(Box::new(channel.clone())),
     state_view,
     V8InspectorClientTrustLevel::FullyTrusted,
   );
@@ -6908,23 +6911,31 @@ fn inspector_schedule_pause_on_next_statement() {
   let detail = StringView::from(&detail[..]);
   session.schedule_pause_on_next_statement(reason, detail);
 
-  assert_eq!(channel.count_send_response, 1);
-  assert_eq!(channel.count_send_notification, 0);
-  assert_eq!(channel.count_flush_protocol_notifications, 0);
-  assert_eq!(client.count_run_message_loop_on_pause, 0);
-  assert_eq!(client.count_quit_message_loop_on_pause, 0);
-  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.count_send_response, 1);
+    assert_eq!(state.count_send_notification, 0);
+    assert_eq!(state.count_flush_protocol_notifications, 0);
+    let client_state = client.state.borrow();
+    assert_eq!(client_state.count_run_message_loop_on_pause, 0);
+    assert_eq!(client_state.count_quit_message_loop_on_pause, 0);
+    assert_eq!(client_state.count_run_if_waiting_for_debugger, 0);
+  }
 
   let r = eval(scope, "1+2").unwrap();
   assert!(r.is_number());
 
-  assert_eq!(channel.count_send_response, 1);
-  assert_eq!(channel.count_send_notification, 3);
-  assert_eq!(channel.count_flush_protocol_notifications, 1);
-  assert_eq!(client.count_run_message_loop_on_pause, 1);
-  assert_eq!(client.count_quit_message_loop_on_pause, 0);
-  assert_eq!(client.count_run_if_waiting_for_debugger, 0);
-  assert_ne!(client.count_generate_unique_id, 0);
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.count_send_response, 1);
+    assert_eq!(state.count_send_notification, 3);
+    assert_eq!(state.count_flush_protocol_notifications, 1);
+    let client_state = client.state.borrow();
+    assert_eq!(client_state.count_run_message_loop_on_pause, 1);
+    assert_eq!(client_state.count_quit_message_loop_on_pause, 0);
+    assert_eq!(client_state.count_run_if_waiting_for_debugger, 0);
+    assert_ne!(client_state.count_generate_unique_id, 0);
+  }
 }
 
 #[test]
@@ -6934,37 +6945,22 @@ fn inspector_console_api_message() {
 
   use v8::inspector::*;
 
+  #[derive(Clone)]
   struct Client {
-    base: V8InspectorClientBase,
-    messages: Vec<String>,
+    messages: Rc<RefCell<Vec<String>>>,
   }
 
   impl Client {
     fn new() -> Self {
       Self {
-        base: V8InspectorClientBase::new::<Self>(),
-        messages: Vec::new(),
+        messages: Rc::new(RefCell::new(Vec::new())),
       }
     }
   }
 
   impl V8InspectorClientImpl for Client {
-    fn base(&self) -> &V8InspectorClientBase {
-      &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
-      &mut self.base
-    }
-
-    unsafe fn base_ptr(
-      _this: *const Self,
-    ) -> *const v8::inspector::V8InspectorClientBase {
-      unsafe { addr_of!((*_this).base) }
-    }
-
     fn console_api_message(
-      &mut self,
+      &self,
       _context_group_id: i32,
       _level: i32,
       message: &StringView,
@@ -6973,12 +6969,13 @@ fn inspector_console_api_message() {
       _column_number: u32,
       _stack_trace: &mut V8StackTrace,
     ) {
-      self.messages.push(message.to_string());
+      self.messages.borrow_mut().push(message.to_string());
     }
   }
 
-  let mut client = Client::new();
-  let mut inspector = V8Inspector::create(isolate, &mut client);
+  let client = Client::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
 
   let scope = &mut v8::HandleScope::new(isolate);
   let context = v8::Context::new(scope, Default::default());
@@ -6996,7 +6993,10 @@ fn inspector_console_api_message() {
     console.trace("three");
   "#;
   let _ = eval(scope, source).unwrap();
-  assert_eq!(client.messages, vec!["one", "two", "three"]);
+  assert_eq!(
+    client.messages.borrow().as_slice(),
+    &["one", "two", "three"]
+  );
 }
 
 #[test]

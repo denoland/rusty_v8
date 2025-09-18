@@ -19,52 +19,51 @@ use crate::Local;
 use crate::StackTrace;
 use crate::Value;
 use crate::support::CxxVTable;
-use crate::support::FieldOffset;
 use crate::support::Opaque;
-use crate::support::RustVTable;
 use crate::support::UniquePtr;
 use crate::support::UniqueRef;
 use crate::support::int;
+use std::cell::UnsafeCell;
 use std::fmt::{self, Debug, Formatter};
 
 unsafe extern "C" {
   fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
-    buf: &mut std::mem::MaybeUninit<Channel>,
+    buf: *mut MaybeUninit<RawChannel>,
   );
 
   fn v8_inspector__V8Inspector__Channel__sendResponse(
-    this: &mut Channel,
+    this: *mut RawChannel,
     call_id: int,
     message: UniquePtr<StringBuffer>,
   );
   fn v8_inspector__V8Inspector__Channel__sendNotification(
-    this: &mut Channel,
+    this: *mut RawChannel,
     message: UniquePtr<StringBuffer>,
   );
   fn v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
-    this: &mut Channel,
+    this: *mut RawChannel,
   );
 
   fn v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
-    buf: &mut std::mem::MaybeUninit<V8InspectorClient>,
+    buf: *mut MaybeUninit<RawV8InspectorClient>,
   );
 
   fn v8_inspector__V8InspectorClient__generateUniqueId(
-    this: &mut V8InspectorClient,
+    this: *mut RawV8InspectorClient,
   ) -> i64;
   fn v8_inspector__V8InspectorClient__runMessageLoopOnPause(
-    this: &mut V8InspectorClient,
+    this: *mut RawV8InspectorClient,
     context_group_id: int,
   );
   fn v8_inspector__V8InspectorClient__quitMessageLoopOnPause(
-    this: &mut V8InspectorClient,
+    this: *mut RawV8InspectorClient,
   );
   fn v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
-    this: &mut V8InspectorClient,
+    this: *mut RawV8InspectorClient,
     context_group_id: int,
   );
   fn v8_inspector__V8InspectorClient__consoleAPIMessage(
-    this: &mut V8InspectorClient,
+    this: *mut RawV8InspectorClient,
     context_group_id: int,
     level: int,
     message: &StringView,
@@ -74,13 +73,13 @@ unsafe extern "C" {
     stack_trace: &mut V8StackTrace,
   );
 
-  fn v8_inspector__V8InspectorSession__DELETE(this: *mut V8InspectorSession);
+  fn v8_inspector__V8InspectorSession__DELETE(this: *mut RawV8InspectorSession);
   fn v8_inspector__V8InspectorSession__dispatchProtocolMessage(
-    session: *mut V8InspectorSession,
+    session: *mut RawV8InspectorSession,
     message: StringView,
   );
   fn v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
-    session: *mut V8InspectorSession,
+    session: *mut RawV8InspectorSession,
     break_reason: StringView,
     break_details: StringView,
   );
@@ -94,31 +93,31 @@ unsafe extern "C" {
     source: StringView,
   ) -> UniquePtr<StringBuffer>;
 
-  fn v8_inspector__V8Inspector__DELETE(this: *mut V8Inspector);
+  fn v8_inspector__V8Inspector__DELETE(this: *mut RawV8Inspector);
   fn v8_inspector__V8Inspector__create(
     isolate: *mut Isolate,
-    client: *mut V8InspectorClient,
-  ) -> *mut V8Inspector;
+    client: *mut RawV8InspectorClient,
+  ) -> *mut RawV8Inspector;
   fn v8_inspector__V8Inspector__connect(
-    inspector: *mut V8Inspector,
+    inspector: *mut RawV8Inspector,
     context_group_id: int,
-    channel: *mut Channel,
+    channel: *mut RawChannel,
     state: StringView,
     client_trust_level: V8InspectorClientTrustLevel,
-  ) -> *mut V8InspectorSession;
+  ) -> *mut RawV8InspectorSession;
   fn v8_inspector__V8Inspector__contextCreated(
-    this: *mut V8Inspector,
+    this: *mut RawV8Inspector,
     context: *const Context,
     contextGroupId: int,
     humanReadableName: StringView,
     auxData: StringView,
   );
   fn v8_inspector__V8Inspector__contextDestroyed(
-    this: *mut V8Inspector,
+    this: *mut RawV8Inspector,
     context: *const Context,
   );
   fn v8_inspector__V8Inspector__exceptionThrown(
-    this: *mut V8Inspector,
+    this: *mut RawV8Inspector,
     context: *const Context,
     message: StringView,
     exception: *const Value,
@@ -130,7 +129,7 @@ unsafe extern "C" {
     script_id: int,
   ) -> u32;
   fn v8_inspector__V8Inspector__createStackTrace(
-    this: *mut V8Inspector,
+    this: *mut RawV8Inspector,
     stack_trace: *const StackTrace,
   ) -> *mut V8StackTrace;
   fn v8_inspector__V8StackTrace__DELETE(this: *mut V8StackTrace);
@@ -138,75 +137,86 @@ unsafe extern "C" {
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendResponse(
-  this: &mut Channel,
+  this: *mut RawChannel,
   call_id: int,
   message: UniquePtr<StringBuffer>,
 ) {
   unsafe {
-    ChannelBase::dispatch_mut(this).send_response(call_id, message);
+    let channel = ChannelHeap::from_raw(this);
+    channel.imp.send_response(call_id, message);
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__sendNotification(
-  this: &mut Channel,
+  this: *mut RawChannel,
   message: UniquePtr<StringBuffer>,
 ) {
   unsafe {
-    ChannelBase::dispatch_mut(this).send_notification(message);
+    ChannelHeap::from_raw(this).imp.send_notification(message);
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8Inspector__Channel__BASE__flushProtocolNotifications(
-  this: &mut Channel,
+  this: *mut RawChannel,
 ) {
   unsafe {
-    ChannelBase::dispatch_mut(this).flush_protocol_notifications();
+    ChannelHeap::from_raw(this)
+      .imp
+      .flush_protocol_notifications();
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__generateUniqueId(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
 ) -> i64 {
-  unsafe { V8InspectorClientBase::dispatch_mut(this).generate_unique_id() }
+  unsafe {
+    V8InspectorClientHeap::from_raw(this)
+      .imp
+      .generate_unique_id()
+  }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runMessageLoopOnPause(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
   context_group_id: int,
 ) {
   unsafe {
-    V8InspectorClientBase::dispatch_mut(this)
+    V8InspectorClientHeap::from_raw(this)
+      .imp
       .run_message_loop_on_pause(context_group_id);
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__quitMessageLoopOnPause(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
 ) {
   unsafe {
-    V8InspectorClientBase::dispatch_mut(this).quit_message_loop_on_pause();
+    V8InspectorClientHeap::from_raw(this)
+      .imp
+      .quit_message_loop_on_pause();
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__runIfWaitingForDebugger(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
   context_group_id: int,
 ) {
   unsafe {
-    V8InspectorClientBase::dispatch_mut(this)
+    V8InspectorClientHeap::from_raw(this)
+      .imp
       .run_if_waiting_for_debugger(context_group_id);
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
   context_group_id: int,
   level: int,
   message: &StringView,
@@ -216,25 +226,28 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
   stack_trace: &mut V8StackTrace,
 ) {
   unsafe {
-    V8InspectorClientBase::dispatch_mut(this).console_api_message(
-      context_group_id,
-      level,
-      message,
-      url,
-      line_number,
-      column_number,
-      stack_trace,
-    );
+    V8InspectorClientHeap::from_raw(this)
+      .imp
+      .console_api_message(
+        context_group_id,
+        level,
+        message,
+        url,
+        line_number,
+        column_number,
+        stack_trace,
+      );
   }
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
   context_group_id: int,
 ) -> *const Context {
   unsafe {
-    match V8InspectorClientBase::dispatch_mut(this)
+    match V8InspectorClientHeap::from_raw(this)
+      .imp
       .ensure_default_context_in_group(context_group_id)
     {
       Some(h) => &*h,
@@ -245,11 +258,12 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__ensureDefaultContext
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__resourceNameToUrl(
-  this: &mut V8InspectorClient,
+  this: *mut RawV8InspectorClient,
   resource_name: &StringView,
 ) -> *mut StringBuffer {
   unsafe {
-    V8InspectorClientBase::dispatch_mut(this)
+    V8InspectorClientHeap::from_raw(this)
+      .imp
       .resource_name_to_url(resource_name)
       .and_then(|mut v| v.take())
       .map(|r| r.into_raw())
@@ -259,152 +273,82 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__resourceNameToUrl(
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct Channel {
+struct RawChannel {
   _cxx_vtable: CxxVTable,
 }
 
+#[repr(C)]
+pub struct Channel {
+  heap: Pin<Box<ChannelHeap>>,
+}
+
+impl std::fmt::Debug for Channel {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("Channel").finish()
+  }
+}
+
+#[repr(C)]
+struct ChannelHeap {
+  raw: UnsafeCell<RawChannel>,
+  imp: Box<dyn ChannelImpl>,
+  _pinned: PhantomPinned,
+}
+
+impl ChannelHeap {
+  unsafe fn from_raw<'b>(this: *const RawChannel) -> &'b ChannelHeap {
+    unsafe { &(*this.cast::<ChannelHeap>()) }
+  }
+}
+
 impl Channel {
-  pub fn send_response(
-    &mut self,
-    call_id: i32,
-    message: UniquePtr<StringBuffer>,
-  ) {
+  pub fn new(imp: Box<dyn ChannelImpl>) -> Self {
+    let heap = Box::into_raw(Box::new(MaybeUninit::<ChannelHeap>::uninit()))
+      .cast::<ChannelHeap>();
+
     unsafe {
-      v8_inspector__V8Inspector__Channel__sendResponse(self, call_id, message);
+      let raw = &raw mut (*heap).raw;
+      v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(raw.cast());
+      let imp_ptr = &raw mut (*heap).imp;
+      imp_ptr.write(imp);
     }
-  }
-  pub fn send_notification(&mut self, message: UniquePtr<StringBuffer>) {
-    unsafe {
-      v8_inspector__V8Inspector__Channel__sendNotification(self, message);
-    }
-  }
-  pub fn flush_protocol_notifications(&mut self) {
-    unsafe {
-      v8_inspector__V8Inspector__Channel__flushProtocolNotifications(self);
-    }
-  }
-}
 
-pub trait AsChannel {
-  fn as_channel(&self) -> &Channel;
-  fn as_channel_mut(&mut self) -> &mut Channel;
-}
-
-impl AsChannel for Channel {
-  fn as_channel(&self) -> &Channel {
-    self
-  }
-  fn as_channel_mut(&mut self) -> &mut Channel {
-    self
-  }
-}
-
-impl<T> AsChannel for T
-where
-  T: ChannelImpl,
-{
-  fn as_channel(&self) -> &Channel {
-    &self.base().cxx_base
-  }
-  fn as_channel_mut(&mut self) -> &mut Channel {
-    &mut self.base_mut().cxx_base
-  }
-}
-
-pub trait ChannelImpl: AsChannel {
-  fn base(&self) -> &ChannelBase;
-  fn base_mut(&mut self) -> &mut ChannelBase;
-  /// This is used for calculating the offset to the base field, and care must be taken not to create any references in the process of creating the pointer because the *const Self pointer is not valid (thus resulting in instant UB)
-  unsafe fn base_ptr(this: *const Self) -> *const ChannelBase
-  where
-    Self: Sized;
-
-  fn send_response(&mut self, call_id: i32, message: UniquePtr<StringBuffer>);
-  fn send_notification(&mut self, message: UniquePtr<StringBuffer>);
-  fn flush_protocol_notifications(&mut self);
-}
-
-pub struct ChannelBase {
-  cxx_base: Channel,
-  offset_within_embedder: FieldOffset<Self>,
-  rust_vtable: RustVTable<&'static dyn ChannelImpl>,
-}
-
-impl ChannelBase {
-  fn construct_cxx_base() -> Channel {
-    unsafe {
-      let mut buf = std::mem::MaybeUninit::<Channel>::uninit();
-      v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(&mut buf);
-      buf.assume_init()
-    }
-  }
-
-  fn get_cxx_base_offset() -> FieldOffset<Channel> {
-    let buf = std::mem::MaybeUninit::<Self>::uninit();
-    let base = unsafe { addr_of!((*buf.as_ptr()).cxx_base) };
-    FieldOffset::from_ptrs(buf.as_ptr(), base)
-  }
-
-  fn get_offset_within_embedder<T>() -> FieldOffset<Self>
-  where
-    T: ChannelImpl,
-  {
-    let buf = std::mem::MaybeUninit::<T>::uninit();
-    let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = unsafe { T::base_ptr(embedder_ptr) };
-    FieldOffset::from_ptrs(embedder_ptr, self_ptr)
-  }
-
-  fn get_rust_vtable<T>() -> RustVTable<&'static dyn ChannelImpl>
-  where
-    T: ChannelImpl,
-  {
-    let buf = std::mem::MaybeUninit::<T>::uninit();
-    let embedder_ptr = buf.as_ptr();
-    let trait_object: *const dyn ChannelImpl = embedder_ptr;
-    let (data_ptr, vtable): (*const T, RustVTable<_>) =
-      unsafe { std::mem::transmute(trait_object) };
-    assert_eq!(data_ptr, embedder_ptr);
-    vtable
-  }
-
-  pub fn new<T>() -> Self
-  where
-    T: ChannelImpl,
-  {
     Self {
-      cxx_base: Self::construct_cxx_base(),
-      offset_within_embedder: Self::get_offset_within_embedder::<T>(),
-      rust_vtable: Self::get_rust_vtable::<T>(),
+      heap: unsafe { Box::into_pin(Box::from_raw(heap.cast::<ChannelHeap>())) },
     }
   }
 
-  pub unsafe fn dispatch(channel: &Channel) -> &dyn ChannelImpl {
-    unsafe {
-      let this = Self::get_cxx_base_offset().to_embedder::<Self>(channel);
-      let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
-      std::mem::transmute((embedder, this.rust_vtable))
-    }
+  fn raw(&self) -> *mut RawChannel {
+    self.heap.raw.get()
   }
 
-  pub unsafe fn dispatch_mut(channel: &mut Channel) -> &mut dyn ChannelImpl {
+  pub fn send_response(&self, call_id: i32, message: UniquePtr<StringBuffer>) {
     unsafe {
-      let this = Self::get_cxx_base_offset().to_embedder_mut::<Self>(channel);
-      let vtable = this.rust_vtable;
-      let embedder =
-        this.offset_within_embedder.to_embedder_mut::<Opaque>(this);
-      std::mem::transmute((embedder, vtable))
+      v8_inspector__V8Inspector__Channel__sendResponse(
+        self.raw(),
+        call_id,
+        message,
+      );
+    }
+  }
+  pub fn send_notification(&self, message: UniquePtr<StringBuffer>) {
+    unsafe {
+      v8_inspector__V8Inspector__Channel__sendNotification(self.raw(), message);
+    }
+  }
+  pub fn flush_protocol_notifications(&self) {
+    unsafe {
+      v8_inspector__V8Inspector__Channel__flushProtocolNotifications(
+        self.raw(),
+      );
     }
   }
 }
 
-impl Debug for ChannelBase {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    f.debug_struct("ChannelBase")
-      .field("cxx_base", &self.cxx_base)
-      .field("offset_within_embedder", &self.offset_within_embedder)
-      .finish()
-  }
+pub trait ChannelImpl {
+  fn send_response(&self, call_id: i32, message: UniquePtr<StringBuffer>);
+  fn send_notification(&self, message: UniquePtr<StringBuffer>);
+  fn flush_protocol_notifications(&self);
 }
 
 #[cfg(test)]
@@ -423,25 +367,12 @@ mod tests {
   #[derive(Debug)]
   pub struct TestChannel {
     field1: i32,
-    base: ChannelBase,
     field2: u64,
   }
 
   impl ChannelImpl for TestChannel {
-    fn base(&self) -> &ChannelBase {
-      &self.base
-    }
-    fn base_mut(&mut self) -> &mut ChannelBase {
-      &mut self.base
-    }
-    unsafe fn base_ptr(_this: *const Self) -> *const ChannelBase
-    where
-      Self: Sized,
-    {
-      unsafe { addr_of!((*_this).base) }
-    }
     fn send_response(
-      &mut self,
+      &self,
       call_id: i32,
       mut message: UniquePtr<StringBuffer>,
     ) {
@@ -449,11 +380,11 @@ mod tests {
       assert_eq!(message.as_mut().unwrap().string().len(), MESSAGE.len());
       self.log_call();
     }
-    fn send_notification(&mut self, mut message: UniquePtr<StringBuffer>) {
+    fn send_notification(&self, mut message: UniquePtr<StringBuffer>) {
       assert_eq!(message.as_mut().unwrap().string().len(), MESSAGE.len());
       self.log_call();
     }
-    fn flush_protocol_notifications(&mut self) {
+    fn flush_protocol_notifications(&self) {
       self.log_call();
     }
   }
@@ -461,7 +392,6 @@ mod tests {
   impl TestChannel {
     pub fn new() -> Self {
       Self {
-        base: ChannelBase::new::<Self>(),
         field1: -42,
         field2: 420,
       }
@@ -476,7 +406,7 @@ mod tests {
 
   #[test]
   fn test_channel() {
-    let mut channel = TestChannel::new();
+    let channel = TestChannel::new();
     let msg_view = StringView::from(MESSAGE);
     channel.send_response(999, StringBuffer::create(msg_view));
     assert_eq!(CALL_COUNT.swap(0, SeqCst), 1);
@@ -489,28 +419,30 @@ mod tests {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct V8InspectorClient {
+pub struct RawV8InspectorClient {
   _cxx_vtable: CxxVTable,
 }
 
 impl V8InspectorClient {
-  pub fn run_message_loop_on_pause(&mut self, context_group_id: i32) {
+  pub fn run_message_loop_on_pause(&self, context_group_id: i32) {
     unsafe {
       v8_inspector__V8InspectorClient__runMessageLoopOnPause(
-        self,
+        self.raw(),
         context_group_id,
       );
     }
   }
 
-  pub fn quit_message_loop_on_pause(&mut self) {
-    unsafe { v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self) }
+  pub fn quit_message_loop_on_pause(&self) {
+    unsafe {
+      v8_inspector__V8InspectorClient__quitMessageLoopOnPause(self.raw())
+    }
   }
 
-  pub fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {
+  pub fn run_if_waiting_for_debugger(&self, context_group_id: i32) {
     unsafe {
       v8_inspector__V8InspectorClient__runIfWaitingForDebugger(
-        self,
+        self.raw(),
         context_group_id,
       );
     }
@@ -518,7 +450,7 @@ impl V8InspectorClient {
 
   #[allow(clippy::too_many_arguments)]
   pub fn console_api_message(
-    &mut self,
+    &self,
     context_group_id: i32,
     level: i32,
     message: &StringView,
@@ -529,7 +461,7 @@ impl V8InspectorClient {
   ) {
     unsafe {
       v8_inspector__V8InspectorClient__consoleAPIMessage(
-        self,
+        self.raw(),
         context_group_id,
         level,
         message,
@@ -541,57 +473,24 @@ impl V8InspectorClient {
     }
   }
 
-  pub fn generate_unique_id(&mut self) -> i64 {
-    unsafe { v8_inspector__V8InspectorClient__generateUniqueId(self) }
-  }
-}
-
-pub trait AsV8InspectorClient {
-  fn as_client(&self) -> &V8InspectorClient;
-  fn as_client_mut(&mut self) -> &mut V8InspectorClient;
-}
-
-impl AsV8InspectorClient for V8InspectorClient {
-  fn as_client(&self) -> &V8InspectorClient {
-    self
-  }
-  fn as_client_mut(&mut self) -> &mut V8InspectorClient {
-    self
-  }
-}
-
-impl<T> AsV8InspectorClient for T
-where
-  T: V8InspectorClientImpl,
-{
-  fn as_client(&self) -> &V8InspectorClient {
-    &self.base().cxx_base
-  }
-  fn as_client_mut(&mut self) -> &mut V8InspectorClient {
-    &mut self.base_mut().cxx_base
+  pub fn generate_unique_id(&self) -> i64 {
+    unsafe { v8_inspector__V8InspectorClient__generateUniqueId(self.raw()) }
   }
 }
 
 #[allow(unused_variables)]
-pub trait V8InspectorClientImpl: AsV8InspectorClient {
-  fn base(&self) -> &V8InspectorClientBase;
-  fn base_mut(&mut self) -> &mut V8InspectorClientBase;
-  /// This is used for calculating the offset to the base field, and care must be taken not to create any references in the process of creating the pointer because the *const Self pointer is not valid (thus resulting in instant UB)
-  unsafe fn base_ptr(this: *const Self) -> *const V8InspectorClientBase
-  where
-    Self: Sized;
+pub trait V8InspectorClientImpl {
+  fn run_message_loop_on_pause(&self, context_group_id: i32) {}
+  fn quit_message_loop_on_pause(&self) {}
+  fn run_if_waiting_for_debugger(&self, context_group_id: i32) {}
 
-  fn run_message_loop_on_pause(&mut self, context_group_id: i32) {}
-  fn quit_message_loop_on_pause(&mut self) {}
-  fn run_if_waiting_for_debugger(&mut self, context_group_id: i32) {}
-
-  fn generate_unique_id(&mut self) -> i64 {
+  fn generate_unique_id(&self) -> i64 {
     0 // 0 = let V8 pick a unique id itself
   }
 
   #[allow(clippy::too_many_arguments)]
   fn console_api_message(
-    &mut self,
+    &self,
     context_group_id: i32,
     level: i32,
     message: &StringView,
@@ -603,130 +502,106 @@ pub trait V8InspectorClientImpl: AsV8InspectorClient {
   }
 
   fn ensure_default_context_in_group(
-    &mut self,
+    &self,
     context_group_id: i32,
   ) -> Option<Local<Context>> {
     None
   }
 
   fn resource_name_to_url(
-    &mut self,
+    &self,
     resource_name: &StringView,
   ) -> Option<UniquePtr<StringBuffer>> {
     None
   }
 }
 
-pub struct V8InspectorClientBase {
-  cxx_base: V8InspectorClient,
-  offset_within_embedder: FieldOffset<Self>,
-  rust_vtable: RustVTable<&'static dyn V8InspectorClientImpl>,
+// V8 will hold onto a raw pointer to the RawV8InspectorClient, so we need to
+// make sure it stays pinned.
+#[repr(C)]
+struct V8InspectorClientHeap {
+  raw: UnsafeCell<RawV8InspectorClient>,
+  // this doesn't need to be pinned, but it's convenient to keep it here
+  // so we can access it from a pointer to the RawV8InspectorClient
+  imp: Box<dyn V8InspectorClientImpl>,
+  _pinned: PhantomPinned,
 }
 
-impl V8InspectorClientBase {
-  fn construct_cxx_base() -> V8InspectorClient {
-    unsafe {
-      let mut buf = std::mem::MaybeUninit::<V8InspectorClient>::uninit();
-      v8_inspector__V8InspectorClient__BASE__CONSTRUCT(&mut buf);
-      buf.assume_init()
-    }
-  }
-
-  fn get_cxx_base_offset() -> FieldOffset<V8InspectorClient> {
-    let buf = std::mem::MaybeUninit::<Self>::uninit();
-    let base = unsafe { addr_of!((*buf.as_ptr()).cxx_base) };
-    FieldOffset::from_ptrs(buf.as_ptr(), base)
-  }
-
-  fn get_offset_within_embedder<T>() -> FieldOffset<Self>
-  where
-    T: V8InspectorClientImpl,
-  {
-    let buf = std::mem::MaybeUninit::<T>::uninit();
-    let embedder_ptr: *const T = buf.as_ptr();
-    let self_ptr: *const Self = unsafe { T::base_ptr(embedder_ptr) };
-    FieldOffset::from_ptrs(embedder_ptr, self_ptr)
-  }
-
-  fn get_rust_vtable<T>() -> RustVTable<&'static dyn V8InspectorClientImpl>
-  where
-    T: V8InspectorClientImpl,
-  {
-    let buf = std::mem::MaybeUninit::<T>::uninit();
-    let embedder_ptr = buf.as_ptr();
-    let trait_object: *const dyn V8InspectorClientImpl = embedder_ptr;
-    let (data_ptr, vtable): (*const T, RustVTable<_>) =
-      unsafe { std::mem::transmute(trait_object) };
-    assert_eq!(data_ptr, embedder_ptr);
-    vtable
-  }
-
-  pub fn new<T>() -> Self
-  where
-    T: V8InspectorClientImpl,
-  {
-    Self {
-      cxx_base: Self::construct_cxx_base(),
-      offset_within_embedder: Self::get_offset_within_embedder::<T>(),
-      rust_vtable: Self::get_rust_vtable::<T>(),
-    }
-  }
-
-  pub unsafe fn dispatch(
-    client: &V8InspectorClient,
-  ) -> &dyn V8InspectorClientImpl {
-    unsafe {
-      let this = Self::get_cxx_base_offset().to_embedder::<Self>(client);
-      let embedder = this.offset_within_embedder.to_embedder::<Opaque>(this);
-      std::mem::transmute((embedder, this.rust_vtable))
-    }
-  }
-
-  pub unsafe fn dispatch_mut(
-    client: &mut V8InspectorClient,
-  ) -> &mut dyn V8InspectorClientImpl {
-    unsafe {
-      let this = Self::get_cxx_base_offset().to_embedder_mut::<Self>(client);
-      let vtable = this.rust_vtable;
-      let embedder =
-        this.offset_within_embedder.to_embedder_mut::<Opaque>(this);
-      std::mem::transmute((embedder, vtable))
-    }
+impl V8InspectorClientHeap {
+  unsafe fn from_raw<'b>(
+    this: *const RawV8InspectorClient,
+  ) -> &'b V8InspectorClientHeap {
+    unsafe { &(*this.cast::<V8InspectorClientHeap>()) }
   }
 }
 
-impl Debug for V8InspectorClientBase {
+pub struct V8InspectorClient {
+  heap: Pin<Box<V8InspectorClientHeap>>,
+}
+
+impl V8InspectorClient {
+  pub fn new(imp: Box<dyn V8InspectorClientImpl>) -> V8InspectorClient {
+    let heap = unsafe {
+      let heap =
+        Box::into_raw(Box::new(MaybeUninit::<V8InspectorClientHeap>::uninit()));
+      let raw = &raw mut (*heap.cast::<V8InspectorClientHeap>()).raw;
+      v8_inspector__V8InspectorClient__BASE__CONSTRUCT(
+        raw.cast::<MaybeUninit<RawV8InspectorClient>>(),
+      );
+      let imp_ptr = &raw mut (*heap.cast::<V8InspectorClientHeap>()).imp;
+      imp_ptr.write(imp);
+      Box::into_pin(Box::from_raw(heap.cast::<V8InspectorClientHeap>()))
+    };
+
+    Self { heap }
+  }
+
+  fn raw(&self) -> *mut RawV8InspectorClient {
+    self.heap.raw.get()
+  }
+}
+
+impl Debug for V8InspectorClient {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    f.debug_struct("V8InspectorClientBase")
-      .field("cxx_base", &self.cxx_base)
-      .field("offset_within_embedder", &self.offset_within_embedder)
-      .finish()
+    f.debug_struct("V8InspectorClient").finish()
   }
 }
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct V8InspectorSession(Opaque);
+pub struct RawV8InspectorSession(Opaque);
+
+pub struct V8InspectorSession {
+  raw: UniqueRef<RawV8InspectorSession>,
+  // this isn't actually used, but it needs to live
+  // as long as the session
+  _channel: Channel,
+}
 
 impl V8InspectorSession {
   pub fn can_dispatch_method(method: StringView) -> bool {
     unsafe { v8_inspector__V8InspectorSession__canDispatchMethod(method) }
   }
 
-  pub fn dispatch_protocol_message(&mut self, message: StringView) {
+  pub fn dispatch_protocol_message(&self, message: StringView) {
     unsafe {
-      v8_inspector__V8InspectorSession__dispatchProtocolMessage(self, message);
+      v8_inspector__V8InspectorSession__dispatchProtocolMessage(
+        self.raw.as_ptr(),
+        message,
+      );
     }
   }
 
   pub fn schedule_pause_on_next_statement(
-    &mut self,
+    &self,
     reason: StringView,
     detail: StringView,
   ) {
     unsafe {
       v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
-        self, reason, detail,
+        self.raw.as_ptr(),
+        reason,
+        detail,
       );
     }
   }
@@ -734,7 +609,7 @@ impl V8InspectorSession {
 
 impl Drop for V8InspectorSession {
   fn drop(&mut self) {
-    unsafe { v8_inspector__V8InspectorSession__DELETE(self) };
+    unsafe { v8_inspector__V8InspectorSession__DELETE(self.raw.as_ptr()) };
   }
 }
 
@@ -775,9 +650,11 @@ unsafe impl Send for StringBuffer {}
 use std::iter::ExactSizeIterator;
 use std::iter::IntoIterator;
 use std::marker::PhantomData;
+use std::marker::PhantomPinned;
+use std::mem::MaybeUninit;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::ptr::NonNull;
-use std::ptr::addr_of;
 use std::ptr::null;
 use std::slice;
 use std::string;
@@ -994,49 +871,65 @@ pub enum V8InspectorClientTrustLevel {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct V8Inspector(Opaque);
+pub struct RawV8Inspector(Opaque);
+
+pub struct V8Inspector {
+  raw: UniqueRef<RawV8Inspector>,
+  _client: V8InspectorClient,
+}
 
 impl V8Inspector {
-  pub fn create<T>(
+  pub fn create(
     isolate: &mut Isolate,
-    client: &mut T,
-  ) -> UniqueRef<V8Inspector>
-  where
-    T: AsV8InspectorClient,
-  {
-    unsafe {
+    client: V8InspectorClient,
+  ) -> V8Inspector {
+    let raw = unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__create(
         isolate,
-        client.as_client_mut(),
+        client.raw(),
       ))
+    };
+    V8Inspector {
+      raw,
+      _client: client,
     }
   }
 
-  pub fn connect<T>(
-    &mut self,
+  // note: in theory v8 could mutate through this pointer.
+  // this is fine, though, because we never create a rust reference
+  // to the actual RawV8Inspector, we only use raw pointers which
+  // don't enforce the immutability guarantee
+  fn raw(&self) -> *mut RawV8Inspector {
+    self.raw.as_ptr()
+  }
+
+  pub fn connect(
+    &self,
     context_group_id: i32,
-    channel: &mut T,
+    channel: Channel,
     state: StringView,
     client_trust_level: V8InspectorClientTrustLevel,
-  ) -> UniqueRef<V8InspectorSession>
-  where
-    T: AsChannel,
-  {
-    unsafe {
+  ) -> V8InspectorSession {
+    let raw = unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__connect(
-        self,
+        self.raw(),
         context_group_id,
-        channel.as_channel_mut(),
+        channel.raw(),
         state,
         client_trust_level,
       ))
+    };
+
+    V8InspectorSession {
+      raw,
+      _channel: channel,
     }
   }
 
   /// Note: this method deviates from the C++ API here because it's a lot of
   /// work to bind the V8ContextInfo, which is not used elsewhere.
   pub fn context_created(
-    &mut self,
+    &self,
     context: Local<Context>,
     context_group_id: i32,
     human_readable_name: StringView,
@@ -1044,7 +937,7 @@ impl V8Inspector {
   ) {
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
-        self,
+        self.raw(),
         &*context,
         context_group_id,
         human_readable_name,
@@ -1053,13 +946,15 @@ impl V8Inspector {
     }
   }
 
-  pub fn context_destroyed(&mut self, context: Local<Context>) {
-    unsafe { v8_inspector__V8Inspector__contextDestroyed(self, &*context) }
+  pub fn context_destroyed(&self, context: Local<Context>) {
+    unsafe {
+      v8_inspector__V8Inspector__contextDestroyed(self.raw(), &*context)
+    }
   }
 
   #[allow(clippy::too_many_arguments)]
   pub fn exception_thrown(
-    &mut self,
+    &self,
     context: Local<Context>,
     message: StringView,
     exception: Local<Value>,
@@ -1072,7 +967,7 @@ impl V8Inspector {
   ) -> u32 {
     unsafe {
       v8_inspector__V8Inspector__exceptionThrown(
-        self,
+        self.raw(),
         &*context,
         message,
         &*exception,
@@ -1087,12 +982,12 @@ impl V8Inspector {
   }
 
   pub fn create_stack_trace(
-    &mut self,
+    &self,
     stack_trace: Option<Local<StackTrace>>,
   ) -> UniquePtr<V8StackTrace> {
     unsafe {
       UniquePtr::from_raw(v8_inspector__V8Inspector__createStackTrace(
-        self,
+        self.raw(),
         stack_trace.map_or(null(), |v| &*v),
       ))
     }
@@ -1101,7 +996,7 @@ impl V8Inspector {
 
 impl Drop for V8Inspector {
   fn drop(&mut self) {
-    unsafe { v8_inspector__V8Inspector__DELETE(self) };
+    unsafe { v8_inspector__V8Inspector__DELETE(self.raw()) };
   }
 }
 
