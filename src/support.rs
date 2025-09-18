@@ -8,7 +8,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::align_of;
 use std::mem::forget;
-use std::mem::needs_drop;
 use std::mem::size_of;
 use std::mem::take;
 use std::ops::Deref;
@@ -117,6 +116,10 @@ impl<T> UniqueRef<T> {
     forget(self);
     ptr
   }
+
+  pub(crate) fn as_ptr(&self) -> *mut T {
+    self.0.as_ptr()
+  }
 }
 
 impl<T: Shared> UniqueRef<T> {
@@ -173,10 +176,6 @@ fn assert_unique_ptr_layout_compatible<U, T>() {
   // as a raw C pointer.
   assert_eq!(size_of::<U>(), size_of::<*mut T>());
   assert_eq!(align_of::<U>(), align_of::<*mut T>());
-
-  // Assert that `T` (probably) implements `Drop`. If it doesn't, a regular
-  // reference should be used instead of UniquePtr/UniqueRef.
-  assert!(needs_drop::<T>());
 }
 
 pub trait Shared
@@ -425,15 +424,6 @@ impl<F> FieldOffset<F> {
     unsafe {
       (((field as *const _ as usize) - self.0) as *const E)
         .as_ref()
-        .unwrap()
-    }
-  }
-
-  #[allow(clippy::wrong_self_convention)]
-  pub unsafe fn to_embedder_mut<E>(self, field: &mut F) -> &mut E {
-    unsafe {
-      (((field as *mut _ as usize) - self.0) as *mut E)
-        .as_mut()
         .unwrap()
     }
   }
