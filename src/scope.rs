@@ -667,24 +667,6 @@ mod get_data_sealed {
   }
 }
 
-impl Deref for HandleScope<'_, ()> {
-  type Target = Isolate;
-  fn deref(&self) -> &Self::Target {
-    // SAFETY: isolate is still valid
-    unsafe { Isolate::from_raw_ref(&self.isolate) }
-  }
-}
-
-impl<'a> Deref for HandleScope<'a> {
-  type Target = HandleScope<'a, ()>;
-  fn deref(&self) -> &Self::Target {
-    // SAFETY: these have the same exact layout, as the type parameter is used in a ZST
-    unsafe {
-      std::mem::transmute::<&HandleScope<'a>, &HandleScope<'a, ()>>(self)
-    }
-  }
-}
-
 impl<'p> PinnedRef<'p, HandleScope<'_, ()>> {
   #[inline(always)]
   pub(crate) unsafe fn cast_local<T>(
@@ -846,10 +828,7 @@ where
       scope: unsafe {
         // SAFETY: we are adding the context, so we can mark that it now has a context.
         // the types are the same aside from the type parameter, which is only used in a ZST
-        std::mem::transmute::<
-          &'scope mut PinnedRef<'obj, HandleScope<'i, C>>,
-          &'scope mut PinnedRef<'obj, HandleScope<'i, Context>>,
-        >(me)
+        cast_pinned_ref_mut::<HandleScope<'i, C>, HandleScope<'i, Context>>(me)
       },
     }
   }
@@ -871,10 +850,9 @@ impl<'scope, 'obj: 'scope, 'i, 'ct, C> NewContextScope<'scope, 'ct>
         // SAFETY: CallbackScope is a superset of HandleScope, so giving a "view" of
         // the CallbackScope as a HandleScope is valid, and we won't ever move out of the transmuted
         // value
-        std::mem::transmute::<
-          &'scope mut PinnedRef<'obj, CallbackScope<'i, C>>,
-          &'scope mut PinnedRef<'obj, HandleScope<'i, Context>>,
-        >(me)
+        cast_pinned_ref_mut::<CallbackScope<'i, C>, HandleScope<'i, Context>>(
+          me,
+        )
       },
     }
   }
@@ -1670,7 +1648,7 @@ impl<'scope, 'obj: 'scope, P: Scope + GetIsolate>
 #[allow(unused_macros, clippy::macro_metavars_in_unsafe)]
 #[macro_export]
 macro_rules! make_callback_scope {
-  (unsafe $scope: ident, $param: expr) => {
+  (unsafe $scope: ident, $param: expr $(,)?) => {
     #[allow(clippy::macro_metavars_in_unsafe)]
     let mut $scope = {
       // force the caller to put a separate unsafe block around the param expr
@@ -1685,7 +1663,7 @@ macro_rules! make_callback_scope {
     };
     let $scope = &mut $scope;
   };
-  (unsafe let $scope: ident, $param: expr) => {
+  (unsafe let $scope: ident, $param: expr $(,)?) => {
     $crate::make_callback_scope!(unsafe $scope, $param);
   }
 }
@@ -1693,10 +1671,15 @@ macro_rules! make_callback_scope {
 #[allow(unused_imports)]
 pub(crate) use make_callback_scope;
 
+/// Creates a pinned `HandleScope` and binds `&mut PinScope` to `$scope`.
+///
+/// ```rust
+/// v8::make_handle_scope!(let scope, isolate);
+/// ```
 #[allow(unused_macros)]
 #[macro_export]
 macro_rules! make_handle_scope {
-  ($scope: ident, $param: expr) => {
+  ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::HandleScope::new($param);
     // SAFETY: we are shadowing the original binding, so it can't be accessed
     // ever again
@@ -1706,7 +1689,7 @@ macro_rules! make_handle_scope {
     };
     let $scope = &mut $scope;
   };
-  (let $scope: ident, $param: expr) => {
+  (let $scope: ident, $param: expr $(,)?) => {
     $crate::make_handle_scope!($scope, $param);
   };
 }
@@ -1740,7 +1723,7 @@ pub(crate) use make_handle_scope_with_context;
 #[allow(unused_macros)]
 #[macro_export]
 macro_rules! make_try_catch {
-  ($scope: ident, $param: expr) => {
+  ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::TryCatch::new($param);
     // SAFETY: we are shadowing the original binding, so it can't be accessed
     // ever again
@@ -1750,14 +1733,14 @@ macro_rules! make_try_catch {
     };
     let $scope = &mut $scope;
   };
-  (let $scope: ident, $param: expr) => {
+  (let $scope: ident, $param: expr $(,)?) => {
     $crate::make_try_catch!($scope, $param);
   };
 }
 
 #[macro_export]
 macro_rules! make_disallow_javascript_execution_scope {
-  ($scope: ident, $param: expr, $on_failure: expr) => {
+  ($scope: ident, $param: expr, $on_failure: expr $(,)?) => {
     let mut $scope =
       $crate::DisallowJavascriptExecutionScope::new($param, $on_failure);
     // SAFETY: we are shadowing the original binding, so it can't be accessed
@@ -1768,7 +1751,7 @@ macro_rules! make_disallow_javascript_execution_scope {
     };
     let $scope = &mut $scope;
   };
-  (let $scope: ident, $param: expr, $on_failure: expr) => {
+  (let $scope: ident, $param: expr, $on_failure: expr $(,)?) => {
     $crate::make_disallow_javascript_execution_scope!(
       $scope,
       $param,
@@ -1782,7 +1765,7 @@ pub(crate) use make_disallow_javascript_execution_scope;
 
 #[macro_export]
 macro_rules! make_allow_javascript_execution_scope {
-  ($scope: ident, $param: expr) => {
+  ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::AllowJavascriptExecutionScope::new($param);
     let mut $scope = {
       let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
@@ -1790,7 +1773,7 @@ macro_rules! make_allow_javascript_execution_scope {
     };
     let $scope = &mut $scope;
   };
-  (let $scope: ident, $param: expr) => {
+  (let $scope: ident, $param: expr $(,)?) => {
     $crate::make_allow_javascript_execution_scope!($scope, $param);
   };
 }
@@ -1800,7 +1783,7 @@ pub(crate) use make_allow_javascript_execution_scope;
 
 #[macro_export]
 macro_rules! make_escapable_handle_scope {
-  ($scope: ident, $param: expr) => {
+  ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::EscapableHandleScope::new($param);
     let mut $scope = {
       let scope_pinned = unsafe { std::pin::Pin::new_unchecked(&mut $scope) };
@@ -1808,7 +1791,7 @@ macro_rules! make_escapable_handle_scope {
     };
     let $scope = &mut $scope;
   };
-  (let $scope: ident, $param: expr) => {
+  (let $scope: ident, $param: expr $(,)?) => {
     $crate::make_escapable_handle_scope!($scope, $param);
   };
 }
@@ -1831,21 +1814,28 @@ impl<T> PinnedRef<'_, T> {
   }
 }
 
+unsafe fn cast_pinned_ref<'b, 'o, I, O>(
+  pinned: &PinnedRef<'_, I>,
+) -> &'b PinnedRef<'o, O> {
+  unsafe { std::mem::transmute(pinned) }
+}
+
+unsafe fn cast_pinned_ref_mut<'b, 'o, I, O>(
+  pinned: &mut PinnedRef<'_, I>,
+) -> &'b mut PinnedRef<'o, O> {
+  unsafe { std::mem::transmute(pinned) }
+}
+
 impl<'p, 'i> Deref for PinnedRef<'p, HandleScope<'i>> {
   type Target = PinnedRef<'p, HandleScope<'i, ()>>;
   fn deref(&self) -> &Self::Target {
-    unsafe {
-      std::mem::transmute::<
-        &PinnedRef<'p, HandleScope<'i>>,
-        &PinnedRef<'p, HandleScope<'i, ()>>,
-      >(self)
-    }
+    unsafe { cast_pinned_ref::<HandleScope<'i>, HandleScope<'i, ()>>(self) }
   }
 }
 
 impl DerefMut for PinnedRef<'_, HandleScope<'_>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { std::mem::transmute(self) }
+    unsafe { cast_pinned_ref_mut::<HandleScope<'_>, HandleScope<'_, ()>>(self) }
   }
 }
 
@@ -1875,26 +1865,30 @@ impl<'i> Deref for PinnedRef<'_, CallbackScope<'i>> {
   // be careful to ensure that the input lifetime is a safe approximation.
   type Target = PinnedRef<'i, HandleScope<'i>>;
   fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
+    unsafe { cast_pinned_ref::<CallbackScope<'i>, HandleScope<'i>>(self) }
   }
 }
 
 impl DerefMut for PinnedRef<'_, CallbackScope<'_>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { std::mem::transmute(self) }
+    unsafe { cast_pinned_ref_mut::<CallbackScope<'_>, HandleScope<'_>>(self) }
   }
 }
 
 impl<'i> Deref for PinnedRef<'_, CallbackScope<'i, ()>> {
   type Target = PinnedRef<'i, HandleScope<'i, ()>>;
   fn deref(&self) -> &Self::Target {
-    unsafe { std::mem::transmute(self) }
+    unsafe {
+      cast_pinned_ref::<CallbackScope<'i, ()>, HandleScope<'i, ()>>(self)
+    }
   }
 }
 
 impl DerefMut for PinnedRef<'_, CallbackScope<'_, ()>> {
   fn deref_mut(&mut self) -> &mut Self::Target {
-    unsafe { std::mem::transmute(self) }
+    unsafe {
+      cast_pinned_ref_mut::<CallbackScope<'_, ()>, HandleScope<'_, ()>>(self)
+    }
   }
 }
 
@@ -2077,7 +2071,11 @@ impl<'pin, 's, 'esc: 's, C> AsRef<PinnedRef<'pin, HandleScope<'s, C>>>
   for PinnedRef<'pin, EscapableHandleScope<'s, 'esc, C>>
 {
   fn as_ref(&self) -> &PinnedRef<'pin, HandleScope<'s, C>> {
-    unsafe { std::mem::transmute(self) }
+    unsafe {
+      cast_pinned_ref::<EscapableHandleScope<'s, 'esc, C>, HandleScope<'s, C>>(
+        self,
+      )
+    }
   }
 }
 
