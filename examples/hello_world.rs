@@ -9,7 +9,7 @@ fn main() {
     let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
     // Create a stack-allocated handle scope.
-    v8::make_handle_scope!(let handle_scope, isolate);
+    v8::scope!(let handle_scope, isolate);
 
     // Create a new context.
     let context = v8::Context::new(handle_scope, Default::default());

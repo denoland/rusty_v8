@@ -29,7 +29,7 @@ fn main() {
   }
 
   let mut isolate = v8::Isolate::new(v8::CreateParams::default());
-  v8::make_handle_scope!(let scope, &mut isolate);
+  v8::scope!(let scope, &mut isolate);
 
   let source = std::fs::read_to_string(&file)
     .unwrap_or_else(|err| panic!("failed to open {file}: {err}"));
@@ -203,9 +203,9 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   }
 
   fn execute_script(&mut self, script: v8::Local<'scope, v8::String>) {
-    v8::make_handle_scope!(let scope, &mut self.context_scope);
+    v8::scope!(let scope, &mut self.context_scope);
 
-    v8::make_try_catch!(let try_catch, scope);
+    v8::tc_scope!(let try_catch, scope);
 
     let script = v8::Script::compile(try_catch, script, None)
       .expect("failed to compile script");
@@ -229,9 +229,9 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
     let request: Box<dyn HttpRequest> = Box::new(request);
     let request = self.wrap_request(request);
 
-    v8::make_handle_scope!(let scope, &mut self.context_scope);
+    v8::scope!(let scope, &mut self.context_scope);
 
-    v8::make_try_catch!(let try_catch, scope);
+    v8::tc_scope!(let try_catch, scope);
 
     let process_fn = self.process_fn.as_mut().unwrap();
     let global = self.context.global(try_catch).into();

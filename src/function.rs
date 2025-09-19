@@ -21,7 +21,7 @@ use crate::UniqueRef;
 use crate::Value;
 use crate::isolate::RealIsolate;
 use crate::scope::PinScope;
-use crate::scope::make_callback_scope;
+use crate::scope::callback_scope;
 use crate::script_compiler::CachedData;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -551,7 +551,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -580,7 +580,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -609,7 +609,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Integer>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -641,7 +641,7 @@ where
              value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
@@ -674,7 +674,7 @@ where
              value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
@@ -701,7 +701,7 @@ where
   fn mapping() -> Self {
     let f = |info: *const PropertyCallbackInfo<Array>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, args, rv);
@@ -732,7 +732,7 @@ where
              desc: *const PropertyDescriptor,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let desc = unsafe { &*desc };
@@ -762,7 +762,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -788,7 +788,7 @@ where
   fn mapping() -> Self {
     let f = |index: u32, info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, index, args, rv)
@@ -815,7 +815,7 @@ where
   fn mapping() -> Self {
     let f = |key: u32, info: *const PropertyCallbackInfo<Integer>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv)
@@ -846,7 +846,7 @@ where
              value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -878,7 +878,7 @@ where
              desc: *const PropertyDescriptor,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       let desc = unsafe { &*desc };
@@ -906,7 +906,7 @@ where
   fn mapping() -> Self {
     let f = |index: u32, info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
-      make_callback_scope!(unsafe scope, info);
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, index, args, rv)

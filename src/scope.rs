@@ -44,8 +44,8 @@
 //! or use the provided macros:
 //! ```rust
 //! // note that this expands into statements, introducing a new variable `scope` into the current
-//! // block. Using it as an expression (`let scope = v8::make_handle_scope!(let scope, &mut isolate);`) will not work
-//! v8::make_handle_scope!(let scope, &mut isolate);
+//! // block. Using it as an expression (`let scope = v8::scope!(let scope, &mut isolate);`) will not work
+//! v8::scope!(let scope, &mut isolate);
 //! ```
 //!
 //! # Scopes as function args
@@ -1647,7 +1647,7 @@ impl<'scope, 'obj: 'scope, P: Scope + GetIsolate>
 
 #[allow(unused_macros, clippy::macro_metavars_in_unsafe)]
 #[macro_export]
-macro_rules! make_callback_scope {
+macro_rules! callback_scope {
   (unsafe $scope: ident, $param: expr $(,)?) => {
     #[allow(clippy::macro_metavars_in_unsafe)]
     let mut $scope = {
@@ -1664,21 +1664,21 @@ macro_rules! make_callback_scope {
     let $scope = &mut $scope;
   };
   (unsafe let $scope: ident, $param: expr $(,)?) => {
-    $crate::make_callback_scope!(unsafe $scope, $param);
+    $crate::callback_scope!(unsafe $scope, $param);
   }
 }
 
 #[allow(unused_imports)]
-pub(crate) use make_callback_scope;
+pub(crate) use callback_scope;
 
 /// Creates a pinned `HandleScope` and binds `&mut PinScope` to `$scope`.
 ///
 /// ```rust
-/// v8::make_handle_scope!(let scope, isolate);
+/// v8::scope!(let scope, isolate);
 /// ```
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! make_handle_scope {
+macro_rules! scope {
   ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::HandleScope::new($param);
     // SAFETY: we are shadowing the original binding, so it can't be accessed
@@ -1690,16 +1690,16 @@ macro_rules! make_handle_scope {
     let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr $(,)?) => {
-    $crate::make_handle_scope!($scope, $param);
+    $crate::scope!($scope, $param);
   };
 }
 
 #[allow(unused_imports)]
-pub(crate) use make_handle_scope;
+pub(crate) use scope;
 
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! make_handle_scope_with_context {
+macro_rules! scope_with_context {
   ($scope: ident, $param: expr, $context: expr $(,)?) => {
     let mut $scope = $crate::HandleScope::new($param);
     // SAFETY: we are shadowing the original binding, so it can't be accessed
@@ -1713,16 +1713,16 @@ macro_rules! make_handle_scope_with_context {
     let $scope = &mut $crate::ContextScope::new($scope, context);
   };
   (let $scope: ident, $param: expr, $context: expr $(,)?) => {
-    $crate::make_handle_scope_with_context!($scope, $param, $context);
+    $crate::scope_with_context!($scope, $param, $context);
   };
 }
 
 #[allow(unused_imports)]
-pub(crate) use make_handle_scope_with_context;
+pub(crate) use scope_with_context;
 
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! make_try_catch {
+macro_rules! tc_scope {
   ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::TryCatch::new($param);
     // SAFETY: we are shadowing the original binding, so it can't be accessed
@@ -1734,12 +1734,12 @@ macro_rules! make_try_catch {
     let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr $(,)?) => {
-    $crate::make_try_catch!($scope, $param);
+    $crate::tc_scope!($scope, $param);
   };
 }
 
 #[macro_export]
-macro_rules! make_disallow_javascript_execution_scope {
+macro_rules! disallow_javascript_execution_scope {
   ($scope: ident, $param: expr, $on_failure: expr $(,)?) => {
     let mut $scope =
       $crate::DisallowJavascriptExecutionScope::new($param, $on_failure);
@@ -1752,19 +1752,15 @@ macro_rules! make_disallow_javascript_execution_scope {
     let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr, $on_failure: expr $(,)?) => {
-    $crate::make_disallow_javascript_execution_scope!(
-      $scope,
-      $param,
-      $on_failure
-    );
+    $crate::disallow_javascript_execution_scope!($scope, $param, $on_failure);
   };
 }
 
 #[allow(unused_imports)]
-pub(crate) use make_disallow_javascript_execution_scope;
+pub(crate) use disallow_javascript_execution_scope;
 
 #[macro_export]
-macro_rules! make_allow_javascript_execution_scope {
+macro_rules! allow_javascript_execution_scope {
   ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::AllowJavascriptExecutionScope::new($param);
     let mut $scope = {
@@ -1774,15 +1770,15 @@ macro_rules! make_allow_javascript_execution_scope {
     let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr $(,)?) => {
-    $crate::make_allow_javascript_execution_scope!($scope, $param);
+    $crate::allow_javascript_execution_scope!($scope, $param);
   };
 }
 
 #[allow(unused_imports)]
-pub(crate) use make_allow_javascript_execution_scope;
+pub(crate) use allow_javascript_execution_scope;
 
 #[macro_export]
-macro_rules! make_escapable_handle_scope {
+macro_rules! escapable_handle_scope {
   ($scope: ident, $param: expr $(,)?) => {
     let mut $scope = $crate::EscapableHandleScope::new($param);
     let mut $scope = {
@@ -1792,12 +1788,12 @@ macro_rules! make_escapable_handle_scope {
     let $scope = &mut $scope;
   };
   (let $scope: ident, $param: expr $(,)?) => {
-    $crate::make_escapable_handle_scope!($scope, $param);
+    $crate::escapable_handle_scope!($scope, $param);
   };
 }
 
 #[allow(unused_imports)]
-pub(crate) use make_escapable_handle_scope;
+pub(crate) use escapable_handle_scope;
 
 #[repr(transparent)]
 pub struct PinnedRef<'p, T>(Pin<&'p mut T>);
@@ -2132,7 +2128,7 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
-        make_try_catch!(let l3_tc, &mut **l2_cxs);
+        tc_scope!(let l3_tc, &mut **l2_cxs);
         AssertTypeOf(l3_tc).is::<PinnedRef<TryCatch<HandleScope>>>();
         let d = l3_tc.deref_mut();
         AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
@@ -2142,7 +2138,7 @@ mod tests {
         AssertTypeOf(d).is::<Isolate>();
       }
       {
-        make_disallow_javascript_execution_scope!(let l3_djses, l2_cxs, OnFailure::CrashOnFailure);
+        disallow_javascript_execution_scope!(let l3_djses, l2_cxs, OnFailure::CrashOnFailure);
         AssertTypeOf(l3_djses)
           .is::<PinnedRef<DisallowJavascriptExecutionScope<HandleScope>>>();
         let d = l3_djses.deref_mut();
@@ -2152,7 +2148,7 @@ mod tests {
         let d = d.deref_mut();
         AssertTypeOf(d).is::<Isolate>();
         {
-          make_allow_javascript_execution_scope!(let l4_ajses, l3_djses);
+          allow_javascript_execution_scope!(let l4_ajses, l3_djses);
           AssertTypeOf(l4_ajses).is::<PinnedRef<
             AllowJavascriptExecutionScope<
               DisallowJavascriptExecutionScope<HandleScope>,
@@ -2170,7 +2166,7 @@ mod tests {
         }
       }
       {
-        make_escapable_handle_scope!(let l3_ehs, l2_cxs);
+        escapable_handle_scope!(let l3_ehs, l2_cxs);
         AssertTypeOf(l3_ehs).is::<PinnedRef<EscapableHandleScope>>();
         {
           let l4_cxs = &mut ContextScope::new(l3_ehs, context);
@@ -2185,7 +2181,7 @@ mod tests {
           AssertTypeOf(d).is::<Isolate>();
         }
         {
-          make_try_catch!(let l4_tc, l3_ehs);
+          tc_scope!(let l4_tc, l3_ehs);
           AssertTypeOf(l4_tc).is::<PinnedRef<TryCatch<EscapableHandleScope>>>();
           let d = l4_tc.deref_mut();
           AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope>>();
@@ -2197,7 +2193,7 @@ mod tests {
           AssertTypeOf(d).is::<Isolate>();
         }
         {
-          make_disallow_javascript_execution_scope!(let l4_djses, l3_ehs, OnFailure::CrashOnFailure);
+          disallow_javascript_execution_scope!(let l4_djses, l3_ehs, OnFailure::CrashOnFailure);
           AssertTypeOf(l4_djses)
             .is::<PinnedRef<DisallowJavascriptExecutionScope<EscapableHandleScope>>>();
           let d = l4_djses.deref_mut();
@@ -2209,7 +2205,7 @@ mod tests {
           let d = d.deref_mut();
           AssertTypeOf(d).is::<Isolate>();
           {
-            make_allow_javascript_execution_scope!(let l5_ajses, l4_djses);
+            allow_javascript_execution_scope!(let l5_ajses, l4_djses);
             AssertTypeOf(l5_ajses).is::<PinnedRef<
               AllowJavascriptExecutionScope<
                 DisallowJavascriptExecutionScope<EscapableHandleScope>,
@@ -2230,14 +2226,14 @@ mod tests {
       }
     }
     {
-      make_try_catch!(let l2_tc, l1_hs);
+      tc_scope!(let l2_tc, l1_hs);
       AssertTypeOf(l2_tc).is::<PinnedRef<TryCatch<HandleScope<()>>>>();
       let d = l2_tc.deref_mut();
       AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();
       let d = d.deref_mut();
       AssertTypeOf(d).is::<Isolate>();
       {
-        make_disallow_javascript_execution_scope!(let l3_djses, l2_tc, OnFailure::CrashOnFailure);
+        disallow_javascript_execution_scope!(let l3_djses, l2_tc, OnFailure::CrashOnFailure);
         AssertTypeOf(l3_djses).is::<PinnedRef<
           DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>,
         >>();
@@ -2248,7 +2244,7 @@ mod tests {
         let d = d.deref_mut();
         AssertTypeOf(d).is::<Isolate>();
         {
-          make_allow_javascript_execution_scope!(let l4_ajses, l3_djses);
+          allow_javascript_execution_scope!(let l4_ajses, l3_djses);
           AssertTypeOf(l4_ajses).is::<PinnedRef<
             AllowJavascriptExecutionScope<
               DisallowJavascriptExecutionScope<TryCatch<HandleScope<()>>>,
@@ -2268,9 +2264,9 @@ mod tests {
       }
     }
     {
-      make_escapable_handle_scope!(let l2_ehs, l1_hs);
+      escapable_handle_scope!(let l2_ehs, l1_hs);
       AssertTypeOf(l2_ehs).is::<PinnedRef<EscapableHandleScope<()>>>();
-      make_try_catch!(let l3_tc, l2_ehs);
+      tc_scope!(let l3_tc, l2_ehs);
       AssertTypeOf(l3_tc).is::<PinnedRef<TryCatch<EscapableHandleScope<()>>>>();
       let d = l3_tc.deref_mut();
       AssertTypeOf(d).is::<PinnedRef<EscapableHandleScope<()>>>();
@@ -2285,7 +2281,7 @@ mod tests {
       // that a context has been entered. Push a `ContextScope` onto the stack
       // to also meet the second expectation.
       let _ = ContextScope::new(l1_hs, context);
-      make_callback_scope!(unsafe l2_cbs, context);
+      callback_scope!(unsafe l2_cbs, context);
       AssertTypeOf(l2_cbs).is::<PinnedRef<CallbackScope>>();
       let d = l2_cbs.deref_mut();
       AssertTypeOf(d).is::<PinnedRef<HandleScope>>();
@@ -2296,7 +2292,7 @@ mod tests {
     }
     {
       let isolate: &mut Isolate = l1_hs.as_mut();
-      make_callback_scope!(unsafe l2_cbs, isolate);
+      callback_scope!(unsafe l2_cbs, isolate);
       AssertTypeOf(l2_cbs).is::<PinnedRef<CallbackScope<()>>>();
       let d = l2_cbs.deref_mut();
       AssertTypeOf(d).is::<PinnedRef<HandleScope<()>>>();

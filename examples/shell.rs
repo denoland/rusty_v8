@@ -10,7 +10,7 @@ fn main() {
 
   let mut run_shell_flag = args.len() == 1;
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-  v8::make_handle_scope!(let handle_scope, isolate);
+  v8::scope!(let handle_scope, isolate);
 
   let context = v8::Context::new(handle_scope, Default::default());
 
@@ -111,7 +111,7 @@ fn execute_string(
   print_result: bool,
   report_exceptions_flag: bool,
 ) {
-  v8::make_try_catch!(let tc, scope);
+  v8::tc_scope!(let tc, scope);
 
   let filename = v8::String::new(tc, filename).unwrap();
   let script = v8::String::new(tc, script).unwrap();

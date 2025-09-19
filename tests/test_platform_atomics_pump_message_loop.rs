@@ -6,7 +6,7 @@ fn atomics_pump_message_loop() {
   );
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(Default::default());
-  v8::make_handle_scope!(let scope, isolate);
+  v8::scope!(let scope, isolate);
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);

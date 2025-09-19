@@ -3,8 +3,8 @@ error[E0597]: `scope` does not live long enough
   |
 5 |   let _local = {
   |       ------ borrow later stored here
-6 |     v8::make_handle_scope!(let scope, scope1);
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+6 |     v8::scope!(let scope, scope1);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |     |
   |     borrowed value does not live long enough
   |     binding `scope` declared here
@@ -12,4 +12,4 @@ error[E0597]: `scope` does not live long enough
 9 |   };
   |   - `scope` dropped here while still borrowed
   |
-  = note: this error originates in the macro `$crate::make_handle_scope` which comes from the expansion of the macro `v8::make_handle_scope` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this error originates in the macro `$crate::scope` which comes from the expansion of the macro `v8::scope` (in Nightly builds, run with -Z macro-backtrace for more info)

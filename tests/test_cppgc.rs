@@ -212,9 +212,9 @@ fn execute_script(
   context_scope: &mut v8::ContextScope<v8::HandleScope>,
   source: &str,
 ) {
-  v8::make_handle_scope!(let scope, context_scope);
+  v8::scope!(let scope, context_scope);
 
-  v8::make_try_catch!(let scope, scope);
+  v8::tc_scope!(let scope, scope);
 
   let source = v8::String::new(scope, source).unwrap();
 
@@ -337,7 +337,7 @@ fn cppgc_cell() {
     let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
     {
-      v8::make_handle_scope!(handle_scope, isolate);
+      v8::scope!(handle_scope, isolate);
       let context = v8::Context::new(handle_scope, Default::default());
       let scope = &mut v8::ContextScope::new(handle_scope, context);
       let global = context.global(scope);

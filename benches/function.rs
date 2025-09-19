@@ -10,7 +10,7 @@ fn main() {
   v8::V8::initialize_platform(platform);
   v8::V8::initialize();
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-  v8::make_handle_scope!(let handle_scope, isolate);
+  v8::scope!(let handle_scope, isolate);
   let context = v8::Context::new(handle_scope, Default::default());
   let scope = &mut v8::ContextScope::new(handle_scope, context);
   let global = context.global(scope);
@@ -161,7 +161,7 @@ fn eval<'s>(
   scope: &mut v8::PinScope<'s, '_>,
   code: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
-  v8::make_escapable_handle_scope!(let scope, scope);
+  v8::escapable_handle_scope!(let scope, scope);
 
   let source = v8::String::new(scope, code).unwrap();
   let script = v8::Script::compile(scope, source, None).unwrap();

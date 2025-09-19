@@ -10,7 +10,7 @@ use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
 use crate::isolate::RealIsolate;
 use crate::scope::GetIsolate;
-use crate::scope::make_callback_scope;
+use crate::scope::callback_scope;
 use crate::support::Opaque;
 use crate::support::UnitType;
 use crate::support::char;
@@ -198,7 +198,7 @@ where
     F: UnitType + Fn(&mut PinScope, Local<Value>, WasmStreaming),
   {
     let info = unsafe { &*info };
-    make_callback_scope!(unsafe scope, info);
+    callback_scope!(unsafe scope, info);
     let args = FunctionCallbackArguments::from_function_callback_info(info);
     let data = args.data();
     let zero = null_mut();
