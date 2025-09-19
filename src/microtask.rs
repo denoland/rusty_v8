@@ -5,17 +5,18 @@ use crate::Isolate;
 use crate::Local;
 use crate::MicrotasksPolicy;
 use crate::UniqueRef;
+use crate::isolate::RealIsolate;
 use crate::support::Opaque;
 use crate::support::int;
 
 unsafe extern "C" {
   fn v8__MicrotaskQueue__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     policy: MicrotasksPolicy,
   ) -> *mut MicrotaskQueue;
   fn v8__MicrotaskQueue__DESTRUCT(queue: *mut MicrotaskQueue);
   fn v8__MicrotaskQueue__PerformCheckpoint(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     queue: *const MicrotaskQueue,
   );
   fn v8__MicrotaskQueue__IsRunningMicrotasks(
@@ -25,7 +26,7 @@ unsafe extern "C" {
     queue: *const MicrotaskQueue,
   ) -> int;
   fn v8__MicrotaskQueue__EnqueueMicrotask(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     queue: *const MicrotaskQueue,
     microtask: *const Function,
   );
@@ -53,7 +54,12 @@ impl MicrotaskQueue {
     isolate: &mut Isolate,
     policy: MicrotasksPolicy,
   ) -> UniqueRef<Self> {
-    unsafe { UniqueRef::from_raw(v8__MicrotaskQueue__New(isolate, policy)) }
+    unsafe {
+      UniqueRef::from_raw(v8__MicrotaskQueue__New(
+        isolate.as_real_ptr(),
+        policy,
+      ))
+    }
   }
 
   pub fn enqueue_microtask(
@@ -61,7 +67,13 @@ impl MicrotaskQueue {
     isolate: &mut Isolate,
     microtask: Local<Function>,
   ) {
-    unsafe { v8__MicrotaskQueue__EnqueueMicrotask(isolate, self, &*microtask) }
+    unsafe {
+      v8__MicrotaskQueue__EnqueueMicrotask(
+        isolate.as_real_ptr(),
+        self,
+        &*microtask,
+      )
+    }
   }
 
   /// Adds a callback to notify the embedder after microtasks were run. The
@@ -76,7 +88,7 @@ impl MicrotaskQueue {
   /// the callback.
   pub fn perform_checkpoint(&self, isolate: &mut Isolate) {
     unsafe {
-      v8__MicrotaskQueue__PerformCheckpoint(isolate, self);
+      v8__MicrotaskQueue__PerformCheckpoint(isolate.as_real_ptr(), self);
     }
   }
 

@@ -249,6 +249,7 @@ impl DataError {
     }
   }
 
+  #[allow(dead_code)]
   pub(crate) fn no_data<E: 'static>() -> Self {
     Self::NoData {
       expected: type_name::<E>(),
@@ -288,6 +289,7 @@ impl_from! { Template for Data }
 impl_from! { FunctionTemplate for Data }
 impl_from! { ObjectTemplate for Data }
 impl_from! { UnboundModuleScript for Data }
+impl_from! { UnboundScript for Data }
 impl_from! { Value for Data }
 impl_from! { External for Data }
 impl_from! { Object for Data }

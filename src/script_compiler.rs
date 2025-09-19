@@ -7,9 +7,11 @@ use crate::Module;
 use crate::Object;
 use crate::ScriptOrigin;
 use crate::String;
+use crate::UniqueRef;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 use crate::support::int;
-use crate::{Context, Isolate, Script, UnboundScript};
-use crate::{HandleScope, UniqueRef};
+use crate::{Context, Script, UnboundScript};
 
 unsafe extern "C" {
   fn v8__ScriptCompiler__Source__CONSTRUCT(
@@ -28,7 +30,7 @@ unsafe extern "C" {
   ) -> *mut CachedData<'a>;
   fn v8__ScriptCompiler__CachedData__DELETE<'a>(this: *mut CachedData<'a>);
   fn v8__ScriptCompiler__CompileModule(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     source: *mut Source,
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
@@ -50,7 +52,7 @@ unsafe extern "C" {
     no_cache_reason: NoCacheReason,
   ) -> *const Function;
   fn v8__ScriptCompiler__CompileUnboundScript(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     source: *mut Source,
     options: CompileOptions,
     no_cache_reason: NoCacheReason,
@@ -177,7 +179,7 @@ impl Source {
   }
 
   #[inline(always)]
-  pub fn get_cached_data(&self) -> Option<&CachedData> {
+  pub fn get_cached_data(&self) -> Option<&CachedData<'_>> {
     unsafe {
       let cached_data = v8__ScriptCompiler__Source__GetCachedData(self);
       if cached_data.is_null() {
@@ -237,7 +239,7 @@ pub enum NoCacheReason {
 /// specification.
 #[inline(always)]
 pub fn compile_module<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   source: &mut Source,
 ) -> Option<Local<'s, Module>> {
   compile_module2(
@@ -251,7 +253,7 @@ pub fn compile_module<'s>(
 /// Same as compile_module with more options.
 #[inline(always)]
 pub fn compile_module2<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -270,7 +272,7 @@ pub fn compile_module2<'s>(
 
 #[inline(always)]
 pub fn compile<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,
@@ -289,7 +291,7 @@ pub fn compile<'s>(
 
 #[inline(always)]
 pub fn compile_function<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   source: &mut Source,
   arguments: &[Local<String>],
   context_extensions: &[Local<Object>],
@@ -316,7 +318,7 @@ pub fn compile_function<'s>(
 
 #[inline(always)]
 pub fn compile_unbound_script<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   source: &mut Source,
   options: CompileOptions,
   no_cache_reason: NoCacheReason,

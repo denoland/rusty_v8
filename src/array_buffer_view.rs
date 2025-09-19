@@ -1,10 +1,10 @@
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
 use crate::BackingStore;
-use crate::HandleScope;
 use crate::Local;
 use crate::SharedRef;
 use crate::binding::memory_span_t;
+use crate::scope::PinScope;
 use crate::support::int;
 use std::convert::TryInto;
 use std::ffi::c_void;
@@ -35,7 +35,7 @@ impl ArrayBufferView {
   #[inline(always)]
   pub fn buffer<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }

@@ -1,16 +1,16 @@
 use crate::BigInt;
 use crate::Context;
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 use crate::support::int;
 
 use std::mem::MaybeUninit;
 
 unsafe extern "C" {
-  fn v8__BigInt__New(isolate: *mut Isolate, value: i64) -> *const BigInt;
+  fn v8__BigInt__New(isolate: *mut RealIsolate, value: i64) -> *const BigInt;
   fn v8__BigInt__NewFromUnsigned(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: u64,
   ) -> *const BigInt;
   fn v8__BigInt__NewFromWords(
@@ -33,7 +33,7 @@ unsafe extern "C" {
 impl BigInt {
   #[inline(always)]
   pub fn new_from_i64<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
     value: i64,
   ) -> Local<'s, BigInt> {
     unsafe {
@@ -44,7 +44,7 @@ impl BigInt {
 
   #[inline(always)]
   pub fn new_from_u64<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
     value: u64,
   ) -> Local<'s, BigInt> {
     unsafe {
@@ -62,7 +62,7 @@ impl BigInt {
   /// (-1)^sign_bit * (words[0] * (2^64)^0 + words[1] * (2^64)^1 + ...)
   #[inline(always)]
   pub fn new_from_words<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
     sign_bit: bool,
     words: &[u64],
   ) -> Option<Local<'s, BigInt>> {

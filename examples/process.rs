@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 
 #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
 fn log_callback(
-  scope: &mut v8::HandleScope,
+  scope: &mut v8::PinScope,
   args: v8::FunctionCallbackArguments,
   mut _retval: v8::ReturnValue,
 ) {
@@ -29,13 +29,13 @@ fn main() {
   }
 
   let mut isolate = v8::Isolate::new(v8::CreateParams::default());
-  let mut scope = v8::HandleScope::new(&mut isolate);
+  v8::scope!(let scope, &mut isolate);
 
   let source = std::fs::read_to_string(&file)
     .unwrap_or_else(|err| panic!("failed to open {file}: {err}"));
-  let source = v8::String::new(&mut scope, &source).unwrap();
+  let source = v8::String::new(scope, &source).unwrap();
 
-  let mut processor = JsHttpRequestProcessor::new(&mut scope, source, options);
+  let mut processor = JsHttpRequestProcessor::new(scope, source, options);
 
   let requests = vec![
     StringHttpRequest::new("/process.cc", "localhost", "google.com", "firefox"),
@@ -124,22 +124,19 @@ impl HttpRequest for StringHttpRequest {
 }
 
 /// An http request processor that is scriptable using JavaScript.
-struct JsHttpRequestProcessor<'s, 'i> {
-  context: v8::Local<'s, v8::Context>,
-  context_scope: v8::ContextScope<'i, v8::HandleScope<'s>>,
-  process_fn: Option<v8::Local<'s, v8::Function>>,
+struct JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
+  context: v8::Local<'obj, v8::Context>,
+  context_scope: v8::ContextScope<'scope, 'obj, v8::HandleScope<'isolate>>,
+  process_fn: Option<v8::Local<'obj, v8::Function>>,
   request_template: v8::Global<v8::ObjectTemplate>,
   _map_template: Option<v8::Global<v8::ObjectTemplate>>,
 }
 
-impl<'s, 'i> JsHttpRequestProcessor<'s, 'i>
-where
-  's: 'i,
-{
+impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
   /// Creates a scriptable HTTP request processor.
   pub fn new(
-    isolate_scope: &'i mut v8::HandleScope<'s, ()>,
-    source: v8::Local<'s, v8::String>,
+    isolate_scope: &'scope mut v8::PinScope<'obj, 'isolate, ()>,
+    source: v8::Local<'obj, v8::String>,
     options: HashMap<String, String>,
   ) -> Self {
     let global = v8::ObjectTemplate::new(isolate_scope);
@@ -155,14 +152,13 @@ where
         ..Default::default()
       },
     );
-    let mut context_scope = v8::ContextScope::new(isolate_scope, context);
+    let context_scope = v8::ContextScope::new(isolate_scope, context);
 
-    let request_template = v8::ObjectTemplate::new(&mut context_scope);
+    let request_template = v8::ObjectTemplate::new(&context_scope);
     request_template.set_internal_field_count(1);
 
     // make it global
-    let request_template =
-      v8::Global::new(&mut context_scope, request_template);
+    let request_template = v8::Global::new(&context_scope, request_template);
 
     let mut self_ = JsHttpRequestProcessor {
       context,
@@ -174,19 +170,17 @@ where
 
     // loads options and output
     let options = self_.wrap_map(options);
-    let options_str =
-      v8::String::new(&mut self_.context_scope, "options").unwrap();
-    self_.context.global(&mut self_.context_scope).set(
-      &mut self_.context_scope,
+    let options_str = v8::String::new(&self_.context_scope, "options").unwrap();
+    self_.context.global(&self_.context_scope).set(
+      &self_.context_scope,
       options_str.into(),
       options.into(),
     );
 
-    let output = v8::Object::new(&mut self_.context_scope);
-    let output_str =
-      v8::String::new(&mut self_.context_scope, "output").unwrap();
-    self_.context.global(&mut self_.context_scope).set(
-      &mut self_.context_scope,
+    let output = v8::Object::new(&self_.context_scope);
+    let output_str = v8::String::new(&self_.context_scope, "output").unwrap();
+    self_.context.global(&self_.context_scope).set(
+      &self_.context_scope,
       output_str.into(),
       output.into(),
     );
@@ -194,12 +188,11 @@ where
     // execute script
     self_.execute_script(source);
 
-    let process_str =
-      v8::String::new(&mut self_.context_scope, "Process").unwrap();
+    let process_str = v8::String::new(&self_.context_scope, "Process").unwrap();
     let process_fn = self_
       .context
-      .global(&mut self_.context_scope)
-      .get(&mut self_.context_scope, process_str.into())
+      .global(&self_.context_scope)
+      .get(&self_.context_scope, process_str.into())
       .expect("missing function Process");
 
     let process_fn = v8::Local::<v8::Function>::try_from(process_fn)
@@ -209,9 +202,10 @@ where
     self_
   }
 
-  fn execute_script(&mut self, script: v8::Local<'s, v8::String>) {
-    let scope = &mut v8::HandleScope::new(&mut self.context_scope);
-    let try_catch = &mut v8::TryCatch::new(scope);
+  fn execute_script(&mut self, script: v8::Local<'scope, v8::String>) {
+    v8::scope!(let scope, &mut self.context_scope);
+
+    v8::tc_scope!(let try_catch, scope);
 
     let script = v8::Script::compile(try_catch, script, None)
       .expect("failed to compile script");
@@ -235,8 +229,9 @@ where
     let request: Box<dyn HttpRequest> = Box::new(request);
     let request = self.wrap_request(request);
 
-    let scope = &mut v8::HandleScope::new(&mut self.context_scope);
-    let try_catch = &mut v8::TryCatch::new(scope);
+    v8::scope!(let scope, &mut self.context_scope);
+
+    v8::tc_scope!(let try_catch, scope);
 
     let process_fn = self.process_fn.as_mut().unwrap();
     let global = self.context.global(try_catch).into();
@@ -259,7 +254,7 @@ where
   fn wrap_request(
     &mut self,
     request: Box<dyn HttpRequest>,
-  ) -> v8::Local<'s, v8::Object> {
+  ) -> v8::Local<'scope, v8::Object> {
     // TODO: fix memory leak
 
     use std::ffi::c_void;
@@ -295,7 +290,7 @@ where
   /// This handles the properties of `HttpRequest`
   #[allow(clippy::needless_pass_by_value)] // this function should follow the callback type
   fn request_prop_handler(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope,
     key: v8::Local<v8::Name>,
     args: v8::PropertyCallbackArguments,
     mut rv: v8::ReturnValue,
@@ -327,7 +322,7 @@ where
 
   /// Utility function that extracts the http request object from a wrapper object.
   fn unwrap_request(
-    scope: &mut v8::HandleScope,
+    scope: &v8::PinScope,
     request: v8::Local<v8::Object>,
   ) -> *mut Box<dyn HttpRequest> {
     let external = request
@@ -340,9 +335,9 @@ where
   fn wrap_map(
     &mut self,
     options: HashMap<String, String>,
-  ) -> v8::Local<'s, v8::Object> {
+  ) -> v8::Local<'scope, v8::Object> {
     // TODO: wrap map, not convert into Object
-    let scope = &mut self.context_scope;
+    let scope = &self.context_scope;
     let result = v8::Object::new(scope);
 
     for (key, value) in options {
@@ -356,7 +351,9 @@ where
 
   /// Prints the output.
   pub fn print_output(&mut self) {
-    let scope = &mut v8::HandleScope::new(&mut self.context_scope);
+    let scope: std::pin::Pin<&mut v8::ScopeStorage<v8::HandleScope<'_>>> =
+      std::pin::pin!(v8::HandleScope::new(&mut self.context_scope));
+    let scope = &scope.init();
     let key = v8::String::new(scope, "output").unwrap();
     let output = self
       .context

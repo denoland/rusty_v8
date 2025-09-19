@@ -129,15 +129,15 @@ impl PropertyDescriptor {
     unsafe { v8__PropertyDescriptor__writable(self) }
   }
 
-  pub fn value(&self) -> Local<Value> {
+  pub fn value(&self) -> Local<'_, Value> {
     unsafe { Local::from_raw(v8__PropertyDescriptor__value(self)) }.unwrap()
   }
 
-  pub fn get(&self) -> Local<Value> {
+  pub fn get(&self) -> Local<'_, Value> {
     unsafe { Local::from_raw(v8__PropertyDescriptor__get(self)) }.unwrap()
   }
 
-  pub fn set(&self) -> Local<Value> {
+  pub fn set(&self) -> Local<'_, Value> {
     unsafe { Local::from_raw(v8__PropertyDescriptor__set(self)) }.unwrap()
   }
 

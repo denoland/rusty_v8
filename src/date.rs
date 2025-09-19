@@ -2,8 +2,8 @@
 
 use crate::Context;
 use crate::Date;
-use crate::HandleScope;
 use crate::Local;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Date__New(context: *const Context, value: f64) -> *const Date;
@@ -14,7 +14,7 @@ unsafe extern "C" {
 impl Date {
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     value: f64,
   ) -> Option<Local<'s, Date>> {
     unsafe {

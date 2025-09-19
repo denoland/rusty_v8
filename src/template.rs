@@ -3,7 +3,6 @@ use crate::Context;
 use crate::Function;
 use crate::FunctionBuilder;
 use crate::FunctionCallback;
-use crate::HandleScope;
 use crate::IndexedDefinerCallback;
 use crate::IndexedDeleterCallback;
 use crate::IndexedGetterCallback;
@@ -31,7 +30,8 @@ use crate::data::Name;
 use crate::data::ObjectTemplate;
 use crate::data::Template;
 use crate::fast_api::CFunction;
-use crate::isolate::Isolate;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 use crate::support::MapFnTo;
 use crate::support::int;
 use std::convert::TryFrom;
@@ -52,11 +52,11 @@ unsafe extern "C" {
   );
 
   fn v8__Signature__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     templ: *const FunctionTemplate,
   ) -> *const Signature;
   fn v8__FunctionTemplate__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     callback: FunctionCallback,
     data_or_null: *const Value,
     signature_or_null: *const Signature,
@@ -88,7 +88,7 @@ unsafe extern "C" {
   fn v8__FunctionTemplate__RemovePrototype(this: *const FunctionTemplate);
 
   fn v8__ObjectTemplate__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     templ: *const FunctionTemplate,
   ) -> *const ObjectTemplate;
   fn v8__ObjectTemplate__NewInstance(
@@ -668,9 +668,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
 
   /// Creates the function template.
   #[inline(always)]
-  pub fn build(
+  pub fn build<'i>(
     self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, 'i, ()>,
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
       scope.cast_local(|sd| {
@@ -695,9 +695,9 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   /// useful to pass them explicitly - eg. when you are snapshotting you'd provide
   /// the overloads and `CFunctionInfo` that would be placed in the external
   /// references array.
-  pub fn build_fast(
+  pub fn build_fast<'i>(
     self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, 'i>,
     overloads: &[CFunction],
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
@@ -728,7 +728,7 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
 impl Signature {
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, Self> {
     unsafe {
@@ -758,7 +758,7 @@ impl FunctionTemplate {
   /// Creates a function template.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder(callback).build(scope)
@@ -766,7 +766,7 @@ impl FunctionTemplate {
 
   #[inline(always)]
   pub fn new_raw<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     callback: FunctionCallback,
   ) -> Local<'s, FunctionTemplate> {
     Self::builder_raw(callback).build(scope)
@@ -776,7 +776,7 @@ impl FunctionTemplate {
   #[inline(always)]
   pub fn get_function<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -798,7 +798,7 @@ impl FunctionTemplate {
   #[inline(always)]
   pub fn prototype_template<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__PrototypeTemplate(self))
@@ -811,7 +811,7 @@ impl FunctionTemplate {
   #[inline(always)]
   pub fn instance_template<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|_sd| v8__FunctionTemplate__InstanceTemplate(self))
@@ -843,7 +843,7 @@ impl FunctionTemplate {
 impl ObjectTemplate {
   /// Creates an object template.
   #[inline(always)]
-  pub fn new<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, ObjectTemplate> {
+  pub fn new<'s>(scope: &PinScope<'s, '_, ()>) -> Local<'s, ObjectTemplate> {
     unsafe {
       scope.cast_local(|sd| {
         v8__ObjectTemplate__New(sd.get_isolate_ptr(), std::ptr::null())
@@ -855,7 +855,7 @@ impl ObjectTemplate {
   /// Creates an object template from a function template.
   #[inline(always)]
   pub fn new_from_template<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     templ: Local<FunctionTemplate>,
   ) -> Local<'s, ObjectTemplate> {
     unsafe {
@@ -869,7 +869,7 @@ impl ObjectTemplate {
   #[inline(always)]
   pub fn new_instance<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
       scope.cast_local(|sd| {

@@ -1,7 +1,7 @@
 use v8::MapFnTo;
 
 fn callback(
-  scope: &mut v8::HandleScope,
+  scope: &mut v8::PinScope<'_, '_>,
   args: v8::FunctionCallbackArguments,
   mut rv: v8::ReturnValue<v8::Value>,
 ) {
@@ -33,7 +33,8 @@ fn external_deserialize() {
     );
 
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate);
+      v8::scope!(let scope, &mut isolate);
+
       let context = v8::Context::new(scope, Default::default());
       scope.set_default_context(context);
 
@@ -86,7 +87,8 @@ fn external_deserialize() {
     );
 
     {
-      let scope = &mut v8::HandleScope::new(&mut isolate_b);
+      v8::scope!(let scope, &mut isolate_b);
+
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
 

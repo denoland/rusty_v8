@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use crate::Context;
 use crate::Function;
-use crate::HandleScope;
 use crate::Local;
 use crate::Promise;
 use crate::PromiseResolver;
 use crate::Value;
+use crate::scope::PinScope;
 use crate::support::MaybeBool;
 
 unsafe extern "C" {
@@ -82,7 +82,7 @@ impl Promise {
   /// Returns the content of the [[PromiseResult]] field. The Promise must not
   /// be pending.
   #[inline(always)]
-  pub fn result<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn result<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Promise__Result(self)) }.unwrap()
   }
 
@@ -92,7 +92,7 @@ impl Promise {
   #[inline(always)]
   pub fn catch<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
@@ -108,7 +108,7 @@ impl Promise {
   #[inline(always)]
   pub fn then<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     handler: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
     unsafe {
@@ -125,7 +125,7 @@ impl Promise {
   #[inline(always)]
   pub fn then2<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     on_fulfilled: Local<Function>,
     on_rejected: Local<Function>,
   ) -> Option<Local<'s, Promise>> {
@@ -146,7 +146,7 @@ impl PromiseResolver {
   /// Create a new resolver, along with an associated promise in pending state.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, PromiseResolver>> {
     unsafe {
       scope
@@ -158,7 +158,7 @@ impl PromiseResolver {
   #[inline(always)]
   pub fn get_promise<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Promise> {
     unsafe { scope.cast_local(|_| v8__Promise__Resolver__GetPromise(self)) }
       .unwrap()
@@ -169,7 +169,7 @@ impl PromiseResolver {
   #[inline(always)]
   pub fn resolve(
     &self,
-    scope: &mut HandleScope,
+    scope: &PinScope<'_, '_>,
     value: Local<'_, Value>,
   ) -> Option<bool> {
     unsafe {
@@ -187,7 +187,7 @@ impl PromiseResolver {
   #[inline(always)]
   pub fn reject(
     &self,
-    scope: &mut HandleScope,
+    scope: &PinScope<'_, '_>,
     value: Local<'_, Value>,
   ) -> Option<bool> {
     unsafe {
