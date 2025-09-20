@@ -150,6 +150,9 @@ impl SharedArrayBuffer {
   /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
   /// though these buffers will need to be boxed to manage ownership of memory.
   ///
+  /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``, 
+  /// otherwise a fast-path will be taken in which the container will be held by Rust. 
+  ///
   /// ```
   /// // Vector of bytes
   /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(vec![1, 2, 3]);
@@ -167,11 +170,30 @@ impl SharedArrayBuffer {
   where
     T: crate::array_buffer::sealed::Rawable,
   {
+    #[cfg(not(feature = "v8_enable_pointer_compression"))]
+    {
+      Self::new_backing_store_from_bytes_nosandbox(bytes)
+    }
+    #[cfg(feature = "v8_enable_pointer_compression")]
+    {
+      Self::new_backing_store_from_bytes_sandbox(scope, bytes)
+    }
+  }
+
+  // Internal slowpath for sandboxed mode.
+  #[cfg(feature = "v8_enable_pointer_compression")]
+  #[inline(always)]
+  fn new_backing_store_from_bytes_sandbox<T>(
+    scope: &mut Isolate,
+    mut bytes: T,
+  ) -> UniqueRef<BackingStore>
+  where
+    T: crate::array_buffer::sealed::Rawable,
+  {
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);
 
-    // SAFETY: V8 copies the data
     let unique_ref = unsafe {
       UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
         scope,
@@ -180,10 +202,69 @@ impl SharedArrayBuffer {
       ))
     };
 
+    // SAFETY: V8 copies the data
     unsafe {
       T::drop_raw(ptr, len);
     }
 
     unique_ref
+  }
+
+  // Internal fastpath for non-sandboxed mode.
+  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  #[inline(always)]
+  fn new_backing_store_from_bytes_nosandbox<T>(
+    mut bytes: T,
+  ) -> UniqueRef<BackingStore>
+  where
+    T: crate::array_buffer::sealed::Rawable,
+  {
+    let len = bytes.byte_len();
+
+    let (ptr, slice) = T::into_raw(bytes);
+
+    unsafe extern "C" fn drop_rawable<T: crate::array_buffer::sealed::Rawable>(
+      _ptr: *mut c_void,
+      len: usize,
+      data: *mut c_void,
+    ) {
+      // SAFETY: We know that data is a raw T from above
+      unsafe { T::drop_raw(data as _, len) }
+    }
+
+    // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
+    // derefed from so there's no way to get another mutable reference.
+    unsafe {
+      Self::new_backing_store_from_ptr(
+        slice as _,
+        len,
+        drop_rawable::<T>,
+        ptr as _,
+      )
+    }
+  }
+
+  /// Returns a new standalone BackingStore backed by given ptr.
+  ///
+  /// SAFETY: This API consumes raw pointers so is inherently
+  /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
+  ///
+  /// This API is incompatible with the v8 sandbox (enabled with v8_enable_pointer_compression)
+  #[inline(always)]
+  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  pub unsafe fn new_backing_store_from_ptr(
+    data_ptr: *mut c_void,
+    byte_length: usize,
+    deleter_callback: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> UniqueRef<BackingStore> {
+    unsafe {
+      UniqueRef::from_raw(v8__SharedArrayBuffer__NewBackingStore__with_data(
+        data_ptr,
+        byte_length,
+        deleter_callback,
+        deleter_data,
+      ))
+    }
   }
 }

@@ -668,6 +668,46 @@ fn array_buffer() {
     assert_eq!(84, bs.byte_length());
     assert!(!bs.is_shared());
 
+    #[cfg(not(feature = "v8_enable_pointer_compression"))]
+    {
+      // SAFETY: Manually deallocating memory once V8 calls the
+      // deleter callback.
+      unsafe extern "C" fn backing_store_deleter_callback(
+        data: *mut c_void,
+        byte_length: usize,
+        deleter_data: *mut c_void,
+      ) {
+        let slice =
+          unsafe { std::slice::from_raw_parts(data as *const u8, byte_length) };
+        assert_eq!(slice, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(byte_length, 10);
+        assert_eq!(deleter_data, std::ptr::null_mut());
+        let layout = std::alloc::Layout::new::<[u8; 10]>();
+        unsafe { std::alloc::dealloc(data as *mut u8, layout) };
+      }
+
+      // SAFETY: Manually allocating memory so that it will be only
+      // deleted when V8 calls deleter callback.
+      let data = unsafe {
+        let layout = std::alloc::Layout::new::<[u8; 10]>();
+        let ptr = std::alloc::alloc(layout);
+        (ptr as *mut [u8; 10]).write([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        ptr as *mut c_void
+      };
+      let unique_bs = unsafe {
+        v8::ArrayBuffer::new_backing_store_from_ptr(
+          data,
+          10,
+          backing_store_deleter_callback,
+          std::ptr::null_mut(),
+        )
+      };
+      assert_eq!(10, unique_bs.byte_length());
+      assert!(!unique_bs.is_shared());
+      assert_eq!(unique_bs[0].get(), 0);
+      assert_eq!(unique_bs[9].get(), 9);
+    }
+
     // From Box<[u8]>
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
     let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
@@ -720,7 +760,7 @@ fn array_buffer() {
       scope,
       &bs,
     );
-    assert!(ab.byte_length() == 1 || ab.byte_length() == 0); // NOTE: We can't always allocate zero-sized buffers from Rust
+    assert_eq!(0, ab.byte_length());
     assert!(!ab.get_backing_store().is_shared());
 
     // Empty but from vec with a huge capacity
@@ -8905,6 +8945,100 @@ fn ept_torture_test() {
       scope,
       r#"
         for(let i = 0; i < 100_000; i++) new ArrayBuffer(1024 * 1024);
+        "OK";
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "OK");
+  }
+}
+
+#[test]
+// We cannot run this test if sandboxing is enabled as rust_allocator
+// cannot be used with v8 sandbox (which is enabled with v8_enable_pointer_compression).
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
+fn run_with_rust_allocator() {
+  use std::sync::Arc;
+
+  unsafe extern "C" fn allocate(count: &AtomicUsize, n: usize) -> *mut c_void {
+    count.fetch_add(n, Ordering::SeqCst);
+    Box::into_raw(vec![0u8; n].into_boxed_slice()) as *mut c_void
+  }
+  unsafe extern "C" fn allocate_uninitialized(
+    count: &AtomicUsize,
+    n: usize,
+  ) -> *mut c_void {
+    count.fetch_add(n, Ordering::SeqCst);
+    let mut store: Vec<MaybeUninit<u8>> = Vec::with_capacity(n);
+    unsafe { store.set_len(n) };
+    Box::into_raw(store.into_boxed_slice()) as *mut [u8] as *mut c_void
+  }
+  unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
+    count.fetch_sub(n, Ordering::SeqCst);
+    let _ = unsafe {
+      Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n))
+    };
+  }
+  unsafe extern "C" fn drop(count: *const AtomicUsize) {
+    unsafe { Arc::from_raw(count) };
+  }
+
+  let vtable: &'static v8::RustAllocatorVtable<AtomicUsize> =
+    &v8::RustAllocatorVtable {
+      allocate,
+      allocate_uninitialized,
+      free,
+      drop,
+    };
+  let count = Arc::new(AtomicUsize::new(0));
+
+  let _setup_guard = setup::parallel_test();
+  let create_params = v8::CreateParams::default();
+  assert!(!create_params.has_set_array_buffer_allocator());
+  let create_params = create_params.array_buffer_allocator(unsafe {
+    v8::new_rust_allocator(Arc::into_raw(count.clone()), vtable)
+  });
+  assert!(create_params.has_set_array_buffer_allocator());
+  let isolate = &mut v8::Isolate::new(create_params);
+
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        for(let i = 0; i < 10; i++) new ArrayBuffer(1024 * i);
+        "OK";
+      "#,
+    )
+    .unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_rust_string_lossy(scope), "OK");
+  }
+  let stats = isolate.get_heap_statistics();
+  let count_loaded = count.load(Ordering::SeqCst);
+  assert!(count_loaded > 0);
+  assert!(count_loaded <= stats.external_memory());
+
+  // Force a GC.
+  isolate.low_memory_notification();
+  let count_loaded = count.load(Ordering::SeqCst);
+  assert_eq!(count_loaded, 0);
+
+  // This should not OOM or crash when we run in a tight loop as the EPT should be subject
+  // to GC.
+  {
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let source = v8::String::new(
+      scope,
+      r#"
+        for(let i = 0; i < 10_000; i++) new ArrayBuffer(10 * 1024 * 1024);
         "OK";
       "#,
     )
