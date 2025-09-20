@@ -974,6 +974,22 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
   return u.release();
 }
 
+v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+    v8::Isolate* isolate,
+    void* data,                            
+    size_t byte_length) {
+    std::unique_ptr<v8::BackingStore> u = v8::ArrayBuffer::NewBackingStore(isolate, byte_length);
+    if (u == nullptr) {
+      return nullptr; // Allocation failed
+    }
+    if (byte_length == 0) {
+      // Nothing to copy
+      return u.release();
+    }
+    memcpy(u->Data(), data, byte_length);
+    return u.release();
+}
+
 two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
   return make_pod<two_pointers_t>(ptr_to_local(&self)->GetBackingStore());
 }
@@ -1017,7 +1033,9 @@ bool v8__BackingStore__IsShared(const v8::BackingStore& self) {
   return self.IsShared();
 }
 
-void v8__BackingStore__DELETE(v8::BackingStore* self) { delete self; }
+void v8__BackingStore__DELETE(v8::BackingStore* self) { 
+  delete self;
+}
 
 two_pointers_t std__shared_ptr__v8__BackingStore__COPY(
     const std::shared_ptr<v8::BackingStore>& ptr) {
@@ -1923,51 +1941,8 @@ memory_span_t v8__ArrayBufferView__GetContents(const v8::ArrayBufferView& self,
   return {span.data(), span.size()};
 }
 
-struct RustAllocatorVtable {
-  void* (*allocate)(void* handle, size_t length);
-  void* (*allocate_uninitialized)(void* handle, size_t length);
-  void (*free)(void* handle, void* data, size_t length);
-  void (*drop)(void* handle);
-};
-
-class RustAllocator : public v8::ArrayBuffer::Allocator {
- private:
-  void* handle;
-  const RustAllocatorVtable* vtable;
-
- public:
-  RustAllocator(void* handle, const RustAllocatorVtable* vtable) {
-    this->handle = handle;
-    this->vtable = vtable;
-  }
-
-  RustAllocator(const RustAllocator& that) = delete;
-  RustAllocator(RustAllocator&& that) = delete;
-  void operator=(const RustAllocator& that) = delete;
-  void operator=(RustAllocator&& that) = delete;
-
-  virtual ~RustAllocator() { vtable->drop(handle); }
-
-  void* Allocate(size_t length) final {
-    return vtable->allocate(handle, length);
-  }
-
-  void* AllocateUninitialized(size_t length) final {
-    return vtable->allocate_uninitialized(handle, length);
-  }
-
-  void Free(void* data, size_t length) final {
-    vtable->free(handle, data, length);
-  }
-};
-
 v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
   return v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-}
-
-v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewRustAllocator(
-    void* handle, const RustAllocatorVtable* vtable) {
-  return new RustAllocator(handle, vtable);
 }
 
 void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator* self) {
@@ -2742,6 +2717,22 @@ v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(
   std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(
       data, byte_length, deleter, deleter_data);
   return u.release();
+}
+
+v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
+    v8::Isolate* isolate,
+    void* data,                            
+    size_t byte_length) {
+    std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(isolate, byte_length);
+    if (u == nullptr) {
+      return nullptr; // Allocation failed
+    }
+    if (byte_length == 0) {
+      // Nothing to copy
+      return u.release();
+    }
+    memcpy(u->Data(), data, byte_length);
+    return u.release();
 }
 
 const v8::Value* v8__JSON__Parse(const v8::Context& context,

@@ -24,10 +24,6 @@ use crate::support::long;
 
 unsafe extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
-  fn v8__ArrayBuffer__Allocator__NewRustAllocator(
-    handle: *const c_void,
-    vtable: *const RustAllocatorVtable<c_void>,
-  ) -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
     isolate: *mut Isolate,
@@ -53,11 +49,10 @@ unsafe extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
-  fn v8__ArrayBuffer__NewBackingStore__with_data(
+  fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+    isolate: *mut Isolate,
     data: *mut c_void,
     byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
@@ -105,6 +100,8 @@ unsafe extern "C" {
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
     ptr: *const SharedPtrBase<Allocator>,
   ) -> long;
+
+  fn v8__V8__Initialize();
 }
 
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
@@ -127,16 +124,6 @@ unsafe extern "C" {
 #[repr(C)]
 #[derive(Debug)]
 pub struct Allocator(Opaque);
-
-/// A wrapper around the V8 Allocator class.
-#[repr(C)]
-pub struct RustAllocatorVtable<T> {
-  pub allocate: unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
-  pub allocate_uninitialized:
-    unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
-  pub free: unsafe extern "C" fn(handle: &T, data: *mut c_void, len: usize),
-  pub drop: unsafe extern "C" fn(handle: *const T),
-}
 
 impl Shared for Allocator {
   fn clone(ptr: &SharedPtrBase<Self>) -> SharedPtrBase<Self> {
@@ -168,63 +155,10 @@ pub fn new_default_allocator() -> UniqueRef<Allocator> {
   }
 }
 
-/// Creates an allocator managed by Rust code.
-///
-/// Marked `unsafe` because the caller must ensure that `handle` is valid and matches what `vtable` expects.
-#[inline(always)]
-pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
-  handle: *const T,
-  vtable: &'static RustAllocatorVtable<T>,
-) -> UniqueRef<Allocator> {
-  unsafe {
-    UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewRustAllocator(
-      handle as *const c_void,
-      vtable as *const RustAllocatorVtable<T>
-        as *const RustAllocatorVtable<c_void>,
-    ))
-  }
-}
-
-#[test]
-fn test_rust_allocator() {
-  use std::sync::Arc;
-  use std::sync::atomic::{AtomicUsize, Ordering};
-
-  unsafe extern "C" fn allocate(_: &AtomicUsize, _: usize) -> *mut c_void {
-    unimplemented!()
-  }
-  unsafe extern "C" fn allocate_uninitialized(
-    _: &AtomicUsize,
-    _: usize,
-  ) -> *mut c_void {
-    unimplemented!()
-  }
-  unsafe extern "C" fn free(_: &AtomicUsize, _: *mut c_void, _: usize) {
-    unimplemented!()
-  }
-  unsafe extern "C" fn drop(x: *const AtomicUsize) {
-    unsafe {
-      let arc = Arc::from_raw(x);
-      arc.store(42, Ordering::SeqCst);
-    }
-  }
-
-  let retval = Arc::new(AtomicUsize::new(0));
-
-  let vtable: &'static RustAllocatorVtable<AtomicUsize> =
-    &RustAllocatorVtable {
-      allocate,
-      allocate_uninitialized,
-      free,
-      drop,
-    };
-  unsafe { new_rust_allocator(Arc::into_raw(retval.clone()), vtable) };
-  assert_eq!(retval.load(Ordering::SeqCst), 42);
-  assert_eq!(Arc::strong_count(&retval), 1);
-}
-
 #[test]
 fn test_default_allocator() {
+  crate::V8::initialize_platform(crate::new_default_platform(0, false).make_shared());
+  crate::V8::initialize();
   new_default_allocator();
 }
 
@@ -547,9 +481,10 @@ impl ArrayBuffer {
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
   pub fn new_backing_store_from_boxed_slice(
+    scope: &mut Isolate,
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    Self::new_backing_store_from_bytes(data)
+    Self::new_backing_store_from_bytes(scope, data)
   }
 
   /// Returns a new standalone BackingStore that takes over the ownership of
@@ -560,8 +495,8 @@ impl ArrayBuffer {
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
-  pub fn new_backing_store_from_vec(data: Vec<u8>) -> UniqueRef<BackingStore> {
-    Self::new_backing_store_from_bytes(data)
+  pub fn new_backing_store_from_vec(scope: &mut Isolate, data: Vec<u8>) -> UniqueRef<BackingStore> {
+    Self::new_backing_store_from_bytes(scope, data)
   }
 
   /// Returns a new standalone BackingStore backed by a container that dereferences
@@ -583,6 +518,7 @@ impl ArrayBuffer {
   /// ```
   #[inline(always)]
   pub fn new_backing_store_from_bytes<T>(
+    scope: &mut Isolate,
     mut bytes: T,
   ) -> UniqueRef<BackingStore>
   where
@@ -592,46 +528,20 @@ impl ArrayBuffer {
 
     let (ptr, slice) = T::into_raw(bytes);
 
-    unsafe extern "C" fn drop_rawable<T: sealed::Rawable>(
-      _ptr: *mut c_void,
-      len: usize,
-      data: *mut c_void,
-    ) {
-      // SAFETY: We know that data is a raw T from above
-      unsafe { T::drop_raw(data as _, len) }
-    }
-
-    // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
-    // derefed from so there's no way to get another mutable reference.
-    unsafe {
-      Self::new_backing_store_from_ptr(
-        slice as _,
+    // SAFETY: V8 copies the data
+    let unique_ref = unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+        scope,
+        slice as *mut c_void,
         len,
-        drop_rawable::<T>,
-        ptr as _,
-      )
-    }
-  }
-
-  /// Returns a new standalone BackingStore backed by given ptr.
-  ///
-  /// SAFETY: This API consumes raw pointers so is inherently
-  /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
-  #[inline(always)]
-  pub unsafe fn new_backing_store_from_ptr(
-    data_ptr: *mut c_void,
-    byte_length: usize,
-    deleter_callback: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
-  ) -> UniqueRef<BackingStore> {
-    unsafe {
-      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data(
-        data_ptr,
-        byte_length,
-        deleter_callback,
-        deleter_data,
       ))
+    };
+
+    unsafe {
+      T::drop_raw(ptr, len);
     }
+
+    unique_ref
   }
 }
 
