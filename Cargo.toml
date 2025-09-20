@@ -98,7 +98,7 @@ exclude = [
 opt-level = 1
 
 [features]
-default = ["use_custom_libcxx"]
+default = ["use_custom_libcxx", "v8_enable_pointer_compression"]
 use_custom_libcxx = []
 v8_enable_pointer_compression = []
 
