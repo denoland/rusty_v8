@@ -49,12 +49,6 @@ unsafe extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
-  fn v8__ArrayBuffer__NewBackingStore__with_data(
-    data: *mut c_void,
-    byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
-  ) -> *mut BackingStore; // TODO: Re-enable fastpath for non-sandboxed in future commit
   fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
     isolate: *mut Isolate,
     data: *mut c_void,
@@ -106,14 +100,19 @@ unsafe extern "C" {
   fn std__shared_ptr__v8__ArrayBuffer__Allocator__use_count(
     ptr: *const SharedPtrBase<Allocator>,
   ) -> long;
-
-  fn v8__V8__Initialize();
 }
 
 // Rust allocator feature is only available in non-sandboxed mode / no pointer
 // compression mode.
 #[cfg(not(feature = "v8_enable_pointer_compression"))]
 unsafe extern "C" {
+  fn v8__ArrayBuffer__NewBackingStore__with_data(
+    data: *mut c_void,
+    byte_length: usize,
+    deleter: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> *mut BackingStore;
+
   fn v8__ArrayBuffer__Allocator__NewRustAllocator(
     handle: *const c_void,
     vtable: *const RustAllocatorVtable<c_void>,
