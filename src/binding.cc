@@ -1941,51 +1941,8 @@ memory_span_t v8__ArrayBufferView__GetContents(const v8::ArrayBufferView& self,
   return {span.data(), span.size()};
 }
 
-struct RustAllocatorVtable {
-  void* (*allocate)(void* handle, size_t length);
-  void* (*allocate_uninitialized)(void* handle, size_t length);
-  void (*free)(void* handle, void* data, size_t length);
-  void (*drop)(void* handle);
-};
-
-class RustAllocator : public v8::ArrayBuffer::Allocator {
- private:
-  void* handle;
-  const RustAllocatorVtable* vtable;
-
- public:
-  RustAllocator(void* handle, const RustAllocatorVtable* vtable) {
-    this->handle = handle;
-    this->vtable = vtable;
-  }
-
-  RustAllocator(const RustAllocator& that) = delete;
-  RustAllocator(RustAllocator&& that) = delete;
-  void operator=(const RustAllocator& that) = delete;
-  void operator=(RustAllocator&& that) = delete;
-
-  virtual ~RustAllocator() { vtable->drop(handle); }
-
-  void* Allocate(size_t length) final {
-    return vtable->allocate(handle, length);
-  }
-
-  void* AllocateUninitialized(size_t length) final {
-    return vtable->allocate_uninitialized(handle, length);
-  }
-
-  void Free(void* data, size_t length) final {
-    vtable->free(handle, data, length);
-  }
-};
-
 v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
   return v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-}
-
-v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewRustAllocator(
-    void* handle, const RustAllocatorVtable* vtable) {
-  return new RustAllocator(handle, vtable);
 }
 
 void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator* self) {
