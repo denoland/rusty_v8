@@ -888,11 +888,15 @@ fn eval<'s>(
 
 #[test]
 fn external() {
+  fn heap_alloc<T>(value: T) -> *mut T {
+    Box::into_raw(Box::new(value))
+  }
+
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
   let scope = &mut v8::HandleScope::new(isolate);
 
-  let ex1_value = 1usize as *mut std::ffi::c_void;
+  let ex1_value = heap_alloc(1usize) as *mut std::ffi::c_void;
   let ex1_handle_a = v8::External::new(scope, ex1_value);
   assert_eq!(ex1_handle_a.value(), ex1_value);
 
@@ -900,8 +904,8 @@ fn external() {
   let scope = &mut v8::ContextScope::new(scope, context);
   let global = context.global(scope);
 
-  let ex2_value = 2334567usize as *mut std::ffi::c_void;
-  let ex3_value = -2isize as *mut std::ffi::c_void;
+  let ex2_value = heap_alloc(2334567usize) as *mut std::ffi::c_void;
+  let ex3_value = heap_alloc(-2isize) as *mut std::ffi::c_void;
 
   let ex2_handle_a = v8::External::new(scope, ex2_value);
   let ex3_handle_a = v8::External::new(scope, ex3_value);
@@ -944,6 +948,10 @@ fn external() {
   assert_eq!(ex1_handle_a.value(), ex1_value);
   assert_eq!(ex2_handle_a.value(), ex2_value);
   assert_eq!(ex3_handle_a.value(), ex3_value);
+
+  drop(unsafe { Box::from_raw(ex1_value as *mut usize) });
+  drop(unsafe { Box::from_raw(ex2_value as *mut usize) });
+  drop(unsafe { Box::from_raw(ex3_value as *mut isize) });
 }
 
 #[test]
@@ -5959,7 +5967,7 @@ fn shared_array_buffer() {
     assert_eq!(shared_bs_1[14].get(), 62);
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data);
+    let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
     assert_eq!(bs.byte_length(), 10);
     assert!(bs.is_shared());
 

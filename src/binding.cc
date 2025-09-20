@@ -2762,6 +2762,22 @@ v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(
   return u.release();
 }
 
+v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
+    v8::Isolate* isolate,
+    void* data,                            
+    size_t byte_length) {
+    std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(isolate, byte_length);
+    if (u == nullptr) {
+      return nullptr; // Allocation failed
+    }
+    if (byte_length == 0) {
+      // Nothing to copy
+      return u.release();
+    }
+    memcpy(u->Data(), data, byte_length);
+    return u.release();
+}
+
 const v8::Value* v8__JSON__Parse(const v8::Context& context,
                                  const v8::String& json_string) {
   return maybe_local_to_ptr(

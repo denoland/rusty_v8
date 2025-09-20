@@ -53,12 +53,6 @@ unsafe extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
-  fn v8__ArrayBuffer__NewBackingStore__with_data(
-    data: *mut c_void,
-    byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
-  ) -> *mut BackingStore;
   fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
     isolate: *mut Isolate,
     data: *mut c_void,
@@ -616,23 +610,6 @@ impl ArrayBuffer {
     }
 
     unique_ref
-  }
-
-  /// Returns a new standalone BackingStore backed by given ptr.
-  ///
-  /// SAFETY: This API consumes raw pointers so is inherently
-  /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
-  ///
-  /// Requires that `byte_length > 0`.
-  #[inline(always)]
-  pub unsafe fn new_backing_store_from_ptr(
-    scope: &mut Isolate,
-    data_ptr: *mut c_void,
-    byte_length: usize,
-    deleter_callback: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
-  ) -> UniqueRef<BackingStore> {
-    panic!("Use new_backing_store_from_bytes instead");
   }
 }
 
