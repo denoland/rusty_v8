@@ -767,7 +767,7 @@ fn shared_array_buffer_allocator() {
   alloc1.assert_use_count_eq(1);
 
   let alloc2 = alloc1.clone();
-  alloc1.assert_use_count_eq(2);
+  alloc1.assert_use_count_eq(2); 
   alloc2.assert_use_count_eq(2);
 
   let mut alloc2 = v8::SharedPtr::from(alloc2);
@@ -776,7 +776,7 @@ fn shared_array_buffer_allocator() {
 
   drop(alloc1);
   alloc2.assert_use_count_eq(1);
-
+ 
   alloc2.take();
   alloc2.assert_use_count_eq(0);
 }
