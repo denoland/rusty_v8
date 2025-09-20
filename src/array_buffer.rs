@@ -243,7 +243,9 @@ fn test_rust_allocator() {
 
 #[test]
 fn test_default_allocator() {
-  crate::V8::initialize_platform(crate::new_default_platform(0, false).make_shared());
+  crate::V8::initialize_platform(
+    crate::new_default_platform(0, false).make_shared(),
+  );
   crate::V8::initialize();
   new_default_allocator();
 }
@@ -581,7 +583,10 @@ impl ArrayBuffer {
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
-  pub fn new_backing_store_from_vec(scope: &mut Isolate, data: Vec<u8>) -> UniqueRef<BackingStore> {
+  pub fn new_backing_store_from_vec(
+    scope: &mut Isolate,
+    data: Vec<u8>,
+  ) -> UniqueRef<BackingStore> {
     Self::new_backing_store_from_bytes(scope, data)
   }
 
@@ -593,8 +598,8 @@ impl ArrayBuffer {
   /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
   /// though these buffers will need to be boxed to manage ownership of memory.
   ///
-  /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``, 
-  /// otherwise a fast-path will be taken in which the container will be held by Rust. 
+  /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``,
+  /// otherwise a fast-path will be taken in which the container will be held by Rust.
   ///
   /// ```
   /// // Vector of bytes
@@ -638,11 +643,13 @@ impl ArrayBuffer {
     let (ptr, slice) = T::into_raw(bytes);
 
     let unique_ref = unsafe {
-      UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-        scope,
-        slice as *mut c_void,
-        len,
-      ))
+      UniqueRef::from_raw(
+        v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+          scope,
+          slice as *mut c_void,
+          len,
+        ),
+      )
     };
 
     // SAFETY: V8 copies the data

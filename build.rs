@@ -209,7 +209,7 @@ fn build_v8(is_asan: bool) {
     "use_custom_libcxx={}",
     env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_ok()
   ));
-  
+
   let extra_args = {
     if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
       // Pointer compression + sandbox mode are enabled
@@ -219,14 +219,13 @@ fn build_v8(is_asan: bool) {
         "v8_enable_external_code_space=true", // Needed for sandbox
         "v8_enable_pointer_compression=true",
         // Note that sandbox requires shared_ro_heap and verify_heap
-        // to be true/default 
+        // to be true/default
       ]
     } else {
       vec![
         // Disable sandbox and pointer compression
         "v8_enable_sandbox=false",
         "v8_enable_pointer_compression=false",
-
         // Enabling the shared read-only heap comes with a restriction that all
         // isolates running at the same time must be created from the same snapshot.
         // This is problematic for Deno, which has separate "runtime" and "typescript
@@ -241,7 +240,7 @@ fn build_v8(is_asan: bool) {
         //
         // NOTE FOR FUTURE: Check if this flag even exists anymore as it has likely been
         // removed
-        "v8_enable_verify_heap=false"
+        "v8_enable_verify_heap=false",
       ]
     }
   };

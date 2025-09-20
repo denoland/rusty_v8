@@ -710,7 +710,8 @@ fn array_buffer() {
 
     // From Box<[u8]>
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
+    let unique_bs =
+      v8::ArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
     assert_eq!(10, unique_bs.byte_length());
     assert!(!unique_bs.is_shared());
     assert_eq!(unique_bs[0].get(), 0);
@@ -754,23 +755,19 @@ fn array_buffer() {
     assert!(!ab.get_backing_store().is_shared());
 
     // Empty but from vec
-    let bs = v8::ArrayBuffer::new_backing_store_from_bytes(scope, Vec::<u8>::new())
+    let bs =
+      v8::ArrayBuffer::new_backing_store_from_bytes(scope, Vec::<u8>::new())
         .make_shared();
-    let ab = v8::ArrayBuffer::with_backing_store(
-      scope,
-      &bs,
-    );
+    let ab = v8::ArrayBuffer::with_backing_store(scope, &bs);
     assert_eq!(0, ab.byte_length());
     assert!(!ab.get_backing_store().is_shared());
 
     // Empty but from vec with a huge capacity
     let mut v: Vec<u8> = Vec::with_capacity(10_000_000);
     v.extend_from_slice(&[1, 2, 3, 4]);
-    let bs = v8::ArrayBuffer::new_backing_store_from_bytes(scope, v).make_shared();
-    let ab = v8::ArrayBuffer::with_backing_store(
-      scope,
-      &bs,
-    );
+    let bs =
+      v8::ArrayBuffer::new_backing_store_from_bytes(scope, v).make_shared();
+    let ab = v8::ArrayBuffer::with_backing_store(scope, &bs);
     // Allocate a completely unused buffer overtop of the old allocation
     let mut v2: Vec<u8> = Vec::with_capacity(10_000_000);
     v2.extend_from_slice(&[10, 20, 30, 40]);
@@ -807,7 +804,7 @@ fn shared_array_buffer_allocator() {
   alloc1.assert_use_count_eq(1);
 
   let alloc2 = alloc1.clone();
-  alloc1.assert_use_count_eq(2); 
+  alloc1.assert_use_count_eq(2);
   alloc2.assert_use_count_eq(2);
 
   let mut alloc2 = v8::SharedPtr::from(alloc2);
@@ -816,7 +813,7 @@ fn shared_array_buffer_allocator() {
 
   drop(alloc1);
   alloc2.assert_use_count_eq(1);
- 
+
   alloc2.take();
   alloc2.assert_use_count_eq(0);
 }
@@ -5947,7 +5944,8 @@ fn shared_array_buffer() {
     assert_eq!(shared_bs_1[14].get(), 62);
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
+    let bs =
+      v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
     assert_eq!(bs.byte_length(), 10);
     assert!(bs.is_shared());
 
@@ -9769,8 +9767,11 @@ fn backing_store_from_empty_boxed_slice() {
   let context = v8::Context::new(&mut scope, Default::default());
   let mut scope = v8::ContextScope::new(&mut scope, context);
 
-  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(&mut scope, Box::new([]))
-    .make_shared();
+  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(
+    &mut scope,
+    Box::new([]),
+  )
+  .make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
 }
 
@@ -9784,7 +9785,8 @@ fn backing_store_from_empty_vec() {
   let mut scope = v8::ContextScope::new(&mut scope, context);
 
   let store =
-    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, Vec::new()).make_shared();
+    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, Vec::new())
+      .make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
 }
 
@@ -9799,7 +9801,8 @@ fn backing_store_data() {
 
   let v = vec![1, 2, 3, 4, 5];
   let len = v.len();
-  let store = v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, v).make_shared();
+  let store =
+    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, v).make_shared();
   let buf = v8::ArrayBuffer::with_backing_store(&mut scope, &store);
   assert_eq!(buf.byte_length(), len);
   assert!(buf.data().is_some());
