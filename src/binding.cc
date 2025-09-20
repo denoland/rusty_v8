@@ -114,9 +114,11 @@ static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 12,
               "DisallowJavascriptExecutionScope size mismatch");
 #endif
 
-// Note: this currently uses an internal API to determine if the v8 sandbox is enabled
-// in the testsuite etc.
-extern "C" bool v8__V8__IsSandboxEnabled() { return v8::internal::SandboxIsEnabled(); }
+// Note: this currently uses an internal API to determine if the v8 sandbox is
+// enabled in the testsuite etc.
+extern "C" bool v8__V8__IsSandboxEnabled() {
+  return v8::internal::SandboxIsEnabled();
+}
 
 extern "C" {
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
@@ -979,19 +981,18 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
 }
 
 v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-    v8::Isolate* isolate,
-    void* data,                            
-    size_t byte_length) {
-    std::unique_ptr<v8::BackingStore> u = v8::ArrayBuffer::NewBackingStore(isolate, byte_length);
-    if (u == nullptr) {
-      return nullptr; // Allocation failed
-    }
-    if (byte_length == 0) {
-      // Nothing to copy
-      return u.release();
-    }
-    memcpy(u->Data(), data, byte_length);
+    v8::Isolate* isolate, void* data, size_t byte_length) {
+  std::unique_ptr<v8::BackingStore> u =
+      v8::ArrayBuffer::NewBackingStore(isolate, byte_length);
+  if (u == nullptr) {
+    return nullptr;  // Allocation failed
+  }
+  if (byte_length == 0) {
+    // Nothing to copy
     return u.release();
+  }
+  memcpy(u->Data(), data, byte_length);
+  return u.release();
 }
 
 two_pointers_t v8__ArrayBuffer__GetBackingStore(const v8::ArrayBuffer& self) {
@@ -1037,9 +1038,7 @@ bool v8__BackingStore__IsShared(const v8::BackingStore& self) {
   return self.IsShared();
 }
 
-void v8__BackingStore__DELETE(v8::BackingStore* self) { 
-  delete self;
-}
+void v8__BackingStore__DELETE(v8::BackingStore* self) { delete self; }
 
 two_pointers_t std__shared_ptr__v8__BackingStore__COPY(
     const std::shared_ptr<v8::BackingStore>& ptr) {
@@ -2767,22 +2766,21 @@ v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(
 }
 
 v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
-    v8::Isolate* isolate,
-    void* data,                            
-    size_t byte_length) {
-    std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(isolate, byte_length);
-    if (u == nullptr) {
-      return nullptr; // Allocation failed
-    }
-    // If byte_length is 0, then just release without doing memcpy
-    //
-    // The user may not have passed a valid data pointer in such a case,
-    // making the memcpy potentially UB
-    if (byte_length == 0) {
-      return u.release();
-    }
-    memcpy(u->Data(), data, byte_length);
+    v8::Isolate* isolate, void* data, size_t byte_length) {
+  std::unique_ptr<v8::BackingStore> u =
+      v8::SharedArrayBuffer::NewBackingStore(isolate, byte_length);
+  if (u == nullptr) {
+    return nullptr;  // Allocation failed
+  }
+  // If byte_length is 0, then just release without doing memcpy
+  //
+  // The user may not have passed a valid data pointer in such a case,
+  // making the memcpy potentially UB
+  if (byte_length == 0) {
     return u.release();
+  }
+  memcpy(u->Data(), data, byte_length);
+  return u.release();
 }
 
 const v8::Value* v8__JSON__Parse(const v8::Context& context,
