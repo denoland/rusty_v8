@@ -31,11 +31,6 @@ unsafe extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
-  fn v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
-    isolate: *mut Isolate,
-    data: *mut c_void,
-    byte_length: usize,
-  ) -> *mut BackingStore;
 }
 
 // Rust allocator feature is only available in non-sandboxed mode / no pointer
@@ -47,6 +42,15 @@ unsafe extern "C" {
     byte_length: usize,
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
+  ) -> *mut BackingStore;
+}
+
+#[cfg(feature = "v8_enable_pointer_compression")]
+unsafe extern "C" {
+  fn v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
+    isolate: *mut Isolate,
+    data: *mut c_void,
+    byte_length: usize,
   ) -> *mut BackingStore;
 }
 
@@ -183,6 +187,7 @@ impl SharedArrayBuffer {
   {
     #[cfg(not(feature = "v8_enable_pointer_compression"))]
     {
+      let _ = scope; // Unused (for now) when no sandbox
       Self::new_backing_store_from_bytes_nosandbox(bytes)
     }
     #[cfg(feature = "v8_enable_pointer_compression")]

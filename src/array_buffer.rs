@@ -49,11 +49,6 @@ unsafe extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
-  fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-    isolate: *mut Isolate,
-    data: *mut c_void,
-    byte_length: usize,
-  ) -> *mut BackingStore;
 
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
@@ -117,6 +112,15 @@ unsafe extern "C" {
     handle: *const c_void,
     vtable: *const RustAllocatorVtable<c_void>,
   ) -> *mut Allocator;
+}
+
+#[cfg(feature = "v8_enable_pointer_compression")]
+unsafe extern "C" {
+  fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+    isolate: *mut Isolate,
+    data: *mut c_void,
+    byte_length: usize,
+  ) -> *mut BackingStore;
 }
 
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
@@ -619,6 +623,7 @@ impl ArrayBuffer {
   {
     #[cfg(not(feature = "v8_enable_pointer_compression"))]
     {
+      let _ = scope; // Unused (for now) when no sandbox
       Self::new_backing_store_from_bytes_nosandbox(bytes)
     }
     #[cfg(feature = "v8_enable_pointer_compression")]
