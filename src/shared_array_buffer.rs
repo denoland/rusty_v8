@@ -3,13 +3,15 @@
 use std::ffi::c_void;
 
 use crate::BackingStore;
-use crate::BackingStoreDeleterCallback;
 use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
+
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
+use crate::BackingStoreDeleterCallback;
 
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__New__with_byte_length(
@@ -29,16 +31,22 @@ unsafe extern "C" {
     isolate: *mut Isolate,
     byte_length: usize,
   ) -> *mut BackingStore;
+  fn v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
+    isolate: *mut Isolate,
+    data: *mut c_void,
+    byte_length: usize,
+  ) -> *mut BackingStore;
+}
+
+// Rust allocator feature is only available in non-sandboxed mode / no pointer
+// compression mode.
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
+unsafe extern "C" {
   fn v8__SharedArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
     byte_length: usize,
     deleter: BackingStoreDeleterCallback,
     deleter_data: *mut c_void,
-  ) -> *mut BackingStore;
-  fn v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
-    isolate: *mut Isolate,
-    data: *mut c_void,
-    byte_length: usize,
   ) -> *mut BackingStore;
 }
 
@@ -168,7 +176,7 @@ impl SharedArrayBuffer {
   #[inline(always)]
   pub fn new_backing_store_from_bytes<T>(
     scope: &mut Isolate,
-    mut bytes: T,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: crate::array_buffer::sealed::Rawable,
@@ -188,11 +196,12 @@ impl SharedArrayBuffer {
   #[inline(always)]
   fn new_backing_store_from_bytes_sandbox<T>(
     scope: &mut Isolate,
-    mut bytes: T,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: crate::array_buffer::sealed::Rawable,
   {
+    let mut bytes = bytes; // Make mutable
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);
@@ -219,11 +228,12 @@ impl SharedArrayBuffer {
   #[cfg(not(feature = "v8_enable_pointer_compression"))]
   #[inline(always)]
   fn new_backing_store_from_bytes_nosandbox<T>(
-    mut bytes: T,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: crate::array_buffer::sealed::Rawable,
   {
+    let mut bytes = bytes; // Make mutable
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);

@@ -612,7 +612,7 @@ impl ArrayBuffer {
   #[inline(always)]
   pub fn new_backing_store_from_bytes<T>(
     scope: &mut Isolate,
-    mut bytes: T,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: sealed::Rawable,
@@ -632,11 +632,12 @@ impl ArrayBuffer {
   #[inline(always)]
   fn new_backing_store_from_bytes_sandbox<T>(
     scope: &mut Isolate,
-    mut bytes: T,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: sealed::Rawable,
   {
+    let mut bytes = bytes; // Make mutable
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);
@@ -663,11 +664,12 @@ impl ArrayBuffer {
   #[cfg(not(feature = "v8_enable_pointer_compression"))]
   #[inline(always)]
   fn new_backing_store_from_bytes_nosandbox<T>(
-    mut bytes: T,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: sealed::Rawable,
   {
+    let mut bytes = bytes; // Make mutable
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);
