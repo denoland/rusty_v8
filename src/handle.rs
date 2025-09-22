@@ -108,6 +108,27 @@ unsafe extern "C" {
 #[derive(Debug)]
 pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 
+mod sealed {
+  pub trait Sealed {}
+}
+
+// this trait exists to allow you to specify the output lifetime for `Local::extend_lifetime_unchecked`.
+// so you can do something like `unsafe { Local::extend_lifetime_unchecked::<Local<'o, T>>(local) }`.
+// if it were just a lifetime parameter, it would be "late bound" and you could not explicitly specify the output lifetime.
+pub trait ExtendLifetime<'s, T>: sealed::Sealed {
+  type Input;
+  unsafe fn extend_lifetime_unchecked_from(value: Self::Input) -> Self;
+}
+
+impl<T> sealed::Sealed for Local<'_, T> {}
+
+impl<'s, T> ExtendLifetime<'s, T> for Local<'_, T> {
+  type Input = Local<'s, T>;
+  unsafe fn extend_lifetime_unchecked_from(value: Self::Input) -> Self {
+    unsafe { Local::from_non_null(value.as_non_null()) }
+  }
+}
+
 impl<'s, T> Local<'s, T> {
   /// Construct a new Local from an existing Handle.
   #[inline(always)]
@@ -133,6 +154,35 @@ impl<'s, T> Local<'s, T> {
     Local<'s, A>: TryFrom<Self>,
   {
     unsafe { transmute(other) }
+  }
+  /// Extend the lifetime of a `Local` handle to a longer lifetime.
+  ///
+  /// # Safety
+  ///
+  /// The caller is responsible for ensuring that the `Local` handle is valid
+  /// for the longer lifetime. Incorrect usage can lead to the usage of invalid
+  /// handles
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// let isolate = unsafe { Isolate::from_raw_isolate_ptr(isolate_ptr) };
+  /// callback_scope!(unsafe scope, &mut isolate);
+  /// // the lifetime of the local handle will be tied to the lifetime of `&mut isolate`,
+  /// // which, because we've created it from a raw pointer, is only as long as the current function.
+  /// // the real lifetime at runtime is
+  /// // actually the lifetime of the parent scope. if we can guarantee that the parent scope lives at least as long as
+  /// // `'o`, it is valid to extend the lifetime of the local handle to `'o` by using `extend_lifetime_unchecked`.
+  /// let context = Local::new(scope, context_global_handle);
+  ///
+  /// let local_longer_lifetime = unsafe { local.extend_lifetime_unchecked::<Local<'o, T>>() };
+  /// ```
+  #[inline(always)]
+  pub unsafe fn extend_lifetime_unchecked<'o, O>(self) -> O
+  where
+    O: ExtendLifetime<'s, T, Input = Self>,
+  {
+    unsafe { O::extend_lifetime_unchecked_from(self) }
   }
 
   #[inline(always)]
