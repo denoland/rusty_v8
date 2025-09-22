@@ -1,17 +1,17 @@
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::Private;
 use crate::String;
 use crate::Value;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Private__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     name: *const String,
   ) -> *const Private;
   fn v8__Private__ForApi(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     name: *const String,
   ) -> *const Private;
   fn v8__Private__Name(this: *const Private) -> *const Value;
@@ -21,7 +21,7 @@ impl Private {
   /// Create a private symbol. If name is not empty, it will be the description.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -44,7 +44,7 @@ impl Private {
   /// e.g., "Class#property".
   #[inline(always)]
   pub fn for_api<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     name: Option<Local<String>>,
   ) -> Local<'s, Private> {
     unsafe {
@@ -60,7 +60,7 @@ impl Private {
 
   /// Returns the print name string of the private symbol, or undefined if none.
   #[inline(always)]
-  pub fn name<'s>(&self, scope: &mut HandleScope<'s, ()>) -> Local<'s, Value> {
+  pub fn name<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Private__Name(self)) }.unwrap()
   }
 }

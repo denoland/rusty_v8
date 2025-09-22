@@ -101,11 +101,14 @@ opt-level = 1
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
 v8_enable_pointer_compression = []
+v8_enable_v8_checks = []
 
 [dependencies]
 bitflags = "2.5"
 paste = "1.0"
-temporal_capi = { package = "ry_temporal_capi", version = "=0.0.11-ry.1", features = [ "compiled_data" ] }
+temporal_capi = { package = "ry_temporal_capi", version = "=0.0.11-ry.1", features = [
+  "compiled_data",
+] }
 
 [build-dependencies]
 miniz_oxide = "0.8.8"

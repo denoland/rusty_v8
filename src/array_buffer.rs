@@ -9,10 +9,11 @@ use std::slice;
 
 use crate::ArrayBuffer;
 use crate::DataView;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Value;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 use crate::support::MaybeBool;
 use crate::support::Opaque;
 use crate::support::Shared;
@@ -30,11 +31,11 @@ unsafe extern "C" {
   ) -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *const ArrayBuffer;
   fn v8__ArrayBuffer__New__with_backing_store(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const ArrayBuffer;
   fn v8__ArrayBuffer__Detach(
@@ -50,7 +51,7 @@ unsafe extern "C" {
     this: *const ArrayBuffer,
   ) -> SharedRef<BackingStore>;
   fn v8__ArrayBuffer__NewBackingStore__with_byte_length(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *mut BackingStore;
   fn v8__ArrayBuffer__NewBackingStore__with_data(
@@ -426,7 +427,7 @@ impl ArrayBuffer {
   /// unless the object is externalized.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
     byte_length: usize,
   ) -> Local<'s, ArrayBuffer> {
     unsafe {
@@ -442,7 +443,7 @@ impl ArrayBuffer {
 
   #[inline(always)]
   pub fn with_backing_store<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'s, ArrayBuffer> {
     unsafe {
@@ -532,7 +533,7 @@ impl ArrayBuffer {
   ) -> UniqueRef<BackingStore> {
     unsafe {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_byte_length(
-        scope,
+        (*scope).as_real_ptr(),
         byte_length,
       ))
     }
@@ -639,7 +640,7 @@ impl DataView {
   /// Returns a new DataView.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
     arraybuffer: Local<'s, ArrayBuffer>,
     byte_offset: usize,
     length: usize,

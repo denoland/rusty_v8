@@ -18,6 +18,7 @@ use crate::Isolate;
 use crate::Local;
 use crate::StackTrace;
 use crate::Value;
+use crate::isolate::RealIsolate;
 use crate::support::CxxVTable;
 use crate::support::Opaque;
 use crate::support::UniquePtr;
@@ -88,14 +89,14 @@ unsafe extern "C" {
   ) -> bool;
 
   fn v8_inspector__StringBuffer__DELETE(this: *mut StringBuffer);
-  fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView;
+  fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView<'_>;
   fn v8_inspector__StringBuffer__create(
     source: StringView,
   ) -> UniquePtr<StringBuffer>;
 
   fn v8_inspector__V8Inspector__DELETE(this: *mut RawV8Inspector);
   fn v8_inspector__V8Inspector__create(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     client: *mut RawV8InspectorClient,
   ) -> *mut RawV8Inspector;
   fn v8_inspector__V8Inspector__connect(
@@ -504,7 +505,7 @@ pub trait V8InspectorClientImpl {
   fn ensure_default_context_in_group(
     &self,
     context_group_id: i32,
-  ) -> Option<Local<Context>> {
+  ) -> Option<Local<'_, Context>> {
     None
   }
 
@@ -630,7 +631,7 @@ impl StringBuffer {
   // therefore we declare self as mutable here.
   // TODO: figure out whether it'd be safe to assume a const receiver here.
   // That would make it possible to implement `Deref<Target = StringBuffer>`.
-  pub fn string(&self) -> StringView {
+  pub fn string(&self) -> StringView<'_> {
     unsafe { v8_inspector__StringBuffer__string(self) }
   }
 
@@ -885,7 +886,7 @@ impl V8Inspector {
   ) -> V8Inspector {
     let raw = unsafe {
       UniqueRef::from_raw(v8_inspector__V8Inspector__create(
-        isolate,
+        isolate.as_real_ptr(),
         client.raw(),
       ))
     };

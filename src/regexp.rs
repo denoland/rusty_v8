@@ -1,9 +1,9 @@
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::Object;
 use crate::RegExp;
 use crate::String;
+use crate::scope::PinScope;
 use crate::support::int;
 
 bitflags! {
@@ -39,7 +39,7 @@ unsafe extern "C" {
 impl RegExp {
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     pattern: Local<String>,
     flags: RegExpCreationFlags,
   ) -> Option<Local<'s, RegExp>> {
@@ -53,7 +53,7 @@ impl RegExp {
   #[inline(always)]
   pub fn exec<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     subject: Local<String>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
@@ -64,10 +64,7 @@ impl RegExp {
   }
 
   #[inline(always)]
-  pub fn get_source<'s>(
-    &self,
-    scope: &mut HandleScope<'s>,
-  ) -> Local<'s, String> {
+  pub fn get_source<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__RegExp__GetSource(self)) }.unwrap()
   }
 }

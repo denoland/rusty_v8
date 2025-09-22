@@ -1,23 +1,26 @@
 use crate::ArrayBuffer;
-use crate::CallbackScope;
 use crate::Context;
-use crate::ContextScope;
 use crate::Exception;
 use crate::Global;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::Object;
+use crate::PinScope;
 use crate::SharedArrayBuffer;
 use crate::String;
 use crate::Value;
 use crate::WasmModuleObject;
+use crate::isolate::RealIsolate;
+use crate::scope::CallbackScope;
+use crate::scope::ContextScope;
+use crate::scope::GetIsolate;
 
 use std::alloc::Layout;
 use std::alloc::alloc;
 use std::alloc::dealloc;
 use std::alloc::realloc;
 use std::mem::MaybeUninit;
+use std::pin::pin;
 use std::ptr::addr_of;
 use std::sync::atomic::AtomicUsize;
 
@@ -41,59 +44,68 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__ThrowDataCloneError(
   message: Local<String>,
 ) {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe {
-    &mut CallbackScope::new(value_serializer_heap.isolate_ptr.as_mut().unwrap())
-  };
+  let mut isolate =
+    unsafe { Isolate::from_raw_ptr(value_serializer_heap.isolate_ptr) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
+  let scope = pin!(scope);
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
   value_serializer_heap
     .value_serializer_impl
-    .throw_data_clone_error(scope, message);
+    .throw_data_clone_error(&mut scope, message);
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__HasCustomHostObject(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
   value_serializer_heap
     .value_serializer_impl
-    .has_custom_host_object(unsafe { &mut *isolate })
+    .has_custom_host_object(&isolate)
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__IsHostObject(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   object: Local<Object>,
 ) -> MaybeBool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
+  let scope = pin!(scope);
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
 
   MaybeBool::from(
     value_serializer_heap
       .value_serializer_impl
-      .is_host_object(scope, object),
+      .is_host_object(&mut scope, object),
   )
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   object: Local<Object>,
 ) -> MaybeBool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
+  let scope = pin!(scope);
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
   let value_serializer_impl =
     value_serializer_heap.value_serializer_impl.as_ref();
   MaybeBool::from(value_serializer_impl.write_host_object(
-    scope,
+    &mut scope,
     object,
     &value_serializer_heap.cxx_value_serializer,
   ))
@@ -102,17 +114,20 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__WriteHostObject(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   shared_array_buffer: Local<SharedArrayBuffer>,
   clone_id: *mut u32,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
+  let scope = pin!(scope);
+  let scope = &mut scope.init();
   let context = Local::new(scope, &value_serializer_heap.context);
-  let scope = &mut ContextScope::new(scope, context);
+  let mut scope = ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
-    .get_shared_array_buffer_id(scope, shared_array_buffer)
+    .get_shared_array_buffer_id(&mut scope, shared_array_buffer)
   {
     Some(x) => {
       unsafe {
@@ -127,13 +142,16 @@ unsafe extern "C" fn v8__ValueSerializer__Delegate__GetSharedArrayBufferId(
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__ValueSerializer__Delegate__GetWasmModuleTransferId(
   this: &CxxValueSerializerDelegate,
-  isolate: *mut Isolate,
+  isolate: *mut RealIsolate,
   module: Local<WasmModuleObject>,
   transfer_id: *mut u32,
 ) -> bool {
   let value_serializer_heap = unsafe { ValueSerializerHeap::dispatch(this) };
-  let scope = unsafe { &mut CallbackScope::new(isolate.as_mut().unwrap()) };
-  let context = Local::new(scope, value_serializer_heap.context.clone());
+  let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  let scope = unsafe { CallbackScope::new(&mut isolate) };
+  let scope = pin!(scope);
+  let scope = &mut scope.init();
+  let context = Local::new(scope, &value_serializer_heap.context);
   let scope = &mut ContextScope::new(scope, context);
   match value_serializer_heap
     .value_serializer_impl
@@ -206,7 +224,7 @@ pub struct CxxValueSerializer {
 unsafe extern "C" {
   fn v8__ValueSerializer__CONSTRUCT(
     buf: *mut MaybeUninit<CxxValueSerializer>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     delegate: *mut CxxValueSerializerDelegate,
   );
 
@@ -258,17 +276,17 @@ unsafe extern "C" {
 pub trait ValueSerializerImpl {
   fn throw_data_clone_error<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut PinScope<'s, '_>,
     message: Local<'s, String>,
   );
 
-  fn has_custom_host_object(&self, _isolate: &mut Isolate) -> bool {
+  fn has_custom_host_object(&self, _isolate: &Isolate) -> bool {
     false
   }
 
   fn is_host_object<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut PinScope<'s, '_>,
     _object: Local<'s, Object>,
   ) -> Option<bool> {
     let msg =
@@ -281,7 +299,7 @@ pub trait ValueSerializerImpl {
 
   fn write_host_object<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &mut PinScope<'s, '_>,
     _object: Local<'s, Object>,
     _value_serializer: &dyn ValueSerializerHelper,
   ) -> Option<bool> {
@@ -295,7 +313,7 @@ pub trait ValueSerializerImpl {
 
   fn get_shared_array_buffer_id<'s>(
     &self,
-    _scope: &mut HandleScope<'s>,
+    _scope: &mut PinScope<'s, '_>,
     _shared_array_buffer: Local<'s, SharedArrayBuffer>,
   ) -> Option<u32> {
     None
@@ -303,7 +321,7 @@ pub trait ValueSerializerImpl {
 
   fn get_wasm_module_transfer_id(
     &self,
-    scope: &mut HandleScope<'_>,
+    scope: &mut PinScope<'_, '_>,
     _module: Local<WasmModuleObject>,
   ) -> Option<u32> {
     let msg = String::new(
@@ -330,7 +348,7 @@ pub struct ValueSerializerHeap<'a> {
   cxx_value_serializer: CxxValueSerializer,
   buffer_size: AtomicUsize,
   context: Global<Context>,
-  isolate_ptr: *mut Isolate,
+  isolate_ptr: *mut RealIsolate,
 }
 
 impl ValueSerializerHeap<'_> {
@@ -484,8 +502,8 @@ pub struct ValueSerializer<'a> {
 /// The 's lifetime is the lifetime of the HandleScope which is used to retrieve
 /// a Local<'s, Context> for the CallbackScopes
 impl<'a> ValueSerializer<'a> {
-  pub fn new<D: ValueSerializerImpl + 'a>(
-    scope: &mut HandleScope,
+  pub fn new<'s, 'i, D: ValueSerializerImpl + 'a>(
+    scope: &PinScope<'s, 'i>,
     value_serializer_impl: Box<D>,
   ) -> Self {
     let context = scope.get_current_context();
