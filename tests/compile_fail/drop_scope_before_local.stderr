@@ -1,0 +1,13 @@
+error[E0505]: cannot move out of `scope_pinned` because it is borrowed
+  --> tests/compile_fail/drop_scope_before_local.rs:10:8
+   |
+6  |   let mut scope_pinned = pin!(v8::HandleScope::new(&mut isolate));
+   |       ---------------- binding `scope_pinned` declared here
+7  |   let mut scope = scope_pinned.as_mut().init();
+   |                   ------------ borrow of `scope_pinned` occurs here
+...
+10 |   drop(scope_pinned);
+   |        ^^^^^^^^^^^^ move out of `scope_pinned` occurs here
+11 |
+12 |   local.is_int32();
+   |   ----- borrow later used here
