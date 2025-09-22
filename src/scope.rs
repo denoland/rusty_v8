@@ -245,6 +245,18 @@ impl<C> ScopeInit for HandleScope<'_, C> {
   }
 }
 
+/// A stack-allocated class that governs a number of local handles.
+/// After a handle scope has been created, all local handles will be
+/// allocated within that handle scope until either the handle scope is
+/// deleted or another handle scope is created.  If there is already a
+/// handle scope and a new one is created, all allocations will take
+/// place in the new handle scope until it is deleted.  After that,
+/// new handles will again be allocated in the original handle scope.
+///
+/// After the handle scope of a local handle has been deleted the
+/// garbage collector will no longer track the object stored in the
+/// handle and may deallocate it.  The behavior of accessing a handle
+/// for which the handle scope has been deleted is undefined.
 #[repr(C)]
 #[derive(Debug)]
 pub struct HandleScope<'s, C = Context> {
@@ -680,6 +692,14 @@ impl<'p> PinnedRef<'p, HandleScope<'_, ()>> {
     let ptr = _f(&mut data);
     unsafe { Local::from_raw(ptr) }
   }
+
+  /// Schedules an exception to be thrown when returning to JavaScript. When
+  /// an exception has been scheduled it is illegal to invoke any
+  /// JavaScript operation; the caller must return immediately and only
+  /// after the exception has been handled does it become legal to invoke
+  /// JavaScript operations.
+  ///
+  /// This function always returns the `undefined` value.
   pub fn throw_exception(
     &self,
     exception: Local<'p, Value>,
@@ -691,6 +711,7 @@ impl<'p> PinnedRef<'p, HandleScope<'_, ()>> {
     }
     .unwrap()
   }
+
   /// Open a handle passed from V8 in the current scope.
   ///
   /// # Safety
@@ -710,6 +731,9 @@ impl<C> GetIsolate for Pin<&mut HandleScope<'_, C>> {
   }
 }
 
+/// Stack-allocated class which sets the execution context for all operations
+/// executed within a local scope. After entering a context, all code compiled
+/// and run is compiled and run in this context.
 #[repr(C)]
 pub struct ContextScope<'borrow, 'scope, P: ClearCachedContext> {
   raw_handle_scope: raw::ContextScope,
@@ -921,7 +945,33 @@ impl<
   }
 }
 
+/// A `CallbackScope` can be used to bootstrap a `HandleScope` and
+/// `ContextScope` inside a callback function that gets called by V8.
+/// Bootstrapping a scope inside a callback is the only valid use case of this
+/// type; using it in other places leads to undefined behavior, which is also
+/// the reason `CallbackScope::new()` is marked as being an unsafe function.
+///
+/// For some callback types, rusty_v8 internally creates a scope and passes it
+/// as an argument to to embedder callback. Eventually we intend to wrap all
+/// callbacks in this fashion, so the embedder would never needs to construct
+/// a CallbackScope.
+///
+/// A `CallbackScope<()>`, without context, can be created from:
+///   - `&mut Isolate`
+///   - `&mut OwnedIsolate`
+///
+/// A `CallbackScope`, with context, can be created from:
+///   - `Local<Context>`
+///   - `Local<Message>`
+///   - `Local<Object>`
+///   - `Local<Promise>`
+///   - `Local<SharedArrayBuffer>`
+///   - `&FunctionCallbackInfo`
+///   - `&PropertyCallbackInfo`
+///   - `&PromiseRejectMessage`
+///   - `&FastApiCallbackOptions`
 #[repr(C)]
+#[derive(Debug)]
 pub struct CallbackScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
@@ -1093,6 +1143,8 @@ impl<'s> AsRef<Pin<&'s mut HandleScope<'s, ()>>> for CallbackScope<'s, ()> {
   }
 }
 
+/// An external exception handler.
+#[repr(C)]
 pub struct TryCatch<'scope, 'obj, P> {
   raw_try_catch: raw::TryCatch,
   scope: &'scope mut PinnedRef<'obj, P>,
@@ -1339,6 +1391,8 @@ impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'iso, C> NewTryCatch<'scope>
   }
 }
 
+/// A HandleScope which first allocates a handle in the current scope
+/// which will be later filled with the escape value.
 #[repr(C)]
 pub struct EscapableHandleScope<'s, 'esc: 's, C = Context> {
   raw_handle_scope: raw::HandleScope,
@@ -1385,6 +1439,8 @@ impl<'s, 'esc: 's> EscapableHandleScope<'s, 'esc> {
 }
 
 impl<'s, 'esc: 's, C> PinnedRef<'_, EscapableHandleScope<'s, 'esc, C>> {
+  /// Pushes the value into the previous scope and returns a handle to it.
+  /// Cannot be called twice.
   pub fn escape<'a, T>(&mut self, value: Local<'a, T>) -> Local<'esc, T>
   where
     for<'l> Local<'l, T>: Into<Local<'l, crate::Data>>,
