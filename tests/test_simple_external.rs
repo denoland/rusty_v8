@@ -10,7 +10,7 @@ mod test_simple_external {
     );
     v8::V8::initialize();
     let isolate = &mut v8::Isolate::new(Default::default());
-    let scope = &mut v8::HandleScope::new(isolate);
+    v8::scope!(let scope, isolate);
 
     let ex1_value =
       Box::into_raw(Box::new(1234567usize)) as *mut std::ffi::c_void;

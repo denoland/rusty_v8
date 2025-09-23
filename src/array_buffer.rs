@@ -118,7 +118,7 @@ unsafe extern "C" {
 #[cfg(feature = "v8_enable_pointer_compression")]
 unsafe extern "C" {
   fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *mut c_void,
     byte_length: usize,
   ) -> *mut BackingStore;
@@ -651,7 +651,7 @@ impl ArrayBuffer {
     let unique_ref = unsafe {
       UniqueRef::from_raw(
         v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-          scope,
+          (*scope).as_real_ptr(),
           slice as *mut c_void,
           len,
         ),

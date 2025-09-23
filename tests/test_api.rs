@@ -9947,10 +9947,13 @@ fn backing_store_from_empty_boxed_slice() {
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
-  let scope = v8::ContextScope::new(&mut scope, context);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
 
-  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(Box::new([]))
-    .make_shared();
+  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(
+    &mut scope,
+    Box::new([]),
+  )
+  .make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&scope, &store);
 }
 
@@ -9962,10 +9965,11 @@ fn backing_store_from_empty_vec() {
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
-  let scope = v8::ContextScope::new(&mut scope, context);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
 
   let store =
-    v8::ArrayBuffer::new_backing_store_from_vec(Vec::new()).make_shared();
+    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, Vec::new())
+      .make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&scope, &store);
 }
 
@@ -9977,12 +9981,12 @@ fn backing_store_data() {
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
-  let scope = v8::ContextScope::new(&mut scope, context);
+  let mut scope = v8::ContextScope::new(&mut scope, context);
 
   let v = vec![1, 2, 3, 4, 5];
-  let len = v.len();
-  let store = v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
-  let buf = v8::ArrayBuffer::with_backing_store(&scope, &store);
+  let store =
+    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, v).make_shared();
+  let _buf = v8::ArrayBuffer::with_backing_store(&scope, &store);
 }
 
 #[test]

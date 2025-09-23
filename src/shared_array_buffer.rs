@@ -1,8 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
-use std::ffi::c_void;
-
 use crate::BackingStore;
+use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::isolate::RealIsolate;
@@ -10,6 +9,7 @@ use crate::scope::GetIsolate;
 use crate::scope::PinScope;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
+use std::ffi::c_void;
 
 #[cfg(not(feature = "v8_enable_pointer_compression"))]
 use crate::BackingStoreDeleterCallback;
@@ -49,7 +49,7 @@ unsafe extern "C" {
 #[cfg(feature = "v8_enable_pointer_compression")]
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *mut c_void,
     byte_length: usize,
   ) -> *mut BackingStore;
@@ -215,7 +215,7 @@ impl SharedArrayBuffer {
     let unique_ref = unsafe {
       UniqueRef::from_raw(
         v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
-          scope,
+          (*scope).as_real_ptr(),
           slice as *mut c_void,
           len,
         ),
