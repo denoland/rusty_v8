@@ -10,16 +10,24 @@ use std::ops::Deref;
 use std::ptr::NonNull;
 
 use crate::Data;
-use crate::HandleScope;
 use crate::Isolate;
 use crate::IsolateHandle;
+use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::Opaque;
 
 unsafe extern "C" {
-  fn v8__Local__New(isolate: *mut Isolate, other: *const Data) -> *const Data;
-  fn v8__Global__New(isolate: *mut Isolate, data: *const Data) -> *const Data;
+  fn v8__Local__New(
+    isolate: *mut RealIsolate,
+    other: *const Data,
+  ) -> *const Data;
+  fn v8__Global__New(
+    isolate: *mut RealIsolate,
+    data: *const Data,
+  ) -> *const Data;
   fn v8__Global__NewWeak(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const Data,
     parameter: *const c_void,
     callback: unsafe extern "C" fn(*const WeakCallbackInfo),
@@ -27,7 +35,7 @@ unsafe extern "C" {
   fn v8__Global__Reset(data: *const Data);
   fn v8__WeakCallbackInfo__GetIsolate(
     this: *const WeakCallbackInfo,
-  ) -> *mut Isolate;
+  ) -> *mut RealIsolate;
   fn v8__WeakCallbackInfo__GetParameter(
     this: *const WeakCallbackInfo,
   ) -> *mut c_void;
@@ -40,12 +48,12 @@ unsafe extern "C" {
   fn v8__TracedReference__DESTRUCT(this: *mut TracedReference<Data>);
   fn v8__TracedReference__Reset(
     this: *mut TracedReference<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *mut Data,
   );
   fn v8__TracedReference__Get(
     this: *const TracedReference<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Data;
 
   fn v8__Eternal__CONSTRUCT(this: *mut Eternal<Data>);
@@ -53,11 +61,11 @@ unsafe extern "C" {
   fn v8__Eternal__Clear(this: *mut Eternal<Data>);
   fn v8__Eternal__Get(
     this: *const Eternal<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Data;
   fn v8__Eternal__Set(
     this: *mut Eternal<Data>,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *mut Data,
   );
   fn v8__Eternal__IsEmpty(this: *const Eternal<Data>) -> bool;
@@ -100,13 +108,34 @@ unsafe extern "C" {
 #[derive(Debug)]
 pub struct Local<'s, T>(NonNull<T>, PhantomData<&'s ()>);
 
+mod sealed {
+  pub trait Sealed {}
+}
+
+// this trait exists to allow you to specify the output lifetime for `Local::extend_lifetime_unchecked`.
+// so you can do something like `unsafe { Local::extend_lifetime_unchecked::<Local<'o, T>>(local) }`.
+// if it were just a lifetime parameter, it would be "late bound" and you could not explicitly specify the output lifetime.
+pub trait ExtendLifetime<'s, T>: sealed::Sealed {
+  type Input;
+  unsafe fn extend_lifetime_unchecked_from(value: Self::Input) -> Self;
+}
+
+impl<T> sealed::Sealed for Local<'_, T> {}
+
+impl<'s, T> ExtendLifetime<'s, T> for Local<'_, T> {
+  type Input = Local<'s, T>;
+  unsafe fn extend_lifetime_unchecked_from(value: Self::Input) -> Self {
+    unsafe { Local::from_non_null(value.as_non_null()) }
+  }
+}
+
 impl<'s, T> Local<'s, T> {
   /// Construct a new Local from an existing Handle.
   #[inline(always)]
-  pub fn new(
-    scope: &mut HandleScope<'s, ()>,
+  pub fn new<'i>(
+    scope: &PinScope<'s, 'i, ()>,
     handle: impl Handle<Data = T>,
-  ) -> Self {
+  ) -> Local<'s, T> {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(scope);
     unsafe {
@@ -125,6 +154,35 @@ impl<'s, T> Local<'s, T> {
     Local<'s, A>: TryFrom<Self>,
   {
     unsafe { transmute(other) }
+  }
+  /// Extend the lifetime of a `Local` handle to a longer lifetime.
+  ///
+  /// # Safety
+  ///
+  /// The caller is responsible for ensuring that the `Local` handle is valid
+  /// for the longer lifetime. Incorrect usage can lead to the usage of invalid
+  /// handles
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// let isolate = unsafe { Isolate::from_raw_isolate_ptr(isolate_ptr) };
+  /// callback_scope!(unsafe scope, &mut isolate);
+  /// // the lifetime of the local handle will be tied to the lifetime of `&mut isolate`,
+  /// // which, because we've created it from a raw pointer, is only as long as the current function.
+  /// // the real lifetime at runtime is
+  /// // actually the lifetime of the parent scope. if we can guarantee that the parent scope lives at least as long as
+  /// // `'o`, it is valid to extend the lifetime of the local handle to `'o` by using `extend_lifetime_unchecked`.
+  /// let context = Local::new(scope, context_global_handle);
+  ///
+  /// let local_longer_lifetime = unsafe { local.extend_lifetime_unchecked::<Local<'o, T>>() };
+  /// ```
+  #[inline(always)]
+  pub unsafe fn extend_lifetime_unchecked<'o, O>(self) -> O
+  where
+    O: ExtendLifetime<'s, T, Input = Self>,
+  {
+    unsafe { O::extend_lifetime_unchecked_from(self) }
   }
 
   #[inline(always)]
@@ -232,10 +290,10 @@ pub struct Global<T> {
 impl<T> Global<T> {
   /// Construct a new Global from an existing Handle.
   #[inline(always)]
-  pub fn new(isolate: &mut Isolate, handle: impl Handle<Data = T>) -> Self {
+  pub fn new(isolate: &Isolate, handle: impl Handle<Data = T>) -> Self {
     let HandleInfo { data, host } = handle.get_handle_info();
     host.assert_match_isolate(isolate);
-    unsafe { Self::new_raw(isolate, data) }
+    unsafe { Self::new_raw(isolate as *const Isolate as *mut Isolate, data) }
   }
 
   /// Implementation helper function that contains the code that can be shared
@@ -244,7 +302,7 @@ impl<T> Global<T> {
   unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     unsafe {
-      let data = v8__Global__New(isolate, data) as *const T;
+      let data = v8__Global__New((*isolate).as_real_ptr(), data) as *const T;
       let data = NonNull::new_unchecked(data as *mut _);
       let isolate_handle = (*isolate).thread_safe_handle();
       Self {
@@ -287,7 +345,8 @@ impl<T> Global<T> {
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();
-    unsafe { Self::new_raw(host.get_isolate().as_mut(), data) }
+    let mut isolate = unsafe { Isolate::from_non_null(host.get_isolate()) };
+    unsafe { Self::new_raw(isolate.as_mut(), data) }
   }
 }
 
@@ -500,13 +559,13 @@ enum HandleHost {
   // the `Isolate` that hosts it (the handle) and the currently entered
   // scope.
   Scope,
-  Isolate(NonNull<Isolate>),
+  Isolate(NonNull<RealIsolate>),
   DisposedIsolate,
 }
 
-impl From<&'_ mut Isolate> for HandleHost {
-  fn from(isolate: &'_ mut Isolate) -> Self {
-    Self::Isolate(NonNull::from(isolate))
+impl From<&'_ Isolate> for HandleHost {
+  fn from(isolate: &'_ Isolate) -> Self {
+    Self::Isolate(unsafe { NonNull::new_unchecked(isolate.as_real_ptr()) })
   }
 }
 
@@ -539,9 +598,10 @@ impl HandleHost {
   fn match_host(
     self,
     other: Self,
-    scope_isolate_opt: Option<&mut Isolate>,
+    scope_isolate_opt: Option<&Isolate>,
   ) -> bool {
-    let scope_isolate_opt_nn = scope_isolate_opt.map(NonNull::from);
+    let scope_isolate_opt_nn = scope_isolate_opt
+      .map(|isolate| unsafe { NonNull::new_unchecked(isolate.as_real_ptr()) });
     match (self, other, scope_isolate_opt_nn) {
       (Self::Scope, Self::Scope, _) => true,
       (Self::Isolate(ile1), Self::Isolate(ile2), _) => ile1 == ile2,
@@ -562,7 +622,7 @@ impl HandleHost {
     }
   }
 
-  fn assert_match_host(self, other: Self, scope_opt: Option<&mut Isolate>) {
+  fn assert_match_host(self, other: Self, scope_opt: Option<&Isolate>) {
     assert!(
       self.match_host(other, scope_opt),
       "attempt to use Handle in an Isolate that is not its host"
@@ -570,15 +630,15 @@ impl HandleHost {
   }
 
   #[allow(dead_code)]
-  fn match_isolate(self, isolate: &mut Isolate) -> bool {
+  fn match_isolate(self, isolate: &Isolate) -> bool {
     self.match_host(isolate.into(), Some(isolate))
   }
 
-  fn assert_match_isolate(self, isolate: &mut Isolate) {
+  fn assert_match_isolate(self, isolate: &Isolate) {
     self.assert_match_host(isolate.into(), Some(isolate));
   }
 
-  fn get_isolate(self) -> NonNull<Isolate> {
+  fn get_isolate(self) -> NonNull<RealIsolate> {
     match self {
       Self::Scope => panic!("host Isolate for Handle not available"),
       Self::Isolate(ile) => ile,
@@ -588,7 +648,8 @@ impl HandleHost {
 
   #[allow(dead_code)]
   fn get_isolate_handle(self) -> IsolateHandle {
-    unsafe { self.get_isolate().as_ref() }.thread_safe_handle()
+    let isolate = unsafe { Isolate::from_non_null(self.get_isolate()) };
+    isolate.thread_safe_handle()
   }
 }
 
@@ -681,7 +742,7 @@ impl<T> Weak<T> {
     let data = data.cast().as_ptr();
     let data = unsafe {
       v8__Global__NewWeak(
-        isolate,
+        (*isolate).as_real_ptr(),
         data,
         weak_data.deref() as *const _ as *const c_void,
         Self::first_pass_callback,
@@ -737,14 +798,10 @@ impl<T> Weak<T> {
       if isolate_ptr.is_null() {
         unreachable!("Isolate was dropped but weak handle wasn't reset.");
       }
-
-      let finalizer_id = if let Some(finalizer) = finalizer {
-        let isolate = unsafe { &mut *isolate_ptr };
-        Some(isolate.get_finalizer_map_mut().add(finalizer))
-      } else {
-        None
-      };
-      Self::new_raw(isolate_ptr, data, finalizer_id)
+      let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
+      let finalizer_id = finalizer
+        .map(|finalizer| isolate.get_finalizer_map_mut().add(finalizer));
+      Self::new_raw(&mut isolate, data, finalizer_id)
     } else {
       Weak {
         data: None,
@@ -789,7 +846,7 @@ impl<T> Weak<T> {
           // Disposed isolates have no finalizers.
           false
         } else {
-          let isolate = unsafe { &mut *isolate_ptr };
+          let isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
           isolate.get_finalizer_map().map.contains_key(&finalizer_id)
         }
       } else {
@@ -839,7 +896,7 @@ impl<T> Weak<T> {
 
   pub fn to_local<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, T>> {
     if let Some(data) = self.get_pointer() {
       let handle_host: HandleHost = (&self.isolate_handle).into();
@@ -885,7 +942,7 @@ impl<T> Weak<T> {
   unsafe extern "C" fn second_pass_callback(wci: *const WeakCallbackInfo) {
     // SAFETY: This callback is guaranteed by V8 to be called in the isolate's
     // thread before the isolate is disposed.
-    let isolate = unsafe { &mut *v8__WeakCallbackInfo__GetIsolate(wci) };
+    let isolate = unsafe { v8__WeakCallbackInfo__GetIsolate(wci) };
 
     // SAFETY: This callback might be called well after the first pass callback,
     // which means the corresponding Weak might have been dropped. In Weak's
@@ -896,6 +953,8 @@ impl<T> Weak<T> {
       let ptr = v8__WeakCallbackInfo__GetParameter(wci);
       &*(ptr as *mut WeakData<T>)
     };
+
+    let mut isolate = unsafe { Isolate::from_raw_ptr(isolate) };
     let finalizer: Option<FinalizerCallback> = {
       let finalizer_id = weak_data.finalizer_id.unwrap();
       isolate.get_finalizer_map_mut().map.remove(&finalizer_id)
@@ -910,7 +969,7 @@ impl<T> Weak<T> {
     }
 
     match finalizer {
-      Some(FinalizerCallback::Regular(finalizer)) => finalizer(isolate),
+      Some(FinalizerCallback::Regular(finalizer)) => finalizer(&mut isolate),
       Some(FinalizerCallback::Guaranteed(finalizer)) => finalizer(),
       None => {}
     }
@@ -931,7 +990,7 @@ impl<T> Drop for Weak<T> {
         // SAFETY: We're in the isolate's thread because `Weak` isn't Send or Sync.
         let isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
         if !isolate_ptr.is_null() {
-          let isolate = unsafe { &mut *isolate_ptr };
+          let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
           let finalizer =
             isolate.get_finalizer_map_mut().map.remove(&finalizer_id);
           return finalizer.is_some();
@@ -1073,16 +1132,13 @@ impl<T> TracedReference<T> {
   /// Construct a TracedReference from a Local.
   ///
   /// A new storage cell is created pointing to the same object.
-  pub fn new(scope: &mut HandleScope<()>, data: Local<T>) -> Self {
+  pub fn new<'s>(scope: &PinScope<'s, '_, ()>, data: Local<'s, T>) -> Self {
     let mut this = Self::empty();
     this.reset(scope, Some(data));
     this
   }
 
-  pub fn get<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Option<Local<'s, T>> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(
@@ -1095,7 +1151,11 @@ impl<T> TracedReference<T> {
 
   /// Always resets the reference. Creates a new reference from `other` if it is
   /// non-empty.
-  pub fn reset(&mut self, scope: &mut HandleScope<()>, data: Option<Local<T>>) {
+  pub fn reset<'s>(
+    &mut self,
+    scope: &PinScope<'s, '_, ()>,
+    data: Option<Local<'s, T>>,
+  ) {
     unsafe {
       v8__TracedReference__Reset(
         self as *mut Self as *mut TracedReference<Data>,
@@ -1140,7 +1200,7 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn set(&self, scope: &mut HandleScope<()>, data: Local<T>) {
+  pub fn set<'s>(&self, scope: &PinScope<'s, '_, ()>, data: Local<'s, T>) {
     unsafe {
       v8__Eternal__Set(
         self as *const Self as *mut Eternal<Data>,
@@ -1150,10 +1210,7 @@ impl<T> Eternal<T> {
     }
   }
 
-  pub fn get<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Option<Local<'s, T>> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Eternal__Get(

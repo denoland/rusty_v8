@@ -1,10 +1,11 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 //! A JSON Parser and Stringifier.
+
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::String;
 use crate::Value;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__JSON__Parse(
@@ -21,7 +22,7 @@ unsafe extern "C" {
 /// successful.
 #[inline(always)]
 pub fn parse<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   json_string: Local<'_, String>,
 ) -> Option<Local<'s, Value>> {
   unsafe {
@@ -34,7 +35,7 @@ pub fn parse<'s>(
 /// it as string if successful.
 #[inline(always)]
 pub fn stringify<'s>(
-  scope: &mut HandleScope<'s>,
+  scope: &PinScope<'s, '_>,
   json_object: Local<'_, Value>,
 ) -> Option<Local<'s, String>> {
   unsafe {

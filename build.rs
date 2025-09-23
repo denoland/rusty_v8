@@ -249,6 +249,11 @@ fn build_v8(is_asan: bool) {
     gn_args.push(arg.to_string());
   }
 
+  gn_args.push(format!(
+    "v8_enable_v8_checks={}",
+    env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
+  ));
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string());

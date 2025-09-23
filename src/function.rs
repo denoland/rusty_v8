@@ -5,9 +5,9 @@ use std::ptr::null;
 
 use crate::Array;
 use crate::Boolean;
+use crate::CallbackScope;
 use crate::Context;
 use crate::Function;
-use crate::HandleScope;
 use crate::Integer;
 use crate::Isolate;
 use crate::Local;
@@ -19,7 +19,9 @@ use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
 use crate::Value;
-use crate::scope::CallbackScope;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
+use crate::scope::callback_scope;
 use crate::script_compiler::CachedData;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
@@ -72,7 +74,7 @@ unsafe extern "C" {
 
   fn v8__PropertyCallbackInfo__GetIsolate(
     this: *const RawPropertyCallbackInfo,
-  ) -> *mut Isolate;
+  ) -> *mut RealIsolate;
   fn v8__PropertyCallbackInfo__Data(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Value;
@@ -218,7 +220,7 @@ where
   /// hit. If the ReturnValue was not yet set, this will return the undefined
   /// value.
   #[inline(always)]
-  pub fn get<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, Value> {
+  pub fn get<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__ReturnValue__Value__Get(&self.0)) }
       .unwrap()
   }
@@ -253,9 +255,9 @@ impl FunctionCallbackInfo {
 
 impl FunctionCallbackInfo {
   #[inline(always)]
-  pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     let arg_nn =
-      self.get_implicit_arg_non_null::<*mut Isolate>(Self::kIsolateIndex);
+      self.get_implicit_arg_non_null::<*mut RealIsolate>(Self::kIsolateIndex);
     *unsafe { arg_nn.as_ref() }
   }
 
@@ -265,12 +267,12 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn new_target(&self) -> Local<Value> {
+  pub(crate) fn new_target(&self) -> Local<'_, Value> {
     unsafe { self.get_implicit_arg_local(Self::kNewTargetIndex) }
   }
 
   #[inline(always)]
-  pub(crate) fn this(&self) -> Local<Object> {
+  pub(crate) fn this(&self) -> Local<'_, Object> {
     unsafe { self.get_arg_local(-1) }
   }
 
@@ -281,7 +283,7 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn data(&self) -> Local<Value> {
+  pub(crate) fn data(&self) -> Local<'_, Value> {
     unsafe {
       let ptr = v8__FunctionCallbackInfo__Data(self);
       let nn = NonNull::new_unchecked(ptr as *mut Value);
@@ -295,12 +297,14 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn get(&self, index: int) -> Local<Value> {
+  pub(crate) fn get(&self, index: int) -> Local<'_, Value> {
     if index >= 0 && index < self.length {
       unsafe { self.get_arg_local(index) }
     } else {
-      let isolate = unsafe { &mut *self.get_isolate_ptr() };
-      undefined(isolate).into()
+      let isolate = unsafe {
+        crate::isolate::Isolate::from_raw_ptr(self.get_isolate_ptr())
+      };
+      undefined(&isolate).into()
     }
   }
 
@@ -325,7 +329,7 @@ impl FunctionCallbackInfo {
   // SAFETY: caller must guarantee that the implicit argument at `index`
   // contains a valid V8 handle.
   #[inline(always)]
-  unsafe fn get_implicit_arg_local<T>(&self, index: i32) -> Local<T> {
+  unsafe fn get_implicit_arg_local<T>(&self, index: i32) -> Local<'_, T> {
     let nn = self.get_implicit_arg_non_null::<T>(index);
     unsafe { Local::from_non_null(nn) }
   }
@@ -333,7 +337,7 @@ impl FunctionCallbackInfo {
   // SAFETY: caller must guarantee that the `index` value lies between -1 and
   // self.length.
   #[inline(always)]
-  unsafe fn get_arg_local<T>(&self, index: i32) -> Local<T> {
+  unsafe fn get_arg_local<T>(&self, index: i32) -> Local<'_, T> {
     let ptr = unsafe { self.values.offset(index as _) } as *mut T;
     debug_assert!(!ptr.is_null());
     let nn = unsafe { NonNull::new_unchecked(ptr) };
@@ -353,7 +357,7 @@ pub struct PropertyCallbackInfo<T>(RawPropertyCallbackInfo, PhantomData<T>);
 
 impl<T> PropertyCallbackInfo<T> {
   #[inline(always)]
-  pub(crate) fn get_isolate_ptr(&self) -> *mut Isolate {
+  pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     unsafe { v8__PropertyCallbackInfo__GetIsolate(&self.0) }
   }
 }
@@ -373,7 +377,7 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// not be called.
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *self.0.get_isolate_ptr() }
+    unsafe { &mut *(self.0.get_isolate_ptr() as *mut crate::isolate::Isolate) }
   }
 
   /// For construct calls, this returns the "new.target" value.
@@ -511,19 +515,20 @@ pub type FunctionCallback = unsafe extern "C" fn(*const FunctionCallbackInfo);
 impl<F> MapFnFrom<F> for FunctionCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       FunctionCallbackArguments<'s>,
-      ReturnValue<Value>,
+      ReturnValue<'s, Value>,
     ),
 {
   fn mapping() -> Self {
     let f = |info: *const FunctionCallbackInfo| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      let scope = std::pin::pin!(unsafe { CallbackScope::new(info) });
+      let mut scope = scope.init();
       let args = FunctionCallbackArguments::from_function_callback_info(info);
       let rv = ReturnValue::from_function_callback_info(info);
-      (F::get())(scope, args, rv);
+      (F::get())(&mut scope, args, rv);
     };
     f.to_c_fn()
   }
@@ -535,8 +540,8 @@ pub(crate) type NamedGetterCallbackForAccessor =
 impl<F> MapFnFrom<F> for NamedGetterCallbackForAccessor
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Value>,
@@ -546,7 +551,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -564,8 +569,8 @@ pub(crate) type NamedGetterCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for NamedGetterCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Value>,
@@ -575,7 +580,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -593,8 +598,8 @@ pub(crate) type NamedQueryCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for NamedQueryCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Integer>,
@@ -604,7 +609,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Integer>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -623,8 +628,8 @@ pub(crate) type NamedSetterCallbackForAccessor = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for NamedSetterCallbackForAccessor
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
@@ -636,7 +641,7 @@ where
              value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
@@ -656,8 +661,8 @@ pub(crate) type NamedSetterCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for NamedSetterCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
@@ -669,7 +674,7 @@ where
              value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
@@ -687,8 +692,8 @@ pub(crate) type PropertyEnumeratorCallback =
 impl<F> MapFnFrom<F> for PropertyEnumeratorCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Array>,
     ),
@@ -696,7 +701,7 @@ where
   fn mapping() -> Self {
     let f = |info: *const PropertyCallbackInfo<Array>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, args, rv);
@@ -714,8 +719,8 @@ pub(crate) type NamedDefinerCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for NamedDefinerCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
@@ -727,7 +732,7 @@ where
              desc: *const PropertyDescriptor,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let desc = unsafe { &*desc };
@@ -746,8 +751,8 @@ pub(crate) type NamedDeleterCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for NamedDeleterCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       Local<'s, Name>,
       PropertyCallbackArguments<'s>,
       ReturnValue<Boolean>,
@@ -757,7 +762,7 @@ where
     let f = |key: SealedLocal<Name>,
              info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -773,8 +778,8 @@ pub(crate) type IndexedGetterCallback =
 impl<F> MapFnFrom<F> for IndexedGetterCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue<Value>,
@@ -783,7 +788,7 @@ where
   fn mapping() -> Self {
     let f = |index: u32, info: *const PropertyCallbackInfo<Value>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, index, args, rv)
@@ -800,8 +805,8 @@ pub(crate) type IndexedQueryCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for IndexedQueryCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue<Integer>,
@@ -810,7 +815,7 @@ where
   fn mapping() -> Self {
     let f = |key: u32, info: *const PropertyCallbackInfo<Integer>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, key, args, rv)
@@ -828,8 +833,8 @@ pub(crate) type IndexedSetterCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for IndexedSetterCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       u32,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
@@ -841,7 +846,7 @@ where
              value: SealedLocal<Value>,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let value = unsafe { scope.unseal(value) };
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
@@ -860,8 +865,8 @@ pub(crate) type IndexedDefinerCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for IndexedDefinerCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       u32,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
@@ -873,7 +878,7 @@ where
              desc: *const PropertyDescriptor,
              info: *const PropertyCallbackInfo<()>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       let desc = unsafe { &*desc };
@@ -891,8 +896,8 @@ pub(crate) type IndexedDeleterCallback = unsafe extern "C" fn(
 impl<F> MapFnFrom<F> for IndexedDeleterCallback
 where
   F: UnitType
-    + for<'s> Fn(
-      &mut HandleScope<'s>,
+    + for<'s, 'i> Fn(
+      &mut PinScope<'s, 'i>,
       u32,
       PropertyCallbackArguments<'s>,
       ReturnValue<Boolean>,
@@ -901,7 +906,7 @@ where
   fn mapping() -> Self {
     let f = |index: u32, info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
-      let scope = &mut unsafe { CallbackScope::new(info) };
+      callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
       let rv = ReturnValue::from_property_callback_info(info);
       (F::get())(scope, index, args, rv)
@@ -976,9 +981,9 @@ impl<'s, T> FunctionBuilder<'s, T> {
 impl<'s> FunctionBuilder<'s, Function> {
   /// Create the function in the current execution context.
   #[inline(always)]
-  pub fn build(
+  pub fn build<'i>(
     self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, 'i>,
   ) -> Option<Local<'s, Function>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -1016,7 +1021,7 @@ impl Function {
   /// for a given FunctionCallback.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &mut PinScope<'s, '_>,
     callback: impl MapFnTo<FunctionCallback>,
   ) -> Option<Local<'s, Function>> {
     Self::builder(callback).build(scope)
@@ -1024,7 +1029,7 @@ impl Function {
 
   #[inline(always)]
   pub fn new_raw<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &mut PinScope<'s, '_>,
     callback: FunctionCallback,
   ) -> Option<Local<'s, Function>> {
     Self::builder_raw(callback).build(scope)
@@ -1034,7 +1039,7 @@ impl Function {
   #[inline]
   pub fn call<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     recv: Local<Value>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Value>> {
@@ -1052,7 +1057,7 @@ impl Function {
   #[inline]
   pub fn call_with_context<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     context: Local<Context>,
     recv: Local<Value>,
     args: &[Local<Value>],
@@ -1079,7 +1084,7 @@ impl Function {
   #[inline(always)]
   pub fn new_instance<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     args: &[Local<Value>],
   ) -> Option<Local<'s, Object>> {
     let args = Local::slice_into_raw(args);
@@ -1093,7 +1098,7 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_name<'s>(&self, scope: &mut HandleScope<'s>) -> Local<'s, String> {
+  pub fn get_name<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }
 
@@ -1117,7 +1122,7 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_script_origin(&self) -> &ScriptOrigin {
+  pub fn get_script_origin(&self) -> &ScriptOrigin<'_> {
     unsafe {
       let ptr = v8__Function__GetScriptOrigin(self);
       &*ptr

@@ -3,10 +3,11 @@
 use std::ffi::c_void;
 
 use crate::BackingStore;
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::SharedArrayBuffer;
+use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 
@@ -15,11 +16,11 @@ use crate::BackingStoreDeleterCallback;
 
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__New__with_byte_length(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *const SharedArrayBuffer;
   fn v8__SharedArrayBuffer__New__with_backing_store(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const SharedArrayBuffer;
   fn v8__SharedArrayBuffer__ByteLength(this: *const SharedArrayBuffer)
@@ -28,7 +29,7 @@ unsafe extern "C" {
     this: *const SharedArrayBuffer,
   ) -> SharedRef<BackingStore>;
   fn v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *mut BackingStore;
 }
@@ -61,7 +62,7 @@ impl SharedArrayBuffer {
   /// unless the object is externalized.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     byte_length: usize,
   ) -> Option<Local<'s, SharedArrayBuffer>> {
     unsafe {
@@ -76,7 +77,7 @@ impl SharedArrayBuffer {
 
   #[inline(always)]
   pub fn with_backing_store<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     backing_store: &SharedRef<BackingStore>,
   ) -> Local<'s, SharedArrayBuffer> {
     unsafe {
@@ -114,13 +115,13 @@ impl SharedArrayBuffer {
   /// function will crash with an out-of-memory error.
   #[inline(always)]
   pub fn new_backing_store(
-    scope: &mut Isolate,
+    scope: &PinScope<'_, '_>,
     byte_length: usize,
   ) -> UniqueRef<BackingStore> {
     unsafe {
       UniqueRef::from_raw(
         v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
-          scope,
+          scope.get_isolate_ptr(),
           byte_length,
         ),
       )

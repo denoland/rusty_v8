@@ -4,8 +4,6 @@ use std::ptr::null;
 
 use crate::Context;
 use crate::FixedArray;
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -14,6 +12,9 @@ use crate::Object;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
+use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::MapFnFrom;
 use crate::support::MapFnTo;
 use crate::support::MaybeBool;
@@ -30,11 +31,11 @@ use crate::support::int;
 ///
 /// ```rust,ignore
 ///   fn my_resolve_callback<'a>(
-///      context: v8::Local<'a, v8::Context>,
-///      specifier: v8::Local<'a, v8::String>,
-///      import_attributes: v8::Local<'a, v8::FixedArray>,
-///      referrer: v8::Local<'a, v8::Module>,
-///   ) -> Option<v8::Local<'a, v8::Module>> {
+///      context: v8::Local<'s, v8::Context>,
+///      specifier: v8::Local<'s, v8::String>,
+///      import_attributes: v8::Local<'s, v8::FixedArray>,
+///      referrer: v8::Local<'s, v8::Module>,
+///   ) -> Option<v8::Local<'s, v8::Module>> {
 ///      // ...
 ///      Some(resolved_module)
 ///   }
@@ -45,34 +46,34 @@ use crate::support::int;
 pub struct ResolveModuleCallbackRet(*const Module);
 
 #[cfg(not(target_os = "windows"))]
-pub type ResolveModuleCallback<'a> =
+pub type ResolveModuleCallback<'s> =
   unsafe extern "C" fn(
-    Local<'a, Context>,
-    Local<'a, String>,
-    Local<'a, FixedArray>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+    Local<'s, Module>,
   ) -> ResolveModuleCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveModuleCallback<'a> = unsafe extern "C" fn(
+pub type ResolveModuleCallback<'s> = unsafe extern "C" fn(
   *mut *const Module,
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, FixedArray>,
-  Local<'a, Module>,
+  Local<'s, Context>,
+  Local<'s, String>,
+  Local<'s, FixedArray>,
+  Local<'s, Module>,
 )
   -> *mut *const Module;
 
-impl<'a, F> MapFnFrom<F> for ResolveModuleCallback<'a>
+impl<'s, F> MapFnFrom<F> for ResolveModuleCallback<'s>
 where
   F: UnitType
     + Fn(
-      Local<'a, Context>,
-      Local<'a, String>,
-      Local<'a, FixedArray>,
-      Local<'a, Module>,
-    ) -> Option<Local<'a, Module>>,
+      Local<'s, Context>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+      Local<'s, Module>,
+    ) -> Option<Local<'s, Module>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -105,25 +106,25 @@ where
 pub struct SyntheticModuleEvaluationStepsRet(*const Value);
 
 #[cfg(not(target_os = "windows"))]
-pub type SyntheticModuleEvaluationSteps<'a> =
+pub type SyntheticModuleEvaluationSteps<'s> =
   unsafe extern "C" fn(
-    Local<'a, Context>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, Module>,
   ) -> SyntheticModuleEvaluationStepsRet;
 
 // Windows x64 ABI: Local<Value> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type SyntheticModuleEvaluationSteps<'a> =
+pub type SyntheticModuleEvaluationSteps<'s> =
   unsafe extern "C" fn(
     *mut *const Value,
-    Local<'a, Context>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, Module>,
   ) -> *mut *const Value;
 
-impl<'a, F> MapFnFrom<F> for SyntheticModuleEvaluationSteps<'a>
+impl<'s, F> MapFnFrom<F> for SyntheticModuleEvaluationSteps<'s>
 where
   F: UnitType
-    + Fn(Local<'a, Context>, Local<'a, Module>) -> Option<Local<'a, Value>>,
+    + Fn(Local<'s, Context>, Local<'s, Module>) -> Option<Local<'s, Value>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -154,34 +155,34 @@ where
 pub struct ResolveSourceCallbackRet(*const Object);
 
 #[cfg(not(target_os = "windows"))]
-pub type ResolveSourceCallback<'a> =
+pub type ResolveSourceCallback<'s> =
   unsafe extern "C" fn(
-    Local<'a, Context>,
-    Local<'a, String>,
-    Local<'a, FixedArray>,
-    Local<'a, Module>,
+    Local<'s, Context>,
+    Local<'s, String>,
+    Local<'s, FixedArray>,
+    Local<'s, Module>,
   ) -> ResolveSourceCallbackRet;
 
 // Windows x64 ABI: Local<Module> returned on the stack.
 #[cfg(target_os = "windows")]
-pub type ResolveSourceCallback<'a> = unsafe extern "C" fn(
+pub type ResolveSourceCallback<'s> = unsafe extern "C" fn(
   *mut *const Object,
-  Local<'a, Context>,
-  Local<'a, String>,
-  Local<'a, FixedArray>,
-  Local<'a, Module>,
+  Local<'s, Context>,
+  Local<'s, String>,
+  Local<'s, FixedArray>,
+  Local<'s, Module>,
 )
   -> *mut *const Object;
 
-impl<'a, F> MapFnFrom<F> for ResolveSourceCallback<'a>
+impl<'s, F> MapFnFrom<F> for ResolveSourceCallback<'s>
 where
   F: UnitType
     + Fn(
-      Local<'a, Context>,
-      Local<'a, String>,
-      Local<'a, FixedArray>,
-      Local<'a, Module>,
-    ) -> Option<Local<'a, Object>>,
+      Local<'s, Context>,
+      Local<'s, String>,
+      Local<'s, FixedArray>,
+      Local<'s, Module>,
+    ) -> Option<Local<'s, Object>>,
 {
   #[cfg(not(target_os = "windows"))]
   fn mapping() -> Self {
@@ -234,7 +235,7 @@ unsafe extern "C" {
   fn v8__Module__IsSourceTextModule(this: *const Module) -> bool;
   fn v8__Module__IsSyntheticModule(this: *const Module) -> bool;
   fn v8__Module__CreateSyntheticModule(
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     module_name: *const String,
     export_names_len: usize,
     export_names_raw: *const *const String,
@@ -242,7 +243,7 @@ unsafe extern "C" {
   ) -> *const Module;
   fn v8__Module__SetSyntheticModuleExport(
     this: *const Module,
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     export_name: *const String,
     export_value: *const Value,
   ) -> MaybeBool;
@@ -260,7 +261,7 @@ unsafe extern "C" {
   ) -> *const FixedArray;
   fn v8__Module__GetStalledTopLevelAwaitMessage(
     this: *const Module,
-    isolate: *const Isolate,
+    isolate: *const RealIsolate,
     out_vec: *mut StalledTopLevelAwaitMessage,
     vec_len: usize,
   ) -> usize;
@@ -312,7 +313,7 @@ impl Module {
 
   /// For a module in kErrored status, this returns the corresponding exception.
   #[inline(always)]
-  pub fn get_exception(&self) -> Local<Value> {
+  pub fn get_exception<'o>(&self) -> Local<'o, Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetException(self)) }.unwrap()
@@ -320,7 +321,7 @@ impl Module {
 
   /// Returns the ModuleRequests for this module.
   #[inline(always)]
-  pub fn get_module_requests(&self) -> Local<FixedArray> {
+  pub fn get_module_requests<'o>(&self) -> Local<'o, FixedArray> {
     unsafe { Local::from_raw(v8__Module__GetModuleRequests(self)) }.unwrap()
   }
 
@@ -363,7 +364,7 @@ impl Module {
   ///
   /// The module's status must be at least kInstantiated.
   #[inline(always)]
-  pub fn get_module_namespace(&self) -> Local<Value> {
+  pub fn get_module_namespace<'o>(&self) -> Local<'o, Value> {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
@@ -376,10 +377,10 @@ impl Module {
   /// exception is propagated.)
   #[must_use]
   #[inline(always)]
-  pub fn instantiate_module<'a>(
+  pub fn instantiate_module<'s, 'i>(
     &self,
-    scope: &mut HandleScope,
-    callback: impl MapFnTo<ResolveModuleCallback<'a>>,
+    scope: &PinScope<'s, 'i>,
+    callback: impl MapFnTo<ResolveModuleCallback<'s>>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__InstantiateModule(
@@ -399,11 +400,11 @@ impl Module {
   /// exception is propagated.)
   #[must_use]
   #[inline(always)]
-  pub fn instantiate_module2<'a>(
+  pub fn instantiate_module2<'s, 'i>(
     &self,
-    scope: &mut HandleScope,
-    callback: impl MapFnTo<ResolveModuleCallback<'a>>,
-    source_callback: impl MapFnTo<ResolveSourceCallback<'a>>,
+    scope: &PinScope<'s, 'i>,
+    callback: impl MapFnTo<ResolveModuleCallback<'s>>,
+    source_callback: impl MapFnTo<ResolveSourceCallback<'s>>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__InstantiateModule(
@@ -426,7 +427,7 @@ impl Module {
   #[inline(always)]
   pub fn evaluate<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Value>> {
     unsafe {
       scope
@@ -461,11 +462,11 @@ impl Module {
   /// module_name is used solely for logging/debugging and doesn't affect module
   /// behavior.
   #[inline(always)]
-  pub fn create_synthetic_module<'s, 'a>(
-    scope: &mut HandleScope<'s>,
+  pub fn create_synthetic_module<'s, 'i>(
+    scope: &PinScope<'s, 'i>,
     module_name: Local<String>,
     export_names: &[Local<String>],
-    evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'a>>,
+    evaluation_steps: impl MapFnTo<SyntheticModuleEvaluationSteps<'s>>,
   ) -> Local<'s, Module> {
     let export_names = Local::slice_into_raw(export_names);
     let export_names_len = export_names.len();
@@ -492,11 +493,11 @@ impl Module {
   /// Returns Some(true) on success, None if an error was thrown.
   #[must_use]
   #[inline(always)]
-  pub fn set_synthetic_module_export(
+  pub fn set_synthetic_module_export<'s>(
     &self,
-    scope: &mut HandleScope,
-    export_name: Local<String>,
-    export_value: Local<Value>,
+    scope: &mut PinScope<'s, '_>,
+    export_name: Local<'s, String>,
+    export_value: Local<'s, Value>,
   ) -> Option<bool> {
     unsafe {
       v8__Module__SetSyntheticModuleExport(
@@ -512,7 +513,7 @@ impl Module {
   #[inline(always)]
   pub fn get_unbound_module_script<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, UnboundModuleScript> {
     unsafe {
       scope
@@ -526,10 +527,10 @@ impl Module {
   /// returned vector contains a tuple of the unresolved module and a message
   /// with the pending top-level await.
   /// An embedder may call this before exiting to improve error messages.
-  pub fn get_stalled_top_level_await_message(
+  pub fn get_stalled_top_level_await_message<'s>(
     &self,
-    scope: &mut HandleScope,
-  ) -> Vec<(Local<Module>, Local<Message>)> {
+    scope: &PinScope<'s, '_, ()>,
+  ) -> Vec<(Local<'s, Module>, Local<'s, Message>)> {
     let mut out_vec: Vec<StalledTopLevelAwaitMessage> = Vec::with_capacity(16);
     for _i in 0..16 {
       out_vec.push(StalledTopLevelAwaitMessage {
@@ -563,7 +564,7 @@ impl Module {
 impl ModuleRequest {
   /// Returns the module specifier for this ModuleRequest.
   #[inline(always)]
-  pub fn get_specifier(&self) -> Local<String> {
+  pub fn get_specifier<'o>(&self) -> Local<'o, String> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
   }
 
@@ -587,7 +588,7 @@ impl ModuleRequest {
   /// opposed to, for example, triggering an error if an unsupported assertion is
   /// present).
   #[inline(always)]
-  pub fn get_import_attributes(&self) -> Local<FixedArray> {
+  pub fn get_import_attributes<'o>(&self) -> Local<'o, FixedArray> {
     unsafe { Local::from_raw(v8__ModuleRequest__GetImportAttributes(self)) }
       .unwrap()
   }
