@@ -25,10 +25,6 @@ use crate::support::long;
 
 unsafe extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
-  fn v8__ArrayBuffer__Allocator__NewRustAllocator(
-    handle: *const c_void,
-    vtable: *const RustAllocatorVtable<c_void>,
-  ) -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
     isolate: *mut RealIsolate,
@@ -53,12 +49,6 @@ unsafe extern "C" {
   fn v8__ArrayBuffer__NewBackingStore__with_byte_length(
     isolate: *mut RealIsolate,
     byte_length: usize,
-  ) -> *mut BackingStore;
-  fn v8__ArrayBuffer__NewBackingStore__with_data(
-    data: *mut c_void,
-    byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
@@ -108,6 +98,32 @@ unsafe extern "C" {
   ) -> long;
 }
 
+// Rust allocator feature is only available in non-sandboxed mode / no pointer
+// compression mode.
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
+unsafe extern "C" {
+  fn v8__ArrayBuffer__NewBackingStore__with_data(
+    data: *mut c_void,
+    byte_length: usize,
+    deleter: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> *mut BackingStore;
+
+  fn v8__ArrayBuffer__Allocator__NewRustAllocator(
+    handle: *const c_void,
+    vtable: *const RustAllocatorVtable<c_void>,
+  ) -> *mut Allocator;
+}
+
+#[cfg(feature = "v8_enable_pointer_compression")]
+unsafe extern "C" {
+  fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+    isolate: *mut RealIsolate,
+    data: *mut c_void,
+    byte_length: usize,
+  ) -> *mut BackingStore;
+}
+
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
 /// The allocator is a global V8 setting. It has to be set via
 /// Isolate::CreateParams.
@@ -130,6 +146,7 @@ unsafe extern "C" {
 pub struct Allocator(Opaque);
 
 /// A wrapper around the V8 Allocator class.
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
 #[repr(C)]
 pub struct RustAllocatorVtable<T> {
   pub allocate: unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
@@ -172,7 +189,10 @@ pub fn new_default_allocator() -> UniqueRef<Allocator> {
 /// Creates an allocator managed by Rust code.
 ///
 /// Marked `unsafe` because the caller must ensure that `handle` is valid and matches what `vtable` expects.
+///
+/// Not usable in sandboxed mode (i.e. with pointer compression enabled).
 #[inline(always)]
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
 pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
   handle: *const T,
   vtable: &'static RustAllocatorVtable<T>,
@@ -187,6 +207,7 @@ pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_pointer_compression"))]
 fn test_rust_allocator() {
   use std::sync::Arc;
   use std::sync::atomic::{AtomicUsize, Ordering};
@@ -226,6 +247,10 @@ fn test_rust_allocator() {
 
 #[test]
 fn test_default_allocator() {
+  crate::V8::initialize_platform(
+    crate::new_default_platform(0, false).make_shared(),
+  );
+  crate::V8::initialize();
   new_default_allocator();
 }
 
@@ -548,9 +573,10 @@ impl ArrayBuffer {
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
   pub fn new_backing_store_from_boxed_slice(
+    scope: &mut Isolate,
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    Self::new_backing_store_from_bytes(data)
+    Self::new_backing_store_from_bytes(scope, data)
   }
 
   /// Returns a new standalone BackingStore that takes over the ownership of
@@ -561,8 +587,11 @@ impl ArrayBuffer {
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
   #[inline(always)]
-  pub fn new_backing_store_from_vec(data: Vec<u8>) -> UniqueRef<BackingStore> {
-    Self::new_backing_store_from_bytes(data)
+  pub fn new_backing_store_from_vec(
+    scope: &mut Isolate,
+    data: Vec<u8>,
+  ) -> UniqueRef<BackingStore> {
+    Self::new_backing_store_from_bytes(scope, data)
   }
 
   /// Returns a new standalone BackingStore backed by a container that dereferences
@@ -572,6 +601,9 @@ impl ArrayBuffer {
   /// This method may be called with most single-ownership containers that implement `AsMut<[u8]>`, including
   /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
   /// though these buffers will need to be boxed to manage ownership of memory.
+  ///
+  /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``,
+  /// otherwise a fast-path will be taken in which the container will be held by Rust.
   ///
   /// ```
   /// // Vector of bytes
@@ -584,11 +616,66 @@ impl ArrayBuffer {
   /// ```
   #[inline(always)]
   pub fn new_backing_store_from_bytes<T>(
-    mut bytes: T,
+    scope: &mut Isolate,
+    bytes: T,
   ) -> UniqueRef<BackingStore>
   where
     T: sealed::Rawable,
   {
+    #[cfg(not(feature = "v8_enable_pointer_compression"))]
+    {
+      let _ = scope; // Unused (for now) when no sandbox
+      Self::new_backing_store_from_bytes_nosandbox(bytes)
+    }
+    #[cfg(feature = "v8_enable_pointer_compression")]
+    {
+      Self::new_backing_store_from_bytes_sandbox(scope, bytes)
+    }
+  }
+
+  // Internal slowpath for sandboxed mode.
+  #[cfg(feature = "v8_enable_pointer_compression")]
+  #[inline(always)]
+  fn new_backing_store_from_bytes_sandbox<T>(
+    scope: &mut Isolate,
+    bytes: T,
+  ) -> UniqueRef<BackingStore>
+  where
+    T: sealed::Rawable,
+  {
+    let mut bytes = bytes; // Make mutable
+    let len = bytes.byte_len();
+
+    let (ptr, slice) = T::into_raw(bytes);
+
+    let unique_ref = unsafe {
+      UniqueRef::from_raw(
+        v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
+          (*scope).as_real_ptr(),
+          slice as *mut c_void,
+          len,
+        ),
+      )
+    };
+
+    // SAFETY: V8 copies the data
+    unsafe {
+      T::drop_raw(ptr, len);
+    }
+
+    unique_ref
+  }
+
+  // Internal fastpath for non-sandboxed mode.
+  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  #[inline(always)]
+  fn new_backing_store_from_bytes_nosandbox<T>(
+    bytes: T,
+  ) -> UniqueRef<BackingStore>
+  where
+    T: sealed::Rawable,
+  {
+    let mut bytes = bytes; // Make mutable
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);
@@ -618,7 +705,10 @@ impl ArrayBuffer {
   ///
   /// SAFETY: This API consumes raw pointers so is inherently
   /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
+  ///
+  /// This API is incompatible with the v8 sandbox (enabled with v8_enable_pointer_compression)
   #[inline(always)]
+  #[cfg(not(feature = "v8_enable_pointer_compression"))]
   pub unsafe fn new_backing_store_from_ptr(
     data_ptr: *mut c_void,
     byte_length: usize,

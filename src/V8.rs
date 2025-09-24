@@ -27,6 +27,7 @@ unsafe extern "C" {
   fn v8__V8__Dispose() -> bool;
   fn v8__V8__DisposePlatform();
   fn v8__V8__SetFatalErrorHandler(that: V8FatalErrorCallback);
+  fn v8__V8__IsSandboxEnabled() -> bool;
 }
 
 pub type V8FatalErrorCallback = unsafe extern "C" fn(
@@ -82,6 +83,11 @@ enum GlobalState {
 use GlobalState::*;
 
 static GLOBAL_STATE: Mutex<GlobalState> = Mutex::new(Uninitialized);
+
+/// Returns true if V8 is sandboxed.
+pub fn is_sandboxed() -> bool {
+  unsafe { v8__V8__IsSandboxEnabled() }
+}
 
 pub fn assert_initialized() {
   let global_state_guard = GLOBAL_STATE.lock().unwrap();
