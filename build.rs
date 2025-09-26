@@ -209,14 +209,65 @@ fn build_v8(is_asan: bool) {
     "use_custom_libcxx={}",
     env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_ok()
   ));
-  gn_args.push(format!(
-    "v8_enable_pointer_compression={}",
-    env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
-  ));
+
+  let extra_args = {
+    if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok()
+      && env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
+    {
+      panic!(
+        "Sandbox and pointer compression cannot be enabled at the same time"
+      );
+    }
+
+    if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
+      vec![
+        // Enable pointer compression (along with its dependencies)
+        "v8_enable_sandbox=true",
+        "v8_enable_external_code_space=true", // Needed for sandbox
+        "v8_enable_pointer_compression=true",
+        // Note that sandbox requires shared_ro_heap and verify_heap
+        // to be true/default
+      ]
+    } else {
+      let mut opts = vec![
+        // Disable sandbox
+        "v8_enable_sandbox=false",
+        // Enabling the shared read-only heap comes with a restriction that all
+        // isolates running at the same time must be created from the same snapshot.
+        // This is problematic for Deno, which has separate "runtime" and "typescript
+        // compiler" snapshots, and sometimes uses them both at the same time.
+        //
+        // NOTE FOR FUTURE: Check if this flag even exists anymore as it has likely been
+        // removed
+        "v8_enable_shared_ro_heap=false",
+        // V8 11.6 hardcoded an assumption in `mksnapshot` that shared RO heap
+        // is enabled. In our case it's disabled so without this flag we can't
+        // compile.
+        //
+        // NOTE FOR FUTURE: Check if this flag even exists anymore as it has likely been
+        // removed
+        "v8_enable_verify_heap=false",
+      ];
+
+      if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
+        opts.push("v8_enable_pointer_compression=true");
+      } else {
+        opts.push("v8_enable_pointer_compression=false");
+      }
+
+      opts
+    }
+  };
+
+  for arg in extra_args {
+    gn_args.push(arg.to_string());
+  }
+
   gn_args.push(format!(
     "v8_enable_v8_checks={}",
     env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
   ));
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string());
@@ -438,6 +489,9 @@ fn prebuilt_features_suffix() -> String {
   let mut features = String::new();
   if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
     features.push_str("_ptrcomp");
+  }
+  if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
+    features.push_str("_sandbox");
   }
   features
 }
