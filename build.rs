@@ -211,10 +211,17 @@ fn build_v8(is_asan: bool) {
   ));
 
   let extra_args = {
-    if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
-      // Pointer compression + sandbox mode are enabled
+    if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok()
+      && env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
+    {
+      panic!(
+        "Sandbox and pointer compression cannot be enabled at the same time"
+      );
+    }
+
+    if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
       vec![
-        // Enable sandbox and pointer compression (along with its dependencies)
+        // Enable pointer compression (along with its dependencies)
         "v8_enable_sandbox=true",
         "v8_enable_external_code_space=true", // Needed for sandbox
         "v8_enable_pointer_compression=true",
@@ -222,10 +229,9 @@ fn build_v8(is_asan: bool) {
         // to be true/default
       ]
     } else {
-      vec![
-        // Disable sandbox and pointer compression
+      let mut opts = vec![
+        // Disable sandbox
         "v8_enable_sandbox=false",
-        "v8_enable_pointer_compression=false",
         // Enabling the shared read-only heap comes with a restriction that all
         // isolates running at the same time must be created from the same snapshot.
         // This is problematic for Deno, which has separate "runtime" and "typescript
@@ -241,7 +247,15 @@ fn build_v8(is_asan: bool) {
         // NOTE FOR FUTURE: Check if this flag even exists anymore as it has likely been
         // removed
         "v8_enable_verify_heap=false",
-      ]
+      ];
+
+      if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
+        opts.push("v8_enable_pointer_compression=true");
+      } else {
+        opts.push("v8_enable_pointer_compression=false");
+      }
+
+      opts
     }
   };
 
@@ -475,6 +489,9 @@ fn prebuilt_features_suffix() -> String {
   let mut features = String::new();
   if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
     features.push_str("_ptrcomp");
+  }
+  if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
+    features.push_str("_sandbox");
   }
   features
 }

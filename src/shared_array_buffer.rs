@@ -11,7 +11,7 @@ use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use std::ffi::c_void;
 
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 use crate::BackingStoreDeleterCallback;
 
 unsafe extern "C" {
@@ -36,7 +36,7 @@ unsafe extern "C" {
 
 // Rust allocator feature is only available in non-sandboxed mode / no pointer
 // compression mode.
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
@@ -46,7 +46,7 @@ unsafe extern "C" {
   ) -> *mut BackingStore;
 }
 
-#[cfg(feature = "v8_enable_pointer_compression")]
+#[cfg(feature = "v8_enable_sandbox")]
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__NewBackingStore__with_data_sandboxed(
     isolate: *mut RealIsolate,
@@ -167,7 +167,8 @@ impl SharedArrayBuffer {
   /// though these buffers will need to be boxed to manage ownership of memory.
   ///
   /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``,
-  /// otherwise a fast-path will be taken in which the container will be held by Rust.
+  /// otherwise a fast-path will be taken in which the container will be held by Rust. Note that it
+  /// is unsafe/undefined behavior to use a backingstore once its backing isolate has been dropped/destroyed.
   ///
   /// ```
   /// // Vector of bytes
@@ -186,19 +187,19 @@ impl SharedArrayBuffer {
   where
     T: crate::array_buffer::sealed::Rawable,
   {
-    #[cfg(not(feature = "v8_enable_pointer_compression"))]
+    #[cfg(not(feature = "v8_enable_sandbox"))]
     {
       let _ = scope; // Unused (for now) when no sandbox
       Self::new_backing_store_from_bytes_nosandbox(bytes)
     }
-    #[cfg(feature = "v8_enable_pointer_compression")]
+    #[cfg(feature = "v8_enable_sandbox")]
     {
       Self::new_backing_store_from_bytes_sandbox(scope, bytes)
     }
   }
 
   // Internal slowpath for sandboxed mode.
-  #[cfg(feature = "v8_enable_pointer_compression")]
+  #[cfg(feature = "v8_enable_sandbox")]
   #[inline(always)]
   fn new_backing_store_from_bytes_sandbox<T>(
     scope: &mut Isolate,
@@ -231,7 +232,7 @@ impl SharedArrayBuffer {
   }
 
   // Internal fastpath for non-sandboxed mode.
-  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   #[inline(always)]
   fn new_backing_store_from_bytes_nosandbox<T>(
     bytes: T,
@@ -272,9 +273,10 @@ impl SharedArrayBuffer {
   /// SAFETY: This API consumes raw pointers so is inherently
   /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
   ///
-  /// This API is incompatible with the v8 sandbox (enabled with v8_enable_pointer_compression)
+  /// This API is incompatible with the v8 sandbox due to safety concerns (use after free)
+  /// concerns with the v8 sandbox
   #[inline(always)]
-  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   pub unsafe fn new_backing_store_from_ptr(
     data_ptr: *mut c_void,
     byte_length: usize,

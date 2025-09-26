@@ -693,7 +693,7 @@ fn array_buffer() {
     assert_eq!(84, bs.byte_length());
     assert!(!bs.is_shared());
 
-    #[cfg(not(feature = "v8_enable_pointer_compression"))]
+    #[cfg(not(feature = "v8_enable_sandbox"))]
     {
       // SAFETY: Manually deallocating memory once V8 calls the
       // deleter callback.
@@ -9117,8 +9117,8 @@ fn ept_torture_test() {
 
 #[test]
 // We cannot run this test if sandboxing is enabled as rust_allocator
-// cannot be used with v8 sandbox (which is enabled with v8_enable_pointer_compression).
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+// cannot be used with v8 sandbox.
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn run_with_rust_allocator() {
   use std::sync::Arc;
 

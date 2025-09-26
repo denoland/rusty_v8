@@ -98,9 +98,8 @@ unsafe extern "C" {
   ) -> long;
 }
 
-// Rust allocator feature is only available in non-sandboxed mode / no pointer
-// compression mode.
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+// Rust allocator feature is only available in non-sandboxed mode
+#[cfg(not(feature = "v8_enable_sandbox"))]
 unsafe extern "C" {
   fn v8__ArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
@@ -115,7 +114,7 @@ unsafe extern "C" {
   ) -> *mut Allocator;
 }
 
-#[cfg(feature = "v8_enable_pointer_compression")]
+#[cfg(feature = "v8_enable_sandbox")]
 unsafe extern "C" {
   fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
     isolate: *mut RealIsolate,
@@ -146,7 +145,7 @@ unsafe extern "C" {
 pub struct Allocator(Opaque);
 
 /// A wrapper around the V8 Allocator class.
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 #[repr(C)]
 pub struct RustAllocatorVtable<T> {
   pub allocate: unsafe extern "C" fn(handle: &T, len: usize) -> *mut c_void,
@@ -190,9 +189,9 @@ pub fn new_default_allocator() -> UniqueRef<Allocator> {
 ///
 /// Marked `unsafe` because the caller must ensure that `handle` is valid and matches what `vtable` expects.
 ///
-/// Not usable in sandboxed mode (i.e. with pointer compression enabled).
+/// Not usable in sandboxed mode
 #[inline(always)]
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
   handle: *const T,
   vtable: &'static RustAllocatorVtable<T>,
@@ -207,7 +206,7 @@ pub unsafe fn new_rust_allocator<T: Sized + Send + Sync + 'static>(
 }
 
 #[test]
-#[cfg(not(feature = "v8_enable_pointer_compression"))]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn test_rust_allocator() {
   use std::sync::Arc;
   use std::sync::atomic::{AtomicUsize, Ordering};
@@ -603,7 +602,8 @@ impl ArrayBuffer {
   /// though these buffers will need to be boxed to manage ownership of memory.
   ///
   /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``,
-  /// otherwise a fast-path will be taken in which the container will be held by Rust.
+  /// otherwise a fast-path will be taken in which the container will be held by Rust. Note that it
+  /// is unsafe/undefine dbehavior  to use a backingstore once the backing isolate has been destroyed when in sandbox mode.
   ///
   /// ```
   /// // Vector of bytes
@@ -622,19 +622,19 @@ impl ArrayBuffer {
   where
     T: sealed::Rawable,
   {
-    #[cfg(not(feature = "v8_enable_pointer_compression"))]
+    #[cfg(not(feature = "v8_enable_sandbox"))]
     {
       let _ = scope; // Unused (for now) when no sandbox
       Self::new_backing_store_from_bytes_nosandbox(bytes)
     }
-    #[cfg(feature = "v8_enable_pointer_compression")]
+    #[cfg(feature = "v8_enable_sandbox")]
     {
       Self::new_backing_store_from_bytes_sandbox(scope, bytes)
     }
   }
 
   // Internal slowpath for sandboxed mode.
-  #[cfg(feature = "v8_enable_pointer_compression")]
+  #[cfg(feature = "v8_enable_sandbox")]
   #[inline(always)]
   fn new_backing_store_from_bytes_sandbox<T>(
     scope: &mut Isolate,
@@ -667,7 +667,7 @@ impl ArrayBuffer {
   }
 
   // Internal fastpath for non-sandboxed mode.
-  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   #[inline(always)]
   fn new_backing_store_from_bytes_nosandbox<T>(
     bytes: T,
@@ -706,9 +706,10 @@ impl ArrayBuffer {
   /// SAFETY: This API consumes raw pointers so is inherently
   /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
   ///
-  /// This API is incompatible with the v8 sandbox (enabled with v8_enable_pointer_compression)
+  /// This API is incompatible with the v8 sandbox due to safety (use after free)
+  /// concerns that trigger when using this in sandbox mode.
   #[inline(always)]
-  #[cfg(not(feature = "v8_enable_pointer_compression"))]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   pub unsafe fn new_backing_store_from_ptr(
     data_ptr: *mut c_void,
     byte_length: usize,
