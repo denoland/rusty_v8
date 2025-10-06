@@ -235,3 +235,9 @@ for M1 build.
 $ V8_FROM_SOURCE=1 cargo build
 $ V8_FROM_SOURCE=1 cargo build --release
 ```
+
+## Experimental Features
+
+rusty_v8 includes experimental support for the certain features that may be useful in security focused contexts but are not as well tested and do not undergo any sort of CI related testing or prebuilt archives. This means that either ``V8_FROM_SOURCE=1`` must be set or a custom-built archive of v8 must be compiled manually through other means.
+
+- ``v8_enable_sandbox``: Enables v8 sandbox mode. The v8 sandbox enables improved safety while executing potentially malicious JavaScript code through the use of memory cages. Note that the v8 sandbox will allocate ~1TB of virtual memory (although this should not be an issue as many operating systems allow 128-256TB of virtual memory per process). Creating isolates with the sandbox enabled comes with API limitations and may have increased overhead.
