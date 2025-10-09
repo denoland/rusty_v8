@@ -39,7 +39,7 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-13
+          - os: macos-13-large
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: true
