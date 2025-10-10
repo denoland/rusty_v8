@@ -50,7 +50,12 @@ unsafe extern "C" {
     isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *mut BackingStore;
-
+  fn v8__ArrayBuffer__NewBackingStore__with_data(
+    data: *mut c_void,
+    byte_length: usize,
+    deleter: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
+  ) -> *mut BackingStore;
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
@@ -101,26 +106,10 @@ unsafe extern "C" {
 // Rust allocator feature is only available in non-sandboxed mode
 #[cfg(not(feature = "v8_enable_sandbox"))]
 unsafe extern "C" {
-  fn v8__ArrayBuffer__NewBackingStore__with_data(
-    data: *mut c_void,
-    byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
-  ) -> *mut BackingStore;
-
   fn v8__ArrayBuffer__Allocator__NewRustAllocator(
     handle: *const c_void,
     vtable: *const RustAllocatorVtable<c_void>,
   ) -> *mut Allocator;
-}
-
-#[cfg(feature = "v8_enable_sandbox")]
-unsafe extern "C" {
-  fn v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-    isolate: *mut RealIsolate,
-    data: *mut c_void,
-    byte_length: usize,
-  ) -> *mut BackingStore;
 }
 
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
@@ -265,6 +254,7 @@ pub type BackingStoreDeleterCallback = unsafe extern "C" fn(
   deleter_data: *mut c_void,
 );
 
+#[cfg(not(feature = "v8_enable_sandbox"))]
 pub(crate) mod sealed {
   pub trait Rawable {
     fn byte_len(&mut self) -> usize;
@@ -273,6 +263,7 @@ pub(crate) mod sealed {
   }
 }
 
+#[cfg(not(feature = "v8_enable_sandbox"))]
 macro_rules! rawable {
   ($ty:ty) => {
     impl sealed::Rawable for Box<[$ty]> {
@@ -313,15 +304,24 @@ macro_rules! rawable {
   };
 }
 
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(u8);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(u16);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(u32);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(u64);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(i8);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(i16);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(i32);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(i64);
 
+#[cfg(not(feature = "v8_enable_sandbox"))]
 impl<T: Sized> sealed::Rawable for Box<T>
 where
   T: AsMut<[u8]>,
@@ -570,12 +570,14 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  ///
+  /// Not available in Sandbox Mode, see new_backing_store_from_bytes for a potential alternative
   #[inline(always)]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   pub fn new_backing_store_from_boxed_slice(
-    scope: &mut Isolate,
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
-    Self::new_backing_store_from_bytes(scope, data)
+    Self::new_backing_store_from_bytes(data)
   }
 
   /// Returns a new standalone BackingStore that takes over the ownership of
@@ -585,12 +587,12 @@ impl ArrayBuffer {
   ///
   /// The result can be later passed to ArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  ///
+  /// Not available in Sandbox Mode, see new_backing_store_from_bytes for a potential alternative
   #[inline(always)]
-  pub fn new_backing_store_from_vec(
-    scope: &mut Isolate,
-    data: Vec<u8>,
-  ) -> UniqueRef<BackingStore> {
-    Self::new_backing_store_from_bytes(scope, data)
+  #[cfg(not(feature = "v8_enable_sandbox"))]
+  pub fn new_backing_store_from_vec(data: Vec<u8>) -> UniqueRef<BackingStore> {
+    Self::new_backing_store_from_bytes(data)
   }
 
   /// Returns a new standalone BackingStore backed by a container that dereferences
@@ -601,9 +603,11 @@ impl ArrayBuffer {
   /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
   /// though these buffers will need to be boxed to manage ownership of memory.
   ///
-  /// If v8 sandbox is used, this will copy the entire contents of the container into the v8 sandbox using ``memcpy``,
-  /// otherwise a fast-path will be taken in which the container will be held by Rust. Note that it
-  /// is unsafe/undefine dbehavior  to use a backingstore once the backing isolate has been destroyed when in sandbox mode.
+  /// Not available in sandbox mode. Sandbox mode requires data to be allocated
+  /// within the sandbox's address space. Within sandbox mode, consider the below alternatives
+  ///
+  /// 1. consider using new_backing_store and BackingStore::data() followed by doing a std::ptr::copy to copy the data into a BackingStore.
+  /// 2. If you truly do have data that is allocated inside the sandbox address space, consider using the unsafe new_backing_store_from_ptr API
   ///
   /// ```
   /// // Vector of bytes
@@ -615,63 +619,8 @@ impl ArrayBuffer {
   /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(bytes::BytesMut::new()));
   /// ```
   #[inline(always)]
-  pub fn new_backing_store_from_bytes<T>(
-    scope: &mut Isolate,
-    bytes: T,
-  ) -> UniqueRef<BackingStore>
-  where
-    T: sealed::Rawable,
-  {
-    #[cfg(not(feature = "v8_enable_sandbox"))]
-    {
-      let _ = scope; // Unused (for now) when no sandbox
-      Self::new_backing_store_from_bytes_nosandbox(bytes)
-    }
-    #[cfg(feature = "v8_enable_sandbox")]
-    {
-      Self::new_backing_store_from_bytes_sandbox(scope, bytes)
-    }
-  }
-
-  // Internal slowpath for sandboxed mode.
-  #[cfg(feature = "v8_enable_sandbox")]
-  #[inline(always)]
-  fn new_backing_store_from_bytes_sandbox<T>(
-    scope: &mut Isolate,
-    bytes: T,
-  ) -> UniqueRef<BackingStore>
-  where
-    T: sealed::Rawable,
-  {
-    let mut bytes = bytes; // Make mutable
-    let len = bytes.byte_len();
-
-    let (ptr, slice) = T::into_raw(bytes);
-
-    let unique_ref = unsafe {
-      UniqueRef::from_raw(
-        v8__ArrayBuffer__NewBackingStore__with_data_sandboxed(
-          (*scope).as_real_ptr(),
-          slice as *mut c_void,
-          len,
-        ),
-      )
-    };
-
-    // SAFETY: V8 copies the data
-    unsafe {
-      T::drop_raw(ptr, len);
-    }
-
-    unique_ref
-  }
-
-  // Internal fastpath for non-sandboxed mode.
   #[cfg(not(feature = "v8_enable_sandbox"))]
-  #[inline(always)]
-  fn new_backing_store_from_bytes_nosandbox<T>(
-    bytes: T,
-  ) -> UniqueRef<BackingStore>
+  pub fn new_backing_store_from_bytes<T>(bytes: T) -> UniqueRef<BackingStore>
   where
     T: sealed::Rawable,
   {
@@ -706,10 +655,12 @@ impl ArrayBuffer {
   /// SAFETY: This API consumes raw pointers so is inherently
   /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
   ///
-  /// This API is incompatible with the v8 sandbox due to safety (use after free)
-  /// concerns that trigger when using this in sandbox mode.
+  /// WARNING: Using sandbox mode has extra limitations that may cause crashes
+  /// or memory safety violations if this API is used incorrectly:
+  ///
+  /// 1. Sandbox mode requires data to be allocated within the sandbox's address space.
+  /// 2. It is very easy to cause memory safety errors when using this API with sandbox mode
   #[inline(always)]
-  #[cfg(not(feature = "v8_enable_sandbox"))]
   pub unsafe fn new_backing_store_from_ptr(
     data_ptr: *mut c_void,
     byte_length: usize,

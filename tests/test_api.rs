@@ -731,93 +731,91 @@ fn array_buffer() {
       assert!(!unique_bs.is_shared());
       assert_eq!(unique_bs[0].get(), 0);
       assert_eq!(unique_bs[9].get(), 9);
-    }
 
-    // From Box<[u8]>
-    let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let unique_bs =
-      v8::ArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
-    assert_eq!(10, unique_bs.byte_length());
-    assert!(!unique_bs.is_shared());
-    assert_eq!(unique_bs[0].get(), 0);
-    assert_eq!(unique_bs[9].get(), 9);
+      // From Box<[u8]>
+      let data: Box<[u8]> =
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
+      let unique_bs = v8::ArrayBuffer::new_backing_store_from_boxed_slice(data);
+      assert_eq!(10, unique_bs.byte_length());
+      assert!(!unique_bs.is_shared());
+      assert_eq!(unique_bs[0].get(), 0);
+      assert_eq!(unique_bs[9].get(), 9);
 
-    let shared_bs_1 = unique_bs.make_shared();
-    assert_eq!(10, shared_bs_1.byte_length());
-    assert!(!shared_bs_1.is_shared());
-    assert_eq!(shared_bs_1[0].get(), 0);
-    assert_eq!(shared_bs_1[9].get(), 9);
+      let shared_bs_1 = unique_bs.make_shared();
+      assert_eq!(10, shared_bs_1.byte_length());
+      assert!(!shared_bs_1.is_shared());
+      assert_eq!(shared_bs_1[0].get(), 0);
+      assert_eq!(shared_bs_1[9].get(), 9);
 
-    let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
-    let shared_bs_2 = ab.get_backing_store();
-    assert_eq!(10, shared_bs_2.byte_length());
-    assert_eq!(shared_bs_2[0].get(), 0);
-    assert_eq!(shared_bs_2[9].get(), 9);
+      let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
+      let shared_bs_2 = ab.get_backing_store();
+      assert_eq!(10, shared_bs_2.byte_length());
+      assert_eq!(shared_bs_2[0].get(), 0);
+      assert_eq!(shared_bs_2[9].get(), 9);
 
-    // From Vec<u8>
-    let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    let unique_bs = v8::ArrayBuffer::new_backing_store_from_vec(scope, data);
-    assert_eq!(10, unique_bs.byte_length());
-    assert!(!unique_bs.is_shared());
-    assert_eq!(unique_bs[0].get(), 0);
-    assert_eq!(unique_bs[9].get(), 9);
+      // From Vec<u8>
+      let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+      let unique_bs = v8::ArrayBuffer::new_backing_store_from_vec(data);
+      assert_eq!(10, unique_bs.byte_length());
+      assert!(!unique_bs.is_shared());
+      assert_eq!(unique_bs[0].get(), 0);
+      assert_eq!(unique_bs[9].get(), 9);
 
-    let shared_bs_1 = unique_bs.make_shared();
-    assert_eq!(10, shared_bs_1.byte_length());
-    assert!(!shared_bs_1.is_shared());
-    assert_eq!(shared_bs_1[0].get(), 0);
-    assert_eq!(shared_bs_1[9].get(), 9);
+      let shared_bs_1 = unique_bs.make_shared();
+      assert_eq!(10, shared_bs_1.byte_length());
+      assert!(!shared_bs_1.is_shared());
+      assert_eq!(shared_bs_1[0].get(), 0);
+      assert_eq!(shared_bs_1[9].get(), 9);
 
-    let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
-    let shared_bs_2 = ab.get_backing_store();
-    assert_eq!(10, shared_bs_2.byte_length());
-    assert_eq!(shared_bs_2[0].get(), 0);
-    assert_eq!(shared_bs_2[9].get(), 9);
+      let ab = v8::ArrayBuffer::with_backing_store(scope, &shared_bs_1);
+      let shared_bs_2 = ab.get_backing_store();
+      assert_eq!(10, shared_bs_2.byte_length());
+      assert_eq!(shared_bs_2[0].get(), 0);
+      assert_eq!(shared_bs_2[9].get(), 9);
 
-    // Empty
-    let ab = v8::ArrayBuffer::new(scope, 0);
-    assert_eq!(0, ab.byte_length());
-    assert!(!ab.get_backing_store().is_shared());
+      // Empty
+      let ab = v8::ArrayBuffer::new(scope, 0);
+      assert_eq!(0, ab.byte_length());
+      assert!(!ab.get_backing_store().is_shared());
 
-    // Empty but from vec
-    let bs =
-      v8::ArrayBuffer::new_backing_store_from_bytes(scope, Vec::<u8>::new())
+      // Empty but from vec
+      let bs = v8::ArrayBuffer::new_backing_store_from_bytes(Vec::<u8>::new())
         .make_shared();
-    let ab = v8::ArrayBuffer::with_backing_store(scope, &bs);
-    assert_eq!(0, ab.byte_length());
-    assert!(!ab.get_backing_store().is_shared());
+      let ab = v8::ArrayBuffer::with_backing_store(scope, &bs);
+      assert_eq!(0, ab.byte_length());
+      assert!(!ab.get_backing_store().is_shared());
 
-    // Empty but from vec with a huge capacity
-    let mut v: Vec<u8> = Vec::with_capacity(10_000_000);
-    v.extend_from_slice(&[1, 2, 3, 4]);
-    let bs =
-      v8::ArrayBuffer::new_backing_store_from_bytes(scope, v).make_shared();
-    let ab = v8::ArrayBuffer::with_backing_store(scope, &bs);
-    // Allocate a completely unused buffer overtop of the old allocation
-    let mut v2: Vec<u8> = Vec::with_capacity(10_000_000);
-    v2.extend_from_slice(&[10, 20, 30, 40]);
-    // Make sure the the arraybuffer didn't get stomped
-    assert_eq!(4, ab.byte_length());
-    assert_eq!(1, ab.get_backing_store()[0].get());
-    assert_eq!(2, ab.get_backing_store()[1].get());
-    assert_eq!(3, ab.get_backing_store()[2].get());
-    assert_eq!(4, ab.get_backing_store()[3].get());
-    assert!(!ab.get_backing_store().is_shared());
-    drop(v2);
+      // Empty but from vec with a huge capacity
+      let mut v: Vec<u8> = Vec::with_capacity(10_000_000);
+      v.extend_from_slice(&[1, 2, 3, 4]);
+      let bs = v8::ArrayBuffer::new_backing_store_from_bytes(v).make_shared();
+      let ab = v8::ArrayBuffer::with_backing_store(scope, &bs);
+      // Allocate a completely unused buffer overtop of the old allocation
+      let mut v2: Vec<u8> = Vec::with_capacity(10_000_000);
+      v2.extend_from_slice(&[10, 20, 30, 40]);
+      // Make sure the the arraybuffer didn't get stomped
+      assert_eq!(4, ab.byte_length());
+      assert_eq!(1, ab.get_backing_store()[0].get());
+      assert_eq!(2, ab.get_backing_store()[1].get());
+      assert_eq!(3, ab.get_backing_store()[2].get());
+      assert_eq!(4, ab.get_backing_store()[3].get());
+      assert!(!ab.get_backing_store().is_shared());
+      drop(v2);
 
-    // From a bytes::BytesMut
-    let mut data = bytes::BytesMut::new();
-    data.extend_from_slice(&[100; 16]);
-    data[0] = 1;
-    let unique_bs =
-      v8::ArrayBuffer::new_backing_store_from_bytes(scope, Box::new(data));
-    assert_eq!(unique_bs.first().unwrap().get(), 1);
-    assert_eq!(unique_bs.get(15).unwrap().get(), 100);
+      // From a bytes::BytesMut
+      let mut data = bytes::BytesMut::new();
+      data.extend_from_slice(&[100; 16]);
+      data[0] = 1;
+      let unique_bs =
+        v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(data));
+      assert_eq!(unique_bs.first().unwrap().get(), 1);
+      assert_eq!(unique_bs.get(15).unwrap().get(), 100);
 
-    let ab =
-      v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
-    assert_eq!(ab.byte_length(), 16);
-    assert_eq!(ab.get_backing_store().first().unwrap().get(), 1);
+      let ab =
+        v8::ArrayBuffer::with_backing_store(scope, &unique_bs.make_shared());
+      assert_eq!(ab.byte_length(), 16);
+      assert_eq!(ab.get_backing_store().first().unwrap().get(), 1);
+    }
   }
 }
 
@@ -6032,6 +6030,7 @@ fn dynamic_import() {
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn shared_array_buffer() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -6069,8 +6068,7 @@ fn shared_array_buffer() {
     assert_eq!(shared_bs_1[14].get(), 62);
 
     let data: Box<[u8]> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].into_boxed_slice();
-    let bs =
-      v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(scope, data);
+    let bs = v8::SharedArrayBuffer::new_backing_store_from_boxed_slice(data);
     assert_eq!(bs.byte_length(), 10);
     assert!(bs.is_shared());
 
@@ -9940,6 +9938,7 @@ fn function_names() {
 
 // https://github.com/denoland/rusty_v8/issues/849
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_from_empty_boxed_slice() {
   let _setup_guard = setup::parallel_test();
 
@@ -9947,17 +9946,15 @@ fn backing_store_from_empty_boxed_slice() {
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
-  let mut scope = v8::ContextScope::new(&mut scope, context);
+  let scope = v8::ContextScope::new(&mut scope, context);
 
-  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(
-    &mut scope,
-    Box::new([]),
-  )
-  .make_shared();
+  let store = v8::ArrayBuffer::new_backing_store_from_boxed_slice(Box::new([]))
+    .make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&scope, &store);
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_from_empty_vec() {
   let _setup_guard = setup::parallel_test();
 
@@ -9965,15 +9962,15 @@ fn backing_store_from_empty_vec() {
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
-  let mut scope = v8::ContextScope::new(&mut scope, context);
+  let scope = v8::ContextScope::new(&mut scope, context);
 
   let store =
-    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, Vec::new())
-      .make_shared();
+    v8::ArrayBuffer::new_backing_store_from_vec(Vec::new()).make_shared();
   let _ = v8::ArrayBuffer::with_backing_store(&scope, &store);
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_data() {
   let _setup_guard = setup::parallel_test();
 
@@ -9981,15 +9978,15 @@ fn backing_store_data() {
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
-  let mut scope = v8::ContextScope::new(&mut scope, context);
+  let scope = v8::ContextScope::new(&mut scope, context);
 
   let v = vec![1, 2, 3, 4, 5];
-  let store =
-    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, v).make_shared();
+  let store = v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
   let _buf = v8::ArrayBuffer::with_backing_store(&scope, &store);
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_resizable() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
@@ -10000,7 +9997,7 @@ fn backing_store_resizable() {
 
   let v = vec![1, 2, 3, 4, 5];
   let store_fixed =
-    v8::ArrayBuffer::new_backing_store_from_vec(&mut scope, v).make_shared();
+    v8::ArrayBuffer::new_backing_store_from_vec(v).make_shared();
   assert!(!store_fixed.is_resizable_by_user_javascript());
 
   let ab_val =
