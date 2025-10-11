@@ -121,6 +121,12 @@ static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 12,
               "DisallowJavascriptExecutionScope size mismatch");
 #endif
 
+// Note: this currently uses an internal API to determine if the v8 sandbox is
+// enabled in the testsuite etc.
+extern "C" bool v8__V8__IsSandboxEnabled() {
+  return v8::internal::SandboxIsEnabled();
+}
+
 extern "C" {
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
                                      const char* usage) {
