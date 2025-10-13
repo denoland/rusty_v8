@@ -68,9 +68,8 @@ pub struct CTypeInfo(v8_CTypeInfo);
 impl CTypeInfo {
   pub const fn new(r#type: Type, flags: Flags) -> Self {
     Self(v8_CTypeInfo {
-      flags_: flags.bits(),
-      sequence_type_: v8_CTypeInfo_SequenceType_kScalar,
       type_: r#type as _,
+      flags_: flags.bits(),
     })
   }
 }
