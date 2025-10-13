@@ -3922,8 +3922,7 @@ RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
 
 void v8__Object__Wrap(v8::Isolate* isolate, const v8::Object& wrapper,
                       RustObj* value, v8::CppHeapPointerTag tag) {
-  v8::Object::Wrap(isolate, ptr_to_local(&wrapper),
-                   static_cast<v8::Object::Wrappable*>(value), tag);
+  v8::Object::Wrap(isolate, ptr_to_local(&wrapper), value, tag);
 }
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {
