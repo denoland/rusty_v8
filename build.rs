@@ -150,11 +150,55 @@ fn build_binding() {
   let args = String::from_utf8(output.stdout).unwrap();
   let args = args.split('\0').collect::<Vec<_>>();
 
+  // Filter out V8's custom libc++ and module args since bindgen needs to use
+  // system headers with its own libclang
+  let filtered_args: Vec<&str> = args
+    .iter()
+    .filter(|arg| {
+      !arg.starts_with("-fmodule")
+        && !arg.starts_with("-fno-implicit-module")
+        && !arg.starts_with("-Xclang")
+        && !arg.contains("DUSE_LIBCXX_MODULES")
+        && !arg.contains("-nostdinc++")
+        && !arg.contains("-isystem")
+        && !arg.contains("libc++")
+    })
+    .copied()
+    .collect();
+
+  eprintln!("Filtered bindgen args: {:?}", filtered_args);
+
+  let gn_out = build_dir().join("gn_out");
+  let libcxx_include = gn_out.join("gen/third_party/libc++/src/include");
+  let libcxxabi_include = gn_out.join("gen/third_party/libc++abi/src/include");
+
+  let mut clang_args = vec![
+    "-x".to_string(),
+    "c++".to_string(),
+    "-std=c++20".to_string(),
+    "-nostdinc++".to_string(),
+    "-Iv8/include".to_string(),
+    "-I.".to_string(),
+    format!("-I{}", libcxx_include.display()),
+    format!("-I{}", libcxxabi_include.display()),
+  ];
+
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  if target_os == "macos" {
+    let output = Command::new("xcrun")
+      .args(["--show-sdk-path"])
+      .output()
+      .unwrap();
+    let sdk_path = String::from_utf8(output.stdout).unwrap();
+    clang_args.push("-isysroot".to_string());
+    clang_args.push(sdk_path.trim().to_string());
+  }
+
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-    .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include", "-I."])
-    .clang_args(args)
+    .clang_args(clang_args)
+    .clang_args(filtered_args)
     .generate_cstr(true)
     .rustified_enum(".*UseCounterFeature")
     .rustified_enum(".*ModuleImportPhase")
