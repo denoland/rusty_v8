@@ -6,6 +6,7 @@ static_library("rusty_v8") {
   sources = [ "src/binding.cc" ]
   deps = [
     "//build/config:shared_library_deps",
+    "//third_party/rust/temporal_capi",
     "//v8:v8",
     "//v8:v8_libbase",
     "//v8:v8_libplatform",

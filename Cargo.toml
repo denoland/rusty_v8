@@ -106,7 +106,7 @@ v8_enable_v8_checks = []
 [dependencies]
 bitflags = "2.5"
 paste = "1.0"
-temporal_capi = { version = "0.1.0", features = [ "compiled_data" ] }
+temporal_capi = { version = "0.1.0", features = [ "zoneinfo64" ] }
 
 [build-dependencies]
 miniz_oxide = "0.8.8"
