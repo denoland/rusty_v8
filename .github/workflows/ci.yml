@@ -51,31 +51,31 @@ jobs:
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: asan
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: release
             v8_enable_pointer_compression: true
