@@ -192,6 +192,19 @@ fn build_binding() {
     let sdk_path = String::from_utf8(output.stdout).unwrap();
     clang_args.push("-isysroot".to_string());
     clang_args.push(sdk_path.trim().to_string());
+  } else if target_os == "linux" {
+    // On Linux, we need clang's resource directory for compiler builtins
+    let clang_base = build_dir().join("clang");
+    if clang_base.exists() {
+      // V8 downloaded clang - use its resource directory
+      let clang_lib = clang_base.join("lib/clang");
+      if let Ok(entries) = fs::read_dir(&clang_lib) {
+        if let Some(version_dir) = entries.filter_map(|e| e.ok()).next() {
+          let resource_dir = version_dir.path().join("include");
+          clang_args.push(format!("-I{}", resource_dir.display()));
+        }
+      }
+    }
   }
 
   let bindings = bindgen::Builder::default()
