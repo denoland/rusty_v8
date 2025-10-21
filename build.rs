@@ -142,9 +142,17 @@ fn acquire_lock() -> LockFile {
 
 fn build_binding() {
   // Tell bindgen to use V8's Clang 22 (libc++ requires Clang 19+)
-  let clang_path = build_dir().join("clang/bin/clang");
+  // Bindgen needs libclang.so/.dylib, not the clang binary
+  let clang_base = build_dir().join("clang");
+  let libclang_path = if cfg!(target_os = "macos") {
+    clang_base.join("lib")
+  } else {
+    clang_base.join("lib")
+  };
+
   unsafe {
-    env::set_var("CLANG_PATH", &clang_path);
+    env::set_var("LIBCLANG_PATH", &libclang_path);
+    env::set_var("CLANG_PATH", clang_base.join("bin/clang"));
   }
 
   let output = Command::new(python())
