@@ -208,10 +208,12 @@ fn build_binding() {
 
   // Tell bindgen to use V8's Clang 22 (libc++ requires Clang 19+)
   let clang_path = build_dir().join("clang/bin/clang");
+  unsafe {
+    env::set_var("CLANG_PATH", &clang_path);
+  }
 
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
-    .clang_path(&clang_path)
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
     .clang_args(clang_args)
     .clang_args(filtered_args)
