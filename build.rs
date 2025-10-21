@@ -141,19 +141,10 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
-  // Tell bindgen to use V8's Clang 22 (libc++ requires Clang 19+)
-  // Bindgen needs libclang.so/.dylib, not the clang binary
-  let clang_base = build_dir().join("clang");
-  let libclang_path = if cfg!(target_os = "macos") {
-    clang_base.join("lib")
-  } else {
-    clang_base.join("lib")
-  };
-
-  unsafe {
-    env::set_var("LIBCLANG_PATH", &libclang_path);
-    env::set_var("CLANG_PATH", clang_base.join("bin/clang"));
-  }
+  // Note: We can't use V8's clang for bindgen because V8's clang distribution
+  // doesn't include libclang.so. Instead, we use system libclang with system
+  // C++ stdlib for parsing. This works because bindgen only needs to parse
+  // V8's C API headers, not compile against V8's custom libc++.
 
   let output = Command::new(python())
     .arg("./tools/get_bindgen_args.py")
@@ -180,34 +171,15 @@ fn build_binding() {
     .copied()
     .collect();
 
-  eprintln!("Filtered bindgen args: {:?}", filtered_args);
-
-  // V8 uses custom libc++. Point bindgen to the source headers.
-  // Note: with use_clang_modules=false, headers aren't copied to gen/.
-  // IMPORTANT: Order matters - libc++ headers must come before clang builtins
+  // Bindgen uses system C++ stdlib (not V8's custom libc++) since it just
+  // needs to parse V8's C-style API headers
   let mut clang_args = vec![
     "-x".to_string(),
     "c++".to_string(),
     "-std=c++20".to_string(),
-    "-nostdinc++".to_string(),
     "-Iv8/include".to_string(),
     "-I.".to_string(),
-    "-isystembuildtools/third_party/libc++".to_string(),
-    "-isystemthird_party/libc++/src/include".to_string(),
-    "-isystemthird_party/libc++abi/src/include".to_string(),
   ];
-
-  // Add clang resource directory for builtin headers (after libc++)
-  let clang_base = build_dir().join("clang");
-  if clang_base.exists() {
-    let clang_lib = clang_base.join("lib/clang");
-    if let Ok(entries) = fs::read_dir(&clang_lib) {
-      if let Some(version_dir) = entries.filter_map(|e| e.ok()).next() {
-        let resource_dir = version_dir.path().join("include");
-        clang_args.push(format!("-isystem{}", resource_dir.display()));
-      }
-    }
-  }
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   if target_os == "macos" {
