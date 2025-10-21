@@ -171,14 +171,17 @@ fn build_binding() {
     .copied()
     .collect();
 
-  // Bindgen uses system C++ stdlib (not V8's custom libc++) since it just
-  // needs to parse V8's C-style API headers
+  // Bindgen needs V8's libc++ headers for C++20 features like <source_location>
+  // but we use -I (not -isystem) so system headers are still available as fallback
   let mut clang_args = vec![
     "-x".to_string(),
     "c++".to_string(),
     "-std=c++20".to_string(),
     "-Iv8/include".to_string(),
     "-I.".to_string(),
+    "-Ibuildtools/third_party/libc++".to_string(),
+    "-Ithird_party/libc++/src/include".to_string(),
+    "-Ithird_party/libc++abi/src/include".to_string(),
   ];
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
