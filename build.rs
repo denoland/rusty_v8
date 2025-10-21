@@ -141,10 +141,11 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
-  // Note: We can't use V8's clang for bindgen because V8's clang distribution
-  // doesn't include libclang.so. Instead, we use system libclang with system
-  // C++ stdlib for parsing. This works because bindgen only needs to parse
-  // V8's C API headers, not compile against V8's custom libc++.
+  // Tell bindgen to use V8's Clang 22 via LIBCLANG_PATH
+  let clang_lib = build_dir().join("clang/lib");
+  unsafe {
+    env::set_var("LIBCLANG_PATH", &clang_lib);
+  }
 
   let output = Command::new(python())
     .arg("./tools/get_bindgen_args.py")
@@ -171,18 +172,31 @@ fn build_binding() {
     .copied()
     .collect();
 
-  // Bindgen needs V8's libc++ headers for C++20 features like <source_location>
-  // but we use -I (not -isystem) so system headers are still available as fallback
+  // Use V8's custom libc++ headers (now that bindgen uses V8's Clang 22)
+  // IMPORTANT: libc++ headers must come before clang builtins
   let mut clang_args = vec![
     "-x".to_string(),
     "c++".to_string(),
     "-std=c++20".to_string(),
+    "-nostdinc++".to_string(),
     "-Iv8/include".to_string(),
     "-I.".to_string(),
-    "-Ibuildtools/third_party/libc++".to_string(),
-    "-Ithird_party/libc++/src/include".to_string(),
-    "-Ithird_party/libc++abi/src/include".to_string(),
+    "-isystembuildtools/third_party/libc++".to_string(),
+    "-isystemthird_party/libc++/src/include".to_string(),
+    "-isystemthird_party/libc++abi/src/include".to_string(),
   ];
+
+  // Add clang resource directory for builtin headers (after libc++)
+  let clang_base = build_dir().join("clang");
+  if clang_base.exists() {
+    let clang_lib = clang_base.join("lib/clang");
+    if let Ok(entries) = fs::read_dir(&clang_lib) {
+      if let Some(version_dir) = entries.filter_map(|e| e.ok()).next() {
+        let resource_dir = version_dir.path().join("include");
+        clang_args.push(format!("-isystem{}", resource_dir.display()));
+      }
+    }
+  }
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   if target_os == "macos" {
