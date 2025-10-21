@@ -141,6 +141,12 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
+  // Tell bindgen to use V8's Clang 22 (libc++ requires Clang 19+)
+  let clang_path = build_dir().join("clang/bin/clang");
+  unsafe {
+    env::set_var("CLANG_PATH", &clang_path);
+  }
+
   let output = Command::new(python())
     .arg("./tools/get_bindgen_args.py")
     .arg("--gn-out")
@@ -204,12 +210,6 @@ fn build_binding() {
     let sdk_path = String::from_utf8(output.stdout).unwrap();
     clang_args.push("-isysroot".to_string());
     clang_args.push(sdk_path.trim().to_string());
-  }
-
-  // Tell bindgen to use V8's Clang 22 (libc++ requires Clang 19+)
-  let clang_path = build_dir().join("clang/bin/clang");
-  unsafe {
-    env::set_var("CLANG_PATH", &clang_path);
   }
 
   let bindings = bindgen::Builder::default()
