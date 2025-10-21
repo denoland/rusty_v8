@@ -170,6 +170,7 @@ fn build_binding() {
 
   // V8 uses custom libc++. Point bindgen to the source headers.
   // Note: with use_clang_modules=false, headers aren't copied to gen/.
+  // IMPORTANT: Order matters - libc++ headers must come before clang builtins
   let mut clang_args = vec![
     "-x".to_string(),
     "c++".to_string(),
@@ -177,10 +178,22 @@ fn build_binding() {
     "-nostdinc++".to_string(),
     "-Iv8/include".to_string(),
     "-I.".to_string(),
-    "-Ibuildtools/third_party/libc++".to_string(),
-    "-Ithird_party/libc++/src/include".to_string(),
-    "-Ithird_party/libc++abi/src/include".to_string(),
+    "-isystembuildtools/third_party/libc++".to_string(),
+    "-isystemthird_party/libc++/src/include".to_string(),
+    "-isystemthird_party/libc++abi/src/include".to_string(),
   ];
+
+  // Add clang resource directory for builtin headers (after libc++)
+  let clang_base = build_dir().join("clang");
+  if clang_base.exists() {
+    let clang_lib = clang_base.join("lib/clang");
+    if let Ok(entries) = fs::read_dir(&clang_lib) {
+      if let Some(version_dir) = entries.filter_map(|e| e.ok()).next() {
+        let resource_dir = version_dir.path().join("include");
+        clang_args.push(format!("-isystem{}", resource_dir.display()));
+      }
+    }
+  }
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   if target_os == "macos" {
@@ -191,23 +204,14 @@ fn build_binding() {
     let sdk_path = String::from_utf8(output.stdout).unwrap();
     clang_args.push("-isysroot".to_string());
     clang_args.push(sdk_path.trim().to_string());
-  } else if target_os == "linux" {
-    // On Linux, we need clang's resource directory for compiler builtins
-    let clang_base = build_dir().join("clang");
-    if clang_base.exists() {
-      // V8 downloaded clang - use its resource directory
-      let clang_lib = clang_base.join("lib/clang");
-      if let Ok(entries) = fs::read_dir(&clang_lib) {
-        if let Some(version_dir) = entries.filter_map(|e| e.ok()).next() {
-          let resource_dir = version_dir.path().join("include");
-          clang_args.push(format!("-I{}", resource_dir.display()));
-        }
-      }
-    }
   }
+
+  // Tell bindgen to use V8's Clang 22 (libc++ requires Clang 19+)
+  let clang_path = build_dir().join("clang/bin/clang");
 
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
+    .clang_path(&clang_path)
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
     .clang_args(clang_args)
     .clang_args(filtered_args)
