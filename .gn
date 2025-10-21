@@ -86,4 +86,7 @@ default_args = {
 
   # prevent hashdos
   v8_use_default_hasher_secret = false
+
+  # Disable C++ modules - they're not compatible with bindgen
+  use_clang_modules = false
 }
