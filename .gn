@@ -23,7 +23,6 @@ default_args = {
   use_dummy_lastchange = true
   use_sysroot = false
   simple_template_names = false
-  mac_sdk_min = "14"
 
   # Minimize size of debuginfo in distributed static library.
   line_tables_only = true
@@ -65,17 +64,6 @@ default_args = {
   v8_array_buffer_internal_field_count = 2
   v8_array_buffer_view_internal_field_count = 2
 
-  # Enabling the shared read-only heap comes with a restriction that all
-  # isolates running at the same time must be created from the same snapshot.
-  # This is problematic for Deno, which has separate "runtime" and "typescript
-  # compiler" snapshots, and sometimes uses them both at the same time.
-  v8_enable_shared_ro_heap = false
-
-  # V8 11.6 hardcoded an assumption in `mksnapshot` that shared RO heap
-  # is enabled. In our case it's disabled so without this flag we can't
-  # compile.
-  v8_enable_verify_heap = false
-
   # Enable V8 object print for debugging.
   # v8_enable_object_print = true
 
@@ -84,12 +72,6 @@ default_args = {
   #
   # This flag disables it.
   v8_enable_fuzztest = false
-
-  # Disable v8::HandleScope LIFO checks.
-  # https://chromium-review.googlesource.com/c/v8/v8/+/5110566
-  #
-  # rusty_v8 scopes are not on the stack.
-  v8_enable_v8_checks = false
 
   use_relative_vtables_abi = false
 
@@ -100,7 +82,6 @@ default_args = {
   use_llvm_libatomic = false
 
   enable_rust = true
-  enable_rust_cxx = true
   v8_enable_temporal_support = true
 
   # prevent hashdos
