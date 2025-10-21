@@ -141,11 +141,10 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
-  // Tell bindgen to use V8's Clang 22 via LIBCLANG_PATH
-  let clang_lib = build_dir().join("clang/lib");
-  unsafe {
-    env::set_var("LIBCLANG_PATH", &clang_lib);
-  }
+  // Bindgen needs Clang 19+ for V8's libc++ builtin type traits.
+  // CI sets LIBCLANG_PATH to system Clang 19. For local builds, you may need:
+  //   export LIBCLANG_PATH=/usr/lib/llvm-19/lib  # Linux
+  //   export LIBCLANG_PATH=$(brew --prefix llvm)/lib  # macOS
 
   let output = Command::new(python())
     .arg("./tools/get_bindgen_args.py")
@@ -172,7 +171,7 @@ fn build_binding() {
     .copied()
     .collect();
 
-  // Use V8's custom libc++ headers (now that bindgen uses V8's Clang 22)
+  // Use V8's custom libc++ headers (requires Clang 19+ libclang via LIBCLANG_PATH)
   // IMPORTANT: libc++ headers must come before clang builtins
   let mut clang_args = vec![
     "-x".to_string(),
@@ -185,18 +184,6 @@ fn build_binding() {
     "-isystemthird_party/libc++/src/include".to_string(),
     "-isystemthird_party/libc++abi/src/include".to_string(),
   ];
-
-  // Add clang resource directory for builtin headers (after libc++)
-  let clang_base = build_dir().join("clang");
-  if clang_base.exists() {
-    let clang_lib = clang_base.join("lib/clang");
-    if let Ok(entries) = fs::read_dir(&clang_lib) {
-      if let Some(version_dir) = entries.filter_map(|e| e.ok()).next() {
-        let resource_dir = version_dir.path().join("include");
-        clang_args.push(format!("-isystem{}", resource_dir.display()));
-      }
-    }
-  }
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   if target_os == "macos" {

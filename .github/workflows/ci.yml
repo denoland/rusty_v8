@@ -224,7 +224,8 @@ jobs:
           curl https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo dd of=/etc/apt/trusted.gpg.d/llvm-snapshot.gpg
           sudo apt-get update
           sudo apt-get -qq remove 'clang-*'
-          sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 -y
+          sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 libclang-19-dev -y
+          echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> $GITHUB_ENV
 
       - name: Install Rust (nightly)
         uses: dtolnay/rust-toolchain@nightly
