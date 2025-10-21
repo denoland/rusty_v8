@@ -168,10 +168,8 @@ fn build_binding() {
 
   eprintln!("Filtered bindgen args: {:?}", filtered_args);
 
-  let gn_out = build_dir().join("gn_out");
-  let libcxx_include = gn_out.join("gen/third_party/libc++/src/include");
-  let libcxxabi_include = gn_out.join("gen/third_party/libc++abi/src/include");
-
+  // V8 uses custom libc++. Point bindgen to the source headers.
+  // Note: with use_clang_modules=false, headers aren't copied to gen/.
   let mut clang_args = vec![
     "-x".to_string(),
     "c++".to_string(),
@@ -179,8 +177,9 @@ fn build_binding() {
     "-nostdinc++".to_string(),
     "-Iv8/include".to_string(),
     "-I.".to_string(),
-    format!("-I{}", libcxx_include.display()),
-    format!("-I{}", libcxxabi_include.display()),
+    "-Ibuildtools/third_party/libc++".to_string(),
+    "-Ithird_party/libc++/src/include".to_string(),
+    "-Ithird_party/libc++abi/src/include".to_string(),
   ];
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
