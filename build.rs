@@ -686,10 +686,7 @@ where
     );
 
     if status != Ok(MZStatus::Ok) && status != Ok(MZStatus::StreamEnd) {
-      return Err(io::Error::new(
-        io::ErrorKind::Other,
-        format!("Decompression error {status:?}"),
-      ));
+      return Err(io::Error::other(format!("Decompression error {status:?}")));
     }
 
     output.write_all(&output_buffer[..bytes_written])?;
@@ -1000,11 +997,11 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let mut cmd = Command::new(&cmd_string);
   cmd.arg("-C");
   cmd.arg(gn_out_dir);
-  if !cmd_string.ends_with("autoninja") {
-    if let Ok(jobs) = env::var("NUM_JOBS") {
-      cmd.arg("-j");
-      cmd.arg(jobs);
-    }
+  if !cmd_string.ends_with("autoninja")
+    && let Ok(jobs) = env::var("NUM_JOBS")
+  {
+    cmd.arg("-j");
+    cmd.arg(jobs);
   }
   if let Some(env) = maybe_env {
     for item in env {
