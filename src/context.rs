@@ -155,6 +155,7 @@ impl Context {
   }
 
   #[inline]
+  #[allow(clippy::mut_from_ref)]
   fn get_annex_mut(
     &self,
     create_if_not_present: bool,
