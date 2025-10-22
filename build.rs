@@ -142,9 +142,12 @@ fn acquire_lock() -> LockFile {
 
 fn build_binding() {
   // Bindgen needs Clang 19+ for V8's libc++ builtin type traits.
-  // CI sets LIBCLANG_PATH to system Clang 19. For local builds, you may need:
-  //   export LIBCLANG_PATH=/usr/lib/llvm-19/lib  # Linux
-  //   export LIBCLANG_PATH=$(brew --prefix llvm)/lib  # macOS
+  if env::var("LIBCLANG_PATH").is_err() {
+    eprintln!("Warning: LIBCLANG_PATH not set. Bindgen requires Clang 19+.");
+    eprintln!("Set LIBCLANG_PATH to your Clang 19 installation:");
+    eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-19/lib");
+    eprintln!("  macOS:  export LIBCLANG_PATH=$(brew --prefix llvm)/lib");
+  }
 
   let output = Command::new(python())
     .arg("./tools/get_bindgen_args.py")
@@ -155,8 +158,8 @@ fn build_binding() {
   let args = String::from_utf8(output.stdout).unwrap();
   let args = args.split('\0').collect::<Vec<_>>();
 
-  // Filter out V8's custom libc++ and module args since bindgen needs to use
-  // system headers with its own libclang
+  // Filter out V8's custom libc++ and module args from GN, we'll add them back
+  // manually with correct ordering for bindgen
   let filtered_args: Vec<&str> = args
     .iter()
     .filter(|arg| {
@@ -194,6 +197,23 @@ fn build_binding() {
     let sdk_path = String::from_utf8(output.stdout).unwrap();
     clang_args.push("-isysroot".to_string());
     clang_args.push(sdk_path.trim().to_string());
+  } else if target_os == "linux" {
+    // Add clang resource directory for builtin headers (stddef.h, etc)
+    if let Ok(libclang_path) = env::var("LIBCLANG_PATH") {
+      let clang_dir = PathBuf::from(&libclang_path)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+      let clang_bin = clang_dir.join("bin/clang");
+      if let Ok(output) = Command::new(clang_bin)
+        .arg("-print-resource-dir")
+        .output()
+      {
+        let resource_dir = String::from_utf8(output.stdout).unwrap();
+        clang_args
+          .push(format!("-isystem{}/include", resource_dir.trim()));
+      }
+    }
   }
 
   let bindings = bindgen::Builder::default()
