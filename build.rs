@@ -205,13 +205,11 @@ fn build_binding() {
         .unwrap()
         .to_path_buf();
       let clang_bin = clang_dir.join("bin/clang");
-      if let Ok(output) = Command::new(clang_bin)
-        .arg("-print-resource-dir")
-        .output()
+      if let Ok(output) =
+        Command::new(clang_bin).arg("-print-resource-dir").output()
       {
         let resource_dir = String::from_utf8(output.stdout).unwrap();
-        clang_args
-          .push(format!("-isystem{}/include", resource_dir.trim()));
+        clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
       }
     }
   }
