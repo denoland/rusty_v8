@@ -88,6 +88,7 @@ default_args = {
   use_llvm_libatomic = false
 
   enable_rust = true
+  enable_rust_cxx = true
   v8_enable_temporal_support = true
 
   # prevent hashdos
