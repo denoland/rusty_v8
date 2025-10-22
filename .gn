@@ -73,6 +73,12 @@ default_args = {
   # This flag disables it.
   v8_enable_fuzztest = false
 
+  # Disable v8::HandleScope LIFO checks.
+  # https://chromium-review.googlesource.com/c/v8/v8/+/5110566
+  #
+  # rusty_v8 scopes are not on the stack.
+  v8_enable_v8_checks = false
+
   use_relative_vtables_abi = false
 
   v8_depend_on_icu_data_file = false
