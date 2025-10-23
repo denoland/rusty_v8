@@ -1555,10 +1555,6 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
       ptr_to_local(data_or_null), attr));
 }
 
-v8::Isolate* v8__Object__GetIsolate(const v8::Object& self) {
-  return ptr_to_local(&self)->GetIsolate();
-}
-
 int v8__Object__GetIdentityHash(const v8::Object& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }
@@ -2041,10 +2037,6 @@ void v8__Context__Enter(const v8::Context& self) {
 
 void v8__Context__Exit(const v8::Context& self) { ptr_to_local(&self)->Exit(); }
 
-v8::Isolate* v8__Context__GetIsolate(const v8::Context& self) {
-  return ptr_to_local(&self)->GetIsolate();
-}
-
 const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
@@ -2230,10 +2222,6 @@ bool v8__Message__IsSharedCrossOrigin(const v8::Message& self) {
 }
 
 bool v8__Message__IsOpaque(const v8::Message& self) { return self.IsOpaque(); }
-
-v8::Isolate* v8__Message__GetIsolate(const v8::Message& self) {
-  return self.GetIsolate();
-}
 
 const v8::Value* v8__Exception__RangeError(const v8::String& message) {
   return local_to_ptr(v8::Exception::RangeError(ptr_to_local(&message)));
@@ -3934,8 +3922,7 @@ RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
 
 void v8__Object__Wrap(v8::Isolate* isolate, const v8::Object& wrapper,
                       RustObj* value, v8::CppHeapPointerTag tag) {
-  v8::Object::Wrap(isolate, ptr_to_local(&wrapper), static_cast<void*>(value),
-                   tag);
+  v8::Object::Wrap(isolate, ptr_to_local(&wrapper), value, tag);
 }
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {

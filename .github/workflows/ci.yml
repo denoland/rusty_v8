@@ -27,55 +27,55 @@ jobs:
         !contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
       matrix:
         config:
-          - os: macos-13
+          - os: macos-15-large
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-13
+          - os: macos-15-large
             target: x86_64-apple-darwin
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-13-large
+          - os: macos-15-large
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: macos-13
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             variant: release
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: asan
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             variant: release
             v8_enable_pointer_compression: true
@@ -191,8 +191,8 @@ jobs:
             target/*/.*
             target/*/build
             target/*/deps
-          key: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
-          restore-keys: cargo-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
+          key: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          restore-keys: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache
         shell: pwsh
@@ -224,7 +224,8 @@ jobs:
           curl https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo dd of=/etc/apt/trusted.gpg.d/llvm-snapshot.gpg
           sudo apt-get update
           sudo apt-get -qq remove 'clang-*'
-          sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 -y
+          sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 libclang-19-dev -y
+          echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> $GITHUB_ENV
 
       - name: Install Rust (nightly)
         uses: dtolnay/rust-toolchain@nightly

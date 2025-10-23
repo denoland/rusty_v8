@@ -1,31 +1,27 @@
-error[E0597]: `scope` does not live long enough
+error[E0716]: temporary value dropped while borrowed
   --> tests/compile_fail/handle_scope_lifetime_4.rs:13:5
    |
 12 |   let mut _scope3 = {
    |       ----------- borrow later stored here
 13 |     v8::scope!(scope, &mut context_scope);
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |     |
-   |     borrowed value does not live long enough
-   |     binding `scope` declared here
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
 14 |     v8::EscapableHandleScope::new(scope)
 15 |   };
-   |   - `scope` dropped here while still borrowed
+   |   - temporary value is freed at the end of this statement
    |
+   = note: consider using a `let` binding to create a longer lived value
    = note: this error originates in the macro `v8::scope` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0597]: `scope` does not live long enough
+error[E0716]: temporary value dropped while borrowed
   --> tests/compile_fail/handle_scope_lifetime_4.rs:13:5
    |
 12 |   let mut _scope3 = {
    |       ----------- borrow later stored here
 13 |     v8::scope!(scope, &mut context_scope);
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |     |
-   |     borrowed value does not live long enough
-   |     binding `scope` declared here
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
 14 |     v8::EscapableHandleScope::new(scope)
 15 |   };
-   |   - `scope` dropped here while still borrowed
+   |   - temporary value is freed at the end of this statement
    |
+   = note: consider using a `let` binding to create a longer lived value
    = note: this error originates in the macro `v8::scope` (in Nightly builds, run with -Z macro-backtrace for more info)

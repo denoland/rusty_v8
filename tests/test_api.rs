@@ -954,7 +954,7 @@ fn external() {
   let isolate = &mut v8::Isolate::new(Default::default());
   v8::scope!(let scope, isolate);
 
-  let ex1_value = 1usize as *mut std::ffi::c_void;
+  let ex1_value = std::ptr::dangling_mut::<std::ffi::c_void>();
   let ex1_handle_a = v8::External::new(scope, ex1_value);
   assert_eq!(ex1_handle_a.value(), ex1_value);
 
@@ -11944,8 +11944,7 @@ fn exception_thrown_but_continues_execution() {
     let func: v8::Local<v8::Function> = prop.try_into().unwrap();
     let recv = scope.get_current_context().global(scope).into();
 
-    let retval = func.call(scope, recv, &[]);
-    retval
+    func.call(scope, recv, &[])
   }
 
   fn print_fn(

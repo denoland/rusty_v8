@@ -729,12 +729,12 @@ impl Object {
     // in debug mode and access out-of-bounds memory in release mode.
     // The C++ API takes an i32 but doesn't check for indexes < 0, which
     // results in an out-of-bounds access in both debug and release mode.
-    if index < self.internal_field_count() {
-      if let Ok(index) = int::try_from(index) {
-        return unsafe {
-          scope.cast_local(|_| v8__Object__GetInternalField(self, index))
-        };
-      }
+    if index < self.internal_field_count()
+      && let Ok(index) = int::try_from(index)
+    {
+      return unsafe {
+        scope.cast_local(|_| v8__Object__GetInternalField(self, index))
+      };
     }
     None
   }
@@ -836,11 +836,11 @@ impl Object {
     // in debug mode and access out-of-bounds memory in release mode.
     // The C++ API takes an i32 but doesn't check for indexes < 0, which
     // results in an out-of-bounds access in both debug and release mode.
-    if index < self.internal_field_count() {
-      if let Ok(index) = int::try_from(index) {
-        unsafe { v8__Object__SetInternalField(self, index, &*data) };
-        return true;
-      }
+    if index < self.internal_field_count()
+      && let Ok(index) = int::try_from(index)
+    {
+      unsafe { v8__Object__SetInternalField(self, index, &*data) };
+      return true;
     }
     false
   }

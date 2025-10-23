@@ -1,7 +1,7 @@
 /// The `raw` module contains prototypes for all the `extern C` functions that
 /// are used in the scope module, as well as definitions for the types they operate on.
 use crate::{
-  Context, Data, Function, Local, Message, Object, OnFailure, Primitive, Value,
+  Context, Data, Function, Local, Message, OnFailure, Primitive, Value,
   isolate::RealIsolate,
 };
 use std::num::NonZeroUsize;
@@ -220,6 +220,7 @@ impl Drop for AllowJavascriptExecutionScope {
 }
 
 unsafe extern "C" {
+  pub(super) fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   pub(super) fn v8__Isolate__GetCurrentContext(
     isolate: *mut RealIsolate,
   ) -> *const Context;
@@ -240,9 +241,6 @@ unsafe extern "C" {
 
   pub(super) fn v8__Context__Enter(this: *const Context);
   pub(super) fn v8__Context__Exit(this: *const Context);
-  pub(super) fn v8__Context__GetIsolate(
-    this: *const Context,
-  ) -> *mut RealIsolate;
   pub(super) fn v8__Context__GetDataFromSnapshotOnce(
     this: *const Context,
     index: usize,
@@ -313,10 +311,4 @@ unsafe extern "C" {
   pub(super) fn v8__AllowJavascriptExecutionScope__DESTRUCT(
     this: *mut AllowJavascriptExecutionScope,
   );
-
-  pub(super) fn v8__Message__GetIsolate(
-    this: *const Message,
-  ) -> *mut RealIsolate;
-  pub(super) fn v8__Object__GetIsolate(this: *const Object)
-  -> *mut RealIsolate;
 }
