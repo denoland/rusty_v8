@@ -25,7 +25,7 @@ unsafe extern "C" {
     global_object: *const Value,
     microtask_queue: *mut MicrotaskQueue,
   ) -> *const Context;
-  fn v8__Context__GetIsolate(this: *const Context) -> *mut RealIsolate;
+  fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   fn v8__Context__Global(this: *const Context) -> *const Object;
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
   -> *const Object;
@@ -155,11 +155,12 @@ impl Context {
   }
 
   #[inline]
+  #[allow(clippy::mut_from_ref)]
   fn get_annex_mut(
     &self,
     create_if_not_present: bool,
   ) -> Option<&mut ContextAnnex> {
-    let isolate = unsafe { v8__Context__GetIsolate(self) };
+    let isolate = unsafe { v8__Isolate__GetCurrent() };
     let mut isolate = unsafe { crate::isolate::Isolate::from_raw_ptr(isolate) };
 
     let num_data_fields =

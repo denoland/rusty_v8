@@ -1,15 +1,13 @@
-error[E0597]: `scope` does not live long enough
+error[E0716]: temporary value dropped while borrowed
  --> tests/compile_fail/local_outlive_handle_scope.rs:6:5
   |
 5 |   let _local = {
   |       ------ borrow later stored here
 6 |     v8::scope!(let scope, scope1);
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |     |
-  |     borrowed value does not live long enough
-  |     binding `scope` declared here
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
 ...
 9 |   };
-  |   - `scope` dropped here while still borrowed
+  |   - temporary value is freed at the end of this statement
   |
+  = note: consider using a `let` binding to create a longer lived value
   = note: this error originates in the macro `$crate::scope` which comes from the expansion of the macro `v8::scope` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -23,7 +23,6 @@ default_args = {
   use_dummy_lastchange = true
   use_sysroot = false
   simple_template_names = false
-  mac_sdk_min = "14"
 
   # Minimize size of debuginfo in distributed static library.
   line_tables_only = true
@@ -91,4 +90,7 @@ default_args = {
 
   # prevent hashdos
   v8_use_default_hasher_secret = false
+
+  # Disable C++ modules - they're not compatible with bindgen
+  use_clang_modules = false
 }

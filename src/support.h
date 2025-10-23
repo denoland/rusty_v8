@@ -180,8 +180,7 @@ struct memory_span_t {
 
 #endif  // SUPPORT_H_
 
-class RustObj : public cppgc::GarbageCollected<RustObj>,
-                public cppgc::NameProvider {
+class RustObj : public v8::Object::Wrappable {
  public:
   ~RustObj();
   void Trace(cppgc::Visitor* visitor) const;

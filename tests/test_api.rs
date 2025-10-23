@@ -11887,8 +11887,7 @@ fn exception_thrown_but_continues_execution() {
     let func: v8::Local<v8::Function> = prop.try_into().unwrap();
     let recv = scope.get_current_context().global(scope).into();
 
-    let retval = func.call(scope, recv, &[]);
-    retval
+    func.call(scope, recv, &[])
   }
 
   fn print_fn(
