@@ -27,19 +27,19 @@ jobs:
         !contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
       matrix:
         config:
-          - os: macos-15-intel
+          - os: macos-15-large
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-15-intel
+          - os: macos-15-large
             target: x86_64-apple-darwin
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-15-intel
+          - os: macos-15-large
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: true
