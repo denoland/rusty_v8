@@ -620,11 +620,12 @@ impl ArrayBuffer {
   /// ```
   #[inline(always)]
   #[cfg(not(feature = "v8_enable_sandbox"))]
-  pub fn new_backing_store_from_bytes<T>(bytes: T) -> UniqueRef<BackingStore>
+  pub fn new_backing_store_from_bytes<T>(
+    mut bytes: T,
+  ) -> UniqueRef<BackingStore>
   where
     T: sealed::Rawable,
   {
-    let mut bytes = bytes; // Make mutable
     let len = bytes.byte_len();
 
     let (ptr, slice) = T::into_raw(bytes);

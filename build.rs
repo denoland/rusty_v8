@@ -296,21 +296,6 @@ fn build_v8(is_asan: bool) {
       let mut opts = vec![
         // Disable sandbox
         "v8_enable_sandbox=false",
-        // Enabling the shared read-only heap comes with a restriction that all
-        // isolates running at the same time must be created from the same snapshot.
-        // This is problematic for Deno, which has separate "runtime" and "typescript
-        // compiler" snapshots, and sometimes uses them both at the same time.
-        //
-        // NOTE FOR FUTURE: Check if this flag even exists anymore as it has likely been
-        // removed
-        "v8_enable_shared_ro_heap=false",
-        // V8 11.6 hardcoded an assumption in `mksnapshot` that shared RO heap
-        // is enabled. In our case it's disabled so without this flag we can't
-        // compile.
-        //
-        // NOTE FOR FUTURE: Check if this flag even exists anymore as it has likely been
-        // removed
-        "v8_enable_verify_heap=false",
       ];
 
       if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
