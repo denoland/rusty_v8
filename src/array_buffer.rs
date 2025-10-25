@@ -297,6 +297,8 @@ rawable!(i8);
 rawable!(i16);
 rawable!(i32);
 rawable!(i64);
+rawable!(f32);
+rawable!(f64);
 
 impl<T: Sized> sealed::Rawable for Box<T>
 where
