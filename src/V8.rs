@@ -27,7 +27,6 @@ unsafe extern "C" {
   fn v8__V8__Dispose() -> bool;
   fn v8__V8__DisposePlatform();
   fn v8__V8__SetFatalErrorHandler(that: V8FatalErrorCallback);
-  fn v8__V8__IsSandboxEnabled() -> bool;
 }
 
 pub type V8FatalErrorCallback = unsafe extern "C" fn(
@@ -83,11 +82,6 @@ enum GlobalState {
 use GlobalState::*;
 
 static GLOBAL_STATE: Mutex<GlobalState> = Mutex::new(Uninitialized);
-
-/// Returns true if V8 is sandboxed.
-pub fn is_sandboxed() -> bool {
-  unsafe { v8__V8__IsSandboxEnabled() }
-}
 
 pub fn assert_initialized() {
   let global_state_guard = GLOBAL_STATE.lock().unwrap();
@@ -284,5 +278,30 @@ where
 pub fn set_fatal_error_handler(that: impl MapFnTo<V8FatalErrorCallback>) {
   unsafe {
     v8__V8__SetFatalErrorHandler(that.map_fn_to());
+  }
+}
+
+#[cfg(test)]
+mod test_sandbox_use {
+  // __IsSandboxEnabled is used for testing that sandbox is actually
+  // enabled and is not a stable API
+  unsafe extern "C" {
+    fn v8__V8__IsSandboxEnabled() -> bool;
+  }
+
+  fn is_sandboxed() -> bool {
+    unsafe { v8__V8__IsSandboxEnabled() }
+  }
+
+  #[test]
+  #[cfg(feature = "v8_enable_sandbox")]
+  fn test_sandbox_on() {
+    assert!(is_sandboxed());
+  }
+
+  #[test]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
+  fn test_sandbox_off() {
+    assert!(!is_sandboxed());
   }
 }
