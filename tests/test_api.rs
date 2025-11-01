@@ -5739,6 +5739,7 @@ fn snapshot_creator_context_embedder_data() {
         let one_val = v8::Number::new(scope, 1.0).into();
         assert!(prop.same_value(one_val));
       }
+      context.clear_all_slots();
       scope.set_default_context(context);
     }
 
@@ -5772,6 +5773,7 @@ fn snapshot_creator_context_embedder_data() {
         let value = context.get_embedder_data(scope, 2).unwrap();
         assert!(value.same_value(x));
       }
+      context.clear_all_slots();
       scope.set_default_context(context);
     }
     snapshot_creator
