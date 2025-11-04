@@ -1,12 +1,12 @@
 fn main() {
+  // Pass command line arguments to V8.
+  let args: Vec<String> = std::env::args().collect();
+  let args = v8::V8::set_flags_from_command_line(args);
+
   // Initialize V8.
   let platform = v8::new_default_platform(0, false).make_shared();
   v8::V8::initialize_platform(platform);
   v8::V8::initialize();
-
-  // Pass command line arguments to V8.
-  let args: Vec<String> = std::env::args().collect();
-  let args = v8::V8::set_flags_from_command_line(args);
 
   let mut run_shell_flag = args.len() == 1;
   let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
