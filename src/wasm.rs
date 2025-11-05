@@ -191,11 +191,21 @@ impl WasmMemoryObject {
 pub(crate) fn trampoline<F>()
 -> unsafe extern "C" fn(*const FunctionCallbackInfo)
 where
-  F: UnitType + Fn(&mut PinScope, Local<Value>, WasmStreaming),
+  F: UnitType
+    + for<'a, 'b, 'c> Fn(
+      &'c mut PinScope<'a, 'b>,
+      Local<'a, Value>,
+      WasmStreaming,
+    ),
 {
   unsafe extern "C" fn c_fn<F>(info: *const FunctionCallbackInfo)
   where
-    F: UnitType + Fn(&mut PinScope, Local<Value>, WasmStreaming),
+    F: UnitType
+      + for<'a, 'b, 'c> Fn(
+        &'c mut PinScope<'a, 'b>,
+        Local<'a, Value>,
+        WasmStreaming,
+      ),
   {
     let info = unsafe { &*info };
     callback_scope!(unsafe scope, info);

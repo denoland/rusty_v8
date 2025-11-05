@@ -1660,7 +1660,12 @@ impl Isolate {
   #[inline(always)]
   pub fn set_wasm_streaming_callback<F>(&mut self, _: F)
   where
-    F: UnitType + Fn(&mut PinScope, Local<Value>, WasmStreaming),
+    F: UnitType
+      + for<'a, 'b, 'c> Fn(
+        &'c mut PinScope<'a, 'b>,
+        Local<'a, Value>,
+        WasmStreaming,
+      ),
   {
     unsafe {
       v8__Isolate__SetWasmStreamingCallback(
