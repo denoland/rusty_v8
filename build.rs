@@ -274,6 +274,10 @@ fn build_v8(is_asan: bool) {
     env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_ok()
   ));
   gn_args.push(format!(
+    "v8_enable_i18n_support={}",
+    env::var("CARGO_FEATURE_V8_ENABLE_I18N_SUPPORT").is_ok()
+  ));
+  gn_args.push(format!(
     "v8_enable_pointer_compression={}",
     env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
   ));
