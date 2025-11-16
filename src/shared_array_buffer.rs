@@ -1,5 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
+use std::ffi::c_void;
+
 use crate::BackingStore;
 use crate::BackingStoreDeleterCallback;
 use crate::Local;
@@ -9,7 +11,6 @@ use crate::scope::GetIsolate;
 use crate::scope::PinScope;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
-use std::ffi::c_void;
 
 unsafe extern "C" {
   fn v8__SharedArrayBuffer__New__with_byte_length(
@@ -20,12 +21,6 @@ unsafe extern "C" {
     isolate: *mut RealIsolate,
     backing_store: *const SharedRef<BackingStore>,
   ) -> *const SharedArrayBuffer;
-  fn v8__SharedArrayBuffer__NewBackingStore__with_data(
-    data: *mut c_void,
-    byte_length: usize,
-    deleter: BackingStoreDeleterCallback,
-    deleter_data: *mut c_void,
-  ) -> *mut BackingStore;
   fn v8__SharedArrayBuffer__ByteLength(this: *const SharedArrayBuffer)
   -> usize;
   fn v8__SharedArrayBuffer__GetBackingStore(
@@ -34,6 +29,12 @@ unsafe extern "C" {
   fn v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
     isolate: *mut RealIsolate,
     byte_length: usize,
+  ) -> *mut BackingStore;
+  fn v8__SharedArrayBuffer__NewBackingStore__with_data(
+    data: *mut c_void,
+    byte_length: usize,
+    deleter: BackingStoreDeleterCallback,
+    deleter_data: *mut c_void,
   ) -> *mut BackingStore;
 }
 
