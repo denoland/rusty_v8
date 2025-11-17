@@ -275,14 +275,6 @@ fn build_v8(is_asan: bool) {
   ));
 
   let extra_args = {
-    if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok()
-      && env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
-    {
-      panic!(
-        "Sandbox and pointer compression cannot be enabled at the same time"
-      );
-    }
-
     if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
       vec![
         // Enable pointer compression (along with its dependencies)
