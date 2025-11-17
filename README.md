@@ -66,7 +66,7 @@ We default to release builds of `v8` due to performance & CI reasons in `deno`.
 
 Tells the build script where to get binary builds from. Understands `http://`
 and `https://` URLs, and file paths. The default is
-https://github.com/denoland/rusty_v8/releases.
+https://github.com/denoland/rusty_v8/releases/download.
 
 File-based mirrors are good for using cached downloads. First, point the
 environment variable to a suitable location:
