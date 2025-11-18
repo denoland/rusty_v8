@@ -185,5 +185,4 @@ class RustObj : public v8::Object::Wrappable {
   ~RustObj();
   void Trace(cppgc::Visitor* visitor) const;
   const char* GetHumanReadableName() const final;
-  uintptr_t data[2];
 };
