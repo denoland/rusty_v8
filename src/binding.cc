@@ -3376,7 +3376,8 @@ const v8::String* v8__ModuleRequest__GetSpecifier(
   return local_to_ptr(self.GetSpecifier());
 }
 
-int v8__ModuleRequest__GetPhase(const v8::ModuleRequest& self) {
+v8::ModuleImportPhase v8__ModuleRequest__GetPhase(
+    const v8::ModuleRequest& self) {
   return self.GetPhase();
 }
 
