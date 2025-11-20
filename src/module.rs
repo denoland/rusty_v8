@@ -574,7 +574,7 @@ impl ModuleRequest {
 
   /// Returns the module import phase for this ModuleRequest.
   #[inline(always)]
-  pub fn get_phase<'o>(&self) -> ModuleImportPhase {
+  pub fn get_phase(&self) -> ModuleImportPhase {
     unsafe { v8__ModuleRequest__GetPhase(self) }
   }
   /// Returns the source code offset of this module request.
