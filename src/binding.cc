@@ -807,6 +807,10 @@ bool v8__Value__IsInt32Array(const v8::Value& self) {
   return self.IsInt32Array();
 }
 
+bool v8__Value__IsFloat16Array(const v8::Value& self) {
+  return self.IsFloat16Array();
+}
+
 bool v8__Value__IsFloat32Array(const v8::Value& self) {
   return self.IsFloat32Array();
 }

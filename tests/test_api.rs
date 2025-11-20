@@ -5892,6 +5892,10 @@ fn typed_array_constructors() {
   assert!(t.is_int32_array());
   assert_eq!(t.length(), 0);
 
+  let t = v8::Float16Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_float16_array());
+  assert_eq!(t.length(), 0);
+
   let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float32_array());
   assert_eq!(t.length(), 0);

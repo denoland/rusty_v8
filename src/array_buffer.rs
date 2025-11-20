@@ -320,6 +320,8 @@ rawable!(i16);
 rawable!(i32);
 #[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(i64);
+rawable!(f32);
+rawable!(f64);
 
 #[cfg(not(feature = "v8_enable_sandbox"))]
 impl<T: Sized> sealed::Rawable for Box<T>

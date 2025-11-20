@@ -1,6 +1,6 @@
 [package]
 name = "v8"
-version = "140.2.0"
+version = "142.1.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -107,7 +107,7 @@ v8_enable_v8_checks = []
 [dependencies]
 bitflags = "2.5"
 paste = "1.0"
-temporal_capi = { version = "0.1.0", features = [ "zoneinfo64" ] }
+temporal_capi = { version = "0.1.0", features = ["zoneinfo64"] }
 
 [build-dependencies]
 miniz_oxide = "0.8.8"
