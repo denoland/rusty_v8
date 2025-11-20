@@ -62,6 +62,7 @@ typed_array!(Uint16Array);
 typed_array!(Int16Array);
 typed_array!(Uint32Array);
 typed_array!(Int32Array);
+typed_array!(Float16Array);
 typed_array!(Float32Array);
 typed_array!(Float64Array);
 typed_array!(BigUint64Array);

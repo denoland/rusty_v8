@@ -173,6 +173,7 @@ struct memory_span_t {
   V(Int16Array)             \
   V(Uint32Array)            \
   V(Int32Array)             \
+  V(Float16Array)           \
   V(Float32Array)           \
   V(Float64Array)           \
   V(BigUint64Array)         \

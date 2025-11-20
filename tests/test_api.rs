@@ -5981,6 +5981,15 @@ fn typed_array_constructors() {
   #[cfg(target_pointer_width = "64")]
   assert_eq!((1 << 51) - 1, v8::Int32Array::MAX_LENGTH);
 
+  let t = v8::Float16Array::new(scope, ab, 0, 0).unwrap();
+  assert!(t.is_float16_array());
+  assert_eq!(t.length(), 0);
+
+  // Float16Array::MAX_LENGTH ought to be 1 << 52 - 1 on 64 bits when heap
+  // sandbox is disabled.
+  #[cfg(target_pointer_width = "64")]
+  assert_eq!((1 << 52) - 1, v8::Float16Array::MAX_LENGTH);
+
   let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float32_array());
   assert_eq!(t.length(), 0);
