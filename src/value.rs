@@ -63,6 +63,7 @@ unsafe extern "C" {
   fn v8__Value__IsInt16Array(this: *const Value) -> bool;
   fn v8__Value__IsUint32Array(this: *const Value) -> bool;
   fn v8__Value__IsInt32Array(this: *const Value) -> bool;
+  fn v8__Value__IsFloat16Array(this: *const Value) -> bool;
   fn v8__Value__IsFloat32Array(this: *const Value) -> bool;
   fn v8__Value__IsFloat64Array(this: *const Value) -> bool;
   fn v8__Value__IsBigInt64Array(this: *const Value) -> bool;
@@ -438,6 +439,12 @@ impl Value {
   #[inline(always)]
   pub fn is_int32_array(&self) -> bool {
     unsafe { v8__Value__IsInt32Array(self) }
+  }
+
+  /// Returns true if this value is a Float16Array.
+  #[inline(always)]
+  pub fn is_float16_array(&self) -> bool {
+    unsafe { v8__Value__IsFloat16Array(self) }
   }
 
   /// Returns true if this value is a Float32Array.

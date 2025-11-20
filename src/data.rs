@@ -1060,6 +1060,26 @@ impl_partial_eq! { ArrayBufferView for BigUint64Array use identity }
 impl_partial_eq! { TypedArray for BigUint64Array use identity }
 impl_partial_eq! { BigUint64Array for BigUint64Array use identity }
 
+/// An instance of Float16Array constructor.
+#[repr(C)]
+#[derive(Debug)]
+pub struct Float16Array(Opaque);
+
+impl_deref! { TypedArray for Float16Array }
+impl_try_from! { Data for Float16Array if v => v.is_value() && cast::<Value>(v).is_float16_array() }
+impl_try_from! { Value for Float16Array if v => v.is_float16_array() }
+impl_try_from! { Object for Float16Array if v => v.is_float16_array() }
+impl_try_from! { ArrayBufferView for Float16Array if v => v.is_float16_array() }
+impl_try_from! { TypedArray for Float16Array if v => v.is_float16_array() }
+impl_eq! { for Float16Array }
+impl_hash! { for Float16Array use get_identity_hash }
+impl_partial_eq! { Data for Float16Array use identity }
+impl_partial_eq! { Value for Float16Array use identity }
+impl_partial_eq! { Object for Float16Array use identity }
+impl_partial_eq! { ArrayBufferView for Float16Array use identity }
+impl_partial_eq! { TypedArray for Float16Array use identity }
+impl_partial_eq! { Float16Array for Float16Array use identity }
+
 /// An instance of Float32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]
 #[derive(Debug)]
