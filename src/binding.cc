@@ -3380,6 +3380,11 @@ const v8::String* v8__ModuleRequest__GetSpecifier(
   return local_to_ptr(self.GetSpecifier());
 }
 
+v8::ModuleImportPhase v8__ModuleRequest__GetPhase(
+    const v8::ModuleRequest& self) {
+  return self.GetPhase();
+}
+
 int v8__ModuleRequest__GetSourceOffset(const v8::ModuleRequest& self) {
   return self.GetSourceOffset();
 }

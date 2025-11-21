@@ -4898,6 +4898,7 @@ fn module_instantiation_failures1() {
     )
     .unwrap();
     assert_eq!("./foo.js", mr1.get_specifier().to_rust_string_lossy(scope));
+    assert_eq!(v8::ModuleImportPhase::kEvaluation, mr1.get_phase());
     let loc = module.source_offset_to_location(mr1.get_source_offset());
     assert_eq!(0, loc.get_line_number());
     assert_eq!(7, loc.get_column_number());
@@ -4908,6 +4909,7 @@ fn module_instantiation_failures1() {
     )
     .unwrap();
     assert_eq!("./bar.js", mr2.get_specifier().to_rust_string_lossy(scope));
+    assert_eq!(v8::ModuleImportPhase::kEvaluation, mr1.get_phase());
     let loc = module.source_offset_to_location(mr2.get_source_offset());
     assert_eq!(1, loc.get_line_number());
     assert_eq!(15, loc.get_column_number());

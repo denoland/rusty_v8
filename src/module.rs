@@ -12,6 +12,7 @@ use crate::Object;
 use crate::String;
 use crate::UnboundModuleScript;
 use crate::Value;
+use crate::isolate::ModuleImportPhase;
 use crate::isolate::RealIsolate;
 use crate::scope::GetIsolate;
 use crate::scope::PinScope;
@@ -255,6 +256,9 @@ unsafe extern "C" {
   fn v8__ModuleRequest__GetSpecifier(
     this: *const ModuleRequest,
   ) -> *const String;
+  fn v8__ModuleRequest__GetPhase(
+    this: *const ModuleRequest,
+  ) -> ModuleImportPhase;
   fn v8__ModuleRequest__GetSourceOffset(this: *const ModuleRequest) -> int;
   fn v8__ModuleRequest__GetImportAttributes(
     this: *const ModuleRequest,
@@ -568,6 +572,11 @@ impl ModuleRequest {
     unsafe { Local::from_raw(v8__ModuleRequest__GetSpecifier(self)) }.unwrap()
   }
 
+  /// Returns the module import phase for this ModuleRequest.
+  #[inline(always)]
+  pub fn get_phase(&self) -> ModuleImportPhase {
+    unsafe { v8__ModuleRequest__GetPhase(self) }
+  }
   /// Returns the source code offset of this module request.
   /// Use Module::source_offset_to_location to convert this to line/column numbers.
   #[inline(always)]
