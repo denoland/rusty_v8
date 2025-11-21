@@ -118,7 +118,10 @@ impl SharedArrayBuffer {
   ///
   /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  ///
+  /// Not available in Sandbox Mode, see new_backing_store_from_bytes for a potential alternative
   #[inline(always)]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   pub fn new_backing_store_from_boxed_slice(
     data: Box<[u8]>,
   ) -> UniqueRef<BackingStore> {
@@ -132,7 +135,10 @@ impl SharedArrayBuffer {
   ///
   /// The result can be later passed to SharedArrayBuffer::New. The raw pointer
   /// to the buffer must not be passed again to any V8 API function.
+  ///
+  /// Not available in Sandbox Mode, see new_backing_store_from_bytes for a potential alternative
   #[inline(always)]
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   pub fn new_backing_store_from_vec(data: Vec<u8>) -> UniqueRef<BackingStore> {
     Self::new_backing_store_from_bytes(data)
   }
@@ -145,6 +151,12 @@ impl SharedArrayBuffer {
   /// `Box<[u8]>`, and `Vec<u8>`. This will also support most other mutable bytes containers (including `bytes::BytesMut`),
   /// though these buffers will need to be boxed to manage ownership of memory.
   ///
+  /// Not available in sandbox mode. Sandbox mode requires data to be allocated
+  /// within the sandbox's address space. Within sandbox mode, consider the below alternatives:
+  ///
+  /// 1. consider using new_backing_store and BackingStore::data() followed by doing a std::ptr::copy to copy the data into a BackingStore.
+  /// 2. If you truly do have data that is allocated inside the sandbox address space, consider using the unsafe new_backing_store_from_ptr API
+  ///
   /// ```
   /// // Vector of bytes
   /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(vec![1, 2, 3]);
@@ -154,6 +166,7 @@ impl SharedArrayBuffer {
   /// // BytesMut from bytes crate
   /// let backing_store = v8::ArrayBuffer::new_backing_store_from_bytes(Box::new(bytes::BytesMut::new()));
   /// ```
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   #[inline(always)]
   pub fn new_backing_store_from_bytes<T>(
     mut bytes: T,
@@ -173,9 +186,7 @@ impl SharedArrayBuffer {
       data: *mut c_void,
     ) {
       // SAFETY: We know that data is a raw T from above
-      unsafe {
-        <T as crate::array_buffer::sealed::Rawable>::drop_raw(data as _, len);
-      }
+      unsafe { T::drop_raw(data as _, len) }
     }
 
     // SAFETY: We are extending the lifetime of a slice, but we're locking away the box that we
@@ -190,10 +201,16 @@ impl SharedArrayBuffer {
     }
   }
 
-  /// Returns a new standalone shared BackingStore backed by given ptr.
+  /// Returns a new standalone BackingStore backed by given ptr.
   ///
   /// SAFETY: This API consumes raw pointers so is inherently
   /// unsafe. Usually you should use new_backing_store_from_boxed_slice.
+  ///
+  /// WARNING: Using sandbox mode has extra limitations that may cause crashes
+  /// or memory safety violations if this API is used incorrectly:
+  ///
+  /// 1. Sandbox mode requires data to be allocated within the sandbox's address space.
+  /// 2. It is very easy to cause memory safety errors when using this API with sandbox mode
   #[inline(always)]
   pub unsafe fn new_backing_store_from_ptr(
     data_ptr: *mut c_void,
