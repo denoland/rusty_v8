@@ -86,22 +86,6 @@ unsafe extern "C" {
   ) -> *mut RustObj;
 }
 
-unsafe fn get_rust_obj<'s>(obj: *const RustObj) -> &'s dyn GarbageCollected {
-  unsafe {
-    &*std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>((*obj).data)
-  }
-}
-
-unsafe fn get_rust_obj_mut<'s>(
-  obj: *mut RustObj,
-) -> &'s mut dyn GarbageCollected {
-  unsafe {
-    &mut *std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>(
-      (*obj).data,
-    )
-  }
-}
-
 #[unsafe(no_mangle)]
 unsafe extern "C" fn rusty_v8_RustObj_trace(
   obj: *const RustObj,
@@ -127,25 +111,6 @@ unsafe extern "C" fn rusty_v8_RustObj_drop(obj: *mut RustObj) {
     let r = get_rust_obj_mut(obj);
     std::ptr::drop_in_place(r);
   }
-}
-
-fn object_offset_for_rust_obj<T: GarbageCollected>() -> usize {
-  #[repr(C)]
-  struct Calc<T> {
-    header: RustObj,
-    data: T,
-  }
-
-  std::mem::offset_of!(Calc<T>, data)
-}
-
-/// # Safety
-///
-/// T must be the correct type for this specific RustObj
-unsafe fn get_object_from_rust_obj<T: GarbageCollected>(
-  rust_obj: *const RustObj,
-) -> *mut T {
-  unsafe { rust_obj.byte_add(object_offset_for_rust_obj::<T>()) as *mut T }
 }
 
 /// Process-global initialization of the garbage collector. Must be called before
@@ -357,6 +322,29 @@ pub unsafe trait GarbageCollected {
   fn get_name(&self) -> &'static CStr;
 }
 
+#[repr(C)]
+struct RustObjConcrete<T> {
+  head: RustObj,
+  dynamic: *mut dyn GarbageCollected,
+  value: T,
+}
+
+unsafe fn get_rust_obj<'s>(obj: *const RustObj) -> &'s dyn GarbageCollected {
+  unsafe {
+    let obj = &*(obj as *const RustObjConcrete<()>);
+    &*obj.dynamic
+  }
+}
+
+unsafe fn get_rust_obj_mut<'s>(
+  obj: *mut RustObj,
+) -> &'s mut dyn GarbageCollected {
+  unsafe {
+    let obj = &mut *(obj as *mut RustObjConcrete<()>);
+    &mut *obj.dynamic
+  }
+}
+
 /// Constructs an instance of T, which is a garbage collected type.
 ///
 /// The object will be allocated on the heap and managed by cppgc. During
@@ -376,35 +364,79 @@ pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
   const {
     // max alignment in cppgc is 16
     assert!(std::mem::align_of::<T>() <= 16);
+    assert!(
+      std::mem::offset_of!(RustObjConcrete<T>, dynamic)
+        == std::mem::offset_of!(RustObjConcrete<()>, dynamic)
+    );
   }
 
-  let additional_bytes = (object_offset_for_rust_obj::<T>()
-    - std::mem::size_of::<RustObj>())
-    + std::mem::size_of::<T>();
+  let additional_bytes =
+    std::mem::size_of::<RustObjConcrete<T>>() - std::mem::size_of::<RustObj>();
 
   let pointer = unsafe {
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
       additional_bytes,
-      std::mem::align_of::<T>(),
+      std::mem::align_of::<RustObjConcrete<T>>(),
     )
   };
 
   assert!(!pointer.is_null());
 
   unsafe {
-    let inner = get_object_from_rust_obj::<T>(pointer);
-    inner.write(obj);
-
-    let rust_obj = &mut *pointer;
-    rust_obj.data = std::mem::transmute::<*mut dyn GarbageCollected, [usize; 2]>(
-      &mut *inner as &mut dyn GarbageCollected as *mut dyn GarbageCollected,
-    );
+    let pointer = &mut *(pointer as *mut RustObjConcrete<T>);
+    let value_ptr = std::ptr::addr_of_mut!(pointer.value);
+    value_ptr.write(obj);
+    std::ptr::addr_of_mut!(pointer.dynamic).write(value_ptr as _);
   }
 
   UnsafePtr {
     pointer: unsafe { NonNull::new_unchecked(pointer) },
     _phantom: PhantomData,
+  }
+}
+
+/// # Safety
+///
+/// T must be the correct type for this specific RustObj
+unsafe fn get_value_from_rust_obj<T: GarbageCollected>(
+  obj: *mut RustObj,
+) -> *const T {
+  unsafe {
+    let obj = &mut *(obj as *mut RustObjConcrete<T>);
+    std::ptr::addr_of_mut!(obj.value)
+  }
+}
+
+/// UnsafePtr is used to refer to an on-heap object from the stack.
+#[derive(Clone, Copy)]
+pub struct UnsafePtr<T: GarbageCollected> {
+  pointer: NonNull<RustObj>,
+  _phantom: PhantomData<T>,
+}
+
+impl<T: GarbageCollected> UnsafePtr<T> {
+  /// Create a new UnsafePtr.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that the returned pointer is always stored on
+  /// the stack, or is safely moved into one of the other cppgc pointer types.
+  pub unsafe fn new(value: &impl GetRustObj<T>) -> Option<UnsafePtr<T>> {
+    NonNull::new(value.get_rust_obj()).map(|pointer| UnsafePtr {
+      pointer,
+      _phantom: PhantomData,
+    })
+  }
+
+  pub unsafe fn as_ref(&self) -> &T {
+    unsafe { &*get_value_from_rust_obj(self.pointer.as_ptr()) }
+  }
+}
+
+impl<T: GarbageCollected> GetRustObj<T> for UnsafePtr<T> {
+  fn get_rust_obj(&self) -> *mut RustObj {
+    self.pointer.as_ptr()
   }
 }
 
@@ -509,7 +541,7 @@ macro_rules! member {
             // SAFETY: Either this is a strong reference and the pointer is valid according
             // to the safety contract of this method, or this is a weak reference and the
             // ptr will be null if it was collected.
-            Some(unsafe { &*get_object_from_rust_obj(ptr) })
+            Some(unsafe { &*get_value_from_rust_obj(ptr) })
           }
         }
       }
@@ -607,7 +639,7 @@ macro_rules! persistent {
           } else {
             // SAFETY: Either this is a strong reference and the pointer is always valid
             // or this is a weak reference and the ptr will be null if it was collected.
-            Some(unsafe { &*get_object_from_rust_obj(ptr) })
+            Some(unsafe { &*get_value_from_rust_obj(ptr) })
           }
         }
 
@@ -659,40 +691,6 @@ persistent! {
   /// collected. WeakPersistent must be constructed and destructed in the same
   /// thread.
   WeakPersistent
-}
-
-/// UnsafePtr is used to refer to an on-heap object from the stack.
-#[derive(Clone, Copy)]
-pub struct UnsafePtr<T: GarbageCollected> {
-  pointer: NonNull<RustObj>,
-  _phantom: PhantomData<T>,
-}
-
-impl<T: GarbageCollected> UnsafePtr<T> {
-  /// Create a new UnsafePtr.
-  ///
-  /// # Safety
-  ///
-  /// The caller must ensure that the returned pointer is always stored on
-  /// the stack, or is safely moved into one of the other cppgc pointer types.
-  pub unsafe fn new(other: &impl GetRustObj<T>) -> Option<Self> {
-    NonNull::new(other.get_rust_obj()).map(|pointer| Self {
-      pointer,
-      _phantom: PhantomData,
-    })
-  }
-}
-
-impl<T: GarbageCollected> UnsafePtr<T> {
-  pub unsafe fn as_ref(&self) -> &T {
-    unsafe { &*get_object_from_rust_obj(self.pointer.as_ptr()) }
-  }
-}
-
-impl<T: GarbageCollected> GetRustObj<T> for UnsafePtr<T> {
-  fn get_rust_obj(&self) -> *mut RustObj {
-    self.pointer.as_ptr()
-  }
 }
 
 /// `GcCell` is a zero-overhead memory cell that provides interior mutability

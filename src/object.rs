@@ -768,7 +768,6 @@ impl Object {
   /// # Safety
   ///
   /// The `TAG` must be unique to the caller within the heap.
-  #[allow(clippy::not_unsafe_ptr_arg_deref)]
   #[inline(always)]
   pub unsafe fn wrap<const TAG: u16, T: GarbageCollected>(
     isolate: &mut Isolate,
