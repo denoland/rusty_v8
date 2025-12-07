@@ -320,7 +320,9 @@ rawable!(i16);
 rawable!(i32);
 #[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(i64);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(f32);
+#[cfg(not(feature = "v8_enable_sandbox"))]
 rawable!(f64);
 
 #[cfg(not(feature = "v8_enable_sandbox"))]
