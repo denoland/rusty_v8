@@ -95,7 +95,7 @@ pub struct ContextOptions<'s> {
 
 impl Context {
   const ANNEX_SLOT: int = 1;
-  const INTERNAL_SLOT_COUNT: int = 1;
+  const INTERNAL_SLOT_COUNT: int = 2;
 
   /// Creates a new context.
   #[inline(always)]
