@@ -5731,9 +5731,9 @@ fn snapshot_creator_context_embedder_data() {
       let context = v8::Context::new(&scope, Default::default());
       let scope = &mut v8::ContextScope::new(&mut scope, context);
       let x = eval(scope, "({ prop: 1 })").unwrap();
-      context.set_embedder_data(1, x);
+      context.set_embedder_data(0, x);
       {
-        let value = context.get_embedder_data(scope, 1).unwrap();
+        let value = context.get_embedder_data(scope, 0).unwrap();
         let key = v8::String::new(scope, "prop").unwrap();
         let prop = value.cast::<v8::Object>().get(scope, key.into()).unwrap();
         let one_val = v8::Number::new(scope, 1.0).into();
@@ -5761,7 +5761,7 @@ fn snapshot_creator_context_embedder_data() {
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       {
-        let value = context.get_embedder_data(scope, 1).unwrap();
+        let value = context.get_embedder_data(scope, 0).unwrap();
         let key = v8::String::new(scope, "prop").unwrap();
         let prop = value.cast::<v8::Object>().get(scope, key.into()).unwrap();
         let one_val = v8::Number::new(scope, 1.0).into();
@@ -5789,7 +5789,7 @@ fn snapshot_creator_context_embedder_data() {
       let context = v8::Context::new(scope, Default::default());
       let scope = &mut v8::ContextScope::new(scope, context);
       {
-        let value = context.get_embedder_data(scope, 1).unwrap();
+        let value = context.get_embedder_data(scope, 0).unwrap();
         let key = v8::String::new(scope, "prop").unwrap();
         let prop = value.cast::<v8::Object>().get(scope, key.into()).unwrap();
         let one_val = v8::Number::new(scope, 1.0).into();
