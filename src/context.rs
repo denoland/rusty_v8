@@ -95,7 +95,7 @@ pub struct ContextOptions<'s> {
 
 impl Context {
   const ANNEX_SLOT: int = 1;
-  const INTERNAL_SLOT_COUNT: int = 1;
+  const INTERNAL_SLOT_COUNT: int = 2;
 
   /// Creates a new context.
   #[inline(always)]
@@ -316,8 +316,15 @@ impl Context {
   /// Note that index 0 currently has a special meaning for Chrome's debugger.
   #[inline(always)]
   pub fn set_embedder_data(&self, slot: i32, data: Local<'_, Value>) {
+    // Initialize the annex when slot count > INTERNAL_SLOT_COUNT.
+    self.get_annex_mut(true);
+
     unsafe {
-      v8__Context__SetEmbedderData(self, slot, &*data);
+      v8__Context__SetEmbedderData(
+        self,
+        slot + Self::INTERNAL_SLOT_COUNT,
+        &*data,
+      );
     }
   }
 
@@ -329,7 +336,11 @@ impl Context {
     scope: &PinScope<'s, '_, ()>,
     slot: i32,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
+    unsafe {
+      scope.cast_local(|_| {
+        v8__Context__GetEmbedderData(self, slot + Self::INTERNAL_SLOT_COUNT)
+      })
+    }
   }
 
   #[inline(always)]
