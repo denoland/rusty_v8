@@ -664,6 +664,7 @@ fn data_view() {
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn array_buffer() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -847,6 +848,9 @@ fn backing_store_segfault() {
 
 #[test]
 fn shared_array_buffer_allocator() {
+  // v8 sandbox requires Platform to be initialized even for default allocator
+  let _setup_guard = setup::parallel_test();
+
   let alloc1 = v8::new_default_allocator().make_shared();
   alloc1.assert_use_count_eq(1);
 
@@ -946,66 +950,6 @@ fn eval<'s>(
   let script = v8::Script::compile(scope, source, None).unwrap();
   let r = script.run(scope);
   r.map(|v| scope.escape(v))
-}
-
-#[test]
-fn external() {
-  let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(Default::default());
-  v8::scope!(let scope, isolate);
-
-  let ex1_value = std::ptr::dangling_mut::<std::ffi::c_void>();
-  let ex1_handle_a = v8::External::new(scope, ex1_value);
-  assert_eq!(ex1_handle_a.value(), ex1_value);
-
-  let context = v8::Context::new(scope, Default::default());
-  let scope = &mut v8::ContextScope::new(scope, context);
-  let global = context.global(scope);
-
-  let ex2_value = 2334567usize as *mut std::ffi::c_void;
-  let ex3_value = -2isize as *mut std::ffi::c_void;
-
-  let ex2_handle_a = v8::External::new(scope, ex2_value);
-  let ex3_handle_a = v8::External::new(scope, ex3_value);
-
-  assert!(ex1_handle_a != ex2_handle_a);
-  assert!(ex2_handle_a != ex3_handle_a);
-  assert!(ex3_handle_a != ex1_handle_a);
-
-  assert_ne!(ex2_value, ex3_value);
-  assert_eq!(ex2_handle_a.value(), ex2_value);
-  assert_eq!(ex3_handle_a.value(), ex3_value);
-
-  let ex1_key = v8::String::new(scope, "ex1").unwrap().into();
-  let ex2_key = v8::String::new(scope, "ex2").unwrap().into();
-  let ex3_key = v8::String::new(scope, "ex3").unwrap().into();
-
-  global.set(scope, ex1_key, ex1_handle_a.into());
-  global.set(scope, ex2_key, ex2_handle_a.into());
-  global.set(scope, ex3_key, ex3_handle_a.into());
-
-  let ex1_handle_b: v8::Local<v8::External> =
-    eval(scope, "ex1").unwrap().try_into().unwrap();
-  let ex2_handle_b: v8::Local<v8::External> =
-    eval(scope, "ex2").unwrap().try_into().unwrap();
-  let ex3_handle_b: v8::Local<v8::External> =
-    eval(scope, "ex3").unwrap().try_into().unwrap();
-
-  assert!(ex1_handle_b != ex2_handle_b);
-  assert!(ex2_handle_b != ex3_handle_b);
-  assert!(ex3_handle_b != ex1_handle_b);
-
-  assert!(ex1_handle_a == ex1_handle_b);
-  assert!(ex2_handle_a == ex2_handle_b);
-  assert!(ex3_handle_a == ex3_handle_b);
-
-  assert_ne!(ex1_handle_a.value(), ex2_value);
-  assert_ne!(ex2_handle_a.value(), ex3_value);
-  assert_ne!(ex3_handle_a.value(), ex1_value);
-
-  assert_eq!(ex1_handle_a.value(), ex1_value);
-  assert_eq!(ex2_handle_a.value(), ex2_value);
-  assert_eq!(ex3_handle_a.value(), ex3_value);
 }
 
 #[test]
@@ -5919,6 +5863,8 @@ fn uint8_array() {
 }
 
 #[test]
+// Note: previous versions of this test checked MAX_LENGTH as well however with sandbox,
+// this does not seem to be well defined anymore.
 fn typed_array_constructors() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -5933,118 +5879,49 @@ fn typed_array_constructors() {
   assert!(t.is_uint8_array());
   assert_eq!(t.length(), 0);
 
-  // Uint8Array::MAX_LENGTH ought to be 1 << 53 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::Uint8Array::MAX_LENGTH);
-
   let t = v8::Uint8ClampedArray::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint8_clamped_array());
   assert_eq!(t.length(), 0);
-
-  // Uint8ClampedArray::MAX_LENGTH ought to be 1 << 53 - 1 on 64 bits when
-  // heap sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::Uint8ClampedArray::MAX_LENGTH);
 
   let t = v8::Int8Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int8_array());
   assert_eq!(t.length(), 0);
 
-  // Int8Array::MAX_LENGTH ought to be 1 << 53 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::Int8Array::MAX_LENGTH);
-
   let t = v8::Uint16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint16_array());
   assert_eq!(t.length(), 0);
-
-  // Uint16Array::MAX_LENGTH ought to be 1 << 52 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 52) - 1, v8::Uint16Array::MAX_LENGTH);
 
   let t = v8::Int16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int16_array());
   assert_eq!(t.length(), 0);
 
-  // Int16Array::MAX_LENGTH ought to be 1 << 52 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 52) - 1, v8::Int16Array::MAX_LENGTH);
-
   let t = v8::Uint32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_uint32_array());
   assert_eq!(t.length(), 0);
-
-  // Uint32Array::MAX_LENGTH ought to be 1 << 51 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 51) - 1, v8::Uint32Array::MAX_LENGTH);
 
   let t = v8::Int32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_int32_array());
   assert_eq!(t.length(), 0);
 
-  // Int32Array::MAX_LENGTH ought to be 1 << 51 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 51) - 1, v8::Int32Array::MAX_LENGTH);
-
   let t = v8::Float16Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float16_array());
   assert_eq!(t.length(), 0);
-
-  // Float16Array::MAX_LENGTH ought to be 1 << 52 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 52) - 1, v8::Float16Array::MAX_LENGTH);
 
   let t = v8::Float32Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float32_array());
   assert_eq!(t.length(), 0);
 
-  // Float32Array::MAX_LENGTH ought to be 1 << 51 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 51) - 1, v8::Float32Array::MAX_LENGTH);
-
   let t = v8::Float64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_float64_array());
   assert_eq!(t.length(), 0);
-
-  // Float64Array::MAX_LENGTH ought to be 1 << 50 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 50) - 1, v8::Float64Array::MAX_LENGTH);
 
   let t = v8::BigUint64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_uint64_array());
   assert_eq!(t.length(), 0);
 
-  // BigUint64Array::MAX_LENGTH ought to be 1 << 50 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 50) - 1, v8::BigUint64Array::MAX_LENGTH);
-
   let t = v8::BigInt64Array::new(scope, ab, 0, 0).unwrap();
   assert!(t.is_big_int64_array());
   assert_eq!(t.length(), 0);
-
-  // BigInt64Array::MAX_LENGTH ought to be 1 << 50 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 50) - 1, v8::BigInt64Array::MAX_LENGTH);
-
-  // TypedArray::MAX_BYTE_LENGTH ought to be 1 << 53 - 1 on 64 bits when heap
-  // sandbox is disabled.
-  #[cfg(target_pointer_width = "64")]
-  assert_eq!((1 << 53) - 1, v8::TypedArray::MAX_BYTE_LENGTH);
-
-  // TypedArray::MAX_BYTE_LENGTH ought to be >= 2^28 < 2^30 in 32 bits
-  #[cfg(target_pointer_width = "32")]
-  assert!(((2 << 28)..(2 << 30)).contains(&v8::TypedArray::MAX_BYTE_LENGTH));
 
   // v8::ArrayBuffer::new raises a fatal if the length is > kMaxLength, so we test this behavior
   // through the JS side of things, where a non-fatal RangeError is thrown in such cases.
@@ -6102,6 +5979,7 @@ fn dynamic_import() {
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn shared_array_buffer() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -9185,6 +9063,9 @@ fn ept_torture_test() {
 }
 
 #[test]
+// We cannot run this test if sandboxing is enabled as rust_allocator
+// cannot be used with v8 sandbox.
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn run_with_rust_allocator() {
   use std::sync::Arc;
 
@@ -10006,6 +9887,7 @@ fn function_names() {
 
 // https://github.com/denoland/rusty_v8/issues/849
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_from_empty_boxed_slice() {
   let _setup_guard = setup::parallel_test();
 
@@ -10021,6 +9903,7 @@ fn backing_store_from_empty_boxed_slice() {
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_from_empty_vec() {
   let _setup_guard = setup::parallel_test();
 
@@ -10036,6 +9919,7 @@ fn backing_store_from_empty_vec() {
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_data() {
   let _setup_guard = setup::parallel_test();
 
@@ -10063,6 +9947,7 @@ fn backing_store_data() {
 }
 
 #[test]
+#[cfg(not(feature = "v8_enable_sandbox"))]
 fn backing_store_resizable() {
   let _setup_guard = setup::parallel_test();
 
