@@ -1273,6 +1273,11 @@ fn add_message_listener() {
     assert_eq!(4, frame.get_script_id());
     assert!(frame.get_script_name(scope).is_none());
     assert!(frame.get_script_name_or_source_url(scope).is_none());
+    assert_eq!(
+      frame.get_script_source(scope).unwrap(),
+      v8::String::new(scope, SOURCE).unwrap()
+    );
+    assert!(frame.get_script_source_mapping_url(scope).is_none());
     assert!(frame.get_function_name(scope).is_none());
     assert!(!frame.is_eval());
     assert!(!frame.is_constructor());
@@ -1282,12 +1287,14 @@ fn add_message_listener() {
   }
   isolate.add_message_listener(check_message_0);
 
+  const SOURCE: &str = "throw 'foo'";
+
   {
     v8::scope!(let scope, isolate);
 
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
-    let source = v8::String::new(scope, "throw 'foo'").unwrap();
+    let source = v8::String::new(scope, SOURCE).unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     assert!(script.run(scope).is_none());
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);

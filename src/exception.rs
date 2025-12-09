@@ -57,6 +57,10 @@ unsafe extern "C" {
   fn v8__StackFrame__GetScriptNameOrSourceURL(
     this: *const StackFrame,
   ) -> *const String;
+  fn v8__StackFrame__GetScriptSource(this: *const StackFrame) -> *const String;
+  fn v8__StackFrame__GetScriptSourceMappingURL(
+    this: *const StackFrame,
+  ) -> *const String;
   fn v8__StackFrame__GetFunctionName(this: *const StackFrame) -> *const String;
   fn v8__StackFrame__IsEval(this: *const StackFrame) -> bool;
   fn v8__StackFrame__IsConstructor(this: *const StackFrame) -> bool;
@@ -187,6 +191,27 @@ impl StackFrame {
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|_| v8__StackFrame__GetScriptNameOrSourceURL(self))
+    }
+  }
+
+  /// Returns the source of the script for the function for this StackFrame.
+  #[inline(always)]
+  pub fn get_script_source<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+  ) -> Option<Local<'s, String>> {
+    unsafe { scope.cast_local(|_| v8__StackFrame__GetScriptSource(self)) }
+  }
+
+  /// Returns the source mapping URL (if one is present) of the script for
+  /// the function for this StackFrame.
+  #[inline(always)]
+  pub fn get_script_source_mapping_url<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|_| v8__StackFrame__GetScriptSourceMappingURL(self))
     }
   }
 
