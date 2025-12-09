@@ -1127,33 +1127,16 @@ int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
   return self.Utf8LengthV2(isolate);
 }
 
-int v8__String__Write(const v8::String& self, v8::Isolate* isolate,
-                      uint16_t* buffer, int start, int length, int options) {
-  return self.Write(isolate, buffer, start, length, options);
-}
-
 void v8__String__Write_v2(const v8::String& self, v8::Isolate* isolate,
                           uint32_t offset, uint32_t length, uint16_t* buffer,
                           int flags) {
   return self.WriteV2(isolate, offset, length, buffer, flags);
 }
 
-int v8__String__WriteOneByte(const v8::String& self, v8::Isolate* isolate,
-                             uint8_t* buffer, int start, int length,
-                             int options) {
-  return self.WriteOneByte(isolate, buffer, start, length, options);
-}
-
 void v8__String__WriteOneByte_v2(const v8::String& self, v8::Isolate* isolate,
                                  uint32_t offset, uint32_t length,
                                  uint8_t* buffer, int flags) {
   return self.WriteOneByteV2(isolate, offset, length, buffer, flags);
-}
-
-int v8__String__WriteUtf8(const v8::String& self, v8::Isolate* isolate,
-                          char* buffer, int length, int* nchars_ref,
-                          int options) {
-  return self.WriteUtf8(isolate, buffer, length, nchars_ref, options);
 }
 
 size_t v8__String__WriteUtf8_v2(const v8::String& self, v8::Isolate* isolate,
@@ -3806,8 +3789,8 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 extern "C" {
 
 size_t icu_get_default_locale(char* output, size_t output_len) {
-  const icu_74::Locale& default_locale = icu::Locale::getDefault();
-  icu_74::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
+  const icu_77::Locale& default_locale = icu::Locale::getDefault();
+  icu_77::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
   UErrorCode status = U_ZERO_ERROR;
   default_locale.toLanguageTag(sink, status);
   assert(status == U_ZERO_ERROR);
