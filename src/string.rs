@@ -534,30 +534,6 @@ impl String {
 
   /// Writes the contents of the string to an external buffer, as UTF-8.
   #[inline(always)]
-  #[deprecated = "Use `v8::String::write_utf8_v2` instead."]
-  pub fn write_utf8(
-    &self,
-    scope: &mut Isolate,
-    buffer: &mut [u8],
-    nchars_ref: Option<&mut usize>,
-    options: WriteOptions,
-  ) -> usize {
-    unsafe {
-      // SAFETY:
-      // We assume that v8 will overwrite the buffer without de-initializing any byte in it.
-      // So the type casting of the buffer is safe.
-      let buffer = {
-        let len = buffer.len();
-        let data = buffer.as_mut_ptr().cast();
-        slice::from_raw_parts_mut(data, len)
-      };
-      #[allow(deprecated)]
-      self.write_utf8_uninit(scope, buffer, nchars_ref, options)
-    }
-  }
-
-  /// Writes the contents of the string to an external buffer, as UTF-8.
-  #[inline(always)]
   pub fn write_utf8_v2(
     &self,
     scope: &Isolate,
@@ -582,32 +558,6 @@ impl String {
         processed_characters_return,
       )
     }
-  }
-
-  /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
-  #[deprecated = "Use `v8::String::write_utf8_uninit_v2` instead."]
-  pub fn write_utf8_uninit(
-    &self,
-    scope: &Isolate,
-    buffer: &mut [MaybeUninit<u8>],
-    nchars_ref: Option<&mut usize>,
-    options: WriteOptions,
-  ) -> usize {
-    let mut nchars_ref_int: int = 0;
-    let bytes = unsafe {
-      v8__String__WriteUtf8(
-        self,
-        scope.as_real_ptr(),
-        buffer.as_mut_ptr() as *mut char,
-        buffer.len().try_into().unwrap_or(int::MAX),
-        &mut nchars_ref_int,
-        options,
-      )
-    };
-    if let Some(r) = nchars_ref {
-      *r = nchars_ref_int as usize;
-    }
-    bytes as usize
   }
 
   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.

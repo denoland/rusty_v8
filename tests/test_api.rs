@@ -46,7 +46,7 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
-      assert!(v8::icu::set_common_data_74(align_data::include_aligned!(
+      assert!(v8::icu::set_common_data_77(align_data::include_aligned!(
         align_data::Align16,
         "../third_party/icu/common/icudtl.dat"
       ))
@@ -9283,7 +9283,7 @@ fn icu_date() {
 #[test]
 fn icu_set_common_data_fail() {
   assert!(
-    v8::icu::set_common_data_74(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
+    v8::icu::set_common_data_77(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
   );
 }
 
@@ -11026,15 +11026,11 @@ fn test_fast_calls_typedarray() {
 
 #[test]
 fn test_fast_calls_reciever() {
-  const V8_WRAPPER_TYPE_INDEX: i32 = 0;
-  const V8_WRAPPER_OBJECT_INDEX: i32 = 1;
-
   static mut WHO: &str = "none";
   fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
     unsafe {
       WHO = "fast";
-      let embedder_obj =
-        recv.get_aligned_pointer_from_internal_field(V8_WRAPPER_OBJECT_INDEX);
+      let embedder_obj = recv.get_aligned_pointer_from_internal_field(0);
 
       let i = *(embedder_obj as *const u32);
       assert_eq!(i, 69);
@@ -11061,29 +11057,18 @@ fn test_fast_calls_reciever() {
   }
 
   let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(
-    v8::CreateParams::default().embedder_wrapper_type_info_offsets(
-      V8_WRAPPER_TYPE_INDEX,
-      V8_WRAPPER_OBJECT_INDEX,
-    ),
-  );
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
   v8::scope!(let scope, isolate);
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let object_template = v8::ObjectTemplate::new(scope);
-  assert!(
-    object_template
-      .set_internal_field_count((V8_WRAPPER_OBJECT_INDEX + 1) as usize)
-  );
+  assert!(object_template.set_internal_field_count(1));
 
   let obj = object_template.new_instance(scope).unwrap();
   let embedder_obj = Box::into_raw(Box::new(69u32));
-  obj.set_aligned_pointer_in_internal_field(
-    V8_WRAPPER_OBJECT_INDEX,
-    embedder_obj as _,
-  );
+  obj.set_aligned_pointer_in_internal_field(0, embedder_obj as _);
 
   let template =
     v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
