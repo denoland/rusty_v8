@@ -27,6 +27,8 @@ fn main() {
   // probably more than what is needed, but missing an important
   // variable can lead to broken links when switching rusty_v8
   // versions.
+  let target = env::var("TARGET").unwrap().replace("-", "_");
+  let rusty_v8_archive_target = format!("RUSTY_V8_ARCHIVE_{target}");
   let envs = vec![
     "CCACHE",
     "CLANG_BASE_PATH",
@@ -39,6 +41,7 @@ fn main() {
     "NINJA",
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
+    rusty_v8_archive_target.as_str(),
     "RUSTY_V8_MIRROR",
     "RUSTY_V8_SRC_BINDING_PATH",
     "SCCACHE",
@@ -547,6 +550,11 @@ fn static_lib_name(suffix: &str) -> String {
 }
 
 fn static_lib_url() -> String {
+  let target = env::var("TARGET").unwrap();
+  let rusty_v8_archive_target = format!("RUSTY_V8_ARCHIVE_{target}");
+  if let Ok(custom_archive) = env::var(rusty_v8_archive_target) {
+    return custom_archive;
+  }
   if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
     return custom_archive;
   }
