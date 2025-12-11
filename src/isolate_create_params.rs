@@ -8,7 +8,6 @@ use crate::support::Opaque;
 use crate::support::SharedPtr;
 use crate::support::UniqueRef;
 use crate::support::char;
-use crate::support::int;
 use crate::support::intptr_t;
 
 use std::any::Any;
@@ -114,19 +113,6 @@ impl CreateParams {
     self
   }
 
-  /// The following parameters describe the offsets for addressing type info
-  /// for wrapped API objects and are used by the fast C API
-  /// (for details see v8-fast-api-calls.h).
-  pub fn embedder_wrapper_type_info_offsets(
-    mut self,
-    embedder_wrapper_type_index: int,
-    embedder_wrapper_object_index: int,
-  ) -> Self {
-    self.raw.embedder_wrapper_type_index = embedder_wrapper_type_index;
-    self.raw.embedder_wrapper_object_index = embedder_wrapper_object_index;
-    self
-  }
-
   /// Configures the constraints with reasonable default values based on the
   /// provided lower and upper bounds.
   ///
@@ -217,8 +203,6 @@ struct CreateParamAllocations {
 #[test]
 fn create_param_defaults() {
   let params = CreateParams::default();
-  assert_eq!(params.raw.embedder_wrapper_type_index, -1);
-  assert_eq!(params.raw.embedder_wrapper_object_index, -1);
   assert!(params.raw.allow_atomics_wait);
 }
 
@@ -238,8 +222,6 @@ pub(crate) mod raw {
     pub array_buffer_allocator_shared: SharedPtr<ArrayBufferAllocator>,
     pub external_references: *const intptr_t,
     pub allow_atomics_wait: bool,
-    pub embedder_wrapper_type_index: int,
-    pub embedder_wrapper_object_index: int,
     _fatal_error_handler: *const Opaque, // FatalErrorCallback
     _oom_error_handler: *const Opaque,   // OOMErrorCallback
     pub cpp_heap: *const Heap,
