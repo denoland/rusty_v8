@@ -231,6 +231,7 @@ impl<C> ScopeInit for HandleScope<'_, C> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     unsafe {
       let isolate = storage_mut.scope.isolate;
+      Isolate::from_raw_ptr_unchecked(isolate.as_ptr()).enter();
       raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate)
     };
 
@@ -241,7 +242,10 @@ impl<C> ScopeInit for HandleScope<'_, C> {
   }
 
   unsafe fn deinit(me: &mut Self) {
-    unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
+    unsafe {
+      Isolate::from_raw_ptr_unchecked(me.isolate.as_ptr()).exit();
+      raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope)
+    };
   }
 }
 
@@ -1413,6 +1417,7 @@ impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     unsafe {
       let isolate = storage_mut.scope.isolate;
+      Isolate::from_raw_ptr_unchecked(isolate.as_ptr()).enter();
       raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate);
     }
     let projected = &mut storage_mut.scope;
@@ -1421,7 +1426,10 @@ impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
   }
 
   unsafe fn deinit(me: &mut Self) {
-    unsafe { raw::v8__HandleScope__DESTRUCT(&raw mut me.raw_handle_scope) };
+    unsafe {
+      Isolate::from_raw_ptr_unchecked(me.isolate.as_ptr()).exit();
+      raw::v8__HandleScope__DESTRUCT(&raw mut me.raw_handle_scope)
+    };
   }
 }
 

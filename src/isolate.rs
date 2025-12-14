@@ -2021,11 +2021,7 @@ pub struct OwnedIsolate {
 
 impl OwnedIsolate {
   pub(crate) fn new(cxx_isolate: *mut RealIsolate) -> Self {
-    let isolate = Self::new_already_entered(cxx_isolate);
-    unsafe {
-      isolate.enter();
-    }
-    isolate
+    Self::new_already_entered(cxx_isolate)
   }
 
   pub(crate) fn new_already_entered(cxx_isolate: *mut RealIsolate) -> Self {
@@ -2044,13 +2040,7 @@ impl Drop for OwnedIsolate {
         snapshot_creator.is_none(),
         "If isolate was created using v8::Isolate::snapshot_creator, you should use v8::OwnedIsolate::create_blob before dropping an isolate."
       );
-      // Safety: We need to check `this == Isolate::GetCurrent()` before calling exit()
-      assert!(
-        std::ptr::eq(self.cxx_isolate.as_mut(), v8__Isolate__GetCurrent()),
-        "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
-      );
       // self.dispose_scope_root();
-      self.exit();
       self.dispose_annex();
       Platform::notify_isolate_shutdown(&get_current_platform(), self);
       self.dispose();
