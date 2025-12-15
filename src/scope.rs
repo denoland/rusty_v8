@@ -318,25 +318,25 @@ mod get_isolate_impls {
 
   impl GetIsolate for Local<'_, Context> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
-      unsafe { raw::v8__Isolate__GetCurrent() }
+      unsafe { raw::v8__Context__GetIsolate(&**self) }
     }
   }
 
   impl GetIsolate for Local<'_, Message> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
-      unsafe { raw::v8__Isolate__GetCurrent() }
+      unsafe { raw::v8__Message__GetIsolate(&**self) }
     }
   }
 
   impl GetIsolate for Local<'_, Promise> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
-      unsafe { raw::v8__Isolate__GetCurrent() }
+      unsafe { raw::v8__Promise__GetIsolate(&**self) }
     }
   }
 
   impl GetIsolate for PromiseRejectMessage<'_> {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
-      unsafe { raw::v8__Isolate__GetCurrent() }
+      unsafe { raw::v8__Promise__GetIsolate(&*self.get_promise()) }
     }
   }
 
@@ -934,7 +934,7 @@ impl<
     param: &'scope mut P,
     context: Local<'ct, Context>,
   ) -> P::NewScope {
-    if param.get_isolate_ptr() != unsafe { raw::v8__Isolate__GetCurrent() } {
+    if param.get_isolate_ptr() != context.get_isolate_ptr() {
       panic!(
         "{} and Context do not belong to the same Isolate",
         type_name::<P>()

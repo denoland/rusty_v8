@@ -604,7 +604,6 @@ unsafe extern "C" {
   );
   fn v8__Isolate__Enter(this: *mut RealIsolate);
   fn v8__Isolate__Exit(this: *mut RealIsolate);
-  fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   fn v8__Isolate__MemoryPressureNotification(this: *mut RealIsolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut RealIsolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut RealIsolate);

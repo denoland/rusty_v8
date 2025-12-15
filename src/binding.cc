@@ -170,8 +170,6 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
-v8::Isolate* v8__Isolate__GetCurrent() { return v8::Isolate::GetCurrent(); }
-
 const v8::Data* v8__Isolate__GetCurrentHostDefinedOptions(
     v8::Isolate* isolate) {
   return maybe_local_to_ptr(isolate->GetCurrentHostDefinedOptions());
@@ -2148,6 +2146,10 @@ const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
   return local_to_ptr(value);
 }
 
+v8::Isolate* v8__Context__GetIsolate(const v8::Context& self) {
+  return ptr_to_local(&self)->GetIsolate();
+}
+
 v8::MicrotaskQueue* v8__MicrotaskQueue__New(v8::Isolate* isolate,
                                             v8::MicrotasksPolicy policy) {
   return v8::MicrotaskQueue::New(isolate, policy).release();
@@ -2232,6 +2234,10 @@ bool v8__Message__IsSharedCrossOrigin(const v8::Message& self) {
 }
 
 bool v8__Message__IsOpaque(const v8::Message& self) { return self.IsOpaque(); }
+
+v8::Isolate* v8__Message__GetIsolate(const v8::Message& self) {
+  return self.GetIsolate();
+}
 
 const v8::Value* v8__Exception__RangeError(const v8::String& message) {
   return local_to_ptr(v8::Exception::RangeError(ptr_to_local(&message)));
@@ -2827,6 +2833,10 @@ const v8::Promise* v8__Promise__Then2(const v8::Promise& self,
   return maybe_local_to_ptr(ptr_to_local(&self)->Then(
       ptr_to_local(&context), ptr_to_local(&on_fulfilled),
       ptr_to_local(&on_rejected)));
+}
+
+v8::Isolate* v8__Promise__GetIsolate(const v8::Promise& self) {
+  return ptr_to_local(&self)->GetIsolate();
 }
 
 v8::PromiseRejectEvent v8__PromiseRejectMessage__GetEvent(
