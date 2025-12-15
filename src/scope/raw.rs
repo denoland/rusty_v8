@@ -237,10 +237,16 @@ unsafe extern "C" {
   pub(super) fn v8__Isolate__GetCurrentHostDefinedOptions(
     this: *mut RealIsolate,
   ) -> *const Data;
-  
-  pub(super) fn v8__Context__GetIsolate(this: *const Context) -> *mut RealIsolate;
-  pub(super) fn v8__Message__GetIsolate(this: *const Message) -> *mut RealIsolate;
-  pub(super) fn v8__Promise__GetIsolate(this: *const Promise) -> *mut RealIsolate;
+
+  pub(super) fn v8__Context__GetIsolate(
+    this: *const Context,
+  ) -> *mut RealIsolate;
+  pub(super) fn v8__Message__GetIsolate(
+    this: *const Message,
+  ) -> *mut RealIsolate;
+  pub(super) fn v8__Promise__GetIsolate(
+    this: *const Promise,
+  ) -> *mut RealIsolate;
 
   pub(super) fn v8__Context__Enter(this: *const Context);
   pub(super) fn v8__Context__Exit(this: *const Context);
