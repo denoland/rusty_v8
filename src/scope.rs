@@ -1004,6 +1004,7 @@ impl<C> ScopeInit for CallbackScope<'_, C> {
     let isolate = storage_mut.scope.isolate;
     if storage_mut.scope.needs_scope {
       unsafe {
+        Isolate::from_raw_ptr_unchecked(isolate.as_ptr()).enter();
         raw::HandleScope::init(
           &mut storage_mut.scope.raw_handle_scope,
           isolate,
@@ -1017,7 +1018,10 @@ impl<C> ScopeInit for CallbackScope<'_, C> {
 
   unsafe fn deinit(me: &mut Self) {
     if me.needs_scope {
-      unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
+      unsafe {
+        Isolate::from_raw_ptr_unchecked(me.isolate.as_ptr()).exit();
+        raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope)
+      };
     }
   }
 }
