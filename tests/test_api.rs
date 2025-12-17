@@ -1075,7 +1075,7 @@ fn isolate_termination_methods() {
   assert!(!handle.is_execution_terminating());
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
   extern "C" fn callback(
-    _isolate: &mut v8::Isolate,
+    _isolate: v8::UnsafeRawIsolatePtr,
     data: *mut std::ffi::c_void,
   ) {
     assert_eq!(data, std::ptr::null_mut());
@@ -1103,7 +1103,7 @@ fn thread_safe_handle_drop_after_isolate() {
   assert!(!handle.is_execution_terminating());
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
   extern "C" fn callback(
-    _isolate: &mut v8::Isolate,
+    _isolate: v8::UnsafeRawIsolatePtr,
     data: *mut std::ffi::c_void,
   ) {
     assert_eq!(data, std::ptr::null_mut());
@@ -1168,9 +1168,10 @@ fn request_interrupt_small_scripts() {
 
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
     extern "C" fn callback(
-      isolate: &mut v8::Isolate,
+      isolate: v8::UnsafeRawIsolatePtr,
       data: *mut std::ffi::c_void,
     ) {
+      let isolate = unsafe { v8::Isolate::ref_from_raw_isolate_ptr(&isolate) };
       assert_eq!(isolate.get_slot::<String>(), Some(&"hello".into()));
       assert_eq!(data, std::ptr::null_mut());
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);

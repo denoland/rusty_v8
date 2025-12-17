@@ -544,7 +544,7 @@ pub type GcCallbackWithData = unsafe extern "C" fn(
 );
 
 pub type InterruptCallback =
-  unsafe extern "C" fn(isolate: &mut Isolate, data: *mut c_void);
+  unsafe extern "C" fn(isolate: UnsafeRawIsolatePtr, data: *mut c_void);
 
 pub type NearHeapLimitCallback = unsafe extern "C" fn(
   data: *mut c_void,
