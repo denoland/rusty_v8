@@ -1164,11 +1164,14 @@ fn request_interrupt_small_scripts() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
+    scope.set_slot::<String>("hello".into());
+
     static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
     extern "C" fn callback(
-      _isolate: &mut v8::Isolate,
+      isolate: &mut v8::Isolate,
       data: *mut std::ffi::c_void,
     ) {
+      assert_eq!(isolate.get_slot::<String>(), Some(&"hello".into()));
       assert_eq!(data, std::ptr::null_mut());
       CALL_COUNT.fetch_add(1, Ordering::SeqCst);
     }
