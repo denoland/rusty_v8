@@ -962,19 +962,21 @@ impl Isolate {
   /// See [`IsolateHandle::terminate_execution`]
   #[inline(always)]
   pub fn terminate_execution(&self) -> bool {
-    self.thread_safe_handle().terminate_execution()
+    unsafe { v8__Isolate__TerminateExecution(self.as_real_ptr()) };
+    true
   }
 
   /// See [`IsolateHandle::cancel_terminate_execution`]
   #[inline(always)]
   pub fn cancel_terminate_execution(&self) -> bool {
-    self.thread_safe_handle().cancel_terminate_execution()
+    unsafe { v8__Isolate__CancelTerminateExecution(self.as_real_ptr()) };
+    true
   }
 
   /// See [`IsolateHandle::is_execution_terminating`]
   #[inline(always)]
   pub fn is_execution_terminating(&self) -> bool {
-    self.thread_safe_handle().is_execution_terminating()
+    unsafe { v8__Isolate__IsExecutionTerminating(self.as_real_ptr()) }
   }
 
   pub(crate) fn create_annex(
