@@ -28,7 +28,7 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
-      assert!(v8::icu::set_common_data_74(align_data::include_aligned!(
+      assert!(v8::icu::set_common_data_77(align_data::include_aligned!(
         align_data::Align16,
         "../third_party/icu/common/icudtl.dat"
       ))

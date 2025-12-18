@@ -55,3 +55,6 @@
 [submodule "third_party/rust"]
 	path = third_party/rust
 	url = https://chromium.googlesource.com/chromium/src/third_party/rust
+[submodule "tools/win"]
+	path = tools/win
+	url = https://chromium.googlesource.com/chromium/src/tools/win
