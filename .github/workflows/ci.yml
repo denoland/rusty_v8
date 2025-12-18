@@ -163,6 +163,11 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
+      - name: Install Windows 10 SDK Debugging Tools
+        if: matrix.config.target == 'aarch64-pc-windows-msvc'
+        run: |
+          choco install windows-sdk-10-version-2104-all
+
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
