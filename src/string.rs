@@ -1,8 +1,9 @@
-use crate::HandleScope;
 use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::binding::v8__String__kMaxLength;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 use crate::support::Opaque;
 use crate::support::char;
 use crate::support::int;
@@ -17,24 +18,24 @@ use std::ptr::NonNull;
 use std::slice;
 
 unsafe extern "C" {
-  fn v8__String__Empty(isolate: *mut Isolate) -> *const String;
+  fn v8__String__Empty(isolate: *mut RealIsolate) -> *const String;
 
   fn v8__String__NewFromUtf8(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const char,
     new_type: NewStringType,
     length: int,
   ) -> *const String;
 
   fn v8__String__NewFromOneByte(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const u8,
     new_type: NewStringType,
     length: int,
   ) -> *const String;
 
   fn v8__String__NewFromTwoByte(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     data: *const u16,
     new_type: NewStringType,
     length: int,
@@ -42,11 +43,14 @@ unsafe extern "C" {
 
   fn v8__String__Length(this: *const String) -> int;
 
-  fn v8__String__Utf8Length(this: *const String, isolate: *mut Isolate) -> int;
+  fn v8__String__Utf8Length(
+    this: *const String,
+    isolate: *mut RealIsolate,
+  ) -> int;
 
   fn v8__String__Write(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut u16,
     start: int,
     length: int,
@@ -55,7 +59,7 @@ unsafe extern "C" {
 
   fn v8__String__Write_v2(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     offset: u32,
     length: u32,
     buffer: *mut u16,
@@ -64,7 +68,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteOneByte(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut u8,
     start: int,
     length: int,
@@ -73,7 +77,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteOneByte_v2(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     offset: u32,
     length: u32,
     buffer: *mut u8,
@@ -82,7 +86,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteUtf8(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut char,
     length: int,
     nchars_ref: *mut int,
@@ -91,7 +95,7 @@ unsafe extern "C" {
 
   fn v8__String__WriteUtf8_v2(
     this: *const String,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut char,
     capacity: size_t,
     flags: int,
@@ -107,25 +111,25 @@ unsafe extern "C" {
   ) -> *mut ExternalStringResourceBase;
 
   fn v8__String__NewExternalOneByteConst(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     onebyte_const: *const OneByteConst,
   ) -> *const String;
 
   fn v8__String__NewExternalOneByteStatic(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *const char,
     length: int,
   ) -> *const String;
 
   fn v8__String__NewExternalOneByte(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *mut char,
     length: size_t,
     free: unsafe extern "C" fn(*mut char, size_t),
   ) -> *const String;
 
   fn v8__String__NewExternalTwoByteStatic(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     buffer: *const u16,
     length: int,
   ) -> *const String;
@@ -146,7 +150,7 @@ unsafe extern "C" {
 
   fn v8__String__ValueView__CONSTRUCT(
     buf: *mut ValueView,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     string: *const String,
   );
   fn v8__String__ValueView__DESTRUCT(this: *mut ValueView);
@@ -182,17 +186,20 @@ impl ExternalOneByteStringResource {
   /// Returns a pointer to the data owned by this resource.
   /// This pointer is valid as long as the resource is alive.
   /// The data is guaranteed to be Latin-1.
+  #[inline]
   pub fn data(&self) -> *const char {
     unsafe { v8__ExternalOneByteStringResource__data(self) }
   }
 
   /// Returns the length of the data owned by this resource.
+  #[inline]
   pub fn length(&self) -> usize {
     unsafe { v8__ExternalOneByteStringResource__length(self) }
   }
 
   /// Returns the data owned by this resource as a string slice.
   /// The data is guaranteed to be Latin-1.
+  #[inline]
   pub fn as_bytes(&self) -> &[u8] {
     let len = self.length();
     if len == 0 {
@@ -279,7 +286,7 @@ unsafe extern "C" fn one_byte_const_length(this: *const OneByteConst) -> usize {
 }
 unsafe extern "C" fn one_byte_const_unaccount(
   _this: *const OneByteConst,
-  _isolate: *mut Isolate,
+  _isolate: *mut RealIsolate,
 ) {
 }
 unsafe extern "C" fn one_byte_const_estimate_memory_usage(
@@ -300,7 +307,7 @@ type OneByteConstData =
   unsafe extern "C" fn(*const OneByteConst) -> *const char;
 type OneByteConstLength = unsafe extern "C" fn(*const OneByteConst) -> usize;
 type OneByteConstUnaccount =
-  unsafe extern "C" fn(*const OneByteConst, *mut Isolate);
+  unsafe extern "C" fn(*const OneByteConst, *mut RealIsolate);
 type OneByteConstEstimateMemoryUsage =
   unsafe extern "C" fn(*const OneByteConst) -> size_t;
 type OneByteConstEstimateSharedMemoryUsage =
@@ -400,7 +407,7 @@ impl String {
   pub const MAX_LENGTH: usize = v8__String__kMaxLength as _;
 
   #[inline(always)]
-  pub fn empty<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, String> {
+  pub fn empty<'s>(scope: &PinScope<'s, '_, ()>) -> Local<'s, String> {
     // FIXME(bnoordhuis) v8__String__Empty() is infallible so there
     // is no need to box up the result, only to unwrap it again.
     unsafe { scope.cast_local(|sd| v8__String__Empty(sd.get_isolate_ptr())) }
@@ -411,7 +418,7 @@ impl String {
   /// length > kMaxLength
   #[inline(always)]
   pub fn new_from_utf8<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
@@ -435,7 +442,7 @@ impl String {
   /// length > kMaxLength.
   #[inline(always)]
   pub fn new_from_one_byte<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: &[u8],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
@@ -456,7 +463,7 @@ impl String {
   /// length > kMaxLength.
   #[inline(always)]
   pub fn new_from_two_byte<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: &[u16],
     new_type: NewStringType,
   ) -> Option<Local<'s, String>> {
@@ -482,8 +489,8 @@ impl String {
   /// Returns the number of bytes in the UTF-8 encoded representation of this
   /// string.
   #[inline(always)]
-  pub fn utf8_length(&self, scope: &mut Isolate) -> usize {
-    unsafe { v8__String__Utf8Length(self, scope) as usize }
+  pub fn utf8_length(&self, scope: &Isolate) -> usize {
+    unsafe { v8__String__Utf8Length(self, scope.as_real_ptr()) as usize }
   }
 
   /// Writes the contents of the string to an external buffer, as 16-bit
@@ -492,7 +499,7 @@ impl String {
   #[deprecated = "Use `v8::String::write_v2` instead"]
   pub fn write(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [u16],
     start: usize,
     options: WriteOptions,
@@ -500,7 +507,7 @@ impl String {
     unsafe {
       v8__String__Write(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr(),
         start.try_into().unwrap_or(int::MAX),
         buffer.len().try_into().unwrap_or(int::MAX),
@@ -514,7 +521,7 @@ impl String {
   #[inline(always)]
   pub fn write_v2(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     offset: u32,
     buffer: &mut [u16],
     flags: WriteFlags,
@@ -522,7 +529,7 @@ impl String {
     unsafe {
       v8__String__Write_v2(
         self,
-        scope,
+        scope.as_real_ptr(),
         offset,
         self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr(),
@@ -537,7 +544,7 @@ impl String {
   #[deprecated = "Use `v8::String::write_one_byte_v2` instead."]
   pub fn write_one_byte(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [u8],
     start: usize,
     options: WriteOptions,
@@ -545,7 +552,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr(),
         start.try_into().unwrap_or(int::MAX),
         buffer.len().try_into().unwrap_or(int::MAX),
@@ -559,7 +566,7 @@ impl String {
   #[inline(always)]
   pub fn write_one_byte_v2(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     offset: u32,
     buffer: &mut [u8],
     flags: WriteFlags,
@@ -567,7 +574,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte_v2(
         self,
-        scope,
+        scope.as_real_ptr(),
         offset,
         self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr(),
@@ -582,7 +589,7 @@ impl String {
   #[deprecated = "Use `v8::String::write_one_byte_uninit_v2` instead."]
   pub fn write_one_byte_uninit(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [MaybeUninit<u8>],
     start: usize,
     options: WriteOptions,
@@ -590,7 +597,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr() as *mut u8,
         start.try_into().unwrap_or(int::MAX),
         buffer.len().try_into().unwrap_or(int::MAX),
@@ -604,7 +611,7 @@ impl String {
   #[inline(always)]
   pub fn write_one_byte_uninit_v2(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     offset: u32,
     buffer: &mut [MaybeUninit<u8>],
     flags: WriteFlags,
@@ -612,7 +619,7 @@ impl String {
     unsafe {
       v8__String__WriteOneByte_v2(
         self,
-        scope,
+        scope.as_real_ptr(),
         offset,
         self.length().min(buffer.len()) as _,
         buffer.as_mut_ptr() as _,
@@ -649,7 +656,7 @@ impl String {
   #[inline(always)]
   pub fn write_utf8_v2(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [u8],
     flags: WriteFlags,
     processed_characters_return: Option<&mut usize>,
@@ -677,7 +684,7 @@ impl String {
   #[deprecated = "Use `v8::String::write_utf8_uninit_v2` instead."]
   pub fn write_utf8_uninit(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [MaybeUninit<u8>],
     nchars_ref: Option<&mut usize>,
     options: WriteOptions,
@@ -686,7 +693,7 @@ impl String {
     let bytes = unsafe {
       v8__String__WriteUtf8(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr() as *mut char,
         buffer.len().try_into().unwrap_or(int::MAX),
         &mut nchars_ref_int,
@@ -702,7 +709,7 @@ impl String {
   /// Writes the contents of the string to an external [`MaybeUninit`] buffer, as UTF-8.
   pub fn write_utf8_uninit_v2(
     &self,
-    scope: &mut Isolate,
+    scope: &Isolate,
     buffer: &mut [MaybeUninit<u8>],
     flags: WriteFlags,
     processed_characters_return: Option<&mut usize>,
@@ -710,7 +717,7 @@ impl String {
     let bytes = unsafe {
       v8__String__WriteUtf8_v2(
         self,
-        scope,
+        scope.as_real_ptr(),
         buffer.as_mut_ptr() as _,
         buffer.len(),
         flags.bits(),
@@ -725,7 +732,7 @@ impl String {
   // Convenience function not present in the original V8 API.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
@@ -773,7 +780,7 @@ impl String {
   /// OneByte string resources to contain Latin-1.
   #[inline(always)]
   pub fn new_from_onebyte_const<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     onebyte_const: &'static OneByteConst,
   ) -> Option<Local<'s, String>> {
     unsafe {
@@ -787,7 +794,7 @@ impl String {
   /// must be Latin-1 or ASCII, not UTF-8!
   #[inline(always)]
   pub fn new_external_onebyte_static<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: &'static [u8],
   ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
@@ -807,7 +814,7 @@ impl String {
   /// V8 will take ownership of the buffer and free it when the string is garbage collected.
   #[inline(always)]
   pub fn new_external_onebyte<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: Box<[u8]>,
   ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len();
@@ -832,7 +839,7 @@ impl String {
   /// The destructor will be called with the buffer and length when the string is garbage collected.
   #[inline(always)]
   pub unsafe fn new_external_onebyte_raw<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: *mut char,
     buffer_len: usize,
     destructor: unsafe extern "C" fn(*mut char, usize),
@@ -852,7 +859,7 @@ impl String {
   /// Creates a v8::String from a `&'static [u16]`.
   #[inline(always)]
   pub fn new_external_twobyte_static<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     buffer: &'static [u16],
   ) -> Option<Local<'s, String>> {
     let buffer_len = buffer.len().try_into().ok()?;
@@ -870,6 +877,7 @@ impl String {
   /// Get the ExternalStringResource for an external string.
   ///
   /// Returns None if is_external() doesn't return true.
+  #[inline]
   pub fn get_external_string_resource(
     &self,
   ) -> Option<NonNull<ExternalStringResource>> {
@@ -879,6 +887,7 @@ impl String {
   /// Get the ExternalOneByteStringResource for an external one-byte string.
   ///
   /// Returns None if is_external_onebyte() doesn't return true.
+  #[inline]
   pub fn get_external_onebyte_string_resource(
     &self,
   ) -> Option<NonNull<ExternalOneByteStringResource>> {
@@ -955,10 +964,7 @@ impl String {
 
   /// Creates a copy of a [`crate::String`] in a [`std::string::String`].
   /// Convenience function not present in the original V8 API.
-  pub fn to_rust_string_lossy(
-    &self,
-    scope: &mut Isolate,
-  ) -> std::string::String {
+  pub fn to_rust_string_lossy(&self, scope: &Isolate) -> std::string::String {
     let len_utf16 = self.length();
 
     // No need to allocate or do any work for zero-length strings
@@ -1121,6 +1127,7 @@ impl String {
   }
 }
 
+#[inline]
 pub unsafe extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
   unsafe {
     let slice = std::slice::from_raw_parts_mut(s, len);
@@ -1155,7 +1162,11 @@ impl<'s> ValueView<'s> {
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
     let mut v = std::mem::MaybeUninit::uninit();
     unsafe {
-      v8__String__ValueView__CONSTRUCT(v.as_mut_ptr(), isolate, &*string);
+      v8__String__ValueView__CONSTRUCT(
+        v.as_mut_ptr(),
+        isolate.as_real_ptr(),
+        &*string,
+      );
       v.assume_init()
     }
   }

@@ -1,8 +1,8 @@
+use crate::scope::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
 use crate::Data;
 use crate::FixedArray;
-use crate::HandleScope;
 use crate::Local;
 use crate::support::int;
 
@@ -25,7 +25,7 @@ impl FixedArray {
   #[inline(always)]
   pub fn get<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     index: usize,
   ) -> Option<Local<'s, Data>> {
     if index >= self.length() {

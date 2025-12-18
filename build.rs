@@ -141,6 +141,14 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
+  // Bindgen needs Clang 19+ for V8's libc++ builtin type traits.
+  if env::var("LIBCLANG_PATH").is_err() {
+    eprintln!("Warning: LIBCLANG_PATH not set. Bindgen requires Clang 19+.");
+    eprintln!("Set LIBCLANG_PATH to your Clang 19 installation:");
+    eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-19/lib");
+    eprintln!("  macOS:  export LIBCLANG_PATH=$(brew --prefix llvm)/lib");
+  }
+
   let output = Command::new(python())
     .arg("./tools/get_bindgen_args.py")
     .arg("--gn-out")
@@ -150,11 +158,67 @@ fn build_binding() {
   let args = String::from_utf8(output.stdout).unwrap();
   let args = args.split('\0').collect::<Vec<_>>();
 
+  // Filter out V8's custom libc++ and module args from GN, we'll add them back
+  // manually with correct ordering for bindgen
+  let filtered_args: Vec<&str> = args
+    .iter()
+    .filter(|arg| {
+      !arg.starts_with("-fmodule")
+        && !arg.starts_with("-fno-implicit-module")
+        && !arg.starts_with("-Xclang")
+        && !arg.contains("DUSE_LIBCXX_MODULES")
+        && !arg.contains("-nostdinc++")
+        && !arg.contains("-isystem")
+        && !arg.contains("libc++")
+    })
+    .copied()
+    .collect();
+
+  // Use V8's custom libc++ headers (requires Clang 19+ libclang via LIBCLANG_PATH)
+  // IMPORTANT: libc++ headers must come before clang builtins
+  let mut clang_args = vec![
+    "-x".to_string(),
+    "c++".to_string(),
+    "-std=c++20".to_string(),
+    "-nostdinc++".to_string(),
+    "-Iv8/include".to_string(),
+    "-I.".to_string(),
+    "-isystembuildtools/third_party/libc++".to_string(),
+    "-isystemthird_party/libc++/src/include".to_string(),
+    "-isystemthird_party/libc++abi/src/include".to_string(),
+  ];
+
+  let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  if target_os == "macos" {
+    let output = Command::new("xcrun")
+      .args(["--show-sdk-path"])
+      .output()
+      .unwrap();
+    let sdk_path = String::from_utf8(output.stdout).unwrap();
+    clang_args.push("-isysroot".to_string());
+    clang_args.push(sdk_path.trim().to_string());
+  } else if target_os == "linux" {
+    // Add clang resource directory for builtin headers (stddef.h, etc)
+    if let Ok(libclang_path) = env::var("LIBCLANG_PATH") {
+      let clang_dir = PathBuf::from(&libclang_path)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+      let clang_bin = clang_dir.join("bin/clang");
+      if let Ok(output) =
+        Command::new(clang_bin).arg("-print-resource-dir").output()
+      {
+        let resource_dir = String::from_utf8(output.stdout).unwrap();
+        clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
+      }
+    }
+  }
+
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-    .clang_args(["-x", "c++", "-std=c++20", "-Iv8/include", "-I."])
-    .clang_args(args)
+    .clang_args(clang_args)
+    .clang_args(filtered_args)
     .generate_cstr(true)
     .rustified_enum(".*UseCounterFeature")
     .rustified_enum(".*ModuleImportPhase")
@@ -186,6 +250,9 @@ fn build_v8(is_asan: bool) {
   if need_gn_ninja_download() {
     download_ninja_gn_binaries();
   }
+
+  download_rust_toolchain();
+
   // `#[cfg(...)]` attributes don't work as expected from build.rs -- they refer to the configuration
   // of the host system which the build.rs script will be running on. In short, `cfg!(target_<os/arch>)`
   // is actually the host os/arch instead of target os/arch while cross compiling. Instead, Environment variables
@@ -206,10 +273,42 @@ fn build_v8(is_asan: bool) {
     "use_custom_libcxx={}",
     env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX").is_ok()
   ));
+
+  let extra_args = {
+    if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
+      vec![
+        // Enable pointer compression (along with its dependencies)
+        "v8_enable_sandbox=true",
+        "v8_enable_external_code_space=true", // Needed for sandbox
+        "v8_enable_pointer_compression=true",
+        // Note that sandbox requires shared_ro_heap and verify_heap
+        // to be true/default
+      ]
+    } else {
+      let mut opts = vec![
+        // Disable sandbox
+        "v8_enable_sandbox=false",
+      ];
+
+      if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
+        opts.push("v8_enable_pointer_compression=true");
+      } else {
+        opts.push("v8_enable_pointer_compression=false");
+      }
+
+      opts
+    }
+  };
+
+  for arg in extra_args {
+    gn_args.push(arg.to_string());
+  }
+
   gn_args.push(format!(
-    "v8_enable_pointer_compression={}",
-    env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok()
+    "v8_enable_v8_checks={}",
+    env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
   ));
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string());
@@ -322,7 +421,7 @@ fn build_v8(is_asan: bool) {
     gn_args.push(r#"target_cpu="x86""#.to_string());
   }
 
-  let gn_out = maybe_gen(&gn_args);
+  let gn_out = run_gn_gen(&gn_args);
   assert!(gn_out.exists());
   assert!(gn_out.join("args.gn").exists());
   if env_bool("PRINT_GN_ARGS") {
@@ -406,6 +505,16 @@ fn download_ninja_gn_binaries() {
   }
 }
 
+fn download_rust_toolchain() {
+  assert!(
+    Command::new(python())
+      .arg("./tools/rust_toolchain.py")
+      .status()
+      .unwrap()
+      .success()
+  );
+}
+
 fn prebuilt_profile() -> &'static str {
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   // Use v8 in release mode unless $V8_FORCE_DEBUG=true
@@ -421,6 +530,9 @@ fn prebuilt_features_suffix() -> String {
   let mut features = String::new();
   if env::var("CARGO_FEATURE_V8_ENABLE_POINTER_COMPRESSION").is_ok() {
     features.push_str("_ptrcomp");
+  }
+  if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
+    features.push_str("_sandbox");
   }
   features
 }
@@ -605,10 +717,7 @@ where
     );
 
     if status != Ok(MZStatus::Ok) && status != Ok(MZStatus::StreamEnd) {
-      return Err(io::Error::new(
-        io::ErrorKind::Other,
-        format!("Decompression error {status:?}"),
-      ));
+      return Err(io::Error::other(format!("Decompression error {status:?}")));
     }
 
     output.write_all(&output_buffer[..bytes_written])?;
@@ -919,11 +1028,11 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   let mut cmd = Command::new(&cmd_string);
   cmd.arg("-C");
   cmd.arg(gn_out_dir);
-  if !cmd_string.ends_with("autoninja") {
-    if let Ok(jobs) = env::var("NUM_JOBS") {
-      cmd.arg("-j");
-      cmd.arg(jobs);
-    }
+  if !cmd_string.ends_with("autoninja")
+    && let Ok(jobs) = env::var("NUM_JOBS")
+  {
+    cmd.arg("-j");
+    cmd.arg(jobs);
   }
   if let Some(env) = maybe_env {
     for item in env {
@@ -933,40 +1042,39 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   cmd
 }
 
-fn maybe_gen(gn_args: &[String]) -> PathBuf {
+fn run_gn_gen(gn_args: &[String]) -> PathBuf {
   let dirs = get_dirs();
   let gn_out_dir = dirs.out.join("gn_out");
 
-  if !gn_out_dir.exists() || !gn_out_dir.join("build.ninja").exists() {
-    let mut args = gn_args.join(" ");
-    if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
-      args.push(' ');
-      args.push_str(&extra_args);
-    }
-
-    let path = env::current_dir().unwrap();
-    println!("The current directory is {}", path.display());
-    println!(
-      "gn gen --root={} {}",
-      dirs.root.display(),
-      gn_out_dir.display()
-    );
-    assert!(
-      Command::new(gn())
-        .arg(format!("--root={}", dirs.root.display()))
-        .arg(format!("--script-executable={}", python()))
-        .arg("gen")
-        .arg(&gn_out_dir)
-        .arg("--ide=json")
-        .arg("--args=".to_owned() + &args)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .envs(env::vars())
-        .status()
-        .expect("Could not run `gn`")
-        .success()
-    );
+  let mut args = gn_args.join(" ");
+  if let Ok(extra_args) = env::var("EXTRA_GN_ARGS") {
+    args.push(' ');
+    args.push_str(&extra_args);
   }
+
+  let path = env::current_dir().unwrap();
+  println!("The current directory is {}", path.display());
+  println!(
+    "gn gen --root={} {}",
+    dirs.root.display(),
+    gn_out_dir.display()
+  );
+  assert!(
+    Command::new(gn())
+      .arg(format!("--root={}", dirs.root.display()))
+      .arg(format!("--script-executable={}", python()))
+      .arg("gen")
+      .arg(&gn_out_dir)
+      .arg("--ide=json")
+      .arg("--args=".to_owned() + &args)
+      .stdout(Stdio::inherit())
+      .stderr(Stdio::inherit())
+      .envs(env::vars())
+      .status()
+      .expect("Could not run `gn`")
+      .success()
+  );
+
   gn_out_dir
 }
 

@@ -2,7 +2,9 @@ use crate::Isolate;
 use crate::Local;
 use crate::Value;
 use crate::binding::*;
+use crate::isolate::RealIsolate;
 use std::ffi::c_void;
+use std::ptr::NonNull;
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -66,9 +68,8 @@ pub struct CTypeInfo(v8_CTypeInfo);
 impl CTypeInfo {
   pub const fn new(r#type: Type, flags: Flags) -> Self {
     Self(v8_CTypeInfo {
-      flags_: flags.bits(),
-      sequence_type_: v8_CTypeInfo_SequenceType_kScalar,
       type_: r#type as _,
+      flags_: flags.bits(),
     })
   }
 }
@@ -125,9 +126,29 @@ bitflags::bitflags! {
 /// ```
 #[repr(C)]
 pub struct FastApiCallbackOptions<'a> {
-  pub isolate: *mut Isolate,
+  pub(crate) isolate: *mut RealIsolate,
   /// The `data` passed to the FunctionTemplate constructor, or `undefined`.
   pub data: Local<'a, Value>,
+}
+
+impl<'a> FastApiCallbackOptions<'a> {
+  pub unsafe fn isolate_unchecked(&self) -> &'a Isolate {
+    unsafe {
+      Isolate::from_raw_ref(std::mem::transmute::<
+        &*mut RealIsolate,
+        &NonNull<RealIsolate>,
+      >(&self.isolate))
+    }
+  }
+
+  pub unsafe fn isolate_unchecked_mut(&mut self) -> &mut Isolate {
+    unsafe {
+      Isolate::from_raw_ref_mut(std::mem::transmute::<
+        &mut *mut RealIsolate,
+        &mut NonNull<RealIsolate>,
+      >(&mut self.isolate))
+    }
+  }
 }
 
 pub type FastApiOneByteString = v8__FastOneByteString;

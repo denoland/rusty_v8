@@ -1,16 +1,17 @@
 use crate::BigInt;
 use crate::Boolean;
 use crate::Context;
-use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
-use crate::Isolate;
 use crate::Local;
 use crate::Number;
 use crate::Object;
+use crate::PinScope;
 use crate::String;
 use crate::Uint32;
 use crate::Value;
+use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
 use crate::support::Maybe;
 
 unsafe extern "C" {
@@ -62,6 +63,7 @@ unsafe extern "C" {
   fn v8__Value__IsInt16Array(this: *const Value) -> bool;
   fn v8__Value__IsUint32Array(this: *const Value) -> bool;
   fn v8__Value__IsInt32Array(this: *const Value) -> bool;
+  fn v8__Value__IsFloat16Array(this: *const Value) -> bool;
   fn v8__Value__IsFloat32Array(this: *const Value) -> bool;
   fn v8__Value__IsFloat64Array(this: *const Value) -> bool;
   fn v8__Value__IsBigInt64Array(this: *const Value) -> bool;
@@ -114,7 +116,7 @@ unsafe extern "C" {
   ) -> *const Int32;
   fn v8__Value__ToBoolean(
     this: *const Value,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Boolean;
 
   fn v8__Value__NumberValue(
@@ -137,12 +139,14 @@ unsafe extern "C" {
     context: *const Context,
     out: *mut Maybe<i32>,
   );
-  fn v8__Value__BooleanValue(this: *const Value, isolate: *mut Isolate)
-  -> bool;
+  fn v8__Value__BooleanValue(
+    this: *const Value,
+    isolate: *mut RealIsolate,
+  ) -> bool;
   fn v8__Value__GetHash(this: *const Value) -> u32;
   fn v8__Value__TypeOf(
     this: *const Value,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const String;
 }
 
@@ -437,6 +441,12 @@ impl Value {
     unsafe { v8__Value__IsInt32Array(self) }
   }
 
+  /// Returns true if this value is a Float16Array.
+  #[inline(always)]
+  pub fn is_float16_array(&self) -> bool {
+    unsafe { v8__Value__IsFloat16Array(self) }
+  }
+
   /// Returns true if this value is a Float32Array.
   #[inline(always)]
   pub fn is_float32_array(&self) -> bool {
@@ -533,7 +543,7 @@ impl Value {
   #[inline(always)]
   pub fn to_big_int<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, BigInt>> {
     unsafe {
       scope
@@ -544,7 +554,7 @@ impl Value {
   #[inline(always)]
   pub fn to_number<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Number>> {
     unsafe {
       scope
@@ -555,7 +565,7 @@ impl Value {
   #[inline(always)]
   pub fn to_string<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope
@@ -567,7 +577,7 @@ impl Value {
   #[inline(always)]
   pub fn to_rust_string_lossy(
     &self,
-    scope: &mut HandleScope,
+    scope: &PinScope<'_, '_>,
   ) -> std::string::String {
     self
       .to_string(scope)
@@ -577,7 +587,7 @@ impl Value {
   #[inline(always)]
   pub fn to_detail_string<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, String>> {
     unsafe {
       scope.cast_local(|sd| {
@@ -589,7 +599,7 @@ impl Value {
   #[inline(always)]
   pub fn to_object<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Object>> {
     unsafe {
       scope
@@ -600,7 +610,7 @@ impl Value {
   #[inline(always)]
   pub fn to_integer<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Integer>> {
     unsafe {
       scope
@@ -611,7 +621,7 @@ impl Value {
   #[inline(always)]
   pub fn to_uint32<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Uint32>> {
     unsafe {
       scope
@@ -622,7 +632,7 @@ impl Value {
   #[inline(always)]
   pub fn to_int32<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Int32>> {
     unsafe {
       scope
@@ -632,10 +642,7 @@ impl Value {
 
   /// Perform the equivalent of Boolean(value) in JS. This can never fail.
   #[inline(always)]
-  pub fn to_boolean<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, Boolean> {
+  pub fn to_boolean<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Boolean> {
     unsafe {
       scope.cast_local(|sd| v8__Value__ToBoolean(self, sd.get_isolate_ptr()))
     }
@@ -645,7 +652,7 @@ impl Value {
   #[inline(always)]
   pub fn instance_of(
     &self,
-    scope: &mut HandleScope,
+    scope: &PinScope<'_, '_>,
     object: Local<Object>,
   ) -> Option<bool> {
     let mut out = Maybe::<bool>::default();
@@ -661,7 +668,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn number_value(&self, scope: &mut HandleScope) -> Option<f64> {
+  pub fn number_value(&self, scope: &PinScope<'_, '_>) -> Option<f64> {
     let mut out = Maybe::<f64>::default();
     unsafe {
       v8__Value__NumberValue(self, &*scope.get_current_context(), &mut out);
@@ -670,7 +677,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn integer_value(&self, scope: &mut HandleScope) -> Option<i64> {
+  pub fn integer_value(&self, scope: &PinScope<'_, '_>) -> Option<i64> {
     let mut out = Maybe::<i64>::default();
     unsafe {
       v8__Value__IntegerValue(self, &*scope.get_current_context(), &mut out);
@@ -679,7 +686,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn uint32_value(&self, scope: &mut HandleScope) -> Option<u32> {
+  pub fn uint32_value(&self, scope: &PinScope<'_, '_>) -> Option<u32> {
     let mut out = Maybe::<u32>::default();
     unsafe {
       v8__Value__Uint32Value(self, &*scope.get_current_context(), &mut out);
@@ -688,7 +695,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn int32_value(&self, scope: &mut HandleScope) -> Option<i32> {
+  pub fn int32_value(&self, scope: &PinScope<'_, '_>) -> Option<i32> {
     let mut out = Maybe::<i32>::default();
     unsafe {
       v8__Value__Int32Value(self, &*scope.get_current_context(), &mut out);
@@ -697,7 +704,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn boolean_value(&self, scope: &mut HandleScope<'_, ()>) -> bool {
+  pub fn boolean_value(&self, scope: &PinScope<'_, '_>) -> bool {
     unsafe { v8__Value__BooleanValue(self, scope.get_isolate_ptr()) }
   }
 
@@ -711,10 +718,7 @@ impl Value {
   }
 
   #[inline(always)]
-  pub fn type_of<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, String> {
+  pub fn type_of<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe {
       scope.cast_local(|sd| v8__Value__TypeOf(self, sd.get_isolate_ptr()))
     }

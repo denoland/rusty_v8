@@ -32,12 +32,9 @@ default_args = {
 
   v8_embedder_string = "-rusty"
 
-  v8_enable_sandbox = false
   v8_enable_javascript_promise_hooks = true
   v8_promise_internal_field_count = 1
   v8_use_external_startup_data = false
-
-  v8_enable_pointer_compression = false
 
   v8_imminent_deprecation_warnings = false
 
@@ -64,17 +61,6 @@ default_args = {
   v8_array_buffer_internal_field_count = 2
   v8_array_buffer_view_internal_field_count = 2
 
-  # Enabling the shared read-only heap comes with a restriction that all
-  # isolates running at the same time must be created from the same snapshot.
-  # This is problematic for Deno, which has separate "runtime" and "typescript
-  # compiler" snapshots, and sometimes uses them both at the same time.
-  v8_enable_shared_ro_heap = false
-
-  # V8 11.6 hardcoded an assumption in `mksnapshot` that shared RO heap
-  # is enabled. In our case it's disabled so without this flag we can't
-  # compile.
-  v8_enable_verify_heap = false
-
   # Enable V8 object print for debugging.
   # v8_enable_object_print = true
 
@@ -94,4 +80,17 @@ default_args = {
 
   v8_depend_on_icu_data_file = false
   icu_copy_icudata_to_root_build_dir = false
+
+  # TODO: third_party/compiler-rt missing?
+  use_llvm_libatomic = false
+
+  enable_rust = true
+  enable_rust_cxx = true
+  v8_enable_temporal_support = true
+
+  # prevent hashdos
+  v8_use_default_hasher_secret = false
+
+  # Disable C++ modules - they're not compatible with bindgen
+  use_clang_modules = false
 }

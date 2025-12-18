@@ -1,14 +1,16 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::HandleScope;
-use crate::Isolate;
+
 use crate::Local;
 use crate::Primitive;
 use crate::PrimitiveArray;
+use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
+use crate::scope::PinScope;
 use crate::support::int;
 
 unsafe extern "C" {
   fn v8__PrimitiveArray__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     length: int,
   ) -> *const PrimitiveArray;
 
@@ -16,14 +18,14 @@ unsafe extern "C" {
 
   fn v8__PrimitiveArray__Set(
     this: *const PrimitiveArray,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     index: int,
     item: *const Primitive,
   );
 
   fn v8__PrimitiveArray__Get(
     this: *const PrimitiveArray,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     index: int,
   ) -> *const Primitive;
 }
@@ -31,7 +33,7 @@ unsafe extern "C" {
 impl PrimitiveArray {
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     length: usize,
   ) -> Local<'s, PrimitiveArray> {
     unsafe {
@@ -50,7 +52,7 @@ impl PrimitiveArray {
   #[inline(always)]
   pub fn set(
     &self,
-    scope: &mut HandleScope,
+    scope: &PinScope<'_, '_>,
     index: usize,
     item: Local<'_, Primitive>,
   ) {
@@ -67,7 +69,7 @@ impl PrimitiveArray {
   #[inline(always)]
   pub fn get<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     index: usize,
   ) -> Local<'s, Primitive> {
     unsafe {

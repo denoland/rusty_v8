@@ -133,6 +133,7 @@ macro_rules! impl_deref {
   { $target:ident for $type:ident } => {
     impl Deref for $type {
       type Target = $target;
+      #[inline]
       fn deref(&self) -> &Self::Target {
         unsafe { &*(self as *const _ as *const Self::Target) }
       }
@@ -143,6 +144,7 @@ macro_rules! impl_deref {
 macro_rules! impl_from {
   { $source:ident for $type:ident } => {
     impl<'s> From<Local<'s, $source>> for Local<'s, $type> {
+      #[inline]
       fn from(l: Local<'s, $source>) -> Self {
         unsafe { transmute(l) }
       }
@@ -154,9 +156,11 @@ macro_rules! impl_try_from {
   { $source:ident for $target:ident if $value:pat => $check:expr } => {
     impl<'s> TryFrom<Local<'s, $source>> for Local<'s, $target> {
       type Error = DataError;
+      #[inline]
       fn try_from(l: Local<'s, $source>) -> Result<Self, Self::Error> {
         // Not dead: `cast()` is sometimes used in the $check expression.
         #[allow(dead_code)]
+        #[inline(always)]
         fn cast<T>(l: Local<$source>) -> Local<T> {
           unsafe { transmute::<Local<$source>, Local<T>>(l) }
         }
@@ -190,6 +194,7 @@ macro_rules! impl_hash {
 macro_rules! impl_partial_eq {
   { $rhs:ident for $type:ident use identity } => {
     impl<'s> PartialEq<$rhs> for $type {
+      #[inline]
       fn eq(&self, other: &$rhs) -> bool {
         let a = self as *const _ as *const Data;
         let b = other as *const _ as *const Data;
@@ -199,6 +204,7 @@ macro_rules! impl_partial_eq {
   };
   { $rhs:ident for $type:ident use strict_equals } => {
     impl<'s> PartialEq<$rhs> for $type {
+      #[inline]
       fn eq(&self, other: &$rhs) -> bool {
         let a = self as *const _ as *const Value;
         let b = other as *const _ as *const Value;
@@ -209,6 +215,7 @@ macro_rules! impl_partial_eq {
 
   { $rhs:ident for $type:ident use same_value_zero } => {
     impl<'s> PartialEq<$rhs> for $type {
+      #[inline]
       fn eq(&self, other: &$rhs) -> bool {
         let a = self as *const _ as *const Value;
         let b = other as *const _ as *const Value;
@@ -242,6 +249,7 @@ impl DataError {
     }
   }
 
+  #[allow(dead_code)]
   pub(crate) fn no_data<E: 'static>() -> Self {
     Self::NoData {
       expected: type_name::<E>(),
@@ -281,6 +289,7 @@ impl_from! { Template for Data }
 impl_from! { FunctionTemplate for Data }
 impl_from! { ObjectTemplate for Data }
 impl_from! { UnboundModuleScript for Data }
+impl_from! { UnboundScript for Data }
 impl_from! { Value for Data }
 impl_from! { External for Data }
 impl_from! { Object for Data }
@@ -1050,6 +1059,26 @@ impl_partial_eq! { Object for BigUint64Array use identity }
 impl_partial_eq! { ArrayBufferView for BigUint64Array use identity }
 impl_partial_eq! { TypedArray for BigUint64Array use identity }
 impl_partial_eq! { BigUint64Array for BigUint64Array use identity }
+
+/// An instance of Float16Array constructor.
+#[repr(C)]
+#[derive(Debug)]
+pub struct Float16Array(Opaque);
+
+impl_deref! { TypedArray for Float16Array }
+impl_try_from! { Data for Float16Array if v => v.is_value() && cast::<Value>(v).is_float16_array() }
+impl_try_from! { Value for Float16Array if v => v.is_float16_array() }
+impl_try_from! { Object for Float16Array if v => v.is_float16_array() }
+impl_try_from! { ArrayBufferView for Float16Array if v => v.is_float16_array() }
+impl_try_from! { TypedArray for Float16Array if v => v.is_float16_array() }
+impl_eq! { for Float16Array }
+impl_hash! { for Float16Array use get_identity_hash }
+impl_partial_eq! { Data for Float16Array use identity }
+impl_partial_eq! { Value for Float16Array use identity }
+impl_partial_eq! { Object for Float16Array use identity }
+impl_partial_eq! { ArrayBufferView for Float16Array use identity }
+impl_partial_eq! { TypedArray for Float16Array use identity }
+impl_partial_eq! { Float16Array for Float16Array use identity }
 
 /// An instance of Float32Array constructor (ES6 draft 15.13.6).
 #[repr(C)]

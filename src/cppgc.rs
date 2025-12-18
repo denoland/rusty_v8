@@ -8,6 +8,7 @@ use crate::support::Opaque;
 use crate::support::SharedRef;
 use crate::support::UniqueRef;
 use crate::support::int;
+use std::cell::UnsafeCell;
 use std::ffi::CStr;
 use std::ffi::c_char;
 use std::marker::PhantomData;
@@ -39,15 +40,15 @@ unsafe extern "C" {
   );
 
   fn cppgc__Visitor__Trace__Member(
-    visitor: *const Visitor,
+    visitor: *mut Visitor,
     member: *const MemberInner,
   );
   fn cppgc__Visitor__Trace__WeakMember(
-    visitor: *const Visitor,
+    visitor: *mut Visitor,
     member: *const WeakMemberInner,
   );
   fn cppgc__Visitor__Trace__TracedReference(
-    visitor: *const Visitor,
+    visitor: *mut Visitor,
     reference: *const TracedReference<Data>,
   );
 
@@ -85,22 +86,6 @@ unsafe extern "C" {
   ) -> *mut RustObj;
 }
 
-unsafe fn get_rust_obj<'s>(obj: *const RustObj) -> &'s dyn GarbageCollected {
-  unsafe {
-    &*std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>((*obj).data)
-  }
-}
-
-unsafe fn get_rust_obj_mut<'s>(
-  obj: *mut RustObj,
-) -> &'s mut dyn GarbageCollected {
-  unsafe {
-    &mut *std::mem::transmute::<[usize; 2], *mut dyn GarbageCollected>(
-      (*obj).data,
-    )
-  }
-}
-
 #[unsafe(no_mangle)]
 unsafe extern "C" fn rusty_v8_RustObj_trace(
   obj: *const RustObj,
@@ -108,7 +93,7 @@ unsafe extern "C" fn rusty_v8_RustObj_trace(
 ) {
   unsafe {
     let r = get_rust_obj(obj);
-    r.trace(&*visitor);
+    r.trace(&mut *visitor);
   }
 }
 
@@ -128,25 +113,6 @@ unsafe extern "C" fn rusty_v8_RustObj_drop(obj: *mut RustObj) {
   }
 }
 
-fn object_offset_for_rust_obj<T: GarbageCollected>() -> usize {
-  #[repr(C)]
-  struct Calc<T> {
-    header: RustObj,
-    data: T,
-  }
-
-  std::mem::offset_of!(Calc<T>, data)
-}
-
-/// # Safety
-///
-/// T must be the correct type for this specific RustObj
-unsafe fn get_object_from_rust_obj<T: GarbageCollected>(
-  rust_obj: *const RustObj,
-) -> *mut T {
-  unsafe { rust_obj.byte_add(object_offset_for_rust_obj::<T>()) as *mut T }
-}
-
 /// Process-global initialization of the garbage collector. Must be called before
 /// creating a Heap.
 ///
@@ -155,12 +121,6 @@ pub fn initialize_process(platform: SharedRef<Platform>) {
   unsafe {
     cppgc__initialize_process(&*platform as *const Platform as *mut _);
   }
-}
-
-#[deprecated(note = "use correctly spelled initialize_process")]
-#[inline]
-pub fn initalize_process(platform: SharedRef<Platform>) {
-  initialize_process(platform);
 }
 
 /// # Safety
@@ -179,15 +139,16 @@ pub unsafe fn shutdown_process() {
 ///
 /// ```
 /// use v8::cppgc::{Member, Visitor, GarbageCollected};
+/// use std::ffi::CStr;
 ///
 /// struct Foo { foo: Member<Foo> }
 ///
-/// impl GarbageCollected for Foo {
-///   fn trace(&self, visitor: &Visitor) {
+/// unsafe impl GarbageCollected for Foo {
+///   fn trace(&self, visitor: &mut Visitor) {
 ///     visitor.trace(&self.foo);
 ///   }
 ///
-///   fn get_name(&self) -> &'static CStr {
+///   fn get_name(&self) -> &'static std::ffi::CStr {
 ///     c"Foo"
 ///   }
 /// }
@@ -197,19 +158,30 @@ pub unsafe fn shutdown_process() {
 pub struct Visitor(Opaque);
 
 impl Visitor {
+  /// Trace a managed object.
   #[inline(always)]
-  pub fn trace(&self, member: &impl Traced) {
+  pub fn trace(&mut self, member: &impl Traced) {
     member.trace(self);
   }
 }
 
-#[doc(hidden)]
+/// Trait for inlined objects that are not allocated
+/// themselves but otherwise follow managed heap layout.
 pub trait Traced {
-  fn trace(&self, visitor: &Visitor);
+  /// Called by the `Visitor` when tracing managed objects.
+  fn trace(&self, visitor: &mut Visitor);
+}
+
+impl<T: Traced> Traced for Option<T> {
+  fn trace(&self, visitor: &mut Visitor) {
+    if let Some(value) = self {
+      visitor.trace(value);
+    }
+  }
 }
 
 impl<T> Traced for TracedReference<T> {
-  fn trace(&self, visitor: &Visitor) {
+  fn trace(&self, visitor: &mut Visitor) {
     unsafe {
       cppgc__Visitor__Trace__TracedReference(
         visitor,
@@ -324,12 +296,19 @@ impl Heap {
   }
 }
 
-/// Base trait for managed objects.
-pub trait GarbageCollected {
-  /// `trace` should call `Visitor::visit` for each
-  /// `Member`, `WeakMember`, or `TracedReference` in
-  /// by the managed object.
-  fn trace(&self, _visitor: &Visitor) {}
+/// Base trait for objects supporting garbage collection.
+///
+/// # Safety
+///
+/// implementors must guarantee that the `trace()`
+/// method correctly visits all [`Member`], [`WeakMember`], and
+/// [`TraceReference`] pointers held by this object. Failing to do so will leave
+/// dangling pointers in the heap as objects are garbage collected.
+pub unsafe trait GarbageCollected {
+  /// `trace` must call [`Visitor::trace`] for each
+  /// [`Member`], [`WeakMember`], or [`TracedReference`] reachable
+  /// from `self`.
+  fn trace(&self, visitor: &mut Visitor);
 
   /// Specifies a name for the garbage-collected object. Such names will never
   /// be hidden, as they are explicitly specified by the user of this API.
@@ -341,6 +320,29 @@ pub trait GarbageCollected {
   /// must stay alive forever. If you need a place to store a temporary string
   /// during snapshot generation, use HeapProfiler::CopyNameForHeapSnapshot.
   fn get_name(&self) -> &'static CStr;
+}
+
+#[repr(C)]
+struct RustObjConcrete<T> {
+  head: RustObj,
+  dynamic: *mut dyn GarbageCollected,
+  value: T,
+}
+
+unsafe fn get_rust_obj<'s>(obj: *const RustObj) -> &'s dyn GarbageCollected {
+  unsafe {
+    let obj = &*(obj as *const RustObjConcrete<()>);
+    &*obj.dynamic
+  }
+}
+
+unsafe fn get_rust_obj_mut<'s>(
+  obj: *mut RustObj,
+) -> &'s mut dyn GarbageCollected {
+  unsafe {
+    let obj = &mut *(obj as *mut RustObjConcrete<()>);
+    &mut *obj.dynamic
+  }
 }
 
 /// Constructs an instance of T, which is a garbage collected type.
@@ -358,39 +360,83 @@ pub trait GarbageCollected {
 pub unsafe fn make_garbage_collected<T: GarbageCollected + 'static>(
   heap: &Heap,
   obj: T,
-) -> Ptr<T> {
+) -> UnsafePtr<T> {
   const {
     // max alignment in cppgc is 16
     assert!(std::mem::align_of::<T>() <= 16);
+    assert!(
+      std::mem::offset_of!(RustObjConcrete<T>, dynamic)
+        == std::mem::offset_of!(RustObjConcrete<()>, dynamic)
+    );
   }
 
-  let additional_bytes = (object_offset_for_rust_obj::<T>()
-    - std::mem::size_of::<RustObj>())
-    + std::mem::size_of::<T>();
+  let additional_bytes =
+    std::mem::size_of::<RustObjConcrete<T>>() - std::mem::size_of::<RustObj>();
 
   let pointer = unsafe {
     cppgc__make_garbage_collectable(
       heap as *const Heap as *mut _,
       additional_bytes,
-      std::mem::align_of::<T>(),
+      std::mem::align_of::<RustObjConcrete<T>>(),
     )
   };
 
   assert!(!pointer.is_null());
 
   unsafe {
-    let inner = get_object_from_rust_obj::<T>(pointer);
-    inner.write(obj);
-
-    let rust_obj = &mut *pointer;
-    rust_obj.data = std::mem::transmute::<*mut dyn GarbageCollected, [usize; 2]>(
-      &mut *inner as &mut dyn GarbageCollected as *mut dyn GarbageCollected,
-    );
+    let pointer = &mut *(pointer as *mut RustObjConcrete<T>);
+    let value_ptr = std::ptr::addr_of_mut!(pointer.value);
+    value_ptr.write(obj);
+    std::ptr::addr_of_mut!(pointer.dynamic).write(value_ptr as _);
   }
 
-  Ptr {
+  UnsafePtr {
     pointer: unsafe { NonNull::new_unchecked(pointer) },
     _phantom: PhantomData,
+  }
+}
+
+/// # Safety
+///
+/// T must be the correct type for this specific RustObj
+unsafe fn get_value_from_rust_obj<T: GarbageCollected>(
+  obj: *mut RustObj,
+) -> *const T {
+  unsafe {
+    let obj = &mut *(obj as *mut RustObjConcrete<T>);
+    std::ptr::addr_of_mut!(obj.value)
+  }
+}
+
+/// UnsafePtr is used to refer to an on-heap object from the stack.
+#[derive(Clone, Copy)]
+pub struct UnsafePtr<T: GarbageCollected> {
+  pointer: NonNull<RustObj>,
+  _phantom: PhantomData<T>,
+}
+
+impl<T: GarbageCollected> UnsafePtr<T> {
+  /// Create a new UnsafePtr.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that the returned pointer is always stored on
+  /// the stack, or is safely moved into one of the other cppgc pointer types.
+  pub unsafe fn new(value: &impl GetRustObj<T>) -> Option<UnsafePtr<T>> {
+    NonNull::new(value.get_rust_obj()).map(|pointer| UnsafePtr {
+      pointer,
+      _phantom: PhantomData,
+    })
+  }
+
+  pub unsafe fn as_ref(&self) -> &T {
+    unsafe { &*get_value_from_rust_obj(self.pointer.as_ptr()) }
+  }
+}
+
+impl<T: GarbageCollected> GetRustObj<T> for UnsafePtr<T> {
+  fn get_rust_obj(&self) -> *mut RustObj {
+    self.pointer.as_ptr()
   }
 }
 
@@ -479,17 +525,23 @@ macro_rules! member {
           self.inner.assign(ptr);
         }
 
-        #[doc = "Borrow the object pointed to by this "]
+        #[doc = "Get the object pointed to by this "]
         #[doc = stringify!($name)]
-        #[doc = "."]
-        pub fn borrow(&self) -> Option<&T> {
+        #[doc = ", returning `None` if the pointer is empty or has been garbage-collected."]
+        #[doc = ""]
+        #[doc = "# Safety"]
+        #[doc = ""]
+        #[doc = "The caller must ensure that this pointer is being traced correctly by appearing in the [`trace`](GarbageCollected::trace)"]
+        #[doc = "implementation of the object that owns the pointer. Between initializing the pointer and calling `get()`, the pointer must be reachable by the garbage collector."]
+        pub unsafe fn get(&self) -> Option<&T> {
           let ptr = self.inner.get();
           if ptr.is_null() {
             None
           } else {
-            // SAFETY: Either this is a strong reference and the pointer is always valid
-            // or this is a weak reference and the ptr will be null if it was collected.
-            Some(unsafe { &*get_object_from_rust_obj(ptr) })
+            // SAFETY: Either this is a strong reference and the pointer is valid according
+            // to the safety contract of this method, or this is a weak reference and the
+            // ptr will be null if it was collected.
+            Some(unsafe { &*get_value_from_rust_obj(ptr) })
           }
         }
       }
@@ -501,7 +553,7 @@ macro_rules! member {
       }
 
       impl<T: GarbageCollected> Traced for $name<T> {
-        fn trace(&self, visitor: &Visitor) {
+        fn trace(&self, visitor: &mut Visitor) {
           unsafe { [< cppgc__Visitor__Trace__ $name >](visitor, &self.inner) }
         }
       }
@@ -580,14 +632,14 @@ macro_rules! persistent {
         #[doc = "Borrow the object pointed to by this "]
         #[doc = stringify!($name)]
         #[doc = "."]
-        pub fn borrow(&self) -> Option<&T> {
-          let ptr = self.get();
+        pub fn get(&self) -> Option<&T> {
+          let ptr = self.get_rust_obj();
           if ptr.is_null() {
             None
           } else {
             // SAFETY: Either this is a strong reference and the pointer is always valid
             // or this is a weak reference and the ptr will be null if it was collected.
-            Some(unsafe { &*get_object_from_rust_obj(ptr) })
+            Some(unsafe { &*get_value_from_rust_obj(ptr) })
           }
         }
 
@@ -597,14 +649,6 @@ macro_rules! persistent {
             [< cppgc__ $name __Assign >](self.inner, ptr);
           }
         }
-
-        #[inline(always)]
-        fn get(&self) -> *mut RustObj {
-          unsafe {
-            [< cppgc__ $name __Get >](self.inner)
-          }
-        }
-
       }
 
       impl<T: GarbageCollected> Drop for $name<T> {
@@ -623,7 +667,9 @@ macro_rules! persistent {
 
       impl<T: GarbageCollected> GetRustObj<T> for $name<T> {
         fn get_rust_obj(&self) -> *mut RustObj {
-          self.get()
+          unsafe {
+            [< cppgc__ $name __Get >](self.inner)
+          }
         }
       }
     }
@@ -647,50 +693,86 @@ persistent! {
   WeakPersistent
 }
 
-/// Ptr is used to refer to an on-heap object from the stack.
-#[derive(Clone, Copy)]
-pub struct Ptr<T: GarbageCollected> {
-  pointer: NonNull<RustObj>,
-  _phantom: PhantomData<T>,
+/// `GcCell` is a zero-overhead memory cell that provides interior mutability
+/// for garbage collected types.
+///
+/// Mutable access to the value inside the `GcCell` is granted by delivering
+/// proof that the caller has mutable access to the V8 Isolate (such as through
+/// a [`HandleScope`](crate::HandleScope)). This statically guarantees that
+/// access patterns follow the rules of both the garbage collector and the Rust
+/// borrow checker.
+///
+/// `GcCell` also implements [`Traced`], which means that it can hold other
+/// garbage collected references, like [`Member`] or [`WeakMember`]. If the
+/// `GcCell` holds other garbage collected objects, those objects cannot be
+/// accessed while the `GcCell` is borrowed, and the caller must construct
+/// temporary pointers ([`UnsafePtr<T>`]) on the stack in order to access nested
+/// objects in the object graph.
+pub struct GcCell<T> {
+  // Contents guarded by access to the `Isolate`.
+  value: UnsafeCell<T>,
 }
 
-impl<T: GarbageCollected> Ptr<T> {
-  /// Create a new Ptr.
-  ///
-  /// # Safety
-  ///
-  /// The caller must ensure that the returned pointer is always stored on
-  /// the stack, or is safely moved into one of the other cppgc pointer types.
-  pub unsafe fn new(other: &impl GetRustObj<T>) -> Option<Self> {
-    NonNull::new(other.get_rust_obj()).map(|pointer| Self {
-      pointer,
-      _phantom: PhantomData,
-    })
+impl<T> std::fmt::Debug for GcCell<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("GcCell").finish()
   }
 }
 
-impl<T: GarbageCollected> std::ops::Deref for Ptr<T> {
-  type Target = T;
+unsafe impl<T: Send> Send for GcCell<T> {}
+unsafe impl<T: Sync> Sync for GcCell<T> {}
 
-  fn deref(&self) -> &T {
-    unsafe { &*get_object_from_rust_obj(self.pointer.as_ptr()) }
+impl<T> GcCell<T> {
+  pub fn new(value: T) -> Self {
+    Self {
+      value: UnsafeCell::new(value),
+    }
+  }
+
+  pub fn set(&self, isolate: &mut crate::Isolate, value: T) {
+    _ = isolate;
+    unsafe {
+      // SAFETY: The `isolate` argument is proof that we have mutable access to
+      // the value.
+      *self.value.get() = value;
+    }
   }
 }
 
-impl<T: GarbageCollected> GetRustObj<T> for Ptr<T> {
-  fn get_rust_obj(&self) -> *mut RustObj {
-    self.pointer.as_ptr()
+impl<T> GcCell<T> {
+  pub fn get<'a>(&'a self, isolate: &'a crate::Isolate) -> &'a T {
+    _ = isolate;
+    unsafe {
+      // SAFETY: The `isolate` argument is proof that we have access to the
+      // value, and the returned reference binds the isolate's lifetime.
+      &*self.value.get()
+    }
+  }
+
+  pub fn get_mut<'a>(&'a self, isolate: &'a mut crate::Isolate) -> &'a mut T {
+    _ = isolate;
+    unsafe {
+      // SAFETY: The `isolate` argument is proof that we have mutable access to
+      // the value, and the returned reference binds the isolate's lifetime.
+      &mut *self.value.get()
+    }
+  }
+
+  pub fn with<'a, 's, R>(
+    &'a self,
+    scope: &'a mut crate::HandleScope<'s>,
+    f: impl FnOnce(&'a mut crate::HandleScope<'s>, &'a mut T) -> R,
+  ) -> R {
+    f(scope, unsafe { &mut *self.value.get() })
   }
 }
 
-impl<T: GarbageCollected + std::fmt::Debug> std::fmt::Debug for Ptr<T> {
-  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-    std::fmt::Debug::fmt(&**self, fmt)
-  }
-}
-
-impl<T: GarbageCollected + std::fmt::Display> std::fmt::Display for Ptr<T> {
-  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-    std::fmt::Display::fmt(&**self, fmt)
+impl<T: Traced> Traced for GcCell<T> {
+  fn trace(&self, visitor: &mut Visitor) {
+    unsafe {
+      // SAFETY: This is invoked by the GC, so access is guaranteed to follow
+      // its rules.
+      visitor.trace(&(*self.value.get()));
+    }
   }
 }

@@ -1,20 +1,20 @@
 use std::alloc::Layout;
 use std::ptr::NonNull;
 
-use crate::HandleScope;
 use crate::Int32;
 use crate::Integer;
-use crate::Isolate;
 use crate::Local;
 use crate::Number;
 use crate::Uint32;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
-  fn v8__Number__New(isolate: *mut Isolate, value: f64) -> *const Number;
+  fn v8__Number__New(isolate: *mut RealIsolate, value: f64) -> *const Number;
   fn v8__Number__Value(this: *const Number) -> f64;
-  fn v8__Integer__New(isolate: *mut Isolate, value: i32) -> *const Integer;
+  fn v8__Integer__New(isolate: *mut RealIsolate, value: i32) -> *const Integer;
   fn v8__Integer__NewFromUnsigned(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: u32,
   ) -> *const Integer;
   fn v8__Integer__Value(this: *const Integer) -> i64;
@@ -25,7 +25,7 @@ unsafe extern "C" {
 impl Number {
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     value: f64,
   ) -> Local<'s, Number> {
     unsafe {
@@ -43,7 +43,7 @@ impl Number {
 impl Integer {
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     value: i32,
   ) -> Local<'s, Integer> {
     unsafe {
@@ -54,7 +54,7 @@ impl Integer {
 
   #[inline(always)]
   pub fn new_from_unsigned<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     value: u32,
   ) -> Local<'s, Integer> {
     unsafe {

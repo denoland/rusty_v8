@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 13.7.152.14
+V8 Version: 14.2.231.17
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=main)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
@@ -120,6 +120,13 @@ For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
 install them.
 
+Additionally, building from source requires libclang 19+ for bindgen:
+
+```bash
+sudo apt install libclang-19-dev
+export LIBCLANG_PATH=/usr/lib/llvm-19/lib
+```
+
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
 not supported.
 
@@ -235,3 +242,9 @@ for M1 build.
 $ V8_FROM_SOURCE=1 cargo build
 $ V8_FROM_SOURCE=1 cargo build --release
 ```
+
+## Experimental Features
+
+rusty_v8 includes experimental support for certain feature(s) that may be useful in security focused contexts but are not as well tested and do not undergo any sort of CI related testing or prebuilt archives. Due to their experimental status, these features require either ``V8_FROM_SOURCE=1`` to be set or the use of a custom-built archive of v8. 
+
+- ``v8_enable_sandbox``: Enables v8 sandbox mode. The v8 sandbox enables improved safety while executing potentially malicious JavaScript code through the use of memory cages. Note that the v8 sandbox will allocate ~1TB of virtual memory (although this should not be an issue as many operating systems allow 128-256TB of virtual memory per process). Creating isolates with the sandbox enabled comes with API limitations and may have increased overhead. Note that enabling the V8 sandbox also implies pointer compression to be enabled as well.

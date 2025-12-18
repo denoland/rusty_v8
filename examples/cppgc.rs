@@ -13,15 +13,18 @@ struct Rope {
 impl std::fmt::Display for Rope {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.part)?;
-    if let Some(next) = self.next.borrow() {
-      write!(f, "{next}")?;
+    unsafe {
+      // SAFETY: `next` is visited in `trace()`.
+      if let Some(next) = self.next.get() {
+        write!(f, "{next}")?;
+      }
     }
     Ok(())
   }
 }
 
 impl Rope {
-  pub fn new(part: String, next: Option<v8::cppgc::Ptr<Rope>>) -> Rope {
+  pub fn new(part: String, next: Option<v8::cppgc::UnsafePtr<Rope>>) -> Rope {
     let next = match next {
       Some(p) => v8::cppgc::Member::new(&p),
       None => v8::cppgc::Member::empty(),
@@ -30,8 +33,8 @@ impl Rope {
   }
 }
 
-impl v8::cppgc::GarbageCollected for Rope {
-  fn trace(&self, visitor: &v8::cppgc::Visitor) {
+unsafe impl v8::cppgc::GarbageCollected for Rope {
+  fn trace(&self, visitor: &mut v8::cppgc::Visitor) {
     visitor.trace(&self.next);
   }
 
@@ -49,8 +52,8 @@ impl Drop for Rope {
 fn main() {
   let platform = v8::new_default_platform(0, false).make_shared();
   v8::V8::initialize_platform(platform.clone());
-  v8::V8::initialize();
   v8::cppgc::initialize_process(platform.clone());
+  v8::V8::initialize();
 
   {
     // Create a managed heap.
@@ -71,7 +74,7 @@ fn main() {
       )
     };
 
-    println!("{rope}");
+    println!("{}", unsafe { rope.as_ref() });
 
     // Manually trigger garbage collection.
     heap.enable_detached_garbage_collections_for_testing();
@@ -84,7 +87,7 @@ fn main() {
     }
 
     // Should still be live here:
-    println!("{rope}");
+    println!("{}", unsafe { rope.as_ref() });
 
     println!("Collect: NoHeapPointers");
     unsafe {

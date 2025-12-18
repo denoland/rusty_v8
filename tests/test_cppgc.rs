@@ -1,6 +1,7 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
-use v8::cppgc::{GarbageCollected, Visitor};
+use v8::cppgc::{GarbageCollected, GcCell, Member, Traced, Visitor};
 
 mod setup {
   use std::sync::Once;
@@ -68,8 +69,8 @@ macro_rules! test {
         value: v8::TracedReference<v8::Value>,
       }
 
-      impl GarbageCollected for Wrap {
-        fn trace(&self, visitor: &Visitor) {
+      unsafe impl GarbageCollected for Wrap {
+        fn trace(&self, visitor: &mut Visitor) {
           TRACE_COUNT.fetch_add(1, Ordering::SeqCst);
           visitor.trace(&self.value);
         }
@@ -86,12 +87,12 @@ macro_rules! test {
       }
 
       fn op_wrap(
-        scope: &mut v8::HandleScope,
+        scope: &mut v8::PinScope<'_, '_>,
         args: v8::FunctionCallbackArguments,
         mut rv: v8::ReturnValue<v8::Value>,
       ) {
         fn empty(
-          _scope: &mut v8::HandleScope,
+          _scope: &mut v8::PinScope<'_, '_>,
           _args: v8::FunctionCallbackArguments,
           _rv: v8::ReturnValue<v8::Value>,
         ) {
@@ -117,20 +118,21 @@ macro_rules! test {
       }
 
       fn op_unwrap(
-        scope: &mut v8::HandleScope,
+        scope: &mut v8::PinScope<'_, '_>,
         args: v8::FunctionCallbackArguments,
         mut rv: v8::ReturnValue,
       ) {
         let obj = args.get(0).try_into().unwrap();
         let member = unsafe { v8::Object::unwrap::<TAG, Wrap>(scope, obj) };
-        rv.set(member.unwrap().value.get(scope).unwrap());
+        rv.set(unsafe { member.unwrap().as_ref().value.get(scope).unwrap() });
       }
 
       {
         let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 
         {
-          let handle_scope = &mut v8::HandleScope::new(isolate);
+          let handle_scope = std::pin::pin!(v8::HandleScope::new(isolate));
+          let handle_scope = &mut handle_scope.init();
           let context = v8::Context::new(handle_scope, Default::default());
           let scope = &mut v8::ContextScope::new(handle_scope, context);
           let global = context.global(scope);
@@ -210,8 +212,9 @@ fn execute_script(
   context_scope: &mut v8::ContextScope<v8::HandleScope>,
   source: &str,
 ) {
-  let scope = &mut v8::HandleScope::new(context_scope);
-  let scope = &mut v8::TryCatch::new(scope);
+  v8::scope!(let scope, context_scope);
+
+  v8::tc_scope!(let scope, scope);
 
   let source = v8::String::new(scope, source).unwrap();
 
@@ -228,5 +231,158 @@ fn execute_script(
       );
 
     panic!("{exception_string}");
+  }
+}
+
+#[test]
+fn cppgc_cell() {
+  struct Wrap {
+    int: GcCell<i32>,
+    inner: GcCell<Inner>,
+  }
+
+  struct Inner {
+    other: Member<Wrap>,
+  }
+
+  unsafe impl GarbageCollected for Wrap {
+    fn trace(&self, visitor: &mut Visitor) {
+      visitor.trace(&self.inner);
+    }
+
+    fn get_name(&self) -> &'static std::ffi::CStr {
+      c"GcCellWrap"
+    }
+  }
+
+  impl Traced for Inner {
+    fn trace(&self, visitor: &mut Visitor) {
+      visitor.trace(&self.other);
+    }
+  }
+
+  fn op_wrap(
+    scope: &mut v8::PinScope<'_, '_>,
+    args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue<v8::Value>,
+  ) {
+    fn empty(
+      _scope: &mut v8::PinScope<'_, '_>,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+    let templ = v8::FunctionTemplate::new(scope, empty);
+    let func = templ.get_function(scope).unwrap();
+    let obj = func.new_instance(scope, &[]).unwrap();
+    assert!(obj.is_api_wrapper());
+
+    let int = v8::Local::<v8::Integer>::try_from(args.get(0))
+      .expect("expected integer");
+    let other =
+      v8::Local::<v8::Object>::try_from(args.get(1))
+        .ok()
+        .map(|obj| unsafe {
+          v8::Object::unwrap::<TAG, _>(scope, obj)
+            .expect("expected wrapped object")
+        });
+
+    let wrap = Wrap {
+      int: GcCell::new(int.value() as i32),
+      inner: GcCell::new(Inner {
+        other: Member::empty(),
+      }),
+    };
+    let wrapped = unsafe {
+      v8::cppgc::make_garbage_collected(scope.get_cpp_heap().unwrap(), wrap)
+    };
+    if let Some(other) = other {
+      // Initialize the member with the other object.
+      unsafe { wrapped.as_ref() }
+        .inner
+        .get_mut(scope)
+        .other
+        .set(&other);
+    }
+
+    unsafe {
+      v8::Object::wrap::<TAG, Wrap>(scope, obj, &wrapped);
+    }
+
+    rv.set(obj.into());
+  }
+
+  fn op_unwrap(
+    scope: &mut v8::PinScope<'_, '_>,
+    args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+  ) {
+    let obj = args.get(0).try_into().unwrap();
+    let wrapped =
+      unsafe { v8::Object::unwrap::<TAG, Wrap>(scope, obj) }.unwrap();
+    let inner = unsafe { wrapped.as_ref() }.inner.get(scope);
+    let Some(other) = (unsafe {
+      // SAFETY: Constructing on the stack.
+      inner.other.get()
+    }) else {
+      return;
+    };
+    let int = *other.int.get(scope);
+    rv.set(v8::Integer::new(scope, int).into());
+  }
+
+  let _guard = setup::sequential_test();
+
+  {
+    let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+
+    {
+      v8::scope!(handle_scope, isolate);
+      let context = v8::Context::new(handle_scope, Default::default());
+      let scope = &mut v8::ContextScope::new(handle_scope, context);
+      let global = context.global(scope);
+      {
+        let func = v8::Function::new(scope, op_wrap).unwrap();
+        let name = v8::String::new(scope, "wrap").unwrap();
+        global.set(scope, name.into(), func.into()).unwrap();
+      }
+      {
+        let func = v8::Function::new(scope, op_unwrap).unwrap();
+        let name = v8::String::new(scope, "unwrap").unwrap();
+        global.set(scope, name.into(), func.into()).unwrap();
+      }
+
+      execute_script(
+        scope,
+        r#"
+          const a = wrap(123);
+          const b = wrap(456, a);
+          globalThis.testValue = unwrap(b); // 123
+        "#,
+      );
+
+      {
+        let mut vec = Vec::<u8>::new();
+        scope.take_heap_snapshot(|chunk| {
+          vec.extend_from_slice(chunk);
+          true
+        });
+        let s = std::str::from_utf8(&vec).unwrap();
+        assert!(s.contains("GcCellWrap"));
+      }
+
+      scope.request_garbage_collection_for_testing(
+        v8::GarbageCollectionType::Full,
+      );
+
+      execute_script(
+        scope,
+        r#"
+          if (globalThis.testValue !== 123) {
+            throw new Error('testValue should be 123');
+          }
+        "#,
+      );
+    }
   }
 }

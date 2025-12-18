@@ -1,13 +1,14 @@
 use crate::ArrayBuffer;
 use crate::ArrayBufferView;
 use crate::BackingStore;
-use crate::HandleScope;
 use crate::Local;
 use crate::SharedRef;
 use crate::binding::memory_span_t;
+use crate::scope::PinScope;
 use crate::support::int;
 use std::convert::TryInto;
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 
 unsafe extern "C" {
   fn v8__ArrayBufferView__Buffer(
@@ -35,7 +36,7 @@ impl ArrayBufferView {
   #[inline(always)]
   pub fn buffer<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Option<Local<'s, ArrayBuffer>> {
     unsafe { scope.cast_local(|_| v8__ArrayBufferView__Buffer(self)) }
   }
@@ -84,6 +85,21 @@ impl ArrayBufferView {
   /// Returns the number of bytes actually written.
   #[inline(always)]
   pub fn copy_contents(&self, dest: &mut [u8]) -> usize {
+    unsafe {
+      v8__ArrayBufferView__CopyContents(
+        self,
+        dest.as_mut_ptr() as *mut c_void,
+        dest.len().try_into().unwrap(),
+      )
+    }
+  }
+
+  /// Copy the contents of the ArrayBufferView's buffer to an embedder defined
+  /// memory without additional overhead that calling ArrayBufferView::Buffer
+  /// might incur.
+  /// Returns the number of bytes actually written.
+  #[inline(always)]
+  pub fn copy_contents_uninit(&self, dest: &mut [MaybeUninit<u8>]) -> usize {
     unsafe {
       v8__ArrayBufferView__CopyContents(
         self,

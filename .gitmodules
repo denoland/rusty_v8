@@ -49,3 +49,9 @@
 [submodule "third_party/partition_alloc"]
 	path = third_party/partition_alloc
 	url = https://chromium.googlesource.com/chromium/src/base/allocator/partition_allocator.git
+[submodule "third_party/dragonbox/src"]
+	path = third_party/dragonbox/src
+	url = https://chromium.googlesource.com/external/github.com/jk-jeon/dragonbox.git
+[submodule "third_party/rust"]
+	path = third_party/rust
+	url = https://chromium.googlesource.com/chromium/src/third_party/rust

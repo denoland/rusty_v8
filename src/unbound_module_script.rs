@@ -1,6 +1,6 @@
 use crate::CachedData;
-use crate::HandleScope;
 use crate::Local;
+use crate::PinScope;
 use crate::UnboundModuleScript;
 use crate::UniqueRef;
 use crate::Value;
@@ -39,7 +39,7 @@ impl UnboundModuleScript {
 
   pub fn get_source_mapping_url<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe {
       scope
@@ -50,7 +50,7 @@ impl UnboundModuleScript {
 
   pub fn get_source_url<'s>(
     &self,
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
   ) -> Local<'s, Value> {
     unsafe {
       scope

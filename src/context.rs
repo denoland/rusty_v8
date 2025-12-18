@@ -1,6 +1,7 @@
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 use crate::Context;
-use crate::HandleScope;
 use crate::Local;
 use crate::MicrotaskQueue;
 use crate::Object;
@@ -9,7 +10,6 @@ use crate::Value;
 use crate::Weak;
 use crate::handle::UnsafeRefHandle;
 use crate::isolate::BuildTypeIdHasher;
-use crate::isolate::Isolate;
 use crate::isolate::RawSlot;
 use crate::support::int;
 use std::any::TypeId;
@@ -20,12 +20,12 @@ use std::rc::Rc;
 
 unsafe extern "C" {
   fn v8__Context__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     templ: *const ObjectTemplate,
     global_object: *const Value,
     microtask_queue: *mut MicrotaskQueue,
   ) -> *const Context;
-  fn v8__Context__GetIsolate(this: *const Context) -> *mut Isolate;
+  fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   fn v8__Context__Global(this: *const Context) -> *const Object;
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
   -> *const Object;
@@ -49,7 +49,7 @@ unsafe extern "C" {
     value: *const Value,
   );
   fn v8__Context__FromSnapshot(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     context_snapshot_index: usize,
     global_object: *const Value,
     microtask_queue: *mut MicrotaskQueue,
@@ -95,12 +95,12 @@ pub struct ContextOptions<'s> {
 
 impl Context {
   const ANNEX_SLOT: int = 1;
-  const INTERNAL_SLOT_COUNT: int = 1;
+  const INTERNAL_SLOT_COUNT: int = 2;
 
   /// Creates a new context.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     options: ContextOptions,
   ) -> Local<'s, Context> {
     unsafe {
@@ -121,7 +121,7 @@ impl Context {
   #[inline(always)]
   pub fn get_extras_binding_object<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__GetExtrasBindingObject(self)) }
       .unwrap()
@@ -138,10 +138,7 @@ impl Context {
   /// would break VM---v8 expects only global object as a prototype of global
   /// proxy object.
   #[inline(always)]
-  pub fn global<'s>(
-    &self,
-    scope: &mut HandleScope<'s, ()>,
-  ) -> Local<'s, Object> {
+  pub fn global<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Local<'s, Object> {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
@@ -158,11 +155,13 @@ impl Context {
   }
 
   #[inline]
+  #[allow(clippy::mut_from_ref)]
   fn get_annex_mut(
     &self,
     create_if_not_present: bool,
   ) -> Option<&mut ContextAnnex> {
-    let isolate = unsafe { &mut *v8__Context__GetIsolate(self) };
+    let isolate = unsafe { v8__Isolate__GetCurrent() };
+    let mut isolate = unsafe { crate::isolate::Isolate::from_raw_ptr(isolate) };
 
     let num_data_fields =
       unsafe { v8__Context__GetNumberOfEmbedderDataFields(self) } as int;
@@ -187,7 +186,7 @@ impl Context {
     let annex = Box::new(ContextAnnex {
       slots: Default::default(),
       // Gets replaced later in the method.
-      self_weak: Weak::empty(isolate),
+      self_weak: Weak::empty(&mut isolate),
     });
     let annex_ptr = Box::into_raw(annex);
     unsafe {
@@ -210,10 +209,10 @@ impl Context {
       // and assuming the caller is only using safe code, the `Local` or
       // `Global` must still be alive, so `self_ref_handle` won't outlive it.
       // We also check above that `isolate` is the context's isolate.
-      let self_ref_handle = unsafe { UnsafeRefHandle::new(self, isolate) };
+      let self_ref_handle = unsafe { UnsafeRefHandle::new(self, &mut isolate) };
 
       Weak::with_guaranteed_finalizer(
-        isolate,
+        &mut isolate,
         self_ref_handle,
         Box::new(move || {
           // SAFETY: The lifetimes of references to the annex returned by this
@@ -317,8 +316,15 @@ impl Context {
   /// Note that index 0 currently has a special meaning for Chrome's debugger.
   #[inline(always)]
   pub fn set_embedder_data(&self, slot: i32, data: Local<'_, Value>) {
+    // Initialize the annex when slot count > INTERNAL_SLOT_COUNT.
+    self.get_annex_mut(true);
+
     unsafe {
-      v8__Context__SetEmbedderData(self, slot, &*data);
+      v8__Context__SetEmbedderData(
+        self,
+        slot + Self::INTERNAL_SLOT_COUNT,
+        &*data,
+      );
     }
   }
 
@@ -327,10 +333,14 @@ impl Context {
   #[inline(always)]
   pub fn get_embedder_data<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     slot: i32,
   ) -> Option<Local<'s, Value>> {
-    unsafe { scope.cast_local(|_| v8__Context__GetEmbedderData(self, slot)) }
+    unsafe {
+      scope.cast_local(|_| {
+        v8__Context__GetEmbedderData(self, slot + Self::INTERNAL_SLOT_COUNT)
+      })
+    }
   }
 
   #[inline(always)]
@@ -368,14 +378,14 @@ impl Context {
   /// is no way to provide a global object template since we do not create
   /// a new global object from template, but we can reuse a global object.
   pub fn from_snapshot<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     context_snapshot_index: usize,
     options: ContextOptions,
   ) -> Option<Local<'s, Context>> {
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__FromSnapshot(
-          sd.get_isolate_mut(),
+          sd.get_isolate_ptr(),
           context_snapshot_index,
           options.global_object.map_or_else(null, |o| &*o as *const _),
           options.microtask_queue.unwrap_or_else(null_mut),
@@ -387,7 +397,7 @@ impl Context {
   #[inline(always)]
   pub fn get_security_token<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Context__GetSecurityToken(self)) }
       .unwrap()

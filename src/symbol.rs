@@ -1,34 +1,34 @@
-use crate::HandleScope;
-use crate::Isolate;
 use crate::Local;
 use crate::String;
 use crate::Symbol;
 use crate::Value;
+use crate::isolate::RealIsolate;
+use crate::scope::PinScope;
 
 unsafe extern "C" {
   fn v8__Symbol__New(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__For(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__ForApi(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     description: *const String,
   ) -> *const Symbol;
   fn v8__Symbol__Description(
     this: *const Symbol,
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
   ) -> *const Value;
 }
 
 macro_rules! well_known {
   ($name:ident, $binding:ident) => {
-    pub fn $name<'s>(scope: &mut HandleScope<'s, ()>) -> Local<'s, Symbol> {
+    pub fn $name<'s>(scope: &PinScope<'s, '_, ()>) -> Local<'s, Symbol> {
       unsafe extern "C" {
-        fn $binding(isolate: *mut Isolate) -> *const Symbol;
+        fn $binding(isolate: *mut RealIsolate) -> *const Symbol;
       }
       unsafe { scope.cast_local(|sd| $binding(sd.get_isolate_ptr())) }.unwrap()
     }
@@ -40,7 +40,7 @@ impl Symbol {
   /// description.
   #[inline(always)]
   pub fn new<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     description: Option<Local<String>>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -63,7 +63,7 @@ impl Symbol {
   /// Corresponds to v8::Symbol::For() in C++.
   #[inline(always)]
   pub fn for_key<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -78,7 +78,7 @@ impl Symbol {
   /// Corresponds to v8::Symbol::ForApi() in C++.
   #[inline(always)]
   pub fn for_api<'s>(
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
     description: Local<String>,
   ) -> Local<'s, Symbol> {
     unsafe {
@@ -93,7 +93,7 @@ impl Symbol {
   #[inline(always)]
   pub fn description<'s>(
     &self,
-    scope: &mut HandleScope<'s, ()>,
+    scope: &PinScope<'s, '_, ()>,
   ) -> Local<'s, Value> {
     unsafe {
       scope.cast_local(|sd| v8__Symbol__Description(self, sd.get_isolate_ptr()))

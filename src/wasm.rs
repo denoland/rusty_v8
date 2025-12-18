@@ -1,15 +1,16 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use crate::ArrayBuffer;
-use crate::Isolate;
 use crate::Local;
+use crate::PinScope;
 use crate::Value;
 use crate::WasmMemoryObject;
 use crate::WasmModuleObject;
 use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
-use crate::scope::CallbackScope;
-use crate::scope::HandleScope;
+use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
+use crate::scope::callback_scope;
 use crate::support::Opaque;
 use crate::support::UnitType;
 use crate::support::char;
@@ -95,7 +96,7 @@ impl WasmModuleObject {
   /// a CompiledWasmModule.
   #[inline(always)]
   pub fn from_compiled_module<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     compiled_module: &CompiledWasmModule,
   ) -> Option<Local<'s, WasmModuleObject>> {
     unsafe {
@@ -119,7 +120,7 @@ impl WasmModuleObject {
   /// Compile a Wasm module from the provided uncompiled bytes.
   #[inline(always)]
   pub fn compile<'s>(
-    scope: &mut HandleScope<'s>,
+    scope: &PinScope<'s, '_>,
     wire_bytes: &[u8],
   ) -> Option<Local<'s, WasmModuleObject>> {
     unsafe {
@@ -182,7 +183,7 @@ impl Drop for CompiledWasmModule {
 impl WasmMemoryObject {
   /// Returns underlying ArrayBuffer.
   #[inline(always)]
-  pub fn buffer(&self) -> Local<ArrayBuffer> {
+  pub fn buffer(&self) -> Local<'_, ArrayBuffer> {
     unsafe { Local::from_raw(v8__WasmMemoryObject__Buffer(self)) }.unwrap()
   }
 }
@@ -190,14 +191,24 @@ impl WasmMemoryObject {
 pub(crate) fn trampoline<F>()
 -> unsafe extern "C" fn(*const FunctionCallbackInfo)
 where
-  F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
+  F: UnitType
+    + for<'a, 'b, 'c> Fn(
+      &'c mut PinScope<'a, 'b>,
+      Local<'a, Value>,
+      WasmStreaming,
+    ),
 {
   unsafe extern "C" fn c_fn<F>(info: *const FunctionCallbackInfo)
   where
-    F: UnitType + Fn(&mut HandleScope, Local<Value>, WasmStreaming),
+    F: UnitType
+      + for<'a, 'b, 'c> Fn(
+        &'c mut PinScope<'a, 'b>,
+        Local<'a, Value>,
+        WasmStreaming,
+      ),
   {
     let info = unsafe { &*info };
-    let scope = &mut unsafe { CallbackScope::new(info) };
+    callback_scope!(unsafe scope, info);
     let args = FunctionCallbackArguments::from_function_callback_info(info);
     let data = args.data();
     let zero = null_mut();
@@ -213,7 +224,7 @@ where
 
 unsafe extern "C" {
   fn v8__WasmStreaming__Unpack(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     value: *const Value,
     that: *mut WasmStreamingSharedPtr, // Out parameter.
   );
@@ -235,14 +246,14 @@ unsafe extern "C" {
   );
 
   fn v8__WasmModuleObject__FromCompiledModule(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     compiled_module: *const InternalCompiledWasmModule,
   ) -> *const WasmModuleObject;
   fn v8__WasmModuleObject__GetCompiledModule(
     this: *const WasmModuleObject,
   ) -> *mut InternalCompiledWasmModule;
   fn v8__WasmModuleObject__Compile(
-    isolate: *mut Isolate,
+    isolate: *mut RealIsolate,
     wire_bytes_data: *const u8,
     length: usize,
   ) -> *mut WasmModuleObject;

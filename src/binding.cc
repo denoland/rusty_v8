@@ -33,14 +33,21 @@ constexpr size_t align_to(size_t size) {
   return (size + sizeof(T) - 1) & ~(sizeof(T) - 1);
 }
 
+#ifdef V8_ENABLE_CHECKS
+constexpr size_t handle_scope_size = 4;
+#else
+constexpr size_t handle_scope_size = 3;
+#endif
+
 static_assert(sizeof(two_pointers_t) ==
                   sizeof(std::shared_ptr<v8::BackingStore>),
               "std::shared_ptr<v8::BackingStore> size mismatch");
 
-static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * 3,
+static_assert(sizeof(v8::HandleScope) == sizeof(size_t) * handle_scope_size,
               "HandleScope size mismatch");
 
-static_assert(sizeof(v8::EscapableHandleScope) == sizeof(size_t) * 4,
+static_assert(sizeof(v8::EscapableHandleScope) ==
+                  sizeof(size_t) * (handle_scope_size + 1),
               "EscapableHandleScope size mismatch");
 
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
@@ -113,6 +120,12 @@ static_assert(offsetof(v8::ScriptCompiler::CachedData, buffer_policy) == 12,
 static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 12,
               "DisallowJavascriptExecutionScope size mismatch");
 #endif
+
+// Note: this currently uses an internal API to determine if the v8 sandbox is
+// enabled in the testsuite etc.
+extern "C" bool v8__V8__IsSandboxEnabled() {
+  return v8::internal::SandboxIsEnabled();
+}
 
 extern "C" {
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
@@ -792,6 +805,10 @@ bool v8__Value__IsUint32Array(const v8::Value& self) {
 
 bool v8__Value__IsInt32Array(const v8::Value& self) {
   return self.IsInt32Array();
+}
+
+bool v8__Value__IsFloat16Array(const v8::Value& self) {
+  return self.IsFloat16Array();
 }
 
 bool v8__Value__IsFloat32Array(const v8::Value& self) {
@@ -1548,10 +1565,6 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
       ptr_to_local(data_or_null), attr));
 }
 
-v8::Isolate* v8__Object__GetIsolate(const v8::Object& self) {
-  return ptr_to_local(&self)->GetIsolate();
-}
-
 int v8__Object__GetIdentityHash(const v8::Object& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }
@@ -2034,10 +2047,6 @@ void v8__Context__Enter(const v8::Context& self) {
 
 void v8__Context__Exit(const v8::Context& self) { ptr_to_local(&self)->Exit(); }
 
-v8::Isolate* v8__Context__GetIsolate(const v8::Context& self) {
-  return ptr_to_local(&self)->GetIsolate();
-}
-
 const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
@@ -2224,10 +2233,6 @@ bool v8__Message__IsSharedCrossOrigin(const v8::Message& self) {
 
 bool v8__Message__IsOpaque(const v8::Message& self) { return self.IsOpaque(); }
 
-v8::Isolate* v8__Message__GetIsolate(const v8::Message& self) {
-  return self.GetIsolate();
-}
-
 const v8::Value* v8__Exception__RangeError(const v8::String& message) {
   return local_to_ptr(v8::Exception::RangeError(ptr_to_local(&message)));
 }
@@ -2256,6 +2261,12 @@ const v8::Message* v8__Exception__CreateMessage(v8::Isolate* isolate,
 
 const v8::StackTrace* v8__Exception__GetStackTrace(const v8::Value& exception) {
   return local_to_ptr(v8::Exception::GetStackTrace(ptr_to_local(&exception)));
+}
+
+MaybeBool v8__Exception__CaptureStackTrace(const v8::Context& context,
+                                           const v8::Object& object) {
+  return maybe_to_maybe_bool(v8::Exception::CaptureStackTrace(
+      ptr_to_local(&context), ptr_to_local(&object)));
 }
 
 const v8::Function* v8__Function__New(
@@ -2503,6 +2514,15 @@ const v8::String* v8__StackFrame__GetScriptName(const v8::StackFrame& self) {
 const v8::String* v8__StackFrame__GetScriptNameOrSourceURL(
     const v8::StackFrame& self) {
   return local_to_ptr(self.GetScriptNameOrSourceURL());
+}
+
+const v8::String* v8__StackFrame__GetScriptSource(const v8::StackFrame& self) {
+  return local_to_ptr(self.GetScriptSource());
+}
+
+const v8::String* v8__StackFrame__GetScriptSourceMappingURL(
+    const v8::StackFrame& self) {
+  return local_to_ptr(self.GetScriptSourceMappingURL());
 }
 
 const v8::String* v8__StackFrame__GetFunctionName(const v8::StackFrame& self) {
@@ -3375,6 +3395,11 @@ const v8::String* v8__ModuleRequest__GetSpecifier(
   return local_to_ptr(self.GetSpecifier());
 }
 
+v8::ModuleImportPhase v8__ModuleRequest__GetPhase(
+    const v8::ModuleRequest& self) {
+  return self.GetPhase();
+}
+
 int v8__ModuleRequest__GetSourceOffset(const v8::ModuleRequest& self) {
   return self.GetSourceOffset();
 }
@@ -3921,8 +3946,7 @@ RustObj* v8__Object__Unwrap(v8::Isolate* isolate, const v8::Object& wrapper,
 
 void v8__Object__Wrap(v8::Isolate* isolate, const v8::Object& wrapper,
                       RustObj* value, v8::CppHeapPointerTag tag) {
-  v8::Object::Wrap(isolate, ptr_to_local(&wrapper), static_cast<void*>(value),
-                   tag);
+  v8::Object::Wrap(isolate, ptr_to_local(&wrapper), value, tag);
 }
 
 v8::CppHeap* v8__Isolate__GetCppHeap(v8::Isolate* isolate) {

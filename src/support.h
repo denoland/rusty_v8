@@ -173,6 +173,7 @@ struct memory_span_t {
   V(Int16Array)             \
   V(Uint32Array)            \
   V(Int32Array)             \
+  V(Float16Array)           \
   V(Float32Array)           \
   V(Float64Array)           \
   V(BigUint64Array)         \
@@ -180,11 +181,9 @@ struct memory_span_t {
 
 #endif  // SUPPORT_H_
 
-class RustObj : public cppgc::GarbageCollected<RustObj>,
-                public cppgc::NameProvider {
+class RustObj : public v8::Object::Wrappable {
  public:
   ~RustObj();
   void Trace(cppgc::Visitor* visitor) const;
   const char* GetHumanReadableName() const final;
-  uintptr_t data[2];
 };

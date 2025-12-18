@@ -9,7 +9,8 @@
 //!
 //! let isolate = &mut v8::Isolate::new(Default::default());
 //!
-//! let scope = &mut v8::HandleScope::new(isolate);
+//! let scope = std::pin::pin!(v8::HandleScope::new(isolate));
+//! let scope = &mut scope.init();
 //! let context = v8::Context::new(scope, Default::default());
 //! let scope = &mut v8::ContextScope::new(scope, context);
 //!
@@ -26,6 +27,7 @@
 
 #[macro_use]
 extern crate bitflags;
+extern crate temporal_capi;
 
 mod array_buffer;
 mod array_buffer_view;
@@ -124,6 +126,7 @@ pub use isolate::OwnedIsolate;
 pub use isolate::PromiseHook;
 pub use isolate::PromiseHookType;
 pub use isolate::PromiseRejectCallback;
+pub use isolate::RealIsolate;
 pub use isolate::TimeZoneDetection;
 pub use isolate::UseCounterCallback;
 pub use isolate::UseCounterFeature;
@@ -144,10 +147,17 @@ pub use property_filter::*;
 pub use property_handler_flags::*;
 pub use regexp::RegExpCreationFlags;
 pub use scope::AllowJavascriptExecutionScope;
+// pub use scope::CallbackScope;
 pub use scope::CallbackScope;
 pub use scope::ContextScope;
 pub use scope::DisallowJavascriptExecutionScope;
 pub use scope::EscapableHandleScope;
+pub use scope::PinCallbackScope;
+pub use scope::PinScope;
+pub use scope::PinnedRef;
+pub use scope::ScopeStorage;
+// pub use scope::HandleScope;
+pub use isolate::UnsafeRawIsolatePtr;
 pub use scope::HandleScope;
 pub use scope::OnFailure;
 pub use scope::TryCatch;
@@ -199,6 +209,7 @@ pub const TYPED_ARRAY_MAX_SIZE_IN_HEAP: usize =
   binding::v8__TYPED_ARRAY_MAX_SIZE_IN_HEAP as _;
 
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) fn initialize_v8() {
   use std::sync::Once;
 

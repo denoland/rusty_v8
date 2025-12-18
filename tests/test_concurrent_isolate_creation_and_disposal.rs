@@ -7,7 +7,10 @@ use std::thread;
 
 #[test]
 fn concurrent_isolate_creation_and_disposal() {
+  #[cfg(not(feature = "v8_enable_sandbox"))]
   let platform = v8::new_single_threaded_default_platform(false).make_shared();
+  #[cfg(feature = "v8_enable_sandbox")]
+  let platform = v8::new_default_platform(0, false).make_shared();
   v8::V8::initialize_platform(platform);
   v8::V8::initialize();
 
