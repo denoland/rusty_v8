@@ -782,6 +782,7 @@ fn print_link_flags() {
       } else if target.contains("apple")
         || target.contains("freebsd")
         || target.contains("openbsd")
+        || target.contains("gnullvm")
       {
         println!("cargo:rustc-link-lib=dylib=c++");
       } else if target.contains("android") {
@@ -791,6 +792,7 @@ fn print_link_flags() {
       }
     }
   }
+  let target = env::var("TARGET").unwrap();
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
 
@@ -807,6 +809,12 @@ fn print_link_flags() {
     } else {
       println!("cargo:rustc-link-lib=dylib=msvcprt");
     }
+  } else if target.ends_with("windows-gnu") {
+    // Clang-based toolchains don't use separate atomic library
+    println!("cargo:rustc-link-lib=atomic")
+  } else if target.ends_with("windows-gnullvm") {
+    // Clang usually works with Win32 threads, so we need to link pthread explicitly
+    println!("cargo:rustc-link-lib=pthread")
   }
 }
 
