@@ -163,10 +163,14 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
-      - name: Install Windows 10 SDK Debugging Tools
-        if: matrix.config.target == 'aarch64-pc-windows-msvc'
+      - name: Install Windows SDK with Debugging Tools
+        if: contains(matrix.config.target, 'windows')
+        shell: pwsh
         run: |
-          choco install windows-sdk-10-version-2104-all
+          # Download and install Windows SDK 10.0.26100.0 with Debugging Tools
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2272610" -OutFile sdksetup.exe
+          Start-Process -Wait sdksetup.exe -ArgumentList '/features OptionId.WindowsDesktopDebuggers /quiet'
+
 
       - name: Install cross compilation toolchain
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
