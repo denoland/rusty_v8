@@ -111,7 +111,7 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-arm64' || 'windows-2022-arm64' }}
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-11-arm-xl' || 'windows-11-arm' }}
             target: aarch64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
             v8_enable_pointer_compression: false
