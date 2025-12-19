@@ -189,6 +189,7 @@ fn build_binding() {
   ];
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
   if target_os == "macos" {
     let output = Command::new("xcrun")
       .args(["--show-sdk-path"])
@@ -214,6 +215,9 @@ fn build_binding() {
     }
   }
 
+  if target_os == "windows" && target_arch == "aarch64" {
+    clang_args.push("--target=aarch64-pc-windows-msvc");
+  }
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
