@@ -216,7 +216,7 @@ fn build_binding() {
   }
 
   if target_os == "windows" && target_arch == "aarch64" {
-    clang_args.push("--target=aarch64-pc-windows-msvc");
+    clang_args.push("--target=aarch64-pc-windows-msvc".to_string());
   }
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
