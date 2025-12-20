@@ -314,10 +314,10 @@ fn build_v8(is_asan: bool) {
   ));
 
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
-  if cfg!(target_arch = "aarch64") {
-    if cfg!(target_os = "macos") || cfg!(target_os = "windows") {
-      gn_args.push("host_cpu=\"arm64\"".to_string());
-    }
+  if cfg!(target_arch = "aarch64")
+    && (cfg!(target_os = "macos") || cfg!(target_os = "windows"))
+  {
+    gn_args.push("host_cpu=\"arm64\"".to_string());
   }
   if env::var_os("DISABLE_CLANG").is_some() {
     gn_args.push("is_clang=false".into());
