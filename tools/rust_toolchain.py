@@ -29,7 +29,7 @@ eval_globals = {
     'host_cpu': host_cpu,
 }
 
-if host_os == 'win' and host_cpu == 'arm64':
+if host_os == 'windows' and host_cpu == 'arm64':
     nightly_toolchain = 'nightly-2025-12-04'
     target_triple = 'aarch64-pc-windows-msvc'
     url = f'https://static.rust-lang.org/dist/{nightly_toolchain}/rust-{nightly_toolchain}-{target_triple}.tar.xz'
