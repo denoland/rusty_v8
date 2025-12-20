@@ -189,6 +189,7 @@ fn build_binding() {
   ];
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+  let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
   if target_os == "macos" {
     let output = Command::new("xcrun")
       .args(["--show-sdk-path"])
@@ -214,6 +215,9 @@ fn build_binding() {
     }
   }
 
+  if target_os == "windows" && target_arch == "aarch64" {
+    clang_args.push("--target=aarch64-pc-windows-msvc".to_string());
+  }
   let bindings = bindgen::Builder::default()
     .header("src/binding.hpp")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
@@ -310,10 +314,11 @@ fn build_v8(is_asan: bool) {
   ));
 
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
-  if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+  if cfg!(target_arch = "aarch64")
+    && (cfg!(target_os = "macos") || cfg!(target_os = "windows"))
+  {
     gn_args.push("host_cpu=\"arm64\"".to_string());
   }
-
   if env::var_os("DISABLE_CLANG").is_some() {
     gn_args.push("is_clang=false".into());
     // -gline-tables-only is Clang-only
@@ -352,9 +357,11 @@ fn build_v8(is_asan: bool) {
   // cross-compilation setup
   if target_arch == "aarch64" {
     gn_args.push(r#"target_cpu="arm64""#.to_string());
-    gn_args.push("use_sysroot=true".to_string());
-    maybe_install_sysroot("arm64");
-    maybe_install_sysroot("amd64");
+    if target_os == "linux" {
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("arm64");
+      maybe_install_sysroot("amd64");
+    }
   }
   if target_arch == "arm" {
     gn_args.push(r#"target_cpu="arm""#.to_string());
