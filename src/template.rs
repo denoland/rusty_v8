@@ -144,6 +144,11 @@ unsafe extern "C" {
   );
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
+
+    this: *const ObjectTemplate,
+    callback: FunctionCallback,
+    data_or_null: *const Value,
+  );
 }
 
 /// Interceptor callbacks use this value to indicate whether the request was
@@ -1015,5 +1020,25 @@ impl ObjectTemplate {
   #[inline(always)]
   pub fn set_immutable_proto(&self) {
     unsafe { v8__ObjectTemplate__SetImmutableProto(self) };
+  }
+
+  /// Sets the callback to be used when calling instances created from this
+  /// template as a function.
+  ///
+  /// If no callback is set, instances behave like normal [`Object`]s that
+  /// cannot be called like [`Function`]s.
+  #[inline(always)]
+  pub fn set_call_as_function_handler(
+    &self,
+    callback: impl MapFnTo<FunctionCallback>,
+    data: Option<Local<'_, Value>>,
+  ) {
+    unsafe {
+      v8__ObjecTemplate__SetCallAsFunctionHandler(
+        self,
+        callback.map_fn_to(),
+        data.map_or_else(null, |p| &*p),
+      );
+    }
   }
 }

@@ -1440,6 +1440,13 @@ void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
   return ptr_to_local(&self)->SetImmutableProto();
 }
 
+void v8__ObjectTemplate__SetCallAsFunctionHandler(
+    const v8::ObjectTemplate& self, v8::FunctionCallback callback,
+    const v8::Value* data_or_null) {
+  ptr_to_local(&self)->SetCallAsFunctionHandler(callback,
+                                                ptr_to_local(data_or_null));
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
@@ -1741,6 +1748,31 @@ void v8__Object__GetRealNamedPropertyAttributes(
 const v8::Array* v8__Object__PreviewEntries(const v8::Object& self,
                                             bool* is_key_value) {
   return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
+}
+
+const bool v8__Object__IsCallable(const v8::Object& self) {
+  return ptr_to_local(&self)->IsCallable();
+}
+
+const bool v8__Object__IsConstructor(const v8::Object& self) {
+  return ptr_to_local(&self)->IsConstructor();
+}
+
+const v8::Value* v8__Object__CallAsFunction(const v8::Object& self,
+                                            const v8::Context& context,
+                                            const v8::Value& recv, int argc,
+                                            const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->CallAsFunction(
+      ptr_to_local(&context), ptr_to_local(&recv), argc,
+      const_ptr_array_to_local_array(argv)));
+}
+
+const v8::Value* v8__Object__CallAsConstructor(const v8::Object& self,
+                                               const v8::Context& context,
+                                               int argc,
+                                               const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->CallAsConstructor(
+      ptr_to_local(&context), argc, const_ptr_array_to_local_array(argv)));
 }
 
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
