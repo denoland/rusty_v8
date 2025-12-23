@@ -244,6 +244,21 @@ unsafe extern "C" {
     tag: u16,
   ) -> *mut RustObj;
   fn v8__Object__IsApiWrapper(this: *const Object) -> bool;
+  fn v8__Object__IsCallable(this: *const Object) -> bool;
+  fn v8___Object__IsConstructor(this: *const Object) -> bool;
+  fn v8__Object__CallAsFunction(
+    this: *const Object,
+    context: *const Context,
+    recv: *const Value,
+    argc: int,
+    argv: *const *const Value,
+  ) -> *const Value;
+  fn v8__Object__CallAsConstructor(
+    this: *const Object,
+    context: *const Context,
+    argc: int,
+    argv: *const *const Value,
+  ) -> *const Value;
 
   fn v8__Array__New(isolate: *mut RealIsolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -1031,6 +1046,138 @@ impl Object {
       );
     }
     out.into()
+  }
+
+  /// When this Object is callable, this method returns `true`.
+  ///
+  /// Certain exotic objects may be callable despite not being
+  /// [`Function`](crate::Function)s, such as [`Proxy`](crate::Proxy), or other
+  /// objects with a `[[Call]]` internal method. Callable objects can be created
+  /// via
+  /// [`ObjectTemplate::set_call_as_function_handler`](crate::ObjectTemplate::set_call_as_function_handler).
+  #[must_use = "this is a pure method"]
+  #[inline(always)]
+  pub fn is_callable(&self) -> bool {
+    unsafe { v8__Object__IsCallable(self) }
+  }
+
+  /// When this Object can be called as a constructor, this method returns
+  /// `true`.
+  #[must_use = "this is a pure method"]
+  #[inline(always)]
+  pub fn is_constructor(&self) -> bool {
+    unsafe { v8___Object__IsConstructor(self) }
+  }
+
+  /// Calls the [`Object`] as a function with the provided `this` argument and
+  /// arguments.
+  ///
+  /// For more information, see [`Object::is_callable()`].
+  #[inline]
+  pub fn call_as_function<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+    recv: Local<'_, Value>,
+    args: &[Local<'_, Value>],
+  ) -> Option<Local<'s, Value>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__CallAsFunction(
+          self,
+          sd.get_current_context(),
+          &*recv,
+          argc,
+          argv,
+        )
+      })
+    }
+  }
+
+  /// Calls the [`Object`] as a function in a given context.
+  ///
+  /// For more information, see [`Object::is_callable()`].
+  #[inline]
+  pub fn call_as_function_with_context<'s>(
+    &self,
+    scope: &PinScope<'s, '_, ()>,
+    context: Local<'_, Context>,
+    recv: Local<'_, Value>,
+    args: &[Local<'_, Value>],
+  ) -> Option<Local<'s, Value>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      let ret = v8__Object__CallAsFunction(
+        self,
+        context.as_non_null().as_ptr(),
+        &*recv,
+        argc,
+        argv,
+      );
+      if ret.is_null() {
+        None
+      } else {
+        scope.cast_local(|_| ret)
+      }
+    }
+  }
+
+  /// Calls the [`Object`] as a constructor with the provided arguments.
+  /// This is similar to
+  /// [`Function::new_instance()`](crate::Function::new_instance).
+  ///
+  /// For more information, see [`Object::is_constructor()`].
+  #[inline]
+  pub fn call_as_constructor<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+    args: &[Local<'_, Value>],
+  ) -> Option<Local<'s, Value>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__Object__CallAsConstructor(
+          self,
+          sd.get_current_context(),
+          argc,
+          argv,
+        )
+      })
+    }
+  }
+
+  /// Calls the [`Object`] as a constructor in a given context.
+  ///
+  /// For more information, see [`Object::is_constructor()`].
+  #[inline]
+  pub fn call_as_constructor_with_context<'s>(
+    &self,
+    scope: &PinScope<'s, '_, ()>,
+    context: Local<'_, Context>,
+    args: &[Local<'_, Value>],
+  ) -> Option<Local<'s, Value>> {
+    let args = Local::slice_into_raw(args);
+    let argc = int::try_from(args.len()).unwrap();
+    let argv = args.as_ptr();
+    unsafe {
+      let ret = v8__Object__CallAsConstructor(
+        self,
+        context.as_non_null().as_ptr(),
+        argc,
+        argv,
+      );
+      if ret.is_null() {
+        None
+      } else {
+        scope.cast_local(|_| ret)
+      }
+    }
   }
 }
 
