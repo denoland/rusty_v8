@@ -145,6 +145,7 @@ unsafe extern "C" {
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 
+  fn v8__ObjecTemplate__SetCallAsFunctionHandler(
     this: *const ObjectTemplate,
     callback: FunctionCallback,
     data_or_null: *const Value,
