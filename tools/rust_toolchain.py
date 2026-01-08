@@ -7,10 +7,7 @@ import tarfile
 import sys
 
 DIR = 'third_party/rust-toolchain'
-
-if os.path.exists(DIR):
-    print(f'{DIR}: already downloaded')
-    sys.exit()
+SENTINEL = f'{DIR}/.rusty_v8_version'
 
 host_os = platform.system().lower()
 if host_os == "darwin":
@@ -50,5 +47,15 @@ def DownloadAndUnpack(url, output_dir):
         with tarfile.open(mode='r:xz', fileobj=f) as z:
             z.extractall(path=output_dir)
 
+try:
+    with open(SENTINEL, 'r') as f:
+        if f.read() == url:
+            print(f'{DIR}: already downloaded')
+            sys.exit()
+except FileNotFoundError:
+    pass
 
 DownloadAndUnpack(url, DIR)
+
+with open(SENTINEL, 'w') as f:
+    f.write(url)
