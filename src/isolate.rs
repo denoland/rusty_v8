@@ -914,6 +914,14 @@ impl Isolate {
     OwnedIsolate::new(Self::new_impl(params))
   }
 
+  /// Creates an isolate for use with `v8::Locker` in multi-threaded scenarios.
+  ///
+  /// Unlike `Isolate::new()`, this does not automatically enter the isolate.
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new_unentered(params: CreateParams) -> UnenteredIsolate {
+    UnenteredIsolate::new(Self::new_impl(params))
+  }
+
   #[allow(clippy::new_ret_no_self)]
   pub fn snapshot_creator(
     external_references: Option<Cow<'static, [ExternalReference]>>,
@@ -2118,6 +2126,40 @@ impl AsMut<Isolate> for Isolate {
   }
 }
 
+/// An isolate that must be accessed via `Locker`. Does not auto-enter.
+#[derive(Debug)]
+pub struct UnenteredIsolate {
+  cxx_isolate: NonNull<RealIsolate>,
+}
+
+impl UnenteredIsolate {
+  pub(crate) fn new(cxx_isolate: *mut RealIsolate) -> Self {
+    Self {
+      cxx_isolate: NonNull::new(cxx_isolate).unwrap(),
+    }
+  }
+}
+
+impl Drop for UnenteredIsolate {
+  fn drop(&mut self) {
+    unsafe {
+      let isolate = Isolate::from_raw_ref_mut(&mut self.cxx_isolate);
+      let snapshot_creator =
+        isolate.get_annex_mut().maybe_snapshot_creator.take();
+      assert!(
+        snapshot_creator.is_none(),
+        "v8::UnenteredIsolate::create_blob must be called before dropping"
+      );
+      isolate.dispose_annex();
+      Platform::notify_isolate_shutdown(&get_current_platform(), isolate);
+      isolate.dispose();
+    }
+  }
+}
+
+// Thread safety ensured by Locker.
+unsafe impl Send for UnenteredIsolate {}
+
 /// Collection of V8 heap information.
 ///
 /// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
@@ -2415,5 +2457,52 @@ impl AsRef<Isolate> for OwnedIsolate {
 impl AsRef<Isolate> for Isolate {
   fn as_ref(&self) -> &Isolate {
     self
+  }
+}
+
+/// Locks an isolate and enters it for the current thread.
+pub struct Locker<'a> {
+  raw: std::mem::ManuallyDrop<crate::scope::raw::Locker>,
+  isolate: &'a mut UnenteredIsolate,
+}
+
+impl<'a> Locker<'a> {
+  pub fn new(isolate: &'a mut UnenteredIsolate) -> Self {
+    let isolate_ptr = isolate.cxx_isolate;
+    unsafe {
+      v8__Isolate__Enter(isolate_ptr.as_ptr());
+    }
+    let mut raw = unsafe { crate::scope::raw::Locker::uninit() };
+    unsafe { raw.init(isolate_ptr) };
+    Self {
+      raw: std::mem::ManuallyDrop::new(raw),
+      isolate,
+    }
+  }
+
+  pub fn is_locked(isolate: &UnenteredIsolate) -> bool {
+    crate::scope::raw::Locker::is_locked(isolate.cxx_isolate)
+  }
+}
+
+impl Drop for Locker<'_> {
+  fn drop(&mut self) {
+    unsafe {
+      std::mem::ManuallyDrop::drop(&mut self.raw);
+      v8__Isolate__Exit(self.isolate.cxx_isolate.as_ptr());
+    }
+  }
+}
+
+impl Deref for Locker<'_> {
+  type Target = Isolate;
+  fn deref(&self) -> &Self::Target {
+    unsafe { Isolate::from_raw_ref(&self.isolate.cxx_isolate) }
+  }
+}
+
+impl DerefMut for Locker<'_> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { Isolate::from_raw_ref_mut(&mut self.isolate.cxx_isolate) }
   }
 }
