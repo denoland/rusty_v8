@@ -68,9 +68,6 @@ static_assert(
                          sizeof(v8::ScriptCompiler::CompilationDetails)),
     "Source size mismatch");
 
-static_assert(sizeof(v8::FunctionCallbackInfo<v8::Value>) == sizeof(size_t) * 3,
-              "FunctionCallbackInfo size mismatch");
-
 static_assert(sizeof(v8::ReturnValue<v8::Value>) == sizeof(size_t) * 1,
               "ReturnValue size mismatch");
 
@@ -2358,13 +2355,45 @@ const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
   return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
 }
 
-const extern int v8__FunctionCallbackInfo__kArgsLength = 6;
-// NOTE(bartlomieju): V8 made this field private in 11.4
-// v8::FunctionCallbackInfo<v8::Value>::kArgsLength;
+v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.GetIsolate();
+}
 
 const v8::Value* v8__FunctionCallbackInfo__Data(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.Data());
+}
+
+const v8::Value* v8__FunctionCallbackInfo__NewTarget(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.NewTarget());
+}
+
+const v8::Object* v8__FunctionCallbackInfo__This(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return local_to_ptr(self.This());
+}
+
+const v8::Value* v8__FunctionCallbackInfo__Get(
+    const v8::FunctionCallbackInfo<v8::Value>& self, int index) {
+  return local_to_ptr(self[index]);
+}
+
+int v8__FunctionCallbackInfo__Length(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.Length();
+}
+
+bool v8__FunctionCallbackInfo__IsConstructCall(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  return self.IsConstructCall();
+}
+
+uintptr_t* v8__FunctionCallbackInfo__GetReturnValue(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  v8::ReturnValue<v8::Value> rv = self.GetReturnValue();
+  return *reinterpret_cast<uintptr_t**>(&rv);
 }
 
 v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
