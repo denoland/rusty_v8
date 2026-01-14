@@ -111,6 +111,12 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+            target: aarch64-pc-windows-msvc
+            variant: release # Note: we do not support windows debug builds.
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: aarch64-unknown-linux-gnu
             variant: debug
@@ -174,6 +180,10 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
+      - name: Install Windows ARM64 target
+        if: matrix.config.target == 'aarch64-pc-windows-msvc'
+        run: rustup target add aarch64-pc-windows-msvc
+
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
 
@@ -208,6 +218,7 @@ jobs:
                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
                "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
+               "aarch64-pc-windows-msvc"   = "aarch64-pc-windows-msvc"
              }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
