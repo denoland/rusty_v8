@@ -256,7 +256,10 @@ pub(crate) type RawHostImportModuleDynamicallyCallback =
     Local<'s, FixedArray>,
   ) -> *mut Promise;
 
-#[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+#[cfg(all(
+  target_family = "windows",
+  any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 pub type RawHostImportModuleDynamicallyCallback =
   for<'s> unsafe extern "C" fn(
     *mut *mut Promise,
@@ -322,7 +325,10 @@ where
       .map_or_else(null_mut, |return_value| return_value.as_non_null().as_ptr())
     }
 
-    #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+    #[cfg(all(
+      target_family = "windows",
+      any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     #[inline(always)]
     unsafe extern "C" fn abi_adapter<
       's,
@@ -415,7 +421,10 @@ pub(crate) type RawHostImportModuleWithPhaseDynamicallyCallback =
     Local<'s, FixedArray>,
   ) -> *mut Promise;
 
-#[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+#[cfg(all(
+  target_family = "windows",
+  any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 pub type RawHostImportModuleWithPhaseDynamicallyCallback =
   for<'s> unsafe extern "C" fn(
     *mut *mut Promise,
@@ -487,7 +496,10 @@ where
       .map_or_else(null_mut, |return_value| return_value.as_non_null().as_ptr())
     }
 
-    #[cfg(all(target_family = "windows", target_arch = "x86_64"))]
+    #[cfg(all(
+      target_family = "windows",
+      any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     #[inline(always)]
     unsafe extern "C" fn abi_adapter<
       's,

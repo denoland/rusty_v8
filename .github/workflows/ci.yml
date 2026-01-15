@@ -288,8 +288,141 @@ jobs:
           name: src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
           path: target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
+  build-windows-arm64:
+    name: release aarch64-pc-windows-msvc
+    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+    timeout-minutes: 180
+    env:
+      CARGO_VARIANT_FLAG: --release
+      V8_FROM_SOURCE: true
+      CCACHE: ccache
+      LIB_NAME: rusty_v8
+      LIB_EXT: lib
+      FEATURES_SUFFIX: ''
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install Windows ARM64 target
+        run: rustup target add aarch64-pc-windows-msvc
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Write git_submodule_status.txt
+        run: git submodule status --recursive > git_submodule_status.txt
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |-
+            target/sccache
+            target/aarch64-pc-windows-msvc/release/gn_out
+          key: cargo1-aarch64-pc-windows-msvc-release-false-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          restore-keys: cargo1-aarch64-pc-windows-msvc-release-false-
+
+      - name: Install and start sccache
+        shell: pwsh
+        env:
+          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+          SCCACHE_CACHE_SIZE: 256M
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: |
+          $version = "v0.8.2"
+          $platform = "x86_64-pc-windows-msvc"
+          $basename = "sccache-$version-$platform"
+          $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
+          cd ~
+          curl -LO $url
+          tar -xzvf "$basename.tar.gz"
+          . $basename/sccache --start-server
+          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Clang
+        run: python3 tools/clang/scripts/update.py
+
+      - name: Build (cross-compile, no tests)
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: cargo build --all-targets --locked --target aarch64-pc-windows-msvc --release
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked --target aarch64-pc-windows-msvc --release -- -D clippy::all
+
+      - name: Prepare binary publish
+        run: |
+          gzip -9c target/aarch64-pc-windows-msvc/release/gn_out/obj/rusty_v8.lib > target/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+          ls -l target/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+
+          cp target/aarch64-pc-windows-msvc/release/gn_out/src_binding.rs target/src_binding_release_aarch64-pc-windows-msvc.rs
+          ls -l target/src_binding_release_aarch64-pc-windows-msvc.rs
+
+      - name: Binary publish
+        uses: softprops/action-gh-release@v0.1.15
+        if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            target/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+            target/src_binding_release_aarch64-pc-windows-msvc.rs
+
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: src_binding_release_aarch64-pc-windows-msvc.rs
+          path: target/src_binding_release_aarch64-pc-windows-msvc.rs
+
+      - name: Upload prebuilt library for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-prebuilt-release
+          path: |
+            target/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+            target/src_binding_release_aarch64-pc-windows-msvc.rs
+          retention-days: 1
+
+  test-windows-arm64:
+    name: test aarch64-pc-windows-msvc
+    needs: build-windows-arm64
+    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-11-arm-xl' || 'windows-11-arm' }}
+    timeout-minutes: 60
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Download prebuilt library
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-arm64-prebuilt-release
+
+      - name: Run tests with prebuilt library
+        env:
+          RUSTY_V8_ARCHIVE: ${{ github.workspace }}/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+          RUSTY_V8_SRC_BINDING_PATH: ${{ github.workspace }}/src_binding_release_aarch64-pc-windows-msvc.rs
+        run: cargo nextest run -v --all-targets --locked --target aarch64-pc-windows-msvc --release --no-fail-fast
+
   publish:
-    needs: build
+    needs: [build, build-windows-arm64]
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
     if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
     steps:
