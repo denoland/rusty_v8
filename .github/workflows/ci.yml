@@ -289,7 +289,7 @@ jobs:
           path: target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
   build-windows-arm64:
-    name: Build Windows ARM64 (cross-compile)
+    name: release aarch64-pc-windows-msvc
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
     timeout-minutes: 180
     env:
@@ -391,7 +391,7 @@ jobs:
           retention-days: 1
 
   test-windows-arm64:
-    name: Test Windows ARM64 (native)
+    name: test aarch64-pc-windows-msvc
     needs: build-windows-arm64
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-11-arm-xl' || 'windows-11-arm' }}
     timeout-minutes: 60
