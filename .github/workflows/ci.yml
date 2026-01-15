@@ -305,6 +305,47 @@ jobs:
           name: src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
           path: target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
 
+      - name: Upload Windows ARM64 prebuilt library for testing
+        uses: actions/upload-artifact@v4
+        if: matrix.config.target == 'aarch64-pc-windows-msvc'
+        with:
+          name: windows-arm64-prebuilt-${{ matrix.config.variant }}
+          path: |
+            target/${{ env.LIB_NAME }}${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
+            target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+          retention-days: 1
+
+  test-windows-arm64:
+    name: Test Windows ARM64 (native)
+    needs: build
+    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-11-arm-xl' || 'windows-11-arm' }}
+    timeout-minutes: 60
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Download prebuilt library
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-arm64-prebuilt-release
+
+      - name: Run tests with prebuilt library
+        env:
+          RUSTY_V8_ARCHIVE: ${{ github.workspace }}/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
+          RUSTY_V8_SRC_BINDING_PATH: ${{ github.workspace }}/src_binding_release_aarch64-pc-windows-msvc.rs
+        run: cargo nextest run -v --all-targets --locked --target aarch64-pc-windows-msvc --release --no-fail-fast
+
   publish:
     needs: build
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
