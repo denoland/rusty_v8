@@ -219,6 +219,43 @@ impl Drop for AllowJavascriptExecutionScope {
   }
 }
 
+#[repr(C)]
+#[derive(Debug)]
+pub(crate) struct Locker([MaybeUninit<usize>; 2]);
+
+#[test]
+fn locker_size_matches_v8() {
+  assert_eq!(
+    std::mem::size_of::<Locker>(),
+    unsafe { v8__Locker__SIZE() },
+    "Locker size mismatch"
+  );
+}
+
+impl Locker {
+  #[inline]
+  pub unsafe fn uninit() -> Self {
+    Self(unsafe { MaybeUninit::uninit().assume_init() })
+  }
+
+  #[inline]
+  pub unsafe fn init(&mut self, isolate: NonNull<RealIsolate>) {
+    let buf = NonNull::from(self).cast();
+    unsafe { v8__Locker__CONSTRUCT(buf.as_ptr(), isolate.as_ptr()) };
+  }
+
+  pub fn is_locked(isolate: NonNull<RealIsolate>) -> bool {
+    unsafe { v8__Locker__IsLocked(isolate.as_ptr()) }
+  }
+}
+
+impl Drop for Locker {
+  #[inline(always)]
+  fn drop(&mut self) {
+    unsafe { v8__Locker__DESTRUCT(self) };
+  }
+}
+
 unsafe extern "C" {
   pub(super) fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   pub(super) fn v8__Isolate__GetCurrentContext(
@@ -311,4 +348,14 @@ unsafe extern "C" {
   pub(super) fn v8__AllowJavascriptExecutionScope__DESTRUCT(
     this: *mut AllowJavascriptExecutionScope,
   );
+
+  pub(super) fn v8__Locker__CONSTRUCT(
+    buf: *mut MaybeUninit<Locker>,
+    isolate: *mut RealIsolate,
+  );
+  pub(super) fn v8__Locker__DESTRUCT(this: *mut Locker);
+  pub(super) fn v8__Locker__IsLocked(isolate: *mut RealIsolate) -> bool;
+
+  #[cfg(test)]
+  fn v8__Locker__SIZE() -> usize;
 }
