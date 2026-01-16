@@ -53,12 +53,6 @@ jobs:
 
           - os: macos-15
             target: aarch64-apple-darwin
-            variant: asan
-            v8_enable_pointer_compression: false
-            cargo: cargo
-
-          - os: macos-15
-            target: aarch64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
@@ -227,10 +221,6 @@ jobs:
           sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 libclang-19-dev -y
           echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> $GITHUB_ENV
 
-      - name: Install Rust (nightly)
-        uses: dtolnay/rust-toolchain@nightly
-        if: matrix.config.variant == 'asan'
-
       - name: check rust code formatting
         run: cargo fmt --check
 
@@ -238,18 +228,6 @@ jobs:
         if: startsWith(matrix.config.os, 'ubuntu')
         run: |
           clang-format-19 --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
-
-      - name: Test (ASAN)
-        env:
-          SCCACHE_IDLE_TIMEOUT: 0
-        if: matrix.config.variant == 'asan'
-        # https://github.com/rust-lang/rust/issues/87215
-        run: |
-          rustup component add rust-src --toolchain nightly-${{ matrix.config.target }}
-          # Is there a better way to install this tool?
-          curl -O http://commondatastorage.googleapis.com/chromium-browser-clang-staging/Mac/dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
-          tar -C tools/clang/dsymutil/ -xvzf dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
-          V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std nextest run --lib --bins --tests -v --cargo-verbose --cargo-verbose --target ${{ matrix.config.target }}
 
       - name: Test
         env:
@@ -287,6 +265,84 @@ jobs:
         with:
           name: src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
           path: target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
+
+  build-asan:
+    name: asan aarch64-apple-darwin
+    runs-on: macos-15
+    timeout-minutes: 180
+    env:
+      V8_FROM_SOURCE: true
+      RUSTFLAGS: -D warnings
+
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - name: Install rust
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install nextest
+        run: cargo binstall cargo-nextest --secure
+
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.x
+          architecture: x64
+
+      - name: Write git_submodule_status.txt
+        run: git submodule status --recursive > git_submodule_status.txt
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |-
+            target/sccache
+            target/*/.*
+            target/*/build
+            target/*/deps
+          key: cargo1-aarch64-apple-darwin-asan-false-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          restore-keys: cargo1-aarch64-apple-darwin-asan-false-
+
+      - name: Install and start sccache
+        shell: pwsh
+        env:
+          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+          SCCACHE_CACHE_SIZE: 256M
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: |
+          $version = "v0.8.2"
+          $platform = "aarch64-apple-darwin"
+          $basename = "sccache-$version-$platform"
+          $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
+          cd ~
+          curl -LO $url
+          tar -xzvf "$basename.tar.gz"
+          . $basename/sccache --start-server
+          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Test (ASAN)
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+        # https://github.com/rust-lang/rust/issues/87215
+        run: |
+          rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
+          # Is there a better way to install this tool?
+          curl -O http://commondatastorage.googleapis.com/chromium-browser-clang-staging/Mac/dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
+          tar -C tools/clang/dsymutil/ -xvzf dsymutil-llvmorg-17-init-19076-g5533fc10-1.tgz
+          V8_FROM_SOURCE=true RUSTFLAGS="-C opt-level=1 -Zsanitizer=address" cargo +nightly -Z build-std nextest run --lib --bins --tests -v --cargo-verbose --cargo-verbose --target aarch64-apple-darwin
 
   build-windows-arm64:
     name: release aarch64-pc-windows-msvc
