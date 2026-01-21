@@ -2296,11 +2296,10 @@ int v8__Function__ScriptId(const v8::Function& self) {
   return ptr_to_local(&self)->ScriptId();
 }
 
-const v8::ScriptOrigin* v8__Function__GetScriptOrigin(
-    const v8::Function& self) {
-  std::unique_ptr<v8::ScriptOrigin> u = std::make_unique<v8::ScriptOrigin>(
-      ptr_to_local(&self)->GetScriptOrigin());
-  return u.release();
+void v8__Function__GetScriptOrigin(const v8::Function& self,
+                                   uninit_t<v8::ScriptOrigin>* out) {
+  construct_in_place<v8::ScriptOrigin>(out,
+                                       ptr_to_local(&self)->GetScriptOrigin());
 }
 
 const v8::Signature* v8__Signature__New(v8::Isolate* isolate,
@@ -2714,15 +2713,15 @@ void v8__ScriptOrigin__CONSTRUCT(
 }
 
 int v8__ScriptOrigin__ScriptId(const v8::ScriptOrigin& self) {
-  return ptr_to_local(&self)->ScriptId();
+  return self.ScriptId();
 }
 
 const v8::Value* v8__ScriptOrigin__ResourceName(const v8::ScriptOrigin& self) {
-  return local_to_ptr(ptr_to_local(&self)->ResourceName());
+  return local_to_ptr(self.ResourceName());
 }
 
 const v8::Value* v8__ScriptOrigin__SourceMapUrl(const v8::ScriptOrigin& self) {
-  return local_to_ptr(ptr_to_local(&self)->SourceMapUrl());
+  return local_to_ptr(self.SourceMapUrl());
 }
 
 const v8::Value* v8__ScriptOrModule__GetResourceName(
