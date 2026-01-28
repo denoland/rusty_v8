@@ -12269,3 +12269,299 @@ fn test_regexp() {
   let groups = result.get(scope, groups_key.into()).unwrap();
   assert!(groups.is_undefined());
 }
+
+#[test]
+fn crdtp_json_cbor_conversion() {
+  let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes());
+  assert!(cbor.is_some());
+  let cbor = cbor.unwrap();
+  assert!(!cbor.is_empty());
+
+  let json_back = v8::crdtp::cbor_to_json(&cbor);
+  assert!(json_back.is_some());
+  let json_back = json_back.unwrap();
+  let json_str = String::from_utf8_lossy(&json_back);
+  assert!(json_str.contains("Network.enable"));
+  assert!(json_str.contains("\"id\":1"));
+}
+
+#[test]
+fn crdtp_dispatchable_parsing() {
+  let json = r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+  assert!(dispatchable.has_call_id());
+  assert_eq!(dispatchable.call_id(), 42);
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+}
+
+#[test]
+fn crdtp_dispatch_response() {
+  let response = v8::crdtp::DispatchResponse::success();
+  assert!(response.is_success());
+  assert!(!response.is_error());
+  assert!(!response.is_fall_through());
+
+  let response = v8::crdtp::DispatchResponse::server_error("test error");
+  assert!(!response.is_success());
+  assert!(response.is_error());
+  assert_eq!(response.message(), "test error");
+
+  let response = v8::crdtp::DispatchResponse::invalid_params("bad params");
+  assert!(response.is_error());
+  assert_eq!(response.message(), "bad params");
+
+  let response = v8::crdtp::DispatchResponse::method_not_found("unknown method");
+  assert!(response.is_error());
+  assert_eq!(response.message(), "unknown method");
+
+  let response = v8::crdtp::DispatchResponse::fall_through();
+  assert!(!response.is_success());
+  assert!(!response.is_error());
+  assert!(response.is_fall_through());
+}
+
+struct TestFrontendChannel {
+  responses: std::cell::RefCell<Vec<Vec<u8>>>,
+  notifications: std::cell::RefCell<Vec<Vec<u8>>>,
+}
+
+impl TestFrontendChannel {
+  fn new() -> Self {
+    Self {
+      responses: std::cell::RefCell::new(Vec::new()),
+      notifications: std::cell::RefCell::new(Vec::new()),
+    }
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for TestFrontendChannel {
+  fn send_protocol_response(
+    &mut self,
+    _call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    self.responses.borrow_mut().push(message.to_bytes());
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    self.notifications.borrow_mut().push(message.to_bytes());
+  }
+
+  fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_uber_dispatcher_basic() {
+  let channel_impl = Box::new(TestFrontendChannel::new());
+  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let json = r#"{"id":1,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+}
+
+#[test]
+fn crdtp_create_error_response() {
+  let response = v8::crdtp::DispatchResponse::server_error("something went wrong");
+  let serializable = v8::crdtp::create_error_response(123, response);
+
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("123"));
+  assert!(json_str.contains("error"));
+}
+
+struct HybridInspectorChannel {
+  responses: std::cell::RefCell<Vec<String>>,
+  notifications: std::cell::RefCell<Vec<String>>,
+  network_enabled: std::cell::RefCell<bool>,
+}
+
+impl HybridInspectorChannel {
+  fn new() -> Self {
+    Self {
+      responses: std::cell::RefCell::new(Vec::new()),
+      notifications: std::cell::RefCell::new(Vec::new()),
+      network_enabled: std::cell::RefCell::new(false),
+    }
+  }
+
+  fn handle_custom_domain(&self, method: &str, call_id: i32, _params: &[u8]) -> Option<String> {
+    match method {
+      "Network.enable" => {
+        *self.network_enabled.borrow_mut() = true;
+        Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
+      }
+      "Network.disable" => {
+        *self.network_enabled.borrow_mut() = false;
+        Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
+      }
+      "Network.getResponseBody" => {
+        Some(format!(
+          r#"{{"id":{},"result":{{"body":"hello world","base64Encoded":false}}}}"#,
+          call_id
+        ))
+      }
+      _ if method.starts_with("Network.") => {
+        Some(format!(
+          r#"{{"id":{},"error":{{"code":-32601,"message":"'{}' not implemented"}}}}"#,
+          call_id, method
+        ))
+      }
+      _ => None,
+    }
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
+  fn send_protocol_response(&mut self, call_id: i32, message: v8::crdtp::Serializable) {
+    let cbor = message.to_bytes();
+    if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
+      let json_str = String::from_utf8_lossy(&json).to_string();
+      println!("[CRDTP] Response id={}: {}", call_id, json_str);
+      self.responses.borrow_mut().push(json_str);
+    }
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    let cbor = message.to_bytes();
+    if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
+      let json_str = String::from_utf8_lossy(&json).to_string();
+      println!("[CRDTP] Notification: {}", json_str);
+      self.notifications.borrow_mut().push(json_str);
+    }
+  }
+
+  fn fall_through(&mut self, call_id: i32, method: &[u8], _message: &[u8]) {
+    let method_str = String::from_utf8_lossy(method);
+    println!("[CRDTP] Fall through: id={} method={}", call_id, method_str);
+  }
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_e2e_custom_domain_handling() {
+  let channel_impl = Box::new(HybridInspectorChannel::new());
+
+  let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  assert!(dispatchable.ok());
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+  assert_eq!(dispatchable.call_id(), 1);
+
+  let method = dispatchable.method_str();
+  let response = channel_impl.handle_custom_domain(&method, dispatchable.call_id(), &[]);
+  assert!(response.is_some());
+  let response = response.unwrap();
+  assert!(response.contains(r#""id":1"#));
+  assert!(response.contains(r#""result":{}"#));
+  assert!(*channel_impl.network_enabled.borrow());
+
+  let json = r#"{"id":2,"method":"Network.getResponseBody","params":{"requestId":"123"}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let response = channel_impl.handle_custom_domain(
+    &dispatchable.method_str(),
+    dispatchable.call_id(),
+    &dispatchable.params(),
+  );
+  assert!(response.is_some());
+  let response = response.unwrap();
+  assert!(response.contains("hello world"));
+  assert!(response.contains(r#""base64Encoded":false"#));
+
+  let json = r#"{"id":3,"method":"Runtime.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let response = channel_impl.handle_custom_domain(
+    &dispatchable.method_str(),
+    dispatchable.call_id(),
+    &[],
+  );
+  assert!(response.is_none());
+}
+
+#[test]
+fn crdtp_e2e_with_v8_inspector() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let default_client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(default_client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let _context_scope = v8::ContextScope::new(scope, context);
+
+  let name = b"test";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, name_view);
+
+  let channel = ChannelCounter::new();
+  let state_view = StringView::from(&b"{}"[..]);
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+
+  let message = r#"{"id":1,"method":"Runtime.enable"}"#;
+  session.dispatch_protocol_message(StringView::from(message.as_bytes()));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.count_send_response, 1);
+    assert!(state.count_send_notification >= 1);
+  }
+
+  assert!(V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"Runtime.enable"[..]
+  )));
+
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"Network.enable"[..]
+  )));
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"NodeRuntime.enable"[..]
+  )));
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"NodeWorker.enable"[..]
+  )));
+
+  let json = r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  assert!(dispatchable.ok());
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+  assert_eq!(dispatchable.call_id(), 42);
+
+  inspector.context_destroyed(context);
+}
