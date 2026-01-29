@@ -13,15 +13,17 @@ unsafe extern "C" {
   fn crdtp__FrontendChannel__BASE__SIZE() -> usize;
 
   fn crdtp__Serializable__DELETE(this: *mut RawSerializable);
-  fn crdtp__Serializable__getSerializedSize(this: *const RawSerializable)
-    -> usize;
+  fn crdtp__Serializable__getSerializedSize(
+    this: *const RawSerializable,
+  ) -> usize;
   fn crdtp__Serializable__getSerializedBytes(
     this: *const RawSerializable,
     out: *mut u8,
     len: usize,
   );
 
-  fn crdtp__Dispatchable__new(data: *const u8, len: usize) -> *mut Dispatchable;
+  fn crdtp__Dispatchable__new(data: *const u8, len: usize)
+  -> *mut Dispatchable;
   fn crdtp__Dispatchable__DELETE(this: *mut Dispatchable);
   fn crdtp__Dispatchable__ok(this: *const Dispatchable) -> bool;
   fn crdtp__Dispatchable__callId(this: *const Dispatchable) -> i32;
@@ -69,7 +71,7 @@ unsafe extern "C" {
     this: *const DispatchResponseWrapper,
   ) -> bool;
   fn crdtp__DispatchResponse__code(this: *const DispatchResponseWrapper)
-    -> i32;
+  -> i32;
   fn crdtp__DispatchResponse__messageLen(
     this: *const DispatchResponseWrapper,
   ) -> usize;
@@ -157,7 +159,11 @@ impl Serializable {
     unsafe {
       let len = crdtp__Serializable__getSerializedSize(self.ptr);
       let mut bytes = vec![0u8; len];
-      crdtp__Serializable__getSerializedBytes(self.ptr, bytes.as_mut_ptr(), len);
+      crdtp__Serializable__getSerializedBytes(
+        self.ptr,
+        bytes.as_mut_ptr(),
+        len,
+      );
       bytes
     }
   }
@@ -388,7 +394,7 @@ impl FrontendChannel {
     });
     unsafe {
       crdtp__FrontendChannel__BASE__CONSTRUCT(
-        channel.raw.get() as *mut _ as *mut MaybeUninit<RawFrontendChannel>,
+        channel.raw.get() as *mut _ as *mut MaybeUninit<RawFrontendChannel>
       );
     }
     Box::into_pin(channel)
@@ -559,7 +565,10 @@ pub fn cbor_to_json(cbor: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Create an error response message.
-pub fn create_error_response(call_id: i32, response: DispatchResponse) -> Serializable {
+pub fn create_error_response(
+  call_id: i32,
+  response: DispatchResponse,
+) -> Serializable {
   unsafe {
     let ptr = crdtp__CreateErrorResponse(call_id, response.into_raw());
     Serializable { ptr }

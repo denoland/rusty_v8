@@ -12288,7 +12288,8 @@ fn crdtp_json_cbor_conversion() {
 
 #[test]
 fn crdtp_dispatchable_parsing() {
-  let json = r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let json =
+    r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
 
   let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
@@ -12314,7 +12315,8 @@ fn crdtp_dispatch_response() {
   assert!(response.is_error());
   assert_eq!(response.message(), "bad params");
 
-  let response = v8::crdtp::DispatchResponse::method_not_found("unknown method");
+  let response =
+    v8::crdtp::DispatchResponse::method_not_found("unknown method");
   assert!(response.is_error());
   assert_eq!(response.message(), "unknown method");
 
@@ -12375,7 +12377,8 @@ fn crdtp_uber_dispatcher_basic() {
 
 #[test]
 fn crdtp_create_error_response() {
-  let response = v8::crdtp::DispatchResponse::server_error("something went wrong");
+  let response =
+    v8::crdtp::DispatchResponse::server_error("something went wrong");
   let serializable = v8::crdtp::create_error_response(123, response);
 
   let bytes = serializable.to_bytes();
@@ -12404,7 +12407,12 @@ impl HybridInspectorChannel {
     }
   }
 
-  fn handle_custom_domain(&self, method: &str, call_id: i32, _params: &[u8]) -> Option<String> {
+  fn handle_custom_domain(
+    &self,
+    method: &str,
+    call_id: i32,
+    _params: &[u8],
+  ) -> Option<String> {
     match method {
       "Network.enable" => {
         *self.network_enabled.borrow_mut() = true;
@@ -12414,25 +12422,25 @@ impl HybridInspectorChannel {
         *self.network_enabled.borrow_mut() = false;
         Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
       }
-      "Network.getResponseBody" => {
-        Some(format!(
-          r#"{{"id":{},"result":{{"body":"hello world","base64Encoded":false}}}}"#,
-          call_id
-        ))
-      }
-      _ if method.starts_with("Network.") => {
-        Some(format!(
-          r#"{{"id":{},"error":{{"code":-32601,"message":"'{}' not implemented"}}}}"#,
-          call_id, method
-        ))
-      }
+      "Network.getResponseBody" => Some(format!(
+        r#"{{"id":{},"result":{{"body":"hello world","base64Encoded":false}}}}"#,
+        call_id
+      )),
+      _ if method.starts_with("Network.") => Some(format!(
+        r#"{{"id":{},"error":{{"code":-32601,"message":"'{}' not implemented"}}}}"#,
+        call_id, method
+      )),
       _ => None,
     }
   }
 }
 
 impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
-  fn send_protocol_response(&mut self, call_id: i32, message: v8::crdtp::Serializable) {
+  fn send_protocol_response(
+    &mut self,
+    call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
     let cbor = message.to_bytes();
     if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
       let json_str = String::from_utf8_lossy(&json).to_string();
@@ -12471,7 +12479,8 @@ fn crdtp_e2e_custom_domain_handling() {
   assert_eq!(dispatchable.call_id(), 1);
 
   let method = dispatchable.method_str();
-  let response = channel_impl.handle_custom_domain(&method, dispatchable.call_id(), &[]);
+  let response =
+    channel_impl.handle_custom_domain(&method, dispatchable.call_id(), &[]);
   assert!(response.is_some());
   let response = response.unwrap();
   assert!(response.contains(r#""id":1"#));
@@ -12512,7 +12521,8 @@ fn crdtp_e2e_with_v8_inspector() {
   use v8::inspector::*;
 
   let default_client = ClientCounter::new();
-  let inspector_client = V8InspectorClient::new(Box::new(default_client.clone()));
+  let inspector_client =
+    V8InspectorClient::new(Box::new(default_client.clone()));
   let inspector = V8Inspector::create(isolate, inspector_client);
 
   v8::scope!(let scope, isolate);
@@ -12555,7 +12565,8 @@ fn crdtp_e2e_with_v8_inspector() {
     &b"NodeWorker.enable"[..]
   )));
 
-  let json = r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let json =
+    r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
   let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
 
