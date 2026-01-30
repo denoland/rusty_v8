@@ -143,7 +143,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install nextest
-        run: cargo binstall cargo-nextest --secure
+        run: cargo binstall cargo-nextest --secure --locked
 
       - name: Install python
         uses: actions/setup-python@v5
@@ -291,7 +291,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install nextest
-        run: cargo binstall cargo-nextest --secure
+        run: cargo binstall cargo-nextest --secure --locked
 
       - name: Install python
         uses: actions/setup-python@v5
