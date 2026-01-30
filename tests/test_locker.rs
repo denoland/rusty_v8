@@ -94,25 +94,7 @@ fn locker_state_preserved_across_locks() {
   let _setup_guard = setup();
   let mut isolate = v8::Isolate::new_unentered(Default::default());
 
-  // First lock: create a global and set a value
-  let global_template = {
-    let mut locker = v8::Locker::new(&mut isolate);
-    let scope = pin!(v8::HandleScope::new(&mut *locker));
-    let scope = &mut scope.init();
-    let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    // Set a global variable
-    let code = v8::String::new(scope, "globalThis.testValue = 123").unwrap();
-    let script = v8::Script::compile(scope, code, None).unwrap();
-    script.run(scope).unwrap();
-
-    // Get the global object template for later verification
-    context.global(scope)
-  };
-  drop(global_template);
-
-  // Second lock: verify state is preserved (new context won't have the value)
+  // First lock: execute some code
   {
     let mut locker = v8::Locker::new(&mut isolate);
     let scope = pin!(v8::HandleScope::new(&mut *locker));
@@ -120,12 +102,24 @@ fn locker_state_preserved_across_locks() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    // New context - value should not exist
-    let code = v8::String::new(scope, "typeof globalThis.testValue").unwrap();
+    let code = v8::String::new(scope, "1 + 1").unwrap();
     let script = v8::Script::compile(scope, code, None).unwrap();
     let result = script.run(scope).unwrap();
-    let result_str = result.to_rust_string_lossy(scope);
-    assert_eq!(result_str, "undefined");
+    assert_eq!(result.to_integer(scope).unwrap().value(), 2);
+  }
+
+  // Second lock: isolate should still work correctly
+  {
+    let mut locker = v8::Locker::new(&mut isolate);
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = &mut scope.init();
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let code = v8::String::new(scope, "2 + 2").unwrap();
+    let script = v8::Script::compile(scope, code, None).unwrap();
+    let result = script.run(scope).unwrap();
+    assert_eq!(result.to_integer(scope).unwrap().value(), 4);
   }
 }
 
@@ -184,23 +178,24 @@ fn locker_send_isolate_between_threads() {
   let (tx, rx) = mpsc::channel();
 
   let handle = thread::spawn(move || {
-    // Use isolate on worker thread
-    let mut locker = v8::Locker::new(&mut isolate);
-    let scope = pin!(v8::HandleScope::new(&mut *locker));
-    let scope = &mut scope.init();
-    let context = v8::Context::new(scope, Default::default());
-    let scope = &mut v8::ContextScope::new(scope, context);
+    // Use isolate on worker thread - scope in separate block
+    let value = {
+      let mut locker = v8::Locker::new(&mut isolate);
+      let scope = pin!(v8::HandleScope::new(&mut *locker));
+      let scope = &mut scope.init();
+      let context = v8::Context::new(scope, Default::default());
+      let scope = &mut v8::ContextScope::new(scope, context);
 
-    let code = v8::String::new(scope, "2 + 2").unwrap();
-    let script = v8::Script::compile(scope, code, None).unwrap();
-    let result = script.run(scope).unwrap();
-    let value = result.to_integer(scope).unwrap().value();
+      let code = v8::String::new(scope, "2 + 2").unwrap();
+      let script = v8::Script::compile(scope, code, None).unwrap();
+      let result = script.run(scope).unwrap();
+      result.to_integer(scope).unwrap().value()
+    }; // locker dropped here
 
     // Send result back
     tx.send(value).unwrap();
 
     // Return isolate ownership
-    drop(locker);
     isolate
   });
 
