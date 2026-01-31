@@ -4,7 +4,7 @@
 //! very sparse, so here are a few references for the next sorry soul who has to
 //! dig into it.
 //!
-//! https://medium.com/@hyperandroid/v8-inspector-from-an-embedder-standpoint-7f9c0472e2b7
+//! https://web.archive.org/web/20191210165913/https://medium.com/@hyperandroid/v8-inspector-from-an-embedder-standpoint-7f9c0472e2b7
 //! https://v8.dev/docs/inspector
 //! https://chromedevtools.github.io/debugger-protocol-viewer/tot/
 //! https://cs.chromium.org/chromium/src/v8/include/v8-inspector.h
