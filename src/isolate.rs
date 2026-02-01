@@ -43,6 +43,7 @@ use crate::support::int;
 use crate::support::size_t;
 use crate::wasm::WasmStreaming;
 use crate::wasm::trampoline;
+use std::cell::UnsafeCell;
 use std::ffi::CStr;
 
 use std::any::Any;
@@ -583,12 +584,6 @@ pub type PrepareStackTraceCallback<'s> =
     Local<'s, Array>,
   ) -> *mut *const Value;
 
-// System V ABI: MaybeLocal<Value> returned in a register.
-// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
-#[cfg(not(target_os = "windows"))]
-#[repr(C)]
-pub struct PrepareStackTraceCallbackRet(*const Value);
-
 #[cfg(not(target_os = "windows"))]
 pub type PrepareStackTraceCallback<'s> =
   unsafe extern "C" fn(
@@ -596,6 +591,12 @@ pub type PrepareStackTraceCallback<'s> =
     Local<'s, Value>,
     Local<'s, Array>,
   ) -> PrepareStackTraceCallbackRet;
+
+// System V ABI: MaybeLocal<Value> returned in a register.
+// System V i386 ABI: Local<Value> returned in hidden pointer (struct).
+#[cfg(not(target_os = "windows"))]
+#[repr(C)]
+pub struct PrepareStackTraceCallbackRet(*const Value);
 
 pub type UseCounterFeature = v8__Isolate__UseCounterFeature;
 pub type UseCounterCallback =
@@ -890,7 +891,7 @@ impl Isolate {
 
   // Isolate data slots used internally by rusty_v8.
   const ANNEX_SLOT: u32 = 0;
-  const INTERNAL_DATA_SLOT_COUNT: u32 = 2;
+  const INTERNAL_DATA_SLOT_COUNT: u32 = 1;
 
   #[inline(always)]
   fn assert_embedder_data_slot_count_and_offset_correct(&self) {
@@ -955,50 +956,50 @@ impl Isolate {
 
   #[inline(always)]
   pub fn thread_safe_handle(&self) -> IsolateHandle {
-    IsolateHandle::new(self)
+    self.get_annex().isolate_handle.clone()
   }
 
   /// See [`IsolateHandle::terminate_execution`]
   #[inline(always)]
   pub fn terminate_execution(&self) -> bool {
-    self.thread_safe_handle().terminate_execution()
+    unsafe { v8__Isolate__TerminateExecution(self.as_real_ptr()) };
+    true
   }
 
   /// See [`IsolateHandle::cancel_terminate_execution`]
   #[inline(always)]
   pub fn cancel_terminate_execution(&self) -> bool {
-    self.thread_safe_handle().cancel_terminate_execution()
+    unsafe { v8__Isolate__CancelTerminateExecution(self.as_real_ptr()) };
+    true
   }
 
   /// See [`IsolateHandle::is_execution_terminating`]
   #[inline(always)]
   pub fn is_execution_terminating(&self) -> bool {
-    self.thread_safe_handle().is_execution_terminating()
+    unsafe { v8__Isolate__IsExecutionTerminating(self.as_real_ptr()) }
   }
 
   pub(crate) fn create_annex(
     &mut self,
     create_param_allocations: Box<dyn Any>,
   ) {
-    let annex_arc = Arc::new(IsolateAnnex::new(self, create_param_allocations));
-    let annex_ptr = Arc::into_raw(annex_arc);
+    let annex_box = Box::new(IsolateAnnex::new(self, create_param_allocations));
+    let annex_ptr = Box::into_raw(annex_box);
     assert!(self.get_data_internal(Self::ANNEX_SLOT).is_null());
     self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
   unsafe fn dispose_annex(&mut self) -> Box<dyn Any> {
+    // SAFETY: `dispose_annex()` is only called once, when the `Isolate` is dropped.
+    let mut annex = unsafe { self.take_annex() };
+
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
     // methods on the isolate.
-    let annex = self.get_annex_mut();
-    {
-      let _lock = annex.isolate_mutex.lock().unwrap();
-      annex.isolate = null_mut();
-    }
+    annex.isolate_handle.dispose();
 
     // Clear slots and drop owned objects that were taken out of `CreateParams`.
-    let create_param_allocations =
-      std::mem::replace(&mut annex.create_param_allocations, Box::new(()));
+    let create_param_allocations = annex.create_param_allocations;
     annex.slots.clear();
 
     // Run through any remaining guaranteed finalizers.
@@ -1007,10 +1008,6 @@ impl Isolate {
         callback();
       }
     }
-
-    // Subtract one from the Arc<IsolateAnnex> reference count.
-    unsafe { Arc::from_raw(annex) };
-    self.set_data(0, null_mut());
 
     create_param_allocations
   }
@@ -1031,6 +1028,15 @@ impl Isolate {
     unsafe { &mut *annex_ptr }
   }
 
+  /// # Safety
+  /// This must only be called once.
+  #[inline(always)]
+  unsafe fn take_annex(&mut self) -> Box<IsolateAnnex> {
+    let annex_ptr =
+      self.take_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    unsafe { Box::from_raw(annex_ptr) }
+  }
+
   pub(crate) fn set_snapshot_creator(
     &mut self,
     snapshot_creator: SnapshotCreator,
@@ -1048,13 +1054,6 @@ impl Isolate {
 
   pub(crate) fn get_finalizer_map_mut(&mut self) -> &mut FinalizerMap {
     &mut self.get_annex_mut().finalizer_map
-  }
-
-  fn get_annex_arc(&self) -> Arc<IsolateAnnex> {
-    let annex_ptr = self.get_annex();
-    let annex_arc = unsafe { Arc::from_raw(annex_ptr) };
-    let _ = Arc::into_raw(annex_arc.clone());
-    annex_arc
   }
 
   /// Retrieve embedder-specific data from the isolate.
@@ -1085,6 +1084,14 @@ impl Isolate {
   #[inline(always)]
   pub(crate) fn set_data_internal(&mut self, slot: u32, data: *mut c_void) {
     unsafe { v8__Isolate__SetData(self.as_real_ptr(), slot, data) }
+  }
+
+  /// Get the value of the slot and replace it with a null pointer.
+  #[inline(always)]
+  fn take_data_internal(&mut self, slot: u32) -> *mut c_void {
+    let ptr = self.get_data_internal(slot);
+    self.set_data_internal(slot, null_mut());
+    ptr
   }
 
   // pub(crate) fn init_scope_root(&mut self) {
@@ -1876,32 +1883,17 @@ pub(crate) struct IsolateAnnex {
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
   finalizer_map: FinalizerMap,
   maybe_snapshot_creator: Option<SnapshotCreator>,
-  // The `isolate` and `isolate_mutex` fields are there so an `IsolateHandle`
-  // (which may outlive the isolate itself) can determine whether the isolate
-  // is still alive, and if so, get a reference to it. Safety rules:
-  // - The 'main thread' must lock the mutex and reset `isolate` to null just
-  //   before the isolate is disposed.
-  // - Any other thread must lock the mutex while it's reading/using the
-  //   `isolate` pointer.
-  isolate: *mut RealIsolate,
-  isolate_mutex: Mutex<()>,
+  isolate_handle: IsolateHandle,
 }
 
-unsafe impl Send for IsolateAnnex {}
-unsafe impl Sync for IsolateAnnex {}
-
 impl IsolateAnnex {
-  fn new(
-    isolate: &mut Isolate,
-    create_param_allocations: Box<dyn Any>,
-  ) -> Self {
+  fn new(isolate: &Isolate, create_param_allocations: Box<dyn Any>) -> Self {
     Self {
       create_param_allocations,
       slots: HashMap::default(),
       finalizer_map: FinalizerMap::default(),
       maybe_snapshot_creator: None,
-      isolate: isolate.as_real_ptr(),
-      isolate_mutex: Mutex::new(()),
+      isolate_handle: IsolateHandle::new(isolate),
     }
   }
 }
@@ -1909,32 +1901,93 @@ impl IsolateAnnex {
 impl Debug for IsolateAnnex {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     f.debug_struct("IsolateAnnex")
-      .field("isolate", &self.isolate)
-      .field("isolate_mutex", &self.isolate_mutex)
+      .field("isolate_handle", &self.isolate_handle)
       .finish()
   }
 }
 
-/// IsolateHandle is a thread-safe reference to an Isolate. It's main use is to
+pub(crate) struct IsolateHandleInner {
+  /// Safety invariants:
+  /// - The 'main thread' must lock the mutex and reset `isolate` to null just
+  ///   before the isolate is disposed.
+  /// - Any other thread must lock the mutex while it's reading/using the
+  ///   `isolate` pointer.
+  // These two fields can be replaced with a `Mutex<*mut RealIsolate>` once
+  // `Mutex::data_ptr()` is stabilized.
+  isolate: UnsafeCell<*mut RealIsolate>,
+  isolate_mutex: Mutex<()>,
+}
+
+unsafe impl Send for IsolateHandleInner {}
+unsafe impl Sync for IsolateHandleInner {}
+
+/// IsolateHandle is a thread-safe reference to an Isolate. Its main use is to
 /// terminate execution of a running isolate from another thread.
 ///
-/// It is created with Isolate::thread_safe_handle().
+/// It is created with [`Isolate::thread_safe_handle()`].
 ///
 /// IsolateHandle is Cloneable, Send, and Sync.
-#[derive(Clone, Debug)]
-pub struct IsolateHandle(Arc<IsolateAnnex>);
+#[derive(Clone)]
+pub struct IsolateHandle(Arc<IsolateHandleInner>);
+
+impl fmt::Debug for IsolateHandle {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    if let Ok(_lock) = self.0.isolate_mutex.try_lock() {
+      // SAFETY: mutex lock is held
+      let ptr = unsafe { *self.0.isolate.get() };
+      f.debug_struct("IsolateHandle")
+        .field("isolate_ptr", &ptr)
+        .finish()
+    } else {
+      f.debug_struct("IsolateHandle").finish_non_exhaustive()
+    }
+  }
+}
 
 impl IsolateHandle {
-  // This function is marked unsafe because it must be called only with either
-  // IsolateAnnex::mutex locked, or from the main thread associated with the V8
-  // isolate.
-  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut RealIsolate {
-    self.0.isolate
-  }
-
   #[inline(always)]
   fn new(isolate: &Isolate) -> Self {
-    Self(isolate.get_annex_arc())
+    let inner = Arc::new(IsolateHandleInner {
+      isolate: UnsafeCell::new(isolate.as_real_ptr()),
+      isolate_mutex: Mutex::new(()),
+    });
+    Self(inner)
+  }
+
+  /// Set the inner isolate pointer to null.
+  fn dispose(self) {
+    let _lock = self.0.isolate_mutex.lock().unwrap();
+    // SAFETY: mutex lock is held
+    unsafe { *self.0.isolate.get() = null_mut() }
+  }
+
+  /// Access the isolate, if it hasn't yet been disposed of.
+  ///
+  /// A lock is taken on the pointer and held for the scope of `f`, which
+  /// means the isolate can't be dropped until after `f` returns. If you
+  /// do something with the isolate afterwards, that needs to be verified
+  /// to be safe separately.
+  pub(crate) fn with_isolate_ptr<R>(
+    &self,
+    f: impl FnOnce(NonNull<RealIsolate>) -> R,
+  ) -> Option<R> {
+    let _lock = self.0.isolate_mutex.lock().unwrap();
+    // SAFETY: mutex lock is held
+    let ptr = unsafe { *self.0.isolate.get() };
+    NonNull::new(ptr).map(f)
+  }
+
+  /// Access the pointer for this isolate - it may be null.
+  ///
+  /// # Safety
+  /// This function must only be called from the main thread associated with
+  /// the V8 isolate.
+  // TODO: have this return an `Option<NonNull<RealIsolate>>`
+  pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut RealIsolate {
+    // SAFETY: this function must only be called from the main thread of the
+    // isolate, which means that `Isolate::dispose_annex` can't concurrently
+    // be setting this to null.
+    unsafe { *self.0.isolate.get() }
   }
 
   /// Forcefully terminate the current thread of JavaScript execution
@@ -1946,13 +1999,11 @@ impl IsolateHandle {
   /// Returns false if Isolate was already destroyed.
   #[inline(always)]
   pub fn terminate_execution(&self) -> bool {
-    let _lock = self.0.isolate_mutex.lock().unwrap();
-    if self.0.isolate.is_null() {
-      false
-    } else {
-      unsafe { v8__Isolate__TerminateExecution(self.0.isolate) };
-      true
-    }
+    self
+      .with_isolate_ptr(|isolate| unsafe {
+        v8__Isolate__TerminateExecution(isolate.as_ptr())
+      })
+      .is_some()
   }
 
   /// Resume execution capability in the given isolate, whose execution
@@ -1971,13 +2022,11 @@ impl IsolateHandle {
   /// Returns false if Isolate was already destroyed.
   #[inline(always)]
   pub fn cancel_terminate_execution(&self) -> bool {
-    let _lock = self.0.isolate_mutex.lock().unwrap();
-    if self.0.isolate.is_null() {
-      false
-    } else {
-      unsafe { v8__Isolate__CancelTerminateExecution(self.0.isolate) };
-      true
-    }
+    self
+      .with_isolate_ptr(|isolate| unsafe {
+        v8__Isolate__CancelTerminateExecution(isolate.as_ptr())
+      })
+      .is_some()
   }
 
   /// Is V8 terminating JavaScript execution.
@@ -1990,12 +2039,11 @@ impl IsolateHandle {
   /// Returns false if Isolate was already destroyed.
   #[inline(always)]
   pub fn is_execution_terminating(&self) -> bool {
-    let _lock = self.0.isolate_mutex.lock().unwrap();
-    if self.0.isolate.is_null() {
-      false
-    } else {
-      unsafe { v8__Isolate__IsExecutionTerminating(self.0.isolate) }
-    }
+    self
+      .with_isolate_ptr(|isolate| unsafe {
+        v8__Isolate__IsExecutionTerminating(isolate.as_ptr())
+      })
+      .unwrap_or(false)
   }
 
   /// Request V8 to interrupt long running JavaScript code and invoke
@@ -2015,13 +2063,11 @@ impl IsolateHandle {
     callback: InterruptCallback,
     data: *mut c_void,
   ) -> bool {
-    let _lock = self.0.isolate_mutex.lock().unwrap();
-    if self.0.isolate.is_null() {
-      false
-    } else {
-      unsafe { v8__Isolate__RequestInterrupt(self.0.isolate, callback, data) };
-      true
-    }
+    self
+      .with_isolate_ptr(|isolate| unsafe {
+        v8__Isolate__RequestInterrupt(isolate.as_ptr(), callback, data)
+      })
+      .is_some()
   }
 }
 
