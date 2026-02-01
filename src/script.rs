@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
@@ -16,7 +15,8 @@ use crate::scope::PinScope;
 #[derive(Debug)]
 pub struct ScriptOrigin<'s>(
   [u8; crate::binding::v8__ScriptOrigin_SIZE],
-  PhantomData<&'s ()>,
+  // require pointer alignment
+  [&'s (); 0],
 );
 
 unsafe extern "C" {
