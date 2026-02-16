@@ -44,6 +44,7 @@ using v8__HeapStatistics = v8::HeapStatistics;
 using v8__HeapSpaceStatistics = v8::HeapSpaceStatistics;
 using v8__GCType = v8::GCType;
 using v8__GCCallbackFlags = v8::GCCallbackFlags;
+using v8__Intercepted = v8::Intercepted;
 
 static uint32_t v8__MAJOR_VERSION = V8_MAJOR_VERSION;
 static uint32_t v8__MINOR_VERSION = V8_MINOR_VERSION;

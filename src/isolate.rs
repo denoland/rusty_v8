@@ -1676,7 +1676,7 @@ impl Isolate {
       + for<'a, 'b, 'c> Fn(
         &'c mut PinScope<'a, 'b>,
         Local<'a, Value>,
-        WasmStreaming,
+        WasmStreaming<false>,
       ),
   {
     unsafe {

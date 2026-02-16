@@ -6,12 +6,16 @@ use crate::PinScope;
 use crate::Value;
 use crate::WasmMemoryObject;
 use crate::WasmModuleObject;
+use crate::binding::const_memory_span_t;
 use crate::function::FunctionCallbackArguments;
 use crate::function::FunctionCallbackInfo;
 use crate::isolate::RealIsolate;
 use crate::scope::GetIsolate;
 use crate::scope::callback_scope;
+use crate::support::MapFnFrom;
+use crate::support::MapFnTo;
 use crate::support::Opaque;
+use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::char;
 use std::ptr::null;
@@ -35,9 +39,13 @@ struct WasmStreamingSharedPtr([*mut u8; 2]);
 /// object to the embedder such that the embedder can pass the
 /// input bytes for streaming compilation to V8.
 #[repr(C)]
-pub struct WasmStreaming(WasmStreamingSharedPtr);
+pub struct WasmStreaming<const HAS_COMPILED_MODULE_BYTES: bool>(
+  WasmStreamingSharedPtr,
+);
 
-impl WasmStreaming {
+impl<const HAS_COMPILED_MODULE_BYTES: bool>
+  WasmStreaming<HAS_COMPILED_MODULE_BYTES>
+{
   /// Pass a new chunk of bytes to WebAssembly streaming compilation.
   #[inline(always)]
   pub fn on_bytes_received(&mut self, data: &[u8]) {
@@ -48,15 +56,6 @@ impl WasmStreaming {
         data.len(),
       );
     }
-  }
-
-  /// Should be called after all received bytes where passed to
-  /// [`Self::on_bytes_received()`] to tell V8 that there will be no
-  /// more bytes. Does not have to be called after [`Self::abort()`]
-  /// has been called already.
-  #[inline(always)]
-  pub fn finish(mut self) {
-    unsafe { v8__WasmStreaming__Finish(&mut self.0) }
   }
 
   /// Abort streaming compilation. If {exception} has a value, then the promise
@@ -85,7 +84,54 @@ impl WasmStreaming {
   }
 }
 
-impl Drop for WasmStreaming {
+impl WasmStreaming<false> {
+  /// {Finish} should be called after all received bytes where passed to
+  /// {OnBytesReceived} to tell V8 that there will be no more bytes. {Finish}
+  /// must not be called after {Abort} has been called already.
+  /// If {SetHasCompiledModuleBytes()} was called before, a {caching_callback}
+  /// can be passed which can inspect the full received wire bytes and set cached
+  /// module bytes which will be deserialized then. This callback will happen
+  /// synchronously within this call; the callback is not stored.
+  #[inline(always)]
+  pub fn finish(mut self) {
+    unsafe { v8__WasmStreaming__Finish(&mut self.0, None) }
+  }
+
+  /// Mark that the embedder has (potentially) cached compiled module bytes (i.e.
+  /// a serialized {CompiledWasmModule}) that could match this streaming request.
+  /// This will cause V8 to skip streaming compilation.
+  /// The embedder should then pass a callback to the {Finish} method to pass the
+  /// serialized bytes, after potentially checking their validity against the
+  /// full received wire bytes.
+  #[inline(always)]
+  pub fn set_has_compiled_module_bytes(mut self) -> WasmStreaming<true> {
+    unsafe {
+      v8__WasmStreaming__SetHasCompiledModuleBytes(&mut self.0);
+      std::mem::transmute(self)
+    }
+  }
+}
+
+impl WasmStreaming<true> {
+  /// {Finish} should be called after all received bytes where passed to
+  /// {OnBytesReceived} to tell V8 that there will be no more bytes. {Finish}
+  /// must not be called after {Abort} has been called already.
+  /// If {SetHasCompiledModuleBytes()} was called before, a {caching_callback}
+  /// can be passed which can inspect the full received wire bytes and set cached
+  /// module bytes which will be deserialized then. This callback will happen
+  /// synchronously within this call; the callback is not stored.
+  #[inline(always)]
+  pub fn finish<F>(mut self, f: F)
+  where
+    F: MapFnTo<ModuleCachingCallback>,
+  {
+    unsafe { v8__WasmStreaming__Finish(&mut self.0, Some(f.map_fn_to())) }
+  }
+}
+
+impl<const HAS_COMPILED_MODULE_BYTES: bool> Drop
+  for WasmStreaming<HAS_COMPILED_MODULE_BYTES>
+{
   fn drop(&mut self) {
     unsafe { v8__WasmStreaming__shared_ptr_DESTRUCT(&mut self.0) }
   }
@@ -132,6 +178,55 @@ impl WasmModuleObject {
         )
       })
     }
+  }
+}
+
+#[repr(C)]
+pub struct ModuleCachingInterface(Opaque);
+
+impl ModuleCachingInterface {
+  /// Get the full wire bytes, to check against the cached version.
+  #[inline(always)]
+  pub fn get_wire_bytes(&self) -> &[u8] {
+    unsafe {
+      let span = v8__ModuleCachingInterface__GetWireBytes(self);
+      std::slice::from_raw_parts(span.data, span.size)
+    }
+  }
+
+  /// Pass serialized (cached) compiled module bytes, to be deserialized and
+  /// used as the result of this streaming compilation.
+  /// The passed bytes will only be accessed inside this callback, i.e.
+  /// lifetime can end after the call.
+  /// The return value indicates whether V8 could use the passed bytes; {false}
+  /// would be returned on e.g. version mismatch.
+  /// This method can only be called once.
+  #[inline(always)]
+  pub fn set_cached_compiled_module_bytes(&mut self, bytes: &[u8]) -> bool {
+    unsafe {
+      v8__ModuleCachingInterface__SetCachedCompiledModuleBytes(
+        self,
+        const_memory_span_t {
+          data: bytes.as_ptr(),
+          size: bytes.len(),
+        },
+      )
+    }
+  }
+}
+
+pub type ModuleCachingCallback =
+  unsafe extern "C" fn(*mut ModuleCachingInterface);
+
+impl<F> MapFnFrom<F> for ModuleCachingCallback
+where
+  F: UnitType + Fn(&mut ModuleCachingInterface),
+{
+  fn mapping() -> Self {
+    let f = |mci: *mut ModuleCachingInterface| {
+      (F::get())(unsafe { &mut *mci });
+    };
+    f.to_c_fn()
   }
 }
 
@@ -195,7 +290,7 @@ where
     + for<'a, 'b, 'c> Fn(
       &'c mut PinScope<'a, 'b>,
       Local<'a, Value>,
-      WasmStreaming,
+      WasmStreaming<false>,
     ),
 {
   unsafe extern "C" fn c_fn<F>(info: *const FunctionCallbackInfo)
@@ -204,7 +299,7 @@ where
       + for<'a, 'b, 'c> Fn(
         &'c mut PinScope<'a, 'b>,
         Local<'a, Value>,
-        WasmStreaming,
+        WasmStreaming<false>,
       ),
   {
     let info = unsafe { &*info };
@@ -229,12 +324,18 @@ unsafe extern "C" {
     that: *mut WasmStreamingSharedPtr, // Out parameter.
   );
   fn v8__WasmStreaming__shared_ptr_DESTRUCT(this: *mut WasmStreamingSharedPtr);
+  fn v8__WasmStreaming__SetHasCompiledModuleBytes(
+    this: *mut WasmStreamingSharedPtr,
+  );
   fn v8__WasmStreaming__OnBytesReceived(
     this: *mut WasmStreamingSharedPtr,
     data: *const u8,
     len: usize,
   );
-  fn v8__WasmStreaming__Finish(this: *mut WasmStreamingSharedPtr);
+  fn v8__WasmStreaming__Finish(
+    this: *mut WasmStreamingSharedPtr,
+    callback: Option<ModuleCachingCallback>,
+  );
   fn v8__WasmStreaming__Abort(
     this: *mut WasmStreamingSharedPtr,
     exception: *const Value,
@@ -244,6 +345,14 @@ unsafe extern "C" {
     url: *const char,
     len: usize,
   );
+
+  fn v8__ModuleCachingInterface__GetWireBytes(
+    interface: *const ModuleCachingInterface,
+  ) -> const_memory_span_t;
+  fn v8__ModuleCachingInterface__SetCachedCompiledModuleBytes(
+    interface: *mut ModuleCachingInterface,
+    bytes: const_memory_span_t,
+  ) -> bool;
 
   fn v8__WasmModuleObject__FromCompiledModule(
     isolate: *mut RealIsolate,

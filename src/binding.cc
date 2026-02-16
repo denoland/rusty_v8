@@ -948,9 +948,8 @@ const v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
 
 int v8__FixedArray__Length(const v8::FixedArray& self) { return self.Length(); }
 
-const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self,
-                                    const v8::Context& context, int index) {
-  return local_to_ptr(ptr_to_local(&self)->Get(ptr_to_local(&context), index));
+const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self, int index) {
+  return local_to_ptr(ptr_to_local(&self)->Get(index));
 }
 
 const v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate,
@@ -1456,14 +1455,15 @@ const v8::Value* v8__Object__GetIndex(const v8::Object& self,
       ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
-void* v8__Object__GetAlignedPointerFromInternalField(const v8::Object& self,
-                                                     int index) {
-  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index);
+void* v8__Object__GetAlignedPointerFromInternalField(
+    const v8::Object& self, int index, v8::EmbedderDataTypeTag tag) {
+  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index, tag);
 }
 
 void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
-                                                  int index, void* value) {
-  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
+                                                  int index, void* value,
+                                                  v8::EmbedderDataTypeTag tag) {
+  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value, tag);
 }
 
 bool v8__Object__IsApiWrapper(const v8::Object& self) {
@@ -1997,12 +1997,14 @@ void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
                                v8::StartupData payload, void* data) {
   assert(data == nullptr);
   if (payload.raw_size == 0) {
-    holder->SetAlignedPointerInInternalField(index, nullptr);
+    holder->SetAlignedPointerInInternalField(index, nullptr,
+                                             v8::kEmbedderDataTypeTagDefault);
     return;
   }
   InternalFieldData* embedder_field = new InternalFieldData{0};
   memcpy(embedder_field, payload.data, payload.raw_size);
-  holder->SetAlignedPointerInInternalField(index, embedder_field);
+  holder->SetAlignedPointerInInternalField(index, embedder_field,
+                                           v8::kEmbedderDataTypeTagDefault);
   deserialized_data.push_back(embedder_field);
 }
 
@@ -2404,11 +2406,6 @@ v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
 const v8::Value* v8__PropertyCallbackInfo__Data(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.Data());
-}
-
-const v8::Object* v8__PropertyCallbackInfo__This(
-    const v8::PropertyCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.This());
 }
 
 const v8::Object* v8__PropertyCallbackInfo__Holder(
@@ -2907,7 +2904,8 @@ v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
                                         void* data) {
   assert(data == nullptr);
   InternalFieldData* embedder_field = static_cast<InternalFieldData*>(
-      holder->GetAlignedPointerFromInternalField(index));
+      holder->GetAlignedPointerFromInternalField(
+          index, v8::kEmbedderDataTypeTagDefault));
   if (embedder_field == nullptr) return {nullptr, 0};
   int size = sizeof(*embedder_field);
   char* payload = new char[size];
@@ -3438,13 +3436,20 @@ void v8__WasmStreaming__shared_ptr_DESTRUCT(WasmStreamingSharedPtr* self) {
   self->~WasmStreamingSharedPtr();
 }
 
+void v8__WasmStreaming__SetHasCompiledModuleBytes(
+    WasmStreamingSharedPtr* self) {
+  self->inner->SetHasCompiledModuleBytes();
+}
+
 void v8__WasmStreaming__OnBytesReceived(WasmStreamingSharedPtr* self,
                                         const uint8_t* data, size_t len) {
   self->inner->OnBytesReceived(data, len);
 }
 
-void v8__WasmStreaming__Finish(WasmStreamingSharedPtr* self) {
-  self->inner->Finish();
+void v8__WasmStreaming__Finish(
+    WasmStreamingSharedPtr* self,
+    void (*callback)(v8::WasmStreaming::ModuleCachingInterface&)) {
+  self->inner->Finish(callback);
 }
 
 void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
@@ -3455,6 +3460,19 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
 void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
                                size_t len) {
   self->inner->SetUrl(url, len);
+}
+
+const_memory_span_t v8__ModuleCachingInterface__GetWireBytes(
+    const v8::WasmStreaming::ModuleCachingInterface& self) {
+  v8::MemorySpan<const uint8_t> span = self.GetWireBytes();
+  return {span.data(), span.size()};
+}
+
+bool v8__ModuleCachingInterface__SetCachedCompiledModuleBytes(
+    v8::WasmStreaming::ModuleCachingInterface& self,
+    const_memory_span_t bytes) {
+  v8::MemorySpan<const uint8_t> bytes_span{bytes.data, bytes.size};
+  return self.SetCachedCompiledModuleBytes(bytes_span);
 }
 
 const v8::ArrayBuffer* v8__WasmMemoryObject__Buffer(
