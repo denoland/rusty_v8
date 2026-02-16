@@ -3791,6 +3791,82 @@ uint32_t v8__ValueDeserializer__GetWireFormatVersion(
 }
 }  // extern "C"
 
+// v8::WasmModuleCompilation
+
+extern "C" {
+
+v8::WasmModuleCompilation* v8__WasmModuleCompilation__NEW() {
+  return new v8::WasmModuleCompilation();
+}
+
+void v8__WasmModuleCompilation__DELETE(v8::WasmModuleCompilation* self) {
+  delete self;
+}
+
+void v8__WasmModuleCompilation__OnBytesReceived(
+    v8::WasmModuleCompilation* self, const uint8_t* bytes, size_t size) {
+  self->OnBytesReceived(bytes, size);
+}
+
+void v8__WasmModuleCompilation__Finish(
+    v8::WasmModuleCompilation* self, v8::Isolate* isolate,
+    void (*caching_callback)(v8::WasmStreaming::ModuleCachingInterface&),
+    void (*resolution_callback)(void* data, v8::Isolate* isolate,
+                                const v8::WasmModuleObject* module,
+                                const v8::Value* error),
+    void* resolution_data) {
+  v8::WasmModuleCompilation::ModuleCachingCallback cc;
+  if (caching_callback) {
+    cc = [caching_callback](v8::WasmStreaming::ModuleCachingInterface& mci) {
+      caching_callback(mci);
+    };
+  }
+  self->Finish(
+      isolate, cc,
+      [resolution_callback, resolution_data, isolate](
+          std::variant<v8::Local<v8::WasmModuleObject>, v8::Local<v8::Value>>
+              result) {
+        if (auto* module =
+                std::get_if<v8::Local<v8::WasmModuleObject>>(&result)) {
+          resolution_callback(resolution_data, isolate, local_to_ptr(*module),
+                              nullptr);
+        } else {
+          resolution_callback(
+              resolution_data, isolate, nullptr,
+              local_to_ptr(std::get<v8::Local<v8::Value>>(result)));
+        }
+      });
+}
+
+void v8__WasmModuleCompilation__Abort(v8::WasmModuleCompilation* self) {
+  self->Abort();
+}
+
+void v8__WasmModuleCompilation__SetHasCompiledModuleBytes(
+    v8::WasmModuleCompilation* self) {
+  self->SetHasCompiledModuleBytes();
+}
+
+void v8__WasmModuleCompilation__SetMoreFunctionsCanBeSerializedCallback(
+    v8::WasmModuleCompilation* self,
+    void (*callback)(void* data, v8::CompiledWasmModule* compiled_module),
+    void* data, void (*drop_data)(void* data)) {
+  auto shared_data =
+      std::shared_ptr<void>(data, [drop_data](void* p) { drop_data(p); });
+  self->SetMoreFunctionsCanBeSerializedCallback(
+      [callback, shared_data](v8::CompiledWasmModule module) {
+        auto* heap_module = new v8::CompiledWasmModule(std::move(module));
+        callback(shared_data.get(), heap_module);
+      });
+}
+
+void v8__WasmModuleCompilation__SetUrl(v8::WasmModuleCompilation* self,
+                                       const char* url, size_t length) {
+  self->SetUrl(url, length);
+}
+
+}  // extern "C"
+
 // v8::CompiledWasmModule
 
 extern "C" {

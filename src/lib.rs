@@ -185,6 +185,7 @@ pub use value_serializer::ValueSerializerHelper;
 pub use value_serializer::ValueSerializerImpl;
 pub use wasm::CompiledWasmModule;
 pub use wasm::ModuleCachingInterface;
+pub use wasm::WasmModuleCompilation;
 pub use wasm::WasmStreaming;
 
 /// https://v8.dev/docs/version-numbers

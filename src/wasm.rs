@@ -1,6 +1,11 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
+use std::ffi::c_void;
+use std::ptr::null;
+use std::ptr::null_mut;
+
 use crate::ArrayBuffer;
+use crate::Isolate;
 use crate::Local;
 use crate::PinScope;
 use crate::Value;
@@ -18,8 +23,6 @@ use crate::support::Opaque;
 use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::char;
-use std::ptr::null;
-use std::ptr::null_mut;
 
 // Type-erased std::shared_ptr<v8::WasmStreaming>. Assumes it's safe
 // to move around (no backlinks). Not generally true for shared_ptrs
@@ -275,6 +278,194 @@ impl Drop for CompiledWasmModule {
   }
 }
 
+// Type-erased v8::WasmModuleCompilation allocated on the C++ heap.
+#[repr(C)]
+struct InternalWasmModuleCompilation(Opaque);
+
+/// An interface for asynchronous WebAssembly module compilation, to be used
+/// e.g. for implementing source phase imports.
+///
+/// Note: This interface is experimental and can change or be removed without
+/// notice.
+pub struct WasmModuleCompilation(*mut InternalWasmModuleCompilation);
+
+// OnBytesReceived can be called from any thread per V8 documentation.
+unsafe impl Send for WasmModuleCompilation {}
+
+impl WasmModuleCompilation {
+  /// Start an asynchronous module compilation. This can be called on any
+  /// thread.
+  #[inline(always)]
+  pub fn new() -> Self {
+    unsafe { WasmModuleCompilation(v8__WasmModuleCompilation__NEW()) }
+  }
+
+  /// Pass a new chunk of bytes to WebAssembly compilation. The buffer is
+  /// owned by the caller and will not be accessed after this call returns.
+  /// Can be called from any thread.
+  #[inline(always)]
+  pub fn on_bytes_received(&mut self, data: &[u8]) {
+    unsafe {
+      v8__WasmModuleCompilation__OnBytesReceived(
+        self.0,
+        data.as_ptr(),
+        data.len(),
+      );
+    }
+  }
+
+  /// Finish compilation. Must be called on the main thread after all bytes
+  /// were passed to [`Self::on_bytes_received`].
+  ///
+  /// The `resolution_callback` will eventually be called with either the
+  /// compiled module or a compilation error. The callback receives `&Isolate`
+  /// so that [`crate::Global`] handles can be created from the [`Local`]
+  /// handles to persist them beyond the callback.
+  ///
+  /// Must not be called after [`Self::abort`].
+  #[inline(always)]
+  pub fn finish(
+    self,
+    scope: &mut PinScope,
+    caching_callback: Option<ModuleCachingCallback>,
+    resolution_callback: impl FnOnce(
+        &Isolate,
+        Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
+      ) + 'static,
+  ) {
+    // Double-box: the outer Box gives us a thin pointer suitable for void*.
+    let boxed: Box<
+      Box<
+        dyn FnOnce(
+          &Isolate,
+          Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
+        ),
+      >,
+    > = Box::new(Box::new(resolution_callback));
+    let data = Box::into_raw(boxed) as *mut c_void;
+
+    unsafe {
+      v8__WasmModuleCompilation__Finish(
+        self.0,
+        scope.get_isolate_ptr(),
+        caching_callback,
+        resolution_trampoline,
+        data,
+      );
+    }
+  }
+
+  /// Abort compilation. Can be called from any thread.
+  /// Must not be called repeatedly, or after [`Self::finish`].
+  #[inline(always)]
+  pub fn abort(self) {
+    unsafe { v8__WasmModuleCompilation__Abort(self.0) }
+  }
+
+  /// Mark that the embedder has (potentially) cached compiled module bytes
+  /// (i.e. a serialized [`CompiledWasmModule`]) that could match this
+  /// compilation request. This will cause V8 to skip streaming compilation.
+  /// The embedder should then pass a caching callback to [`Self::finish`].
+  #[inline(always)]
+  pub fn set_has_compiled_module_bytes(&mut self) {
+    unsafe {
+      v8__WasmModuleCompilation__SetHasCompiledModuleBytes(self.0);
+    }
+  }
+
+  /// Sets a callback which is called whenever a significant number of new
+  /// functions are ready for serialization.
+  #[inline(always)]
+  pub fn set_more_functions_can_be_serialized_callback(
+    &mut self,
+    callback: impl Fn(CompiledWasmModule) + Send + 'static,
+  ) {
+    let boxed: Box<Box<dyn Fn(CompiledWasmModule) + Send>> =
+      Box::new(Box::new(callback));
+    let data = Box::into_raw(boxed) as *mut c_void;
+
+    unsafe {
+      v8__WasmModuleCompilation__SetMoreFunctionsCanBeSerializedCallback(
+        self.0,
+        serialization_trampoline,
+        data,
+        drop_serialization_data,
+      );
+    }
+  }
+
+  /// Sets the UTF-8 encoded source URL for the `Script` object. This must
+  /// be called before [`Self::finish`].
+  #[inline(always)]
+  pub fn set_url(&mut self, url: &str) {
+    // V8 requires the url to be null terminated.
+    let null_terminated_url = format!("{url}\0");
+    unsafe {
+      v8__WasmModuleCompilation__SetUrl(
+        self.0,
+        null_terminated_url.as_ptr() as *const char,
+        url.len(),
+      );
+    }
+  }
+}
+
+impl Default for WasmModuleCompilation {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+impl Drop for WasmModuleCompilation {
+  fn drop(&mut self) {
+    unsafe { v8__WasmModuleCompilation__DELETE(self.0) }
+  }
+}
+
+unsafe extern "C" fn resolution_trampoline(
+  data: *mut c_void,
+  isolate: *mut RealIsolate,
+  module: *const WasmModuleObject,
+  error: *const Value,
+) {
+  let callback: Box<
+    Box<
+      dyn FnOnce(
+        &Isolate,
+        Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
+      ),
+    >,
+  > = unsafe { Box::from_raw(data as *mut _) };
+  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
+  if !module.is_null() {
+    callback(
+      &isolate,
+      Ok(unsafe { Local::from_raw(module) }.unwrap()),
+    );
+  } else {
+    callback(
+      &isolate,
+      Err(unsafe { Local::from_raw(error) }.unwrap()),
+    );
+  }
+}
+
+unsafe extern "C" fn serialization_trampoline(
+  data: *mut c_void,
+  compiled_module: *mut InternalCompiledWasmModule,
+) {
+  let callback = unsafe {
+    &**(data as *const Box<dyn Fn(CompiledWasmModule) + Send>)
+  };
+  callback(CompiledWasmModule(compiled_module));
+}
+
+unsafe extern "C" fn drop_serialization_data(data: *mut c_void) {
+  let _ = unsafe {
+    Box::from_raw(data as *mut Box<dyn Fn(CompiledWasmModule) + Send>)
+  };
+}
+
 impl WasmMemoryObject {
   /// Returns underlying ArrayBuffer.
   #[inline(always)]
@@ -380,4 +571,46 @@ unsafe extern "C" {
   fn v8__WasmMemoryObject__Buffer(
     this: *const WasmMemoryObject,
   ) -> *mut ArrayBuffer;
+
+  fn v8__WasmModuleCompilation__NEW() -> *mut InternalWasmModuleCompilation;
+  fn v8__WasmModuleCompilation__DELETE(
+    this: *mut InternalWasmModuleCompilation,
+  );
+  fn v8__WasmModuleCompilation__OnBytesReceived(
+    this: *mut InternalWasmModuleCompilation,
+    bytes: *const u8,
+    size: usize,
+  );
+  fn v8__WasmModuleCompilation__Finish(
+    this: *mut InternalWasmModuleCompilation,
+    isolate: *mut RealIsolate,
+    caching_callback: Option<ModuleCachingCallback>,
+    resolution_callback: unsafe extern "C" fn(
+      *mut c_void,
+      *mut RealIsolate,
+      *const WasmModuleObject,
+      *const Value,
+    ),
+    resolution_data: *mut c_void,
+  );
+  fn v8__WasmModuleCompilation__Abort(
+    this: *mut InternalWasmModuleCompilation,
+  );
+  fn v8__WasmModuleCompilation__SetHasCompiledModuleBytes(
+    this: *mut InternalWasmModuleCompilation,
+  );
+  fn v8__WasmModuleCompilation__SetMoreFunctionsCanBeSerializedCallback(
+    this: *mut InternalWasmModuleCompilation,
+    callback: unsafe extern "C" fn(
+      *mut c_void,
+      *mut InternalCompiledWasmModule,
+    ),
+    data: *mut c_void,
+    drop_data: unsafe extern "C" fn(*mut c_void),
+  );
+  fn v8__WasmModuleCompilation__SetUrl(
+    this: *mut InternalWasmModuleCompilation,
+    url: *const char,
+    length: usize,
+  );
 }
