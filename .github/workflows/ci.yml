@@ -507,6 +507,11 @@ jobs:
           pattern: src_binding_*.rs
           merge-multiple: true
 
+      - name: Commit modified abseil options.h
+        run: |
+          git add third_party/abseil-cpp/absl/base/options.h
+          git commit -m "chore: commit modified abseil options.h"
+
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
