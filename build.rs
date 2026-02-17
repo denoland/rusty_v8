@@ -1022,7 +1022,13 @@ fn gn() -> String {
  * variable or defaulting to `python3`.
  */
 fn python() -> String {
-  env::var("PYTHON").unwrap_or_else(|_| "python3".to_owned())
+  env::var("PYTHON").unwrap_or_else(|_| {
+    if cfg!(target_os = "windows") {
+      "python".to_owned()
+    } else {
+      "python3".to_owned()
+    }
+  })
 }
 
 type NinjaEnv = Vec<(String, String)>;
