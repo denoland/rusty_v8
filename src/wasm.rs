@@ -333,15 +333,27 @@ impl WasmModuleCompilation {
         Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
       ) + 'static,
   ) {
+    // Capture the isolate pointer in the closure so it doesn't need to be
+    // threaded through C++.
+    let isolate_ptr = scope.get_isolate_ptr();
+    let wrapped = move |module: *const WasmModuleObject, error: *const Value| {
+      let isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
+      if !module.is_null() {
+        resolution_callback(
+          &isolate,
+          Ok(unsafe { Local::from_raw(module) }.unwrap()),
+        );
+      } else {
+        resolution_callback(
+          &isolate,
+          Err(unsafe { Local::from_raw(error) }.unwrap()),
+        );
+      }
+    };
+
     // Double-box: the outer Box gives us a thin pointer suitable for void*.
-    let boxed: Box<
-      Box<
-        dyn FnOnce(
-          &Isolate,
-          Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
-        ),
-      >,
-    > = Box::new(Box::new(resolution_callback));
+    let boxed: Box<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>> =
+      Box::new(Box::new(wrapped));
     let data = Box::into_raw(boxed) as *mut c_void;
 
     unsafe {
@@ -351,6 +363,7 @@ impl WasmModuleCompilation {
         caching_callback,
         resolution_trampoline,
         data,
+        drop_resolution_data,
       );
     }
   }
@@ -424,30 +437,20 @@ impl Drop for WasmModuleCompilation {
 
 unsafe extern "C" fn resolution_trampoline(
   data: *mut c_void,
-  isolate: *mut RealIsolate,
   module: *const WasmModuleObject,
   error: *const Value,
 ) {
-  let callback: Box<
-    Box<
-      dyn FnOnce(
-        &Isolate,
-        Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
-      ),
-    >,
-  > = unsafe { Box::from_raw(data as *mut _) };
-  let isolate = unsafe { Isolate::from_raw_ptr(isolate) };
-  if !module.is_null() {
-    callback(
-      &isolate,
-      Ok(unsafe { Local::from_raw(module) }.unwrap()),
-    );
-  } else {
-    callback(
-      &isolate,
-      Err(unsafe { Local::from_raw(error) }.unwrap()),
-    );
-  }
+  let callback: Box<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>> =
+    unsafe { Box::from_raw(data as *mut _) };
+  callback(module, error);
+}
+
+unsafe extern "C" fn drop_resolution_data(data: *mut c_void) {
+  let _ = unsafe {
+    Box::from_raw(
+      data as *mut Box<dyn FnOnce(*const WasmModuleObject, *const Value)>,
+    )
+  };
 }
 
 unsafe extern "C" fn serialization_trampoline(
@@ -587,11 +590,11 @@ unsafe extern "C" {
     caching_callback: Option<ModuleCachingCallback>,
     resolution_callback: unsafe extern "C" fn(
       *mut c_void,
-      *mut RealIsolate,
       *const WasmModuleObject,
       *const Value,
     ),
     resolution_data: *mut c_void,
+    drop_resolution_data: unsafe extern "C" fn(*mut c_void),
   );
   fn v8__WasmModuleCompilation__Abort(
     this: *mut InternalWasmModuleCompilation,
