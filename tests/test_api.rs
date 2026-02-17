@@ -8807,7 +8807,9 @@ fn wasm_module_compilation() {
   let result_clone = result.clone();
   compilation.finish(scope, None, move |isolate, r| match r {
     Ok(module) => {
-      result_clone.borrow_mut().replace(v8::Global::new(isolate, module));
+      result_clone
+        .borrow_mut()
+        .replace(v8::Global::new(isolate, module));
     }
     Err(_) => panic!("wasm compilation failed"),
   });

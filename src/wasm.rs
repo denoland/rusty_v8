@@ -329,14 +329,15 @@ impl WasmModuleCompilation {
     scope: &mut PinScope,
     caching_callback: Option<ModuleCachingCallback>,
     resolution_callback: impl FnOnce(
-        &Isolate,
-        Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
-      ) + 'static,
+      &Isolate,
+      Result<Local<'_, WasmModuleObject>, Local<'_, Value>>,
+    ) + 'static,
   ) {
     // Capture the isolate pointer in the closure so it doesn't need to be
     // threaded through C++.
     let isolate_ptr = scope.get_isolate_ptr();
-    let wrapped = move |module: *const WasmModuleObject, error: *const Value| {
+    let wrapped = move |module: *const WasmModuleObject,
+                        error: *const Value| {
       let isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
       if !module.is_null() {
         resolution_callback(
@@ -457,9 +458,8 @@ unsafe extern "C" fn serialization_trampoline(
   data: *mut c_void,
   compiled_module: *mut InternalCompiledWasmModule,
 ) {
-  let callback = unsafe {
-    &**(data as *const Box<dyn Fn(CompiledWasmModule) + Send>)
-  };
+  let callback =
+    unsafe { &**(data as *const Box<dyn Fn(CompiledWasmModule) + Send>) };
   callback(CompiledWasmModule(compiled_module));
 }
 
@@ -596,9 +596,7 @@ unsafe extern "C" {
     resolution_data: *mut c_void,
     drop_resolution_data: unsafe extern "C" fn(*mut c_void),
   );
-  fn v8__WasmModuleCompilation__Abort(
-    this: *mut InternalWasmModuleCompilation,
-  );
+  fn v8__WasmModuleCompilation__Abort(this: *mut InternalWasmModuleCompilation);
   fn v8__WasmModuleCompilation__SetHasCompiledModuleBytes(
     this: *mut InternalWasmModuleCompilation,
   );

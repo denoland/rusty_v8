@@ -3803,8 +3803,9 @@ void v8__WasmModuleCompilation__DELETE(v8::WasmModuleCompilation* self) {
   delete self;
 }
 
-void v8__WasmModuleCompilation__OnBytesReceived(
-    v8::WasmModuleCompilation* self, const uint8_t* bytes, size_t size) {
+void v8__WasmModuleCompilation__OnBytesReceived(v8::WasmModuleCompilation* self,
+                                                const uint8_t* bytes,
+                                                size_t size) {
   self->OnBytesReceived(bytes, size);
 }
 
@@ -3844,8 +3845,7 @@ class RustCallable {
   void operator()(
       std::variant<v8::Local<v8::WasmModuleObject>, v8::Local<v8::Value>>
           result) {
-    if (auto* module =
-            std::get_if<v8::Local<v8::WasmModuleObject>>(&result)) {
+    if (auto* module = std::get_if<v8::Local<v8::WasmModuleObject>>(&result)) {
       callback_(data_, local_to_ptr(*module), nullptr);
     } else {
       callback_(data_, nullptr,
@@ -3866,14 +3866,12 @@ class RustCallable {
 void v8__WasmModuleCompilation__Finish(
     v8::WasmModuleCompilation* self, v8::Isolate* isolate,
     void (*caching_callback)(v8::WasmStreaming::ModuleCachingInterface&),
-    void (*resolution_callback)(void* data,
-                                const v8::WasmModuleObject* module,
+    void (*resolution_callback)(void* data, const v8::WasmModuleObject* module,
                                 const v8::Value* error),
-    void* resolution_data,
-    void (*drop_resolution_data)(void* data)) {
-  self->Finish(isolate, caching_callback,
-               RustCallable(resolution_callback, resolution_data,
-                            drop_resolution_data));
+    void* resolution_data, void (*drop_resolution_data)(void* data)) {
+  self->Finish(
+      isolate, caching_callback,
+      RustCallable(resolution_callback, resolution_data, drop_resolution_data));
 }
 
 void v8__WasmModuleCompilation__Abort(v8::WasmModuleCompilation* self) {
