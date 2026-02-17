@@ -352,9 +352,13 @@ impl WasmModuleCompilation {
       }
     };
 
-    // Double-box: the outer Box gives us a thin pointer suitable for void*.
-    let boxed: Box<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>> =
-      Box::new(Box::new(wrapped));
+    // Double-box with Option: the outer Box gives us a thin pointer suitable
+    // for void*. The Option allows the trampoline to .take() the closure
+    // (FnOnce semantics) without freeing the outer allocation, which is
+    // ref-counted by shared_ptr on the C++ side.
+    let boxed: Box<
+      Option<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>>,
+    > = Box::new(Some(Box::new(wrapped)));
     let data = Box::into_raw(boxed) as *mut c_void;
 
     unsafe {
@@ -441,15 +445,24 @@ unsafe extern "C" fn resolution_trampoline(
   module: *const WasmModuleObject,
   error: *const Value,
 ) {
-  let callback: Box<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>> =
-    unsafe { Box::from_raw(data as *mut _) };
+  // Take the closure out of the Option without freeing the outer Box.
+  // The outer Box is ref-counted by shared_ptr on the C++ side and will
+  // be freed via drop_resolution_data when the last copy is destroyed.
+  let slot = unsafe {
+    &mut *(data
+      as *mut Option<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>>)
+  };
+  let callback = slot.take().unwrap();
   callback(module, error);
 }
 
 unsafe extern "C" fn drop_resolution_data(data: *mut c_void) {
   let _ = unsafe {
     Box::from_raw(
-      data as *mut Box<dyn FnOnce(*const WasmModuleObject, *const Value)>,
+      data
+        as *mut Option<
+          Box<dyn FnOnce(*const WasmModuleObject, *const Value)>,
+        >,
     )
   };
 }

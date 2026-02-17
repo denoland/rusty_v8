@@ -3809,69 +3809,31 @@ void v8__WasmModuleCompilation__OnBytesReceived(v8::WasmModuleCompilation* self,
   self->OnBytesReceived(bytes, size);
 }
 
-// A callable wrapper that properly tracks a Rust Box pointer lifetime through
-// std::function's copy/move/destroy operations (rule of five). This ensures
-// the boxed Rust closure is freed when the std::function is destroyed, even
-// if the callback is never invoked.
-class RustCallable {
- public:
-  using Callback = void (*)(void* data, const v8::WasmModuleObject* module,
-                            const v8::Value* error);
-
-  RustCallable(Callback callback, void* data, void (*drop)(void*))
-      : callback_(callback), data_(data), drop_(drop), alive_(true) {}
-
-  ~RustCallable() {
-    if (alive_) drop_(data_);
-  }
-
-  RustCallable(const RustCallable& other)
-      : callback_(other.callback_),
-        data_(other.data_),
-        drop_(other.drop_),
-        alive_(false) {}
-
-  RustCallable(RustCallable&& other)
-      : callback_(other.callback_),
-        data_(other.data_),
-        drop_(other.drop_),
-        alive_(other.alive_) {
-    other.alive_ = false;
-  }
-
-  RustCallable& operator=(const RustCallable&) = delete;
-  RustCallable& operator=(RustCallable&&) = delete;
-
-  void operator()(
-      std::variant<v8::Local<v8::WasmModuleObject>, v8::Local<v8::Value>>
-          result) {
-    if (auto* module = std::get_if<v8::Local<v8::WasmModuleObject>>(&result)) {
-      callback_(data_, local_to_ptr(*module), nullptr);
-    } else {
-      callback_(data_, nullptr,
-                local_to_ptr(std::get<v8::Local<v8::Value>>(result)));
-    }
-    // After invoking a FnOnce, the drop is handled by Rust inside the
-    // callback. Prevent double-free when the std::function is destroyed.
-    alive_ = false;
-  }
-
- private:
-  Callback callback_;
-  void* data_;
-  void (*drop_)(void*);
-  bool alive_;
-};
-
 void v8__WasmModuleCompilation__Finish(
     v8::WasmModuleCompilation* self, v8::Isolate* isolate,
     void (*caching_callback)(v8::WasmStreaming::ModuleCachingInterface&),
     void (*resolution_callback)(void* data, const v8::WasmModuleObject* module,
                                 const v8::Value* error),
     void* resolution_data, void (*drop_resolution_data)(void* data)) {
+  // Use shared_ptr to reference-count the Rust closure data through
+  // std::function's copy semantics. The custom deleter calls back into Rust
+  // to drop the boxed closure when the last copy is destroyed.
+  auto shared_data = std::shared_ptr<void>(
+      resolution_data,
+      [drop_resolution_data](void* p) { drop_resolution_data(p); });
   self->Finish(
       isolate, caching_callback,
-      RustCallable(resolution_callback, resolution_data, drop_resolution_data));
+      [resolution_callback, shared_data](auto result) {
+        if (auto* module =
+                std::get_if<v8::Local<v8::WasmModuleObject>>(&result)) {
+          resolution_callback(shared_data.get(), local_to_ptr(*module),
+                              nullptr);
+        } else {
+          resolution_callback(
+              shared_data.get(), nullptr,
+              local_to_ptr(std::get<v8::Local<v8::Value>>(result)));
+        }
+      });
 }
 
 void v8__WasmModuleCompilation__Abort(v8::WasmModuleCompilation* self) {
