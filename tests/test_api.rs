@@ -10521,7 +10521,7 @@ fn isolate_data_slots() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
 
-  assert_eq!(isolate.get_number_of_data_slots(), 2);
+  assert_eq!(isolate.get_number_of_data_slots(), 3);
 
   let expected0 = "Bla";
   isolate.set_data(0, &expected0 as *const _ as *mut &str as *mut c_void);
