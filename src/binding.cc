@@ -298,6 +298,12 @@ void v8__Isolate__SetUseCounterCallback(
   isolate->SetUseCounterCallback(callback);
 }
 
+void v8__Isolate__SetModifyCodeGenerationFromStringsCallback(
+    v8::Isolate* isolate,
+    v8::ModifyCodeGenerationFromStringsCallback2 callback) {
+  isolate->SetModifyCodeGenerationFromStringsCallback(callback);
+}
+
 bool v8__Isolate__AddMessageListener(v8::Isolate* isolate,
                                      v8::MessageCallback callback) {
   return isolate->AddMessageListener(callback);
