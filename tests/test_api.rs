@@ -8783,6 +8783,60 @@ fn wasm_streaming_callback() {
 }
 
 #[test]
+fn wasm_module_compilation() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Start compilation.
+  let mut compilation = v8::WasmModuleCompilation::new();
+
+  // MVP of WASM modules: magic marker + version 1.
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+
+  compilation.set_url("https://example.com/test.wasm");
+
+  // Finish compilation.
+  let result: Rc<RefCell<Option<v8::Global<v8::WasmModuleObject>>>> =
+    Rc::new(RefCell::new(None));
+  let result_clone = result.clone();
+  compilation.finish(scope, None, move |isolate, r| match r {
+    Ok(module) => {
+      result_clone
+        .borrow_mut()
+        .replace(v8::Global::new(isolate, module));
+    }
+    Err(_) => panic!("wasm compilation failed"),
+  });
+
+  // Execute pending tasks.
+  while v8::Platform::pump_message_loop(
+    &v8::V8::get_current_platform(),
+    scope,
+    false,
+  ) {}
+
+  let global_module = result.borrow_mut().take();
+  assert!(global_module.is_some());
+}
+
+#[test]
+fn wasm_module_compilation_abort() {
+  let _setup_guard = setup::parallel_test();
+
+  // Start compilation and abort it.
+  let mut compilation = v8::WasmModuleCompilation::new();
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+  compilation.abort();
+}
+
+#[test]
 fn unbound_script_conversion() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
