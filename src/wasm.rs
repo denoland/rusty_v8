@@ -356,6 +356,7 @@ impl WasmModuleCompilation {
     // for void*. The Option allows the trampoline to .take() the closure
     // (FnOnce semantics) without freeing the outer allocation, which is
     // ref-counted by shared_ptr on the C++ side.
+    #[allow(clippy::type_complexity)]
     let boxed: Box<
       Option<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>>,
     > = Box::new(Some(Box::new(wrapped)));
