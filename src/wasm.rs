@@ -460,9 +460,7 @@ unsafe extern "C" fn drop_resolution_data(data: *mut c_void) {
   let _ = unsafe {
     Box::from_raw(
       data
-        as *mut Option<
-          Box<dyn FnOnce(*const WasmModuleObject, *const Value)>,
-        >,
+        as *mut Option<Box<dyn FnOnce(*const WasmModuleObject, *const Value)>>,
     )
   };
 }
