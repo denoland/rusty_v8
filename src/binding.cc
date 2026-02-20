@@ -167,6 +167,18 @@ void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }
 
 void v8__Isolate__Exit(v8::Isolate* isolate) { isolate->Exit(); }
 
+void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* buf, v8::Isolate* isolate) {
+  construct_in_place<v8::Locker>(buf, isolate);
+}
+
+void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }
+
+bool v8__Locker__IsLocked(v8::Isolate* isolate) {
+  return v8::Locker::IsLocked(isolate);
+}
+
+size_t v8__Locker__SIZE() { return sizeof(v8::Locker); }
+
 v8::Isolate* v8__Isolate__GetCurrent() { return v8::Isolate::GetCurrent(); }
 
 const v8::Data* v8__Isolate__GetCurrentHostDefinedOptions(

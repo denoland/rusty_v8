@@ -219,6 +219,95 @@ impl Drop for AllowJavascriptExecutionScope {
   }
 }
 
+/// Raw V8 Locker binding.
+///
+/// This is a low-level wrapper around `v8::Locker`. It must be used with
+/// proper two-phase initialization: first call `uninit()`, then `init()`.
+///
+/// # Memory Layout
+///
+/// This struct is `#[repr(C)]` and sized to match `v8::Locker` exactly
+/// (verified by the `locker_size_matches_v8` test). The size is 2 * sizeof(usize)
+/// which equals 16 bytes on 64-bit platforms.
+///
+/// # Safety Invariants
+///
+/// 1. **Initialization**: After calling `uninit()`, you MUST call `init()` before
+///    the `Locker` is dropped. Dropping an uninitialized `Locker` is undefined
+///    behavior because `Drop` will call the C++ destructor on garbage data.
+///
+/// 2. **Isolate State**: The isolate passed to `init()` must be in "entered" state
+///    (via `v8::Isolate::Enter()`) before calling `init()`.
+///
+/// 3. **Single Initialization**: `init()` must be called exactly once. Calling it
+///    multiple times is undefined behavior.
+///
+/// 4. **Thread Affinity**: Once initialized, the `Locker` must be used and dropped
+///    on the same thread where it was created.
+#[repr(C)]
+#[derive(Debug)]
+pub(crate) struct Locker([MaybeUninit<usize>; 2]);
+
+#[test]
+fn locker_size_matches_v8() {
+  assert_eq!(
+    std::mem::size_of::<Locker>(),
+    unsafe { v8__Locker__SIZE() },
+    "Locker size mismatch"
+  );
+}
+
+impl Locker {
+  /// Creates an uninitialized `Locker`.
+  ///
+  /// # Safety
+  ///
+  /// The returned `Locker` is in an invalid state. You MUST call `init()` before:
+  /// - Using the `Locker` in any way
+  /// - Dropping the `Locker` (including via panic unwinding)
+  ///
+  /// Failure to initialize before drop will cause undefined behavior because
+  /// `Drop::drop` will call the C++ destructor on uninitialized memory.
+  #[inline]
+  pub unsafe fn uninit() -> Self {
+    Self(unsafe { MaybeUninit::uninit().assume_init() })
+  }
+
+  /// Initializes the `Locker` for the given isolate.
+  ///
+  /// # Safety
+  ///
+  /// - This must be called exactly once after `uninit()`
+  /// - The isolate must be valid and in "entered" state
+  /// - The isolate must not be locked by another `Locker`
+  /// - After this call, the `Locker` owns the V8 lock until dropped
+  #[inline]
+  pub unsafe fn init(&mut self, isolate: NonNull<RealIsolate>) {
+    let buf = NonNull::from(self).cast();
+    unsafe { v8__Locker__CONSTRUCT(buf.as_ptr(), isolate.as_ptr()) };
+  }
+
+  /// Returns `true` if the given isolate is currently locked by any `Locker`.
+  ///
+  /// This is safe to call from any thread.
+  pub fn is_locked(isolate: NonNull<RealIsolate>) -> bool {
+    unsafe { v8__Locker__IsLocked(isolate.as_ptr()) }
+  }
+}
+
+impl Drop for Locker {
+  /// Releases the V8 lock.
+  ///
+  /// # Safety (internal)
+  ///
+  /// This assumes the `Locker` was properly initialized via `init()`.
+  /// Dropping an uninitialized `Locker` is undefined behavior.
+  #[inline(always)]
+  fn drop(&mut self) {
+    unsafe { v8__Locker__DESTRUCT(self) };
+  }
+}
+
 unsafe extern "C" {
   pub(super) fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   pub(super) fn v8__Isolate__GetCurrentContext(
@@ -311,4 +400,14 @@ unsafe extern "C" {
   pub(super) fn v8__AllowJavascriptExecutionScope__DESTRUCT(
     this: *mut AllowJavascriptExecutionScope,
   );
+
+  pub(super) fn v8__Locker__CONSTRUCT(
+    buf: *mut MaybeUninit<Locker>,
+    isolate: *mut RealIsolate,
+  );
+  pub(super) fn v8__Locker__DESTRUCT(this: *mut Locker);
+  pub(super) fn v8__Locker__IsLocked(isolate: *mut RealIsolate) -> bool;
+
+  #[cfg(test)]
+  fn v8__Locker__SIZE() -> usize;
 }
