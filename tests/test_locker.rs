@@ -8,6 +8,7 @@ fn locker_basic() {
   let mut isolate = v8::Isolate::new_unentered(Default::default());
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let _context = v8::Context::new(scope, Default::default());
@@ -20,6 +21,7 @@ fn locker_with_script() {
   let mut isolate = v8::Isolate::new_unentered(Default::default());
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
@@ -50,6 +52,7 @@ fn locker_multiple_lock_unlock() {
 
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
@@ -63,6 +66,7 @@ fn locker_multiple_lock_unlock() {
 
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
@@ -97,6 +101,7 @@ fn locker_state_preserved_across_locks() {
   // First lock: execute some code
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
@@ -111,6 +116,7 @@ fn locker_state_preserved_across_locks() {
   // Second lock: isolate should still work correctly
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
@@ -163,6 +169,7 @@ fn locker_send_isolate_between_threads() {
   // Use on main thread first
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());
@@ -181,6 +188,7 @@ fn locker_send_isolate_between_threads() {
     // Use isolate on worker thread - scope in separate block
     let value = {
       let mut locker = v8::Locker::new(&mut isolate);
+      let _isolate_scope = locker.enter();
       let scope = pin!(v8::HandleScope::new(&mut *locker));
       let scope = &mut scope.init();
       let context = v8::Context::new(scope, Default::default());
@@ -207,6 +215,7 @@ fn locker_send_isolate_between_threads() {
   let mut isolate = handle.join().unwrap();
   {
     let mut locker = v8::Locker::new(&mut isolate);
+    let _isolate_scope = locker.enter();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let scope = &mut scope.init();
     let context = v8::Context::new(scope, Default::default());

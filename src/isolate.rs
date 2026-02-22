@@ -2511,10 +2511,21 @@ impl AsRef<Isolate> for Isolate {
   }
 }
 
-/// Locks an isolate and enters it for the current thread.
+/// Acquires V8's per-isolate mutex (pure mutex, no Enter/Exit).
 ///
-/// This is a RAII wrapper around V8's `v8::Locker`. It ensures that the isolate
-/// is properly locked before any V8 operations and unlocked when dropped.
+/// After `Locker::new()`, the isolate is locked but **not** entered — i.e.
+/// `Isolate::GetCurrent()` does not return this isolate. Use [`IsolateScope`]
+/// (via [`Locker::enter()`]) to enter the isolate before performing V8 work.
+///
+/// # Why the Locker doesn't Enter/Exit
+///
+/// V8's `Isolate::Enter()`/`Exit()` manage a per-isolate `entry_stack_` that
+/// stores the "previous isolate" at each nesting level. When multiple Lockers
+/// coexist on the same thread (e.g. cooperative scheduling via `spawn_local`),
+/// non-LIFO drop ordering causes `Exit()` to restore a stale pointer, leading
+/// to a NULL dereference on the next `Enter()`. By making the Locker a pure
+/// mutex and delegating Enter/Exit to short-lived [`IsolateScope`] guards,
+/// each Enter/Exit pair is properly nested within a single synchronous block.
 ///
 /// # Thread Safety
 ///
@@ -2532,7 +2543,9 @@ pub struct Locker<'a> {
   isolate: &'a mut UnenteredIsolate,
 }
 
-/// Guard to ensure `v8__Isolate__Exit` is called if panic occurs after Enter.
+/// Drop guard that calls `Isolate::Exit()` to undo the temporary Enter
+/// in `Locker::new()`. On the success path, the guard is dropped normally
+/// (calling Exit). On panic, Drop runs the same cleanup.
 struct IsolateExitGuard(*mut RealIsolate);
 
 impl Drop for IsolateExitGuard {
@@ -2544,38 +2557,44 @@ impl Drop for IsolateExitGuard {
 impl<'a> Locker<'a> {
   /// Creates a new `Locker` for the given isolate.
   ///
-  /// This will:
-  /// 1. Enter the isolate (via `v8::Isolate::Enter()`)
-  /// 2. Acquire the V8 lock (via `v8::Locker`)
-  ///
-  /// When the `Locker` is dropped, the lock is released and the isolate is exited.
-  ///
-  /// # Panics
-  ///
-  /// This function is panic-safe. If initialization fails, the isolate will be
-  /// properly exited.
+  /// Acquires V8's per-isolate mutex. The isolate is **not** entered after
+  /// construction — use [`Locker::enter()`] to get an [`IsolateScope`].
   pub fn new(isolate: &'a mut UnenteredIsolate) -> Self {
     let isolate_ptr = isolate.cxx_isolate;
 
-    // Enter the isolate first
-    unsafe {
-      v8__Isolate__Enter(isolate_ptr.as_ptr());
-    }
+    // Temporarily enter the isolate so the C++ Locker constructor sees
+    // IsCurrent()==true → sets top_level_=false → skips its own Enter/Exit.
+    unsafe { v8__Isolate__Enter(isolate_ptr.as_ptr()) };
 
-    // Create exit guard - will call Exit if we panic before completing
+    // Guard: calls Exit on both success and panic paths.
     let exit_guard = IsolateExitGuard(isolate_ptr.as_ptr());
 
-    // Initialize the raw Locker
+    // Initialize the C++ Locker (acts as pure mutex since top_level_=false).
     let mut raw = unsafe { crate::scope::raw::Locker::uninit() };
     unsafe { raw.init(isolate_ptr) };
 
-    // Success - forget the guard so it doesn't call Exit
-    std::mem::forget(exit_guard);
+    // Undo the temporary Enter — isolate is now locked but not entered.
+    drop(exit_guard);
 
     Self {
       raw: std::mem::ManuallyDrop::new(raw),
       isolate,
     }
+  }
+
+  /// Enter the isolate, returning an [`IsolateScope`] that exits on drop.
+  ///
+  /// ```ignore
+  /// let mut locker = v8::Locker::new(&mut isolate);
+  /// let _scope = locker.enter();
+  /// let scope = std::pin::pin!(v8::HandleScope::new(&mut *locker));
+  /// // ... V8 work ...
+  /// // IsolateScope dropped → Isolate::Exit() → safe to yield
+  /// ```
+  pub fn enter(&mut self) -> IsolateScope {
+    // SAFETY: Locker holds &mut UnenteredIsolate (valid pointer) and
+    // the V8 mutex (acquired in new()).
+    unsafe { IsolateScope::new(self) }
   }
 
   /// Returns `true` if the given isolate is currently locked by any `Locker`.
@@ -2586,9 +2605,10 @@ impl<'a> Locker<'a> {
 
 impl Drop for Locker<'_> {
   fn drop(&mut self) {
+    // Release the V8 mutex only — no Exit() needed since the Locker
+    // never entered the isolate.
     unsafe {
       std::mem::ManuallyDrop::drop(&mut self.raw);
-      v8__Isolate__Exit(self.isolate.cxx_isolate.as_ptr());
     }
   }
 }
@@ -2603,5 +2623,62 @@ impl Deref for Locker<'_> {
 impl DerefMut for Locker<'_> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { Isolate::from_raw_ref_mut(&mut self.isolate.cxx_isolate) }
+  }
+}
+
+/// RAII scope that enters a V8 isolate on creation and exits on drop.
+///
+/// Calls `Isolate::Enter()` / `Isolate::Exit()`, managing V8's per-thread
+/// `Isolate::GetCurrent()` thread-local. Rust equivalent of C++
+/// `v8::Isolate::Scope`.
+///
+/// # Usage
+///
+/// ```ignore
+/// let mut locker = v8::Locker::new(&mut isolate);  // locks mutex only
+/// {
+///     let _scope = locker.enter();                  // Enter()
+///     let scope = pin!(v8::HandleScope::new(&mut *locker));
+///     // ... V8 work ...
+/// }
+/// // IsolateScope dropped → Exit() → safe to yield
+/// ```
+///
+/// # Why it exists
+///
+/// When multiple tasks share a thread (e.g. `spawn_local`), each holding a
+/// [`Locker`] for a different isolate, `GetCurrent()` can be stale after a
+/// yield. Wrapping each synchronous V8 block in an `IsolateScope` ensures
+/// correctness. V8's entry stack is per-isolate, so entering X does not
+/// interfere with Y's stack.
+///
+/// # Why `unsafe`
+///
+/// Stores a raw `*mut Isolate` to avoid exclusively borrowing the [`Locker`]
+/// (which would prevent creating `HandleScope` etc. from the same Locker).
+/// The caller must ensure:
+///
+/// - A [`Locker`] is held for this isolate for the entire scope lifetime.
+/// - The scope is dropped before any `.await` (stale `GetCurrent()` otherwise).
+pub struct IsolateScope {
+  isolate: *mut Isolate,
+}
+
+impl IsolateScope {
+  /// Enter the isolate (`Isolate::Enter()`). On drop, calls `Isolate::Exit()`.
+  ///
+  /// # Safety
+  ///
+  /// A [`Locker`] must be held for this isolate for the entire lifetime of the
+  /// returned scope.
+  pub unsafe fn new(isolate: &mut Isolate) -> Self {
+    unsafe { isolate.enter() };
+    Self { isolate }
+  }
+}
+
+impl Drop for IsolateScope {
+  fn drop(&mut self) {
+    unsafe { (*self.isolate).exit() };
   }
 }
