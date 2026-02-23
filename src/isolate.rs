@@ -2533,25 +2533,9 @@ impl AsRef<Isolate> for Isolate {
 /// only on the thread where it was created. The underlying `UnenteredIsolate`
 /// implements `Send`, allowing it to be transferred between threads, but a new
 /// `Locker` must be created on each thread that needs to access the isolate.
-///
-/// # Panic Safety
-///
-/// `Locker::new()` is panic-safe. If a panic occurs during construction,
-/// the isolate will be properly exited via a drop guard.
 pub struct Locker<'a> {
   raw: std::mem::ManuallyDrop<crate::scope::raw::Locker>,
   isolate: &'a mut UnenteredIsolate,
-}
-
-/// Drop guard that calls `Isolate::Exit()` to undo the temporary Enter
-/// in `Locker::new()`. On the success path, the guard is dropped normally
-/// (calling Exit). On panic, Drop runs the same cleanup.
-struct IsolateExitGuard(*mut RealIsolate);
-
-impl Drop for IsolateExitGuard {
-  fn drop(&mut self) {
-    unsafe { v8__Isolate__Exit(self.0) };
-  }
 }
 
 impl<'a> Locker<'a> {
@@ -2560,21 +2544,8 @@ impl<'a> Locker<'a> {
   /// Acquires V8's per-isolate mutex. The isolate is **not** entered after
   /// construction — use [`Locker::enter()`] to get an [`IsolateScope`].
   pub fn new(isolate: &'a mut UnenteredIsolate) -> Self {
-    let isolate_ptr = isolate.cxx_isolate;
-
-    // Temporarily enter the isolate so the C++ Locker constructor sees
-    // IsCurrent()==true → sets top_level_=false → skips its own Enter/Exit.
-    unsafe { v8__Isolate__Enter(isolate_ptr.as_ptr()) };
-
-    // Guard: calls Exit on both success and panic paths.
-    let exit_guard = IsolateExitGuard(isolate_ptr.as_ptr());
-
-    // Initialize the C++ Locker (acts as pure mutex since top_level_=false).
     let mut raw = unsafe { crate::scope::raw::Locker::uninit() };
-    unsafe { raw.init(isolate_ptr) };
-
-    // Undo the temporary Enter — isolate is now locked but not entered.
-    drop(exit_guard);
+    unsafe { raw.init(isolate.cxx_isolate) };
 
     Self {
       raw: std::mem::ManuallyDrop::new(raw),
