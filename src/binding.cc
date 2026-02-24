@@ -2811,6 +2811,10 @@ bool v8__Promise__HasHandler(const v8::Promise& self) {
   return ptr_to_local(&self)->HasHandler();
 }
 
+void v8__Promise__MarkAsHandled(const v8::Promise& self) {
+  ptr_to_local(&self)->MarkAsHandled();
+}
+
 const v8::Value* v8__Promise__Result(const v8::Promise& self) {
   return local_to_ptr(ptr_to_local(&self)->Result());
 }
