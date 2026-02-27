@@ -638,32 +638,60 @@ fn download_file(url: &str, filename: &Path) {
     fs::remove_file(&tmpfile).unwrap();
   }
 
-  // Try downloading with python first. Python is a V8 build dependency,
-  // so this saves us from adding a Rust HTTP client dependency.
-  println!("Downloading (using Python) {url}");
-  let status = Command::new(python())
-    .arg("./tools/download_file.py")
-    .arg("--url")
-    .arg(url)
-    .arg("--filename")
-    .arg(&tmpfile)
-    .status();
+  // Try downloading with deno first, then python, then curl.
+  println!("Downloading {url}");
+  let status = which("deno").ok().and_then(|deno| {
+    println!("Trying with Deno...");
+    Command::new(deno)
+      .arg("eval")
+      .arg(
+        "const [url, path] = Deno.args; \
+         const resp = await fetch(url); \
+         if (!resp.ok) Deno.exit(1); \
+         const file = await Deno.open(path, { write: true, create: true }); \
+         await resp.body.pipeTo(file.writable);",
+      )
+      .arg("--allow-net")
+      .arg("--allow-write")
+      .arg("--")
+      .arg(url)
+      .arg(&tmpfile)
+      .status()
+      .ok()
+      .filter(|s| s.success())
+  });
 
-  // Python is only a required dependency for `V8_FROM_SOURCE` builds.
-  // If python is not available, try falling back to curl.
+  // Try downloading with python. Python is a V8 build dependency,
+  // so this saves us from adding a Rust HTTP client dependency.
   let status = match status {
-    Ok(status) if status.success() => status,
+    Some(status) => status,
     _ => {
-      println!("Python downloader failed, trying with curl.");
-      Command::new("curl")
-        .arg("-L")
-        .arg("-f")
-        .arg("-s")
-        .arg("-o")
-        .arg(&tmpfile)
+      println!("Trying with Python...");
+      let python_status = Command::new(python())
+        .arg("./tools/download_file.py")
+        .arg("--url")
         .arg(url)
-        .status()
-        .unwrap()
+        .arg("--filename")
+        .arg(&tmpfile)
+        .status();
+
+      // Python is only a required dependency for `V8_FROM_SOURCE` builds.
+      // If python is not available, try falling back to curl.
+      match python_status {
+        Ok(status) if status.success() => status,
+        _ => {
+          println!("Python downloader failed, trying with curl.");
+          Command::new("curl")
+            .arg("-L")
+            .arg("-f")
+            .arg("-s")
+            .arg("-o")
+            .arg(&tmpfile)
+            .arg(url)
+            .status()
+            .unwrap()
+        }
+      }
     }
   };
 
