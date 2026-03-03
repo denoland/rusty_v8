@@ -7685,10 +7685,7 @@ fn resource_constraints() {
     .set_initial_old_generation_size_in_bytes(8 * 1024 * 1024)
     .set_initial_young_generation_size_in_bytes(2 * 1024 * 1024);
 
-  assert_eq!(
-    params.max_old_generation_size_in_bytes(),
-    128 * 1024 * 1024
-  );
+  assert_eq!(params.max_old_generation_size_in_bytes(), 128 * 1024 * 1024);
   assert_eq!(
     params.max_young_generation_size_in_bytes(),
     16 * 1024 * 1024

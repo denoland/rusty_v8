@@ -181,10 +181,7 @@ impl CreateParams {
   /// Sets the maximum size of the old generation in bytes. When the old
   /// generation approaches this limit, V8 will perform series of garbage
   /// collections and invoke the NearHeapLimitCallback.
-  pub fn set_max_old_generation_size_in_bytes(
-    mut self,
-    limit: usize,
-  ) -> Self {
+  pub fn set_max_old_generation_size_in_bytes(mut self, limit: usize) -> Self {
     self
       .raw
       .constraints
@@ -448,9 +445,7 @@ pub(crate) mod raw {
     }
 
     pub fn max_old_generation_size_in_bytes(&self) -> usize {
-      unsafe {
-        v8__ResourceConstraints__max_old_generation_size_in_bytes(self)
-      }
+      unsafe { v8__ResourceConstraints__max_old_generation_size_in_bytes(self) }
     }
 
     pub fn set_max_old_generation_size_in_bytes(&mut self, limit: usize) {
@@ -476,9 +471,7 @@ pub(crate) mod raw {
     }
 
     pub fn code_range_size_in_bytes(&self) -> usize {
-      unsafe {
-        v8__ResourceConstraints__code_range_size_in_bytes(self)
-      }
+      unsafe { v8__ResourceConstraints__code_range_size_in_bytes(self) }
     }
 
     pub fn set_code_range_size_in_bytes(&mut self, limit: usize) {
