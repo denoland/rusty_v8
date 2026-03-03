@@ -432,6 +432,66 @@ void v8__ResourceConstraints__ConfigureDefaults(
   constraints->ConfigureDefaults(physical_memory, virtual_memory_limit);
 }
 
+size_t v8__ResourceConstraints__max_old_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->max_old_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_max_old_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t limit) {
+  constraints->set_max_old_generation_size_in_bytes(limit);
+}
+
+size_t v8__ResourceConstraints__max_young_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->max_young_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_max_young_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t limit) {
+  constraints->set_max_young_generation_size_in_bytes(limit);
+}
+
+size_t v8__ResourceConstraints__code_range_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->code_range_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_code_range_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t limit) {
+  constraints->set_code_range_size_in_bytes(limit);
+}
+
+uint32_t* v8__ResourceConstraints__stack_limit(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->stack_limit();
+}
+
+void v8__ResourceConstraints__set_stack_limit(
+    v8::ResourceConstraints* constraints, uint32_t* value) {
+  constraints->set_stack_limit(value);
+}
+
+size_t v8__ResourceConstraints__initial_old_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->initial_old_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_initial_old_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t initial_size) {
+  constraints->set_initial_old_generation_size_in_bytes(initial_size);
+}
+
+size_t v8__ResourceConstraints__initial_young_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->initial_young_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_initial_young_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t initial_size) {
+  constraints->set_initial_young_generation_size_in_bytes(initial_size);
+}
+
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
                                 v8::Isolate* isolate) {
   construct_in_place<v8::HandleScope>(buf, isolate);
