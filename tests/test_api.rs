@@ -7793,6 +7793,41 @@ fn heap_statistics() {
 }
 
 #[test]
+fn heap_code_statistics() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  // Before running any code, statistics should still be available.
+  let s = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // After creating an isolate, there should be some code already compiled.
+  assert!(s.code_and_metadata_size() > 0);
+  // Bytecode may or may not be present at this point.
+  // external_script_source_size and cpu_profiler_metadata_size start at 0.
+  assert_eq!(s.external_script_source_size(), 0);
+  assert_eq!(s.cpu_profiler_metadata_size(), 0);
+
+  // Run some JS to generate bytecode.
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, "function foo() { return 1 + 2; } foo();").unwrap();
+  }
+
+  let s2 = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // After compiling code, bytecode_and_metadata_size should increase.
+  assert!(s2.bytecode_and_metadata_size() > 0);
+  assert!(s2.code_and_metadata_size() > 0);
+}
+
+#[test]
 fn low_memory_notification() {
   let _setup_guard = setup::parallel_test();
 

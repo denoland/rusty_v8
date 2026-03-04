@@ -106,6 +106,7 @@ pub use handle::SealedLocal;
 pub use handle::TracedReference;
 pub use handle::Weak;
 pub use isolate::GarbageCollectionType;
+pub use isolate::HeapCodeStatistics;
 pub use isolate::HeapSpaceStatistics;
 pub use isolate::HeapStatistics;
 pub use isolate::HostCreateShadowRealmContextCallback;

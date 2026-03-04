@@ -349,6 +349,26 @@ bool v8__Isolate__GetHeapSpaceStatistics(
   return isolate->GetHeapSpaceStatistics(space_statistics, index);
 }
 
+struct v8__HeapCodeStatistics {
+  size_t code_and_metadata_size_;
+  size_t bytecode_and_metadata_size_;
+  size_t external_script_source_size_;
+  size_t cpu_profiler_metadata_size_;
+};
+
+bool v8__Isolate__GetHeapCodeAndMetadataStatistics(v8::Isolate* isolate,
+                                                   v8__HeapCodeStatistics* s) {
+  v8::HeapCodeStatistics stats;
+  bool ok = isolate->GetHeapCodeAndMetadataStatistics(&stats);
+  if (ok) {
+    s->code_and_metadata_size_ = stats.code_and_metadata_size();
+    s->bytecode_and_metadata_size_ = stats.bytecode_and_metadata_size();
+    s->external_script_source_size_ = stats.external_script_source_size();
+    s->cpu_profiler_metadata_size_ = stats.cpu_profiler_metadata_size();
+  }
+  return ok;
+}
+
 void v8__Isolate__RemoveNearHeapLimitCallback(
     v8::Isolate* isolate, v8::NearHeapLimitCallback callback,
     size_t heap_limit) {
