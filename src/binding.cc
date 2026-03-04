@@ -349,6 +349,11 @@ bool v8__Isolate__GetHeapSpaceStatistics(
   return isolate->GetHeapSpaceStatistics(space_statistics, index);
 }
 
+bool v8__Isolate__GetHeapCodeAndMetadataStatistics(v8::Isolate* isolate,
+                                                   v8::HeapCodeStatistics* s) {
+  return isolate->GetHeapCodeAndMetadataStatistics(s);
+}
+
 void v8__Isolate__RemoveNearHeapLimitCallback(
     v8::Isolate* isolate, v8::NearHeapLimitCallback callback,
     size_t heap_limit) {

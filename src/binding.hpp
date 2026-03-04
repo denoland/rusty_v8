@@ -42,6 +42,7 @@ using v8__String__WriteFlags = v8::String::WriteFlags;
 using v8__ModuleImportPhase = v8::ModuleImportPhase;
 using v8__HeapStatistics = v8::HeapStatistics;
 using v8__HeapSpaceStatistics = v8::HeapSpaceStatistics;
+using v8__HeapCodeStatistics = v8::HeapCodeStatistics;
 using v8__GCType = v8::GCType;
 using v8__GCCallbackFlags = v8::GCCallbackFlags;
 using v8__Intercepted = v8::Intercepted;
