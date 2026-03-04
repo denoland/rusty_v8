@@ -18,6 +18,7 @@ use crate::StartupData;
 use crate::String;
 use crate::V8::get_current_platform;
 use crate::Value;
+use crate::binding::v8__HeapCodeStatistics;
 use crate::binding::v8__HeapSpaceStatistics;
 use crate::binding::v8__HeapStatistics;
 use crate::binding::v8__Isolate__UseCounterFeature;
@@ -668,7 +669,7 @@ unsafe extern "C" {
   ) -> bool;
   fn v8__Isolate__GetHeapCodeAndMetadataStatistics(
     isolate: *mut RealIsolate,
-    code_statistics: *mut HeapCodeStatistics,
+    code_statistics: *mut v8__HeapCodeStatistics,
   ) -> bool;
   fn v8__Isolate__AddNearHeapLimitCallback(
     isolate: *mut RealIsolate,
@@ -1280,7 +1281,7 @@ impl Isolate {
   pub fn get_heap_code_and_metadata_statistics(
     &mut self,
   ) -> Option<HeapCodeStatistics> {
-    unsafe {
+    let inner = unsafe {
       let mut s = MaybeUninit::zeroed();
       if !v8__Isolate__GetHeapCodeAndMetadataStatistics(
         self.as_real_ptr(),
@@ -1288,8 +1289,9 @@ impl Isolate {
       ) {
         return None;
       }
-      Some(s.assume_init())
-    }
+      s.assume_init()
+    };
+    Some(HeapCodeStatistics(inner))
   }
 
   /// Tells V8 to capture current stack trace when uncaught exception occurs
@@ -2257,29 +2259,23 @@ impl HeapSpaceStatistics {
   }
 }
 
-#[repr(C)]
-pub struct HeapCodeStatistics {
-  code_and_metadata_size_: usize,
-  bytecode_and_metadata_size_: usize,
-  external_script_source_size_: usize,
-  cpu_profiler_metadata_size_: usize,
-}
+pub struct HeapCodeStatistics(v8__HeapCodeStatistics);
 
 impl HeapCodeStatistics {
   pub fn code_and_metadata_size(&self) -> usize {
-    self.code_and_metadata_size_
+    self.0.code_and_metadata_size_
   }
 
   pub fn bytecode_and_metadata_size(&self) -> usize {
-    self.bytecode_and_metadata_size_
+    self.0.bytecode_and_metadata_size_
   }
 
   pub fn external_script_source_size(&self) -> usize {
-    self.external_script_source_size_
+    self.0.external_script_source_size_
   }
 
   pub fn cpu_profiler_metadata_size(&self) -> usize {
-    self.cpu_profiler_metadata_size_
+    self.0.cpu_profiler_metadata_size_
   }
 }
 
