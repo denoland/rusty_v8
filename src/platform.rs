@@ -22,6 +22,11 @@ unsafe extern "C" {
   fn v8__Platform__NewSingleThreadedDefaultPlatform(
     idle_task_support: bool,
   ) -> *mut Platform;
+  fn v8__Platform__NewNotifyingPlatform(
+    thread_pool_size: int,
+    idle_task_support: bool,
+    callback: unsafe extern "C" fn(*mut std::ffi::c_void),
+  ) -> *mut Platform;
   fn v8__Platform__DELETE(this: *mut Platform);
 
   fn v8__Platform__PumpMessageLoop(
@@ -111,6 +116,27 @@ pub fn new_single_threaded_default_platform(
   Platform::new_single_threaded(idle_task_support)
 }
 
+/// Creates a NotifyingPlatform that wraps DefaultPlatform and calls `callback`
+/// whenever a foreground task is posted for any isolate. The callback receives
+/// the raw `v8::Isolate*` pointer (as `*mut c_void`) of the target isolate.
+///
+/// This allows embedders to wake their event loop when V8 background threads
+/// complete work and post foreground continuations (e.g. background compilation
+/// finishing, Atomics.waitAsync resolving).
+///
+/// The callback may be invoked from ANY thread (V8 background threads, etc.)
+/// and must be safe to call concurrently.
+///
+/// Thread-isolated allocations are disabled (same as `new_unprotected_default_platform`).
+#[inline(always)]
+pub fn new_notifying_platform(
+  thread_pool_size: u32,
+  idle_task_support: bool,
+  callback: unsafe extern "C" fn(*mut std::ffi::c_void),
+) -> UniqueRef<Platform> {
+  Platform::new_notifying(thread_pool_size, idle_task_support, callback)
+}
+
 impl Platform {
   /// Returns a new instance of the default v8::Platform implementation.
   ///
@@ -172,6 +198,23 @@ impl Platform {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewSingleThreadedDefaultPlatform(
         idle_task_support,
+      ))
+    }
+  }
+
+  /// Creates a NotifyingPlatform (subclass of DefaultPlatform) that calls
+  /// `callback` whenever a foreground task is posted for an isolate.
+  #[inline(always)]
+  pub fn new_notifying(
+    thread_pool_size: u32,
+    idle_task_support: bool,
+    callback: unsafe extern "C" fn(*mut std::ffi::c_void),
+  ) -> UniqueRef<Self> {
+    unsafe {
+      UniqueRef::from_raw(v8__Platform__NewNotifyingPlatform(
+        thread_pool_size.min(16) as i32,
+        idle_task_support,
+        callback,
       ))
     }
   }

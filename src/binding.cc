@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <map>
+#include <mutex>
 #include <thread>
 
 #include "cppgc/allocation.h"
@@ -3010,6 +3012,137 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
+// Callback type: called from any thread when a foreground task is posted
+// for a given isolate. The void* is the raw isolate pointer.
+using ForegroundTaskPostedCallback = void (*)(void* isolate_ptr);
+
+// TaskRunner wrapper that intercepts all PostTask* calls and notifies
+// the embedder before delegating to the real runner.
+class NotifyingTaskRunner final : public v8::TaskRunner {
+ public:
+  NotifyingTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped,
+                      ForegroundTaskPostedCallback callback,
+                      v8::Isolate* isolate)
+      : wrapped_(std::move(wrapped)),
+        callback_(callback),
+        isolate_(isolate) {}
+
+  bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
+  bool NonNestableTasksEnabled() const override {
+    return wrapped_->NonNestableTasksEnabled();
+  }
+  bool NonNestableDelayedTasksEnabled() const override {
+    return wrapped_->NonNestableDelayedTasksEnabled();
+  }
+
+ protected:
+  void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                    const v8::SourceLocation& location) override {
+    wrapped_->PostTask(std::move(task), location);
+    callback_(static_cast<void*>(isolate_));
+  }
+  void PostNonNestableTaskImpl(
+      std::unique_ptr<v8::Task> task,
+      const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableTask(std::move(task), location);
+    callback_(static_cast<void*>(isolate_));
+  }
+  void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
+                           double delay_in_seconds,
+                           const v8::SourceLocation& location) override {
+    wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
+    NotifyAfterDelay(delay_in_seconds);
+  }
+  void PostNonNestableDelayedTaskImpl(
+      std::unique_ptr<v8::Task> task, double delay_in_seconds,
+      const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
+                                         location);
+    NotifyAfterDelay(delay_in_seconds);
+  }
+  void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
+                        const v8::SourceLocation& location) override {
+    wrapped_->PostIdleTask(std::move(task), location);
+    callback_(static_cast<void*>(isolate_));
+  }
+
+ private:
+  void NotifyAfterDelay(double delay_in_seconds) {
+    if (delay_in_seconds <= 0) {
+      callback_(static_cast<void*>(isolate_));
+    } else {
+      // Schedule the callback to fire when the delay expires, so the
+      // event loop wakes and pumps the V8 message loop at the right time.
+      auto cb = callback_;
+      auto iso = isolate_;
+      std::thread([cb, iso, delay_in_seconds]() {
+        std::this_thread::sleep_for(
+            std::chrono::duration<double>(delay_in_seconds));
+        cb(static_cast<void*>(iso));
+      }).detach();
+    }
+  }
+
+  std::shared_ptr<v8::TaskRunner> wrapped_;
+  ForegroundTaskPostedCallback callback_;
+  v8::Isolate* isolate_;
+};
+
+// Platform wrapper that intercepts GetForegroundTaskRunner to return
+// NotifyingTaskRunner instances, notifying the embedder of foreground tasks.
+class NotifyingPlatform : public v8::platform::DefaultPlatform {
+  using IdleTaskSupport = v8::platform::IdleTaskSupport;
+
+ public:
+  NotifyingPlatform(int thread_pool_size,
+                    IdleTaskSupport idle_task_support,
+                    ForegroundTaskPostedCallback callback)
+      : DefaultPlatform(thread_pool_size, idle_task_support),
+        callback_(callback) {}
+
+  std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
+      v8::Isolate* isolate, v8::TaskPriority priority) override {
+    auto original =
+        DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto key = std::make_pair(isolate, priority);
+    auto it = runners_.find(key);
+    if (it != runners_.end()) {
+      auto runner = it->second.lock();
+      if (runner) return runner;
+    }
+    auto notifying =
+        std::make_shared<NotifyingTaskRunner>(original, callback_, isolate);
+    runners_[key] = notifying;
+    return notifying;
+  }
+
+  void NotifyIsolateShutdown(v8::Isolate* isolate) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      for (auto it = runners_.begin(); it != runners_.end();) {
+        if (it->first.first == isolate) {
+          it = runners_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+    DefaultPlatform::NotifyIsolateShutdown(isolate);
+  }
+
+  v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
+    return nullptr;
+  }
+
+ private:
+  ForegroundTaskPostedCallback callback_;
+  std::mutex mutex_;
+  std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
+           std::weak_ptr<NotifyingTaskRunner>>
+      runners_;
+};
+
 class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
   using InProcessStackDumping = v8::platform::InProcessStackDumping;
@@ -3060,6 +3193,21 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
              v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
+}
+
+v8::Platform* v8__Platform__NewNotifyingPlatform(
+    int thread_pool_size, bool idle_task_support,
+    void (*callback)(void*)) {
+  if (thread_pool_size < 1) {
+    thread_pool_size = std::thread::hardware_concurrency();
+  }
+  thread_pool_size = std::max(std::min(thread_pool_size, 16), 1);
+  return std::make_unique<NotifyingPlatform>(
+             thread_pool_size,
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             callback)
       .release();
 }
 

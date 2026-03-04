@@ -139,6 +139,7 @@ pub use object::*;
 pub use platform::Platform;
 pub use platform::new_default_platform;
 pub use platform::new_single_threaded_default_platform;
+pub use platform::new_notifying_platform;
 pub use platform::new_unprotected_default_platform;
 pub use primitives::*;
 pub use promise::{PromiseRejectEvent, PromiseRejectMessage, PromiseState};
