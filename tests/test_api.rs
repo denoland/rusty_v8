@@ -7823,7 +7823,9 @@ fn heap_code_statistics() {
 
   // After compiling code, bytecode_and_metadata_size should increase.
   assert!(s2.bytecode_and_metadata_size() > 0);
-  assert!(s2.code_and_metadata_size() > 0);
+  // code_and_metadata_size tracks JIT-compiled code, which may be 0 if V8
+  // only uses the interpreter for simple scripts.
+  assert!(s2.code_and_metadata_size() >= s.code_and_metadata_size());
 }
 
 #[test]
