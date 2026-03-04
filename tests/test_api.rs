@@ -7803,9 +7803,8 @@ fn heap_code_statistics() {
     .get_heap_code_and_metadata_statistics()
     .expect("get_heap_code_and_metadata_statistics should succeed");
 
-  // After creating an isolate, there should be some code already compiled.
-  assert!(s.code_and_metadata_size() > 0);
-  // Bytecode may or may not be present at this point.
+  // Before running any code, code_and_metadata_size may or may not be > 0
+  // depending on the platform and V8 version.
   // external_script_source_size and cpu_profiler_metadata_size start at 0.
   assert_eq!(s.external_script_source_size(), 0);
   assert_eq!(s.cpu_profiler_metadata_size(), 0);
