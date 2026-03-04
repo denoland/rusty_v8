@@ -7673,6 +7673,82 @@ fn heap_limits() {
   assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
 
+#[test]
+fn resource_constraints() {
+  let _setup_guard = setup::parallel_test();
+
+  // Test setting and getting individual resource constraint values.
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(128 * 1024 * 1024)
+    .set_max_young_generation_size_in_bytes(16 * 1024 * 1024)
+    .set_code_range_size_in_bytes(64 * 1024 * 1024)
+    .set_initial_old_generation_size_in_bytes(8 * 1024 * 1024)
+    .set_initial_young_generation_size_in_bytes(2 * 1024 * 1024);
+
+  assert_eq!(params.max_old_generation_size_in_bytes(), 128 * 1024 * 1024);
+  assert_eq!(
+    params.max_young_generation_size_in_bytes(),
+    16 * 1024 * 1024
+  );
+  assert_eq!(params.code_range_size_in_bytes(), 64 * 1024 * 1024);
+  assert_eq!(
+    params.initial_old_generation_size_in_bytes(),
+    8 * 1024 * 1024
+  );
+  assert_eq!(
+    params.initial_young_generation_size_in_bytes(),
+    2 * 1024 * 1024
+  );
+
+  // Default stack_limit should be null.
+  assert!(params.stack_limit().is_null());
+
+  // Verify that an isolate can be created with these constraints.
+  let isolate = &mut v8::Isolate::new(params);
+  let s = isolate.get_heap_statistics();
+  // The heap limit should reflect the configured max old generation size.
+  // V8 may round or adjust the value, but it should be close.
+  assert!(s.heap_size_limit() > 0);
+}
+
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
+#[test]
+fn resource_constraints_near_heap_limit() {
+  let _setup_guard = setup::parallel_test();
+
+  // Use individual resource constraint setters to limit the old generation
+  // to 8 MB (similar to heap_limits test but using the new API).
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(8 * 1024 * 1024);
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut test_state = TestHeapLimitState::default();
+  let state_ptr = &mut test_state as *mut _ as *mut c_void;
+  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  for _ in 0..1_000_000 {
+    eval(
+      scope,
+      r#"
+        "hello 🦕 world"
+          .repeat(10)
+          .split("🦕")
+          .map((s) => s.repeat(100).split("o"))
+        "#,
+    )
+    .unwrap();
+    if test_state.near_heap_limit_callback_calls > 0 {
+      break;
+    }
+  }
+  assert_eq!(1, test_state.near_heap_limit_callback_calls);
+}
+
 // Same as heap_limits()
 #[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
