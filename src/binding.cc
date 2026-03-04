@@ -349,8 +349,8 @@ bool v8__Isolate__GetHeapSpaceStatistics(
   return isolate->GetHeapSpaceStatistics(space_statistics, index);
 }
 
-bool v8__Isolate__GetHeapCodeAndMetadataStatistics(
-    v8::Isolate* isolate, v8::HeapCodeStatistics* s) {
+bool v8__Isolate__GetHeapCodeAndMetadataStatistics(v8::Isolate* isolate,
+                                                   v8::HeapCodeStatistics* s) {
   return isolate->GetHeapCodeAndMetadataStatistics(s);
 }
 
