@@ -101,11 +101,11 @@ String StringUtil::fromUTF16LE(const uint16_t* data, size_t length) {
   return fromUTF16(data, length);  // Assuming host is little-endian
 }
 
-const uint8_t* StringUtil::CharactersUTF8(const std::string_view s) {
+const uint8_t* StringUtil::CharactersUTF8(const String& s) {
   return reinterpret_cast<const uint8_t*>(s.data());
 }
 
-size_t StringUtil::CharacterCount(const std::string_view s) {
+size_t StringUtil::CharacterCount(const String& s) {
   return s.length();
 }
 

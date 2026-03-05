@@ -56,13 +56,13 @@ struct StringUtil {
   static String fromUTF16(const uint16_t* data, size_t length);
   static String fromUTF8(const uint8_t* data, size_t length);
   static String fromUTF16LE(const uint16_t* data, size_t length);
-  static const uint8_t* CharactersUTF8(const std::string_view s);
-  static size_t CharacterCount(const std::string_view s);
+  static const uint8_t* CharactersUTF8(const String& s);
+  static size_t CharacterCount(const String& s);
 
-  inline static uint8_t* CharactersLatin1(const std::string_view s) {
+  inline static uint8_t* CharactersLatin1(const String& s) {
     return nullptr;
   }
-  inline static const uint16_t* CharactersUTF16(const std::string_view s) {
+  inline static const uint16_t* CharactersUTF16(const String& s) {
     return nullptr;
   }
 };
