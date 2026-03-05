@@ -157,6 +157,18 @@ is recommended.
 Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental
 variable.
 
+For Linux targets, `rusty_v8` now defaults to defining
+`V8_TLS_USED_IN_LIBRARY` via GN args when building from source so the produced
+static archive can be linked into downstream `cdylib`/shared-library targets.
+The default injected argument is:
+
+```bash
+GN_ARGS='extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]'
+```
+
+Linux prebuilt release archives published by this repository are built with
+this shared-library-compatible TLS mode.
+
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
 
