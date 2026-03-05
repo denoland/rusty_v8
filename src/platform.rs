@@ -263,8 +263,7 @@ impl Platform {
     // Double-box: inner Box<dyn> is a fat pointer, outer Box gives us a
     // thin pointer we can pass through C++ void*.
     let boxed: Box<dyn ForegroundTaskCallback> = Box::new(callback);
-    let context =
-      Box::into_raw(Box::new(boxed)) as *mut std::ffi::c_void;
+    let context = Box::into_raw(Box::new(boxed)) as *mut std::ffi::c_void;
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewNotifyingPlatform(
         thread_pool_size.min(16) as i32,
