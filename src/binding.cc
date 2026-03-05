@@ -3013,8 +3013,10 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
 }
 
 // Callback type: called from any thread when a foreground task is posted
-// for a given isolate. The void* is the raw isolate pointer.
-using ForegroundTaskPostedCallback = void (*)(void* isolate_ptr);
+// for a given isolate. The void* is the raw isolate pointer. delay_in_seconds
+// is 0.0 for immediate tasks, or the delay before the task should be executed.
+using ForegroundTaskPostedCallback = void (*)(void* isolate_ptr,
+                                              double delay_in_seconds);
 
 // TaskRunner wrapper that intercepts all PostTask* calls and notifies
 // the embedder before delegating to the real runner.
@@ -3037,49 +3039,35 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
   void PostTaskImpl(std::unique_ptr<v8::Task> task,
                     const v8::SourceLocation& location) override {
     wrapped_->PostTask(std::move(task), location);
-    callback_(static_cast<void*>(isolate_));
+    callback_(static_cast<void*>(isolate_), 0.0);
   }
   void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
                                const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableTask(std::move(task), location);
-    callback_(static_cast<void*>(isolate_));
+    callback_(static_cast<void*>(isolate_), 0.0);
   }
   void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
                            double delay_in_seconds,
                            const v8::SourceLocation& location) override {
     wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
-    NotifyAfterDelay(delay_in_seconds);
+    callback_(static_cast<void*>(isolate_),
+              delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
   void PostNonNestableDelayedTaskImpl(
       std::unique_ptr<v8::Task> task, double delay_in_seconds,
       const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
                                          location);
-    NotifyAfterDelay(delay_in_seconds);
+    callback_(static_cast<void*>(isolate_),
+              delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
   void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
                         const v8::SourceLocation& location) override {
     wrapped_->PostIdleTask(std::move(task), location);
-    callback_(static_cast<void*>(isolate_));
+    callback_(static_cast<void*>(isolate_), 0.0);
   }
 
  private:
-  void NotifyAfterDelay(double delay_in_seconds) {
-    if (delay_in_seconds <= 0) {
-      callback_(static_cast<void*>(isolate_));
-    } else {
-      // Schedule the callback to fire when the delay expires, so the
-      // event loop wakes and pumps the V8 message loop at the right time.
-      auto cb = callback_;
-      auto iso = isolate_;
-      std::thread([cb, iso, delay_in_seconds]() {
-        std::this_thread::sleep_for(
-            std::chrono::duration<double>(delay_in_seconds));
-        cb(static_cast<void*>(iso));
-      }).detach();
-    }
-  }
-
   std::shared_ptr<v8::TaskRunner> wrapped_;
   ForegroundTaskPostedCallback callback_;
   v8::Isolate* isolate_;
@@ -3112,7 +3100,7 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
     return notifying;
   }
 
-  void NotifyIsolateShutdown(v8::Isolate* isolate) {
+  void NotifyIsolateShutdown(v8::Isolate* isolate) override {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       for (auto it = runners_.begin(); it != runners_.end();) {
@@ -3193,7 +3181,8 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
 
 v8::Platform* v8__Platform__NewNotifyingPlatform(int thread_pool_size,
                                                  bool idle_task_support,
-                                                 void (*callback)(void*)) {
+                                                 void (*callback)(void*,
+                                                                  double)) {
   if (thread_pool_size < 1) {
     thread_pool_size = std::thread::hardware_concurrency();
   }

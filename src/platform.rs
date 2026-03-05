@@ -25,7 +25,7 @@ unsafe extern "C" {
   fn v8__Platform__NewNotifyingPlatform(
     thread_pool_size: int,
     idle_task_support: bool,
-    callback: unsafe extern "C" fn(*mut std::ffi::c_void),
+    callback: unsafe extern "C" fn(*mut std::ffi::c_void, f64),
   ) -> *mut Platform;
   fn v8__Platform__DELETE(this: *mut Platform);
 
@@ -118,11 +118,13 @@ pub fn new_single_threaded_default_platform(
 
 /// Creates a NotifyingPlatform that wraps DefaultPlatform and calls `callback`
 /// whenever a foreground task is posted for any isolate. The callback receives
-/// the raw `v8::Isolate*` pointer (as `*mut c_void`) of the target isolate.
+/// the raw `v8::Isolate*` pointer (as `*mut c_void`) and `delay_in_seconds`
+/// (0.0 for immediate tasks, or the delay before the task should run).
 ///
 /// This allows embedders to wake their event loop when V8 background threads
 /// complete work and post foreground continuations (e.g. background compilation
-/// finishing, Atomics.waitAsync resolving).
+/// finishing, Atomics.waitAsync resolving). For delayed tasks, the embedder
+/// should schedule a wake-up after `delay_in_seconds` (e.g. via a timer).
 ///
 /// The callback may be invoked from ANY thread (V8 background threads, etc.)
 /// and must be safe to call concurrently.
@@ -132,7 +134,7 @@ pub fn new_single_threaded_default_platform(
 pub fn new_notifying_platform(
   thread_pool_size: u32,
   idle_task_support: bool,
-  callback: unsafe extern "C" fn(*mut std::ffi::c_void),
+  callback: unsafe extern "C" fn(*mut std::ffi::c_void, f64),
 ) -> UniqueRef<Platform> {
   Platform::new_notifying(thread_pool_size, idle_task_support, callback)
 }
@@ -204,11 +206,13 @@ impl Platform {
 
   /// Creates a NotifyingPlatform (subclass of DefaultPlatform) that calls
   /// `callback` whenever a foreground task is posted for an isolate.
+  /// The callback receives the isolate pointer and delay in seconds (0.0 for
+  /// immediate tasks).
   #[inline(always)]
   pub fn new_notifying(
     thread_pool_size: u32,
     idle_task_support: bool,
-    callback: unsafe extern "C" fn(*mut std::ffi::c_void),
+    callback: unsafe extern "C" fn(*mut std::ffi::c_void, f64),
   ) -> UniqueRef<Self> {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewNotifyingPlatform(
