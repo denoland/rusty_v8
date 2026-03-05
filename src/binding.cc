@@ -3015,11 +3015,13 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
 // Rust-side callbacks for trait-based CustomPlatform (PlatformImpl trait).
 // `this` is a pointer to the CustomPlatform instance, used by Rust to
 // recover the Box<dyn PlatformImpl> stored at the same offset.
+extern "C" {
 void v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
     void* this_, void* isolate, double delay_in_seconds);
 void v8__Platform__CustomPlatform__BASE__onIsolateShutdown(void* this_,
                                                            void* isolate);
 void v8__Platform__CustomPlatform__BASE__DROP(void* this_);
+}
 
 // TaskRunner wrapper that intercepts all PostTask* calls and dispatches
 // to the Rust PlatformImpl trait via the CustomPlatform context.
