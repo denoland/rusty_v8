@@ -25,7 +25,7 @@ unsafe extern "C" {
   fn v8__Platform__NewNotifyingPlatform(
     thread_pool_size: int,
     idle_task_support: bool,
-    callback: unsafe extern "C" fn(*mut std::ffi::c_void, f64),
+    context: *mut std::ffi::c_void,
   ) -> *mut Platform;
   fn v8__Platform__DELETE(this: *mut Platform);
 
@@ -64,6 +64,51 @@ unsafe extern "C" {
 #[repr(C)]
 #[derive(Debug)]
 pub struct Platform(Opaque);
+
+/// Trait for receiving notifications when foreground tasks are posted to an
+/// isolate's task runner. Implementations must be thread-safe as callbacks
+/// can fire from any V8 background thread.
+///
+/// This follows the trait-based pattern used by the inspector API
+/// (`V8InspectorClientImpl`, `ChannelImpl`).
+pub trait ForegroundTaskCallback: Send + Sync {
+  /// Called when a foreground task has been posted for the given isolate.
+  ///
+  /// `isolate_ptr` is the raw `v8::Isolate*` pointer of the target isolate.
+  /// `delay_in_seconds` is 0.0 for immediate tasks, or the delay before the
+  /// task should be executed. For delayed tasks, the embedder should schedule
+  /// a wake-up after the given delay (e.g. via a timer in tokio).
+  ///
+  /// This may be called from ANY thread (V8 background threads, etc.).
+  fn on_foreground_task_posted(
+    &self,
+    isolate_ptr: *mut std::ffi::c_void,
+    delay_in_seconds: f64,
+  );
+}
+
+// FFI callbacks called from C++ NotifyingPlatform/NotifyingTaskRunner.
+// `context` is a raw pointer to a `Box<dyn ForegroundTaskCallback>`.
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+  delay_in_seconds: f64,
+) {
+  let callback =
+    unsafe { &*(context as *const Box<dyn ForegroundTaskCallback>) };
+  callback.on_foreground_task_posted(isolate, delay_in_seconds);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__NotifyingPlatform__dropContext(
+  context: *mut std::ffi::c_void,
+) {
+  unsafe {
+    let _ = Box::from_raw(context as *mut Box<dyn ForegroundTaskCallback>);
+  }
+}
 
 /// Returns a new instance of the default v8::Platform implementation.
 ///
@@ -116,10 +161,9 @@ pub fn new_single_threaded_default_platform(
   Platform::new_single_threaded(idle_task_support)
 }
 
-/// Creates a NotifyingPlatform that wraps DefaultPlatform and calls `callback`
-/// whenever a foreground task is posted for any isolate. The callback receives
-/// the raw `v8::Isolate*` pointer (as `*mut c_void`) and `delay_in_seconds`
-/// (0.0 for immediate tasks, or the delay before the task should run).
+/// Creates a NotifyingPlatform that wraps DefaultPlatform and calls the
+/// provided [`ForegroundTaskCallback`] whenever a foreground task is posted
+/// for any isolate.
 ///
 /// This allows embedders to wake their event loop when V8 background threads
 /// complete work and post foreground continuations (e.g. background compilation
@@ -134,7 +178,7 @@ pub fn new_single_threaded_default_platform(
 pub fn new_notifying_platform(
   thread_pool_size: u32,
   idle_task_support: bool,
-  callback: unsafe extern "C" fn(*mut std::ffi::c_void, f64),
+  callback: impl ForegroundTaskCallback + 'static,
 ) -> UniqueRef<Platform> {
   Platform::new_notifying(thread_pool_size, idle_task_support, callback)
 }
@@ -204,21 +248,28 @@ impl Platform {
     }
   }
 
-  /// Creates a NotifyingPlatform (subclass of DefaultPlatform) that calls
-  /// `callback` whenever a foreground task is posted for an isolate.
-  /// The callback receives the isolate pointer and delay in seconds (0.0 for
-  /// immediate tasks).
+  /// Creates a NotifyingPlatform (subclass of DefaultPlatform) that dispatches
+  /// to the provided [`ForegroundTaskCallback`] whenever a foreground task is
+  /// posted for an isolate.
+  ///
+  /// The callback trait object is owned by the platform and will be dropped
+  /// when the platform is destroyed.
   #[inline(always)]
   pub fn new_notifying(
     thread_pool_size: u32,
     idle_task_support: bool,
-    callback: unsafe extern "C" fn(*mut std::ffi::c_void, f64),
+    callback: impl ForegroundTaskCallback + 'static,
   ) -> UniqueRef<Self> {
+    // Double-box: inner Box<dyn> is a fat pointer, outer Box gives us a
+    // thin pointer we can pass through C++ void*.
+    let boxed: Box<dyn ForegroundTaskCallback> = Box::new(callback);
+    let context =
+      Box::into_raw(Box::new(boxed)) as *mut std::ffi::c_void;
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewNotifyingPlatform(
         thread_pool_size.min(16) as i32,
         idle_task_support,
-        callback,
+        context,
       ))
     }
   }

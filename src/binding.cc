@@ -3012,20 +3012,21 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
-// Callback type: called from any thread when a foreground task is posted
-// for a given isolate. The void* is the raw isolate pointer. delay_in_seconds
-// is 0.0 for immediate tasks, or the delay before the task should be executed.
-using ForegroundTaskPostedCallback = void (*)(void* isolate_ptr,
-                                              double delay_in_seconds);
+// Rust-side callbacks for the trait-based NotifyingPlatform.
+// `context` is a pointer to a Rust Box<dyn ForegroundTaskCallback>.
+extern "C" {
+void v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+    void* context, void* isolate, double delay_in_seconds);
+void v8__Platform__NotifyingPlatform__dropContext(void* context);
+}
 
 // TaskRunner wrapper that intercepts all PostTask* calls and notifies
-// the embedder before delegating to the real runner.
+// the embedder (via a Rust trait) before delegating to the real runner.
 class NotifyingTaskRunner final : public v8::TaskRunner {
  public:
-  NotifyingTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped,
-                      ForegroundTaskPostedCallback callback,
+  NotifyingTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
                       v8::Isolate* isolate)
-      : wrapped_(std::move(wrapped)), callback_(callback), isolate_(isolate) {}
+      : wrapped_(std::move(wrapped)), context_(context), isolate_(isolate) {}
 
   bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
   bool NonNestableTasksEnabled() const override {
@@ -3039,50 +3040,59 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
   void PostTaskImpl(std::unique_ptr<v8::Task> task,
                     const v8::SourceLocation& location) override {
     wrapped_->PostTask(std::move(task), location);
-    callback_(static_cast<void*>(isolate_), 0.0);
+    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
   }
   void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
                                const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableTask(std::move(task), location);
-    callback_(static_cast<void*>(isolate_), 0.0);
+    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
   }
   void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
                            double delay_in_seconds,
                            const v8::SourceLocation& location) override {
     wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
-    callback_(static_cast<void*>(isolate_),
-              delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
   void PostNonNestableDelayedTaskImpl(
       std::unique_ptr<v8::Task> task, double delay_in_seconds,
       const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
                                          location);
-    callback_(static_cast<void*>(isolate_),
-              delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
   void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
                         const v8::SourceLocation& location) override {
     wrapped_->PostIdleTask(std::move(task), location);
-    callback_(static_cast<void*>(isolate_), 0.0);
+    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
   }
 
  private:
   std::shared_ptr<v8::TaskRunner> wrapped_;
-  ForegroundTaskPostedCallback callback_;
+  void* context_;
   v8::Isolate* isolate_;
 };
 
 // Platform wrapper that intercepts GetForegroundTaskRunner to return
-// NotifyingTaskRunner instances, notifying the embedder of foreground tasks.
+// NotifyingTaskRunner instances, dispatching to a Rust trait object.
 class NotifyingPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
 
  public:
   NotifyingPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
-                    ForegroundTaskPostedCallback callback)
+                    void* context)
       : DefaultPlatform(thread_pool_size, idle_task_support),
-        callback_(callback) {}
+        context_(context) {}
+
+  ~NotifyingPlatform() override {
+    v8__Platform__NotifyingPlatform__dropContext(context_);
+  }
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
       v8::Isolate* isolate, v8::TaskPriority priority) override {
@@ -3095,12 +3105,12 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
       if (runner) return runner;
     }
     auto notifying =
-        std::make_shared<NotifyingTaskRunner>(original, callback_, isolate);
+        std::make_shared<NotifyingTaskRunner>(original, context_, isolate);
     runners_[key] = notifying;
     return notifying;
   }
 
-  void NotifyIsolateShutdown(v8::Isolate* isolate) override {
+  void NotifyIsolateShutdown(v8::Isolate* isolate) {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       for (auto it = runners_.begin(); it != runners_.end();) {
@@ -3119,7 +3129,7 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
   }
 
  private:
-  ForegroundTaskPostedCallback callback_;
+  void* context_;
   std::mutex mutex_;
   std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
            std::weak_ptr<NotifyingTaskRunner>>
@@ -3181,8 +3191,7 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
 
 v8::Platform* v8__Platform__NewNotifyingPlatform(int thread_pool_size,
                                                  bool idle_task_support,
-                                                 void (*callback)(void*,
-                                                                  double)) {
+                                                 void* context) {
   if (thread_pool_size < 1) {
     thread_pool_size = std::thread::hardware_concurrency();
   }
@@ -3191,7 +3200,7 @@ v8::Platform* v8__Platform__NewNotifyingPlatform(int thread_pool_size,
              thread_pool_size,
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
-             callback)
+             context)
       .release();
 }
 

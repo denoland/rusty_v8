@@ -136,6 +136,7 @@ pub use isolate_create_params::CreateParams;
 pub use microtask::MicrotaskQueue;
 pub use module::*;
 pub use object::*;
+pub use platform::ForegroundTaskCallback;
 pub use platform::Platform;
 pub use platform::new_default_platform;
 pub use platform::new_notifying_platform;
