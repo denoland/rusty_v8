@@ -46,6 +46,11 @@ unsafe extern "C" {
     isolate: *mut RealIsolate,
   );
 
+  fn v8__Task__Run(task: *mut RawTask);
+  fn v8__Task__DELETE(task: *mut RawTask);
+  fn v8__IdleTask__Run(task: *mut RawIdleTask, deadline_in_seconds: f64);
+  fn v8__IdleTask__DELETE(task: *mut RawIdleTask);
+
   fn std__shared_ptr__v8__Platform__CONVERT__std__unique_ptr(
     unique_ptr: UniquePtr<Platform>,
   ) -> SharedPtrBase<Platform>;
@@ -61,75 +66,274 @@ unsafe extern "C" {
   ) -> long;
 }
 
+// Opaque C++ types for v8::Task and v8::IdleTask.
+#[repr(C)]
+struct RawTask(Opaque);
+#[repr(C)]
+struct RawIdleTask(Opaque);
+
+/// An owned handle to a C++ `v8::Task`.
+///
+/// Call [`run()`](Task::run) to execute the task. The underlying C++ object
+/// is deleted when this value is dropped (whether or not it was run).
+pub struct Task(*mut RawTask);
+
+// SAFETY: v8::Task instances are designed to be posted across threads.
+unsafe impl Send for Task {}
+
+impl Task {
+  /// Execute the task. The task is consumed and the underlying C++ object
+  /// is deleted after execution.
+  pub fn run(self) {
+    let ptr = self.0;
+    std::mem::forget(self);
+    unsafe {
+      v8__Task__Run(ptr);
+      v8__Task__DELETE(ptr);
+    }
+  }
+}
+
+impl Drop for Task {
+  fn drop(&mut self) {
+    unsafe { v8__Task__DELETE(self.0) }
+  }
+}
+
+/// An owned handle to a C++ `v8::IdleTask`.
+///
+/// Call [`run()`](IdleTask::run) to execute the task with a deadline.
+/// The underlying C++ object is deleted when this value is dropped.
+pub struct IdleTask(*mut RawIdleTask);
+
+// SAFETY: v8::IdleTask instances are designed to be posted across threads.
+unsafe impl Send for IdleTask {}
+
+impl IdleTask {
+  /// Execute the idle task with the given deadline. The task is consumed
+  /// and the underlying C++ object is deleted after execution.
+  pub fn run(self, deadline_in_seconds: f64) {
+    let ptr = self.0;
+    std::mem::forget(self);
+    unsafe {
+      v8__IdleTask__Run(ptr, deadline_in_seconds);
+      v8__IdleTask__DELETE(ptr);
+    }
+  }
+}
+
+impl Drop for IdleTask {
+  fn drop(&mut self) {
+    unsafe { v8__IdleTask__DELETE(self.0) }
+  }
+}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct Platform(Opaque);
 
-/// Trait for customizing platform behavior, following the same pattern as
-/// [`V8InspectorClientImpl`](crate::inspector::V8InspectorClientImpl).
+/// Trait representing the `v8::TaskRunner` virtual methods.
 ///
-/// Implement this trait to receive callbacks for platform virtual method
-/// overrides. The C++ `CustomPlatform` base class delegates to these methods.
-/// All methods have default no-op implementations; override only what you need.
+/// Implement this trait to control how V8 foreground tasks are executed.
+/// For example, an embedder using tokio might spawn tasks on its runtime:
 ///
-/// Implementations must be `Send + Sync` as callbacks may fire from any thread.
+/// ```ignore
+/// impl TaskRunnerImpl for MyRunner {
+///   fn post_task(&self, task: Task) {
+///     tokio::task::spawn_blocking(move || task.run());
+///   }
+///   fn post_delayed_task(&self, task: Task, delay: f64) {
+///     tokio::spawn(async move {
+///       tokio::time::sleep(Duration::from_secs_f64(delay)).await;
+///       tokio::task::spawn_blocking(move || task.run());
+///     });
+///   }
+/// }
+/// ```
+///
+/// Implementations must be `Send + Sync` as methods may be called from
+/// any thread.
 #[allow(unused_variables)]
-pub trait PlatformImpl: Send + Sync {
-  /// Called when a foreground task has been posted for the given isolate.
-  ///
-  /// This corresponds to intercepted calls on the isolate's `TaskRunner`
-  /// (`PostTask`, `PostDelayedTask`, `PostIdleTask`, etc.).
-  ///
-  /// `isolate_ptr` is the raw `v8::Isolate*` pointer of the target isolate.
-  /// `delay_in_seconds` is 0.0 for immediate tasks, or the delay before the
-  /// task should be executed. For delayed tasks, the embedder should schedule
-  /// a wake-up after the given delay (e.g. via a timer in tokio).
-  ///
-  /// This may be called from ANY thread (V8 background threads, etc.).
-  fn on_foreground_task_posted(
-    &self,
-    isolate_ptr: *mut std::ffi::c_void,
-    delay_in_seconds: f64,
-  ) {
+pub trait TaskRunnerImpl: Send + Sync {
+  /// Called when V8 posts a foreground task for immediate execution.
+  fn post_task(&self, task: Task);
+
+  /// Called when V8 posts a foreground task to run after `delay_in_seconds`.
+  fn post_delayed_task(&self, task: Task, delay_in_seconds: f64);
+
+  /// Called when V8 posts a non-nestable foreground task.
+  /// Default: delegates to [`post_task`](TaskRunnerImpl::post_task).
+  fn post_non_nestable_task(&self, task: Task) {
+    self.post_task(task);
   }
 
-  /// Called when an isolate is about to be shut down.
-  ///
-  /// This corresponds to the `NotifyIsolateShutdown` virtual method.
-  /// The default `DefaultPlatform` cleanup runs after this callback returns.
-  fn on_isolate_shutdown(&self, isolate_ptr: *mut std::ffi::c_void) {}
+  /// Called when V8 posts a non-nestable delayed foreground task.
+  /// Default: delegates to
+  /// [`post_delayed_task`](TaskRunnerImpl::post_delayed_task).
+  fn post_non_nestable_delayed_task(&self, task: Task, delay_in_seconds: f64) {
+    self.post_delayed_task(task, delay_in_seconds);
+  }
+
+  /// Called when V8 posts an idle task.
+  /// Default: drops the task (idle tasks not supported).
+  fn post_idle_task(&self, task: IdleTask) {
+    drop(task);
+  }
+
+  /// Whether this runner supports idle tasks.
+  /// Default: `false`.
+  fn idle_tasks_enabled(&self) -> bool {
+    false
+  }
+
+  /// Whether this runner supports non-nestable tasks.
+  /// Default: `true`.
+  fn non_nestable_tasks_enabled(&self) -> bool {
+    true
+  }
+
+  /// Whether this runner supports non-nestable delayed tasks.
+  /// Default: `true`.
+  fn non_nestable_delayed_tasks_enabled(&self) -> bool {
+    true
+  }
 }
 
-// FFI callbacks called from C++ CustomPlatform/CustomTaskRunner.
-// `context` is a raw pointer to a `Box<dyn PlatformImpl>`.
+/// Trait representing `v8::Platform` virtual methods, following the same
+/// pattern as
+/// [`V8InspectorClientImpl`](crate::inspector::V8InspectorClientImpl).
+///
+/// Implement this trait to provide custom foreground task runners for
+/// each isolate.
+///
+/// Implementations must be `Send + Sync` as methods may be called from
+/// any thread.
+#[allow(unused_variables)]
+pub trait PlatformImpl: Send + Sync {
+  /// Returns a custom foreground task runner for the given isolate.
+  ///
+  /// `isolate_ptr` is the raw `v8::Isolate*` pointer. The returned task
+  /// runner will be cached per isolate and cleaned up on isolate shutdown.
+  ///
+  /// Return `None` to use the default `DefaultPlatform` task runner.
+  fn get_foreground_task_runner(
+    &self,
+    isolate_ptr: *mut std::ffi::c_void,
+  ) -> Option<Box<dyn TaskRunnerImpl>> {
+    None
+  }
+}
+
+// ── TaskRunnerImpl FFI callbacks ──────────────────────────────────────
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__PostTask(
   context: *mut std::ffi::c_void,
-  isolate: *mut std::ffi::c_void,
+  task: *mut RawTask,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.post_task(Task(task));
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__PostNonNestableTask(
+  context: *mut std::ffi::c_void,
+  task: *mut RawTask,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.post_non_nestable_task(Task(task));
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__PostDelayedTask(
+  context: *mut std::ffi::c_void,
+  task: *mut RawTask,
   delay_in_seconds: f64,
 ) {
-  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.on_foreground_task_posted(isolate, delay_in_seconds);
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.post_delayed_task(Task(task), delay_in_seconds);
 }
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__onIsolateShutdown(
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__PostNonNestableDelayedTask(
+  context: *mut std::ffi::c_void,
+  task: *mut RawTask,
+  delay_in_seconds: f64,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.post_non_nestable_delayed_task(Task(task), delay_in_seconds);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__PostIdleTask(
+  context: *mut std::ffi::c_void,
+  task: *mut RawIdleTask,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.post_idle_task(IdleTask(task));
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__IdleTasksEnabled(
+  context: *mut std::ffi::c_void,
+) -> bool {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.idle_tasks_enabled()
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__NonNestableTasksEnabled(
+  context: *mut std::ffi::c_void,
+) -> bool {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.non_nestable_tasks_enabled()
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__NonNestableDelayedTasksEnabled(
+  context: *mut std::ffi::c_void,
+) -> bool {
+  let imp = unsafe { &*(context as *const Box<dyn TaskRunnerImpl>) };
+  imp.non_nestable_delayed_tasks_enabled()
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomTaskRunner__DROP(
+  context: *mut std::ffi::c_void,
+) {
+  unsafe {
+    let _ = Box::from_raw(context as *mut Box<dyn TaskRunnerImpl>);
+  }
+}
+
+// ── PlatformImpl FFI callbacks ───────────────────────────────────────
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__GetForegroundTaskRunner(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
-) {
+) -> *mut std::ffi::c_void {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.on_isolate_shutdown(isolate);
+  match imp.get_foreground_task_runner(isolate) {
+    Some(runner) => {
+      // Double-box: Box<dyn TaskRunnerImpl> is a fat pointer, outer Box
+      // gives a thin pointer for C++ void*.
+      Box::into_raw(Box::new(runner)) as *mut std::ffi::c_void
+    }
+    None => std::ptr::null_mut(),
+  }
 }
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__DROP(
+unsafe extern "C" fn v8__Platform__CustomPlatform__DROP(
   context: *mut std::ffi::c_void,
 ) {
   unsafe {
     let _ = Box::from_raw(context as *mut Box<dyn PlatformImpl>);
   }
 }
+
+// ── Public API ───────────────────────────────────────────────────────
 
 /// Returns a new instance of the default v8::Platform implementation.
 ///
@@ -183,10 +387,10 @@ pub fn new_single_threaded_default_platform(
 }
 
 /// Creates a custom platform backed by `DefaultPlatform` that delegates
-/// virtual method overrides to the provided [`PlatformImpl`] trait object.
+/// `GetForegroundTaskRunner` to the provided [`PlatformImpl`] trait object.
 ///
-/// This follows the same pattern as
-/// [`V8InspectorClient::new`](crate::inspector::V8InspectorClient::new).
+/// The [`PlatformImpl`] returns [`TaskRunnerImpl`] instances that directly
+/// handle V8's foreground task posting (e.g., via tokio).
 ///
 /// Thread-isolated allocations are disabled (same as
 /// `new_unprotected_default_platform`).
@@ -265,7 +469,7 @@ impl Platform {
   }
 
   /// Creates a custom platform backed by `DefaultPlatform` that delegates
-  /// virtual method overrides to the provided [`PlatformImpl`] trait object.
+  /// `GetForegroundTaskRunner` to the provided [`PlatformImpl`] trait object.
   ///
   /// The trait object is owned by the platform and will be dropped when the
   /// platform is destroyed.
