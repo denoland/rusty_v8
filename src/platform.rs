@@ -68,58 +68,132 @@ pub struct Platform(Opaque);
 /// Trait for customizing platform behavior, following the same pattern as
 /// [`V8InspectorClientImpl`](crate::inspector::V8InspectorClientImpl).
 ///
-/// Implement this trait to receive callbacks for platform virtual method
-/// overrides. The C++ `CustomPlatform` base class delegates to these methods.
-/// All methods have default no-op implementations; override only what you need.
+/// Implement this trait to receive callbacks for overridden C++ virtual
+/// methods on the `DefaultPlatform` and its per-isolate `TaskRunner`.
 ///
-/// Implementations must be `Send + Sync` as callbacks may fire from any thread.
+/// The C++ `CustomPlatform` wraps each isolate's `TaskRunner` so that
+/// every `PostTask` / `PostDelayedTask` / etc. call is forwarded to the
+/// default implementation *and* notifies Rust through the corresponding
+/// trait method.
+///
+/// All methods have default no-op implementations; override only what
+/// you need.
+///
+/// Implementations must be `Send + Sync` as callbacks may fire from any
+/// thread.
 #[allow(unused_variables)]
 pub trait PlatformImpl: Send + Sync {
-  /// Called when a foreground task has been posted for the given isolate.
+  // ---- TaskRunner virtual methods ----
+
+  /// Called when `TaskRunner::PostTask` is invoked for the given isolate.
   ///
-  /// This corresponds to intercepted calls on the isolate's `TaskRunner`
-  /// (`PostTask`, `PostDelayedTask`, `PostIdleTask`, etc.).
+  /// The task itself has already been forwarded to the default platform's
+  /// queue and will be executed by `PumpMessageLoop`. This callback is a
+  /// notification that a new task is available.
   ///
-  /// `isolate_ptr` is the raw `v8::Isolate*` pointer of the target isolate.
-  /// `delay_in_seconds` is 0.0 for immediate tasks, or the delay before the
-  /// task should be executed. For delayed tasks, the embedder should schedule
-  /// a wake-up after the given delay (e.g. via a timer in tokio).
+  /// May be called from ANY thread (V8 background threads, etc.).
+  fn post_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
+
+  /// Called when `TaskRunner::PostNonNestableTask` is invoked.
   ///
-  /// This may be called from ANY thread (V8 background threads, etc.).
-  fn on_foreground_task_posted(
+  /// Same semantics as [`post_task`](Self::post_task).
+  fn post_non_nestable_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
+
+  /// Called when `TaskRunner::PostDelayedTask` is invoked.
+  ///
+  /// The task has been forwarded to the default runner's delayed queue.
+  /// `delay_in_seconds` is the delay before the task should execute.
+  /// Embedders should schedule a wake-up after this delay.
+  ///
+  /// May be called from ANY thread.
+  fn post_delayed_task(
     &self,
     isolate_ptr: *mut std::ffi::c_void,
     delay_in_seconds: f64,
   ) {
   }
 
-  /// Called when an isolate is about to be shut down.
+  /// Called when `TaskRunner::PostNonNestableDelayedTask` is invoked.
   ///
-  /// This corresponds to the `NotifyIsolateShutdown` virtual method.
-  /// The default `DefaultPlatform` cleanup runs after this callback returns.
-  fn on_isolate_shutdown(&self, isolate_ptr: *mut std::ffi::c_void) {}
+  /// Same semantics as [`post_delayed_task`](Self::post_delayed_task).
+  fn post_non_nestable_delayed_task(
+    &self,
+    isolate_ptr: *mut std::ffi::c_void,
+    delay_in_seconds: f64,
+  ) {
+  }
+
+  /// Called when `TaskRunner::PostIdleTask` is invoked.
+  ///
+  /// Same semantics as [`post_task`](Self::post_task).
+  fn post_idle_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
+
+  // ---- Platform virtual methods ----
+
+  /// Called when `Platform::NotifyIsolateShutdown` is invoked.
+  ///
+  /// The default `DefaultPlatform` cleanup runs after this callback
+  /// returns.
+  fn notify_isolate_shutdown(&self, isolate_ptr: *mut std::ffi::c_void) {}
 }
 
 // FFI callbacks called from C++ CustomPlatform/CustomTaskRunner.
 // `context` is a raw pointer to a `Box<dyn PlatformImpl>`.
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostTask(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
+  imp.post_task(isolate);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostNonNestableTask(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
+  imp.post_non_nestable_task(isolate);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostDelayedTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
   delay_in_seconds: f64,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.on_foreground_task_posted(isolate, delay_in_seconds);
+  imp.post_delayed_task(isolate, delay_in_seconds);
 }
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__onIsolateShutdown(
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+  delay_in_seconds: f64,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
+  imp.post_non_nestable_delayed_task(isolate, delay_in_seconds);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostIdleTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.on_isolate_shutdown(isolate);
+  imp.post_idle_task(isolate);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__NotifyIsolateShutdown(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
+  imp.notify_isolate_shutdown(isolate);
 }
 
 #[unsafe(no_mangle)]
