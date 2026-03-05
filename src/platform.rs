@@ -22,6 +22,11 @@ unsafe extern "C" {
   fn v8__Platform__NewSingleThreadedDefaultPlatform(
     idle_task_support: bool,
   ) -> *mut Platform;
+  fn v8__Platform__NewCustomPlatform(
+    thread_pool_size: int,
+    idle_task_support: bool,
+    context: *mut std::ffi::c_void,
+  ) -> *mut Platform;
   fn v8__Platform__DELETE(this: *mut Platform);
 
   fn v8__Platform__PumpMessageLoop(
@@ -59,6 +64,72 @@ unsafe extern "C" {
 #[repr(C)]
 #[derive(Debug)]
 pub struct Platform(Opaque);
+
+/// Trait for customizing platform behavior, following the same pattern as
+/// [`V8InspectorClientImpl`](crate::inspector::V8InspectorClientImpl).
+///
+/// Implement this trait to receive callbacks for platform virtual method
+/// overrides. The C++ `CustomPlatform` base class delegates to these methods.
+/// All methods have default no-op implementations; override only what you need.
+///
+/// Implementations must be `Send + Sync` as callbacks may fire from any thread.
+#[allow(unused_variables)]
+pub trait PlatformImpl: Send + Sync {
+  /// Called when a foreground task has been posted for the given isolate.
+  ///
+  /// This corresponds to intercepted calls on the isolate's `TaskRunner`
+  /// (`PostTask`, `PostDelayedTask`, `PostIdleTask`, etc.).
+  ///
+  /// `isolate_ptr` is the raw `v8::Isolate*` pointer of the target isolate.
+  /// `delay_in_seconds` is 0.0 for immediate tasks, or the delay before the
+  /// task should be executed. For delayed tasks, the embedder should schedule
+  /// a wake-up after the given delay (e.g. via a timer in tokio).
+  ///
+  /// This may be called from ANY thread (V8 background threads, etc.).
+  fn on_foreground_task_posted(
+    &self,
+    isolate_ptr: *mut std::ffi::c_void,
+    delay_in_seconds: f64,
+  ) {
+  }
+
+  /// Called when an isolate is about to be shut down.
+  ///
+  /// This corresponds to the `NotifyIsolateShutdown` virtual method.
+  /// The default `DefaultPlatform` cleanup runs after this callback returns.
+  fn on_isolate_shutdown(&self, isolate_ptr: *mut std::ffi::c_void) {}
+}
+
+// FFI callbacks called from C++ CustomPlatform/CustomTaskRunner.
+// `context` is a raw pointer to a `Box<dyn PlatformImpl>`.
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+  delay_in_seconds: f64,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
+  imp.on_foreground_task_posted(isolate, delay_in_seconds);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__onIsolateShutdown(
+  context: *mut std::ffi::c_void,
+  isolate: *mut std::ffi::c_void,
+) {
+  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
+  imp.on_isolate_shutdown(isolate);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__DROP(
+  context: *mut std::ffi::c_void,
+) {
+  unsafe {
+    let _ = Box::from_raw(context as *mut Box<dyn PlatformImpl>);
+  }
+}
 
 /// Returns a new instance of the default v8::Platform implementation.
 ///
@@ -109,6 +180,23 @@ pub fn new_single_threaded_default_platform(
   idle_task_support: bool,
 ) -> UniqueRef<Platform> {
   Platform::new_single_threaded(idle_task_support)
+}
+
+/// Creates a custom platform backed by `DefaultPlatform` that delegates
+/// virtual method overrides to the provided [`PlatformImpl`] trait object.
+///
+/// This follows the same pattern as
+/// [`V8InspectorClient::new`](crate::inspector::V8InspectorClient::new).
+///
+/// Thread-isolated allocations are disabled (same as
+/// `new_unprotected_default_platform`).
+#[inline(always)]
+pub fn new_custom_platform(
+  thread_pool_size: u32,
+  idle_task_support: bool,
+  platform_impl: impl PlatformImpl + 'static,
+) -> UniqueRef<Platform> {
+  Platform::new_custom(thread_pool_size, idle_task_support, platform_impl)
 }
 
 impl Platform {
@@ -172,6 +260,30 @@ impl Platform {
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewSingleThreadedDefaultPlatform(
         idle_task_support,
+      ))
+    }
+  }
+
+  /// Creates a custom platform backed by `DefaultPlatform` that delegates
+  /// virtual method overrides to the provided [`PlatformImpl`] trait object.
+  ///
+  /// The trait object is owned by the platform and will be dropped when the
+  /// platform is destroyed.
+  #[inline(always)]
+  pub fn new_custom(
+    thread_pool_size: u32,
+    idle_task_support: bool,
+    platform_impl: impl PlatformImpl + 'static,
+  ) -> UniqueRef<Self> {
+    // Double-box: inner Box<dyn> is a fat pointer, outer Box gives us a
+    // thin pointer we can pass through C++ void*.
+    let boxed: Box<dyn PlatformImpl> = Box::new(platform_impl);
+    let context = Box::into_raw(Box::new(boxed)) as *mut std::ffi::c_void;
+    unsafe {
+      UniqueRef::from_raw(v8__Platform__NewCustomPlatform(
+        thread_pool_size.min(16) as i32,
+        idle_task_support,
+        context,
       ))
     }
   }

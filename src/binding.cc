@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <map>
+#include <mutex>
 #include <thread>
 
 #include "cppgc/allocation.h"
@@ -3010,6 +3012,135 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
+// Rust-side callbacks for trait-based CustomPlatform (PlatformImpl trait).
+// `this` is a pointer to the CustomPlatform instance, used by Rust to
+// recover the Box<dyn PlatformImpl> stored at the same offset.
+extern "C" {
+void v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+    void* this_, void* isolate, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__onIsolateShutdown(void* this_,
+                                                           void* isolate);
+void v8__Platform__CustomPlatform__BASE__DROP(void* this_);
+}
+
+// TaskRunner wrapper that intercepts all PostTask* calls and dispatches
+// to the Rust PlatformImpl trait via the CustomPlatform context.
+class CustomTaskRunner final : public v8::TaskRunner {
+ public:
+  CustomTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
+                   v8::Isolate* isolate)
+      : wrapped_(std::move(wrapped)), context_(context), isolate_(isolate) {}
+
+  bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
+  bool NonNestableTasksEnabled() const override {
+    return wrapped_->NonNestableTasksEnabled();
+  }
+  bool NonNestableDelayedTasksEnabled() const override {
+    return wrapped_->NonNestableDelayedTasksEnabled();
+  }
+
+ protected:
+  void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                    const v8::SourceLocation& location) override {
+    wrapped_->PostTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
+  }
+  void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
+                               const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
+  }
+  void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
+                           double delay_in_seconds,
+                           const v8::SourceLocation& location) override {
+    wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+  }
+  void PostNonNestableDelayedTaskImpl(
+      std::unique_ptr<v8::Task> task, double delay_in_seconds,
+      const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
+                                         location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+  }
+  void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
+                        const v8::SourceLocation& location) override {
+    wrapped_->PostIdleTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
+  }
+
+ private:
+  std::shared_ptr<v8::TaskRunner> wrapped_;
+  void* context_;
+  v8::Isolate* isolate_;
+};
+
+// Generic Platform subclass that delegates virtual method overrides to a
+// Rust PlatformImpl trait object, following the inspector API pattern.
+class CustomPlatform : public v8::platform::DefaultPlatform {
+  using IdleTaskSupport = v8::platform::IdleTaskSupport;
+
+ public:
+  CustomPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
+                 void* context)
+      : DefaultPlatform(thread_pool_size, idle_task_support),
+        context_(context) {}
+
+  ~CustomPlatform() override {
+    v8__Platform__CustomPlatform__BASE__DROP(context_);
+  }
+
+  std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
+      v8::Isolate* isolate, v8::TaskPriority priority) override {
+    auto original = DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto key = std::make_pair(isolate, priority);
+    auto it = runners_.find(key);
+    if (it != runners_.end()) {
+      auto runner = it->second.lock();
+      if (runner) return runner;
+    }
+    auto custom =
+        std::make_shared<CustomTaskRunner>(original, context_, isolate);
+    runners_[key] = custom;
+    return custom;
+  }
+
+  void NotifyIsolateShutdown(v8::Isolate* isolate) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      for (auto it = runners_.begin(); it != runners_.end();) {
+        if (it->first.first == isolate) {
+          it = runners_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+    v8__Platform__CustomPlatform__BASE__onIsolateShutdown(
+        context_, static_cast<void*>(isolate));
+    DefaultPlatform::NotifyIsolateShutdown(isolate);
+  }
+
+  v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
+    return nullptr;
+  }
+
+ private:
+  void* context_;
+  std::mutex mutex_;
+  std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
+           std::weak_ptr<CustomTaskRunner>>
+      runners_;
+};
+
 class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
   using InProcessStackDumping = v8::platform::InProcessStackDumping;
@@ -3060,6 +3191,21 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
              v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
+}
+
+v8::Platform* v8__Platform__NewCustomPlatform(int thread_pool_size,
+                                              bool idle_task_support,
+                                              void* context) {
+  if (thread_pool_size < 1) {
+    thread_pool_size = std::thread::hardware_concurrency();
+  }
+  thread_pool_size = std::max(std::min(thread_pool_size, 16), 1);
+  return std::make_unique<CustomPlatform>(
+             thread_pool_size,
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             context)
       .release();
 }
 
