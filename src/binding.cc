@@ -3012,91 +3012,78 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
-// Rust-side callbacks for TaskRunnerImpl trait.
-// `context` is a double-boxed pointer to a Box<dyn TaskRunnerImpl>.
-// Task/IdleTask pointers are released from unique_ptr; Rust takes ownership.
+// Rust-side callbacks for trait-based CustomPlatform (PlatformImpl trait).
+// `this` is a pointer to the CustomPlatform instance, used by Rust to
+// recover the Box<dyn PlatformImpl> stored at the same offset.
 extern "C" {
-void v8__Platform__CustomTaskRunner__PostTask(void* context, v8::Task* task);
-void v8__Platform__CustomTaskRunner__PostNonNestableTask(void* context,
-                                                         v8::Task* task);
-void v8__Platform__CustomTaskRunner__PostDelayedTask(void* context,
-                                                     v8::Task* task,
-                                                     double delay_in_seconds);
-void v8__Platform__CustomTaskRunner__PostNonNestableDelayedTask(
-    void* context, v8::Task* task, double delay_in_seconds);
-void v8__Platform__CustomTaskRunner__PostIdleTask(void* context,
-                                                  v8::IdleTask* task);
-bool v8__Platform__CustomTaskRunner__IdleTasksEnabled(void* context);
-bool v8__Platform__CustomTaskRunner__NonNestableTasksEnabled(void* context);
-bool v8__Platform__CustomTaskRunner__NonNestableDelayedTasksEnabled(
-    void* context);
-void v8__Platform__CustomTaskRunner__DROP(void* context);
-// PlatformImpl trait callbacks.
-// `context` is a double-boxed pointer to a Box<dyn PlatformImpl>.
-// Returns a double-boxed pointer to a Box<dyn TaskRunnerImpl>, or nullptr
-// to fall back to the default task runner.
-void* v8__Platform__CustomPlatform__GetForegroundTaskRunner(void* context,
-                                                            void* isolate);
-void v8__Platform__CustomPlatform__DROP(void* context);
+void v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+    void* this_, void* isolate, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__onIsolateShutdown(void* this_,
+                                                           void* isolate);
+void v8__Platform__CustomPlatform__BASE__DROP(void* this_);
 }
 
-void v8__Task__Run(v8::Task* task) { task->Run(); }
-void v8__Task__DELETE(v8::Task* task) { delete task; }
-void v8__IdleTask__Run(v8::IdleTask* task, double deadline_in_seconds) {
-  task->Run(deadline_in_seconds);
-}
-void v8__IdleTask__DELETE(v8::IdleTask* task) { delete task; }
-
-// TaskRunner that delegates all virtual methods to a Rust TaskRunnerImpl trait.
+// TaskRunner wrapper that intercepts all PostTask* calls and dispatches
+// to the Rust PlatformImpl trait via the CustomPlatform context.
 class CustomTaskRunner final : public v8::TaskRunner {
  public:
-  explicit CustomTaskRunner(void* context) : context_(context) {}
-  ~CustomTaskRunner() { v8__Platform__CustomTaskRunner__DROP(context_); }
+  CustomTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
+                   v8::Isolate* isolate)
+      : wrapped_(std::move(wrapped)), context_(context), isolate_(isolate) {}
 
-  bool IdleTasksEnabled() override {
-    return v8__Platform__CustomTaskRunner__IdleTasksEnabled(context_);
-  }
+  bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
   bool NonNestableTasksEnabled() const override {
-    return v8__Platform__CustomTaskRunner__NonNestableTasksEnabled(context_);
+    return wrapped_->NonNestableTasksEnabled();
   }
   bool NonNestableDelayedTasksEnabled() const override {
-    return v8__Platform__CustomTaskRunner__NonNestableDelayedTasksEnabled(
-        context_);
+    return wrapped_->NonNestableDelayedTasksEnabled();
   }
 
  protected:
   void PostTaskImpl(std::unique_ptr<v8::Task> task,
-                    const v8::SourceLocation&) override {
-    v8__Platform__CustomTaskRunner__PostTask(context_, task.release());
+                    const v8::SourceLocation& location) override {
+    wrapped_->PostTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
   }
   void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
-                               const v8::SourceLocation&) override {
-    v8__Platform__CustomTaskRunner__PostNonNestableTask(context_,
-                                                        task.release());
+                               const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
   }
   void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
                            double delay_in_seconds,
-                           const v8::SourceLocation&) override {
-    v8__Platform__CustomTaskRunner__PostDelayedTask(context_, task.release(),
-                                                    delay_in_seconds);
+                           const v8::SourceLocation& location) override {
+    wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
-  void PostNonNestableDelayedTaskImpl(std::unique_ptr<v8::Task> task,
-                                      double delay_in_seconds,
-                                      const v8::SourceLocation&) override {
-    v8__Platform__CustomTaskRunner__PostNonNestableDelayedTask(
-        context_, task.release(), delay_in_seconds);
+  void PostNonNestableDelayedTaskImpl(
+      std::unique_ptr<v8::Task> task, double delay_in_seconds,
+      const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
+                                         location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
   void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
-                        const v8::SourceLocation&) override {
-    v8__Platform__CustomTaskRunner__PostIdleTask(context_, task.release());
+                        const v8::SourceLocation& location) override {
+    wrapped_->PostIdleTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+        context_, static_cast<void*>(isolate_), 0.0);
   }
 
  private:
+  std::shared_ptr<v8::TaskRunner> wrapped_;
   void* context_;
+  v8::Isolate* isolate_;
 };
 
-// Platform subclass that delegates GetForegroundTaskRunner to a Rust
-// PlatformImpl trait object, following the inspector API pattern.
+// Generic Platform subclass that delegates virtual method overrides to a
+// Rust PlatformImpl trait object, following the inspector API pattern.
 class CustomPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
 
@@ -3106,10 +3093,13 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
       : DefaultPlatform(thread_pool_size, idle_task_support),
         context_(context) {}
 
-  ~CustomPlatform() override { v8__Platform__CustomPlatform__DROP(context_); }
+  ~CustomPlatform() override {
+    v8__Platform__CustomPlatform__BASE__DROP(context_);
+  }
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
       v8::Isolate* isolate, v8::TaskPriority priority) override {
+    auto original = DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
     std::lock_guard<std::mutex> lock(mutex_);
     auto key = std::make_pair(isolate, priority);
     auto it = runners_.find(key);
@@ -3117,19 +3107,12 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
       auto runner = it->second.lock();
       if (runner) return runner;
     }
-    void* runner_context =
-        v8__Platform__CustomPlatform__GetForegroundTaskRunner(
-            context_, static_cast<void*>(isolate));
-    if (!runner_context) {
-      return DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
-    }
-    auto custom = std::make_shared<CustomTaskRunner>(runner_context);
+    auto custom =
+        std::make_shared<CustomTaskRunner>(original, context_, isolate);
     runners_[key] = custom;
     return custom;
   }
 
-  // Intentionally hides DefaultPlatform::NotifyIsolateShutdown (not virtual)
-  // to clean up the runner cache for the isolate.
   void NotifyIsolateShutdown(v8::Isolate* isolate) {
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -3141,6 +3124,8 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
         }
       }
     }
+    v8__Platform__CustomPlatform__BASE__onIsolateShutdown(
+        context_, static_cast<void*>(isolate));
     DefaultPlatform::NotifyIsolateShutdown(isolate);
   }
 
