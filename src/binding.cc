@@ -3023,9 +3023,7 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
   NotifyingTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped,
                       ForegroundTaskPostedCallback callback,
                       v8::Isolate* isolate)
-      : wrapped_(std::move(wrapped)),
-        callback_(callback),
-        isolate_(isolate) {}
+      : wrapped_(std::move(wrapped)), callback_(callback), isolate_(isolate) {}
 
   bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
   bool NonNestableTasksEnabled() const override {
@@ -3041,9 +3039,8 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
     wrapped_->PostTask(std::move(task), location);
     callback_(static_cast<void*>(isolate_));
   }
-  void PostNonNestableTaskImpl(
-      std::unique_ptr<v8::Task> task,
-      const v8::SourceLocation& location) override {
+  void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
+                               const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableTask(std::move(task), location);
     callback_(static_cast<void*>(isolate_));
   }
@@ -3094,16 +3091,14 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
 
  public:
-  NotifyingPlatform(int thread_pool_size,
-                    IdleTaskSupport idle_task_support,
+  NotifyingPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
                     ForegroundTaskPostedCallback callback)
       : DefaultPlatform(thread_pool_size, idle_task_support),
         callback_(callback) {}
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
       v8::Isolate* isolate, v8::TaskPriority priority) override {
-    auto original =
-        DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
+    auto original = DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
     std::lock_guard<std::mutex> lock(mutex_);
     auto key = std::make_pair(isolate, priority);
     auto it = runners_.find(key);
@@ -3196,9 +3191,9 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
       .release();
 }
 
-v8::Platform* v8__Platform__NewNotifyingPlatform(
-    int thread_pool_size, bool idle_task_support,
-    void (*callback)(void*)) {
+v8::Platform* v8__Platform__NewNotifyingPlatform(int thread_pool_size,
+                                                 bool idle_task_support,
+                                                 void (*callback)(void*)) {
   if (thread_pool_size < 1) {
     thread_pool_size = std::thread::hardware_concurrency();
   }
