@@ -3012,20 +3012,21 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
-// Rust-side callbacks for the trait-based NotifyingPlatform.
-// `context` is a pointer to a Rust Box<dyn ForegroundTaskCallback>.
-extern "C" {
-void v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
-    void* context, void* isolate, double delay_in_seconds);
-void v8__Platform__NotifyingPlatform__dropContext(void* context);
-}
+// Rust-side callbacks for trait-based CustomPlatform (PlatformImpl trait).
+// `this` is a pointer to the CustomPlatform instance, used by Rust to
+// recover the Box<dyn PlatformImpl> stored at the same offset.
+void v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
+    void* this_, void* isolate, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__onIsolateShutdown(void* this_,
+                                                           void* isolate);
+void v8__Platform__CustomPlatform__BASE__DROP(void* this_);
 
-// TaskRunner wrapper that intercepts all PostTask* calls and notifies
-// the embedder (via a Rust trait) before delegating to the real runner.
-class NotifyingTaskRunner final : public v8::TaskRunner {
+// TaskRunner wrapper that intercepts all PostTask* calls and dispatches
+// to the Rust PlatformImpl trait via the CustomPlatform context.
+class CustomTaskRunner final : public v8::TaskRunner {
  public:
-  NotifyingTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
-                      v8::Isolate* isolate)
+  CustomTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
+                   v8::Isolate* isolate)
       : wrapped_(std::move(wrapped)), context_(context), isolate_(isolate) {}
 
   bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
@@ -3040,20 +3041,20 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
   void PostTaskImpl(std::unique_ptr<v8::Task> task,
                     const v8::SourceLocation& location) override {
     wrapped_->PostTask(std::move(task), location);
-    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
         context_, static_cast<void*>(isolate_), 0.0);
   }
   void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
                                const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableTask(std::move(task), location);
-    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
         context_, static_cast<void*>(isolate_), 0.0);
   }
   void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
                            double delay_in_seconds,
                            const v8::SourceLocation& location) override {
     wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
-    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
         context_, static_cast<void*>(isolate_),
         delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
@@ -3062,14 +3063,14 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
       const v8::SourceLocation& location) override {
     wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
                                          location);
-    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
         context_, static_cast<void*>(isolate_),
         delay_in_seconds > 0 ? delay_in_seconds : 0.0);
   }
   void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
                         const v8::SourceLocation& location) override {
     wrapped_->PostIdleTask(std::move(task), location);
-    v8__Platform__NotifyingPlatform__onForegroundTaskPosted(
+    v8__Platform__CustomPlatform__BASE__onForegroundTaskPosted(
         context_, static_cast<void*>(isolate_), 0.0);
   }
 
@@ -3079,19 +3080,19 @@ class NotifyingTaskRunner final : public v8::TaskRunner {
   v8::Isolate* isolate_;
 };
 
-// Platform wrapper that intercepts GetForegroundTaskRunner to return
-// NotifyingTaskRunner instances, dispatching to a Rust trait object.
-class NotifyingPlatform : public v8::platform::DefaultPlatform {
+// Generic Platform subclass that delegates virtual method overrides to a
+// Rust PlatformImpl trait object, following the inspector API pattern.
+class CustomPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
 
  public:
-  NotifyingPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
-                    void* context)
+  CustomPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
+                 void* context)
       : DefaultPlatform(thread_pool_size, idle_task_support),
         context_(context) {}
 
-  ~NotifyingPlatform() override {
-    v8__Platform__NotifyingPlatform__dropContext(context_);
+  ~CustomPlatform() override {
+    v8__Platform__CustomPlatform__BASE__DROP(context_);
   }
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
@@ -3104,10 +3105,10 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
       auto runner = it->second.lock();
       if (runner) return runner;
     }
-    auto notifying =
-        std::make_shared<NotifyingTaskRunner>(original, context_, isolate);
-    runners_[key] = notifying;
-    return notifying;
+    auto custom =
+        std::make_shared<CustomTaskRunner>(original, context_, isolate);
+    runners_[key] = custom;
+    return custom;
   }
 
   void NotifyIsolateShutdown(v8::Isolate* isolate) {
@@ -3121,6 +3122,8 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
         }
       }
     }
+    v8__Platform__CustomPlatform__BASE__onIsolateShutdown(
+        context_, static_cast<void*>(isolate));
     DefaultPlatform::NotifyIsolateShutdown(isolate);
   }
 
@@ -3132,7 +3135,7 @@ class NotifyingPlatform : public v8::platform::DefaultPlatform {
   void* context_;
   std::mutex mutex_;
   std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
-           std::weak_ptr<NotifyingTaskRunner>>
+           std::weak_ptr<CustomTaskRunner>>
       runners_;
 };
 
@@ -3189,14 +3192,14 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
       .release();
 }
 
-v8::Platform* v8__Platform__NewNotifyingPlatform(int thread_pool_size,
-                                                 bool idle_task_support,
-                                                 void* context) {
+v8::Platform* v8__Platform__NewCustomPlatform(int thread_pool_size,
+                                              bool idle_task_support,
+                                              void* context) {
   if (thread_pool_size < 1) {
     thread_pool_size = std::thread::hardware_concurrency();
   }
   thread_pool_size = std::max(std::min(thread_pool_size, 16), 1);
-  return std::make_unique<NotifyingPlatform>(
+  return std::make_unique<CustomPlatform>(
              thread_pool_size,
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
