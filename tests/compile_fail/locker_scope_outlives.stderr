@@ -1,0 +1,26 @@
+error[E0597]: `locker` does not live long enough
+  --> tests/compile_fail/locker_scope_outlives.rs:10:45
+   |
+9  |     let mut locker = v8::Locker::new(&mut isolate);
+   |         ---------- binding `locker` declared here
+10 |     scope = pin!(v8::HandleScope::new(&mut *locker));
+   |                                             ^^^^^^ borrowed value does not live long enough
+11 |   }
+   |   - `locker` dropped here while still borrowed
+12 |   // Error: locker is dropped but scope still references it
+13 |   let _scope = scope.init();
+   |                ----- borrow later used here
+
+error[E0716]: temporary value dropped while borrowed
+  --> tests/compile_fail/locker_scope_outlives.rs:10:13
+   |
+10 |     scope = pin!(v8::HandleScope::new(&mut *locker));
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^- temporary value is freed at the end of this statement
+   |             |
+   |             creates a temporary value which is freed while still in use
+...
+13 |   let _scope = scope.init();
+   |                ----- borrow later used here
+   |
+   = note: consider using a `let` binding to create a longer lived value
+   = note: this error originates in the macro `pin` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,10 @@
+error[E0499]: cannot borrow `isolate` as mutable more than once at a time
+  --> tests/compile_fail/locker_double_borrow.rs:9:34
+   |
+7  |   let _locker1 = v8::Locker::new(&mut isolate);
+   |                                  ------------ first mutable borrow occurs here
+8  |   // Error: cannot borrow `isolate` as mutable more than once
+9  |   let _locker2 = v8::Locker::new(&mut isolate);
+   |                                  ^^^^^^^^^^^^ second mutable borrow occurs here
+10 | }
+   | - first borrow might be used here, when `_locker1` is dropped and runs the `Drop` code for type `Locker`

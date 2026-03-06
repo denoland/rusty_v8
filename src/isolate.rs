@@ -931,6 +931,14 @@ impl Isolate {
     OwnedIsolate::new(Self::new_impl(params))
   }
 
+  /// Creates an isolate for use with `v8::Locker` in multi-threaded scenarios.
+  ///
+  /// Unlike `Isolate::new()`, this does not automatically enter the isolate.
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new_unentered(params: CreateParams) -> UnenteredIsolate {
+    UnenteredIsolate::new(Self::new_impl(params))
+  }
+
   #[allow(clippy::new_ret_no_self)]
   pub fn snapshot_creator(
     external_references: Option<Cow<'static, [ExternalReference]>>,
@@ -2155,6 +2163,91 @@ impl AsMut<Isolate> for Isolate {
   }
 }
 
+/// An isolate that must be accessed via [`Locker`].
+///
+/// Unlike [`OwnedIsolate`], this isolate does not automatically enter itself
+/// upon creation. Instead, you must use a [`Locker`] to access it:
+///
+/// ```ignore
+/// let mut isolate = v8::Isolate::new_unentered(Default::default());
+///
+/// // Access the isolate through a Locker
+/// {
+///     let mut locker = v8::Locker::new(&mut isolate);
+///     let scope = &mut v8::HandleScope::new(&mut *locker);
+///     // ... use scope ...
+/// }
+///
+/// // The locker is dropped, isolate can be used from another thread
+/// ```
+///
+/// # Thread Safety
+///
+/// `UnenteredIsolate` implements `Send`, meaning it can be transferred between
+/// threads. However, V8 isolates are not thread-safe by themselves. You must:
+///
+/// 1. Only access the isolate through a [`Locker`]
+/// 2. Never have multiple `Locker`s for the same isolate simultaneously
+///    (V8 will block if you try)
+///
+/// # Dropping
+///
+/// When dropped, the isolate will be properly disposed. The drop will panic
+/// if a [`Locker`] is currently held for this isolate.
+#[derive(Debug)]
+pub struct UnenteredIsolate {
+  cxx_isolate: NonNull<RealIsolate>,
+}
+
+impl UnenteredIsolate {
+  pub(crate) fn new(cxx_isolate: *mut RealIsolate) -> Self {
+    Self {
+      cxx_isolate: NonNull::new(cxx_isolate).unwrap(),
+    }
+  }
+
+  /// Returns the raw pointer to the underlying V8 isolate.
+  ///
+  /// # Safety
+  ///
+  /// The returned pointer is only valid while this `UnenteredIsolate` exists
+  /// and should only be used while a [`Locker`] is held.
+  #[inline]
+  pub fn as_raw(&self) -> *mut RealIsolate {
+    self.cxx_isolate.as_ptr()
+  }
+}
+
+impl Drop for UnenteredIsolate {
+  fn drop(&mut self) {
+    // Safety check: ensure no Locker is held
+    debug_assert!(
+      !crate::scope::raw::Locker::is_locked(self.cxx_isolate),
+      "Cannot drop UnenteredIsolate while a Locker is held. \
+       Drop the Locker first."
+    );
+
+    unsafe {
+      let isolate = Isolate::from_raw_ref_mut(&mut self.cxx_isolate);
+      let snapshot_creator =
+        isolate.get_annex_mut().maybe_snapshot_creator.take();
+      assert!(
+        snapshot_creator.is_none(),
+        "v8::UnenteredIsolate::create_blob must be called before dropping"
+      );
+      isolate.dispose_annex();
+      Platform::notify_isolate_shutdown(&get_current_platform(), isolate);
+      isolate.dispose();
+    }
+  }
+}
+
+// SAFETY: UnenteredIsolate can be sent between threads because:
+// 1. The underlying V8 isolate is not accessed directly - all access goes through Locker
+// 2. Locker ensures proper synchronization when accessing the isolate
+// 3. V8's Locker internally uses a mutex to prevent concurrent access
+unsafe impl Send for UnenteredIsolate {}
+
 /// Collection of V8 heap information.
 ///
 /// Instances of this class can be passed to v8::Isolate::GetHeapStatistics to
@@ -2472,5 +2565,148 @@ impl AsRef<Isolate> for OwnedIsolate {
 impl AsRef<Isolate> for Isolate {
   fn as_ref(&self) -> &Isolate {
     self
+  }
+}
+
+/// Acquires V8's per-isolate mutex (pure mutex, no Enter/Exit).
+///
+/// After `Locker::new()`, the isolate is locked but **not** entered — i.e.
+/// `Isolate::GetCurrent()` does not return this isolate. Use [`IsolateScope`]
+/// (via [`Locker::enter()`]) to enter the isolate before performing V8 work.
+///
+/// # Why the Locker doesn't Enter/Exit
+///
+/// V8's `Isolate::Enter()`/`Exit()` manage a per-isolate `entry_stack_` that
+/// stores the "previous isolate" at each nesting level. When multiple Lockers
+/// coexist on the same thread (e.g. cooperative scheduling via `spawn_local`),
+/// non-LIFO drop ordering causes `Exit()` to restore a stale pointer, leading
+/// to a NULL dereference on the next `Enter()`. By making the Locker a pure
+/// mutex and delegating Enter/Exit to short-lived [`IsolateScope`] guards,
+/// each Enter/Exit pair is properly nested within a single synchronous block.
+///
+/// # Thread Safety
+///
+/// `Locker` does not implement `Send` or `Sync`. Once created, it must be used
+/// only on the thread where it was created. The underlying `UnenteredIsolate`
+/// implements `Send`, allowing it to be transferred between threads, but a new
+/// `Locker` must be created on each thread that needs to access the isolate.
+pub struct Locker<'a> {
+  raw: std::mem::ManuallyDrop<crate::scope::raw::Locker>,
+  isolate: &'a mut UnenteredIsolate,
+}
+
+impl<'a> Locker<'a> {
+  /// Creates a new `Locker` for the given isolate.
+  ///
+  /// Acquires V8's per-isolate mutex. The isolate is **not** entered after
+  /// construction — use [`Locker::enter()`] to get an [`IsolateScope`].
+  pub fn new(isolate: &'a mut UnenteredIsolate) -> Self {
+    let mut raw = unsafe { crate::scope::raw::Locker::uninit() };
+    unsafe { raw.init(isolate.cxx_isolate) };
+
+    Self {
+      raw: std::mem::ManuallyDrop::new(raw),
+      isolate,
+    }
+  }
+
+  /// Enter the isolate, returning an [`IsolateScope`] that exits on drop.
+  ///
+  /// ```ignore
+  /// let mut locker = v8::Locker::new(&mut isolate);
+  /// let _scope = locker.enter();
+  /// let scope = std::pin::pin!(v8::HandleScope::new(&mut *locker));
+  /// // ... V8 work ...
+  /// // IsolateScope dropped → Isolate::Exit() → safe to yield
+  /// ```
+  pub fn enter(&mut self) -> IsolateScope {
+    // SAFETY: Locker holds &mut UnenteredIsolate (valid pointer) and
+    // the V8 mutex (acquired in new()).
+    unsafe { IsolateScope::new(self) }
+  }
+
+  /// Returns `true` if the given isolate is currently locked by any `Locker`.
+  pub fn is_locked(isolate: &UnenteredIsolate) -> bool {
+    crate::scope::raw::Locker::is_locked(isolate.cxx_isolate)
+  }
+}
+
+impl Drop for Locker<'_> {
+  fn drop(&mut self) {
+    // Release the V8 mutex only — no Exit() needed since the Locker
+    // never entered the isolate.
+    unsafe {
+      std::mem::ManuallyDrop::drop(&mut self.raw);
+    }
+  }
+}
+
+impl Deref for Locker<'_> {
+  type Target = Isolate;
+  fn deref(&self) -> &Self::Target {
+    unsafe { Isolate::from_raw_ref(&self.isolate.cxx_isolate) }
+  }
+}
+
+impl DerefMut for Locker<'_> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { Isolate::from_raw_ref_mut(&mut self.isolate.cxx_isolate) }
+  }
+}
+
+/// RAII scope that enters a V8 isolate on creation and exits on drop.
+///
+/// Calls `Isolate::Enter()` / `Isolate::Exit()`, managing V8's per-thread
+/// `Isolate::GetCurrent()` thread-local. Rust equivalent of C++
+/// `v8::Isolate::Scope`.
+///
+/// # Usage
+///
+/// ```ignore
+/// let mut locker = v8::Locker::new(&mut isolate);  // locks mutex only
+/// {
+///     let _scope = locker.enter();                  // Enter()
+///     let scope = pin!(v8::HandleScope::new(&mut *locker));
+///     // ... V8 work ...
+/// }
+/// // IsolateScope dropped → Exit() → safe to yield
+/// ```
+///
+/// # Why it exists
+///
+/// When multiple tasks share a thread (e.g. `spawn_local`), each holding a
+/// [`Locker`] for a different isolate, `GetCurrent()` can be stale after a
+/// yield. Wrapping each synchronous V8 block in an `IsolateScope` ensures
+/// correctness. V8's entry stack is per-isolate, so entering X does not
+/// interfere with Y's stack.
+///
+/// # Why `unsafe`
+///
+/// Stores a raw `*mut Isolate` to avoid exclusively borrowing the [`Locker`]
+/// (which would prevent creating `HandleScope` etc. from the same Locker).
+/// The caller must ensure:
+///
+/// - A [`Locker`] is held for this isolate for the entire scope lifetime.
+/// - The scope is dropped before any `.await` (stale `GetCurrent()` otherwise).
+pub struct IsolateScope {
+  isolate: *mut Isolate,
+}
+
+impl IsolateScope {
+  /// Enter the isolate (`Isolate::Enter()`). On drop, calls `Isolate::Exit()`.
+  ///
+  /// # Safety
+  ///
+  /// A [`Locker`] must be held for this isolate for the entire lifetime of the
+  /// returned scope.
+  pub unsafe fn new(isolate: &mut Isolate) -> Self {
+    unsafe { isolate.enter() };
+    Self { isolate }
+  }
+}
+
+impl Drop for IsolateScope {
+  fn drop(&mut self) {
+    unsafe { (*self.isolate).exit() };
   }
 }

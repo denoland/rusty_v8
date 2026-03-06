@@ -1,0 +1,14 @@
+error[E0597]: `isolate` does not live long enough
+  --> tests/compile_fail/locker_not_send.rs:7:32
+   |
+6  |     let mut isolate = v8::Isolate::new_unentered(mock());
+   |         ----------- binding `isolate` declared here
+7  |     let locker = v8::Locker::new(&mut isolate);
+   |                                  ^^^^^^^^^^^^ borrowed value does not live long enough
+...
+10 | /   std::thread::spawn(move || {
+11 | |     drop(locker);
+12 | |   });
+   | |____- argument requires that `isolate` is borrowed for `'static`
+13 |   }
+   |   - `isolate` dropped here while still borrowed
