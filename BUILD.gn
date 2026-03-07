@@ -3,12 +3,17 @@ import("//build/config/host_byteorder.gni")
 
 static_library("rusty_v8") {
   complete_static_lib = true
-  sources = [ "src/binding.cc" ]
+  sources = [
+    "src/binding.cc",
+    "src/crdtp_binding.cc",
+  ]
   deps = [
     "//build/config:shared_library_deps",
     "//v8:v8",
     "//v8:v8_libbase",
     "//v8:v8_libplatform",
+    "//v8/third_party/inspector_protocol:crdtp",
+    "//src/deno_inspector:deno_inspector_protocol",
   ]
   configs -= [
     "//build/config/compiler:default_init_stack_vars",
@@ -33,8 +38,12 @@ config("rusty_v8_config") {
   # We need these directories in the search path to be able to include some
   # internal V8 headers.
   include_dirs = [
+    ".",
     "v8",
+    "$target_gen_dir",
     "$target_gen_dir/v8",
+    "$target_gen_dir/src/inspector",
+    "$target_gen_dir/src/deno_inspector",
   ]
 
   if (is_debug) {
