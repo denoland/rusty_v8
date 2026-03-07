@@ -12734,7 +12734,8 @@ fn crdtp_create_response() {
 
   let json = v8::crdtp::cbor_to_json(&bytes);
   assert!(json.is_some());
-  let json_str = String::from_utf8_lossy(&json.unwrap());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
   assert!(json_str.contains("42"));
   assert!(json_str.contains("result"));
 }
@@ -12747,7 +12748,8 @@ fn crdtp_create_notification() {
 
   let json = v8::crdtp::cbor_to_json(&bytes);
   assert!(json.is_some());
-  let json_str = String::from_utf8_lossy(&json.unwrap());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
   assert!(json_str.contains("Test.event"));
 }
 
@@ -13106,7 +13108,8 @@ fn crdtp_create_error_notification() {
 
   let json = v8::crdtp::cbor_to_json(&bytes);
   assert!(json.is_some());
-  let json_str = String::from_utf8_lossy(&json.unwrap());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
   assert!(json_str.contains("error"));
   assert!(json_str.contains("internal failure"));
 }
