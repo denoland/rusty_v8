@@ -11,7 +11,6 @@ unsafe extern "C" {
   fn crdtp__FrontendChannel__BASE__CONSTRUCT(
     buf: *mut MaybeUninit<RawFrontendChannel>,
   );
-  fn crdtp__FrontendChannel__BASE__SIZE() -> usize;
 
   fn crdtp__Serializable__DELETE(this: *mut RawSerializable);
   fn crdtp__Serializable__AppendSerialized(
@@ -98,7 +97,6 @@ unsafe extern "C" {
   fn crdtp__vec_u8__new() -> *mut CppVecU8;
   fn crdtp__vec_u8__DELETE(this: *mut CppVecU8);
   fn crdtp__vec_u8__size(this: *const CppVecU8) -> usize;
-  fn crdtp__vec_u8__data(this: *const CppVecU8) -> *const u8;
   fn crdtp__vec_u8__copy(this: *const CppVecU8, out: *mut u8);
 
   fn crdtp__json__ConvertJSONToCBOR(
@@ -184,7 +182,7 @@ impl Serializable {
     }
   }
 
-  pub fn into_raw(self) -> *mut RawSerializable {
+  pub(crate) fn into_raw(self) -> *mut RawSerializable {
     let ptr = self.ptr;
     std::mem::forget(self);
     ptr
@@ -363,7 +361,7 @@ impl DispatchResponse {
     }
   }
 
-  pub fn into_raw(self) -> *mut DispatchResponseWrapper {
+  pub(crate) fn into_raw(self) -> *mut DispatchResponseWrapper {
     let ptr = self.ptr;
     std::mem::forget(self);
     ptr
@@ -404,11 +402,6 @@ pub struct FrontendChannel {
 impl FrontendChannel {
   /// Create a new FrontendChannel wrapping the given implementation.
   pub fn new(imp: Box<dyn FrontendChannelImpl>) -> Pin<Box<Self>> {
-    // Ensure our RawFrontendChannel is large enough for the C++ object.
-    assert!(
-      std::mem::size_of::<RawFrontendChannel>()
-        >= unsafe { crdtp__FrontendChannel__BASE__SIZE() }
-    );
     let mut channel = Box::new(Self {
       raw: UnsafeCell::new(unsafe { MaybeUninit::zeroed().assume_init() }),
       imp,
@@ -426,10 +419,12 @@ impl FrontendChannel {
   }
 
   unsafe fn from_raw<'a>(ptr: *mut RawFrontendChannel) -> &'a mut Self {
-    let channel_ptr = ptr as *mut u8;
-    let offset = std::mem::offset_of!(FrontendChannel, raw);
-    let self_ptr = channel_ptr.sub(offset) as *mut Self;
-    &mut *self_ptr
+    unsafe {
+      let channel_ptr = ptr as *mut u8;
+      let offset = std::mem::offset_of!(FrontendChannel, raw);
+      let self_ptr = channel_ptr.sub(offset) as *mut Self;
+      &mut *self_ptr
+    }
   }
 }
 
@@ -522,8 +517,8 @@ impl UberDispatcher {
     }
   }
 
-  /// Get the frontend channel.
-  pub fn channel(&mut self) -> *mut RawFrontendChannel {
+  /// Get the frontend channel (internal use only).
+  fn channel(&mut self) -> *mut RawFrontendChannel {
     unsafe { crdtp__UberDispatcher__channel(self) }
   }
 

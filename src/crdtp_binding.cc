@@ -50,10 +50,6 @@ void crdtp__FrontendChannel__BASE__CONSTRUCT(
   construct_in_place<crdtp__FrontendChannel__BASE>(buf);
 }
 
-size_t crdtp__FrontendChannel__BASE__SIZE() {
-  return sizeof(crdtp__FrontendChannel__BASE);
-}
-
 void crdtp__Serializable__DELETE(Serializable* self) { delete self; }
 
 // Serialize once into a caller-provided CppVecU8 to avoid double-serialization.
@@ -244,10 +240,6 @@ void crdtp__vec_u8__DELETE(std::vector<uint8_t>* self) { delete self; }
 
 size_t crdtp__vec_u8__size(const std::vector<uint8_t>* self) {
   return self->size();
-}
-
-const uint8_t* crdtp__vec_u8__data(const std::vector<uint8_t>* self) {
-  return self->data();
 }
 
 void crdtp__vec_u8__copy(const std::vector<uint8_t>* self, uint8_t* out) {
