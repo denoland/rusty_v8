@@ -13091,9 +13091,9 @@ fn crdtp_multiple_domains() {
   assert!(!result.method_found());
   result.run();
 
-  // Two successful responses (Alpha + Beta), no response for Gamma
+  // Three responses: Alpha success, Beta success, Gamma error (method not found)
   let s = state.borrow();
-  assert_eq!(s.responses.len(), 2);
+  assert_eq!(s.responses.len(), 3);
 }
 
 #[test]
