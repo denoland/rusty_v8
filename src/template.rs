@@ -24,6 +24,7 @@ use crate::SideEffectType;
 use crate::Signature;
 use crate::String;
 use crate::Value;
+pub use crate::binding::v8__Intercepted as Intercepted;
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
@@ -144,14 +145,6 @@ unsafe extern "C" {
   );
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
-}
-
-/// Interceptor callbacks use this value to indicate whether the request was
-/// intercepted or not.
-#[repr(u8)]
-pub enum Intercepted {
-  No,
-  Yes,
 }
 
 pub type AccessorNameGetterCallback = NamedGetterCallbackForAccessor;

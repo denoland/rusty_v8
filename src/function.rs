@@ -97,9 +97,6 @@ unsafe extern "C" {
   fn v8__PropertyCallbackInfo__Data(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Value;
-  fn v8__PropertyCallbackInfo__This(
-    this: *const RawPropertyCallbackInfo,
-  ) -> *const Object;
   fn v8__PropertyCallbackInfo__Holder(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Object;
@@ -403,52 +400,6 @@ impl<'s> PropertyCallbackArguments<'s> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__Holder(self.0))
         .unwrap_unchecked()
-    }
-  }
-
-  /// Returns the receiver. In many cases, this is the object on which the
-  /// property access was intercepted. When using
-  /// `Reflect.get`, `Function.prototype.call`, or similar functions, it is the
-  /// object passed in as receiver or thisArg.
-  ///
-  /// ```c++
-  ///   void GetterCallback(Local<Name> name,
-  ///                       const v8::PropertyCallbackInfo<v8::Value>& info) {
-  ///      auto context = info.GetIsolate()->GetCurrentContext();
-  ///
-  ///      v8::Local<v8::Value> a_this =
-  ///          info.This()
-  ///              ->GetRealNamedProperty(context, v8_str("a"))
-  ///              .ToLocalChecked();
-  ///      v8::Local<v8::Value> a_holder =
-  ///          info.Holder()
-  ///              ->GetRealNamedProperty(context, v8_str("a"))
-  ///              .ToLocalChecked();
-  ///
-  ///     CHECK(v8_str("r")->Equals(context, a_this).FromJust());
-  ///     CHECK(v8_str("obj")->Equals(context, a_holder).FromJust());
-  ///
-  ///     info.GetReturnValue().Set(name);
-  ///   }
-  ///
-  ///   v8::Local<v8::FunctionTemplate> templ =
-  ///   v8::FunctionTemplate::New(isolate);
-  ///   templ->InstanceTemplate()->SetHandler(
-  ///       v8::NamedPropertyHandlerConfiguration(GetterCallback));
-  ///   LocalContext env;
-  ///   env->Global()
-  ///       ->Set(env.local(), v8_str("obj"), templ->GetFunction(env.local())
-  ///                                            .ToLocalChecked()
-  ///                                            ->NewInstance(env.local())
-  ///                                            .ToLocalChecked())
-  ///       .FromJust();
-  ///
-  ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
-  /// ```
-  #[inline(always)]
-  pub fn this(&self) -> Local<'s, Object> {
-    unsafe {
-      Local::from_raw(v8__PropertyCallbackInfo__This(self.0)).unwrap_unchecked()
     }
   }
 

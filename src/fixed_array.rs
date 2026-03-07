@@ -1,19 +1,15 @@
-use crate::scope::PinScope;
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
-use crate::Context;
+
 use crate::Data;
 use crate::FixedArray;
 use crate::Local;
+use crate::scope::PinScope;
 use crate::support::int;
 
 unsafe extern "C" {
   fn v8__FixedArray__Length(this: *const FixedArray) -> int;
 
-  fn v8__FixedArray__Get(
-    this: *const FixedArray,
-    context: *const Context,
-    index: int,
-  ) -> *const Data;
+  fn v8__FixedArray__Get(this: *const FixedArray, index: int) -> *const Data;
 }
 
 impl FixedArray {
@@ -32,10 +28,6 @@ impl FixedArray {
       return None;
     }
 
-    unsafe {
-      scope.cast_local(|sd| {
-        v8__FixedArray__Get(self, &*sd.get_current_context(), index as int)
-      })
-    }
+    unsafe { scope.cast_local(|_| v8__FixedArray__Get(self, index as int)) }
   }
 }

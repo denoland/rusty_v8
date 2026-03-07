@@ -1887,9 +1887,8 @@ fn object_template_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -1909,9 +1908,8 @@ fn object_template_set_accessor() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
                   _rv: v8::ReturnValue<()>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -1927,9 +1925,8 @@ fn object_template_set_accessor() {
        key: v8::Local<v8::Name>,
        args: v8::PropertyCallbackArguments,
        mut rv: v8::ReturnValue<v8::Value>| {
-        let this = args.this();
+        let this = args.holder();
 
-        assert_eq!(args.holder(), this);
         assert!(args.data().is_string());
         assert!(!args.should_throw_on_error());
         assert_eq!(args.data().to_rust_string_lossy(scope), "data");
@@ -1951,9 +1948,8 @@ fn object_template_set_accessor() {
        value: v8::Local<v8::Value>,
        args: v8::PropertyCallbackArguments,
        _rv: v8::ReturnValue<()>| {
-        let this = args.this();
+        let this = args.holder();
 
-        assert_eq!(args.holder(), this);
         assert!(args.data().is_string());
         assert!(!args.should_throw_on_error());
         assert_eq!(args.data().to_rust_string_lossy(scope), "data");
@@ -2107,12 +2103,11 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2125,7 +2120,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       rv.set(internal_field);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let setter = |scope: &mut v8::PinScope,
@@ -2135,17 +2130,16 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue<()>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2156,7 +2150,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let query = |scope: &mut v8::PinScope,
@@ -2165,17 +2159,16 @@ fn object_template_set_named_property_handler() {
                  mut rv: v8::ReturnValue<v8::Integer>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2190,7 +2183,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       assert!(internal_field.strict_equals(expected_value.into()));
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let deleter = |scope: &mut v8::PinScope,
@@ -2199,10 +2192,10 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2210,15 +2203,14 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, v8::undefined(scope).into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let enumerator = |scope: &mut v8::PinScope,
                       args: v8::PropertyCallbackArguments,
                       mut rv: v8::ReturnValue<v8::Array>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2244,10 +2236,10 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue<()>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2269,7 +2261,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let descriptor = |scope: &mut v8::PinScope,
@@ -2278,10 +2270,10 @@ fn object_template_set_named_property_handler() {
                       mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2302,7 +2294,7 @@ fn object_template_set_named_property_handler() {
       descriptor.set(scope, writable_key.into(), writable.into());
 
       rv.set(descriptor.into());
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let name = v8::String::new(scope, "obj").unwrap();
@@ -2600,7 +2592,7 @@ fn object_template_set_indexed_property_handler() {
                 index: u32,
                 args: v8::PropertyCallbackArguments,
                 mut rv: v8::ReturnValue<v8::Value>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
@@ -2614,7 +2606,7 @@ fn object_template_set_indexed_property_handler() {
       .try_into()
       .unwrap();
     rv.set(internal_field);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let setter = |_scope: &mut v8::PinScope,
@@ -2622,9 +2614,8 @@ fn object_template_set_indexed_property_handler() {
                 value: v8::Local<v8::Value>,
                 args: v8::PropertyCallbackArguments,
                 mut rv: v8::ReturnValue<()>| {
-    let this = args.this();
+    let this = args.holder();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
     assert!(!args.should_throw_on_error());
 
@@ -2634,7 +2625,7 @@ fn object_template_set_indexed_property_handler() {
     assert!(this.set_internal_field(0, value.into()));
 
     rv.set_bool(true);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let query = |_scope: &mut v8::PinScope,
@@ -2642,14 +2633,14 @@ fn object_template_set_indexed_property_handler() {
                _args: v8::PropertyCallbackArguments,
                mut rv: v8::ReturnValue<v8::Integer>| {
     if index == 12 {
-      return v8::Intercepted::No;
+      return v8::Intercepted::kNo;
     }
 
     assert_eq!(index, 37);
 
     // PropertyAttribute::READ_ONLY
     rv.set_int32(1);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let deleter = |_scope: &mut v8::PinScope,
@@ -2659,15 +2650,14 @@ fn object_template_set_indexed_property_handler() {
     assert_eq!(index, 37);
 
     rv.set_bool(false);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let enumerator = |scope: &mut v8::PinScope,
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue<v8::Array>| {
-    let this = args.this();
+    let this = args.holder();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
     assert!(!args.should_throw_on_error());
 
@@ -2690,7 +2680,7 @@ fn object_template_set_indexed_property_handler() {
                  desc: &v8::PropertyDescriptor,
                  args: v8::PropertyCallbackArguments,
                  mut rv: v8::ReturnValue<()>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(index, 37);
 
@@ -2705,14 +2695,14 @@ fn object_template_set_indexed_property_handler() {
     this.set_internal_field(0, value.into());
 
     rv.set_bool(true);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let descriptor = |scope: &mut v8::PinScope,
                     index: u32,
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue<v8::Value>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(index, 37);
 
@@ -2732,7 +2722,7 @@ fn object_template_set_indexed_property_handler() {
     descriptor.set(scope, writable_key.into(), writable.into());
 
     rv.set(descriptor.into());
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let name = v8::String::new(scope, "obj").unwrap();
@@ -3152,9 +3142,8 @@ fn object_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3211,9 +3200,8 @@ fn object_set_accessor_with_setter() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3239,9 +3227,8 @@ fn object_set_accessor_with_setter() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3314,9 +3301,8 @@ fn object_set_accessor_with_setter_with_property() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3342,9 +3328,8 @@ fn object_set_accessor_with_setter_with_property() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3418,9 +3403,8 @@ fn object_set_accessor_with_data() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_string());
       assert!(!args.should_throw_on_error());
 
@@ -3449,9 +3433,8 @@ fn object_set_accessor_with_data() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_string());
       assert!(!args.should_throw_on_error());
 
@@ -4556,9 +4539,9 @@ fn security_token() {
             let obj = v8::Local::<v8::Object>::try_from(args.data()).unwrap();
             if let Some(val) = obj.get(scope, key.into()) {
               rv.set(val);
-              v8::Intercepted::Yes
+              v8::Intercepted::kYes
             } else {
-              v8::Intercepted::No
+              v8::Intercepted::kNo
             }
           },
         )
@@ -4623,7 +4606,7 @@ fn context_with_object_template() {
     _rv: v8::ReturnValue<()>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("definer".to_string());
-    v8::Intercepted::No
+    v8::Intercepted::kNo
   }
 
   pub fn setter<'s>(
@@ -4634,7 +4617,7 @@ fn context_with_object_template() {
     _rv: v8::ReturnValue<()>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("setter".to_string());
-    v8::Intercepted::No
+    v8::Intercepted::kNo
   }
 
   {
@@ -7690,6 +7673,82 @@ fn heap_limits() {
   assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
 
+#[test]
+fn resource_constraints() {
+  let _setup_guard = setup::parallel_test();
+
+  // Test setting and getting individual resource constraint values.
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(128 * 1024 * 1024)
+    .set_max_young_generation_size_in_bytes(16 * 1024 * 1024)
+    .set_code_range_size_in_bytes(64 * 1024 * 1024)
+    .set_initial_old_generation_size_in_bytes(8 * 1024 * 1024)
+    .set_initial_young_generation_size_in_bytes(2 * 1024 * 1024);
+
+  assert_eq!(params.max_old_generation_size_in_bytes(), 128 * 1024 * 1024);
+  assert_eq!(
+    params.max_young_generation_size_in_bytes(),
+    16 * 1024 * 1024
+  );
+  assert_eq!(params.code_range_size_in_bytes(), 64 * 1024 * 1024);
+  assert_eq!(
+    params.initial_old_generation_size_in_bytes(),
+    8 * 1024 * 1024
+  );
+  assert_eq!(
+    params.initial_young_generation_size_in_bytes(),
+    2 * 1024 * 1024
+  );
+
+  // Default stack_limit should be null.
+  assert!(params.stack_limit().is_null());
+
+  // Verify that an isolate can be created with these constraints.
+  let isolate = &mut v8::Isolate::new(params);
+  let s = isolate.get_heap_statistics();
+  // The heap limit should reflect the configured max old generation size.
+  // V8 may round or adjust the value, but it should be close.
+  assert!(s.heap_size_limit() > 0);
+}
+
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
+#[test]
+fn resource_constraints_near_heap_limit() {
+  let _setup_guard = setup::parallel_test();
+
+  // Use individual resource constraint setters to limit the old generation
+  // to 8 MB (similar to heap_limits test but using the new API).
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(8 * 1024 * 1024);
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut test_state = TestHeapLimitState::default();
+  let state_ptr = &mut test_state as *mut _ as *mut c_void;
+  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  for _ in 0..1_000_000 {
+    eval(
+      scope,
+      r#"
+        "hello 🦕 world"
+          .repeat(10)
+          .split("🦕")
+          .map((s) => s.repeat(100).split("o"))
+        "#,
+    )
+    .unwrap();
+    if test_state.near_heap_limit_callback_calls > 0 {
+      break;
+    }
+  }
+  assert_eq!(1, test_state.near_heap_limit_callback_calls);
+}
+
 // Same as heap_limits()
 #[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
@@ -7731,6 +7790,42 @@ fn heap_statistics() {
   assert_ne!(s.used_global_handles_size(), 0);
   assert_ne!(s.total_global_handles_size(), 0);
   assert_ne!(s.number_of_native_contexts(), 0);
+}
+
+#[test]
+fn heap_code_statistics() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  // Before running any code, statistics should still be available.
+  let s = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // Before running any code, code_and_metadata_size may or may not be > 0
+  // depending on the platform and V8 version.
+  // external_script_source_size and cpu_profiler_metadata_size start at 0.
+  assert_eq!(s.external_script_source_size(), 0);
+  assert_eq!(s.cpu_profiler_metadata_size(), 0);
+
+  // Run some JS to generate bytecode.
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, "function foo() { return 1 + 2; } foo();").unwrap();
+  }
+
+  let s2 = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // After compiling code, bytecode_and_metadata_size should increase.
+  assert!(s2.bytecode_and_metadata_size() > 0);
+  // code_and_metadata_size tracks JIT-compiled code, which may be 0 if V8
+  // only uses the interpreter for simple scripts.
+  assert!(s2.code_and_metadata_size() >= s.code_and_metadata_size());
 }
 
 #[test]
@@ -8722,12 +8817,12 @@ fn clear_kept_objects() {
 #[test]
 fn wasm_streaming_callback() {
   thread_local! {
-    static WS: RefCell<Option<v8::WasmStreaming>> = const { RefCell::new(None) };
+    static WS: RefCell<Option<v8::WasmStreaming<false>>> = const { RefCell::new(None) };
   }
 
   let callback = |scope: &mut v8::PinScope,
                   url: v8::Local<v8::Value>,
-                  ws: v8::WasmStreaming| {
+                  ws: v8::WasmStreaming<false>| {
     assert_eq!("https://example.com", url.to_rust_string_lossy(scope));
     WS.with(|slot| assert!(slot.borrow_mut().replace(ws).is_none()));
   };
@@ -8797,6 +8892,60 @@ fn wasm_streaming_callback() {
     false, // don't block if there are no tasks
   ) {}
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
+}
+
+#[test]
+fn wasm_module_compilation() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Start compilation.
+  let mut compilation = v8::WasmModuleCompilation::new();
+
+  // MVP of WASM modules: magic marker + version 1.
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+
+  compilation.set_url("https://example.com/test.wasm");
+
+  // Finish compilation.
+  let result: Rc<RefCell<Option<v8::Global<v8::WasmModuleObject>>>> =
+    Rc::new(RefCell::new(None));
+  let result_clone = result.clone();
+  compilation.finish(scope, None, move |isolate, r| match r {
+    Ok(module) => {
+      result_clone
+        .borrow_mut()
+        .replace(v8::Global::new(isolate, module));
+    }
+    Err(_) => panic!("wasm compilation failed"),
+  });
+
+  // Execute pending tasks.
+  while v8::Platform::pump_message_loop(
+    &v8::V8::get_current_platform(),
+    scope,
+    false,
+  ) {}
+
+  let global_module = result.borrow_mut().take();
+  assert!(global_module.is_some());
+}
+
+#[test]
+fn wasm_module_compilation_abort() {
+  let _setup_guard = setup::parallel_test();
+
+  // Start compilation and abort it.
+  let mut compilation = v8::WasmModuleCompilation::new();
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+  compilation.abort();
 }
 
 #[test]
@@ -9089,7 +9238,7 @@ fn run_with_rust_allocator() {
   unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
     count.fetch_sub(n, Ordering::SeqCst);
     let _ = unsafe {
-      Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n))
+      Box::from_raw(std::ptr::slice_from_raw_parts_mut(data as *mut u8, n))
     };
   }
   unsafe extern "C" fn drop(count: *const AtomicUsize) {
@@ -11034,7 +11183,7 @@ fn test_fast_calls_reciever() {
   fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
     unsafe {
       WHO = "fast";
-      let embedder_obj = recv.get_aligned_pointer_from_internal_field(0);
+      let embedder_obj = recv.get_aligned_pointer_from_internal_field(0, 0);
 
       let i = *(embedder_obj as *const u32);
       assert_eq!(i, 69);
@@ -11072,7 +11221,7 @@ fn test_fast_calls_reciever() {
 
   let obj = object_template.new_instance(scope).unwrap();
   let embedder_obj = Box::into_raw(Box::new(69u32));
-  obj.set_aligned_pointer_in_internal_field(0, embedder_obj as _);
+  obj.set_aligned_pointer_in_internal_field(0, embedder_obj as _, 0);
 
   let template =
     v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
