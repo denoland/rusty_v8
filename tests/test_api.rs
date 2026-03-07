@@ -12919,13 +12919,11 @@ fn crdtp_dispatchable_missing_fields() {
   // crdtp considers missing method as ok=false
   assert!(!dispatchable.ok());
 
-  // Missing "id" field — valid for notifications
+  // Missing "id" field — crdtp requires an integer id for all dispatchables
   let json = r#"{"method":"Test.event","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
   let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
-  assert!(dispatchable.ok());
-  assert!(!dispatchable.has_call_id());
-  assert_eq!(dispatchable.method_str(), "Test.event");
+  assert!(!dispatchable.ok());
 }
 
 #[test]
