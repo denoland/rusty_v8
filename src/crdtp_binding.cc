@@ -291,3 +291,69 @@ Serializable* crdtp__CreateErrorNotification(
 }
 
 }  // extern "C"
+
+// DomainDispatcher binding - allows Rust to implement domain dispatchers.
+
+extern "C" {
+// Rust callback: given a domain dispatcher pointer and a command name,
+// returns a bool indicating if the command was found. If found, the
+// dispatcher should handle the dispatchable when
+// crdtp__DomainDispatcher__BASE__Run is called.
+bool crdtp__DomainDispatcher__BASE__Dispatch(void* rust_dispatcher,
+                                             const uint8_t* command_data,
+                                             size_t command_len,
+                                             const Dispatchable* dispatchable);
+}
+
+struct crdtp__DomainDispatcher__BASE : public DomainDispatcher {
+  void* rust_dispatcher_;
+
+  crdtp__DomainDispatcher__BASE(FrontendChannel* channel, void* rust_dispatcher)
+      : DomainDispatcher(channel), rust_dispatcher_(rust_dispatcher) {}
+
+  std::function<void(const Dispatchable&)> Dispatch(
+      span<uint8_t> command_name) override {
+    // We need to probe whether the Rust side handles this command.
+    // We pass a nullptr dispatchable for the probe phase.
+    bool found = crdtp__DomainDispatcher__BASE__Dispatch(
+        rust_dispatcher_, command_name.data(), command_name.size(), nullptr);
+    if (!found) {
+      return nullptr;
+    }
+    // Return a closure that will call the Rust side with the actual
+    // dispatchable.
+    return [this, command_name](const Dispatchable& dispatchable) {
+      crdtp__DomainDispatcher__BASE__Dispatch(
+          rust_dispatcher_, command_name.data(), command_name.size(),
+          &dispatchable);
+    };
+  }
+};
+
+extern "C" {
+
+crdtp__DomainDispatcher__BASE* crdtp__DomainDispatcher__new(
+    FrontendChannel* channel, void* rust_dispatcher) {
+  return new crdtp__DomainDispatcher__BASE(channel, rust_dispatcher);
+}
+
+void crdtp__DomainDispatcher__sendResponse(crdtp__DomainDispatcher__BASE* self,
+                                           int call_id,
+                                           DispatchResponseWrapper* response,
+                                           Serializable* result) {
+  std::unique_ptr<Serializable> result_ptr(result);
+  self->sendResponse(call_id, std::move(response->inner),
+                     std::move(result_ptr));
+  delete response;
+}
+
+void crdtp__UberDispatcher__WireBackend(
+    UberDispatcher* uber, const uint8_t* domain_data, size_t domain_len,
+    crdtp__DomainDispatcher__BASE* dispatcher) {
+  std::unique_ptr<DomainDispatcher> dispatcher_ptr(dispatcher);
+  uber->WireBackend(span<uint8_t>(domain_data, domain_len),
+                    std::vector<std::pair<span<uint8_t>, span<uint8_t>>>(),
+                    std::move(dispatcher_ptr));
+}
+
+}  // extern "C"

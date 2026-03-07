@@ -4,13 +4,14 @@
 
 #include <cassert>
 #include <cstring>
+#include <memory>
 #include <sstream>
 #include <string>
-#include <memory>
 #include <vector>
+
+#include "v8-inspector.h"
 #include "v8/third_party/inspector_protocol/crdtp/protocol_core.h"
 #include "v8/third_party/inspector_protocol/crdtp/span.h"
-#include "v8-inspector.h"
 
 // Provide DCHECK macros that the generated protocol code expects
 #ifndef DCHECK
@@ -56,13 +57,11 @@ struct StringUtil {
   static String fromUTF16(const uint16_t* data, size_t length);
   static String fromUTF8(const uint8_t* data, size_t length);
   static String fromUTF16LE(const uint16_t* data, size_t length);
-  static const uint8_t* CharactersUTF8(const std::string_view s);
-  static size_t CharacterCount(const std::string_view s);
+  static const uint8_t* CharactersUTF8(const String& s);
+  static size_t CharacterCount(const String& s);
 
-  inline static uint8_t* CharactersLatin1(const std::string_view s) {
-    return nullptr;
-  }
-  inline static const uint16_t* CharactersUTF16(const std::string_view s) {
+  inline static uint8_t* CharactersLatin1(const String& s) { return nullptr; }
+  inline static const uint16_t* CharactersUTF16(const String& s) {
     return nullptr;
   }
 };
@@ -80,8 +79,7 @@ class Binary {
   static Binary concat(const std::vector<Binary>& binaries);
   static Binary fromBase64(const String& base64, bool* success);
   static Binary fromSpan(const uint8_t* data, size_t size) {
-    return Binary(
-        std::make_shared<std::vector<uint8_t>>(data, data + size));
+    return Binary(std::make_shared<std::vector<uint8_t>>(data, data + size));
   }
   // Overload for v8_crdtp::span used by generated protocol code
   static Binary fromSpan(v8_crdtp::span<uint8_t> bytes) {

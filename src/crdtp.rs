@@ -3,6 +3,7 @@
 use crate::support::CxxVTable;
 use crate::support::Opaque;
 use std::cell::UnsafeCell;
+use std::ffi::CString;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
@@ -124,12 +125,29 @@ unsafe extern "C" {
     params: *mut RawSerializable,
   ) -> *mut RawSerializable;
   fn crdtp__CreateNotification(
-    method: *const u8,
+    method: *const std::ffi::c_char,
     params: *mut RawSerializable,
   ) -> *mut RawSerializable;
   fn crdtp__CreateErrorNotification(
     response: *mut DispatchResponseWrapper,
   ) -> *mut RawSerializable;
+
+  fn crdtp__DomainDispatcher__new(
+    channel: *mut RawFrontendChannel,
+    rust_dispatcher: *mut std::ffi::c_void,
+  ) -> *mut RawDomainDispatcher;
+  fn crdtp__DomainDispatcher__sendResponse(
+    this: *mut RawDomainDispatcher,
+    call_id: i32,
+    response: *mut DispatchResponseWrapper,
+    result: *mut RawSerializable,
+  );
+  fn crdtp__UberDispatcher__WireBackend(
+    uber: *mut UberDispatcher,
+    domain_data: *const u8,
+    domain_len: usize,
+    dispatcher: *mut RawDomainDispatcher,
+  );
 }
 
 #[repr(C)]
@@ -149,6 +167,9 @@ struct CppVecU8(Opaque);
 
 #[repr(C)]
 struct RawSerializable(Opaque);
+
+#[repr(C)]
+struct RawDomainDispatcher(Opaque);
 
 pub struct Serializable {
   ptr: *mut RawSerializable,
@@ -580,5 +601,154 @@ pub fn create_error_notification(response: DispatchResponse) -> Serializable {
   unsafe {
     let ptr = crdtp__CreateErrorNotification(response.into_raw());
     Serializable { ptr }
+  }
+}
+
+/// Create a success response message with optional result params.
+pub fn create_response(
+  call_id: i32,
+  params: Option<Serializable>,
+) -> Serializable {
+  unsafe {
+    let params_ptr = match params {
+      Some(p) => p.into_raw(),
+      None => std::ptr::null_mut(),
+    };
+    let ptr = crdtp__CreateResponse(call_id, params_ptr);
+    Serializable { ptr }
+  }
+}
+
+/// Create a notification message with a method name and optional params.
+pub fn create_notification(
+  method: &str,
+  params: Option<Serializable>,
+) -> Serializable {
+  unsafe {
+    let method_cstr =
+      CString::new(method).expect("method name must not contain null bytes");
+    let params_ptr = match params {
+      Some(p) => p.into_raw(),
+      None => std::ptr::null_mut(),
+    };
+    let ptr = crdtp__CreateNotification(method_cstr.as_ptr(), params_ptr);
+    Serializable { ptr }
+  }
+}
+
+/// Trait for implementing a domain-specific protocol dispatcher.
+///
+/// The `dispatch` method is called in two phases:
+/// 1. **Probe phase** (`dispatchable` is `None`): Return `true` if this
+///    domain handles the given command name.
+/// 2. **Execute phase** (`dispatchable` is `Some`): Handle the command
+///    and send a response via the `DomainDispatcherHandle`.
+pub trait DomainDispatcherImpl {
+  fn dispatch(
+    &mut self,
+    command: &[u8],
+    dispatchable: Option<&Dispatchable>,
+    handle: &DomainDispatcherHandle,
+  ) -> bool;
+}
+
+/// Handle to the C++ DomainDispatcher, used to send responses.
+pub struct DomainDispatcherHandle {
+  ptr: *mut RawDomainDispatcher,
+}
+
+impl DomainDispatcherHandle {
+  /// Send a response for a dispatched command.
+  pub fn send_response(
+    &self,
+    call_id: i32,
+    response: DispatchResponse,
+    result: Option<Serializable>,
+  ) {
+    unsafe {
+      let result_ptr = match result {
+        Some(r) => r.into_raw(),
+        None => std::ptr::null_mut(),
+      };
+      crdtp__DomainDispatcher__sendResponse(
+        self.ptr,
+        call_id,
+        response.into_raw(),
+        result_ptr,
+      );
+    }
+  }
+}
+
+/// A domain dispatcher that delegates to a Rust `DomainDispatcherImpl`.
+pub struct DomainDispatcher {
+  ptr: *mut RawDomainDispatcher,
+  _imp: Box<dyn DomainDispatcherImpl>,
+}
+
+impl DomainDispatcher {
+  /// Create a new DomainDispatcher for the given domain, backed by a Rust
+  /// implementation. The dispatcher is immediately wired to the
+  /// UberDispatcher.
+  pub fn wire(
+    uber: &mut UberDispatcher,
+    domain: &str,
+    imp: Box<dyn DomainDispatcherImpl>,
+  ) {
+    let mut dd = Box::new(DomainDispatcher {
+      ptr: std::ptr::null_mut(),
+      _imp: imp,
+    });
+
+    // The domain name must outlive the UberDispatcher since it's stored
+    // as a span (pointer + length) internally. We leak it to ensure this.
+    let domain_bytes = domain.as_bytes().to_vec().leak();
+
+    unsafe {
+      let rust_ptr = &mut *dd as *mut DomainDispatcher as *mut std::ffi::c_void;
+      let channel = crdtp__UberDispatcher__channel(uber);
+      let raw = crdtp__DomainDispatcher__new(channel, rust_ptr);
+      dd.ptr = raw;
+
+      crdtp__UberDispatcher__WireBackend(
+        uber,
+        domain_bytes.as_ptr(),
+        domain_bytes.len(),
+        raw,
+      );
+    }
+
+    // Leak the DomainDispatcher - it's now owned by the UberDispatcher via
+    // the C++ side. The UberDispatcher will destroy the C++ DomainDispatcher
+    // when it's dropped, but we need the Rust side to live as long.
+    // We store it as a leaked Box; the UberDispatcher's drop will handle
+    // the C++ side.
+    Box::leak(dd);
+  }
+
+  unsafe fn from_raw<'a>(
+    ptr: *mut std::ffi::c_void,
+  ) -> &'a mut DomainDispatcher {
+    &mut *(ptr as *mut DomainDispatcher)
+  }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn crdtp__DomainDispatcher__BASE__Dispatch(
+  rust_dispatcher: *mut std::ffi::c_void,
+  command_data: *const u8,
+  command_len: usize,
+  dispatchable: *const Dispatchable,
+) -> bool {
+  unsafe {
+    let dd = DomainDispatcher::from_raw(rust_dispatcher);
+    let command = std::slice::from_raw_parts(command_data, command_len);
+    let handle = DomainDispatcherHandle { ptr: dd.ptr };
+    let dispatchable_ref = if dispatchable.is_null() {
+      None
+    } else {
+      Some(&*dispatchable)
+    };
+    dd._imp.dispatch(command, dispatchable_ref, &handle)
   }
 }

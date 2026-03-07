@@ -12725,3 +12725,112 @@ fn crdtp_e2e_with_v8_inspector() {
 
   inspector.context_destroyed(context);
 }
+
+#[test]
+fn crdtp_create_response() {
+  let serializable = v8::crdtp::create_response(42, None);
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_str = String::from_utf8_lossy(&json.unwrap());
+  assert!(json_str.contains("42"));
+  assert!(json_str.contains("result"));
+}
+
+#[test]
+fn crdtp_create_notification() {
+  let serializable = v8::crdtp::create_notification("Test.event", None);
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_str = String::from_utf8_lossy(&json.unwrap());
+  assert!(json_str.contains("Test.event"));
+}
+
+struct TestDomainHandler {
+  enabled: std::cell::RefCell<bool>,
+}
+
+impl TestDomainHandler {
+  fn new() -> Self {
+    Self {
+      enabled: std::cell::RefCell::new(false),
+    }
+  }
+}
+
+impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
+  fn dispatch(
+    &mut self,
+    command: &[u8],
+    dispatchable: Option<&v8::crdtp::Dispatchable>,
+    handle: &v8::crdtp::DomainDispatcherHandle,
+  ) -> bool {
+    let cmd = String::from_utf8_lossy(command);
+    match cmd.as_ref() {
+      "enable" => {
+        if let Some(d) = dispatchable {
+          *self.enabled.borrow_mut() = true;
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::success(),
+            None,
+          );
+        }
+        true
+      }
+      "disable" => {
+        if let Some(d) = dispatchable {
+          *self.enabled.borrow_mut() = false;
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::success(),
+            None,
+          );
+        }
+        true
+      }
+      _ => false,
+    }
+  }
+}
+
+#[test]
+fn crdtp_domain_dispatcher_wire() {
+  let channel_impl = Box::new(TestFrontendChannel::new());
+  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let handler = Box::new(TestDomainHandler::new());
+  v8::crdtp::DomainDispatcher::wire(&mut dispatcher, "Custom", handler);
+
+  // Dispatch a known method - should be found and handled
+  let json = r#"{"id":1,"method":"Custom.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Dispatch an unknown method in the same domain - should not be found
+  let json = r#"{"id":2,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+
+  // Dispatch a method in a different domain - should not be found
+  let json = r#"{"id":3,"method":"Other.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+}
