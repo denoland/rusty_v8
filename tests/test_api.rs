@@ -12476,15 +12476,15 @@ fn crdtp_dispatch_response() {
 }
 
 struct TestFrontendChannel {
-  responses: std::cell::RefCell<Vec<Vec<u8>>>,
-  notifications: std::cell::RefCell<Vec<Vec<u8>>>,
+  responses: Vec<Vec<u8>>,
+  notifications: Vec<Vec<u8>>,
 }
 
 impl TestFrontendChannel {
   fn new() -> Self {
     Self {
-      responses: std::cell::RefCell::new(Vec::new()),
-      notifications: std::cell::RefCell::new(Vec::new()),
+      responses: Vec::new(),
+      notifications: Vec::new(),
     }
   }
 }
@@ -12495,11 +12495,11 @@ impl v8::crdtp::FrontendChannelImpl for TestFrontendChannel {
     _call_id: i32,
     message: v8::crdtp::Serializable,
   ) {
-    self.responses.borrow_mut().push(message.to_bytes());
+    self.responses.push(message.to_bytes());
   }
 
   fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
-    self.notifications.borrow_mut().push(message.to_bytes());
+    self.notifications.push(message.to_bytes());
   }
 
   fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
@@ -12542,33 +12542,33 @@ fn crdtp_create_error_response() {
 }
 
 struct HybridInspectorChannel {
-  responses: std::cell::RefCell<Vec<String>>,
-  notifications: std::cell::RefCell<Vec<String>>,
-  network_enabled: std::cell::RefCell<bool>,
+  responses: Vec<String>,
+  notifications: Vec<String>,
+  network_enabled: bool,
 }
 
 impl HybridInspectorChannel {
   fn new() -> Self {
     Self {
-      responses: std::cell::RefCell::new(Vec::new()),
-      notifications: std::cell::RefCell::new(Vec::new()),
-      network_enabled: std::cell::RefCell::new(false),
+      responses: Vec::new(),
+      notifications: Vec::new(),
+      network_enabled: false,
     }
   }
 
   fn handle_custom_domain(
-    &self,
+    &mut self,
     method: &str,
     call_id: i32,
     _params: &[u8],
   ) -> Option<String> {
     match method {
       "Network.enable" => {
-        *self.network_enabled.borrow_mut() = true;
+        self.network_enabled = true;
         Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
       }
       "Network.disable" => {
-        *self.network_enabled.borrow_mut() = false;
+        self.network_enabled = false;
         Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
       }
       "Network.getResponseBody" => Some(format!(
@@ -12594,7 +12594,7 @@ impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
     if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
       let json_str = String::from_utf8_lossy(&json).to_string();
       println!("[CRDTP] Response id={}: {}", call_id, json_str);
-      self.responses.borrow_mut().push(json_str);
+      self.responses.push(json_str);
     }
   }
 
@@ -12603,7 +12603,7 @@ impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
     if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
       let json_str = String::from_utf8_lossy(&json).to_string();
       println!("[CRDTP] Notification: {}", json_str);
-      self.notifications.borrow_mut().push(json_str);
+      self.notifications.push(json_str);
     }
   }
 
@@ -12617,7 +12617,7 @@ impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
 
 #[test]
 fn crdtp_e2e_custom_domain_handling() {
-  let channel_impl = Box::new(HybridInspectorChannel::new());
+  let mut channel_impl = HybridInspectorChannel::new();
 
   let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
@@ -12634,7 +12634,7 @@ fn crdtp_e2e_custom_domain_handling() {
   let response = response.unwrap();
   assert!(response.contains(r#""id":1"#));
   assert!(response.contains(r#""result":{}"#));
-  assert!(*channel_impl.network_enabled.borrow());
+  assert!(channel_impl.network_enabled);
 
   let json = r#"{"id":2,"method":"Network.getResponseBody","params":{"requestId":"123"}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
@@ -12752,14 +12752,12 @@ fn crdtp_create_notification() {
 }
 
 struct TestDomainHandler {
-  enabled: std::cell::RefCell<bool>,
+  enabled: bool,
 }
 
 impl TestDomainHandler {
   fn new() -> Self {
-    Self {
-      enabled: std::cell::RefCell::new(false),
-    }
+    Self { enabled: false }
   }
 }
 
@@ -12774,7 +12772,7 @@ impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
     match cmd.as_ref() {
       "enable" => {
         if let Some(d) = dispatchable {
-          *self.enabled.borrow_mut() = true;
+          self.enabled = true;
           handle.send_response(
             d.call_id(),
             v8::crdtp::DispatchResponse::success(),
@@ -12785,7 +12783,7 @@ impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
       }
       "disable" => {
         if let Some(d) = dispatchable {
-          *self.enabled.borrow_mut() = false;
+          self.enabled = false;
           handle.send_response(
             d.call_id(),
             v8::crdtp::DispatchResponse::success(),
@@ -12799,10 +12797,56 @@ impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
   }
 }
 
+struct SharedFrontendChannel {
+  state: Rc<RefCell<TestFrontendChannelState>>,
+}
+
+struct TestFrontendChannelState {
+  responses: Vec<Vec<u8>>,
+  notifications: Vec<Vec<u8>>,
+}
+
+impl SharedFrontendChannel {
+  fn new() -> (Self, Rc<RefCell<TestFrontendChannelState>>) {
+    let state = Rc::new(RefCell::new(TestFrontendChannelState {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+    }));
+    (
+      Self {
+        state: state.clone(),
+      },
+      state,
+    )
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for SharedFrontendChannel {
+  fn send_protocol_response(
+    &mut self,
+    _call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    self.state.borrow_mut().responses.push(message.to_bytes());
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    self
+      .state
+      .borrow_mut()
+      .notifications
+      .push(message.to_bytes());
+  }
+
+  fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
 #[test]
 fn crdtp_domain_dispatcher_wire() {
-  let channel_impl = Box::new(TestFrontendChannel::new());
-  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
   let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
 
   let handler = Box::new(TestDomainHandler::new());
@@ -12817,6 +12861,16 @@ fn crdtp_domain_dispatcher_wire() {
   let result = dispatcher.dispatch(&dispatchable);
   assert!(result.method_found());
   result.run();
+
+  // Verify the response was actually delivered to the FrontendChannel
+  {
+    let s = state.borrow();
+    assert_eq!(s.responses.len(), 1);
+    let json_bytes = v8::crdtp::cbor_to_json(&s.responses[0]).unwrap();
+    let json_str = String::from_utf8_lossy(&json_bytes);
+    assert!(json_str.contains("\"id\":1"));
+    assert!(json_str.contains("\"result\""));
+  }
 
   // Dispatch an unknown method in the same domain - should not be found
   let json = r#"{"id":2,"method":"Custom.unknownMethod","params":{}}"#;

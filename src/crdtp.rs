@@ -14,13 +14,9 @@ unsafe extern "C" {
   fn crdtp__FrontendChannel__BASE__SIZE() -> usize;
 
   fn crdtp__Serializable__DELETE(this: *mut RawSerializable);
-  fn crdtp__Serializable__getSerializedSize(
+  fn crdtp__Serializable__AppendSerialized(
     this: *const RawSerializable,
-  ) -> usize;
-  fn crdtp__Serializable__getSerializedBytes(
-    this: *const RawSerializable,
-    out: *mut u8,
-    len: usize,
+    out: *mut CppVecU8,
   );
 
   fn crdtp__Dispatchable__new(data: *const u8, len: usize)
@@ -178,14 +174,13 @@ pub struct Serializable {
 impl Serializable {
   pub fn to_bytes(&self) -> Vec<u8> {
     unsafe {
-      let len = crdtp__Serializable__getSerializedSize(self.ptr);
-      let mut bytes = vec![0u8; len];
-      crdtp__Serializable__getSerializedBytes(
-        self.ptr,
-        bytes.as_mut_ptr(),
-        len,
-      );
-      bytes
+      let vec = crdtp__vec_u8__new();
+      crdtp__Serializable__AppendSerialized(self.ptr, vec);
+      let len = crdtp__vec_u8__size(vec);
+      let mut result = vec![0u8; len];
+      crdtp__vec_u8__copy(vec, result.as_mut_ptr());
+      crdtp__vec_u8__DELETE(vec);
+      result
     }
   }
 
@@ -409,6 +404,11 @@ pub struct FrontendChannel {
 impl FrontendChannel {
   /// Create a new FrontendChannel wrapping the given implementation.
   pub fn new(imp: Box<dyn FrontendChannelImpl>) -> Pin<Box<Self>> {
+    // Ensure our RawFrontendChannel is large enough for the C++ object.
+    assert!(
+      std::mem::size_of::<RawFrontendChannel>()
+        >= unsafe { crdtp__FrontendChannel__BASE__SIZE() }
+    );
     let mut channel = Box::new(Self {
       raw: UnsafeCell::new(unsafe { MaybeUninit::zeroed().assume_init() }),
       imp,
@@ -620,6 +620,9 @@ pub fn create_response(
 }
 
 /// Create a notification message with a method name and optional params.
+///
+/// # Panics
+/// Panics if `method` contains interior null bytes.
 pub fn create_notification(
   method: &str,
   params: Option<Serializable>,
@@ -681,55 +684,59 @@ impl DomainDispatcherHandle {
 }
 
 /// A domain dispatcher that delegates to a Rust `DomainDispatcherImpl`.
-pub struct DomainDispatcher {
+///
+/// Ownership model: the Rust `DomainDispatcher` is heap-allocated and its
+/// pointer is stored in the C++ `crdtp__DomainDispatcher__BASE`. When the
+/// C++ side is destroyed (by `UberDispatcher`'s destructor), it calls back
+/// into Rust via `crdtp__DomainDispatcher__BASE__Drop` to free the Rust
+/// allocation.
+struct DomainDispatcherData {
   ptr: *mut RawDomainDispatcher,
-  _imp: Box<dyn DomainDispatcherImpl>,
+  imp: Box<dyn DomainDispatcherImpl>,
+  domain_bytes: Vec<u8>,
 }
 
+pub struct DomainDispatcher;
+
 impl DomainDispatcher {
-  /// Create a new DomainDispatcher for the given domain, backed by a Rust
-  /// implementation. The dispatcher is immediately wired to the
-  /// UberDispatcher.
+  /// Wire a Rust domain dispatcher implementation to an `UberDispatcher`.
+  ///
+  /// The implementation will handle commands for the given `domain` name.
+  /// Ownership of `imp` is transferred to the C++ `UberDispatcher`; it
+  /// will be dropped when the `UberDispatcher` is destroyed.
   pub fn wire(
     uber: &mut UberDispatcher,
     domain: &str,
     imp: Box<dyn DomainDispatcherImpl>,
   ) {
-    let mut dd = Box::new(DomainDispatcher {
+    // Keep domain bytes alive as long as the DomainDispatcherData, since
+    // UberDispatcher stores domain as a span (pointer + length).
+    let domain_bytes = domain.as_bytes().to_vec();
+
+    let mut dd = Box::new(DomainDispatcherData {
       ptr: std::ptr::null_mut(),
-      _imp: imp,
+      imp,
+      domain_bytes,
     });
 
-    // The domain name must outlive the UberDispatcher since it's stored
-    // as a span (pointer + length) internally. We leak it to ensure this.
-    let domain_bytes = domain.as_bytes().to_vec().leak();
-
     unsafe {
-      let rust_ptr = &mut *dd as *mut DomainDispatcher as *mut std::ffi::c_void;
+      let rust_ptr =
+        &mut *dd as *mut DomainDispatcherData as *mut std::ffi::c_void;
       let channel = crdtp__UberDispatcher__channel(uber);
       let raw = crdtp__DomainDispatcher__new(channel, rust_ptr);
       dd.ptr = raw;
 
       crdtp__UberDispatcher__WireBackend(
         uber,
-        domain_bytes.as_ptr(),
-        domain_bytes.len(),
+        dd.domain_bytes.as_ptr(),
+        dd.domain_bytes.len(),
         raw,
       );
     }
 
-    // Leak the DomainDispatcher - it's now owned by the UberDispatcher via
-    // the C++ side. The UberDispatcher will destroy the C++ DomainDispatcher
-    // when it's dropped, but we need the Rust side to live as long.
-    // We store it as a leaked Box; the UberDispatcher's drop will handle
-    // the C++ side.
-    Box::leak(dd);
-  }
-
-  unsafe fn from_raw<'a>(
-    ptr: *mut std::ffi::c_void,
-  ) -> &'a mut DomainDispatcher {
-    &mut *(ptr as *mut DomainDispatcher)
+    // Transfer ownership to the C++ side. The C++ destructor will call
+    // crdtp__DomainDispatcher__BASE__Drop to reclaim this allocation.
+    Box::into_raw(dd);
   }
 }
 
@@ -741,7 +748,7 @@ unsafe extern "C" fn crdtp__DomainDispatcher__BASE__Dispatch(
   dispatchable: *const Dispatchable,
 ) -> bool {
   unsafe {
-    let dd = DomainDispatcher::from_raw(rust_dispatcher);
+    let dd = &mut *(rust_dispatcher as *mut DomainDispatcherData);
     let command = std::slice::from_raw_parts(command_data, command_len);
     let handle = DomainDispatcherHandle { ptr: dd.ptr };
     let dispatchable_ref = if dispatchable.is_null() {
@@ -749,6 +756,15 @@ unsafe extern "C" fn crdtp__DomainDispatcher__BASE__Dispatch(
     } else {
       Some(&*dispatchable)
     };
-    dd._imp.dispatch(command, dispatchable_ref, &handle)
+    dd.imp.dispatch(command, dispatchable_ref, &handle)
+  }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn crdtp__DomainDispatcher__BASE__Drop(
+  rust_dispatcher: *mut std::ffi::c_void,
+) {
+  unsafe {
+    drop(Box::from_raw(rust_dispatcher as *mut DomainDispatcherData));
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2026 the Deno authors. All rights reserved. MIT license.
+// Copyright 2024 the Deno authors. All rights reserved. MIT license.
 
 #include "support.h"
 #include "v8/third_party/inspector_protocol/crdtp/dispatch.h"
@@ -56,25 +56,10 @@ size_t crdtp__FrontendChannel__BASE__SIZE() {
 
 void crdtp__Serializable__DELETE(Serializable* self) { delete self; }
 
-// Serialize to CBOR bytes
-void crdtp__Serializable__serializeToCBOR(const Serializable* self,
-                                          std::vector<uint8_t>* out) {
+// Serialize once into a caller-provided CppVecU8 to avoid double-serialization.
+void crdtp__Serializable__AppendSerialized(const Serializable* self,
+                                           std::vector<uint8_t>* out) {
   self->AppendSerialized(out);
-}
-
-// Helper to get serialized bytes
-size_t crdtp__Serializable__getSerializedSize(const Serializable* self) {
-  std::vector<uint8_t> bytes;
-  self->AppendSerialized(&bytes);
-  return bytes.size();
-}
-
-void crdtp__Serializable__getSerializedBytes(const Serializable* self,
-                                             uint8_t* out, size_t len) {
-  std::vector<uint8_t> bytes;
-  self->AppendSerialized(&bytes);
-  size_t copy_len = std::min(len, bytes.size());
-  memcpy(out, bytes.data(), copy_len);
 }
 
 Dispatchable* crdtp__Dispatchable__new(const uint8_t* data, size_t len) {
@@ -303,6 +288,8 @@ bool crdtp__DomainDispatcher__BASE__Dispatch(void* rust_dispatcher,
                                              const uint8_t* command_data,
                                              size_t command_len,
                                              const Dispatchable* dispatchable);
+// Rust callback: destroy the Rust DomainDispatcher when C++ side is destroyed.
+void crdtp__DomainDispatcher__BASE__Drop(void* rust_dispatcher);
 }
 
 struct crdtp__DomainDispatcher__BASE : public DomainDispatcher {
@@ -310,6 +297,10 @@ struct crdtp__DomainDispatcher__BASE : public DomainDispatcher {
 
   crdtp__DomainDispatcher__BASE(FrontendChannel* channel, void* rust_dispatcher)
       : DomainDispatcher(channel), rust_dispatcher_(rust_dispatcher) {}
+
+  ~crdtp__DomainDispatcher__BASE() override {
+    crdtp__DomainDispatcher__BASE__Drop(rust_dispatcher_);
+  }
 
   std::function<void(const Dispatchable&)> Dispatch(
       span<uint8_t> command_name) override {
