@@ -1,9 +1,11 @@
 // Copyright 2024 the Deno authors. All rights reserved. MIT license.
 
 #include "support.h"
+#include "v8/third_party/inspector_protocol/crdtp/cbor.h"
 #include "v8/third_party/inspector_protocol/crdtp/dispatch.h"
 #include "v8/third_party/inspector_protocol/crdtp/frontend_channel.h"
 #include "v8/third_party/inspector_protocol/crdtp/json.h"
+#include "v8/third_party/inspector_protocol/crdtp/parser_handler.h"
 
 using namespace support;
 using namespace v8_crdtp;
@@ -259,10 +261,40 @@ Serializable* crdtp__CreateResponse(int call_id, Serializable* params) {
   return CreateResponse(call_id, std::move(params_ptr)).release();
 }
 
+// Owns a copy of the method string, since upstream Notification stores only
+// a raw const char* pointer which leads to use-after-free when the Rust
+// CString is dropped before AppendSerialized is called.
+class OwnedNotification : public Serializable {
+ public:
+  OwnedNotification(const char* method, std::unique_ptr<Serializable> params)
+      : method_(method), params_(std::move(params)) {}
+
+  void AppendSerialized(std::vector<uint8_t>* out) const override {
+    Status status;
+    std::unique_ptr<ParserHandler> encoder = cbor::NewCBOREncoder(out, &status);
+    encoder->HandleMapBegin();
+    encoder->HandleString8(SpanFrom("method"));
+    encoder->HandleString8(SpanFrom(method_));
+    encoder->HandleString8(SpanFrom("params"));
+    if (params_) {
+      params_->AppendSerialized(out);
+    } else {
+      encoder->HandleMapBegin();
+      encoder->HandleMapEnd();
+    }
+    encoder->HandleMapEnd();
+    assert(status.ok());
+  }
+
+ private:
+  std::string method_;
+  std::unique_ptr<Serializable> params_;
+};
+
 Serializable* crdtp__CreateNotification(const char* method,
                                         Serializable* params) {
   std::unique_ptr<Serializable> params_ptr(params);
-  return CreateNotification(method, std::move(params_ptr)).release();
+  return new OwnedNotification(method, std::move(params_ptr));
 }
 
 Serializable* crdtp__CreateErrorNotification(
