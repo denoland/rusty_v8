@@ -402,7 +402,7 @@ pub struct FrontendChannel {
 impl FrontendChannel {
   /// Create a new FrontendChannel wrapping the given implementation.
   pub fn new(imp: Box<dyn FrontendChannelImpl>) -> Pin<Box<Self>> {
-    let mut channel = Box::new(Self {
+    let channel = Box::new(Self {
       raw: UnsafeCell::new(unsafe { MaybeUninit::zeroed().assume_init() }),
       imp,
     });
@@ -515,11 +515,6 @@ impl UberDispatcher {
       let ptr = crdtp__UberDispatcher__new(channel.raw_ptr());
       Box::from_raw(ptr)
     }
-  }
-
-  /// Get the frontend channel (internal use only).
-  fn channel(&mut self) -> *mut RawFrontendChannel {
-    unsafe { crdtp__UberDispatcher__channel(self) }
   }
 
   /// Dispatch a protocol message.
@@ -726,7 +721,7 @@ impl DomainDispatcher {
 
     // Transfer ownership to the C++ side. The C++ destructor will call
     // crdtp__DomainDispatcher__BASE__Drop to reclaim this allocation.
-    Box::into_raw(dd);
+    let _ = Box::into_raw(dd);
   }
 }
 
