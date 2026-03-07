@@ -529,7 +529,6 @@ impl UberDispatcher {
       DispatchResult { ptr }
     }
   }
-
 }
 
 impl Drop for UberDispatcher {

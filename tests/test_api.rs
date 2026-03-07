@@ -12888,3 +12888,309 @@ fn crdtp_domain_dispatcher_wire() {
   assert!(!result.method_found());
   result.run();
 }
+
+#[test]
+fn crdtp_dispatchable_malformed_cbor() {
+  // Completely invalid bytes
+  let garbage = &[0xFF, 0xFE, 0x00, 0x01];
+  let dispatchable = v8::crdtp::Dispatchable::new(garbage);
+  assert!(!dispatchable.ok());
+
+  // Empty input
+  let dispatchable = v8::crdtp::Dispatchable::new(&[]);
+  assert!(!dispatchable.ok());
+
+  // Truncated CBOR (valid JSON converted then chopped)
+  let json = r#"{"id":1,"method":"Test.foo","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let truncated = &cbor[..cbor.len() / 2];
+  let dispatchable = v8::crdtp::Dispatchable::new(truncated);
+  assert!(!dispatchable.ok());
+}
+
+#[test]
+fn crdtp_dispatchable_missing_fields() {
+  // Missing "method" field — should parse but method is empty
+  let json = r#"{"id":1,"params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  // crdtp considers missing method as ok=false
+  assert!(!dispatchable.ok());
+
+  // Missing "id" field — valid for notifications
+  let json = r#"{"method":"Test.event","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+  assert!(!dispatchable.has_call_id());
+  assert_eq!(dispatchable.method_str(), "Test.event");
+}
+
+#[test]
+fn crdtp_json_cbor_invalid_input() {
+  // Invalid JSON
+  let bad_json = b"this is not json{{{";
+  let result = v8::crdtp::json_to_cbor(bad_json);
+  assert!(result.is_none() || result.unwrap().is_empty());
+
+  // Invalid CBOR for cbor_to_json
+  let bad_cbor = &[0xFF, 0xFE, 0x00];
+  let result = v8::crdtp::cbor_to_json(bad_cbor);
+  assert!(result.is_none());
+
+  // Empty input
+  let result = v8::crdtp::cbor_to_json(&[]);
+  assert!(result.is_none());
+}
+
+#[test]
+fn crdtp_dispatch_unregistered_domain() {
+  // Dispatch to an UberDispatcher with no domains wired at all
+  let channel_impl = Box::new(TestFrontendChannel::new());
+  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let json = r#"{"id":1,"method":"Nonexistent.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+}
+
+#[test]
+fn crdtp_domain_dispatcher_error_response() {
+  // DomainDispatcher that returns an error response for a command
+  struct ErrorHandler;
+
+  impl v8::crdtp::DomainDispatcherImpl for ErrorHandler {
+    fn dispatch(
+      &mut self,
+      command: &[u8],
+      dispatchable: Option<&v8::crdtp::Dispatchable>,
+      handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      let cmd = String::from_utf8_lossy(command);
+      if cmd == "badCommand" {
+        if let Some(d) = dispatchable {
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::invalid_params(
+              "missing required field",
+            ),
+            None,
+          );
+        }
+        return true;
+      }
+      false
+    }
+  }
+
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Test",
+    Box::new(ErrorHandler),
+  );
+
+  let json = r#"{"id":5,"method":"Test.badCommand","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Verify error response was sent
+  let s = state.borrow();
+  assert_eq!(s.responses.len(), 1);
+  let json_bytes = v8::crdtp::cbor_to_json(&s.responses[0]).unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("\"error\""));
+  assert!(json_str.contains("missing required field"));
+}
+
+#[test]
+fn crdtp_multiple_domains() {
+  // Wire multiple domain dispatchers and verify correct routing
+  struct CountingHandler {
+    call_count: usize,
+  }
+
+  impl CountingHandler {
+    fn new() -> Self {
+      Self { call_count: 0 }
+    }
+  }
+
+  impl v8::crdtp::DomainDispatcherImpl for CountingHandler {
+    fn dispatch(
+      &mut self,
+      command: &[u8],
+      dispatchable: Option<&v8::crdtp::Dispatchable>,
+      handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      let cmd = String::from_utf8_lossy(command);
+      if cmd == "ping" {
+        if let Some(d) = dispatchable {
+          self.call_count += 1;
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::success(),
+            None,
+          );
+        }
+        return true;
+      }
+      false
+    }
+  }
+
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Alpha",
+    Box::new(CountingHandler::new()),
+  );
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Beta",
+    Box::new(CountingHandler::new()),
+  );
+
+  // Dispatch to Alpha
+  let json = r#"{"id":1,"method":"Alpha.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Dispatch to Beta
+  let json = r#"{"id":2,"method":"Beta.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Dispatch to unknown domain
+  let json = r#"{"id":3,"method":"Gamma.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+
+  // Two successful responses (Alpha + Beta), no response for Gamma
+  let s = state.borrow();
+  assert_eq!(s.responses.len(), 2);
+}
+
+#[test]
+fn crdtp_create_error_notification() {
+  let response = v8::crdtp::DispatchResponse::server_error("internal failure");
+  let serializable = v8::crdtp::create_error_notification(response);
+
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_str = String::from_utf8_lossy(&json.unwrap());
+  assert!(json_str.contains("error"));
+  assert!(json_str.contains("internal failure"));
+}
+
+#[test]
+fn crdtp_dispatch_response_all_error_types() {
+  // Verify all error constructors produce distinct error codes
+  let parse = v8::crdtp::DispatchResponse::parse_error("parse");
+  let invalid_req =
+    v8::crdtp::DispatchResponse::invalid_request("invalid request");
+  let not_found = v8::crdtp::DispatchResponse::method_not_found("not found");
+  let invalid_params =
+    v8::crdtp::DispatchResponse::invalid_params("invalid params");
+  let server = v8::crdtp::DispatchResponse::server_error("server");
+
+  // All should be errors
+  assert!(parse.is_error());
+  assert!(invalid_req.is_error());
+  assert!(not_found.is_error());
+  assert!(invalid_params.is_error());
+  assert!(server.is_error());
+
+  // None should be success or fall_through
+  assert!(!parse.is_success());
+  assert!(!parse.is_fall_through());
+
+  // Error codes should follow JSON-RPC conventions
+  // Parse error: -32700, Invalid request: -32600, Method not found: -32601
+  // Invalid params: -32602, Server error: -32000
+  assert_eq!(parse.code(), -32700);
+  assert_eq!(invalid_req.code(), -32600);
+  assert_eq!(not_found.code(), -32601);
+  assert_eq!(invalid_params.code(), -32602);
+  assert_eq!(server.code(), -32000);
+}
+
+#[test]
+fn crdtp_dispatcher_cleanup_on_drop() {
+  // Verify that dropping UberDispatcher properly cleans up DomainDispatchers
+  // via the C++ destructor -> Rust Drop callback path.
+  use std::sync::atomic::{AtomicUsize, Ordering};
+
+  static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+  DROP_COUNT.store(0, Ordering::SeqCst);
+
+  struct DropTracker;
+
+  impl v8::crdtp::DomainDispatcherImpl for DropTracker {
+    fn dispatch(
+      &mut self,
+      _command: &[u8],
+      _dispatchable: Option<&v8::crdtp::Dispatchable>,
+      _handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      false
+    }
+  }
+
+  impl Drop for DropTracker {
+    fn drop(&mut self) {
+      DROP_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
+  }
+
+  {
+    let channel_impl = Box::new(TestFrontendChannel::new());
+    let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+    let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+    v8::crdtp::DomainDispatcher::wire(
+      &mut dispatcher,
+      "TrackA",
+      Box::new(DropTracker),
+    );
+    v8::crdtp::DomainDispatcher::wire(
+      &mut dispatcher,
+      "TrackB",
+      Box::new(DropTracker),
+    );
+
+    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
+    // dispatcher and channel drop here
+  }
+
+  // Both DropTrackers should have been dropped via C++ destructor callback
+  assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 2);
+}
