@@ -182,7 +182,7 @@ impl Serializable {
     }
   }
 
-  pub(crate) fn into_raw(self) -> *mut RawSerializable {
+  fn into_raw(self) -> *mut RawSerializable {
     let ptr = self.ptr;
     std::mem::forget(self);
     ptr
@@ -361,7 +361,7 @@ impl DispatchResponse {
     }
   }
 
-  pub(crate) fn into_raw(self) -> *mut DispatchResponseWrapper {
+  fn into_raw(self) -> *mut DispatchResponseWrapper {
     let ptr = self.ptr;
     std::mem::forget(self);
     ptr
