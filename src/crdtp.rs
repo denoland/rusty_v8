@@ -496,7 +496,7 @@ impl DispatchResult {
     unsafe {
       crdtp__DispatchResult__Run(self.ptr);
     }
-    std::mem::forget(self);
+    // Drop will call crdtp__DispatchResult__DELETE to free the wrapper.
   }
 }
 
@@ -530,10 +530,6 @@ impl UberDispatcher {
     }
   }
 
-  /// Get the raw pointer for passing to C++ Wire functions.
-  pub fn as_raw(&mut self) -> *mut Self {
-    self as *mut Self
-  }
 }
 
 impl Drop for UberDispatcher {

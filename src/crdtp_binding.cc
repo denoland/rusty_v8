@@ -43,6 +43,9 @@ struct crdtp__FrontendChannel__BASE : public FrontendChannel {
   }
 };
 
+static_assert(sizeof(crdtp__FrontendChannel__BASE) <= sizeof(void*),
+              "FrontendChannel BASE must fit in a single vtable pointer");
+
 extern "C" {
 
 void crdtp__FrontendChannel__BASE__CONSTRUCT(
