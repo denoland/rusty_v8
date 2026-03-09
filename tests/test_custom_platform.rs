@@ -1,6 +1,6 @@
+use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 struct TestPlatformImpl {
   post_task_count: Arc<AtomicUsize>,
