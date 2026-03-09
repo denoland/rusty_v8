@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <map>
+#include <mutex>
 #include <thread>
 
 #include "cppgc/allocation.h"
@@ -3010,6 +3012,144 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
   return self->CreateBlob(function_code_handling);
 }
 
+// Rust-side callbacks for trait-based CustomPlatform (PlatformImpl trait).
+// Each callback corresponds to a C++ virtual method on TaskRunner or Platform.
+// `context` is a pointer to the Rust Box<dyn PlatformImpl>.
+extern "C" {
+void v8__Platform__CustomPlatform__BASE__PostTask(void* context, void* isolate);
+void v8__Platform__CustomPlatform__BASE__PostNonNestableTask(void* context,
+                                                             void* isolate);
+void v8__Platform__CustomPlatform__BASE__PostDelayedTask(
+    void* context, void* isolate, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
+    void* context, void* isolate, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__PostIdleTask(void* context,
+                                                      void* isolate);
+void v8__Platform__CustomPlatform__BASE__DROP(void* context);
+}
+
+// TaskRunner wrapper that intercepts all PostTask* virtual methods, forwards
+// tasks to the default platform's queue, and notifies Rust via the
+// corresponding PlatformImpl trait method.
+class CustomTaskRunner final : public v8::TaskRunner {
+ public:
+  CustomTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
+                   v8::Isolate* isolate)
+      : wrapped_(std::move(wrapped)), context_(context), isolate_(isolate) {}
+
+  bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
+  bool NonNestableTasksEnabled() const override {
+    return wrapped_->NonNestableTasksEnabled();
+  }
+  bool NonNestableDelayedTasksEnabled() const override {
+    return wrapped_->NonNestableDelayedTasksEnabled();
+  }
+
+ protected:
+  void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                    const v8::SourceLocation& location) override {
+    wrapped_->PostTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__PostTask(context_,
+                                                 static_cast<void*>(isolate_));
+  }
+  void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
+                               const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__PostNonNestableTask(
+        context_, static_cast<void*>(isolate_));
+  }
+  void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
+                           double delay_in_seconds,
+                           const v8::SourceLocation& location) override {
+    wrapped_->PostDelayedTask(std::move(task), delay_in_seconds, location);
+    v8__Platform__CustomPlatform__BASE__PostDelayedTask(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+  }
+  void PostNonNestableDelayedTaskImpl(
+      std::unique_ptr<v8::Task> task, double delay_in_seconds,
+      const v8::SourceLocation& location) override {
+    wrapped_->PostNonNestableDelayedTask(std::move(task), delay_in_seconds,
+                                         location);
+    v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
+        context_, static_cast<void*>(isolate_),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+  }
+  void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
+                        const v8::SourceLocation& location) override {
+    wrapped_->PostIdleTask(std::move(task), location);
+    v8__Platform__CustomPlatform__BASE__PostIdleTask(
+        context_, static_cast<void*>(isolate_));
+  }
+
+ private:
+  std::shared_ptr<v8::TaskRunner> wrapped_;
+  void* context_;
+  v8::Isolate* isolate_;
+};
+
+// Platform subclass that wraps each isolate's TaskRunner to notify Rust
+// when foreground tasks are posted. Follows the inspector API pattern.
+//
+// NotifyIsolateShutdown is NOT intercepted here because it is not virtual
+// on DefaultPlatform — V8's free function does static_cast<DefaultPlatform*>
+// and calls it directly, bypassing any override. Isolate cleanup must be
+// handled on the Rust side (e.g. in the isolate's Drop impl).
+class CustomPlatform : public v8::platform::DefaultPlatform {
+  using IdleTaskSupport = v8::platform::IdleTaskSupport;
+
+ public:
+  CustomPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
+                 bool unprotected, void* context)
+      : DefaultPlatform(thread_pool_size, idle_task_support),
+        unprotected_(unprotected),
+        context_(context) {}
+
+  // SAFETY: The platform is single-owner (via unique_ptr). The destructor
+  // runs after all isolates have been disposed and no more task runner
+  // callbacks can fire, so DROP does not race with other callbacks.
+  ~CustomPlatform() override {
+    v8__Platform__CustomPlatform__BASE__DROP(context_);
+  }
+
+  std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
+      v8::Isolate* isolate, v8::TaskPriority priority) override {
+    auto original = DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto key = std::make_pair(isolate, priority);
+    auto it = runners_.find(key);
+    if (it != runners_.end()) {
+      auto runner = it->second.lock();
+      if (runner) return runner;
+    }
+    auto custom =
+        std::make_shared<CustomTaskRunner>(original, context_, isolate);
+    runners_[key] = custom;
+    return custom;
+  }
+
+  // When unprotected, disable thread-isolated allocations (same as
+  // UnprotectedDefaultPlatform). Required when isolates may be created on
+  // threads other than the one that called v8::V8::Initialize (e.g. worker
+  // threads in Deno).
+  v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
+    if (unprotected_) return nullptr;
+    return DefaultPlatform::GetThreadIsolatedAllocator();
+  }
+
+ private:
+  bool unprotected_;
+  void* context_;
+  std::mutex mutex_;
+  // weak_ptr so runners are kept alive only while V8 holds a reference.
+  // When V8 drops its shared_ptr (e.g. on isolate shutdown), the weak_ptr
+  // expires and a fresh wrapper is created if GetForegroundTaskRunner is
+  // called again. This avoids preventing cleanup of the underlying runner.
+  std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
+           std::weak_ptr<CustomTaskRunner>>
+      runners_;
+};
+
 class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
   using InProcessStackDumping = v8::platform::InProcessStackDumping;
@@ -3060,6 +3200,21 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
              v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
+}
+
+v8::Platform* v8__Platform__NewCustomPlatform(int thread_pool_size,
+                                              bool idle_task_support,
+                                              bool unprotected, void* context) {
+  if (thread_pool_size < 1) {
+    thread_pool_size = std::thread::hardware_concurrency();
+  }
+  thread_pool_size = std::max(std::min(thread_pool_size, 16), 1);
+  return std::make_unique<CustomPlatform>(
+             thread_pool_size,
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             unprotected, context)
       .release();
 }
 

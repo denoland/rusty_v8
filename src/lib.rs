@@ -137,6 +137,8 @@ pub use microtask::MicrotaskQueue;
 pub use module::*;
 pub use object::*;
 pub use platform::Platform;
+pub use platform::PlatformImpl;
+pub use platform::new_custom_platform;
 pub use platform::new_default_platform;
 pub use platform::new_single_threaded_default_platform;
 pub use platform::new_unprotected_default_platform;
