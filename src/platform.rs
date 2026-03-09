@@ -127,14 +127,6 @@ pub trait PlatformImpl: Send + Sync {
   ///
   /// Same semantics as [`post_task`](Self::post_task).
   fn post_idle_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
-
-  // ---- Platform virtual methods ----
-
-  /// Called when `Platform::NotifyIsolateShutdown` is invoked.
-  ///
-  /// The default `DefaultPlatform` cleanup runs after this callback
-  /// returns.
-  fn notify_isolate_shutdown(&self, isolate_ptr: *mut std::ffi::c_void) {}
 }
 
 // FFI callbacks called from C++ CustomPlatform/CustomTaskRunner.
@@ -185,15 +177,6 @@ unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostIdleTask(
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
   imp.post_idle_task(isolate);
-}
-
-#[unsafe(no_mangle)]
-unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__NotifyIsolateShutdown(
-  context: *mut std::ffi::c_void,
-  isolate: *mut std::ffi::c_void,
-) {
-  let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.notify_isolate_shutdown(isolate);
 }
 
 #[unsafe(no_mangle)]
