@@ -257,7 +257,12 @@ pub fn new_custom_platform(
   unprotected: bool,
   platform_impl: impl PlatformImpl + 'static,
 ) -> UniqueRef<Platform> {
-  Platform::new_custom(thread_pool_size, idle_task_support, unprotected, platform_impl)
+  Platform::new_custom(
+    thread_pool_size,
+    idle_task_support,
+    unprotected,
+    platform_impl,
+  )
 }
 
 impl Platform {
