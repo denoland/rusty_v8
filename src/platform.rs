@@ -25,6 +25,7 @@ unsafe extern "C" {
   fn v8__Platform__NewCustomPlatform(
     thread_pool_size: int,
     idle_task_support: bool,
+    unprotected: bool,
     context: *mut std::ffi::c_void,
   ) -> *mut Platform;
   fn v8__Platform__DELETE(this: *mut Platform);
@@ -245,15 +246,18 @@ pub fn new_single_threaded_default_platform(
 /// This follows the same pattern as
 /// [`V8InspectorClient::new`](crate::inspector::V8InspectorClient::new).
 ///
-/// Thread-isolated allocations are disabled (same as
-/// `new_unprotected_default_platform`).
+/// When `unprotected` is true, thread-isolated allocations are disabled
+/// (same as `new_unprotected_default_platform`). This is required when
+/// isolates may be created on threads other than the one that called
+/// `V8::initialize`.
 #[inline(always)]
 pub fn new_custom_platform(
   thread_pool_size: u32,
   idle_task_support: bool,
+  unprotected: bool,
   platform_impl: impl PlatformImpl + 'static,
 ) -> UniqueRef<Platform> {
-  Platform::new_custom(thread_pool_size, idle_task_support, platform_impl)
+  Platform::new_custom(thread_pool_size, idle_task_support, unprotected, platform_impl)
 }
 
 impl Platform {
@@ -330,6 +334,7 @@ impl Platform {
   pub fn new_custom(
     thread_pool_size: u32,
     idle_task_support: bool,
+    unprotected: bool,
     platform_impl: impl PlatformImpl + 'static,
   ) -> UniqueRef<Self> {
     // Double-box: inner Box<dyn> is a fat pointer, outer Box gives us a
@@ -342,6 +347,7 @@ impl Platform {
       UniqueRef::from_raw(v8__Platform__NewCustomPlatform(
         thread_pool_size as i32,
         idle_task_support,
+        unprotected,
         context,
       ))
     }

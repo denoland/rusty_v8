@@ -3101,8 +3101,9 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
 
  public:
   CustomPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
-                 void* context)
+                 bool unprotected, void* context)
       : DefaultPlatform(thread_pool_size, idle_task_support),
+        unprotected_(unprotected),
         context_(context) {}
 
   // SAFETY: The platform is single-owner (via unique_ptr). The destructor
@@ -3128,14 +3129,17 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
     return custom;
   }
 
-  // Disable thread-isolated allocations (same as UnprotectedDefaultPlatform).
-  // Required when isolates may be created on threads other than the one that
-  // called v8::V8::Initialize (e.g. worker threads in Deno).
+  // When unprotected, disable thread-isolated allocations (same as
+  // UnprotectedDefaultPlatform). Required when isolates may be created on
+  // threads other than the one that called v8::V8::Initialize (e.g. worker
+  // threads in Deno).
   v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
-    return nullptr;
+    if (unprotected_) return nullptr;
+    return DefaultPlatform::GetThreadIsolatedAllocator();
   }
 
  private:
+  bool unprotected_;
   void* context_;
   std::mutex mutex_;
   // weak_ptr so runners are kept alive only while V8 holds a reference.
@@ -3202,7 +3206,7 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
 
 v8::Platform* v8__Platform__NewCustomPlatform(int thread_pool_size,
                                               bool idle_task_support,
-                                              void* context) {
+                                              bool unprotected, void* context) {
   if (thread_pool_size < 1) {
     thread_pool_size = std::thread::hardware_concurrency();
   }
@@ -3211,7 +3215,7 @@ v8::Platform* v8__Platform__NewCustomPlatform(int thread_pool_size,
              thread_pool_size,
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
-             context)
+             unprotected, context)
       .release();
 }
 
