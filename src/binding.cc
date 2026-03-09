@@ -3088,7 +3088,6 @@ class CustomTaskRunner final : public v8::TaskRunner {
   v8::Isolate* isolate_;
 };
 
-// Platform subclass that overrides GetForegroundTaskRunner to wrap each
 // Platform subclass that wraps each isolate's TaskRunner to notify Rust
 // when foreground tasks are posted. Follows the inspector API pattern.
 //
