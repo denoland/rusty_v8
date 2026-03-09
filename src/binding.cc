@@ -3016,18 +3016,17 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
 // Each callback corresponds to a C++ virtual method on TaskRunner or Platform.
 // `context` is a pointer to the Rust Box<dyn PlatformImpl>.
 extern "C" {
-void v8__Platform__CustomPlatform__BASE__PostTask(void* context,
-                                                   void* isolate);
+void v8__Platform__CustomPlatform__BASE__PostTask(void* context, void* isolate);
 void v8__Platform__CustomPlatform__BASE__PostNonNestableTask(void* context,
-                                                              void* isolate);
+                                                             void* isolate);
 void v8__Platform__CustomPlatform__BASE__PostDelayedTask(
     void* context, void* isolate, double delay_in_seconds);
 void v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
     void* context, void* isolate, double delay_in_seconds);
 void v8__Platform__CustomPlatform__BASE__PostIdleTask(void* context,
-                                                       void* isolate);
+                                                      void* isolate);
 void v8__Platform__CustomPlatform__BASE__NotifyIsolateShutdown(void* context,
-                                                                void* isolate);
+                                                               void* isolate);
 void v8__Platform__CustomPlatform__BASE__DROP(void* context);
 }
 
@@ -3052,8 +3051,8 @@ class CustomTaskRunner final : public v8::TaskRunner {
   void PostTaskImpl(std::unique_ptr<v8::Task> task,
                     const v8::SourceLocation& location) override {
     wrapped_->PostTask(std::move(task), location);
-    v8__Platform__CustomPlatform__BASE__PostTask(
-        context_, static_cast<void*>(isolate_));
+    v8__Platform__CustomPlatform__BASE__PostTask(context_,
+                                                 static_cast<void*>(isolate_));
   }
   void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
                                const v8::SourceLocation& location) override {
