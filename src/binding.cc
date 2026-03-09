@@ -3096,11 +3096,29 @@ class CustomTaskRunner final : public v8::TaskRunner {
 class CustomPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
 
+  // Magic value used to identify CustomPlatform instances at runtime.
+  // v8::platform::NotifyIsolateShutdown does static_cast<DefaultPlatform*>
+  // which bypasses our non-virtual NotifyIsolateShutdown, so the FFI
+  // wrapper needs to detect CustomPlatform and dispatch correctly.
+  static constexpr uint64_t kMagic = 0x4375'7374'506C'6174;  // "CustPlat"
+
  public:
   CustomPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
                  void* context)
       : DefaultPlatform(thread_pool_size, idle_task_support),
+        magic_(kMagic),
         context_(context) {}
+
+  static bool IsCustomPlatform(v8::Platform* platform) {
+    auto* dp = static_cast<DefaultPlatform*>(platform);
+    auto* maybe_custom = static_cast<CustomPlatform*>(dp);
+    return maybe_custom->magic_ == kMagic;
+  }
+
+  static CustomPlatform* Cast(v8::Platform* platform) {
+    return static_cast<CustomPlatform*>(
+        static_cast<DefaultPlatform*>(platform));
+  }
 
   // SAFETY: The platform is single-owner (via unique_ptr). The destructor
   // runs after all isolates have been disposed and no more task runner
@@ -3152,6 +3170,7 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
   }
 
  private:
+  uint64_t magic_;
   void* context_;
   std::mutex mutex_;
   // weak_ptr so runners are kept alive only while V8 holds a reference.
@@ -3246,7 +3265,15 @@ void v8__Platform__RunIdleTasks(v8::Platform* platform, v8::Isolate* isolate,
 
 void v8__Platform__NotifyIsolateShutdown(v8::Platform* platform,
                                          v8::Isolate* isolate) {
-  v8::platform::NotifyIsolateShutdown(platform, isolate);
+  // v8::platform::NotifyIsolateShutdown does static_cast<DefaultPlatform*>
+  // and calls the non-virtual NotifyIsolateShutdown, which would bypass
+  // CustomPlatform's override. Dispatch to CustomPlatform directly when
+  // applicable so the Rust callback fires.
+  if (CustomPlatform::IsCustomPlatform(platform)) {
+    CustomPlatform::Cast(platform)->NotifyIsolateShutdown(isolate);
+  } else {
+    v8::platform::NotifyIsolateShutdown(platform, isolate);
+  }
 }
 
 void v8__Platform__DELETE(v8::Platform* self) { delete self; }
