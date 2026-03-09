@@ -3102,6 +3102,9 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
       : DefaultPlatform(thread_pool_size, idle_task_support),
         context_(context) {}
 
+  // SAFETY: The platform is single-owner (via unique_ptr). The destructor
+  // runs after all isolates have been disposed and no more task runner
+  // callbacks can fire, so DROP does not race with other callbacks.
   ~CustomPlatform() override {
     v8__Platform__CustomPlatform__BASE__DROP(context_);
   }
@@ -3122,6 +3125,9 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
     return custom;
   }
 
+  // NotifyIsolateShutdown is not virtual on DefaultPlatform, so this
+  // hides the base method. This works because callers always go through
+  // the CustomPlatform* type (via the platform shared_ptr).
   void NotifyIsolateShutdown(v8::Isolate* isolate) {
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -3138,6 +3144,9 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
     DefaultPlatform::NotifyIsolateShutdown(isolate);
   }
 
+  // Disable thread-isolated allocations (same as UnprotectedDefaultPlatform).
+  // Required when isolates may be created on threads other than the one that
+  // called v8::V8::Initialize (e.g. worker threads in Deno).
   v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
     return nullptr;
   }
@@ -3145,6 +3154,10 @@ class CustomPlatform : public v8::platform::DefaultPlatform {
  private:
   void* context_;
   std::mutex mutex_;
+  // weak_ptr so runners are kept alive only while V8 holds a reference.
+  // When V8 drops its shared_ptr (e.g. on isolate shutdown), the weak_ptr
+  // expires and a fresh wrapper is created if GetForegroundTaskRunner is
+  // called again. This avoids preventing cleanup of the underlying runner.
   std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
            std::weak_ptr<CustomTaskRunner>>
       runners_;

@@ -353,9 +353,11 @@ impl Platform {
     // thin pointer we can pass through C++ void*.
     let boxed: Box<dyn PlatformImpl> = Box::new(platform_impl);
     let context = Box::into_raw(Box::new(boxed)) as *mut std::ffi::c_void;
+    // thread_pool_size clamping (0 → hardware_concurrency, max 16) is
+    // handled on the C++ side in v8__Platform__NewCustomPlatform.
     unsafe {
       UniqueRef::from_raw(v8__Platform__NewCustomPlatform(
-        thread_pool_size.min(16) as i32,
+        thread_pool_size as i32,
         idle_task_support,
         context,
       ))
