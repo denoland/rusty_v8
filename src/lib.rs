@@ -86,6 +86,8 @@ mod wasm;
 pub mod inspector;
 pub mod json;
 pub mod script_compiler;
+#[cfg(feature = "simdutf")]
+pub mod simdutf;
 // This module is intentionally named "V8" rather than "v8" to match the
 // C++ namespace "v8::V8".
 #[allow(non_snake_case)]

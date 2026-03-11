@@ -1,6 +1,10 @@
 # Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 import("//build/config/host_byteorder.gni")
 
+declare_args() {
+  rusty_v8_enable_simdutf = false
+}
+
 static_library("rusty_v8") {
   complete_static_lib = true
   sources = [ "src/binding.cc" ]
@@ -10,6 +14,9 @@ static_library("rusty_v8") {
     "//v8:v8_libbase",
     "//v8:v8_libplatform",
   ]
+  if (rusty_v8_enable_simdutf) {
+    deps += [ "//third_party/simdutf:simdutf" ]
+  }
   configs -= [
     "//build/config/compiler:default_init_stack_vars",
     "//build/config/compiler:thin_archive",
@@ -34,11 +41,17 @@ config("rusty_v8_config") {
   # internal V8 headers.
   include_dirs = [
     "v8",
+    ".",
     "$target_gen_dir/v8",
   ]
 
+  defines = []
   if (is_debug) {
-    defines = [ "DEBUG" ]
+    defines += [ "DEBUG" ]
+  }
+
+  if (rusty_v8_enable_simdutf) {
+    defines += [ "RUSTY_V8_ENABLE_SIMDUTF" ]
   }
 
   if (is_clang) {
