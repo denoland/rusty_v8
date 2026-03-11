@@ -996,105 +996,110 @@ impl String {
     }
   }
 
-  /// Converts a [`crate::String`] to either an owned [`std::string::String`], or a borrowed [`str`], depending on whether it fits into the
-  /// provided buffer.
+  /// Converts a [`crate::String`] to either an owned [`std::string::String`],
+  /// or a borrowed [`str`], depending on whether it fits into the provided
+  /// buffer.
+  ///
+  /// Uses [`ValueView`] internally for direct access to the string's
+  /// contents, eliminating the `utf8_length` pre-scan that the previous
+  /// implementation required.
   pub fn to_rust_cow_lossy<'a, const N: usize>(
     &self,
     scope: &mut Isolate,
     buffer: &'a mut [MaybeUninit<u8>; N],
   ) -> Cow<'a, str> {
-    let len_utf16 = self.length();
-
-    // No need to allocate or do any work for zero-length strings
-    if len_utf16 == 0 {
+    let len = self.length();
+    if len == 0 {
       return "".into();
     }
 
-    // TODO(mmastrac): Ideally we should be able to access the string's internal representation
-    let len_utf8 = self.utf8_length(scope);
+    // SAFETY: `self` is a valid V8 string reachable from a handle scope.
+    // The ValueView is dropped before we return, so the
+    // DisallowGarbageCollection scope it holds is properly scoped.
+    let view = unsafe { ValueView::new_from_ref(scope, self) };
 
-    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
-    // string is 100% 7-bit ASCII.
-    if self.is_onebyte() && len_utf8 == len_utf16 {
-      if len_utf16 <= N {
-        self.write_one_byte_uninit_v2(scope, 0, buffer, WriteFlags::empty());
-        unsafe {
-          // Get a slice of &[u8] of what we know is initialized now
-          let buffer = &mut buffer[..len_utf16];
-          let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
-
-          // We know it's valid UTF-8, so make a string
-          return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
+    match view.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // ASCII: direct memcpy, no transcoding needed.
+          if bytes.len() <= N {
+            unsafe {
+              std::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                buffer.as_mut_ptr() as *mut u8,
+                bytes.len(),
+              );
+              let buf = &mut buffer[..bytes.len()];
+              let buf = &mut *(buf as *mut [_] as *mut [u8]);
+              Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+            }
+          } else {
+            // SAFETY: ASCII bytes are valid UTF-8.
+            unsafe {
+              Cow::Owned(std::string::String::from_utf8_unchecked(
+                bytes.to_vec(),
+              ))
+            }
+          }
+        } else {
+          // Latin-1 non-ASCII: each byte can expand to at most 2 UTF-8
+          // bytes. Use conservative size check.
+          let max_utf8_len = bytes.len() * 2;
+          if max_utf8_len <= N {
+            let written = unsafe {
+              latin1_to_utf8(
+                bytes.len(),
+                bytes.as_ptr(),
+                buffer.as_mut_ptr() as *mut u8,
+              )
+            };
+            unsafe {
+              let buf = &mut buffer[..written];
+              let buf = &mut *(buf as *mut [_] as *mut [u8]);
+              Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+            }
+          } else {
+            let mut buf = Vec::with_capacity(max_utf8_len);
+            unsafe {
+              let written =
+                latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
+              buf.set_len(written);
+              Cow::Owned(std::string::String::from_utf8_unchecked(buf))
+            }
+          }
         }
       }
-
-      unsafe {
-        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-        // accidentally creating a slice of u8 which would be invalid.
-        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
-        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
-
-        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        self.write_one_byte_uninit_v2(
-          scope,
-          0,
-          &mut *buffer,
-          WriteFlags::kReplaceInvalidUtf8,
-        );
-
-        // Return an owned string from this guaranteed now-initialized data
-        let buffer = data as *mut u8;
-        return Cow::Owned(std::string::String::from_raw_parts(
-          buffer, len_utf16, len_utf16,
-        ));
+      ValueViewData::TwoByte(units) => {
+        // Transcode UTF-16 directly into the stack buffer when possible.
+        let mut pos = 0;
+        let mut tmp = [0u8; 4];
+        let mut all_fit = true;
+        for result in std::char::decode_utf16(units.iter().copied()) {
+          let c = result.unwrap_or('\u{FFFD}');
+          let encoded = c.encode_utf8(&mut tmp);
+          if pos + encoded.len() > N {
+            all_fit = false;
+            break;
+          }
+          unsafe {
+            std::ptr::copy_nonoverlapping(
+              encoded.as_ptr(),
+              (buffer.as_mut_ptr() as *mut u8).add(pos),
+              encoded.len(),
+            );
+          }
+          pos += encoded.len();
+        }
+        if all_fit {
+          unsafe {
+            let buf = &mut buffer[..pos];
+            let buf = &mut *(buf as *mut [_] as *mut [u8]);
+            Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+          }
+        } else {
+          Cow::Owned(std::string::String::from_utf16_lossy(units))
+        }
       }
-    }
-
-    if len_utf8 <= N {
-      // No malloc path
-      let length = self.write_utf8_uninit_v2(
-        scope,
-        buffer,
-        WriteFlags::kReplaceInvalidUtf8,
-        None,
-      );
-      debug_assert!(length == len_utf8);
-
-      // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
-      unsafe {
-        // Get a slice of &[u8] of what we know is initialized now
-        let buffer = &mut buffer[..length];
-        let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
-
-        // We know it's valid UTF-8, so make a string
-        return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
-      }
-    }
-
-    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
-    // We have a large number of invariants to uphold, so please check changes to this code carefully
-    unsafe {
-      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-      // accidentally creating a slice of u8 which would be invalid.
-      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
-      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
-
-      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit_v2(
-        scope,
-        &mut *buffer,
-        WriteFlags::kReplaceInvalidUtf8,
-        None,
-      );
-      debug_assert!(length == len_utf8);
-
-      // Return an owned string from this guaranteed now-initialized data
-      let buffer = data as *mut u8;
-      Cow::Owned(std::string::String::from_raw_parts(
-        buffer, length, len_utf8,
-      ))
     }
   }
 }
@@ -1132,12 +1137,29 @@ pub struct ValueView<'s>(
 impl<'s> ValueView<'s> {
   #[inline(always)]
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
+    // SAFETY: Local<'s, String> derefs to &String; delegate to new_from_ref.
+    unsafe { Self::new_from_ref(isolate, &*string) }
+  }
+
+  /// Constructs a `ValueView` from a raw string reference.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that `string` is a valid V8 string that
+  /// remains alive for at least `'s`. In practice this means the
+  /// string must be reachable from a handle scope that outlives the
+  /// returned `ValueView`.
+  #[inline(always)]
+  pub(crate) unsafe fn new_from_ref(
+    isolate: &mut Isolate,
+    string: &'s String,
+  ) -> Self {
     let mut v = std::mem::MaybeUninit::uninit();
     unsafe {
       v8__String__ValueView__CONSTRUCT(
         v.as_mut_ptr(),
         isolate.as_real_ptr(),
-        &*string,
+        string,
       );
       v.assume_init()
     }
