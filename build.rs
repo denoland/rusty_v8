@@ -99,15 +99,6 @@ fn main() {
   // because we store everything in a parent directory of OUT_DIR.
   let _lockfile = acquire_lock();
 
-  // The simdutf feature requires building from source because prebuilt
-  // artifacts are not produced with simdutf enabled.
-  if env::var("CARGO_FEATURE_SIMDUTF").is_ok() && !env_bool("V8_FROM_SOURCE") {
-    panic!(
-      "The `simdutf` cargo feature requires V8_FROM_SOURCE=1. \
-       Prebuilt binaries do not include simdutf."
-    );
-  }
-
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
     if is_asan && env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
@@ -551,6 +542,9 @@ fn prebuilt_features_suffix() -> String {
   }
   if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
     features.push_str("_sandbox");
+  }
+  if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
+    features.push_str("_simdutf");
   }
   features
 }
