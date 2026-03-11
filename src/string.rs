@@ -949,49 +949,59 @@ impl String {
   /// The buffer is cleared first, then filled with the string's UTF-8
   /// contents. This avoids repeated heap allocation when converting
   /// many V8 strings — callers can keep a single `String` and reuse it.
+  ///
+  /// Uses [`ValueView`] internally for single-pass access, avoiding
+  /// the extra `utf8_length` FFI call.
   pub fn write_utf8_into(
     &self,
-    scope: &Isolate,
+    scope: &mut Isolate,
     buf: &mut std::string::String,
   ) {
     buf.clear();
-    let len_utf16 = self.length();
-    if len_utf16 == 0 {
+    let len = self.length();
+    if len == 0 {
       return;
     }
 
-    let len_utf8 = self.utf8_length(scope);
-    buf.reserve(len_utf8);
+    // SAFETY: `self` is a valid V8 string reachable from a handle scope.
+    // The ValueView is dropped before we return.
+    let view = unsafe { ValueView::new_from_ref(scope, self) };
 
-    // SAFETY: We write valid UTF-8 data into the spare capacity, then
-    // set the length. After clear(), len == 0 so spare_capacity covers
-    // the full allocation. kReplaceInvalidUtf8 guarantees valid UTF-8.
-    unsafe {
-      let vec = buf.as_mut_vec();
-      if self.is_onebyte() && len_utf8 == len_utf16 {
-        // ASCII fast path
-        self.write_one_byte_uninit_v2(
-          scope,
-          0,
-          slice::from_raw_parts_mut(
-            vec.as_mut_ptr() as *mut MaybeUninit<u8>,
-            len_utf16,
-          ),
-          WriteFlags::kReplaceInvalidUtf8,
-        );
-        vec.set_len(len_utf16);
-      } else {
-        let written = self.write_utf8_uninit_v2(
-          scope,
-          slice::from_raw_parts_mut(
-            vec.as_mut_ptr() as *mut MaybeUninit<u8>,
-            len_utf8,
-          ),
-          WriteFlags::kReplaceInvalidUtf8,
-          None,
-        );
-        debug_assert!(written == len_utf8);
-        vec.set_len(written);
+    match view.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // ASCII: direct copy, already valid UTF-8.
+          buf.reserve(bytes.len());
+          unsafe {
+            let vec = buf.as_mut_vec();
+            std::ptr::copy_nonoverlapping(
+              bytes.as_ptr(),
+              vec.as_mut_ptr(),
+              bytes.len(),
+            );
+            vec.set_len(bytes.len());
+          }
+        } else {
+          // Latin-1: each byte can expand to at most 2 UTF-8 bytes.
+          let max_utf8_len = bytes.len() * 2;
+          buf.reserve(max_utf8_len);
+          unsafe {
+            let vec = buf.as_mut_vec();
+            let written =
+              latin1_to_utf8(bytes.len(), bytes.as_ptr(), vec.as_mut_ptr());
+            vec.set_len(written);
+          }
+        }
+      }
+      ValueViewData::TwoByte(units) => {
+        // Conservative estimate: each UTF-16 code unit can produce at
+        // most 3 UTF-8 bytes (surrogates produce 4 bytes for 2 units).
+        buf.reserve(units.len() * 3);
+        for result in std::char::decode_utf16(units.iter().copied()) {
+          let c = result.unwrap_or('\u{FFFD}');
+          let mut tmp = [0u8; 4];
+          buf.push_str(c.encode_utf8(&mut tmp));
+        }
       }
     }
   }
