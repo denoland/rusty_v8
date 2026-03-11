@@ -1137,8 +1137,11 @@ pub struct ValueView<'s>(
 impl<'s> ValueView<'s> {
   #[inline(always)]
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
-    // SAFETY: Local<'s, String> derefs to &String; delegate to new_from_ref.
-    unsafe { Self::new_from_ref(isolate, &*string) }
+    // SAFETY: Local<'s, String> guarantees the V8 string is rooted in a
+    // HandleScope that lives for at least 's.  Deref on Local erases the
+    // scope lifetime, so we recover it via pointer cast.
+    let string_ref: &'s String = unsafe { &*((&*string) as *const String) };
+    unsafe { Self::new_from_ref(isolate, string_ref) }
   }
 
   /// Constructs a `ValueView` from a raw string reference.
