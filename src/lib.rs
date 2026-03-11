@@ -175,6 +175,7 @@ pub use string::ValueView;
 pub use string::ValueViewData;
 pub use string::WriteFlags;
 pub use string::WriteOptions;
+pub use string::latin1_to_utf8;
 pub use support::SharedPtr;
 pub use support::SharedRef;
 pub use support::UniquePtr;
