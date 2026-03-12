@@ -348,12 +348,17 @@ fn build_v8(is_asan: bool) {
 
   // Use the shared-library-safe TLS mode by default on Linux so downstream
   // cdylibs can link rusty_v8 archives.
-  let raw_gn_args = env::var("GN_ARGS").ok();
-  add_user_gn_args_and_linux_tls_default(
-    &mut gn_args,
-    target_os,
-    raw_gn_args.as_deref(),
-  );
+  let mut has_tls_library_mode_define = false;
+  if let Ok(raw_gn_args) = env::var("GN_ARGS")
+    && !raw_gn_args.trim().is_empty()
+  {
+    has_tls_library_mode_define =
+      raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY");
+    gn_args.push(raw_gn_args);
+  }
+  if target_os == "linux" && !has_tls_library_mode_define {
+    gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
+  }
   // cross-compilation setup
   if target_arch == "aarch64" {
     gn_args.push(r#"target_cpu="arm64""#.to_string());
@@ -435,24 +440,6 @@ fn build_v8(is_asan: bool) {
     print_gn_args(&gn_out);
   }
   build("rusty_v8", None);
-}
-
-fn add_user_gn_args_and_linux_tls_default(
-  gn_args: &mut Vec<String>,
-  target_os: &str,
-  raw_gn_args: Option<&str>,
-) {
-  let raw_gn_args = raw_gn_args.filter(|args| !args.trim().is_empty());
-  let has_tls_library_mode_define =
-    raw_gn_args.is_some_and(|args| args.contains("V8_TLS_USED_IN_LIBRARY"));
-
-  if let Some(args) = raw_gn_args {
-    gn_args.push(args.to_string());
-  }
-
-  if target_os == "linux" && !has_tls_library_mode_define {
-    gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
-  }
 }
 
 fn print_gn_args(gn_out_dir: &Path) {
@@ -1204,6 +1191,24 @@ fn env_bool(key: &str) -> bool {
 mod test {
   use super::*;
 
+  fn apply_linux_tls_logic_for_test(
+    gn_args: &mut Vec<String>,
+    target_os: &str,
+    raw_gn_args: Option<&str>,
+  ) {
+    let mut has_tls_library_mode_define = false;
+    if let Some(raw_gn_args) = raw_gn_args
+      && !raw_gn_args.trim().is_empty()
+    {
+      has_tls_library_mode_define =
+        raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY");
+      gn_args.push(raw_gn_args.to_string());
+    }
+    if target_os == "linux" && !has_tls_library_mode_define {
+      gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
+    }
+  }
+
   const MOCK_GRAPH: &str = r#"
 digraph ninja {
 rankdir="LR"
@@ -1257,7 +1262,7 @@ edge [fontsize=10]
   fn test_linux_tls_override_detected_in_spaced_array() {
     let mut gn_args = Vec::new();
 
-    add_user_gn_args_and_linux_tls_default(
+    apply_linux_tls_logic_for_test(
       &mut gn_args,
       "linux",
       Some(r#"extra_cflags=[ "-O2", "-DV8_TLS_USED_IN_LIBRARY" ]"#),
@@ -1273,7 +1278,7 @@ edge [fontsize=10]
   fn test_quoted_whitespace_gn_args_preserved_and_tls_default_injected() {
     let mut gn_args = Vec::new();
 
-    add_user_gn_args_and_linux_tls_default(
+    apply_linux_tls_logic_for_test(
       &mut gn_args,
       "linux",
       Some(r#"clang_base_path="/tmp/clang with spaces""#),
@@ -1292,7 +1297,7 @@ edge [fontsize=10]
   fn test_whitespace_only_gn_args_skipped() {
     let mut gn_args = Vec::new();
 
-    add_user_gn_args_and_linux_tls_default(&mut gn_args, "macos", Some("   "));
+    apply_linux_tls_logic_for_test(&mut gn_args, "macos", Some("   "));
 
     assert!(gn_args.is_empty());
   }
@@ -1301,7 +1306,7 @@ edge [fontsize=10]
   fn test_linux_tls_default_injected_without_override() {
     let mut gn_args = Vec::new();
 
-    add_user_gn_args_and_linux_tls_default(&mut gn_args, "linux", None);
+    apply_linux_tls_logic_for_test(&mut gn_args, "linux", None);
 
     assert_eq!(
       gn_args,
