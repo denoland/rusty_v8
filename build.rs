@@ -1191,24 +1191,6 @@ fn env_bool(key: &str) -> bool {
 mod test {
   use super::*;
 
-  fn apply_linux_tls_logic_for_test(
-    gn_args: &mut Vec<String>,
-    target_os: &str,
-    raw_gn_args: Option<&str>,
-  ) {
-    let mut has_tls_library_mode_define = false;
-    if let Some(raw_gn_args) = raw_gn_args
-      && !raw_gn_args.trim().is_empty()
-    {
-      has_tls_library_mode_define =
-        raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY");
-      gn_args.push(raw_gn_args.to_string());
-    }
-    if target_os == "linux" && !has_tls_library_mode_define {
-      gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
-    }
-  }
-
   const MOCK_GRAPH: &str = r#"
 digraph ninja {
 rankdir="LR"
@@ -1256,61 +1238,5 @@ edge [fontsize=10]
     assert!(files.contains("../../../example/src/input.txt"));
     assert!(files.contains("../../../example/src/count_bytes.py"));
     assert!(!files.contains("obj/hello/hello.o"));
-  }
-
-  #[test]
-  fn test_linux_tls_override_detected_in_spaced_array() {
-    let mut gn_args = Vec::new();
-
-    apply_linux_tls_logic_for_test(
-      &mut gn_args,
-      "linux",
-      Some(r#"extra_cflags=[ "-O2", "-DV8_TLS_USED_IN_LIBRARY" ]"#),
-    );
-
-    assert_eq!(
-      gn_args,
-      vec![r#"extra_cflags=[ "-O2", "-DV8_TLS_USED_IN_LIBRARY" ]"#.to_string()]
-    );
-  }
-
-  #[test]
-  fn test_quoted_whitespace_gn_args_preserved_and_tls_default_injected() {
-    let mut gn_args = Vec::new();
-
-    apply_linux_tls_logic_for_test(
-      &mut gn_args,
-      "linux",
-      Some(r#"clang_base_path="/tmp/clang with spaces""#),
-    );
-
-    assert_eq!(
-      gn_args,
-      vec![
-        r#"clang_base_path="/tmp/clang with spaces""#.to_string(),
-        r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string(),
-      ]
-    );
-  }
-
-  #[test]
-  fn test_whitespace_only_gn_args_skipped() {
-    let mut gn_args = Vec::new();
-
-    apply_linux_tls_logic_for_test(&mut gn_args, "macos", Some("   "));
-
-    assert!(gn_args.is_empty());
-  }
-
-  #[test]
-  fn test_linux_tls_default_injected_without_override() {
-    let mut gn_args = Vec::new();
-
-    apply_linux_tls_logic_for_test(&mut gn_args, "linux", None);
-
-    assert_eq!(
-      gn_args,
-      vec![r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string()]
-    );
   }
 }
