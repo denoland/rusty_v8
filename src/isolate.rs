@@ -2589,45 +2589,28 @@ pub struct Locker<'a> {
   isolate: &'a mut UnenteredIsolate,
 }
 
-/// Guard to ensure `v8__Isolate__Exit` is called if panic occurs after Enter.
-struct IsolateExitGuard(*mut RealIsolate);
-
-impl Drop for IsolateExitGuard {
-  fn drop(&mut self) {
-    unsafe { v8__Isolate__Exit(self.0) };
-  }
-}
-
 impl<'a> Locker<'a> {
   /// Creates a new `Locker` for the given isolate.
   ///
   /// This will:
-  /// 1. Enter the isolate (via `v8::Isolate::Enter()`)
-  /// 2. Acquire the V8 lock (via `v8::Locker`)
+  /// 1. Acquire the V8 lock (via `v8::Locker`)
+  /// 2. Enter the isolate (via `v8::Isolate::Enter()`)
   ///
-  /// When the `Locker` is dropped, the lock is released and the isolate is exited.
+  /// When the `Locker` is dropped, the isolate is exited and the lock is released.
   ///
-  /// # Panics
-  ///
-  /// This function is panic-safe. If initialization fails, the isolate will be
-  /// properly exited.
+  /// The ordering is critical: we must hold the lock before calling Enter(),
+  /// because Enter() modifies V8's entry_stack_ which is not thread-safe.
   pub fn new(isolate: &'a mut UnenteredIsolate) -> Self {
     let isolate_ptr = isolate.cxx_isolate;
 
-    // Enter the isolate first
-    unsafe {
-      v8__Isolate__Enter(isolate_ptr.as_ptr());
-    }
-
-    // Create exit guard - will call Exit if we panic before completing
-    let exit_guard = IsolateExitGuard(isolate_ptr.as_ptr());
-
-    // Initialize the raw Locker
+    // Acquire the lock first (must hold lock before touching entry_stack_)
     let mut raw = unsafe { crate::scope::raw::Locker::uninit() };
     unsafe { raw.init(isolate_ptr) };
 
-    // Success - forget the guard so it doesn't call Exit
-    std::mem::forget(exit_guard);
+    // Now enter the isolate (safe because we hold the lock)
+    unsafe {
+      v8__Isolate__Enter(isolate_ptr.as_ptr());
+    }
 
     Self {
       raw: std::mem::ManuallyDrop::new(raw),
@@ -2644,8 +2627,10 @@ impl<'a> Locker<'a> {
 impl Drop for Locker<'_> {
   fn drop(&mut self) {
     unsafe {
-      std::mem::ManuallyDrop::drop(&mut self.raw);
+      // Exit first (while we still hold the lock), then release the lock.
+      // Reverse order of new(): Lock -> Enter, so drop: Exit -> Unlock.
       v8__Isolate__Exit(self.isolate.cxx_isolate.as_ptr());
+      std::mem::ManuallyDrop::drop(&mut self.raw);
     }
   }
 }

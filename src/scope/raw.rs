@@ -236,8 +236,7 @@ impl Drop for AllowJavascriptExecutionScope {
 ///    the `Locker` is dropped. Dropping an uninitialized `Locker` is undefined
 ///    behavior because `Drop` will call the C++ destructor on garbage data.
 ///
-/// 2. **Isolate State**: The isolate passed to `init()` must be in "entered" state
-///    (via `v8::Isolate::Enter()`) before calling `init()`.
+/// 2. **Isolate Pointer**: The isolate pointer passed to `init()` must be valid.
 ///
 /// 3. **Single Initialization**: `init()` must be called exactly once. Calling it
 ///    multiple times is undefined behavior.
@@ -278,7 +277,7 @@ impl Locker {
   /// # Safety
   ///
   /// - This must be called exactly once after `uninit()`
-  /// - The isolate must be valid and in "entered" state
+  /// - The isolate pointer must be valid
   /// - The isolate must not be locked by another `Locker`
   /// - After this call, the `Locker` owns the V8 lock until dropped
   #[inline]
