@@ -12271,6 +12271,178 @@ fn string_valueview() {
 }
 
 #[test]
+fn string_valueview_as_str() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ASCII string: as_str returns Some
+  {
+    let s = v8::String::new(scope, "hello world").unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), Some("hello world"));
+  }
+
+  // Empty string: as_str returns Some("")
+  {
+    let s = v8::String::empty(scope);
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), Some(""));
+  }
+
+  // Latin-1 non-ASCII: as_str returns None
+  {
+    let s = v8::String::new_from_one_byte(
+      scope,
+      &[0xC0, 0xE9, 0xF1],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), None);
+  }
+
+  // Two-byte string: as_str returns None
+  {
+    let s = v8::String::new_from_two_byte(
+      scope,
+      &[0x4F60, 0x597D],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), None);
+  }
+}
+
+#[test]
+fn string_valueview_to_cow_lossy() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ASCII: zero-copy Borrowed
+  {
+    let s = v8::String::new(scope, "hello").unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Borrowed(_)));
+    assert_eq!(&*cow, "hello");
+  }
+
+  // Latin-1 non-ASCII: Owned with correct transcoding
+  {
+    let s = v8::String::new_from_one_byte(
+      scope,
+      &[0xC0, 0xE9],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+    assert_eq!(&*cow, "\u{00C0}\u{00E9}");
+  }
+
+  // Two-byte: Owned
+  {
+    let s = v8::String::new_from_two_byte(
+      scope,
+      &[0x4F60, 0x597D],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+    assert_eq!(&*cow, "你好");
+  }
+}
+
+#[test]
+fn string_write_utf8_into() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  let mut buf = String::new();
+
+  // ASCII string
+  {
+    let s = v8::String::new(scope, "hello world").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "hello world");
+  }
+
+  // Buffer reuse: allocation should be reused
+  {
+    let ptr_before = buf.as_ptr();
+    let s = v8::String::new(scope, "hi").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "hi");
+    assert_eq!(buf.as_ptr(), ptr_before);
+  }
+
+  // Empty string
+  {
+    let s = v8::String::empty(scope);
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "");
+  }
+
+  // Unicode string
+  {
+    let s = v8::String::new(scope, "café ☕").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "café ☕");
+  }
+}
+
+#[test]
+fn latin1_to_utf8() {
+  // Pure ASCII
+  let input = b"hello world";
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  assert_eq!(&output[..written], b"hello world");
+
+  // Latin-1 with non-ASCII: À = 0xC0, é = 0xE9
+  let input = &[0xC0u8, 0xE9];
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  let s = std::str::from_utf8(&output[..written]).unwrap();
+  assert_eq!(s, "\u{00C0}\u{00E9}");
+
+  // Mixed ASCII and Latin-1 (exercises the 8-byte SIMD path)
+  let input = b"ABCDEFGH\xC0\xE9";
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  let s = std::str::from_utf8(&output[..written]).unwrap();
+  assert_eq!(s, "ABCDEFGH\u{00C0}\u{00E9}");
+
+  // Empty
+  let mut output = vec![0u8; 4];
+  let written =
+    unsafe { v8::latin1_to_utf8(0, [].as_ptr(), output.as_mut_ptr()) };
+  assert_eq!(written, 0);
+}
+
+#[test]
 fn host_defined_options() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());

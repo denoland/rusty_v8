@@ -17,6 +17,71 @@ use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::slice;
 
+/// Converts Latin-1 encoded bytes to UTF-8, writing into the output buffer.
+///
+/// The output buffer must have at least `2 * input_length` bytes of capacity,
+/// since each Latin-1 byte can expand to at most 2 UTF-8 bytes.
+///
+/// Returns the number of bytes written to the output buffer.
+///
+/// # Safety
+///
+/// - `inbuf` must point to at least `input_length` readable bytes.
+/// - `outbuf` must point to at least `2 * input_length` writable bytes.
+#[inline(always)]
+pub unsafe fn latin1_to_utf8(
+  input_length: usize,
+  inbuf: *const u8,
+  outbuf: *mut u8,
+) -> usize {
+  unsafe {
+    let mut output = 0;
+    let mut input = 0;
+
+    // Process 8 bytes at a time: check if all are ASCII with a single AND
+    while input + 8 <= input_length {
+      let chunk = (inbuf.add(input) as *const u64).read_unaligned();
+      if chunk & 0x8080_8080_8080_8080 == 0 {
+        // All 8 bytes are ASCII, copy in bulk
+        (outbuf.add(output) as *mut u64).write_unaligned(chunk);
+        input += 8;
+        output += 8;
+      } else {
+        // At least one non-ASCII byte, process individually
+        let end = input + 8;
+        while input < end {
+          let byte = *(inbuf.add(input));
+          if byte < 0x80 {
+            *(outbuf.add(output)) = byte;
+            output += 1;
+          } else {
+            // Latin-1 byte to two-byte UTF-8 sequence
+            *(outbuf.add(output)) = (byte >> 6) | 0b1100_0000;
+            *(outbuf.add(output + 1)) = (byte & 0b0011_1111) | 0b1000_0000;
+            output += 2;
+          }
+          input += 1;
+        }
+      }
+    }
+
+    // Handle remaining bytes
+    while input < input_length {
+      let byte = *(inbuf.add(input));
+      if byte < 0x80 {
+        *(outbuf.add(output)) = byte;
+        output += 1;
+      } else {
+        *(outbuf.add(output)) = (byte >> 6) | 0b1100_0000;
+        *(outbuf.add(output + 1)) = (byte & 0b0011_1111) | 0b1000_0000;
+        output += 2;
+      }
+      input += 1;
+    }
+    output
+  }
+}
+
 unsafe extern "C" {
   fn v8__String__Empty(isolate: *mut RealIsolate) -> *const String;
 
@@ -878,105 +943,173 @@ impl String {
     }
   }
 
-  /// Converts a [`crate::String`] to either an owned [`std::string::String`], or a borrowed [`str`], depending on whether it fits into the
-  /// provided buffer.
+  /// Writes the UTF-8 representation of this string into an existing
+  /// [`std::string::String`], reusing its allocation.
+  ///
+  /// The buffer is cleared first, then filled with the string's UTF-8
+  /// contents. This avoids repeated heap allocation when converting
+  /// many V8 strings — callers can keep a single `String` and reuse it.
+  ///
+  /// Uses [`ValueView`] internally for single-pass access, avoiding
+  /// the extra `utf8_length` FFI call.
+  pub fn write_utf8_into(
+    &self,
+    scope: &mut Isolate,
+    buf: &mut std::string::String,
+  ) {
+    buf.clear();
+    let len = self.length();
+    if len == 0 {
+      return;
+    }
+
+    // SAFETY: `self` is a valid V8 string reachable from a handle scope.
+    // The ValueView is dropped before we return.
+    let view = unsafe { ValueView::new_from_ref(scope, self) };
+
+    match view.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // ASCII: direct copy, already valid UTF-8.
+          buf.reserve(bytes.len());
+          unsafe {
+            let vec = buf.as_mut_vec();
+            std::ptr::copy_nonoverlapping(
+              bytes.as_ptr(),
+              vec.as_mut_ptr(),
+              bytes.len(),
+            );
+            vec.set_len(bytes.len());
+          }
+        } else {
+          // Latin-1: each byte can expand to at most 2 UTF-8 bytes.
+          let max_utf8_len = bytes.len() * 2;
+          buf.reserve(max_utf8_len);
+          unsafe {
+            let vec = buf.as_mut_vec();
+            let written =
+              latin1_to_utf8(bytes.len(), bytes.as_ptr(), vec.as_mut_ptr());
+            vec.set_len(written);
+          }
+        }
+      }
+      ValueViewData::TwoByte(units) => {
+        // Conservative estimate: each UTF-16 code unit can produce at
+        // most 3 UTF-8 bytes (surrogates produce 4 bytes for 2 units).
+        buf.reserve(units.len() * 3);
+        for result in std::char::decode_utf16(units.iter().copied()) {
+          let c = result.unwrap_or('\u{FFFD}');
+          let mut tmp = [0u8; 4];
+          buf.push_str(c.encode_utf8(&mut tmp));
+        }
+      }
+    }
+  }
+
+  /// Converts a [`crate::String`] to either an owned [`std::string::String`],
+  /// or a borrowed [`str`], depending on whether it fits into the provided
+  /// buffer.
+  ///
+  /// Uses [`ValueView`] internally for direct access to the string's
+  /// contents, eliminating the `utf8_length` pre-scan that the previous
+  /// implementation required.
   pub fn to_rust_cow_lossy<'a, const N: usize>(
     &self,
     scope: &mut Isolate,
     buffer: &'a mut [MaybeUninit<u8>; N],
   ) -> Cow<'a, str> {
-    let len_utf16 = self.length();
-
-    // No need to allocate or do any work for zero-length strings
-    if len_utf16 == 0 {
+    let len = self.length();
+    if len == 0 {
       return "".into();
     }
 
-    // TODO(mmastrac): Ideally we should be able to access the string's internal representation
-    let len_utf8 = self.utf8_length(scope);
+    // SAFETY: `self` is a valid V8 string reachable from a handle scope.
+    // The ValueView is dropped before we return, so the
+    // DisallowGarbageCollection scope it holds is properly scoped.
+    let view = unsafe { ValueView::new_from_ref(scope, self) };
 
-    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
-    // string is 100% 7-bit ASCII.
-    if self.is_onebyte() && len_utf8 == len_utf16 {
-      if len_utf16 <= N {
-        self.write_one_byte_uninit_v2(scope, 0, buffer, WriteFlags::empty());
-        unsafe {
-          // Get a slice of &[u8] of what we know is initialized now
-          let buffer = &mut buffer[..len_utf16];
-          let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
-
-          // We know it's valid UTF-8, so make a string
-          return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
+    match view.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // ASCII: direct memcpy, no transcoding needed.
+          if bytes.len() <= N {
+            unsafe {
+              std::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                buffer.as_mut_ptr() as *mut u8,
+                bytes.len(),
+              );
+              let buf = &mut buffer[..bytes.len()];
+              let buf = &mut *(buf as *mut [_] as *mut [u8]);
+              Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+            }
+          } else {
+            // SAFETY: ASCII bytes are valid UTF-8.
+            unsafe {
+              Cow::Owned(std::string::String::from_utf8_unchecked(
+                bytes.to_vec(),
+              ))
+            }
+          }
+        } else {
+          // Latin-1 non-ASCII: each byte can expand to at most 2 UTF-8
+          // bytes. Use conservative size check.
+          let max_utf8_len = bytes.len() * 2;
+          if max_utf8_len <= N {
+            let written = unsafe {
+              latin1_to_utf8(
+                bytes.len(),
+                bytes.as_ptr(),
+                buffer.as_mut_ptr() as *mut u8,
+              )
+            };
+            unsafe {
+              let buf = &mut buffer[..written];
+              let buf = &mut *(buf as *mut [_] as *mut [u8]);
+              Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+            }
+          } else {
+            let mut buf = Vec::with_capacity(max_utf8_len);
+            unsafe {
+              let written =
+                latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
+              buf.set_len(written);
+              Cow::Owned(std::string::String::from_utf8_unchecked(buf))
+            }
+          }
         }
       }
-
-      unsafe {
-        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-        // accidentally creating a slice of u8 which would be invalid.
-        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
-        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
-
-        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        self.write_one_byte_uninit_v2(
-          scope,
-          0,
-          &mut *buffer,
-          WriteFlags::kReplaceInvalidUtf8,
-        );
-
-        // Return an owned string from this guaranteed now-initialized data
-        let buffer = data as *mut u8;
-        return Cow::Owned(std::string::String::from_raw_parts(
-          buffer, len_utf16, len_utf16,
-        ));
+      ValueViewData::TwoByte(units) => {
+        // Transcode UTF-16 directly into the stack buffer when possible.
+        let mut pos = 0;
+        let mut tmp = [0u8; 4];
+        let mut all_fit = true;
+        for result in std::char::decode_utf16(units.iter().copied()) {
+          let c = result.unwrap_or('\u{FFFD}');
+          let encoded = c.encode_utf8(&mut tmp);
+          if pos + encoded.len() > N {
+            all_fit = false;
+            break;
+          }
+          unsafe {
+            std::ptr::copy_nonoverlapping(
+              encoded.as_ptr(),
+              (buffer.as_mut_ptr() as *mut u8).add(pos),
+              encoded.len(),
+            );
+          }
+          pos += encoded.len();
+        }
+        if all_fit {
+          unsafe {
+            let buf = &mut buffer[..pos];
+            let buf = &mut *(buf as *mut [_] as *mut [u8]);
+            Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+          }
+        } else {
+          Cow::Owned(std::string::String::from_utf16_lossy(units))
+        }
       }
-    }
-
-    if len_utf8 <= N {
-      // No malloc path
-      let length = self.write_utf8_uninit_v2(
-        scope,
-        buffer,
-        WriteFlags::kReplaceInvalidUtf8,
-        None,
-      );
-      debug_assert!(length == len_utf8);
-
-      // SAFETY: We know that we wrote `length` UTF-8 bytes. See `slice_assume_init_mut` for additional guarantee information.
-      unsafe {
-        // Get a slice of &[u8] of what we know is initialized now
-        let buffer = &mut buffer[..length];
-        let buffer = &mut *(buffer as *mut [_] as *mut [u8]);
-
-        // We know it's valid UTF-8, so make a string
-        return Cow::Borrowed(std::str::from_utf8_unchecked(buffer));
-      }
-    }
-
-    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
-    // We have a large number of invariants to uphold, so please check changes to this code carefully
-    unsafe {
-      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-      // accidentally creating a slice of u8 which would be invalid.
-      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
-      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
-
-      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit_v2(
-        scope,
-        &mut *buffer,
-        WriteFlags::kReplaceInvalidUtf8,
-        None,
-      );
-      debug_assert!(length == len_utf8);
-
-      // Return an owned string from this guaranteed now-initialized data
-      let buffer = data as *mut u8;
-      Cow::Owned(std::string::String::from_raw_parts(
-        buffer, length, len_utf8,
-      ))
     }
   }
 }
@@ -1014,12 +1147,32 @@ pub struct ValueView<'s>(
 impl<'s> ValueView<'s> {
   #[inline(always)]
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
+    // SAFETY: Local<'s, String> guarantees the V8 string is rooted in a
+    // HandleScope that lives for at least 's.  Deref on Local erases the
+    // scope lifetime, so we recover it via pointer cast.
+    let string_ref: &'s String = unsafe { &*((&*string) as *const String) };
+    unsafe { Self::new_from_ref(isolate, string_ref) }
+  }
+
+  /// Constructs a `ValueView` from a raw string reference.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that `string` is a valid V8 string that
+  /// remains alive for at least `'s`. In practice this means the
+  /// string must be reachable from a handle scope that outlives the
+  /// returned `ValueView`.
+  #[inline(always)]
+  pub(crate) unsafe fn new_from_ref(
+    isolate: &mut Isolate,
+    string: &'s String,
+  ) -> Self {
     let mut v = std::mem::MaybeUninit::uninit();
     unsafe {
       v8__String__ValueView__CONSTRUCT(
         v.as_mut_ptr(),
         isolate.as_real_ptr(),
-        &*string,
+        string,
       );
       v.assume_init()
     }
@@ -1034,6 +1187,66 @@ impl<'s> ValueView<'s> {
         ValueViewData::OneByte(std::slice::from_raw_parts(data as _, length))
       } else {
         ValueViewData::TwoByte(std::slice::from_raw_parts(data as _, length))
+      }
+    }
+  }
+
+  /// Returns a zero-copy `&str` if the string is one-byte and pure ASCII.
+  ///
+  /// This is the fastest way to access a V8 string's contents as a Rust
+  /// `&str` — no allocation, no copy, no transcoding. Returns `None` for
+  /// strings that contain non-ASCII Latin-1 bytes or are two-byte encoded.
+  ///
+  /// The returned reference is valid as long as this `ValueView` is alive.
+  #[inline(always)]
+  pub fn as_str(&self) -> Option<&str> {
+    match self.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // SAFETY: ASCII bytes are valid UTF-8.
+          Some(unsafe { std::str::from_utf8_unchecked(bytes) })
+        } else {
+          None
+        }
+      }
+      ValueViewData::TwoByte(_) => None,
+    }
+  }
+
+  /// Returns the string contents as a `Cow<str>`.
+  ///
+  /// - **One-byte ASCII**: returns `Cow::Borrowed(&str)` — true zero-copy.
+  /// - **One-byte Latin-1** (non-ASCII): transcodes to UTF-8, returns
+  ///   `Cow::Owned`.
+  /// - **Two-byte** (UTF-16): transcodes to UTF-8 via
+  ///   [`std::string::String::from_utf16_lossy`], returns `Cow::Owned`.
+  ///
+  /// For the common case of ASCII strings this is zero-copy. The
+  /// Latin-1 transcoding uses a SIMD-friendly loop that processes 8 bytes
+  /// at a time.
+  #[inline(always)]
+  pub fn to_cow_lossy(&self) -> Cow<'_, str> {
+    match self.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // SAFETY: ASCII bytes are valid UTF-8.
+          Cow::Borrowed(unsafe { std::str::from_utf8_unchecked(bytes) })
+        } else {
+          // Latin-1 → UTF-8 transcoding. Each byte can expand to at
+          // most 2 UTF-8 bytes.
+          let mut buf = Vec::with_capacity(bytes.len() * 2);
+          // SAFETY: buf has capacity >= bytes.len() * 2, and
+          // latin1_to_utf8 writes valid UTF-8.
+          unsafe {
+            let written =
+              latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
+            buf.set_len(written);
+            Cow::Owned(std::string::String::from_utf8_unchecked(buf))
+          }
+        }
+      }
+      ValueViewData::TwoByte(units) => {
+        Cow::Owned(std::string::String::from_utf16_lossy(units))
       }
     }
   }
