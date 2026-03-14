@@ -83,6 +83,7 @@ mod value_deserializer;
 mod value_serializer;
 mod wasm;
 
+pub mod crdtp;
 pub mod inspector;
 pub mod json;
 pub mod script_compiler;
