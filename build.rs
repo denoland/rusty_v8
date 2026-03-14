@@ -346,10 +346,18 @@ fn build_v8(is_asan: bool) {
     println!("cargo:warning=Not using sccache or ccache");
   }
 
-  if let Ok(args) = env::var("GN_ARGS") {
-    for arg in args.split_whitespace() {
-      gn_args.push(arg.to_string());
-    }
+  // Use the shared-library-safe TLS mode by default on Linux so downstream
+  // cdylibs can link rusty_v8 archives.
+  let mut has_tls_library_mode_define = false;
+  if let Ok(raw_gn_args) = env::var("GN_ARGS")
+    && !raw_gn_args.trim().is_empty()
+  {
+    has_tls_library_mode_define =
+      raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY");
+    gn_args.push(raw_gn_args);
+  }
+  if target_os == "linux" && !has_tls_library_mode_define {
+    gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
   }
   // cross-compilation setup
   if target_arch == "aarch64" {
