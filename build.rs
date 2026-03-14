@@ -311,6 +311,11 @@ fn build_v8(is_asan: bool) {
     env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
   ));
 
+  gn_args.push(format!(
+    "rusty_v8_enable_simdutf={}",
+    env::var("CARGO_FEATURE_SIMDUTF").is_ok()
+  ));
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string());
@@ -537,6 +542,9 @@ fn prebuilt_features_suffix() -> String {
   }
   if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
     features.push_str("_sandbox");
+  }
+  if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
+    features.push_str("_simdutf");
   }
   features
 }
