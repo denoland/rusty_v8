@@ -24,10 +24,10 @@ fn validate_utf8() {
 #[test]
 fn validate_utf8_with_errors() {
   let r = simdutf::validate_utf8_with_errors(b"hello");
-  assert!(r.error.is_success());
+  assert!(r.is_ok());
 
   let r = simdutf::validate_utf8_with_errors(&[b'a', 0x80, b'b']);
-  assert!(!r.error.is_success());
+  assert!(!r.is_ok());
   assert_eq!(r.count, 1); // error at byte index 1
 }
 
@@ -217,7 +217,7 @@ fn base64_roundtrip() {
       simdutf::LastChunkHandling::Loose,
     )
   };
-  assert!(result.error.is_success());
+  assert!(result.is_ok());
   assert_eq!(&decoded[..result.count], input);
 }
 
@@ -248,6 +248,6 @@ fn base64_url_safe() {
       simdutf::LastChunkHandling::Loose,
     )
   };
-  assert!(result.error.is_success());
+  assert!(result.is_ok());
   assert_eq!(&decoded[..result.count], input);
 }
