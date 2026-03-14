@@ -98,7 +98,7 @@ fn latin1_to_utf8_roundtrip() {
   let latin1 = &[0x63u8, 0x61, 0x66, 0xE9];
   let expected_utf8 = "café";
 
-  let utf8_len = simdutf::utf8_length_from_latin1(latin1.len());
+  let utf8_len = simdutf::utf8_length_from_latin1(latin1);
   // é expands to 2 bytes in UTF-8, so length >= 4
   assert!(utf8_len >= latin1.len());
 

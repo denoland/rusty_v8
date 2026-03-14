@@ -144,7 +144,7 @@ unsafe extern "C" {
     length: usize,
   ) -> usize;
   fn simdutf__utf16_length_from_utf8(input: *const u8, length: usize) -> usize;
-  fn simdutf__utf8_length_from_latin1(length: usize) -> usize;
+  fn simdutf__utf8_length_from_latin1(input: *const u8, length: usize) -> usize;
   fn simdutf__latin1_length_from_utf8(input: *const u8, length: usize)
   -> usize;
   fn simdutf__utf32_length_from_utf8(input: *const u8, length: usize) -> usize;
@@ -715,11 +715,10 @@ pub fn utf16_length_from_utf8(input: &[u8]) -> usize {
   unsafe { simdutf__utf16_length_from_utf8(input.as_ptr(), input.len()) }
 }
 
-/// Returns the number of UTF-8 bytes needed to encode Latin-1 data of
-/// the given length.
+/// Returns the number of UTF-8 bytes needed to encode the given Latin-1 data.
 #[inline]
-pub fn utf8_length_from_latin1(length: usize) -> usize {
-  unsafe { simdutf__utf8_length_from_latin1(length) }
+pub fn utf8_length_from_latin1(input: &[u8]) -> usize {
+  unsafe { simdutf__utf8_length_from_latin1(input.as_ptr(), input.len()) }
 }
 
 /// Returns the number of Latin-1 bytes that the given UTF-8 input would
