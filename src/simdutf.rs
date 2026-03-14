@@ -144,7 +144,8 @@ unsafe extern "C" {
     length: usize,
   ) -> usize;
   fn simdutf__utf16_length_from_utf8(input: *const u8, length: usize) -> usize;
-  fn simdutf__utf8_length_from_latin1(input: *const u8, length: usize) -> usize;
+  fn simdutf__utf8_length_from_latin1(input: *const u8, length: usize)
+  -> usize;
   fn simdutf__latin1_length_from_utf8(input: *const u8, length: usize)
   -> usize;
   fn simdutf__utf32_length_from_utf8(input: *const u8, length: usize) -> usize;
