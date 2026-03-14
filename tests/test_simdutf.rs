@@ -1,3 +1,4 @@
+#![cfg(feature = "simdutf")]
 // Tests for the simdutf feature-gated bindings.
 //
 // These tests require `V8_FROM_SOURCE=1 cargo test --features simdutf`.

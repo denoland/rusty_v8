@@ -1235,7 +1235,7 @@ class ExternalOneByteString : public v8::String::ExternalOneByteStringResource {
   ~ExternalOneByteString() override {
     (*rustDestroy_)(data_, length_);
     isolate_->AdjustAmountOfExternalAllocatedMemory(
-        -static_cast<int64_t>(-length_));
+        -static_cast<int64_t>(length_));
   }
 
   const char* data() const override { return data_; }
