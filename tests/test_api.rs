@@ -8164,6 +8164,42 @@ fn external_onebyte_string() {
 }
 
 #[test]
+fn external_onebyte_string_frees_external_memory() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let before = isolate.get_heap_statistics().external_memory();
+
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // Allocate a large external string so the memory delta is measurable.
+    let input = vec![b'x'; 1024 * 1024].into_boxed_slice();
+    let _s = v8::String::new_external_onebyte(scope, input).unwrap();
+
+    let during = scope.get_heap_statistics().external_memory();
+    assert!(
+      during >= before + 1024 * 1024,
+      "external memory should increase after allocating external string: before={before}, during={during}",
+    );
+  }
+
+  // The string is unreachable now; force GC to collect it.
+  isolate.low_memory_notification();
+
+  let after = isolate.get_heap_statistics().external_memory();
+  // After GC the external memory counter should drop back down.
+  // Before the fix, the destructor was *increasing* the counter instead of
+  // decreasing it, so `after` would be >= `during`.
+  assert!(
+    after < before + 1024 * 1024,
+    "external memory should decrease after GC frees external string: before={before}, after={after}",
+  );
+}
+
+#[test]
 fn bigint() {
   let _setup_guard: setup::SetupGuard<std::sync::RwLockReadGuard<'_, ()>> =
     setup::parallel_test();
