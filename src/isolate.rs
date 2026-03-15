@@ -2227,6 +2227,14 @@ impl HeapStatistics {
     self.0.number_of_detached_contexts_
   }
 
+  /// Returns the total number of bytes allocated since the Isolate was created.
+  /// This includes all heap objects allocated in any space (new, old, code,
+  /// etc.).
+  #[inline(always)]
+  pub fn total_allocated_bytes(&self) -> u64 {
+    self.0.total_allocated_bytes_
+  }
+
   /// Returns a 0/1 boolean, which signifies whether the V8 overwrite heap
   /// garbage with a bit pattern.
   #[inline(always)]
