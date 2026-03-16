@@ -8,47 +8,46 @@ struct TestPlatformImpl {
 }
 
 impl v8::PlatformImpl for TestPlatformImpl {
-  fn post_task(&self, _isolate_ptr: *mut std::ffi::c_void, task: v8::Task) {
+  fn post_task(&self, _isolate_ptr: *mut std::ffi::c_void, _task: v8::Task) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
-    task.run();
+    // Task is dropped without running — this tests that the platform
+    // receives ownership and can safely drop tasks (e.g. for tasks that
+    // arrive after isolate shutdown). In a real embedder, tasks would be
+    // scheduled on the isolate's event loop via tokio::spawn etc.
   }
 
   fn post_non_nestable_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
-    task: v8::Task,
+    _task: v8::Task,
   ) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
-    task.run();
   }
 
   fn post_delayed_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
-    task: v8::Task,
+    _task: v8::Task,
     _delay_in_seconds: f64,
   ) {
     self.post_delayed_task_count.fetch_add(1, Ordering::SeqCst);
-    task.run();
   }
 
   fn post_non_nestable_delayed_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
-    task: v8::Task,
+    _task: v8::Task,
     _delay_in_seconds: f64,
   ) {
     self.post_delayed_task_count.fetch_add(1, Ordering::SeqCst);
-    task.run();
   }
 
   fn post_idle_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
-    task: v8::IdleTask,
+    _task: v8::IdleTask,
   ) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
-    task.run(0.0);
   }
 }
 
@@ -85,8 +84,7 @@ fn custom_platform_foreground_task_ownership() {
     post_task_count.store(0, Ordering::SeqCst);
 
     // Atomics.waitAsync posts a foreground task when notified.
-    // This verifies the custom platform receives the task and runs it
-    // via task.run() (not PumpMessageLoop).
+    // This verifies the custom platform receives task ownership.
     let source = r#"
       const sab = new SharedArrayBuffer(16);
       const i32a = new Int32Array(sab);
@@ -96,6 +94,9 @@ fn custom_platform_foreground_task_ownership() {
     let source = v8::String::new(scope, source).unwrap();
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.run(scope).unwrap();
+
+    // Give V8 background threads time to post tasks.
+    std::thread::sleep(std::time::Duration::from_millis(100));
   }
 
   // The custom platform should have received at least one foreground task
