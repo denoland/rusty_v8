@@ -7790,6 +7790,7 @@ fn heap_statistics() {
   assert_ne!(s.used_global_handles_size(), 0);
   assert_ne!(s.total_global_handles_size(), 0);
   assert_ne!(s.number_of_native_contexts(), 0);
+  assert!(s.total_allocated_bytes() > 0);
 }
 
 #[test]
