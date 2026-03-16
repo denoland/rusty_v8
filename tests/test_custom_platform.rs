@@ -106,12 +106,8 @@ fn custom_platform_foreground_task_ownership() {
 
     // Drain the task queue — this is the embedder's event loop.
     // Tasks are run by calling task.run() directly, NOT via PumpMessageLoop.
-    loop {
-      let task = task_queue.lock().unwrap().pop_front();
-      match task {
-        Some(task) => task.run(),
-        None => break,
-      }
+    while let Some(task) = task_queue.lock().unwrap().pop_front() {
+      task.run();
     }
   }
 
