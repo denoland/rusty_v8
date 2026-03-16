@@ -8,17 +8,26 @@ struct TestPlatformImpl {
 }
 
 impl v8::PlatformImpl for TestPlatformImpl {
-  fn post_task(&self, _isolate_ptr: *mut std::ffi::c_void) {
+  fn post_task(&self, _isolate_ptr: *mut std::ffi::c_void, _task: v8::Task) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
+    // Task is dropped without running — this tests that the platform
+    // receives ownership and can safely drop tasks (e.g. for tasks that
+    // arrive after isolate shutdown). In a real embedder, tasks would be
+    // scheduled on the isolate's event loop via tokio::spawn etc.
   }
 
-  fn post_non_nestable_task(&self, _isolate_ptr: *mut std::ffi::c_void) {
+  fn post_non_nestable_task(
+    &self,
+    _isolate_ptr: *mut std::ffi::c_void,
+    _task: v8::Task,
+  ) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
   }
 
   fn post_delayed_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
+    _task: v8::Task,
     _delay_in_seconds: f64,
   ) {
     self.post_delayed_task_count.fetch_add(1, Ordering::SeqCst);
@@ -27,18 +36,23 @@ impl v8::PlatformImpl for TestPlatformImpl {
   fn post_non_nestable_delayed_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
+    _task: v8::Task,
     _delay_in_seconds: f64,
   ) {
     self.post_delayed_task_count.fetch_add(1, Ordering::SeqCst);
   }
 
-  fn post_idle_task(&self, _isolate_ptr: *mut std::ffi::c_void) {
+  fn post_idle_task(
+    &self,
+    _isolate_ptr: *mut std::ffi::c_void,
+    _task: v8::IdleTask,
+  ) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
   }
 }
 
 #[test]
-fn custom_platform_foreground_task_notification() {
+fn custom_platform_foreground_task_ownership() {
   let post_task_count = Arc::new(AtomicUsize::new(0));
   let post_delayed_task_count = Arc::new(AtomicUsize::new(0));
 
@@ -70,7 +84,7 @@ fn custom_platform_foreground_task_notification() {
     post_task_count.store(0, Ordering::SeqCst);
 
     // Atomics.waitAsync posts a foreground task when notified.
-    // This verifies the custom platform receives the callback.
+    // This verifies the custom platform receives task ownership.
     let source = r#"
       const sab = new SharedArrayBuffer(16);
       const i32a = new Int32Array(sab);
@@ -81,18 +95,12 @@ fn custom_platform_foreground_task_notification() {
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.run(scope).unwrap();
 
-    // Pump the message loop to process the foreground task.
-    while v8::Platform::pump_message_loop(
-      &v8::V8::get_current_platform(),
-      scope,
-      false,
-    ) {
-      // do nothing
-    }
+    // Give V8 background threads time to post tasks.
+    std::thread::sleep(std::time::Duration::from_millis(100));
   }
 
   // The custom platform should have received at least one foreground task
-  // notification from the Atomics.waitAsync/notify sequence.
+  // from the Atomics.waitAsync/notify sequence.
   let tasks = post_task_count.load(Ordering::SeqCst);
   assert!(
     tasks > 0,
