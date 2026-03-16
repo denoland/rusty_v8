@@ -47,6 +47,11 @@ unsafe extern "C" {
     isolate: *mut RealIsolate,
   );
 
+  fn v8__Task__Run(task: *mut std::ffi::c_void);
+  fn v8__Task__DELETE(task: *mut std::ffi::c_void);
+  fn v8__IdleTask__Run(task: *mut std::ffi::c_void, deadline_in_seconds: f64);
+  fn v8__IdleTask__DELETE(task: *mut std::ffi::c_void);
+
   fn std__shared_ptr__v8__Platform__CONVERT__std__unique_ptr(
     unique_ptr: UniquePtr<Platform>,
   ) -> SharedPtrBase<Platform>;
@@ -66,52 +71,141 @@ unsafe extern "C" {
 #[derive(Debug)]
 pub struct Platform(Opaque);
 
+/// A V8 foreground task. Ownership is transferred from C++ to Rust when
+/// V8 posts a task via [`PlatformImpl`] trait methods.
+///
+/// The embedder is responsible for scheduling the task and calling
+/// [`run()`](Task::run). For example, in an async runtime like tokio:
+///
+/// ```ignore
+/// tokio::spawn(async move { task.run() });
+/// ```
+///
+/// If dropped without calling `run()`, the task is destroyed without
+/// executing.
+pub struct Task(*mut std::ffi::c_void);
+
+// SAFETY: V8 tasks are designed to be posted from background threads and
+// run on the isolate's foreground thread. The unique_ptr transfer is safe
+// across thread boundaries.
+unsafe impl Send for Task {}
+
+impl Task {
+  /// Run the task. Consumes self to prevent double execution.
+  pub fn run(self) {
+    let ptr = self.0;
+    // Prevent Drop from deleting — we'll delete after Run.
+    std::mem::forget(self);
+    unsafe {
+      v8__Task__Run(ptr);
+      v8__Task__DELETE(ptr);
+    }
+  }
+}
+
+impl Drop for Task {
+  fn drop(&mut self) {
+    unsafe { v8__Task__DELETE(self.0) };
+  }
+}
+
+/// A V8 idle task. Similar to [`Task`] but accepts a deadline parameter
+/// when run.
+///
+/// If dropped without calling `run()`, the task is destroyed without
+/// executing.
+pub struct IdleTask(*mut std::ffi::c_void);
+
+// SAFETY: Same as Task — safe to transfer across threads.
+unsafe impl Send for IdleTask {}
+
+impl IdleTask {
+  /// Run the idle task with the given deadline. Consumes self.
+  ///
+  /// `deadline_in_seconds` is the absolute time (in seconds since some
+  /// epoch) by which the idle task should complete.
+  pub fn run(self, deadline_in_seconds: f64) {
+    let ptr = self.0;
+    std::mem::forget(self);
+    unsafe {
+      v8__IdleTask__Run(ptr, deadline_in_seconds);
+      v8__IdleTask__DELETE(ptr);
+    }
+  }
+}
+
+impl Drop for IdleTask {
+  fn drop(&mut self) {
+    unsafe { v8__IdleTask__DELETE(self.0) };
+  }
+}
+
 /// Trait for customizing platform behavior, following the same pattern as
 /// [`V8InspectorClientImpl`](crate::inspector::V8InspectorClientImpl).
 ///
-/// Implement this trait to receive callbacks for overridden C++ virtual
-/// methods on the `DefaultPlatform` and its per-isolate `TaskRunner`.
+/// Implement this trait to receive V8 foreground tasks and schedule them
+/// on your event loop. The C++ `CustomPlatform` wraps each isolate's
+/// `TaskRunner` so that every `PostTask` / `PostDelayedTask` / etc. call
+/// transfers task ownership to Rust through the corresponding trait method.
 ///
-/// The C++ `CustomPlatform` wraps each isolate's `TaskRunner` so that
-/// every `PostTask` / `PostDelayedTask` / etc. call is forwarded to the
-/// default implementation *and* notifies Rust through the corresponding
-/// trait method.
+/// **The embedder is responsible for calling [`Task::run()`] on the
+/// isolate's thread.** For example, using tokio:
 ///
-/// All methods have default no-op implementations; override only what
-/// you need.
+/// ```ignore
+/// fn post_task(&self, isolate_ptr: *mut c_void, task: Task) {
+///     tokio::spawn(async move { task.run() });
+/// }
+///
+/// fn post_delayed_task(&self, isolate_ptr: *mut c_void, task: Task, delay: f64) {
+///     tokio::spawn(async move {
+///         tokio::time::sleep(Duration::from_secs_f64(delay)).await;
+///         task.run();
+///     });
+/// }
+/// ```
+///
+/// All methods have default implementations that run the task immediately
+/// (synchronously). Override to integrate with your event loop.
 ///
 /// Implementations must be `Send + Sync` as callbacks may fire from any
 /// thread.
 #[allow(unused_variables)]
 pub trait PlatformImpl: Send + Sync {
-  // ---- TaskRunner virtual methods ----
-
   /// Called when `TaskRunner::PostTask` is invoked for the given isolate.
   ///
-  /// The task itself has already been forwarded to the default platform's
-  /// queue and will be executed by `PumpMessageLoop`. This callback is a
-  /// notification that a new task is available.
+  /// The [`Task`] must be run on the isolate's foreground thread by calling
+  /// [`Task::run()`].
   ///
   /// May be called from ANY thread (V8 background threads, etc.).
-  fn post_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
+  fn post_task(&self, isolate_ptr: *mut std::ffi::c_void, task: Task) {
+    task.run();
+  }
 
   /// Called when `TaskRunner::PostNonNestableTask` is invoked.
   ///
-  /// Same semantics as [`post_task`](Self::post_task).
-  fn post_non_nestable_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
+  /// Same semantics as [`post_task`](Self::post_task), but the task must
+  /// not be run within a nested `PumpMessageLoop`.
+  fn post_non_nestable_task(
+    &self,
+    isolate_ptr: *mut std::ffi::c_void,
+    task: Task,
+  ) {
+    task.run();
+  }
 
   /// Called when `TaskRunner::PostDelayedTask` is invoked.
   ///
-  /// The task has been forwarded to the default runner's delayed queue.
-  /// `delay_in_seconds` is the delay before the task should execute.
-  /// Embedders should schedule a wake-up after this delay.
+  /// The task should be run after `delay_in_seconds` has elapsed.
+  /// For example, using `tokio::time::sleep` or a timer wheel.
   ///
   /// May be called from ANY thread.
   fn post_delayed_task(
     &self,
     isolate_ptr: *mut std::ffi::c_void,
+    task: Task,
     delay_in_seconds: f64,
   ) {
+    task.run();
   }
 
   /// Called when `TaskRunner::PostNonNestableDelayedTask` is invoked.
@@ -120,64 +214,75 @@ pub trait PlatformImpl: Send + Sync {
   fn post_non_nestable_delayed_task(
     &self,
     isolate_ptr: *mut std::ffi::c_void,
+    task: Task,
     delay_in_seconds: f64,
   ) {
+    task.run();
   }
 
   /// Called when `TaskRunner::PostIdleTask` is invoked.
   ///
-  /// Same semantics as [`post_task`](Self::post_task).
-  fn post_idle_task(&self, isolate_ptr: *mut std::ffi::c_void) {}
+  /// The [`IdleTask`] should be run when the embedder has idle time,
+  /// passing the deadline via [`IdleTask::run(deadline)`](IdleTask::run).
+  fn post_idle_task(&self, isolate_ptr: *mut std::ffi::c_void, task: IdleTask) {
+    task.run(0.0);
+  }
 }
 
 // FFI callbacks called from C++ CustomPlatform/CustomTaskRunner.
 // `context` is a raw pointer to a `Box<dyn PlatformImpl>`.
+// Task pointers are owned — Rust is responsible for running and deleting them.
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
+  task: *mut std::ffi::c_void,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.post_task(isolate);
+  imp.post_task(isolate, Task(task));
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostNonNestableTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
+  task: *mut std::ffi::c_void,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.post_non_nestable_task(isolate);
+  imp.post_non_nestable_task(isolate, Task(task));
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostDelayedTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
+  task: *mut std::ffi::c_void,
   delay_in_seconds: f64,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.post_delayed_task(isolate, delay_in_seconds);
+  imp.post_delayed_task(isolate, Task(task), delay_in_seconds);
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
+  task: *mut std::ffi::c_void,
   delay_in_seconds: f64,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.post_non_nestable_delayed_task(isolate, delay_in_seconds);
+  imp.post_non_nestable_delayed_task(isolate, Task(task), delay_in_seconds);
 }
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn v8__Platform__CustomPlatform__BASE__PostIdleTask(
   context: *mut std::ffi::c_void,
   isolate: *mut std::ffi::c_void,
+  task: *mut std::ffi::c_void,
 ) {
   let imp = unsafe { &*(context as *const Box<dyn PlatformImpl>) };
-  imp.post_idle_task(isolate);
+  imp.post_idle_task(isolate, IdleTask(task));
 }
 
 #[unsafe(no_mangle)]
@@ -240,11 +345,15 @@ pub fn new_single_threaded_default_platform(
   Platform::new_single_threaded(idle_task_support)
 }
 
-/// Creates a custom platform backed by `DefaultPlatform` that delegates
-/// virtual method overrides to the provided [`PlatformImpl`] trait object.
+/// Creates a custom platform backed by `DefaultPlatform` that transfers
+/// foreground task ownership to the provided [`PlatformImpl`] trait object.
 ///
-/// This follows the same pattern as
-/// [`V8InspectorClient::new`](crate::inspector::V8InspectorClient::new).
+/// Unlike the default platform, foreground tasks are NOT queued internally.
+/// Instead, each `PostTask` / `PostDelayedTask` / etc. call transfers the
+/// [`Task`] to Rust via the trait. The embedder is responsible for
+/// scheduling and calling [`Task::run()`] on the isolate's thread.
+///
+/// Background tasks (thread pool) are still handled by `DefaultPlatform`.
 ///
 /// When `unprotected` is true, thread-isolated allocations are disabled
 /// (same as `new_unprotected_default_platform`). This is required when
@@ -330,8 +439,10 @@ impl Platform {
     }
   }
 
-  /// Creates a custom platform backed by `DefaultPlatform` that delegates
-  /// virtual method overrides to the provided [`PlatformImpl`] trait object.
+  /// Creates a custom platform that transfers foreground task ownership to
+  /// the provided [`PlatformImpl`] trait object.
+  ///
+  /// See [`new_custom_platform`] for details.
   ///
   /// The trait object is owned by the platform and will be dropped when the
   /// platform is destroyed.

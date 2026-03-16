@@ -1,50 +1,73 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 struct TestPlatformImpl {
   post_task_count: Arc<AtomicUsize>,
   post_delayed_task_count: Arc<AtomicUsize>,
+  /// Tasks queued for later execution (simulating an event loop).
+  task_queue: Arc<Mutex<VecDeque<v8::Task>>>,
 }
 
 impl v8::PlatformImpl for TestPlatformImpl {
-  fn post_task(&self, _isolate_ptr: *mut std::ffi::c_void) {
+  fn post_task(&self, _isolate_ptr: *mut std::ffi::c_void, task: v8::Task) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
+    self.task_queue.lock().unwrap().push_back(task);
   }
 
-  fn post_non_nestable_task(&self, _isolate_ptr: *mut std::ffi::c_void) {
+  fn post_non_nestable_task(
+    &self,
+    _isolate_ptr: *mut std::ffi::c_void,
+    task: v8::Task,
+  ) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
+    self.task_queue.lock().unwrap().push_back(task);
   }
 
   fn post_delayed_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
+    task: v8::Task,
     _delay_in_seconds: f64,
   ) {
     self.post_delayed_task_count.fetch_add(1, Ordering::SeqCst);
+    // For testing, run delayed tasks immediately too.
+    self.task_queue.lock().unwrap().push_back(task);
   }
 
   fn post_non_nestable_delayed_task(
     &self,
     _isolate_ptr: *mut std::ffi::c_void,
+    task: v8::Task,
     _delay_in_seconds: f64,
   ) {
     self.post_delayed_task_count.fetch_add(1, Ordering::SeqCst);
+    self.task_queue.lock().unwrap().push_back(task);
   }
 
-  fn post_idle_task(&self, _isolate_ptr: *mut std::ffi::c_void) {
+  fn post_idle_task(
+    &self,
+    _isolate_ptr: *mut std::ffi::c_void,
+    task: v8::IdleTask,
+  ) {
     self.post_task_count.fetch_add(1, Ordering::SeqCst);
+    task.run(0.0);
   }
 }
 
 #[test]
-fn custom_platform_foreground_task_notification() {
+fn custom_platform_foreground_task_ownership() {
   let post_task_count = Arc::new(AtomicUsize::new(0));
   let post_delayed_task_count = Arc::new(AtomicUsize::new(0));
+  let task_queue: Arc<Mutex<VecDeque<v8::Task>>> =
+    Arc::new(Mutex::new(VecDeque::new()));
 
   let platform_impl = TestPlatformImpl {
     post_task_count: post_task_count.clone(),
     post_delayed_task_count: post_delayed_task_count.clone(),
+    task_queue: task_queue.clone(),
   };
 
   v8::V8::set_flags_from_string("--allow-natives-syntax");
@@ -70,7 +93,7 @@ fn custom_platform_foreground_task_notification() {
     post_task_count.store(0, Ordering::SeqCst);
 
     // Atomics.waitAsync posts a foreground task when notified.
-    // This verifies the custom platform receives the callback.
+    // This verifies the custom platform receives the task and can run it.
     let source = r#"
       const sab = new SharedArrayBuffer(16);
       const i32a = new Int32Array(sab);
@@ -81,18 +104,19 @@ fn custom_platform_foreground_task_notification() {
     let script = v8::Script::compile(scope, source, None).unwrap();
     script.run(scope).unwrap();
 
-    // Pump the message loop to process the foreground task.
-    while v8::Platform::pump_message_loop(
-      &v8::V8::get_current_platform(),
-      scope,
-      false,
-    ) {
-      // do nothing
+    // Drain the task queue — this is the embedder's event loop.
+    // Tasks are run by calling task.run() directly, NOT via PumpMessageLoop.
+    loop {
+      let task = task_queue.lock().unwrap().pop_front();
+      match task {
+        Some(task) => task.run(),
+        None => break,
+      }
     }
   }
 
   // The custom platform should have received at least one foreground task
-  // notification from the Atomics.waitAsync/notify sequence.
+  // from the Atomics.waitAsync/notify sequence.
   let tasks = post_task_count.load(Ordering::SeqCst);
   assert!(
     tasks > 0,
