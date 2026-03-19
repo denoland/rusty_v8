@@ -287,6 +287,12 @@ jobs:
           sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 libclang-19-dev -y
           echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> $GITHUB_ENV
 
+      - name: Set LIBCLANG_PATH (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          XCODE_CLANG_LIB="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+          echo "LIBCLANG_PATH=$XCODE_CLANG_LIB" >> $GITHUB_ENV
+
       - name: check rust code formatting
         run: cargo fmt --check
 
