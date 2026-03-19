@@ -287,8 +287,8 @@ jobs:
           sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 libclang-19-dev -y
           echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> $GITHUB_ENV
 
-      - name: Install Clang (macOS)
-        if: startsWith(matrix.config.os, 'macos')
+      - name: Install Clang (macOS x86_64)
+        if: matrix.config.os == 'macos-15-large'
         run: |
           brew install llvm
           echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
