@@ -347,16 +347,18 @@ fn build_v8(is_asan: bool) {
   }
 
   // Use the shared-library-safe TLS mode by default on Linux so downstream
-  // cdylibs can link rusty_v8 archives.
-  let mut has_tls_library_mode_define = false;
+  // cdylibs can link rusty_v8 archives. Skip injection when GN_ARGS already
+  // sets V8_TLS_USED_IN_LIBRARY.
+  let mut should_inject_tls_library_define = target_os == "linux";
   if let Ok(raw_gn_args) = env::var("GN_ARGS")
     && !raw_gn_args.trim().is_empty()
   {
-    has_tls_library_mode_define =
-      raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY");
+    if raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY") {
+      should_inject_tls_library_define = false;
+    }
     gn_args.push(raw_gn_args);
   }
-  if target_os == "linux" && !has_tls_library_mode_define {
+  if should_inject_tls_library_define {
     gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
   }
   // cross-compilation setup
