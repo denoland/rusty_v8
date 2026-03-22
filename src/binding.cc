@@ -1537,6 +1537,10 @@ bool v8__Object__IsApiWrapper(const v8::Object& self) {
   return ptr_to_local(&self)->IsApiWrapper();
 }
 
+void v8__Object__SetIsUncloneable(const v8::Object& self) {
+  ptr_to_local(&self)->SetIsUncloneable();
+}
+
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototypeV2());
 }

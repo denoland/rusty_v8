@@ -246,6 +246,7 @@ unsafe extern "C" {
     tag: u16,
   ) -> *mut RustObj;
   fn v8__Object__IsApiWrapper(this: *const Object) -> bool;
+  fn v8__Object__SetIsUncloneable(this: *const Object);
 
   fn v8__Array__New(isolate: *mut RealIsolate, length: int) -> *const Array;
   fn v8__Array__New_with_elements(
@@ -818,6 +819,14 @@ impl Object {
   #[inline(always)]
   pub fn is_api_wrapper(&self) -> bool {
     unsafe { v8__Object__IsApiWrapper(self) }
+  }
+
+  /// Marks this object as uncloneable. If a JavaScript code tries to use
+  /// `structuredClone()` to clone this object, it will throw a
+  /// `DataCloneError`.
+  #[inline(always)]
+  pub fn set_is_uncloneable(&self) {
+    unsafe { v8__Object__SetIsUncloneable(self) }
   }
 
   /// Sets the integrity level of the object.

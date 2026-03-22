@@ -2965,6 +2965,34 @@ fn object() {
 }
 
 #[test]
+fn object_set_is_uncloneable() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let object = v8::Object::new(scope);
+    let global = context.global(scope);
+    let key = v8::String::new(scope, "o").unwrap().into();
+    global.set(scope, key, object.into());
+
+    // Before marking as uncloneable, structuredClone should succeed.
+    assert!(eval(scope, "structuredClone(o)").is_some());
+
+    // Mark the object as uncloneable.
+    object.set_is_uncloneable();
+
+    // After marking as uncloneable, structuredClone should throw.
+    let scope = &mut v8::TryCatch::new(scope);
+    assert!(eval(scope, "structuredClone(o)").is_none());
+    assert!(scope.has_caught());
+  }
+}
+
+#[test]
 fn map() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
