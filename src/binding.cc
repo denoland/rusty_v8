@@ -1821,10 +1821,13 @@ const v8::Date* v8__Date__New(const v8::Context& context, double time) {
 double v8__Date__ValueOf(const v8::Date& self) { return self.ValueOf(); }
 
 const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
-  return local_to_ptr(v8::External::New(isolate, value));
+  return local_to_ptr(
+      v8::External::New(isolate, value, v8::kExternalPointerTypeTagDefault));
 }
 
-void* v8__External__Value(const v8::External& self) { return self.Value(); }
+void* v8__External__Value(const v8::External& self) {
+  return self.Value(v8::kExternalPointerTypeTagDefault);
+}
 
 const v8::Map* v8__Map__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Map::New(isolate));
