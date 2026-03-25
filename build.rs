@@ -569,6 +569,11 @@ fn static_lib_url() -> String {
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
+
+  if base == default_base && !is_target_prebuilt(&target) {
+    panic!("The target {target} is not a first class target and no pre-built archive is provided. Compile v8 from source with V8_FROM_SOURCE=1")
+  }
+
   format!(
     "{base}/v{version}/{}.gz",
     static_lib_name(&format!("{features}_{profile}_{target}")),
@@ -608,6 +613,20 @@ fn build_dir() -> PathBuf {
     .parent()
     .unwrap()
     .to_path_buf()
+}
+
+/// Checks if the target is available as a pre-built archive from the rusty_v8 GitLab.
+/// Should only be called when `RUSTY_V8_MIRROR` is unset.
+fn is_target_prebuilt(target: &str) -> bool {
+  const PREBUILT_TARGETS: [&str; 6] = [
+    "aarch64-apple-darwin",
+    "aarch64-pc-windows-msvc",
+    "aarch64-unknown-linux",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu"
+  ];
+  PREBUILT_TARGETS.contains(&target)
 }
 
 fn replace_non_alphanumeric(url: &str) -> String {
