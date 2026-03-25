@@ -1833,6 +1833,79 @@ fn function_template_intrinsic_data_property() {
 }
 
 #[test]
+fn function_template_set_accessor_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = v8::FunctionTemplate::new(scope, fortytwo_callback);
+
+    fn setter_callback(
+      _scope: &mut v8::PinScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+
+    let setter = v8::FunctionTemplate::new(scope, setter_callback);
+
+    fn constructor_callback(
+      _scope: &mut v8::PinScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+
+    let tmpl = v8::FunctionTemplate::new(scope, constructor_callback);
+    let class_name = v8::String::new(scope, "MyClass").unwrap();
+    tmpl.set_class_name(class_name);
+
+    // Getter
+    let key1 = v8::String::new(scope, "key1").unwrap();
+    tmpl.set_accessor_property(
+      key1.into(),
+      Some(getter),
+      None,
+      v8::PropertyAttribute::default(),
+    );
+
+    // Getter + setter
+    let key2 = v8::String::new(scope, "key2").unwrap();
+    tmpl.set_accessor_property(
+      key2.into(),
+      Some(getter),
+      Some(setter),
+      v8::PropertyAttribute::default(),
+    );
+
+    let name = v8::String::new(scope, "MyClass").unwrap();
+    let constructor = tmpl.get_function(scope).unwrap();
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      constructor.into(),
+    );
+
+    let int = v8::Integer::new(scope, 42);
+    assert!(
+      eval(scope, "MyClass.key1")
+        .unwrap()
+        .strict_equals(int.into())
+    );
+    assert!(
+      eval(scope, "MyClass.key2")
+        .unwrap()
+        .strict_equals(int.into())
+    );
+    eval(scope, "MyClass.key2 = 99");
+  }
+}
+
+#[test]
 fn instance_template_with_internal_field() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

@@ -81,6 +81,13 @@ unsafe extern "C" {
     this: *const FunctionTemplate,
     name: *const String,
   );
+  fn v8__FunctionTemplate__SetAccessorProperty(
+    this: *const FunctionTemplate,
+    key: *const Name,
+    getter: *const FunctionTemplate,
+    setter: *const FunctionTemplate,
+    attr: PropertyAttribute,
+  );
   fn v8__FunctionTemplate__Inherit(
     this: *const FunctionTemplate,
     parent: *const FunctionTemplate,
@@ -830,6 +837,31 @@ impl FunctionTemplate {
   #[inline(always)]
   pub fn remove_prototype(&self) {
     unsafe { v8__FunctionTemplate__RemovePrototype(self) };
+  }
+
+  /// Sets an [accessor property](https://tc39.es/ecma262/#sec-property-attributes)
+  /// on the function template (i.e. a static accessor on the constructor).
+  ///
+  /// # Panics
+  ///
+  /// Panics if both `getter` and `setter` are `None`.
+  #[inline(always)]
+  pub fn set_accessor_property(
+    &self,
+    key: Local<Name>,
+    getter: Option<Local<FunctionTemplate>>,
+    setter: Option<Local<FunctionTemplate>>,
+    attr: PropertyAttribute,
+  ) {
+    assert!(getter.is_some() || setter.is_some());
+
+    unsafe {
+      let getter = getter.map_or_else(std::ptr::null, |v| &*v);
+      let setter = setter.map_or_else(std::ptr::null, |v| &*v);
+      v8__FunctionTemplate__SetAccessorProperty(
+        self, &*key, getter, setter, attr,
+      );
+    }
   }
 }
 

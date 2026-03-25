@@ -2404,6 +2404,15 @@ void v8__FunctionTemplate__SetClassName(const v8::FunctionTemplate& self,
   ptr_to_local(&self)->SetClassName(ptr_to_local(&name));
 }
 
+void v8__FunctionTemplate__SetAccessorProperty(const v8::FunctionTemplate& self,
+                                               const v8::Name& key,
+                                               v8::FunctionTemplate& getter,
+                                               v8::FunctionTemplate& setter,
+                                               v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessorProperty(
+      ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
+}
+
 void v8__FunctionTemplate__Inherit(const v8::FunctionTemplate& self,
                                    const v8::FunctionTemplate& parent) {
   ptr_to_local(&self)->Inherit(ptr_to_local(&parent));
