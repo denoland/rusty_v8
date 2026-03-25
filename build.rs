@@ -571,7 +571,9 @@ fn static_lib_url() -> String {
   let features = prebuilt_features_suffix();
 
   if base == default_base && !is_target_prebuilt(&target) {
-    panic!("The target {target} is not a first class target and no pre-built archive is provided. Compile v8 from source with V8_FROM_SOURCE=1")
+    panic!(
+      "The target {target} is not a first class target and no pre-built archive is provided. Compile v8 from source with V8_FROM_SOURCE=1"
+    )
   }
 
   format!(
@@ -624,7 +626,7 @@ fn is_target_prebuilt(target: &str) -> bool {
     "aarch64-unknown-linux",
     "x86_64-apple-darwin",
     "x86_64-pc-windows-msvc",
-    "x86_64-unknown-linux-gnu"
+    "x86_64-unknown-linux-gnu",
   ];
   PREBUILT_TARGETS.contains(&target)
 }
