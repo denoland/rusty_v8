@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::ptr::null;
 
@@ -58,9 +59,10 @@ unsafe extern "C" {
   fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
   fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
   fn v8__Function__ScriptId(this: *const Function) -> int;
-  fn v8__Function__GetScriptOrigin(
+  fn v8__Function__GetScriptOrigin<'a>(
     this: *const Function,
-  ) -> *const ScriptOrigin<'static>;
+    out: *mut MaybeUninit<ScriptOrigin<'a>>,
+  );
 
   fn v8__Function__CreateCodeCache(
     script: *const Function,
@@ -1036,10 +1038,15 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_script_origin(&self) -> &ScriptOrigin<'_> {
+  pub fn get_script_origin<'s>(
+    &self,
+    _scope: &PinScope<'s, '_>,
+  ) -> ScriptOrigin<'s> {
     unsafe {
-      let ptr = v8__Function__GetScriptOrigin(self);
-      &*ptr
+      let mut script_origin: MaybeUninit<ScriptOrigin<'_>> =
+        MaybeUninit::uninit();
+      v8__Function__GetScriptOrigin(self, &mut script_origin);
+      script_origin.assume_init()
     }
   }
 
