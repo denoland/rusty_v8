@@ -1833,6 +1833,79 @@ fn function_template_intrinsic_data_property() {
 }
 
 #[test]
+fn function_template_set_accessor_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = v8::FunctionTemplate::new(scope, fortytwo_callback);
+
+    fn setter_callback(
+      _scope: &mut v8::PinScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+
+    let setter = v8::FunctionTemplate::new(scope, setter_callback);
+
+    fn constructor_callback(
+      _scope: &mut v8::PinScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+
+    let tmpl = v8::FunctionTemplate::new(scope, constructor_callback);
+    let class_name = v8::String::new(scope, "MyClass").unwrap();
+    tmpl.set_class_name(class_name);
+
+    // Getter
+    let key1 = v8::String::new(scope, "key1").unwrap();
+    tmpl.set_accessor_property(
+      key1.into(),
+      Some(getter),
+      None,
+      v8::PropertyAttribute::default(),
+    );
+
+    // Getter + setter
+    let key2 = v8::String::new(scope, "key2").unwrap();
+    tmpl.set_accessor_property(
+      key2.into(),
+      Some(getter),
+      Some(setter),
+      v8::PropertyAttribute::default(),
+    );
+
+    let name = v8::String::new(scope, "MyClass").unwrap();
+    let constructor = tmpl.get_function(scope).unwrap();
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      constructor.into(),
+    );
+
+    let int = v8::Integer::new(scope, 42);
+    assert!(
+      eval(scope, "MyClass.key1")
+        .unwrap()
+        .strict_equals(int.into())
+    );
+    assert!(
+      eval(scope, "MyClass.key2")
+        .unwrap()
+        .strict_equals(int.into())
+    );
+    eval(scope, "MyClass.key2 = 99");
+  }
+}
+
+#[test]
 fn instance_template_with_internal_field() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1887,9 +1960,8 @@ fn object_template_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -1909,9 +1981,8 @@ fn object_template_set_accessor() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
                   _rv: v8::ReturnValue<()>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -1927,9 +1998,8 @@ fn object_template_set_accessor() {
        key: v8::Local<v8::Name>,
        args: v8::PropertyCallbackArguments,
        mut rv: v8::ReturnValue<v8::Value>| {
-        let this = args.this();
+        let this = args.holder();
 
-        assert_eq!(args.holder(), this);
         assert!(args.data().is_string());
         assert!(!args.should_throw_on_error());
         assert_eq!(args.data().to_rust_string_lossy(scope), "data");
@@ -1951,9 +2021,8 @@ fn object_template_set_accessor() {
        value: v8::Local<v8::Value>,
        args: v8::PropertyCallbackArguments,
        _rv: v8::ReturnValue<()>| {
-        let this = args.this();
+        let this = args.holder();
 
-        assert_eq!(args.holder(), this);
         assert!(args.data().is_string());
         assert!(!args.should_throw_on_error());
         assert_eq!(args.data().to_rust_string_lossy(scope), "data");
@@ -2107,12 +2176,11 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2125,7 +2193,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       rv.set(internal_field);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let setter = |scope: &mut v8::PinScope,
@@ -2135,17 +2203,16 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue<()>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2156,7 +2223,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let query = |scope: &mut v8::PinScope,
@@ -2165,17 +2232,16 @@ fn object_template_set_named_property_handler() {
                  mut rv: v8::ReturnValue<v8::Integer>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2190,7 +2256,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       assert!(internal_field.strict_equals(expected_value.into()));
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let deleter = |scope: &mut v8::PinScope,
@@ -2199,10 +2265,10 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2210,15 +2276,14 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, v8::undefined(scope).into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let enumerator = |scope: &mut v8::PinScope,
                       args: v8::PropertyCallbackArguments,
                       mut rv: v8::ReturnValue<v8::Array>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2244,10 +2309,10 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue<()>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2269,7 +2334,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let descriptor = |scope: &mut v8::PinScope,
@@ -2278,10 +2343,10 @@ fn object_template_set_named_property_handler() {
                       mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2302,7 +2367,7 @@ fn object_template_set_named_property_handler() {
       descriptor.set(scope, writable_key.into(), writable.into());
 
       rv.set(descriptor.into());
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let name = v8::String::new(scope, "obj").unwrap();
@@ -2600,7 +2665,7 @@ fn object_template_set_indexed_property_handler() {
                 index: u32,
                 args: v8::PropertyCallbackArguments,
                 mut rv: v8::ReturnValue<v8::Value>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
@@ -2614,7 +2679,7 @@ fn object_template_set_indexed_property_handler() {
       .try_into()
       .unwrap();
     rv.set(internal_field);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let setter = |_scope: &mut v8::PinScope,
@@ -2622,9 +2687,8 @@ fn object_template_set_indexed_property_handler() {
                 value: v8::Local<v8::Value>,
                 args: v8::PropertyCallbackArguments,
                 mut rv: v8::ReturnValue<()>| {
-    let this = args.this();
+    let this = args.holder();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
     assert!(!args.should_throw_on_error());
 
@@ -2634,7 +2698,7 @@ fn object_template_set_indexed_property_handler() {
     assert!(this.set_internal_field(0, value.into()));
 
     rv.set_bool(true);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let query = |_scope: &mut v8::PinScope,
@@ -2642,14 +2706,14 @@ fn object_template_set_indexed_property_handler() {
                _args: v8::PropertyCallbackArguments,
                mut rv: v8::ReturnValue<v8::Integer>| {
     if index == 12 {
-      return v8::Intercepted::No;
+      return v8::Intercepted::kNo;
     }
 
     assert_eq!(index, 37);
 
     // PropertyAttribute::READ_ONLY
     rv.set_int32(1);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let deleter = |_scope: &mut v8::PinScope,
@@ -2659,15 +2723,14 @@ fn object_template_set_indexed_property_handler() {
     assert_eq!(index, 37);
 
     rv.set_bool(false);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let enumerator = |scope: &mut v8::PinScope,
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue<v8::Array>| {
-    let this = args.this();
+    let this = args.holder();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
     assert!(!args.should_throw_on_error());
 
@@ -2690,7 +2753,7 @@ fn object_template_set_indexed_property_handler() {
                  desc: &v8::PropertyDescriptor,
                  args: v8::PropertyCallbackArguments,
                  mut rv: v8::ReturnValue<()>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(index, 37);
 
@@ -2705,14 +2768,14 @@ fn object_template_set_indexed_property_handler() {
     this.set_internal_field(0, value.into());
 
     rv.set_bool(true);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let descriptor = |scope: &mut v8::PinScope,
                     index: u32,
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue<v8::Value>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(index, 37);
 
@@ -2732,7 +2795,7 @@ fn object_template_set_indexed_property_handler() {
     descriptor.set(scope, writable_key.into(), writable.into());
 
     rv.set(descriptor.into());
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let name = v8::String::new(scope, "obj").unwrap();
@@ -3152,9 +3215,8 @@ fn object_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3211,9 +3273,8 @@ fn object_set_accessor_with_setter() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3239,9 +3300,8 @@ fn object_set_accessor_with_setter() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3314,9 +3374,8 @@ fn object_set_accessor_with_setter_with_property() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3342,9 +3401,8 @@ fn object_set_accessor_with_setter_with_property() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3418,9 +3476,8 @@ fn object_set_accessor_with_data() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_string());
       assert!(!args.should_throw_on_error());
 
@@ -3449,9 +3506,8 @@ fn object_set_accessor_with_data() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_string());
       assert!(!args.should_throw_on_error());
 
@@ -4560,9 +4616,9 @@ fn security_token() {
             let obj = v8::Local::<v8::Object>::try_from(args.data()).unwrap();
             if let Some(val) = obj.get(scope, key.into()) {
               rv.set(val);
-              v8::Intercepted::Yes
+              v8::Intercepted::kYes
             } else {
-              v8::Intercepted::No
+              v8::Intercepted::kNo
             }
           },
         )
@@ -4627,7 +4683,7 @@ fn context_with_object_template() {
     _rv: v8::ReturnValue<()>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("definer".to_string());
-    v8::Intercepted::No
+    v8::Intercepted::kNo
   }
 
   pub fn setter<'s>(
@@ -4638,7 +4694,7 @@ fn context_with_object_template() {
     _rv: v8::ReturnValue<()>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("setter".to_string());
-    v8::Intercepted::No
+    v8::Intercepted::kNo
   }
 
   {
@@ -7694,6 +7750,82 @@ fn heap_limits() {
   assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
 
+#[test]
+fn resource_constraints() {
+  let _setup_guard = setup::parallel_test();
+
+  // Test setting and getting individual resource constraint values.
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(128 * 1024 * 1024)
+    .set_max_young_generation_size_in_bytes(16 * 1024 * 1024)
+    .set_code_range_size_in_bytes(64 * 1024 * 1024)
+    .set_initial_old_generation_size_in_bytes(8 * 1024 * 1024)
+    .set_initial_young_generation_size_in_bytes(2 * 1024 * 1024);
+
+  assert_eq!(params.max_old_generation_size_in_bytes(), 128 * 1024 * 1024);
+  assert_eq!(
+    params.max_young_generation_size_in_bytes(),
+    16 * 1024 * 1024
+  );
+  assert_eq!(params.code_range_size_in_bytes(), 64 * 1024 * 1024);
+  assert_eq!(
+    params.initial_old_generation_size_in_bytes(),
+    8 * 1024 * 1024
+  );
+  assert_eq!(
+    params.initial_young_generation_size_in_bytes(),
+    2 * 1024 * 1024
+  );
+
+  // Default stack_limit should be null.
+  assert!(params.stack_limit().is_null());
+
+  // Verify that an isolate can be created with these constraints.
+  let isolate = &mut v8::Isolate::new(params);
+  let s = isolate.get_heap_statistics();
+  // The heap limit should reflect the configured max old generation size.
+  // V8 may round or adjust the value, but it should be close.
+  assert!(s.heap_size_limit() > 0);
+}
+
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
+#[test]
+fn resource_constraints_near_heap_limit() {
+  let _setup_guard = setup::parallel_test();
+
+  // Use individual resource constraint setters to limit the old generation
+  // to 8 MB (similar to heap_limits test but using the new API).
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(8 * 1024 * 1024);
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut test_state = TestHeapLimitState::default();
+  let state_ptr = &mut test_state as *mut _ as *mut c_void;
+  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  for _ in 0..1_000_000 {
+    eval(
+      scope,
+      r#"
+        "hello 🦕 world"
+          .repeat(10)
+          .split("🦕")
+          .map((s) => s.repeat(100).split("o"))
+        "#,
+    )
+    .unwrap();
+    if test_state.near_heap_limit_callback_calls > 0 {
+      break;
+    }
+  }
+  assert_eq!(1, test_state.near_heap_limit_callback_calls);
+}
+
 // Same as heap_limits()
 #[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
@@ -7735,6 +7867,43 @@ fn heap_statistics() {
   assert_ne!(s.used_global_handles_size(), 0);
   assert_ne!(s.total_global_handles_size(), 0);
   assert_ne!(s.number_of_native_contexts(), 0);
+  assert!(s.total_allocated_bytes() > 0);
+}
+
+#[test]
+fn heap_code_statistics() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  // Before running any code, statistics should still be available.
+  let s = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // Before running any code, code_and_metadata_size may or may not be > 0
+  // depending on the platform and V8 version.
+  // external_script_source_size and cpu_profiler_metadata_size start at 0.
+  assert_eq!(s.external_script_source_size(), 0);
+  assert_eq!(s.cpu_profiler_metadata_size(), 0);
+
+  // Run some JS to generate bytecode.
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, "function foo() { return 1 + 2; } foo();").unwrap();
+  }
+
+  let s2 = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // After compiling code, bytecode_and_metadata_size should increase.
+  assert!(s2.bytecode_and_metadata_size() > 0);
+  // code_and_metadata_size tracks JIT-compiled code, which may be 0 if V8
+  // only uses the interpreter for simple scripts.
+  assert!(s2.code_and_metadata_size() >= s.code_and_metadata_size());
 }
 
 #[test]
@@ -8070,6 +8239,42 @@ fn external_onebyte_string() {
   assert_eq!(one_byte.length(), 6);
 
   assert_eq!(one_byte.as_bytes(), [b'h', b'e', b'l', b'l', b'o', 0xA9]);
+}
+
+#[test]
+fn external_onebyte_string_frees_external_memory() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let before = isolate.get_heap_statistics().external_memory();
+
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // Allocate a large external string so the memory delta is measurable.
+    let input = vec![b'x'; 1024 * 1024].into_boxed_slice();
+    let _s = v8::String::new_external_onebyte(scope, input).unwrap();
+
+    let during = scope.get_heap_statistics().external_memory();
+    assert!(
+      during >= before + 1024 * 1024,
+      "external memory should increase after allocating external string: before={before}, during={during}",
+    );
+  }
+
+  // The string is unreachable now; force GC to collect it.
+  isolate.low_memory_notification();
+
+  let after = isolate.get_heap_statistics().external_memory();
+  // After GC the external memory counter should drop back down.
+  // Before the fix, the destructor was *increasing* the counter instead of
+  // decreasing it, so `after` would be >= `during`.
+  assert!(
+    after < before + 1024 * 1024,
+    "external memory should decrease after GC frees external string: before={before}, after={after}",
+  );
 }
 
 #[test]
@@ -8726,12 +8931,12 @@ fn clear_kept_objects() {
 #[test]
 fn wasm_streaming_callback() {
   thread_local! {
-    static WS: RefCell<Option<v8::WasmStreaming>> = const { RefCell::new(None) };
+    static WS: RefCell<Option<v8::WasmStreaming<false>>> = const { RefCell::new(None) };
   }
 
   let callback = |scope: &mut v8::PinScope,
                   url: v8::Local<v8::Value>,
-                  ws: v8::WasmStreaming| {
+                  ws: v8::WasmStreaming<false>| {
     assert_eq!("https://example.com", url.to_rust_string_lossy(scope));
     WS.with(|slot| assert!(slot.borrow_mut().replace(ws).is_none()));
   };
@@ -8801,6 +9006,60 @@ fn wasm_streaming_callback() {
     false, // don't block if there are no tasks
   ) {}
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
+}
+
+#[test]
+fn wasm_module_compilation() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Start compilation.
+  let mut compilation = v8::WasmModuleCompilation::new();
+
+  // MVP of WASM modules: magic marker + version 1.
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+
+  compilation.set_url("https://example.com/test.wasm");
+
+  // Finish compilation.
+  let result: Rc<RefCell<Option<v8::Global<v8::WasmModuleObject>>>> =
+    Rc::new(RefCell::new(None));
+  let result_clone = result.clone();
+  compilation.finish(scope, None, move |isolate, r| match r {
+    Ok(module) => {
+      result_clone
+        .borrow_mut()
+        .replace(v8::Global::new(isolate, module));
+    }
+    Err(_) => panic!("wasm compilation failed"),
+  });
+
+  // Execute pending tasks.
+  while v8::Platform::pump_message_loop(
+    &v8::V8::get_current_platform(),
+    scope,
+    false,
+  ) {}
+
+  let global_module = result.borrow_mut().take();
+  assert!(global_module.is_some());
+}
+
+#[test]
+fn wasm_module_compilation_abort() {
+  let _setup_guard = setup::parallel_test();
+
+  // Start compilation and abort it.
+  let mut compilation = v8::WasmModuleCompilation::new();
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+  compilation.abort();
 }
 
 #[test]
@@ -9093,7 +9352,7 @@ fn run_with_rust_allocator() {
   unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
     count.fetch_sub(n, Ordering::SeqCst);
     let _ = unsafe {
-      Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n))
+      Box::from_raw(std::ptr::slice_from_raw_parts_mut(data as *mut u8, n))
     };
   }
   unsafe extern "C" fn drop(count: *const AtomicUsize) {
@@ -11038,7 +11297,7 @@ fn test_fast_calls_reciever() {
   fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
     unsafe {
       WHO = "fast";
-      let embedder_obj = recv.get_aligned_pointer_from_internal_field(0);
+      let embedder_obj = recv.get_aligned_pointer_from_internal_field(0, 0);
 
       let i = *(embedder_obj as *const u32);
       assert_eq!(i, 69);
@@ -11076,7 +11335,7 @@ fn test_fast_calls_reciever() {
 
   let obj = object_template.new_instance(scope).unwrap();
   let embedder_obj = Box::into_raw(Box::new(69u32));
-  obj.set_aligned_pointer_in_internal_field(0, embedder_obj as _);
+  obj.set_aligned_pointer_in_internal_field(0, embedder_obj as _, 0);
 
   let template =
     v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
@@ -12126,6 +12385,178 @@ fn string_valueview() {
 }
 
 #[test]
+fn string_valueview_as_str() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ASCII string: as_str returns Some
+  {
+    let s = v8::String::new(scope, "hello world").unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), Some("hello world"));
+  }
+
+  // Empty string: as_str returns Some("")
+  {
+    let s = v8::String::empty(scope);
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), Some(""));
+  }
+
+  // Latin-1 non-ASCII: as_str returns None
+  {
+    let s = v8::String::new_from_one_byte(
+      scope,
+      &[0xC0, 0xE9, 0xF1],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), None);
+  }
+
+  // Two-byte string: as_str returns None
+  {
+    let s = v8::String::new_from_two_byte(
+      scope,
+      &[0x4F60, 0x597D],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), None);
+  }
+}
+
+#[test]
+fn string_valueview_to_cow_lossy() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ASCII: zero-copy Borrowed
+  {
+    let s = v8::String::new(scope, "hello").unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Borrowed(_)));
+    assert_eq!(&*cow, "hello");
+  }
+
+  // Latin-1 non-ASCII: Owned with correct transcoding
+  {
+    let s = v8::String::new_from_one_byte(
+      scope,
+      &[0xC0, 0xE9],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+    assert_eq!(&*cow, "\u{00C0}\u{00E9}");
+  }
+
+  // Two-byte: Owned
+  {
+    let s = v8::String::new_from_two_byte(
+      scope,
+      &[0x4F60, 0x597D],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+    assert_eq!(&*cow, "你好");
+  }
+}
+
+#[test]
+fn string_write_utf8_into() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  let mut buf = String::new();
+
+  // ASCII string
+  {
+    let s = v8::String::new(scope, "hello world").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "hello world");
+  }
+
+  // Buffer reuse: allocation should be reused
+  {
+    let ptr_before = buf.as_ptr();
+    let s = v8::String::new(scope, "hi").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "hi");
+    assert_eq!(buf.as_ptr(), ptr_before);
+  }
+
+  // Empty string
+  {
+    let s = v8::String::empty(scope);
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "");
+  }
+
+  // Unicode string
+  {
+    let s = v8::String::new(scope, "café ☕").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "café ☕");
+  }
+}
+
+#[test]
+fn latin1_to_utf8() {
+  // Pure ASCII
+  let input = b"hello world";
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  assert_eq!(&output[..written], b"hello world");
+
+  // Latin-1 with non-ASCII: À = 0xC0, é = 0xE9
+  let input = &[0xC0u8, 0xE9];
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  let s = std::str::from_utf8(&output[..written]).unwrap();
+  assert_eq!(s, "\u{00C0}\u{00E9}");
+
+  // Mixed ASCII and Latin-1 (exercises the 8-byte SIMD path)
+  let input = b"ABCDEFGH\xC0\xE9";
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  let s = std::str::from_utf8(&output[..written]).unwrap();
+  assert_eq!(s, "ABCDEFGH\u{00C0}\u{00E9}");
+
+  // Empty
+  let mut output = vec![0u8; 4];
+  let written =
+    unsafe { v8::latin1_to_utf8(0, [].as_ptr(), output.as_mut_ptr()) };
+  assert_eq!(written, 0);
+}
+
+#[test]
 fn host_defined_options() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
@@ -12272,4 +12703,781 @@ fn test_regexp() {
   let groups_key = v8::String::new(scope, "groups").unwrap();
   let groups = result.get(scope, groups_key.into()).unwrap();
   assert!(groups.is_undefined());
+}
+
+#[test]
+fn crdtp_json_cbor_conversion() {
+  let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes());
+  assert!(cbor.is_some());
+  let cbor = cbor.unwrap();
+  assert!(!cbor.is_empty());
+
+  let json_back = v8::crdtp::cbor_to_json(&cbor);
+  assert!(json_back.is_some());
+  let json_back = json_back.unwrap();
+  let json_str = String::from_utf8_lossy(&json_back);
+  assert!(json_str.contains("Network.enable"));
+  assert!(json_str.contains("\"id\":1"));
+}
+
+#[test]
+fn crdtp_dispatchable_parsing() {
+  let json =
+    r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+  assert!(dispatchable.has_call_id());
+  assert_eq!(dispatchable.call_id(), 42);
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+}
+
+#[test]
+fn crdtp_dispatch_response() {
+  let response = v8::crdtp::DispatchResponse::success();
+  assert!(response.is_success());
+  assert!(!response.is_error());
+  assert!(!response.is_fall_through());
+
+  let response = v8::crdtp::DispatchResponse::server_error("test error");
+  assert!(!response.is_success());
+  assert!(response.is_error());
+  assert_eq!(response.message(), "test error");
+
+  let response = v8::crdtp::DispatchResponse::invalid_params("bad params");
+  assert!(response.is_error());
+  assert_eq!(response.message(), "bad params");
+
+  let response =
+    v8::crdtp::DispatchResponse::method_not_found("unknown method");
+  assert!(response.is_error());
+  assert_eq!(response.message(), "unknown method");
+
+  let response = v8::crdtp::DispatchResponse::fall_through();
+  assert!(!response.is_success());
+  assert!(!response.is_error());
+  assert!(response.is_fall_through());
+}
+
+struct TestFrontendChannel {
+  responses: Vec<Vec<u8>>,
+  notifications: Vec<Vec<u8>>,
+}
+
+impl TestFrontendChannel {
+  fn new() -> Self {
+    Self {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+    }
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for TestFrontendChannel {
+  fn send_protocol_response(
+    &mut self,
+    _call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    self.responses.push(message.to_bytes());
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    self.notifications.push(message.to_bytes());
+  }
+
+  fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_uber_dispatcher_basic() {
+  let channel_impl = Box::new(TestFrontendChannel::new());
+  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let json = r#"{"id":1,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+}
+
+#[test]
+fn crdtp_create_error_response() {
+  let response =
+    v8::crdtp::DispatchResponse::server_error("something went wrong");
+  let serializable = v8::crdtp::create_error_response(123, response);
+
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("123"));
+  assert!(json_str.contains("error"));
+}
+
+struct HybridInspectorChannel {
+  responses: Vec<String>,
+  notifications: Vec<String>,
+  network_enabled: bool,
+}
+
+impl HybridInspectorChannel {
+  fn new() -> Self {
+    Self {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+      network_enabled: false,
+    }
+  }
+
+  fn handle_custom_domain(
+    &mut self,
+    method: &str,
+    call_id: i32,
+    _params: &[u8],
+  ) -> Option<String> {
+    match method {
+      "Network.enable" => {
+        self.network_enabled = true;
+        Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
+      }
+      "Network.disable" => {
+        self.network_enabled = false;
+        Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
+      }
+      "Network.getResponseBody" => Some(format!(
+        r#"{{"id":{},"result":{{"body":"hello world","base64Encoded":false}}}}"#,
+        call_id
+      )),
+      _ if method.starts_with("Network.") => Some(format!(
+        r#"{{"id":{},"error":{{"code":-32601,"message":"'{}' not implemented"}}}}"#,
+        call_id, method
+      )),
+      _ => None,
+    }
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
+  fn send_protocol_response(
+    &mut self,
+    call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    let cbor = message.to_bytes();
+    if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
+      let json_str = String::from_utf8_lossy(&json).to_string();
+      println!("[CRDTP] Response id={}: {}", call_id, json_str);
+      self.responses.push(json_str);
+    }
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    let cbor = message.to_bytes();
+    if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
+      let json_str = String::from_utf8_lossy(&json).to_string();
+      println!("[CRDTP] Notification: {}", json_str);
+      self.notifications.push(json_str);
+    }
+  }
+
+  fn fall_through(&mut self, call_id: i32, method: &[u8], _message: &[u8]) {
+    let method_str = String::from_utf8_lossy(method);
+    println!("[CRDTP] Fall through: id={} method={}", call_id, method_str);
+  }
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_e2e_custom_domain_handling() {
+  let mut channel_impl = HybridInspectorChannel::new();
+
+  let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  assert!(dispatchable.ok());
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+  assert_eq!(dispatchable.call_id(), 1);
+
+  let method = dispatchable.method_str();
+  let response =
+    channel_impl.handle_custom_domain(&method, dispatchable.call_id(), &[]);
+  assert!(response.is_some());
+  let response = response.unwrap();
+  assert!(response.contains(r#""id":1"#));
+  assert!(response.contains(r#""result":{}"#));
+  assert!(channel_impl.network_enabled);
+
+  let json = r#"{"id":2,"method":"Network.getResponseBody","params":{"requestId":"123"}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let response = channel_impl.handle_custom_domain(
+    &dispatchable.method_str(),
+    dispatchable.call_id(),
+    &dispatchable.params(),
+  );
+  assert!(response.is_some());
+  let response = response.unwrap();
+  assert!(response.contains("hello world"));
+  assert!(response.contains(r#""base64Encoded":false"#));
+
+  let json = r#"{"id":3,"method":"Runtime.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let response = channel_impl.handle_custom_domain(
+    &dispatchable.method_str(),
+    dispatchable.call_id(),
+    &[],
+  );
+  assert!(response.is_none());
+}
+
+#[test]
+fn crdtp_e2e_with_v8_inspector() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let default_client = ClientCounter::new();
+  let inspector_client =
+    V8InspectorClient::new(Box::new(default_client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let _context_scope = v8::ContextScope::new(scope, context);
+
+  let name = b"test";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, name_view);
+
+  let channel = ChannelCounter::new();
+  let state_view = StringView::from(&b"{}"[..]);
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+
+  let message = r#"{"id":1,"method":"Runtime.enable"}"#;
+  session.dispatch_protocol_message(StringView::from(message.as_bytes()));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.count_send_response, 1);
+    assert!(state.count_send_notification >= 1);
+  }
+
+  assert!(V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"Runtime.enable"[..]
+  )));
+
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"Network.enable"[..]
+  )));
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"NodeRuntime.enable"[..]
+  )));
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"NodeWorker.enable"[..]
+  )));
+
+  let json =
+    r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  assert!(dispatchable.ok());
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+  assert_eq!(dispatchable.call_id(), 42);
+
+  inspector.context_destroyed(context);
+}
+
+#[test]
+fn crdtp_create_response() {
+  let serializable = v8::crdtp::create_response(42, None);
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("42"));
+  assert!(json_str.contains("result"));
+}
+
+#[test]
+fn crdtp_create_notification() {
+  let serializable = v8::crdtp::create_notification("Test.event", None);
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("Test.event"));
+}
+
+struct TestDomainHandler {
+  enabled: bool,
+}
+
+impl TestDomainHandler {
+  fn new() -> Self {
+    Self { enabled: false }
+  }
+}
+
+impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
+  fn dispatch(
+    &mut self,
+    command: &[u8],
+    dispatchable: Option<&v8::crdtp::Dispatchable>,
+    handle: &v8::crdtp::DomainDispatcherHandle,
+  ) -> bool {
+    let cmd = String::from_utf8_lossy(command);
+    match cmd.as_ref() {
+      "enable" => {
+        if let Some(d) = dispatchable {
+          self.enabled = true;
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::success(),
+            None,
+          );
+        }
+        true
+      }
+      "disable" => {
+        if let Some(d) = dispatchable {
+          self.enabled = false;
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::success(),
+            None,
+          );
+        }
+        true
+      }
+      _ => false,
+    }
+  }
+}
+
+struct SharedFrontendChannel {
+  state: Rc<RefCell<TestFrontendChannelState>>,
+}
+
+struct TestFrontendChannelState {
+  responses: Vec<Vec<u8>>,
+  notifications: Vec<Vec<u8>>,
+}
+
+impl SharedFrontendChannel {
+  fn new() -> (Self, Rc<RefCell<TestFrontendChannelState>>) {
+    let state = Rc::new(RefCell::new(TestFrontendChannelState {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+    }));
+    (
+      Self {
+        state: state.clone(),
+      },
+      state,
+    )
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for SharedFrontendChannel {
+  fn send_protocol_response(
+    &mut self,
+    _call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    self.state.borrow_mut().responses.push(message.to_bytes());
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    self
+      .state
+      .borrow_mut()
+      .notifications
+      .push(message.to_bytes());
+  }
+
+  fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_domain_dispatcher_wire() {
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let handler = Box::new(TestDomainHandler::new());
+  v8::crdtp::DomainDispatcher::wire(&mut dispatcher, "Custom", handler);
+
+  // Dispatch a known method - should be found and handled
+  let json = r#"{"id":1,"method":"Custom.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Verify the response was actually delivered to the FrontendChannel
+  {
+    let s = state.borrow();
+    assert_eq!(s.responses.len(), 1);
+    let json_bytes = v8::crdtp::cbor_to_json(&s.responses[0]).unwrap();
+    let json_str = String::from_utf8_lossy(&json_bytes);
+    assert!(json_str.contains("\"id\":1"));
+    assert!(json_str.contains("\"result\""));
+  }
+
+  // Dispatch an unknown method in the same domain - should not be found
+  let json = r#"{"id":2,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+
+  // Dispatch a method in a different domain - should not be found
+  let json = r#"{"id":3,"method":"Other.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+}
+
+#[test]
+fn crdtp_dispatchable_malformed_cbor() {
+  // Completely invalid bytes
+  let garbage = &[0xFF, 0xFE, 0x00, 0x01];
+  let dispatchable = v8::crdtp::Dispatchable::new(garbage);
+  assert!(!dispatchable.ok());
+
+  // Empty input
+  let dispatchable = v8::crdtp::Dispatchable::new(&[]);
+  assert!(!dispatchable.ok());
+
+  // Truncated CBOR (valid JSON converted then chopped)
+  let json = r#"{"id":1,"method":"Test.foo","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let truncated = &cbor[..cbor.len() / 2];
+  let dispatchable = v8::crdtp::Dispatchable::new(truncated);
+  assert!(!dispatchable.ok());
+}
+
+#[test]
+fn crdtp_dispatchable_missing_fields() {
+  // Missing "method" field — should parse but method is empty
+  let json = r#"{"id":1,"params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  // crdtp considers missing method as ok=false
+  assert!(!dispatchable.ok());
+
+  // Missing "id" field — crdtp requires an integer id for all dispatchables
+  let json = r#"{"method":"Test.event","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(!dispatchable.ok());
+}
+
+#[test]
+fn crdtp_json_cbor_invalid_input() {
+  // Invalid JSON
+  let bad_json = b"this is not json{{{";
+  let result = v8::crdtp::json_to_cbor(bad_json);
+  assert!(result.is_none() || result.unwrap().is_empty());
+
+  // Invalid CBOR for cbor_to_json
+  let bad_cbor = &[0xFF, 0xFE, 0x00];
+  let result = v8::crdtp::cbor_to_json(bad_cbor);
+  assert!(result.is_none());
+
+  // Empty input
+  let result = v8::crdtp::cbor_to_json(&[]);
+  assert!(result.is_none());
+}
+
+#[test]
+fn crdtp_dispatch_unregistered_domain() {
+  // Dispatch to an UberDispatcher with no domains wired at all
+  let channel_impl = Box::new(TestFrontendChannel::new());
+  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let json = r#"{"id":1,"method":"Nonexistent.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+}
+
+#[test]
+fn crdtp_domain_dispatcher_error_response() {
+  // DomainDispatcher that returns an error response for a command
+  struct ErrorHandler;
+
+  impl v8::crdtp::DomainDispatcherImpl for ErrorHandler {
+    fn dispatch(
+      &mut self,
+      command: &[u8],
+      dispatchable: Option<&v8::crdtp::Dispatchable>,
+      handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      let cmd = String::from_utf8_lossy(command);
+      if cmd == "badCommand" {
+        if let Some(d) = dispatchable {
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::invalid_params(
+              "missing required field",
+            ),
+            None,
+          );
+        }
+        return true;
+      }
+      false
+    }
+  }
+
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Test",
+    Box::new(ErrorHandler),
+  );
+
+  let json = r#"{"id":5,"method":"Test.badCommand","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Verify error response was sent
+  let s = state.borrow();
+  assert_eq!(s.responses.len(), 1);
+  let json_bytes = v8::crdtp::cbor_to_json(&s.responses[0]).unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("\"error\""));
+  assert!(json_str.contains("missing required field"));
+}
+
+#[test]
+fn crdtp_multiple_domains() {
+  // Wire multiple domain dispatchers and verify correct routing
+  struct CountingHandler {
+    call_count: usize,
+  }
+
+  impl CountingHandler {
+    fn new() -> Self {
+      Self { call_count: 0 }
+    }
+  }
+
+  impl v8::crdtp::DomainDispatcherImpl for CountingHandler {
+    fn dispatch(
+      &mut self,
+      command: &[u8],
+      dispatchable: Option<&v8::crdtp::Dispatchable>,
+      handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      let cmd = String::from_utf8_lossy(command);
+      if cmd == "ping" {
+        if let Some(d) = dispatchable {
+          self.call_count += 1;
+          handle.send_response(
+            d.call_id(),
+            v8::crdtp::DispatchResponse::success(),
+            None,
+          );
+        }
+        return true;
+      }
+      false
+    }
+  }
+
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Alpha",
+    Box::new(CountingHandler::new()),
+  );
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Beta",
+    Box::new(CountingHandler::new()),
+  );
+
+  // Dispatch to Alpha
+  let json = r#"{"id":1,"method":"Alpha.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Dispatch to Beta
+  let json = r#"{"id":2,"method":"Beta.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(result.method_found());
+  result.run();
+
+  // Dispatch to unknown domain
+  let json = r#"{"id":3,"method":"Gamma.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let result = dispatcher.dispatch(&dispatchable);
+  assert!(!result.method_found());
+  result.run();
+
+  // Three responses: Alpha success, Beta success, Gamma error (method not found)
+  let s = state.borrow();
+  assert_eq!(s.responses.len(), 3);
+}
+
+#[test]
+fn crdtp_create_error_notification() {
+  let response = v8::crdtp::DispatchResponse::server_error("internal failure");
+  let serializable = v8::crdtp::create_error_notification(response);
+
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("error"));
+  assert!(json_str.contains("internal failure"));
+}
+
+#[test]
+fn crdtp_dispatch_response_all_error_types() {
+  // Verify all error constructors produce distinct error codes
+  let parse = v8::crdtp::DispatchResponse::parse_error("parse");
+  let invalid_req =
+    v8::crdtp::DispatchResponse::invalid_request("invalid request");
+  let not_found = v8::crdtp::DispatchResponse::method_not_found("not found");
+  let invalid_params =
+    v8::crdtp::DispatchResponse::invalid_params("invalid params");
+  let server = v8::crdtp::DispatchResponse::server_error("server");
+
+  // All should be errors
+  assert!(parse.is_error());
+  assert!(invalid_req.is_error());
+  assert!(not_found.is_error());
+  assert!(invalid_params.is_error());
+  assert!(server.is_error());
+
+  // None should be success or fall_through
+  assert!(!parse.is_success());
+  assert!(!parse.is_fall_through());
+
+  // Error codes should follow JSON-RPC conventions
+  // Parse error: -32700, Invalid request: -32600, Method not found: -32601
+  // Invalid params: -32602, Server error: -32000
+  assert_eq!(parse.code(), -32700);
+  assert_eq!(invalid_req.code(), -32600);
+  assert_eq!(not_found.code(), -32601);
+  assert_eq!(invalid_params.code(), -32602);
+  assert_eq!(server.code(), -32000);
+}
+
+#[test]
+fn crdtp_dispatcher_cleanup_on_drop() {
+  // Verify that dropping UberDispatcher properly cleans up DomainDispatchers
+  // via the C++ destructor -> Rust Drop callback path.
+  use std::sync::atomic::{AtomicUsize, Ordering};
+
+  static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+  DROP_COUNT.store(0, Ordering::SeqCst);
+
+  struct DropTracker;
+
+  impl v8::crdtp::DomainDispatcherImpl for DropTracker {
+    fn dispatch(
+      &mut self,
+      _command: &[u8],
+      _dispatchable: Option<&v8::crdtp::Dispatchable>,
+      _handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      false
+    }
+  }
+
+  impl Drop for DropTracker {
+    fn drop(&mut self) {
+      DROP_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
+  }
+
+  {
+    let channel_impl = Box::new(TestFrontendChannel::new());
+    let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+    let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+    v8::crdtp::DomainDispatcher::wire(
+      &mut dispatcher,
+      "TrackA",
+      Box::new(DropTracker),
+    );
+    v8::crdtp::DomainDispatcher::wire(
+      &mut dispatcher,
+      "TrackB",
+      Box::new(DropTracker),
+    );
+
+    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
+    // dispatcher and channel drop here
+  }
+
+  // Both DropTrackers should have been dropped via C++ destructor callback
+  assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 2);
 }

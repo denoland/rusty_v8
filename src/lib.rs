@@ -83,9 +83,12 @@ mod value_deserializer;
 mod value_serializer;
 mod wasm;
 
+pub mod crdtp;
 pub mod inspector;
 pub mod json;
 pub mod script_compiler;
+#[cfg(feature = "simdutf")]
+pub mod simdutf;
 // This module is intentionally named "V8" rather than "v8" to match the
 // C++ namespace "v8::V8".
 #[allow(non_snake_case)]
@@ -106,6 +109,7 @@ pub use handle::SealedLocal;
 pub use handle::TracedReference;
 pub use handle::Weak;
 pub use isolate::GarbageCollectionType;
+pub use isolate::HeapCodeStatistics;
 pub use isolate::HeapSpaceStatistics;
 pub use isolate::HeapStatistics;
 pub use isolate::HostCreateShadowRealmContextCallback;
@@ -135,7 +139,11 @@ pub use isolate_create_params::CreateParams;
 pub use microtask::MicrotaskQueue;
 pub use module::*;
 pub use object::*;
+pub use platform::IdleTask;
 pub use platform::Platform;
+pub use platform::PlatformImpl;
+pub use platform::Task;
+pub use platform::new_custom_platform;
 pub use platform::new_default_platform;
 pub use platform::new_single_threaded_default_platform;
 pub use platform::new_unprotected_default_platform;
@@ -172,6 +180,7 @@ pub use string::ValueView;
 pub use string::ValueViewData;
 pub use string::WriteFlags;
 pub use string::WriteOptions;
+pub use string::latin1_to_utf8;
 pub use support::SharedPtr;
 pub use support::SharedRef;
 pub use support::UniquePtr;
@@ -184,6 +193,8 @@ pub use value_serializer::ValueSerializer;
 pub use value_serializer::ValueSerializerHelper;
 pub use value_serializer::ValueSerializerImpl;
 pub use wasm::CompiledWasmModule;
+pub use wasm::ModuleCachingInterface;
+pub use wasm::WasmModuleCompilation;
 pub use wasm::WasmStreaming;
 
 /// https://v8.dev/docs/version-numbers

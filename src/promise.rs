@@ -28,6 +28,7 @@ unsafe extern "C" {
   ) -> MaybeBool;
   fn v8__Promise__State(this: *const Promise) -> PromiseState;
   fn v8__Promise__HasHandler(this: *const Promise) -> bool;
+  fn v8__Promise__MarkAsHandled(this: *const Promise);
   fn v8__Promise__Result(this: *const Promise) -> *const Value;
   fn v8__Promise__Catch(
     this: *const Promise,
@@ -77,6 +78,12 @@ impl Promise {
   #[inline(always)]
   pub fn has_handler(&self) -> bool {
     unsafe { v8__Promise__HasHandler(self) }
+  }
+
+  /// Marks this promise as handled to avoid reporting unhandled rejections.
+  #[inline(always)]
+  pub fn mark_as_handled(&self) {
+    unsafe { v8__Promise__MarkAsHandled(self) }
   }
 
   /// Returns the content of the [[PromiseResult]] field. The Promise must not

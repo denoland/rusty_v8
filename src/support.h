@@ -173,6 +173,11 @@ struct memory_span_t {
   size_t size;
 };
 
+struct const_memory_span_t {
+  const uint8_t* data;
+  size_t size;
+};
+
 #define EACH_TYPED_ARRAY(V) \
   V(Uint8Array)             \
   V(Uint8ClampedArray)      \

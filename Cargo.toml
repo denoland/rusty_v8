@@ -1,6 +1,6 @@
 [package]
 name = "v8"
-version = "145.0.0"
+version = "147.0.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -102,6 +102,7 @@ opt-level = 1
 [features]
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
+simdutf = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []

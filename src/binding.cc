@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <map>
+#include <mutex>
 #include <thread>
 
 #include "cppgc/allocation.h"
@@ -349,6 +351,11 @@ bool v8__Isolate__GetHeapSpaceStatistics(
   return isolate->GetHeapSpaceStatistics(space_statistics, index);
 }
 
+bool v8__Isolate__GetHeapCodeAndMetadataStatistics(v8::Isolate* isolate,
+                                                   v8::HeapCodeStatistics* s) {
+  return isolate->GetHeapCodeAndMetadataStatistics(s);
+}
+
 void v8__Isolate__RemoveNearHeapLimitCallback(
     v8::Isolate* isolate, v8::NearHeapLimitCallback callback,
     size_t heap_limit) {
@@ -430,6 +437,66 @@ void v8__ResourceConstraints__ConfigureDefaults(
     v8::ResourceConstraints* constraints, uint64_t physical_memory,
     uint64_t virtual_memory_limit) {
   constraints->ConfigureDefaults(physical_memory, virtual_memory_limit);
+}
+
+size_t v8__ResourceConstraints__max_old_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->max_old_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_max_old_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t limit) {
+  constraints->set_max_old_generation_size_in_bytes(limit);
+}
+
+size_t v8__ResourceConstraints__max_young_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->max_young_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_max_young_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t limit) {
+  constraints->set_max_young_generation_size_in_bytes(limit);
+}
+
+size_t v8__ResourceConstraints__code_range_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->code_range_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_code_range_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t limit) {
+  constraints->set_code_range_size_in_bytes(limit);
+}
+
+uint32_t* v8__ResourceConstraints__stack_limit(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->stack_limit();
+}
+
+void v8__ResourceConstraints__set_stack_limit(
+    v8::ResourceConstraints* constraints, uint32_t* value) {
+  constraints->set_stack_limit(value);
+}
+
+size_t v8__ResourceConstraints__initial_old_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->initial_old_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_initial_old_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t initial_size) {
+  constraints->set_initial_old_generation_size_in_bytes(initial_size);
+}
+
+size_t v8__ResourceConstraints__initial_young_generation_size_in_bytes(
+    const v8::ResourceConstraints* constraints) {
+  return constraints->initial_young_generation_size_in_bytes();
+}
+
+void v8__ResourceConstraints__set_initial_young_generation_size_in_bytes(
+    v8::ResourceConstraints* constraints, size_t initial_size) {
+  constraints->set_initial_young_generation_size_in_bytes(initial_size);
 }
 
 void v8__HandleScope__CONSTRUCT(uninit_t<v8::HandleScope>* buf,
@@ -948,9 +1015,8 @@ const v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
 
 int v8__FixedArray__Length(const v8::FixedArray& self) { return self.Length(); }
 
-const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self,
-                                    const v8::Context& context, int index) {
-  return local_to_ptr(ptr_to_local(&self)->Get(ptr_to_local(&context), index));
+const v8::Data* v8__FixedArray__Get(const v8::FixedArray& self, int index) {
+  return local_to_ptr(ptr_to_local(&self)->Get(index));
 }
 
 const v8::PrimitiveArray* v8__PrimitiveArray__New(v8::Isolate* isolate,
@@ -1169,7 +1235,7 @@ class ExternalOneByteString : public v8::String::ExternalOneByteStringResource {
   ~ExternalOneByteString() override {
     (*rustDestroy_)(data_, length_);
     isolate_->AdjustAmountOfExternalAllocatedMemory(
-        -static_cast<int64_t>(-length_));
+        -static_cast<int64_t>(length_));
   }
 
   const char* data() const override { return data_; }
@@ -1456,14 +1522,15 @@ const v8::Value* v8__Object__GetIndex(const v8::Object& self,
       ptr_to_local(&self)->Get(ptr_to_local(&context), index));
 }
 
-void* v8__Object__GetAlignedPointerFromInternalField(const v8::Object& self,
-                                                     int index) {
-  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index);
+void* v8__Object__GetAlignedPointerFromInternalField(
+    const v8::Object& self, int index, v8::EmbedderDataTypeTag tag) {
+  return ptr_to_local(&self)->GetAlignedPointerFromInternalField(index, tag);
 }
 
 void v8__Object__SetAlignedPointerInInternalField(const v8::Object& self,
-                                                  int index, void* value) {
-  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value);
+                                                  int index, void* value,
+                                                  v8::EmbedderDataTypeTag tag) {
+  ptr_to_local(&self)->SetAlignedPointerInInternalField(index, value, tag);
 }
 
 bool v8__Object__IsApiWrapper(const v8::Object& self) {
@@ -1754,10 +1821,13 @@ const v8::Date* v8__Date__New(const v8::Context& context, double time) {
 double v8__Date__ValueOf(const v8::Date& self) { return self.ValueOf(); }
 
 const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
-  return local_to_ptr(v8::External::New(isolate, value));
+  return local_to_ptr(
+      v8::External::New(isolate, value, v8::kExternalPointerTypeTagDefault));
 }
 
-void* v8__External__Value(const v8::External& self) { return self.Value(); }
+void* v8__External__Value(const v8::External& self) {
+  return self.Value(v8::kExternalPointerTypeTagDefault);
+}
 
 const v8::Map* v8__Map__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Map::New(isolate));
@@ -1997,12 +2067,14 @@ void DeserializeInternalFields(v8::Local<v8::Object> holder, int index,
                                v8::StartupData payload, void* data) {
   assert(data == nullptr);
   if (payload.raw_size == 0) {
-    holder->SetAlignedPointerInInternalField(index, nullptr);
+    holder->SetAlignedPointerInInternalField(index, nullptr,
+                                             v8::kEmbedderDataTypeTagDefault);
     return;
   }
   InternalFieldData* embedder_field = new InternalFieldData{0};
   memcpy(embedder_field, payload.data, payload.raw_size);
-  holder->SetAlignedPointerInInternalField(index, embedder_field);
+  holder->SetAlignedPointerInInternalField(index, embedder_field,
+                                           v8::kEmbedderDataTypeTagDefault);
   deserialized_data.push_back(embedder_field);
 }
 
@@ -2331,6 +2403,15 @@ void v8__FunctionTemplate__SetClassName(const v8::FunctionTemplate& self,
   ptr_to_local(&self)->SetClassName(ptr_to_local(&name));
 }
 
+void v8__FunctionTemplate__SetAccessorProperty(const v8::FunctionTemplate& self,
+                                               const v8::Name& key,
+                                               v8::FunctionTemplate& getter,
+                                               v8::FunctionTemplate& setter,
+                                               v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetAccessorProperty(
+      ptr_to_local(&key), ptr_to_local(&getter), ptr_to_local(&setter), attr);
+}
+
 void v8__FunctionTemplate__Inherit(const v8::FunctionTemplate& self,
                                    const v8::FunctionTemplate& parent) {
   ptr_to_local(&self)->Inherit(ptr_to_local(&parent));
@@ -2403,11 +2484,6 @@ v8::Isolate* v8__PropertyCallbackInfo__GetIsolate(
 const v8::Value* v8__PropertyCallbackInfo__Data(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.Data());
-}
-
-const v8::Object* v8__PropertyCallbackInfo__This(
-    const v8::PropertyCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.This());
 }
 
 const v8::Object* v8__PropertyCallbackInfo__Holder(
@@ -2813,6 +2889,10 @@ bool v8__Promise__HasHandler(const v8::Promise& self) {
   return ptr_to_local(&self)->HasHandler();
 }
 
+void v8__Promise__MarkAsHandled(const v8::Promise& self) {
+  ptr_to_local(&self)->MarkAsHandled();
+}
+
 const v8::Value* v8__Promise__Result(const v8::Promise& self) {
   return local_to_ptr(ptr_to_local(&self)->Result());
 }
@@ -2906,7 +2986,8 @@ v8::StartupData SerializeInternalFields(v8::Local<v8::Object> holder, int index,
                                         void* data) {
   assert(data == nullptr);
   InternalFieldData* embedder_field = static_cast<InternalFieldData*>(
-      holder->GetAlignedPointerFromInternalField(index));
+      holder->GetAlignedPointerFromInternalField(
+          index, v8::kEmbedderDataTypeTagDefault));
   if (embedder_field == nullptr) return {nullptr, 0};
   int size = sizeof(*embedder_field);
   char* payload = new char[size];
@@ -2941,6 +3022,156 @@ v8::StartupData v8__SnapshotCreator__CreateBlob(
     v8::SnapshotCreator::FunctionCodeHandling function_code_handling) {
   return self->CreateBlob(function_code_handling);
 }
+
+// Rust-side callbacks for trait-based CustomPlatform (PlatformImpl trait).
+// Each callback corresponds to a C++ virtual method on TaskRunner or Platform.
+// `context` is a pointer to the Rust Box<dyn PlatformImpl>.
+// Task ownership is transferred to Rust — Rust is responsible for calling
+// Run() and deleting the task.
+extern "C" {
+void v8__Platform__CustomPlatform__BASE__PostTask(void* context, void* isolate,
+                                                  v8::Task* task);
+void v8__Platform__CustomPlatform__BASE__PostNonNestableTask(void* context,
+                                                             void* isolate,
+                                                             v8::Task* task);
+void v8__Platform__CustomPlatform__BASE__PostDelayedTask(
+    void* context, void* isolate, v8::Task* task, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
+    void* context, void* isolate, v8::Task* task, double delay_in_seconds);
+void v8__Platform__CustomPlatform__BASE__PostIdleTask(void* context,
+                                                      void* isolate,
+                                                      v8::IdleTask* task);
+void v8__Platform__CustomPlatform__BASE__DROP(void* context);
+}
+
+// FFI functions for running and deleting V8 tasks from Rust.
+extern "C" {
+void v8__Task__Run(v8::Task* task) { task->Run(); }
+void v8__Task__DELETE(v8::Task* task) { delete task; }
+void v8__IdleTask__Run(v8::IdleTask* task, double deadline_in_seconds) {
+  task->Run(deadline_in_seconds);
+}
+void v8__IdleTask__DELETE(v8::IdleTask* task) { delete task; }
+}
+
+// TaskRunner wrapper that intercepts all PostTask* virtual methods and
+// transfers task ownership to Rust via the PlatformImpl trait. The Rust
+// side is responsible for scheduling and calling task->Run().
+//
+// The wrapped runner is kept for capability queries (IdleTasksEnabled, etc.)
+// but tasks are NOT forwarded to it — Rust owns them entirely.
+class CustomTaskRunner final : public v8::TaskRunner {
+ public:
+  CustomTaskRunner(std::shared_ptr<v8::TaskRunner> wrapped, void* context,
+                   v8::Isolate* isolate)
+      : wrapped_(std::move(wrapped)), context_(context), isolate_(isolate) {}
+
+  bool IdleTasksEnabled() override { return wrapped_->IdleTasksEnabled(); }
+  bool NonNestableTasksEnabled() const override {
+    return wrapped_->NonNestableTasksEnabled();
+  }
+  bool NonNestableDelayedTasksEnabled() const override {
+    return wrapped_->NonNestableDelayedTasksEnabled();
+  }
+
+ protected:
+  void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                    const v8::SourceLocation& location) override {
+    v8__Platform__CustomPlatform__BASE__PostTask(
+        context_, static_cast<void*>(isolate_), task.release());
+  }
+  void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
+                               const v8::SourceLocation& location) override {
+    v8__Platform__CustomPlatform__BASE__PostNonNestableTask(
+        context_, static_cast<void*>(isolate_), task.release());
+  }
+  void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
+                           double delay_in_seconds,
+                           const v8::SourceLocation& location) override {
+    v8__Platform__CustomPlatform__BASE__PostDelayedTask(
+        context_, static_cast<void*>(isolate_), task.release(),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+  }
+  void PostNonNestableDelayedTaskImpl(
+      std::unique_ptr<v8::Task> task, double delay_in_seconds,
+      const v8::SourceLocation& location) override {
+    v8__Platform__CustomPlatform__BASE__PostNonNestableDelayedTask(
+        context_, static_cast<void*>(isolate_), task.release(),
+        delay_in_seconds > 0 ? delay_in_seconds : 0.0);
+  }
+  void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
+                        const v8::SourceLocation& location) override {
+    v8__Platform__CustomPlatform__BASE__PostIdleTask(
+        context_, static_cast<void*>(isolate_), task.release());
+  }
+
+ private:
+  std::shared_ptr<v8::TaskRunner> wrapped_;
+  void* context_;
+  v8::Isolate* isolate_;
+};
+
+// Platform subclass that wraps each isolate's TaskRunner to notify Rust
+// when foreground tasks are posted. Follows the inspector API pattern.
+//
+// NotifyIsolateShutdown is NOT intercepted here because it is not virtual
+// on DefaultPlatform — V8's free function does static_cast<DefaultPlatform*>
+// and calls it directly, bypassing any override. Isolate cleanup must be
+// handled on the Rust side (e.g. in the isolate's Drop impl).
+class CustomPlatform : public v8::platform::DefaultPlatform {
+  using IdleTaskSupport = v8::platform::IdleTaskSupport;
+
+ public:
+  CustomPlatform(int thread_pool_size, IdleTaskSupport idle_task_support,
+                 bool unprotected, void* context)
+      : DefaultPlatform(thread_pool_size, idle_task_support),
+        unprotected_(unprotected),
+        context_(context) {}
+
+  // SAFETY: The platform is single-owner (via unique_ptr). The destructor
+  // runs after all isolates have been disposed and no more task runner
+  // callbacks can fire, so DROP does not race with other callbacks.
+  ~CustomPlatform() override {
+    v8__Platform__CustomPlatform__BASE__DROP(context_);
+  }
+
+  std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
+      v8::Isolate* isolate, v8::TaskPriority priority) override {
+    auto original = DefaultPlatform::GetForegroundTaskRunner(isolate, priority);
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto key = std::make_pair(isolate, priority);
+    auto it = runners_.find(key);
+    if (it != runners_.end()) {
+      auto runner = it->second.lock();
+      if (runner) return runner;
+    }
+    auto custom =
+        std::make_shared<CustomTaskRunner>(original, context_, isolate);
+    runners_[key] = custom;
+    return custom;
+  }
+
+  // When unprotected, disable thread-isolated allocations (same as
+  // UnprotectedDefaultPlatform). Required when isolates may be created on
+  // threads other than the one that called v8::V8::Initialize (e.g. worker
+  // threads in Deno).
+  v8::ThreadIsolatedAllocator* GetThreadIsolatedAllocator() override {
+    if (unprotected_) return nullptr;
+    return DefaultPlatform::GetThreadIsolatedAllocator();
+  }
+
+ private:
+  bool unprotected_;
+  void* context_;
+  std::mutex mutex_;
+  // weak_ptr so runners are kept alive only while V8 holds a reference.
+  // When V8 drops its shared_ptr (e.g. on isolate shutdown), the weak_ptr
+  // expires and a fresh wrapper is created if GetForegroundTaskRunner is
+  // called again. This avoids preventing cleanup of the underlying runner.
+  std::map<std::pair<v8::Isolate*, v8::TaskPriority>,
+           std::weak_ptr<CustomTaskRunner>>
+      runners_;
+};
 
 class UnprotectedDefaultPlatform : public v8::platform::DefaultPlatform {
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
@@ -2992,6 +3223,21 @@ v8::Platform* v8__Platform__NewSingleThreadedDefaultPlatform(
              idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
                                : v8::platform::IdleTaskSupport::kDisabled,
              v8::platform::InProcessStackDumping::kDisabled, nullptr)
+      .release();
+}
+
+v8::Platform* v8__Platform__NewCustomPlatform(int thread_pool_size,
+                                              bool idle_task_support,
+                                              bool unprotected, void* context) {
+  if (thread_pool_size < 1) {
+    thread_pool_size = std::thread::hardware_concurrency();
+  }
+  thread_pool_size = std::max(std::min(thread_pool_size, 16), 1);
+  return std::make_unique<CustomPlatform>(
+             thread_pool_size,
+             idle_task_support ? v8::platform::IdleTaskSupport::kEnabled
+                               : v8::platform::IdleTaskSupport::kDisabled,
+             unprotected, context)
       .release();
 }
 
@@ -3437,13 +3683,20 @@ void v8__WasmStreaming__shared_ptr_DESTRUCT(WasmStreamingSharedPtr* self) {
   self->~WasmStreamingSharedPtr();
 }
 
+void v8__WasmStreaming__SetHasCompiledModuleBytes(
+    WasmStreamingSharedPtr* self) {
+  self->inner->SetHasCompiledModuleBytes();
+}
+
 void v8__WasmStreaming__OnBytesReceived(WasmStreamingSharedPtr* self,
                                         const uint8_t* data, size_t len) {
   self->inner->OnBytesReceived(data, len);
 }
 
-void v8__WasmStreaming__Finish(WasmStreamingSharedPtr* self) {
-  self->inner->Finish();
+void v8__WasmStreaming__Finish(
+    WasmStreamingSharedPtr* self,
+    void (*callback)(v8::WasmStreaming::ModuleCachingInterface&)) {
+  self->inner->Finish(callback);
 }
 
 void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
@@ -3454,6 +3707,19 @@ void v8__WasmStreaming__Abort(WasmStreamingSharedPtr* self,
 void v8__WasmStreaming__SetUrl(WasmStreamingSharedPtr* self, const char* url,
                                size_t len) {
   self->inner->SetUrl(url, len);
+}
+
+const_memory_span_t v8__ModuleCachingInterface__GetWireBytes(
+    const v8::WasmStreaming::ModuleCachingInterface& self) {
+  v8::MemorySpan<const uint8_t> span = self.GetWireBytes();
+  return {span.data(), span.size()};
+}
+
+bool v8__ModuleCachingInterface__SetCachedCompiledModuleBytes(
+    v8::WasmStreaming::ModuleCachingInterface& self,
+    const_memory_span_t bytes) {
+  v8::MemorySpan<const uint8_t> bytes_span{bytes.data, bytes.size};
+  return self.SetCachedCompiledModuleBytes(bytes_span);
 }
 
 const v8::ArrayBuffer* v8__WasmMemoryObject__Buffer(
@@ -3770,6 +4036,80 @@ uint32_t v8__ValueDeserializer__GetWireFormatVersion(
     v8::ValueDeserializer* self) {
   return self->GetWireFormatVersion();
 }
+}  // extern "C"
+
+// v8::WasmModuleCompilation
+
+extern "C" {
+
+v8::WasmModuleCompilation* v8__WasmModuleCompilation__NEW() {
+  return new v8::WasmModuleCompilation();
+}
+
+void v8__WasmModuleCompilation__DELETE(v8::WasmModuleCompilation* self) {
+  delete self;
+}
+
+void v8__WasmModuleCompilation__OnBytesReceived(v8::WasmModuleCompilation* self,
+                                                const uint8_t* bytes,
+                                                size_t size) {
+  self->OnBytesReceived(bytes, size);
+}
+
+void v8__WasmModuleCompilation__Finish(
+    v8::WasmModuleCompilation* self, v8::Isolate* isolate,
+    void (*caching_callback)(v8::WasmStreaming::ModuleCachingInterface&),
+    void (*resolution_callback)(void* data, const v8::WasmModuleObject* module,
+                                const v8::Value* error),
+    void* resolution_data, void (*drop_resolution_data)(void* data)) {
+  // Use shared_ptr to reference-count the Rust closure data through
+  // std::function's copy semantics. The custom deleter calls back into Rust
+  // to drop the boxed closure when the last copy is destroyed.
+  auto shared_data = std::shared_ptr<void>(
+      resolution_data,
+      [drop_resolution_data](void* p) { drop_resolution_data(p); });
+  self->Finish(
+      isolate, caching_callback,
+      [resolution_callback, shared_data](auto result) {
+        if (auto* module =
+                std::get_if<v8::Local<v8::WasmModuleObject>>(&result)) {
+          resolution_callback(shared_data.get(), local_to_ptr(*module),
+                              nullptr);
+        } else {
+          resolution_callback(
+              shared_data.get(), nullptr,
+              local_to_ptr(std::get<v8::Local<v8::Value>>(result)));
+        }
+      });
+}
+
+void v8__WasmModuleCompilation__Abort(v8::WasmModuleCompilation* self) {
+  self->Abort();
+}
+
+void v8__WasmModuleCompilation__SetHasCompiledModuleBytes(
+    v8::WasmModuleCompilation* self) {
+  self->SetHasCompiledModuleBytes();
+}
+
+void v8__WasmModuleCompilation__SetMoreFunctionsCanBeSerializedCallback(
+    v8::WasmModuleCompilation* self,
+    void (*callback)(void* data, v8::CompiledWasmModule* compiled_module),
+    void* data, void (*drop_data)(void* data)) {
+  auto shared_data =
+      std::shared_ptr<void>(data, [drop_data](void* p) { drop_data(p); });
+  self->SetMoreFunctionsCanBeSerializedCallback(
+      [callback, shared_data](v8::CompiledWasmModule module) {
+        auto* heap_module = new v8::CompiledWasmModule(std::move(module));
+        callback(shared_data.get(), heap_module);
+      });
+}
+
+void v8__WasmModuleCompilation__SetUrl(v8::WasmModuleCompilation* self,
+                                       const char* url, size_t length) {
+  self->SetUrl(url, length);
+}
+
 }  // extern "C"
 
 // v8::CompiledWasmModule
@@ -4093,3 +4433,252 @@ RustObj* cppgc__WeakPersistent__Get(cppgc::WeakPersistent<RustObj>* self) {
 }
 
 }  // extern "C"
+
+// =============================================================================
+// simdutf bindings (gated behind RUSTY_V8_ENABLE_SIMDUTF)
+// =============================================================================
+
+#ifdef RUSTY_V8_ENABLE_SIMDUTF
+#include "third_party/simdutf/simdutf.h"
+
+struct simdutf__result {
+  int error;
+  size_t count;
+};
+
+static simdutf__result to_ffi_result(simdutf::result r) {
+  return {static_cast<int>(r.error), r.count};
+}
+
+extern "C" {
+
+// --- Validation ---
+
+bool simdutf__validate_utf8(const char* buf, size_t len) {
+  return simdutf::validate_utf8(buf, len);
+}
+
+simdutf__result simdutf__validate_utf8_with_errors(const char* buf,
+                                                   size_t len) {
+  return to_ffi_result(simdutf::validate_utf8_with_errors(buf, len));
+}
+
+bool simdutf__validate_ascii(const char* buf, size_t len) {
+  return simdutf::validate_ascii(buf, len);
+}
+
+simdutf__result simdutf__validate_ascii_with_errors(const char* buf,
+                                                    size_t len) {
+  return to_ffi_result(simdutf::validate_ascii_with_errors(buf, len));
+}
+
+bool simdutf__validate_utf16le(const char16_t* buf, size_t len) {
+  return simdutf::validate_utf16le(buf, len);
+}
+
+simdutf__result simdutf__validate_utf16le_with_errors(const char16_t* buf,
+                                                      size_t len) {
+  return to_ffi_result(simdutf::validate_utf16le_with_errors(buf, len));
+}
+
+bool simdutf__validate_utf16be(const char16_t* buf, size_t len) {
+  return simdutf::validate_utf16be(buf, len);
+}
+
+simdutf__result simdutf__validate_utf16be_with_errors(const char16_t* buf,
+                                                      size_t len) {
+  return to_ffi_result(simdutf::validate_utf16be_with_errors(buf, len));
+}
+
+bool simdutf__validate_utf32(const char32_t* buf, size_t len) {
+  return simdutf::validate_utf32(buf, len);
+}
+
+simdutf__result simdutf__validate_utf32_with_errors(const char32_t* buf,
+                                                    size_t len) {
+  return to_ffi_result(simdutf::validate_utf32_with_errors(buf, len));
+}
+
+// --- Conversion: UTF-8 <-> UTF-16LE ---
+
+size_t simdutf__convert_utf8_to_utf16le(const char* input, size_t length,
+                                        char16_t* output) {
+  return simdutf::convert_utf8_to_utf16le(input, length, output);
+}
+
+simdutf__result simdutf__convert_utf8_to_utf16le_with_errors(const char* input,
+                                                             size_t length,
+                                                             char16_t* output) {
+  return to_ffi_result(
+      simdutf::convert_utf8_to_utf16le_with_errors(input, length, output));
+}
+
+size_t simdutf__convert_valid_utf8_to_utf16le(const char* input, size_t length,
+                                              char16_t* output) {
+  return simdutf::convert_valid_utf8_to_utf16le(input, length, output);
+}
+
+size_t simdutf__convert_utf16le_to_utf8(const char16_t* input, size_t length,
+                                        char* output) {
+  return simdutf::convert_utf16le_to_utf8(input, length, output);
+}
+
+simdutf__result simdutf__convert_utf16le_to_utf8_with_errors(
+    const char16_t* input, size_t length, char* output) {
+  return to_ffi_result(
+      simdutf::convert_utf16le_to_utf8_with_errors(input, length, output));
+}
+
+size_t simdutf__convert_valid_utf16le_to_utf8(const char16_t* input,
+                                              size_t length, char* output) {
+  return simdutf::convert_valid_utf16le_to_utf8(input, length, output);
+}
+
+// --- Conversion: UTF-8 <-> UTF-16BE ---
+
+size_t simdutf__convert_utf8_to_utf16be(const char* input, size_t length,
+                                        char16_t* output) {
+  return simdutf::convert_utf8_to_utf16be(input, length, output);
+}
+
+size_t simdutf__convert_utf16be_to_utf8(const char16_t* input, size_t length,
+                                        char* output) {
+  return simdutf::convert_utf16be_to_utf8(input, length, output);
+}
+
+// --- Conversion: UTF-8 <-> Latin-1 ---
+
+size_t simdutf__convert_utf8_to_latin1(const char* input, size_t length,
+                                       char* output) {
+  return simdutf::convert_utf8_to_latin1(input, length, output);
+}
+
+simdutf__result simdutf__convert_utf8_to_latin1_with_errors(const char* input,
+                                                            size_t length,
+                                                            char* output) {
+  return to_ffi_result(
+      simdutf::convert_utf8_to_latin1_with_errors(input, length, output));
+}
+
+size_t simdutf__convert_valid_utf8_to_latin1(const char* input, size_t length,
+                                             char* output) {
+  return simdutf::convert_valid_utf8_to_latin1(input, length, output);
+}
+
+size_t simdutf__convert_latin1_to_utf8(const char* input, size_t length,
+                                       char* output) {
+  return simdutf::convert_latin1_to_utf8(input, length, output);
+}
+
+// --- Conversion: Latin-1 <-> UTF-16LE ---
+
+size_t simdutf__convert_latin1_to_utf16le(const char* input, size_t length,
+                                          char16_t* output) {
+  return simdutf::convert_latin1_to_utf16le(input, length, output);
+}
+
+size_t simdutf__convert_utf16le_to_latin1(const char16_t* input, size_t length,
+                                          char* output) {
+  return simdutf::convert_utf16le_to_latin1(input, length, output);
+}
+
+// --- Conversion: UTF-8 <-> UTF-32 ---
+
+size_t simdutf__convert_utf8_to_utf32(const char* input, size_t length,
+                                      char32_t* output) {
+  return simdutf::convert_utf8_to_utf32(input, length, output);
+}
+
+size_t simdutf__convert_utf32_to_utf8(const char32_t* input, size_t length,
+                                      char* output) {
+  return simdutf::convert_utf32_to_utf8(input, length, output);
+}
+
+// --- Length calculation ---
+
+size_t simdutf__utf8_length_from_utf16le(const char16_t* input, size_t length) {
+  return simdutf::utf8_length_from_utf16le(input, length);
+}
+
+size_t simdutf__utf8_length_from_utf16be(const char16_t* input, size_t length) {
+  return simdutf::utf8_length_from_utf16be(input, length);
+}
+
+size_t simdutf__utf16_length_from_utf8(const char* input, size_t length) {
+  return simdutf::utf16_length_from_utf8(input, length);
+}
+
+size_t simdutf__utf8_length_from_latin1(const char* input, size_t length) {
+  return simdutf::utf8_length_from_latin1(input, length);
+}
+
+size_t simdutf__latin1_length_from_utf8(const char* input, size_t length) {
+  return simdutf::latin1_length_from_utf8(input, length);
+}
+
+size_t simdutf__utf32_length_from_utf8(const char* input, size_t length) {
+  return simdutf::utf32_length_from_utf8(input, length);
+}
+
+size_t simdutf__utf8_length_from_utf32(const char32_t* input, size_t length) {
+  return simdutf::utf8_length_from_utf32(input, length);
+}
+
+size_t simdutf__utf16_length_from_utf32(const char32_t* input, size_t length) {
+  return simdutf::utf16_length_from_utf32(input, length);
+}
+
+size_t simdutf__utf32_length_from_utf16le(const char16_t* input,
+                                          size_t length) {
+  return simdutf::utf32_length_from_utf16le(input, length);
+}
+
+// --- Counting ---
+
+size_t simdutf__count_utf8(const char* input, size_t length) {
+  return simdutf::count_utf8(input, length);
+}
+
+size_t simdutf__count_utf16le(const char16_t* input, size_t length) {
+  return simdutf::count_utf16le(input, length);
+}
+
+size_t simdutf__count_utf16be(const char16_t* input, size_t length) {
+  return simdutf::count_utf16be(input, length);
+}
+
+// --- Encoding detection ---
+
+int simdutf__detect_encodings(const char* input, size_t length) {
+  return simdutf::detect_encodings(input, length);
+}
+
+// --- Base64 ---
+
+size_t simdutf__maximal_binary_length_from_base64(const char* input,
+                                                  size_t length) {
+  return simdutf::maximal_binary_length_from_base64(input, length);
+}
+
+simdutf__result simdutf__base64_to_binary(const char* input, size_t length,
+                                          char* output, uint64_t options,
+                                          uint64_t last_chunk_options) {
+  return to_ffi_result(simdutf::base64_to_binary(
+      input, length, output, static_cast<simdutf::base64_options>(options),
+      static_cast<simdutf::last_chunk_handling_options>(last_chunk_options)));
+}
+
+size_t simdutf__base64_length_from_binary(size_t length, uint64_t options) {
+  return simdutf::base64_length_from_binary(
+      length, static_cast<simdutf::base64_options>(options));
+}
+
+size_t simdutf__binary_to_base64(const char* input, size_t length, char* output,
+                                 uint64_t options) {
+  return simdutf::binary_to_base64(
+      input, length, output, static_cast<simdutf::base64_options>(options));
+}
+
+}  // extern "C"
+
+#endif  // RUSTY_V8_ENABLE_SIMDUTF

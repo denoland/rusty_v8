@@ -1,7 +1,7 @@
 error[E0499]: cannot borrow `scope1` as mutable more than once at a time
   --> tests/compile_fail/handle_scope_lifetime_3.rs:13:22
    |
-9  |   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
+ 9 |   let mut context_scope = v8::ContextScope::new(&mut scope1, context);
    |                                                 ----------- first mutable borrow occurs here
 ...
 13 |     v8::Integer::new(&mut scope1, 123)
