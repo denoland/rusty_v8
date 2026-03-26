@@ -617,7 +617,7 @@ fn build_dir() -> PathBuf {
     .to_path_buf()
 }
 
-/// Checks if the target is available as a pre-built archive from the rusty_v8 GitLab.
+/// Checks if the target is available as a pre-built archive from the rusty_v8 GitHub. 
 /// Should only be called when `RUSTY_V8_MIRROR` is unset.
 fn is_target_prebuilt(target: &str) -> bool {
   const PREBUILT_TARGETS: [&str; 6] = [
