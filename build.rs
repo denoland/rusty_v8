@@ -570,9 +570,11 @@ fn static_lib_url() -> String {
   let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
 
-  if base == default_base && !is_target_prebuilt(&target) {
+  if env::var("RUSTY_V8_MIRROR").is_err()
+    && !is_target_prebuilt(&target, profile)
+  {
     panic!(
-      "The target {target} is not a first class target and no pre-built archive is provided. Compile v8 from source with V8_FROM_SOURCE=1"
+      "The target '{target}' is not a first class target and no pre-built archive is provided. Compile v8 from source with V8_FROM_SOURCE=1"
     )
   }
 
@@ -619,15 +621,21 @@ fn build_dir() -> PathBuf {
 
 /// Checks if the target is available as a pre-built archive from the rusty_v8 GitHub.
 /// Should only be called when `RUSTY_V8_MIRROR` is unset.
-fn is_target_prebuilt(target: &str) -> bool {
+fn is_target_prebuilt(target: &str, profile: &str) -> bool {
   const PREBUILT_TARGETS: [&str; 6] = [
     "aarch64-apple-darwin",
     "aarch64-pc-windows-msvc",
-    "aarch64-unknown-linux",
+    "aarch64-unknown-linux-gnu",
     "x86_64-apple-darwin",
     "x86_64-pc-windows-msvc",
     "x86_64-unknown-linux-gnu",
   ];
+
+  // No pre-built archives for Windows on debug builds.
+  if target.contains("windows") && profile != "release" {
+    return false;
+  }
+
   PREBUILT_TARGETS.contains(&target)
 }
 
