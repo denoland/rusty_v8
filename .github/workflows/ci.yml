@@ -243,7 +243,7 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
-      - name: Install cross compilation toolchain
+      - name: Install cross compilation toolchain (aarch64)
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
           rustup target add aarch64-unknown-linux-gnu
@@ -260,21 +260,21 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
 
-      - name: Install cross compilation toolchain
+      - name: Install cross compilation toolchain (riscv64)
         if: matrix.config.target == 'riscv64gc-unknown-linux-gnu'
         run: |
           rustup target add riscv64gc-unknown-linux-gnu
 
           sudo apt update
           sudo apt install -yq --no-install-suggests --no-install-recommends \
-            binfmt-support g++-riscv64-linux-gnu \
-            gcc-riscv64-linux-gnu libc6-riscv64-cross qemu qemu-user \
+            binfmt-support g++-10-riscv64-linux-gnu \
+            gcc-10-riscv64-linux-gnu libc6-riscv64-cross qemu qemu-user \
             qemu-user-binfmt
 
           sudo ln -s /usr/riscv64-linux-gnu/lib/ld-linux-riscv64-lp64d.so.1 \
                      /lib/ld-linux-riscv64-lp64d.so.1
 
-          echo "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/riscv64-linux-gnu-gcc" >> ${GITHUB_ENV}
+          echo "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/riscv64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/riscv64-linux-gnu" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
@@ -298,6 +298,7 @@ jobs:
           restore-keys: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache
+        if: matrix.config.target != 'riscv64gc-unknown-linux-gnu'
         shell: pwsh
         env:
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
