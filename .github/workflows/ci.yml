@@ -274,6 +274,16 @@ jobs:
           sudo ln -s /usr/riscv64-linux-gnu/lib/ld-linux-riscv64-lp64d.so.1 \
                      /lib/ld-linux-riscv64-lp64d.so.1
 
+          # sccache v0.14.0 riscv64 archive is musl-dynamic, so provide a
+          # minimal musl runtime root for starting it with qemu-binfmt.
+          sudo mkdir -p /opt/riscv64-linux-musl/lib
+          curl -fsSL -o /tmp/musl-riscv64.apk \
+            https://dl-cdn.alpinelinux.org/alpine/edge/main/riscv64/musl-1.2.6-r0.apk
+          sudo tar -xzf /tmp/musl-riscv64.apk -C /opt/riscv64-linux-musl
+          sudo ln -sf libc.musl-riscv64.so.1 /opt/riscv64-linux-musl/lib/libc.so
+          sudo cp "$(riscv64-linux-gnu-gcc-10 -print-file-name=libgcc_s.so.1)" \
+            /opt/riscv64-linux-musl/lib/libgcc_s.so.1
+
           echo "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/riscv64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/riscv64-linux-gnu" >> ${GITHUB_ENV}
 
@@ -310,11 +320,14 @@ jobs:
                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
                "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
-               # v0.14.0 publishes riscv64gc linux musl binaries, so this
-               # cross-build target can use a native riscv64 sccache archive.
+               # Keep using the riscv64 archive; unlike aarch64 it is not
+               # static, so riscv64 jobs provide a musl runtime before start.
                "riscv64gc-unknown-linux-gnu" = "riscv64gc-unknown-linux-musl"
                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
-             }['${{ matrix.config.target }}']
+              }['${{ matrix.config.target }}']
+          if ('${{ matrix.config.target }}' -eq 'riscv64gc-unknown-linux-gnu') {
+            $env:QEMU_LD_PREFIX = "/opt/riscv64-linux-musl"
+          }
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
