@@ -372,6 +372,15 @@ fn build_v8(is_asan: bool) {
     maybe_install_sysroot("i386");
     maybe_install_sysroot("arm");
   }
+  if target_arch == "riscv64" {
+    gn_args.push(r#"target_cpu="riscv64""#.to_string());
+    gn_args.push(r#"v8_target_cpu="riscv64""#.to_string());
+    if target_os == "linux" {
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("riscv64");
+      maybe_install_sysroot("amd64");
+    }
+  }
 
   let target_triple = env::var("TARGET").unwrap();
   // check if the target triple describes a non-native environment
