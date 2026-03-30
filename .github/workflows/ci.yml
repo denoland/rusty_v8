@@ -306,14 +306,16 @@ jobs:
         run: |
           $version = "v0.8.2"
           $platform =
-             @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
-                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
-                 "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
-                 "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
-                 # sccache binary runs on the host runner architecture.
-                 "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
-                 "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
-               }['${{ matrix.config.target }}']
+            @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
+               "aarch64-apple-darwin"      = "aarch64-apple-darwin"
+               "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
+               "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
+               # sccache runs on the host runner architecture. v0.8.2 does not
+               # publish a riscv64 binary archive, so riscv64 cross-build jobs
+               # must download the host x86_64 sccache binary.
+               "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
+               "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
+             }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
