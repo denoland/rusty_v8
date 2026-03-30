@@ -298,7 +298,6 @@ jobs:
           restore-keys: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache
-        if: matrix.config.target != 'riscv64gc-unknown-linux-gnu'
         shell: pwsh
         env:
           SCCACHE_DIR: ${{ github.workspace }}/target/sccache
@@ -307,14 +306,14 @@ jobs:
         run: |
           $version = "v0.8.2"
           $platform =
-            @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
-               "aarch64-apple-darwin"      = "aarch64-apple-darwin"
-                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
-                "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
-                # sccache binary runs on the host runner architecture.
-                "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
-                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
-              }['${{ matrix.config.target }}']
+             @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
+                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
+                 "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
+                 "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
+                 # sccache binary runs on the host runner architecture.
+                 "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
+                 "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
+               }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
           cd ~
