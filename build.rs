@@ -378,7 +378,6 @@ fn build_v8(is_asan: bool) {
     if target_os == "linux" {
       gn_args.push("use_sysroot=true".to_string());
       maybe_install_sysroot("riscv64");
-      maybe_install_sysroot("amd64");
     }
   }
 
