@@ -279,6 +279,8 @@ jobs:
           sudo mkdir -p /opt/riscv64-linux-musl/lib
           curl -fsSL -o /tmp/musl-riscv64.apk \
             https://dl-cdn.alpinelinux.org/alpine/edge/main/riscv64/musl-1.2.6-r0.apk
+          # Checksum from Alpine package file musl-1.2.6-r0.apk (edge/main/riscv64).
+          # Update this value together with the pinned apk version in the URL.
           echo "6324b57cdf75bee5d7ffdf36b5cfe927c63c36162431fc675ab18a1fc44f49d7  /tmp/musl-riscv64.apk" | sha256sum -c -
           sudo tar -xzf /tmp/musl-riscv64.apk -C /opt/riscv64-linux-musl
           sudo ln -sf libc.musl-riscv64.so.1 /opt/riscv64-linux-musl/lib/libc.so
@@ -325,7 +327,7 @@ jobs:
                # static, so riscv64 jobs provide a musl runtime before start.
                "riscv64gc-unknown-linux-gnu" = "riscv64gc-unknown-linux-musl"
                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
-              }['${{ matrix.config.target }}']
+             }['${{ matrix.config.target }}']
           if ('${{ matrix.config.target }}' -eq 'riscv64gc-unknown-linux-gnu') {
             $env:QEMU_LD_PREFIX = "/opt/riscv64-linux-musl"
           }
