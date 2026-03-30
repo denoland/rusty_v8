@@ -323,7 +323,7 @@ jobs:
                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
                "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
-               # Keep using the riscv64 archive; unlike aarch64 it is not
+               # Keep using the v0.14.0 riscv64 archive; unlike aarch64 it is not
                # static, so riscv64 jobs provide a musl runtime before start.
                "riscv64gc-unknown-linux-gnu" = "riscv64gc-unknown-linux-musl"
                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
