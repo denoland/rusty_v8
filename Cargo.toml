@@ -81,6 +81,7 @@ exclude = [
   # These files are required for the build.
   "!.gn",
   "!BUILD.gn",
+  "!build/rust/known-target-triples.txt",
   "!tools/clang/scripts/update.py",
   "!tools/win/DebugVisualizers",
   "!v8/test/torque/test-torque.tq",
