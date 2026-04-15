@@ -172,6 +172,13 @@ unsafe extern "C" {
     length: int,
   ) -> *const String;
 
+  fn v8__String__NewExternalTwoByte(
+    isolate: *mut RealIsolate,
+    buffer: *mut u16,
+    length: size_t,
+    free: unsafe extern "C" fn(*mut u16, size_t),
+  ) -> *const String;
+
   #[allow(dead_code)]
   fn v8__String__IsExternal(this: *const String) -> bool;
   fn v8__String__IsExternalOneByte(this: *const String) -> bool;
@@ -793,6 +800,57 @@ impl String {
     }
   }
 
+  /// Creates a `v8::String` from owned two-byte (UTF-16) data.
+  /// V8 will take ownership of the buffer and free it when the string
+  /// is garbage collected.
+  #[inline(always)]
+  pub fn new_external_twobyte<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    buffer: Box<[u16]>,
+  ) -> Option<Local<'s, String>> {
+    let buffer_len = buffer.len();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalTwoByte(
+          sd.get_isolate_ptr(),
+          Box::into_raw(buffer).cast::<u16>(),
+          buffer_len,
+          free_rust_external_twobyte,
+        )
+      })
+    }
+  }
+
+  /// Creates a `v8::String` from owned two-byte (UTF-16) data, length,
+  /// and a custom destructor.
+  /// V8 will take ownership of the buffer and call the destructor when
+  /// the string is garbage collected.
+  ///
+  /// # Safety
+  ///
+  /// `buffer` must be owned (valid for the lifetime of the string), and
+  /// `destructor` must be a valid function pointer that can free the
+  /// buffer. The destructor will be called with the buffer and length
+  /// when the string is garbage collected.
+  #[inline(always)]
+  pub unsafe fn new_external_twobyte_raw<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    buffer: *mut u16,
+    buffer_len: usize,
+    destructor: unsafe extern "C" fn(*mut u16, usize),
+  ) -> Option<Local<'s, String>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewExternalTwoByte(
+          sd.get_isolate_ptr(),
+          buffer,
+          buffer_len,
+          destructor,
+        )
+      })
+    }
+  }
+
   /// Get the ExternalStringResource for an external string.
   ///
   /// Returns None if is_external() doesn't return true.
@@ -1120,6 +1178,14 @@ pub unsafe extern "C" fn free_rust_external_onebyte(s: *mut char, len: usize) {
     let slice = std::slice::from_raw_parts_mut(s, len);
 
     // Drop the slice
+    drop(Box::from_raw(slice));
+  }
+}
+
+#[inline]
+pub unsafe extern "C" fn free_rust_external_twobyte(s: *mut u16, len: usize) {
+  unsafe {
+    let slice = std::slice::from_raw_parts_mut(s, len);
     drop(Box::from_raw(slice));
   }
 }
