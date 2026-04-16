@@ -8293,8 +8293,7 @@ fn external_twobyte_string() {
   assert_eq!(s.utf8_length(scope), 5);
 
   let mut buf = [0u8; 10];
-  let written =
-    s.write_utf8(scope, &mut buf, None, v8::WriteOptions::NO_NULL_TERMINATION);
+  let written = s.write_utf8_v2(scope, &mut buf, v8::WriteFlags::empty(), None);
   assert_eq!(written, 5);
   assert_eq!(&buf[..5], b"hello");
 }
@@ -8326,8 +8325,7 @@ fn external_twobyte_string_raw() {
   assert_eq!(s.length(), 2);
 
   let mut buf = [0u8; 10];
-  let written =
-    s.write_utf8(scope, &mut buf, None, v8::WriteOptions::NO_NULL_TERMINATION);
+  let written = s.write_utf8_v2(scope, &mut buf, v8::WriteFlags::empty(), None);
   assert_eq!(written, 2);
   assert_eq!(&buf[..2], b"hi");
 }
