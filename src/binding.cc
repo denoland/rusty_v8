@@ -1291,6 +1291,35 @@ size_t v8__ExternalOneByteStringResource__length(
   return self->length();
 }
 
+class ExternalTwoByteString : public v8::String::ExternalStringResource {
+ public:
+  using RustDestroy = void (*)(uint16_t*, size_t);
+  ExternalTwoByteString(uint16_t* data, size_t length, RustDestroy rustDestroy,
+                        v8::Isolate* isolate)
+      : data_(data),
+        length_(length),
+        rustDestroy_(rustDestroy),
+        isolate_(isolate) {
+    isolate_->AdjustAmountOfExternalAllocatedMemory(
+        static_cast<int64_t>(length_ * 2));
+  }
+  ~ExternalTwoByteString() override {
+    (*rustDestroy_)(data_, length_);
+    isolate_->AdjustAmountOfExternalAllocatedMemory(
+        -static_cast<int64_t>(length_ * 2));
+  }
+
+  const uint16_t* data() const override { return data_; }
+
+  size_t length() const override { return length_; }
+
+ private:
+  uint16_t* data_;
+  const size_t length_;
+  RustDestroy rustDestroy_;
+  v8::Isolate* isolate_;
+};
+
 class ExternalStaticStringResource : public v8::String::ExternalStringResource {
  public:
   ExternalStaticStringResource(const uint16_t* data, int length)
@@ -1308,6 +1337,13 @@ const v8::String* v8__String__NewExternalTwoByteStatic(v8::Isolate* isolate,
                                                        int length) {
   return maybe_local_to_ptr(v8::String::NewExternalTwoByte(
       isolate, new ExternalStaticStringResource(data, length)));
+}
+
+const v8::String* v8__String__NewExternalTwoByte(
+    v8::Isolate* isolate, uint16_t* data, size_t length,
+    ExternalTwoByteString::RustDestroy rustDestroy) {
+  return maybe_local_to_ptr(v8::String::NewExternalTwoByte(
+      isolate, new ExternalTwoByteString(data, length, rustDestroy, isolate)));
 }
 
 bool v8__String__IsExternal(const v8::String& self) {

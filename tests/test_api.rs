@@ -8300,6 +8300,59 @@ fn escapable_handle_scope_from_isolate() {
 }
 
 #[test]
+fn external_twobyte_string() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  // "hello" in UTF-16
+  let input: Box<[u16]> = Box::new([0x0068, 0x0065, 0x006C, 0x006C, 0x006F]);
+  let s = v8::String::new_external_twobyte(scope, input).unwrap();
+
+  assert!(s.is_external());
+  assert!(s.is_external_twobyte());
+  assert_eq!(s.length(), 5);
+  assert_eq!(s.utf8_length(scope), 5);
+
+  let mut buf = [0u8; 10];
+  let written = s.write_utf8_v2(scope, &mut buf, v8::WriteFlags::empty(), None);
+  assert_eq!(written, 5);
+  assert_eq!(&buf[..5], b"hello");
+}
+
+#[test]
+fn external_twobyte_string_raw() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  unsafe extern "C" fn free_u16(s: *mut u16, len: usize) {
+    unsafe {
+      let slice = std::slice::from_raw_parts_mut(s, len);
+      drop(Box::from_raw(slice));
+    }
+  }
+
+  // "hi" in UTF-16, allocated via Box then leaked for raw API
+  let input: Box<[u16]> = Box::new([0x0068, 0x0069]);
+  let len = input.len();
+  let ptr = Box::into_raw(input) as *mut u16;
+
+  let s =
+    unsafe { v8::String::new_external_twobyte_raw(scope, ptr, len, free_u16) }
+      .unwrap();
+
+  assert!(s.is_external());
+  assert!(s.is_external_twobyte());
+  assert_eq!(s.length(), 2);
+
+  let mut buf = [0u8; 10];
+  let written = s.write_utf8_v2(scope, &mut buf, v8::WriteFlags::empty(), None);
+  assert_eq!(written, 2);
+  assert_eq!(&buf[..2], b"hi");
+}
+
+#[test]
 fn bigint() {
   let _setup_guard: setup::SetupGuard<std::sync::RwLockReadGuard<'_, ()>> =
     setup::parallel_test();
