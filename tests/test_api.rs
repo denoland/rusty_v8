@@ -8284,8 +8284,7 @@ fn external_twobyte_string() {
   v8::scope!(let scope, isolate);
 
   // "hello" in UTF-16
-  let input: Box<[u16]> =
-    Box::new([0x0068, 0x0065, 0x006C, 0x006C, 0x006F]);
+  let input: Box<[u16]> = Box::new([0x0068, 0x0065, 0x006C, 0x006C, 0x006F]);
   let s = v8::String::new_external_twobyte(scope, input).unwrap();
 
   assert!(s.is_external());
@@ -8294,12 +8293,8 @@ fn external_twobyte_string() {
   assert_eq!(s.utf8_length(scope), 5);
 
   let mut buf = [0u8; 10];
-  let written = s.write_utf8(
-    scope,
-    &mut buf,
-    None,
-    v8::WriteOptions::NO_NULL_TERMINATION,
-  );
+  let written =
+    s.write_utf8(scope, &mut buf, None, v8::WriteOptions::NO_NULL_TERMINATION);
   assert_eq!(written, 5);
   assert_eq!(&buf[..5], b"hello");
 }
@@ -8331,12 +8326,8 @@ fn external_twobyte_string_raw() {
   assert_eq!(s.length(), 2);
 
   let mut buf = [0u8; 10];
-  let written = s.write_utf8(
-    scope,
-    &mut buf,
-    None,
-    v8::WriteOptions::NO_NULL_TERMINATION,
-  );
+  let written =
+    s.write_utf8(scope, &mut buf, None, v8::WriteOptions::NO_NULL_TERMINATION);
   assert_eq!(written, 2);
   assert_eq!(&buf[..2], b"hi");
 }
