@@ -1275,7 +1275,7 @@ const v8::String* v8__String__NewExternalOneByteStatic(v8::Isolate* isolate,
 }
 
 const v8::String* v8__String__NewExternalOneByte(
-    v8::Isolate* isolate, char* data, int length,
+    v8::Isolate* isolate, char* data, size_t length,
     ExternalOneByteString::RustDestroy rustDestroy) {
   return maybe_local_to_ptr(v8::String::NewExternalOneByte(
       isolate, new ExternalOneByteString(data, length, rustDestroy, isolate)));
