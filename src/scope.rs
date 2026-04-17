@@ -1471,6 +1471,25 @@ pub trait NewEscapableHandleScope<'s> {
   fn make_new_scope(me: &'s mut Self) -> Self::NewScope;
 }
 
+impl<'s> NewEscapableHandleScope<'s> for Isolate {
+  type NewScope = EscapableHandleScope<'s, 's, ()>;
+
+  fn make_new_scope(me: &'s mut Self) -> Self::NewScope {
+    let isolate = unsafe { NonNull::new_unchecked(me.as_real_ptr()) };
+    let raw_escape_slot = raw::EscapeSlot::new(isolate);
+    let raw_handle_scope = unsafe { raw::HandleScope::uninit() };
+
+    EscapableHandleScope {
+      isolate,
+      context: Cell::new(None),
+      raw_escape_slot: Some(raw_escape_slot),
+      raw_handle_scope,
+      _phantom: PhantomData,
+      _pinned: PhantomPinned,
+    }
+  }
+}
+
 impl<'s, 'obj: 's, C> NewEscapableHandleScope<'s>
   for PinnedRef<'obj, HandleScope<'_, C>>
 {

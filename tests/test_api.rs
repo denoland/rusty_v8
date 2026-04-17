@@ -8278,6 +8278,28 @@ fn external_onebyte_string_frees_external_memory() {
 }
 
 #[test]
+fn escapable_handle_scope_from_isolate() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Create an EscapableHandleScope nested in the current scope
+  let escaped_value: v8::Local<v8::Value> = {
+    let mut esc_storage = v8::EscapableHandleScope::new(scope);
+    let mut pinned = unsafe { std::pin::Pin::new_unchecked(&mut esc_storage) };
+    let mut esc_scope = pinned.as_mut().init();
+    let value = v8::String::new(&esc_scope, "escaped!").unwrap();
+    esc_scope.escape(value.into())
+  };
+
+  // The escaped value should still be valid after the scope closed
+  let rust_str = escaped_value.to_rust_string_lossy(scope);
+  assert_eq!(rust_str, "escaped!");
+}
+
+#[test]
 fn external_twobyte_string() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
