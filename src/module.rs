@@ -220,6 +220,14 @@ unsafe extern "C" {
     out: *mut Location,
   );
   fn v8__Module__GetModuleNamespace(this: *const Module) -> *const Value;
+  fn v8__Module__GetModuleNamespace2(
+    this: *const Module,
+    phase: ModuleImportPhase,
+  ) -> *const Value;
+  fn v8__Module__EvaluateForImportDefer(
+    this: *const Module,
+    context: *const Context,
+  ) -> *const Value;
   fn v8__Module__GetIdentityHash(this: *const Module) -> int;
   fn v8__Module__ScriptId(this: *const Module) -> int;
   fn v8__Module__InstantiateModule(
@@ -372,6 +380,44 @@ impl Module {
     // Note: the returned value is not actually stored in a HandleScope,
     // therefore we don't need a scope object here.
     unsafe { Local::from_raw(v8__Module__GetModuleNamespace(self)).unwrap() }
+  }
+
+  /// Returns the namespace object of this module for the given import phase.
+  ///
+  /// For `ModuleImportPhase::kDefer`, returns a deferred namespace object that
+  /// triggers module evaluation on first property access.
+  ///
+  /// The module's status must be at least kInstantiated.
+  #[inline(always)]
+  pub fn get_module_namespace_with_phase<'o>(
+    &self,
+    phase: ModuleImportPhase,
+  ) -> Local<'o, Value> {
+    unsafe {
+      Local::from_raw(v8__Module__GetModuleNamespace2(self, phase)).unwrap()
+    }
+  }
+
+  /// Evaluates the module for deferred import, gathering async transitive
+  /// dependencies eagerly so that deferred namespace access can be synchronous.
+  ///
+  /// Returns a Promise that resolves when all async transitive dependencies
+  /// have been evaluated. The module itself is NOT evaluated until its
+  /// deferred namespace is first accessed.
+  ///
+  /// This is used to implement `import.defer()` dynamic imports.
+  #[must_use]
+  #[inline(always)]
+  pub fn evaluate_for_import_defer<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+  ) -> Option<Local<'s, Value>> {
+    unsafe {
+      Local::from_raw(v8__Module__EvaluateForImportDefer(
+        self,
+        &*scope.get_current_context(),
+      ))
+    }
   }
 
   /// Instantiates the module and its dependencies.

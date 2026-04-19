@@ -3598,6 +3598,17 @@ const v8::Value* v8__Module__GetModuleNamespace(const v8::Module& self) {
   return local_to_ptr(ptr_to_local(&self)->GetModuleNamespace());
 }
 
+const v8::Value* v8__Module__GetModuleNamespace2(const v8::Module& self,
+                                                 v8::ModuleImportPhase phase) {
+  return local_to_ptr(ptr_to_local(&self)->GetModuleNamespace(phase));
+}
+
+const v8::Value* v8__Module__EvaluateForImportDefer(
+    const v8::Module& self, const v8::Context& context) {
+  return maybe_local_to_ptr(
+      ptr_to_local(&self)->EvaluateForImportDefer(ptr_to_local(&context)));
+}
+
 int v8__Module__GetIdentityHash(const v8::Module& self) {
   return self.GetIdentityHash();
 }
