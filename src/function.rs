@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::ptr::null;
 
@@ -58,9 +59,10 @@ unsafe extern "C" {
   fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
   fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
   fn v8__Function__ScriptId(this: *const Function) -> int;
-  fn v8__Function__GetScriptOrigin(
+  fn v8__Function__GetScriptOrigin<'a>(
     this: *const Function,
-  ) -> *const ScriptOrigin<'static>;
+    out: *mut MaybeUninit<ScriptOrigin<'a>>,
+  );
 
   fn v8__Function__CreateCodeCache(
     script: *const Function,
@@ -97,9 +99,6 @@ unsafe extern "C" {
   fn v8__PropertyCallbackInfo__Data(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Value;
-  fn v8__PropertyCallbackInfo__This(
-    this: *const RawPropertyCallbackInfo,
-  ) -> *const Object;
   fn v8__PropertyCallbackInfo__Holder(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Object;
@@ -403,52 +402,6 @@ impl<'s> PropertyCallbackArguments<'s> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__Holder(self.0))
         .unwrap_unchecked()
-    }
-  }
-
-  /// Returns the receiver. In many cases, this is the object on which the
-  /// property access was intercepted. When using
-  /// `Reflect.get`, `Function.prototype.call`, or similar functions, it is the
-  /// object passed in as receiver or thisArg.
-  ///
-  /// ```c++
-  ///   void GetterCallback(Local<Name> name,
-  ///                       const v8::PropertyCallbackInfo<v8::Value>& info) {
-  ///      auto context = info.GetIsolate()->GetCurrentContext();
-  ///
-  ///      v8::Local<v8::Value> a_this =
-  ///          info.This()
-  ///              ->GetRealNamedProperty(context, v8_str("a"))
-  ///              .ToLocalChecked();
-  ///      v8::Local<v8::Value> a_holder =
-  ///          info.Holder()
-  ///              ->GetRealNamedProperty(context, v8_str("a"))
-  ///              .ToLocalChecked();
-  ///
-  ///     CHECK(v8_str("r")->Equals(context, a_this).FromJust());
-  ///     CHECK(v8_str("obj")->Equals(context, a_holder).FromJust());
-  ///
-  ///     info.GetReturnValue().Set(name);
-  ///   }
-  ///
-  ///   v8::Local<v8::FunctionTemplate> templ =
-  ///   v8::FunctionTemplate::New(isolate);
-  ///   templ->InstanceTemplate()->SetHandler(
-  ///       v8::NamedPropertyHandlerConfiguration(GetterCallback));
-  ///   LocalContext env;
-  ///   env->Global()
-  ///       ->Set(env.local(), v8_str("obj"), templ->GetFunction(env.local())
-  ///                                            .ToLocalChecked()
-  ///                                            ->NewInstance(env.local())
-  ///                                            .ToLocalChecked())
-  ///       .FromJust();
-  ///
-  ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
-  /// ```
-  #[inline(always)]
-  pub fn this(&self) -> Local<'s, Object> {
-    unsafe {
-      Local::from_raw(v8__PropertyCallbackInfo__This(self.0)).unwrap_unchecked()
     }
   }
 
@@ -1085,10 +1038,15 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_script_origin(&self) -> &ScriptOrigin<'_> {
+  pub fn get_script_origin<'s>(
+    &self,
+    _scope: &PinScope<'s, '_>,
+  ) -> ScriptOrigin<'s> {
     unsafe {
-      let ptr = v8__Function__GetScriptOrigin(self);
-      &*ptr
+      let mut script_origin: MaybeUninit<ScriptOrigin<'_>> =
+        MaybeUninit::uninit();
+      v8__Function__GetScriptOrigin(self, &mut script_origin);
+      script_origin.assume_init()
     }
   }
 

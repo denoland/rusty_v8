@@ -12,7 +12,7 @@ permissions: write-all
 
 jobs:
   build:
-    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }}
+    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }} ${{ matrix.config.simdutf && 'simdutf' || '' }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 180
     strategy:
@@ -117,13 +117,77 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
+          # simdutf builds
+          - os: macos-15-large
+            target: x86_64-apple-darwin
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: macos-15-large
+            target: x86_64-apple-darwin
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: macos-15
+            target: aarch64-apple-darwin
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: macos-15
+            target: aarch64-apple-darwin
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-gnu
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: x86_64-unknown-linux-gnu
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-unknown-linux-gnu
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-unknown-linux-gnu
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+            target: x86_64-pc-windows-msvc
+            variant: release # Note: we do not support windows debug builds.
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
-      CARGO_FEATURE_FLAGS: ${{ matrix.config.v8_enable_pointer_compression && '--features v8_enable_pointer_compression' || '' }}
+      CARGO_FEATURE_FLAGS: ${{ format('{0} {1}', matrix.config.v8_enable_pointer_compression && '--features v8_enable_pointer_compression' || '', matrix.config.simdutf && '--features simdutf' || '') }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
-      FEATURES_SUFFIX: ${{ matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '' }}
+      FEATURES_SUFFIX: ${{ format('{0}{1}', matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '', matrix.config.simdutf && '_simdutf' || '') }}
       RUSTFLAGS: -D warnings
 
     steps:
@@ -143,7 +207,9 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install nextest
-        run: cargo binstall cargo-nextest --secure
+        run: cargo binstall cargo-nextest --secure --locked --no-confirm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install python
         uses: actions/setup-python@v5
@@ -185,7 +251,7 @@ jobs:
             target/*/.*
             target/*/build
             target/*/deps
-          key: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          key: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ matrix.config.simdutf }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache
@@ -220,6 +286,12 @@ jobs:
           sudo apt-get -qq remove 'clang-*'
           sudo apt-get install lld-19 clang-19 clang-tools-19 clang-tidy-19 clang-format-19 libclang-19-dev -y
           echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> $GITHUB_ENV
+
+      - name: Set LIBCLANG_PATH (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          XCODE_CLANG_LIB="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+          echo "LIBCLANG_PATH=$XCODE_CLANG_LIB" >> $GITHUB_ENV
 
       - name: check rust code formatting
         run: cargo fmt --check
@@ -291,7 +363,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install nextest
-        run: cargo binstall cargo-nextest --secure
+        run: cargo binstall cargo-nextest --secure --locked
 
       - name: Install python
         uses: actions/setup-python@v5
@@ -446,6 +518,99 @@ jobs:
             target/src_binding_release_aarch64-pc-windows-msvc.rs
           retention-days: 1
 
+  build-windows-arm64-simdutf:
+    name: release aarch64-pc-windows-msvc simdutf
+    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+    timeout-minutes: 180
+    env:
+      CARGO_VARIANT_FLAG: --release
+      V8_FROM_SOURCE: true
+      CCACHE: ccache
+      LIB_NAME: rusty_v8
+      LIB_EXT: lib
+      FEATURES_SUFFIX: '_simdutf'
+    steps:
+      - name: Configure git
+        run: git config --global core.symlinks true
+
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          submodules: recursive
+
+      - uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install Windows ARM64 target
+        run: rustup target add aarch64-pc-windows-msvc
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Write git_submodule_status.txt
+        run: git submodule status --recursive > git_submodule_status.txt
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |-
+            target/sccache
+            target/aarch64-pc-windows-msvc/release/gn_out
+          key: cargo1-aarch64-pc-windows-msvc-release-simdutf-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          restore-keys: cargo1-aarch64-pc-windows-msvc-release-simdutf-
+
+      - name: Install and start sccache
+        shell: pwsh
+        env:
+          SCCACHE_DIR: ${{ github.workspace }}/target/sccache
+          SCCACHE_CACHE_SIZE: 256M
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: |
+          $version = "v0.8.2"
+          $platform = "x86_64-pc-windows-msvc"
+          $basename = "sccache-$version-$platform"
+          $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
+          cd ~
+          curl -LO $url
+          tar -xzvf "$basename.tar.gz"
+          . $basename/sccache --start-server
+          echo "$(pwd)/$basename" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Clang
+        run: python3 tools/clang/scripts/update.py
+
+      - name: Build (cross-compile, no tests)
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: cargo build --all-targets --locked --target aarch64-pc-windows-msvc --release --features simdutf
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked --target aarch64-pc-windows-msvc --release --features simdutf -- -D clippy::all
+
+      - name: Prepare binary publish
+        run: |
+          gzip -9c target/aarch64-pc-windows-msvc/release/gn_out/obj/rusty_v8.lib > target/rusty_v8_simdutf_release_aarch64-pc-windows-msvc.lib.gz
+          ls -l target/rusty_v8_simdutf_release_aarch64-pc-windows-msvc.lib.gz
+
+          cp target/aarch64-pc-windows-msvc/release/gn_out/src_binding.rs target/src_binding_simdutf_release_aarch64-pc-windows-msvc.rs
+          ls -l target/src_binding_simdutf_release_aarch64-pc-windows-msvc.rs
+
+      - name: Binary publish
+        uses: softprops/action-gh-release@v0.1.15
+        if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            target/rusty_v8_simdutf_release_aarch64-pc-windows-msvc.lib.gz
+            target/src_binding_simdutf_release_aarch64-pc-windows-msvc.rs
+
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: src_binding_simdutf_release_aarch64-pc-windows-msvc.rs
+          path: target/src_binding_simdutf_release_aarch64-pc-windows-msvc.rs
+
   test-windows-arm64:
     name: test aarch64-pc-windows-msvc
     needs: build-windows-arm64
@@ -478,7 +643,7 @@ jobs:
         run: cargo nextest run -v --all-targets --locked --target aarch64-pc-windows-msvc --release --no-fail-fast
 
   publish:
-    needs: [build, build-windows-arm64]
+    needs: [build, build-windows-arm64, build-windows-arm64-simdutf]
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
     if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
     steps:

@@ -1,6 +1,6 @@
 [package]
 name = "v8"
-version = "145.0.0"
+version = "147.3.0"
 description = "Rust bindings to V8"
 readme = "README.md"
 authors = ["the Deno authors"]
@@ -81,6 +81,7 @@ exclude = [
   # These files are required for the build.
   "!.gn",
   "!BUILD.gn",
+  "!build/rust/known-target-triples.txt",
   "!tools/clang/scripts/update.py",
   "!tools/win/DebugVisualizers",
   "!v8/test/torque/test-torque.tq",
@@ -102,6 +103,7 @@ opt-level = 1
 [features]
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
+simdutf = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []
@@ -109,7 +111,7 @@ v8_enable_v8_checks = []
 [dependencies]
 bitflags = "2.5"
 paste = "1.0"
-temporal_capi = { version = "0.1.2", features = ["zoneinfo64"] }
+temporal_capi = { version = "0.2.3", features = ["zoneinfo64"] }
 
 [build-dependencies]
 miniz_oxide = "0.8.8"
