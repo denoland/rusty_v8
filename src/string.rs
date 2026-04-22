@@ -1071,9 +1071,7 @@ impl String {
           latin1_to_cow_str(bytes, buffer)
         }
       }
-      ValueViewData::TwoByte(units) => {
-        wtf16_to_cow_str(units, buffer)
-      }
+      ValueViewData::TwoByte(units) => wtf16_to_cow_str(units, buffer),
     }
   }
 }
@@ -1293,8 +1291,7 @@ fn wtf16_into_string(units: &[u16], buf: &mut std::string::String) {
       buf.reserve(utf8_len);
       unsafe {
         let vec = buf.as_mut_vec();
-        let out =
-          std::slice::from_raw_parts_mut(vec.as_mut_ptr(), utf8_len);
+        let out = std::slice::from_raw_parts_mut(vec.as_mut_ptr(), utf8_len);
         let written = crate::simdutf::convert_utf16le_to_utf8(units, out);
         debug_assert_eq!(written, utf8_len);
         vec.set_len(written);
@@ -1332,7 +1329,11 @@ fn latin1_to_cow_str<'a, const N: usize>(
     };
     #[cfg(not(feature = "simdutf"))]
     let written = unsafe {
-      latin1_to_utf8(bytes.len(), bytes.as_ptr(), buffer.as_mut_ptr() as *mut u8)
+      latin1_to_utf8(
+        bytes.len(),
+        bytes.as_ptr(),
+        buffer.as_mut_ptr() as *mut u8,
+      )
     };
 
     unsafe {
