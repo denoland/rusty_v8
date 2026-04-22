@@ -349,16 +349,29 @@ fn build_v8(is_asan: bool) {
   // Use the shared-library-safe TLS mode by default on Linux so downstream
   // cdylibs can link rusty_v8 archives. Skip injection when GN_ARGS already
   // sets V8_TLS_USED_IN_LIBRARY.
-  let mut should_inject_tls_library_define = target_os == "linux";
+  let needs_tls_define = target_os == "linux";
+  let mut tls_define_injected = false;
   if let Ok(raw_gn_args) = env::var("GN_ARGS")
     && !raw_gn_args.trim().is_empty()
   {
     if raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY") {
-      should_inject_tls_library_define = false;
+      tls_define_injected = true;
+      gn_args.push(raw_gn_args);
+    } else if needs_tls_define && raw_gn_args.contains("extra_cflags=[") {
+      // Prepend our define into the existing extra_cflags array so we don't
+      // silently override the user's flags with a second assignment.
+      let modified = raw_gn_args.replacen(
+        "extra_cflags=[",
+        r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY","#,
+        1,
+      );
+      tls_define_injected = true;
+      gn_args.push(modified);
+    } else {
+      gn_args.push(raw_gn_args);
     }
-    gn_args.push(raw_gn_args);
   }
-  if should_inject_tls_library_define {
+  if needs_tls_define && !tls_define_injected {
     gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
   }
   // cross-compilation setup
