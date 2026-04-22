@@ -865,7 +865,10 @@ fn print_link_flags() {
   if target_env == "msvc" {
     // On Windows, including libcpmt[d]/msvcprt[d] explicitly links the C++
     // standard library, which libc++ needs for exception_ptr internals.
-    if env::var("CARGO_FEATURE_CRT_STATIC").is_ok() {
+    let crt_static = env::var("CARGO_CFG_TARGET_FEATURE")
+      .unwrap_or_default()
+      .contains("crt-static");
+    if crt_static {
       println!("cargo:rustc-link-lib=libcpmt");
     } else {
       println!("cargo:rustc-link-lib=dylib=msvcprt");
