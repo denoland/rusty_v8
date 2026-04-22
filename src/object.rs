@@ -164,11 +164,13 @@ unsafe extern "C" {
   fn v8__Object__GetAlignedPointerFromInternalField(
     this: *const Object,
     index: int,
+    tag: u16,
   ) -> *const c_void;
   fn v8__Object__SetAlignedPointerInInternalField(
     this: *const Object,
     index: int,
     value: *const c_void,
+    tag: u16,
   );
   fn v8__Object__SetIntegrityLevel(
     this: *const Object,
@@ -747,8 +749,9 @@ impl Object {
   pub unsafe fn get_aligned_pointer_from_internal_field(
     &self,
     index: i32,
+    tag: u16,
   ) -> *const c_void {
-    unsafe { v8__Object__GetAlignedPointerFromInternalField(self, index) }
+    unsafe { v8__Object__GetAlignedPointerFromInternalField(self, index, tag) }
   }
 
   /// Sets a 2-byte-aligned native pointer in an internal field.
@@ -759,8 +762,11 @@ impl Object {
     &self,
     index: i32,
     value: *const c_void,
+    tag: u16,
   ) {
-    unsafe { v8__Object__SetAlignedPointerInInternalField(self, index, value) }
+    unsafe {
+      v8__Object__SetAlignedPointerInInternalField(self, index, value, tag)
+    }
   }
 
   /// Wraps a JS wrapper with a C++ instance.
