@@ -570,14 +570,6 @@ fn static_lib_url() -> String {
   let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
 
-  if env::var("RUSTY_V8_MIRROR").is_err()
-    && !is_target_prebuilt(&target, profile)
-  {
-    panic!(
-      "The target '{target}' is not a first class target and no pre-built archive is provided. Compile v8 from source with V8_FROM_SOURCE=1"
-    )
-  }
-
   format!(
     "{base}/v{version}/{}.gz",
     static_lib_name(&format!("{features}_{profile}_{target}")),
@@ -617,26 +609,6 @@ fn build_dir() -> PathBuf {
     .parent()
     .unwrap()
     .to_path_buf()
-}
-
-/// Checks if the target is available as a pre-built archive from the rusty_v8 GitHub.
-/// Should only be called when `RUSTY_V8_MIRROR` is unset.
-fn is_target_prebuilt(target: &str, profile: &str) -> bool {
-  const PREBUILT_TARGETS: [&str; 6] = [
-    "aarch64-apple-darwin",
-    "aarch64-pc-windows-msvc",
-    "aarch64-unknown-linux-gnu",
-    "x86_64-apple-darwin",
-    "x86_64-pc-windows-msvc",
-    "x86_64-unknown-linux-gnu",
-  ];
-
-  // No pre-built archives for Windows on debug builds.
-  if target.contains("windows") && profile != "release" {
-    return false;
-  }
-
-  PREBUILT_TARGETS.contains(&target)
 }
 
 fn replace_non_alphanumeric(url: &str) -> String {
@@ -684,6 +656,11 @@ fn download_file(url: &str, filename: &Path) {
       .arg(
         "const [url, path] = Deno.args; \
          const resp = await fetch(url); \
+         if (resp.status === 404) { \
+           console.error(`Failed to download prebuilt V8 archive from ${url}`); \
+           console.error(`If no prebuilt archive is available for your target, compile V8 from source by setting V8_FROM_SOURCE=1`); \
+           Deno.exit(1); \
+         } \
          if (!resp.ok) Deno.exit(1); \
          const file = await Deno.open(path, { write: true, create: true }); \
          await resp.body.pipeTo(file.writable);",
@@ -733,7 +710,13 @@ fn download_file(url: &str, filename: &Path) {
   };
 
   // Assert DL was successful
-  assert!(status.success());
+  if !status.success() {
+    panic!(
+      "Failed to download V8 prebuilt archive from {url}\n\
+     If no prebuilt archive is available for your target, \
+     compile V8 from source by setting V8_FROM_SOURCE=1"
+    );
+  }
   assert!(tmpfile.exists());
 
   // Write checksum (i.e url) & move file
