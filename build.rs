@@ -352,32 +352,21 @@ fn build_v8(is_asan: bool) {
   }
 
   // Use the shared-library-safe TLS mode by default on Linux so downstream
-  // cdylibs can link rusty_v8 archives. Skip injection when GN_ARGS already
-  // sets V8_TLS_USED_IN_LIBRARY.
-  let needs_tls_define = target_os == "linux";
-  let mut tls_define_injected = false;
+  // cdylibs can link rusty_v8 archives. This sets a real declared GN arg
+  // (read by v8/BUILD.gn) which switches V8's thread_local variables to a
+  // -fPIC-compatible TLS model. Skip injection when GN_ARGS already sets it.
+  let needs_tls_arg = target_os == "linux";
+  let mut tls_arg_injected = false;
   if let Ok(raw_gn_args) = env::var("GN_ARGS")
     && !raw_gn_args.trim().is_empty()
   {
-    if raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY") {
-      tls_define_injected = true;
-      gn_args.push(raw_gn_args);
-    } else if needs_tls_define && raw_gn_args.contains("extra_cflags=[") {
-      // Prepend our define into the existing extra_cflags array so we don't
-      // silently override the user's flags with a second assignment.
-      let modified = raw_gn_args.replacen(
-        "extra_cflags=[",
-        r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY","#,
-        1,
-      );
-      tls_define_injected = true;
-      gn_args.push(modified);
-    } else {
-      gn_args.push(raw_gn_args);
+    if raw_gn_args.contains("v8_monolithic_for_shared_library") {
+      tls_arg_injected = true;
     }
+    gn_args.push(raw_gn_args);
   }
-  if needs_tls_define && !tls_define_injected {
-    gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
+  if needs_tls_arg && !tls_arg_injected {
+    gn_args.push("v8_monolithic_for_shared_library=true".to_string());
   }
   // cross-compilation setup
   if target_arch == "aarch64" {
