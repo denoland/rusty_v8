@@ -128,7 +128,9 @@
 use crate::{
   Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
-  SealedLocal, Value, fast_api::FastApiCallbackOptions, isolate::RealIsolate,
+  SealedLocal, Value,
+  fast_api::FastApiCallbackOptions,
+  isolate::{IsolateAnnex, RealIsolate},
   support::assert_layout_subset,
 };
 use std::{
@@ -262,6 +264,7 @@ impl<C> ScopeInit for HandleScope<'_, C> {
 pub struct HandleScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
+  annex: NonNull<IsolateAnnex>,
   context: Cell<Option<NonNull<Context>>>,
   _phantom: PhantomData<&'s mut C>,
   _pinned: PhantomPinned,
@@ -406,6 +409,7 @@ impl<'s, 'p: 's, C> NewHandleScope<'s> for PinnedRef<'_, HandleScope<'p, C>> {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: me.0.isolate,
+      annex: me.0.annex,
       context: Cell::new(me.0.context.get()),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
@@ -421,6 +425,7 @@ impl<'s> NewHandleScope<'s> for Isolate {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.as_real_ptr()) },
+      annex: me.get_annex_ptr(),
       context: Cell::new(None),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
@@ -432,9 +437,11 @@ impl<'s> NewHandleScope<'s> for OwnedIsolate {
   type NewScope = HandleScope<'s, ()>;
 
   fn make_new_scope(me: &'s mut Self) -> Self::NewScope {
+    let isolate: &Isolate = me;
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.get_isolate_ptr()) },
+      annex: isolate.get_annex_ptr(),
       context: Cell::new(None),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
@@ -451,6 +458,7 @@ impl<'s, 'p: 's, 'i, C> NewHandleScope<'s>
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: me.0.isolate,
+      annex: me.0.annex,
       context: Cell::new(me.0.context.get()),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
@@ -464,6 +472,7 @@ impl<'a, 'i> NewHandleScope<'a> for ContextScope<'_, '_, HandleScope<'i>> {
     HandleScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
       isolate: unsafe { NonNull::new_unchecked(me.scope.get_isolate_ptr()) },
+      annex: me.scope.0.annex,
       context: Cell::new(Some(me.raw_handle_scope.entered_context)),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
@@ -971,13 +980,14 @@ impl<
 pub struct CallbackScope<'s, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
+  annex: NonNull<IsolateAnnex>,
   context: Cell<Option<NonNull<Context>>>,
   _phantom: PhantomData<&'s C>,
   _pinned: PhantomPinned,
   needs_scope: bool,
 }
 
-assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, context, _phantom, _pinned });
+assert_layout_subset!(HandleScope<'static, ()>, CallbackScope<'static, ()> { raw_handle_scope, isolate, annex, context, _phantom, _pinned });
 
 impl<'s> CallbackScope<'s> {
   #[allow(clippy::new_ret_no_self)]
@@ -1037,9 +1047,13 @@ fn make_new_callback_scope<'a, C>(
   isolate: impl GetIsolate,
   context: Option<NonNull<Context>>,
 ) -> CallbackScope<'a, C> {
+  let isolate_ptr =
+    unsafe { NonNull::new_unchecked(isolate.get_isolate_ptr()) };
+  let isolate_ref = unsafe { Isolate::from_raw_ref(&isolate_ptr) };
   CallbackScope {
     raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-    isolate: unsafe { NonNull::new_unchecked(isolate.get_isolate_ptr()) },
+    isolate: isolate_ptr,
+    annex: isolate_ref.get_annex_ptr(),
     context: Cell::new(context),
     _phantom: PhantomData,
     _pinned: PhantomPinned,
@@ -1084,10 +1098,13 @@ impl<'s> NewCallbackScope<'s> for &'s FastApiCallbackOptions<'s> {
   const NEEDS_SCOPE: bool = true;
 
   fn make_new_scope(me: Self) -> Self::NewScope {
-    let isolate = (*me).get_isolate_ptr();
+    let isolate_ptr =
+      unsafe { NonNull::new_unchecked((*me).get_isolate_ptr()) };
+    let isolate_ref = unsafe { Isolate::from_raw_ref(&isolate_ptr) };
     CallbackScope {
       raw_handle_scope: unsafe { raw::HandleScope::uninit() },
-      isolate: unsafe { NonNull::new_unchecked(isolate) },
+      isolate: isolate_ptr,
+      annex: isolate_ref.get_annex_ptr(),
       context: Cell::new(me.get_context().map(|c| c.as_non_null())),
       _phantom: PhantomData,
       _pinned: PhantomPinned,
@@ -1393,6 +1410,7 @@ impl<'scope, 'obj: 'scope, 'obj_outer: 'obj, 'iso, C> NewTryCatch<'scope>
 pub struct EscapableHandleScope<'s, 'esc: 's, C = Context> {
   raw_handle_scope: raw::HandleScope,
   isolate: NonNull<RealIsolate>,
+  annex: NonNull<IsolateAnnex>,
   context: Cell<Option<NonNull<Context>>>,
   _phantom:
     PhantomData<(&'s mut raw::HandleScope, &'esc mut raw::EscapeSlot, &'s C)>,
@@ -1403,6 +1421,7 @@ pub struct EscapableHandleScope<'s, 'esc: 's, C = Context> {
 assert_layout_subset!(HandleScope<'static, ()>, EscapableHandleScope<'static, 'static, ()> {
   raw_handle_scope,
   isolate,
+  annex,
   context,
   _phantom,
   _pinned,
@@ -1476,11 +1495,13 @@ impl<'s> NewEscapableHandleScope<'s> for Isolate {
 
   fn make_new_scope(me: &'s mut Self) -> Self::NewScope {
     let isolate = unsafe { NonNull::new_unchecked(me.as_real_ptr()) };
+    let annex = me.get_annex_ptr();
     let raw_escape_slot = raw::EscapeSlot::new(isolate);
     let raw_handle_scope = unsafe { raw::HandleScope::uninit() };
 
     EscapableHandleScope {
       isolate,
+      annex,
       context: Cell::new(None),
       raw_escape_slot: Some(raw_escape_slot),
       raw_handle_scope,
@@ -1500,11 +1521,13 @@ impl<'s, 'obj: 's, C> NewEscapableHandleScope<'s>
     // inside the `EscapableHandleScope` that's being constructed here,
     // rather than escaping from it.
     let isolate = me.0.isolate;
+    let annex = me.0.annex;
     let raw_escape_slot = raw::EscapeSlot::new(isolate);
     let raw_handle_scope = unsafe { raw::HandleScope::uninit() };
 
     EscapableHandleScope {
       isolate,
+      annex,
       context: Cell::new(me.0.context.get()),
       raw_escape_slot: Some(raw_escape_slot),
       raw_handle_scope,
@@ -1533,10 +1556,12 @@ impl<'borrow, 's: 'borrow, 'esc: 'borrow, C> NewEscapableHandleScope<'borrow>
     // inside the `EscapableHandleScope` that's being constructed here,
     // rather than escaping from it.
     let isolate = me.0.isolate;
+    let annex = me.0.annex;
     let raw_escape_slot = raw::EscapeSlot::new(isolate);
     let raw_handle_scope = unsafe { raw::HandleScope::uninit() };
     EscapableHandleScope {
       isolate,
+      annex,
       context: Cell::new(me.0.context.get()),
       raw_escape_slot: Some(raw_escape_slot),
       raw_handle_scope,
@@ -2055,6 +2080,49 @@ impl<C> AsMut<Isolate> for PinnedRef<'_, HandleScope<'_, C>> {
         &mut self.0.as_mut().get_unchecked_mut().isolate,
       )
     }
+  }
+}
+
+// Cached slot accessors that use the annex pointer stored in the scope,
+// avoiding an FFI call to v8__Isolate__GetData on every access.
+// These shadow the Isolate::get_slot/set_slot/etc. methods in the Deref chain.
+impl<C> PinnedRef<'_, HandleScope<'_, C>> {
+  /// Get a reference to embedder data added with `set_slot()`.
+  #[inline(always)]
+  pub fn get_slot<T: 'static>(&self) -> Option<&T> {
+    let annex = unsafe { self.0.annex.as_ref() };
+    annex.get_slot::<T>()
+  }
+
+  /// Get a mutable reference to embedder data added with `set_slot()`.
+  #[inline(always)]
+  pub fn get_slot_mut<T: 'static>(&mut self) -> Option<&mut T> {
+    let annex = unsafe { &mut *self.0.annex.as_ptr() };
+    annex.get_slot_mut::<T>()
+  }
+
+  /// Use with `get_slot` and `get_slot_mut` to associate state with an Isolate.
+  ///
+  /// This method gives ownership of value to the Isolate. Exactly one object of
+  /// each type can be associated with an Isolate. If called more than once with
+  /// an object of the same type, the earlier version will be dropped and
+  /// replaced.
+  ///
+  /// Returns true if value was set without replacing an existing value.
+  ///
+  /// The value will be dropped when the isolate is dropped.
+  #[inline(always)]
+  pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
+    let annex = unsafe { &mut *self.0.annex.as_ptr() };
+    annex.set_slot(value)
+  }
+
+  /// Removes the embedder data added with `set_slot()` and returns it if it
+  /// exists.
+  #[inline(always)]
+  pub fn remove_slot<T: 'static>(&mut self) -> Option<T> {
+    let annex = unsafe { &mut *self.0.annex.as_ptr() };
+    annex.remove_slot::<T>()
   }
 }
 
