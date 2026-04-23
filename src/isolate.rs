@@ -1042,6 +1042,17 @@ impl Isolate {
     unsafe { Box::from_raw(annex_ptr) }
   }
 
+  /// Returns a non-null pointer to the isolate's annex data.
+  /// This is used by scopes to cache the annex pointer and avoid
+  /// repeated FFI calls to `v8__Isolate__GetData`.
+  #[inline(always)]
+  pub(crate) fn get_annex_ptr(&self) -> NonNull<IsolateAnnex> {
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    debug_assert!(!annex_ptr.is_null());
+    unsafe { NonNull::new_unchecked(annex_ptr) }
+  }
+
   pub(crate) fn set_snapshot_creator(
     &mut self,
     snapshot_creator: SnapshotCreator,
@@ -1129,21 +1140,13 @@ impl Isolate {
   /// Get a reference to embedder data added with `set_slot()`.
   #[inline(always)]
   pub fn get_slot<T: 'static>(&self) -> Option<&T> {
-    self
-      .get_annex()
-      .slots
-      .get(&TypeId::of::<T>())
-      .map(|slot| unsafe { slot.borrow::<T>() })
+    self.get_annex().get_slot::<T>()
   }
 
   /// Get a mutable reference to embedder data added with `set_slot()`.
   #[inline(always)]
   pub fn get_slot_mut<T: 'static>(&mut self) -> Option<&mut T> {
-    self
-      .get_annex_mut()
-      .slots
-      .get_mut(&TypeId::of::<T>())
-      .map(|slot| unsafe { slot.borrow_mut::<T>() })
+    self.get_annex_mut().get_slot_mut::<T>()
   }
 
   /// Use with Isolate::get_slot and Isolate::get_slot_mut to associate state
@@ -1159,21 +1162,13 @@ impl Isolate {
   /// The value will be dropped when the isolate is dropped.
   #[inline(always)]
   pub fn set_slot<T: 'static>(&mut self, value: T) -> bool {
-    self
-      .get_annex_mut()
-      .slots
-      .insert(TypeId::of::<T>(), RawSlot::new(value))
-      .is_none()
+    self.get_annex_mut().set_slot(value)
   }
 
   /// Removes the embedder data added with `set_slot()` and returns it if it exists.
   #[inline(always)]
   pub fn remove_slot<T: 'static>(&mut self) -> Option<T> {
-    self
-      .get_annex_mut()
-      .slots
-      .remove(&TypeId::of::<T>())
-      .map(|slot| unsafe { slot.into_inner::<T>() })
+    self.get_annex_mut().remove_slot::<T>()
   }
 
   /// Sets this isolate as the entered one for the current thread.
@@ -1920,6 +1915,38 @@ impl IsolateAnnex {
       maybe_snapshot_creator: None,
       isolate_handle: IsolateHandle::new(isolate),
     }
+  }
+
+  #[inline(always)]
+  pub(crate) fn get_slot<T: 'static>(&self) -> Option<&T> {
+    self
+      .slots
+      .get(&TypeId::of::<T>())
+      .map(|slot| unsafe { slot.borrow::<T>() })
+  }
+
+  #[inline(always)]
+  pub(crate) fn get_slot_mut<T: 'static>(&mut self) -> Option<&mut T> {
+    self
+      .slots
+      .get_mut(&TypeId::of::<T>())
+      .map(|slot| unsafe { slot.borrow_mut::<T>() })
+  }
+
+  #[inline(always)]
+  pub(crate) fn set_slot<T: 'static>(&mut self, value: T) -> bool {
+    self
+      .slots
+      .insert(TypeId::of::<T>(), RawSlot::new(value))
+      .is_none()
+  }
+
+  #[inline(always)]
+  pub(crate) fn remove_slot<T: 'static>(&mut self) -> Option<T> {
+    self
+      .slots
+      .remove(&TypeId::of::<T>())
+      .map(|slot| unsafe { slot.into_inner::<T>() })
   }
 }
 
