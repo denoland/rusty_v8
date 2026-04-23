@@ -941,63 +941,28 @@ impl String {
 
   /// Creates a copy of a [`crate::String`] in a [`std::string::String`].
   /// Convenience function not present in the original V8 API.
+  ///
+  /// Uses [`ValueView`] internally for single-pass access to the string
+  /// data. When the `simdutf` feature is enabled, uses SIMD-accelerated
+  /// transcoding for Latin-1 and two-byte strings.
   pub fn to_rust_string_lossy(&self, scope: &Isolate) -> std::string::String {
-    let len_utf16 = self.length();
-
-    // No need to allocate or do any work for zero-length strings
-    if len_utf16 == 0 {
+    if self.length() == 0 {
       return std::string::String::new();
     }
 
-    let len_utf8 = self.utf8_length(scope);
+    // SAFETY: `self` is a valid V8 string reachable from a handle scope.
+    let view = unsafe { ValueView::new_from_ref(scope, self) };
 
-    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
-    // string is 100% 7-bit ASCII.
-    if self.is_onebyte() && len_utf8 == len_utf16 {
-      unsafe {
-        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-        // accidentally creating a slice of u8 which would be invalid.
-        let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
-        let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-        let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
-
-        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-        self.write_one_byte_uninit_v2(
-          scope,
-          0,
-          &mut *buffer,
-          WriteFlags::kReplaceInvalidUtf8,
-        );
-
-        // Return an owned string from this guaranteed now-initialized data
-        let buffer = data as *mut u8;
-        return std::string::String::from_raw_parts(
-          buffer, len_utf16, len_utf16,
-        );
+    match view.data() {
+      ValueViewData::OneByte(bytes) => {
+        if bytes.is_ascii() {
+          // SAFETY: ASCII is valid UTF-8.
+          unsafe { std::str::from_utf8_unchecked(bytes) }.to_owned()
+        } else {
+          latin1_to_string(bytes)
+        }
       }
-    }
-
-    // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
-    // We have a large number of invariants to uphold, so please check changes to this code carefully
-    unsafe {
-      // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-      // accidentally creating a slice of u8 which would be invalid.
-      let layout = std::alloc::Layout::from_size_align(len_utf8, 1).unwrap();
-      let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
-      let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf8);
-
-      // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
-      let length = self.write_utf8_uninit_v2(
-        scope,
-        &mut *buffer,
-        WriteFlags::kReplaceInvalidUtf8,
-        None,
-      );
-      debug_assert!(length == len_utf8);
-
-      // Return an owned string from this guaranteed now-initialized data
-      let buffer = data as *mut u8;
-      std::string::String::from_raw_parts(buffer, length, len_utf8)
+      ValueViewData::TwoByte(units) => wtf16_to_string(units),
     }
   }
 
@@ -1052,14 +1017,7 @@ impl String {
         }
       }
       ValueViewData::TwoByte(units) => {
-        // Conservative estimate: each UTF-16 code unit can produce at
-        // most 3 UTF-8 bytes (surrogates produce 4 bytes for 2 units).
-        buf.reserve(units.len() * 3);
-        for result in std::char::decode_utf16(units.iter().copied()) {
-          let c = result.unwrap_or('\u{FFFD}');
-          let mut tmp = [0u8; 4];
-          buf.push_str(c.encode_utf8(&mut tmp));
-        }
+        wtf16_into_string(units, buf);
       }
     }
   }
@@ -1110,64 +1068,10 @@ impl String {
             }
           }
         } else {
-          // Latin-1 non-ASCII: each byte can expand to at most 2 UTF-8
-          // bytes. Use conservative size check.
-          let max_utf8_len = bytes.len() * 2;
-          if max_utf8_len <= N {
-            let written = unsafe {
-              latin1_to_utf8(
-                bytes.len(),
-                bytes.as_ptr(),
-                buffer.as_mut_ptr() as *mut u8,
-              )
-            };
-            unsafe {
-              let buf = &mut buffer[..written];
-              let buf = &mut *(buf as *mut [_] as *mut [u8]);
-              Cow::Borrowed(std::str::from_utf8_unchecked(buf))
-            }
-          } else {
-            let mut buf = Vec::with_capacity(max_utf8_len);
-            unsafe {
-              let written =
-                latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
-              buf.set_len(written);
-              Cow::Owned(std::string::String::from_utf8_unchecked(buf))
-            }
-          }
+          latin1_to_cow_str(bytes, buffer)
         }
       }
-      ValueViewData::TwoByte(units) => {
-        // Transcode UTF-16 directly into the stack buffer when possible.
-        let mut pos = 0;
-        let mut tmp = [0u8; 4];
-        let mut all_fit = true;
-        for result in std::char::decode_utf16(units.iter().copied()) {
-          let c = result.unwrap_or('\u{FFFD}');
-          let encoded = c.encode_utf8(&mut tmp);
-          if pos + encoded.len() > N {
-            all_fit = false;
-            break;
-          }
-          unsafe {
-            std::ptr::copy_nonoverlapping(
-              encoded.as_ptr(),
-              (buffer.as_mut_ptr() as *mut u8).add(pos),
-              encoded.len(),
-            );
-          }
-          pos += encoded.len();
-        }
-        if all_fit {
-          unsafe {
-            let buf = &mut buffer[..pos];
-            let buf = &mut *(buf as *mut [_] as *mut [u8]);
-            Cow::Borrowed(std::str::from_utf8_unchecked(buf))
-          }
-        } else {
-          Cow::Owned(std::string::String::from_utf16_lossy(units))
-        }
-      }
+      ValueViewData::TwoByte(units) => wtf16_to_cow_str(units, buffer),
     }
   }
 }
@@ -1230,7 +1134,7 @@ impl<'s> ValueView<'s> {
   /// returned `ValueView`.
   #[inline(always)]
   pub(crate) unsafe fn new_from_ref(
-    isolate: &mut Isolate,
+    isolate: &Isolate,
     string: &'s String,
   ) -> Self {
     let mut v = std::mem::MaybeUninit::uninit();
@@ -1284,12 +1188,10 @@ impl<'s> ValueView<'s> {
   /// - **One-byte ASCII**: returns `Cow::Borrowed(&str)` — true zero-copy.
   /// - **One-byte Latin-1** (non-ASCII): transcodes to UTF-8, returns
   ///   `Cow::Owned`.
-  /// - **Two-byte** (UTF-16): transcodes to UTF-8 via
-  ///   [`std::string::String::from_utf16_lossy`], returns `Cow::Owned`.
-  ///
-  /// For the common case of ASCII strings this is zero-copy. The
-  /// Latin-1 transcoding uses a SIMD-friendly loop that processes 8 bytes
-  /// at a time.
+  /// - **Two-byte** (UTF-16/WTF-16): transcodes to UTF-8, returns
+  ///   `Cow::Owned`. When the `simdutf` feature is enabled, uses
+  ///   SIMD-accelerated conversion for valid UTF-16 strings above a
+  ///   threshold size.
   #[inline(always)]
   pub fn to_cow_lossy(&self) -> Cow<'_, str> {
     match self.data() {
@@ -1298,23 +1200,214 @@ impl<'s> ValueView<'s> {
           // SAFETY: ASCII bytes are valid UTF-8.
           Cow::Borrowed(unsafe { std::str::from_utf8_unchecked(bytes) })
         } else {
-          // Latin-1 → UTF-8 transcoding. Each byte can expand to at
-          // most 2 UTF-8 bytes.
-          let mut buf = Vec::with_capacity(bytes.len() * 2);
-          // SAFETY: buf has capacity >= bytes.len() * 2, and
-          // latin1_to_utf8 writes valid UTF-8.
-          unsafe {
-            let written =
-              latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
-            buf.set_len(written);
-            Cow::Owned(std::string::String::from_utf8_unchecked(buf))
-          }
+          Cow::Owned(latin1_to_string(bytes))
         }
       }
-      ValueViewData::TwoByte(units) => {
-        Cow::Owned(std::string::String::from_utf16_lossy(units))
+      ValueViewData::TwoByte(units) => Cow::Owned(wtf16_to_string(units)),
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// String conversion helpers.
+// When the `simdutf` feature is enabled, hot paths dispatch to
+// SIMD-accelerated routines in `crate::simdutf`.
+// ---------------------------------------------------------------------------
+
+/// The minimum number of UTF-16 code units before we try the SIMD path.
+/// Below this threshold the overhead of validation + length pre-scan is
+/// not worth it, so we fall back to the scalar loop.
+#[cfg(feature = "simdutf")]
+const WTF16_SIMD_THRESHOLD: usize = 96;
+
+/// Converts Latin-1 bytes to an owned [`std::string::String`].
+#[inline(always)]
+fn latin1_to_string(bytes: &[u8]) -> std::string::String {
+  debug_assert!(!bytes.is_ascii());
+  #[cfg(feature = "simdutf")]
+  {
+    let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
+    let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
+    unsafe {
+      let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), utf8_len);
+      let written = crate::simdutf::convert_latin1_to_utf8(bytes, out);
+      debug_assert_eq!(written, utf8_len);
+      buf.set_len(written);
+      std::string::String::from_utf8_unchecked(buf)
+    }
+  }
+  #[cfg(not(feature = "simdutf"))]
+  {
+    let max_utf8_len = bytes.len() * 2;
+    let mut buf: Vec<u8> = Vec::with_capacity(max_utf8_len);
+    unsafe {
+      let written =
+        latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
+      buf.set_len(written);
+      std::string::String::from_utf8_unchecked(buf)
+    }
+  }
+}
+
+/// Converts (potentially ill-formed) UTF-16LE / WTF-16 code units to an
+/// owned [`std::string::String`], replacing unpaired surrogates with U+FFFD.
+#[inline(always)]
+fn wtf16_to_string(units: &[u16]) -> std::string::String {
+  #[cfg(feature = "simdutf")]
+  {
+    // For longer, valid UTF-16 strings, use simdutf's SIMD-accelerated path.
+    if units.len() >= WTF16_SIMD_THRESHOLD
+      && crate::simdutf::validate_utf16le(units)
+    {
+      let utf8_len = crate::simdutf::utf8_length_from_utf16le(units);
+      let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
+      unsafe {
+        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), utf8_len);
+        let written = crate::simdutf::convert_utf16le_to_utf8(units, out);
+        debug_assert_eq!(written, utf8_len);
+        buf.set_len(written);
+        return std::string::String::from_utf8_unchecked(buf);
       }
     }
+  }
+  // Scalar fallback: handles short strings and strings with unpaired
+  // surrogates (WTF-16).
+  let mut buf = std::string::String::with_capacity(units.len() * 3);
+  for result in std::char::decode_utf16(units.iter().copied()) {
+    buf.push(result.unwrap_or('\u{FFFD}'));
+  }
+  buf
+}
+
+/// Appends WTF-16 code units as UTF-8 into an existing string buffer.
+#[inline(always)]
+fn wtf16_into_string(units: &[u16], buf: &mut std::string::String) {
+  #[cfg(feature = "simdutf")]
+  {
+    if units.len() >= WTF16_SIMD_THRESHOLD
+      && crate::simdutf::validate_utf16le(units)
+    {
+      let utf8_len = crate::simdutf::utf8_length_from_utf16le(units);
+      buf.reserve(utf8_len);
+      unsafe {
+        let vec = buf.as_mut_vec();
+        let out = std::slice::from_raw_parts_mut(vec.as_mut_ptr(), utf8_len);
+        let written = crate::simdutf::convert_utf16le_to_utf8(units, out);
+        debug_assert_eq!(written, utf8_len);
+        vec.set_len(written);
+      }
+      return;
+    }
+  }
+  // Scalar fallback.
+  buf.reserve(units.len() * 3);
+  for result in std::char::decode_utf16(units.iter().copied()) {
+    buf.push(result.unwrap_or('\u{FFFD}'));
+  }
+}
+
+/// Converts Latin-1 bytes to a `Cow<str>`, borrowing from `buffer` when
+/// the transcoded result fits.
+#[inline(always)]
+fn latin1_to_cow_str<'a, const N: usize>(
+  bytes: &[u8],
+  buffer: &'a mut [MaybeUninit<u8>; N],
+) -> Cow<'a, str> {
+  #[cfg(feature = "simdutf")]
+  let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
+  #[cfg(not(feature = "simdutf"))]
+  let utf8_len = bytes.len() * 2; // conservative upper bound
+
+  if utf8_len <= N {
+    #[cfg(feature = "simdutf")]
+    let written = unsafe {
+      let out = std::slice::from_raw_parts_mut(
+        buffer.as_mut_ptr() as *mut u8,
+        utf8_len,
+      );
+      crate::simdutf::convert_latin1_to_utf8(bytes, out)
+    };
+    #[cfg(not(feature = "simdutf"))]
+    let written = unsafe {
+      latin1_to_utf8(
+        bytes.len(),
+        bytes.as_ptr(),
+        buffer.as_mut_ptr() as *mut u8,
+      )
+    };
+
+    unsafe {
+      let buf = &mut buffer[..written];
+      let buf = &mut *(buf as *mut [_] as *mut [u8]);
+      Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+    }
+  } else {
+    Cow::Owned(latin1_to_string(bytes))
+  }
+}
+
+/// Converts WTF-16 code units to a `Cow<str>`, borrowing from `buffer`
+/// when the transcoded result fits.
+#[inline(always)]
+fn wtf16_to_cow_str<'a, const N: usize>(
+  units: &[u16],
+  buffer: &'a mut [MaybeUninit<u8>; N],
+) -> Cow<'a, str> {
+  #[cfg(feature = "simdutf")]
+  {
+    if units.len() >= WTF16_SIMD_THRESHOLD
+      && crate::simdutf::validate_utf16le(units)
+    {
+      let utf8_len = crate::simdutf::utf8_length_from_utf16le(units);
+
+      if utf8_len <= N {
+        let written = unsafe {
+          let out = std::slice::from_raw_parts_mut(
+            buffer.as_mut_ptr() as *mut u8,
+            utf8_len,
+          );
+          crate::simdutf::convert_utf16le_to_utf8(units, out)
+        };
+        return unsafe {
+          let buf = &mut buffer[..written];
+          let buf = &mut *(buf as *mut [_] as *mut [u8]);
+          Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+        };
+      }
+
+      // Doesn't fit in the stack buffer — allocate.
+      return Cow::Owned(wtf16_to_string(units));
+    }
+  }
+
+  // Scalar fallback: try to fit into the buffer, otherwise allocate.
+  let mut pos = 0;
+  let mut tmp = [0u8; 4];
+  let mut all_fit = true;
+  for result in std::char::decode_utf16(units.iter().copied()) {
+    let c = result.unwrap_or('\u{FFFD}');
+    let encoded = c.encode_utf8(&mut tmp);
+    if pos + encoded.len() > N {
+      all_fit = false;
+      break;
+    }
+    unsafe {
+      std::ptr::copy_nonoverlapping(
+        encoded.as_ptr(),
+        (buffer.as_mut_ptr() as *mut u8).add(pos),
+        encoded.len(),
+      );
+    }
+    pos += encoded.len();
+  }
+  if all_fit {
+    unsafe {
+      let buf = &mut buffer[..pos];
+      let buf = &mut *(buf as *mut [_] as *mut [u8]);
+      Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+    }
+  } else {
+    Cow::Owned(std::string::String::from_utf16_lossy(units))
   }
 }
 
