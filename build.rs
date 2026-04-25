@@ -574,7 +574,8 @@ fn prebuilt_features_suffix() -> String {
 
 fn static_lib_name(suffix: &str) -> String {
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-  if target_os == "windows" {
+  let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
+  if target_os == "windows" && target_env == "msvc" {
     format!("rusty_v8{suffix}.lib")
   } else {
     format!("librusty_v8{suffix}.a")
