@@ -671,18 +671,18 @@ impl String {
   }
 
   /// Creates a new string by concatenating `left` and `right`.
+  /// Returns `None` if the resulting string would exceed
+  /// `v8::String::kMaxLength`.
   #[inline(always)]
   pub fn concat<'s>(
     scope: &PinScope<'s, '_, ()>,
     left: Local<String>,
     right: Local<String>,
-  ) -> Local<'s, String> {
+  ) -> Option<Local<'s, String>> {
     unsafe {
-      scope
-        .cast_local(|sd| {
-          v8__String__Concat(sd.get_isolate_ptr(), &*left, &*right)
-        })
-        .unwrap()
+      scope.cast_local(|sd| {
+        v8__String__Concat(sd.get_isolate_ptr(), &*left, &*right)
+      })
     }
   }
 

@@ -12438,12 +12438,12 @@ fn string_concat() {
 
   let left = v8::String::new(scope, "hello").unwrap();
   let right = v8::String::new(scope, " world").unwrap();
-  let result = v8::String::concat(scope, left, right);
+  let result = v8::String::concat(scope, left, right).unwrap();
   assert_eq!(result.to_rust_string_lossy(scope), "hello world");
 
   // Concat with empty string.
   let empty = v8::String::empty(scope);
-  let result2 = v8::String::concat(scope, left, empty);
+  let result2 = v8::String::concat(scope, left, empty).unwrap();
   assert_eq!(result2.to_rust_string_lossy(scope), "hello");
 }
 
