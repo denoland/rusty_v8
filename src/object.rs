@@ -17,6 +17,7 @@ use crate::PropertyAttribute;
 use crate::PropertyDescriptor;
 use crate::PropertyFilter;
 use crate::Set;
+use crate::SideEffectType;
 use crate::String;
 use crate::Value;
 use crate::binding::RustObj;
@@ -61,6 +62,8 @@ unsafe extern "C" {
     getter: AccessorNameGetterCallback,
     data_or_null: *const Value,
     attr: PropertyAttribute,
+    getter_side_effect_type: SideEffectType,
+    setter_side_effect_type: SideEffectType,
   ) -> MaybeBool;
   fn v8__Object__Get(
     this: *const Object,
@@ -610,12 +613,15 @@ impl Object {
         getter.map_fn_to(),
         null(),
         PropertyAttribute::NONE,
+        SideEffectType::HasSideEffect,
+        SideEffectType::HasSideEffect,
       )
     }
     .into()
   }
 
-  /// Sets a lazy data property with data and attributes on this object.
+  /// Sets a lazy data property with data, attributes, and side effect types
+  /// on this object.
   #[inline(always)]
   pub fn set_lazy_data_property_with_data(
     &self,
@@ -624,6 +630,8 @@ impl Object {
     getter: impl MapFnTo<AccessorNameGetterCallback>,
     data: Local<Value>,
     attr: PropertyAttribute,
+    getter_side_effect_type: SideEffectType,
+    setter_side_effect_type: SideEffectType,
   ) -> Option<bool> {
     unsafe {
       v8__Object__SetLazyDataProperty(
@@ -633,6 +641,8 @@ impl Object {
         getter.map_fn_to(),
         &*data,
         attr,
+        getter_side_effect_type,
+        setter_side_effect_type,
       )
     }
     .into()
