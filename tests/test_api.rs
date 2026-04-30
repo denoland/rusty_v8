@@ -12428,6 +12428,26 @@ fn clear_slots_annex_uninitialized() {
 }
 
 #[test]
+fn string_concat() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let left = v8::String::new(scope, "hello").unwrap();
+  let right = v8::String::new(scope, " world").unwrap();
+  let result = v8::String::concat(scope, left, right);
+  assert_eq!(result.to_rust_string_lossy(scope), "hello world");
+
+  // Concat with empty string.
+  let empty = v8::String::empty(scope);
+  let result2 = v8::String::concat(scope, left, empty);
+  assert_eq!(result2.to_rust_string_lossy(scope), "hello");
+}
+
+#[test]
 fn string_valueview() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());

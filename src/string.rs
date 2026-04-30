@@ -106,6 +106,12 @@ unsafe extern "C" {
     length: int,
   ) -> *const String;
 
+  fn v8__String__Concat(
+    isolate: *mut RealIsolate,
+    left: *const String,
+    right: *const String,
+  ) -> *const String;
+
   fn v8__String__Length(this: *const String) -> int;
 
   fn v8__String__Utf8Length(
@@ -662,6 +668,22 @@ impl String {
     value: &str,
   ) -> Option<Local<'s, String>> {
     Self::new_from_utf8(scope, value.as_ref(), NewStringType::Normal)
+  }
+
+  /// Creates a new string by concatenating `left` and `right`.
+  #[inline(always)]
+  pub fn concat<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    left: Local<String>,
+    right: Local<String>,
+  ) -> Local<'s, String> {
+    unsafe {
+      scope
+        .cast_local(|sd| {
+          v8__String__Concat(sd.get_isolate_ptr(), &*left, &*right)
+        })
+        .unwrap()
+    }
   }
 
   /// Compile-time function to create an external string resource.

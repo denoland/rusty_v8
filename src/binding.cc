@@ -1184,6 +1184,13 @@ const v8::String* v8__String__NewFromTwoByte(v8::Isolate* isolate,
       v8::String::NewFromTwoByte(isolate, data, new_type, length));
 }
 
+const v8::String* v8__String__Concat(v8::Isolate* isolate,
+                                     const v8::String& left,
+                                     const v8::String& right) {
+  return local_to_ptr(
+      v8::String::Concat(isolate, ptr_to_local(&left), ptr_to_local(&right)));
+}
+
 int v8__String__Length(const v8::String& self) { return self.Length(); }
 
 int v8__String__Utf8Length(const v8::String& self, v8::Isolate* isolate) {
