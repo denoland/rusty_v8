@@ -624,6 +624,7 @@ impl Object {
   /// Sets a lazy data property with data, attributes, and side effect types
   /// on this object.
   #[inline(always)]
+  #[allow(clippy::too_many_arguments)]
   pub fn set_lazy_data_property_with_data(
     &self,
     scope: &PinScope<'_, '_>,
