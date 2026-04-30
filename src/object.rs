@@ -54,6 +54,14 @@ unsafe extern "C" {
     data_or_null: *const Value,
     attr: PropertyAttribute,
   ) -> MaybeBool;
+  fn v8__Object__SetLazyDataProperty(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+    data_or_null: *const Value,
+    attr: PropertyAttribute,
+  ) -> MaybeBool;
   fn v8__Object__Get(
     this: *const Object,
     context: *const Context,
@@ -579,6 +587,52 @@ impl Object {
         configuration.setter,
         configuration.data.map_or_else(null, |p| &*p),
         configuration.property_attribute,
+      )
+    }
+    .into()
+  }
+
+  /// Sets a lazy data property on this object. The getter is invoked the first
+  /// time the property is read, and then the property is replaced with an
+  /// ordinary data property containing the value returned by the getter.
+  #[inline(always)]
+  pub fn set_lazy_data_property(
+    &self,
+    scope: &PinScope<'_, '_>,
+    name: Local<Name>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetLazyDataProperty(
+        self,
+        &*scope.get_current_context(),
+        &*name,
+        getter.map_fn_to(),
+        null(),
+        PropertyAttribute::NONE,
+      )
+    }
+    .into()
+  }
+
+  /// Sets a lazy data property with data and attributes on this object.
+  #[inline(always)]
+  pub fn set_lazy_data_property_with_data(
+    &self,
+    scope: &PinScope<'_, '_>,
+    name: Local<Name>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+    data: Local<Value>,
+    attr: PropertyAttribute,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetLazyDataProperty(
+        self,
+        &*scope.get_current_context(),
+        &*name,
+        getter.map_fn_to(),
+        &*data,
+        attr,
       )
     }
     .into()

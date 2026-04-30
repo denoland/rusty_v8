@@ -1648,6 +1648,17 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
       ptr_to_local(data_or_null), attr));
 }
 
+MaybeBool v8__Object__SetLazyDataProperty(const v8::Object& self,
+                                          const v8::Context& context,
+                                          const v8::Name& key,
+                                          v8::AccessorNameGetterCallback getter,
+                                          const v8::Value* data_or_null,
+                                          v8::PropertyAttribute attr) {
+  return maybe_to_maybe_bool(ptr_to_local(&self)->SetLazyDataProperty(
+      ptr_to_local(&context), ptr_to_local(&key), getter,
+      ptr_to_local(data_or_null), attr));
+}
+
 int v8__Object__GetIdentityHash(const v8::Object& self) {
   return ptr_to_local(&self)->GetIdentityHash();
 }

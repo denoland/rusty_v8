@@ -3571,6 +3571,53 @@ fn object_set_accessor_with_data() {
 }
 
 #[test]
+fn object_set_lazy_data_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    let getter = |scope: &mut v8::PinScope,
+                  _key: v8::Local<v8::Name>,
+                  _args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue<v8::Value>| {
+      let val = v8::String::new(scope, "lazy_value").unwrap();
+      rv.set(val.into());
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let obj = v8::Object::new(scope);
+    let key = v8::String::new(scope, "lazy_key").unwrap();
+    assert_eq!(
+      obj.set_lazy_data_property(scope, key.into(), getter),
+      Some(true)
+    );
+
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(scope, obj_name.into(), obj.into());
+
+    // First access triggers the getter.
+    let actual = eval(scope, "obj.lazy_key").unwrap();
+    let expected = v8::String::new(scope, "lazy_value").unwrap();
+    assert!(actual.strict_equals(expected.into()));
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    // Second access should NOT invoke the getter again —
+    // the property has been replaced with a plain data property.
+    let actual2 = eval(scope, "obj.lazy_key").unwrap();
+    assert!(actual2.strict_equals(expected.into()));
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+  }
+}
+
+#[test]
 fn promise_resolved() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
