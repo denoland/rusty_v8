@@ -55,6 +55,7 @@ unsafe extern "C" {
     data_or_null: *const Value,
     attr: PropertyAttribute,
   ) -> MaybeBool;
+  #[allow(clippy::too_many_arguments)]
   fn v8__Object__SetLazyDataProperty(
     this: *const Object,
     context: *const Context,
