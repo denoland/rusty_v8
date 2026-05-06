@@ -446,8 +446,8 @@ bitflags! {
   #[derive(Clone, Copy, Default)]
   #[repr(transparent)]
   pub struct WriteFlags: int {
-    const kNullTerminate = crate::binding::v8_String_WriteFlags_kNullTerminate as _;
-    const kReplaceInvalidUtf8 = crate::binding::v8_String_WriteFlags_kReplaceInvalidUtf8 as _;
+    const kNullTerminate = crate::binding::WriteFlags_kNullTerminate as _;
+    const kReplaceInvalidUtf8 = crate::binding::WriteFlags_kReplaceInvalidUtf8 as _;
   }
 }
 

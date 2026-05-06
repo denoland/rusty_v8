@@ -231,6 +231,8 @@ fn build_binding() {
     .allowlist_item("memory_span_t")
     .allowlist_item("const_memory_span_t")
     .allowlist_item("ExternalConstOneByteStringResource")
+    .blocklist_item("cppgc.*Visitor")
+    .blocklist_item("RustObj.*Trace")
     .generate()
     .expect("Unable to generate bindings");
 
