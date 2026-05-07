@@ -11055,6 +11055,31 @@ fn finalizer_on_kept_global() {
 }
 
 #[test]
+fn isolate_slot_drop_can_access_annex_during_teardown() {
+  let _setup_guard = setup::parallel_test();
+
+  struct DropCheck {
+    isolate: v8::UnsafeRawIsolatePtr,
+  }
+
+  impl Drop for DropCheck {
+    fn drop(&mut self) {
+      let isolate =
+        unsafe { v8::Isolate::ref_from_raw_isolate_ptr(&self.isolate) };
+      drop(isolate.thread_safe_handle());
+    }
+  }
+
+  {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let isolate_ptr = unsafe { isolate.as_raw_isolate_ptr() };
+    isolate.set_slot(DropCheck {
+      isolate: isolate_ptr,
+    });
+  }
+}
+
+#[test]
 fn isolate_data_slots() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
