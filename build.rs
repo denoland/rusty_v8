@@ -223,6 +223,7 @@ fn build_binding() {
     .rustified_enum(".*UseCounterFeature")
     .rustified_enum(".*ModuleImportPhase")
     .rustified_enum(".*Intercepted")
+    .rustified_enum(".*WriteFlags.*")
     .bitfield_enum(".*GCType")
     .bitfield_enum(".*GCCallbackFlags")
     .allowlist_item("v8__.*")
