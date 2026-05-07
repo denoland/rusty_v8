@@ -1010,9 +1010,13 @@ impl Isolate {
     self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
-  unsafe fn dispose_annex(&mut self) -> Box<dyn Any> {
-    // SAFETY: `dispose_annex()` is only called once, when the `Isolate` is dropped.
-    let mut annex = unsafe { self.take_annex() };
+  unsafe fn prepare_annex_for_dispose(
+    &mut self,
+  ) -> (*mut IsolateAnnex, Box<dyn Any>) {
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    assert!(!annex_ptr.is_null());
+    let annex = unsafe { &mut *annex_ptr };
 
     // Set the `isolate` pointer inside the annex struct to null, so any
     // IsolateHandle that outlives the isolate will know that it can't call
@@ -1021,16 +1025,38 @@ impl Isolate {
     annex.isolate_handle.dispose();
 
     // Clear slots and drop owned objects that were taken out of `CreateParams`.
-    let create_param_allocations = annex.create_param_allocations;
-    annex.slots.clear();
+    let create_param_allocations =
+      annex.create_param_allocations.take().unwrap();
+    let slots = std::mem::take(&mut annex.slots);
+    drop(slots);
 
+    (annex_ptr, create_param_allocations)
+  }
+
+  fn run_remaining_guaranteed_finalizers(annex: &mut IsolateAnnex) {
     // Run through any remaining guaranteed finalizers.
     for finalizer in annex.finalizer_map.drain() {
       if let FinalizerCallback::Guaranteed(callback) = finalizer {
         callback();
       }
     }
+  }
 
+  unsafe fn finish_annex_dispose(annex_ptr: *mut IsolateAnnex) {
+    let mut annex = unsafe { Box::from_raw(annex_ptr) };
+    Self::run_remaining_guaranteed_finalizers(&mut annex);
+  }
+
+  unsafe fn dispose_annex(&mut self) -> Box<dyn Any> {
+    let (annex_ptr, create_param_allocations) =
+      unsafe { self.prepare_annex_for_dispose() };
+    let annex = unsafe { &mut *annex_ptr };
+    Self::run_remaining_guaranteed_finalizers(annex);
+    // SAFETY: `dispose_annex()` is only called once.
+    let taken_annex =
+      self.take_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    assert_eq!(taken_annex, annex_ptr);
+    unsafe { drop(Box::from_raw(annex_ptr)) };
     create_param_allocations
   }
 
@@ -1048,15 +1074,6 @@ impl Isolate {
       self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
     assert!(!annex_ptr.is_null());
     unsafe { &mut *annex_ptr }
-  }
-
-  /// # Safety
-  /// This must only be called once.
-  #[inline(always)]
-  unsafe fn take_annex(&mut self) -> Box<IsolateAnnex> {
-    let annex_ptr =
-      self.take_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
-    unsafe { Box::from_raw(annex_ptr) }
   }
 
   /// Returns a non-null pointer to the isolate's annex data.
@@ -1916,7 +1933,7 @@ impl Isolate {
 }
 
 pub(crate) struct IsolateAnnex {
-  create_param_allocations: Box<dyn Any>,
+  create_param_allocations: Option<Box<dyn Any>>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
   finalizer_map: FinalizerMap,
   maybe_snapshot_creator: Option<SnapshotCreator>,
@@ -1931,7 +1948,7 @@ impl IsolateAnnex {
     // pointer without retaining an Arc per Global.
     let global_liveness = Box::leak(Box::new(IsolateLiveness::new(isolate)));
     Self {
-      create_param_allocations,
+      create_param_allocations: Some(create_param_allocations),
       slots: HashMap::default(),
       finalizer_map: FinalizerMap::default(),
       maybe_snapshot_creator: None,
@@ -2060,7 +2077,7 @@ impl IsolateHandle {
   }
 
   /// Set the inner isolate pointer to null.
-  fn dispose(self) {
+  fn dispose(&self) {
     let _lock = self.0.isolate_mutex.lock().unwrap();
     // SAFETY: mutex lock is held
     unsafe { *self.0.isolate.get() = null_mut() }
@@ -2214,9 +2231,13 @@ impl Drop for OwnedIsolate {
       );
       // self.dispose_scope_root();
       self.exit();
-      self.dispose_annex();
+      let (annex_ptr, _create_param_allocations) =
+        self.prepare_annex_for_dispose();
+      let annex = &mut *annex_ptr;
+      Isolate::run_remaining_guaranteed_finalizers(annex);
       Platform::notify_isolate_shutdown(&get_current_platform(), self);
       self.dispose();
+      Isolate::finish_annex_dispose(annex_ptr);
     }
   }
 }
