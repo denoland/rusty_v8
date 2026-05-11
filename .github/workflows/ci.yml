@@ -181,10 +181,8 @@ jobs:
             simdutf: true
             cargo: cargo
 
-          # lite mode builds (jitless: Turbofan, Maglev and Sparkplug disabled;
-          # WebAssembly retained via the DrumBrake interpreter). The
-          # `v8_lite_mode` feature pulls in `v8_enable_pointer_compression`,
-          # which DrumBrake requires.
+          # lite mode builds (jitless: Turbofan, Maglev, Sparkplug and
+          # WebAssembly disabled).
           - os: macos-15-large
             target: x86_64-apple-darwin
             variant: release
