@@ -311,6 +311,19 @@ fn build_v8(is_asan: bool) {
     env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
   ));
 
+  // Jitless lite mode: disable optimizing tiers (Turbofan, Maglev, Sparkplug)
+  // and run V8 in jitless mode. WebAssembly support is retained via the
+  // DrumBrake interpreter. The `v8_lite_mode` feature also pulls in
+  // `v8_enable_pointer_compression`, which is required by DrumBrake.
+  if env::var("CARGO_FEATURE_V8_LITE_MODE").is_ok() {
+    gn_args.push("v8_jitless=true".to_string());
+    gn_args.push("v8_enable_turbofan=false".to_string());
+    gn_args.push("v8_enable_maglev=false".to_string());
+    gn_args.push("v8_enable_sparkplug=false".to_string());
+    gn_args.push("v8_enable_webassembly=true".to_string());
+    gn_args.push("v8_enable_drumbrake=true".to_string());
+  }
+
   gn_args.push(format!(
     "rusty_v8_enable_simdutf={}",
     env::var("CARGO_FEATURE_SIMDUTF").is_ok()
@@ -568,6 +581,9 @@ fn prebuilt_features_suffix() -> String {
   }
   if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
     features.push_str("_simdutf");
+  }
+  if env::var("CARGO_FEATURE_V8_LITE_MODE").is_ok() {
+    features.push_str("_lite");
   }
   features
 }

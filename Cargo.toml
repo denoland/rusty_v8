@@ -107,6 +107,10 @@ simdutf = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []
+# Jitless lite mode: disables Turbofan, Maglev and Sparkplug. WebAssembly is
+# kept enabled via the DrumBrake Wasm interpreter, which requires pointer
+# compression and is only supported on x64/arm64 on Linux/macOS/Windows.
+v8_lite_mode = ["v8_enable_pointer_compression"]
 
 [dependencies]
 bitflags = "2.5"
