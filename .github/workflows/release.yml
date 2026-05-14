@@ -12,6 +12,8 @@ on:
           - patch
         required: true
 
+permissions: {}
+
 jobs:
   rust:
     name: release
