@@ -166,6 +166,13 @@ struct three_pointers_t {
   void* c;
 };
 
+struct function_callback_info_parts_t {
+  void* isolate;
+  void* return_value;
+  const void* data;
+  int length;
+};
+
 }  // namespace support
 
 struct memory_span_t {

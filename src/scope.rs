@@ -130,6 +130,7 @@ use crate::{
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
   SealedLocal, Value,
   fast_api::FastApiCallbackOptions,
+  function::FunctionCallbackInfoParts,
   isolate::{IsolateAnnex, RealIsolate},
   support::assert_layout_subset,
 };
@@ -300,6 +301,12 @@ mod get_isolate_impls {
   impl GetIsolate for FunctionCallbackInfo {
     fn get_isolate_ptr(&self) -> *mut RealIsolate {
       self.get_isolate_ptr()
+    }
+  }
+
+  impl GetIsolate for FunctionCallbackInfoParts<'_> {
+    fn get_isolate_ptr(&self) -> *mut RealIsolate {
+      self.isolate.as_real_ptr()
     }
   }
 
@@ -1078,6 +1085,14 @@ impl<'s> NewCallbackScope<'s> for &'s mut OwnedIsolate {
 }
 
 impl<'s> NewCallbackScope<'s> for &'s FunctionCallbackInfo {
+  type NewScope = CallbackScope<'s>;
+
+  fn make_new_scope(me: Self) -> Self::NewScope {
+    make_new_callback_scope(me, None)
+  }
+}
+
+impl<'s> NewCallbackScope<'s> for &'s FunctionCallbackInfoParts<'s> {
   type NewScope = CallbackScope<'s>;
 
   fn make_new_scope(me: Self) -> Self::NewScope {

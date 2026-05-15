@@ -20,6 +20,7 @@ use crate::SealedLocal;
 use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
+use crate::UnsafeRawIsolatePtr;
 use crate::Value;
 use crate::isolate::RealIsolate;
 use crate::scope::PinScope;
@@ -71,6 +72,9 @@ unsafe extern "C" {
   fn v8__FunctionCallbackInfo__GetIsolate(
     this: *const FunctionCallbackInfo,
   ) -> *mut RealIsolate;
+  fn v8__FunctionCallbackInfo__GetParts(
+    this: *const FunctionCallbackInfo,
+  ) -> RawFunctionCallbackInfoParts;
   fn v8__FunctionCallbackInfo__Data(
     this: *const FunctionCallbackInfo,
   ) -> *const Value;
@@ -152,8 +156,17 @@ pub enum SideEffectType {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct RawReturnValue(usize);
+
+#[repr(C)]
+#[derive(Debug)]
+struct RawFunctionCallbackInfoParts {
+  isolate: *mut RealIsolate,
+  return_value: usize,
+  data: *const Value,
+  length: int,
+}
 
 // Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
@@ -161,7 +174,20 @@ struct RawReturnValue(usize);
 #[derive(Debug)]
 pub struct ReturnValue<'cb, T = Value>(RawReturnValue, PhantomData<&'cb T>);
 
+impl<T> Clone for ReturnValue<'_, T> {
+  fn clone(&self) -> Self {
+    *self
+  }
+}
+
+impl<T> Copy for ReturnValue<'_, T> {}
+
 impl<'cb, T> ReturnValue<'cb, T> {
+  #[inline(always)]
+  fn from_raw(raw: RawReturnValue) -> Self {
+    Self(raw, PhantomData)
+  }
+
   #[inline(always)]
   pub fn from_property_callback_info(
     info: &'cb PropertyCallbackInfo<T>,
@@ -254,10 +280,39 @@ where
 #[derive(Debug)]
 pub struct FunctionCallbackInfo(*mut Opaque);
 
+/// Values commonly needed at the start of a function callback.
+///
+/// This lets raw callbacks fetch the isolate, return value, callback data, and
+/// argument length with one FFI call. The returned parts can also seed
+/// [`FunctionCallbackArguments`] and [`CallbackScope`](crate::CallbackScope)
+/// without re-reading those values from V8.
+#[repr(C)]
+#[derive(Debug)]
+pub struct FunctionCallbackInfoParts<'cb> {
+  pub isolate: UnsafeRawIsolatePtr,
+  pub return_value: ReturnValue<'cb>,
+  pub data: Local<'cb, Value>,
+  pub length: int,
+}
+
 impl FunctionCallbackInfo {
   #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
+  }
+
+  /// Returns the common callback entry values with a single C++ shim call.
+  #[inline(always)]
+  pub fn get_parts(&self) -> FunctionCallbackInfoParts<'_> {
+    let raw = unsafe { v8__FunctionCallbackInfo__GetParts(self) };
+    FunctionCallbackInfoParts {
+      isolate: UnsafeRawIsolatePtr::from_real_ptr(raw.isolate),
+      return_value: ReturnValue::from_raw(RawReturnValue(raw.return_value)),
+      data: unsafe {
+        Local::from_non_null(NonNull::new_unchecked(raw.data as *mut Value))
+      },
+      length: raw.length,
+    }
   }
 
   #[inline(always)]
@@ -325,12 +380,34 @@ impl<T> PropertyCallbackInfo<T> {
 }
 
 #[derive(Debug)]
-pub struct FunctionCallbackArguments<'s>(&'s FunctionCallbackInfo);
+pub struct FunctionCallbackArguments<'s> {
+  info: &'s FunctionCallbackInfo,
+  data: Option<Local<'s, Value>>,
+  length: Option<int>,
+}
 
 impl<'s> FunctionCallbackArguments<'s> {
   #[inline(always)]
   pub fn from_function_callback_info(info: &'s FunctionCallbackInfo) -> Self {
-    Self(info)
+    Self {
+      info,
+      data: None,
+      length: None,
+    }
+  }
+
+  /// Creates callback arguments from [`FunctionCallbackInfoParts`], reusing the
+  /// already-loaded callback data and argument length.
+  #[inline(always)]
+  pub fn from_function_callback_info_parts(
+    info: &'s FunctionCallbackInfo,
+    parts: &FunctionCallbackInfoParts<'s>,
+  ) -> Self {
+    Self {
+      info,
+      data: Some(parts.data),
+      length: Some(parts.length),
+    }
   }
 
   /// SAFETY: caller must guarantee that no other references to the isolate are
@@ -339,45 +416,47 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// not be called.
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *(self.0.get_isolate_ptr() as *mut crate::isolate::Isolate) }
+    unsafe {
+      &mut *(self.info.get_isolate_ptr() as *mut crate::isolate::Isolate)
+    }
   }
 
   /// For construct calls, this returns the "new.target" value.
   #[inline(always)]
   pub fn new_target(&self) -> Local<'s, Value> {
-    self.0.new_target()
+    self.info.new_target()
   }
 
   /// Returns true if this is a construct call, i.e., if the function was
   /// called with the `new` operator.
   #[inline]
   pub fn is_construct_call(&self) -> bool {
-    self.0.is_construct_call()
+    self.info.is_construct_call()
   }
 
   /// Returns the receiver. This corresponds to the "this" value.
   #[inline(always)]
   pub fn this(&self) -> Local<'s, Object> {
-    self.0.this()
+    self.info.this()
   }
 
   /// Returns the data argument specified when creating the callback.
   #[inline(always)]
   pub fn data(&self) -> Local<'s, Value> {
-    self.0.data()
+    self.data.unwrap_or_else(|| self.info.data())
   }
 
   /// The number of available arguments.
   #[inline(always)]
   pub fn length(&self) -> int {
-    self.0.length()
+    self.length.unwrap_or_else(|| self.info.length())
   }
 
   /// Accessor for the available arguments. Returns `undefined` if the index is
   /// out of bounds.
   #[inline(always)]
   pub fn get(&self, i: int) -> Local<'s, Value> {
-    self.0.get(i)
+    self.info.get(i)
   }
 }
 
