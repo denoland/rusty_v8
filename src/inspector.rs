@@ -25,6 +25,7 @@ use crate::support::UniquePtr;
 use crate::support::UniqueRef;
 use crate::support::int;
 use std::cell::UnsafeCell;
+use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
 
 unsafe extern "C" {
@@ -116,6 +117,29 @@ unsafe extern "C" {
   fn v8_inspector__V8Inspector__contextDestroyed(
     this: *mut RawV8Inspector,
     context: *const Context,
+  );
+  fn v8_inspector__V8Inspector__idleStarted(this: *mut RawV8Inspector);
+  fn v8_inspector__V8Inspector__idleFinished(this: *mut RawV8Inspector);
+  fn v8_inspector__V8Inspector__asyncTaskScheduled(
+    this: *mut RawV8Inspector,
+    task_name: StringView,
+    task: *const c_void,
+    recurring: bool,
+  );
+  fn v8_inspector__V8Inspector__asyncTaskCanceled(
+    this: *mut RawV8Inspector,
+    task: *const c_void,
+  );
+  fn v8_inspector__V8Inspector__asyncTaskStarted(
+    this: *mut RawV8Inspector,
+    task: *const c_void,
+  );
+  fn v8_inspector__V8Inspector__asyncTaskFinished(
+    this: *mut RawV8Inspector,
+    task: *const c_void,
+  );
+  fn v8_inspector__V8Inspector__allAsyncTasksCanceled(
+    this: *mut RawV8Inspector,
   );
   fn v8_inspector__V8Inspector__exceptionThrown(
     this: *mut RawV8Inspector,
@@ -951,6 +975,78 @@ impl V8Inspector {
     unsafe {
       v8_inspector__V8Inspector__contextDestroyed(self.raw(), &*context)
     }
+  }
+
+  /// Tell the inspector the runtime entered an idle period. Pairs with
+  /// [`Self::idle_finished`].
+  pub fn idle_started(&self) {
+    unsafe { v8_inspector__V8Inspector__idleStarted(self.raw()) }
+  }
+
+  /// Tell the inspector the runtime left an idle period.
+  pub fn idle_finished(&self) {
+    unsafe { v8_inspector__V8Inspector__idleFinished(self.raw()) }
+  }
+
+  /// Notify the inspector that an async task has been scheduled — used to
+  /// build async stack traces. `task` is an opaque identity pointer that
+  /// must match the one later passed to
+  /// [`Self::async_task_started`]/[`Self::async_task_finished`]/
+  /// [`Self::async_task_canceled`]. Set `recurring` to `true` for
+  /// repeating tasks such as `setInterval` where the same identity fires
+  /// multiple times.
+  ///
+  /// # Safety
+  /// `task` must be a stable pointer for the lifetime of the scheduled
+  /// async task; the inspector stores it as an opaque key.
+  pub unsafe fn async_task_scheduled(
+    &self,
+    task_name: StringView,
+    task: *const c_void,
+    recurring: bool,
+  ) {
+    unsafe {
+      v8_inspector__V8Inspector__asyncTaskScheduled(
+        self.raw(),
+        task_name,
+        task,
+        recurring,
+      )
+    }
+  }
+
+  /// Notify the inspector that a previously scheduled async task was
+  /// cancelled and will not run. `task` must match the pointer used in
+  /// the corresponding [`Self::async_task_scheduled`] call.
+  ///
+  /// # Safety
+  /// See [`Self::async_task_scheduled`].
+  pub unsafe fn async_task_canceled(&self, task: *const c_void) {
+    unsafe { v8_inspector__V8Inspector__asyncTaskCanceled(self.raw(), task) }
+  }
+
+  /// Notify the inspector that an async task has begun executing. Must be
+  /// paired with [`Self::async_task_finished`] before the JS callback
+  /// returns to V8.
+  ///
+  /// # Safety
+  /// See [`Self::async_task_scheduled`].
+  pub unsafe fn async_task_started(&self, task: *const c_void) {
+    unsafe { v8_inspector__V8Inspector__asyncTaskStarted(self.raw(), task) }
+  }
+
+  /// Notify the inspector that an async task has finished executing.
+  ///
+  /// # Safety
+  /// See [`Self::async_task_scheduled`].
+  pub unsafe fn async_task_finished(&self, task: *const c_void) {
+    unsafe { v8_inspector__V8Inspector__asyncTaskFinished(self.raw(), task) }
+  }
+
+  /// Notify the inspector that every outstanding async task is being
+  /// cancelled, e.g. during runtime shutdown.
+  pub fn all_async_tasks_canceled(&self) {
+    unsafe { v8_inspector__V8Inspector__allAsyncTasksCanceled(self.raw()) }
   }
 
   #[allow(clippy::too_many_arguments)]

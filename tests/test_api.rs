@@ -7079,6 +7079,40 @@ fn inspector_schedule_pause_on_next_statement() {
 }
 
 #[test]
+fn inspector_async_task_smoke() {
+  // Smoke test: just call the new async-task / idle bindings to make sure
+  // the C++ symbols link and the round-trip doesn't crash. Asserting that
+  // the resulting Debugger.paused payload carries an asyncStackTrace would
+  // require driving a full Debugger.enable +
+  // Debugger.setAsyncCallStackDepth flow; that lives in higher-level
+  // embedder tests (e.g. deno's node_compat suite).
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  let task_name = b"my task";
+  let task_name_view = StringView::from(&task_name[..]);
+  let task_id: i32 = 1;
+  let task_ptr = &task_id as *const i32 as *const std::ffi::c_void;
+
+  inspector.idle_started();
+  // SAFETY: task_id outlives the call sequence below; no other thread
+  // touches the inspector.
+  unsafe {
+    inspector.async_task_scheduled(task_name_view, task_ptr, false);
+    inspector.async_task_started(task_ptr);
+    inspector.async_task_finished(task_ptr);
+    inspector.async_task_canceled(task_ptr);
+  }
+  inspector.all_async_tasks_canceled();
+  inspector.idle_finished();
+}
+
+#[test]
 fn inspector_console_api_message() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
