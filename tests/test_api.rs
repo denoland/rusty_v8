@@ -7079,6 +7079,21 @@ fn inspector_schedule_pause_on_next_statement() {
 }
 
 #[test]
+fn isolate_set_break_on_next_function_call_smoke() {
+  // Smoke test: confirms the v8::debug::SetBreakOnNextFunctionCall /
+  // ClearBreakOnNextFunctionCall shims link and round-trip. Embedder-level
+  // behavior (Debugger.paused firing at the first user statement after
+  // SetBreakOnNextFunctionCall is armed) is covered downstream in
+  // denoland/deno's node_compat suite via --inspect-brk tests.
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate.set_break_on_next_function_call();
+  // Clearing without an attached debugger must be safe — the call is also
+  // used during teardown paths.
+  isolate.clear_break_on_next_function_call();
+}
+
+#[test]
 fn inspector_async_task_smoke() {
   // Smoke test: just call the new async-task / idle bindings to make sure
   // the C++ symbols link and the round-trip doesn't crash. Asserting that

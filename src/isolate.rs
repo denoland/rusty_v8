@@ -622,6 +622,8 @@ unsafe extern "C" {
   fn v8__Isolate__MemoryPressureNotification(this: *mut RealIsolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut RealIsolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut RealIsolate);
+  fn v8__debug__SetBreakOnNextFunctionCall(isolate: *mut RealIsolate);
+  fn v8__debug__ClearBreakOnNextFunctionCall(isolate: *mut RealIsolate);
   fn v8__Isolate__GetHeapStatistics(
     this: *mut RealIsolate,
     s: *mut v8__HeapStatistics,
@@ -1231,6 +1233,24 @@ impl Isolate {
   #[inline(always)]
   pub fn low_memory_notification(&mut self) {
     unsafe { v8__Isolate__LowMemoryNotification(self.as_real_ptr()) }
+  }
+
+  /// Schedule a debugger break to happen inside the next JavaScript
+  /// function call. Used by embedders to implement Node-style
+  /// `vm.Script({ breakOnFirstLine: true })` and `--inspect-brk`: arm
+  /// before invoking the script, then the inspector's `Debugger.paused`
+  /// fires at the first user-visible statement instead of any wrapper
+  /// frame around it.
+  #[inline(always)]
+  pub fn set_break_on_next_function_call(&mut self) {
+    unsafe { v8__debug__SetBreakOnNextFunctionCall(self.as_real_ptr()) }
+  }
+
+  /// Cancel a pending break scheduled by
+  /// [`Self::set_break_on_next_function_call`] if it hasn't fired yet.
+  #[inline(always)]
+  pub fn clear_break_on_next_function_call(&mut self) {
+    unsafe { v8__debug__ClearBreakOnNextFunctionCall(self.as_real_ptr()) }
   }
 
   /// Get statistics about the heap memory usage.
