@@ -3394,6 +3394,40 @@ void v8_inspector__V8Inspector__contextDestroyed(
   self->contextDestroyed(ptr_to_local(&context));
 }
 
+void v8_inspector__V8Inspector__idleStarted(v8_inspector::V8Inspector* self) {
+  self->idleStarted();
+}
+
+void v8_inspector__V8Inspector__idleFinished(v8_inspector::V8Inspector* self) {
+  self->idleFinished();
+}
+
+void v8_inspector__V8Inspector__asyncTaskScheduled(
+    v8_inspector::V8Inspector* self, v8_inspector::StringView task_name,
+    void* task, bool recurring) {
+  self->asyncTaskScheduled(task_name, task, recurring);
+}
+
+void v8_inspector__V8Inspector__asyncTaskCanceled(
+    v8_inspector::V8Inspector* self, void* task) {
+  self->asyncTaskCanceled(task);
+}
+
+void v8_inspector__V8Inspector__asyncTaskStarted(
+    v8_inspector::V8Inspector* self, void* task) {
+  self->asyncTaskStarted(task);
+}
+
+void v8_inspector__V8Inspector__asyncTaskFinished(
+    v8_inspector::V8Inspector* self, void* task) {
+  self->asyncTaskFinished(task);
+}
+
+void v8_inspector__V8Inspector__allAsyncTasksCanceled(
+    v8_inspector::V8Inspector* self) {
+  self->allAsyncTasksCanceled();
+}
+
 bool v8_inspector__V8InspectorSession__canDispatchMethod(
     v8_inspector::StringView method) {
   return v8_inspector::V8InspectorSession::canDispatchMethod(method);
@@ -3437,6 +3471,11 @@ void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     v8_inspector::V8InspectorSession* self, v8_inspector::StringView reason,
     v8_inspector::StringView detail) {
   self->schedulePauseOnNextStatement(reason, detail);
+}
+
+void v8_inspector__V8InspectorSession__cancelPauseOnNextStatement(
+    v8_inspector::V8InspectorSession* self) {
+  self->cancelPauseOnNextStatement();
 }
 }  // extern "C"
 

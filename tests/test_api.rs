@@ -7127,6 +7127,94 @@ fn inspector_schedule_pause_on_next_statement() {
 }
 
 #[test]
+fn inspector_cancel_pause_on_next_statement() {
+  // Schedule a pause, then cancel it before any JS runs — the inspector
+  // must not enter run_message_loop_on_pause for the next script.
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let channel = ChannelCounter::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
+
+  let message = String::from(r#"{"id":1,"method":"Debugger.enable"}"#);
+  let message = &message.into_bytes()[..];
+  let message = StringView::from(message);
+  session.dispatch_protocol_message(message);
+
+  let reason = b"";
+  let reason = StringView::from(&reason[..]);
+  let detail = b"";
+  let detail = StringView::from(&detail[..]);
+  session.schedule_pause_on_next_statement(reason, detail);
+  session.cancel_pause_on_next_statement();
+
+  let r = eval(scope, "1+2").unwrap();
+  assert!(r.is_number());
+
+  // Cancelled before any statement ran, so the debugger must not have
+  // entered the nested message loop.
+  let client_state = client.state.borrow();
+  assert_eq!(client_state.count_run_message_loop_on_pause, 0);
+  assert_eq!(client_state.count_quit_message_loop_on_pause, 0);
+}
+
+#[test]
+fn inspector_async_task_smoke() {
+  // Smoke test: just call the new async-task / idle bindings to make sure
+  // the C++ symbols link and the round-trip doesn't crash. Asserting that
+  // the resulting Debugger.paused payload carries an asyncStackTrace would
+  // require driving a full Debugger.enable +
+  // Debugger.setAsyncCallStackDepth flow; that lives in higher-level
+  // embedder tests (e.g. deno's node_compat suite).
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  let task_name = b"my task";
+  let task_name_view = StringView::from(&task_name[..]);
+  let task_id: i32 = 1;
+  let task_ptr = &task_id as *const i32 as *const std::ffi::c_void;
+
+  inspector.idle_started();
+  // SAFETY: task_id outlives the call sequence below; no other thread
+  // touches the inspector.
+  unsafe {
+    inspector.async_task_scheduled(task_name_view, task_ptr, false);
+    inspector.async_task_started(task_ptr);
+    inspector.async_task_finished(task_ptr);
+    inspector.async_task_canceled(task_ptr);
+  }
+  inspector.all_async_tasks_canceled();
+  inspector.idle_finished();
+}
+
+#[test]
 fn inspector_console_api_message() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
