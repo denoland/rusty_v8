@@ -85,6 +85,9 @@ unsafe extern "C" {
     break_reason: StringView,
     break_details: StringView,
   );
+  fn v8_inspector__V8InspectorSession__cancelPauseOnNextStatement(
+    session: *mut RawV8InspectorSession,
+  );
   fn v8_inspector__V8InspectorSession__canDispatchMethod(
     method: StringView,
   ) -> bool;
@@ -627,6 +630,16 @@ impl V8InspectorSession {
         self.raw.as_ptr(),
         reason,
         detail,
+      );
+    }
+  }
+
+  /// Cancel a pause previously scheduled by
+  /// [`Self::schedule_pause_on_next_statement`] if it hasn't fired yet.
+  pub fn cancel_pause_on_next_statement(&self) {
+    unsafe {
+      v8_inspector__V8InspectorSession__cancelPauseOnNextStatement(
+        self.raw.as_ptr(),
       );
     }
   }

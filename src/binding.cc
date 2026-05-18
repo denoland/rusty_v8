@@ -3417,31 +3417,6 @@ void v8_inspector__V8Inspector__allAsyncTasksCanceled(
   self->allAsyncTasksCanceled();
 }
 
-// Forward declarations from v8/src/debug/debug-interface.h. These functions
-// are marked V8_EXPORT_PRIVATE — they're not in the public include/ path but
-// they are exported from the V8 static archive that embedders link against,
-// and they're the official way for embedders (Node, Chromium) to implement
-// "break on next function call" / `vm.Script({ breakOnFirstLine: true })`.
-// Wrapped in `extern "C++"` because this whole region is inside an
-// `extern "C"` block — without this, the namespaced declarations would
-// inherit C linkage and the linker would look for unmangled symbols.
-extern "C++" {
-namespace v8 {
-namespace debug {
-V8_EXPORT_PRIVATE void SetBreakOnNextFunctionCall(v8::Isolate* isolate);
-V8_EXPORT_PRIVATE void ClearBreakOnNextFunctionCall(v8::Isolate* isolate);
-}  // namespace debug
-}  // namespace v8
-}  // extern "C++"
-
-void v8__debug__SetBreakOnNextFunctionCall(v8::Isolate* isolate) {
-  v8::debug::SetBreakOnNextFunctionCall(isolate);
-}
-
-void v8__debug__ClearBreakOnNextFunctionCall(v8::Isolate* isolate) {
-  v8::debug::ClearBreakOnNextFunctionCall(isolate);
-}
-
 bool v8_inspector__V8InspectorSession__canDispatchMethod(
     v8_inspector::StringView method) {
   return v8_inspector::V8InspectorSession::canDispatchMethod(method);
@@ -3485,6 +3460,11 @@ void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     v8_inspector::V8InspectorSession* self, v8_inspector::StringView reason,
     v8_inspector::StringView detail) {
   self->schedulePauseOnNextStatement(reason, detail);
+}
+
+void v8_inspector__V8InspectorSession__cancelPauseOnNextStatement(
+    v8_inspector::V8InspectorSession* self) {
+  self->cancelPauseOnNextStatement();
 }
 }  // extern "C"
 

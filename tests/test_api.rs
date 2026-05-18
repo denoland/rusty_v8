@@ -7079,18 +7079,57 @@ fn inspector_schedule_pause_on_next_statement() {
 }
 
 #[test]
-fn isolate_set_break_on_next_function_call_smoke() {
-  // Smoke test: confirms the v8::debug::SetBreakOnNextFunctionCall /
-  // ClearBreakOnNextFunctionCall shims link and round-trip. Embedder-level
-  // behavior (Debugger.paused firing at the first user statement after
-  // SetBreakOnNextFunctionCall is armed) is covered downstream in
-  // denoland/deno's node_compat suite via --inspect-brk tests.
+fn inspector_cancel_pause_on_next_statement() {
+  // Schedule a pause, then cancel it before any JS runs — the inspector
+  // must not enter run_message_loop_on_pause for the next script.
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
-  isolate.set_break_on_next_function_call();
-  // Clearing without an attached debugger must be safe — the call is also
-  // used during teardown paths.
-  isolate.clear_break_on_next_function_call();
+
+  use v8::inspector::*;
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let channel = ChannelCounter::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
+
+  let message = String::from(r#"{"id":1,"method":"Debugger.enable"}"#);
+  let message = &message.into_bytes()[..];
+  let message = StringView::from(message);
+  session.dispatch_protocol_message(message);
+
+  let reason = b"";
+  let reason = StringView::from(&reason[..]);
+  let detail = b"";
+  let detail = StringView::from(&detail[..]);
+  session.schedule_pause_on_next_statement(reason, detail);
+  session.cancel_pause_on_next_statement();
+
+  let r = eval(scope, "1+2").unwrap();
+  assert!(r.is_number());
+
+  // Cancelled before any statement ran, so the debugger must not have
+  // entered the nested message loop.
+  let client_state = client.state.borrow();
+  assert_eq!(client_state.count_run_message_loop_on_pause, 0);
+  assert_eq!(client_state.count_quit_message_loop_on_pause, 0);
 }
 
 #[test]
