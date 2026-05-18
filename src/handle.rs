@@ -12,6 +12,7 @@ use std::ptr::NonNull;
 use crate::Data;
 use crate::Isolate;
 use crate::IsolateHandle;
+use crate::isolate::IsolateLiveness;
 use crate::isolate::RealIsolate;
 use crate::scope::GetIsolate;
 use crate::scope::PinScope;
@@ -284,7 +285,7 @@ impl<'s, T> Local<'s, T> {
 #[derive(Debug)]
 pub struct Global<T> {
   data: NonNull<T>,
-  isolate_handle: IsolateHandle,
+  isolate_liveness: NonNull<IsolateLiveness>,
 }
 
 impl<T> Global<T> {
@@ -304,10 +305,10 @@ impl<T> Global<T> {
     unsafe {
       let data = v8__Global__New((*isolate).as_real_ptr(), data) as *const T;
       let data = NonNull::new_unchecked(data as *mut _);
-      let isolate_handle = (*isolate).thread_safe_handle();
+      let isolate_liveness = (*isolate).global_liveness();
       Self {
         data,
-        isolate_handle,
+        isolate_liveness,
       }
     }
   }
@@ -329,16 +330,23 @@ impl<T> Global<T> {
   /// original `Global`.
   #[inline(always)]
   pub unsafe fn from_raw(isolate: &mut Isolate, data: NonNull<T>) -> Self {
-    let isolate_handle = isolate.thread_safe_handle();
+    let isolate_liveness = isolate.global_liveness();
     Self {
       data,
-      isolate_handle,
+      isolate_liveness,
     }
   }
 
   #[inline(always)]
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::open(self, scope)
+  }
+
+  #[inline(always)]
+  fn get_handle_host(&self) -> HandleHost {
+    let isolate = unsafe { self.isolate_liveness.as_ref().get_isolate_ptr() };
+    NonNull::new(isolate)
+      .map_or(HandleHost::DisposedIsolate, HandleHost::Isolate)
   }
 }
 
@@ -353,7 +361,7 @@ impl<T> Clone for Global<T> {
 impl<T> Drop for Global<T> {
   fn drop(&mut self) {
     unsafe {
-      if self.isolate_handle.get_isolate_ptr().is_null() {
+      if self.isolate_liveness.as_ref().get_isolate_ptr().is_null() {
         // This `Global` handle is associated with an `Isolate` that has already
         // been disposed.
       } else {
@@ -448,14 +456,14 @@ impl<'a, 's: 'a, T> Handle for &'a Local<'s, T> {
 impl<T> Handle for Global<T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
-    HandleInfo::new(self.data, (&self.isolate_handle).into())
+    HandleInfo::new(self.data, self.get_handle_host())
   }
 }
 
 impl<T> Handle for &Global<T> {
   type Data = T;
   fn get_handle_info(&self) -> HandleInfo<T> {
-    HandleInfo::new(self.data, (&self.isolate_handle).into())
+    HandleInfo::new(self.data, self.get_handle_host())
   }
 }
 
@@ -507,7 +515,7 @@ impl<T: Hash> Hash for Local<'_, T> {
 impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     unsafe {
-      if self.isolate_handle.get_isolate_ptr().is_null() {
+      if self.isolate_liveness.as_ref().get_isolate_ptr().is_null() {
         panic!("can't hash Global after its host Isolate has been disposed");
       }
       self.data.as_ref().hash(state);
