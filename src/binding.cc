@@ -2494,6 +2494,17 @@ v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
   return self.GetIsolate();
 }
 
+function_callback_info_parts_t v8__FunctionCallbackInfo__GetParts(
+    const v8::FunctionCallbackInfo<v8::Value>& self) {
+  v8::ReturnValue<v8::Value> rv = self.GetReturnValue();
+  return {
+      self.GetIsolate(),
+      *reinterpret_cast<void**>(&rv),
+      local_to_ptr(self.Data()),
+      self.Length(),
+  };
+}
+
 const v8::Value* v8__FunctionCallbackInfo__Data(
     const v8::FunctionCallbackInfo<v8::Value>& self) {
   return local_to_ptr(self.Data());

@@ -3830,6 +3830,54 @@ fn function_builder_raw() {
 }
 
 #[test]
+fn function_callback_info_parts() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let recv: v8::Local<v8::Value> = global.into();
+
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let info = unsafe { &*info };
+      let parts = info.get_parts();
+      v8::callback_scope!(unsafe scope, &parts);
+      let args =
+        v8::FunctionCallbackArguments::from_function_callback_info_parts(
+          info, &parts,
+        );
+      assert_eq!(args.length(), 1);
+      assert!(args.data().is_true());
+      assert!(args.get(0).is_string());
+
+      let mut rv = parts.return_value;
+      rv.set(
+        v8::String::new(scope, "Hello from function parts!")
+          .unwrap()
+          .into(),
+      );
+    }
+
+    let data = v8::Boolean::new(scope, true).into();
+    let func = v8::Function::builder_raw(callback)
+      .data(data)
+      .build(scope)
+      .unwrap();
+
+    let arg0 = v8::String::new(scope, "Hello").unwrap();
+    let value = func.call(scope, recv, &[arg0.into()]).unwrap();
+    assert!(value.is_string());
+    assert_eq!(
+      value.to_rust_string_lossy(scope),
+      "Hello from function parts!"
+    );
+  }
+}
+
+#[test]
 fn return_value() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

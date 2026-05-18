@@ -803,12 +803,22 @@ pub struct Isolate(NonNull<RealIsolate>);
 pub struct UnsafeRawIsolatePtr(*mut RealIsolate);
 
 impl UnsafeRawIsolatePtr {
+  #[inline]
+  pub(crate) fn from_real_ptr(ptr: *mut RealIsolate) -> Self {
+    Self(ptr)
+  }
+
   pub fn null() -> Self {
     Self(std::ptr::null_mut())
   }
 
   pub fn is_null(&self) -> bool {
     self.0.is_null()
+  }
+
+  #[inline]
+  pub(crate) fn as_real_ptr(&self) -> *mut RealIsolate {
+    self.0
   }
 }
 
