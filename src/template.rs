@@ -880,7 +880,9 @@ impl FunctionTemplate {
   ) -> Local<'s, Data> {
     assert!(index < self.c_function_overload_count());
     unsafe {
-      scope.cast_local(|_sd| v8__FunctionTemplate__GetCFunctionOverload(self, index))
+      scope.cast_local(|_sd| {
+        v8__FunctionTemplate__GetCFunctionOverload(self, index)
+      })
     }
     .unwrap()
   }
