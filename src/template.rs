@@ -94,6 +94,13 @@ unsafe extern "C" {
   );
   fn v8__FunctionTemplate__ReadOnlyPrototype(this: *const FunctionTemplate);
   fn v8__FunctionTemplate__RemovePrototype(this: *const FunctionTemplate);
+  fn v8__FunctionTemplate__GetCFunctionOverloadCount(
+    this: *const FunctionTemplate,
+  ) -> u32;
+  fn v8__FunctionTemplate__GetCFunctionOverload(
+    this: *const FunctionTemplate,
+    index: u32,
+  ) -> *const Data;
 
   fn v8__ObjectTemplate__New(
     isolate: *mut RealIsolate,
@@ -837,6 +844,47 @@ impl FunctionTemplate {
   #[inline(always)]
   pub fn remove_prototype(&self) {
     unsafe { v8__FunctionTemplate__RemovePrototype(self) };
+  }
+
+  /// Returns the number of fast-call (C function) overloads attached to this
+  /// FunctionTemplate via [`FunctionBuilder::build_fast`].
+  ///
+  /// Each overload corresponds to one internal heap object that V8 tracks as
+  /// an isolate-level global handle. When creating a startup snapshot, these
+  /// handles must be registered with the [`SnapshotCreator`] (via
+  /// [`OwnedIsolate::add_isolate_data`]) so that the snapshot's
+  /// `CheckGlobalAndEternalHandles` pass succeeds. Iterate with
+  /// [`Self::get_c_function_overload`].
+  ///
+  /// [`SnapshotCreator`]: crate::SnapshotCreator
+  /// [`OwnedIsolate::add_isolate_data`]: crate::OwnedIsolate::add_isolate_data
+  #[inline(always)]
+  pub fn c_function_overload_count(&self) -> u32 {
+    unsafe { v8__FunctionTemplate__GetCFunctionOverloadCount(self) }
+  }
+
+  /// Returns the n-th fast-call overload as a [`Local<Data>`] suitable for
+  /// passing to [`OwnedIsolate::add_isolate_data`]. See
+  /// [`Self::c_function_overload_count`] for context.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `index` is out of bounds.
+  ///
+  /// [`OwnedIsolate::add_isolate_data`]: crate::OwnedIsolate::add_isolate_data
+  #[inline(always)]
+  pub fn get_c_function_overload<'s>(
+    &self,
+    scope: &PinScope<'s, '_, ()>,
+    index: u32,
+  ) -> Local<'s, Data> {
+    assert!(index < self.c_function_overload_count());
+    unsafe {
+      scope.cast_local(|_sd| {
+        v8__FunctionTemplate__GetCFunctionOverload(self, index)
+      })
+    }
+    .unwrap()
   }
 
   /// Sets an [accessor property](https://tc39.es/ecma262/#sec-property-attributes)

@@ -22,8 +22,10 @@
 #include "v8-platform.h"
 #include "v8-profiler.h"
 #include "v8.h"
+#include "v8/src/api/api-inl.h"
 #include "v8/src/flags/flags.h"
 #include "v8/src/libplatform/default-platform.h"
+#include "v8/src/objects/templates-inl.h"
 
 using namespace support;
 
@@ -2487,6 +2489,36 @@ const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
 const v8::ObjectTemplate* v8__FunctionTemplate__InstanceTemplate(
     const v8::FunctionTemplate& self) {
   return local_to_ptr(ptr_to_local(&self)->InstanceTemplate());
+}
+
+// Returns the number of fast-call (C function) overloads attached to this
+// FunctionTemplate. Each overload corresponds to one
+// `Managed<CFunctionWithSignature>` heap object that V8 creates internally
+// when `SetCallHandler` is called with `c_function_overloads`. Embedders need
+// the count so they can iterate and register the overloads with the
+// SnapshotCreator (via `AddData`), otherwise the per-Managed weak global
+// handles trip `CheckGlobalAndEternalHandles` during snapshot creation.
+uint32_t v8__FunctionTemplate__GetCFunctionOverloadCount(
+    const v8::FunctionTemplate& self) {
+  auto info = v8::Utils::OpenDirectHandle(&self);
+  return v8::internal::Cast<v8::internal::FixedArray>(
+             info->GetCFunctionOverloads())
+      ->ulength()
+      .value();
+}
+
+// Returns the n-th fast-call overload as a `Local<Data>` so it can be passed
+// to `SnapshotCreator::AddData`. The returned handle wraps the internal
+// `Managed<CFunctionWithSignature>` object.
+const v8::Data* v8__FunctionTemplate__GetCFunctionOverload(
+    const v8::FunctionTemplate& self, uint32_t index) {
+  namespace i = v8::internal;
+  auto info = v8::Utils::OpenDirectHandle(&self);
+  i::Isolate* i_isolate = i::Isolate::Current();
+  i::Tagged<i::Object> overload =
+      i::Cast<i::FixedArray>(info->GetCFunctionOverloads())->get(index);
+  return local_to_ptr(
+      v8::Utils::ToLocal(i::direct_handle(overload, i_isolate)));
 }
 
 v8::Isolate* v8__FunctionCallbackInfo__GetIsolate(
