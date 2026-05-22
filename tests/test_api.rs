@@ -11066,7 +11066,11 @@ fn isolate_slot_drop_can_access_annex_during_teardown() {
     fn drop(&mut self) {
       let isolate =
         unsafe { v8::Isolate::ref_from_raw_isolate_ptr(&self.isolate) };
-      drop(isolate.thread_safe_handle());
+      let handle = isolate.thread_safe_handle();
+      assert!(
+        !handle.cancel_terminate_execution(),
+        "slot Drop should observe a disposed IsolateHandle"
+      );
     }
   }
 

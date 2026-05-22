@@ -1010,6 +1010,12 @@ impl Isolate {
     self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
+  /// Prepare annex teardown while keeping `ANNEX_SLOT` pointing at the annex.
+  ///
+  /// The returned pointer must be passed exactly once to
+  /// `finish_annex_dispose`. Until then, callers may only derive temporary
+  /// mutable references from that pointer and must not let them overlap,
+  /// because `ANNEX_SLOT` still points at the same allocation.
   unsafe fn prepare_annex_for_dispose(
     &mut self,
   ) -> (*mut IsolateAnnex, Box<dyn Any>) {
@@ -1052,10 +1058,11 @@ impl Isolate {
       unsafe { self.prepare_annex_for_dispose() };
     let annex = unsafe { &mut *annex_ptr };
     Self::run_remaining_guaranteed_finalizers(annex);
-    // SAFETY: `dispose_annex()` is only called once.
+    // SAFETY: `create_blob` is the only caller. It consumes the isolate and
+    // takes `ANNEX_SLOT` here, so the annex is dropped exactly once.
     let taken_annex =
       self.take_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
-    assert_eq!(taken_annex, annex_ptr);
+    debug_assert_eq!(taken_annex, annex_ptr);
     unsafe { drop(Box::from_raw(annex_ptr)) };
     create_param_allocations
   }
@@ -2107,8 +2114,8 @@ impl IsolateHandle {
   // TODO: have this return an `Option<NonNull<RealIsolate>>`
   pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut RealIsolate {
     // SAFETY: this function must only be called from the main thread of the
-    // isolate, which means that `Isolate::dispose_annex` can't concurrently
-    // be setting this to null.
+    // isolate. On that thread, the caller cannot race with teardown code that
+    // sets this pointer to null.
     unsafe { *self.0.isolate.get() }
   }
 
@@ -2237,6 +2244,8 @@ impl Drop for OwnedIsolate {
       Isolate::run_remaining_guaranteed_finalizers(annex);
       Platform::notify_isolate_shutdown(&get_current_platform(), self);
       self.dispose();
+      // ANNEX_SLOT still points at annex_ptr, but V8 has disposed the isolate
+      // so the embedder slot storage is no longer reachable.
       Isolate::finish_annex_dispose(annex_ptr);
     }
   }
