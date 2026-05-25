@@ -1010,27 +1010,119 @@ impl Isolate {
     self.set_data_internal(Self::ANNEX_SLOT, annex_ptr as *mut _);
   }
 
-  unsafe fn dispose_annex(&mut self) -> Box<dyn Any> {
-    // SAFETY: `dispose_annex()` is only called once, when the `Isolate` is dropped.
-    let mut annex = unsafe { self.take_annex() };
+  /// Prepare annex teardown while keeping `ANNEX_SLOT` pointing at the annex.
+  ///
+  /// Nulls the `IsolateHandle`'s inner pointer, reclaims
+  /// `create_param_allocations`, and drops the slot storage. The annex
+  /// allocation itself stays alive and `ANNEX_SLOT` keeps pointing at it,
+  /// so code that runs during the subsequent V8 teardown GC (weak
+  /// callbacks, guaranteed finalizers, embedder slot drops) can still
+  /// resolve the annex through `get_annex()` / `get_annex_mut()`.
+  ///
+  /// The returned pointer must be passed exactly once to
+  /// [`Self::finish_annex_dispose`] (or, on the snapshot path, dropped by
+  /// [`Self::dispose_annex`]).
+  ///
+  /// # Safety
+  ///
+  /// Called once per isolate, from teardown paths only.
+  unsafe fn prepare_annex_for_dispose(
+    &mut self,
+  ) -> (*mut IsolateAnnex, Box<dyn Any>) {
+    let annex_ptr =
+      self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    assert!(!annex_ptr.is_null());
 
-    // Set the `isolate` pointer inside the annex struct to null, so any
-    // IsolateHandle that outlives the isolate will know that it can't call
-    // methods on the isolate.
-    annex.global_liveness().dispose();
-    annex.isolate_handle.dispose();
+    // Each step below operates through the raw pointer rather than a
+    // long-lived `&mut IsolateAnnex`. The borrows we form here are
+    // narrowly-scoped expressions that end before any user-controlled
+    // Drop runs. This matters because slot Drops, weak callbacks, and
+    // guaranteed finalizers may re-enter the isolate (e.g. via
+    // `Isolate::thread_safe_handle()`) and resolve the annex through
+    // `get_annex()`. An outer `&mut IsolateAnnex` held across that
+    // re-entry would alias the shared borrow they obtain.
 
-    // Clear slots and drop owned objects that were taken out of `CreateParams`.
-    let create_param_allocations = annex.create_param_allocations;
-    annex.slots.clear();
+    // SAFETY: `annex_ptr` is non-null and points at a live `IsolateAnnex`
+    // (ANNEX_SLOT is only cleared by code further down this teardown
+    // path).
+    unsafe {
+      // Null the `IsolateHandle` so handles outliving the isolate see a
+      // disposed state.
+      (*annex_ptr).global_liveness().dispose();
+      (*annex_ptr).isolate_handle.dispose();
+    }
 
-    // Run through any remaining guaranteed finalizers.
-    for finalizer in annex.finalizer_map.drain() {
+    // Reclaim `create_param_allocations` so the caller can keep it alive
+    // for as long as V8 needs (during snapshot blob creation, V8 reads
+    // external references out of it).
+    let create_param_allocations =
+      unsafe { (*annex_ptr).create_param_allocations.take().unwrap() };
+
+    // Move slots out before dropping them. A user Drop may re-enter the
+    // annex; holding `&mut (*annex_ptr).slots` across that would alias
+    // any `&IsolateAnnex` the re-entry obtains.
+    let slots = unsafe { std::mem::take(&mut (*annex_ptr).slots) };
+    drop(slots);
+
+    (annex_ptr, create_param_allocations)
+  }
+
+  /// Drain `finalizer_map` and invoke any guaranteed finalizers.
+  ///
+  /// New finalizers registered by the running callbacks land in the
+  /// annex's now-empty `finalizer_map` and will be picked up by the next
+  /// call (currently the second drain in [`OwnedIsolate::drop`] after V8
+  /// finishes its teardown GC).
+  ///
+  /// # Safety
+  ///
+  /// `annex_ptr` must point at a live `IsolateAnnex` with `ANNEX_SLOT`
+  /// still referencing it, so re-entrant callbacks resolve the annex
+  /// through normal accessors.
+  unsafe fn run_remaining_guaranteed_finalizers(annex_ptr: *mut IsolateAnnex) {
+    // Take the map out under a narrow borrow so the for-loop below
+    // borrows a local instead of `(*annex_ptr).finalizer_map`. Callbacks
+    // re-entering the annex via `get_annex_mut()` would otherwise alias
+    // an in-flight `&mut`.
+    let mut map = unsafe { std::mem::take(&mut (*annex_ptr).finalizer_map) };
+    for finalizer in map.drain() {
       if let FinalizerCallback::Guaranteed(callback) = finalizer {
         callback();
       }
     }
+  }
 
+  /// Free the annex allocation after V8's final teardown.
+  ///
+  /// Drains any guaranteed finalizers V8's teardown GC may have
+  /// registered, then drops the annex box. `ANNEX_SLOT` is not cleared
+  /// because the isolate is gone — its embedder data storage no longer
+  /// exists.
+  ///
+  /// # Safety
+  ///
+  /// `annex_ptr` must be the pointer returned from a matching
+  /// [`Self::prepare_annex_for_dispose`] call, and the V8 isolate must
+  /// already be fully disposed (so no further callbacks can fire).
+  unsafe fn finish_annex_dispose(annex_ptr: *mut IsolateAnnex) {
+    unsafe { Self::run_remaining_guaranteed_finalizers(annex_ptr) };
+    unsafe { drop(Box::from_raw(annex_ptr)) };
+  }
+
+  /// Snapshot-path teardown.
+  ///
+  /// Used by [`OwnedIsolate::create_blob`], which consumes the isolate
+  /// before V8 has run its final dispose. Cleans up the annex synchronously
+  /// (no weak-callback re-entry to worry about here) and nulls `ANNEX_SLOT`
+  /// so the snapshot creator's later isolate-dispose sees a clean slot.
+  unsafe fn dispose_annex(&mut self) -> Box<dyn Any> {
+    let (annex_ptr, create_param_allocations) =
+      unsafe { self.prepare_annex_for_dispose() };
+    unsafe { Self::run_remaining_guaranteed_finalizers(annex_ptr) };
+    let taken_annex =
+      self.take_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
+    debug_assert_eq!(taken_annex, annex_ptr);
+    unsafe { drop(Box::from_raw(annex_ptr)) };
     create_param_allocations
   }
 
@@ -1048,15 +1140,6 @@ impl Isolate {
       self.get_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
     assert!(!annex_ptr.is_null());
     unsafe { &mut *annex_ptr }
-  }
-
-  /// # Safety
-  /// This must only be called once.
-  #[inline(always)]
-  unsafe fn take_annex(&mut self) -> Box<IsolateAnnex> {
-    let annex_ptr =
-      self.take_data_internal(Self::ANNEX_SLOT) as *mut IsolateAnnex;
-    unsafe { Box::from_raw(annex_ptr) }
   }
 
   /// Returns a non-null pointer to the isolate's annex data.
@@ -1916,7 +1999,12 @@ impl Isolate {
 }
 
 pub(crate) struct IsolateAnnex {
-  create_param_allocations: Box<dyn Any>,
+  // Wrapped in `Option` so teardown can `take()` it through a `&mut
+  // IsolateAnnex` without having to move ownership of the whole annex out
+  // of `ANNEX_SLOT`. Only `prepare_annex_for_dispose` consumes it; that
+  // function runs at most once per annex, so the `unwrap()` there can
+  // never observe a `None`.
+  create_param_allocations: Option<Box<dyn Any>>,
   slots: HashMap<TypeId, RawSlot, BuildTypeIdHasher>,
   finalizer_map: FinalizerMap,
   maybe_snapshot_creator: Option<SnapshotCreator>,
@@ -1931,7 +2019,7 @@ impl IsolateAnnex {
     // pointer without retaining an Arc per Global.
     let global_liveness = Box::leak(Box::new(IsolateLiveness::new(isolate)));
     Self {
-      create_param_allocations,
+      create_param_allocations: Some(create_param_allocations),
       slots: HashMap::default(),
       finalizer_map: FinalizerMap::default(),
       maybe_snapshot_creator: None,
@@ -2060,7 +2148,7 @@ impl IsolateHandle {
   }
 
   /// Set the inner isolate pointer to null.
-  fn dispose(self) {
+  fn dispose(&self) {
     let _lock = self.0.isolate_mutex.lock().unwrap();
     // SAFETY: mutex lock is held
     unsafe { *self.0.isolate.get() = null_mut() }
@@ -2090,8 +2178,8 @@ impl IsolateHandle {
   // TODO: have this return an `Option<NonNull<RealIsolate>>`
   pub(crate) unsafe fn get_isolate_ptr(&self) -> *mut RealIsolate {
     // SAFETY: this function must only be called from the main thread of the
-    // isolate, which means that `Isolate::dispose_annex` can't concurrently
-    // be setting this to null.
+    // isolate. On that thread, the caller cannot race with teardown code that
+    // sets this pointer to null.
     unsafe { *self.0.isolate.get() }
   }
 
@@ -2214,9 +2302,23 @@ impl Drop for OwnedIsolate {
       );
       // self.dispose_scope_root();
       self.exit();
-      self.dispose_annex();
+      let (annex_ptr, _create_param_allocations) =
+        self.prepare_annex_for_dispose();
+      // Drain finalizers registered up to this point, before V8's final
+      // teardown GC has a chance to fire weak callbacks that need the
+      // annex.
+      Isolate::run_remaining_guaranteed_finalizers(annex_ptr);
       Platform::notify_isolate_shutdown(&get_current_platform(), self);
+      // V8's final teardown runs here. `ANNEX_SLOT` still references the
+      // (drained) annex, so any re-entrant access from weak callbacks or
+      // embedder code resolves normally instead of panicking on a null
+      // slot.
       self.dispose();
+      // Drain finalizers V8 may have registered during teardown, then free
+      // the annex allocation. V8 has fully disposed the isolate, so its
+      // embedder data storage no longer exists and `ANNEX_SLOT` needs no
+      // explicit clearing.
+      Isolate::finish_annex_dispose(annex_ptr);
     }
   }
 }
