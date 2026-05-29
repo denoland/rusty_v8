@@ -2951,6 +2951,56 @@ fn object_template_set_indexed_property_handler() {
 }
 
 #[test]
+fn indexed_property_handler_non_masking() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let getter = |scope: &mut v8::PinScope,
+                index: u32,
+                _args: v8::PropertyCallbackArguments,
+                mut rv: v8::ReturnValue<v8::Value>| {
+    let value = v8::Integer::new(scope, (index as i32) * 100);
+    rv.set(value.into());
+    v8::Intercepted::kYes
+  };
+
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new()
+      .getter(getter)
+      .flags(v8::PropertyHandlerFlags::NON_MASKING),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  let name = v8::String::new(scope, "obj").unwrap();
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+
+  // Without a real element, the interceptor handles the access.
+  let val = eval(scope, "obj[5]").unwrap();
+  assert!(val.is_int32());
+  assert_eq!(val.int32_value(scope).unwrap(), 500);
+
+  // Store a real indexed element on the instance.
+  let real_value = v8::Integer::new(scope, 7);
+  obj.set_index(scope, 5, real_value.into());
+
+  // With NON_MASKING, the real element takes priority over the interceptor.
+  let val = eval(scope, "obj[5]").unwrap();
+  assert_eq!(val.int32_value(scope).unwrap(), 7);
+
+  // Other indices still fall through to the interceptor.
+  let val = eval(scope, "obj[3]").unwrap();
+  assert_eq!(val.int32_value(scope).unwrap(), 300);
+}
+
+#[test]
 fn object() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

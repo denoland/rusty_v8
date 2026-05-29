@@ -149,6 +149,7 @@ unsafe extern "C" {
     definer: Option<IndexedPropertyDefinerCallback>,
     descriptor: Option<IndexedPropertyDescriptorCallback>,
     data_or_null: *const Value,
+    flags: PropertyHandlerFlags,
   );
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
@@ -1006,6 +1007,7 @@ impl ObjectTemplate {
         configuration.definer,
         configuration.descriptor,
         configuration.data.map_or_else(null, |p| &*p),
+        configuration.flags,
       );
     }
   }
