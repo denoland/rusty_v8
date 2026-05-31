@@ -13,7 +13,9 @@
 #include "cppgc/platform.h"
 #include "libplatform/libplatform.h"
 #include "support.h"
+#ifdef RUSTY_V8_ENABLE_I18N
 #include "unicode/locid.h"
+#endif
 #include "v8-callbacks.h"
 #include "v8-cppgc.h"
 #include "v8-fast-api-calls.h"
@@ -4271,6 +4273,8 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 
 extern "C" {
 
+#ifdef RUSTY_V8_ENABLE_I18N
+
 size_t icu_get_default_locale(char* output, size_t output_len) {
   const icu_77::Locale& default_locale = icu::Locale::getDefault();
   icu_77::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
@@ -4285,6 +4289,27 @@ void icu_set_default_locale(const char* locale) {
   UErrorCode status = U_ZERO_ERROR;
   icu::Locale::setDefault(icu::Locale(locale), status);
 }
+
+#else  // RUSTY_V8_ENABLE_I18N
+
+// When V8 is built without i18n/ICU support these symbols still need to exist
+// so consumers of the crate keep linking. Report a fixed BCP47 language tag and
+// ignore attempts to change the default locale.
+size_t icu_get_default_locale(char* output, size_t output_len) {
+  static const char kDefaultLocale[] = "en-US";
+  size_t len = sizeof(kDefaultLocale) - 1;
+  if (len > output_len) {
+    len = output_len;
+  }
+  for (size_t i = 0; i < len; i++) {
+    output[i] = kDefaultLocale[i];
+  }
+  return len;
+}
+
+void icu_set_default_locale(const char*) {}
+
+#endif  // RUSTY_V8_ENABLE_I18N
 
 }  // extern "C"
 

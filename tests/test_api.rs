@@ -46,6 +46,7 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
+      #[cfg(not(feature = "no_icu"))]
       assert!(v8::icu::set_common_data_77(align_data::include_aligned!(
         align_data::Align16,
         "../third_party/icu/common/icudtl.dat"
@@ -9781,6 +9782,7 @@ fn prepare_stack_trace_callback() {
   }
 }
 
+#[cfg(not(feature = "no_icu"))]
 #[test]
 fn icu_date() {
   let _setup_guard = setup::parallel_test();
@@ -9805,6 +9807,7 @@ fn icu_date() {
   }
 }
 
+#[cfg(not(feature = "no_icu"))]
 #[test]
 fn icu_set_common_data_fail() {
   assert!(
@@ -9812,6 +9815,7 @@ fn icu_set_common_data_fail() {
   );
 }
 
+#[cfg(not(feature = "no_icu"))]
 #[test]
 fn icu_format() {
   let _setup_guard = setup::parallel_test();
@@ -9833,6 +9837,7 @@ fn icu_format() {
   }
 }
 
+#[cfg(not(feature = "no_icu"))]
 #[test]
 fn icu_collator() {
   let _setup_guard = setup::parallel_test();

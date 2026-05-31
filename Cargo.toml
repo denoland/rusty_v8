@@ -104,6 +104,11 @@ opt-level = 1
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
 simdutf = []
+# Opt-out feature that builds V8 without i18n/ICU support. Enabling it drops the
+# embedded ICU data (~10MB) and the `Intl` API from the resulting static
+# library. It is modelled as an opt-out so that existing consumers (including
+# those that set `default-features = false`) keep ICU without any changes.
+no_icu = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []
