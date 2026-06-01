@@ -80,7 +80,14 @@ default_args = {
 
   v8_depend_on_icu_data_file = false
   icu_copy_icudata_to_root_build_dir = false
-  icu_use_data_file = false
+
+  # Keep ICU data OUT of the V8 static library. With `icu_use_data_file = true`
+  # (ICU's default) the data is not embedded as the `icudt*_dat` symbol; the
+  # embedder must supply it at runtime via `v8::icu::set_common_data` (or by
+  # loading `icudtl.dat`). This keeps ICU data a separate, swappable artifact so
+  # downstreams can ship full-icu, small-icu, or no data at all. Do not set this
+  # to `false` (which bundles the ~10MB blob into libv8) on a V8 bump.
+  icu_use_data_file = true
 
   # TODO: third_party/compiler-rt missing?
   use_llvm_libatomic = false
