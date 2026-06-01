@@ -78,9 +78,6 @@ default_args = {
 
   use_relative_vtables_abi = false
 
-  v8_depend_on_icu_data_file = false
-  icu_copy_icudata_to_root_build_dir = false
-
   # Keep ICU data OUT of the V8 static library. With `icu_use_data_file = true`
   # (ICU's default) the data is not embedded as the `icudt*_dat` symbol; the
   # embedder must supply it at runtime via `v8::icu::set_common_data` (or by
@@ -88,6 +85,16 @@ default_args = {
   # downstreams can ship full-icu, small-icu, or no data at all. Do not set this
   # to `false` (which bundles the ~10MB blob into libv8) on a V8 bump.
   icu_use_data_file = true
+
+  # `mksnapshot` initializes ICU at build time (to snapshot Intl/Temporal), so
+  # it needs `icudtl.dat` present even though the data is not embedded. These
+  # two must stay aligned with `icu_use_data_file`: `copy_icudata` drops the
+  # file into `root_out_dir` and `mksnapshot` takes an explicit dependency on
+  # it. The copied file is a build-time artifact only; it is NOT linked into
+  # the resulting static library. Forcing either to `false` makes mksnapshot
+  # fail with "Failed to initialize ICU".
+  v8_depend_on_icu_data_file = true
+  icu_copy_icudata_to_root_build_dir = true
 
   # TODO: third_party/compiler-rt missing?
   use_llvm_libatomic = false
