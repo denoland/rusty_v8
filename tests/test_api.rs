@@ -10638,6 +10638,7 @@ fn instance_of() {
   assert!(array.instance_of(&scope, array_constructor).unwrap());
 }
 
+#[cfg(not(feature = "no_icu"))]
 #[test]
 fn get_default_locale() {
   v8::icu::set_default_locale("nb_NO");
