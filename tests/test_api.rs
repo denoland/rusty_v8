@@ -10458,7 +10458,11 @@ fn icu_set_common_data_fail() {
 
 #[test]
 fn icu_default_time_zone() {
-  let _setup_guard = setup::parallel_test();
+  // Mutates the process-wide ICU default time zone, which also affects how
+  // other tests' `Date`s render, so take the exclusive lock.
+  let _setup_guard = setup::sequential_test();
+  let original = v8::icu::get_default_time_zone();
+
   v8::icu::set_default_time_zone("America/New_York");
   assert_eq!(v8::icu::get_default_time_zone(), "America/New_York");
 
@@ -10477,8 +10481,8 @@ fn icu_default_time_zone() {
     assert_eq!(value.number_value(scope).unwrap(), 3.0);
   }
 
-  // Restore the default so other tests aren't affected by ordering.
-  v8::icu::set_default_time_zone("UTC");
+  // Restore the original default so test ordering doesn't matter.
+  v8::icu::set_default_time_zone(&original);
 }
 
 #[test]
