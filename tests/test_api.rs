@@ -9813,6 +9813,31 @@ fn icu_set_common_data_fail() {
 }
 
 #[test]
+fn icu_default_time_zone() {
+  let _setup_guard = setup::parallel_test();
+  v8::icu::set_default_time_zone("America/New_York");
+  assert_eq!(v8::icu::get_default_time_zone(), "America/New_York");
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  isolate
+    .date_time_configuration_change_notification(v8::TimeZoneDetection::Skip);
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    // 2020-06-26T07:00:00Z is 03:00 in America/New_York (EDT, UTC-4).
+    let source = r#"
+      new Date(Date.UTC(2020, 5, 26, 7, 0, 0)).getHours();
+    "#;
+    let value = eval(scope, source).unwrap();
+    assert_eq!(value.number_value(scope).unwrap(), 3.0);
+  }
+
+  // Restore the default so other tests aren't affected by ordering.
+  v8::icu::set_default_time_zone("UTC");
+}
+
+#[test]
 fn icu_format() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

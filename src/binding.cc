@@ -14,6 +14,8 @@
 #include "libplatform/libplatform.h"
 #include "support.h"
 #include "unicode/locid.h"
+#include "unicode/timezone.h"
+#include "unicode/unistr.h"
 #include "v8-callbacks.h"
 #include "v8-cppgc.h"
 #include "v8-fast-api-calls.h"
@@ -4284,6 +4286,24 @@ size_t icu_get_default_locale(char* output, size_t output_len) {
 void icu_set_default_locale(const char* locale) {
   UErrorCode status = U_ZERO_ERROR;
   icu::Locale::setDefault(icu::Locale(locale), status);
+}
+
+size_t icu_get_default_timezone(char* output, size_t output_len) {
+  icu::UnicodeString id;
+  std::unique_ptr<icu::TimeZone> tz(icu::TimeZone::createDefault());
+  tz->getID(id);
+  icu_77::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
+  id.toUTF8(sink);
+  assert(!sink.Overflowed());
+  return sink.NumberOfBytesAppended();
+}
+
+void icu_set_default_timezone(const char* timezone) {
+  // Takes ownership of the created TimeZone and installs it as the process
+  // wide default, so ICU (and therefore V8's Date implementation) resolves
+  // the given IANA id regardless of how the host reports its time zone.
+  icu::TimeZone::adoptDefault(
+      icu::TimeZone::createTimeZone(icu::UnicodeString::fromUTF8(timezone)));
 }
 
 }  // extern "C"
