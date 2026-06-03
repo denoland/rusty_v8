@@ -623,6 +623,14 @@ unsafe extern "C" {
   fn v8__Isolate__MemoryPressureNotification(this: *mut RealIsolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut RealIsolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut RealIsolate);
+  fn v8__Isolate__SetIdle(isolate: *mut RealIsolate, is_idle: bool);
+  fn v8__CpuProfiler__CollectSample(
+    isolate: *mut RealIsolate,
+    trace_id: *const u64,
+  );
+  fn v8__CpuProfiler__UseDetailedSourcePositionsForProfiling(
+    isolate: *mut RealIsolate,
+  );
   fn v8__Isolate__GetHeapStatistics(
     this: *mut RealIsolate,
     s: *mut v8__HeapStatistics,
@@ -1331,6 +1339,49 @@ impl Isolate {
   #[inline(always)]
   pub fn low_memory_notification(&mut self) {
     unsafe { v8__Isolate__LowMemoryNotification(self.as_real_ptr()) }
+  }
+
+  /// Tells the VM whether the embedder is currently idle or not.
+  ///
+  /// This is consulted by V8's CPU profiler: samples taken while the embedder
+  /// is idle (for instance, blocked waiting for I/O in the event loop) are
+  /// attributed to the "(idle)" node instead of being counted as running code.
+  /// Embedders that don't call this end up reporting ~100% CPU usage in tools
+  /// like Chrome DevTools even when the program is doing nothing.
+  ///
+  /// Must be called on the isolate's own thread while no JavaScript is
+  /// executing (e.g. right before parking the event loop, and again with
+  /// `false` once it resumes).
+  #[inline(always)]
+  pub fn set_idle(&mut self, is_idle: bool) {
+    unsafe { v8__Isolate__SetIdle(self.as_real_ptr(), is_idle) }
+  }
+
+  /// Synchronously collect a CPU profiling sample in all CPU profilers
+  /// attached to this isolate. This does not affect the number of ticks
+  /// recorded for the current top node.
+  ///
+  /// When `trace_id` is `Some`, the sample is tagged with that identifier,
+  /// which is useful to associate the sample with a trace event.
+  #[inline(always)]
+  pub fn collect_cpu_profiler_sample(&mut self, trace_id: Option<u64>) {
+    let trace_id_ptr = match &trace_id {
+      Some(id) => id as *const u64,
+      None => std::ptr::null(),
+    };
+    unsafe { v8__CpuProfiler__CollectSample(self.as_real_ptr(), trace_id_ptr) }
+  }
+
+  /// Generate more detailed source positions for code objects. This results in
+  /// better accuracy when mapping CPU profiling samples back to script source,
+  /// at the cost of some additional memory and CPU overhead.
+  #[inline(always)]
+  pub fn use_detailed_source_positions_for_profiling(&mut self) {
+    unsafe {
+      v8__CpuProfiler__UseDetailedSourcePositionsForProfiling(
+        self.as_real_ptr(),
+      )
+    }
   }
 
   /// Get statistics about the heap memory usage.
