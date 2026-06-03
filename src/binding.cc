@@ -189,6 +189,10 @@ void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
   isolate->LowMemoryNotification();
 }
 
+void v8__Isolate__SetIdle(v8::Isolate* isolate, bool is_idle) {
+  isolate->SetIdle(is_idle);
+}
+
 void v8__Isolate__GetHeapStatistics(v8::Isolate* isolate,
                                     v8::HeapStatistics* s) {
   isolate->GetHeapStatistics(s);
@@ -3874,6 +3878,20 @@ void v8__HeapProfiler__TakeHeapSnapshot(v8::Isolate* isolate,
   // in node-heapdump for the last 8 years and I think there is a pretty
   // good chance it'll keep working for 8 more.
   const_cast<v8::HeapSnapshot*>(snapshot)->Delete();
+}
+
+void v8__CpuProfiler__CollectSample(v8::Isolate* isolate,
+                                    const uint64_t* trace_id) {
+  if (trace_id == nullptr) {
+    v8::CpuProfiler::CollectSample(isolate);
+  } else {
+    v8::CpuProfiler::CollectSample(isolate, *trace_id);
+  }
+}
+
+void v8__CpuProfiler__UseDetailedSourcePositionsForProfiling(
+    v8::Isolate* isolate) {
+  v8::CpuProfiler::UseDetailedSourcePositionsForProfiling(isolate);
 }
 
 }  // extern "C"

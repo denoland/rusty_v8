@@ -8097,6 +8097,42 @@ fn low_memory_notification() {
   isolate.low_memory_notification();
 }
 
+#[test]
+fn set_idle() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  // Toggling the idle state must not affect the ability to run code.
+  isolate.set_idle(true);
+  isolate.set_idle(false);
+
+  v8::scope!(let scope, &mut isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let value = eval(scope, "1 + 1").unwrap();
+  assert_eq!(value.uint32_value(scope).unwrap(), 2);
+}
+
+#[test]
+fn cpu_profiler_bindings() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.use_detailed_source_positions_for_profiling();
+
+  v8::scope!(let scope, &mut isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Collecting a sample without any profiler attached is a no-op but must be
+  // safe to call, both with and without a trace id.
+  scope.collect_cpu_profiler_sample(None);
+  scope.collect_cpu_profiler_sample(Some(42));
+
+  let value = eval(scope, "1 + 1").unwrap();
+  assert_eq!(value.uint32_value(scope).unwrap(), 2);
+}
+
 // Clippy thinks the return value doesn't need to be an Option, it's unaware
 // of the mapping that MapFnFrom<F> does for ResolveModuleCallback.
 #[allow(clippy::unnecessary_wraps)]
