@@ -4703,6 +4703,17 @@ fn security_token() {
     let global = v8::Local::new(scope, global);
     templ.set_named_property_handler(
       v8::NamedPropertyHandlerConfiguration::new()
+        // NON_MASKING so the interceptor only fires for properties that are
+        // absent on the global (here just `variable`). Without it the handler
+        // would also intercept lookups of built-in globals, including those
+        // V8 performs while bootstrapping the context: since V8 15 shipped
+        // `Atomics.pause`, `Genesis::InitializeGlobal_js_atomics_pause` does a
+        // `GetProperty(global, "Atomics")` during context creation. A masking
+        // handler answers that with the *parent's* `Atomics` (which already
+        // has `pause`), so V8 reinstalls `pause` and aborts with a duplicate
+        // descriptor CHECK. NON_MASKING skips already-present properties and
+        // avoids the collision while preserving what this test exercises.
+        .flags(v8::PropertyHandlerFlags::NON_MASKING)
         .getter(
           |scope: &mut v8::PinScope,
            key: v8::Local<v8::Name>,
