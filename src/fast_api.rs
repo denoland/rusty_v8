@@ -11,7 +11,35 @@ use std::ptr::NonNull;
 pub struct CFunction(v8__CFunction);
 
 impl CFunction {
-  pub const fn new(address: *const c_void, type_info: &CFunctionInfo) -> Self {
+  /// Construct a `CFunction` from a function address and its type info.
+  ///
+  /// `type_info` is borrowed for `'static` because the resulting `CFunction`
+  /// stores the raw `v8::CFunctionInfo*` pointer and, once handed to V8 via
+  /// [`FunctionBuilder::build_fast`], that pointer is retained for the
+  /// lifetime of the `FunctionTemplate` (and copied into each fast-call
+  /// dispatch site). Anything other than `'static` storage for the type info
+  /// would let the pointer dangle.
+  ///
+  /// In practice this is achieved by constructing the `CFunctionInfo` inside
+  /// a `const` initializer (where reference-to-temporary rvalues are promoted
+  /// to `'static`), exactly as the existing test/bench patterns do:
+  ///
+  /// ```ignore
+  /// const FAST_CALL: v8::fast_api::CFunction = v8::fast_api::CFunction::new(
+  ///   my_fast_fn as _,
+  ///   &v8::fast_api::CFunctionInfo::new(
+  ///     v8::fast_api::Type::Void.as_info(),
+  ///     &[v8::fast_api::Type::V8Value.as_info()],
+  ///     v8::fast_api::Int64Representation::Number,
+  ///   ),
+  /// );
+  /// ```
+  ///
+  /// [`FunctionBuilder::build_fast`]: crate::FunctionBuilder::build_fast
+  pub const fn new(
+    address: *const c_void,
+    type_info: &'static CFunctionInfo,
+  ) -> Self {
     Self(v8__CFunction {
       address_: address,
       type_info_: &type_info.0,
@@ -38,9 +66,15 @@ impl CFunctionInfo {
   /// |arg_info| is an array of |arg_count| CTypeInfos describing the
   ///   arguments. Only the last argument may be of the special type
   ///   CTypeInfo::kCallbackOptionsType.
+  ///
+  /// `arg_info` is borrowed for `'static` because the resulting
+  /// `CFunctionInfo` stores the raw `arg_info.as_ptr()` pointer and V8 reads
+  /// it on every fast-call invocation through the `CFunction` chain. As with
+  /// [`CFunction::new`], `const` initializers make this trivial: rvalues
+  /// such as `&[Type::V8Value.as_info()]` are promoted to `'static` storage.
   pub const fn new(
     return_info: CTypeInfo,
-    arg_info: &[CTypeInfo],
+    arg_info: &'static [CTypeInfo],
     repr: Int64Representation,
   ) -> Self {
     Self(v8__CFunctionInfo {
