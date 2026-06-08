@@ -81,9 +81,14 @@ default_args = {
   # Build with external ICU data instead of linking the ~11 MiB ICU common
   # data into the static library. Embedders provide a valid ICU `.dat` package
   # at runtime via `v8::icu::set_common_data_77_from_file` (see README).
-  v8_depend_on_icu_data_file = false
-  icu_copy_icudata_to_root_build_dir = false
+  #
+  # `icu_use_data_file` keeps the data out of the static library; the other two
+  # flags only feed the build-time `mksnapshot` step a copy of `icudtl.dat`
+  # (mksnapshot must initialize ICU to generate the snapshot). They do not
+  # relink ICU data into the published library.
   icu_use_data_file = true
+  icu_copy_icudata_to_root_build_dir = true
+  v8_depend_on_icu_data_file = true
 
   # TODO: third_party/compiler-rt missing?
   use_llvm_libatomic = false

@@ -181,7 +181,6 @@ data into the static library, keeping the binary small:
 ```gn
 v8_enable_i18n_support=true
 icu_use_data_file=true
-v8_depend_on_icu_data_file=false
 ```
 
 At startup, before creating isolates, load a valid ICU `.dat` package and keep
