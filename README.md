@@ -174,28 +174,30 @@ Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 
 ### ICU data
 
-rusty_v8 builds V8 with internationalization support enabled and, by default,
-links Chromium's full ICU common data into the static library:
+rusty_v8 builds V8 with internationalization support enabled. By default it
+builds with external ICU data rather than linking Chromium's ~11 MiB ICU common
+data into the static library, keeping the binary small:
 
 ```gn
 v8_enable_i18n_support=true
-icu_use_data_file=false
+icu_use_data_file=true
+v8_depend_on_icu_data_file=false
 ```
 
-Embedders that need a smaller standalone binary can instead build with external
-ICU data and provide a valid ICU `.dat` package at runtime:
-
-```bash
-GN_ARGS='icu_use_data_file=true v8_depend_on_icu_data_file=false' \
-  V8_FROM_SOURCE=1 cargo build
-```
-
-At startup, before creating isolates, load the selected data file and keep the
-returned guard alive while ICU can use it:
+At startup, before creating isolates, load a valid ICU `.dat` package and keep
+the returned guard alive for as long as ICU can use it:
 
 ```rust
 let icu_data =
   v8::icu::set_common_data_77_from_file("icudtl.dat")?;
+```
+
+Embedders that prefer the full ICU common data linked into the static library
+(so no runtime data file is needed) can opt out of external data when building
+from source:
+
+```bash
+GN_ARGS='icu_use_data_file=false' V8_FROM_SOURCE=1 cargo build
 ```
 
 The data file must be valid for the ICU major version linked into rusty_v8.

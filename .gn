@@ -78,9 +78,12 @@ default_args = {
 
   use_relative_vtables_abi = false
 
+  # Build with external ICU data instead of linking the ~11 MiB ICU common
+  # data into the static library. Embedders provide a valid ICU `.dat` package
+  # at runtime via `v8::icu::set_common_data_77_from_file` (see README).
   v8_depend_on_icu_data_file = false
   icu_copy_icudata_to_root_build_dir = false
-  icu_use_data_file = false
+  icu_use_data_file = true
 
   # TODO: third_party/compiler-rt missing?
   use_llvm_libatomic = false
