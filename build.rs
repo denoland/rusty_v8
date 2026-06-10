@@ -353,33 +353,25 @@ fn build_v8(is_asan: bool) {
     println!("cargo:warning=Not using sccache or ccache");
   }
 
-  // Use the shared-library-safe TLS mode by default on Linux so downstream
-  // cdylibs can link rusty_v8 archives. Skip injection when GN_ARGS already
-  // sets V8_TLS_USED_IN_LIBRARY.
-  let needs_tls_define = target_os == "linux";
-  let mut tls_define_injected = false;
-  if let Ok(raw_gn_args) = env::var("GN_ARGS")
-    && !raw_gn_args.trim().is_empty()
-  {
-    if raw_gn_args.contains("V8_TLS_USED_IN_LIBRARY") {
-      tls_define_injected = true;
-      gn_args.push(raw_gn_args);
-    } else if needs_tls_define && raw_gn_args.contains("extra_cflags=[") {
-      // Prepend our define into the existing extra_cflags array so we don't
-      // silently override the user's flags with a second assignment.
-      let modified = raw_gn_args.replacen(
-        "extra_cflags=[",
-        r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY","#,
-        1,
-      );
-      tls_define_injected = true;
-      gn_args.push(modified);
-    } else {
-      gn_args.push(raw_gn_args);
-    }
+  // Forward caller-provided GN args verbatim.
+  let gn_args_env = env::var("GN_ARGS").unwrap_or_default();
+  if !gn_args_env.trim().is_empty() {
+    gn_args.push(gn_args_env.clone());
   }
-  if needs_tls_define && !tls_define_injected {
-    gn_args.push(r#"extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]"#.to_string());
+
+  // rusty_v8 ships a single static archive that downstream crates may link
+  // into a shared library (cdylib). On Linux, V8's default "local-exec" TLS
+  // model emits R_X86_64_TPOFF32 relocations against thread-locals such as
+  // `g_current_isolate_`, which lld refuses to place in a `-shared` object,
+  // so any cdylib that links the archive fails to link. Enabling this V8 GN
+  // arg routes the `V8_TLS_USED_IN_LIBRARY` define into both `internal_config`
+  // and the `features` config, switching V8 to the shared-library-safe TLS
+  // path (local-dynamic model + out-of-line accessor) uniformly across V8's
+  // own sources and rusty_v8's bindings.
+  if target_os == "linux"
+    && !gn_args_env.contains("v8_monolithic_for_shared_library")
+  {
+    gn_args.push("v8_monolithic_for_shared_library=true".to_string());
   }
   // cross-compilation setup
   if target_arch == "aarch64" {
