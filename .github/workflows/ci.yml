@@ -117,6 +117,18 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: riscv64gc-unknown-linux-gnu
+            variant: debug
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: riscv64gc-unknown-linux-gnu
+            variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
           # simdutf builds
           - os: macos-15-large
             target: x86_64-apple-darwin
@@ -174,6 +186,20 @@ jobs:
             simdutf: true
             cargo: cargo
 
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: riscv64gc-unknown-linux-gnu
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: riscv64gc-unknown-linux-gnu
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -217,7 +243,7 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
-      - name: Install cross compilation toolchain
+      - name: Install cross compilation toolchain (aarch64)
         if: matrix.config.target == 'aarch64-unknown-linux-gnu'
         run: |
           rustup target add aarch64-unknown-linux-gnu
@@ -228,11 +254,28 @@ jobs:
             gcc-10-aarch64-linux-gnu libc6-arm64-cross qemu qemu-user \
             qemu-user-binfmt
 
-          sudo ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
+          sudo ln -sf /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 \
                      /lib/ld-linux-aarch64.so.1
 
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/aarch64-linux-gnu" >> ${GITHUB_ENV}
+
+      - name: Install cross compilation toolchain (riscv64)
+        if: matrix.config.target == 'riscv64gc-unknown-linux-gnu'
+        run: |
+          rustup target add riscv64gc-unknown-linux-gnu
+
+          sudo apt update
+          sudo apt install -yq --no-install-suggests --no-install-recommends \
+            binfmt-support g++-10-riscv64-linux-gnu \
+            gcc-10-riscv64-linux-gnu libc6-riscv64-cross qemu qemu-user \
+            qemu-user-binfmt
+
+          sudo ln -sf /usr/riscv64-linux-gnu/lib/ld-linux-riscv64-lp64d.so.1 \
+                     /lib/ld-linux-riscv64-lp64d.so.1
+
+          echo "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/riscv64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
+          echo "QEMU_LD_PREFIX=/usr/riscv64-linux-gnu" >> ${GITHUB_ENV}
 
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
@@ -267,6 +310,8 @@ jobs:
                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
                "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
+               # Unlike aarch64, the riscv64 sccache binary is not static, so use the host architecture one.
+               "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
              }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
