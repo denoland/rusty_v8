@@ -686,8 +686,10 @@ fn download_file(url: &str, filename: &Path) {
          const file = await Deno.open(path, { write: true, create: true }); \
          await resp.body.pipeTo(file.writable);",
       )
-      .arg("--allow-net")
-      .arg("--allow-write")
+      // Note: `deno eval` runs with all permissions implicitly granted and does
+      // not accept `--allow-*` flags, so passing them here makes `deno eval`
+      // error out ("unexpected argument '--allow-net'") and the download
+      // silently falls back to Python/curl.
       .arg("--")
       .arg(url)
       .arg(&tmpfile)
