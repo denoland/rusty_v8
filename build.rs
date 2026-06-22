@@ -212,6 +212,26 @@ fn build_binding() {
         clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
       }
     }
+  } else if target_os == "ios" {
+    // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
+    // matching clang target triple so the V8 headers parse correctly.
+    let target_triple = env::var("TARGET").unwrap();
+    let is_sim = target_triple.ends_with("-sim")
+      || target_triple.starts_with("x86_64-apple-ios");
+    let sdk = if is_sim { "iphonesimulator" } else { "iphoneos" };
+    let output = Command::new("xcrun")
+      .args(["--sdk", sdk, "--show-sdk-path"])
+      .output()
+      .unwrap();
+    let sdk_path = String::from_utf8(output.stdout).unwrap();
+    clang_args.push("-isysroot".to_string());
+    clang_args.push(sdk_path.trim().to_string());
+    let clang_target = if is_sim {
+      "arm64-apple-ios-simulator"
+    } else {
+      "arm64-apple-ios"
+    };
+    clang_args.push(format!("--target={clang_target}"));
   }
 
   let bindings = bindgen::Builder::default()
