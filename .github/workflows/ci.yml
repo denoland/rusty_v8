@@ -78,16 +78,20 @@ jobs:
           # iOS: built from source. The simulator keeps the JIT; the device
           # build is jitless (no JIT entitlement on device) -- see build.rs.
           # Cross-compiled, so the test suite is not run on the runner.
+          # Built with simdutf (the variant downstream consumers like Deno
+          # need); WebAssembly is disabled (Torque can't build it jitless).
           - os: macos-15
             target: aarch64-apple-ios-sim
             variant: release
             v8_enable_pointer_compression: false
+            simdutf: true
             cargo: cargo
 
           - os: macos-15
             target: aarch64-apple-ios
             variant: release
             v8_enable_pointer_compression: false
+            simdutf: true
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
