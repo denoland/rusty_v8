@@ -733,7 +733,14 @@ fn download_file(url: &str, filename: &Path) {
   };
 
   // Assert DL was successful
-  assert!(status.success());
+  if !status.success() {
+    panic!(
+      "Failed to download V8 prebuilt archive from {url}\n\
+     This is usually because no prebuilt archive is published for your target, \
+     in which case you should compile V8 from source by setting V8_FROM_SOURCE=1. \
+     It can also indicate a network connectivity problem."
+    );
+  }
   assert!(tmpfile.exists());
 
   // Write checksum (i.e url) & move file
