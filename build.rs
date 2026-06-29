@@ -596,7 +596,6 @@ fn static_lib_url() -> String {
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
-
   format!(
     "{base}/v{version}/{}.gz",
     static_lib_name(&format!("{features}_{profile}_{target}")),
@@ -683,11 +682,6 @@ fn download_file(url: &str, filename: &Path) {
       .arg(
         "const [url, path] = Deno.args; \
          const resp = await fetch(url); \
-         if (resp.status === 404) { \
-           console.error(`Failed to download prebuilt V8 archive from ${url}`); \
-           console.error(`If no prebuilt archive is available for your target, compile V8 from source by setting V8_FROM_SOURCE=1`); \
-           Deno.exit(1); \
-         } \
          if (!resp.ok) Deno.exit(1); \
          const file = await Deno.open(path, { write: true, create: true }); \
          await resp.body.pipeTo(file.writable);",
@@ -742,8 +736,9 @@ fn download_file(url: &str, filename: &Path) {
   if !status.success() {
     panic!(
       "Failed to download V8 prebuilt archive from {url}\n\
-     If no prebuilt archive is available for your target, \
-     compile V8 from source by setting V8_FROM_SOURCE=1"
+     This is usually because no prebuilt archive is published for your target, \
+     in which case you should compile V8 from source by setting V8_FROM_SOURCE=1. \
+     It can also indicate a network connectivity problem."
     );
   }
   assert!(tmpfile.exists());
