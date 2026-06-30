@@ -5,6 +5,8 @@ use std::ffi::CString;
 unsafe extern "C" {
   fn icu_get_default_locale(output: *mut char, output_len: usize) -> usize;
   fn icu_set_default_locale(locale: *const char);
+  fn icu_get_default_timezone(output: *mut char, output_len: usize) -> usize;
+  fn icu_set_default_timezone(timezone: *const char);
   fn udata_setCommonData_77(this: *const u8, error_code: *mut i32);
 }
 
@@ -67,5 +69,31 @@ pub fn set_default_locale(locale: &str) {
   unsafe {
     let c_str = CString::new(locale).expect("Invalid locale");
     icu_set_default_locale(c_str.as_ptr());
+  }
+}
+
+/// Returns the IANA id of ICU's current default time zone (e.g.
+/// `"America/New_York"`).
+pub fn get_default_time_zone() -> String {
+  let mut output = [0u8; 1024];
+  let len = unsafe {
+    icu_get_default_timezone(output.as_mut_ptr() as *mut char, output.len())
+  };
+  std::str::from_utf8(&output[..len]).unwrap().to_owned()
+}
+
+/// Sets ICU's default time zone from an IANA id (e.g. `"UTC"`,
+/// `"Asia/Manila"`). This makes `Date` resolve the given zone on every
+/// platform, including Windows, where ICU otherwise reads the host time
+/// zone from the OS and ignores the `TZ` environment variable.
+///
+/// After calling this, notify each isolate via
+/// [`crate::Isolate::date_time_configuration_change_notification`] with
+/// [`crate::TimeZoneDetection::Skip`] so cached values are refreshed
+/// without re-detecting (and overwriting) the zone just set here.
+pub fn set_default_time_zone(timezone: &str) {
+  unsafe {
+    let c_str = CString::new(timezone).expect("Invalid timezone");
+    icu_set_default_timezone(c_str.as_ptr());
   }
 }
