@@ -5,6 +5,9 @@ use std::ffi::CString;
 unsafe extern "C" {
   fn icu_get_default_locale(output: *mut char, output_len: usize) -> usize;
   fn icu_set_default_locale(locale: *const char);
+  // Only available when V8 is built with i18n/ICU support (i.e. without the
+  // `no_icu` feature). The symbol is provided by ICU itself.
+  #[cfg(not(feature = "no_icu"))]
   fn udata_setCommonData_77(this: *const u8, error_code: *mut i32);
 }
 
@@ -41,6 +44,10 @@ unsafe extern "C" {
 /// This function has no effect on application (non ICU) data. See udata_setAppData() for similar
 /// functionality for application data.
 // TODO(ry) Map error code to something useful.
+//
+// Not available when V8 is built without i18n/ICU support (the `no_icu`
+// feature), since there is no ICU to hand the data to.
+#[cfg(not(feature = "no_icu"))]
 #[inline(always)]
 pub fn set_common_data_77(data: &'static [u8]) -> Result<(), i32> {
   let mut error_code = 0i32;

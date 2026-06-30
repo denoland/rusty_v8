@@ -3,6 +3,11 @@ import("//build/config/host_byteorder.gni")
 
 declare_args() {
   rusty_v8_enable_simdutf = false
+
+  # Gates the ICU bindings in src/binding.cc. Set to false (via the `no_icu`
+  # cargo feature) when V8 is built with v8_enable_i18n_support=false, so the
+  # static library still links without ICU.
+  rusty_v8_enable_i18n = true
 }
 
 static_library("rusty_v8") {
@@ -61,6 +66,10 @@ config("rusty_v8_config") {
 
   if (rusty_v8_enable_simdutf) {
     defines += [ "RUSTY_V8_ENABLE_SIMDUTF" ]
+  }
+
+  if (rusty_v8_enable_i18n) {
+    defines += [ "RUSTY_V8_ENABLE_I18N" ]
   }
 
   if (is_clang) {

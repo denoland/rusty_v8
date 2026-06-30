@@ -318,6 +318,14 @@ fn build_v8(is_asan: bool) {
     env::var("CARGO_FEATURE_SIMDUTF").is_ok()
   ));
 
+  // When the `no_icu` feature is enabled, build V8 without i18n/ICU support.
+  // `v8_enable_i18n_support=false` drops the embedded ICU data and the `Intl`
+  // API, while `rusty_v8_enable_i18n` gates the ICU bindings in
+  // `src/binding.cc` so the static library still links without ICU.
+  let enable_i18n = env::var("CARGO_FEATURE_NO_ICU").is_err();
+  gn_args.push(format!("v8_enable_i18n_support={enable_i18n}"));
+  gn_args.push(format!("rusty_v8_enable_i18n={enable_i18n}"));
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string());
@@ -572,6 +580,9 @@ fn prebuilt_features_suffix() -> String {
   }
   if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
     features.push_str("_simdutf");
+  }
+  if env::var("CARGO_FEATURE_NO_ICU").is_ok() {
+    features.push_str("_noicu");
   }
   features
 }
