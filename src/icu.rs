@@ -1,6 +1,11 @@
 use crate::support::char;
 
 use std::ffi::CString;
+use std::fmt;
+use std::fs;
+use std::io;
+use std::path::Path;
+use std::slice;
 
 unsafe extern "C" {
   fn icu_get_default_locale(output: *mut char, output_len: usize) -> usize;
@@ -40,9 +45,93 @@ unsafe extern "C" {
 ///
 /// This function has no effect on application (non ICU) data. See udata_setAppData() for similar
 /// functionality for application data.
-// TODO(ry) Map error code to something useful.
+#[repr(align(16))]
+#[allow(dead_code)]
+struct Align16([u8; 16]);
+
+/// Owned ICU common data with an address that is aligned for
+/// [`set_common_data_77`].
+///
+/// Keep this value alive for as long as ICU may use the data.
+pub struct CommonData {
+  storage: Box<[Align16]>,
+  len: usize,
+}
+
+impl CommonData {
+  /// Copies ICU common data into owned 16-byte-aligned storage.
+  pub fn from_bytes(data: &[u8]) -> Self {
+    let chunk_count = data.len().div_ceil(16);
+    let mut storage = Vec::with_capacity(chunk_count);
+    storage.resize_with(chunk_count, || Align16([0; 16]));
+    let mut common_data = Self {
+      storage: storage.into_boxed_slice(),
+      len: data.len(),
+    };
+    common_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
+    common_data
+  }
+
+  /// Loads ICU common data from a file into owned 16-byte-aligned storage.
+  pub fn from_file(path: impl AsRef<Path>) -> io::Result<Self> {
+    fs::read(path).map(|data| Self::from_bytes(&data))
+  }
+
+  /// Returns the aligned ICU common data bytes.
+  pub fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      slice::from_raw_parts(self.storage.as_ptr() as *const u8, self.len)
+    }
+  }
+
+  fn as_bytes_mut(&mut self) -> &mut [u8] {
+    unsafe {
+      slice::from_raw_parts_mut(
+        self.storage.as_mut_ptr() as *mut u8,
+        self.storage.len() * 16,
+      )
+    }
+  }
+}
+
+/// Error returned by [`set_common_data_77_from_file`].
+#[derive(Debug)]
+pub enum SetCommonDataError {
+  /// The ICU common data file could not be read.
+  Io(io::Error),
+  /// ICU rejected the common data package.
+  Icu(i32),
+}
+
+impl fmt::Display for SetCommonDataError {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Io(err) => write!(f, "failed to read ICU common data: {err}"),
+      Self::Icu(error_code) => {
+        write!(f, "ICU rejected common data with error code {error_code}")
+      }
+    }
+  }
+}
+
+impl std::error::Error for SetCommonDataError {
+  fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    match self {
+      Self::Io(err) => Some(err),
+      Self::Icu(_) => None,
+    }
+  }
+}
+
+impl From<io::Error> for SetCommonDataError {
+  fn from(err: io::Error) -> Self {
+    Self::Io(err)
+  }
+}
+
+// TODO(ry) Map ICU error code to something useful.
 #[inline(always)]
-pub fn set_common_data_77(data: &'static [u8]) -> Result<(), i32> {
+fn set_common_data_77_impl(data: &[u8]) -> Result<(), i32> {
   let mut error_code = 0i32;
   unsafe {
     udata_setCommonData_77(data.as_ptr(), &mut error_code);
@@ -52,6 +141,28 @@ pub fn set_common_data_77(data: &'static [u8]) -> Result<(), i32> {
   } else {
     Err(error_code)
   }
+}
+
+/// Set ICU common data from static aligned bytes.
+///
+/// For runtime-selected data, use [`set_common_data_77_from_file`] so the data
+/// storage stays alive and aligned.
+#[inline(always)]
+pub fn set_common_data_77(data: &'static [u8]) -> Result<(), i32> {
+  set_common_data_77_impl(data)
+}
+
+/// Loads and sets ICU common data from a runtime-selected `.dat` file.
+///
+/// Keep the returned [`CommonData`] value alive for as long as ICU may use the
+/// data. The data file must match the ICU major version used to build
+/// rusty_v8.
+pub fn set_common_data_77_from_file(
+  path: impl AsRef<Path>,
+) -> Result<CommonData, SetCommonDataError> {
+  let data = CommonData::from_file(path)?;
+  set_common_data_77_impl(data.as_bytes()).map_err(SetCommonDataError::Icu)?;
+  Ok(data)
 }
 
 /// Returns BCP47 language tag.

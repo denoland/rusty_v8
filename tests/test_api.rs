@@ -9910,6 +9910,26 @@ fn icu_set_common_data_fail() {
 }
 
 #[test]
+fn icu_common_data_from_bytes_is_aligned() {
+  let data = v8::icu::CommonData::from_bytes(&[1, 2, 3]);
+  assert_eq!(data.as_bytes(), &[1, 2, 3]);
+  assert_eq!(data.as_bytes().as_ptr() as usize % 16, 0);
+}
+
+#[test]
+fn icu_set_common_data_from_file_fail() {
+  let path = std::env::temp_dir().join(format!(
+    "rusty_v8_invalid_icu_{}_{}.dat",
+    std::process::id(),
+    line!(),
+  ));
+  std::fs::write(&path, [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+  let result = v8::icu::set_common_data_77_from_file(&path);
+  std::fs::remove_file(path).unwrap();
+  assert!(matches!(result, Err(v8::icu::SetCommonDataError::Icu(_))));
+}
+
+#[test]
 fn icu_format() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

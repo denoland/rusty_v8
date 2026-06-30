@@ -172,6 +172,48 @@ this shared-library-compatible TLS mode.
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
 
+### ICU data
+
+rusty_v8 builds V8 with internationalization support enabled. By default it
+builds with external ICU data rather than linking Chromium's ~11 MiB ICU common
+data into the static library, keeping the binary small:
+
+```gn
+v8_enable_i18n_support=true
+icu_use_data_file=true
+```
+
+At startup, before creating isolates, load a valid ICU `.dat` package and keep
+the returned guard alive for as long as ICU can use it:
+
+```rust
+let icu_data =
+  v8::icu::set_common_data_77_from_file("icudtl.dat")?;
+```
+
+Embedders that prefer the full ICU common data linked into the static library
+(so no runtime data file is needed) can opt out of external data when building
+from source:
+
+```bash
+GN_ARGS='icu_use_data_file=false' V8_FROM_SOURCE=1 cargo build
+```
+
+The data file must be valid for the ICU major version linked into rusty_v8.
+Chromium vendors several ICU 77 data bundles in this checkout, trading size for
+locale coverage:
+
+| Bundle (`third_party/icu/.../icudtl.dat`) | Size | Locale coverage |
+| --- | --- | --- |
+| `common` | ~10.3 MiB | full (~1400 locales) |
+| `cast` | ~5.0 MiB | ~250 locales |
+| `flutter_desktop` | ~1.7 MiB | reduced |
+| `flutter` | ~0.82 MiB | English + root |
+
+Smaller bundles still expose the full `Intl` API; non-English locales fall back
+toward root behavior, similar to Node's `small-icu` mode. The bundle to ship is
+an embedder decision — pick one that covers the locales your application needs.
+
 ## FAQ
 
 **Building V8 takes over 30 minutes, this is too slow for me to use this crate.
