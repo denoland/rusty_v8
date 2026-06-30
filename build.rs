@@ -313,6 +313,20 @@ fn build_v8(is_asan: bool) {
     env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
   ));
 
+  // Jitless lite mode: disable optimizing tiers (Turbofan, Maglev, Sparkplug)
+  // and run V8 in jitless mode. WebAssembly is also disabled because the
+  // jitless DrumBrake interpreter has a -Wundefined-inline build error
+  // against this V8 revision. The jitless-only code paths in V8 also have
+  // latent -Wunused-variable hits, so we drop -Werror for this variant only.
+  if env::var("CARGO_FEATURE_V8_LITE_MODE").is_ok() {
+    gn_args.push("v8_jitless=true".to_string());
+    gn_args.push("v8_enable_turbofan=false".to_string());
+    gn_args.push("v8_enable_maglev=false".to_string());
+    gn_args.push("v8_enable_sparkplug=false".to_string());
+    gn_args.push("v8_enable_webassembly=false".to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+  }
+
   gn_args.push(format!(
     "rusty_v8_enable_simdutf={}",
     env::var("CARGO_FEATURE_SIMDUTF").is_ok()
@@ -572,6 +586,9 @@ fn prebuilt_features_suffix() -> String {
   }
   if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
     features.push_str("_simdutf");
+  }
+  if env::var("CARGO_FEATURE_V8_LITE_MODE").is_ok() {
+    features.push_str("_lite");
   }
   features
 }
