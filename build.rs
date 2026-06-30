@@ -212,6 +212,30 @@ fn build_binding() {
         clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
       }
     }
+  } else if target_os == "ios" {
+    // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
+    // matching clang target triple so the V8 headers parse correctly.
+    let target_triple = env::var("TARGET").unwrap();
+    let is_sim = target_triple.ends_with("-sim")
+      || target_triple.starts_with("x86_64-apple-ios");
+    let sdk = if is_sim {
+      "iphonesimulator"
+    } else {
+      "iphoneos"
+    };
+    let output = Command::new("xcrun")
+      .args(["--sdk", sdk, "--show-sdk-path"])
+      .output()
+      .unwrap();
+    let sdk_path = String::from_utf8(output.stdout).unwrap();
+    clang_args.push("-isysroot".to_string());
+    clang_args.push(sdk_path.trim().to_string());
+    let clang_target = if is_sim {
+      "arm64-apple-ios-simulator"
+    } else {
+      "arm64-apple-ios"
+    };
+    clang_args.push(format!("--target={clang_target}"));
   }
 
   let bindings = bindgen::Builder::default()
@@ -451,6 +475,34 @@ fn build_v8(is_asan: bool) {
       "./third_party/catapult",
       &format!("{CHROMIUM_URI}/catapult.git"),
     );
+  }
+
+  // iOS / iOS-simulator. iOS denies the JIT entitlement to non-WebKit apps, so
+  // a device build must be jitless -- which in turn requires V8's optimizing
+  // tiers (Sparkplug/Maglev/Turbofan) and WebAssembly to be disabled. The
+  // simulator runs on the host and could keep the JIT, but WebAssembly is
+  // disabled there too because Torque can't generate the Wasm builtins in this
+  // configuration. `target_cpu="arm64"` is already set above for aarch64.
+  // Pass an explicit `target_os="ios"` in GN_ARGS to fully override this.
+  if target_os == "ios" && !gn_args_env.contains(r#"target_os="ios""#) {
+    let is_sim = target_triple.ends_with("-sim")
+      || target_triple.starts_with("x86_64-apple-ios");
+    gn_args.push(r#"target_os="ios""#.to_string());
+    gn_args.push(format!(
+      r#"target_environment="{}""#,
+      if is_sim { "simulator" } else { "device" }
+    ));
+    gn_args.push(r#"ios_deployment_target="14.0""#.to_string());
+    gn_args.push("ios_enable_code_signing=false".to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    gn_args.push("v8_enable_webassembly=false".to_string());
+    if !is_sim {
+      // Device: no JIT permitted -> jitless build, all tiers off.
+      gn_args.push("v8_jitless=true".to_string());
+      gn_args.push("v8_enable_sparkplug=false".to_string());
+      gn_args.push("v8_enable_maglev=false".to_string());
+      gn_args.push("v8_enable_turbofan=false".to_string());
+    }
   }
 
   if target_triple.starts_with("i686-") {

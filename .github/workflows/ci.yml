@@ -75,6 +75,25 @@ jobs:
             v8_enable_pointer_compression: true
             cargo: cargo
 
+          # iOS: built from source. The simulator keeps the JIT; the device
+          # build is jitless (no JIT entitlement on device) -- see build.rs.
+          # Cross-compiled, so the test suite is not run on the runner.
+          # Built with simdutf (the variant downstream consumers like Deno
+          # need); WebAssembly is disabled (Torque can't build it jitless).
+          - os: macos-15
+            target: aarch64-apple-ios-sim
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
+          - os: macos-15
+            target: aarch64-apple-ios
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
@@ -277,6 +296,10 @@ jobs:
           echo "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/riscv64-linux-gnu-gcc-10" >> ${GITHUB_ENV}
           echo "QEMU_LD_PREFIX=/usr/riscv64-linux-gnu" >> ${GITHUB_ENV}
 
+      - name: Install iOS target
+        if: contains(matrix.config.target, 'ios')
+        run: rustup target add ${{ matrix.config.target }}
+
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
 
@@ -313,6 +336,9 @@ jobs:
                # Unlike aarch64, the riscv64 sccache binary is not static, so use the host architecture one.
                "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
                "x86_64-pc-windows-msvc"    = "x86_64-pc-windows-msvc"
+               # iOS cross-compiles on the arm64 macOS runner, so use the host sccache binary.
+               "aarch64-apple-ios"         = "aarch64-apple-darwin"
+               "aarch64-apple-ios-sim"     = "aarch64-apple-darwin"
              }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
@@ -346,13 +372,24 @@ jobs:
         run: |
           clang-format-19 --verbose --Werror --dry-run src/*.cc src/*.hpp src/*.h
 
+      # iOS targets cross-compile and cannot run on the runner, so they get a
+      # build-only step (which also produces gn_out/obj/librusty_v8.a for the
+      # publish step below) instead of the test + clippy steps.
+      - name: Build (iOS)
+        if: contains(matrix.config.target, 'ios')
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+          V8_FROM_SOURCE: 1
+        run: ${{ matrix.config.cargo }} build -v --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
+
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
-        if: matrix.config.variant == 'debug' || matrix.config.variant == 'release'
+        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && !contains(matrix.config.target, 'ios')
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
+        if: ${{ !contains(matrix.config.target, 'ios') }}
         run: ${{ matrix.config.cargo }} clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }} -- -D clippy::all
 
       - name: Prepare binary publish
