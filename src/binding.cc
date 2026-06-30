@@ -159,6 +159,10 @@ void v8__V8__SetFatalErrorHandler(v8::V8FatalErrorCallback that) {
   v8::V8::SetFatalErrorHandler(that);
 }
 
+bool v8__V8__EnableWebAssemblyTrapHandler(bool use_v8_signal_handler) {
+  return v8::V8::EnableWebAssemblyTrapHandler(use_v8_signal_handler);
+}
+
 v8::Isolate* v8__Isolate__New(const v8::Isolate::CreateParams& params) {
   return v8::Isolate::New(params);
 }

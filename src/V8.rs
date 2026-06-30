@@ -27,6 +27,7 @@ unsafe extern "C" {
   fn v8__V8__Dispose() -> bool;
   fn v8__V8__DisposePlatform();
   fn v8__V8__SetFatalErrorHandler(that: V8FatalErrorCallback);
+  fn v8__V8__EnableWebAssemblyTrapHandler(use_v8_signal_handler: bool) -> bool;
 }
 
 pub type V8FatalErrorCallback = unsafe extern "C" fn(
@@ -279,6 +280,14 @@ pub fn set_fatal_error_handler(that: impl MapFnTo<V8FatalErrorCallback>) {
   unsafe {
     v8__V8__SetFatalErrorHandler(that.map_fn_to());
   }
+}
+
+/// Activate trap-based bounds checking for WebAssembly.
+///
+/// If `use_v8_signal_handler` is true, V8 installs its own signal handler.
+/// Otherwise, V8 relies on the embedder to invoke its trap handler.
+pub fn enable_web_assembly_trap_handler(use_v8_signal_handler: bool) -> bool {
+  unsafe { v8__V8__EnableWebAssemblyTrapHandler(use_v8_signal_handler) }
 }
 
 #[cfg(test)]
