@@ -1275,8 +1275,7 @@ impl Set {
       .into()
   }
 
-  /// Returns an array of length size() * 2, where index N is the Nth key and
-  /// index N + 1 is the Nth value.
+  /// Returns an array of the keys in this Set.
   #[inline(always)]
   pub fn as_array<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Array> {
     unsafe { scope.cast_local(|_| v8__Set__As__Array(self)) }.unwrap()
