@@ -424,6 +424,42 @@ fn build_v8(is_asan: bool) {
     }
   }
 
+  // musl libc. V8's build targets glibc by default; the vendored build config
+  // grows a target-scoped `use_musl` arg (see //build/config/rust.gni,
+  // sysroot.gni, c++/BUILD.gn, toolchain/*). The final librusty_v8.a is a
+  // static archive of musl-compiled objects (never linked here), so the target
+  // toolchain needs only musl headers -- the executable build tools (torque,
+  // mksnapshot, code generators) are built with a separate glibc toolchain so
+  // they link and run on the (glibc) build host.
+  let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+  if target_env == "musl" && target_os == "linux" {
+    gn_args.push("use_musl=true".to_string());
+    // V8-as-a-library has no glib dependency; skip it so a musl target_sysroot
+    // doesn't send pkg-config looking for glib inside the sysroot.
+    gn_args.push("use_glib=false".to_string());
+    // Build libstd + V8's internal Rust crates from source for the musl triple;
+    // V8's vendored Rust toolchain only ships a glibc host std.
+    gn_args.push("rust_prebuilt_stdlib=false".to_string());
+
+    let glibc_toolchain = match target_arch.as_str() {
+      "x86_64" => "//build/toolchain/linux:clang_x64_glibc",
+      other => panic!(
+        "musl builds are currently only supported for x86_64 (got {other})"
+      ),
+    };
+    gn_args.push(format!("host_toolchain=\"{glibc_toolchain}\""));
+    gn_args.push(format!("v8_snapshot_toolchain=\"{glibc_toolchain}\""));
+    // The glibc host toolchain builds against the amd64 sysroot, same as the
+    // host side of the aarch64/riscv64 cross builds.
+    maybe_install_sysroot("amd64");
+
+    // Cross-compiling on a glibc host needs a musl sysroot for the target's
+    // headers/libs. Native musl builds (e.g. on Alpine) can leave this unset.
+    if let Ok(sysroot) = env::var("RUSTY_V8_MUSL_SYSROOT") {
+      gn_args.push(format!("target_sysroot=\"{sysroot}\""));
+    }
+  }
+
   let target_triple = env::var("TARGET").unwrap();
   // check if the target triple describes a non-native environment
   if target_triple != env::var("HOST").unwrap() && target_os == "android" {
