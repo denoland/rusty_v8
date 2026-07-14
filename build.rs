@@ -440,6 +440,11 @@ fn build_v8(is_asan: bool) {
     // Build libstd + V8's internal Rust crates from source for the musl triple;
     // V8's vendored Rust toolchain only ships a glibc host std.
     gn_args.push("rust_prebuilt_stdlib=false".to_string());
+    // Some V8 sources have glibc-only code paths (e.g. execinfo-based
+    // backtraces in stack_trace_posix.cc) whose helpers are unused on musl,
+    // tripping -Werror,-Wunused-const-variable. Like the iOS/Android cross
+    // builds, don't treat warnings as errors here.
+    gn_args.push("treat_warnings_as_errors=false".to_string());
 
     let glibc_toolchain = match target_arch.as_str() {
       "x86_64" => "//build/toolchain/linux:clang_x64_glibc",
