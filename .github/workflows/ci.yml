@@ -120,23 +120,13 @@ jobs:
 
           # musl: cross-compiled on the glibc runner (host tools stay glibc,
           # target objects are musl -- see build.rs). Not run on the runner.
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
-            target: x86_64-unknown-linux-musl
-            variant: debug
-            v8_enable_pointer_compression: false
-            cargo: cargo
-
+          # Release only for now, like the iOS targets: V8's debug-only
+          # execinfo backtrace path (external-reference-table.cc) assumes glibc
+          # and doesn't compile against musl.
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-musl
             variant: release
             v8_enable_pointer_compression: false
-            cargo: cargo
-
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
-            target: x86_64-unknown-linux-musl
-            variant: debug
-            v8_enable_pointer_compression: false
-            simdutf: true
             cargo: cargo
 
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
