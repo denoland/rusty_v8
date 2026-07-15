@@ -839,63 +839,14 @@ fn download_file(url: &str, filename: &Path) {
   }
 
   // Try downloading with deno first, then python, then curl.
+  // Python is a V8 build dependency, so this saves us from adding a Rust HTTP client dependency.
+  // Python is only a required dependency for `V8_FROM_SOURCE` builds.
+  // If python is not available, try falling back to curl.
   println!("Downloading {url}");
-  let status = which("deno").ok().and_then(|deno| {
-    println!("Trying with Deno...");
-    Command::new(deno)
-      .arg("eval")
-      .arg(
-        "const [url, path] = Deno.args; \
-         const resp = await fetch(url); \
-         if (!resp.ok) Deno.exit(1); \
-         const file = await Deno.open(path, { write: true, create: true }); \
-         await resp.body.pipeTo(file.writable);",
-      )
-      // Note: `deno eval` runs with all permissions implicitly granted and does
-      // not accept `--allow-*` flags, so passing them here makes `deno eval`
-      // error out ("unexpected argument '--allow-net'") and the download
-      // silently falls back to Python/curl.
-      .arg("--")
-      .arg(url)
-      .arg(&tmpfile)
-      .status()
-      .ok()
-      .filter(|s| s.success())
-  });
-
-  // Try downloading with python. Python is a V8 build dependency,
-  // so this saves us from adding a Rust HTTP client dependency.
-  let status = match status {
-    Some(status) => status,
-    _ => {
-      println!("Trying with Python...");
-      let python_status = Command::new(python())
-        .arg("./tools/download_file.py")
-        .arg("--url")
-        .arg(url)
-        .arg("--filename")
-        .arg(&tmpfile)
-        .status();
-
-      // Python is only a required dependency for `V8_FROM_SOURCE` builds.
-      // If python is not available, try falling back to curl.
-      match python_status {
-        Ok(status) if status.success() => status,
-        _ => {
-          println!("Python downloader failed, trying with curl.");
-          Command::new("curl")
-            .arg("-L")
-            .arg("-f")
-            .arg("-s")
-            .arg("-o")
-            .arg(&tmpfile)
-            .arg(url)
-            .status()
-            .unwrap()
-        }
-      }
-    }
-  };
+  let status = download_with_deno(url, &tmpfile)
+    .or_else(|_| download_with_python(url, &tmpfile))
+    .or_else(|_| download_with_curl(url, &tmpfile))
+    .expect("Neither deno, python nor curl were available to download the V8 prebuilt archive.");
 
   // Assert DL was successful
   if !status.success() {
@@ -916,6 +867,68 @@ fn download_file(url: &str, filename: &Path) {
   assert!(filename.exists());
   assert!(static_checksum_path(filename).exists());
   assert!(!tmpfile.exists());
+}
+
+/// Downloads a file from `url` with Deno and stores it at `path`.
+fn download_with_deno<P: AsRef<std::ffi::OsStr>>(
+  url: &str,
+  path: P,
+) -> io::Result<std::process::ExitStatus> {
+  which("deno")
+    .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))
+    .and_then(|deno| {
+      println!("Downloading with Deno...");
+      Command::new(deno)
+        .arg("eval")
+        .arg(
+          "const [url, path] = Deno.args; \
+         const resp = await fetch(url); \
+         if (!resp.ok) Deno.exit(1); \
+         const file = await Deno.open(path, { write: true, create: true }); \
+         await resp.body.pipeTo(file.writable);",
+        )
+        // Note: `deno eval` runs with all permissions implicitly granted and does
+        // not accept `--allow-*` flags, so passing them here makes `deno eval`
+        // error out ("unexpected argument '--allow-net'") and the download
+        // silently falls back to Python/curl.
+        .arg("--")
+        .arg(url)
+        .arg(path)
+        .status()
+    })
+}
+
+/// Downloads a file from `url` with Python and stores it at `path`.
+fn download_with_python<P: AsRef<std::ffi::OsStr>>(
+  url: &str,
+  path: P,
+) -> io::Result<std::process::ExitStatus> {
+  python().and_then(|python_path| {
+    println!("Downloading with Python...");
+    Command::new(python_path)
+      .arg("./tools/download_file.py")
+      .arg("--url")
+      .arg(url)
+      .arg("--filename")
+      .arg(path)
+      .status()
+  })
+}
+
+/// Downloads a file from `url` with curl and stores it at `path`.
+fn download_with_curl<P: AsRef<std::ffi::OsStr>>(
+  url: &str,
+  path: P,
+) -> io::Result<std::process::ExitStatus> {
+  println!("Downloading with curl...");
+  Command::new("curl")
+    .arg("-L")
+    .arg("-f")
+    .arg("-s")
+    .arg("-o")
+    .arg(path)
+    .arg(url)
+    .status()
 }
 
 fn download_static_lib_binaries() {
