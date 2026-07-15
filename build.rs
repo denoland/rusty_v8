@@ -446,17 +446,29 @@ fn build_v8(is_asan: bool) {
     // builds, don't treat warnings as errors here.
     gn_args.push("treat_warnings_as_errors=false".to_string());
 
-    let glibc_toolchain = match target_arch.as_str() {
-      "x86_64" => "//build/toolchain/linux:clang_x64_glibc",
+    match target_arch.as_str() {
+      "x86_64" => {
+        // Host cpu == target cpu, so V8 would build the executable build tools
+        // with the (musl) default toolchain. Force the host and snapshot
+        // toolchains to a dedicated glibc toolchain so those tools stay glibc.
+        let glibc = "//build/toolchain/linux:clang_x64_glibc";
+        gn_args.push(format!("host_toolchain=\"{glibc}\""));
+        gn_args.push(format!("v8_snapshot_toolchain=\"{glibc}\""));
+        // That glibc toolchain builds against the amd64 sysroot, same as the
+        // host side of the aarch64/riscv64 cross builds.
+        maybe_install_sysroot("amd64");
+      }
+      "aarch64" => {
+        // Cross build (x64 host -> arm64 target). The host (clang_x64) and
+        // snapshot (clang_x64_v8_arm64) toolchains are already non-default, so
+        // the target-scoped `use_musl` guard keeps them glibc automatically --
+        // no toolchain overrides needed. target_cpu and the amd64/arm64
+        // sysroots are set by the aarch64 cross-compilation block above.
+      }
       other => panic!(
-        "musl builds are currently only supported for x86_64 (got {other})"
+        "musl builds are only supported for x86_64 and aarch64 (got {other})"
       ),
-    };
-    gn_args.push(format!("host_toolchain=\"{glibc_toolchain}\""));
-    gn_args.push(format!("v8_snapshot_toolchain=\"{glibc_toolchain}\""));
-    // The glibc host toolchain builds against the amd64 sysroot, same as the
-    // host side of the aarch64/riscv64 cross builds.
-    maybe_install_sysroot("amd64");
+    }
 
     // Cross-compiling on a glibc host needs a musl sysroot for the target's
     // headers/libs. Native musl builds (e.g. on Alpine) can leave this unset.

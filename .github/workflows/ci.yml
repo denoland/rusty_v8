@@ -136,6 +136,21 @@ jobs:
             simdutf: true
             cargo: cargo
 
+          # aarch64 musl: cross-compiled on the x64 glibc runner (host + snapshot
+          # toolchains stay glibc; only the arm64 target objects are musl).
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-unknown-linux-musl
+            variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+            target: aarch64-unknown-linux-musl
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
             target: x86_64-pc-windows-msvc
             variant: release # Note: we do not support windows debug builds.
@@ -319,26 +334,43 @@ jobs:
         run: rustup target add ${{ matrix.config.target }}
 
       - name: Install musl cross compilation toolchain
-        if: matrix.config.target == 'x86_64-unknown-linux-musl'
+        if: contains(matrix.config.target, '-linux-musl')
         run: |
-          rustup target add x86_64-unknown-linux-musl
-
-          sudo apt update
-          sudo apt install -yq --no-install-suggests --no-install-recommends \
-            musl-tools musl-dev
+          rustup target add ${{ matrix.config.target }}
 
           # Assemble a musl sysroot (musl headers/libs + kernel headers) for
           # V8's target clang. The musl target is compile-only (objects are
           # archived into librusty_v8.a, never linked), so no gcc runtime is
-          # needed here; the executable build tools are built with the glibc
+          # needed here; the executable build tools are built with a glibc
           # host toolchain.
           SYSROOT="${HOME}/musl-sysroot"
-          mkdir -p "${SYSROOT}/usr/include" "${SYSROOT}/usr/lib"
-          cp -a /usr/include/x86_64-linux-musl/. "${SYSROOT}/usr/include/"
-          cp -a /usr/lib/x86_64-linux-musl/.     "${SYSROOT}/usr/lib/"
-          cp -a /usr/include/linux                "${SYSROOT}/usr/include/"
-          cp -a /usr/include/asm-generic          "${SYSROOT}/usr/include/"
-          cp -a /usr/include/x86_64-linux-gnu/asm "${SYSROOT}/usr/include/"
+          case "${{ matrix.config.target }}" in
+            x86_64-*)
+              sudo apt update
+              sudo apt install -yq --no-install-suggests --no-install-recommends \
+                musl-tools musl-dev
+              mkdir -p "${SYSROOT}/usr/include" "${SYSROOT}/usr/lib"
+              cp -a /usr/include/x86_64-linux-musl/. "${SYSROOT}/usr/include/"
+              cp -a /usr/lib/x86_64-linux-musl/.     "${SYSROOT}/usr/lib/"
+              cp -a /usr/include/linux                "${SYSROOT}/usr/include/"
+              cp -a /usr/include/asm-generic          "${SYSROOT}/usr/include/"
+              cp -a /usr/include/x86_64-linux-gnu/asm "${SYSROOT}/usr/include/"
+              ;;
+            aarch64-*)
+              # apt has no aarch64 musl, so use Alpine's static apk to install
+              # the aarch64 musl headers/libs + kernel headers into the sysroot.
+              # These foreign-arch packages are only extracted, never executed.
+              ALPINE=v3.21; APK_VER=2.14.6-r3
+              curl -sSLo /tmp/apk.apk \
+                "https://dl-cdn.alpinelinux.org/alpine/${ALPINE}/main/x86_64/apk-tools-static-${APK_VER}.apk"
+              tar -xzf /tmp/apk.apk -C /tmp sbin/apk.static
+              mkdir -p "${SYSROOT}/etc/apk"
+              /tmp/sbin/apk.static --arch aarch64 \
+                -X "https://dl-cdn.alpinelinux.org/alpine/${ALPINE}/main" \
+                --root "${SYSROOT}" --initdb --allow-untrusted \
+                add musl-dev linux-headers
+              ;;
+          esac
 
           echo "RUSTY_V8_MUSL_SYSROOT=${SYSROOT}" >> ${GITHUB_ENV}
 
@@ -375,6 +407,8 @@ jobs:
                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
                "x86_64-unknown-linux-musl" = "x86_64-unknown-linux-musl"
+               # aarch64 musl cross-compiles on the x64 host, so use the host sccache.
+               "aarch64-unknown-linux-musl" = "x86_64-unknown-linux-musl"
                "aarch64-unknown-linux-gnu" = "aarch64-unknown-linux-musl"
                # Unlike aarch64, the riscv64 sccache binary is not static, so use the host architecture one.
                "riscv64gc-unknown-linux-gnu" = "x86_64-unknown-linux-musl"
@@ -429,7 +463,7 @@ jobs:
       # on the runner (build-only, like the iOS targets). This still produces
       # gn_out/obj/librusty_v8.a for the publish step below.
       - name: Build (musl)
-        if: matrix.config.target == 'x86_64-unknown-linux-musl'
+        if: contains(matrix.config.target, '-linux-musl')
         env:
           SCCACHE_IDLE_TIMEOUT: 0
         run: ${{ matrix.config.cargo }} build -v --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
@@ -437,11 +471,11 @@ jobs:
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
-        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && !contains(matrix.config.target, 'ios') && matrix.config.target != 'x86_64-unknown-linux-musl'
+        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && !contains(matrix.config.target, 'ios') && !contains(matrix.config.target, '-linux-musl')
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
-        if: ${{ !contains(matrix.config.target, 'ios') && matrix.config.target != 'x86_64-unknown-linux-musl' }}
+        if: ${{ !contains(matrix.config.target, 'ios') && !contains(matrix.config.target, '-linux-musl') }}
         run: ${{ matrix.config.cargo }} clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }} -- -D clippy::all
 
       - name: Prepare binary publish
