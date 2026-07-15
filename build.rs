@@ -917,14 +917,21 @@ fn download_with_curl<P: AsRef<std::ffi::OsStr>>(
   path: P,
 ) -> io::Result<std::process::ExitStatus> {
   println!("Downloading with curl...");
-  Command::new("curl")
-    .arg("-L")
-    .arg("-f")
-    .arg("-s")
-    .arg("-o")
-    .arg(path)
-    .arg(url)
-    .status()
+
+  // Using `which` here also allows us to use `curl.exe` instead of the
+  // PowerShell alias `Invoke-WebRequest` on Windows.
+  which("curl")
+    .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))
+    .and_then(|curl_path| {
+      Command::new(curl_path)
+        .arg("-L")
+        .arg("-f")
+        .arg("-s")
+        .arg("-o")
+        .arg(path)
+        .arg(url)
+        .status()
+    })
 }
 
 fn download_static_lib_binaries() {
