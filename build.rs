@@ -180,7 +180,7 @@ fn build_binding() {
     );
   }
 
-  let output = Command::new(python())
+  let output = Command::new(python().unwrap())
     .arg("./tools/get_bindgen_args.py")
     .arg("--gn-out")
     .arg(build_dir().join("gn_out"))
@@ -634,7 +634,10 @@ fn build_v8(is_asan: bool) {
 fn print_gn_args(gn_out_dir: &Path) {
   assert!(
     Command::new(gn())
-      .arg(format!("--script-executable={}", python()))
+      .arg(format!(
+        "--script-executable={}",
+        python().unwrap().display()
+      ))
       .arg("args")
       .arg(gn_out_dir)
       .arg("--list")
@@ -663,7 +666,7 @@ fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{arch}-sysroot");
   if !PathBuf::from(sysroot_path).is_dir() {
     assert!(
-      Command::new(python())
+      Command::new(python().unwrap())
         .arg("./build/linux/sysroot_scripts/install-sysroot.py")
         .arg(format!("--arch={arch}"))
         .status()
@@ -685,7 +688,7 @@ fn download_ninja_gn_binaries() {
 
   if !gn.exists() || !ninja.exists() {
     assert!(
-      Command::new(python())
+      Command::new(python().unwrap())
         .arg("./tools/ninja_gn_binaries.py")
         .arg("--dir")
         .arg(&target_dir)
@@ -708,7 +711,7 @@ fn download_ninja_gn_binaries() {
 
 fn download_rust_toolchain() {
   assert!(
-    Command::new(python())
+    Command::new(python().unwrap())
       .arg("./tools/rust_toolchain.py")
       .status()
       .unwrap()
@@ -1128,7 +1131,7 @@ fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path (downloaded) {}", clang_base_path.display());
   assert!(
-    Command::new(python())
+    Command::new(python().unwrap())
       .arg("./tools/clang/scripts/update.py")
       .arg("--output-dir")
       .arg(&clang_base_path)
@@ -1279,12 +1282,28 @@ fn gn() -> String {
   env::var("GN").unwrap_or_else(|_| "gn".to_owned())
 }
 
-/*
- * Get the system's python binary - specified via the PYTHON environment
- * variable or defaulting to `python3`.
- */
-fn python() -> String {
-  env::var("PYTHON").unwrap_or_else(|_| "python3".to_owned())
+/// Get the system's python binary in the following order
+/// 1. The `PYTHON` environment variable
+/// 2. Look for `python` or `python3` in `PATH`
+///
+/// Returns `Err` if no Python binary could be found or the
+/// given path does not point to an executable.
+fn python() -> io::Result<PathBuf> {
+  if let Ok(python_path) = env::var("PYTHON") {
+    return which(python_path).map_err(|_| {
+      io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "Path in PYTHON environment variable does not point to an executable!",
+      )
+    });
+  }
+
+  which("python").or_else(|_| which("python3")).map_err(|_| {
+    io::Error::new(
+      io::ErrorKind::NotFound,
+      "Python executable not found in PATH!",
+    )
+  })
 }
 
 type NinjaEnv = Vec<(String, String)>;
@@ -1328,7 +1347,10 @@ fn run_gn_gen(gn_args: &[String]) -> PathBuf {
   assert!(
     Command::new(gn())
       .arg(format!("--root={}", dirs.root.display()))
-      .arg(format!("--script-executable={}", python()))
+      .arg(format!(
+        "--script-executable={}",
+        python().unwrap().display()
+      ))
       .arg("gen")
       .arg(&gn_out_dir)
       .arg("--ide=json")
