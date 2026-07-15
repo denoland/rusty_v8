@@ -212,6 +212,17 @@ fn build_binding() {
         clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
       }
     }
+    // Parse the V8 headers against the musl sysroot. bindgen already targets
+    // the musl triple (from $TARGET), so without this it looks for the target
+    // arch's glibc multiarch headers, which aren't installed when cross-
+    // compiling (e.g. aarch64 glibc headers on an x86_64 runner).
+    let is_musl =
+      env::var("CARGO_CFG_TARGET_ENV").map(|e| e == "musl").unwrap_or(false);
+    if is_musl {
+      if let Ok(sysroot) = env::var("RUSTY_V8_MUSL_SYSROOT") {
+        clang_args.push(format!("--sysroot={sysroot}"));
+      }
+    }
   } else if target_os == "ios" {
     // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
     // matching clang target triple so the V8 headers parse correctly.
