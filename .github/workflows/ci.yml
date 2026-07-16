@@ -360,13 +360,19 @@ jobs:
               # apt has no aarch64 musl, so use Alpine's static apk to install
               # the aarch64 musl headers/libs + kernel headers into the sysroot.
               # These foreign-arch packages are only extracted, never executed.
-              ALPINE=v3.21; APK_VER=2.14.6-r3
-              curl -sSLo /tmp/apk.apk \
-                "https://dl-cdn.alpinelinux.org/alpine/${ALPINE}/main/x86_64/apk-tools-static-${APK_VER}.apk"
+              ALPINE=v3.21
+              MIRROR="https://dl-cdn.alpinelinux.org/alpine/${ALPINE}/main"
+              # Alpine's main repo only keeps the latest revision of each
+              # package, so resolve apk-tools-static's current version from the
+              # index rather than pinning a filename that would later 404.
+              APK_VER=$(curl -fsSL "${MIRROR}/x86_64/APKINDEX.tar.gz" \
+                | tar -xzO APKINDEX \
+                | awk -v RS='' -v FS='\n' '{p="";v="";for(i=1;i<=NF;i++){if($i~/^P:/)p=substr($i,3);if($i~/^V:/)v=substr($i,3)}if(p=="apk-tools-static")print v}')
+              curl -fsSLo /tmp/apk.apk \
+                "${MIRROR}/x86_64/apk-tools-static-${APK_VER}.apk"
               tar -xzf /tmp/apk.apk -C /tmp sbin/apk.static
               mkdir -p "${SYSROOT}/etc/apk"
-              /tmp/sbin/apk.static --arch aarch64 \
-                -X "https://dl-cdn.alpinelinux.org/alpine/${ALPINE}/main" \
+              /tmp/sbin/apk.static --arch aarch64 -X "${MIRROR}" \
                 --root "${SYSROOT}" --initdb --allow-untrusted \
                 add musl-dev linux-headers
               ;;
