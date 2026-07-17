@@ -12786,6 +12786,25 @@ fn string_valueview() {
     let view = v8::ValueView::new(scope, two_byte);
     assert_eq!(view.data(), v8::ValueViewData::TwoByte(&[1, 0x1FF, 3]));
   }
+
+  // Empty strings: `data()` reports the actual `is_one_byte_` encoding for the
+  // zero-length case, not a hardcoded variant. V8 canonicalizes every empty
+  // string (including one built from two-byte data) to the one-byte empty
+  // string, so both report `OneByte`.
+  {
+    let empty_one_byte =
+      v8::String::new_from_one_byte(scope, &[], v8::NewStringType::Normal)
+        .unwrap();
+    let view = v8::ValueView::new(scope, empty_one_byte);
+    assert_eq!(view.data(), v8::ValueViewData::OneByte(&[]));
+  }
+  {
+    let empty_two_byte =
+      v8::String::new_from_two_byte(scope, &[], v8::NewStringType::Normal)
+        .unwrap();
+    let view = v8::ValueView::new(scope, empty_two_byte);
+    assert_eq!(view.data(), v8::ValueViewData::OneByte(&[]));
+  }
 }
 
 #[test]

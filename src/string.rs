@@ -964,10 +964,9 @@ impl String {
   /// data. When the `simdutf` feature is enabled, uses SIMD-accelerated
   /// transcoding for Latin-1 and two-byte strings.
   pub fn to_rust_string_lossy(&self, scope: &Isolate) -> std::string::String {
-    if self.length() == 0 {
-      return std::string::String::new();
-    }
-
+    // No preliminary `self.length()` FFI call: the `ValueView` reports the
+    // length, and `data()` yields an empty slice for empty strings, which the
+    // ASCII arm below turns into an empty `String`.
     // SAFETY: `self` is a valid V8 string reachable from a handle scope.
     let view = unsafe { ValueView::new_from_ref(scope, self) };
 
@@ -999,11 +998,8 @@ impl String {
     buf: &mut std::string::String,
   ) {
     buf.clear();
-    let len = self.length();
-    if len == 0 {
-      return;
-    }
-
+    // No preliminary `self.length()` FFI call; an empty string yields an empty
+    // `data()` slice and leaves `buf` cleared.
     // SAFETY: `self` is a valid V8 string reachable from a handle scope.
     // The ValueView is dropped before we return.
     let view = unsafe { ValueView::new_from_ref(scope, self) };
@@ -1052,11 +1048,8 @@ impl String {
     scope: &mut Isolate,
     buffer: &'a mut [MaybeUninit<u8>; N],
   ) -> Cow<'a, str> {
-    let len = self.length();
-    if len == 0 {
-      return "".into();
-    }
-
+    // No preliminary `self.length()` FFI call; an empty string yields an empty
+    // `data()` slice, which the ASCII arm borrows as an empty `&str`.
     // SAFETY: `self` is a valid V8 string reachable from a handle scope.
     // The ValueView is dropped before we return, so the
     // DisallowGarbageCollection scope it holds is properly scoped.
@@ -1184,10 +1177,21 @@ impl<'s> ValueView<'s> {
     const IS_ONE_BYTE_OFFSET: usize = PTR + PTR + std::mem::size_of::<u32>();
     unsafe {
       let base = self.0.as_ptr();
-      let data = base.add(DATA_OFFSET).cast::<*const u8>().read_unaligned();
       let length =
         base.add(LENGTH_OFFSET).cast::<u32>().read_unaligned() as usize;
       let is_one_byte = *base.add(IS_ONE_BYTE_OFFSET) != 0;
+      if length == 0 {
+        // Empty strings may carry a null `data8_`/`data16_` pointer, so return
+        // an empty slice with a valid (dangling) pointer rather than passing a
+        // possibly-null pointer to `from_raw_parts`. Still report the actual
+        // encoding so `data()`'s contract holds for empty two-byte strings.
+        return if is_one_byte {
+          ValueViewData::OneByte(&[])
+        } else {
+          ValueViewData::TwoByte(&[])
+        };
+      }
+      let data = base.add(DATA_OFFSET).cast::<*const u8>().read_unaligned();
       if is_one_byte {
         ValueViewData::OneByte(std::slice::from_raw_parts(data, length))
       } else {
