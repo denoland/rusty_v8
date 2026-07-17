@@ -151,5 +151,10 @@ name = "function"
 path = "benches/function.rs"
 harness = false
 
+[[bench]]
+name = "string_read"
+path = "benches/string_read.rs"
+harness = false
+
 [workspace]
 members = ["examples/android"]

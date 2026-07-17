@@ -11,7 +11,6 @@ use crate::support::size_t;
 use std::borrow::Cow;
 use std::convert::TryInto;
 use std::default::Default;
-use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
@@ -205,9 +204,6 @@ unsafe extern "C" {
     string: *const String,
   );
   fn v8__String__ValueView__DESTRUCT(this: *mut ValueView);
-  fn v8__String__ValueView__is_one_byte(this: *const ValueView) -> bool;
-  fn v8__String__ValueView__data(this: *const ValueView) -> *const c_void;
-  fn v8__String__ValueView__length(this: *const ValueView) -> int;
 }
 
 #[derive(PartialEq, Debug)]
@@ -1172,13 +1168,33 @@ impl<'s> ValueView<'s> {
 
   #[inline(always)]
   pub fn data(&self) -> ValueViewData<'_> {
+    // Read the `v8::String::ValueView` fields directly out of the byte buffer
+    // that `CONSTRUCT` filled, instead of crossing FFI for each one-line
+    // accessor thunk. The layout is fixed by the public header
+    // (v8/include/v8-primitive.h):
+    //   offset 0:                    Local<v8::String> flat_str_  (1 pointer)
+    //   offset size_of::<*>():       union { data8_; data16_ }    (1 pointer)
+    //   + size_of::<*>():            uint32_t length_
+    //   + size_of::<u32>():          bool is_one_byte_
+    // The offsets are verified at runtime against the FFI accessors in
+    // `tests/test_api.rs` (`value_view_field_layout`).
+    const PTR: usize = std::mem::size_of::<*const u8>();
+    const DATA_OFFSET: usize = PTR;
+    const LENGTH_OFFSET: usize = PTR + PTR;
+    const IS_ONE_BYTE_OFFSET: usize = PTR + PTR + std::mem::size_of::<u32>();
     unsafe {
-      let data = v8__String__ValueView__data(self);
-      let length = v8__String__ValueView__length(self) as usize;
-      if v8__String__ValueView__is_one_byte(self) {
-        ValueViewData::OneByte(std::slice::from_raw_parts(data as _, length))
+      let base = self.0.as_ptr();
+      let data = base.add(DATA_OFFSET).cast::<*const u8>().read_unaligned();
+      let length =
+        base.add(LENGTH_OFFSET).cast::<u32>().read_unaligned() as usize;
+      let is_one_byte = *base.add(IS_ONE_BYTE_OFFSET) != 0;
+      if is_one_byte {
+        ValueViewData::OneByte(std::slice::from_raw_parts(data, length))
       } else {
-        ValueViewData::TwoByte(std::slice::from_raw_parts(data as _, length))
+        ValueViewData::TwoByte(std::slice::from_raw_parts(
+          data.cast::<u16>(),
+          length,
+        ))
       }
     }
   }
