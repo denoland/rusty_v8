@@ -456,6 +456,20 @@ fn test_string() {
     assert!(matches!(cow, Cow::Borrowed(_)));
     assert_eq!(s, cow);
 
+    // Long one-byte strings (>= threshold) exercise the simdutf ASCII path.
+    let long_ascii = "a".repeat(200);
+    let s_ascii = v8::String::new(scope, &long_ascii).unwrap();
+    let mut buffer = [MaybeUninit::uninit(); 1000];
+    let cow = s_ascii.to_rust_cow_lossy(scope, &mut buffer);
+    assert!(matches!(cow, Cow::Borrowed(_)));
+    assert_eq!(long_ascii, cow);
+
+    let long_latin1 = "\u{00e9}".repeat(200);
+    let s_latin1 = v8::String::new(scope, &long_latin1).unwrap();
+    let mut buffer = [MaybeUninit::uninit(); 1000];
+    let cow = s_latin1.to_rust_cow_lossy(scope, &mut buffer);
+    assert_eq!(long_latin1, cow);
+
     let s = "🦕 Lorem ipsum dolor sit amet. Qui inventore debitis et voluptas cupiditate qui recusandae molestias et ullam possimus";
     let two_bytes =
       v8::String::new_from_utf8(scope, s.as_bytes(), v8::NewStringType::Normal)
@@ -12941,6 +12955,20 @@ fn string_write_utf8_into() {
     let s = v8::String::new(scope, "café ☕").unwrap();
     s.write_utf8_into(scope, &mut buf);
     assert_eq!(buf, "café ☕");
+  }
+
+  // Long one-byte strings exercise the simdutf ASCII-detection path.
+  {
+    let long_ascii = "a".repeat(200);
+    let s = v8::String::new(scope, &long_ascii).unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, long_ascii);
+  }
+  {
+    let long_latin1 = "\u{00e9}".repeat(200);
+    let s = v8::String::new(scope, &long_latin1).unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, long_latin1);
   }
 }
 

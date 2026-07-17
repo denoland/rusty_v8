@@ -971,14 +971,7 @@ impl String {
     let view = unsafe { ValueView::new_from_ref(scope, self) };
 
     match view.data() {
-      ValueViewData::OneByte(bytes) => {
-        if bytes.is_ascii() {
-          // SAFETY: ASCII is valid UTF-8.
-          unsafe { std::str::from_utf8_unchecked(bytes) }.to_owned()
-        } else {
-          latin1_to_string(bytes)
-        }
-      }
+      ValueViewData::OneByte(bytes) => onebyte_to_string(bytes),
       ValueViewData::TwoByte(units) => wtf16_to_string(units),
     }
   }
@@ -1006,7 +999,7 @@ impl String {
 
     match view.data() {
       ValueViewData::OneByte(bytes) => {
-        if bytes.is_ascii() {
+        if onebyte_is_ascii(bytes) {
           // ASCII: direct copy, already valid UTF-8.
           buf.reserve(bytes.len());
           unsafe {
@@ -1057,7 +1050,7 @@ impl String {
 
     match view.data() {
       ValueViewData::OneByte(bytes) => {
-        if bytes.is_ascii() {
+        if onebyte_is_ascii(bytes) {
           // ASCII: direct memcpy, no transcoding needed.
           if bytes.len() <= N {
             unsafe {
@@ -1261,6 +1254,66 @@ impl<'s> ValueView<'s> {
 /// not worth it, so we fall back to the scalar loop.
 #[cfg(feature = "simdutf")]
 const WTF16_SIMD_THRESHOLD: usize = 96;
+
+/// Minimum one-byte string length before the simdutf `utf8_length_from_latin1`
+/// path beats std's inline `is_ascii` SWAR scan (the simdutf FFI call has fixed
+/// overhead that only pays off once the scan is long enough).
+#[cfg(feature = "simdutf")]
+const ONEBYTE_SIMD_THRESHOLD: usize = 128;
+
+/// Whether one-byte string data is pure ASCII. Uses simdutf's wide SIMD scan
+/// for long strings (where it beats std's SWAR `is_ascii`) and the inline
+/// `is_ascii` for short ones (avoiding the simdutf FFI-call overhead). Shared
+/// by the one-byte read paths that only need the ASCII/Latin-1 decision.
+#[inline(always)]
+fn onebyte_is_ascii(bytes: &[u8]) -> bool {
+  #[cfg(feature = "simdutf")]
+  if bytes.len() >= ONEBYTE_SIMD_THRESHOLD {
+    return crate::simdutf::validate_ascii(bytes);
+  }
+  bytes.is_ascii()
+}
+
+/// Converts one-byte (Latin-1) string data to an owned
+/// [`std::string::String`].
+///
+/// With `simdutf`, a single `utf8_length_from_latin1` SIMD pass both detects
+/// pure ASCII (result == input length) and yields the exact UTF-8 length for
+/// the Latin-1 case, so an ASCII string is one SIMD scan + a memcpy and a
+/// Latin-1 string is one SIMD scan + one SIMD transcode (down from the previous
+/// `is_ascii` scan + separate length scan + transcode).
+#[inline(always)]
+fn onebyte_to_string(bytes: &[u8]) -> std::string::String {
+  #[cfg(feature = "simdutf")]
+  {
+    // For long strings, one `utf8_length_from_latin1` SIMD pass both detects
+    // ASCII and sizes the Latin-1 transcode. For short strings the simdutf FFI
+    // call costs more than std's inline `is_ascii` SWAR loop, so keep the
+    // inline path there (crossover measured near ~128 bytes).
+    if bytes.len() >= ONEBYTE_SIMD_THRESHOLD {
+      let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
+      if utf8_len == bytes.len() {
+        // Pure ASCII: already valid UTF-8. SAFETY: ASCII is valid UTF-8.
+        return unsafe { std::str::from_utf8_unchecked(bytes) }.to_owned();
+      }
+      let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
+      // SAFETY: `buf` has capacity `utf8_len`, exactly what the transcode writes.
+      unsafe {
+        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), utf8_len);
+        let written = crate::simdutf::convert_latin1_to_utf8(bytes, out);
+        debug_assert_eq!(written, utf8_len);
+        buf.set_len(written);
+        return std::string::String::from_utf8_unchecked(buf);
+      }
+    }
+  }
+  if bytes.is_ascii() {
+    // SAFETY: ASCII is valid UTF-8.
+    unsafe { std::str::from_utf8_unchecked(bytes) }.to_owned()
+  } else {
+    latin1_to_string(bytes)
+  }
+}
 
 /// Converts Latin-1 bytes to an owned [`std::string::String`].
 #[inline(always)]
