@@ -81,6 +81,12 @@ pub unsafe fn latin1_to_utf8(
   }
 }
 
+/// Minimum non-ASCII UTF-8 byte length before `new_from_utf8` decodes with
+/// simdutf instead of V8's decoder. Below this the two potential simdutf FFI
+/// calls cost more than V8 handling the tiny string itself.
+#[cfg(feature = "simdutf")]
+const NONASCII_ENCODE_SIMD_THRESHOLD: usize = 16;
+
 unsafe extern "C" {
   fn v8__String__Empty(isolate: *mut RealIsolate) -> *const String;
 
@@ -471,6 +477,87 @@ impl String {
   ) -> Option<Local<'s, String>> {
     if buffer.is_empty() {
       return Some(Self::empty(scope));
+    }
+    // V8's `NewFromUtf8` runs a scalar UTF-8 decoder (twice: once to compute
+    // the width/length, once to write), which is very slow for non-ASCII. When
+    // simdutf is available we decode the input ourselves and hand V8 a
+    // pre-decoded one-byte (Latin-1) or two-byte (UTF-16) buffer — which it can
+    // just memcpy.
+    // `NewFromUtf8` rejects inputs whose *byte* length exceeds the maximum
+    // string length (conservatively, before decoding). Our decode paths would
+    // otherwise accept some of those (the decoded string is shorter), which
+    // would change behavior, so only take them when the byte length is in
+    // range and let V8 reject the rest.
+    #[cfg(feature = "simdutf")]
+    if buffer.len() <= Self::MAX_LENGTH {
+      // Pure ASCII (the common case): the bytes are already valid one-byte
+      // (Latin-1) data. `is_ascii` is an inline SWAR scan, cheaper than a
+      // simdutf FFI call for the short strings that dominate.
+      if buffer.is_ascii() {
+        return Self::new_from_one_byte(scope, buffer, new_type);
+      }
+      // Non-ASCII: transcode with simdutf only above a small threshold. For
+      // tiny strings the two potential simdutf FFI calls (Latin-1 attempt then
+      // UTF-16) cost more than V8's decoder, which is only slow at scale.
+      if buffer.len() >= NONASCII_ENCODE_SIMD_THRESHOLD {
+        return Self::new_from_utf8_transcode(scope, buffer, new_type);
+      }
+    }
+    let buffer_len = buffer.len().try_into().ok()?;
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__NewFromUtf8(
+          sd.get_isolate_ptr(),
+          buffer.as_ptr() as *const char,
+          new_type,
+          buffer_len,
+        )
+      })
+    }
+  }
+
+  /// Decodes non-ASCII, non-empty valid UTF-8 into one-byte (Latin-1) or
+  /// two-byte (UTF-16) data with simdutf and hands it to V8. Falls back to
+  /// V8's lossy `NewFromUtf8` when the input isn't valid UTF-8.
+  #[cfg(feature = "simdutf")]
+  fn new_from_utf8_transcode<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    buffer: &[u8],
+    new_type: NewStringType,
+  ) -> Option<Local<'s, String>> {
+    {
+      // Try Latin-1 first (more compact). The conversion errors if any code
+      // point exceeds U+00FF or the input isn't valid UTF-8; a Latin-1 result
+      // is never longer than the UTF-8 input.
+      let mut latin1: Vec<u8> = Vec::with_capacity(buffer.len());
+      // SAFETY: `latin1` has `buffer.len()` bytes of spare capacity, an upper
+      // bound on the Latin-1 length; simdutf only writes, never reads it.
+      let r = unsafe {
+        let out =
+          std::slice::from_raw_parts_mut(latin1.as_mut_ptr(), buffer.len());
+        crate::simdutf::convert_utf8_to_latin1_with_errors(buffer, out)
+      };
+      if r.is_ok() {
+        // SAFETY: simdutf wrote `r.count` valid Latin-1 bytes.
+        unsafe { latin1.set_len(r.count) };
+        return Self::new_from_one_byte(scope, &latin1, new_type);
+      }
+      // Not Latin-1 representable (or invalid UTF-8): try UTF-16. A UTF-16
+      // result is never more code units than the UTF-8 input has bytes.
+      let mut utf16: Vec<u16> = Vec::with_capacity(buffer.len());
+      // SAFETY: `utf16` has `buffer.len()` units of spare capacity, an upper
+      // bound on the UTF-16 length.
+      let r = unsafe {
+        let out =
+          std::slice::from_raw_parts_mut(utf16.as_mut_ptr(), buffer.len());
+        crate::simdutf::convert_utf8_to_utf16le_with_errors(buffer, out)
+      };
+      if r.is_ok() {
+        // SAFETY: simdutf wrote `r.count` valid UTF-16 code units.
+        unsafe { utf16.set_len(r.count) };
+        return Self::new_from_two_byte(scope, &utf16, new_type);
+      }
+      // Invalid UTF-8: fall through to V8's lossy `NewFromUtf8`.
     }
     let buffer_len = buffer.len().try_into().ok()?;
     unsafe {

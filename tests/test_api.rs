@@ -235,6 +235,55 @@ fn global_handle_drop() {
 }
 
 #[test]
+fn new_from_utf8_simd_transcode() {
+  // Exercises new_from_utf8's simdutf Latin-1 / UTF-16 transcode paths (>=
+  // threshold, non-ASCII) and the invalid-UTF-8 lossy fallback.
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Latin-1 (one-byte) path: accented text, all code points <= U+00FF.
+  let s = "café ".repeat(8);
+  assert_eq!(
+    v8::String::new(scope, &s)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    s
+  );
+
+  // UTF-16 (two-byte) path: CJK.
+  let s = "世界".repeat(8);
+  assert_eq!(
+    v8::String::new(scope, &s)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    s
+  );
+
+  // Mixed BMP + supplementary (emoji => surrogate pairs) -> UTF-16 path.
+  let s = "hi 🦕 世界!".repeat(3);
+  assert_eq!(
+    v8::String::new(scope, &s)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    s
+  );
+
+  // Invalid UTF-8 (>= threshold, non-ASCII) -> V8's lossy NewFromUtf8.
+  let invalid = b"valid_ascii_prefix_\xFF\xFE_invalid_tail";
+  let got =
+    v8::String::new_from_utf8(scope, invalid, v8::NewStringType::Normal)
+      .unwrap()
+      .to_rust_string_lossy(scope);
+  assert!(got.starts_with("valid_ascii_prefix_"));
+  assert!(got.ends_with("_invalid_tail"));
+  assert!(got.contains('\u{FFFD}'));
+}
+
+#[test]
 fn test_string() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
