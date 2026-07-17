@@ -1337,10 +1337,11 @@ impl<'s> ValueView<'s> {
 // ---------------------------------------------------------------------------
 
 /// The minimum number of UTF-16 code units before we try the SIMD path.
-/// Below this threshold the overhead of validation + length pre-scan is
-/// not worth it, so we fall back to the scalar loop.
+/// With the single-pass `convert_utf16le_to_utf8_with_errors` conversion the
+/// crossover against the scalar `decode_utf16` loop is low; measured wins start
+/// around 16 units.
 #[cfg(feature = "simdutf")]
-const WTF16_SIMD_THRESHOLD: usize = 96;
+const WTF16_SIMD_THRESHOLD: usize = 16;
 
 /// Minimum one-byte string length before the simdutf `utf8_length_from_latin1`
 /// path beats std's inline `is_ascii` SWAR scan (the simdutf FFI call has fixed
@@ -1437,18 +1438,24 @@ fn latin1_to_string(bytes: &[u8]) -> std::string::String {
 fn wtf16_to_string(units: &[u16]) -> std::string::String {
   #[cfg(feature = "simdutf")]
   {
-    // For longer, valid UTF-16 strings, use simdutf's SIMD-accelerated path.
-    if units.len() >= WTF16_SIMD_THRESHOLD
-      && crate::simdutf::validate_utf16le(units)
-    {
-      let utf8_len = crate::simdutf::utf8_length_from_utf16le(units);
-      let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
-      unsafe {
-        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), utf8_len);
-        let written = crate::simdutf::convert_utf16le_to_utf8(units, out);
-        debug_assert_eq!(written, utf8_len);
-        buf.set_len(written);
-        return std::string::String::from_utf8_unchecked(buf);
+    // Single simdutf pass that validates *and* converts. Each UTF-16 code unit
+    // yields at most 3 UTF-8 bytes (surrogate pairs are 2 units -> 4 bytes), so
+    // `len * 3` is a safe upper bound. On a lone-surrogate error we fall
+    // through to the scalar WTF-16 loop below.
+    if units.len() >= WTF16_SIMD_THRESHOLD {
+      let cap = units.len() * 3;
+      let mut buf: Vec<u8> = Vec::with_capacity(cap);
+      // SAFETY: `buf` has `cap` bytes of spare capacity.
+      let result = unsafe {
+        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), cap);
+        crate::simdutf::convert_utf16le_to_utf8_with_errors(units, out)
+      };
+      if result.is_ok() {
+        // SAFETY: simdutf wrote `result.count` valid UTF-8 bytes.
+        unsafe {
+          buf.set_len(result.count);
+          return std::string::String::from_utf8_unchecked(buf);
+        }
       }
     }
   }
@@ -1466,19 +1473,24 @@ fn wtf16_to_string(units: &[u16]) -> std::string::String {
 fn wtf16_into_string(units: &[u16], buf: &mut std::string::String) {
   #[cfg(feature = "simdutf")]
   {
-    if units.len() >= WTF16_SIMD_THRESHOLD
-      && crate::simdutf::validate_utf16le(units)
-    {
-      let utf8_len = crate::simdutf::utf8_length_from_utf16le(units);
-      buf.reserve(utf8_len);
-      unsafe {
-        let vec = buf.as_mut_vec();
-        let out = std::slice::from_raw_parts_mut(vec.as_mut_ptr(), utf8_len);
-        let written = crate::simdutf::convert_utf16le_to_utf8(units, out);
-        debug_assert_eq!(written, utf8_len);
-        vec.set_len(written);
+    if units.len() >= WTF16_SIMD_THRESHOLD {
+      let cap = units.len() * 3;
+      buf.reserve(cap);
+      // SAFETY: appended bytes are valid UTF-8 (or we roll back on error).
+      let vec = unsafe { buf.as_mut_vec() };
+      let start = vec.len();
+      let result = unsafe {
+        let out =
+          std::slice::from_raw_parts_mut(vec.as_mut_ptr().add(start), cap);
+        crate::simdutf::convert_utf16le_to_utf8_with_errors(units, out)
+      };
+      if result.is_ok() {
+        // SAFETY: simdutf wrote `result.count` valid UTF-8 bytes at `start`.
+        unsafe { vec.set_len(start + result.count) };
+        return;
       }
-      return;
+      // Lone surrogate: `vec` len is unchanged (`start`); fall through to
+      // the scalar loop, which appends over the untouched spare capacity.
     }
   }
   // Scalar fallback.
@@ -1537,28 +1549,27 @@ fn wtf16_to_cow_str<'a, const N: usize>(
 ) -> Cow<'a, str> {
   #[cfg(feature = "simdutf")]
   {
-    if units.len() >= WTF16_SIMD_THRESHOLD
-      && crate::simdutf::validate_utf16le(units)
-    {
-      let utf8_len = crate::simdutf::utf8_length_from_utf16le(units);
-
-      if utf8_len <= N {
-        let written = unsafe {
-          let out = std::slice::from_raw_parts_mut(
-            buffer.as_mut_ptr() as *mut u8,
-            utf8_len,
-          );
-          crate::simdutf::convert_utf16le_to_utf8(units, out)
+    if units.len() >= WTF16_SIMD_THRESHOLD {
+      // Each unit is at most 3 UTF-8 bytes, so if `len * 3` fits the stack
+      // buffer the single-pass conversion is guaranteed to fit; borrow it.
+      if units.len() * 3 <= N {
+        let result = unsafe {
+          let out =
+            std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, N);
+          crate::simdutf::convert_utf16le_to_utf8_with_errors(units, out)
         };
-        return unsafe {
-          let buf = &mut buffer[..written];
-          let buf = &mut *(buf as *mut [_] as *mut [u8]);
-          Cow::Borrowed(std::str::from_utf8_unchecked(buf))
-        };
+        if result.is_ok() {
+          return unsafe {
+            let buf = &mut buffer[..result.count];
+            let buf = &mut *(buf as *mut [_] as *mut [u8]);
+            Cow::Borrowed(std::str::from_utf8_unchecked(buf))
+          };
+        }
+        // Lone surrogate: fall through to the scalar path below.
+      } else {
+        // The worst case may not fit the stack buffer — allocate.
+        return Cow::Owned(wtf16_to_string(units));
       }
-
-      // Doesn't fit in the stack buffer — allocate.
-      return Cow::Owned(wtf16_to_string(units));
     }
   }
 

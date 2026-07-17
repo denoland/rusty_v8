@@ -12966,6 +12966,37 @@ fn string_valueview_to_cow_lossy() {
 }
 
 #[test]
+fn to_rust_string_lossy_wtf16_simd_path() {
+  // Exercises the >= WTF16_SIMD_THRESHOLD single-pass conversion path (the
+  // existing two-byte tests use short strings that take the scalar fallback).
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Long valid two-byte string -> single-pass simdutf conversion.
+  let units: Vec<u16> = std::iter::repeat(0x4E16).take(64).collect(); // 世
+  let s =
+    v8::String::new_from_two_byte(scope, &units, v8::NewStringType::Normal)
+      .unwrap();
+  assert_eq!(s.to_rust_string_lossy(scope), "世".repeat(64));
+
+  // Long string with an unpaired surrogate -> single-pass reports an error and
+  // we fall back to the scalar loop, which substitutes U+FFFD.
+  let mut units2: Vec<u16> = std::iter::repeat(0x4E16).take(32).collect();
+  units2[10] = 0xD800; // lone high surrogate
+  let s2 =
+    v8::String::new_from_two_byte(scope, &units2, v8::NewStringType::Normal)
+      .unwrap();
+  let expected: String = (0..32)
+    .map(|i| if i == 10 { '\u{FFFD}' } else { '世' })
+    .collect();
+  assert_eq!(s2.to_rust_string_lossy(scope), expected);
+}
+
+#[test]
 fn string_write_utf8_into() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
