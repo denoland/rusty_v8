@@ -87,6 +87,16 @@ pub unsafe fn latin1_to_utf8(
 #[cfg(feature = "simdutf")]
 const NONASCII_ENCODE_SIMD_THRESHOLD: usize = 16;
 
+#[cfg(feature = "simdutf")]
+thread_local! {
+  /// Reused scratch buffers for `new_from_utf8`'s simdutf transcode, so
+  /// non-ASCII string creation doesn't allocate a fresh buffer each call.
+  static ENCODE_SCRATCH_LATIN1: std::cell::RefCell<Vec<u8>> =
+    const { std::cell::RefCell::new(Vec::new()) };
+  static ENCODE_SCRATCH_UTF16: std::cell::RefCell<Vec<u16>> =
+    const { std::cell::RefCell::new(Vec::new()) };
+}
+
 unsafe extern "C" {
   fn v8__String__Empty(isolate: *mut RealIsolate) -> *const String;
 
@@ -528,8 +538,14 @@ impl String {
     {
       // Try Latin-1 first (more compact). The conversion errors if any code
       // point exceeds U+00FF or the input isn't valid UTF-8; a Latin-1 result
-      // is never longer than the UTF-8 input.
-      let mut latin1: Vec<u8> = Vec::with_capacity(buffer.len());
+      // is never longer than the UTF-8 input. A reused thread-local scratch
+      // avoids a heap allocation on every non-ASCII string creation.
+      // Take the scratch out of the thread-local so its borrow isn't held
+      // across `new_from_one_byte` (which may allocate / trigger GC), then put
+      // it back for reuse.
+      let mut latin1 = ENCODE_SCRATCH_LATIN1.with(|c| c.take());
+      latin1.clear();
+      latin1.reserve(buffer.len());
       // SAFETY: `latin1` has `buffer.len()` bytes of spare capacity, an upper
       // bound on the Latin-1 length; simdutf only writes, never reads it.
       let r = unsafe {
@@ -540,11 +556,16 @@ impl String {
       if r.is_ok() {
         // SAFETY: simdutf wrote `r.count` valid Latin-1 bytes.
         unsafe { latin1.set_len(r.count) };
-        return Self::new_from_one_byte(scope, &latin1, new_type);
+        let s = Self::new_from_one_byte(scope, &latin1, new_type);
+        ENCODE_SCRATCH_LATIN1.with(|c| c.replace(latin1));
+        return s;
       }
+      ENCODE_SCRATCH_LATIN1.with(|c| c.replace(latin1));
       // Not Latin-1 representable (or invalid UTF-8): try UTF-16. A UTF-16
       // result is never more code units than the UTF-8 input has bytes.
-      let mut utf16: Vec<u16> = Vec::with_capacity(buffer.len());
+      let mut utf16 = ENCODE_SCRATCH_UTF16.with(|c| c.take());
+      utf16.clear();
+      utf16.reserve(buffer.len());
       // SAFETY: `utf16` has `buffer.len()` units of spare capacity, an upper
       // bound on the UTF-16 length.
       let r = unsafe {
@@ -555,8 +576,11 @@ impl String {
       if r.is_ok() {
         // SAFETY: simdutf wrote `r.count` valid UTF-16 code units.
         unsafe { utf16.set_len(r.count) };
-        return Self::new_from_two_byte(scope, &utf16, new_type);
+        let s = Self::new_from_two_byte(scope, &utf16, new_type);
+        ENCODE_SCRATCH_UTF16.with(|c| c.replace(utf16));
+        return s;
       }
+      ENCODE_SCRATCH_UTF16.with(|c| c.replace(utf16));
       // Invalid UTF-8: fall through to V8's lossy `NewFromUtf8`.
     }
     let buffer_len = buffer.len().try_into().ok()?;
