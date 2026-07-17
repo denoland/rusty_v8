@@ -150,5 +150,10 @@ name = "function"
 path = "benches/function.rs"
 harness = false
 
+[[bench]]
+name = "string_conversion"
+path = "benches/string_conversion.rs"
+harness = false
+
 [workspace]
 members = ["examples/android"]

@@ -891,19 +891,30 @@ impl String {
       return std::string::String::new();
     }
 
-    let len_utf8 = self.utf8_length(scope);
-
-    // If len_utf8 == len_utf16 and the string is one-byte, we can take the fast memcpy path. This is true iff the
-    // string is 100% 7-bit ASCII.
-    if self.is_onebyte() && len_utf8 == len_utf16 {
+    // Fast path for short one-byte (Latin-1) strings, which are by far the most
+    // common. We write the raw one-byte content once, then decide in Rust
+    // whether it is already valid UTF-8 (pure ASCII — the overwhelmingly common
+    // case) or needs Latin-1 transcoding. This avoids the separate
+    // `utf8_length` FFI scan the general path performs: an ASCII string now
+    // costs one FFI write plus a cheap Rust ASCII check, instead of two full
+    // FFI scans (`utf8_length` + write).
+    //
+    // The win comes from eliminating a fixed-cost FFI round-trip, so it is
+    // largest for short strings and disappears once per-byte work dominates
+    // (measured crossover is past ~128 UTF-16 code units); longer strings keep
+    // the exact-sized general path below.
+    const ONEBYTE_FAST_PATH_MAX_LEN: usize = 128;
+    if self.is_onebyte() && len_utf16 <= ONEBYTE_FAST_PATH_MAX_LEN {
+      // SAFETY: manual buffer management using the default allocator. The
+      // buffer is exactly `len_utf16` bytes and is fully initialized by
+      // `write_one_byte` before we read it.
       unsafe {
-        // Create an uninitialized buffer of `capacity` bytes. We need to be careful here to avoid
-        // accidentally creating a slice of u8 which would be invalid.
         let layout = std::alloc::Layout::from_size_align(len_utf16, 1).unwrap();
         let data = std::alloc::alloc(layout) as *mut MaybeUninit<u8>;
         let buffer = std::ptr::slice_from_raw_parts_mut(data, len_utf16);
 
-        // Write to this MaybeUninit buffer, assuming we're going to fill this entire buffer
+        // `write_one_byte` copies the raw one-byte code units (0..=255), not
+        // UTF-8. It fills the whole buffer since `buffer.len() == len_utf16`.
         self.write_one_byte_uninit_v2(
           scope,
           0,
@@ -911,13 +922,31 @@ impl String {
           WriteFlags::kReplaceInvalidUtf8,
         );
 
-        // Return an owned string from this guaranteed now-initialized data
-        let buffer = data as *mut u8;
-        return std::string::String::from_raw_parts(
-          buffer, len_utf16, len_utf16,
-        );
+        let bytes = std::slice::from_raw_parts(data as *const u8, len_utf16);
+        if bytes.is_ascii() {
+          // Pure ASCII: the one-byte content is already valid UTF-8, so the
+          // buffer becomes the string directly — no transcode, no second alloc.
+          return std::string::String::from_raw_parts(
+            data as *mut u8,
+            len_utf16,
+            len_utf16,
+          );
+        }
+
+        // Latin-1 with non-ASCII bytes (uncommon): transcode to UTF-8 (each
+        // byte expands to at most 2) into a fresh buffer using the
+        // SIMD-friendly `latin1_to_utf8`, then free the temporary one-byte
+        // buffer.
+        let mut out = Vec::<u8>::with_capacity(len_utf16 * 2);
+        let written =
+          latin1_to_utf8(len_utf16, data as *const u8, out.as_mut_ptr());
+        out.set_len(written);
+        std::alloc::dealloc(data as *mut u8, layout);
+        return std::string::String::from_utf8_unchecked(out);
       }
     }
+
+    let len_utf8 = self.utf8_length(scope);
 
     // SAFETY: This allocates a buffer manually using the default allocator using the string's capacity.
     // We have a large number of invariants to uphold, so please check changes to this code carefully
