@@ -150,5 +150,10 @@ name = "function"
 path = "benches/function.rs"
 harness = false
 
+[[bench]]
+name = "string_encode"
+path = "benches/string_encode.rs"
+harness = false
+
 [workspace]
 members = ["examples/android"]
