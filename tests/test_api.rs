@@ -12977,7 +12977,7 @@ fn to_rust_string_lossy_wtf16_simd_path() {
   let scope = &mut v8::ContextScope::new(&mut scope, context);
 
   // Long valid two-byte string -> single-pass simdutf conversion.
-  let units: Vec<u16> = std::iter::repeat(0x4E16).take(64).collect(); // 世
+  let units: Vec<u16> = std::iter::repeat_n(0x4E16, 64).collect(); // 世
   let s =
     v8::String::new_from_two_byte(scope, &units, v8::NewStringType::Normal)
       .unwrap();
@@ -12985,7 +12985,7 @@ fn to_rust_string_lossy_wtf16_simd_path() {
 
   // Long string with an unpaired surrogate -> single-pass reports an error and
   // we fall back to the scalar loop, which substitutes U+FFFD.
-  let mut units2: Vec<u16> = std::iter::repeat(0x4E16).take(32).collect();
+  let mut units2: Vec<u16> = std::iter::repeat_n(0x4E16, 32).collect();
   units2[10] = 0xD800; // lone high surrogate
   let s2 =
     v8::String::new_from_two_byte(scope, &units2, v8::NewStringType::Normal)
