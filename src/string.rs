@@ -97,6 +97,32 @@ thread_local! {
     const { std::cell::RefCell::new(Vec::new()) };
 }
 
+/// Cap (in elements) on the capacity retained by the reused scratch buffers
+/// between calls. The buffer grows to the input length, so without this a
+/// one-off huge string (e.g. 100 MB) would leave that allocation live in the
+/// thread-local forever. Above the cap we drop back down; transcoding a larger
+/// string still works, it just reallocates that one time. 64Ki elements is
+/// 64 KiB for Latin-1 and 128 KiB for UTF-16 — comfortably past the sizes where
+/// reuse actually helps (the allocation cost fades against the copy well before
+/// then).
+#[cfg(feature = "simdutf")]
+const ENCODE_SCRATCH_MAX_CAP: usize = 64 * 1024;
+
+/// Return a scratch buffer to its thread-local, dropping any capacity above
+/// [`ENCODE_SCRATCH_MAX_CAP`] so a single large string can't permanently retain
+/// its allocation.
+#[cfg(feature = "simdutf")]
+fn put_encode_scratch<T>(
+  cell: &'static std::thread::LocalKey<std::cell::RefCell<Vec<T>>>,
+  mut buf: Vec<T>,
+) {
+  if buf.capacity() > ENCODE_SCRATCH_MAX_CAP {
+    buf.clear();
+    buf.shrink_to(ENCODE_SCRATCH_MAX_CAP);
+  }
+  cell.with(|c| c.replace(buf));
+}
+
 unsafe extern "C" {
   fn v8__String__Empty(isolate: *mut RealIsolate) -> *const String;
 
@@ -557,10 +583,10 @@ impl String {
         // SAFETY: simdutf wrote `r.count` valid Latin-1 bytes.
         unsafe { latin1.set_len(r.count) };
         let s = Self::new_from_one_byte(scope, &latin1, new_type);
-        ENCODE_SCRATCH_LATIN1.with(|c| c.replace(latin1));
+        put_encode_scratch(&ENCODE_SCRATCH_LATIN1, latin1);
         return s;
       }
-      ENCODE_SCRATCH_LATIN1.with(|c| c.replace(latin1));
+      put_encode_scratch(&ENCODE_SCRATCH_LATIN1, latin1);
       // Not Latin-1 representable (or invalid UTF-8): try UTF-16. A UTF-16
       // result is never more code units than the UTF-8 input has bytes.
       let mut utf16 = ENCODE_SCRATCH_UTF16.with(|c| c.take());
@@ -577,10 +603,10 @@ impl String {
         // SAFETY: simdutf wrote `r.count` valid UTF-16 code units.
         unsafe { utf16.set_len(r.count) };
         let s = Self::new_from_two_byte(scope, &utf16, new_type);
-        ENCODE_SCRATCH_UTF16.with(|c| c.replace(utf16));
+        put_encode_scratch(&ENCODE_SCRATCH_UTF16, utf16);
         return s;
       }
-      ENCODE_SCRATCH_UTF16.with(|c| c.replace(utf16));
+      put_encode_scratch(&ENCODE_SCRATCH_UTF16, utf16);
       // Invalid UTF-8: fall through to V8's lossy `NewFromUtf8`.
     }
     let buffer_len = buffer.len().try_into().ok()?;
