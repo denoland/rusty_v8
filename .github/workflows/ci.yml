@@ -12,7 +12,7 @@ permissions: write-all
 
 jobs:
   build:
-    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }} ${{ matrix.config.simdutf && 'simdutf' || '' }}
+    name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }} ${{ matrix.config.simdutf && 'simdutf' || '' }} ${{ matrix.config.system_icu && 'system_icu' || '' }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 180
     strategy:
@@ -210,6 +210,39 @@ jobs:
             simdutf: true
             cargo: cargo
 
+          # Deno's macOS builds use simdutf with the system ICU façade.
+          - os: macos-15-large
+            target: x86_64-apple-darwin
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            system_icu: true
+            cargo: cargo
+
+          - os: macos-15-large
+            target: x86_64-apple-darwin
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            system_icu: true
+            cargo: cargo
+
+          - os: macos-15
+            target: aarch64-apple-darwin
+            variant: debug
+            v8_enable_pointer_compression: false
+            simdutf: true
+            system_icu: true
+            cargo: cargo
+
+          - os: macos-15
+            target: aarch64-apple-darwin
+            variant: release
+            v8_enable_pointer_compression: false
+            simdutf: true
+            system_icu: true
+            cargo: cargo
+
           - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
             target: x86_64-unknown-linux-gnu
             variant: debug
@@ -262,10 +295,10 @@ jobs:
     env:
       V8_FROM_SOURCE: true
       CARGO_VARIANT_FLAG: ${{ matrix.config.variant == 'release' && '--release' || '' }}
-      CARGO_FEATURE_FLAGS: ${{ format('{0} {1}', matrix.config.v8_enable_pointer_compression && '--features v8_enable_pointer_compression' || '', matrix.config.simdutf && '--features simdutf' || '') }}
+      CARGO_FEATURE_FLAGS: ${{ format('{0} {1} {2}', matrix.config.v8_enable_pointer_compression && '--features v8_enable_pointer_compression' || '', matrix.config.simdutf && '--features simdutf' || '', matrix.config.system_icu && '--features system_icu' || '') }}
       LIB_NAME: ${{ contains(matrix.config.target, 'windows') && 'rusty_v8' || 'librusty_v8' }}
       LIB_EXT: ${{ contains(matrix.config.target, 'windows') && 'lib' || 'a' }}
-      FEATURES_SUFFIX: ${{ format('{0}{1}', matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '', matrix.config.simdutf && '_simdutf' || '') }}
+      FEATURES_SUFFIX: ${{ format('{0}{1}{2}', matrix.config.v8_enable_pointer_compression && '_ptrcomp' || '', matrix.config.simdutf && '_simdutf' || '', matrix.config.system_icu && '_system_icu' || '') }}
       RUSTFLAGS: -D warnings
 
     steps:
@@ -397,7 +430,7 @@ jobs:
             target/*/.*
             target/*/build
             target/*/deps
-          key: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ matrix.config.simdutf }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
+          key: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-${{ matrix.config.simdutf }}-${{ matrix.config.system_icu }}-${{ hashFiles('Cargo.lock', 'build.rs', 'git_submodule_status.txt') }}
           restore-keys: cargo1-${{ matrix.config.target }}-${{ matrix.config.variant }}-${{ matrix.config.v8_enable_pointer_compression }}-
 
       - name: Install and start sccache

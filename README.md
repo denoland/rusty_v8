@@ -267,6 +267,17 @@ $ V8_FROM_SOURCE=1 cargo build
 $ V8_FROM_SOURCE=1 cargo build --release
 ```
 
+## macOS system ICU
+
+The `system_icu` Cargo feature builds V8 against the ICU C API provided by
+macOS instead of bundling ICU code and data into the rusty_v8 archive. It has
+no effect on non-macOS targets, so cross-platform applications can enable the
+feature without changing their Linux or Windows builds.
+
+Prebuilt macOS archives are published for the `simdutf,system_icu` feature
+combination used by Deno. Other feature combinations can be built with
+`V8_FROM_SOURCE=1`.
+
 ## Experimental Features
 
 rusty_v8 includes experimental support for certain feature(s) that may be useful in security focused contexts but are not as well tested and do not undergo any sort of CI related testing or prebuilt archives. Due to their experimental status, these features require either ``V8_FROM_SOURCE=1`` to be set or the use of a custom-built archive of v8. 
