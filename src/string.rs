@@ -1149,10 +1149,8 @@ impl String {
           && bytes.len().saturating_mul(2) <= N
         {
           let written = unsafe {
-            let out = std::slice::from_raw_parts_mut(
-              buffer.as_mut_ptr() as *mut u8,
-              N,
-            );
+            let out =
+              std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, N);
             crate::simdutf::convert_latin1_to_utf8(bytes, out)
           };
           // SAFETY: simdutf wrote `written` valid UTF-8 bytes into `buffer`.
