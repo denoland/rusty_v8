@@ -1392,7 +1392,9 @@ unsafe fn transcode_latin1_to_utf8(
 ) -> usize {
   // SAFETY: the caller guarantees `out_ptr` is valid for `out_len` writes.
   let out = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) };
-  crate::simdutf::convert_latin1_to_utf8(bytes, out)
+  // SAFETY: `out` covers the full UTF-8 expansion, so simdutf's write stays in
+  // bounds; it always produces valid UTF-8 from Latin-1 input.
+  unsafe { crate::simdutf::convert_latin1_to_utf8(bytes, out) }
 }
 
 /// Whether one-byte string data is pure ASCII. Uses simdutf's wide SIMD scan
