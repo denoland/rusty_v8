@@ -1419,12 +1419,14 @@ fn onebyte_to_string(bytes: &[u8]) -> std::string::String {
     // alloc, but wins clearly by a few KB).
     const ONEBYTE_FUSE_THRESHOLD: usize = 4096;
     if bytes.len() >= ONEBYTE_FUSE_THRESHOLD {
-      let mut buf: Vec<u8> = Vec::with_capacity(bytes.len() * 2);
-      // SAFETY: `buf` has `bytes.len() * 2` capacity, the max UTF-8 length of
-      // Latin-1 input; simdutf writes at most that many bytes.
+      // `saturating_mul` mirrors the `to_rust_cow_lossy` guard; the product is
+      // the max UTF-8 length of Latin-1 input (2 bytes/code point).
+      let cap = bytes.len().saturating_mul(2);
+      let mut buf: Vec<u8> = Vec::with_capacity(cap);
+      // SAFETY: `buf` has `cap` capacity, the max UTF-8 length of Latin-1
+      // input; simdutf writes at most that many bytes.
       unsafe {
-        let out =
-          std::slice::from_raw_parts_mut(buf.as_mut_ptr(), bytes.len() * 2);
+        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), cap);
         let written = crate::simdutf::convert_latin1_to_utf8(bytes, out);
         buf.set_len(written);
       }

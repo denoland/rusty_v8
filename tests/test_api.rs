@@ -284,6 +284,65 @@ fn new_from_utf8_simd_transcode() {
 }
 
 #[test]
+fn one_byte_string_paths_round_trip() {
+  // Locks the one-byte fast paths (SIMD ASCII detection in new_from_utf8,
+  // fused Latin-1 transcode in to_rust_string_lossy / to_rust_cow_lossy) against
+  // silent corruption. Content types cover every internal representation and
+  // sizes straddle the internal thresholds (32-byte early-reject, 128 simdutf
+  // crossover, 4096 fuse threshold, and the cow buffer bound N).
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ascii   -> one-byte V8 string, pure-ASCII fast path
+  // latin1  -> one-byte V8 string, needs Latin-1 -> UTF-8 transcode
+  // twobyte -> two-byte V8 string (BMP)
+  // emoji   -> two-byte V8 string with surrogate pairs
+  let units = ["abcd", "café", "世界", "🦕"];
+  // Char counts landing just below/at/above 32, 128, 4096.
+  let sizes = [1usize, 31, 33, 127, 129, 500, 4095, 4097, 8000];
+
+  const N: usize = 1 << 16; // fits 2x the largest one-byte input
+  let mut buf = [MaybeUninit::<u8>::uninit(); N];
+
+  for unit in units {
+    let cpc = unit.chars().count();
+    for &target in &sizes {
+      let s = unit.repeat(target / cpc + 1);
+
+      // new(): V8 picks one-byte vs two-byte from content.
+      let local = v8::String::new(scope, &s).unwrap();
+      assert_eq!(
+        local.to_rust_string_lossy(scope),
+        s,
+        "string_lossy {unit:?} x{target}"
+      );
+      assert_eq!(
+        &*local.to_rust_cow_lossy(scope, &mut buf),
+        s.as_str(),
+        "cow_lossy {unit:?} x{target}"
+      );
+
+      // new_from_utf8(): exercises onebyte_is_ascii / SIMD ASCII detection.
+      let from_utf8 = v8::String::new_from_utf8(
+        scope,
+        s.as_bytes(),
+        v8::NewStringType::Normal,
+      )
+      .unwrap();
+      assert_eq!(
+        from_utf8.to_rust_string_lossy(scope),
+        s,
+        "from_utf8 {unit:?} x{target}"
+      );
+    }
+  }
+}
+
+#[test]
 fn test_string() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
