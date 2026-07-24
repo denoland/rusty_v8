@@ -1148,10 +1148,10 @@ impl String {
         if bytes.len() >= ONEBYTE_SIMD_THRESHOLD
           && bytes.len().saturating_mul(2) <= N
         {
+          // SAFETY: `buffer` is valid for `N` writes and `N >= bytes.len() * 2`
+          // (guarded above), so it fits the full UTF-8 expansion.
           let written = unsafe {
-            let out =
-              std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, N);
-            crate::simdutf::convert_latin1_to_utf8(bytes, out)
+            transcode_latin1_to_utf8(bytes, buffer.as_mut_ptr() as *mut u8, N)
           };
           // SAFETY: simdutf wrote `written` valid UTF-8 bytes into `buffer`.
           return unsafe {
@@ -1372,6 +1372,29 @@ const WTF16_SIMD_THRESHOLD: usize = 16;
 #[cfg(feature = "simdutf")]
 const ONEBYTE_SIMD_THRESHOLD: usize = 128;
 
+/// Transcodes Latin-1 `bytes` into the caller-provided output region, returning
+/// the number of UTF-8 bytes written (the UTF-8 length of `bytes`).
+///
+/// Callers write into uninitialized memory — a fresh `Vec`'s spare capacity or
+/// a `MaybeUninit` borrow buffer — so the destination is passed as a raw
+/// pointer + length rather than an already-initialized `&mut [u8]`. Centralizes
+/// the one unsafe `simdutf` FFI call shared by the one-byte read paths.
+///
+/// # Safety
+/// `out_ptr` must be valid for writes of `out_len` bytes, and `out_len` must be
+/// at least the UTF-8 length of `bytes` (which never exceeds `bytes.len() * 2`).
+#[cfg(feature = "simdutf")]
+#[inline(always)]
+unsafe fn transcode_latin1_to_utf8(
+  bytes: &[u8],
+  out_ptr: *mut u8,
+  out_len: usize,
+) -> usize {
+  // SAFETY: the caller guarantees `out_ptr` is valid for `out_len` writes.
+  let out = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) };
+  crate::simdutf::convert_latin1_to_utf8(bytes, out)
+}
+
 /// Whether one-byte string data is pure ASCII. Uses simdutf's wide SIMD scan
 /// for long strings (where it beats std's SWAR `is_ascii`) and the inline
 /// `is_ascii` for short ones (avoiding the simdutf FFI-call overhead). Shared
@@ -1390,7 +1413,9 @@ fn onebyte_is_ascii(bytes: &[u8]) -> bool {
     if !bytes[..head].is_ascii() {
       return false;
     }
-    return crate::simdutf::validate_ascii(bytes);
+    // The head is already confirmed ASCII; scan only the remainder (ASCII-ness
+    // is per-byte, so this is equivalent to validating the whole buffer).
+    return crate::simdutf::validate_ascii(&bytes[head..]);
   }
   bytes.is_ascii()
 }
@@ -1423,11 +1448,10 @@ fn onebyte_to_string(bytes: &[u8]) -> std::string::String {
       // the max UTF-8 length of Latin-1 input (2 bytes/code point).
       let cap = bytes.len().saturating_mul(2);
       let mut buf: Vec<u8> = Vec::with_capacity(cap);
-      // SAFETY: `buf` has `cap` capacity, the max UTF-8 length of Latin-1
-      // input; simdutf writes at most that many bytes.
+      // SAFETY: `buf` reserved `cap` bytes == max UTF-8 length of Latin-1 input;
+      // the transcode writes `written` <= `cap` valid UTF-8 bytes.
       unsafe {
-        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), cap);
-        let written = crate::simdutf::convert_latin1_to_utf8(bytes, out);
+        let written = transcode_latin1_to_utf8(bytes, buf.as_mut_ptr(), cap);
         buf.set_len(written);
       }
       // SAFETY: simdutf produced valid UTF-8.
@@ -1442,8 +1466,8 @@ fn onebyte_to_string(bytes: &[u8]) -> std::string::String {
       let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
       // SAFETY: `buf` has capacity `utf8_len`, exactly what the transcode writes.
       unsafe {
-        let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), utf8_len);
-        let written = crate::simdutf::convert_latin1_to_utf8(bytes, out);
+        let written =
+          transcode_latin1_to_utf8(bytes, buf.as_mut_ptr(), utf8_len);
         debug_assert_eq!(written, utf8_len);
         buf.set_len(written);
         return std::string::String::from_utf8_unchecked(buf);
@@ -1466,9 +1490,9 @@ fn latin1_to_string(bytes: &[u8]) -> std::string::String {
   {
     let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
+    // SAFETY: `buf` has capacity `utf8_len`, exactly what the transcode writes.
     unsafe {
-      let out = std::slice::from_raw_parts_mut(buf.as_mut_ptr(), utf8_len);
-      let written = crate::simdutf::convert_latin1_to_utf8(bytes, out);
+      let written = transcode_latin1_to_utf8(bytes, buf.as_mut_ptr(), utf8_len);
       debug_assert_eq!(written, utf8_len);
       buf.set_len(written);
       std::string::String::from_utf8_unchecked(buf)
@@ -1568,13 +1592,10 @@ fn latin1_to_cow_str<'a, const N: usize>(
   let utf8_len = bytes.len() * 2; // conservative upper bound
 
   if utf8_len <= N {
+    // SAFETY: `buffer` is valid for `N >= utf8_len` writes (guarded above).
     #[cfg(feature = "simdutf")]
     let written = unsafe {
-      let out = std::slice::from_raw_parts_mut(
-        buffer.as_mut_ptr() as *mut u8,
-        utf8_len,
-      );
-      crate::simdutf::convert_latin1_to_utf8(bytes, out)
+      transcode_latin1_to_utf8(bytes, buffer.as_mut_ptr() as *mut u8, utf8_len)
     };
     #[cfg(not(feature = "simdutf"))]
     let written = unsafe {
