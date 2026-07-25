@@ -104,6 +104,7 @@ opt-level = 1
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
 simdutf = []
+system_icu = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []

@@ -1,0 +1,103 @@
+# Copyright 2018-2026 the Deno authors. MIT license.
+
+assert(is_mac, "The system ICU target is only supported on macOS")
+
+config("icu_config") {
+  defines = [
+    # V8's ICU initialization should use the data already loaded by
+    # libicucore instead of looking for an external icudtl.dat file.
+    "ICU_UTIL_DATA_IMPL=ICU_UTIL_DATA_STATIC",
+
+    # Apple's ICU exports stable, unsuffixed entry points.
+    "U_DISABLE_RENAMING=1",
+
+    # Apple builds libicucore without ICU's custom C++ allocation operators.
+    "U_OVERRIDE_CXX_ALLOCATION=0",
+
+    # Keep V8's existing explicit `icu::` qualification. The ICU headers map
+    # this source-level name to v8_icu_compat when USING_SYSTEM_ICU is set, so
+    # none of our C++ symbols can bind to Apple's private ICU C++ ABI.
+    "U_USING_ICU_NAMESPACE=0",
+
+    "USING_SYSTEM_ICU=1",
+  ]
+
+  # The macOS SDK exposes ICU's C API headers, but V8 also uses the C++ API.
+  # Compile against the headers matching V8's vendored ICU revision while
+  # resolving their unsuffixed symbols from Apple's libicucore.
+  include_dirs = [
+    "include",
+    "//third_party/icu/source/common",
+    "//third_party/icu/source/i18n",
+  ]
+}
+
+# `v8_icu_path` is used both as a dependency label and as the location of the
+# `icu_config` config above, so the default target must match this directory's
+# name.
+source_set("system_icu") {
+  sources = [
+    "break_iterator.cc",
+    "calendar.cc",
+    "collator.cc",
+    "currency.cc",
+    "date_format.cc",
+    "date_time_pattern_generator.cc",
+    "display_names.cc",
+    "enumeration.cc",
+    "field_position.cc",
+    "formatted_value.cc",
+    "list_formatter.cc",
+    "locale_builder.cc",
+    "locale_availability.cc",
+    "locale_matcher.cc",
+    "measure_unit.cc",
+    "normalizer.cc",
+    "number_format.cc",
+    "number_formatter.cc",
+    "numbering_system.cc",
+    "plural_rules.cc",
+    "relative_date_time_formatter.cc",
+    "resource_bundle.cc",
+    "string_support.cc",
+    "system_icu.cc",
+    "time_zone.cc",
+    "unicode_set.cc",
+
+    # These are ABI-local C++ value/utility types. They contain no ICU data;
+    # keeping their upstream implementations lets V8 retain the exact class
+    # layouts and inline methods expected by its vendored headers.
+    "//third_party/icu/source/common/bytestream.cpp",
+    "//third_party/icu/source/common/bytesinkutil.cpp",
+    "//third_party/icu/source/common/stringpiece.cpp",
+    "//third_party/icu/source/common/unistr.cpp",
+    "//third_party/icu/source/common/uobject.cpp",
+  ]
+
+  defines = [ "U_COMMON_IMPLEMENTATION" ]
+
+  include_dirs = [
+    "include",
+    "//third_party/icu/source/common",
+    "//third_party/icu/source/i18n",
+  ]
+
+  # Match Chromium's bundled ICU warning/RTTI treatment for the small set of
+  # upstream utility sources compiled into the façade.
+  configs += [
+    "//build/config/compiler:chromium_code",
+    "//build/config/compiler:no_rtti",
+  ]
+  configs -= [
+    "//build/config/compiler:chromium_code",
+    "//build/config/compiler:no_rtti",
+  ]
+  configs += [
+    "//build/config/compiler:no_chromium_code",
+    "//build/config/compiler:rtti",
+    "//third_party/icu:icu_code",
+  ]
+
+  libs = [ "icucore" ]
+  public_configs = [ ":icu_config" ]
+}

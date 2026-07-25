@@ -14,6 +14,7 @@
 #include "libplatform/libplatform.h"
 #include "support.h"
 #include "unicode/locid.h"
+#include "unicode/udata.h"
 #include "v8-callbacks.h"
 #include "v8-cppgc.h"
 #include "v8-fast-api-calls.h"
@@ -4277,9 +4278,15 @@ void v8__CompiledWasmModule__DELETE(v8::CompiledWasmModule* self) {
 
 extern "C" {
 
+int32_t icu_set_common_data_77(const uint8_t* data) {
+  UErrorCode error_code = U_ZERO_ERROR;
+  udata_setCommonData(data, &error_code);
+  return error_code;
+}
+
 size_t icu_get_default_locale(char* output, size_t output_len) {
-  const icu_77::Locale& default_locale = icu::Locale::getDefault();
-  icu_77::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
+  const icu::Locale& default_locale = icu::Locale::getDefault();
+  icu::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
   UErrorCode status = U_ZERO_ERROR;
   default_locale.toLanguageTag(sink, status);
   assert(status == U_ZERO_ERROR);

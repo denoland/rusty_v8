@@ -22,6 +22,7 @@ fn main() {
   println!("cargo:rerun-if-changed=.gn");
   println!("cargo:rerun-if-changed=BUILD.gn");
   println!("cargo:rerun-if-changed=src/binding.cc");
+  println!("cargo:rerun-if-changed=system_icu/BUILD.gn");
 
   // These are all the environment variables that we check. This is
   // probably more than what is needed, but missing an important
@@ -49,6 +50,7 @@ fn main() {
     "EXTRA_GN_ARGS",
     "PRINT_GN_ARGS",
     "CARGO_ENCODED_RUSTFLAGS",
+    "CARGO_FEATURE_SYSTEM_ICU",
   ];
   for env in envs {
     println!("cargo:rerun-if-env-changed={env}");
@@ -351,6 +353,10 @@ fn build_v8(is_asan: bool) {
     "rusty_v8_enable_simdutf={}",
     env::var("CARGO_FEATURE_SIMDUTF").is_ok()
   ));
+
+  if system_icu_enabled() {
+    gn_args.push(r#"v8_icu_path="//system_icu""#.to_string());
+  }
 
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
@@ -688,6 +694,9 @@ fn prebuilt_features_suffix() -> String {
   if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
     features.push_str("_simdutf");
   }
+  if system_icu_enabled() {
+    features.push_str("_system_icu");
+  }
   features
 }
 
@@ -984,6 +993,10 @@ fn print_link_flags() {
   }
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
+
+  if system_icu_enabled() {
+    println!("cargo:rustc-link-lib=dylib=icucore");
+  }
 
   if target_os == "windows" {
     println!("cargo:rustc-link-lib=dylib=winmm");
@@ -1367,6 +1380,11 @@ fn env_bool(key: &str) -> bool {
     env::var(key).unwrap_or_default().as_str(),
     "true" | "1" | "yes"
   )
+}
+
+fn system_icu_enabled() -> bool {
+  env::var("CARGO_CFG_TARGET_OS").is_ok_and(|target_os| target_os == "macos")
+    && env::var_os("CARGO_FEATURE_SYSTEM_ICU").is_some()
 }
 
 #[cfg(test)]
