@@ -227,6 +227,22 @@ fn build_binding() {
     {
       clang_args.push(format!("--sysroot={sysroot}"));
     }
+  } else if target_os == "windows" {
+    // libclang otherwise discovers the runner's system Clang resource
+    // directory, which may not match the pinned Chromium libclang.
+    if let Ok(libclang_path) = env::var("LIBCLANG_PATH") {
+      let clang_dir = PathBuf::from(&libclang_path)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+      let clang_bin = clang_dir.join("bin/clang.exe");
+      if let Ok(output) =
+        Command::new(clang_bin).arg("-print-resource-dir").output()
+      {
+        let resource_dir = String::from_utf8(output.stdout).unwrap();
+        clang_args.push(format!("-resource-dir={}", resource_dir.trim()));
+      }
+    }
   } else if target_os == "ios" {
     // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
     // matching clang target triple so the V8 headers parse correctly.
