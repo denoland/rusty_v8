@@ -40,7 +40,14 @@ with open('.gitmodules') as f:
             if name in deps:
                 try:
                     if name != 'build':
-                        run_git(['submodule', 'update', '--init', '--', name])
+                        run_git([
+                            'submodule',
+                            'update',
+                            '--init',
+                            '--checkout',
+                            '--',
+                            name,
+                        ])
                     process(name, deps[name])
                     names.append(name)
                 except (
