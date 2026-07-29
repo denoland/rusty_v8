@@ -545,6 +545,11 @@ jobs:
           python-version: 3.11.x
           architecture: x64
 
+      - name: Set LIBCLANG_PATH
+        run: |
+          brew install llvm@21
+          echo "LIBCLANG_PATH=$(brew --prefix llvm@21)/lib" >> $GITHUB_ENV
+
       - name: Write git_submodule_status.txt
         run: git submodule status --recursive > git_submodule_status.txt
 
