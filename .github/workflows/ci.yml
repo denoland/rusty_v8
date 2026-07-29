@@ -278,6 +278,14 @@ jobs:
           fetch-depth: 10
           submodules: recursive
 
+      - name: Download tools/win
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p tools/win
+          curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0.tar.gz |
+            tar -xz -C tools/win
+
       - name: Install rust
         uses: dsherret/rust-toolchain-file@v1
 
@@ -618,6 +626,13 @@ jobs:
           fetch-depth: 10
           submodules: recursive
 
+      - name: Download tools/win
+        shell: bash
+        run: |
+          mkdir -p tools/win
+          curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0.tar.gz |
+            tar -xz -C tools/win
+
       - uses: dsherret/rust-toolchain-file@v1
 
       - name: Install Windows ARM64 target
@@ -719,6 +734,13 @@ jobs:
         with:
           fetch-depth: 10
           submodules: recursive
+
+      - name: Download tools/win
+        shell: bash
+        run: |
+          mkdir -p tools/win
+          curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0.tar.gz |
+            tar -xz -C tools/win
 
       - uses: dsherret/rust-toolchain-file@v1
 
