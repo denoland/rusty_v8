@@ -120,11 +120,11 @@ For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
 install them.
 
-Additionally, building from source requires libclang 19+ for bindgen:
+Additionally, building from source requires libclang 21.1+ for bindgen:
 
 ```bash
-sudo apt install libclang-19-dev
-export LIBCLANG_PATH=/usr/lib/llvm-19/lib
+sudo apt install libclang-21-dev
+export LIBCLANG_PATH=/usr/lib/llvm-21/lib
 ```
 
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are

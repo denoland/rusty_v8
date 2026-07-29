@@ -650,7 +650,7 @@ where
 pub(crate) type NamedSetterCallback = unsafe extern "C" fn(
   SealedLocal<Name>,
   SealedLocal<Value>,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for NamedSetterCallback
@@ -661,13 +661,13 @@ where
       Local<'s, Name>,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |key: SealedLocal<Name>,
              value: SealedLocal<Value>,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
@@ -708,7 +708,7 @@ where
 pub(crate) type NamedDefinerCallback = unsafe extern "C" fn(
   SealedLocal<Name>,
   *const PropertyDescriptor,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for NamedDefinerCallback
@@ -719,13 +719,13 @@ where
       Local<'s, Name>,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |key: SealedLocal<Name>,
              desc: *const PropertyDescriptor,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
@@ -822,7 +822,7 @@ where
 pub(crate) type IndexedSetterCallback = unsafe extern "C" fn(
   u32,
   SealedLocal<Value>,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedSetterCallback
@@ -833,13 +833,13 @@ where
       u32,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |index: u32,
              value: SealedLocal<Value>,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let value = unsafe { scope.unseal(value) };
@@ -854,7 +854,7 @@ where
 pub(crate) type IndexedDefinerCallback = unsafe extern "C" fn(
   u32,
   *const PropertyDescriptor,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedDefinerCallback
@@ -865,13 +865,13 @@ where
       u32,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |index: u32,
              desc: *const PropertyDescriptor,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);

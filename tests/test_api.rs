@@ -46,7 +46,7 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
-      assert!(v8::icu::set_common_data_77(align_data::include_aligned!(
+      assert!(v8::icu::set_common_data_78(align_data::include_aligned!(
         align_data::Align16,
         "../third_party/icu/common/icudtl.dat"
       ))
@@ -2347,7 +2347,7 @@ fn object_template_set_named_property_handler() {
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue<()>| {
+                  mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::kNo;
@@ -2453,7 +2453,7 @@ fn object_template_set_named_property_handler() {
                    key: v8::Local<v8::Name>,
                    desc: &v8::PropertyDescriptor,
                    args: v8::PropertyCallbackArguments,
-                   mut rv: v8::ReturnValue<()>| {
+                   mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
         return v8::Intercepted::kNo;
@@ -2833,7 +2833,7 @@ fn object_template_set_indexed_property_handler() {
                 index: u32,
                 value: v8::Local<v8::Value>,
                 args: v8::PropertyCallbackArguments,
-                mut rv: v8::ReturnValue<()>| {
+                mut rv: v8::ReturnValue<v8::Boolean>| {
     let this = args.holder();
 
     assert!(args.data().is_undefined());
@@ -2899,7 +2899,7 @@ fn object_template_set_indexed_property_handler() {
                  index: u32,
                  desc: &v8::PropertyDescriptor,
                  args: v8::PropertyCallbackArguments,
-                 mut rv: v8::ReturnValue<()>| {
+                 mut rv: v8::ReturnValue<v8::Boolean>| {
     let this = args.holder();
 
     assert_eq!(index, 37);
@@ -4983,7 +4983,7 @@ fn context_with_object_template() {
     _key: v8::Local<'s, v8::Name>,
     _descriptor: &v8::PropertyDescriptor,
     _args: v8::PropertyCallbackArguments<'s>,
-    _rv: v8::ReturnValue<()>,
+    _rv: v8::ReturnValue<v8::Boolean>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("definer".to_string());
     v8::Intercepted::kNo
@@ -4994,7 +4994,7 @@ fn context_with_object_template() {
     _key: v8::Local<'s, v8::Name>,
     _value: v8::Local<'s, v8::Value>,
     _args: v8::PropertyCallbackArguments<'s>,
-    _rv: v8::ReturnValue<()>,
+    _rv: v8::ReturnValue<v8::Boolean>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("setter".to_string());
     v8::Intercepted::kNo
@@ -10052,7 +10052,7 @@ fn icu_date() {
 #[test]
 fn icu_set_common_data_fail() {
   assert!(
-    v8::icu::set_common_data_77(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
+    v8::icu::set_common_data_78(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
   );
 }
 

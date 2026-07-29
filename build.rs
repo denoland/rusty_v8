@@ -141,11 +141,11 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
-  // Bindgen needs Clang 19+ for V8's libc++ builtin type traits.
+  // Bindgen needs Clang 21.1+ for V8's libc++ builtin type traits.
   if env::var("LIBCLANG_PATH").is_err() {
-    eprintln!("Warning: LIBCLANG_PATH not set. Bindgen requires Clang 19+.");
-    eprintln!("Set LIBCLANG_PATH to your Clang 19 installation:");
-    eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-19/lib");
+    eprintln!("Warning: LIBCLANG_PATH not set. Bindgen requires Clang 21.1+.");
+    eprintln!("Set LIBCLANG_PATH to your Clang 21 installation:");
+    eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-21/lib");
     eprintln!("  macOS:  export LIBCLANG_PATH=$(brew --prefix llvm)/lib");
   }
 
@@ -174,7 +174,8 @@ fn build_binding() {
     .copied()
     .collect();
 
-  // Use V8's custom libc++ headers (requires Clang 19+ libclang via LIBCLANG_PATH)
+  // Use V8's custom libc++ headers (requires Clang 21.1+ libclang via
+  // LIBCLANG_PATH)
   // IMPORTANT: libc++ headers must come before clang builtins
   let mut clang_args = vec![
     "-x".to_string(),
