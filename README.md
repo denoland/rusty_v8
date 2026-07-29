@@ -128,7 +128,9 @@ export LIBCLANG_PATH=/usr/lib/llvm-21/lib
 ```
 
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
-not supported.
+not supported. The default source build downloads Chromium's pinned libclang
+automatically. If `$CLANG_BASE_PATH` is set to a custom LLVM installation,
+`$LIBCLANG_PATH` must point to the directory containing `libclang.dll`.
 
 For Mac builds: You'll need Xcode and Xcode CLT installed. Recent macOS versions
 will also require you to pass PYTHON=python3 because macOS no longer ships with

@@ -36,6 +36,7 @@ fn main() {
     "GN",
     "GN_ARGS",
     "HOST",
+    "LIBCLANG_PATH",
     "NINJA",
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
@@ -147,6 +148,9 @@ fn build_binding() {
     eprintln!("Set LIBCLANG_PATH to your Clang 21 installation:");
     eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-21/lib");
     eprintln!("  macOS:  export LIBCLANG_PATH=$(brew --prefix llvm)/lib");
+    eprintln!(
+      "  Windows: set LIBCLANG_PATH to the directory containing libclang.dll"
+    );
   }
 
   let output = Command::new(python())
@@ -1090,6 +1094,31 @@ fn clang_download() -> PathBuf {
       .unwrap()
       .success()
   );
+
+  // Chromium ships libclang separately from the compiler on Windows. Use the
+  // matching pinned package for bindgen instead of whichever libclang happens
+  // to be installed on the host.
+  #[cfg(target_os = "windows")]
+  if env::var_os("LIBCLANG_PATH").is_none() {
+    assert!(
+      Command::new(python())
+        .arg("./tools/clang/scripts/update.py")
+        .arg("--output-dir")
+        .arg(&clang_base_path)
+        .arg("--package")
+        .arg("libclang")
+        .status()
+        .unwrap()
+        .success()
+    );
+    let libclang_path = clang_base_path.join("bin");
+    assert!(libclang_path.join("libclang.dll").exists());
+    println!("libclang_path (downloaded) {}", libclang_path.display());
+    unsafe {
+      env::set_var("LIBCLANG_PATH", libclang_path);
+    }
+  }
+
   assert!(clang_base_path.exists());
   clang_base_path
 }
