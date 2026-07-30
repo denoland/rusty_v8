@@ -24,6 +24,12 @@ static size_t v8__String__ValueView_SIZE = sizeof(v8::String::ValueView);
 
 static int v8__String__kMaxLength = v8::String::kMaxLength;
 
+static int v8__String__WriteFlags__kNullTerminate =
+    v8::String::WriteFlags::kNullTerminate;
+
+static int v8__String__WriteFlags__kReplaceInvalidUtf8 =
+    v8::String::WriteFlags::kReplaceInvalidUtf8;
+
 static size_t v8__TypedArray__kMaxByteLength = v8::TypedArray::kMaxByteLength;
 
 static size_t v8__TYPED_ARRAY_MAX_SIZE_IN_HEAP =
