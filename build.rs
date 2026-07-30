@@ -235,13 +235,17 @@ fn build_binding() {
         .parent()
         .unwrap()
         .to_path_buf();
-      let clang_bin = clang_dir.join("bin/clang.exe");
-      if let Ok(output) =
-        Command::new(clang_bin).arg("-print-resource-dir").output()
-      {
-        let resource_dir = String::from_utf8(output.stdout).unwrap();
-        clang_args.push(format!("-resource-dir={}", resource_dir.trim()));
-      }
+      let clang_bin = clang_dir.join("bin/clang-cl.exe");
+      let output = Command::new(clang_bin)
+        .arg("-print-resource-dir")
+        .output()
+        .unwrap();
+      assert!(output.status.success());
+      let resource_dir = String::from_utf8(output.stdout).unwrap();
+      let resource_dir = resource_dir.trim();
+      assert!(!resource_dir.is_empty());
+      println!("clang_resource_dir (downloaded) {resource_dir}");
+      clang_args.push(format!("-resource-dir={resource_dir}"));
     }
   } else if target_os == "ios" {
     // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
