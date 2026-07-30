@@ -85,14 +85,8 @@ unsafe extern "C" {
   ) -> *mut RawFrontendChannel;
   fn crdtp__UberDispatcher__Dispatch(
     this: *mut UberDispatcher,
-    dispatchable: *const Dispatchable,
-  ) -> *mut DispatchResultWrapper;
-
-  fn crdtp__DispatchResult__DELETE(this: *mut DispatchResultWrapper);
-  fn crdtp__DispatchResult__MethodFound(
-    this: *const DispatchResultWrapper,
-  ) -> bool;
-  fn crdtp__DispatchResult__Run(this: *mut DispatchResultWrapper);
+    dispatchable: *mut Dispatchable,
+  );
 
   fn crdtp__vec_u8__new() -> *mut CppVecU8;
   fn crdtp__vec_u8__DELETE(this: *mut CppVecU8);
@@ -152,9 +146,6 @@ struct DispatchResponseWrapper(Opaque);
 
 #[repr(C)]
 pub struct UberDispatcher(Opaque);
-
-#[repr(C)]
-struct DispatchResultWrapper(Opaque);
 
 #[repr(C)]
 struct CppVecU8(Opaque);
@@ -382,8 +373,6 @@ pub trait FrontendChannelImpl {
   fn send_protocol_response(&mut self, call_id: i32, message: Serializable);
   /// Send a notification (no call_id).
   fn send_protocol_notification(&mut self, message: Serializable);
-  /// Indicate that the message should be handled by another layer.
-  fn fall_through(&mut self, call_id: i32, method: &[u8], message: &[u8]);
   /// Flush any queued notifications.
   fn flush_protocol_notifications(&mut self);
 }
@@ -454,57 +443,12 @@ unsafe extern "C" fn crdtp__FrontendChannel__BASE__sendProtocolNotification(
 }
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn crdtp__FrontendChannel__BASE__fallThrough(
-  this: *mut RawFrontendChannel,
-  call_id: i32,
-  method_data: *const u8,
-  method_len: usize,
-  message_data: *const u8,
-  message_len: usize,
-) {
-  unsafe {
-    let channel = FrontendChannel::from_raw(this);
-    let method = std::slice::from_raw_parts(method_data, method_len);
-    let message = std::slice::from_raw_parts(message_data, message_len);
-    channel.imp.fall_through(call_id, method, message);
-  }
-}
-
-#[unsafe(no_mangle)]
 unsafe extern "C" fn crdtp__FrontendChannel__BASE__flushProtocolNotifications(
   this: *mut RawFrontendChannel,
 ) {
   unsafe {
     let channel = FrontendChannel::from_raw(this);
     channel.imp.flush_protocol_notifications();
-  }
-}
-
-/// Result of dispatching a protocol message through UberDispatcher.
-pub struct DispatchResult {
-  ptr: *mut DispatchResultWrapper,
-}
-
-impl DispatchResult {
-  /// Returns true if a handler was found for the method.
-  pub fn method_found(&self) -> bool {
-    unsafe { crdtp__DispatchResult__MethodFound(self.ptr) }
-  }
-
-  /// Run the dispatched handler.
-  pub fn run(self) {
-    unsafe {
-      crdtp__DispatchResult__Run(self.ptr);
-    }
-    // Drop will call crdtp__DispatchResult__DELETE to free the wrapper.
-  }
-}
-
-impl Drop for DispatchResult {
-  fn drop(&mut self) {
-    unsafe {
-      crdtp__DispatchResult__DELETE(self.ptr);
-    }
   }
 }
 
@@ -517,11 +461,10 @@ impl UberDispatcher {
     }
   }
 
-  /// Dispatch a protocol message.
-  pub fn dispatch(&mut self, dispatchable: &Dispatchable) -> DispatchResult {
+  /// Dispatch a protocol message immediately.
+  pub fn dispatch(&mut self, dispatchable: &mut Dispatchable) {
     unsafe {
-      let ptr = crdtp__UberDispatcher__Dispatch(self, dispatchable);
-      DispatchResult { ptr }
+      crdtp__UberDispatcher__Dispatch(self, dispatchable);
     }
   }
 }
@@ -626,16 +569,13 @@ pub fn create_notification(
 
 /// Trait for implementing a domain-specific protocol dispatcher.
 ///
-/// The `dispatch` method is called in two phases:
-/// 1. **Probe phase** (`dispatchable` is `None`): Return `true` if this
-///    domain handles the given command name.
-/// 2. **Execute phase** (`dispatchable` is `Some`): Handle the command
-///    and send a response via the `DomainDispatcherHandle`.
+/// The `dispatch` method executes the command immediately and returns whether
+/// the command was handled.
 pub trait DomainDispatcherImpl {
   fn dispatch(
     &mut self,
     command: &[u8],
-    dispatchable: Option<&Dispatchable>,
+    dispatchable: &Dispatchable,
     handle: &DomainDispatcherHandle,
   ) -> bool;
 }
@@ -736,12 +676,7 @@ unsafe extern "C" fn crdtp__DomainDispatcher__BASE__Dispatch(
     let dd = &mut *(rust_dispatcher as *mut DomainDispatcherData);
     let command = std::slice::from_raw_parts(command_data, command_len);
     let handle = DomainDispatcherHandle { ptr: dd.ptr };
-    let dispatchable_ref = if dispatchable.is_null() {
-      None
-    } else {
-      Some(&*dispatchable)
-    };
-    dd.imp.dispatch(command, dispatchable_ref, &handle)
+    dd.imp.dispatch(command, &*dispatchable, &handle)
   }
 }
 

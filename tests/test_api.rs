@@ -13403,8 +13403,6 @@ impl v8::crdtp::FrontendChannelImpl for TestFrontendChannel {
     self.notifications.push(message.to_bytes());
   }
 
-  fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
-
   fn flush_protocol_notifications(&mut self) {}
 }
 
@@ -13417,12 +13415,10 @@ fn crdtp_uber_dispatcher_basic() {
 
   let json = r#"{"id":1,"method":"Custom.unknownMethod","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
   assert!(dispatchable.ok());
 
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(!result.method_found());
-  result.run();
+  dispatcher.dispatch(&mut dispatchable);
 }
 
 #[test]
@@ -13506,11 +13502,6 @@ impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
       println!("[CRDTP] Notification: {}", json_str);
       self.notifications.push(json_str);
     }
-  }
-
-  fn fall_through(&mut self, call_id: i32, method: &[u8], _message: &[u8]) {
-    let method_str = String::from_utf8_lossy(method);
-    println!("[CRDTP] Fall through: id={} method={}", call_id, method_str);
   }
 
   fn flush_protocol_notifications(&mut self) {}
@@ -13668,31 +13659,27 @@ impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
   fn dispatch(
     &mut self,
     command: &[u8],
-    dispatchable: Option<&v8::crdtp::Dispatchable>,
+    dispatchable: &v8::crdtp::Dispatchable,
     handle: &v8::crdtp::DomainDispatcherHandle,
   ) -> bool {
     let cmd = String::from_utf8_lossy(command);
     match cmd.as_ref() {
       "enable" => {
-        if let Some(d) = dispatchable {
-          self.enabled = true;
-          handle.send_response(
-            d.call_id(),
-            v8::crdtp::DispatchResponse::success(),
-            None,
-          );
-        }
+        self.enabled = true;
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::success(),
+          None,
+        );
         true
       }
       "disable" => {
-        if let Some(d) = dispatchable {
-          self.enabled = false;
-          handle.send_response(
-            d.call_id(),
-            v8::crdtp::DispatchResponse::success(),
-            None,
-          );
-        }
+        self.enabled = false;
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::success(),
+          None,
+        );
         true
       }
       _ => false,
@@ -13741,8 +13728,6 @@ impl v8::crdtp::FrontendChannelImpl for SharedFrontendChannel {
       .push(message.to_bytes());
   }
 
-  fn fall_through(&mut self, _call_id: i32, _method: &[u8], _message: &[u8]) {}
-
   fn flush_protocol_notifications(&mut self) {}
 }
 
@@ -13755,15 +13740,13 @@ fn crdtp_domain_dispatcher_wire() {
   let handler = Box::new(TestDomainHandler::new());
   v8::crdtp::DomainDispatcher::wire(&mut dispatcher, "Custom", handler);
 
-  // Dispatch a known method - should be found and handled
+  // A known method is handled before dispatch returns.
   let json = r#"{"id":1,"method":"Custom.enable","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
   assert!(dispatchable.ok());
 
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(result.method_found());
-  result.run();
+  dispatcher.dispatch(&mut dispatchable);
 
   // Verify the response was actually delivered to the FrontendChannel
   {
@@ -13775,21 +13758,19 @@ fn crdtp_domain_dispatcher_wire() {
     assert!(json_str.contains("\"result\""));
   }
 
-  // Dispatch an unknown method in the same domain - should not be found
+  // An unknown method in the same domain gets an immediate error response.
   let json = r#"{"id":2,"method":"Custom.unknownMethod","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(!result.method_found());
-  result.run();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
 
-  // Dispatch a method in a different domain - should not be found
+  // A method in a different domain also gets an immediate error response.
   let json = r#"{"id":3,"method":"Other.enable","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(!result.method_found());
-  result.run();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
+
+  assert_eq!(state.borrow().responses.len(), 3);
 }
 
 #[test]
@@ -13853,12 +13834,10 @@ fn crdtp_dispatch_unregistered_domain() {
 
   let json = r#"{"id":1,"method":"Nonexistent.enable","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
   assert!(dispatchable.ok());
 
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(!result.method_found());
-  result.run();
+  dispatcher.dispatch(&mut dispatchable);
 }
 
 #[test]
@@ -13870,20 +13849,16 @@ fn crdtp_domain_dispatcher_error_response() {
     fn dispatch(
       &mut self,
       command: &[u8],
-      dispatchable: Option<&v8::crdtp::Dispatchable>,
+      dispatchable: &v8::crdtp::Dispatchable,
       handle: &v8::crdtp::DomainDispatcherHandle,
     ) -> bool {
       let cmd = String::from_utf8_lossy(command);
       if cmd == "badCommand" {
-        if let Some(d) = dispatchable {
-          handle.send_response(
-            d.call_id(),
-            v8::crdtp::DispatchResponse::invalid_params(
-              "missing required field",
-            ),
-            None,
-          );
-        }
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::invalid_params("missing required field"),
+          None,
+        );
         return true;
       }
       false
@@ -13902,11 +13877,9 @@ fn crdtp_domain_dispatcher_error_response() {
 
   let json = r#"{"id":5,"method":"Test.badCommand","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
 
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(result.method_found());
-  result.run();
+  dispatcher.dispatch(&mut dispatchable);
 
   // Verify error response was sent
   let s = state.borrow();
@@ -13934,19 +13907,17 @@ fn crdtp_multiple_domains() {
     fn dispatch(
       &mut self,
       command: &[u8],
-      dispatchable: Option<&v8::crdtp::Dispatchable>,
+      dispatchable: &v8::crdtp::Dispatchable,
       handle: &v8::crdtp::DomainDispatcherHandle,
     ) -> bool {
       let cmd = String::from_utf8_lossy(command);
       if cmd == "ping" {
-        if let Some(d) = dispatchable {
-          self.call_count += 1;
-          handle.send_response(
-            d.call_id(),
-            v8::crdtp::DispatchResponse::success(),
-            None,
-          );
-        }
+        self.call_count += 1;
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::success(),
+          None,
+        );
         return true;
       }
       false
@@ -13971,26 +13942,20 @@ fn crdtp_multiple_domains() {
   // Dispatch to Alpha
   let json = r#"{"id":1,"method":"Alpha.ping","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(result.method_found());
-  result.run();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
 
   // Dispatch to Beta
   let json = r#"{"id":2,"method":"Beta.ping","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(result.method_found());
-  result.run();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
 
   // Dispatch to unknown domain
   let json = r#"{"id":3,"method":"Gamma.ping","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
-  let result = dispatcher.dispatch(&dispatchable);
-  assert!(!result.method_found());
-  result.run();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
 
   // Three responses: Alpha success, Beta success, Gamma error (method not found)
   let s = state.borrow();
@@ -14060,7 +14025,7 @@ fn crdtp_dispatcher_cleanup_on_drop() {
     fn dispatch(
       &mut self,
       _command: &[u8],
-      _dispatchable: Option<&v8::crdtp::Dispatchable>,
+      _dispatchable: &v8::crdtp::Dispatchable,
       _handle: &v8::crdtp::DomainDispatcherHandle,
     ) -> bool {
       false

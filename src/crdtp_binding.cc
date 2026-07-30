@@ -16,9 +16,6 @@ void crdtp__FrontendChannel__BASE__sendProtocolResponse(FrontendChannel* self,
                                                         Serializable* message);
 void crdtp__FrontendChannel__BASE__sendProtocolNotification(
     FrontendChannel* self, Serializable* message);
-void crdtp__FrontendChannel__BASE__fallThrough(
-    FrontendChannel* self, int call_id, const uint8_t* method_data,
-    size_t method_len, const uint8_t* message_data, size_t message_len);
 void crdtp__FrontendChannel__BASE__flushProtocolNotifications(
     FrontendChannel* self);
 }  // extern "C"
@@ -33,11 +30,6 @@ struct crdtp__FrontendChannel__BASE : public FrontendChannel {
       std::unique_ptr<Serializable> message) override {
     crdtp__FrontendChannel__BASE__sendProtocolNotification(this,
                                                            message.release());
-  }
-  void FallThrough(int call_id, span<uint8_t> method, span<uint8_t> message) {
-    crdtp__FrontendChannel__BASE__fallThrough(this, call_id, method.data(),
-                                              method.size(), message.data(),
-                                              message.size());
   }
   void FlushProtocolNotifications() override {
     crdtp__FrontendChannel__BASE__flushProtocolNotifications(this);
@@ -184,55 +176,20 @@ void crdtp__DispatchResponse__messageCopy(const DispatchResponseWrapper* self,
   memcpy(out, msg.data(), msg.size());
 }
 
-struct crdtp__DomainDispatcher__BASE;
-
-struct RegisteredDomain {
-  std::vector<uint8_t> name;
-  crdtp__DomainDispatcher__BASE* dispatcher;
-};
-
-struct UberDispatcherWrapper {
-  explicit UberDispatcherWrapper(FrontendChannel* channel) : inner(channel) {}
-
-  UberDispatcher inner;
-  std::vector<RegisteredDomain> dispatchers;
-};
-
-UberDispatcherWrapper* crdtp__UberDispatcher__new(FrontendChannel* channel) {
-  return new UberDispatcherWrapper(channel);
+UberDispatcher* crdtp__UberDispatcher__new(FrontendChannel* channel) {
+  return new UberDispatcher(channel);
 }
 
-void crdtp__UberDispatcher__DELETE(UberDispatcherWrapper* self) { delete self; }
+void crdtp__UberDispatcher__DELETE(UberDispatcher* self) { delete self; }
 
-FrontendChannel* crdtp__UberDispatcher__channel(UberDispatcherWrapper* self) {
-  return self->inner.channel();
+FrontendChannel* crdtp__UberDispatcher__channel(UberDispatcher* self) {
+  return self->channel();
 }
 
-struct DispatchResultWrapper {
-  DispatchResultWrapper(UberDispatcherWrapper* uber,
-                        const Dispatchable& dispatchable);
-
-  bool MethodFound() const { return dispatcher != nullptr; }
-  void Run();
-
-  UberDispatcherWrapper* uber;
-  std::unique_ptr<Dispatchable> dispatchable;
-  crdtp__DomainDispatcher__BASE* dispatcher = nullptr;
-  std::vector<uint8_t> command;
-};
-
-DispatchResultWrapper* crdtp__UberDispatcher__Dispatch(
-    UberDispatcherWrapper* self, const Dispatchable* dispatchable) {
-  return new DispatchResultWrapper(self, *dispatchable);
+void crdtp__UberDispatcher__Dispatch(UberDispatcher* self,
+                                     Dispatchable* dispatchable) {
+  self->Dispatch(*dispatchable);
 }
-
-void crdtp__DispatchResult__DELETE(DispatchResultWrapper* self) { delete self; }
-
-bool crdtp__DispatchResult__MethodFound(const DispatchResultWrapper* self) {
-  return self->MethodFound();
-}
-
-void crdtp__DispatchResult__Run(DispatchResultWrapper* self) { self->Run(); }
 
 // Convert JSON to CBOR
 bool crdtp__json__ConvertJSONToCBOR(const uint8_t* json_data, size_t json_len,
@@ -325,9 +282,7 @@ Serializable* crdtp__CreateErrorNotification(
 
 extern "C" {
 // Rust callback: given a domain dispatcher pointer and a command name,
-// returns a bool indicating if the command was found. If found, the
-// dispatcher should handle the dispatchable when
-// crdtp__DomainDispatcher__BASE__Run is called.
+// executes the command and returns whether it was handled.
 bool crdtp__DomainDispatcher__BASE__Dispatch(void* rust_dispatcher,
                                              const uint8_t* command_data,
                                              size_t command_len,
@@ -346,61 +301,13 @@ struct crdtp__DomainDispatcher__BASE : public DomainDispatcher {
     crdtp__DomainDispatcher__BASE__Drop(rust_dispatcher_);
   }
 
-  bool Probe(span<uint8_t> command_name) {
-    bool found = crdtp__DomainDispatcher__BASE__Dispatch(
-        rust_dispatcher_, command_name.data(), command_name.size(), nullptr);
-    return found;
-  }
-
-  void Run(span<uint8_t> command_name, const Dispatchable& dispatchable) {
-    crdtp__DomainDispatcher__BASE__Dispatch(rust_dispatcher_,
-                                            command_name.data(),
-                                            command_name.size(), &dispatchable);
-  }
-
   bool Dispatch(span<uint8_t> command_name,
                 Dispatchable& dispatchable) override {
-    if (!Probe(command_name)) {
-      return false;
-    }
-    Run(command_name, dispatchable);
-    return true;
+    return crdtp__DomainDispatcher__BASE__Dispatch(
+        rust_dispatcher_, command_name.data(), command_name.size(),
+        &dispatchable);
   }
 };
-
-DispatchResultWrapper::DispatchResultWrapper(UberDispatcherWrapper* uber,
-                                             const Dispatchable& dispatchable)
-    : uber(uber), dispatchable(std::make_unique<Dispatchable>(dispatchable)) {
-  span<uint8_t> method = dispatchable.Method();
-  const uint8_t* dot =
-      static_cast<const uint8_t*>(memchr(method.data(), '.', method.size()));
-  if (!dot) {
-    return;
-  }
-
-  size_t domain_len = dot - method.data();
-  span<uint8_t> command_name =
-      method.subspan(domain_len + 1, method.size() - domain_len - 1);
-  for (const RegisteredDomain& entry : uber->dispatchers) {
-    if (entry.name.size() == domain_len &&
-        memcmp(entry.name.data(), method.data(), domain_len) == 0 &&
-        entry.dispatcher->Probe(command_name)) {
-      dispatcher = entry.dispatcher;
-      command.assign(command_name.begin(), command_name.end());
-      return;
-    }
-  }
-}
-
-void DispatchResultWrapper::Run() {
-  if (dispatcher) {
-    dispatcher->Run(span<uint8_t>(command.data(), command.size()),
-                    *dispatchable);
-  } else {
-    uber->inner.SendMethodNotFound(dispatchable->CallId(),
-                                   dispatchable->Method());
-  }
-}
 
 extern "C" {
 
@@ -420,16 +327,12 @@ void crdtp__DomainDispatcher__sendResponse(crdtp__DomainDispatcher__BASE* self,
 }
 
 void crdtp__UberDispatcher__WireBackend(
-    UberDispatcherWrapper* uber, const uint8_t* domain_data, size_t domain_len,
+    UberDispatcher* uber, const uint8_t* domain_data, size_t domain_len,
     crdtp__DomainDispatcher__BASE* dispatcher) {
-  uber->dispatchers.push_back(
-      {std::vector<uint8_t>(domain_data, domain_data + domain_len),
-       dispatcher});
   std::unique_ptr<DomainDispatcher> dispatcher_ptr(dispatcher);
-  uber->inner.WireBackend(
-      span<uint8_t>(domain_data, domain_len),
-      std::vector<std::pair<span<uint8_t>, span<uint8_t>>>(),
-      std::move(dispatcher_ptr));
+  uber->WireBackend(span<uint8_t>(domain_data, domain_len),
+                    std::vector<std::pair<span<uint8_t>, span<uint8_t>>>(),
+                    std::move(dispatcher_ptr));
 }
 
 }  // extern "C"
