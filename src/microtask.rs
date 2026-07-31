@@ -108,8 +108,13 @@ impl MicrotaskQueue {
 
 /// A rooted handle to a [`MicrotaskQueue`].
 ///
-/// Dropping this handle releases the Rust-side root. Contexts associated with
-/// the queue keep it alive independently.
+/// This handle must be dropped before its isolate is disposed because dropping
+/// it releases a root through the isolate's heap.
+///
+/// With the default `v8_cppgc_microtask_queue` GN setting, contexts associated
+/// with the queue keep it alive after this handle is dropped. If that setting
+/// is disabled through `EXTRA_GN_ARGS`, this handle owns the queue and must
+/// outlive every associated context.
 #[derive(Debug)]
 pub struct MicrotaskQueueHandle(NonNull<MicrotaskQueueHandleRaw>);
 

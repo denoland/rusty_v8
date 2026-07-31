@@ -75,6 +75,14 @@ const prHead = `${pushOwner}:${AUTOROLL_BRANCH}`;
 
 await run("git", ["fetch", upstreamRemote, UPSTREAM_BRANCH]);
 await run("git", ["checkout", `${upstreamRemote}/${UPSTREAM_BRANCH}`]);
+const checkedOutUpdaterSource = Deno.readTextFileSync(UPDATER_PATH);
+if (updaterSource !== checkedOutUpdaterSource) {
+  console.warn(
+    `Warning: ${UPDATER_PATH} differs from ` +
+      `${upstreamRemote}/${UPSTREAM_BRANCH}; restoring the pre-checkout copy. ` +
+      "Verify that it should replace the checked-out updater before pushing.",
+  );
+}
 Deno.writeTextFileSync(UPDATER_PATH, updaterSource);
 await run("git", ["submodule", "update", "--init", "--recursive", "v8"]);
 

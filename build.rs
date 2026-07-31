@@ -18,6 +18,33 @@ use std::process::Command;
 use std::process::Stdio;
 use which::which;
 
+fn clang_resource_dir(clang_bin: &Path) -> Result<String, String> {
+  let output = Command::new(clang_bin)
+    .arg("-print-resource-dir")
+    .output()
+    .map_err(|error| {
+      format!("could not run {}: {error}", clang_bin.display())
+    })?;
+  if !output.status.success() {
+    return Err(format!(
+      "{} exited with {}",
+      clang_bin.display(),
+      output.status
+    ));
+  }
+  let resource_dir = String::from_utf8(output.stdout).map_err(|error| {
+    format!("{} returned non-UTF-8 output: {error}", clang_bin.display())
+  })?;
+  let resource_dir = resource_dir.trim();
+  if resource_dir.is_empty() {
+    return Err(format!(
+      "{} returned an empty resource directory",
+      clang_bin.display()
+    ));
+  }
+  Ok(resource_dir.to_string())
+}
+
 fn main() {
   println!("cargo:rerun-if-changed=.gn");
   println!("cargo:rerun-if-changed=BUILD.gn");
@@ -231,21 +258,24 @@ fn build_binding() {
     // libclang otherwise discovers the runner's system Clang resource
     // directory, which may not match the pinned Chromium libclang.
     if let Ok(libclang_path) = env::var("LIBCLANG_PATH") {
-      let clang_dir = PathBuf::from(&libclang_path)
-        .parent()
-        .unwrap()
-        .to_path_buf();
-      let clang_bin = clang_dir.join("bin/clang-cl.exe");
-      let output = Command::new(clang_bin)
-        .arg("-print-resource-dir")
-        .output()
-        .unwrap();
-      assert!(output.status.success());
-      let resource_dir = String::from_utf8(output.stdout).unwrap();
-      let resource_dir = resource_dir.trim();
-      assert!(!resource_dir.is_empty());
-      println!("clang_resource_dir (downloaded) {resource_dir}");
-      clang_args.push(format!("-resource-dir={resource_dir}"));
+      let libclang_path = PathBuf::from(libclang_path);
+      if let Some(clang_dir) = libclang_path.parent() {
+        let clang_bin = clang_dir.join("bin/clang-cl.exe");
+        match clang_resource_dir(&clang_bin) {
+          Ok(resource_dir) => {
+            println!("clang_resource_dir (from LIBCLANG_PATH) {resource_dir}");
+            clang_args.push(format!("-resource-dir={resource_dir}"));
+          }
+          Err(error) => println!(
+            "cargo:warning=Skipping Clang resource directory override: {error}"
+          ),
+        }
+      } else {
+        println!(
+          "cargo:warning=Skipping Clang resource directory override: \
+           LIBCLANG_PATH has no parent directory"
+        );
+      }
     }
   } else if target_os == "ios" {
     // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
@@ -1470,5 +1500,13 @@ edge [fontsize=10]
     assert!(files.contains("../../../example/src/input.txt"));
     assert!(files.contains("../../../example/src/count_bytes.py"));
     assert!(!files.contains("obj/hello/hello.o"));
+  }
+
+  #[test]
+  fn test_clang_resource_dir_missing_executable() {
+    let clang_bin = env::temp_dir()
+      .join(format!("rusty_v8_missing_clang_{}", std::process::id()));
+    let error = clang_resource_dir(&clang_bin).unwrap_err();
+    assert!(error.contains("could not run"), "{error}");
   }
 }

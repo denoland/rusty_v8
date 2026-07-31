@@ -131,6 +131,14 @@ For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
 not supported. The default source build downloads Chromium's pinned libclang
 automatically. If `$CLANG_BASE_PATH` is set to a custom LLVM installation,
 `$LIBCLANG_PATH` must point to the directory containing `libclang.dll`.
+The `tools/win` submodule is skipped because its standalone mirror is
+unreliable, so source builds must populate its pinned debugger visualizers:
+
+```bash
+mkdir -p tools/win
+curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0.tar.gz |
+  tar -xz -C tools/win
+```
 
 For Mac builds: You'll need Xcode and Xcode CLT installed. Recent macOS versions
 will also require you to pass PYTHON=python3 because macOS no longer ships with

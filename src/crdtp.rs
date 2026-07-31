@@ -6,7 +6,10 @@ use std::cell::UnsafeCell;
 use std::ffi::CString;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::pin::Pin;
+use std::ptr::NonNull;
 
 unsafe extern "C" {
   fn crdtp__FrontendChannel__BASE__CONSTRUCT(
@@ -153,6 +156,51 @@ unsafe extern "C" {
 #[repr(C)]
 pub struct Dispatchable(Opaque);
 
+/// An owning handle to a [`Dispatchable`].
+///
+/// The serialized message and associated data are borrowed by the underlying
+/// C++ object, so this handle keeps both buffers alive for as long as the
+/// dispatchable can be accessed.
+pub struct OwnedDispatchable {
+  ptr: NonNull<Dispatchable>,
+  _cbor_data: Box<[u8]>,
+  _associated_data: Box<[u8]>,
+}
+
+impl Deref for OwnedDispatchable {
+  type Target = Dispatchable;
+
+  fn deref(&self) -> &Self::Target {
+    unsafe { self.ptr.as_ref() }
+  }
+}
+
+impl DerefMut for OwnedDispatchable {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    unsafe { self.ptr.as_mut() }
+  }
+}
+
+impl AsRef<Dispatchable> for OwnedDispatchable {
+  fn as_ref(&self) -> &Dispatchable {
+    self
+  }
+}
+
+impl AsMut<Dispatchable> for OwnedDispatchable {
+  fn as_mut(&mut self) -> &mut Dispatchable {
+    self
+  }
+}
+
+impl Drop for OwnedDispatchable {
+  fn drop(&mut self) {
+    unsafe {
+      crdtp__Dispatchable__DELETE(self.ptr.as_ptr());
+    }
+  }
+}
+
 #[repr(C)]
 struct DispatchResponseWrapper(Opaque);
 
@@ -201,13 +249,9 @@ impl Drop for Serializable {
 }
 
 impl Dispatchable {
-  pub fn new(cbor_data: &[u8]) -> Box<Self> {
-    Self::new_inner(
-      cbor_data,
-      std::ptr::NonNull::<u8>::dangling().as_ptr(),
-      0,
-      std::ptr::null_mut(),
-    )
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new(cbor_data: &[u8]) -> OwnedDispatchable {
+    Self::new_inner(cbor_data, &[], std::ptr::null_mut())
   }
 
   /// Creates a dispatchable with per-message associated data and a callback
@@ -219,32 +263,34 @@ impl Dispatchable {
     cbor_data: &[u8],
     associated_data: &[u8],
     fallthrough_callback: impl FnMut(i32, &[u8], &[u8], &[u8]) + 'static,
-  ) -> Box<Self> {
+  ) -> OwnedDispatchable {
     let callback = Box::new(FallthroughCallbackData {
       callback: Box::new(fallthrough_callback),
-      associated_data: associated_data.into(),
     });
-    let associated_data = callback.associated_data.as_ptr();
-    let associated_data_len = callback.associated_data.len();
     let callback = Box::into_raw(callback).cast::<c_void>();
-    Self::new_inner(cbor_data, associated_data, associated_data_len, callback)
+    Self::new_inner(cbor_data, associated_data, callback)
   }
 
   fn new_inner(
     cbor_data: &[u8],
-    associated_data: *const u8,
-    associated_data_len: usize,
+    associated_data: &[u8],
     fallthrough_callback: *mut c_void,
-  ) -> Box<Self> {
+  ) -> OwnedDispatchable {
+    let cbor_data: Box<[u8]> = cbor_data.into();
+    let associated_data: Box<[u8]> = associated_data.into();
     unsafe {
       let ptr = crdtp__Dispatchable__new(
         cbor_data.as_ptr(),
         cbor_data.len(),
-        associated_data,
-        associated_data_len,
+        associated_data.as_ptr(),
+        associated_data.len(),
         fallthrough_callback,
       );
-      Box::from_raw(ptr)
+      OwnedDispatchable {
+        ptr: NonNull::new(ptr).unwrap(),
+        _cbor_data: cbor_data,
+        _associated_data: associated_data,
+      }
     }
   }
 
@@ -301,22 +347,10 @@ impl Dispatchable {
   }
 }
 
-impl Drop for Dispatchable {
-  fn drop(&mut self) {
-    unsafe {
-      crdtp__Dispatchable__DELETE(self);
-    }
-  }
-}
-
 type FallthroughCallback = Box<dyn FnMut(i32, &[u8], &[u8], &[u8])>;
 
 struct FallthroughCallbackData {
   callback: FallthroughCallback,
-  // Dispatchable stores associated data as a string_view. Keeping its owned
-  // copy alongside the callback also preserves it when async dispatch takes
-  // ownership of the callback.
-  associated_data: Box<[u8]>,
 }
 
 #[unsafe(no_mangle)]

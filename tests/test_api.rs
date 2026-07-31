@@ -13462,29 +13462,35 @@ fn crdtp_uber_dispatcher_fallthrough() {
   let callback_state = Rc::new(RefCell::new(None::<FallthroughCall>));
   let callback_state_clone = callback_state.clone();
   let json = r#"{"id":7,"method":"Custom.unknownMethod","params":{}}"#;
-  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
-  let mut dispatchable = v8::crdtp::Dispatchable::new_with_fallthrough(
-    &cbor,
-    b"request metadata",
-    move |call_id, method, message, associated_data| {
-      *callback_state_clone.borrow_mut() = Some((
-        call_id,
-        method.to_vec(),
-        message.to_vec(),
-        associated_data.to_vec(),
-      ));
-    },
-  );
+  let (mut dispatchable, expected_cbor) = {
+    let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+    let expected_cbor = cbor.clone();
+    let associated_data = b"request metadata".to_vec();
+    let dispatchable = v8::crdtp::Dispatchable::new_with_fallthrough(
+      &cbor,
+      &associated_data,
+      move |call_id, method, message, associated_data| {
+        *callback_state_clone.borrow_mut() = Some((
+          call_id,
+          method.to_vec(),
+          message.to_vec(),
+          associated_data.to_vec(),
+        ));
+      },
+    );
+    (dispatchable, expected_cbor)
+  };
   assert_eq!(dispatchable.associated_data(), b"request metadata");
 
   dispatcher.dispatch(&mut dispatchable);
+  assert_eq!(dispatchable.associated_data(), b"request metadata");
 
   assert!(channel_state.borrow().responses.is_empty());
   let (call_id, method, message, associated_data) =
     callback_state.borrow_mut().take().unwrap();
   assert_eq!(call_id, 7);
   assert_eq!(method, b"Custom.unknownMethod");
-  assert_eq!(message, cbor);
+  assert_eq!(message, expected_cbor);
   assert!(associated_data.is_empty());
 }
 
