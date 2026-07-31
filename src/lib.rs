@@ -137,6 +137,7 @@ pub use isolate::UseCounterFeature;
 pub use isolate::WasmAsyncSuccess;
 pub use isolate_create_params::CreateParams;
 pub use microtask::MicrotaskQueue;
+pub use microtask::MicrotaskQueueHandle;
 pub use module::*;
 pub use object::*;
 pub use platform::IdleTask;

@@ -144,7 +144,7 @@ await run("git", [
 // Refresh the remote-tracking branch after the push.
 await run("git", ["fetch", PUSH_REMOTE, AUTOROLL_BRANCH]);
 
-const openPrs: { number: number }[] = JSON.parse(
+const openPrs = (JSON.parse(
   decoder.decode(
     await run("gh", [
       "pr",
@@ -154,12 +154,15 @@ const openPrs: { number: number }[] = JSON.parse(
       "--state",
       "open",
       "--head",
-      prHead,
+      AUTOROLL_BRANCH,
       "--json",
-      "number",
+      "number,headRepositoryOwner",
     ]),
   ),
-);
+) as {
+  number: number;
+  headRepositoryOwner: { login: string };
+}[]).filter((pr) => pr.headRepositoryOwner.login === pushOwner);
 
 if (openPrs.length > 0) {
   console.log("Already open PR. Editing existing PR.");

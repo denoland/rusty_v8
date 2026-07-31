@@ -4,6 +4,7 @@ use crate::support::CxxVTable;
 use crate::support::Opaque;
 use std::cell::UnsafeCell;
 use std::ffi::CString;
+use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
@@ -18,8 +19,13 @@ unsafe extern "C" {
     out: *mut CppVecU8,
   );
 
-  fn crdtp__Dispatchable__new(data: *const u8, len: usize)
-  -> *mut Dispatchable;
+  fn crdtp__Dispatchable__new(
+    data: *const u8,
+    len: usize,
+    associated_data: *const u8,
+    associated_data_len: usize,
+    fallthrough_callback: *mut c_void,
+  ) -> *mut Dispatchable;
   fn crdtp__Dispatchable__DELETE(this: *mut Dispatchable);
   fn crdtp__Dispatchable__ok(this: *const Dispatchable) -> bool;
   fn crdtp__Dispatchable__callId(this: *const Dispatchable) -> i32;
@@ -33,6 +39,12 @@ unsafe extern "C" {
   );
   fn crdtp__Dispatchable__paramsLen(this: *const Dispatchable) -> usize;
   fn crdtp__Dispatchable__paramsCopy(this: *const Dispatchable, out: *mut u8);
+  fn crdtp__Dispatchable__associatedDataLen(this: *const Dispatchable)
+  -> usize;
+  fn crdtp__Dispatchable__associatedDataCopy(
+    this: *const Dispatchable,
+    out: *mut u8,
+  );
 
   fn crdtp__DispatchResponse__Success() -> *mut DispatchResponseWrapper;
   fn crdtp__DispatchResponse__FallThrough() -> *mut DispatchResponseWrapper;
@@ -190,8 +202,48 @@ impl Drop for Serializable {
 
 impl Dispatchable {
   pub fn new(cbor_data: &[u8]) -> Box<Self> {
+    Self::new_inner(
+      cbor_data,
+      std::ptr::NonNull::<u8>::dangling().as_ptr(),
+      0,
+      std::ptr::null_mut(),
+    )
+  }
+
+  /// Creates a dispatchable with per-message associated data and a callback
+  /// that receives commands which fall through the dispatcher.
+  ///
+  /// The callback may outlive this `Dispatchable` when an asynchronous command
+  /// takes ownership of it.
+  pub fn new_with_fallthrough(
+    cbor_data: &[u8],
+    associated_data: &[u8],
+    fallthrough_callback: impl FnMut(i32, &[u8], &[u8], &[u8]) + 'static,
+  ) -> Box<Self> {
+    let callback = Box::new(FallthroughCallbackData {
+      callback: Box::new(fallthrough_callback),
+      associated_data: associated_data.into(),
+    });
+    let associated_data = callback.associated_data.as_ptr();
+    let associated_data_len = callback.associated_data.len();
+    let callback = Box::into_raw(callback).cast::<c_void>();
+    Self::new_inner(cbor_data, associated_data, associated_data_len, callback)
+  }
+
+  fn new_inner(
+    cbor_data: &[u8],
+    associated_data: *const u8,
+    associated_data_len: usize,
+    fallthrough_callback: *mut c_void,
+  ) -> Box<Self> {
     unsafe {
-      let ptr = crdtp__Dispatchable__new(cbor_data.as_ptr(), cbor_data.len());
+      let ptr = crdtp__Dispatchable__new(
+        cbor_data.as_ptr(),
+        cbor_data.len(),
+        associated_data,
+        associated_data_len,
+        fallthrough_callback,
+      );
       Box::from_raw(ptr)
     }
   }
@@ -238,6 +290,15 @@ impl Dispatchable {
       buf
     }
   }
+
+  pub fn associated_data(&self) -> Vec<u8> {
+    unsafe {
+      let len = crdtp__Dispatchable__associatedDataLen(self);
+      let mut buf = vec![0u8; len];
+      crdtp__Dispatchable__associatedDataCopy(self, buf.as_mut_ptr());
+      buf
+    }
+  }
 }
 
 impl Drop for Dispatchable {
@@ -245,6 +306,53 @@ impl Drop for Dispatchable {
     unsafe {
       crdtp__Dispatchable__DELETE(self);
     }
+  }
+}
+
+type FallthroughCallback = Box<dyn FnMut(i32, &[u8], &[u8], &[u8])>;
+
+struct FallthroughCallbackData {
+  callback: FallthroughCallback,
+  // Dispatchable stores associated data as a string_view. Keeping its owned
+  // copy alongside the callback also preserves it when async dispatch takes
+  // ownership of the callback.
+  associated_data: Box<[u8]>,
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn crdtp__FallthroughCallback__Run(
+  callback: *mut c_void,
+  call_id: i32,
+  method_data: *const u8,
+  method_len: usize,
+  message_data: *const u8,
+  message_len: usize,
+  associated_data: *const u8,
+  associated_data_len: usize,
+) {
+  unsafe {
+    unsafe fn as_slice<'a>(data: *const u8, len: usize) -> &'a [u8] {
+      if len == 0 {
+        &[]
+      } else {
+        unsafe { std::slice::from_raw_parts(data, len) }
+      }
+    }
+
+    let callback = &mut *(callback as *mut FallthroughCallbackData);
+    (callback.callback)(
+      call_id,
+      as_slice(method_data, method_len),
+      as_slice(message_data, message_len),
+      as_slice(associated_data, associated_data_len),
+    );
+  }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn crdtp__FallthroughCallback__Drop(callback: *mut c_void) {
+  unsafe {
+    drop(Box::from_raw(callback as *mut FallthroughCallbackData));
   }
 }
 
@@ -670,13 +778,13 @@ unsafe extern "C" fn crdtp__DomainDispatcher__BASE__Dispatch(
   rust_dispatcher: *mut std::ffi::c_void,
   command_data: *const u8,
   command_len: usize,
-  dispatchable: *const Dispatchable,
+  dispatchable: &Dispatchable,
 ) -> bool {
   unsafe {
     let dd = &mut *(rust_dispatcher as *mut DomainDispatcherData);
     let command = std::slice::from_raw_parts(command_data, command_len);
     let handle = DomainDispatcherHandle { ptr: dd.ptr };
-    dd.imp.dispatch(command, &*dispatchable, &handle)
+    dd.imp.dispatch(command, dispatchable, &handle)
   }
 }
 

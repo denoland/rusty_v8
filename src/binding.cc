@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -2246,13 +2247,39 @@ const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
   return local_to_ptr(value);
 }
 
-v8::MicrotaskQueue* v8__MicrotaskQueue__New(v8::Isolate* isolate,
-                                            v8::MicrotasksPolicy policy) {
-  return v8::MicrotaskQueue::New(isolate, policy);
+class RustyMicrotaskQueueHandle {
+ public:
+  RustyMicrotaskQueueHandle(v8::Isolate* isolate, v8::MicrotasksPolicy policy)
+      : queue_(v8::MicrotaskQueue::New(isolate, policy)) {}
+
+  v8::MicrotaskQueue* Get() const {
+#ifdef V8_CPPGC_MICROTASK_QUEUE
+    return queue_.Get();
+#else
+    return queue_.get();
+#endif
+  }
+
+ private:
+#ifdef V8_CPPGC_MICROTASK_QUEUE
+  cppgc::Persistent<v8::MicrotaskQueue> queue_;
+#else
+  std::unique_ptr<v8::MicrotaskQueue> queue_;
+#endif
+};
+
+RustyMicrotaskQueueHandle* v8__MicrotaskQueueHandle__New(
+    v8::Isolate* isolate, v8::MicrotasksPolicy policy) {
+  return new RustyMicrotaskQueueHandle(isolate, policy);
 }
 
-void v8__MicrotaskQueue__DESTRUCT(v8::MicrotaskQueue* self) {
-  self->~MicrotaskQueue();
+void v8__MicrotaskQueueHandle__DELETE(RustyMicrotaskQueueHandle* self) {
+  delete self;
+}
+
+v8::MicrotaskQueue* v8__MicrotaskQueueHandle__Get(
+    const RustyMicrotaskQueueHandle* self) {
+  return self->Get();
 }
 
 void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,

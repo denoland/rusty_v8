@@ -1,5 +1,7 @@
 // Copyright 2024 the Deno authors. All rights reserved. MIT license.
 
+#include <memory>
+
 #include "support.h"
 #include "v8/third_party/inspector_protocol/crdtp/cbor.h"
 #include "v8/third_party/inspector_protocol/crdtp/dispatch.h"
@@ -18,6 +20,11 @@ void crdtp__FrontendChannel__BASE__sendProtocolNotification(
     FrontendChannel* self, Serializable* message);
 void crdtp__FrontendChannel__BASE__flushProtocolNotifications(
     FrontendChannel* self);
+void crdtp__FallthroughCallback__Run(
+    void* callback, int call_id, const uint8_t* method_data, size_t method_len,
+    const uint8_t* message_data, size_t message_len,
+    const uint8_t* associated_data, size_t associated_data_len);
+void crdtp__FallthroughCallback__Drop(void* callback);
 }  // extern "C"
 
 struct crdtp__FrontendChannel__BASE : public FrontendChannel {
@@ -54,9 +61,30 @@ void crdtp__Serializable__AppendSerialized(const Serializable* self,
   self->AppendSerialized(out);
 }
 
-Dispatchable* crdtp__Dispatchable__new(const uint8_t* data, size_t len) {
-  return new Dispatchable(span<uint8_t>(data, len), std::string_view(),
-                          FallthroughCallback());
+Dispatchable* crdtp__Dispatchable__new(const uint8_t* data, size_t len,
+                                       const uint8_t* associated_data,
+                                       size_t associated_data_len,
+                                       void* rust_callback) {
+  FallthroughCallback fallthrough_callback;
+  if (rust_callback) {
+    auto callback =
+        std::shared_ptr<void>(rust_callback, crdtp__FallthroughCallback__Drop);
+    fallthrough_callback = [callback](
+                               int call_id, span<uint8_t> method,
+                               span<uint8_t> serialized_message,
+                               std::string_view fallthrough_associated_data) {
+      crdtp__FallthroughCallback__Run(
+          callback.get(), call_id, method.data(), method.size(),
+          serialized_message.data(), serialized_message.size(),
+          reinterpret_cast<const uint8_t*>(fallthrough_associated_data.data()),
+          fallthrough_associated_data.size());
+    };
+  }
+  return new Dispatchable(
+      span<uint8_t>(data, len),
+      std::string_view(reinterpret_cast<const char*>(associated_data),
+                       associated_data_len),
+      std::move(fallthrough_callback));
 }
 
 void crdtp__Dispatchable__DELETE(Dispatchable* self) { delete self; }
@@ -97,6 +125,16 @@ size_t crdtp__Dispatchable__paramsLen(const Dispatchable* self) {
 void crdtp__Dispatchable__paramsCopy(const Dispatchable* self, uint8_t* out) {
   span<uint8_t> params = self->Params();
   memcpy(out, params.data(), params.size());
+}
+
+size_t crdtp__Dispatchable__associatedDataLen(const Dispatchable* self) {
+  return self->AssociatedData().size();
+}
+
+void crdtp__Dispatchable__associatedDataCopy(const Dispatchable* self,
+                                             uint8_t* out) {
+  std::string_view associated_data = self->AssociatedData();
+  memcpy(out, associated_data.data(), associated_data.size());
 }
 
 struct DispatchResponseWrapper {
@@ -286,7 +324,7 @@ extern "C" {
 bool crdtp__DomainDispatcher__BASE__Dispatch(void* rust_dispatcher,
                                              const uint8_t* command_data,
                                              size_t command_len,
-                                             const Dispatchable* dispatchable);
+                                             const Dispatchable& dispatchable);
 // Rust callback: destroy the Rust DomainDispatcher when C++ side is destroyed.
 void crdtp__DomainDispatcher__BASE__Drop(void* rust_dispatcher);
 }
@@ -305,7 +343,7 @@ struct crdtp__DomainDispatcher__BASE : public DomainDispatcher {
                 Dispatchable& dispatchable) override {
     return crdtp__DomainDispatcher__BASE__Dispatch(
         rust_dispatcher_, command_name.data(), command_name.size(),
-        &dispatchable);
+        dispatchable);
   }
 };
 

@@ -12852,14 +12852,34 @@ fn microtask_queue_new() {
 
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
-  let queue = v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Auto);
+  let queue =
+    v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Explicit);
 
   let context = v8::Context::new(&scope, Default::default());
 
   context.set_microtask_queue(queue.as_ref());
   assert!(std::ptr::eq(context.get_microtask_queue(), queue.as_ref()));
-  // TODO(bartlomieju): add more tests once we have Context::New() bindings
-  // https://github.com/denoland/rusty_v8/issues/1438
+
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  CALL_COUNT.store(0, Ordering::SeqCst);
+  let function = v8::Function::new(
+    &mut scope,
+    |_: &mut v8::PinScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue<v8::Value>| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    },
+  )
+  .unwrap();
+  queue.enqueue_microtask(&mut scope, function);
+
+  // The associated context keeps the queue alive after its Rust-side root is
+  // released and cppgc runs.
+  drop(queue);
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+  context.get_microtask_queue().perform_checkpoint(&mut scope);
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -13406,10 +13426,17 @@ impl v8::crdtp::FrontendChannelImpl for TestFrontendChannel {
   fn flush_protocol_notifications(&mut self) {}
 }
 
+fn assert_method_not_found_response(response: &[u8], call_id: i32) {
+  let json = v8::crdtp::cbor_to_json(response).unwrap();
+  let json = String::from_utf8(json).unwrap();
+  assert!(json.contains(&format!(r#""id":{call_id}"#)), "{json}");
+  assert!(json.contains(r#""code":-32601"#), "{json}");
+}
+
 #[test]
 fn crdtp_uber_dispatcher_basic() {
-  let channel_impl = Box::new(TestFrontendChannel::new());
-  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
 
   let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
 
@@ -13419,6 +13446,46 @@ fn crdtp_uber_dispatcher_basic() {
   assert!(dispatchable.ok());
 
   dispatcher.dispatch(&mut dispatchable);
+
+  let state = state.borrow();
+  assert_eq!(state.responses.len(), 1);
+  assert_method_not_found_response(&state.responses[0], 1);
+}
+
+#[test]
+fn crdtp_uber_dispatcher_fallthrough() {
+  let (channel_impl, channel_state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  type FallthroughCall = (i32, Vec<u8>, Vec<u8>, Vec<u8>);
+  let callback_state = Rc::new(RefCell::new(None::<FallthroughCall>));
+  let callback_state_clone = callback_state.clone();
+  let json = r#"{"id":7,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new_with_fallthrough(
+    &cbor,
+    b"request metadata",
+    move |call_id, method, message, associated_data| {
+      *callback_state_clone.borrow_mut() = Some((
+        call_id,
+        method.to_vec(),
+        message.to_vec(),
+        associated_data.to_vec(),
+      ));
+    },
+  );
+  assert_eq!(dispatchable.associated_data(), b"request metadata");
+
+  dispatcher.dispatch(&mut dispatchable);
+
+  assert!(channel_state.borrow().responses.is_empty());
+  let (call_id, method, message, associated_data) =
+    callback_state.borrow_mut().take().unwrap();
+  assert_eq!(call_id, 7);
+  assert_eq!(method, b"Custom.unknownMethod");
+  assert_eq!(message, cbor);
+  assert!(associated_data.is_empty());
 }
 
 #[test]
@@ -13828,8 +13895,8 @@ fn crdtp_json_cbor_invalid_input() {
 #[test]
 fn crdtp_dispatch_unregistered_domain() {
   // Dispatch to an UberDispatcher with no domains wired at all
-  let channel_impl = Box::new(TestFrontendChannel::new());
-  let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
   let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
 
   let json = r#"{"id":1,"method":"Nonexistent.enable","params":{}}"#;
@@ -13838,6 +13905,10 @@ fn crdtp_dispatch_unregistered_domain() {
   assert!(dispatchable.ok());
 
   dispatcher.dispatch(&mut dispatchable);
+
+  let state = state.borrow();
+  assert_eq!(state.responses.len(), 1);
+  assert_method_not_found_response(&state.responses[0], 1);
 }
 
 #[test]
