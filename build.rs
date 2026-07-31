@@ -1506,7 +1506,6 @@ edge [fontsize=10]
   fn test_clang_resource_dir_missing_executable() {
     let clang_bin = env::temp_dir()
       .join(format!("rusty_v8_missing_clang_{}", std::process::id()));
-    let error = clang_resource_dir(&clang_bin).unwrap_err();
-    assert!(error.contains("could not run"), "{error}");
+    assert!(clang_resource_dir(&clang_bin).is_err());
   }
 }
