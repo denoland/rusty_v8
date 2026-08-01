@@ -80,6 +80,10 @@ unsafe extern "C" {
     session: *mut RawV8InspectorSession,
     message: StringView,
   );
+  fn v8_inspector__V8InspectorSession__releaseObjectGroup(
+    session: *mut RawV8InspectorSession,
+    object_group: StringView,
+  );
   fn v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     session: *mut RawV8InspectorSession,
     break_reason: StringView,
@@ -616,6 +620,15 @@ impl V8InspectorSession {
       v8_inspector__V8InspectorSession__dispatchProtocolMessage(
         self.raw.as_ptr(),
         message,
+      );
+    }
+  }
+
+  pub fn release_object_group(&self, object_group: StringView) {
+    unsafe {
+      v8_inspector__V8InspectorSession__releaseObjectGroup(
+        self.raw.as_ptr(),
+        object_group,
       );
     }
   }

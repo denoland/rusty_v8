@@ -7039,6 +7039,7 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
 
 struct ChannelCounterState {
   count_send_response: usize,
+  responses: Vec<String>,
   count_send_notification: usize,
   notifications: Vec<String>,
   count_flush_protocol_notifications: usize,
@@ -7048,6 +7049,7 @@ impl ChannelCounterState {
   pub fn new() -> Self {
     Self {
       count_send_response: 0,
+      responses: vec![],
       count_send_notification: 0,
       notifications: vec![],
       count_flush_protocol_notifications: 0,
@@ -7074,11 +7076,11 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     call_id: i32,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!(
-      "send_response call_id {call_id} message {}",
-      message.unwrap().string()
-    );
-    self.state.borrow_mut().count_send_response += 1;
+    let message = message.unwrap().string().to_string();
+    println!("send_response call_id {call_id} message {message}");
+    let mut state = self.state.borrow_mut();
+    state.count_send_response += 1;
+    state.responses.push(message);
   }
   fn send_notification(
     &self,
@@ -7181,6 +7183,61 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(state.count_send_notification, 0);
   assert_eq!(state.count_flush_protocol_notifications, 0);
   inspector.context_destroyed(context);
+}
+
+#[test]
+fn inspector_release_object_group() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let _scope = &mut v8::ContextScope::new(scope, context);
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":1,"method":"Runtime.evaluate","params":{"expression":"({ answer: 42 })","objectGroup":"rusty-v8-test","contextId":1}}"#[..],
+  ));
+
+  let object_id = {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 1);
+    state.responses[0]
+      .split_once(r#""objectId":""#)
+      .unwrap()
+      .1
+      .split_once('"')
+      .unwrap()
+      .0
+      .to_string()
+  };
+
+  session.release_object_group(StringView::from(&b"rusty-v8-test"[..]));
+  let get_properties = format!(
+    r#"{{"id":2,"method":"Runtime.getProperties","params":{{"objectId":"{object_id}"}}}}"#,
+  );
+  session
+    .dispatch_protocol_message(StringView::from(get_properties.as_bytes()));
+
+  let state = channel.state.borrow();
+  assert_eq!(state.responses.len(), 2);
+  assert!(state.responses[1].contains(r#""code":-32000"#));
+  assert!(state.responses[1].contains("Could not find object with given id"));
 }
 
 #[test]

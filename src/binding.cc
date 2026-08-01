@@ -3459,6 +3459,12 @@ void v8_inspector__V8InspectorSession__dispatchProtocolMessage(
   self->dispatchProtocolMessage(message);
 }
 
+void v8_inspector__V8InspectorSession__releaseObjectGroup(
+    v8_inspector::V8InspectorSession* self,
+    v8_inspector::StringView object_group) {
+  self->releaseObjectGroup(object_group);
+}
+
 void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     v8_inspector::V8InspectorSession* self, v8_inspector::StringView reason,
     v8_inspector::StringView detail) {
