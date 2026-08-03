@@ -7097,6 +7097,28 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   }
 }
 
+struct TestInspectable {
+  value: v8::Global<v8::Value>,
+  drop_count: Arc<AtomicUsize>,
+}
+
+impl v8::inspector::InspectableImpl for TestInspectable {
+  fn get<'s>(
+    &self,
+    scope: &mut v8::PinScope<'s, '_>,
+    context: v8::Local<'s, v8::Context>,
+  ) -> v8::Local<'s, v8::Value> {
+    assert_eq!(scope.get_current_context(), context);
+    v8::Local::new(scope, &self.value)
+  }
+}
+
+impl Drop for TestInspectable {
+  fn drop(&mut self) {
+    self.drop_count.fetch_add(1, Ordering::SeqCst);
+  }
+}
+
 #[test]
 fn inspector_can_dispatch_method() {
   use v8::inspector::*;
@@ -7339,6 +7361,120 @@ fn inspector_value_subtype() {
   }
 
   inspector.context_destroyed(context);
+}
+
+#[test]
+fn inspector_inspected_object_round_trip() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let value = eval(scope, "({ answer: 42 })").unwrap();
+  let value = v8::Global::new(scope, value);
+
+  let name = StringView::from(&b""[..]);
+  let aux_data = StringView::from(&b"{\"isDefault\": true}"[..]);
+  inspector.context_created(context, 1, name, aux_data);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+  let drop_count = Arc::new(AtomicUsize::new(0));
+  session.add_inspected_object(Inspectable::new(Box::new(TestInspectable {
+    value,
+    drop_count: drop_count.clone(),
+  })));
+
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":1,"method":"Runtime.evaluate","params":{"expression":"$0.answer","contextId":1,"includeCommandLineAPI":true}}"#[..],
+  ));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 1);
+    assert!(state.responses[0].contains(r#""value":42"#));
+  }
+
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+  drop(session);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+  drop(inspector);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn inspector_inspectable_drops_rust_impl_when_not_added() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  v8::scope!(let scope, isolate);
+  let value: v8::Local<v8::Value> = v8::undefined(scope).into();
+  let value = v8::Global::new(scope, value);
+  let drop_count = Arc::new(AtomicUsize::new(0));
+  let inspectable = Inspectable::new(Box::new(TestInspectable {
+    value,
+    drop_count: drop_count.clone(),
+  }));
+
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+  drop(inspectable);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn inspector_inspected_object_drops_rust_impl_when_evicted() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(ChannelCounter::new())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  // V8 retains five inspected objects for $0 through $4, so adding a sixth
+  // evicts the oldest one.
+  let mut drop_counts = Vec::new();
+  for number in 0..6 {
+    let value: v8::Local<v8::Value> = v8::Integer::new(scope, number).into();
+    let drop_count = Arc::new(AtomicUsize::new(0));
+    session.add_inspected_object(Inspectable::new(Box::new(TestInspectable {
+      value: v8::Global::new(scope, value),
+      drop_count: drop_count.clone(),
+    })));
+    drop_counts.push(drop_count);
+  }
+
+  assert_eq!(drop_counts[0].load(Ordering::SeqCst), 1);
+  for drop_count in &drop_counts[1..] {
+    assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+  }
 }
 
 #[test]

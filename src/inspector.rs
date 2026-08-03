@@ -98,6 +98,16 @@ unsafe extern "C" {
   fn v8_inspector__V8InspectorSession__canDispatchMethod(
     method: StringView,
   ) -> bool;
+  fn v8_inspector__V8InspectorSession__Inspectable__NEW(
+    rust_impl: *mut c_void,
+  ) -> *mut RawInspectable;
+  fn v8_inspector__V8InspectorSession__Inspectable__DELETE(
+    inspectable: *mut RawInspectable,
+  );
+  fn v8_inspector__V8InspectorSession__addInspectedObject(
+    session: *mut RawV8InspectorSession,
+    inspectable: *mut RawInspectable,
+  );
 
   fn v8_inspector__StringBuffer__DELETE(this: *mut StringBuffer);
   fn v8_inspector__StringBuffer__string(this: &StringBuffer) -> StringView<'_>;
@@ -676,6 +686,89 @@ impl Debug for V8InspectorClient {
 
 #[repr(C)]
 #[derive(Debug)]
+struct RawInspectable(Opaque);
+
+impl Drop for RawInspectable {
+  fn drop(&mut self) {
+    unsafe {
+      v8_inspector__V8InspectorSession__Inspectable__DELETE(self);
+    }
+  }
+}
+
+// A trait object is a fat pointer, so box it once more before passing it through
+// the FFI as a thin `*mut c_void`.
+struct InspectableData {
+  imp: Box<dyn InspectableImpl>,
+}
+
+/// Supplies the value of an object added to the inspector's `$0` through `$4`
+/// history.
+pub trait InspectableImpl {
+  /// Called by the inspector from within a V8 callback when the console
+  /// dereferences one of `$0` through `$4`.
+  ///
+  /// There is no way to return an empty handle; if no value is available,
+  /// return `undefined`.
+  fn get<'s>(
+    &self,
+    scope: &mut PinScope<'s, '_>,
+    context: Local<'s, Context>,
+  ) -> Local<'s, Value>;
+}
+
+/// An object that can be added to an inspector session's `$0` through `$4`
+/// history.
+pub struct Inspectable {
+  raw: UniqueRef<RawInspectable>,
+}
+
+impl Inspectable {
+  pub fn new(imp: Box<dyn InspectableImpl>) -> Self {
+    let data = Box::into_raw(Box::new(InspectableData { imp })).cast();
+    let raw = unsafe {
+      UniqueRef::from_raw(v8_inspector__V8InspectorSession__Inspectable__NEW(
+        data,
+      ))
+    };
+    Self { raw }
+  }
+}
+
+impl Debug for Inspectable {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("Inspectable").finish()
+  }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8_inspector__V8InspectorSession__Inspectable__BASE__get(
+  rust_impl: *mut c_void,
+  context: Local<Context>,
+) -> *const Value {
+  let data = unsafe { &*rust_impl.cast::<InspectableData>() };
+  // SAFETY: `CallbackScope::new(context)` must not open its own HandleScope.
+  // `NewCallbackScope for Local<Context>` has `NEEDS_SCOPE == false`, and
+  // `make_new_callback_scope` constructs it with `needs_scope == false`. The
+  // handle returned here is allocated in the EscapableHandleScope opened by
+  // the C++ shim and escaped there. If Rust opens its own HandleScope, that
+  // scope is destroyed before C++ escapes the handle, causing a use-after-free.
+  let scope = pin!(unsafe { CallbackScope::new(context) });
+  let mut scope = scope.init();
+  data.imp.get(&mut scope, context).as_non_null().as_ptr()
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8_inspector__V8InspectorSession__Inspectable__BASE__DROP(
+  rust_impl: *mut c_void,
+) {
+  unsafe {
+    drop(Box::from_raw(rust_impl.cast::<InspectableData>()));
+  }
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct RawV8InspectorSession(Opaque);
 
 pub struct V8InspectorSession {
@@ -728,6 +821,15 @@ impl V8InspectorSession {
     unsafe {
       v8_inspector__V8InspectorSession__cancelPauseOnNextStatement(
         self.raw.as_ptr(),
+      );
+    }
+  }
+
+  pub fn add_inspected_object(&self, inspectable: Inspectable) {
+    unsafe {
+      v8_inspector__V8InspectorSession__addInspectedObject(
+        self.raw.as_ptr(),
+        inspectable.raw.into_raw(),
       );
     }
   }

@@ -3504,6 +3504,62 @@ void v8_inspector__V8InspectorSession__cancelPauseOnNextStatement(
 }
 }  // extern "C"
 
+extern "C" {
+const v8::Value* v8_inspector__V8InspectorSession__Inspectable__BASE__get(
+    void* rust_impl, const v8::Context* context);
+void v8_inspector__V8InspectorSession__Inspectable__BASE__DROP(void* rust_impl);
+}
+
+class v8_inspector__V8InspectorSession__Inspectable__BASE final
+    : public v8_inspector::V8InspectorSession::Inspectable {
+ public:
+  explicit v8_inspector__V8InspectorSession__Inspectable__BASE(void* rust_impl)
+      : rust_impl_(rust_impl) {}
+
+  ~v8_inspector__V8InspectorSession__Inspectable__BASE() override {
+    v8_inspector__V8InspectorSession__Inspectable__BASE__DROP(rust_impl_);
+  }
+
+  v8::Local<v8::Value> get(v8::Local<v8::Context> context) override {
+    // The Rust CallbackScope relies on `NewCallbackScope for Local<Context>`
+    // having `NEEDS_SCOPE == false` and must not open its own HandleScope.
+    // Handles created by the Rust implementation are allocated in this scope
+    // and must be escaped here. Opening a nested HandleScope in Rust would
+    // destroy that scope before Escape uses its handle, causing a
+    // use-after-free.
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    if (isolate == nullptr) return v8::Local<v8::Value>();
+    v8::EscapableHandleScope handle_scope(isolate);
+    v8::Context::Scope context_scope(context);
+    return handle_scope.Escape(
+        ptr_to_local(v8_inspector__V8InspectorSession__Inspectable__BASE__get(
+            rust_impl_, local_to_ptr(context))));
+  }
+
+ private:
+  void* rust_impl_;
+};
+
+extern "C" {
+v8_inspector::V8InspectorSession::Inspectable*
+v8_inspector__V8InspectorSession__Inspectable__NEW(void* rust_impl) {
+  return new v8_inspector__V8InspectorSession__Inspectable__BASE(rust_impl);
+}
+
+void v8_inspector__V8InspectorSession__Inspectable__DELETE(
+    v8_inspector::V8InspectorSession::Inspectable* inspectable) {
+  delete inspectable;
+}
+
+void v8_inspector__V8InspectorSession__addInspectedObject(
+    v8_inspector::V8InspectorSession* self,
+    v8_inspector::V8InspectorSession::Inspectable* inspectable) {
+  self->addInspectedObject(
+      std::unique_ptr<v8_inspector::V8InspectorSession::Inspectable>(
+          inspectable));
+}
+}
+
 struct v8_inspector__V8Inspector__Channel__BASE
     : public v8_inspector::V8Inspector::Channel {
   using v8_inspector::V8Inspector::Channel::Channel;
