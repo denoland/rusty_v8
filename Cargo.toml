@@ -107,6 +107,9 @@ simdutf = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []
+# Jitless lite mode: disables Turbofan, Maglev, Sparkplug and WebAssembly to
+# produce a smaller prebuilt archive.
+v8_lite_mode = ["v8_enable_pointer_compression"]
 
 [dependencies]
 bitflags = "2.5"
