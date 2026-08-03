@@ -13,9 +13,11 @@
 //! https://github.com/nodejs/node/tree/v13.7.0/src/inspector
 //! https://github.com/denoland/deno/blob/v0.38.0/cli/inspector.rs
 
+use crate::CallbackScope;
 use crate::Context;
 use crate::Isolate;
 use crate::Local;
+use crate::PinScope;
 use crate::StackTrace;
 use crate::Value;
 use crate::isolate::RealIsolate;
@@ -27,6 +29,7 @@ use crate::support::int;
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Formatter};
+use std::pin::pin;
 
 unsafe extern "C" {
   fn v8_inspector__V8Inspector__Channel__BASE__CONSTRUCT(
@@ -269,6 +272,42 @@ unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
         column_number,
         stack_trace,
       );
+  }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__valueSubtype(
+  this: *mut RawV8InspectorClient,
+  context: Local<Context>,
+  value: Local<Value>,
+) -> *mut StringBuffer {
+  let scope = pin!(unsafe { CallbackScope::new(context) });
+  let mut scope = scope.init();
+  unsafe {
+    V8InspectorClientHeap::from_raw(this)
+      .imp
+      .value_subtype(&mut scope, value)
+      .and_then(|mut v| v.take())
+      .map(|r| r.into_raw())
+      .unwrap_or(std::ptr::null_mut())
+  }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn v8_inspector__V8InspectorClient__BASE__descriptionForValueSubtype(
+  this: *mut RawV8InspectorClient,
+  context: Local<Context>,
+  value: Local<Value>,
+) -> *mut StringBuffer {
+  let scope = pin!(unsafe { CallbackScope::new(context) });
+  let mut scope = scope.init();
+  unsafe {
+    V8InspectorClientHeap::from_raw(this)
+      .imp
+      .description_for_value_subtype(&mut scope, value)
+      .and_then(|mut v| v.take())
+      .map(|r| r.into_raw())
+      .unwrap_or(std::ptr::null_mut())
   }
 }
 
@@ -531,6 +570,42 @@ pub trait V8InspectorClientImpl {
     column_number: u32,
     stack_trace: &mut V8StackTrace,
   ) {
+  }
+
+  /// Returns a custom Chrome DevTools Protocol `Runtime.RemoteObject` subtype
+  /// for `value`. Use one of the protocol's defined subtype enum values.
+  /// Returning `Some` causes V8 to call
+  /// [`Self::description_for_value_subtype`].
+  ///
+  /// The callback scope uses the isolate's current context as a best-effort
+  /// context; it is not necessarily the context in which `value` originated.
+  /// If the isolate has no current context, V8 skips this callback entirely.
+  /// This callback runs while the inspector is constructing a value mirror.
+  /// Operations such as property access can execute JavaScript through getters
+  /// or proxies, so wrap them in a [`crate::TryCatch`] to avoid leaving a
+  /// pending exception in the inspector's mirror-building path.
+  fn value_subtype<'s>(
+    &self,
+    scope: &mut PinScope<'s, '_>,
+    value: Local<'s, Value>,
+  ) -> Option<UniquePtr<StringBuffer>> {
+    None
+  }
+
+  /// Returns the description for a value whose custom subtype was returned by
+  /// [`Self::value_subtype`]. Returning `None` makes V8 fall back to the default
+  /// object mirror, which also discards the custom subtype unless it is
+  /// `"error"` or `"array"`.
+  ///
+  /// Like [`Self::value_subtype`], this callback runs while the inspector is
+  /// constructing a value mirror. Wrap operations that can execute JavaScript
+  /// in a [`crate::TryCatch`] so an exception does not remain pending.
+  fn description_for_value_subtype<'s>(
+    &self,
+    scope: &mut PinScope<'s, '_>,
+    value: Local<'s, Value>,
+  ) -> Option<UniquePtr<StringBuffer>> {
+    None
   }
 
   fn ensure_default_context_in_group(

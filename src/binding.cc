@@ -3562,6 +3562,13 @@ void v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
     const v8_inspector::StringView& message,
     const v8_inspector::StringView& url, unsigned lineNumber,
     unsigned columnNumber, v8_inspector::V8StackTrace* stackTrace);
+v8_inspector::StringBuffer* v8_inspector__V8InspectorClient__BASE__valueSubtype(
+    v8_inspector::V8InspectorClient* self, v8::Context* context,
+    v8::Value* value);
+v8_inspector::StringBuffer*
+v8_inspector__V8InspectorClient__BASE__descriptionForValueSubtype(
+    v8_inspector::V8InspectorClient* self, v8::Context* context,
+    v8::Value* value);
 v8::Context* v8_inspector__V8InspectorClient__BASE__ensureDefaultContextInGroup(
     v8_inspector::V8InspectorClient* self, int context_group_id);
 v8_inspector::StringBuffer*
@@ -3598,6 +3605,24 @@ struct v8_inspector__V8InspectorClient__BASE
     v8_inspector__V8InspectorClient__BASE__consoleAPIMessage(
         this, contextGroupId, level, message, url, lineNumber, columnNumber,
         stackTrace);
+  }
+  std::unique_ptr<v8_inspector::StringBuffer> valueSubtype(
+      v8::Local<v8::Value> value) override {
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    if (isolate == nullptr) return nullptr;
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    if (context.IsEmpty()) return nullptr;
+    v8_inspector::StringBuffer* b =
+        v8_inspector__V8InspectorClient__BASE__valueSubtype(
+            this, local_to_ptr(context), local_to_ptr(value));
+    return std::unique_ptr<v8_inspector::StringBuffer>(b);
+  }
+  std::unique_ptr<v8_inspector::StringBuffer> descriptionForValueSubtype(
+      v8::Local<v8::Context> context, v8::Local<v8::Value> value) override {
+    v8_inspector::StringBuffer* b =
+        v8_inspector__V8InspectorClient__BASE__descriptionForValueSubtype(
+            this, local_to_ptr(context), local_to_ptr(value));
+    return std::unique_ptr<v8_inspector::StringBuffer>(b);
   }
   v8::Local<v8::Context> ensureDefaultContextInGroup(
       int context_group_id) override {

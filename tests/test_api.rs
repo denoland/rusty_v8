@@ -7241,6 +7241,107 @@ fn inspector_release_object_group() {
 }
 
 #[test]
+fn inspector_value_subtype() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  struct Client;
+
+  impl V8InspectorClientImpl for Client {
+    fn value_subtype<'s>(
+      &self,
+      scope: &mut v8::PinScope<'s, '_>,
+      value: v8::Local<'s, v8::Value>,
+    ) -> Option<v8::UniquePtr<StringBuffer>> {
+      v8::tc_scope!(let scope, scope);
+      let object = value.to_object(scope)?;
+      let key = v8::String::new(scope, "__rusty_v8_value_subtype")?;
+      if object.get(scope, key.into())?.is_true() {
+        Some(StringBuffer::create(StringView::from(&b"node"[..])))
+      } else {
+        None
+      }
+    }
+
+    fn description_for_value_subtype<'s>(
+      &self,
+      scope: &mut v8::PinScope<'s, '_>,
+      value: v8::Local<'s, v8::Value>,
+    ) -> Option<v8::UniquePtr<StringBuffer>> {
+      v8::tc_scope!(let scope, scope);
+      let object = value.to_object(scope)?;
+      let key = v8::String::new(scope, "__rusty_v8_value_description")?;
+      if object.get(scope, key.into())?.is_true() {
+        Some(StringBuffer::create(StringView::from(
+          &b"marked object"[..],
+        )))
+      } else {
+        None
+      }
+    }
+  }
+
+  let inspector_client = V8InspectorClient::new(Box::new(Client));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  eval(
+    scope,
+    r#"
+      globalThis.marked = {
+        __rusty_v8_value_subtype: true,
+        __rusty_v8_value_description: true,
+      };
+      globalThis.defaultDescription = {
+        __rusty_v8_value_subtype: true,
+      };
+    "#,
+  )
+  .unwrap();
+
+  let name_view = StringView::from(&b""[..]);
+  let aux_data_view = StringView::from(&b"{\"isDefault\": true}"[..]);
+  inspector.context_created(context, 1, name_view, aux_data_view);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":1,"method":"Runtime.evaluate","params":{"expression":"marked","contextId":1}}"#[..],
+  ));
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":2,"method":"Runtime.evaluate","params":{"expression":"defaultDescription","contextId":1}}"#[..],
+  ));
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":3,"method":"Runtime.evaluate","params":{"expression":"({})","contextId":1}}"#[..],
+  ));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 3);
+    assert!(state.responses[0].contains(r#""subtype":"node""#));
+    assert!(state.responses[0].contains(r#""description":"marked object""#));
+    // V8 drops the custom subtype when the client supplies no description.
+    assert!(state.responses[1].contains(r#""description":"Object""#));
+    assert!(!state.responses[1].contains(r#""subtype""#));
+    assert!(state.responses[2].contains(r#""description":"Object""#));
+    assert!(!state.responses[2].contains(r#""subtype""#));
+  }
+
+  inspector.context_destroyed(context);
+}
+
+#[test]
 fn inspector_exception_thrown() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
