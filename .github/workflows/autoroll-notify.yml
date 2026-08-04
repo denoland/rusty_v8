@@ -1,0 +1,38 @@
+name: autoroll notify
+
+# A failing V8 roll is otherwise silent: auto-merge simply never fires and the
+# PR sits open until someone thinks to look at it. This comments on the roll so
+# the failure shows up in notifications instead.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions: write-all
+
+jobs:
+  comment:
+    name: comment on failed roll
+    runs-on: ubuntu-latest
+    if: >-
+      github.repository == 'denoland/rusty_v8' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_branch == 'autoroll' &&
+      github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Comment on the autoroll PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(gh pr list --head autoroll --state open --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No open autoroll PR; nothing to comment on."
+            exit 0
+          fi
+          gh pr comment "$pr" --body "CI failed for \`${SHA:0:9}\`, so this roll will not auto-merge: $RUN_URL
+
+          Tomorrow's run force-pushes a newer V8 onto this branch and retries."

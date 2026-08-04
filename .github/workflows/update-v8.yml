@@ -26,6 +26,44 @@ jobs:
           git config --global user.password ${{ secrets.DENOBOT_PAT }}
           echo "GIT_USER=${{ secrets.DENOBOT_PAT }}" >> $GITHUB_ENV
           git remote set-url origin https://${{ secrets.DENOBOT_PAT }}@github.com/denoland/rusty_v8.git
-      - run: deno run -A ./tools/auto_update_v8.ts
+      - id: roll
+        run: deno run -A ./tools/auto_update_v8.ts
         env:
           GITHUB_TOKEN: ${{ secrets.DENOBOT_PAT }}
+
+      # main requires an approving review, and GitHub does not let an author
+      # approve their own PR -- so this has to come from an identity other than
+      # the denobot PAT that opened it. GITHUB_TOKEN reviews as
+      # github-actions[bot], which satisfies the requirement.
+      - name: Approve the roll
+        if: steps.roll.outputs.rolled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.roll.outputs.pr }}
+        run: |
+          # Re-runs edit the existing PR; don't stack redundant approvals on it.
+          approved=$(gh pr view "$PR" --json reviews \
+            --jq '[.reviews[] | select((.author.login | startswith("github-actions")) and .state == "APPROVED")] | length')
+          if [ "$approved" -gt 0 ]; then
+            echo "Already approved."
+          else
+            gh pr review "$PR" --approve --body "Automated V8 roll: approving so auto-merge can land it once CI is green."
+          fi
+
+      # Enabled with the PAT rather than GITHUB_TOKEN on purpose: the merge is
+      # attributed to whoever turned auto-merge on, and a merge attributed to
+      # github-actions[bot] would not trigger the `push: main` CI run that keeps
+      # the build cache warm.
+      - name: Enable auto-merge
+        if: steps.roll.outputs.rolled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DENOBOT_PAT }}
+          GH_REPO: ${{ github.repository }}
+        run: gh pr merge ${{ steps.roll.outputs.pr }} --auto --squash
+
+      - name: Summary
+        if: steps.roll.outputs.rolled == 'true'
+        run: |
+          echo "Rolled to V8 ${{ steps.roll.outputs.version }} in #${{ steps.roll.outputs.pr }}." >> $GITHUB_STEP_SUMMARY
+          echo "It will merge automatically once the required checks pass." >> $GITHUB_STEP_SUMMARY

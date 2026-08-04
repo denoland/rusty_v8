@@ -42,6 +42,29 @@ As a Rust crate, Rusty V8 follows semantic versioning (semver) and will not
 introduce breaking changes within a major version. However, major version bumps
 will occur regularly to stay in sync with Chrome's release cycle.
 
+## Nightly releases
+
+A nightly is published from `main` every day that has new commits, as a semver
+prerelease of the next minor version:
+
+```
+152.1.0-nightly.20260804
+```
+
+Cargo never resolves a prerelease unless you ask for one by name, so nightlies
+cannot be picked up by accident:
+
+```toml
+[dependencies]
+v8 = "=152.1.0-nightly.20260804"
+```
+
+Nightlies carry the same prebuilt binaries as a stable release, published as a
+GitHub prerelease under the matching `v152.1.0-nightly.20260804` tag. Those
+GitHub releases are deleted after 30 days; the crates.io version stays
+published, so an expired nightly still builds, but it has to compile V8 from
+source. Pin a stable version for anything long-lived.
+
 ## Binary Build
 
 V8 is very large and takes a long time to compile. Many users will prefer to use
@@ -275,6 +298,38 @@ for M1 build.
 ```
 $ V8_FROM_SOURCE=1 cargo build
 $ V8_FROM_SOURCE=1 cargo build --release
+```
+
+**V8 rolls**
+
+`update-v8.yml` runs daily. When the V8 tracking branch has moved it pushes to
+the `autoroll` branch, opens (or retitles) a PR, approves it and turns on
+auto-merge, so a green roll lands without anyone touching it. If CI fails the
+roll stays open and `autoroll-notify.yml` comments on it; the next day's run
+force-pushes a newer V8 onto the branch and retries.
+
+The approval comes from `GITHUB_TOKEN` (`github-actions[bot]`) rather than the
+denobot PAT, because `main` requires one approving review and GitHub refuses to
+let a PR's author approve it. Auto-merge is enabled with the PAT rather than
+`GITHUB_TOKEN`, so the resulting merge is attributed to a real user and still
+triggers the `push: main` CI run that keeps the build cache warm.
+
+**Nightlies**
+
+The `nightly` workflow runs daily and, when `main` has moved since the last
+nightly, tags `v{next-minor}-nightly.{date}` via `tools/prepare_nightly.ts`.
+The version bump lives only on the tagged commit -- it is never pushed to
+`main` -- and the tag is what drives the rest: `ci.yml` builds and publishes
+every tag, nightly or not.
+
+The tag has to be pushed with `DENOBOT_PAT`. Tags pushed with the default
+`GITHUB_TOKEN` do not trigger `on: push` workflows, so the tag would be created
+and no release would ever be built for it.
+
+To cut one by hand, run the workflow via `workflow_dispatch`, or locally:
+
+```
+$ deno run -A ./tools/prepare_nightly.ts --dry-run
 ```
 
 ## Experimental Features

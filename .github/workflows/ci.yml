@@ -510,6 +510,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # Nightlies must not show up as the repository's latest release.
+          prerelease: ${{ contains(github.ref, '-nightly.') }}
           files: |
             target/${{ env.LIB_NAME }}${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.${{ env.LIB_EXT }}.gz
             target/src_binding${{ env.FEATURES_SUFFIX }}_${{ matrix.config.variant }}_${{ matrix.config.target }}.rs
@@ -695,6 +697,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          prerelease: ${{ contains(github.ref, '-nightly.') }}
           files: |
             target/rusty_v8_release_aarch64-pc-windows-msvc.lib.gz
             target/src_binding_release_aarch64-pc-windows-msvc.rs
@@ -804,6 +807,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          prerelease: ${{ contains(github.ref, '-nightly.') }}
           files: |
             target/rusty_v8_simdutf_release_aarch64-pc-windows-msvc.lib.gz
             target/src_binding_simdutf_release_aarch64-pc-windows-msvc.rs
