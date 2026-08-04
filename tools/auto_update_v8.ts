@@ -28,6 +28,20 @@ function extractVersion() {
   return `${major}.${minor}.${build}.${patch}`;
 }
 
+/**
+ * Publishes a step output so update-v8.yml can approve the roll and turn on
+ * auto-merge afterwards. Those two steps live in the workflow rather than here
+ * because each needs a different token: the approval has to come from an
+ * identity other than the one that opened the PR.
+ */
+function setOutput(key: string, value: string) {
+  console.log(`${key}=${value}`);
+  const path = Deno.env.get("GITHUB_OUTPUT");
+  if (path !== undefined) {
+    Deno.writeTextFileSync(path, `${key}=${value}\n`, { append: true });
+  }
+}
+
 function parseGitHubRepository(remoteUrl: string): string | undefined {
   const normalized = remoteUrl.trim().replace(/\.git$/, "");
   return normalized.match(/github\.com[/:]([^/]+\/[^/]+)$/)?.[1];
@@ -115,6 +129,7 @@ await run("git", ["checkout", `origin/${V8_TRACKING_BRANCH}`], "./v8");
 const newVersion = extractVersion();
 if (currentVersion == newVersion) {
   console.log(`No new version available. Staying on ${newVersion}`);
+  setOutput("rolled", "false");
   Deno.exit(0);
 }
 
@@ -172,12 +187,15 @@ const openPrs = (JSON.parse(
   headRepositoryOwner: { login: string };
 }[]).filter((pr) => pr.headRepositoryOwner.login === pushOwner);
 
+let prNumber: number;
+
 if (openPrs.length > 0) {
   console.log("Already open PR. Editing existing PR.");
+  prNumber = openPrs[0].number;
   await run("gh", [
     "pr",
     "edit",
-    openPrs[0].number.toString(),
+    prNumber.toString(),
     "--repo",
     UPSTREAM_REPOSITORY,
     "--title",
@@ -185,18 +203,31 @@ if (openPrs.length > 0) {
   ]);
 } else {
   console.log("No PR open. Creating a new PR.");
-  await run("gh", [
-    "pr",
-    "create",
-    "--repo",
-    UPSTREAM_REPOSITORY,
-    "--title",
-    `Rolling to V8 ${newVersion}`,
-    "--body",
-    "",
-    "--base",
-    UPSTREAM_BRANCH,
-    "--head",
-    prHead,
-  ]);
+  const created = decoder.decode(
+    await run("gh", [
+      "pr",
+      "create",
+      "--repo",
+      UPSTREAM_REPOSITORY,
+      "--title",
+      `Rolling to V8 ${newVersion}`,
+      "--body",
+      "",
+      "--base",
+      UPSTREAM_BRANCH,
+      "--head",
+      prHead,
+    ]),
+  );
+  // `gh pr create` prints the URL of the new PR.
+  const match = created.trim().match(/\/pull\/(\d+)\s*$/);
+  if (match === null) {
+    console.error(`Could not read the PR number from: ${created}`);
+    Deno.exit(1);
+  }
+  prNumber = Number(match[1]);
 }
+
+setOutput("rolled", "true");
+setOutput("pr", prNumber.toString());
+setOutput("version", newVersion);

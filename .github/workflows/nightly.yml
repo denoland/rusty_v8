@@ -1,0 +1,81 @@
+name: nightly
+
+on:
+  schedule:
+    # A couple of hours after the V8 autoroll in update-v8.yml, so a roll that
+    # lands in the morning makes it into the same day's nightly.
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  tag:
+    name: tag nightly
+    runs-on: ubuntu-latest
+    if: github.repository == 'denoland/rusty_v8'
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          # Full history and tags are needed to tell whether anything landed
+          # since the last nightly.
+          fetch-depth: 0
+          # Tags pushed with the default GITHUB_TOKEN do NOT trigger `on: push`
+          # workflows. Without a PAT the tag would be created and no release
+          # would ever be built for it.
+          token: ${{ secrets.DENOBOT_PAT }}
+
+      - uses: denoland/setup-deno@v1
+
+      - name: Configure git
+        run: |
+          git config user.email "denobot@users.noreply.github.com"
+          git config user.name "denobot"
+
+      # Writes the nightly version to Cargo.toml/Cargo.lock and tags it. The
+      # commit is deliberately left off main -- only the tag is pushed.
+      - name: Prepare nightly
+        id: prepare
+        run: deno run -A ./tools/prepare_nightly.ts
+
+      # This is what starts the actual release: ci.yml runs on `refs/tags/**`
+      # and already handles the build matrix, the prebuilt binary upload and
+      # `cargo publish`.
+      - name: Push tag
+        if: steps.prepare.outputs.skipped == 'false'
+        run: git push origin ${{ steps.prepare.outputs.tag }}
+
+      - name: Summary
+        if: steps.prepare.outputs.skipped == 'false'
+        run: |
+          echo "Tagged \`${{ steps.prepare.outputs.tag }}\`." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The release itself is built by the \`ci\` workflow for that tag." >> $GITHUB_STEP_SUMMARY
+
+  cleanup:
+    name: expire old nightlies
+    runs-on: ubuntu-latest
+    if: github.repository == 'denoland/rusty_v8'
+    steps:
+      # Each nightly attaches ~40 prebuilt archives, so keeping them forever is
+      # not an option. Deleting the release makes its prebuilt binaries 404;
+      # consumers pinned to an expired nightly fall back to building V8 from
+      # source. The crates.io version stays published either way -- crates.io
+      # versions can only be yanked, never deleted.
+      - name: Delete nightly releases older than 30 days
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cutoff=$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh release list --limit 200 --json tagName,createdAt,isPrerelease \
+            --jq ".[]
+                  | select(.isPrerelease
+                           and (.tagName | contains(\"-nightly.\"))
+                           and (.createdAt < \"$cutoff\"))
+                  | .tagName" \
+            | while read -r tag; do
+                echo "Deleting $tag"
+                gh release delete "$tag" --yes --cleanup-tag
+              done
