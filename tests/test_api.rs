@@ -7263,6 +7263,98 @@ fn inspector_release_object_group() {
 }
 
 #[test]
+fn inspector_wrap_object() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  let value = eval(scope, "({ answer: 42 })").unwrap();
+  assert!(
+    session
+      .wrap_object(
+        scope,
+        context,
+        value,
+        StringView::from(&b"rusty-v8-test"[..]),
+        false,
+      )
+      .is_none()
+  );
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let remote_object = session
+    .wrap_object(
+      scope,
+      context,
+      value,
+      StringView::from(&b"rusty-v8-test"[..]),
+      false,
+    )
+    .unwrap();
+  let json = String::from_utf8(
+    v8::crdtp::cbor_to_json(&remote_object.to_bytes()).unwrap(),
+  )
+  .unwrap();
+  assert!(json.contains(r#""type":"object""#));
+  assert!(!json.contains(r#""preview":"#));
+  let object_id = json
+    .split_once(r#""objectId":""#)
+    .unwrap()
+    .1
+    .split_once('"')
+    .unwrap()
+    .0;
+
+  let get_properties = format!(
+    r#"{{"id":1,"method":"Runtime.getProperties","params":{{"objectId":"{object_id}","ownProperties":true}}}}"#,
+  );
+  session
+    .dispatch_protocol_message(StringView::from(get_properties.as_bytes()));
+
+  let preview_object = session
+    .wrap_object(
+      scope,
+      context,
+      value,
+      StringView::from(&b"rusty-v8-test"[..]),
+      true,
+    )
+    .unwrap();
+  let preview_json = String::from_utf8(
+    v8::crdtp::cbor_to_json(&preview_object.to_bytes()).unwrap(),
+  )
+  .unwrap();
+  assert!(preview_json.contains(r#""preview":{"#));
+  assert!(preview_json.contains(r#""name":"answer""#));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 1);
+    assert!(state.responses[0].contains(r#""name":"answer""#));
+    assert!(state.responses[0].contains(r#""value":42"#));
+  }
+  inspector.context_destroyed(context);
+}
+
+#[test]
 fn inspector_value_subtype() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

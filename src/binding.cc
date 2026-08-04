@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "cppgc/allocation.h"
 #include "cppgc/persistent.h"
@@ -18,6 +19,7 @@
 #include "v8-callbacks.h"
 #include "v8-cppgc.h"
 #include "v8-fast-api-calls.h"
+#include "v8-inspector-protocol.h"
 #include "v8-inspector.h"
 #include "v8-internal.h"
 #include "v8-platform.h"
@@ -3514,6 +3516,22 @@ void v8_inspector__V8InspectorSession__releaseObjectGroup(
     v8_inspector::V8InspectorSession* self,
     v8_inspector::StringView object_group) {
   self->releaseObjectGroup(object_group);
+}
+
+v8_inspector::protocol::Runtime::API::RemoteObject*
+v8_inspector__V8InspectorSession__wrapObject(
+    v8_inspector::V8InspectorSession* self, const v8::Context* context,
+    const v8::Value* value, v8_inspector::StringView object_group,
+    bool generate_preview) {
+  return self
+      ->wrapObject(ptr_to_local(context), ptr_to_local(value), object_group,
+                   generate_preview)
+      .release();
+}
+
+void v8_inspector__RemoteObject__DELETE(
+    v8_inspector::protocol::Runtime::API::RemoteObject* self) {
+  delete self;
 }
 
 void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(

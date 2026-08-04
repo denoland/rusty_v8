@@ -50,6 +50,7 @@ config("rusty_v8_config") {
     ".",
     "$target_gen_dir",
     "$target_gen_dir/v8",
+    "$target_gen_dir/v8/include",
     "$target_gen_dir/src/inspector",
     "$target_gen_dir/src/deno_inspector",
   ]
