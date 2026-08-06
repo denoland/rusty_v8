@@ -53,7 +53,8 @@ pub(crate) struct RawUnlocker([usize; 1]);
 ///   [`crate::Local`] under a handle scope. Other access, such as cloning,
 ///   hashing, or comparing, requires holding the lock on the current thread.
 ///
-/// [`crate::Global`]s may be dropped on any thread at any time: if the
+/// [`crate::Global`]s are `Send` and may be dropped on any thread at any time:
+/// if the
 /// dropping thread holds the lock its V8 cell is reset immediately. Otherwise
 /// the reset is deferred until the next lock acquisition, [`Locker::unlock`],
 /// [`Locker`] drop, or isolate teardown. Until then it remains a GC root and

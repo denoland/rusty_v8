@@ -380,12 +380,26 @@ impl<T> Global<T> {
   }
 }
 
+// A `Global` only touches V8 through methods that either take a scope or
+// `&Isolate` argument (obtainable only on the isolate's thread or under
+// its Locker), or that are guarded through `IsolateLiveness` (`clone`,
+// `drop`).
+unsafe impl<T> Send for Global<T> {}
+unsafe impl<T> Sync for Global<T> {}
+
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     self.assert_shared_access();
     let HandleInfo { data, host } = self.get_handle_info();
     let mut isolate = unsafe { Isolate::from_non_null(host.get_isolate()) };
-    unsafe { Self::new_raw(isolate.as_mut(), data) }
+    unsafe {
+      assert!(
+        self.isolate_liveness.as_ref().on_isolate_thread(),
+        "cloning a Global requires being on its isolate's thread, or \
+         holding its Locker if the isolate is shared"
+      );
+      Self::new_raw(isolate.as_mut(), data)
+    }
   }
 }
 
@@ -396,12 +410,13 @@ impl<T> Drop for Global<T> {
       if liveness.get_isolate_ptr().is_null() {
         // This `Global` handle is associated with an `Isolate` that has already
         // been disposed.
-      } else if !liveness.is_shared() {
+      } else if !liveness.is_shared() && liveness.on_isolate_thread() {
         // Destroy the storage cell that contains the contents of this Global.
         v8__Global__Reset(self.data.cast().as_ptr());
       } else {
-        // A shared isolate's lock may be held by another thread; reset the
-        // cell now if we hold it, otherwise defer to the next lock boundary.
+        // Another thread may own the isolate right now; release the cell
+        // immediately if we may touch it, otherwise defer to the next
+        // lock acquisition or isolate teardown.
         liveness.reset_or_defer_global(self.data.cast());
       }
     }

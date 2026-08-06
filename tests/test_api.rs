@@ -15390,3 +15390,83 @@ fn shared_isolate_terminate_from_thread_safe_handle() {
   assert!(handle.terminate_execution());
   t.join().unwrap();
 }
+
+#[test]
+fn global_send_across_threads() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let (g1, g2) = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let mut scope = scope.init();
+    let s1 = v8::String::new(&scope, "one").unwrap();
+    let s2 = v8::String::new(&scope, "two").unwrap();
+    (v8::Global::new(&scope, s1), v8::Global::new(&scope, s2))
+  };
+  // Ship both Globals to another thread; drop one there (deferred until
+  // isolate teardown since that thread can't touch the isolate), and
+  // send the other back.
+  let g2 = std::thread::spawn(move || {
+    drop(g1);
+    g2
+  })
+  .join()
+  .unwrap();
+  // The returned Global is still usable on the isolate's home thread.
+  {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let local = v8::Local::new(&scope, g2);
+    assert_eq!(local.to_rust_string_lossy(&scope), "two");
+  }
+}
+
+#[test]
+fn shared_isolate_global_send() {
+  let _setup_guard = setup::parallel_test();
+  let shared =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
+  let global = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let s = v8::String::new(&scope, "hello").unwrap();
+    v8::Global::new(&scope, s)
+  };
+  // Send the Global to another thread and use it under that thread's
+  // lock: dereference, clone, and drop it there.
+  let s = shared.clone();
+  std::thread::spawn(move || {
+    let mut locker = s.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let global_ = global.clone();
+    let local = v8::Local::new(&scope, global);
+    assert_eq!(local.to_rust_string_lossy(&scope), "hello");
+    drop(global_);
+  })
+  .join()
+  .unwrap();
+}
+
+#[test]
+fn global_clone_off_thread_panics() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let global = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let s = v8::String::new(&scope, "nope").unwrap();
+    v8::Global::new(&scope, s)
+  };
+  let err = std::thread::spawn(move || {
+    let _ = global.clone();
+  })
+  .join()
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("cloning a Global"));
+}
