@@ -619,6 +619,7 @@ unsafe extern "C" {
   );
   fn v8__Isolate__Enter(this: *mut RealIsolate);
   fn v8__Isolate__Exit(this: *mut RealIsolate);
+  fn v8__Global__Reset(data: *const Data);
   fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   fn v8__Isolate__MemoryPressureNotification(this: *mut RealIsolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut RealIsolate);
@@ -1034,7 +1035,7 @@ impl Isolate {
   /// # Safety
   ///
   /// Called once per isolate, from teardown paths only.
-  unsafe fn prepare_annex_for_dispose(
+  pub(crate) unsafe fn prepare_annex_for_dispose(
     &mut self,
   ) -> (*mut IsolateAnnex, Box<dyn Any>) {
     let annex_ptr =
@@ -1087,7 +1088,9 @@ impl Isolate {
   /// `annex_ptr` must point at a live `IsolateAnnex` with `ANNEX_SLOT`
   /// still referencing it, so re-entrant callbacks resolve the annex
   /// through normal accessors.
-  unsafe fn run_remaining_guaranteed_finalizers(annex_ptr: *mut IsolateAnnex) {
+  pub(crate) unsafe fn run_remaining_guaranteed_finalizers(
+    annex_ptr: *mut IsolateAnnex,
+  ) {
     // Take the map out under a narrow borrow so the for-loop below
     // borrows a local instead of `(*annex_ptr).finalizer_map`. Callbacks
     // re-entering the annex via `get_annex_mut()` would otherwise alias
@@ -1112,7 +1115,7 @@ impl Isolate {
   /// `annex_ptr` must be the pointer returned from a matching
   /// [`Self::prepare_annex_for_dispose`] call, and the V8 isolate must
   /// already be fully disposed (so no further callbacks can fire).
-  unsafe fn finish_annex_dispose(annex_ptr: *mut IsolateAnnex) {
+  pub(crate) unsafe fn finish_annex_dispose(annex_ptr: *mut IsolateAnnex) {
     unsafe { Self::run_remaining_guaranteed_finalizers(annex_ptr) };
     unsafe { drop(Box::from_raw(annex_ptr)) };
   }
@@ -1921,7 +1924,7 @@ impl Isolate {
 
   /// Disposes the isolate.  The isolate must not be entered by any
   /// thread to be disposable.
-  unsafe fn dispose(&mut self) {
+  pub(crate) unsafe fn dispose(&mut self) {
     // No test case in rusty_v8 show this, but there have been situations in
     // deno where dropping Annex before the states causes a segfault.
     unsafe {
@@ -2119,13 +2122,26 @@ impl IsolateAnnex {
 
 pub(crate) struct IsolateLiveness {
   isolate: AtomicPtr<RealIsolate>,
+  shared: std::sync::atomic::AtomicBool,
+  /// Global handles dropped by threads that did not hold the isolate's
+  /// `v8::Locker`. Drained (and the cells released) on the next
+  /// `SharedIsolate::lock()`; `None` after teardown has done its final
+  /// drain. Only used when `shared` is set.
+  deferred_global_drops: Mutex<Option<Vec<*const Data>>>,
 }
+
+// The raw pointers in `deferred_global_drops` are only dereferenced while
+// the isolate's `v8::Locker` is held; the queue itself is mutex-protected.
+unsafe impl Send for IsolateLiveness {}
+unsafe impl Sync for IsolateLiveness {}
 
 impl IsolateLiveness {
   #[inline(always)]
   fn new(isolate: &Isolate) -> Self {
     Self {
       isolate: AtomicPtr::new(isolate.as_real_ptr()),
+      shared: std::sync::atomic::AtomicBool::new(false),
+      deferred_global_drops: Mutex::new(Some(Vec::new())),
     }
   }
 
@@ -2139,6 +2155,60 @@ impl IsolateLiveness {
   #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
     self.isolate.load(std::sync::atomic::Ordering::Relaxed)
+  }
+
+  pub(crate) fn mark_shared(&self) {
+    self
+      .shared
+      .store(true, std::sync::atomic::Ordering::Relaxed);
+  }
+
+  #[inline(always)]
+  pub(crate) fn is_shared(&self) -> bool {
+    self.shared.load(std::sync::atomic::Ordering::Relaxed)
+  }
+
+  /// Release a `Global`'s cell now if the current thread holds the
+  /// isolate's lock; otherwise queue it for the next lock acquisition.
+  ///
+  /// While the queue is `Some`, teardown has not started: its final drain
+  /// closes the queue under this mutex before the isolate is disposed, so
+  /// the isolate pointer read below stays valid for the duration of this
+  /// call.
+  pub(crate) fn reset_or_defer_global(&self, data: *const Data) {
+    let mut q = self.deferred_global_drops.lock().unwrap();
+    let Some(v) = q.as_mut() else { return };
+    let isolate = self.get_isolate_ptr();
+    if unsafe { crate::locker::v8__Locker__IsLocked(isolate) } {
+      drop(q);
+      unsafe { v8__Global__Reset(data) };
+    } else {
+      v.push(data);
+    }
+  }
+
+  /// Called with the isolate's lock held.
+  pub(crate) fn drain_deferred_global_drops(&self) {
+    let drained = {
+      let mut q = self.deferred_global_drops.lock().unwrap();
+      match q.as_mut() {
+        Some(v) => std::mem::take(v),
+        None => return,
+      }
+    };
+    for data in drained {
+      unsafe { v8__Global__Reset(data) };
+    }
+  }
+
+  /// Final drain during teardown, with the isolate's lock held. Late
+  /// droppers that arrive after this see a closed queue and do nothing;
+  /// their cells are freed with the isolate.
+  pub(crate) fn close_deferred_global_drops(&self) {
+    let drained = self.deferred_global_drops.lock().unwrap().take();
+    for data in drained.into_iter().flatten() {
+      unsafe { v8__Global__Reset(data) };
+    }
   }
 }
 
@@ -2335,6 +2405,34 @@ impl OwnedIsolate {
     let owned_isolate: OwnedIsolate = Self { cxx_isolate };
     // owned_isolate.init_scope_root();
     owned_isolate
+  }
+
+  /// Convert this isolate into a [`crate::SharedIsolate`] that can be
+  /// locked and used from any thread. The isolate is exited on the
+  /// current thread; all further access goes through
+  /// [`crate::SharedIsolate::lock`].
+  ///
+  /// # Panics
+  ///
+  /// Panics if this is a snapshot-creator isolate, or if another isolate
+  /// is entered on top of this one on the current thread.
+  pub fn into_shared(self) -> crate::SharedIsolate {
+    assert!(
+      self.get_annex().maybe_snapshot_creator.is_none(),
+      "snapshot-creator isolates cannot be shared"
+    );
+    unsafe {
+      assert!(
+        std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__GetCurrent()),
+        "into_shared() must be called with no other isolate entered on top \
+         of this one"
+      );
+      self.global_liveness().as_ref().mark_shared();
+      self.exit();
+    }
+    let cxx_isolate = self.cxx_isolate;
+    forget(self);
+    crate::SharedIsolate::new(cxx_isolate)
   }
 }
 

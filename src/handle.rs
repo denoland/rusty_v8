@@ -354,19 +354,33 @@ impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
     let HandleInfo { data, host } = self.get_handle_info();
     let mut isolate = unsafe { Isolate::from_non_null(host.get_isolate()) };
-    unsafe { Self::new_raw(isolate.as_mut(), data) }
+    unsafe {
+      if self.isolate_liveness.as_ref().is_shared() {
+        assert!(
+          crate::locker::v8__Locker__IsLocked(isolate.as_real_ptr()),
+          "cloning a Global belonging to a shared isolate requires holding \
+           its Locker on the current thread"
+        );
+      }
+      Self::new_raw(isolate.as_mut(), data)
+    }
   }
 }
 
 impl<T> Drop for Global<T> {
   fn drop(&mut self) {
     unsafe {
-      if self.isolate_liveness.as_ref().get_isolate_ptr().is_null() {
+      let liveness = self.isolate_liveness.as_ref();
+      if liveness.get_isolate_ptr().is_null() {
         // This `Global` handle is associated with an `Isolate` that has already
         // been disposed.
-      } else {
+      } else if !liveness.is_shared() {
         // Destroy the storage cell that contains the contents of this Global.
         v8__Global__Reset(self.data.cast().as_ptr());
+      } else {
+        // A shared isolate's lock may be held by another thread; release
+        // the cell now if we hold it, otherwise defer to the next lock.
+        liveness.reset_or_defer_global(self.data.cast().as_ptr());
       }
     }
   }
@@ -742,6 +756,13 @@ impl<T> Weak<T> {
     data: NonNull<T>,
     finalizer_id: Option<FinalizerId>,
   ) -> Self {
+    // Weak callbacks fire during GC on whichever thread holds a shared
+    // isolate's lock, racing the `WeakData` owned by this (non-Send)
+    // handle on its home thread.
+    assert!(
+      !unsafe { (*isolate).global_liveness().as_ref() }.is_shared(),
+      "v8::Weak is not supported on shared isolates"
+    );
     let weak_data = Box::new(WeakData {
       pointer: Default::default(),
       finalizer_id,
