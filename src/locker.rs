@@ -18,6 +18,7 @@ use crate::isolate::RealIsolate;
 unsafe extern "C" {
   fn v8__Locker__CONSTRUCT(buf: *mut RawLocker, isolate: *mut RealIsolate);
   fn v8__Locker__DESTRUCT(this: *mut RawLocker);
+  pub(crate) fn v8__Locker__IsLocked(isolate: *const RealIsolate) -> bool;
   fn v8__Unlocker__CONSTRUCT(buf: *mut RawUnlocker, isolate: *mut RealIsolate);
   fn v8__Unlocker__DESTRUCT(this: *mut RawUnlocker);
   fn v8__Isolate__Enter(isolate: *mut RealIsolate);
@@ -342,8 +343,18 @@ impl Drop for Locker<'_> {
         "Locker dropped while its isolate was not the entered one; lockers \
          must be dropped in reverse order of creation"
       );
-      let popped = LOCKED_ISOLATES.with(|v| v.borrow_mut().pop());
-      debug_assert_eq!(popped, Some(self.cxx_isolate.as_ptr()));
+      // Position-independent removal: a false positive in
+      // `thread_holds_lock` would let `Global::drop` reset a cell without the
+      // lock, so the shadow must stay correct even if the LIFO invariant is
+      // ever violated.
+      LOCKED_ISOLATES.with(|v| {
+        let mut v = v.borrow_mut();
+        let idx = v
+          .iter()
+          .rposition(|p| *p == self.cxx_isolate.as_ptr())
+          .expect("locked-isolate shadow out of sync");
+        v.swap_remove(idx);
+      });
       v8__Isolate__Exit(self.cxx_isolate.as_ptr());
       v8__Locker__DESTRUCT(&mut *self.raw);
       ManuallyDrop::drop(&mut self.inner);
