@@ -4,9 +4,11 @@
 //! via the `v8::Locker` API.
 
 use std::marker::PhantomData;
+use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
+use std::sync::Arc;
 
 use crate::Isolate;
 use crate::IsolateHandle;
@@ -37,18 +39,19 @@ pub(crate) struct RawUnlocker([usize; 1]);
 
 /// An isolate that can be used from multiple threads, one at a time.
 ///
-/// Created with [`crate::OwnedIsolate::into_shared`]. All access goes
+/// Created with [`crate::OwnedIsolate::try_into_shared`]. All access goes
 /// through [`SharedIsolate::lock`], which acquires the isolate's
 /// `v8::Locker`, enters the isolate on the current thread, and yields a
 /// [`Locker`] guard that dereferences to [`Isolate`].
 ///
-/// Limitations (enforced by panics):
+/// Limitations:
 /// - [`crate::Weak`] handles are not supported on shared isolates, and an
-///   isolate with live weaks or pending finalizers cannot be shared.
+///   isolate with live weaks or pending finalizers is rejected by conversion.
 /// - Snapshot-creator isolates and isolates with a cppgc heap attached
-///   cannot be shared.
-/// - Cloning a [`crate::Global`] belonging to a shared isolate requires
-///   holding the lock on the current thread.
+///   are rejected by conversion.
+/// - Opening or borrowing a [`crate::Global`] is unsupported; convert it to a
+///   [`crate::Local`] under a handle scope. Other access, such as cloning,
+///   hashing, or comparing, requires holding the lock on the current thread.
 ///
 /// [`crate::Global`]s may be dropped on any thread at any time: if the
 /// dropping thread holds the lock its V8 cell is reset immediately. Otherwise
@@ -68,12 +71,19 @@ pub(crate) struct RawUnlocker([usize; 1]);
 /// threads can make progress in the meantime.
 #[derive(Debug)]
 pub struct SharedIsolate {
+  inner: Arc<SharedIsolateInner>,
+}
+
+#[derive(Debug)]
+struct SharedIsolateInner {
   cxx_isolate: NonNull<RealIsolate>,
   isolate_handle: IsolateHandle,
 }
 
-unsafe impl Send for SharedIsolate {}
-unsafe impl Sync for SharedIsolate {}
+// SAFETY: V8 access is serialized by `v8::Locker`; the only operation exposed
+// without it is cloning the separately synchronized `IsolateHandle`.
+unsafe impl Send for SharedIsolateInner {}
+unsafe impl Sync for SharedIsolateInner {}
 
 impl SharedIsolate {
   pub(crate) fn new(
@@ -81,13 +91,15 @@ impl SharedIsolate {
     isolate_handle: IsolateHandle,
   ) -> Self {
     Self {
-      cxx_isolate,
-      isolate_handle,
+      inner: Arc::new(SharedIsolateInner {
+        cxx_isolate,
+        isolate_handle,
+      }),
     }
   }
 
   pub(crate) fn as_real_ptr(&self) -> *mut RealIsolate {
-    self.cxx_isolate.as_ptr()
+    self.inner.cxx_isolate.as_ptr()
   }
 
   /// Acquire the isolate's lock and enter it on the current thread,
@@ -112,16 +124,18 @@ impl SharedIsolate {
   /// Obtaining one through a [`Locker`] would require the very lock the
   /// runaway thread is holding, so take it from here instead.
   pub fn thread_safe_handle(&self) -> IsolateHandle {
-    self.isolate_handle.clone()
+    self.inner.isolate_handle.clone()
   }
 }
 
-impl Drop for SharedIsolate {
+impl Drop for SharedIsolateInner {
   fn drop(&mut self) {
-    // Ownership guarantees no outstanding `Locker` (they borrow `self`),
-    // but other threads may still be dropping `Global`s concurrently:
-    // drain the deferred queue and close it under the lock, then tear
-    // down the same way `OwnedIsolate::drop` does.
+    // Every Locker owns an Arc to this allocation. Forgetting a Locker therefore
+    // leaks the allocation and its still-entered V8 isolate instead of allowing
+    // this destructor to dispose an isolate that V8 still considers in use.
+    // With no Lockers left, other threads may still be dropping Globals:
+    // drain the deferred queue and close it under the lock, then tear down the
+    // same way `OwnedIsolate::drop` does.
     unsafe {
       let mut isolate = Isolate::from_non_null(self.cxx_isolate);
       let ptr = self.cxx_isolate.as_ptr();
@@ -151,6 +165,10 @@ impl Drop for SharedIsolate {
 pub struct Locker<'s> {
   raw: Box<RawLocker>,
   cxx_isolate: NonNull<RealIsolate>,
+  // Dropped manually only after the C++ Locker is successfully destroyed. If
+  // cleanup panics first, retaining this Arc leaks the isolate rather than
+  // allowing its owner to dispose an isolate whose V8 lock is still held.
+  inner: ManuallyDrop<Arc<SharedIsolateInner>>,
   _shared: PhantomData<&'s SharedIsolate>,
 }
 
@@ -171,7 +189,8 @@ impl<'s> Locker<'s> {
       v8__Isolate__Enter(ptr);
       let locker = Self {
         raw,
-        cxx_isolate: shared.cxx_isolate,
+        cxx_isolate: shared.inner.cxx_isolate,
+        inner: ManuallyDrop::new(Arc::clone(&shared.inner)),
         _shared: PhantomData,
       };
       // Release Globals that were dropped by threads not holding the lock.
@@ -255,6 +274,12 @@ impl Drop for RelockGuard {
     unsafe {
       v8__Unlocker__DESTRUCT(&mut *self.raw);
       v8__Isolate__Enter(self.cxx_isolate.as_ptr());
+      // Globals may have been dropped while the lock was released. This is a
+      // lock acquisition boundary just like `SharedIsolate::lock()`.
+      Isolate::from_non_null(self.cxx_isolate)
+        .global_liveness()
+        .as_ref()
+        .drain_deferred_global_resets();
     }
   }
 }
@@ -276,6 +301,7 @@ impl Drop for Locker<'_> {
       );
       v8__Isolate__Exit(self.cxx_isolate.as_ptr());
       v8__Locker__DESTRUCT(&mut *self.raw);
+      ManuallyDrop::drop(&mut self.inner);
     }
   }
 }

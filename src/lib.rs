@@ -117,6 +117,8 @@ pub use isolate::HostCreateShadowRealmContextCallback;
 pub use isolate::HostImportModuleDynamicallyCallback;
 pub use isolate::HostImportModuleWithPhaseDynamicallyCallback;
 pub use isolate::HostInitializeImportMetaObjectCallback;
+pub use isolate::IntoSharedError;
+pub use isolate::IntoSharedErrorKind;
 pub use isolate::Isolate;
 pub use isolate::IsolateHandle;
 pub use isolate::MemoryPressureLevel;
