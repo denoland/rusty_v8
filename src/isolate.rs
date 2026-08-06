@@ -2139,12 +2139,21 @@ impl IsolateAnnex {
 }
 
 thread_local! {
-  static CURRENT_THREAD_ID: std::thread::ThreadId =
-    std::thread::current().id();
+  // const-initialized so access compiles to a direct TLS load with no
+  // lazy-init check; `Global::clone`/`drop` hit this on every call.
+  static CURRENT_THREAD_ID: std::cell::Cell<Option<std::thread::ThreadId>> =
+    const { std::cell::Cell::new(None) };
 }
 
 fn current_thread_id() -> std::thread::ThreadId {
-  CURRENT_THREAD_ID.with(|id| *id)
+  CURRENT_THREAD_ID.with(|c| match c.get() {
+    Some(id) => id,
+    None => {
+      let id = std::thread::current().id();
+      c.set(Some(id));
+      id
+    }
+  })
 }
 
 pub(crate) struct IsolateLiveness {
@@ -2153,11 +2162,16 @@ pub(crate) struct IsolateLiveness {
   /// isolate is not shared: a non-shared isolate never leaves it.
   home_thread: std::thread::ThreadId,
   shared: std::sync::atomic::AtomicBool,
-  /// Global handles dropped by threads that did not hold the isolate's
-  /// `v8::Locker`. Drained (and the cells released) on the next
-  /// `SharedIsolate::lock()`; `None` after teardown has done its final
-  /// drain. Only used when `shared` is set.
+  /// Global handles dropped by threads that could not touch the isolate.
+  /// Drained (and the cells released) at the next drain checkpoint:
+  /// `SharedIsolate::lock()` and unlock for shared isolates, `Global`
+  /// creation and home-thread `Global` drops for all isolates. `None`
+  /// after teardown has done its final drain.
   deferred_global_drops: Mutex<Option<Vec<*const Data>>>,
+  /// Length hint for `deferred_global_drops`, so drain checkpoints are a
+  /// relaxed load in the common (empty) case instead of a mutex
+  /// acquisition. Updated under the mutex.
+  deferred_len: std::sync::atomic::AtomicUsize,
 }
 
 // The raw pointers in `deferred_global_drops` are only dereferenced while
@@ -2173,6 +2187,7 @@ impl IsolateLiveness {
       home_thread: current_thread_id(),
       shared: std::sync::atomic::AtomicBool::new(false),
       deferred_global_drops: Mutex::new(Some(Vec::new())),
+      deferred_len: std::sync::atomic::AtomicUsize::new(0),
     }
   }
 
@@ -2209,8 +2224,7 @@ impl IsolateLiveness {
     if self.is_shared() {
       let isolate = self.get_isolate_ptr();
       // A disposed isolate cannot be locked by anyone.
-      !isolate.is_null()
-        && unsafe { crate::locker::v8__Locker__IsLocked(isolate) }
+      !isolate.is_null() && crate::locker::thread_holds_lock(isolate)
     } else {
       current_thread_id() == self.home_thread
     }
@@ -2236,13 +2250,29 @@ impl IsolateLiveness {
       unsafe { v8__Global__Reset(data) };
     } else {
       v.push(data);
+      self
+        .deferred_len
+        .store(v.len(), std::sync::atomic::Ordering::Relaxed);
     }
   }
 
-  /// Called with the isolate's lock held.
+  /// Cheap drain checkpoint: a relaxed load when the queue is empty.
+  /// The caller must be allowed to touch the isolate (home thread, or
+  /// holding the lock of a shared isolate).
+  #[inline(always)]
+  pub(crate) fn maybe_drain_deferred_global_drops(&self) {
+    if self.deferred_len.load(std::sync::atomic::Ordering::Relaxed) > 0 {
+      self.drain_deferred_global_drops();
+    }
+  }
+
+  /// Called while allowed to touch the isolate.
   pub(crate) fn drain_deferred_global_drops(&self) {
     let drained = {
       let mut q = self.deferred_global_drops.lock().unwrap();
+      self
+        .deferred_len
+        .store(0, std::sync::atomic::Ordering::Relaxed);
       match q.as_mut() {
         Some(v) => std::mem::take(v),
         None => return,
@@ -2257,7 +2287,13 @@ impl IsolateLiveness {
   /// droppers that arrive after this see a closed queue and do nothing;
   /// their cells are freed with the isolate.
   pub(crate) fn close_deferred_global_drops(&self) {
-    let drained = self.deferred_global_drops.lock().unwrap().take();
+    let drained = {
+      let mut q = self.deferred_global_drops.lock().unwrap();
+      self
+        .deferred_len
+        .store(0, std::sync::atomic::Ordering::Relaxed);
+      q.take()
+    };
     for data in drained.into_iter().flatten() {
       unsafe { v8__Global__Reset(data) };
     }

@@ -3,6 +3,7 @@
 //! Support for sharing an isolate between threads, one thread at a time,
 //! via the `v8::Locker` API.
 
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -14,10 +15,25 @@ use crate::isolate::RealIsolate;
 unsafe extern "C" {
   fn v8__Locker__CONSTRUCT(buf: *mut RawLocker, isolate: *mut RealIsolate);
   fn v8__Locker__DESTRUCT(this: *mut RawLocker);
-  pub(crate) fn v8__Locker__IsLocked(isolate: *const RealIsolate) -> bool;
   fn v8__Isolate__Enter(isolate: *mut RealIsolate);
   fn v8__Isolate__Exit(isolate: *mut RealIsolate);
   fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
+}
+
+thread_local! {
+  /// Isolates whose `v8::Locker` is held by this thread, innermost last.
+  /// Maintained by `Locker::new`/`Drop` so `thread_holds_lock` is a TLS
+  /// read instead of an FFI call into `v8::Locker::IsLocked` — it sits
+  /// on the hot path of every `Global` clone/drop/eq/hash for shared
+  /// isolates.
+  static LOCKED_ISOLATES: RefCell<Vec<*mut RealIsolate>> =
+    const { RefCell::new(Vec::new()) };
+}
+
+/// Whether the current thread holds the `v8::Locker` for `isolate` (via
+/// [`SharedIsolate::lock`]).
+pub(crate) fn thread_holds_lock(isolate: *mut RealIsolate) -> bool {
+  LOCKED_ISOLATES.with(|v| v.borrow().contains(&isolate))
 }
 
 /// Raw storage for a `v8::Locker`. Its size is checked by a static_assert
@@ -128,12 +144,13 @@ impl<'s> Locker<'s> {
     let ptr = shared.as_real_ptr();
     unsafe {
       assert!(
-        !v8__Locker__IsLocked(ptr),
+        !thread_holds_lock(ptr),
         "attempted to lock an isolate that is already locked by this thread"
       );
       let mut raw = Box::new(RawLocker([0; 2]));
       v8__Locker__CONSTRUCT(&mut *raw, ptr);
       v8__Isolate__Enter(ptr);
+      LOCKED_ISOLATES.with(|v| v.borrow_mut().push(ptr));
       let locker = Self {
         raw,
         cxx_isolate: shared.cxx_isolate,
@@ -143,7 +160,7 @@ impl<'s> Locker<'s> {
       locker
         .global_liveness()
         .as_ref()
-        .drain_deferred_global_drops();
+        .maybe_drain_deferred_global_drops();
       locker
     }
   }
@@ -158,7 +175,7 @@ impl Drop for Locker<'_> {
       self
         .global_liveness()
         .as_ref()
-        .drain_deferred_global_drops();
+        .maybe_drain_deferred_global_drops();
       assert!(
         std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__GetCurrent()),
         "Locker dropped while its isolate was not the entered one; lockers \
@@ -166,6 +183,8 @@ impl Drop for Locker<'_> {
       );
       v8__Isolate__Exit(self.cxx_isolate.as_ptr());
       v8__Locker__DESTRUCT(&mut *self.raw);
+      let popped = LOCKED_ISOLATES.with(|v| v.borrow_mut().pop());
+      debug_assert_eq!(popped, Some(self.cxx_isolate.as_ptr()));
     }
   }
 }
