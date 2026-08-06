@@ -884,7 +884,7 @@ impl<T> Weak<T> {
       let count_isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
       if !count_isolate_ptr.is_null() {
         let mut isolate = unsafe { Isolate::from_raw_ptr(count_isolate_ptr) };
-        *isolate.live_weak_count_mut() -= 1;
+        isolate.release_live_weak();
       }
       let has_finalizer = if let Some(finalizer_id) = data.finalizer_id {
         // SAFETY: We're in the isolate's thread because Weak isn't Send or Sync
@@ -1038,7 +1038,7 @@ impl<T> Drop for Weak<T> {
       let isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
       if !isolate_ptr.is_null() {
         let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
-        *isolate.live_weak_count_mut() -= 1;
+        isolate.release_live_weak();
       }
     }
 

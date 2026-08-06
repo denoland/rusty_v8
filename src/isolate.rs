@@ -1189,6 +1189,16 @@ impl Isolate {
     &mut self.get_annex_mut().live_weak_count
   }
 
+  /// Release one live-`Weak` count. Saturating, so that a mispaired
+  /// `Weak::from_raw` (which is `unsafe` and could hand the same raw
+  /// pointer out twice) can't wrap the counter and leave `into_shared`
+  /// panicking forever about weak handles that don't exist.
+  pub(crate) fn release_live_weak(&mut self) {
+    let count = self.live_weak_count_mut();
+    debug_assert!(*count > 0, "live weak count underflow");
+    *count = count.saturating_sub(1);
+  }
+
   /// Retrieve embedder-specific data from the isolate.
   /// Returns NULL if SetData has never been called for the given `slot`.
   pub fn get_data(&self, slot: u32) -> *mut c_void {

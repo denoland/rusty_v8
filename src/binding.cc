@@ -58,6 +58,9 @@ static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
 
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
+static_assert(sizeof(v8::Unlocker) == sizeof(size_t) * 1,
+              "Unlocker size mismatch");
+
 static_assert(sizeof(v8::ScriptCompiler::CompilationDetails) ==
                   sizeof(int64_t) * 3,
               "CompilationDetails size mismatch");
@@ -177,6 +180,13 @@ void v8__Locker__CONSTRUCT(uninit_t<v8::Locker>* buf, v8::Isolate* isolate) {
 }
 
 void v8__Locker__DESTRUCT(v8::Locker* self) { self->~Locker(); }
+
+void v8__Unlocker__CONSTRUCT(uninit_t<v8::Unlocker>* buf,
+                             v8::Isolate* isolate) {
+  construct_in_place<v8::Unlocker>(buf, isolate);
+}
+
+void v8__Unlocker__DESTRUCT(v8::Unlocker* self) { self->~Unlocker(); }
 
 bool v8__Locker__IsLocked(v8::Isolate* isolate) {
   return v8::Locker::IsLocked(isolate);

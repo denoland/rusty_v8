@@ -14660,3 +14660,126 @@ fn shared_isolate_after_weak_into_raw() {
   // Both paths must leave the count balanced for sharing to succeed.
   drop(unsafe { isolate.into_shared() });
 }
+
+#[test]
+fn shared_isolate_unlock_lets_another_thread_in() {
+  let _setup_guard = setup::parallel_test();
+  let shared =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
+  {
+    let mut locker = shared.lock();
+    let context = {
+      let scope = pin!(v8::HandleScope::new(&mut *locker));
+      let mut scope = scope.init();
+      let context = v8::Context::new(&scope, Default::default());
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      eval(scope, "globalThis.n = 0").unwrap();
+      v8::Global::new(scope, context)
+    };
+    locker.set_slot(context);
+  }
+
+  fn run(shared: &v8::SharedIsolate, code: &str) -> i32 {
+    let mut locker = shared.lock();
+    let context = locker
+      .get_slot::<v8::Global<v8::Context>>()
+      .unwrap()
+      .clone();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, code).unwrap().int32_value(scope).unwrap()
+  }
+
+  let (unlocked_tx, unlocked_rx) = std::sync::mpsc::channel::<()>();
+  let (done_tx, done_rx) = std::sync::mpsc::channel::<i32>();
+  let shared_ = shared.clone();
+  let t = std::thread::spawn(move || {
+    // Only starts once the main thread is inside its unlock window; this
+    // would block forever if `unlock` didn't actually release the lock.
+    unlocked_rx.recv().unwrap();
+    done_tx.send(run(&shared_, "++globalThis.n")).unwrap();
+  });
+
+  let mut locker = shared.lock();
+  let observed = locker.unlock(|| {
+    unlocked_tx.send(()).unwrap();
+    done_rx.recv().unwrap()
+  });
+  assert_eq!(observed, 1);
+
+  // Back under the lock: the isolate is usable again and the other
+  // thread's mutation is visible.
+  let context = locker
+    .get_slot::<v8::Global<v8::Context>>()
+    .unwrap()
+    .clone();
+  {
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let v = eval(scope, "globalThis.n").unwrap();
+    assert_eq!(v.int32_value(scope).unwrap(), 1);
+  }
+  drop(locker);
+  t.join().unwrap();
+  assert_eq!(run(&shared, "globalThis.n"), 1);
+}
+
+#[test]
+fn shared_isolate_unlock_restores_lock_on_panic() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let mut locker = shared.lock();
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    locker.unlock(|| panic!("boom"));
+  }))
+  .unwrap_err();
+  assert_eq!(err.downcast_ref::<&str>().copied(), Some("boom"));
+  // The unwind must have reacquired the lock and re-entered the isolate,
+  // otherwise this use — and `Locker`'s own drop — would abort.
+  {
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let v = eval(scope, "6 * 7").unwrap();
+    assert_eq!(v.int32_value(scope).unwrap(), 42);
+  }
+  drop(locker);
+}
+
+#[test]
+fn shared_isolate_terminate_from_thread_safe_handle() {
+  let _setup_guard = setup::parallel_test();
+  let shared =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
+  // The handle is taken without ever holding the lock — the whole point,
+  // since the runaway script below is holding it.
+  let handle = shared.thread_safe_handle();
+
+  let (running_tx, running_rx) = std::sync::mpsc::channel::<()>();
+  let shared_ = shared.clone();
+  let t = std::thread::spawn(move || {
+    let mut locker = shared_.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let source = v8::String::new(scope, "while (true) {}").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    running_tx.send(()).unwrap();
+    // Terminated from the main thread; `run` returns None.
+    assert!(script.run(scope).is_none());
+  });
+
+  running_rx.recv().unwrap();
+  // Let the loop actually get going inside V8. `terminate_execution` is
+  // sticky, so an early call would still be honoured; the sleep just makes
+  // the test exercise the interesting case.
+  std::thread::sleep(std::time::Duration::from_millis(200));
+  assert!(handle.terminate_execution());
+  t.join().unwrap();
+}
