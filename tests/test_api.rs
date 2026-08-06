@@ -14436,10 +14436,10 @@ fn shared_isolate_js_state_across_threads() {
   }
   assert_eq!(run(&iso_a, "counter()"), 102);
 
-  // Nested lockers for two isolates on one thread, LIFO order.
+  // Temporarily unlock A while using B on the same thread.
   {
     let mut la = iso_a.lock();
-    {
+    la.unlock(|| {
       let mut lb = iso_b.lock();
       let context = lb.get_slot::<v8::Global<v8::Context>>().unwrap().clone();
       let scope = pin!(v8::HandleScope::new(&mut *lb));
@@ -14448,7 +14448,7 @@ fn shared_isolate_js_state_across_threads() {
       let scope = &mut v8::ContextScope::new(&mut scope, context);
       let v = eval(scope, "gen.next().value").unwrap(); // B#3
       assert_eq!(v.int32_value(scope).unwrap(), 1);
-    }
+    });
     let context = la.get_slot::<v8::Global<v8::Context>>().unwrap().clone();
     let scope = pin!(v8::HandleScope::new(&mut *la));
     let mut scope = scope.init();
@@ -14605,32 +14605,30 @@ fn shared_isolate_rust_callback_across_threads() {
 }
 
 #[test]
-fn shared_isolate_locker_drop_order_panics() {
+fn shared_isolate_rejects_nested_lockers() {
   let _setup_guard = setup::parallel_test();
   let shared_a = unsafe { v8::Isolate::new(Default::default()).into_shared() };
   let shared_b = unsafe { v8::Isolate::new(Default::default()).into_shared() };
-  let la = shared_a.lock();
-  let lb = shared_b.lock();
-  // Dropping the outer locker while the inner one is still entered must
-  // trip the LIFO assertion.
-  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(la)))
-    .unwrap_err();
+  let mut locker_a = shared_a.lock();
+  // Reject nesting before constructing B's v8::Locker or entering B. If this
+  // were allowed, dropping A first would leave its C++ lock permanently held.
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let _locker_b = shared_b.lock();
+  }))
+  .unwrap_err();
   let msg = err
     .downcast_ref::<String>()
     .map(|s| s.as_str())
     .or_else(|| err.downcast_ref::<&str>().copied())
     .unwrap();
-  assert!(msg.contains("reverse order"));
-  // The failed drop leaves A wedged on this thread: A is still entered,
-  // its v8::Locker is still held (V8's ThreadManager tracks the lock,
-  // not the Locker object), and `la`'s Box<RawLocker> was freed by the
-  // unwind without ~Locker() running. That's benign only because this
-  // test thread exits without touching A again — so unwind B cleanly
-  // and leak A; do NOT "fix" this forget into a drop, disposing an
-  // entered isolate aborts.
-  drop(lb);
-  drop(shared_b);
-  std::mem::forget(shared_a);
+  assert!(msg.contains("another isolate is entered"));
+
+  // The rejected acquisition has not disturbed A.
+  let scope = pin!(v8::HandleScope::new(&mut *locker_a));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  assert_eq!(eval(scope, "6 * 7").unwrap().int32_value(scope), Some(42));
 }
 
 #[test]
@@ -14729,6 +14727,33 @@ fn shared_isolate_unlock_lets_another_thread_in() {
 }
 
 #[test]
+fn shared_isolate_unlock_exits_and_reenters() {
+  let _setup_guard = setup::parallel_test();
+  let shared_a = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let shared_b = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let mut locker_a = shared_a.lock();
+
+  // A must no longer be the current isolate while it is unlocked, so another
+  // shared isolate can be entered on this thread for the duration of `f`.
+  let result = locker_a.unlock(|| {
+    let mut locker_b = shared_b.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker_b));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, "40 + 2").unwrap().int32_value(scope).unwrap()
+  });
+  assert_eq!(result, 42);
+
+  // The Unlocker destructor reacquired A's lock and the guard re-entered it.
+  let scope = pin!(v8::HandleScope::new(&mut *locker_a));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  assert_eq!(eval(scope, "6 * 7").unwrap().int32_value(scope), Some(42));
+}
+
+#[test]
 fn shared_isolate_unlock_restores_lock_on_panic() {
   let _setup_guard = setup::parallel_test();
   let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
@@ -14752,14 +14777,34 @@ fn shared_isolate_unlock_restores_lock_on_panic() {
 }
 
 #[test]
+fn shared_isolate_unlock_rejects_returned_entered_isolate() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let mut locker = shared.lock();
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    locker.unlock(|| v8::Isolate::new(Default::default()));
+  }))
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("still entered"));
+
+  // The returned isolate was dropped before A was relocked, so A is restored.
+  let scope = pin!(v8::HandleScope::new(&mut *locker));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  assert_eq!(eval(scope, "6 * 7").unwrap().int32_value(scope), Some(42));
+}
+
+#[test]
 fn shared_isolate_terminate_from_thread_safe_handle() {
   let _setup_guard = setup::parallel_test();
   let shared =
     Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
-  // The handle is taken without ever holding the lock — the whole point,
-  // since the runaway script below is holding it.
-  let handle = shared.thread_safe_handle();
-
   let (running_tx, running_rx) = std::sync::mpsc::channel::<()>();
   let shared_ = shared.clone();
   let t = std::thread::spawn(move || {
@@ -14780,6 +14825,9 @@ fn shared_isolate_terminate_from_thread_safe_handle() {
   // sticky, so an early call would still be honoured; the sleep just makes
   // the test exercise the interesting case.
   std::thread::sleep(std::time::Duration::from_millis(200));
+  // Obtain the handle while another thread holds the Locker. This must only
+  // clone the handle cached by SharedIsolate, without touching V8 or its annex.
+  let handle = shared.thread_safe_handle();
   assert!(handle.terminate_execution());
   t.join().unwrap();
 }

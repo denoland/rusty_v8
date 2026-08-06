@@ -20,7 +20,7 @@ unsafe extern "C" {
   fn v8__Unlocker__DESTRUCT(this: *mut RawUnlocker);
   fn v8__Isolate__Enter(isolate: *mut RealIsolate);
   fn v8__Isolate__Exit(isolate: *mut RealIsolate);
-  fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
+  fn v8__Isolate__TryGetCurrent() -> *mut RealIsolate;
 }
 
 /// Raw storage for a `v8::Locker`. Its size is checked by a static_assert
@@ -68,14 +68,21 @@ pub(crate) struct RawUnlocker([usize; 1]);
 #[derive(Debug)]
 pub struct SharedIsolate {
   cxx_isolate: NonNull<RealIsolate>,
+  isolate_handle: IsolateHandle,
 }
 
 unsafe impl Send for SharedIsolate {}
 unsafe impl Sync for SharedIsolate {}
 
 impl SharedIsolate {
-  pub(crate) fn new(cxx_isolate: NonNull<RealIsolate>) -> Self {
-    Self { cxx_isolate }
+  pub(crate) fn new(
+    cxx_isolate: NonNull<RealIsolate>,
+    isolate_handle: IsolateHandle,
+  ) -> Self {
+    Self {
+      cxx_isolate,
+      isolate_handle,
+    }
   }
 
   pub(crate) fn as_real_ptr(&self) -> *mut RealIsolate {
@@ -89,7 +96,10 @@ impl SharedIsolate {
   ///
   /// Panics if the current thread already holds the lock. `v8::Locker` is
   /// recursive, but two live guards would hand out aliasing `&mut Isolate`
-  /// references, so recursive locking is forbidden here.
+  /// references, so recursive locking is forbidden here. Also panics if a
+  /// different isolate is currently entered: permitting nested [`Locker`]
+  /// guards would make it possible to drop them out of order, which V8 cannot
+  /// recover from.
   pub fn lock(&self) -> Locker<'_> {
     Locker::new(self)
   }
@@ -101,9 +111,7 @@ impl SharedIsolate {
   /// Obtaining one through a [`Locker`] would require the very lock the
   /// runaway thread is holding, so take it from here instead.
   pub fn thread_safe_handle(&self) -> IsolateHandle {
-    // SAFETY: `thread_safe_handle` only reads the annex behind a mutex; it
-    // does not touch V8, so it needs neither the lock nor entry.
-    unsafe { Isolate::from_raw_ref(&self.cxx_isolate) }.thread_safe_handle()
+    self.isolate_handle.clone()
   }
 }
 
@@ -153,6 +161,10 @@ impl<'s> Locker<'s> {
         !v8__Locker__IsLocked(ptr),
         "attempted to lock an isolate that is already locked by this thread"
       );
+      assert!(
+        v8__Isolate__TryGetCurrent().is_null(),
+        "attempted to lock a shared isolate while another isolate is entered"
+      );
       let mut raw = Box::new(RawLocker([0; 2]));
       v8__Locker__CONSTRUCT(&mut *raw, ptr);
       v8__Isolate__Enter(ptr);
@@ -191,12 +203,13 @@ impl<'s> Locker<'s> {
   /// # Panics
   ///
   /// Panics if another isolate has been entered on top of this one, since
-  /// unlocking would then release the wrong isolate's hold on this thread.
+  /// unlocking would then release the wrong isolate's hold on this thread, or
+  /// if `f` returns while an isolate it entered is still current.
   pub fn unlock<R>(&mut self, f: impl FnOnce() -> R) -> R {
     let ptr = self.cxx_isolate.as_ptr();
     unsafe {
       assert!(
-        std::ptr::eq(ptr, v8__Isolate__GetCurrent()),
+        std::ptr::eq(ptr, v8__Isolate__TryGetCurrent()),
         "Locker::unlock called while another isolate was entered on top of \
          this one"
       );
@@ -207,25 +220,41 @@ impl<'s> Locker<'s> {
         .as_ref()
         .drain_deferred_global_drops();
     }
+    unsafe { v8__Isolate__Exit(ptr) };
     let mut raw = Box::new(RawUnlocker([0; 1]));
-    // The `v8::Unlocker` constructor exits the isolate and releases the
-    // lock; its destructor reacquires and re-enters. It runs through a
-    // guard so that an unwind out of `f` still restores both before this
-    // `Locker`'s own `Drop` runs — that would otherwise exit an isolate
-    // this thread neither holds nor has entered.
+    // V8 requires the isolate to be exited before constructing an Unlocker.
+    // The guard destroys the Unlocker (reacquiring the lock) and then
+    // re-enters the isolate, including when `f` unwinds.
     unsafe { v8__Unlocker__CONSTRUCT(&mut *raw, ptr) };
-    let _relock = RelockGuard(raw);
-    f()
+    let _relock = RelockGuard {
+      raw,
+      cxx_isolate: self.cxx_isolate,
+    };
+    let result = f();
+    // `result` was created after `_relock`, so if this assertion unwinds it is
+    // dropped first. That gives a returned OwnedIsolate or Locker a chance to
+    // exit cleanly before `_relock` restores this isolate.
+    assert!(
+      unsafe { v8__Isolate__TryGetCurrent().is_null() },
+      "Locker::unlock closure returned while an isolate was still entered"
+    );
+    result
   }
 }
 
 /// Reacquires the lock and re-enters the isolate when the unlock window
 /// ends, on the normal path and while unwinding alike.
-struct RelockGuard(Box<RawUnlocker>);
+struct RelockGuard {
+  raw: Box<RawUnlocker>,
+  cxx_isolate: NonNull<RealIsolate>,
+}
 
 impl Drop for RelockGuard {
   fn drop(&mut self) {
-    unsafe { v8__Unlocker__DESTRUCT(&mut *self.0) };
+    unsafe {
+      v8__Unlocker__DESTRUCT(&mut *self.raw);
+      v8__Isolate__Enter(self.cxx_isolate.as_ptr());
+    }
   }
 }
 
@@ -240,7 +269,7 @@ impl Drop for Locker<'_> {
         .as_ref()
         .drain_deferred_global_drops();
       assert!(
-        std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__GetCurrent()),
+        std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__TryGetCurrent()),
         "Locker dropped while its isolate was not the entered one; lockers \
          must be dropped in reverse order of creation"
       );

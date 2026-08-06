@@ -2463,6 +2463,11 @@ impl OwnedIsolate {
   /// through a [`crate::Locker`] (e.g. `set_slot` under the lock) must
   /// be `Send` too — nothing checks it at insertion time.
   ///
+  /// Any [`crate::Global`] handles belonging to this isolate must only be
+  /// accessed while the current thread holds its [`crate::Locker`]. This
+  /// includes cloning, borrowing, hashing, comparing, and opening a `Global`;
+  /// dropping one is the sole exception and may happen on any thread.
+  ///
   /// # Panics
   ///
   /// Panics if this is a snapshot-creator isolate, if it has live
@@ -2490,12 +2495,13 @@ impl OwnedIsolate {
         "into_shared() must be called with no other isolate entered on top \
          of this one"
       );
+      let isolate_handle = self.thread_safe_handle();
       self.global_liveness().as_ref().mark_shared();
       self.exit();
+      let cxx_isolate = self.cxx_isolate;
+      forget(self);
+      crate::SharedIsolate::new(cxx_isolate, isolate_handle)
     }
-    let cxx_isolate = self.cxx_isolate;
-    forget(self);
-    crate::SharedIsolate::new(cxx_isolate)
   }
 }
 
