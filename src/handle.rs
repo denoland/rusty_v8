@@ -333,9 +333,15 @@ impl<T> Global<T> {
   unsafe fn new_raw(isolate: *mut Isolate, data: NonNull<T>) -> Self {
     let data = data.cast().as_ptr();
     unsafe {
+      let isolate_liveness = (*isolate).global_liveness();
+      // Cheap checkpoint (a relaxed load when empty) so cells dropped by
+      // threads that couldn't touch the isolate don't pin their JS
+      // objects indefinitely on isolates that are never locked.
+      isolate_liveness
+        .as_ref()
+        .maybe_drain_deferred_global_resets();
       let data = v8__Global__New((*isolate).as_real_ptr(), data) as *const T;
       let data = NonNull::new_unchecked(data as *mut _);
-      let isolate_liveness = (*isolate).global_liveness();
       Self {
         data,
         isolate_liveness,
@@ -367,6 +373,10 @@ impl<T> Global<T> {
     }
   }
 
+  /// Note for shared isolates: the returned reference borrows from
+  /// `self`, not from the `&mut Isolate`, so the borrow checker will let
+  /// it outlive the `Locker` that produced `scope`. Holding it past the
+  /// unlock races the GC on whichever thread locks next — don't.
   #[inline(always)]
   pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
     Handle::open(self, scope)
@@ -382,8 +392,10 @@ impl<T> Global<T> {
 
 // A `Global` only touches V8 through methods that either take a scope or
 // `&Isolate` argument (obtainable only on the isolate's thread or under
-// its Locker), or that are guarded through `IsolateLiveness` (`clone`,
-// `drop`).
+// its Locker), or that are guarded through `IsolateLiveness`: `clone`,
+// `eq` and `hash` assert the current thread may touch the isolate, and
+// `drop` releases the cell immediately when it may, deferring to the
+// liveness queue otherwise.
 unsafe impl<T> Send for Global<T> {}
 unsafe impl<T> Sync for Global<T> {}
 
@@ -413,6 +425,7 @@ impl<T> Drop for Global<T> {
       } else if !liveness.is_shared() && liveness.on_isolate_thread() {
         // Destroy the storage cell that contains the contents of this Global.
         v8__Global__Reset(self.data.cast().as_ptr());
+        liveness.maybe_drain_deferred_global_resets();
       } else {
         // Another thread may own the isolate right now; release the cell
         // immediately if we may touch it, otherwise defer to the next
@@ -592,9 +605,17 @@ impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.assert_shared_access();
     unsafe {
-      if self.isolate_liveness.as_ref().get_isolate_ptr().is_null() {
+      let liveness = self.isolate_liveness.as_ref();
+      if liveness.get_isolate_ptr().is_null() {
         panic!("can't hash Global after its host Isolate has been disposed");
       }
+      // Hashing may call into V8 (e.g. `Object::GetIdentityHash`, which
+      // can mutate the object).
+      assert!(
+        liveness.on_isolate_thread(),
+        "hashing a Global requires being on its isolate's thread, or \
+         holding its Locker if the isolate is shared"
+      );
       self.data.as_ref().hash(state);
     }
   }
@@ -623,8 +644,18 @@ where
     other.assert_safe_to_access();
     let i1 = self.get_handle_info();
     let i2 = other.get_handle_info();
-    i1.host.match_host(i2.host, None)
-      && unsafe { i1.data.as_ref() == i2.data.as_ref() }
+    if !i1.host.match_host(i2.host, None) {
+      return false;
+    }
+    unsafe {
+      // Comparison calls into V8 (e.g. `Value::SameValue`).
+      assert!(
+        self.isolate_liveness.as_ref().on_isolate_thread(),
+        "comparing a Global requires being on its isolate's thread, or \
+         holding its Locker if the isolate is shared"
+      );
+      i1.data.as_ref() == i2.data.as_ref()
+    }
   }
 }
 

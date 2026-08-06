@@ -15397,7 +15397,7 @@ fn global_send_across_threads() {
   let mut isolate = v8::Isolate::new(Default::default());
   let (g1, g2) = {
     let scope = pin!(v8::HandleScope::new(&mut isolate));
-    let mut scope = scope.init();
+    let scope = scope.init();
     let s1 = v8::String::new(&scope, "one").unwrap();
     let s2 = v8::String::new(&scope, "two").unwrap();
     (v8::Global::new(&scope, s1), v8::Global::new(&scope, s2))
@@ -15469,4 +15469,56 @@ fn global_clone_off_thread_panics() {
     .or_else(|| err.downcast_ref::<&str>().copied())
     .unwrap();
   assert!(msg.contains("cloning a Global"));
+}
+
+#[test]
+fn global_eq_off_thread_panics() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let (g1, g2) = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let s = v8::String::new(&scope, "same").unwrap();
+    (v8::Global::new(&scope, s), v8::Global::new(&scope, s))
+  };
+  let err = std::thread::spawn(move || {
+    let _ = g1 == g2;
+  })
+  .join()
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("comparing a Global"));
+}
+
+#[test]
+fn global_off_thread_drop_is_drained_on_home_thread() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let (global, weak) = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let obj = v8::Object::new(scope);
+    (v8::Global::new(scope, obj), v8::Weak::new(scope, obj))
+  };
+  // Drop the only strong handle on another thread: the cell is queued,
+  // not released, so the object must survive a GC.
+  std::thread::spawn(move || drop(global)).join().unwrap();
+  isolate.low_memory_notification();
+  assert!(!weak.is_empty());
+  // Any Global created on the home thread is a drain checkpoint; after
+  // it the queued cell is released and the object is collectable.
+  {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let s = v8::String::new(&scope, "checkpoint").unwrap();
+    let _g = v8::Global::new(&scope, s);
+  }
+  isolate.low_memory_notification();
+  assert!(weak.is_empty());
 }
