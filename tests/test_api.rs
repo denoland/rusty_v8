@@ -14209,7 +14209,7 @@ fn shared_isolate_moves_between_threads() {
     eval(scope, code).unwrap().int32_value(scope).unwrap()
   }
 
-  let shared = v8::Isolate::new(Default::default()).into_shared();
+  let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
   assert_eq!(run(&shared, "6 * 7"), 42);
   let shared = std::thread::spawn(move || {
     assert_eq!(run(&shared, "7 * 7"), 49);
@@ -14225,7 +14225,8 @@ fn shared_isolate_moves_between_threads() {
 #[test]
 fn shared_isolate_concurrent_use() {
   let _setup_guard = setup::parallel_test();
-  let shared = Arc::new(v8::Isolate::new(Default::default()).into_shared());
+  let shared =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
 
   // Set up a context, stash it in an isolate slot so every thread can
   // reach it, and initialize a counter.
@@ -14288,7 +14289,8 @@ fn shared_isolate_concurrent_use() {
 #[test]
 fn shared_isolate_deferred_global_drop() {
   let _setup_guard = setup::parallel_test();
-  let shared = Arc::new(v8::Isolate::new(Default::default()).into_shared());
+  let shared =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
 
   let global = {
     let mut locker = shared.lock();
@@ -14323,7 +14325,7 @@ fn shared_isolate_deferred_global_drop() {
 #[should_panic(expected = "already locked")]
 fn shared_isolate_recursive_lock_panics() {
   let _setup_guard = setup::parallel_test();
-  let shared = v8::Isolate::new(Default::default()).into_shared();
+  let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
   let _l1 = shared.lock();
   let _l2 = shared.lock();
 }
@@ -14332,7 +14334,7 @@ fn shared_isolate_recursive_lock_panics() {
 #[should_panic(expected = "not supported on shared isolates")]
 fn shared_isolate_weak_panics() {
   let _setup_guard = setup::parallel_test();
-  let shared = v8::Isolate::new(Default::default()).into_shared();
+  let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
   let mut locker = shared.lock();
   let scope = pin!(v8::HandleScope::new(&mut *locker));
   let mut scope = scope.init();
@@ -14394,8 +14396,10 @@ fn shared_isolate_js_state_across_threads() {
     eval(scope, code).unwrap().int32_value(scope).unwrap()
   }
 
-  let iso_a = Arc::new(v8::Isolate::new(Default::default()).into_shared());
-  let iso_b = Arc::new(v8::Isolate::new(Default::default()).into_shared());
+  let iso_a =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
+  let iso_b =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
 
   // Init A on this thread, B on another.
   init(&iso_a, 100);
@@ -14528,7 +14532,8 @@ fn shared_isolate_rust_callback_across_threads() {
     rv.set_int32(n + x);
   }
 
-  let shared = Arc::new(v8::Isolate::new(Default::default()).into_shared());
+  let shared =
+    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
   {
     let mut locker = shared.lock();
     let context = {
@@ -14597,4 +14602,29 @@ fn shared_isolate_rust_callback_across_threads() {
   assert_ne!(threads[0], threads[2]);
   assert_ne!(threads[1], threads[2]);
   assert_eq!(threads[2], threads[3]);
+}
+
+#[test]
+fn shared_isolate_locker_drop_order_panics() {
+  let _setup_guard = setup::parallel_test();
+  let shared_a = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let shared_b = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let la = shared_a.lock();
+  let lb = shared_b.lock();
+  // Dropping the outer locker while the inner one is still entered must
+  // trip the LIFO assertion.
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(la)))
+    .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("reverse order"));
+  // The failed drop never exited isolate A or released its v8::Locker,
+  // so A is wedged on this thread; unwind B cleanly and leak A rather
+  // than tearing it down in a state V8 would abort on.
+  drop(lb);
+  drop(shared_b);
+  std::mem::forget(shared_a);
 }

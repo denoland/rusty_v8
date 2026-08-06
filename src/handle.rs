@@ -763,6 +763,7 @@ impl<T> Weak<T> {
       !unsafe { (*isolate).global_liveness().as_ref() }.is_shared(),
       "v8::Weak is not supported on shared isolates"
     );
+    unsafe { *(*isolate).live_weak_count_mut() += 1 };
     let weak_data = Box::new(WeakData {
       pointer: Default::default(),
       finalizer_id,
@@ -1013,6 +1014,17 @@ impl<T> Clone for Weak<T> {
 
 impl<T> Drop for Weak<T> {
   fn drop(&mut self) {
+    // `data` is `Some` iff this handle was created through `new_raw` and
+    // thus counted. SAFETY: we're in the isolate's thread because `Weak`
+    // isn't Send or Sync.
+    if self.data.is_some() {
+      let isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
+      if !isolate_ptr.is_null() {
+        let mut isolate = unsafe { Isolate::from_raw_ptr(isolate_ptr) };
+        *isolate.live_weak_count_mut() -= 1;
+      }
+    }
+
     // Returns whether the finalizer existed.
     let remove_finalizer = |finalizer_id: Option<FinalizerId>| -> bool {
       if let Some(finalizer_id) = finalizer_id {
@@ -1124,6 +1136,10 @@ pub(crate) struct FinalizerMap {
 }
 
 impl FinalizerMap {
+  pub(crate) fn is_empty(&self) -> bool {
+    self.map.is_empty()
+  }
+
   fn add(&mut self, finalizer: FinalizerCallback) -> FinalizerId {
     let id = self.next_id;
     // TODO: Overflow.

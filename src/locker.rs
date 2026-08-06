@@ -35,12 +35,12 @@ pub(crate) struct RawLocker([usize; 2]);
 /// [`Locker`] guard that dereferences to [`Isolate`].
 ///
 /// Limitations (enforced by panics):
-/// - [`crate::Weak`] handles are not supported on shared isolates.
-/// - Snapshot-creator isolates cannot be shared.
+/// - [`crate::Weak`] handles are not supported on shared isolates, and an
+///   isolate with live weaks or pending finalizers cannot be shared.
+/// - Snapshot-creator isolates and isolates with a cppgc heap attached
+///   cannot be shared.
 /// - Cloning a [`crate::Global`] belonging to a shared isolate requires
 ///   holding the lock on the current thread.
-///
-/// cppgc heaps attached to shared isolates are unsupported and unsound.
 ///
 /// [`crate::Global`]s may be dropped on any thread at any time: if the
 /// dropping thread holds the lock the handle is released immediately,
@@ -143,6 +143,13 @@ impl<'s> Locker<'s> {
 impl Drop for Locker<'_> {
   fn drop(&mut self) {
     unsafe {
+      // Final drain while we still hold the lock, so cells dropped by
+      // other threads during this lock don't sit in the queue (keeping
+      // their JS objects alive) until the next acquisition.
+      self
+        .global_liveness()
+        .as_ref()
+        .drain_deferred_global_drops();
       assert!(
         std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__GetCurrent()),
         "Locker dropped while its isolate was not the entered one; lockers \
@@ -163,10 +170,6 @@ impl Deref for Locker<'_> {
 
 impl DerefMut for Locker<'_> {
   fn deref_mut(&mut self) -> &mut Isolate {
-    unsafe {
-      std::mem::transmute::<&mut NonNull<RealIsolate>, &mut Isolate>(
-        &mut self.cxx_isolate,
-      )
-    }
+    unsafe { Isolate::from_raw_ref_mut(&mut self.cxx_isolate) }
   }
 }

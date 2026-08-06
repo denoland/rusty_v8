@@ -929,9 +929,11 @@ impl Isolate {
   fn new_impl(params: CreateParams) -> *mut RealIsolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
+    let has_embedder_cpp_heap = !raw_create_params.cpp_heap.is_null();
     let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
     let mut isolate = unsafe { Isolate::from_raw_ptr(cxx_isolate) };
     isolate.initialize(create_param_allocations);
+    isolate.get_annex_mut().has_embedder_cpp_heap = has_embedder_cpp_heap;
     cxx_isolate
   }
 
@@ -1181,6 +1183,10 @@ impl Isolate {
 
   pub(crate) fn get_finalizer_map_mut(&mut self) -> &mut FinalizerMap {
     &mut self.get_annex_mut().finalizer_map
+  }
+
+  pub(crate) fn live_weak_count_mut(&mut self) -> &mut usize {
+    &mut self.get_annex_mut().live_weak_count
   }
 
   /// Retrieve embedder-specific data from the isolate.
@@ -2064,6 +2070,14 @@ pub(crate) struct IsolateAnnex {
   maybe_snapshot_creator: Option<SnapshotCreator>,
   isolate_handle: IsolateHandle,
   global_liveness: NonNull<IsolateLiveness>,
+  /// Number of live `Weak` handles, maintained so `into_shared()` can
+  /// reject isolates with outstanding weaks (their GC callbacks are not
+  /// thread-safe against the owning `Weak`).
+  live_weak_count: usize,
+  /// Whether an embedder cppgc heap was passed via `CreateParams`. V8
+  /// attaches a default cppgc heap of its own, so `GetCppHeap()` can't
+  /// distinguish; `into_shared()` rejects only embedder heaps.
+  has_embedder_cpp_heap: bool,
 }
 
 impl IsolateAnnex {
@@ -2079,6 +2093,8 @@ impl IsolateAnnex {
       maybe_snapshot_creator: None,
       isolate_handle: IsolateHandle::new(isolate),
       global_liveness: NonNull::from(global_liveness),
+      live_weak_count: 0,
+      has_embedder_cpp_heap: false,
     }
   }
 
@@ -2158,14 +2174,17 @@ impl IsolateLiveness {
   }
 
   pub(crate) fn mark_shared(&self) {
+    // Release/Acquire so a thread that observes `shared == false` (and
+    // takes the immediate-reset path in `Global::drop`) cannot do so
+    // after the isolate has started migrating between threads.
     self
       .shared
-      .store(true, std::sync::atomic::Ordering::Relaxed);
+      .store(true, std::sync::atomic::Ordering::Release);
   }
 
   #[inline(always)]
   pub(crate) fn is_shared(&self) -> bool {
-    self.shared.load(std::sync::atomic::Ordering::Relaxed)
+    self.shared.load(std::sync::atomic::Ordering::Acquire)
   }
 
   /// Release a `Global`'s cell now if the current thread holds the
@@ -2174,11 +2193,15 @@ impl IsolateLiveness {
   /// While the queue is `Some`, teardown has not started: its final drain
   /// closes the queue under this mutex before the isolate is disposed, so
   /// the isolate pointer read below stays valid for the duration of this
-  /// call.
+  /// call. The null check is belt and braces on top of that invariant: a
+  /// disposed isolate means the cell is already gone.
   pub(crate) fn reset_or_defer_global(&self, data: *const Data) {
     let mut q = self.deferred_global_drops.lock().unwrap();
     let Some(v) = q.as_mut() else { return };
     let isolate = self.get_isolate_ptr();
+    if isolate.is_null() {
+      return;
+    }
     if unsafe { crate::locker::v8__Locker__IsLocked(isolate) } {
       drop(q);
       unsafe { v8__Global__Reset(data) };
@@ -2414,12 +2437,35 @@ impl OwnedIsolate {
   ///
   /// # Panics
   ///
-  /// Panics if this is a snapshot-creator isolate, or if another isolate
-  /// is entered on top of this one on the current thread.
-  pub fn into_shared(self) -> crate::SharedIsolate {
+  /// Panics if this is a snapshot-creator isolate, if it has live
+  /// [`crate::Weak`] handles or pending finalizers, if it has a cppgc
+  /// heap attached, or if another isolate is entered on top of this one
+  /// on the current thread.
+  ///
+  /// # Safety
+  ///
+  /// A shared isolate migrates between threads together with everything
+  /// attached to it, without `Send` bounds the type system can check.
+  /// The caller must ensure that all embedder state hanging off the
+  /// isolate is `Send`: isolate slot values ([`Isolate::set_slot`]),
+  /// embedder data ([`Isolate::set_data`]), callbacks and their captured
+  /// state, and the allocations referenced by its `CreateParams`. All of
+  /// it may be accessed and eventually dropped on whichever thread holds
+  /// the lock or drops the `SharedIsolate`.
+  pub unsafe fn into_shared(self) -> crate::SharedIsolate {
+    let annex = self.get_annex();
     assert!(
-      self.get_annex().maybe_snapshot_creator.is_none(),
+      annex.maybe_snapshot_creator.is_none(),
       "snapshot-creator isolates cannot be shared"
+    );
+    assert!(
+      annex.live_weak_count == 0 && annex.finalizer_map.is_empty(),
+      "isolates with live v8::Weak handles or pending finalizers cannot \
+       be shared"
+    );
+    assert!(
+      !annex.has_embedder_cpp_heap,
+      "isolates with an embedder cppgc heap cannot be shared"
     );
     unsafe {
       assert!(
