@@ -51,9 +51,10 @@ pub(crate) struct RawUnlocker([usize; 1]);
 ///   holding the lock on the current thread.
 ///
 /// [`crate::Global`]s may be dropped on any thread at any time: if the
-/// dropping thread holds the lock the handle is released immediately,
-/// otherwise the release is deferred until the next [`SharedIsolate::lock`]
-/// call (or isolate teardown).
+/// dropping thread holds the lock its V8 cell is reset immediately. Otherwise
+/// the reset is deferred until the next lock acquisition, [`Locker::unlock`],
+/// [`Locker`] drop, or isolate teardown. Until then it remains a GC root and
+/// may retain the JavaScript object graph it references.
 ///
 /// # Blocking under the lock
 ///
@@ -129,7 +130,7 @@ impl Drop for SharedIsolate {
       isolate
         .global_liveness()
         .as_ref()
-        .close_deferred_global_drops();
+        .close_deferred_global_resets();
       v8__Locker__DESTRUCT(&mut *raw);
       let (annex_ptr, _create_param_allocations) =
         isolate.prepare_annex_for_dispose();
@@ -177,7 +178,7 @@ impl<'s> Locker<'s> {
       locker
         .global_liveness()
         .as_ref()
-        .drain_deferred_global_drops();
+        .drain_deferred_global_resets();
       locker
     }
   }
@@ -218,7 +219,7 @@ impl<'s> Locker<'s> {
       self
         .global_liveness()
         .as_ref()
-        .drain_deferred_global_drops();
+        .drain_deferred_global_resets();
     }
     unsafe { v8__Isolate__Exit(ptr) };
     let mut raw = Box::new(RawUnlocker([0; 1]));
@@ -267,7 +268,7 @@ impl Drop for Locker<'_> {
       self
         .global_liveness()
         .as_ref()
-        .drain_deferred_global_drops();
+        .drain_deferred_global_resets();
       assert!(
         std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__TryGetCurrent()),
         "Locker dropped while its isolate was not the entered one; lockers \

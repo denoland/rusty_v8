@@ -14287,38 +14287,102 @@ fn shared_isolate_concurrent_use() {
 }
 
 #[test]
-fn shared_isolate_deferred_global_drop() {
+fn shared_isolate_deferred_global_resets_drain_at_lock_boundaries() {
   let _setup_guard = setup::parallel_test();
   let shared =
     Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
 
-  let global = {
+  let (global_a, global_b, before, after_one, after_two) = {
     let mut locker = shared.lock();
+    let before = locker.get_heap_statistics().used_global_handles_size();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
     let mut scope = scope.init();
-    let context = v8::Context::new(&scope, Default::default());
-    let scope = &mut v8::ContextScope::new(&mut scope, context);
-    let s = v8::String::new(scope, "deferred").unwrap();
-    v8::Global::new(scope, s)
+    let global_a =
+      v8::Global::new(&scope, v8::String::new(&scope, "deferred-a").unwrap());
+    let after_one = scope.get_heap_statistics().used_global_handles_size();
+    let global_b =
+      v8::Global::new(&scope, v8::String::new(&scope, "deferred-b").unwrap());
+    let after_two = scope.get_heap_statistics().used_global_handles_size();
+    (global_a, global_b, before, after_one, after_two)
   };
+  assert!(after_one > before);
+  assert!(after_two > after_one);
 
-  // Have another thread hold the lock while this thread drops the
-  // Global, forcing it onto the deferred queue.
-  let (locked_tx, locked_rx) = std::sync::mpsc::channel::<()>();
+  // No thread holds the Locker, so A is queued. The other thread's lock
+  // acquisition must reset it before reporting the remaining handle size.
+  drop(global_a);
+
+  let (locked_tx, locked_rx) = std::sync::mpsc::channel::<usize>();
   let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
   let shared_ = shared.clone();
   let t = std::thread::spawn(move || {
-    let _locker = shared_.lock();
-    locked_tx.send(()).unwrap();
+    let mut locker = shared_.lock();
+    let used = locker.get_heap_statistics().used_global_handles_size();
+    locked_tx.send(used).unwrap();
     release_rx.recv().unwrap();
   });
-  locked_rx.recv().unwrap();
-  drop(global);
+  assert_eq!(locked_rx.recv().unwrap(), after_one);
+
+  // B is queued while the other thread owns the Locker. Its final drain must
+  // reset B before releasing the V8 lock.
+  drop(global_b);
   release_tx.send(()).unwrap();
   t.join().unwrap();
 
-  // The next lock drains the queue; teardown must not double-free.
-  drop(shared.lock());
+  let mut locker = shared.lock();
+  assert_eq!(
+    locker.get_heap_statistics().used_global_handles_size(),
+    before
+  );
+}
+
+#[test]
+fn shared_isolate_deferred_global_resets_race_with_teardown() {
+  let _setup_guard = setup::parallel_test();
+  static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+  const GLOBAL_COUNT: usize = 64;
+
+  unsafe extern "C" fn count_and_free(buffer: *mut c_char, len: usize) {
+    let slice = std::ptr::slice_from_raw_parts_mut(buffer.cast::<u8>(), len);
+    unsafe { drop(Box::from_raw(slice)) };
+    DROP_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+
+  DROP_COUNT.store(0, Ordering::SeqCst);
+  let shared = unsafe { v8::Isolate::new(Default::default()).into_shared() };
+  let mut globals = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    (0..GLOBAL_COUNT)
+      .map(|_| {
+        let buffer = vec![b'x'; 1024].into_boxed_slice();
+        let len = buffer.len();
+        let ptr = Box::into_raw(buffer).cast::<u8>().cast::<c_char>();
+        let string = unsafe {
+          v8::String::new_external_onebyte_raw(&scope, ptr, len, count_and_free)
+        }
+        .unwrap();
+        v8::Global::new(&scope, string)
+      })
+      .collect::<Vec<_>>()
+  };
+
+  // Guarantee that teardown has queued work to close and drain, then race the
+  // remaining Global drops against that close/dispose sequence.
+  let late_drops = globals.split_off(GLOBAL_COUNT / 2);
+  drop(globals);
+  let barrier = Arc::new(std::sync::Barrier::new(2));
+  let barrier_ = barrier.clone();
+  let teardown = std::thread::spawn(move || {
+    barrier_.wait();
+    drop(shared);
+  });
+  barrier.wait();
+  drop(late_drops);
+  teardown.join().unwrap();
+
+  assert_eq!(DROP_COUNT.load(Ordering::SeqCst), GLOBAL_COUNT);
 }
 
 #[test]

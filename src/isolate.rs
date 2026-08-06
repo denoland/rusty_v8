@@ -2146,20 +2146,32 @@ impl IsolateAnnex {
   }
 }
 
+/// A unique obligation to reset one V8 global-handle cell.
+///
+/// The cell is stable until it is reset or its isolate is disposed. Moving the
+/// pointer between threads is safe, but resetting it is only safe while the
+/// destination thread holds the isolate's `v8::Locker`.
+struct DeferredGlobalReset(NonNull<Data>);
+
+// SAFETY: This token is only created by `Global::drop`; that `Global` uniquely
+// owns the cell and cannot use it again. The token is moved through a
+// mutex-protected queue and consumed only by a thread holding the V8 lock.
+unsafe impl Send for DeferredGlobalReset {}
+
+impl DeferredGlobalReset {
+  fn reset(self) {
+    unsafe { v8__Global__Reset(self.0.as_ptr()) };
+  }
+}
+
 pub(crate) struct IsolateLiveness {
   isolate: AtomicPtr<RealIsolate>,
   shared: std::sync::atomic::AtomicBool,
-  /// Global handles dropped by threads that did not hold the isolate's
-  /// `v8::Locker`. Drained (and the cells released) on the next
-  /// `SharedIsolate::lock()`; `None` after teardown has done its final
-  /// drain. Only used when `shared` is set.
-  deferred_global_drops: Mutex<Option<Vec<*const Data>>>,
+  /// V8 cells whose Rust `Global` owners were dropped without holding the
+  /// isolate's `v8::Locker`. Drained on the next lock boundary; `None` after
+  /// teardown has done its final drain. Only used when `shared` is set.
+  deferred_global_resets: Mutex<Option<Vec<DeferredGlobalReset>>>,
 }
-
-// The raw pointers in `deferred_global_drops` are only dereferenced while
-// the isolate's `v8::Locker` is held; the queue itself is mutex-protected.
-unsafe impl Send for IsolateLiveness {}
-unsafe impl Sync for IsolateLiveness {}
 
 impl IsolateLiveness {
   #[inline(always)]
@@ -2167,7 +2179,7 @@ impl IsolateLiveness {
     Self {
       isolate: AtomicPtr::new(isolate.as_real_ptr()),
       shared: std::sync::atomic::AtomicBool::new(false),
-      deferred_global_drops: Mutex::new(Some(Vec::new())),
+      deferred_global_resets: Mutex::new(Some(Vec::new())),
     }
   }
 
@@ -2205,8 +2217,8 @@ impl IsolateLiveness {
   /// the isolate pointer read below stays valid for the duration of this
   /// call. The null check is belt and braces on top of that invariant: a
   /// disposed isolate means the cell is already gone.
-  pub(crate) fn reset_or_defer_global(&self, data: *const Data) {
-    let mut q = self.deferred_global_drops.lock().unwrap();
+  pub(crate) fn reset_or_defer_global(&self, data: NonNull<Data>) {
+    let mut q = self.deferred_global_resets.lock().unwrap();
     let Some(v) = q.as_mut() else { return };
     let isolate = self.get_isolate_ptr();
     if isolate.is_null() {
@@ -2214,33 +2226,33 @@ impl IsolateLiveness {
     }
     if unsafe { crate::locker::v8__Locker__IsLocked(isolate) } {
       drop(q);
-      unsafe { v8__Global__Reset(data) };
+      DeferredGlobalReset(data).reset();
     } else {
-      v.push(data);
+      v.push(DeferredGlobalReset(data));
     }
   }
 
   /// Called with the isolate's lock held.
-  pub(crate) fn drain_deferred_global_drops(&self) {
+  pub(crate) fn drain_deferred_global_resets(&self) {
     let drained = {
-      let mut q = self.deferred_global_drops.lock().unwrap();
+      let mut q = self.deferred_global_resets.lock().unwrap();
       match q.as_mut() {
         Some(v) => std::mem::take(v),
         None => return,
       }
     };
-    for data in drained {
-      unsafe { v8__Global__Reset(data) };
+    for reset in drained {
+      reset.reset();
     }
   }
 
   /// Final drain during teardown, with the isolate's lock held. Late
   /// droppers that arrive after this see a closed queue and do nothing;
   /// their cells are freed with the isolate.
-  pub(crate) fn close_deferred_global_drops(&self) {
-    let drained = self.deferred_global_drops.lock().unwrap().take();
-    for data in drained.into_iter().flatten() {
-      unsafe { v8__Global__Reset(data) };
+  pub(crate) fn close_deferred_global_resets(&self) {
+    let drained = self.deferred_global_resets.lock().unwrap().take();
+    for reset in drained.into_iter().flatten() {
+      reset.reset();
     }
   }
 }

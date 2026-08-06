@@ -282,6 +282,11 @@ impl<'s, T> Local<'s, T> {
 ///
 /// You can create a `v8::Local` out of `v8::Global` using
 /// `v8::Local::new(scope, global_handle)`.
+///
+/// Dropping a `Global` belonging to a [`crate::SharedIsolate`] without holding
+/// that isolate's [`crate::Locker`] defers resetting its V8 storage cell until
+/// the next lock boundary or isolate teardown. Until then the handle remains a
+/// GC root and may keep its JavaScript object graph alive.
 #[derive(Debug)]
 pub struct Global<T> {
   data: NonNull<T>,
@@ -378,9 +383,9 @@ impl<T> Drop for Global<T> {
         // Destroy the storage cell that contains the contents of this Global.
         v8__Global__Reset(self.data.cast().as_ptr());
       } else {
-        // A shared isolate's lock may be held by another thread; release
-        // the cell now if we hold it, otherwise defer to the next lock.
-        liveness.reset_or_defer_global(self.data.cast().as_ptr());
+        // A shared isolate's lock may be held by another thread; reset the
+        // cell now if we hold it, otherwise defer to the next lock boundary.
+        liveness.reset_or_defer_global(self.data.cast());
       }
     }
   }
