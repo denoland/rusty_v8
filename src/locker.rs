@@ -42,10 +42,10 @@ pub(crate) struct RawLocker([usize; 2]);
 /// - Cloning a [`crate::Global`] belonging to a shared isolate requires
 ///   holding the lock on the current thread.
 ///
-/// [`crate::Global`]s may be dropped on any thread at any time: if the
-/// dropping thread holds the lock the handle is released immediately,
-/// otherwise the release is deferred until the next [`SharedIsolate::lock`]
-/// call (or isolate teardown).
+/// [`crate::Global`]s are `Send` and may be dropped on any thread at any
+/// time: if the dropping thread holds the lock the handle is released
+/// immediately, otherwise the release is deferred until the next
+/// [`SharedIsolate::lock`] call (or isolate teardown).
 #[derive(Debug)]
 pub struct SharedIsolate {
   cxx_isolate: NonNull<RealIsolate>,
@@ -79,19 +79,12 @@ impl SharedIsolate {
 impl Drop for SharedIsolate {
   fn drop(&mut self) {
     // Ownership guarantees no outstanding `Locker` (they borrow `self`),
-    // but other threads may still be dropping `Global`s concurrently:
-    // drain the deferred queue and close it under the lock, then tear
+    // so no thread can touch the isolate concurrently: `Global` droppers
+    // on other threads only push onto the mutex-protected deferred
+    // queue, which `prepare_annex_for_dispose` drains and closes. Tear
     // down the same way `OwnedIsolate::drop` does.
     unsafe {
       let mut isolate = Isolate::from_non_null(self.cxx_isolate);
-      let ptr = self.cxx_isolate.as_ptr();
-      let mut raw = Box::new(RawLocker([0; 2]));
-      v8__Locker__CONSTRUCT(&mut *raw, ptr);
-      isolate
-        .global_liveness()
-        .as_ref()
-        .close_deferred_global_drops();
-      v8__Locker__DESTRUCT(&mut *raw);
       let (annex_ptr, _create_param_allocations) =
         isolate.prepare_annex_for_dispose();
       Isolate::run_remaining_guaranteed_finalizers(annex_ptr);

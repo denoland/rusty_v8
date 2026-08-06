@@ -1057,8 +1057,10 @@ impl Isolate {
     // (ANNEX_SLOT is only cleared by code further down this teardown
     // path).
     unsafe {
-      // Null the `IsolateHandle` so handles outliving the isolate see a
-      // disposed state.
+      // Release Globals dropped by threads that could not touch the
+      // isolate, then null the `IsolateHandle` so handles outliving the
+      // isolate see a disposed state.
+      (*annex_ptr).global_liveness().close_deferred_global_drops();
       (*annex_ptr).global_liveness().dispose();
       (*annex_ptr).isolate_handle.dispose();
     }
@@ -2136,8 +2138,20 @@ impl IsolateAnnex {
   }
 }
 
+thread_local! {
+  static CURRENT_THREAD_ID: std::thread::ThreadId =
+    std::thread::current().id();
+}
+
+fn current_thread_id() -> std::thread::ThreadId {
+  CURRENT_THREAD_ID.with(|id| *id)
+}
+
 pub(crate) struct IsolateLiveness {
   isolate: AtomicPtr<RealIsolate>,
+  /// The thread the isolate was created on. Meaningful only while the
+  /// isolate is not shared: a non-shared isolate never leaves it.
+  home_thread: std::thread::ThreadId,
   shared: std::sync::atomic::AtomicBool,
   /// Global handles dropped by threads that did not hold the isolate's
   /// `v8::Locker`. Drained (and the cells released) on the next
@@ -2156,6 +2170,7 @@ impl IsolateLiveness {
   fn new(isolate: &Isolate) -> Self {
     Self {
       isolate: AtomicPtr::new(isolate.as_real_ptr()),
+      home_thread: current_thread_id(),
       shared: std::sync::atomic::AtomicBool::new(false),
       deferred_global_drops: Mutex::new(Some(Vec::new())),
     }
@@ -2187,8 +2202,23 @@ impl IsolateLiveness {
     self.shared.load(std::sync::atomic::Ordering::Acquire)
   }
 
-  /// Release a `Global`'s cell now if the current thread holds the
-  /// isolate's lock; otherwise queue it for the next lock acquisition.
+  /// True when the current thread may touch the isolate's handle
+  /// storage: it holds the isolate's `v8::Locker` (shared), or it is the
+  /// isolate's home thread (non-shared).
+  pub(crate) fn on_isolate_thread(&self) -> bool {
+    if self.is_shared() {
+      let isolate = self.get_isolate_ptr();
+      // A disposed isolate cannot be locked by anyone.
+      !isolate.is_null()
+        && unsafe { crate::locker::v8__Locker__IsLocked(isolate) }
+    } else {
+      current_thread_id() == self.home_thread
+    }
+  }
+
+  /// Release a `Global`'s cell now if the current thread may touch the
+  /// isolate; otherwise queue it for the next lock acquisition (shared)
+  /// or isolate teardown (non-shared).
   ///
   /// While the queue is `Some`, teardown has not started: its final drain
   /// closes the queue under this mutex before the isolate is disposed, so
@@ -2198,11 +2228,10 @@ impl IsolateLiveness {
   pub(crate) fn reset_or_defer_global(&self, data: *const Data) {
     let mut q = self.deferred_global_drops.lock().unwrap();
     let Some(v) = q.as_mut() else { return };
-    let isolate = self.get_isolate_ptr();
-    if isolate.is_null() {
+    if self.get_isolate_ptr().is_null() {
       return;
     }
-    if unsafe { crate::locker::v8__Locker__IsLocked(isolate) } {
+    if self.on_isolate_thread() {
       drop(q);
       unsafe { v8__Global__Reset(data) };
     } else {
