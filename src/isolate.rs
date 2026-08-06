@@ -2437,11 +2437,6 @@ impl OwnedIsolate {
   ///
   /// # Panics
   ///
-  /// Panics if this is a snapshot-creator isolate, if it has live
-  /// [`crate::Weak`] handles or pending finalizers, if it has a cppgc
-  /// heap attached, or if another isolate is entered on top of this one
-  /// on the current thread.
-  ///
   /// # Safety
   ///
   /// A shared isolate migrates between threads together with everything
@@ -2452,6 +2447,18 @@ impl OwnedIsolate {
   /// state, and the allocations referenced by its `CreateParams`. All of
   /// it may be accessed and eventually dropped on whichever thread holds
   /// the lock or drops the `SharedIsolate`.
+  ///
+  /// This obligation covers the isolate's whole remaining lifetime, not
+  /// just the state present at this call: anything attached later
+  /// through a [`crate::Locker`] (e.g. `set_slot` under the lock) must
+  /// be `Send` too — nothing checks it at insertion time.
+  ///
+  /// # Panics
+  ///
+  /// Panics if this is a snapshot-creator isolate, if it has live
+  /// [`crate::Weak`] handles or pending finalizers, if it has a cppgc
+  /// heap attached, or if another isolate is entered on top of this one
+  /// on the current thread.
   pub unsafe fn into_shared(self) -> crate::SharedIsolate {
     let annex = self.get_annex();
     assert!(

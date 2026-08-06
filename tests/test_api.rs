@@ -14621,10 +14621,42 @@ fn shared_isolate_locker_drop_order_panics() {
     .or_else(|| err.downcast_ref::<&str>().copied())
     .unwrap();
   assert!(msg.contains("reverse order"));
-  // The failed drop never exited isolate A or released its v8::Locker,
-  // so A is wedged on this thread; unwind B cleanly and leak A rather
-  // than tearing it down in a state V8 would abort on.
+  // The failed drop leaves A wedged on this thread: A is still entered,
+  // its v8::Locker is still held (V8's ThreadManager tracks the lock,
+  // not the Locker object), and `la`'s Box<RawLocker> was freed by the
+  // unwind without ~Locker() running. That's benign only because this
+  // test thread exits without touching A again — so unwind B cleanly
+  // and leak A; do NOT "fix" this forget into a drop, disposing an
+  // entered isolate aborts.
   drop(lb);
   drop(shared_b);
   std::mem::forget(shared_a);
+}
+
+#[test]
+fn shared_isolate_after_weak_into_raw() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let weak = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    // Some-path: the live-weak count travels with the raw pointer
+    // through into_raw/from_raw and is released by the final drop.
+    let obj = v8::Object::new(scope);
+    let raw = v8::Weak::new(scope, obj).into_raw();
+    assert!(raw.is_some());
+    drop(unsafe { v8::Weak::from_raw(scope, raw) });
+    // None-path: the value is GC'd with no finalizer pending, so
+    // into_raw returns None and must release the count itself.
+    let scope2 = pin!(v8::HandleScope::new(scope));
+    let scope2 = &mut scope2.init();
+    let obj2 = v8::Object::new(scope2);
+    v8::Weak::new(scope2, obj2)
+  };
+  isolate.low_memory_notification();
+  assert!(weak.into_raw().is_none());
+  // Both paths must leave the count balanced for sharing to succeed.
+  drop(unsafe { isolate.into_shared() });
 }

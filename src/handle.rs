@@ -851,6 +851,11 @@ impl<T> Weak<T> {
     isolate: &mut Isolate,
     data: Option<NonNull<WeakData<T>>>,
   ) -> Self {
+    // Re-adopt the live-weak count that `into_raw` released; each +1 is
+    // paired with the handle that owns the `WeakData`.
+    if data.is_some() {
+      *isolate.live_weak_count_mut() += 1;
+    }
     Weak {
       data: data.map(|raw| unsafe { Box::from_raw(raw.cast().as_ptr()) }),
       isolate_handle: isolate.thread_safe_handle(),
@@ -869,6 +874,18 @@ impl<T> Weak<T> {
   /// GC'd.
   pub fn into_raw(mut self) -> Option<NonNull<WeakData<T>>> {
     if let Some(data) = self.data.take() {
+      // This handle was counted at creation. Release the count here
+      // rather than in `Drop` (which sees `data == None` and skips it):
+      // if this returns `Some`, `from_raw` re-adds it for the handle
+      // that takes ownership; if it returns `None`, nothing owns the
+      // `WeakData` anymore and the count must not linger.
+      // SAFETY: we're in the isolate's thread because `Weak` isn't Send
+      // or Sync.
+      let count_isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
+      if !count_isolate_ptr.is_null() {
+        let mut isolate = unsafe { Isolate::from_raw_ptr(count_isolate_ptr) };
+        *isolate.live_weak_count_mut() -= 1;
+      }
       let has_finalizer = if let Some(finalizer_id) = data.finalizer_id {
         // SAFETY: We're in the isolate's thread because Weak isn't Send or Sync
         let isolate_ptr = unsafe { self.isolate_handle.get_isolate_ptr() };
