@@ -391,7 +391,7 @@ impl<T> Drop for Global<T> {
       if liveness.get_isolate_ptr().is_null() {
         // This `Global` handle is associated with an `Isolate` that has already
         // been disposed.
-      } else if !liveness.is_shared() && liveness.on_isolate_thread() {
+      } else if !liveness.is_shared() && liveness.on_home_thread() {
         // Destroy the storage cell that contains the contents of this Global.
         v8__Global__Reset(self.data.cast().as_ptr());
         liveness.maybe_drain_deferred_global_drops();

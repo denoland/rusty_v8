@@ -2145,6 +2145,12 @@ thread_local! {
     const { std::cell::Cell::new(None) };
 }
 
+// `Cell<Option<ThreadId>>` has no destructor, so the thread-local itself
+// is never registered for teardown and stays readable from other TLS
+// destructors (e.g. a `Global` parked in a `thread_local!` dropping at
+// thread exit). The `std::thread::current()` call below is reachable in
+// that window too; on current rustc it returns an unnamed handle there
+// rather than panicking.
 fn current_thread_id() -> std::thread::ThreadId {
   CURRENT_THREAD_ID.with(|c| match c.get() {
     Some(id) => id,
@@ -2220,13 +2226,18 @@ impl IsolateLiveness {
   /// True when the current thread may touch the isolate's handle
   /// storage: it holds the isolate's `v8::Locker` (shared), or it is the
   /// isolate's home thread (non-shared).
+  #[inline(always)]
+  pub(crate) fn on_home_thread(&self) -> bool {
+    current_thread_id() == self.home_thread
+  }
+
   pub(crate) fn on_isolate_thread(&self) -> bool {
     if self.is_shared() {
       let isolate = self.get_isolate_ptr();
       // A disposed isolate cannot be locked by anyone.
       !isolate.is_null() && crate::locker::thread_holds_lock(isolate)
     } else {
-      current_thread_id() == self.home_thread
+      self.on_home_thread()
     }
   }
 
