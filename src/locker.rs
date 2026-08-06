@@ -70,6 +70,22 @@ pub(crate) struct RawUnlocker([usize; 1]);
 ///
 /// Use [`Locker::unlock`] to release the lock around such work so other
 /// threads can make progress in the meantime.
+///
+/// # Cost
+///
+/// [`SharedIsolate::lock`] is not uniformly cheap: its cost scales with how
+/// often the *entering thread changes*. V8's `ThreadManager` archives an
+/// isolate's per-thread state when a different thread takes the lock and
+/// restores it on the way back in, so a sequence of locks from one thread is
+/// far cheaper than the same sequence alternating between two.
+///
+/// This matters for work-stealing executors, which are free to run each of
+/// an isolate's turns on a different worker and so maximise the migration.
+/// A measured case: an embedder serving a trivial request per lock lost
+/// about 9% of its throughput moving from one worker thread to twelve, with
+/// the *same* number of locks in both — the loss was migration alone. If an
+/// embedder can keep consecutive locks of one isolate on one thread, or run
+/// fewer workers, it is worth doing.
 #[derive(Debug)]
 pub struct SharedIsolate {
   inner: Arc<SharedIsolateInner>,
