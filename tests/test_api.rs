@@ -15423,8 +15423,11 @@ fn global_send_across_threads() {
 #[test]
 fn shared_isolate_global_send() {
   let _setup_guard = setup::parallel_test();
-  let shared =
-    Arc::new(unsafe { v8::Isolate::new(Default::default()).into_shared() });
+  let shared = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
   let global = {
     let mut locker = shared.lock();
     let scope = pin!(v8::HandleScope::new(&mut *locker));
@@ -15521,4 +15524,39 @@ fn global_off_thread_drop_is_drained_on_home_thread() {
   }
   isolate.low_memory_notification();
   assert!(weak.is_empty());
+}
+
+#[test]
+fn global_clone_inside_unlock_window_panics() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker = shared.lock();
+  let global = {
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let s = v8::String::new(&scope, "nope").unwrap();
+    v8::Global::new(&scope, s)
+  };
+  // Inside the window this thread no longer holds the lock, so
+  // `thread_holds_lock` must say so — a stale "yes" would let this clone
+  // touch handle storage while another thread owns the isolate.
+  let err = locker.unlock(|| {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let _ = global.clone();
+    }))
+    .unwrap_err()
+  });
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("requires holding its Locker"));
+  // And the shadow is restored, so cloning works again under the lock.
+  let _clone = global.clone();
+  drop(locker);
 }
