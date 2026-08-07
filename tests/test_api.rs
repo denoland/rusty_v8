@@ -14468,8 +14468,11 @@ fn shared_isolate_rejected_weak_finalizer_has_no_side_effect() {
   assert!(!called.load(Ordering::SeqCst));
 }
 
+// Keep each rejection in a separate test function. In optimized Windows ARM64
+// builds, combining all three `catch_unwind` regions in one function faults
+// while unwinding the first panic; each path unwinds correctly on its own.
 #[test]
-fn shared_isolate_global_open_and_borrow_are_rejected() {
+fn shared_isolate_global_clone_without_locker_is_rejected() {
   let _setup_guard = setup::parallel_test();
   let shared = unsafe {
     v8::Isolate::new(Default::default())
@@ -14494,6 +14497,26 @@ fn shared_isolate_global_open_and_borrow_are_rejected() {
     .unwrap();
   assert!(clone_msg.contains("requires holding its Locker"));
 
+  let _locker = shared.lock();
+  drop(global.clone());
+}
+
+#[test]
+fn shared_isolate_global_borrow_is_rejected() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let global = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let local = v8::String::new(&scope, "locked").unwrap();
+    v8::Global::new(&scope, local)
+  };
+
   let borrow_err =
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
       let _: &v8::String = std::borrow::Borrow::borrow(&global);
@@ -14505,7 +14528,23 @@ fn shared_isolate_global_open_and_borrow_are_rejected() {
     .or_else(|| borrow_err.downcast_ref::<&str>().copied())
     .unwrap();
   assert!(borrow_msg.contains("create a Local"));
+}
 
+#[test]
+fn shared_isolate_global_open_is_rejected() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let global = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let local = v8::String::new(&scope, "locked").unwrap();
+    v8::Global::new(&scope, local)
+  };
   let mut locker = shared.lock();
   let open_err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
     let _ = global.open(&mut locker);
