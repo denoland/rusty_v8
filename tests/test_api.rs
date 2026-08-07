@@ -5661,7 +5661,9 @@ fn get_hash() {
     }
     let map =
       once((v8::Global::new(scope, pri1), i)).collect::<HashMap<_, _>>();
-    assert_eq!(map[&*pri2], i);
+    // Looked up by an equal `Global`: `Global<T>` no longer borrows as
+    // `&T`, so the key type is the only way in.
+    assert_eq!(map[&v8::Global::new(scope, pri2)], i);
   }
 
   assert_eq!(name_count, 3);
@@ -5704,7 +5706,7 @@ fn get_hash() {
       }
       let map =
         once((v8::Global::new(scope, obj), i)).collect::<HashMap<_, _>>();
-      assert_eq!(map[&*obj], i);
+      assert_eq!(map[&v8::Global::new(scope, obj)], i);
     }
 
     assert!(collision_count <= 2);
@@ -14739,35 +14741,6 @@ fn shared_isolate_global_clone_without_locker_is_rejected() {
 }
 
 #[test]
-fn shared_isolate_global_borrow_is_rejected() {
-  let _setup_guard = setup::parallel_test();
-  let shared = unsafe {
-    v8::Isolate::new(Default::default())
-      .try_into_shared()
-      .unwrap()
-  };
-  let global = {
-    let mut locker = shared.lock();
-    let scope = pin!(v8::HandleScope::new(&mut *locker));
-    let scope = scope.init();
-    let local = v8::String::new(&scope, "locked").unwrap();
-    v8::Global::new(&scope, local)
-  };
-
-  let borrow_err =
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-      let _: &v8::String = std::borrow::Borrow::borrow(&global);
-    }))
-    .unwrap_err();
-  let borrow_msg = borrow_err
-    .downcast_ref::<String>()
-    .map(|s| s.as_str())
-    .or_else(|| borrow_err.downcast_ref::<&str>().copied())
-    .unwrap();
-  assert!(borrow_msg.contains("create a Local"));
-}
-
-#[test]
 fn shared_isolate_global_open_is_rejected() {
   let _setup_guard = setup::parallel_test();
   let shared = unsafe {
@@ -15471,7 +15444,7 @@ fn global_clone_off_thread_panics() {
     .map(|s| s.as_str())
     .or_else(|| err.downcast_ref::<&str>().copied())
     .unwrap();
-  assert!(msg.contains("cloning a Global"));
+  assert!(msg.contains("requires being on its isolate's thread"));
 }
 
 #[test]
@@ -15494,7 +15467,7 @@ fn global_eq_off_thread_panics() {
     .map(|s| s.as_str())
     .or_else(|| err.downcast_ref::<&str>().copied())
     .unwrap();
-  assert!(msg.contains("comparing a Global"));
+  assert!(msg.contains("requires being on its isolate's thread"));
 }
 
 #[test]
@@ -15559,4 +15532,35 @@ fn global_clone_inside_unlock_window_panics() {
   // And the shadow is restored, so cloning works again under the lock.
   let _clone = global.clone();
   drop(locker);
+}
+
+#[test]
+fn local_eq_global_off_thread_panics() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate_a = v8::Isolate::new(Default::default());
+  let global_a = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate_a));
+    let scope = scope.init();
+    let s = v8::String::new(&scope, "a").unwrap();
+    v8::Global::new(&scope, s)
+  };
+  // Reversed operands. The `Local`-left `PartialEq` reaches the Global
+  // through `Handle::assert_safe_to_access`, which has to apply the same
+  // gate the `Global`-left impl does — otherwise this dereferences a
+  // Global belonging to isolate A, off A's thread, from isolate B.
+  let err = std::thread::spawn(move || {
+    let mut isolate_b = v8::Isolate::new(Default::default());
+    let scope = pin!(v8::HandleScope::new(&mut isolate_b));
+    let scope = scope.init();
+    let local_b = v8::String::new(&scope, "a").unwrap();
+    let _ = local_b == global_a;
+  })
+  .join()
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("requires being on its isolate's thread"));
 }

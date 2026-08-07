@@ -2252,25 +2252,37 @@ impl IsolateLiveness {
   /// The queue mutex keeps the isolate pointer valid through `IsLocked`. If the
   /// current thread does hold the V8 lock, that lock in turn prevents teardown
   /// after the mutex is released and for the duration of the caller's access.
-  pub(crate) fn assert_locked_for_shared_access(&self) {
-    if !self.is_shared() {
-      return;
-    }
+  /// The one gate for touching a `Global`'s V8 cell. Covers both cases:
+  /// a shared isolate needs its `Locker` held here, a non-shared one
+  /// needs the home thread. It has to be checked for non-shared isolates
+  /// too — `Global` is `Send`, so a plain `OwnedIsolate` can stay on
+  /// thread A while one of its `Global`s is used on thread B, racing A's
+  /// GC.
+  pub(crate) fn assert_access_allowed(&self) {
+    // Sample liveness while holding the reset queue: teardown closes the
+    // queue under this mutex before disposing, so observing `Some` means
+    // the isolate stays alive for the rest of this check.
     let q = self.deferred_global_resets.lock().unwrap();
-    let isolate = self.get_isolate_ptr();
-    let isolate_is_live = q.is_some() && !isolate.is_null();
-    let is_locked = isolate_is_live
-      && unsafe { crate::locker::v8__Locker__IsLocked(isolate) };
+    let isolate_is_live = q.is_some() && !self.get_isolate_ptr().is_null();
+    let allowed = isolate_is_live && self.on_isolate_thread();
+    let shared = self.is_shared();
     drop(q);
     assert!(
       isolate_is_live,
       "attempt to access Handle hosted by disposed Isolate"
     );
-    assert!(
-      is_locked,
-      "accessing a Global belonging to a shared isolate requires holding its \
-       Locker on the current thread"
-    );
+    if shared {
+      assert!(
+        allowed,
+        "accessing a Global belonging to a shared isolate requires holding \
+         its Locker on the current thread"
+      );
+    } else {
+      assert!(
+        allowed,
+        "accessing a Global requires being on its isolate's thread"
+      );
+    }
   }
 
   /// True when the current thread may touch the isolate's handle

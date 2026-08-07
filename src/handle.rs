@@ -299,12 +299,9 @@ pub struct Global<T> {
 
 impl<T> Global<T> {
   #[inline(always)]
-  fn assert_shared_access(&self) {
+  fn assert_access_allowed(&self) {
     unsafe {
-      self
-        .isolate_liveness
-        .as_ref()
-        .assert_locked_for_shared_access();
+      self.isolate_liveness.as_ref().assert_access_allowed();
     }
   }
 
@@ -401,17 +398,10 @@ unsafe impl<T> Sync for Global<T> {}
 
 impl<T> Clone for Global<T> {
   fn clone(&self) -> Self {
-    self.assert_shared_access();
+    self.assert_access_allowed();
     let HandleInfo { data, host } = self.get_handle_info();
     let mut isolate = unsafe { Isolate::from_non_null(host.get_isolate()) };
-    unsafe {
-      assert!(
-        self.isolate_liveness.as_ref().on_isolate_thread(),
-        "cloning a Global requires being on its isolate's thread, or \
-         holding its Locker if the isolate is shared"
-      );
-      Self::new_raw(isolate.as_mut(), data)
-    }
+    unsafe { Self::new_raw(isolate.as_mut(), data) }
   }
 }
 
@@ -535,7 +525,7 @@ impl<T> Handle for Global<T> {
     HandleInfo::new(self.data, self.get_handle_host())
   }
   fn assert_safe_to_access(&self) {
-    self.assert_shared_access();
+    self.assert_access_allowed();
   }
   fn assert_open_supported(&self) {
     self.assert_shared_open_supported();
@@ -548,7 +538,7 @@ impl<T> Handle for &Global<T> {
     HandleInfo::new(self.data, self.get_handle_host())
   }
   fn assert_safe_to_access(&self) {
-    self.assert_shared_access();
+    self.assert_access_allowed();
   }
   fn assert_open_supported(&self) {
     self.assert_shared_open_supported();
@@ -581,16 +571,13 @@ impl<T> Borrow<T> for Local<'_, T> {
   }
 }
 
-impl<T> Borrow<T> for Global<T> {
-  fn borrow(&self) -> &T {
-    self.assert_shared_open_supported();
-    let HandleInfo { data, host } = self.get_handle_info();
-    if let HandleHost::DisposedIsolate = host {
-      panic!("attempt to access Handle hosted by disposed Isolate");
-    }
-    unsafe { &*data.as_ptr() }
-  }
-}
+// `Borrow<T> for Global<T>` is deliberately absent. `fn borrow(&self) -> &T`
+// has nowhere to take proof that the caller may touch the isolate, and
+// nowhere to tie the returned reference's lifetime to that proof: any check
+// it made would expire while the `&T` it handed out stayed alive, and the V8
+// heap-object wrappers are `Sync`, so that reference can then be shared with
+// another thread. Use `Local::new(scope, &global)` instead — a `Local` is
+// bound to a scope, which is bound to the isolate.
 
 impl<T> Eq for Local<'_, T> where T: Eq {}
 impl<T> Eq for Global<T> where T: Eq {}
@@ -603,21 +590,10 @@ impl<T: Hash> Hash for Local<'_, T> {
 
 impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    self.assert_shared_access();
-    unsafe {
-      let liveness = self.isolate_liveness.as_ref();
-      if liveness.get_isolate_ptr().is_null() {
-        panic!("can't hash Global after its host Isolate has been disposed");
-      }
-      // Hashing may call into V8 (e.g. `Object::GetIdentityHash`, which
-      // can mutate the object).
-      assert!(
-        liveness.on_isolate_thread(),
-        "hashing a Global requires being on its isolate's thread, or \
-         holding its Locker if the isolate is shared"
-      );
-      self.data.as_ref().hash(state);
-    }
+    // Hashing may call into V8 (e.g. `Object::GetIdentityHash`, which can
+    // mutate the object), so it needs the same gate as any other access.
+    self.assert_access_allowed();
+    unsafe { self.data.as_ref().hash(state) }
   }
 }
 
@@ -647,15 +623,9 @@ where
     if !i1.host.match_host(i2.host, None) {
       return false;
     }
-    unsafe {
-      // Comparison calls into V8 (e.g. `Value::SameValue`).
-      assert!(
-        self.isolate_liveness.as_ref().on_isolate_thread(),
-        "comparing a Global requires being on its isolate's thread, or \
-         holding its Locker if the isolate is shared"
-      );
-      i1.data.as_ref() == i2.data.as_ref()
-    }
+    // Comparison calls into V8 (e.g. `Value::SameValue`); both operands
+    // were gated by `assert_safe_to_access` above.
+    unsafe { i1.data.as_ref() == i2.data.as_ref() }
   }
 }
 
