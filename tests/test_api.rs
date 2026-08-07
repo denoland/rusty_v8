@@ -15546,6 +15546,61 @@ fn global_eq_off_thread_panics() {
 }
 
 #[test]
+fn globals_from_different_isolates_compare_false_off_thread() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate_a = v8::Isolate::new(Default::default());
+  let global_a = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate_a));
+    let scope = scope.init();
+    let value = v8::String::new(&scope, "a").unwrap();
+    v8::Global::new(&scope, value)
+  };
+
+  // Host identity can reject this comparison without touching either V8
+  // object, even though A is not accessible on B's home thread.
+  let equal = std::thread::spawn(move || {
+    let mut isolate_b = v8::Isolate::new(Default::default());
+    let global_b = {
+      let scope = pin!(v8::HandleScope::new(&mut isolate_b));
+      let scope = scope.init();
+      let value = v8::String::new(&scope, "a").unwrap();
+      v8::Global::new(&scope, value)
+    };
+    global_a == global_b
+  })
+  .join()
+  .unwrap();
+  assert!(!equal);
+}
+
+#[test]
+fn global_hash_after_isolate_disposal_has_stable_panic() {
+  let _setup_guard = setup::parallel_test();
+  let global = {
+    let mut isolate = v8::Isolate::new(Default::default());
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let value = v8::String::new(&scope, "hash").unwrap();
+    v8::Global::new(&scope, value)
+  };
+
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let mut hasher = DefaultHasher::new();
+    global.hash(&mut hasher);
+  }))
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert_eq!(
+    msg,
+    "can't hash Global after its host Isolate has been disposed"
+  );
+}
+
+#[test]
 fn global_off_thread_drop_is_drained_on_home_thread() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
@@ -15572,6 +15627,30 @@ fn global_off_thread_drop_is_drained_on_home_thread() {
   }
   isolate.low_memory_notification();
   assert!(weak.is_empty());
+}
+
+#[test]
+fn global_drop_from_cold_tls_destructor() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let global = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let value = v8::String::new(&scope, "tls").unwrap();
+    v8::Global::new(&scope, value)
+  };
+
+  std::thread::spawn(move || {
+    thread_local! {
+      static TLS_GLOBAL: RefCell<Option<v8::Global<v8::String>>> =
+        const { RefCell::new(None) };
+    }
+    // Do not otherwise touch rusty_v8 on this thread. The first request for
+    // its thread ID therefore happens while TLS_GLOBAL is being destroyed.
+    TLS_GLOBAL.with(|slot| *slot.borrow_mut() = Some(global));
+  })
+  .join()
+  .unwrap();
 }
 
 #[test]

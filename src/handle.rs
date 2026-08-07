@@ -288,6 +288,26 @@ impl<'s, T> Local<'s, T> {
 /// the next lock boundary or isolate teardown. Until then the handle remains a
 /// GC root and may keep its JavaScript object graph alive.
 ///
+/// # Thread safety
+///
+/// `Global<T>` is [`Send`] and [`Sync`], so the handle may be moved or shared
+/// between threads. This does not make the V8 heap object itself concurrently
+/// accessible. Cloning, hashing, creating a [`Local`], and comparisons that
+/// may involve the same isolate touch V8: for a non-shared isolate they require
+/// its home thread, and for a [`crate::SharedIsolate`] they require holding its
+/// [`crate::Locker`] on the current thread. These operations panic when that
+/// requirement is not met or when the host isolate has been disposed. Two
+/// handles known to belong to different live isolates compare unequal without
+/// accessing either isolate. Dropping a `Global` is allowed on any thread and
+/// may defer resetting its V8 storage cell as described above.
+///
+/// `Global<T>` deliberately does not implement [`std::borrow::Borrow<T>`].
+/// Such an impl could return a reference that outlives the isolate or the
+/// `Locker` proving access to a shared isolate. Use [`Local::new`] under a
+/// handle scope instead. As a consequence, a `HashMap<Global<T>, _>` cannot be
+/// queried by `&T`; callers needing allocation-free borrowed lookup should use
+/// an embedder-owned stable key rather than the V8 object reference.
+///
 /// Opening a `Global` into a plain reference is unsafe because the reference
 /// could outlive its isolate or cross threads. Prefer [`Local::new`] under a
 /// handle scope instead.
@@ -559,10 +579,11 @@ impl<T> Borrow<T> for Local<'_, T> {
 // `Borrow<T> for Global<T>` is deliberately absent. `fn borrow(&self) -> &T`
 // has nowhere to take proof that the caller may touch the isolate, and
 // nowhere to tie the returned reference's lifetime to that proof: any check
-// it made would expire while the `&T` it handed out stayed alive, and the V8
-// heap-object wrappers are `Sync`, so that reference can then be shared with
-// another thread. Use `Local::new(scope, &global)` instead — a `Local` is
-// bound to a scope, which is bound to the isolate.
+// it made would expire while the `&T` it handed out stayed alive. Heap-object
+// wrappers are `!Sync`, which prevents moving that reference to another
+// thread, but does not prevent it from outliving a Locker or the isolate. Use
+// `Local::new(scope, &global)` instead — a `Local` is bound to a scope, which
+// is bound to the isolate.
 
 impl<T> Eq for Local<'_, T> where T: Eq {}
 impl<T> Eq for Global<T> where T: Eq {}
@@ -577,6 +598,9 @@ impl<T: Hash> Hash for Global<T> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     // Hashing may call into V8 (e.g. `Object::GetIdentityHash`, which can
     // mutate the object), so it needs the same gate as any other access.
+    if unsafe { self.isolate_liveness.as_ref().get_isolate_ptr().is_null() } {
+      panic!("can't hash Global after its host Isolate has been disposed");
+    }
     self.assert_access_allowed();
     unsafe { self.data.as_ref().hash(state) }
   }
@@ -587,10 +611,13 @@ where
   T: PartialEq<Rhs::Data>,
 {
   fn eq(&self, other: &Rhs) -> bool {
-    self.assert_safe_to_access();
-    other.assert_safe_to_access();
     let i1 = self.get_handle_info();
     let i2 = other.get_handle_info();
+    if i1.host.are_different_live_isolates(i2.host) {
+      return false;
+    }
+    self.assert_safe_to_access();
+    other.assert_safe_to_access();
     i1.host.match_host(i2.host, None)
       && unsafe { i1.data.as_ref() == i2.data.as_ref() }
   }
@@ -601,10 +628,16 @@ where
   T: PartialEq<Rhs::Data>,
 {
   fn eq(&self, other: &Rhs) -> bool {
-    self.assert_safe_to_access();
-    other.assert_safe_to_access();
     let i1 = self.get_handle_info();
     let i2 = other.get_handle_info();
+    // Distinct live isolates cannot contain the same V8 object. This check
+    // does not touch either isolate, so preserve the historical `false`
+    // result even if one Global is currently off its home/Locker thread.
+    if i1.host.are_different_live_isolates(i2.host) {
+      return false;
+    }
+    self.assert_safe_to_access();
+    other.assert_safe_to_access();
     if !i1.host.match_host(i2.host, None) {
       return false;
     }
@@ -652,6 +685,13 @@ impl From<&'_ IsolateHandle> for HandleHost {
 }
 
 impl HandleHost {
+  fn are_different_live_isolates(self, other: Self) -> bool {
+    matches!(
+      (self, other),
+      (Self::Isolate(left), Self::Isolate(right)) if left != right
+    )
+  }
+
   /// Compares two `HandleHost` values, returning `true` if they refer to the
   /// same `Isolate`, or `false` if they refer to different isolates.
   ///
