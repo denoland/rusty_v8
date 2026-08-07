@@ -12284,3 +12284,135 @@ fn test_regexp() {
   let groups = result.get(scope, groups_key.into()).unwrap();
   assert!(groups.is_undefined());
 }
+
+fn callable_object_callback(
+  _: &mut v8::PinScope,
+  args: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue<v8::Value>,
+) {
+  // `data` is what was handed to `set_call_as_function_handler`.
+  assert!(args.data().is_string());
+  rv.set_int32(42);
+}
+
+#[test]
+fn object_template_set_call_as_function_handler() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let data = v8::String::new(scope, "data").unwrap();
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_call_as_function_handler(
+      callable_object_callback,
+      Some(data.into()),
+    );
+
+    let object = templ.new_instance(scope).unwrap();
+    assert!(object.is_callable());
+
+    let recv = v8::undefined(scope).into();
+    let ret = object.call_as_function(scope, recv, &[]).unwrap();
+    assert_eq!(ret.int32_value(scope).unwrap(), 42);
+
+    // The instance is callable from JS too.
+    let name = v8::String::new(scope, "callable").unwrap();
+    context.global(scope).set(scope, name.into(), object.into());
+    assert_eq!(
+      eval(scope, "callable()")
+        .unwrap()
+        .int32_value(scope)
+        .unwrap(),
+      42
+    );
+
+    // A plain object is not callable.
+    assert!(!v8::Object::new(scope).is_callable());
+  }
+}
+
+#[test]
+fn object_is_constructor_and_call_as_constructor() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let ctor: v8::Local<v8::Object> =
+      eval(scope, "(function Foo() { this.x = 42; })")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    assert!(ctor.is_constructor());
+    assert!(ctor.is_callable());
+
+    let instance: v8::Local<v8::Object> = ctor
+      .call_as_constructor(scope, &[])
+      .unwrap()
+      .try_into()
+      .unwrap();
+    let key = v8::String::new(scope, "x").unwrap();
+    let x = instance.get(scope, key.into()).unwrap();
+    assert_eq!(x.int32_value(scope).unwrap(), 42);
+
+    // Arrow functions are callable but not constructors.
+    let arrow: v8::Local<v8::Object> =
+      eval(scope, "(() => {})").unwrap().try_into().unwrap();
+    assert!(arrow.is_callable());
+    assert!(!arrow.is_constructor());
+
+    // A plain object is neither.
+    let plain = v8::Object::new(scope);
+    assert!(!plain.is_constructor());
+    assert!(plain.call_as_constructor(scope, &[]).is_none());
+  }
+}
+
+#[test]
+fn object_call_as_function_with_context() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let root_scope = pin!(v8::HandleScope::new(isolate));
+    let mut root_scope = root_scope.init();
+    let context = v8::Context::new(&root_scope, Default::default());
+    let mut scope = v8::ContextScope::new(&mut root_scope, context);
+
+    let object: v8::Local<v8::Object> =
+      eval(&mut scope, "(function () { return 1; })")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let ctor: v8::Local<v8::Object> =
+      eval(&mut scope, "(function Bar() { this.y = 2; })")
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+    let recv = v8::undefined(&scope).into();
+    let ret = object
+      .call_as_function_with_context(&scope, context, recv, &[])
+      .unwrap();
+    let instance = ctor
+      .call_as_constructor_with_context(&scope, context, &[])
+      .unwrap();
+
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    assert_eq!(ret.int32_value(scope).unwrap(), 1);
+    let instance: v8::Local<v8::Object> = instance.try_into().unwrap();
+    let key = v8::String::new(scope, "y").unwrap();
+    assert_eq!(
+      instance
+        .get(scope, key.into())
+        .unwrap()
+        .int32_value(scope)
+        .unwrap(),
+      2
+    );
+  }
+}

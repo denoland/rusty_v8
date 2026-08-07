@@ -245,7 +245,7 @@ unsafe extern "C" {
   ) -> *mut RustObj;
   fn v8__Object__IsApiWrapper(this: *const Object) -> bool;
   fn v8__Object__IsCallable(this: *const Object) -> bool;
-  fn v8___Object__IsConstructor(this: *const Object) -> bool;
+  fn v8__Object__IsConstructor(this: *const Object) -> bool;
   fn v8__Object__CallAsFunction(
     this: *const Object,
     context: *const Context,
@@ -1065,7 +1065,7 @@ impl Object {
   #[must_use = "this is a pure method"]
   #[inline(always)]
   pub fn is_constructor(&self) -> bool {
-    unsafe { v8___Object__IsConstructor(self) }
+    unsafe { v8__Object__IsConstructor(self) }
   }
 
   /// Calls the [`Object`] as a function with the provided `this` argument and

@@ -145,7 +145,7 @@ unsafe extern "C" {
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
 
-  fn v8__ObjecTemplate__SetCallAsFunctionHandler(
+  fn v8__ObjectTemplate__SetCallAsFunctionHandler(
     this: *const ObjectTemplate,
     callback: FunctionCallback,
     data_or_null: *const Value,
@@ -1035,7 +1035,7 @@ impl ObjectTemplate {
     data: Option<Local<'_, Value>>,
   ) {
     unsafe {
-      v8__ObjecTemplate__SetCallAsFunctionHandler(
+      v8__ObjectTemplate__SetCallAsFunctionHandler(
         self,
         callback.map_fn_to(),
         data.map_or_else(null, |p| &*p),

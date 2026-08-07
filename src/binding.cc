@@ -1750,11 +1750,11 @@ const v8::Array* v8__Object__PreviewEntries(const v8::Object& self,
   return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
 }
 
-const bool v8__Object__IsCallable(const v8::Object& self) {
+bool v8__Object__IsCallable(const v8::Object& self) {
   return ptr_to_local(&self)->IsCallable();
 }
 
-const bool v8__Object__IsConstructor(const v8::Object& self) {
+bool v8__Object__IsConstructor(const v8::Object& self) {
   return ptr_to_local(&self)->IsConstructor();
 }
 
