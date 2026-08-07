@@ -111,9 +111,8 @@ cargo build
 Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
 source.
 
-The build scripts require Python 3 to be available as `python` or `python3`
-in your `PATH`. If you want to specify the exact binary of Python to use,
-you should use the `PYTHON` environment variable.
+The build scripts require Python 3, located via the `PYTHON` environment
+variable, or as `python3` or `python` in your `PATH`.
 
 The build also requires `curl` to be installed on your system.
 

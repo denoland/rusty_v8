@@ -1312,7 +1312,8 @@ fn gn() -> String {
 
 /// Get the system's python binary in the following order
 /// 1. The `PYTHON` environment variable
-/// 2. Look for `python` or `python3` in `PATH`
+/// 2. Look for `python3` in `PATH`
+/// 3. Look for `python` in `PATH`
 ///
 /// Returns `Err` if no Python binary could be found or the
 /// given path does not point to an executable.
@@ -1326,7 +1327,7 @@ fn python() -> io::Result<PathBuf> {
     });
   }
 
-  which("python").or_else(|_| which("python3")).map_err(|_| {
+  which("python3").or_else(|_| which("python")).map_err(|_| {
     io::Error::new(
       io::ErrorKind::NotFound,
       "Python executable not found in PATH!",
