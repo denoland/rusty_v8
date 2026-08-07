@@ -8,12 +8,15 @@ on:
     branches: [main]
     types: [labeled, opened, synchronize, reopened]
 
-permissions: write-all
+permissions:
+  contents: read
 
 jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }} ${{ matrix.config.simdutf && 'simdutf' || '' }}
     runs-on: ${{ matrix.config.os }}
+    permissions:
+      contents: write
     timeout-minutes: 180
     strategy:
       # Always run main branch builds to completion. This allows the cache to
@@ -608,6 +611,8 @@ jobs:
   build-windows-arm64:
     name: release aarch64-pc-windows-msvc
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+    permissions:
+      contents: write
     timeout-minutes: 180
     env:
       CARGO_VARIANT_FLAG: --release
@@ -717,6 +722,8 @@ jobs:
   build-windows-arm64-simdutf:
     name: release aarch64-pc-windows-msvc simdutf
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'windows-2022-xxl' || 'windows-2022' }}
+    permissions:
+      contents: write
     timeout-minutes: 180
     env:
       CARGO_VARIANT_FLAG: --release
