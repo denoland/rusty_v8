@@ -48,9 +48,10 @@ V8 is very large and takes a long time to compile. Many users will prefer to use
 a prebuilt version of V8. We publish static libs for every version of rusty v8
 on [Github](https://github.com/denoland/rusty_v8/releases).
 
-Binaries builds are turned on by default: `cargo build` will initiate a download
-from github to get the static lib. To disable this, set the environmental variable
-`V8_FROM_SOURCE=0`. To explicitly enable building from source, set `V8_FROM_SOURCE=1`.
+Binary builds are the default: `cargo build` will initiate a download from
+github to get the static lib. To build V8 from source instead, set the
+`V8_FROM_SOURCE` environment variable to `1` (`true` and `yes` also work). Any
+other value, or leaving it unset, uses the prebuilt lib.
 
 When making changes to rusty_v8 itself, it should be tested by build from
 source. The CI always builds from source.
