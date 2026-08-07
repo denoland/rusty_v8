@@ -4694,10 +4694,9 @@ RustObj* cppgc__WeakPersistent__Get(cppgc::WeakPersistent<RustObj>* self) {
 }  // extern "C"
 
 // =============================================================================
-// simdutf bindings (gated behind RUSTY_V8_ENABLE_SIMDUTF)
+// simdutf bindings
 // =============================================================================
 
-#ifdef RUSTY_V8_ENABLE_SIMDUTF
 #include "third_party/simdutf/simdutf.h"
 
 struct simdutf__result {
@@ -4939,5 +4938,3 @@ size_t simdutf__binary_to_base64(const char* input, size_t length, char* output,
 }
 
 }  // extern "C"
-
-#endif  // RUSTY_V8_ENABLE_SIMDUTF
