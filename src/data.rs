@@ -1,6 +1,7 @@
 // Copyright 2019-2022 the Deno authors. All rights reserved. MIT license.
 
 use std::any::type_name;
+use std::cell::Cell;
 use std::convert::From;
 use std::convert::TryFrom;
 use std::error::Error;
@@ -9,11 +10,21 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::marker::PhantomData;
 use std::mem::transmute;
 use std::ops::Deref;
 
 use crate::Local;
-use crate::support::Opaque;
+
+// V8 heap objects may only be accessed on their isolate's thread (or on the
+// thread currently holding its Locker). Keep the opaque payload `Send` but not
+// `Sync`, so a shared reference obtained from a Local cannot cross threads.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+struct Opaque {
+  _ffi: [u8; 0],
+  _not_sync: PhantomData<Cell<()>>,
+}
 
 unsafe extern "C" {
   fn v8__Data__EQ(this: *const Data, other: *const Data) -> bool;
