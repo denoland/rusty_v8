@@ -211,6 +211,23 @@ fn local_handle_deref() {
 }
 
 #[test]
+fn v8_string_is_not_sync() {
+  trait AmbiguousIfImpl<A> {
+    fn some_item() {}
+  }
+
+  impl<T: ?Sized> AmbiguousIfImpl<()> for T {}
+
+  #[allow(dead_code)]
+  struct Invalid;
+  impl<T: ?Sized + Sync> AmbiguousIfImpl<Invalid> for T {}
+
+  // If `v8::String` implements `Sync`, both impls above apply and this becomes
+  // ambiguous. `v8::String: !Sync` also means `&v8::String: !Send`.
+  let _ = <v8::String as AmbiguousIfImpl<_>>::some_item;
+}
+
+#[test]
 fn global_handle_drop() {
   let _setup_guard = setup::parallel_test();
 
