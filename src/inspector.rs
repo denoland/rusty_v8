@@ -20,6 +20,7 @@ use crate::Local;
 use crate::PinScope;
 use crate::StackTrace;
 use crate::Value;
+use crate::crdtp::CppVecU8;
 use crate::isolate::RealIsolate;
 use crate::support::CxxVTable;
 use crate::support::Opaque;
@@ -87,6 +88,17 @@ unsafe extern "C" {
     session: *mut RawV8InspectorSession,
     object_group: StringView,
   );
+  fn v8_inspector__V8InspectorSession__wrapObject(
+    session: *mut RawV8InspectorSession,
+    context: *const Context,
+    value: *const Value,
+    object_group: StringView,
+    generate_preview: bool,
+  ) -> *mut RawRemoteObject;
+  fn v8_inspector__RemoteObject__DELETE(this: *mut RawRemoteObject);
+  fn v8_inspector__RemoteObject__toBytes(
+    this: *const RawRemoteObject,
+  ) -> *mut CppVecU8;
   fn v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     session: *mut RawV8InspectorSession,
     break_reason: StringView,
@@ -801,6 +813,41 @@ impl V8InspectorSession {
     }
   }
 
+  /// Wraps a V8 value in an Inspector `Runtime.RemoteObject`.
+  ///
+  /// With `generate_preview == false`, V8 uses `kIdOnly`: object results still
+  /// include metadata such as `className` and `description`, but no property
+  /// preview. With `true`, V8 uses `kPreview`, which additionally includes a
+  /// property preview.
+  ///
+  /// `context` is used only to obtain an execution-context ID and look up the
+  /// corresponding `InspectedContext` in this session's context group. The
+  /// selected `InjectedScript` wraps `value` in that inspected context's stored
+  /// V8 context. Returns `None` if no matching inspected context is registered,
+  /// for example before `V8Inspector::context_created`.
+  ///
+  /// `_scope` is intentionally unused by Rust; borrowing it keeps the caller's
+  /// V8 `HandleScope` alive while `ValueMirror::create` allocates local handles.
+  pub fn wrap_object<'s>(
+    &self,
+    _scope: &mut PinScope<'s, '_>,
+    context: Local<'s, Context>,
+    value: Local<'s, Value>,
+    object_group: StringView,
+    generate_preview: bool,
+  ) -> Option<RemoteObject> {
+    unsafe {
+      UniqueRef::try_from_raw(v8_inspector__V8InspectorSession__wrapObject(
+        self.raw.as_ptr(),
+        &*context,
+        &*value,
+        object_group,
+        generate_preview,
+      ))
+      .map(|raw| RemoteObject { raw })
+    }
+  }
+
   pub fn schedule_pause_on_next_statement(
     &self,
     reason: StringView,
@@ -838,6 +885,38 @@ impl V8InspectorSession {
 impl Drop for V8InspectorSession {
   fn drop(&mut self) {
     unsafe { v8_inspector__V8InspectorSession__DELETE(self.raw.as_ptr()) };
+  }
+}
+
+/// An opaque, owned Inspector `Runtime.RemoteObject`.
+pub struct RemoteObject {
+  raw: UniqueRef<RawRemoteObject>,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+struct RawRemoteObject(Opaque);
+
+impl RemoteObject {
+  /// Serializes this remote object to its CRDTP/CBOR representation.
+  pub fn to_bytes(&self) -> Vec<u8> {
+    unsafe {
+      CppVecU8::take_from_raw(v8_inspector__RemoteObject__toBytes(
+        self.raw.as_ptr(),
+      ))
+    }
+  }
+}
+
+impl Debug for RemoteObject {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("RemoteObject").finish()
+  }
+}
+
+impl Drop for RawRemoteObject {
+  fn drop(&mut self) {
+    unsafe { v8_inspector__RemoteObject__DELETE(self) }
   }
 }
 

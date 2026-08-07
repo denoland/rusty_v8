@@ -103,6 +103,9 @@ opt-level = 1
 [features]
 default = ["use_custom_libcxx"]
 use_custom_libcxx = []
+# Deprecated no-op: simdutf is always built in. Kept so that downstream
+# crates passing `--features simdutf` continue to build; remove at the next
+# major version.
 simdutf = []
 v8_enable_pointer_compression = []
 v8_enable_sandbox = ["v8_enable_pointer_compression"]

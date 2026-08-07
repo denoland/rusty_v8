@@ -7260,6 +7260,98 @@ fn inspector_release_object_group() {
 }
 
 #[test]
+fn inspector_wrap_object() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  let value = eval(scope, "({ answer: 42 })").unwrap();
+  assert!(
+    session
+      .wrap_object(
+        scope,
+        context,
+        value,
+        StringView::from(&b"rusty-v8-test"[..]),
+        false,
+      )
+      .is_none()
+  );
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let remote_object = session
+    .wrap_object(
+      scope,
+      context,
+      value,
+      StringView::from(&b"rusty-v8-test"[..]),
+      false,
+    )
+    .unwrap();
+  let json = String::from_utf8(
+    v8::crdtp::cbor_to_json(&remote_object.to_bytes()).unwrap(),
+  )
+  .unwrap();
+  assert!(json.contains(r#""type":"object""#));
+  assert!(!json.contains(r#""preview":"#));
+  let object_id = json
+    .split_once(r#""objectId":""#)
+    .unwrap()
+    .1
+    .split_once('"')
+    .unwrap()
+    .0;
+
+  let get_properties = format!(
+    r#"{{"id":1,"method":"Runtime.getProperties","params":{{"objectId":"{object_id}","ownProperties":true}}}}"#,
+  );
+  session
+    .dispatch_protocol_message(StringView::from(get_properties.as_bytes()));
+
+  let preview_object = session
+    .wrap_object(
+      scope,
+      context,
+      value,
+      StringView::from(&b"rusty-v8-test"[..]),
+      true,
+    )
+    .unwrap();
+  let preview_json = String::from_utf8(
+    v8::crdtp::cbor_to_json(&preview_object.to_bytes()).unwrap(),
+  )
+  .unwrap();
+  assert!(preview_json.contains(r#""preview":{"#));
+  assert!(preview_json.contains(r#""name":"answer""#));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 1);
+    assert!(state.responses[0].contains(r#""name":"answer""#));
+    assert!(state.responses[0].contains(r#""value":42"#));
+  }
+  inspector.context_destroyed(context);
+}
+
+#[test]
 fn inspector_value_subtype() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -15347,7 +15439,6 @@ fn shared_isolate_terminate_from_thread_safe_handle() {
   assert!(handle.terminate_execution());
   t.join().unwrap();
 }
-
 #[test]
 fn global_send_across_threads() {
   let _setup_guard = setup::parallel_test();
@@ -15547,4 +15638,135 @@ fn local_eq_global_off_thread_panics() {
     .or_else(|| err.downcast_ref::<&str>().copied())
     .unwrap();
   assert!(msg.contains("requires being on its isolate's thread"));
+}
+fn callable_object_callback(
+  _: &mut v8::PinScope,
+  args: v8::FunctionCallbackArguments,
+  mut rv: v8::ReturnValue<v8::Value>,
+) {
+  // `data` is what was handed to `set_call_as_function_handler`.
+  assert!(args.data().is_string());
+  rv.set_int32(42);
+}
+
+#[test]
+fn object_template_set_call_as_function_handler() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let data = v8::String::new(scope, "data").unwrap();
+    let templ = v8::ObjectTemplate::new(scope);
+    templ.set_call_as_function_handler(
+      callable_object_callback,
+      Some(data.into()),
+    );
+
+    let object = templ.new_instance(scope).unwrap();
+    assert!(object.is_callable());
+
+    let recv = v8::undefined(scope).into();
+    let ret = object.call_as_function(scope, recv, &[]).unwrap();
+    assert_eq!(ret.int32_value(scope).unwrap(), 42);
+
+    // The instance is callable from JS too.
+    let name = v8::String::new(scope, "callable").unwrap();
+    context.global(scope).set(scope, name.into(), object.into());
+    assert_eq!(
+      eval(scope, "callable()")
+        .unwrap()
+        .int32_value(scope)
+        .unwrap(),
+      42
+    );
+
+    // A plain object is not callable.
+    assert!(!v8::Object::new(scope).is_callable());
+  }
+}
+
+#[test]
+fn object_is_constructor_and_call_as_constructor() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let ctor: v8::Local<v8::Object> =
+      eval(scope, "(function Foo() { this.x = 42; })")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    assert!(ctor.is_constructor());
+    assert!(ctor.is_callable());
+
+    let instance: v8::Local<v8::Object> = ctor
+      .call_as_constructor(scope, &[])
+      .unwrap()
+      .try_into()
+      .unwrap();
+    let key = v8::String::new(scope, "x").unwrap();
+    let x = instance.get(scope, key.into()).unwrap();
+    assert_eq!(x.int32_value(scope).unwrap(), 42);
+
+    // Arrow functions are callable but not constructors.
+    let arrow: v8::Local<v8::Object> =
+      eval(scope, "(() => {})").unwrap().try_into().unwrap();
+    assert!(arrow.is_callable());
+    assert!(!arrow.is_constructor());
+
+    // A plain object is neither.
+    let plain = v8::Object::new(scope);
+    assert!(!plain.is_constructor());
+    assert!(plain.call_as_constructor(scope, &[]).is_none());
+  }
+}
+
+#[test]
+fn object_call_as_function_with_context() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    let root_scope = pin!(v8::HandleScope::new(isolate));
+    let mut root_scope = root_scope.init();
+    let context = v8::Context::new(&root_scope, Default::default());
+    let mut scope = v8::ContextScope::new(&mut root_scope, context);
+
+    let object: v8::Local<v8::Object> =
+      eval(&mut scope, "(function () { return 1; })")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let ctor: v8::Local<v8::Object> =
+      eval(&mut scope, "(function Bar() { this.y = 2; })")
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+    let recv = v8::undefined(&scope).into();
+    let ret = object
+      .call_as_function_with_context(&scope, context, recv, &[])
+      .unwrap();
+    let instance = ctor
+      .call_as_constructor_with_context(&scope, context, &[])
+      .unwrap();
+
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    assert_eq!(ret.int32_value(scope).unwrap(), 1);
+    let instance: v8::Local<v8::Object> = instance.try_into().unwrap();
+    let key = v8::String::new(scope, "y").unwrap();
+    assert_eq!(
+      instance
+        .get(scope, key.into())
+        .unwrap()
+        .int32_value(scope)
+        .unwrap(),
+      2
+    );
+  }
 }

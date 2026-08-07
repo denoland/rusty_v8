@@ -208,7 +208,19 @@ struct DispatchResponseWrapper(Opaque);
 pub struct UberDispatcher(Opaque);
 
 #[repr(C)]
-struct CppVecU8(Opaque);
+pub(crate) struct CppVecU8(Opaque);
+
+impl CppVecU8 {
+  pub(crate) unsafe fn take_from_raw(ptr: *mut Self) -> Vec<u8> {
+    unsafe {
+      let len = crdtp__vec_u8__size(ptr);
+      let mut result = vec![0u8; len];
+      crdtp__vec_u8__copy(ptr, result.as_mut_ptr());
+      crdtp__vec_u8__DELETE(ptr);
+      result
+    }
+  }
+}
 
 #[repr(C)]
 struct RawSerializable(Opaque);
@@ -225,11 +237,7 @@ impl Serializable {
     unsafe {
       let vec = crdtp__vec_u8__new();
       crdtp__Serializable__AppendSerialized(self.ptr, vec);
-      let len = crdtp__vec_u8__size(vec);
-      let mut result = vec![0u8; len];
-      crdtp__vec_u8__copy(vec, result.as_mut_ptr());
-      crdtp__vec_u8__DELETE(vec);
-      result
+      CppVecU8::take_from_raw(vec)
     }
   }
 
@@ -625,11 +633,7 @@ pub fn json_to_cbor(json: &[u8]) -> Option<Vec<u8>> {
     let vec = crdtp__vec_u8__new();
     let ok = crdtp__json__ConvertJSONToCBOR(json.as_ptr(), json.len(), vec);
     if ok {
-      let len = crdtp__vec_u8__size(vec);
-      let mut result = vec![0u8; len];
-      crdtp__vec_u8__copy(vec, result.as_mut_ptr());
-      crdtp__vec_u8__DELETE(vec);
-      Some(result)
+      Some(CppVecU8::take_from_raw(vec))
     } else {
       crdtp__vec_u8__DELETE(vec);
       None
@@ -643,11 +647,7 @@ pub fn cbor_to_json(cbor: &[u8]) -> Option<Vec<u8>> {
     let vec = crdtp__vec_u8__new();
     let ok = crdtp__json__ConvertCBORToJSON(cbor.as_ptr(), cbor.len(), vec);
     if ok {
-      let len = crdtp__vec_u8__size(vec);
-      let mut result = vec![0u8; len];
-      crdtp__vec_u8__copy(vec, result.as_mut_ptr());
-      crdtp__vec_u8__DELETE(vec);
-      Some(result)
+      Some(CppVecU8::take_from_raw(vec))
     } else {
       crdtp__vec_u8__DELETE(vec);
       None

@@ -3,8 +3,6 @@
 //! These bindings expose the [simdutf](https://github.com/simdutf/simdutf)
 //! library that is already bundled with V8, avoiding C++ symbol clashes
 //! that occur when linking a separate simdutf crate.
-//!
-//! Enable with the `simdutf` cargo feature.
 
 // ---------------------------------------------------------------------------
 // FFI declarations

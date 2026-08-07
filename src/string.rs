@@ -84,7 +84,6 @@ pub unsafe fn latin1_to_utf8(
 /// Minimum non-ASCII UTF-8 byte length before `new_from_utf8` decodes with
 /// simdutf instead of V8's decoder. Below this the two potential simdutf FFI
 /// calls cost more than V8 handling the tiny string itself.
-#[cfg(feature = "simdutf")]
 const NONASCII_ENCODE_SIMD_THRESHOLD: usize = 16;
 
 unsafe extern "C" {
@@ -490,7 +489,6 @@ impl String {
     // otherwise accept some of those (the decoded string is shorter), which
     // would change behavior, so only take them when the byte length is in
     // range and let V8 reject the rest.
-    #[cfg(feature = "simdutf")]
     if buffer.len() <= Self::MAX_LENGTH {
       // Pure ASCII (the common case): the bytes are already valid one-byte
       // (Latin-1) data. `onebyte_is_ascii` uses a wide simdutf scan for long
@@ -522,7 +520,6 @@ impl String {
   /// Decodes non-ASCII, non-empty valid UTF-8 into one-byte (Latin-1) or
   /// two-byte (UTF-16) data with simdutf and hands it to V8. Falls back to
   /// V8's lossy `NewFromUtf8` when the input isn't valid UTF-8.
-  #[cfg(feature = "simdutf")]
   fn new_from_utf8_transcode<'s>(
     scope: &PinScope<'s, '_, ()>,
     buffer: &[u8],
@@ -1051,8 +1048,8 @@ impl String {
   /// Convenience function not present in the original V8 API.
   ///
   /// Uses [`ValueView`] internally for single-pass access to the string
-  /// data. When the `simdutf` feature is enabled, uses SIMD-accelerated
-  /// transcoding for Latin-1 and two-byte strings.
+  /// data, with SIMD-accelerated transcoding for Latin-1 and two-byte
+  /// strings.
   pub fn to_rust_string_lossy(&self, scope: &Isolate) -> std::string::String {
     // No preliminary `self.length()` FFI call: the `ValueView` reports the
     // length, and `data()` yields an empty slice for empty strings, which the
@@ -1146,7 +1143,6 @@ impl String {
         // code ran before the memcpy. Only taken when the worst-case 2x
         // expansion fits the borrow buffer (so the convert can't overflow) and
         // the string is long enough for the simdutf FFI call to pay off.
-        #[cfg(feature = "simdutf")]
         if bytes.len() >= ONEBYTE_SIMD_THRESHOLD
           && bytes.len().saturating_mul(2) <= N
         {
@@ -1336,9 +1332,8 @@ impl<'s> ValueView<'s> {
   /// - **One-byte Latin-1** (non-ASCII): transcodes to UTF-8, returns
   ///   `Cow::Owned`.
   /// - **Two-byte** (UTF-16/WTF-16): transcodes to UTF-8, returns
-  ///   `Cow::Owned`. When the `simdutf` feature is enabled, uses
-  ///   SIMD-accelerated conversion for valid UTF-16 strings above a
-  ///   threshold size.
+  ///   `Cow::Owned`, using SIMD-accelerated conversion for valid UTF-16
+  ///   strings above a threshold size.
   #[inline(always)]
   pub fn to_cow_lossy(&self) -> Cow<'_, str> {
     match self.data() {
@@ -1357,21 +1352,18 @@ impl<'s> ValueView<'s> {
 
 // ---------------------------------------------------------------------------
 // String conversion helpers.
-// When the `simdutf` feature is enabled, hot paths dispatch to
-// SIMD-accelerated routines in `crate::simdutf`.
+// Hot paths dispatch to SIMD-accelerated routines in `crate::simdutf`.
 // ---------------------------------------------------------------------------
 
 /// The minimum number of UTF-16 code units before we try the SIMD path.
 /// With the single-pass `convert_utf16le_to_utf8_with_errors` conversion the
 /// crossover against the scalar `decode_utf16` loop is low; measured wins start
 /// around 16 units.
-#[cfg(feature = "simdutf")]
 const WTF16_SIMD_THRESHOLD: usize = 16;
 
 /// Minimum one-byte string length before the simdutf `utf8_length_from_latin1`
 /// path beats std's inline `is_ascii` SWAR scan (the simdutf FFI call has fixed
 /// overhead that only pays off once the scan is long enough).
-#[cfg(feature = "simdutf")]
 const ONEBYTE_SIMD_THRESHOLD: usize = 128;
 
 /// Transcodes Latin-1 `bytes` into the caller-provided output region, returning
@@ -1385,7 +1377,6 @@ const ONEBYTE_SIMD_THRESHOLD: usize = 128;
 /// # Safety
 /// `out_ptr` must be valid for writes of `out_len` bytes, and `out_len` must be
 /// at least the UTF-8 length of `bytes` (which never exceeds `bytes.len() * 2`).
-#[cfg(feature = "simdutf")]
 #[inline(always)]
 unsafe fn transcode_latin1_to_utf8(
   bytes: &[u8],
@@ -1405,7 +1396,6 @@ unsafe fn transcode_latin1_to_utf8(
 /// by the one-byte read paths that only need the ASCII/Latin-1 decision.
 #[inline(always)]
 fn onebyte_is_ascii(bytes: &[u8]) -> bool {
-  #[cfg(feature = "simdutf")]
   if bytes.len() >= ONEBYTE_SIMD_THRESHOLD {
     // simdutf's `validate_ascii` scans the *whole* buffer even when the very
     // first byte is non-ASCII, whereas std's `is_ascii` short-circuits. Do a
@@ -1434,7 +1424,6 @@ fn onebyte_is_ascii(bytes: &[u8]) -> bool {
 /// `is_ascii` scan + separate length scan + transcode).
 #[inline(always)]
 fn onebyte_to_string(bytes: &[u8]) -> std::string::String {
-  #[cfg(feature = "simdutf")]
   {
     // For long strings, one `utf8_length_from_latin1` SIMD pass both detects
     // ASCII and sizes the Latin-1 transcode. For short strings the simdutf FFI
@@ -1497,28 +1486,14 @@ fn onebyte_to_string(bytes: &[u8]) -> std::string::String {
 #[inline(always)]
 fn latin1_to_string(bytes: &[u8]) -> std::string::String {
   debug_assert!(!bytes.is_ascii());
-  #[cfg(feature = "simdutf")]
-  {
-    let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
-    let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
-    // SAFETY: `buf` has capacity `utf8_len`, exactly what the transcode writes.
-    unsafe {
-      let written = transcode_latin1_to_utf8(bytes, buf.as_mut_ptr(), utf8_len);
-      debug_assert_eq!(written, utf8_len);
-      buf.set_len(written);
-      std::string::String::from_utf8_unchecked(buf)
-    }
-  }
-  #[cfg(not(feature = "simdutf"))]
-  {
-    let max_utf8_len = bytes.len() * 2;
-    let mut buf: Vec<u8> = Vec::with_capacity(max_utf8_len);
-    unsafe {
-      let written =
-        latin1_to_utf8(bytes.len(), bytes.as_ptr(), buf.as_mut_ptr());
-      buf.set_len(written);
-      std::string::String::from_utf8_unchecked(buf)
-    }
+  let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
+  let mut buf: Vec<u8> = Vec::with_capacity(utf8_len);
+  // SAFETY: `buf` has capacity `utf8_len`, exactly what the transcode writes.
+  unsafe {
+    let written = transcode_latin1_to_utf8(bytes, buf.as_mut_ptr(), utf8_len);
+    debug_assert_eq!(written, utf8_len);
+    buf.set_len(written);
+    std::string::String::from_utf8_unchecked(buf)
   }
 }
 
@@ -1526,7 +1501,6 @@ fn latin1_to_string(bytes: &[u8]) -> std::string::String {
 /// owned [`std::string::String`], replacing unpaired surrogates with U+FFFD.
 #[inline(always)]
 fn wtf16_to_string(units: &[u16]) -> std::string::String {
-  #[cfg(feature = "simdutf")]
   {
     // Single simdutf pass that validates *and* converts. Each UTF-16 code unit
     // yields at most 3 UTF-8 bytes (surrogate pairs are 2 units -> 4 bytes), so
@@ -1561,7 +1535,6 @@ fn wtf16_to_string(units: &[u16]) -> std::string::String {
 /// Appends WTF-16 code units as UTF-8 into an existing string buffer.
 #[inline(always)]
 fn wtf16_into_string(units: &[u16], buf: &mut std::string::String) {
-  #[cfg(feature = "simdutf")]
   {
     if units.len() >= WTF16_SIMD_THRESHOLD {
       let cap = units.len() * 3;
@@ -1597,24 +1570,12 @@ fn latin1_to_cow_str<'a, const N: usize>(
   bytes: &[u8],
   buffer: &'a mut [MaybeUninit<u8>; N],
 ) -> Cow<'a, str> {
-  #[cfg(feature = "simdutf")]
   let utf8_len = crate::simdutf::utf8_length_from_latin1(bytes);
-  #[cfg(not(feature = "simdutf"))]
-  let utf8_len = bytes.len() * 2; // conservative upper bound
 
   if utf8_len <= N {
     // SAFETY: `buffer` is valid for `N >= utf8_len` writes (guarded above).
-    #[cfg(feature = "simdutf")]
     let written = unsafe {
       transcode_latin1_to_utf8(bytes, buffer.as_mut_ptr() as *mut u8, utf8_len)
-    };
-    #[cfg(not(feature = "simdutf"))]
-    let written = unsafe {
-      latin1_to_utf8(
-        bytes.len(),
-        bytes.as_ptr(),
-        buffer.as_mut_ptr() as *mut u8,
-      )
     };
 
     unsafe {
@@ -1634,7 +1595,6 @@ fn wtf16_to_cow_str<'a, const N: usize>(
   units: &[u16],
   buffer: &'a mut [MaybeUninit<u8>; N],
 ) -> Cow<'a, str> {
-  #[cfg(feature = "simdutf")]
   {
     if units.len() >= WTF16_SIMD_THRESHOLD {
       // Each unit is at most 3 UTF-8 bytes, so if `len * 3` fits the stack

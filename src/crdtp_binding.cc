@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "support.h"
+#include "v8-inspector-protocol.h"
 #include "v8/third_party/inspector_protocol/crdtp/cbor.h"
 #include "v8/third_party/inspector_protocol/crdtp/dispatch.h"
 #include "v8/third_party/inspector_protocol/crdtp/frontend_channel.h"
@@ -251,6 +252,13 @@ bool crdtp__json__ConvertCBORToJSON(const uint8_t* cbor_data, size_t cbor_len,
 
 std::vector<uint8_t>* crdtp__vec_u8__new() {
   return new std::vector<uint8_t>();
+}
+
+std::vector<uint8_t>* v8_inspector__RemoteObject__toBytes(
+    const v8_inspector::protocol::Runtime::API::RemoteObject* self) {
+  auto* bytes = crdtp__vec_u8__new();
+  self->AppendSerialized(bytes);
+  return bytes;
 }
 
 void crdtp__vec_u8__DELETE(std::vector<uint8_t>* self) { delete self; }

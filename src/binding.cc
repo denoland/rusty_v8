@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "cppgc/allocation.h"
 #include "cppgc/persistent.h"
@@ -18,6 +19,7 @@
 #include "v8-callbacks.h"
 #include "v8-cppgc.h"
 #include "v8-fast-api-calls.h"
+#include "v8-inspector-protocol.h"
 #include "v8-inspector.h"
 #include "v8-internal.h"
 #include "v8-platform.h"
@@ -1546,6 +1548,13 @@ void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
   return ptr_to_local(&self)->SetImmutableProto();
 }
 
+void v8__ObjectTemplate__SetCallAsFunctionHandler(
+    const v8::ObjectTemplate& self, v8::FunctionCallback callback,
+    const v8::Value* data_or_null) {
+  ptr_to_local(&self)->SetCallAsFunctionHandler(callback,
+                                                ptr_to_local(data_or_null));
+}
+
 const v8::Object* v8__Object__New(v8::Isolate* isolate) {
   return local_to_ptr(v8::Object::New(isolate));
 }
@@ -1859,6 +1868,31 @@ void v8__Object__GetRealNamedPropertyAttributes(
 const v8::Array* v8__Object__PreviewEntries(const v8::Object& self,
                                             bool* is_key_value) {
   return maybe_local_to_ptr(ptr_to_local(&self)->PreviewEntries(is_key_value));
+}
+
+bool v8__Object__IsCallable(const v8::Object& self) {
+  return ptr_to_local(&self)->IsCallable();
+}
+
+bool v8__Object__IsConstructor(const v8::Object& self) {
+  return ptr_to_local(&self)->IsConstructor();
+}
+
+const v8::Value* v8__Object__CallAsFunction(const v8::Object& self,
+                                            const v8::Context& context,
+                                            const v8::Value& recv, int argc,
+                                            const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->CallAsFunction(
+      ptr_to_local(&context), ptr_to_local(&recv), argc,
+      const_ptr_array_to_local_array(argv)));
+}
+
+const v8::Value* v8__Object__CallAsConstructor(const v8::Object& self,
+                                               const v8::Context& context,
+                                               int argc,
+                                               const v8::Value* const argv[]) {
+  return maybe_local_to_ptr(ptr_to_local(&self)->CallAsConstructor(
+      ptr_to_local(&context), argc, const_ptr_array_to_local_array(argv)));
 }
 
 const v8::Array* v8__Array__New(v8::Isolate* isolate, int length) {
@@ -3516,6 +3550,22 @@ void v8_inspector__V8InspectorSession__releaseObjectGroup(
   self->releaseObjectGroup(object_group);
 }
 
+v8_inspector::protocol::Runtime::API::RemoteObject*
+v8_inspector__V8InspectorSession__wrapObject(
+    v8_inspector::V8InspectorSession* self, const v8::Context* context,
+    const v8::Value* value, v8_inspector::StringView object_group,
+    bool generate_preview) {
+  return self
+      ->wrapObject(ptr_to_local(context), ptr_to_local(value), object_group,
+                   generate_preview)
+      .release();
+}
+
+void v8_inspector__RemoteObject__DELETE(
+    v8_inspector::protocol::Runtime::API::RemoteObject* self) {
+  delete self;
+}
+
 void v8_inspector__V8InspectorSession__schedulePauseOnNextStatement(
     v8_inspector::V8InspectorSession* self, v8_inspector::StringView reason,
     v8_inspector::StringView detail) {
@@ -4694,10 +4744,9 @@ RustObj* cppgc__WeakPersistent__Get(cppgc::WeakPersistent<RustObj>* self) {
 }  // extern "C"
 
 // =============================================================================
-// simdutf bindings (gated behind RUSTY_V8_ENABLE_SIMDUTF)
+// simdutf bindings
 // =============================================================================
 
-#ifdef RUSTY_V8_ENABLE_SIMDUTF
 #include "third_party/simdutf/simdutf.h"
 
 struct simdutf__result {
@@ -4939,5 +4988,3 @@ size_t simdutf__binary_to_base64(const char* input, size_t length, char* output,
 }
 
 }  // extern "C"
-
-#endif  // RUSTY_V8_ENABLE_SIMDUTF
