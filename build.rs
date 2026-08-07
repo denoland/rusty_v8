@@ -180,14 +180,12 @@ fn build_binding() {
     );
   }
 
-  let output = Command::new(
-    python().expect("Python must be available to build rusty_v8!"),
-  )
-  .arg("./tools/get_bindgen_args.py")
-  .arg("--gn-out")
-  .arg(build_dir().join("gn_out"))
-  .output()
-  .unwrap();
+  let output = Command::new(python_or_die())
+    .arg("./tools/get_bindgen_args.py")
+    .arg("--gn-out")
+    .arg(build_dir().join("gn_out"))
+    .output()
+    .unwrap();
   let args = String::from_utf8(output.stdout).unwrap();
   let args = args.split('\0').collect::<Vec<_>>();
 
@@ -632,12 +630,7 @@ fn build_v8(is_asan: bool) {
 fn print_gn_args(gn_out_dir: &Path) {
   assert!(
     Command::new(gn())
-      .arg(format!(
-        "--script-executable={}",
-        python()
-          .expect("Python must be available to build rusty_v8!")
-          .display()
-      ))
+      .arg(format!("--script-executable={}", python_or_die().display()))
       .arg("args")
       .arg(gn_out_dir)
       .arg("--list")
@@ -666,14 +659,12 @@ fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{arch}-sysroot");
   if !PathBuf::from(sysroot_path).is_dir() {
     assert!(
-      Command::new(
-        python().expect("Python must be available to build rusty_v8!")
-      )
-      .arg("./build/linux/sysroot_scripts/install-sysroot.py")
-      .arg(format!("--arch={arch}"))
-      .status()
-      .unwrap()
-      .success()
+      Command::new(python_or_die())
+        .arg("./build/linux/sysroot_scripts/install-sysroot.py")
+        .arg(format!("--arch={arch}"))
+        .status()
+        .unwrap()
+        .success()
     );
   }
 }
@@ -690,15 +681,13 @@ fn download_ninja_gn_binaries() {
 
   if !gn.exists() || !ninja.exists() {
     assert!(
-      Command::new(
-        python().expect("Python must be available to build rusty_v8!")
-      )
-      .arg("./tools/ninja_gn_binaries.py")
-      .arg("--dir")
-      .arg(&target_dir)
-      .status()
-      .unwrap()
-      .success()
+      Command::new(python_or_die())
+        .arg("./tools/ninja_gn_binaries.py")
+        .arg("--dir")
+        .arg(&target_dir)
+        .status()
+        .unwrap()
+        .success()
     );
   }
   assert!(gn.exists());
@@ -715,13 +704,11 @@ fn download_ninja_gn_binaries() {
 
 fn download_rust_toolchain() {
   assert!(
-    Command::new(
-      python().expect("Python must be available to build rusty_v8!")
-    )
-    .arg("./tools/rust_toolchain.py")
-    .status()
-    .unwrap()
-    .success()
+    Command::new(python_or_die())
+      .arg("./tools/rust_toolchain.py")
+      .status()
+      .unwrap()
+      .success()
   );
 }
 
@@ -1157,15 +1144,13 @@ fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path (downloaded) {}", clang_base_path.display());
   assert!(
-    Command::new(
-      python().expect("Python must be available to build rusty_v8!")
-    )
-    .arg("./tools/clang/scripts/update.py")
-    .arg("--output-dir")
-    .arg(&clang_base_path)
-    .status()
-    .unwrap()
-    .success()
+    Command::new(python_or_die())
+      .arg("./tools/clang/scripts/update.py")
+      .arg("--output-dir")
+      .arg(&clang_base_path)
+      .status()
+      .unwrap()
+      .success()
   );
 
   // Chromium ships libclang separately from the compiler on Windows. Use the
@@ -1335,6 +1320,11 @@ fn python() -> io::Result<PathBuf> {
   })
 }
 
+/// Helper function to get the systems python binary or panic if none could be found.
+fn python_or_die() -> PathBuf {
+  python().expect("Python must be available to build rusty_v8 from source!")
+}
+
 type NinjaEnv = Vec<(String, String)>;
 
 fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
@@ -1376,12 +1366,7 @@ fn run_gn_gen(gn_args: &[String]) -> PathBuf {
   assert!(
     Command::new(gn())
       .arg(format!("--root={}", dirs.root.display()))
-      .arg(format!(
-        "--script-executable={}",
-        python()
-          .expect("Python must be available to build rusty_v8!")
-          .display()
-      ))
+      .arg(format!("--script-executable={}", python_or_die().display()))
       .arg("gen")
       .arg(&gn_out_dir)
       .arg("--ide=json")
