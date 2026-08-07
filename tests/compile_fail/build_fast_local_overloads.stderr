@@ -1,0 +1,12 @@
+error[E0597]: `overloads` does not live long enough
+  --> tests/compile_fail/build_fast_local_overloads.rs:22:68
+   |
+21 |   let overloads: Vec<v8::fast_api::CFunction> = Vec::new();
+   |       --------- binding `overloads` declared here
+22 |   let _ = v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &overloads);
+   |           ---------------------------------------------------------^^^^^^^^^^-
+   |           |                                                        |
+   |           |                                                        borrowed value does not live long enough
+   |           argument requires that `overloads` is borrowed for `'static`
+23 | }
+   | - `overloads` dropped here while still borrowed

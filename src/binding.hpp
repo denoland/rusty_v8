@@ -24,6 +24,12 @@ static size_t v8__String__ValueView_SIZE = sizeof(v8::String::ValueView);
 
 static int v8__String__kMaxLength = v8::String::kMaxLength;
 
+static int v8__String__WriteFlags__kNullTerminate =
+    v8::String::WriteFlags::kNullTerminate;
+
+static int v8__String__WriteFlags__kReplaceInvalidUtf8 =
+    v8::String::WriteFlags::kReplaceInvalidUtf8;
+
 static size_t v8__TypedArray__kMaxByteLength = v8::TypedArray::kMaxByteLength;
 
 static size_t v8__TYPED_ARRAY_MAX_SIZE_IN_HEAP =
@@ -42,8 +48,10 @@ using v8__String__WriteFlags = v8::String::WriteFlags;
 using v8__ModuleImportPhase = v8::ModuleImportPhase;
 using v8__HeapStatistics = v8::HeapStatistics;
 using v8__HeapSpaceStatistics = v8::HeapSpaceStatistics;
+using v8__HeapCodeStatistics = v8::HeapCodeStatistics;
 using v8__GCType = v8::GCType;
 using v8__GCCallbackFlags = v8::GCCallbackFlags;
+using v8__Intercepted = v8::Intercepted;
 
 static uint32_t v8__MAJOR_VERSION = V8_MAJOR_VERSION;
 static uint32_t v8__MINOR_VERSION = V8_MINOR_VERSION;

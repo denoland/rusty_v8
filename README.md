@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 14.2.231.17
+V8 Version: 15.2.124.1
 
 [![ci](https://github.com/denoland/rusty_v8/workflows/ci/badge.svg?branch=main)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
@@ -48,9 +48,10 @@ V8 is very large and takes a long time to compile. Many users will prefer to use
 a prebuilt version of V8. We publish static libs for every version of rusty v8
 on [Github](https://github.com/denoland/rusty_v8/releases).
 
-Binaries builds are turned on by default: `cargo build` will initiate a download
-from github to get the static lib. To disable this build using the
-`V8_FROM_SOURCE` environmental variable.
+Binary builds are the default: `cargo build` will initiate a download from
+github to get the static lib. To build V8 from source instead, set the
+`V8_FROM_SOURCE` environment variable to `1` (`true` and `yes` also work). Any
+other value, or leaving it unset, uses the prebuilt lib.
 
 When making changes to rusty_v8 itself, it should be tested by build from
 source. The CI always builds from source.
@@ -120,15 +121,25 @@ For linux builds: glib-2.0 development files need to be installed such that
 pkg-config can find them. On Ubuntu, run `sudo apt install libglib2.0-dev` to
 install them.
 
-Additionally, building from source requires libclang 19+ for bindgen:
+Additionally, building from source requires libclang 21.1+ for bindgen:
 
 ```bash
-sudo apt install libclang-19-dev
-export LIBCLANG_PATH=/usr/lib/llvm-19/lib
+sudo apt install libclang-21-dev
+export LIBCLANG_PATH=/usr/lib/llvm-21/lib
 ```
 
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
-not supported.
+not supported. The default source build downloads Chromium's pinned libclang
+automatically. If `$CLANG_BASE_PATH` is set to a custom LLVM installation,
+`$LIBCLANG_PATH` must point to the directory containing `libclang.dll`.
+The `tools/win` submodule is skipped because its standalone mirror is
+unreliable, so source builds must populate its pinned debugger visualizers:
+
+```bash
+mkdir -p tools/win
+curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0.tar.gz |
+  tar -xz -C tools/win
+```
 
 For Mac builds: You'll need Xcode and Xcode CLT installed. Recent macOS versions
 will also require you to pass PYTHON=python3 because macOS no longer ships with
@@ -145,6 +156,18 @@ docker build --build-arg CROSS_BASE_IMAGE=ghcr.io/cross-rs/aarch64-linux-android
 V8_FROM_SOURCE=1 cross build -vv --target aarch64-linux-android
 ```
 
+For iOS builds: cross compile from an arm64 macOS host. The simulator target
+keeps the JIT; the device target (`aarch64-apple-ios`) is built jitless, since
+iOS denies the JIT entitlement to non-WebKit apps (WebAssembly is also disabled
+in this configuration). `build.rs` selects these settings automatically per
+target — no extra GN args required:
+
+```bash
+rustup target add aarch64-apple-ios-sim  # simulator
+rustup target add aarch64-apple-ios      # device (jitless)
+V8_FROM_SOURCE=1 cargo build -vv --target aarch64-apple-ios-sim
+```
+
 The build depends on several binary tools: `gn`, `ninja` and `clang`. The tools
 will automatically be downloaded, if they are not detected in the environment.
 
@@ -156,6 +179,18 @@ is recommended.
 
 Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental
 variable.
+
+For Linux targets, `rusty_v8` now defaults to defining
+`V8_TLS_USED_IN_LIBRARY` via GN args when building from source so the produced
+static archive can be linked into downstream `cdylib`/shared-library targets.
+The default injected argument is:
+
+```bash
+GN_ARGS='extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]'
+```
+
+Linux prebuilt release archives published by this repository are built with
+this shared-library-compatible TLS mode.
 
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`

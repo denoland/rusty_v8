@@ -4,17 +4,24 @@ use crate::Function;
 use crate::Isolate;
 use crate::Local;
 use crate::MicrotasksPolicy;
-use crate::UniqueRef;
 use crate::isolate::RealIsolate;
 use crate::support::Opaque;
 use crate::support::int;
+use std::ops::Deref;
+use std::ptr::NonNull;
+
+#[repr(C)]
+struct MicrotaskQueueHandleRaw(Opaque);
 
 unsafe extern "C" {
-  fn v8__MicrotaskQueue__New(
+  fn v8__MicrotaskQueueHandle__New(
     isolate: *mut RealIsolate,
     policy: MicrotasksPolicy,
+  ) -> *mut MicrotaskQueueHandleRaw;
+  fn v8__MicrotaskQueueHandle__DELETE(handle: *mut MicrotaskQueueHandleRaw);
+  fn v8__MicrotaskQueueHandle__Get(
+    handle: *const MicrotaskQueueHandleRaw,
   ) -> *mut MicrotaskQueue;
-  fn v8__MicrotaskQueue__DESTRUCT(queue: *mut MicrotaskQueue);
   fn v8__MicrotaskQueue__PerformCheckpoint(
     isolate: *mut RealIsolate,
     queue: *const MicrotaskQueue,
@@ -39,8 +46,6 @@ unsafe extern "C" {
 ///
 /// A MicrotaskQueue instance may be associated to multiple Contexts by passing
 /// it to Context::New(), and they can be detached by Context::DetachGlobal().
-/// The embedder must keep the MicrotaskQueue instance alive until all associated
-/// Contexts are gone or detached.
 ///
 /// Use the same instance of MicrotaskQueue for all Contexts that may access each
 /// other synchronously. E.g. for Web embedding, use the same instance for all
@@ -50,16 +55,14 @@ unsafe extern "C" {
 pub struct MicrotaskQueue(Opaque);
 
 impl MicrotaskQueue {
+  #[allow(clippy::new_ret_no_self)]
   pub fn new(
     isolate: &mut Isolate,
     policy: MicrotasksPolicy,
-  ) -> UniqueRef<Self> {
-    unsafe {
-      UniqueRef::from_raw(v8__MicrotaskQueue__New(
-        isolate.as_real_ptr(),
-        policy,
-      ))
-    }
+  ) -> MicrotaskQueueHandle {
+    let handle =
+      unsafe { v8__MicrotaskQueueHandle__New(isolate.as_real_ptr(), policy) };
+    MicrotaskQueueHandle(NonNull::new(handle).unwrap())
   }
 
   pub fn enqueue_microtask(
@@ -103,8 +106,34 @@ impl MicrotaskQueue {
   }
 }
 
-impl Drop for MicrotaskQueue {
+/// A rooted handle to a [`MicrotaskQueue`].
+///
+/// This handle must be dropped before its isolate is disposed because dropping
+/// it releases a root through the isolate's heap.
+///
+/// With the default `v8_cppgc_microtask_queue` GN setting, contexts associated
+/// with the queue keep it alive after this handle is dropped. If that setting
+/// is disabled through `EXTRA_GN_ARGS`, this handle owns the queue and must
+/// outlive every associated context.
+#[derive(Debug)]
+pub struct MicrotaskQueueHandle(NonNull<MicrotaskQueueHandleRaw>);
+
+impl Deref for MicrotaskQueueHandle {
+  type Target = MicrotaskQueue;
+
+  fn deref(&self) -> &Self::Target {
+    unsafe { &*v8__MicrotaskQueueHandle__Get(self.0.as_ptr()) }
+  }
+}
+
+impl AsRef<MicrotaskQueue> for MicrotaskQueueHandle {
+  fn as_ref(&self) -> &MicrotaskQueue {
+    self
+  }
+}
+
+impl Drop for MicrotaskQueueHandle {
   fn drop(&mut self) {
-    unsafe { v8__MicrotaskQueue__DESTRUCT(self) }
+    unsafe { v8__MicrotaskQueueHandle__DELETE(self.0.as_ptr()) }
   }
 }

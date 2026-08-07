@@ -18,6 +18,33 @@ use std::process::Command;
 use std::process::Stdio;
 use which::which;
 
+fn clang_resource_dir(clang_bin: &Path) -> Result<String, String> {
+  let output = Command::new(clang_bin)
+    .arg("-print-resource-dir")
+    .output()
+    .map_err(|error| {
+      format!("could not run {}: {error}", clang_bin.display())
+    })?;
+  if !output.status.success() {
+    return Err(format!(
+      "{} exited with {}",
+      clang_bin.display(),
+      output.status
+    ));
+  }
+  let resource_dir = String::from_utf8(output.stdout).map_err(|error| {
+    format!("{} returned non-UTF-8 output: {error}", clang_bin.display())
+  })?;
+  let resource_dir = resource_dir.trim();
+  if resource_dir.is_empty() {
+    return Err(format!(
+      "{} returned an empty resource directory",
+      clang_bin.display()
+    ));
+  }
+  Ok(resource_dir.to_string())
+}
+
 fn main() {
   println!("cargo:rerun-if-changed=.gn");
   println!("cargo:rerun-if-changed=BUILD.gn");
@@ -36,6 +63,7 @@ fn main() {
     "GN",
     "GN_ARGS",
     "HOST",
+    "LIBCLANG_PATH",
     "NINJA",
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
@@ -141,12 +169,15 @@ fn acquire_lock() -> LockFile {
 }
 
 fn build_binding() {
-  // Bindgen needs Clang 19+ for V8's libc++ builtin type traits.
+  // Bindgen needs Clang 21.1+ for V8's libc++ builtin type traits.
   if env::var("LIBCLANG_PATH").is_err() {
-    eprintln!("Warning: LIBCLANG_PATH not set. Bindgen requires Clang 19+.");
-    eprintln!("Set LIBCLANG_PATH to your Clang 19 installation:");
-    eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-19/lib");
+    eprintln!("Warning: LIBCLANG_PATH not set. Bindgen requires Clang 21.1+.");
+    eprintln!("Set LIBCLANG_PATH to your Clang 21 installation:");
+    eprintln!("  Linux:  export LIBCLANG_PATH=/usr/lib/llvm-21/lib");
     eprintln!("  macOS:  export LIBCLANG_PATH=$(brew --prefix llvm)/lib");
+    eprintln!(
+      "  Windows: set LIBCLANG_PATH to the directory containing libclang.dll"
+    );
   }
 
   let output = Command::new(python())
@@ -174,7 +205,8 @@ fn build_binding() {
     .copied()
     .collect();
 
-  // Use V8's custom libc++ headers (requires Clang 19+ libclang via LIBCLANG_PATH)
+  // Use V8's custom libc++ headers (requires Clang 21.1+ libclang via
+  // LIBCLANG_PATH)
   // IMPORTANT: libc++ headers must come before clang builtins
   let mut clang_args = vec![
     "-x".to_string(),
@@ -212,6 +244,63 @@ fn build_binding() {
         clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
       }
     }
+    // Parse the V8 headers against the musl sysroot. bindgen already targets
+    // the musl triple (from $TARGET), so without this it looks for the target
+    // arch's glibc multiarch headers, which aren't installed when cross-
+    // compiling (e.g. aarch64 glibc headers on an x86_64 runner).
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    if target_env == "musl"
+      && let Ok(sysroot) = env::var("RUSTY_V8_MUSL_SYSROOT")
+    {
+      clang_args.push(format!("--sysroot={sysroot}"));
+    }
+  } else if target_os == "windows" {
+    // libclang otherwise discovers the runner's system Clang resource
+    // directory, which may not match the pinned Chromium libclang.
+    if let Ok(libclang_path) = env::var("LIBCLANG_PATH") {
+      let libclang_path = PathBuf::from(libclang_path);
+      if let Some(clang_dir) = libclang_path.parent() {
+        let clang_bin = clang_dir.join("bin/clang-cl.exe");
+        match clang_resource_dir(&clang_bin) {
+          Ok(resource_dir) => {
+            println!("clang_resource_dir (from LIBCLANG_PATH) {resource_dir}");
+            clang_args.push(format!("-resource-dir={resource_dir}"));
+          }
+          Err(error) => println!(
+            "cargo:warning=Skipping Clang resource directory override: {error}"
+          ),
+        }
+      } else {
+        println!(
+          "cargo:warning=Skipping Clang resource directory override: \
+           LIBCLANG_PATH has no parent directory"
+        );
+      }
+    }
+  } else if target_os == "ios" {
+    // iOS: point bindgen at the iOS (device) or iOS-simulator SDK and set the
+    // matching clang target triple so the V8 headers parse correctly.
+    let target_triple = env::var("TARGET").unwrap();
+    let is_sim = target_triple.ends_with("-sim")
+      || target_triple.starts_with("x86_64-apple-ios");
+    let sdk = if is_sim {
+      "iphonesimulator"
+    } else {
+      "iphoneos"
+    };
+    let output = Command::new("xcrun")
+      .args(["--sdk", sdk, "--show-sdk-path"])
+      .output()
+      .unwrap();
+    let sdk_path = String::from_utf8(output.stdout).unwrap();
+    clang_args.push("-isysroot".to_string());
+    clang_args.push(sdk_path.trim().to_string());
+    let clang_target = if is_sim {
+      "arm64-apple-ios-simulator"
+    } else {
+      "arm64-apple-ios"
+    };
+    clang_args.push(format!("--target={clang_target}"));
   }
 
   let bindings = bindgen::Builder::default()
@@ -222,13 +311,17 @@ fn build_binding() {
     .generate_cstr(true)
     .rustified_enum(".*UseCounterFeature")
     .rustified_enum(".*ModuleImportPhase")
+    .rustified_enum(".*Intercepted")
     .bitfield_enum(".*GCType")
     .bitfield_enum(".*GCCallbackFlags")
     .allowlist_item("v8__.*")
     .allowlist_item("cppgc__.*")
     .allowlist_item("RustObj")
     .allowlist_item("memory_span_t")
+    .allowlist_item("const_memory_span_t")
     .allowlist_item("ExternalConstOneByteStringResource")
+    .blocklist_item("cppgc.*Visitor")
+    .blocklist_item("RustObj.*Trace")
     .generate()
     .expect("Unable to generate bindings");
 
@@ -309,6 +402,11 @@ fn build_v8(is_asan: bool) {
     env::var("CARGO_FEATURE_V8_ENABLE_V8_CHECKS").is_ok()
   ));
 
+  gn_args.push(format!(
+    "rusty_v8_enable_simdutf={}",
+    env::var("CARGO_FEATURE_SIMDUTF").is_ok()
+  ));
+
   // Fix GN's host_cpu detection when using x86_64 bins on Apple Silicon
   if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
     gn_args.push("host_cpu=\"arm64\"".to_string());
@@ -344,17 +442,34 @@ fn build_v8(is_asan: bool) {
     println!("cargo:warning=Not using sccache or ccache");
   }
 
-  if let Ok(args) = env::var("GN_ARGS") {
-    for arg in args.split_whitespace() {
-      gn_args.push(arg.to_string());
-    }
+  // Forward caller-provided GN args verbatim.
+  let gn_args_env = env::var("GN_ARGS").unwrap_or_default();
+  if !gn_args_env.trim().is_empty() {
+    gn_args.push(gn_args_env.clone());
+  }
+
+  // rusty_v8 ships a single static archive that downstream crates may link
+  // into a shared library (cdylib). On Linux, V8's default "local-exec" TLS
+  // model emits R_X86_64_TPOFF32 relocations against thread-locals such as
+  // `g_current_isolate_`, which lld refuses to place in a `-shared` object,
+  // so any cdylib that links the archive fails to link. Enabling this V8 GN
+  // arg routes the `V8_TLS_USED_IN_LIBRARY` define into both `internal_config`
+  // and the `features` config, switching V8 to the shared-library-safe TLS
+  // path (local-dynamic model + out-of-line accessor) uniformly across V8's
+  // own sources and rusty_v8's bindings.
+  if target_os == "linux"
+    && !gn_args_env.contains("v8_monolithic_for_shared_library")
+  {
+    gn_args.push("v8_monolithic_for_shared_library=true".to_string());
   }
   // cross-compilation setup
   if target_arch == "aarch64" {
     gn_args.push(r#"target_cpu="arm64""#.to_string());
-    gn_args.push("use_sysroot=true".to_string());
-    maybe_install_sysroot("arm64");
-    maybe_install_sysroot("amd64");
+    if target_os == "linux" {
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("arm64");
+      maybe_install_sysroot("amd64");
+    }
   }
   if target_arch == "arm" {
     gn_args.push(r#"target_cpu="arm""#.to_string());
@@ -362,6 +477,69 @@ fn build_v8(is_asan: bool) {
     gn_args.push("use_sysroot=true".to_string());
     maybe_install_sysroot("i386");
     maybe_install_sysroot("arm");
+  }
+  if target_arch == "riscv64" {
+    gn_args.push(r#"target_cpu="riscv64""#.to_string());
+    // Cross compiling needs to set v8_target_cpu
+    gn_args.push(r#"v8_target_cpu="riscv64""#.to_string());
+    if target_os == "linux" {
+      gn_args.push("use_sysroot=true".to_string());
+      maybe_install_sysroot("riscv64");
+      maybe_install_sysroot("amd64");
+    }
+  }
+
+  // musl libc. V8's build targets glibc by default; the vendored build config
+  // grows a target-scoped `use_musl` arg (see //build/config/rust.gni,
+  // sysroot.gni, c++/BUILD.gn, toolchain/*). The final librusty_v8.a is a
+  // static archive of musl-compiled objects (never linked here), so the target
+  // toolchain needs only musl headers -- the executable build tools (torque,
+  // mksnapshot, code generators) are built with a separate glibc toolchain so
+  // they link and run on the (glibc) build host.
+  let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+  if target_env == "musl" && target_os == "linux" {
+    gn_args.push("use_musl=true".to_string());
+    // V8-as-a-library has no glib dependency; skip it so a musl target_sysroot
+    // doesn't send pkg-config looking for glib inside the sysroot.
+    gn_args.push("use_glib=false".to_string());
+    // Build libstd + V8's internal Rust crates from source for the musl triple;
+    // V8's vendored Rust toolchain only ships a glibc host std.
+    gn_args.push("rust_prebuilt_stdlib=false".to_string());
+    // Some V8 sources have glibc-only code paths (e.g. execinfo-based
+    // backtraces in stack_trace_posix.cc) whose helpers are unused on musl,
+    // tripping -Werror,-Wunused-const-variable. Like the iOS/Android cross
+    // builds, don't treat warnings as errors here.
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+
+    match target_arch.as_str() {
+      "x86_64" => {
+        // Host cpu == target cpu, so V8 would build the executable build tools
+        // with the (musl) default toolchain. Force the host and snapshot
+        // toolchains to a dedicated glibc toolchain so those tools stay glibc.
+        let glibc = "//build/toolchain/linux:clang_x64_glibc";
+        gn_args.push(format!("host_toolchain=\"{glibc}\""));
+        gn_args.push(format!("v8_snapshot_toolchain=\"{glibc}\""));
+        // That glibc toolchain builds against the amd64 sysroot, same as the
+        // host side of the aarch64/riscv64 cross builds.
+        maybe_install_sysroot("amd64");
+      }
+      "aarch64" => {
+        // Cross build (x64 host -> arm64 target). The host (clang_x64) and
+        // snapshot (clang_x64_v8_arm64) toolchains are already non-default, so
+        // the target-scoped `use_musl` guard keeps them glibc automatically --
+        // no toolchain overrides needed. target_cpu and the amd64/arm64
+        // sysroots are set by the aarch64 cross-compilation block above.
+      }
+      other => panic!(
+        "musl builds are only supported for x86_64 and aarch64 (got {other})"
+      ),
+    }
+
+    // Cross-compiling on a glibc host needs a musl sysroot for the target's
+    // headers/libs. Native musl builds (e.g. on Alpine) can leave this unset.
+    if let Ok(sysroot) = env::var("RUSTY_V8_MUSL_SYSROOT") {
+      gn_args.push(format!("target_sysroot=\"{sysroot}\""));
+    }
   }
 
   let target_triple = env::var("TARGET").unwrap();
@@ -415,6 +593,34 @@ fn build_v8(is_asan: bool) {
       "./third_party/catapult",
       &format!("{CHROMIUM_URI}/catapult.git"),
     );
+  }
+
+  // iOS / iOS-simulator. iOS denies the JIT entitlement to non-WebKit apps, so
+  // a device build must be jitless -- which in turn requires V8's optimizing
+  // tiers (Sparkplug/Maglev/Turbofan) and WebAssembly to be disabled. The
+  // simulator runs on the host and could keep the JIT, but WebAssembly is
+  // disabled there too because Torque can't generate the Wasm builtins in this
+  // configuration. `target_cpu="arm64"` is already set above for aarch64.
+  // Pass an explicit `target_os="ios"` in GN_ARGS to fully override this.
+  if target_os == "ios" && !gn_args_env.contains(r#"target_os="ios""#) {
+    let is_sim = target_triple.ends_with("-sim")
+      || target_triple.starts_with("x86_64-apple-ios");
+    gn_args.push(r#"target_os="ios""#.to_string());
+    gn_args.push(format!(
+      r#"target_environment="{}""#,
+      if is_sim { "simulator" } else { "device" }
+    ));
+    gn_args.push(r#"ios_deployment_target="14.0""#.to_string());
+    gn_args.push("ios_enable_code_signing=false".to_string());
+    gn_args.push("treat_warnings_as_errors=false".to_string());
+    gn_args.push("v8_enable_webassembly=false".to_string());
+    if !is_sim {
+      // Device: no JIT permitted -> jitless build, all tiers off.
+      gn_args.push("v8_jitless=true".to_string());
+      gn_args.push("v8_enable_sparkplug=false".to_string());
+      gn_args.push("v8_enable_maglev=false".to_string());
+      gn_args.push("v8_enable_turbofan=false".to_string());
+    }
   }
 
   if target_triple.starts_with("i686-") {
@@ -534,6 +740,9 @@ fn prebuilt_features_suffix() -> String {
   if env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_ok() {
     features.push_str("_sandbox");
   }
+  if env::var("CARGO_FEATURE_SIMDUTF").is_ok() {
+    features.push_str("_simdutf");
+  }
   features
 }
 
@@ -634,37 +843,74 @@ fn download_file(url: &str, filename: &Path) {
     fs::remove_file(&tmpfile).unwrap();
   }
 
-  // Try downloading with python first. Python is a V8 build dependency,
-  // so this saves us from adding a Rust HTTP client dependency.
-  println!("Downloading (using Python) {url}");
-  let status = Command::new(python())
-    .arg("./tools/download_file.py")
-    .arg("--url")
-    .arg(url)
-    .arg("--filename")
-    .arg(&tmpfile)
-    .status();
+  // Try downloading with deno first, then python, then curl.
+  println!("Downloading {url}");
+  let status = which("deno").ok().and_then(|deno| {
+    println!("Trying with Deno...");
+    Command::new(deno)
+      .arg("eval")
+      .arg(
+        "const [url, path] = Deno.args; \
+         const resp = await fetch(url); \
+         if (!resp.ok) Deno.exit(1); \
+         const file = await Deno.open(path, { write: true, create: true }); \
+         await resp.body.pipeTo(file.writable);",
+      )
+      // Note: `deno eval` runs with all permissions implicitly granted and does
+      // not accept `--allow-*` flags, so passing them here makes `deno eval`
+      // error out ("unexpected argument '--allow-net'") and the download
+      // silently falls back to Python/curl.
+      .arg("--")
+      .arg(url)
+      .arg(&tmpfile)
+      .status()
+      .ok()
+      .filter(|s| s.success())
+  });
 
-  // Python is only a required dependency for `V8_FROM_SOURCE` builds.
-  // If python is not available, try falling back to curl.
+  // Try downloading with python. Python is a V8 build dependency,
+  // so this saves us from adding a Rust HTTP client dependency.
   let status = match status {
-    Ok(status) if status.success() => status,
+    Some(status) => status,
     _ => {
-      println!("Python downloader failed, trying with curl.");
-      Command::new("curl")
-        .arg("-L")
-        .arg("-f")
-        .arg("-s")
-        .arg("-o")
-        .arg(&tmpfile)
+      println!("Trying with Python...");
+      let python_status = Command::new(python())
+        .arg("./tools/download_file.py")
+        .arg("--url")
         .arg(url)
-        .status()
-        .unwrap()
+        .arg("--filename")
+        .arg(&tmpfile)
+        .status();
+
+      // Python is only a required dependency for `V8_FROM_SOURCE` builds.
+      // If python is not available, try falling back to curl.
+      match python_status {
+        Ok(status) if status.success() => status,
+        _ => {
+          println!("Python downloader failed, trying with curl.");
+          Command::new("curl")
+            .arg("-L")
+            .arg("-f")
+            .arg("-s")
+            .arg("-o")
+            .arg(&tmpfile)
+            .arg(url)
+            .status()
+            .unwrap()
+        }
+      }
     }
   };
 
   // Assert DL was successful
-  assert!(status.success());
+  if !status.success() {
+    panic!(
+      "Failed to download V8 prebuilt archive from {url}\n\
+     This is usually because no prebuilt archive is published for your target, \
+     in which case you should compile V8 from source by setting V8_FROM_SOURCE=1. \
+     It can also indicate a network connectivity problem."
+    );
+  }
   assert!(tmpfile.exists());
 
   // Write checksum (i.e url) & move file
@@ -802,7 +1048,10 @@ fn print_link_flags() {
   if target_env == "msvc" {
     // On Windows, including libcpmt[d]/msvcprt[d] explicitly links the C++
     // standard library, which libc++ needs for exception_ptr internals.
-    if env::var("CARGO_FEATURE_CRT_STATIC").is_ok() {
+    let crt_static = env::var("CARGO_CFG_TARGET_FEATURE")
+      .unwrap_or_default()
+      .contains("crt-static");
+    if crt_static {
       println!("cargo:rustc-link-lib=libcpmt");
     } else {
       println!("cargo:rustc-link-lib=dylib=msvcprt");
@@ -895,6 +1144,31 @@ fn clang_download() -> PathBuf {
       .unwrap()
       .success()
   );
+
+  // Chromium ships libclang separately from the compiler on Windows. Use the
+  // matching pinned package for bindgen instead of whichever libclang happens
+  // to be installed on the host.
+  #[cfg(target_os = "windows")]
+  if env::var_os("LIBCLANG_PATH").is_none() {
+    assert!(
+      Command::new(python())
+        .arg("./tools/clang/scripts/update.py")
+        .arg("--output-dir")
+        .arg(&clang_base_path)
+        .arg("--package")
+        .arg("libclang")
+        .status()
+        .unwrap()
+        .success()
+    );
+    let libclang_path = clang_base_path.join("bin");
+    assert!(libclang_path.join("libclang.dll").exists());
+    println!("libclang_path (downloaded) {}", libclang_path.display());
+    unsafe {
+      env::set_var("LIBCLANG_PATH", libclang_path);
+    }
+  }
+
   assert!(clang_base_path.exists());
   clang_base_path
 }
@@ -1226,5 +1500,12 @@ edge [fontsize=10]
     assert!(files.contains("../../../example/src/input.txt"));
     assert!(files.contains("../../../example/src/count_bytes.py"));
     assert!(!files.contains("obj/hello/hello.o"));
+  }
+
+  #[test]
+  fn test_clang_resource_dir_missing_executable() {
+    let clang_bin = env::temp_dir()
+      .join(format!("rusty_v8_missing_clang_{}", std::process::id()));
+    assert!(clang_resource_dir(&clang_bin).is_err());
   }
 }

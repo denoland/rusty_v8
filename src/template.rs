@@ -24,6 +24,7 @@ use crate::SideEffectType;
 use crate::Signature;
 use crate::String;
 use crate::Value;
+pub use crate::binding::v8__Intercepted as Intercepted;
 use crate::data::Data;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
@@ -79,6 +80,13 @@ unsafe extern "C" {
   fn v8__FunctionTemplate__SetClassName(
     this: *const FunctionTemplate,
     name: *const String,
+  );
+  fn v8__FunctionTemplate__SetAccessorProperty(
+    this: *const FunctionTemplate,
+    key: *const Name,
+    getter: *const FunctionTemplate,
+    setter: *const FunctionTemplate,
+    attr: PropertyAttribute,
   );
   fn v8__FunctionTemplate__Inherit(
     this: *const FunctionTemplate,
@@ -141,6 +149,7 @@ unsafe extern "C" {
     definer: Option<IndexedPropertyDefinerCallback>,
     descriptor: Option<IndexedPropertyDescriptorCallback>,
     data_or_null: *const Value,
+    flags: PropertyHandlerFlags,
   );
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
@@ -150,14 +159,6 @@ unsafe extern "C" {
     callback: FunctionCallback,
     data_or_null: *const Value,
   );
-}
-
-/// Interceptor callbacks use this value to indicate whether the request was
-/// intercepted or not.
-#[repr(u8)]
-pub enum Intercepted {
-  No,
-  Yes,
 }
 
 pub type AccessorNameGetterCallback = NamedGetterCallbackForAccessor;
@@ -701,10 +702,31 @@ impl<'s> FunctionBuilder<'s, FunctionTemplate> {
   /// useful to pass them explicitly - eg. when you are snapshotting you'd provide
   /// the overloads and `CFunctionInfo` that would be placed in the external
   /// references array.
+  ///
+  /// # Lifetime invariant
+  ///
+  /// `overloads` is `&'static [CFunction]` because, since
+  /// [crrev.com/c/7828135], V8 stores the raw `v8::CFunction` pointers it
+  /// receives via `NewWithCFunctionOverloads` directly inside
+  /// `FunctionTemplateInfo` (rather than copying them into a managed heap
+  /// object). The pointed-to storage must therefore outlive every
+  /// `FunctionTemplate` that references it. A `FunctionTemplate` may live
+  /// until isolate disposal, so in practice this requires the slice (and its
+  /// elements, including the `CFunctionInfo`s they reference) to have
+  /// `'static` storage. Use a `const` slice such as
+  ///
+  /// ```ignore
+  /// const OVERLOADS: &[v8::fast_api::CFunction] = &[FAST_TEST];
+  /// ```
+  ///
+  /// or a `static` item; do **not** synthesize the slice from stack-local
+  /// data.
+  ///
+  /// [crrev.com/c/7828135]: https://chromium-review.googlesource.com/c/v8/v8/+/7828135
   pub fn build_fast<'i>(
     self,
     scope: &PinScope<'s, 'i>,
-    overloads: &[CFunction],
+    overloads: &'static [CFunction],
   ) -> Local<'s, FunctionTemplate> {
     unsafe {
       scope.cast_local(|sd| {
@@ -843,6 +865,31 @@ impl FunctionTemplate {
   #[inline(always)]
   pub fn remove_prototype(&self) {
     unsafe { v8__FunctionTemplate__RemovePrototype(self) };
+  }
+
+  /// Sets an [accessor property](https://tc39.es/ecma262/#sec-property-attributes)
+  /// on the function template (i.e. a static accessor on the constructor).
+  ///
+  /// # Panics
+  ///
+  /// Panics if both `getter` and `setter` are `None`.
+  #[inline(always)]
+  pub fn set_accessor_property(
+    &self,
+    key: Local<Name>,
+    getter: Option<Local<FunctionTemplate>>,
+    setter: Option<Local<FunctionTemplate>>,
+    attr: PropertyAttribute,
+  ) {
+    assert!(getter.is_some() || setter.is_some());
+
+    unsafe {
+      let getter = getter.map_or_else(std::ptr::null, |v| &*v);
+      let setter = setter.map_or_else(std::ptr::null, |v| &*v);
+      v8__FunctionTemplate__SetAccessorProperty(
+        self, &*key, getter, setter, attr,
+      );
+    }
   }
 }
 
@@ -987,6 +1034,7 @@ impl ObjectTemplate {
         configuration.definer,
         configuration.descriptor,
         configuration.data.map_or_else(null, |p| &*p),
+        configuration.flags,
       );
     }
   }

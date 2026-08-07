@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::ptr::null;
 
@@ -14,10 +15,12 @@ use crate::Local;
 use crate::Name;
 use crate::Object;
 use crate::PropertyDescriptor;
+use crate::ScriptOrigin;
 use crate::SealedLocal;
 use crate::Signature;
 use crate::String;
 use crate::UniqueRef;
+use crate::UnsafeRawIsolatePtr;
 use crate::Value;
 use crate::isolate::RealIsolate;
 use crate::scope::PinScope;
@@ -29,7 +32,6 @@ use crate::support::ToCFn;
 use crate::support::UnitType;
 use crate::support::{Opaque, int};
 use crate::template::Intercepted;
-use crate::{ScriptOrigin, undefined};
 
 unsafe extern "C" {
   fn v8__Function__New(
@@ -58,19 +60,42 @@ unsafe extern "C" {
   fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
   fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
   fn v8__Function__ScriptId(this: *const Function) -> int;
-  fn v8__Function__GetScriptOrigin(
+  fn v8__Function__GetScriptOrigin<'a>(
     this: *const Function,
-  ) -> *const ScriptOrigin<'static>;
+    out: *mut MaybeUninit<ScriptOrigin<'a>>,
+  );
 
   fn v8__Function__CreateCodeCache(
     script: *const Function,
   ) -> *mut CachedData<'static>;
 
-  static v8__FunctionCallbackInfo__kArgsLength: int;
-
+  fn v8__FunctionCallbackInfo__GetIsolate(
+    this: *const FunctionCallbackInfo,
+  ) -> *mut RealIsolate;
+  fn v8__FunctionCallbackInfo__GetParts(
+    this: *const FunctionCallbackInfo,
+  ) -> RawFunctionCallbackInfoParts;
   fn v8__FunctionCallbackInfo__Data(
     this: *const FunctionCallbackInfo,
   ) -> *const Value;
+  fn v8__FunctionCallbackInfo__This(
+    this: *const FunctionCallbackInfo,
+  ) -> *const Object;
+  fn v8__FunctionCallbackInfo__NewTarget(
+    this: *const FunctionCallbackInfo,
+  ) -> *const Value;
+  fn v8__FunctionCallbackInfo__IsConstructCall(
+    this: *const FunctionCallbackInfo,
+  ) -> bool;
+  fn v8__FunctionCallbackInfo__Get(
+    this: *const FunctionCallbackInfo,
+    index: int,
+  ) -> *const Value;
+  fn v8__FunctionCallbackInfo__Length(this: *const FunctionCallbackInfo)
+  -> int;
+  fn v8__FunctionCallbackInfo__GetReturnValue(
+    this: *const FunctionCallbackInfo,
+  ) -> usize;
 
   fn v8__PropertyCallbackInfo__GetIsolate(
     this: *const RawPropertyCallbackInfo,
@@ -78,9 +103,6 @@ unsafe extern "C" {
   fn v8__PropertyCallbackInfo__Data(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Value;
-  fn v8__PropertyCallbackInfo__This(
-    this: *const RawPropertyCallbackInfo,
-  ) -> *const Object;
   fn v8__PropertyCallbackInfo__Holder(
     this: *const RawPropertyCallbackInfo,
   ) -> *const Object;
@@ -134,8 +156,17 @@ pub enum SideEffectType {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct RawReturnValue(usize);
+
+#[repr(C)]
+#[derive(Debug)]
+struct RawFunctionCallbackInfoParts {
+  isolate: *mut RealIsolate,
+  return_value: usize,
+  data: *const Value,
+  length: int,
+}
 
 // Note: the 'cb lifetime is required because the ReturnValue object must not
 // outlive the FunctionCallbackInfo/PropertyCallbackInfo object from which it
@@ -143,7 +174,20 @@ struct RawReturnValue(usize);
 #[derive(Debug)]
 pub struct ReturnValue<'cb, T = Value>(RawReturnValue, PhantomData<&'cb T>);
 
+impl<T> Clone for ReturnValue<'_, T> {
+  fn clone(&self) -> Self {
+    *self
+  }
+}
+
+impl<T> Copy for ReturnValue<'_, T> {}
+
 impl<'cb, T> ReturnValue<'cb, T> {
+  #[inline(always)]
+  fn from_raw(raw: RawReturnValue) -> Self {
+    Self(raw, PhantomData)
+  }
+
   #[inline(always)]
   pub fn from_property_callback_info(
     info: &'cb PropertyCallbackInfo<T>,
@@ -160,8 +204,10 @@ impl<'cb, T> ReturnValue<'cb, T> {
 impl<'cb> ReturnValue<'cb, Value> {
   #[inline(always)]
   pub fn from_function_callback_info(info: &'cb FunctionCallbackInfo) -> Self {
-    let nn = info.get_return_value_non_null();
-    Self(RawReturnValue(nn.as_ptr() as _), PhantomData)
+    Self(
+      unsafe { RawReturnValue(v8__FunctionCallbackInfo__GetReturnValue(info)) },
+      PhantomData,
+    )
   }
 }
 
@@ -232,54 +278,64 @@ where
 /// the holder of the function.
 #[repr(C)]
 #[derive(Debug)]
-pub struct FunctionCallbackInfo {
-  // The layout of this struct must match that of `class FunctionCallbackInfo`
-  // as defined in v8.h.
-  implicit_args: *mut *const Opaque,
-  values: *mut *const Opaque,
-  length: int,
-}
+pub struct FunctionCallbackInfo(*mut Opaque);
 
-// These constants must match those defined on `class FunctionCallbackInfo` in
-// v8-function-callback.h.
-#[allow(dead_code, non_upper_case_globals)]
-impl FunctionCallbackInfo {
-  const kHolderIndex: i32 = 0;
-  const kIsolateIndex: i32 = 1;
-  const kContextIndex: i32 = 2;
-  const kReturnValueIndex: i32 = 3;
-  const kTargetIndex: i32 = 4;
-  const kNewTargetIndex: i32 = 5;
-  const kArgsLength: i32 = 6;
+/// Values commonly needed at the start of a function callback.
+///
+/// This lets raw callbacks fetch the isolate, return value, callback data, and
+/// argument length with one FFI call. The returned parts can also seed
+/// [`FunctionCallbackArguments`] and [`CallbackScope`](crate::CallbackScope)
+/// without re-reading those values from V8.
+#[repr(C)]
+#[derive(Debug)]
+pub struct FunctionCallbackInfoParts<'cb> {
+  pub isolate: UnsafeRawIsolatePtr,
+  pub return_value: ReturnValue<'cb>,
+  pub data: Local<'cb, Value>,
+  pub length: int,
 }
 
 impl FunctionCallbackInfo {
   #[inline(always)]
   pub(crate) fn get_isolate_ptr(&self) -> *mut RealIsolate {
-    let arg_nn =
-      self.get_implicit_arg_non_null::<*mut RealIsolate>(Self::kIsolateIndex);
-    *unsafe { arg_nn.as_ref() }
+    unsafe { v8__FunctionCallbackInfo__GetIsolate(self) }
   }
 
+  /// Returns the common callback entry values with a single C++ shim call.
   #[inline(always)]
-  pub(crate) fn get_return_value_non_null(&self) -> NonNull<Value> {
-    self.get_implicit_arg_non_null::<Value>(Self::kReturnValueIndex)
+  pub fn get_parts(&self) -> FunctionCallbackInfoParts<'_> {
+    let raw = unsafe { v8__FunctionCallbackInfo__GetParts(self) };
+    FunctionCallbackInfoParts {
+      isolate: UnsafeRawIsolatePtr::from_real_ptr(raw.isolate),
+      return_value: ReturnValue::from_raw(RawReturnValue(raw.return_value)),
+      data: unsafe {
+        Local::from_non_null(NonNull::new_unchecked(raw.data as *mut Value))
+      },
+      length: raw.length,
+    }
   }
 
   #[inline(always)]
   pub(crate) fn new_target(&self) -> Local<'_, Value> {
-    unsafe { self.get_implicit_arg_local(Self::kNewTargetIndex) }
+    unsafe {
+      let ptr = v8__FunctionCallbackInfo__NewTarget(self);
+      let nn = NonNull::new_unchecked(ptr as *mut _);
+      Local::from_non_null(nn)
+    }
   }
 
   #[inline(always)]
   pub(crate) fn this(&self) -> Local<'_, Object> {
-    unsafe { self.get_arg_local(-1) }
+    unsafe {
+      let ptr = v8__FunctionCallbackInfo__This(self);
+      let nn = NonNull::new_unchecked(ptr as *mut _);
+      Local::from_non_null(nn)
+    }
   }
 
   #[inline]
   pub fn is_construct_call(&self) -> bool {
-    // The "new.target" value is only set for construct calls.
-    !self.new_target().is_undefined()
+    unsafe { v8__FunctionCallbackInfo__IsConstructCall(self) }
   }
 
   #[inline(always)]
@@ -292,62 +348,23 @@ impl FunctionCallbackInfo {
   }
 
   #[inline(always)]
-  pub(crate) fn length(&self) -> i32 {
-    self.length
+  pub(crate) fn length(&self) -> int {
+    unsafe { v8__FunctionCallbackInfo__Length(self) }
   }
 
   #[inline(always)]
   pub(crate) fn get(&self, index: int) -> Local<'_, Value> {
-    if index >= 0 && index < self.length {
-      unsafe { self.get_arg_local(index) }
-    } else {
-      let isolate = unsafe {
-        crate::isolate::Isolate::from_raw_ptr(self.get_isolate_ptr())
-      };
-      undefined(&isolate).into()
+    unsafe {
+      let ptr = v8__FunctionCallbackInfo__Get(self, index);
+      let nn = NonNull::new_unchecked(ptr as *mut Value);
+      Local::from_non_null(nn)
     }
-  }
-
-  #[inline(always)]
-  fn get_implicit_arg_non_null<T>(&self, index: i32) -> NonNull<T> {
-    // In debug builds, check that `FunctionCallbackInfo::kArgsLength` matches
-    // the C++ definition. Unfortunately we can't check the other constants
-    // because they are declared protected in the C++ header.
-    debug_assert_eq!(
-      unsafe { v8__FunctionCallbackInfo__kArgsLength },
-      Self::kArgsLength
-    );
-    // Assert that `index` is in bounds.
-    assert!(index >= 0);
-    assert!(index < Self::kArgsLength);
-    // Compute the address of the implicit argument and cast to `NonNull<T>`.
-    let ptr = unsafe { self.implicit_args.offset(index as isize) as *mut T };
-    debug_assert!(!ptr.is_null());
-    unsafe { NonNull::new_unchecked(ptr) }
-  }
-
-  // SAFETY: caller must guarantee that the implicit argument at `index`
-  // contains a valid V8 handle.
-  #[inline(always)]
-  unsafe fn get_implicit_arg_local<T>(&self, index: i32) -> Local<'_, T> {
-    let nn = self.get_implicit_arg_non_null::<T>(index);
-    unsafe { Local::from_non_null(nn) }
-  }
-
-  // SAFETY: caller must guarantee that the `index` value lies between -1 and
-  // self.length.
-  #[inline(always)]
-  unsafe fn get_arg_local<T>(&self, index: i32) -> Local<'_, T> {
-    let ptr = unsafe { self.values.offset(index as _) } as *mut T;
-    debug_assert!(!ptr.is_null());
-    let nn = unsafe { NonNull::new_unchecked(ptr) };
-    unsafe { Local::from_non_null(nn) }
   }
 }
 
 #[repr(C)]
 #[derive(Debug)]
-struct RawPropertyCallbackInfo(Opaque);
+struct RawPropertyCallbackInfo(*mut Opaque);
 
 /// The information passed to a property callback about the context
 /// of the property access.
@@ -363,12 +380,34 @@ impl<T> PropertyCallbackInfo<T> {
 }
 
 #[derive(Debug)]
-pub struct FunctionCallbackArguments<'s>(&'s FunctionCallbackInfo);
+pub struct FunctionCallbackArguments<'s> {
+  info: &'s FunctionCallbackInfo,
+  data: Option<Local<'s, Value>>,
+  length: Option<int>,
+}
 
 impl<'s> FunctionCallbackArguments<'s> {
   #[inline(always)]
   pub fn from_function_callback_info(info: &'s FunctionCallbackInfo) -> Self {
-    Self(info)
+    Self {
+      info,
+      data: None,
+      length: None,
+    }
+  }
+
+  /// Creates callback arguments from [`FunctionCallbackInfoParts`], reusing the
+  /// already-loaded callback data and argument length.
+  #[inline(always)]
+  pub fn from_function_callback_info_parts(
+    info: &'s FunctionCallbackInfo,
+    parts: &FunctionCallbackInfoParts<'s>,
+  ) -> Self {
+    Self {
+      info,
+      data: Some(parts.data),
+      length: Some(parts.length),
+    }
   }
 
   /// SAFETY: caller must guarantee that no other references to the isolate are
@@ -377,45 +416,47 @@ impl<'s> FunctionCallbackArguments<'s> {
   /// not be called.
   #[inline(always)]
   pub unsafe fn get_isolate(&mut self) -> &mut Isolate {
-    unsafe { &mut *(self.0.get_isolate_ptr() as *mut crate::isolate::Isolate) }
+    unsafe {
+      &mut *(self.info.get_isolate_ptr() as *mut crate::isolate::Isolate)
+    }
   }
 
   /// For construct calls, this returns the "new.target" value.
   #[inline(always)]
   pub fn new_target(&self) -> Local<'s, Value> {
-    self.0.new_target()
+    self.info.new_target()
   }
 
   /// Returns true if this is a construct call, i.e., if the function was
   /// called with the `new` operator.
   #[inline]
   pub fn is_construct_call(&self) -> bool {
-    self.0.is_construct_call()
+    self.info.is_construct_call()
   }
 
   /// Returns the receiver. This corresponds to the "this" value.
   #[inline(always)]
   pub fn this(&self) -> Local<'s, Object> {
-    self.0.this()
+    self.info.this()
   }
 
   /// Returns the data argument specified when creating the callback.
   #[inline(always)]
   pub fn data(&self) -> Local<'s, Value> {
-    self.0.data()
+    self.data.unwrap_or_else(|| self.info.data())
   }
 
   /// The number of available arguments.
   #[inline(always)]
   pub fn length(&self) -> int {
-    self.0.length()
+    self.length.unwrap_or_else(|| self.info.length())
   }
 
   /// Accessor for the available arguments. Returns `undefined` if the index is
   /// out of bounds.
   #[inline(always)]
   pub fn get(&self, i: int) -> Local<'s, Value> {
-    self.0.get(i)
+    self.info.get(i)
   }
 }
 
@@ -440,52 +481,6 @@ impl<'s> PropertyCallbackArguments<'s> {
     unsafe {
       Local::from_raw(v8__PropertyCallbackInfo__Holder(self.0))
         .unwrap_unchecked()
-    }
-  }
-
-  /// Returns the receiver. In many cases, this is the object on which the
-  /// property access was intercepted. When using
-  /// `Reflect.get`, `Function.prototype.call`, or similar functions, it is the
-  /// object passed in as receiver or thisArg.
-  ///
-  /// ```c++
-  ///   void GetterCallback(Local<Name> name,
-  ///                       const v8::PropertyCallbackInfo<v8::Value>& info) {
-  ///      auto context = info.GetIsolate()->GetCurrentContext();
-  ///
-  ///      v8::Local<v8::Value> a_this =
-  ///          info.This()
-  ///              ->GetRealNamedProperty(context, v8_str("a"))
-  ///              .ToLocalChecked();
-  ///      v8::Local<v8::Value> a_holder =
-  ///          info.Holder()
-  ///              ->GetRealNamedProperty(context, v8_str("a"))
-  ///              .ToLocalChecked();
-  ///
-  ///     CHECK(v8_str("r")->Equals(context, a_this).FromJust());
-  ///     CHECK(v8_str("obj")->Equals(context, a_holder).FromJust());
-  ///
-  ///     info.GetReturnValue().Set(name);
-  ///   }
-  ///
-  ///   v8::Local<v8::FunctionTemplate> templ =
-  ///   v8::FunctionTemplate::New(isolate);
-  ///   templ->InstanceTemplate()->SetHandler(
-  ///       v8::NamedPropertyHandlerConfiguration(GetterCallback));
-  ///   LocalContext env;
-  ///   env->Global()
-  ///       ->Set(env.local(), v8_str("obj"), templ->GetFunction(env.local())
-  ///                                            .ToLocalChecked()
-  ///                                            ->NewInstance(env.local())
-  ///                                            .ToLocalChecked())
-  ///       .FromJust();
-  ///
-  ///   CompileRun("obj.a = 'obj'; var r = {a: 'r'}; Reflect.get(obj, 'x', r)");
-  /// ```
-  #[inline(always)]
-  pub fn this(&self) -> Local<'s, Object> {
-    unsafe {
-      Local::from_raw(v8__PropertyCallbackInfo__This(self.0)).unwrap_unchecked()
     }
   }
 
@@ -655,7 +650,7 @@ where
 pub(crate) type NamedSetterCallback = unsafe extern "C" fn(
   SealedLocal<Name>,
   SealedLocal<Value>,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for NamedSetterCallback
@@ -666,13 +661,13 @@ where
       Local<'s, Name>,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |key: SealedLocal<Name>,
              value: SealedLocal<Value>,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
@@ -713,7 +708,7 @@ where
 pub(crate) type NamedDefinerCallback = unsafe extern "C" fn(
   SealedLocal<Name>,
   *const PropertyDescriptor,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for NamedDefinerCallback
@@ -724,13 +719,13 @@ where
       Local<'s, Name>,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |key: SealedLocal<Name>,
              desc: *const PropertyDescriptor,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let key = unsafe { scope.unseal(key) };
@@ -827,7 +822,7 @@ where
 pub(crate) type IndexedSetterCallback = unsafe extern "C" fn(
   u32,
   SealedLocal<Value>,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedSetterCallback
@@ -838,13 +833,13 @@ where
       u32,
       Local<'s, Value>,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |index: u32,
              value: SealedLocal<Value>,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let value = unsafe { scope.unseal(value) };
@@ -859,7 +854,7 @@ where
 pub(crate) type IndexedDefinerCallback = unsafe extern "C" fn(
   u32,
   *const PropertyDescriptor,
-  *const PropertyCallbackInfo<()>,
+  *const PropertyCallbackInfo<Boolean>,
 ) -> Intercepted;
 
 impl<F> MapFnFrom<F> for IndexedDefinerCallback
@@ -870,13 +865,13 @@ where
       u32,
       &PropertyDescriptor,
       PropertyCallbackArguments<'s>,
-      ReturnValue<()>,
+      ReturnValue<Boolean>,
     ) -> Intercepted,
 {
   fn mapping() -> Self {
     let f = |index: u32,
              desc: *const PropertyDescriptor,
-             info: *const PropertyCallbackInfo<()>| {
+             info: *const PropertyCallbackInfo<Boolean>| {
       let info = unsafe { &*info };
       callback_scope!(unsafe scope, info);
       let args = PropertyCallbackArguments::from_property_callback_info(info);
@@ -1122,10 +1117,15 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_script_origin(&self) -> &ScriptOrigin<'_> {
+  pub fn get_script_origin<'s>(
+    &self,
+    _scope: &PinScope<'s, '_>,
+  ) -> ScriptOrigin<'s> {
     unsafe {
-      let ptr = v8__Function__GetScriptOrigin(self);
-      &*ptr
+      let mut script_origin: MaybeUninit<ScriptOrigin<'_>> =
+        MaybeUninit::uninit();
+      v8__Function__GetScriptOrigin(self, &mut script_origin);
+      script_origin.assume_init()
     }
   }
 

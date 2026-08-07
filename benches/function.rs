@@ -50,6 +50,17 @@ fn main() {
     global.set(scope, name.into(), func.into()).unwrap();
   }
   {
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let info = unsafe { &*info };
+      let parts = info.get_parts();
+      let mut rv = parts.return_value;
+      rv.set_uint32(42);
+    }
+    let func = v8::Function::new_raw(scope, callback).unwrap();
+    let name = v8::String::new(scope, "new_raw_parts_set_uint32").unwrap();
+    global.set(scope, name.into(), func.into()).unwrap();
+  }
+  {
     let func = v8::Function::new(
       scope,
       |_: &mut v8::PinScope,
@@ -113,6 +124,22 @@ fn main() {
     let name = v8::String::new(scope, "undefined_from_isolate").unwrap();
     global.set(scope, name.into(), func.into()).unwrap();
   }
+  {
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let info = unsafe { &*info };
+      let parts = info.get_parts();
+      let mut rv = parts.return_value;
+      rv.set(
+        v8::undefined(unsafe {
+          v8::Isolate::ref_from_raw_isolate_ptr_unchecked(&parts.isolate)
+        })
+        .into(),
+      );
+    }
+    let func = v8::Function::new_raw(scope, callback).unwrap();
+    let name = v8::String::new(scope, "undefined_from_parts").unwrap();
+    global.set(scope, name.into(), func.into()).unwrap();
+  }
 
   let runs = 100_000_000;
 
@@ -124,12 +151,17 @@ fn main() {
         "new_raw",
         "new_set_uint32",
         "new_raw_set_uint32",
+        "new_raw_parts_set_uint32",
         "new_fast",
       ][..],
     ),
     (
       "primitives",
-      &["undefined_from_scope", "undefined_from_isolate"][..],
+      &[
+        "undefined_from_scope",
+        "undefined_from_isolate",
+        "undefined_from_parts",
+      ][..],
     ),
   ] {
     println!("Running {group_name} ...");

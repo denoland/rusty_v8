@@ -18,8 +18,16 @@ static_assert(sizeof(bool) == sizeof(uint8_t), "");
 static_assert(sizeof(std::unique_ptr<void>) == sizeof(void*), "");
 
 namespace support {
+
+template <std::size_t Len, std::size_t Align>
+struct aligned_storage {
+  struct type {
+    alignas(Align) unsigned char data[Len];
+  };
+};
+
 template <class T>
-using uninit_t = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
+using uninit_t = typename aligned_storage<sizeof(T), alignof(T)>::type;
 
 template <class T, class... Args>
 class construct_in_place_helper {
@@ -158,10 +166,22 @@ struct three_pointers_t {
   void* c;
 };
 
+struct function_callback_info_parts_t {
+  void* isolate;
+  void* return_value;
+  const void* data;
+  int length;
+};
+
 }  // namespace support
 
 struct memory_span_t {
   uint8_t* data;
+  size_t size;
+};
+
+struct const_memory_span_t {
+  const uint8_t* data;
   size_t size;
 };
 

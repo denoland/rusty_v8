@@ -8,7 +8,6 @@ use crate::support::Opaque;
 use crate::support::SharedPtr;
 use crate::support::UniqueRef;
 use crate::support::char;
-use crate::support::int;
 use crate::support::intptr_t;
 
 use std::any::Any;
@@ -114,19 +113,6 @@ impl CreateParams {
     self
   }
 
-  /// The following parameters describe the offsets for addressing type info
-  /// for wrapped API objects and are used by the fast C API
-  /// (for details see v8-fast-api-calls.h).
-  pub fn embedder_wrapper_type_info_offsets(
-    mut self,
-    embedder_wrapper_type_index: int,
-    embedder_wrapper_object_index: int,
-  ) -> Self {
-    self.raw.embedder_wrapper_type_index = embedder_wrapper_type_index;
-    self.raw.embedder_wrapper_object_index = embedder_wrapper_object_index;
-    self
-  }
-
   /// Configures the constraints with reasonable default values based on the
   /// provided lower and upper bounds.
   ///
@@ -187,6 +173,110 @@ impl CreateParams {
     self
   }
 
+  /// Returns the maximum size of the old generation in bytes.
+  pub fn max_old_generation_size_in_bytes(&self) -> usize {
+    self.raw.constraints.max_old_generation_size_in_bytes()
+  }
+
+  /// Sets the maximum size of the old generation in bytes. When the old
+  /// generation approaches this limit, V8 will perform series of garbage
+  /// collections and invoke the NearHeapLimitCallback.
+  pub fn set_max_old_generation_size_in_bytes(mut self, limit: usize) -> Self {
+    self
+      .raw
+      .constraints
+      .set_max_old_generation_size_in_bytes(limit);
+    self
+  }
+
+  /// Returns the maximum size of the young generation in bytes.
+  pub fn max_young_generation_size_in_bytes(&self) -> usize {
+    self.raw.constraints.max_young_generation_size_in_bytes()
+  }
+
+  /// Sets the maximum size of the young generation in bytes. The young
+  /// generation consists of two semi-spaces and a large object space. This
+  /// affects frequency of Scavenge garbage collections.
+  pub fn set_max_young_generation_size_in_bytes(
+    mut self,
+    limit: usize,
+  ) -> Self {
+    self
+      .raw
+      .constraints
+      .set_max_young_generation_size_in_bytes(limit);
+    self
+  }
+
+  /// Returns the code range size in bytes.
+  pub fn code_range_size_in_bytes(&self) -> usize {
+    self.raw.constraints.code_range_size_in_bytes()
+  }
+
+  /// Sets the amount of virtual memory reserved for generated code in bytes.
+  /// This is relevant for 64-bit architectures that rely on code range for
+  /// calls in code.
+  pub fn set_code_range_size_in_bytes(mut self, limit: usize) -> Self {
+    self.raw.constraints.set_code_range_size_in_bytes(limit);
+    self
+  }
+
+  /// Returns the stack limit (the address beyond which the VM's stack may
+  /// not grow), or null if not set.
+  pub fn stack_limit(&self) -> *mut u32 {
+    self.raw.constraints.stack_limit()
+  }
+
+  /// Sets the address beyond which the VM's stack may not grow.
+  ///
+  /// # Safety
+  ///
+  /// The caller must ensure that the pointer remains valid for the lifetime
+  /// of the isolate, and points to a valid stack boundary.
+  pub unsafe fn set_stack_limit(mut self, value: *mut u32) -> Self {
+    self.raw.constraints.set_stack_limit(value);
+    self
+  }
+
+  /// Returns the initial size of the old generation in bytes.
+  pub fn initial_old_generation_size_in_bytes(&self) -> usize {
+    self.raw.constraints.initial_old_generation_size_in_bytes()
+  }
+
+  /// Sets the initial size of the old generation in bytes. Setting the
+  /// initial size avoids ineffective garbage collections at startup if the
+  /// live set is large.
+  pub fn set_initial_old_generation_size_in_bytes(
+    mut self,
+    initial_size: usize,
+  ) -> Self {
+    self
+      .raw
+      .constraints
+      .set_initial_old_generation_size_in_bytes(initial_size);
+    self
+  }
+
+  /// Returns the initial size of the young generation in bytes.
+  pub fn initial_young_generation_size_in_bytes(&self) -> usize {
+    self
+      .raw
+      .constraints
+      .initial_young_generation_size_in_bytes()
+  }
+
+  /// Sets the initial size of the young generation in bytes.
+  pub fn set_initial_young_generation_size_in_bytes(
+    mut self,
+    initial_size: usize,
+  ) -> Self {
+    self
+      .raw
+      .constraints
+      .set_initial_young_generation_size_in_bytes(initial_size);
+    self
+  }
+
   /// A CppHeap used to construct the Isolate. V8 takes ownership of the
   /// CppHeap passed this way.
   pub fn cpp_heap(mut self, heap: UniqueRef<Heap>) -> Self {
@@ -217,8 +307,6 @@ struct CreateParamAllocations {
 #[test]
 fn create_param_defaults() {
   let params = CreateParams::default();
-  assert_eq!(params.raw.embedder_wrapper_type_index, -1);
-  assert_eq!(params.raw.embedder_wrapper_object_index, -1);
   assert!(params.raw.allow_atomics_wait);
 }
 
@@ -238,8 +326,6 @@ pub(crate) mod raw {
     pub array_buffer_allocator_shared: SharedPtr<ArrayBufferAllocator>,
     pub external_references: *const intptr_t,
     pub allow_atomics_wait: bool,
-    pub embedder_wrapper_type_index: int,
-    pub embedder_wrapper_object_index: int,
     _fatal_error_handler: *const Opaque, // FatalErrorCallback
     _oom_error_handler: *const Opaque,   // OOMErrorCallback
     pub cpp_heap: *const Heap,
@@ -285,6 +371,48 @@ pub(crate) mod raw {
       physical_memory: u64,
       virtual_memory_limit: u64,
     );
+    fn v8__ResourceConstraints__max_old_generation_size_in_bytes(
+      constraints: *const ResourceConstraints,
+    ) -> usize;
+    fn v8__ResourceConstraints__set_max_old_generation_size_in_bytes(
+      constraints: *mut ResourceConstraints,
+      limit: usize,
+    );
+    fn v8__ResourceConstraints__max_young_generation_size_in_bytes(
+      constraints: *const ResourceConstraints,
+    ) -> usize;
+    fn v8__ResourceConstraints__set_max_young_generation_size_in_bytes(
+      constraints: *mut ResourceConstraints,
+      limit: usize,
+    );
+    fn v8__ResourceConstraints__code_range_size_in_bytes(
+      constraints: *const ResourceConstraints,
+    ) -> usize;
+    fn v8__ResourceConstraints__set_code_range_size_in_bytes(
+      constraints: *mut ResourceConstraints,
+      limit: usize,
+    );
+    fn v8__ResourceConstraints__stack_limit(
+      constraints: *const ResourceConstraints,
+    ) -> *mut u32;
+    fn v8__ResourceConstraints__set_stack_limit(
+      constraints: *mut ResourceConstraints,
+      value: *mut u32,
+    );
+    fn v8__ResourceConstraints__initial_old_generation_size_in_bytes(
+      constraints: *const ResourceConstraints,
+    ) -> usize;
+    fn v8__ResourceConstraints__set_initial_old_generation_size_in_bytes(
+      constraints: *mut ResourceConstraints,
+      initial_size: usize,
+    );
+    fn v8__ResourceConstraints__initial_young_generation_size_in_bytes(
+      constraints: *const ResourceConstraints,
+    ) -> usize;
+    fn v8__ResourceConstraints__set_initial_young_generation_size_in_bytes(
+      constraints: *mut ResourceConstraints,
+      initial_size: usize,
+    );
   }
 
   impl ResourceConstraints {
@@ -312,6 +440,88 @@ pub(crate) mod raw {
           self,
           physical_memory,
           virtual_memory_limit,
+        );
+      }
+    }
+
+    pub fn max_old_generation_size_in_bytes(&self) -> usize {
+      unsafe { v8__ResourceConstraints__max_old_generation_size_in_bytes(self) }
+    }
+
+    pub fn set_max_old_generation_size_in_bytes(&mut self, limit: usize) {
+      unsafe {
+        v8__ResourceConstraints__set_max_old_generation_size_in_bytes(
+          self, limit,
+        );
+      }
+    }
+
+    pub fn max_young_generation_size_in_bytes(&self) -> usize {
+      unsafe {
+        v8__ResourceConstraints__max_young_generation_size_in_bytes(self)
+      }
+    }
+
+    pub fn set_max_young_generation_size_in_bytes(&mut self, limit: usize) {
+      unsafe {
+        v8__ResourceConstraints__set_max_young_generation_size_in_bytes(
+          self, limit,
+        );
+      }
+    }
+
+    pub fn code_range_size_in_bytes(&self) -> usize {
+      unsafe { v8__ResourceConstraints__code_range_size_in_bytes(self) }
+    }
+
+    pub fn set_code_range_size_in_bytes(&mut self, limit: usize) {
+      unsafe {
+        v8__ResourceConstraints__set_code_range_size_in_bytes(self, limit);
+      }
+    }
+
+    pub fn stack_limit(&self) -> *mut u32 {
+      unsafe { v8__ResourceConstraints__stack_limit(self) }
+    }
+
+    pub fn set_stack_limit(&mut self, value: *mut u32) {
+      unsafe {
+        v8__ResourceConstraints__set_stack_limit(self, value);
+      }
+    }
+
+    pub fn initial_old_generation_size_in_bytes(&self) -> usize {
+      unsafe {
+        v8__ResourceConstraints__initial_old_generation_size_in_bytes(self)
+      }
+    }
+
+    pub fn set_initial_old_generation_size_in_bytes(
+      &mut self,
+      initial_size: usize,
+    ) {
+      unsafe {
+        v8__ResourceConstraints__set_initial_old_generation_size_in_bytes(
+          self,
+          initial_size,
+        );
+      }
+    }
+
+    pub fn initial_young_generation_size_in_bytes(&self) -> usize {
+      unsafe {
+        v8__ResourceConstraints__initial_young_generation_size_in_bytes(self)
+      }
+    }
+
+    pub fn set_initial_young_generation_size_in_bytes(
+      &mut self,
+      initial_size: usize,
+    ) {
+      unsafe {
+        v8__ResourceConstraints__set_initial_young_generation_size_in_bytes(
+          self,
+          initial_size,
         );
       }
     }

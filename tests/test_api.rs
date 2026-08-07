@@ -46,7 +46,7 @@ mod setup {
   fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
-      assert!(v8::icu::set_common_data_74(align_data::include_aligned!(
+      assert!(v8::icu::set_common_data_78(align_data::include_aligned!(
         align_data::Align16,
         "../third_party/icu/common/icudtl.dat"
       ))
@@ -232,6 +232,139 @@ fn global_handle_drop() {
   // Global 'g2' will be dropped _before_ the Isolate has been disposed.
   let l2 = v8::String::new(scope, "bar").unwrap();
   let _g2 = v8::Global::new(scope, l2);
+}
+
+#[test]
+fn new_from_utf8_simd_transcode() {
+  // Exercises new_from_utf8's simdutf Latin-1 / UTF-16 transcode paths (>=
+  // threshold, non-ASCII) and the invalid-UTF-8 lossy fallback.
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Latin-1 (one-byte) path: accented text, all code points <= U+00FF.
+  let s = "café ".repeat(8);
+  assert_eq!(
+    v8::String::new(scope, &s)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    s
+  );
+
+  // UTF-16 (two-byte) path: CJK.
+  let s = "世界".repeat(8);
+  assert_eq!(
+    v8::String::new(scope, &s)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    s
+  );
+
+  // Mixed BMP + supplementary (emoji => surrogate pairs) -> UTF-16 path.
+  let s = "hi 🦕 世界!".repeat(3);
+  assert_eq!(
+    v8::String::new(scope, &s)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    s
+  );
+
+  // Invalid UTF-8 (>= threshold, non-ASCII) -> V8's lossy NewFromUtf8.
+  let invalid = b"valid_ascii_prefix_\xFF\xFE_invalid_tail";
+  let got =
+    v8::String::new_from_utf8(scope, invalid, v8::NewStringType::Normal)
+      .unwrap()
+      .to_rust_string_lossy(scope);
+  assert!(got.starts_with("valid_ascii_prefix_"));
+  assert!(got.ends_with("_invalid_tail"));
+  assert!(got.contains('\u{FFFD}'));
+}
+
+#[test]
+fn one_byte_string_paths_round_trip() {
+  // Locks the one-byte fast paths against silent corruption:
+  //  - SIMD ASCII detection in new_from_utf8 / onebyte_is_ascii, including the
+  //    32-byte early-reject head/tail split,
+  //  - fused Latin-1 -> UTF-8 transcode in to_rust_string_lossy, and
+  //  - to_rust_cow_lossy borrow + owned-overflow branches.
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  let mut cases: Vec<(std::string::String, std::string::String)> = Vec::new();
+
+  // One-byte (Latin-1) V8 strings at EXACT code-point counts straddling the
+  // 128 simdutf crossover and 4096 fuse threshold (strictly below / at / above),
+  // plus sizes under the 32-byte early-reject window. `"a"` -> pure ASCII;
+  // `"é"` -> every code point non-ASCII (1 one-byte unit, 2 UTF-8 bytes each).
+  for n in [
+    1usize, 2, 3, 31, 32, 33, 127, 128, 129, 500, 4095, 4096, 4097, 8000,
+  ] {
+    cases.push(("a".repeat(n), format!("ascii n={n}")));
+    cases.push(("é".repeat(n), format!("latin1 n={n}")));
+  }
+
+  // Head/tail split: ASCII for the first >=32 bytes, then a non-ASCII byte past
+  // the 32-byte early-reject window, so the simdutf `validate_ascii(&bytes[32..])`
+  // remainder scan (not the inline head check) is what must reject. A one-byte
+  // V8 string (all code points <= 0xFF). An off-by-one in the `bytes[head..]`
+  // offset would round-trip fine on the corpus above without these.
+  for k in [32usize, 33, 40, 200, 5000] {
+    cases.push(("a".repeat(k) + "é", format!("ascii_head{k}_then_latin1")));
+  }
+
+  // Two-byte V8 strings (BMP + supplementary) -> the TwoByte ValueView / wtf16
+  // paths, not the one-byte thresholds above.
+  for n in [1usize, 200, 5000] {
+    cases.push(("世界".repeat(n), format!("twobyte n={n}")));
+    cases.push(("🦕".repeat(n), format!("emoji n={n}")));
+  }
+
+  const N: usize = 1 << 16; // fits 2x the largest case above
+  let mut buf = [MaybeUninit::<u8>::uninit(); N];
+  for (s, label) in &cases {
+    let s = s.as_str();
+    // new(): V8 picks one-byte vs two-byte from content.
+    let local = v8::String::new(scope, s).unwrap();
+    assert_eq!(local.to_rust_string_lossy(scope), s, "string_lossy {label}");
+    assert_eq!(
+      &*local.to_rust_cow_lossy(scope, &mut buf),
+      s,
+      "cow_lossy {label}"
+    );
+    // new_from_utf8(): exercises onebyte_is_ascii / SIMD ASCII detection.
+    let from_utf8 =
+      v8::String::new_from_utf8(scope, s.as_bytes(), v8::NewStringType::Normal)
+        .unwrap();
+    assert_eq!(
+      from_utf8.to_rust_string_lossy(scope),
+      s,
+      "from_utf8 {label}"
+    );
+  }
+
+  // Cow owned-overflow: a buffer smaller than the input forces the owned
+  // branches instead of borrowing — `bytes.len() > N` (ASCII) and
+  // `utf8_len > N` -> `latin1_to_cow_str` owned. Both must still round-trip.
+  const SMALL_N: usize = 256;
+  let mut small = [MaybeUninit::<u8>::uninit(); SMALL_N];
+  for (s, label) in [
+    ("a".repeat(1000), "ascii owned"),
+    ("é".repeat(1000), "latin1 owned"),
+  ] {
+    let local = v8::String::new(scope, &s).unwrap();
+    assert_eq!(
+      &*local.to_rust_cow_lossy(scope, &mut small),
+      s.as_str(),
+      "cow_lossy {label}"
+    );
+  }
 }
 
 #[test]
@@ -455,6 +588,20 @@ fn test_string() {
     let cow = one_byte.to_rust_cow_lossy(scope, &mut buffer);
     assert!(matches!(cow, Cow::Borrowed(_)));
     assert_eq!(s, cow);
+
+    // Long one-byte strings (>= threshold) exercise the simdutf ASCII path.
+    let long_ascii = "a".repeat(200);
+    let s_ascii = v8::String::new(scope, &long_ascii).unwrap();
+    let mut buffer = [MaybeUninit::uninit(); 1000];
+    let cow = s_ascii.to_rust_cow_lossy(scope, &mut buffer);
+    assert!(matches!(cow, Cow::Borrowed(_)));
+    assert_eq!(long_ascii, cow);
+
+    let long_latin1 = "\u{00e9}".repeat(200);
+    let s_latin1 = v8::String::new(scope, &long_latin1).unwrap();
+    let mut buffer = [MaybeUninit::uninit(); 1000];
+    let cow = s_latin1.to_rust_cow_lossy(scope, &mut buffer);
+    assert_eq!(long_latin1, cow);
 
     let s = "🦕 Lorem ipsum dolor sit amet. Qui inventore debitis et voluptas cupiditate qui recusandae molestias et ullam possimus";
     let two_bytes =
@@ -1833,6 +1980,79 @@ fn function_template_intrinsic_data_property() {
 }
 
 #[test]
+fn function_template_set_accessor_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    let getter = v8::FunctionTemplate::new(scope, fortytwo_callback);
+
+    fn setter_callback(
+      _scope: &mut v8::PinScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+
+    let setter = v8::FunctionTemplate::new(scope, setter_callback);
+
+    fn constructor_callback(
+      _scope: &mut v8::PinScope,
+      _args: v8::FunctionCallbackArguments,
+      _rv: v8::ReturnValue<v8::Value>,
+    ) {
+    }
+
+    let tmpl = v8::FunctionTemplate::new(scope, constructor_callback);
+    let class_name = v8::String::new(scope, "MyClass").unwrap();
+    tmpl.set_class_name(class_name);
+
+    // Getter
+    let key1 = v8::String::new(scope, "key1").unwrap();
+    tmpl.set_accessor_property(
+      key1.into(),
+      Some(getter),
+      None,
+      v8::PropertyAttribute::default(),
+    );
+
+    // Getter + setter
+    let key2 = v8::String::new(scope, "key2").unwrap();
+    tmpl.set_accessor_property(
+      key2.into(),
+      Some(getter),
+      Some(setter),
+      v8::PropertyAttribute::default(),
+    );
+
+    let name = v8::String::new(scope, "MyClass").unwrap();
+    let constructor = tmpl.get_function(scope).unwrap();
+    scope.get_current_context().global(scope).set(
+      scope,
+      name.into(),
+      constructor.into(),
+    );
+
+    let int = v8::Integer::new(scope, 42);
+    assert!(
+      eval(scope, "MyClass.key1")
+        .unwrap()
+        .strict_equals(int.into())
+    );
+    assert!(
+      eval(scope, "MyClass.key2")
+        .unwrap()
+        .strict_equals(int.into())
+    );
+    eval(scope, "MyClass.key2 = 99");
+  }
+}
+
+#[test]
 fn instance_template_with_internal_field() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -1887,9 +2107,8 @@ fn object_template_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -1909,9 +2128,8 @@ fn object_template_set_accessor() {
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
                   _rv: v8::ReturnValue<()>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -1927,9 +2145,8 @@ fn object_template_set_accessor() {
        key: v8::Local<v8::Name>,
        args: v8::PropertyCallbackArguments,
        mut rv: v8::ReturnValue<v8::Value>| {
-        let this = args.this();
+        let this = args.holder();
 
-        assert_eq!(args.holder(), this);
         assert!(args.data().is_string());
         assert!(!args.should_throw_on_error());
         assert_eq!(args.data().to_rust_string_lossy(scope), "data");
@@ -1951,9 +2168,8 @@ fn object_template_set_accessor() {
        value: v8::Local<v8::Value>,
        args: v8::PropertyCallbackArguments,
        _rv: v8::ReturnValue<()>| {
-        let this = args.this();
+        let this = args.holder();
 
-        assert_eq!(args.holder(), this);
         assert!(args.data().is_string());
         assert!(!args.should_throw_on_error());
         assert_eq!(args.data().to_rust_string_lossy(scope), "data");
@@ -2107,12 +2323,11 @@ fn object_template_set_named_property_handler() {
                   mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2125,27 +2340,26 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       rv.set(internal_field);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let setter = |scope: &mut v8::PinScope,
                   key: v8::Local<v8::Name>,
                   value: v8::Local<v8::Value>,
                   args: v8::PropertyCallbackArguments,
-                  mut rv: v8::ReturnValue<()>| {
+                  mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2156,7 +2370,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let query = |scope: &mut v8::PinScope,
@@ -2165,17 +2379,16 @@ fn object_template_set_named_property_handler() {
                  mut rv: v8::ReturnValue<v8::Integer>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
       let panic_on_get = v8::String::new(scope, "panicOnGet").unwrap();
       if key.strict_equals(panic_on_get.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2190,7 +2403,7 @@ fn object_template_set_named_property_handler() {
         .try_into()
         .unwrap();
       assert!(internal_field.strict_equals(expected_value.into()));
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let deleter = |scope: &mut v8::PinScope,
@@ -2199,10 +2412,10 @@ fn object_template_set_named_property_handler() {
                    mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2210,15 +2423,14 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, v8::undefined(scope).into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let enumerator = |scope: &mut v8::PinScope,
                       args: v8::PropertyCallbackArguments,
                       mut rv: v8::ReturnValue<v8::Array>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -2241,13 +2453,13 @@ fn object_template_set_named_property_handler() {
                    key: v8::Local<v8::Name>,
                    desc: &v8::PropertyDescriptor,
                    args: v8::PropertyCallbackArguments,
-                   mut rv: v8::ReturnValue<()>| {
+                   mut rv: v8::ReturnValue<v8::Boolean>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2269,7 +2481,7 @@ fn object_template_set_named_property_handler() {
       assert!(this.set_internal_field(0, value.into()));
 
       rv.set_bool(true);
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let descriptor = |scope: &mut v8::PinScope,
@@ -2278,10 +2490,10 @@ fn object_template_set_named_property_handler() {
                       mut rv: v8::ReturnValue<v8::Value>| {
       let fallthrough_key = v8::String::new(scope, "fallthrough").unwrap();
       if key.strict_equals(fallthrough_key.into()) {
-        return v8::Intercepted::No;
+        return v8::Intercepted::kNo;
       }
 
-      let this = args.this();
+      let this = args.holder();
 
       let expected_key = v8::String::new(scope, "key").unwrap();
       assert!(key.strict_equals(expected_key.into()));
@@ -2302,7 +2514,7 @@ fn object_template_set_named_property_handler() {
       descriptor.set(scope, writable_key.into(), writable.into());
 
       rv.set(descriptor.into());
-      v8::Intercepted::Yes
+      v8::Intercepted::kYes
     };
 
     let name = v8::String::new(scope, "obj").unwrap();
@@ -2600,7 +2812,7 @@ fn object_template_set_indexed_property_handler() {
                 index: u32,
                 args: v8::PropertyCallbackArguments,
                 mut rv: v8::ReturnValue<v8::Value>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
@@ -2614,17 +2826,16 @@ fn object_template_set_indexed_property_handler() {
       .try_into()
       .unwrap();
     rv.set(internal_field);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let setter = |_scope: &mut v8::PinScope,
                 index: u32,
                 value: v8::Local<v8::Value>,
                 args: v8::PropertyCallbackArguments,
-                mut rv: v8::ReturnValue<()>| {
-    let this = args.this();
+                mut rv: v8::ReturnValue<v8::Boolean>| {
+    let this = args.holder();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
     assert!(!args.should_throw_on_error());
 
@@ -2634,7 +2845,7 @@ fn object_template_set_indexed_property_handler() {
     assert!(this.set_internal_field(0, value.into()));
 
     rv.set_bool(true);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let query = |_scope: &mut v8::PinScope,
@@ -2642,14 +2853,14 @@ fn object_template_set_indexed_property_handler() {
                _args: v8::PropertyCallbackArguments,
                mut rv: v8::ReturnValue<v8::Integer>| {
     if index == 12 {
-      return v8::Intercepted::No;
+      return v8::Intercepted::kNo;
     }
 
     assert_eq!(index, 37);
 
     // PropertyAttribute::READ_ONLY
     rv.set_int32(1);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let deleter = |_scope: &mut v8::PinScope,
@@ -2659,15 +2870,14 @@ fn object_template_set_indexed_property_handler() {
     assert_eq!(index, 37);
 
     rv.set_bool(false);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let enumerator = |scope: &mut v8::PinScope,
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue<v8::Array>| {
-    let this = args.this();
+    let this = args.holder();
 
-    assert_eq!(args.holder(), this);
     assert!(args.data().is_undefined());
     assert!(!args.should_throw_on_error());
 
@@ -2689,8 +2899,8 @@ fn object_template_set_indexed_property_handler() {
                  index: u32,
                  desc: &v8::PropertyDescriptor,
                  args: v8::PropertyCallbackArguments,
-                 mut rv: v8::ReturnValue<()>| {
-    let this = args.this();
+                 mut rv: v8::ReturnValue<v8::Boolean>| {
+    let this = args.holder();
 
     assert_eq!(index, 37);
 
@@ -2705,14 +2915,14 @@ fn object_template_set_indexed_property_handler() {
     this.set_internal_field(0, value.into());
 
     rv.set_bool(true);
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let descriptor = |scope: &mut v8::PinScope,
                     index: u32,
                     args: v8::PropertyCallbackArguments,
                     mut rv: v8::ReturnValue<v8::Value>| {
-    let this = args.this();
+    let this = args.holder();
 
     assert_eq!(index, 37);
 
@@ -2732,7 +2942,7 @@ fn object_template_set_indexed_property_handler() {
     descriptor.set(scope, writable_key.into(), writable.into());
 
     rv.set(descriptor.into());
-    v8::Intercepted::Yes
+    v8::Intercepted::kYes
   };
 
   let name = v8::String::new(scope, "obj").unwrap();
@@ -2885,6 +3095,56 @@ fn object_template_set_indexed_property_handler() {
   );
   let writable_key = v8::String::new(scope, "writable").unwrap().into();
   assert!(desc.get(scope, writable_key).unwrap().boolean_value(scope));
+}
+
+#[test]
+fn indexed_property_handler_non_masking() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let getter = |scope: &mut v8::PinScope,
+                index: u32,
+                _args: v8::PropertyCallbackArguments,
+                mut rv: v8::ReturnValue<v8::Value>| {
+    let value = v8::Integer::new(scope, (index as i32) * 100);
+    rv.set(value.into());
+    v8::Intercepted::kYes
+  };
+
+  let templ = v8::ObjectTemplate::new(scope);
+  templ.set_indexed_property_handler(
+    v8::IndexedPropertyHandlerConfiguration::new()
+      .getter(getter)
+      .flags(v8::PropertyHandlerFlags::NON_MASKING),
+  );
+
+  let obj = templ.new_instance(scope).unwrap();
+  let name = v8::String::new(scope, "obj").unwrap();
+  scope
+    .get_current_context()
+    .global(scope)
+    .set(scope, name.into(), obj.into());
+
+  // Without a real element, the interceptor handles the access.
+  let val = eval(scope, "obj[5]").unwrap();
+  assert!(val.is_int32());
+  assert_eq!(val.int32_value(scope).unwrap(), 500);
+
+  // Store a real indexed element on the instance.
+  let real_value = v8::Integer::new(scope, 7);
+  obj.set_index(scope, 5, real_value.into());
+
+  // With NON_MASKING, the real element takes priority over the interceptor.
+  let val = eval(scope, "obj[5]").unwrap();
+  assert_eq!(val.int32_value(scope).unwrap(), 7);
+
+  // Other indices still fall through to the interceptor.
+  let val = eval(scope, "obj[3]").unwrap();
+  assert_eq!(val.int32_value(scope).unwrap(), 300);
 }
 
 #[test]
@@ -3152,9 +3412,8 @@ fn object_set_accessor() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3211,9 +3470,8 @@ fn object_set_accessor_with_setter() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3239,9 +3497,8 @@ fn object_set_accessor_with_setter() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3314,9 +3571,8 @@ fn object_set_accessor_with_setter_with_property() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3342,9 +3598,8 @@ fn object_set_accessor_with_setter_with_property() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_undefined());
       assert!(!args.should_throw_on_error());
 
@@ -3418,9 +3673,8 @@ fn object_set_accessor_with_data() {
                   key: v8::Local<v8::Name>,
                   args: v8::PropertyCallbackArguments,
                   mut rv: v8::ReturnValue<v8::Value>| {
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_string());
       assert!(!args.should_throw_on_error());
 
@@ -3449,9 +3703,8 @@ fn object_set_accessor_with_data() {
                   _rv: v8::ReturnValue<()>| {
       println!("setter called");
 
-      let this = args.this();
+      let this = args.holder();
 
-      assert_eq!(args.holder(), this);
       assert!(args.data().is_string());
       assert!(!args.should_throw_on_error());
 
@@ -3511,6 +3764,53 @@ fn object_set_accessor_with_data() {
     );
 
     assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
+  }
+}
+
+#[test]
+fn object_set_lazy_data_property() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  {
+    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    let getter = |scope: &mut v8::PinScope,
+                  _key: v8::Local<v8::Name>,
+                  _args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue<v8::Value>| {
+      let val = v8::String::new(scope, "lazy_value").unwrap();
+      rv.set(val.into());
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    };
+
+    let obj = v8::Object::new(scope);
+    let key = v8::String::new(scope, "lazy_key").unwrap();
+    assert_eq!(
+      obj.set_lazy_data_property(scope, key.into(), getter),
+      Some(true)
+    );
+
+    let obj_name = v8::String::new(scope, "obj").unwrap();
+    context
+      .global(scope)
+      .set(scope, obj_name.into(), obj.into());
+
+    // First access triggers the getter.
+    let actual = eval(scope, "obj.lazy_key").unwrap();
+    let expected = v8::String::new(scope, "lazy_value").unwrap();
+    assert!(actual.strict_equals(expected.into()));
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    // Second access should NOT invoke the getter again —
+    // the property has been replaced with a plain data property.
+    let actual2 = eval(scope, "obj.lazy_key").unwrap();
+    assert!(actual2.strict_equals(expected.into()));
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
   }
 }
 
@@ -3723,6 +4023,54 @@ fn function_builder_raw() {
     let value = func.call(scope, recv, &[arg0.into()]).unwrap();
     assert!(value.is_string());
     assert_eq!(value.to_rust_string_lossy(scope), "Hello from function!");
+  }
+}
+
+#[test]
+fn function_callback_info_parts() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let global = context.global(scope);
+    let recv: v8::Local<v8::Value> = global.into();
+
+    extern "C" fn callback(info: *const v8::FunctionCallbackInfo) {
+      let info = unsafe { &*info };
+      let parts = info.get_parts();
+      v8::callback_scope!(unsafe scope, &parts);
+      let args =
+        v8::FunctionCallbackArguments::from_function_callback_info_parts(
+          info, &parts,
+        );
+      assert_eq!(args.length(), 1);
+      assert!(args.data().is_true());
+      assert!(args.get(0).is_string());
+
+      let mut rv = parts.return_value;
+      rv.set(
+        v8::String::new(scope, "Hello from function parts!")
+          .unwrap()
+          .into(),
+      );
+    }
+
+    let data = v8::Boolean::new(scope, true).into();
+    let func = v8::Function::builder_raw(callback)
+      .data(data)
+      .build(scope)
+      .unwrap();
+
+    let arg0 = v8::String::new(scope, "Hello").unwrap();
+    let value = func.call(scope, recv, &[arg0.into()]).unwrap();
+    assert!(value.is_string());
+    assert_eq!(
+      value.to_rust_string_lossy(scope),
+      "Hello from function parts!"
+    );
   }
 }
 
@@ -4153,7 +4501,10 @@ fn function_script_origin_and_id() {
 
     if let Some(id) = prev_id {
       assert_eq!(script_id, id + 1);
-      assert_eq!(script_id, f_function_obj.get_script_origin().script_id(),);
+      assert_eq!(
+        script_id,
+        f_function_obj.get_script_origin(scope).script_id(),
+      );
     }
     prev_id = Some(script_id);
 
@@ -4161,14 +4512,15 @@ fn function_script_origin_and_id() {
     assert_eq!(
       "source_map_url",
       f_function_obj
-        .get_script_origin()
+        .get_script_origin(scope)
         .source_map_url()
         .unwrap()
         .to_rust_string_lossy(scope)
     );
 
     // Verify resource name matches in script origin
-    let resource_name_val = f_function_obj.get_script_origin().resource_name();
+    let resource_name_val =
+      f_function_obj.get_script_origin(scope).resource_name();
     assert!(resource_name_val.is_some());
     assert_eq!(
       resource_name_val.unwrap().to_rust_string_lossy(scope),
@@ -4548,6 +4900,17 @@ fn security_token() {
     let global = v8::Local::new(scope, global);
     templ.set_named_property_handler(
       v8::NamedPropertyHandlerConfiguration::new()
+        // NON_MASKING so the interceptor only fires for properties that are
+        // absent on the global (here just `variable`). Without it the handler
+        // would also intercept lookups of built-in globals, including those
+        // V8 performs while bootstrapping the context: since V8 15 shipped
+        // `Atomics.pause`, `Genesis::InitializeGlobal_js_atomics_pause` does a
+        // `GetProperty(global, "Atomics")` during context creation. A masking
+        // handler answers that with the *parent's* `Atomics` (which already
+        // has `pause`), so V8 reinstalls `pause` and aborts with a duplicate
+        // descriptor CHECK. NON_MASKING skips already-present properties and
+        // avoids the collision while preserving what this test exercises.
+        .flags(v8::PropertyHandlerFlags::NON_MASKING)
         .getter(
           |scope: &mut v8::PinScope,
            key: v8::Local<v8::Name>,
@@ -4556,9 +4919,9 @@ fn security_token() {
             let obj = v8::Local::<v8::Object>::try_from(args.data()).unwrap();
             if let Some(val) = obj.get(scope, key.into()) {
               rv.set(val);
-              v8::Intercepted::Yes
+              v8::Intercepted::kYes
             } else {
-              v8::Intercepted::No
+              v8::Intercepted::kNo
             }
           },
         )
@@ -4620,10 +4983,10 @@ fn context_with_object_template() {
     _key: v8::Local<'s, v8::Name>,
     _descriptor: &v8::PropertyDescriptor,
     _args: v8::PropertyCallbackArguments<'s>,
-    _rv: v8::ReturnValue<()>,
+    _rv: v8::ReturnValue<v8::Boolean>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("definer".to_string());
-    v8::Intercepted::No
+    v8::Intercepted::kNo
   }
 
   pub fn setter<'s>(
@@ -4631,10 +4994,10 @@ fn context_with_object_template() {
     _key: v8::Local<'s, v8::Name>,
     _value: v8::Local<'s, v8::Value>,
     _args: v8::PropertyCallbackArguments<'s>,
-    _rv: v8::ReturnValue<()>,
+    _rv: v8::ReturnValue<v8::Boolean>,
   ) -> v8::Intercepted {
     CALLS.lock().unwrap().push("setter".to_string());
-    v8::Intercepted::No
+    v8::Intercepted::kNo
   }
 
   {
@@ -6676,6 +7039,7 @@ impl v8::inspector::V8InspectorClientImpl for ClientCounter {
 
 struct ChannelCounterState {
   count_send_response: usize,
+  responses: Vec<String>,
   count_send_notification: usize,
   notifications: Vec<String>,
   count_flush_protocol_notifications: usize,
@@ -6685,6 +7049,7 @@ impl ChannelCounterState {
   pub fn new() -> Self {
     Self {
       count_send_response: 0,
+      responses: vec![],
       count_send_notification: 0,
       notifications: vec![],
       count_flush_protocol_notifications: 0,
@@ -6711,11 +7076,11 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
     call_id: i32,
     message: v8::UniquePtr<v8::inspector::StringBuffer>,
   ) {
-    println!(
-      "send_response call_id {call_id} message {}",
-      message.unwrap().string()
-    );
-    self.state.borrow_mut().count_send_response += 1;
+    let message = message.unwrap().string().to_string();
+    println!("send_response call_id {call_id} message {message}");
+    let mut state = self.state.borrow_mut();
+    state.count_send_response += 1;
+    state.responses.push(message);
   }
   fn send_notification(
     &self,
@@ -6729,6 +7094,28 @@ impl v8::inspector::ChannelImpl for ChannelCounter {
   }
   fn flush_protocol_notifications(&self) {
     self.state.borrow_mut().count_flush_protocol_notifications += 1;
+  }
+}
+
+struct TestInspectable {
+  value: v8::Global<v8::Value>,
+  drop_count: Arc<AtomicUsize>,
+}
+
+impl v8::inspector::InspectableImpl for TestInspectable {
+  fn get<'s>(
+    &self,
+    scope: &mut v8::PinScope<'s, '_>,
+    context: v8::Local<'s, v8::Context>,
+  ) -> v8::Local<'s, v8::Value> {
+    assert_eq!(scope.get_current_context(), context);
+    v8::Local::new(scope, &self.value)
+  }
+}
+
+impl Drop for TestInspectable {
+  fn drop(&mut self) {
+    self.drop_count.fetch_add(1, Ordering::SeqCst);
   }
 }
 
@@ -6818,6 +7205,276 @@ fn inspector_dispatch_protocol_message() {
   assert_eq!(state.count_send_notification, 0);
   assert_eq!(state.count_flush_protocol_notifications, 0);
   inspector.context_destroyed(context);
+}
+
+#[test]
+fn inspector_release_object_group() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let _scope = &mut v8::ContextScope::new(scope, context);
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":1,"method":"Runtime.evaluate","params":{"expression":"({ answer: 42 })","objectGroup":"rusty-v8-test","contextId":1}}"#[..],
+  ));
+
+  let object_id = {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 1);
+    state.responses[0]
+      .split_once(r#""objectId":""#)
+      .unwrap()
+      .1
+      .split_once('"')
+      .unwrap()
+      .0
+      .to_string()
+  };
+
+  session.release_object_group(StringView::from(&b"rusty-v8-test"[..]));
+  let get_properties = format!(
+    r#"{{"id":2,"method":"Runtime.getProperties","params":{{"objectId":"{object_id}"}}}}"#,
+  );
+  session
+    .dispatch_protocol_message(StringView::from(get_properties.as_bytes()));
+
+  let state = channel.state.borrow();
+  assert_eq!(state.responses.len(), 2);
+  assert!(state.responses[1].contains(r#""code":-32000"#));
+  assert!(state.responses[1].contains("Could not find object with given id"));
+}
+
+#[test]
+fn inspector_value_subtype() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  struct Client;
+
+  impl V8InspectorClientImpl for Client {
+    fn value_subtype<'s>(
+      &self,
+      scope: &mut v8::PinScope<'s, '_>,
+      value: v8::Local<'s, v8::Value>,
+    ) -> Option<v8::UniquePtr<StringBuffer>> {
+      v8::tc_scope!(let scope, scope);
+      let object = value.to_object(scope)?;
+      let key = v8::String::new(scope, "__rusty_v8_value_subtype")?;
+      if object.get(scope, key.into())?.is_true() {
+        Some(StringBuffer::create(StringView::from(&b"node"[..])))
+      } else {
+        None
+      }
+    }
+
+    fn description_for_value_subtype<'s>(
+      &self,
+      scope: &mut v8::PinScope<'s, '_>,
+      value: v8::Local<'s, v8::Value>,
+    ) -> Option<v8::UniquePtr<StringBuffer>> {
+      v8::tc_scope!(let scope, scope);
+      let object = value.to_object(scope)?;
+      let key = v8::String::new(scope, "__rusty_v8_value_description")?;
+      if object.get(scope, key.into())?.is_true() {
+        Some(StringBuffer::create(StringView::from(
+          &b"marked object"[..],
+        )))
+      } else {
+        None
+      }
+    }
+  }
+
+  let inspector_client = V8InspectorClient::new(Box::new(Client));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  eval(
+    scope,
+    r#"
+      globalThis.marked = {
+        __rusty_v8_value_subtype: true,
+        __rusty_v8_value_description: true,
+      };
+      globalThis.defaultDescription = {
+        __rusty_v8_value_subtype: true,
+      };
+    "#,
+  )
+  .unwrap();
+
+  let name_view = StringView::from(&b""[..]);
+  let aux_data_view = StringView::from(&b"{\"isDefault\": true}"[..]);
+  inspector.context_created(context, 1, name_view, aux_data_view);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":1,"method":"Runtime.evaluate","params":{"expression":"marked","contextId":1}}"#[..],
+  ));
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":2,"method":"Runtime.evaluate","params":{"expression":"defaultDescription","contextId":1}}"#[..],
+  ));
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":3,"method":"Runtime.evaluate","params":{"expression":"({})","contextId":1}}"#[..],
+  ));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 3);
+    assert!(state.responses[0].contains(r#""subtype":"node""#));
+    assert!(state.responses[0].contains(r#""description":"marked object""#));
+    // V8 drops the custom subtype when the client supplies no description.
+    assert!(state.responses[1].contains(r#""description":"Object""#));
+    assert!(!state.responses[1].contains(r#""subtype""#));
+    assert!(state.responses[2].contains(r#""description":"Object""#));
+    assert!(!state.responses[2].contains(r#""subtype""#));
+  }
+
+  inspector.context_destroyed(context);
+}
+
+#[test]
+fn inspector_inspected_object_round_trip() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let value = eval(scope, "({ answer: 42 })").unwrap();
+  let value = v8::Global::new(scope, value);
+
+  let name = StringView::from(&b""[..]);
+  let aux_data = StringView::from(&b"{\"isDefault\": true}"[..]);
+  inspector.context_created(context, 1, name, aux_data);
+
+  let channel = ChannelCounter::new();
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+  let drop_count = Arc::new(AtomicUsize::new(0));
+  session.add_inspected_object(Inspectable::new(Box::new(TestInspectable {
+    value,
+    drop_count: drop_count.clone(),
+  })));
+
+  session.dispatch_protocol_message(StringView::from(
+    &br#"{"id":1,"method":"Runtime.evaluate","params":{"expression":"$0.answer","contextId":1,"includeCommandLineAPI":true}}"#[..],
+  ));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.responses.len(), 1);
+    assert!(state.responses[0].contains(r#""value":42"#));
+  }
+
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+  drop(session);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+  drop(inspector);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn inspector_inspectable_drops_rust_impl_when_not_added() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  v8::scope!(let scope, isolate);
+  let value: v8::Local<v8::Value> = v8::undefined(scope).into();
+  let value = v8::Global::new(scope, value);
+  let drop_count = Arc::new(AtomicUsize::new(0));
+  let inspectable = Inspectable::new(Box::new(TestInspectable {
+    value,
+    drop_count: drop_count.clone(),
+  }));
+
+  assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+  drop(inspectable);
+  assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn inspector_inspected_object_drops_rust_impl_when_evicted() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(ChannelCounter::new())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  // V8 retains five inspected objects for $0 through $4, so adding a sixth
+  // evicts the oldest one.
+  let mut drop_counts = Vec::new();
+  for number in 0..6 {
+    let value: v8::Local<v8::Value> = v8::Integer::new(scope, number).into();
+    let drop_count = Arc::new(AtomicUsize::new(0));
+    session.add_inspected_object(Inspectable::new(Box::new(TestInspectable {
+      value: v8::Global::new(scope, value),
+      drop_count: drop_count.clone(),
+    })));
+    drop_counts.push(drop_count);
+  }
+
+  assert_eq!(drop_counts[0].load(Ordering::SeqCst), 1);
+  for drop_count in &drop_counts[1..] {
+    assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+  }
 }
 
 #[test]
@@ -6969,6 +7626,94 @@ fn inspector_schedule_pause_on_next_statement() {
     assert_eq!(client_state.count_run_if_waiting_for_debugger, 0);
     assert_ne!(client_state.count_generate_unique_id, 0);
   }
+}
+
+#[test]
+fn inspector_cancel_pause_on_next_statement() {
+  // Schedule a pause, then cancel it before any JS runs — the inspector
+  // must not enter run_message_loop_on_pause for the next script.
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let channel = ChannelCounter::new();
+  let state = b"{}";
+  let state_view = StringView::from(&state[..]);
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+
+  let name = b"";
+  let name_view = StringView::from(&name[..]);
+  let aux_data = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, aux_data);
+
+  let message = String::from(r#"{"id":1,"method":"Debugger.enable"}"#);
+  let message = &message.into_bytes()[..];
+  let message = StringView::from(message);
+  session.dispatch_protocol_message(message);
+
+  let reason = b"";
+  let reason = StringView::from(&reason[..]);
+  let detail = b"";
+  let detail = StringView::from(&detail[..]);
+  session.schedule_pause_on_next_statement(reason, detail);
+  session.cancel_pause_on_next_statement();
+
+  let r = eval(scope, "1+2").unwrap();
+  assert!(r.is_number());
+
+  // Cancelled before any statement ran, so the debugger must not have
+  // entered the nested message loop.
+  let client_state = client.state.borrow();
+  assert_eq!(client_state.count_run_message_loop_on_pause, 0);
+  assert_eq!(client_state.count_quit_message_loop_on_pause, 0);
+}
+
+#[test]
+fn inspector_async_task_smoke() {
+  // Smoke test: just call the new async-task / idle bindings to make sure
+  // the C++ symbols link and the round-trip doesn't crash. Asserting that
+  // the resulting Debugger.paused payload carries an asyncStackTrace would
+  // require driving a full Debugger.enable +
+  // Debugger.setAsyncCallStackDepth flow; that lives in higher-level
+  // embedder tests (e.g. deno's node_compat suite).
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+  let client = ClientCounter::new();
+  let inspector_client = V8InspectorClient::new(Box::new(client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  let task_name = b"my task";
+  let task_name_view = StringView::from(&task_name[..]);
+  let task_id: i32 = 1;
+  let task_ptr = &task_id as *const i32 as *const std::ffi::c_void;
+
+  inspector.idle_started();
+  // SAFETY: task_id outlives the call sequence below; no other thread
+  // touches the inspector.
+  unsafe {
+    inspector.async_task_scheduled(task_name_view, task_ptr, false);
+    inspector.async_task_started(task_ptr);
+    inspector.async_task_finished(task_ptr);
+    inspector.async_task_canceled(task_ptr);
+  }
+  inspector.all_async_tasks_canceled();
+  inspector.idle_finished();
 }
 
 #[test]
@@ -7690,6 +8435,82 @@ fn heap_limits() {
   assert_eq!(1, test_state.near_heap_limit_callback_calls);
 }
 
+#[test]
+fn resource_constraints() {
+  let _setup_guard = setup::parallel_test();
+
+  // Test setting and getting individual resource constraint values.
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(128 * 1024 * 1024)
+    .set_max_young_generation_size_in_bytes(16 * 1024 * 1024)
+    .set_code_range_size_in_bytes(64 * 1024 * 1024)
+    .set_initial_old_generation_size_in_bytes(8 * 1024 * 1024)
+    .set_initial_young_generation_size_in_bytes(2 * 1024 * 1024);
+
+  assert_eq!(params.max_old_generation_size_in_bytes(), 128 * 1024 * 1024);
+  assert_eq!(
+    params.max_young_generation_size_in_bytes(),
+    16 * 1024 * 1024
+  );
+  assert_eq!(params.code_range_size_in_bytes(), 64 * 1024 * 1024);
+  assert_eq!(
+    params.initial_old_generation_size_in_bytes(),
+    8 * 1024 * 1024
+  );
+  assert_eq!(
+    params.initial_young_generation_size_in_bytes(),
+    2 * 1024 * 1024
+  );
+
+  // Default stack_limit should be null.
+  assert!(params.stack_limit().is_null());
+
+  // Verify that an isolate can be created with these constraints.
+  let isolate = &mut v8::Isolate::new(params);
+  let s = isolate.get_heap_statistics();
+  // The heap limit should reflect the configured max old generation size.
+  // V8 may round or adjust the value, but it should be close.
+  assert!(s.heap_size_limit() > 0);
+}
+
+#[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
+#[test]
+fn resource_constraints_near_heap_limit() {
+  let _setup_guard = setup::parallel_test();
+
+  // Use individual resource constraint setters to limit the old generation
+  // to 8 MB (similar to heap_limits test but using the new API).
+  let params = v8::CreateParams::default()
+    .set_max_old_generation_size_in_bytes(8 * 1024 * 1024);
+  let isolate = &mut v8::Isolate::new(params);
+
+  let mut test_state = TestHeapLimitState::default();
+  let state_ptr = &mut test_state as *mut _ as *mut c_void;
+  isolate.add_near_heap_limit_callback(heap_limit_callback, state_ptr);
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  for _ in 0..1_000_000 {
+    eval(
+      scope,
+      r#"
+        "hello 🦕 world"
+          .repeat(10)
+          .split("🦕")
+          .map((s) => s.repeat(100).split("o"))
+        "#,
+    )
+    .unwrap();
+    if test_state.near_heap_limit_callback_calls > 0 {
+      break;
+    }
+  }
+  assert_eq!(1, test_state.near_heap_limit_callback_calls);
+}
+
 // Same as heap_limits()
 #[cfg(not(all(target_os = "android", target_arch = "x86_64")))]
 #[test]
@@ -7731,6 +8552,43 @@ fn heap_statistics() {
   assert_ne!(s.used_global_handles_size(), 0);
   assert_ne!(s.total_global_handles_size(), 0);
   assert_ne!(s.number_of_native_contexts(), 0);
+  assert!(s.total_allocated_bytes() > 0);
+}
+
+#[test]
+fn heap_code_statistics() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  // Before running any code, statistics should still be available.
+  let s = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // Before running any code, code_and_metadata_size may or may not be > 0
+  // depending on the platform and V8 version.
+  // external_script_source_size and cpu_profiler_metadata_size start at 0.
+  assert_eq!(s.external_script_source_size(), 0);
+  assert_eq!(s.cpu_profiler_metadata_size(), 0);
+
+  // Run some JS to generate bytecode.
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    eval(scope, "function foo() { return 1 + 2; } foo();").unwrap();
+  }
+
+  let s2 = isolate
+    .get_heap_code_and_metadata_statistics()
+    .expect("get_heap_code_and_metadata_statistics should succeed");
+
+  // After compiling code, bytecode_and_metadata_size should increase.
+  assert!(s2.bytecode_and_metadata_size() > 0);
+  // code_and_metadata_size tracks JIT-compiled code, which may be 0 if V8
+  // only uses the interpreter for simple scripts.
+  assert!(s2.code_and_metadata_size() >= s.code_and_metadata_size());
 }
 
 #[test]
@@ -7739,6 +8597,42 @@ fn low_memory_notification() {
 
   let mut isolate = v8::Isolate::new(Default::default());
   isolate.low_memory_notification();
+}
+
+#[test]
+fn set_idle() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  // Toggling the idle state must not affect the ability to run code.
+  isolate.set_idle(true);
+  isolate.set_idle(false);
+
+  v8::scope!(let scope, &mut isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let value = eval(scope, "1 + 1").unwrap();
+  assert_eq!(value.uint32_value(scope).unwrap(), 2);
+}
+
+#[test]
+fn cpu_profiler_bindings() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.use_detailed_source_positions_for_profiling();
+
+  v8::scope!(let scope, &mut isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Collecting a sample without any profiler attached is a no-op but must be
+  // safe to call, both with and without a trace id.
+  scope.collect_cpu_profiler_sample(None);
+  scope.collect_cpu_profiler_sample(Some(42));
+
+  let value = eval(scope, "1 + 1").unwrap();
+  assert_eq!(value.uint32_value(scope).unwrap(), 2);
 }
 
 // Clippy thinks the return value doesn't need to be an Option, it's unaware
@@ -8066,6 +8960,117 @@ fn external_onebyte_string() {
   assert_eq!(one_byte.length(), 6);
 
   assert_eq!(one_byte.as_bytes(), [b'h', b'e', b'l', b'l', b'o', 0xA9]);
+}
+
+#[test]
+fn external_onebyte_string_frees_external_memory() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  let before = isolate.get_heap_statistics().external_memory();
+
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // Allocate a large external string so the memory delta is measurable.
+    let input = vec![b'x'; 1024 * 1024].into_boxed_slice();
+    let _s = v8::String::new_external_onebyte(scope, input).unwrap();
+
+    let during = scope.get_heap_statistics().external_memory();
+    assert!(
+      during >= before + 1024 * 1024,
+      "external memory should increase after allocating external string: before={before}, during={during}",
+    );
+  }
+
+  // The string is unreachable now; force GC to collect it.
+  isolate.low_memory_notification();
+
+  let after = isolate.get_heap_statistics().external_memory();
+  // After GC the external memory counter should drop back down.
+  // Before the fix, the destructor was *increasing* the counter instead of
+  // decreasing it, so `after` would be >= `during`.
+  assert!(
+    after < before + 1024 * 1024,
+    "external memory should decrease after GC frees external string: before={before}, after={after}",
+  );
+}
+
+#[test]
+fn escapable_handle_scope_from_isolate() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Create an EscapableHandleScope nested in the current scope
+  let escaped_value: v8::Local<v8::Value> = {
+    let mut esc_storage = v8::EscapableHandleScope::new(scope);
+    let mut pinned = unsafe { std::pin::Pin::new_unchecked(&mut esc_storage) };
+    let mut esc_scope = pinned.as_mut().init();
+    let value = v8::String::new(&esc_scope, "escaped!").unwrap();
+    esc_scope.escape(value.into())
+  };
+
+  // The escaped value should still be valid after the scope closed
+  let rust_str = escaped_value.to_rust_string_lossy(scope);
+  assert_eq!(rust_str, "escaped!");
+}
+
+#[test]
+fn external_twobyte_string() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  // "hello" in UTF-16
+  let input: Box<[u16]> = Box::new([0x0068, 0x0065, 0x006C, 0x006C, 0x006F]);
+  let s = v8::String::new_external_twobyte(scope, input).unwrap();
+
+  assert!(s.is_external());
+  assert!(s.is_external_twobyte());
+  assert_eq!(s.length(), 5);
+  assert_eq!(s.utf8_length(scope), 5);
+
+  let mut buf = [0u8; 10];
+  let written = s.write_utf8_v2(scope, &mut buf, v8::WriteFlags::empty(), None);
+  assert_eq!(written, 5);
+  assert_eq!(&buf[..5], b"hello");
+}
+
+#[test]
+fn external_twobyte_string_raw() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  unsafe extern "C" fn free_u16(s: *mut u16, len: usize) {
+    unsafe {
+      let slice = std::slice::from_raw_parts_mut(s, len);
+      drop(Box::from_raw(slice));
+    }
+  }
+
+  // "hi" in UTF-16, allocated via Box then leaked for raw API
+  let input: Box<[u16]> = Box::new([0x0068, 0x0069]);
+  let len = input.len();
+  let ptr = Box::into_raw(input) as *mut u16;
+
+  let s =
+    unsafe { v8::String::new_external_twobyte_raw(scope, ptr, len, free_u16) }
+      .unwrap();
+
+  assert!(s.is_external());
+  assert!(s.is_external_twobyte());
+  assert_eq!(s.length(), 2);
+
+  let mut buf = [0u8; 10];
+  let written = s.write_utf8_v2(scope, &mut buf, v8::WriteFlags::empty(), None);
+  assert_eq!(written, 2);
+  assert_eq!(&buf[..2], b"hi");
 }
 
 #[test]
@@ -8722,12 +9727,12 @@ fn clear_kept_objects() {
 #[test]
 fn wasm_streaming_callback() {
   thread_local! {
-    static WS: RefCell<Option<v8::WasmStreaming>> = const { RefCell::new(None) };
+    static WS: RefCell<Option<v8::WasmStreaming<false>>> = const { RefCell::new(None) };
   }
 
   let callback = |scope: &mut v8::PinScope,
                   url: v8::Local<v8::Value>,
-                  ws: v8::WasmStreaming| {
+                  ws: v8::WasmStreaming<false>| {
     assert_eq!("https://example.com", url.to_rust_string_lossy(scope));
     WS.with(|slot| assert!(slot.borrow_mut().replace(ws).is_none()));
   };
@@ -8797,6 +9802,60 @@ fn wasm_streaming_callback() {
     false, // don't block if there are no tasks
   ) {}
   assert!(global.get(scope, name).unwrap().strict_equals(exception));
+}
+
+#[test]
+fn wasm_module_compilation() {
+  let _setup_guard = setup::parallel_test();
+
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // Start compilation.
+  let mut compilation = v8::WasmModuleCompilation::new();
+
+  // MVP of WASM modules: magic marker + version 1.
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+
+  compilation.set_url("https://example.com/test.wasm");
+
+  // Finish compilation.
+  let result: Rc<RefCell<Option<v8::Global<v8::WasmModuleObject>>>> =
+    Rc::new(RefCell::new(None));
+  let result_clone = result.clone();
+  compilation.finish(scope, None, move |isolate, r| match r {
+    Ok(module) => {
+      result_clone
+        .borrow_mut()
+        .replace(v8::Global::new(isolate, module));
+    }
+    Err(_) => panic!("wasm compilation failed"),
+  });
+
+  // Execute pending tasks.
+  while v8::Platform::pump_message_loop(
+    &v8::V8::get_current_platform(),
+    scope,
+    false,
+  ) {}
+
+  let global_module = result.borrow_mut().take();
+  assert!(global_module.is_some());
+}
+
+#[test]
+fn wasm_module_compilation_abort() {
+  let _setup_guard = setup::parallel_test();
+
+  // Start compilation and abort it.
+  let mut compilation = v8::WasmModuleCompilation::new();
+  compilation
+    .on_bytes_received(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+  compilation.abort();
 }
 
 #[test]
@@ -9089,7 +10148,7 @@ fn run_with_rust_allocator() {
   unsafe extern "C" fn free(count: &AtomicUsize, data: *mut c_void, n: usize) {
     count.fetch_sub(n, Ordering::SeqCst);
     let _ = unsafe {
-      Box::from_raw(std::slice::from_raw_parts_mut(data as *mut u8, n))
+      Box::from_raw(std::ptr::slice_from_raw_parts_mut(data as *mut u8, n))
     };
   }
   unsafe extern "C" fn drop(count: *const AtomicUsize) {
@@ -9287,7 +10346,7 @@ fn icu_date() {
 #[test]
 fn icu_set_common_data_fail() {
   assert!(
-    v8::icu::set_common_data_74(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
+    v8::icu::set_common_data_78(&[1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0]).is_err()
   );
 }
 
@@ -10534,11 +11593,40 @@ fn finalizer_on_kept_global() {
 }
 
 #[test]
+fn isolate_slot_drop_can_access_annex_during_teardown() {
+  let _setup_guard = setup::parallel_test();
+
+  struct DropCheck {
+    isolate: v8::UnsafeRawIsolatePtr,
+  }
+
+  impl Drop for DropCheck {
+    fn drop(&mut self) {
+      let isolate =
+        unsafe { v8::Isolate::ref_from_raw_isolate_ptr(&self.isolate) };
+      let handle = isolate.thread_safe_handle();
+      assert!(
+        !handle.cancel_terminate_execution(),
+        "slot Drop should observe a disposed IsolateHandle"
+      );
+    }
+  }
+
+  {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    let isolate_ptr = unsafe { isolate.as_raw_isolate_ptr() };
+    isolate.set_slot(DropCheck {
+      isolate: isolate_ptr,
+    });
+  }
+}
+
+#[test]
 fn isolate_data_slots() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());
 
-  assert_eq!(isolate.get_number_of_data_slots(), 2);
+  assert_eq!(isolate.get_number_of_data_slots(), 3);
 
   let expected0 = "Bla";
   isolate.set_data(0, &expected0 as *const _ as *mut &str as *mut c_void);
@@ -11030,15 +12118,11 @@ fn test_fast_calls_typedarray() {
 
 #[test]
 fn test_fast_calls_reciever() {
-  const V8_WRAPPER_TYPE_INDEX: i32 = 0;
-  const V8_WRAPPER_OBJECT_INDEX: i32 = 1;
-
   static mut WHO: &str = "none";
   fn fast_fn(recv: v8::Local<v8::Object>) -> u32 {
     unsafe {
       WHO = "fast";
-      let embedder_obj =
-        recv.get_aligned_pointer_from_internal_field(V8_WRAPPER_OBJECT_INDEX);
+      let embedder_obj = recv.get_aligned_pointer_from_internal_field(0, 0);
 
       let i = *(embedder_obj as *const u32);
       assert_eq!(i, 69);
@@ -11065,29 +12149,18 @@ fn test_fast_calls_reciever() {
   }
 
   let _setup_guard = setup::parallel_test();
-  let isolate = &mut v8::Isolate::new(
-    v8::CreateParams::default().embedder_wrapper_type_info_offsets(
-      V8_WRAPPER_TYPE_INDEX,
-      V8_WRAPPER_OBJECT_INDEX,
-    ),
-  );
+  let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
   v8::scope!(let scope, isolate);
 
   let context = v8::Context::new(scope, Default::default());
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let object_template = v8::ObjectTemplate::new(scope);
-  assert!(
-    object_template
-      .set_internal_field_count((V8_WRAPPER_OBJECT_INDEX + 1) as usize)
-  );
+  assert!(object_template.set_internal_field_count(1));
 
   let obj = object_template.new_instance(scope).unwrap();
   let embedder_obj = Box::into_raw(Box::new(69u32));
-  obj.set_aligned_pointer_in_internal_field(
-    V8_WRAPPER_OBJECT_INDEX,
-    embedder_obj as _,
-  );
+  obj.set_aligned_pointer_in_internal_field(0, embedder_obj as _, 0);
 
   let template =
     v8::FunctionTemplate::builder(slow_fn).build_fast(scope, &[FAST_TEST]);
@@ -12073,14 +13146,34 @@ fn microtask_queue_new() {
 
   let scope = pin!(v8::HandleScope::new(&mut isolate));
   let mut scope = scope.init();
-  let queue = v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Auto);
+  let queue =
+    v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Explicit);
 
   let context = v8::Context::new(&scope, Default::default());
 
   context.set_microtask_queue(queue.as_ref());
   assert!(std::ptr::eq(context.get_microtask_queue(), queue.as_ref()));
-  // TODO(bartlomieju): add more tests once we have Context::New() bindings
-  // https://github.com/denoland/rusty_v8/issues/1438
+
+  let mut scope = v8::ContextScope::new(&mut scope, context);
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  CALL_COUNT.store(0, Ordering::SeqCst);
+  let function = v8::Function::new(
+    &mut scope,
+    |_: &mut v8::PinScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue<v8::Value>| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+    },
+  )
+  .unwrap();
+  queue.enqueue_microtask(&mut scope, function);
+
+  // The associated context keeps the queue alive after its Rust-side root is
+  // released and cppgc runs.
+  drop(queue);
+  scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+  context.get_microtask_queue().perform_checkpoint(&mut scope);
+  assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -12102,6 +13195,26 @@ fn clear_slots_annex_uninitialized() {
   // This was trying to deallocate a garbage value when the annex was not
   // initialized.
   context.clear_all_slots();
+}
+
+#[test]
+fn string_concat() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let left = v8::String::new(scope, "hello").unwrap();
+  let right = v8::String::new(scope, " world").unwrap();
+  let result = v8::String::concat(scope, left, right).unwrap();
+  assert_eq!(result.to_rust_string_lossy(scope), "hello world");
+
+  // Concat with empty string.
+  let empty = v8::String::empty(scope);
+  let result2 = v8::String::concat(scope, left, empty).unwrap();
+  assert_eq!(result2.to_rust_string_lossy(scope), "hello");
 }
 
 #[test]
@@ -12134,6 +13247,242 @@ fn string_valueview() {
     let view = v8::ValueView::new(scope, two_byte);
     assert_eq!(view.data(), v8::ValueViewData::TwoByte(&[1, 0x1FF, 3]));
   }
+
+  // Empty strings: `data()` reports the actual `is_one_byte_` encoding for the
+  // zero-length case, not a hardcoded variant. V8 canonicalizes every empty
+  // string (including one built from two-byte data) to the one-byte empty
+  // string, so both report `OneByte`.
+  {
+    let empty_one_byte =
+      v8::String::new_from_one_byte(scope, &[], v8::NewStringType::Normal)
+        .unwrap();
+    let view = v8::ValueView::new(scope, empty_one_byte);
+    assert_eq!(view.data(), v8::ValueViewData::OneByte(&[]));
+  }
+  {
+    let empty_two_byte =
+      v8::String::new_from_two_byte(scope, &[], v8::NewStringType::Normal)
+        .unwrap();
+    let view = v8::ValueView::new(scope, empty_two_byte);
+    assert_eq!(view.data(), v8::ValueViewData::OneByte(&[]));
+  }
+}
+
+#[test]
+fn string_valueview_as_str() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ASCII string: as_str returns Some
+  {
+    let s = v8::String::new(scope, "hello world").unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), Some("hello world"));
+  }
+
+  // Empty string: as_str returns Some("")
+  {
+    let s = v8::String::empty(scope);
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), Some(""));
+  }
+
+  // Latin-1 non-ASCII: as_str returns None
+  {
+    let s = v8::String::new_from_one_byte(
+      scope,
+      &[0xC0, 0xE9, 0xF1],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), None);
+  }
+
+  // Two-byte string: as_str returns None
+  {
+    let s = v8::String::new_from_two_byte(
+      scope,
+      &[0x4F60, 0x597D],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    assert_eq!(view.as_str(), None);
+  }
+}
+
+#[test]
+fn string_valueview_to_cow_lossy() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // ASCII: zero-copy Borrowed
+  {
+    let s = v8::String::new(scope, "hello").unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Borrowed(_)));
+    assert_eq!(&*cow, "hello");
+  }
+
+  // Latin-1 non-ASCII: Owned with correct transcoding
+  {
+    let s = v8::String::new_from_one_byte(
+      scope,
+      &[0xC0, 0xE9],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+    assert_eq!(&*cow, "\u{00C0}\u{00E9}");
+  }
+
+  // Two-byte: Owned
+  {
+    let s = v8::String::new_from_two_byte(
+      scope,
+      &[0x4F60, 0x597D],
+      v8::NewStringType::Normal,
+    )
+    .unwrap();
+    let view = v8::ValueView::new(scope, s);
+    let cow = view.to_cow_lossy();
+    assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+    assert_eq!(&*cow, "你好");
+  }
+}
+
+#[test]
+fn to_rust_string_lossy_wtf16_simd_path() {
+  // Exercises the >= WTF16_SIMD_THRESHOLD single-pass conversion path (the
+  // existing two-byte tests use short strings that take the scalar fallback).
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Long valid two-byte string -> single-pass simdutf conversion.
+  let units: Vec<u16> = std::iter::repeat_n(0x4E16, 64).collect(); // 世
+  let s =
+    v8::String::new_from_two_byte(scope, &units, v8::NewStringType::Normal)
+      .unwrap();
+  assert_eq!(s.to_rust_string_lossy(scope), "世".repeat(64));
+
+  // Long string with an unpaired surrogate -> single-pass reports an error and
+  // we fall back to the scalar loop, which substitutes U+FFFD.
+  let mut units2: Vec<u16> = std::iter::repeat_n(0x4E16, 32).collect();
+  units2[10] = 0xD800; // lone high surrogate
+  let s2 =
+    v8::String::new_from_two_byte(scope, &units2, v8::NewStringType::Normal)
+      .unwrap();
+  let expected: String = (0..32)
+    .map(|i| if i == 10 { '\u{FFFD}' } else { '世' })
+    .collect();
+  assert_eq!(s2.to_rust_string_lossy(scope), expected);
+}
+
+#[test]
+fn string_write_utf8_into() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  let mut buf = String::new();
+
+  // ASCII string
+  {
+    let s = v8::String::new(scope, "hello world").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "hello world");
+  }
+
+  // Buffer reuse: allocation should be reused
+  {
+    let ptr_before = buf.as_ptr();
+    let s = v8::String::new(scope, "hi").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "hi");
+    assert_eq!(buf.as_ptr(), ptr_before);
+  }
+
+  // Empty string
+  {
+    let s = v8::String::empty(scope);
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "");
+  }
+
+  // Unicode string
+  {
+    let s = v8::String::new(scope, "café ☕").unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, "café ☕");
+  }
+
+  // Long one-byte strings exercise the simdutf ASCII-detection path.
+  {
+    let long_ascii = "a".repeat(200);
+    let s = v8::String::new(scope, &long_ascii).unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, long_ascii);
+  }
+  {
+    let long_latin1 = "\u{00e9}".repeat(200);
+    let s = v8::String::new(scope, &long_latin1).unwrap();
+    s.write_utf8_into(scope, &mut buf);
+    assert_eq!(buf, long_latin1);
+  }
+}
+
+#[test]
+fn latin1_to_utf8() {
+  // Pure ASCII
+  let input = b"hello world";
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  assert_eq!(&output[..written], b"hello world");
+
+  // Latin-1 with non-ASCII: À = 0xC0, é = 0xE9
+  let input = &[0xC0u8, 0xE9];
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  let s = std::str::from_utf8(&output[..written]).unwrap();
+  assert_eq!(s, "\u{00C0}\u{00E9}");
+
+  // Mixed ASCII and Latin-1 (exercises the 8-byte SIMD path)
+  let input = b"ABCDEFGH\xC0\xE9";
+  let mut output = vec![0u8; input.len() * 2];
+  let written = unsafe {
+    v8::latin1_to_utf8(input.len(), input.as_ptr(), output.as_mut_ptr())
+  };
+  let s = std::str::from_utf8(&output[..written]).unwrap();
+  assert_eq!(s, "ABCDEFGH\u{00C0}\u{00E9}");
+
+  // Empty
+  let mut output = vec![0u8; 4];
+  let written =
+    unsafe { v8::latin1_to_utf8(0, [].as_ptr(), output.as_mut_ptr()) };
+  assert_eq!(written, 0);
 }
 
 #[test]
@@ -12285,6 +13634,1762 @@ fn test_regexp() {
   assert!(groups.is_undefined());
 }
 
+#[test]
+fn crdtp_json_cbor_conversion() {
+  let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes());
+  assert!(cbor.is_some());
+  let cbor = cbor.unwrap();
+  assert!(!cbor.is_empty());
+
+  let json_back = v8::crdtp::cbor_to_json(&cbor);
+  assert!(json_back.is_some());
+  let json_back = json_back.unwrap();
+  let json_str = String::from_utf8_lossy(&json_back);
+  assert!(json_str.contains("Network.enable"));
+  assert!(json_str.contains("\"id\":1"));
+}
+
+#[test]
+fn crdtp_dispatchable_parsing() {
+  let json =
+    r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+  assert!(dispatchable.has_call_id());
+  assert_eq!(dispatchable.call_id(), 42);
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+}
+
+#[test]
+fn crdtp_dispatch_response() {
+  let response = v8::crdtp::DispatchResponse::success();
+  assert!(response.is_success());
+  assert!(!response.is_error());
+  assert!(!response.is_fall_through());
+
+  let response = v8::crdtp::DispatchResponse::server_error("test error");
+  assert!(!response.is_success());
+  assert!(response.is_error());
+  assert_eq!(response.message(), "test error");
+
+  let response = v8::crdtp::DispatchResponse::invalid_params("bad params");
+  assert!(response.is_error());
+  assert_eq!(response.message(), "bad params");
+
+  let response =
+    v8::crdtp::DispatchResponse::method_not_found("unknown method");
+  assert!(response.is_error());
+  assert_eq!(response.message(), "unknown method");
+
+  let response = v8::crdtp::DispatchResponse::fall_through();
+  assert!(!response.is_success());
+  assert!(!response.is_error());
+  assert!(response.is_fall_through());
+}
+
+struct TestFrontendChannel {
+  responses: Vec<Vec<u8>>,
+  notifications: Vec<Vec<u8>>,
+}
+
+impl TestFrontendChannel {
+  fn new() -> Self {
+    Self {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+    }
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for TestFrontendChannel {
+  fn send_protocol_response(
+    &mut self,
+    _call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    self.responses.push(message.to_bytes());
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    self.notifications.push(message.to_bytes());
+  }
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+fn assert_method_not_found_response(response: &[u8], call_id: i32) {
+  let json = v8::crdtp::cbor_to_json(response).unwrap();
+  let json = String::from_utf8(json).unwrap();
+  assert!(json.contains(&format!(r#""id":{call_id}"#)), "{json}");
+  assert!(json.contains(r#""code":-32601"#), "{json}");
+}
+
+#[test]
+fn crdtp_uber_dispatcher_basic() {
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let json = r#"{"id":1,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  dispatcher.dispatch(&mut dispatchable);
+
+  let state = state.borrow();
+  assert_eq!(state.responses.len(), 1);
+  assert_method_not_found_response(&state.responses[0], 1);
+}
+
+#[test]
+fn crdtp_uber_dispatcher_fallthrough() {
+  let (channel_impl, channel_state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  type FallthroughCall = (i32, Vec<u8>, Vec<u8>, Vec<u8>);
+  let callback_state = Rc::new(RefCell::new(None::<FallthroughCall>));
+  let callback_state_clone = callback_state.clone();
+  let json = r#"{"id":7,"method":"Custom.unknownMethod","params":{}}"#;
+  let (mut dispatchable, expected_cbor) = {
+    let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+    let expected_cbor = cbor.clone();
+    let associated_data = b"request metadata".to_vec();
+    let dispatchable = v8::crdtp::Dispatchable::new_with_fallthrough(
+      &cbor,
+      &associated_data,
+      move |call_id, method, message, associated_data| {
+        *callback_state_clone.borrow_mut() = Some((
+          call_id,
+          method.to_vec(),
+          message.to_vec(),
+          associated_data.to_vec(),
+        ));
+      },
+    );
+    (dispatchable, expected_cbor)
+  };
+  assert_eq!(dispatchable.associated_data(), b"request metadata");
+
+  dispatcher.dispatch(&mut dispatchable);
+  assert_eq!(dispatchable.associated_data(), b"request metadata");
+
+  assert!(channel_state.borrow().responses.is_empty());
+  let (call_id, method, message, associated_data) =
+    callback_state.borrow_mut().take().unwrap();
+  assert_eq!(call_id, 7);
+  assert_eq!(method, b"Custom.unknownMethod");
+  assert_eq!(message, expected_cbor);
+  assert!(associated_data.is_empty());
+}
+
+#[test]
+fn crdtp_create_error_response() {
+  let response =
+    v8::crdtp::DispatchResponse::server_error("something went wrong");
+  let serializable = v8::crdtp::create_error_response(123, response);
+
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("123"));
+  assert!(json_str.contains("error"));
+}
+
+struct HybridInspectorChannel {
+  responses: Vec<String>,
+  notifications: Vec<String>,
+  network_enabled: bool,
+}
+
+impl HybridInspectorChannel {
+  fn new() -> Self {
+    Self {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+      network_enabled: false,
+    }
+  }
+
+  fn handle_custom_domain(
+    &mut self,
+    method: &str,
+    call_id: i32,
+    _params: &[u8],
+  ) -> Option<String> {
+    match method {
+      "Network.enable" => {
+        self.network_enabled = true;
+        Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
+      }
+      "Network.disable" => {
+        self.network_enabled = false;
+        Some(format!(r#"{{"id":{},"result":{{}}}}"#, call_id))
+      }
+      "Network.getResponseBody" => Some(format!(
+        r#"{{"id":{},"result":{{"body":"hello world","base64Encoded":false}}}}"#,
+        call_id
+      )),
+      _ if method.starts_with("Network.") => Some(format!(
+        r#"{{"id":{},"error":{{"code":-32601,"message":"'{}' not implemented"}}}}"#,
+        call_id, method
+      )),
+      _ => None,
+    }
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for HybridInspectorChannel {
+  fn send_protocol_response(
+    &mut self,
+    call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    let cbor = message.to_bytes();
+    if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
+      let json_str = String::from_utf8_lossy(&json).to_string();
+      println!("[CRDTP] Response id={}: {}", call_id, json_str);
+      self.responses.push(json_str);
+    }
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    let cbor = message.to_bytes();
+    if let Some(json) = v8::crdtp::cbor_to_json(&cbor) {
+      let json_str = String::from_utf8_lossy(&json).to_string();
+      println!("[CRDTP] Notification: {}", json_str);
+      self.notifications.push(json_str);
+    }
+  }
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_e2e_custom_domain_handling() {
+  let mut channel_impl = HybridInspectorChannel::new();
+
+  let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  assert!(dispatchable.ok());
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+  assert_eq!(dispatchable.call_id(), 1);
+
+  let method = dispatchable.method_str();
+  let response =
+    channel_impl.handle_custom_domain(&method, dispatchable.call_id(), &[]);
+  assert!(response.is_some());
+  let response = response.unwrap();
+  assert!(response.contains(r#""id":1"#));
+  assert!(response.contains(r#""result":{}"#));
+  assert!(channel_impl.network_enabled);
+
+  let json = r#"{"id":2,"method":"Network.getResponseBody","params":{"requestId":"123"}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let response = channel_impl.handle_custom_domain(
+    &dispatchable.method_str(),
+    dispatchable.call_id(),
+    &dispatchable.params(),
+  );
+  assert!(response.is_some());
+  let response = response.unwrap();
+  assert!(response.contains("hello world"));
+  assert!(response.contains(r#""base64Encoded":false"#));
+
+  let json = r#"{"id":3,"method":"Runtime.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  let response = channel_impl.handle_custom_domain(
+    &dispatchable.method_str(),
+    dispatchable.call_id(),
+    &[],
+  );
+  assert!(response.is_none());
+}
+
+#[test]
+fn crdtp_e2e_with_v8_inspector() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let default_client = ClientCounter::new();
+  let inspector_client =
+    V8InspectorClient::new(Box::new(default_client.clone()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let _context_scope = v8::ContextScope::new(scope, context);
+
+  let name = b"test";
+  let name_view = StringView::from(&name[..]);
+  inspector.context_created(context, 1, name_view, name_view);
+
+  let channel = ChannelCounter::new();
+  let state_view = StringView::from(&b"{}"[..]);
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(channel.clone())),
+    state_view,
+    V8InspectorClientTrustLevel::FullyTrusted,
+  );
+
+  let message = r#"{"id":1,"method":"Runtime.enable"}"#;
+  session.dispatch_protocol_message(StringView::from(message.as_bytes()));
+
+  {
+    let state = channel.state.borrow();
+    assert_eq!(state.count_send_response, 1);
+    assert!(state.count_send_notification >= 1);
+  }
+
+  assert!(V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"Runtime.enable"[..]
+  )));
+
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"Network.enable"[..]
+  )));
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"NodeRuntime.enable"[..]
+  )));
+  assert!(!V8InspectorSession::can_dispatch_method(StringView::from(
+    &b"NodeWorker.enable"[..]
+  )));
+
+  let json =
+    r#"{"id":42,"method":"Network.enable","params":{"maxPostDataSize":65536}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  assert!(dispatchable.ok());
+  assert_eq!(dispatchable.method_str(), "Network.enable");
+  assert_eq!(dispatchable.call_id(), 42);
+
+  inspector.context_destroyed(context);
+}
+
+#[test]
+fn crdtp_create_response() {
+  let serializable = v8::crdtp::create_response(42, None);
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("42"));
+  assert!(json_str.contains("result"));
+}
+
+#[test]
+fn crdtp_create_notification() {
+  let serializable = v8::crdtp::create_notification("Test.event", None);
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("Test.event"));
+}
+
+struct TestDomainHandler {
+  enabled: bool,
+}
+
+impl TestDomainHandler {
+  fn new() -> Self {
+    Self { enabled: false }
+  }
+}
+
+impl v8::crdtp::DomainDispatcherImpl for TestDomainHandler {
+  fn dispatch(
+    &mut self,
+    command: &[u8],
+    dispatchable: &v8::crdtp::Dispatchable,
+    handle: &v8::crdtp::DomainDispatcherHandle,
+  ) -> bool {
+    let cmd = String::from_utf8_lossy(command);
+    match cmd.as_ref() {
+      "enable" => {
+        self.enabled = true;
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::success(),
+          None,
+        );
+        true
+      }
+      "disable" => {
+        self.enabled = false;
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::success(),
+          None,
+        );
+        true
+      }
+      _ => false,
+    }
+  }
+}
+
+struct SharedFrontendChannel {
+  state: Rc<RefCell<TestFrontendChannelState>>,
+}
+
+struct TestFrontendChannelState {
+  responses: Vec<Vec<u8>>,
+  notifications: Vec<Vec<u8>>,
+}
+
+impl SharedFrontendChannel {
+  fn new() -> (Self, Rc<RefCell<TestFrontendChannelState>>) {
+    let state = Rc::new(RefCell::new(TestFrontendChannelState {
+      responses: Vec::new(),
+      notifications: Vec::new(),
+    }));
+    (
+      Self {
+        state: state.clone(),
+      },
+      state,
+    )
+  }
+}
+
+impl v8::crdtp::FrontendChannelImpl for SharedFrontendChannel {
+  fn send_protocol_response(
+    &mut self,
+    _call_id: i32,
+    message: v8::crdtp::Serializable,
+  ) {
+    self.state.borrow_mut().responses.push(message.to_bytes());
+  }
+
+  fn send_protocol_notification(&mut self, message: v8::crdtp::Serializable) {
+    self
+      .state
+      .borrow_mut()
+      .notifications
+      .push(message.to_bytes());
+  }
+
+  fn flush_protocol_notifications(&mut self) {}
+}
+
+#[test]
+fn crdtp_domain_dispatcher_wire() {
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let handler = Box::new(TestDomainHandler::new());
+  v8::crdtp::DomainDispatcher::wire(&mut dispatcher, "Custom", handler);
+
+  // A known method is handled before dispatch returns.
+  let json = r#"{"id":1,"method":"Custom.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  dispatcher.dispatch(&mut dispatchable);
+
+  // Verify the response was actually delivered to the FrontendChannel
+  {
+    let s = state.borrow();
+    assert_eq!(s.responses.len(), 1);
+    let json_bytes = v8::crdtp::cbor_to_json(&s.responses[0]).unwrap();
+    let json_str = String::from_utf8_lossy(&json_bytes);
+    assert!(json_str.contains("\"id\":1"));
+    assert!(json_str.contains("\"result\""));
+  }
+
+  // An unknown method in the same domain gets an immediate error response.
+  let json = r#"{"id":2,"method":"Custom.unknownMethod","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
+
+  // A method in a different domain also gets an immediate error response.
+  let json = r#"{"id":3,"method":"Other.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
+
+  assert_eq!(state.borrow().responses.len(), 3);
+}
+
+#[test]
+fn crdtp_dispatchable_malformed_cbor() {
+  // Completely invalid bytes
+  let garbage = &[0xFF, 0xFE, 0x00, 0x01];
+  let dispatchable = v8::crdtp::Dispatchable::new(garbage);
+  assert!(!dispatchable.ok());
+
+  // Empty input
+  let dispatchable = v8::crdtp::Dispatchable::new(&[]);
+  assert!(!dispatchable.ok());
+
+  // Truncated CBOR (valid JSON converted then chopped)
+  let json = r#"{"id":1,"method":"Test.foo","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let truncated = &cbor[..cbor.len() / 2];
+  let dispatchable = v8::crdtp::Dispatchable::new(truncated);
+  assert!(!dispatchable.ok());
+}
+
+#[test]
+fn crdtp_dispatchable_missing_fields() {
+  // Missing "method" field — should parse but method is empty
+  let json = r#"{"id":1,"params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  // crdtp considers missing method as ok=false
+  assert!(!dispatchable.ok());
+
+  // Missing "id" field — crdtp requires an integer id for all dispatchables
+  let json = r#"{"method":"Test.event","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(!dispatchable.ok());
+}
+
+#[test]
+fn crdtp_json_cbor_invalid_input() {
+  // Invalid JSON
+  let bad_json = b"this is not json{{{";
+  let result = v8::crdtp::json_to_cbor(bad_json);
+  assert!(result.is_none() || result.unwrap().is_empty());
+
+  // Invalid CBOR for cbor_to_json
+  let bad_cbor = &[0xFF, 0xFE, 0x00];
+  let result = v8::crdtp::cbor_to_json(bad_cbor);
+  assert!(result.is_none());
+
+  // Empty input
+  let result = v8::crdtp::cbor_to_json(&[]);
+  assert!(result.is_none());
+}
+
+#[test]
+fn crdtp_dispatch_unregistered_domain() {
+  // Dispatch to an UberDispatcher with no domains wired at all
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  let json = r#"{"id":1,"method":"Nonexistent.enable","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  assert!(dispatchable.ok());
+
+  dispatcher.dispatch(&mut dispatchable);
+
+  let state = state.borrow();
+  assert_eq!(state.responses.len(), 1);
+  assert_method_not_found_response(&state.responses[0], 1);
+}
+
+#[test]
+fn crdtp_domain_dispatcher_error_response() {
+  // DomainDispatcher that returns an error response for a command
+  struct ErrorHandler;
+
+  impl v8::crdtp::DomainDispatcherImpl for ErrorHandler {
+    fn dispatch(
+      &mut self,
+      command: &[u8],
+      dispatchable: &v8::crdtp::Dispatchable,
+      handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      let cmd = String::from_utf8_lossy(command);
+      if cmd == "badCommand" {
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::invalid_params("missing required field"),
+          None,
+        );
+        return true;
+      }
+      false
+    }
+  }
+
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Test",
+    Box::new(ErrorHandler),
+  );
+
+  let json = r#"{"id":5,"method":"Test.badCommand","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+
+  dispatcher.dispatch(&mut dispatchable);
+
+  // Verify error response was sent
+  let s = state.borrow();
+  assert_eq!(s.responses.len(), 1);
+  let json_bytes = v8::crdtp::cbor_to_json(&s.responses[0]).unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("\"error\""));
+  assert!(json_str.contains("missing required field"));
+}
+
+#[test]
+fn crdtp_multiple_domains() {
+  // Wire multiple domain dispatchers and verify correct routing
+  struct CountingHandler {
+    call_count: usize,
+  }
+
+  impl CountingHandler {
+    fn new() -> Self {
+      Self { call_count: 0 }
+    }
+  }
+
+  impl v8::crdtp::DomainDispatcherImpl for CountingHandler {
+    fn dispatch(
+      &mut self,
+      command: &[u8],
+      dispatchable: &v8::crdtp::Dispatchable,
+      handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      let cmd = String::from_utf8_lossy(command);
+      if cmd == "ping" {
+        self.call_count += 1;
+        handle.send_response(
+          dispatchable.call_id(),
+          v8::crdtp::DispatchResponse::success(),
+          None,
+        );
+        return true;
+      }
+      false
+    }
+  }
+
+  let (channel_impl, state) = SharedFrontendChannel::new();
+  let channel = v8::crdtp::FrontendChannel::new(Box::new(channel_impl));
+  let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Alpha",
+    Box::new(CountingHandler::new()),
+  );
+  v8::crdtp::DomainDispatcher::wire(
+    &mut dispatcher,
+    "Beta",
+    Box::new(CountingHandler::new()),
+  );
+
+  // Dispatch to Alpha
+  let json = r#"{"id":1,"method":"Alpha.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
+
+  // Dispatch to Beta
+  let json = r#"{"id":2,"method":"Beta.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
+
+  // Dispatch to unknown domain
+  let json = r#"{"id":3,"method":"Gamma.ping","params":{}}"#;
+  let cbor = v8::crdtp::json_to_cbor(json.as_bytes()).unwrap();
+  let mut dispatchable = v8::crdtp::Dispatchable::new(&cbor);
+  dispatcher.dispatch(&mut dispatchable);
+
+  // Three responses: Alpha success, Beta success, Gamma error (method not found)
+  let s = state.borrow();
+  assert_eq!(s.responses.len(), 3);
+}
+
+#[test]
+fn crdtp_create_error_notification() {
+  let response = v8::crdtp::DispatchResponse::server_error("internal failure");
+  let serializable = v8::crdtp::create_error_notification(response);
+
+  let bytes = serializable.to_bytes();
+  assert!(!bytes.is_empty());
+
+  let json = v8::crdtp::cbor_to_json(&bytes);
+  assert!(json.is_some());
+  let json_bytes = json.unwrap();
+  let json_str = String::from_utf8_lossy(&json_bytes);
+  assert!(json_str.contains("error"));
+  assert!(json_str.contains("internal failure"));
+}
+
+#[test]
+fn crdtp_dispatch_response_all_error_types() {
+  // Verify all error constructors produce distinct error codes
+  let parse = v8::crdtp::DispatchResponse::parse_error("parse");
+  let invalid_req =
+    v8::crdtp::DispatchResponse::invalid_request("invalid request");
+  let not_found = v8::crdtp::DispatchResponse::method_not_found("not found");
+  let invalid_params =
+    v8::crdtp::DispatchResponse::invalid_params("invalid params");
+  let server = v8::crdtp::DispatchResponse::server_error("server");
+
+  // All should be errors
+  assert!(parse.is_error());
+  assert!(invalid_req.is_error());
+  assert!(not_found.is_error());
+  assert!(invalid_params.is_error());
+  assert!(server.is_error());
+
+  // None should be success or fall_through
+  assert!(!parse.is_success());
+  assert!(!parse.is_fall_through());
+
+  // Error codes should follow JSON-RPC conventions
+  // Parse error: -32700, Invalid request: -32600, Method not found: -32601
+  // Invalid params: -32602, Server error: -32000
+  assert_eq!(parse.code(), -32700);
+  assert_eq!(invalid_req.code(), -32600);
+  assert_eq!(not_found.code(), -32601);
+  assert_eq!(invalid_params.code(), -32602);
+  assert_eq!(server.code(), -32000);
+}
+
+#[test]
+fn crdtp_dispatcher_cleanup_on_drop() {
+  // Verify that dropping UberDispatcher properly cleans up DomainDispatchers
+  // via the C++ destructor -> Rust Drop callback path.
+  use std::sync::atomic::{AtomicUsize, Ordering};
+
+  static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+  DROP_COUNT.store(0, Ordering::SeqCst);
+
+  struct DropTracker;
+
+  impl v8::crdtp::DomainDispatcherImpl for DropTracker {
+    fn dispatch(
+      &mut self,
+      _command: &[u8],
+      _dispatchable: &v8::crdtp::Dispatchable,
+      _handle: &v8::crdtp::DomainDispatcherHandle,
+    ) -> bool {
+      false
+    }
+  }
+
+  impl Drop for DropTracker {
+    fn drop(&mut self) {
+      DROP_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
+  }
+
+  {
+    let channel_impl = Box::new(TestFrontendChannel::new());
+    let channel = v8::crdtp::FrontendChannel::new(channel_impl);
+    let mut dispatcher = v8::crdtp::UberDispatcher::new(&channel);
+
+    v8::crdtp::DomainDispatcher::wire(
+      &mut dispatcher,
+      "TrackA",
+      Box::new(DropTracker),
+    );
+    v8::crdtp::DomainDispatcher::wire(
+      &mut dispatcher,
+      "TrackB",
+      Box::new(DropTracker),
+    );
+
+    assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 0);
+    // dispatcher and channel drop here
+  }
+
+  // Both DropTrackers should have been dropped via C++ destructor callback
+  assert_eq!(DROP_COUNT.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn shared_isolate_moves_between_threads() {
+  let _setup_guard = setup::parallel_test();
+
+  fn run(shared: &v8::SharedIsolate, code: &str) -> i32 {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, code).unwrap().int32_value(scope).unwrap()
+  }
+
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  assert_eq!(run(&shared, "6 * 7"), 42);
+  let shared = std::thread::spawn(move || {
+    assert_eq!(run(&shared, "7 * 7"), 49);
+    shared
+  })
+  .join()
+  .unwrap();
+  assert_eq!(run(&shared, "8 * 8"), 64);
+  // Tear down on a thread other than the creating one.
+  std::thread::spawn(move || drop(shared)).join().unwrap();
+}
+
+#[test]
+fn shared_isolate_concurrent_use() {
+  let _setup_guard = setup::parallel_test();
+  let shared = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+
+  // Set up a context, stash it in an isolate slot so every thread can
+  // reach it, and initialize a counter.
+  {
+    let mut locker = shared.lock();
+    let context = {
+      let scope = pin!(v8::HandleScope::new(&mut *locker));
+      let mut scope = scope.init();
+      let context = v8::Context::new(&scope, Default::default());
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      eval(scope, "globalThis.count = 0").unwrap();
+      v8::Global::new(scope, context)
+    };
+    locker.set_slot(context);
+  }
+
+  let threads: Vec<_> = (0..4)
+    .map(|_| {
+      let shared_ = shared.clone();
+      std::thread::spawn(move || {
+        for _ in 0..25 {
+          let mut locker = shared_.lock();
+          let context = locker
+            .get_slot::<v8::Global<v8::Context>>()
+            .unwrap()
+            .clone();
+          let scope = pin!(v8::HandleScope::new(&mut *locker));
+          let mut scope = scope.init();
+          let context = v8::Local::new(&scope, context);
+          let scope = &mut v8::ContextScope::new(&mut scope, context);
+          eval(scope, "globalThis.count++").unwrap();
+        }
+      })
+    })
+    .collect();
+  for t in threads {
+    t.join().unwrap();
+  }
+
+  {
+    let mut locker = shared.lock();
+    let context = locker
+      .get_slot::<v8::Global<v8::Context>>()
+      .unwrap()
+      .clone();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    assert_eq!(
+      eval(scope, "globalThis.count")
+        .unwrap()
+        .int32_value(scope)
+        .unwrap(),
+      100
+    );
+  }
+}
+
+#[test]
+fn shared_isolate_deferred_global_resets_drain_at_lock_boundaries() {
+  let _setup_guard = setup::parallel_test();
+  let shared = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+
+  let (global_a, global_b, before, after_one, after_two) = {
+    let mut locker = shared.lock();
+    let before = locker.get_heap_statistics().used_global_handles_size();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let global_a =
+      v8::Global::new(&scope, v8::String::new(&scope, "deferred-a").unwrap());
+    let after_one = scope.get_heap_statistics().used_global_handles_size();
+    let global_b =
+      v8::Global::new(&scope, v8::String::new(&scope, "deferred-b").unwrap());
+    let after_two = scope.get_heap_statistics().used_global_handles_size();
+    (global_a, global_b, before, after_one, after_two)
+  };
+  assert!(after_one > before);
+  assert!(after_two > after_one);
+
+  // No thread holds the Locker, so A is queued. The other thread's lock
+  // acquisition must reset it before reporting the remaining handle size.
+  drop(global_a);
+
+  let (locked_tx, locked_rx) = std::sync::mpsc::channel::<usize>();
+  let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+  let shared_ = shared.clone();
+  let t = std::thread::spawn(move || {
+    let mut locker = shared_.lock();
+    let used = locker.get_heap_statistics().used_global_handles_size();
+    locked_tx.send(used).unwrap();
+    release_rx.recv().unwrap();
+  });
+  assert_eq!(locked_rx.recv().unwrap(), after_one);
+
+  // B is queued while the other thread owns the Locker. Its final drain must
+  // reset B before releasing the V8 lock.
+  drop(global_b);
+  release_tx.send(()).unwrap();
+  t.join().unwrap();
+
+  let mut locker = shared.lock();
+  assert_eq!(
+    locker.get_heap_statistics().used_global_handles_size(),
+    before
+  );
+}
+
+#[test]
+fn shared_isolate_deferred_global_resets_race_with_teardown() {
+  let _setup_guard = setup::parallel_test();
+  static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+  const GLOBAL_COUNT: usize = 64;
+
+  unsafe extern "C" fn count_and_free(buffer: *mut c_char, len: usize) {
+    let slice = std::ptr::slice_from_raw_parts_mut(buffer.cast::<u8>(), len);
+    unsafe { drop(Box::from_raw(slice)) };
+    DROP_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
+
+  DROP_COUNT.store(0, Ordering::SeqCst);
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut globals = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    (0..GLOBAL_COUNT)
+      .map(|_| {
+        let buffer = vec![b'x'; 1024].into_boxed_slice();
+        let len = buffer.len();
+        let ptr = Box::into_raw(buffer).cast::<u8>().cast::<c_char>();
+        let string = unsafe {
+          v8::String::new_external_onebyte_raw(&scope, ptr, len, count_and_free)
+        }
+        .unwrap();
+        v8::Global::new(&scope, string)
+      })
+      .collect::<Vec<_>>()
+  };
+
+  // Guarantee that teardown has queued work to close and drain, then race the
+  // remaining Global drops against that close/dispose sequence.
+  let late_drops = globals.split_off(GLOBAL_COUNT / 2);
+  drop(globals);
+  let barrier = Arc::new(std::sync::Barrier::new(2));
+  let barrier_ = barrier.clone();
+  let teardown = std::thread::spawn(move || {
+    barrier_.wait();
+    drop(shared);
+  });
+  barrier.wait();
+  drop(late_drops);
+  teardown.join().unwrap();
+
+  assert_eq!(DROP_COUNT.load(Ordering::SeqCst), GLOBAL_COUNT);
+}
+
+#[test]
+#[should_panic(expected = "already locked")]
+fn shared_isolate_recursive_lock_panics() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let _l1 = shared.lock();
+  let _l2 = shared.lock();
+}
+
+#[test]
+#[should_panic(expected = "not supported on shared isolates")]
+fn shared_isolate_weak_panics() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker = shared.lock();
+  let scope = pin!(v8::HandleScope::new(&mut *locker));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  let local = v8::String::new(scope, "w").unwrap();
+  let _weak = v8::Weak::new(scope, local);
+}
+
+#[test]
+fn shared_isolate_rejected_weak_finalizer_has_no_side_effect() {
+  let _setup_guard = setup::parallel_test();
+  let called = Arc::new(AtomicBool::new(false));
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let local = v8::String::new(scope, "w").unwrap();
+    let called_ = called.clone();
+    let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let _ = v8::Weak::with_guaranteed_finalizer(
+        scope,
+        local,
+        Box::new(move || {
+          called_.store(true, Ordering::SeqCst);
+        }),
+      );
+    }))
+    .unwrap_err();
+    let msg = err
+      .downcast_ref::<String>()
+      .map(|s| s.as_str())
+      .or_else(|| err.downcast_ref::<&str>().copied())
+      .unwrap();
+    assert!(msg.contains("not supported on shared isolates"));
+  }
+  drop(shared);
+  assert!(!called.load(Ordering::SeqCst));
+}
+
+// Keep each rejection in a separate test function. In optimized Windows ARM64
+// builds, combining all three `catch_unwind` regions in one function faults
+// while unwinding the first panic; each path unwinds correctly on its own.
+#[test]
+fn shared_isolate_global_clone_without_locker_is_rejected() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let global = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let local = v8::String::new(&scope, "locked").unwrap();
+    v8::Global::new(&scope, local)
+  };
+
+  let clone_err =
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| global.clone()))
+      .unwrap_err();
+  let clone_msg = clone_err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| clone_err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(clone_msg.contains("requires holding its Locker"));
+
+  let _locker = shared.lock();
+  drop(global.clone());
+}
+
+#[test]
+fn shared_isolate_global_borrow_is_rejected() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let global = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let local = v8::String::new(&scope, "locked").unwrap();
+    v8::Global::new(&scope, local)
+  };
+
+  let borrow_err =
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let _: &v8::String = std::borrow::Borrow::borrow(&global);
+    }))
+    .unwrap_err();
+  let borrow_msg = borrow_err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| borrow_err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(borrow_msg.contains("create a Local"));
+}
+
+#[test]
+fn shared_isolate_global_open_is_rejected() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let global = {
+    let mut locker = shared.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    let local = v8::String::new(&scope, "locked").unwrap();
+    v8::Global::new(&scope, local)
+  };
+  let mut locker = shared.lock();
+  let open_err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let _ = global.open(&mut locker);
+  }))
+  .unwrap_err();
+  let open_msg = open_err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| open_err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(open_msg.contains("create a Local"));
+
+  // The lock-bound Local path remains available.
+  let scope = pin!(v8::HandleScope::new(&mut *locker));
+  let scope = scope.init();
+  let local = v8::Local::new(&scope, &global);
+  assert_eq!(local.to_rust_string_lossy(&scope), "locked");
+}
+
+#[test]
+fn shared_isolate_js_state_across_threads() {
+  let _setup_guard = setup::parallel_test();
+
+  // Each isolate gets: a suspended generator frame (locals `a`, `b`), a
+  // closure over a captured local `n`, and a suspended async-function
+  // frame (local `local`) parked on an unresolved promise.
+  fn init(shared: &v8::SharedIsolate, seed: i32) {
+    let mut locker = shared.lock();
+    let context = {
+      let scope = pin!(v8::HandleScope::new(&mut *locker));
+      let mut scope = scope.init();
+      let context = v8::Context::new(&scope, Default::default());
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      let code = format!(
+        "function* fib() {{
+           let a = 0, b = 1;
+           for (;;) {{ yield a; [a, b] = [b, a + b]; }}
+         }}
+         globalThis.gen = fib();
+         globalThis.counter = ((start) => {{
+           let n = start;
+           return () => ++n;
+         }})({seed});
+         globalThis.result = 0;
+         (async () => {{
+           let local = 7;
+           const v = await new Promise((r) => {{
+             globalThis.resolveIt = r;
+           }});
+           globalThis.result = local * v;
+         }})();"
+      );
+      eval(scope, &code).unwrap();
+      v8::Global::new(scope, context)
+    };
+    locker.set_slot(context);
+  }
+
+  fn run(shared: &v8::SharedIsolate, code: &str) -> i32 {
+    let mut locker = shared.lock();
+    let context = locker
+      .get_slot::<v8::Global<v8::Context>>()
+      .unwrap()
+      .clone();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, code).unwrap().int32_value(scope).unwrap()
+  }
+
+  let iso_a = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+  let iso_b = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+
+  // Init A on this thread, B on another.
+  init(&iso_a, 100);
+  {
+    let b = iso_b.clone();
+    std::thread::spawn(move || init(&b, 200)).join().unwrap();
+  }
+
+  // Resume the suspended frames from interleaved threads and isolates;
+  // every value proves the frame's locals advanced exactly once per
+  // resumption, wherever it ran.  fib yields: 0 1 1 2 3 5 8 ...
+  assert_eq!(run(&iso_a, "gen.next().value"), 0); // A#1
+  {
+    let (a, b) = (iso_a.clone(), iso_b.clone());
+    std::thread::spawn(move || {
+      assert_eq!(run(&a, "gen.next().value"), 1); // A#2
+      assert_eq!(run(&b, "gen.next().value"), 0); // B#1
+      assert_eq!(run(&a, "counter()"), 101);
+      assert_eq!(run(&b, "counter()"), 201);
+    })
+    .join()
+    .unwrap();
+  }
+  assert_eq!(run(&iso_a, "gen.next().value"), 1); // A#3
+  {
+    let (a, b) = (iso_a.clone(), iso_b.clone());
+    std::thread::spawn(move || {
+      assert_eq!(run(&a, "gen.next().value"), 2); // A#4
+      assert_eq!(run(&b, "counter()"), 202);
+      assert_eq!(run(&b, "gen.next().value"), 1); // B#2
+    })
+    .join()
+    .unwrap();
+  }
+  assert_eq!(run(&iso_a, "counter()"), 102);
+
+  // Temporarily unlock A while using B on the same thread.
+  {
+    let mut la = iso_a.lock();
+    la.unlock(|| {
+      let mut lb = iso_b.lock();
+      let context = lb.get_slot::<v8::Global<v8::Context>>().unwrap().clone();
+      let scope = pin!(v8::HandleScope::new(&mut *lb));
+      let mut scope = scope.init();
+      let context = v8::Local::new(&scope, context);
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      let v = eval(scope, "gen.next().value").unwrap(); // B#3
+      assert_eq!(v.int32_value(scope).unwrap(), 1);
+    });
+    let context = la.get_slot::<v8::Global<v8::Context>>().unwrap().clone();
+    let scope = pin!(v8::HandleScope::new(&mut *la));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let v = eval(scope, "gen.next().value").unwrap(); // A#5
+    assert_eq!(v.int32_value(scope).unwrap(), 3);
+  }
+
+  // Resolve A's parked async frame from a thread it has never suspended
+  // on; the auto microtask checkpoint resumes it there and the captured
+  // `local` must still be 7.
+  {
+    let a = iso_a.clone();
+    std::thread::spawn(move || {
+      assert_eq!(run(&a, "globalThis.resolveIt(6); 0"), 0);
+      assert_eq!(run(&a, "globalThis.result"), 42);
+    })
+    .join()
+    .unwrap();
+  }
+
+  // Concurrent phase: both isolates stepped in parallel from separate
+  // threads. Each isolate's lock serializes its own steps, so the final
+  // positions are deterministic: A has had 5 + 20 = 25 next() calls,
+  // B has had 3 + 20 = 23.
+  let ta = {
+    let a = iso_a.clone();
+    std::thread::spawn(move || {
+      for _ in 0..20 {
+        run(&a, "gen.next().value");
+      }
+    })
+  };
+  let tb = {
+    let b = iso_b.clone();
+    std::thread::spawn(move || {
+      for _ in 0..20 {
+        run(&b, "gen.next().value");
+      }
+    })
+  };
+  ta.join().unwrap();
+  tb.join().unwrap();
+  assert_eq!(run(&iso_a, "gen.next().value"), 75025); // fib call #26
+  assert_eq!(run(&iso_b, "gen.next().value"), 28657); // fib call #24
+  assert_eq!(run(&iso_a, "counter()"), 103);
+  assert_eq!(run(&iso_b, "counter()"), 203);
+}
+
+#[test]
+fn shared_isolate_rust_callback_across_threads() {
+  let _setup_guard = setup::parallel_test();
+
+  static CALLBACK_THREADS: Mutex<Vec<std::thread::ThreadId>> =
+    Mutex::new(Vec::new());
+
+  // JS -> Rust reentrancy under a Locker: allocate handles, open a
+  // nested scope, and call back into a JS closure (which bumps its
+  // captured `n`), all from whichever thread holds the lock.
+  fn rust_call_js(
+    scope: &mut v8::PinScope,
+    args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue<v8::Value>,
+  ) {
+    CALLBACK_THREADS
+      .lock()
+      .unwrap()
+      .push(std::thread::current().id());
+    let nested = pin!(v8::EscapableHandleScope::new(scope));
+    let scope = &mut nested.init();
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+    let key = v8::String::new(scope, "counter").unwrap();
+    let counter: v8::Local<v8::Function> =
+      global.get(scope, key.into()).unwrap().try_into().unwrap();
+    let recv = v8::undefined(scope).into();
+    let n = counter.call(scope, recv, &[]).unwrap();
+    let n = n.int32_value(scope).unwrap();
+    let x = args.get(0).int32_value(scope).unwrap();
+    rv.set_int32(n + x);
+  }
+
+  let shared = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+  {
+    let mut locker = shared.lock();
+    let context = {
+      let scope = pin!(v8::HandleScope::new(&mut *locker));
+      let mut scope = scope.init();
+      let context = v8::Context::new(&scope, Default::default());
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      eval(
+        scope,
+        "globalThis.counter = ((start) => {
+           let n = start;
+           return () => ++n;
+         })(1000);",
+      )
+      .unwrap();
+      let func = v8::Function::new(scope, rust_call_js).unwrap();
+      let key = v8::String::new(scope, "rustCallJs").unwrap();
+      context
+        .global(scope)
+        .set(scope, key.into(), func.into())
+        .unwrap();
+      v8::Global::new(scope, context)
+    };
+    locker.set_slot(context);
+  }
+
+  fn run(shared: &v8::SharedIsolate, code: &str) -> i32 {
+    let mut locker = shared.lock();
+    let context = locker
+      .get_slot::<v8::Global<v8::Context>>()
+      .unwrap()
+      .clone();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, code).unwrap().int32_value(scope).unwrap()
+  }
+
+  // counter() yields 1001, 1002, 1003 across three threads; the Rust
+  // frame in the middle must not disturb it or the scope stack.
+  {
+    let s = shared.clone();
+    std::thread::spawn(move || {
+      assert_eq!(run(&s, "rustCallJs(1)"), 1002);
+    })
+    .join()
+    .unwrap();
+  }
+  assert_eq!(run(&shared, "rustCallJs(2)"), 1004);
+  {
+    let s = shared.clone();
+    std::thread::spawn(move || {
+      // Deeper reentrancy: JS -> Rust -> JS -> Rust -> JS.
+      assert_eq!(run(&s, "rustCallJs(rustCallJs(3))"), 2010);
+    })
+    .join()
+    .unwrap();
+  }
+
+  let threads = CALLBACK_THREADS.lock().unwrap();
+  assert_eq!(threads.len(), 4);
+  // First call, second call, and the nested pair each ran on distinct
+  // threads; the nested pair shares one thread.
+  assert_ne!(threads[0], threads[1]);
+  assert_ne!(threads[0], threads[2]);
+  assert_ne!(threads[1], threads[2]);
+  assert_eq!(threads[2], threads[3]);
+}
+
+#[test]
+fn shared_isolate_rejects_nested_lockers() {
+  let _setup_guard = setup::parallel_test();
+  let shared_a = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let shared_b = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker_a = shared_a.lock();
+  // Reject nesting before constructing B's v8::Locker or entering B. If this
+  // were allowed, dropping A first would leave its C++ lock permanently held.
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let _locker_b = shared_b.lock();
+  }))
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("another isolate is entered"));
+
+  // The rejected acquisition has not disturbed A.
+  let scope = pin!(v8::HandleScope::new(&mut *locker_a));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  assert_eq!(eval(scope, "6 * 7").unwrap().int32_value(scope), Some(42));
+}
+
+#[test]
+fn shared_isolate_after_weak_into_raw() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let raw = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let obj = v8::Object::new(scope);
+    v8::Weak::new(scope, obj).into_raw().unwrap()
+  };
+
+  // A raw Weak still owns callback state and must keep conversion disabled.
+  let err = unsafe { isolate.try_into_shared() }.unwrap_err();
+  assert_eq!(
+    err.kind(),
+    v8::IntoSharedErrorKind::LiveWeakHandlesOrPendingFinalizers
+  );
+  let mut isolate = err.into_isolate();
+  drop(unsafe { v8::Weak::from_raw(&mut isolate, Some(raw)) });
+
+  // None-path: the value is GC'd with no finalizer pending, so into_raw must
+  // release the count itself.
+  let weak = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let scope2 = pin!(v8::HandleScope::new(scope));
+    let scope2 = &mut scope2.init();
+    let obj2 = v8::Object::new(scope2);
+    v8::Weak::new(scope2, obj2)
+  };
+  isolate.low_memory_notification();
+  assert!(weak.into_raw().is_none());
+  // Both paths now leave the count balanced for sharing to succeed.
+  drop(unsafe { isolate.try_into_shared().unwrap() });
+}
+
+#[test]
+fn shared_isolate_conversion_errors_return_the_isolate() {
+  let _setup_guard = setup::sequential_test();
+
+  let isolate_a = v8::Isolate::new(Default::default());
+  let isolate_b = v8::Isolate::new(Default::default());
+  let err = unsafe { isolate_a.try_into_shared() }.unwrap_err();
+  assert_eq!(err.kind(), v8::IntoSharedErrorKind::AnotherIsolateEntered);
+  drop(isolate_b);
+  drop(unsafe { err.into_isolate().try_into_shared().unwrap() });
+
+  let snapshot_creator = v8::Isolate::snapshot_creator(None, None);
+  let err = unsafe { snapshot_creator.try_into_shared() }.unwrap_err();
+  assert_eq!(err.kind(), v8::IntoSharedErrorKind::SnapshotCreator);
+  let mut snapshot_creator = err.into_isolate();
+  {
+    v8::scope!(let scope, &mut snapshot_creator);
+    let context = v8::Context::new(scope, Default::default());
+    scope.set_default_context(context);
+  }
+  assert!(
+    snapshot_creator
+      .create_blob(v8::FunctionCodeHandling::Clear)
+      .is_some()
+  );
+}
+
+#[test]
+fn shared_isolate_unlock_drains_globals_on_relock() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker = shared.lock();
+  let before = locker.get_heap_statistics().used_global_handles_size();
+  let global = {
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let scope = scope.init();
+    v8::Global::new(&scope, v8::String::new(&scope, "unlock-deferred").unwrap())
+  };
+  assert!(locker.get_heap_statistics().used_global_handles_size() > before);
+
+  locker.unlock(|| drop(global));
+  assert_eq!(
+    locker.get_heap_statistics().used_global_handles_size(),
+    before
+  );
+}
+
+#[test]
+fn shared_isolate_unlock_lets_another_thread_in() {
+  let _setup_guard = setup::parallel_test();
+  let shared = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+  {
+    let mut locker = shared.lock();
+    let context = {
+      let scope = pin!(v8::HandleScope::new(&mut *locker));
+      let mut scope = scope.init();
+      let context = v8::Context::new(&scope, Default::default());
+      let scope = &mut v8::ContextScope::new(&mut scope, context);
+      eval(scope, "globalThis.n = 0").unwrap();
+      v8::Global::new(scope, context)
+    };
+    locker.set_slot(context);
+  }
+
+  fn run(shared: &v8::SharedIsolate, code: &str) -> i32 {
+    let mut locker = shared.lock();
+    let context = locker
+      .get_slot::<v8::Global<v8::Context>>()
+      .unwrap()
+      .clone();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, code).unwrap().int32_value(scope).unwrap()
+  }
+
+  let (unlocked_tx, unlocked_rx) = std::sync::mpsc::channel::<()>();
+  let (done_tx, done_rx) = std::sync::mpsc::channel::<i32>();
+  let shared_ = shared.clone();
+  let t = std::thread::spawn(move || {
+    // Only starts once the main thread is inside its unlock window; this
+    // would block forever if `unlock` didn't actually release the lock.
+    unlocked_rx.recv().unwrap();
+    done_tx.send(run(&shared_, "++globalThis.n")).unwrap();
+  });
+
+  let mut locker = shared.lock();
+  let observed = locker.unlock(|| {
+    unlocked_tx.send(()).unwrap();
+    done_rx.recv().unwrap()
+  });
+  assert_eq!(observed, 1);
+
+  // Back under the lock: the isolate is usable again and the other
+  // thread's mutation is visible.
+  let context = locker
+    .get_slot::<v8::Global<v8::Context>>()
+    .unwrap()
+    .clone();
+  {
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Local::new(&scope, context);
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let v = eval(scope, "globalThis.n").unwrap();
+    assert_eq!(v.int32_value(scope).unwrap(), 1);
+  }
+  drop(locker);
+  t.join().unwrap();
+  assert_eq!(run(&shared, "globalThis.n"), 1);
+}
+
+#[test]
+fn shared_isolate_unlock_exits_and_reenters() {
+  let _setup_guard = setup::parallel_test();
+  let shared_a = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let shared_b = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker_a = shared_a.lock();
+
+  // A must no longer be the current isolate while it is unlocked, so another
+  // shared isolate can be entered on this thread for the duration of `f`.
+  let result = locker_a.unlock(|| {
+    let mut locker_b = shared_b.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker_b));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    eval(scope, "40 + 2").unwrap().int32_value(scope).unwrap()
+  });
+  assert_eq!(result, 42);
+
+  // The Unlocker destructor reacquired A's lock and the guard re-entered it.
+  let scope = pin!(v8::HandleScope::new(&mut *locker_a));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  assert_eq!(eval(scope, "6 * 7").unwrap().int32_value(scope), Some(42));
+}
+
+#[test]
+fn shared_isolate_unlock_restores_lock_on_panic() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker = shared.lock();
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    locker.unlock(|| panic!("boom"));
+  }))
+  .unwrap_err();
+  assert_eq!(err.downcast_ref::<&str>().copied(), Some("boom"));
+  // The unwind must have reacquired the lock and re-entered the isolate,
+  // otherwise this use — and `Locker`'s own drop — would abort.
+  {
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let v = eval(scope, "6 * 7").unwrap();
+    assert_eq!(v.int32_value(scope).unwrap(), 42);
+  }
+  drop(locker);
+}
+
+#[test]
+fn shared_isolate_unlock_rejects_returned_entered_isolate() {
+  let _setup_guard = setup::parallel_test();
+  let shared = unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  };
+  let mut locker = shared.lock();
+  let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    locker.unlock(|| v8::Isolate::new(Default::default()));
+  }))
+  .unwrap_err();
+  let msg = err
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| err.downcast_ref::<&str>().copied())
+    .unwrap();
+  assert!(msg.contains("still entered"));
+
+  // The returned isolate was dropped before A was relocked, so A is restored.
+  let scope = pin!(v8::HandleScope::new(&mut *locker));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+  assert_eq!(eval(scope, "6 * 7").unwrap().int32_value(scope), Some(42));
+}
+
+#[test]
+fn shared_isolate_terminate_from_thread_safe_handle() {
+  let _setup_guard = setup::parallel_test();
+  let shared = Arc::new(unsafe {
+    v8::Isolate::new(Default::default())
+      .try_into_shared()
+      .unwrap()
+  });
+  let (running_tx, running_rx) = std::sync::mpsc::channel::<()>();
+  let shared_ = shared.clone();
+  let t = std::thread::spawn(move || {
+    let mut locker = shared_.lock();
+    let scope = pin!(v8::HandleScope::new(&mut *locker));
+    let mut scope = scope.init();
+    let context = v8::Context::new(&scope, Default::default());
+    let scope = &mut v8::ContextScope::new(&mut scope, context);
+    let source = v8::String::new(scope, "while (true) {}").unwrap();
+    let script = v8::Script::compile(scope, source, None).unwrap();
+    running_tx.send(()).unwrap();
+    // Terminated from the main thread; `run` returns None.
+    assert!(script.run(scope).is_none());
+  });
+
+  running_rx.recv().unwrap();
+  // Let the loop actually get going inside V8. `terminate_execution` is
+  // sticky, so an early call would still be honoured; the sleep just makes
+  // the test exercise the interesting case.
+  std::thread::sleep(std::time::Duration::from_millis(200));
+  // Obtain the handle while another thread holds the Locker. This must only
+  // clone the handle cached by SharedIsolate, without touching V8 or its annex.
+  let handle = shared.thread_safe_handle();
+  assert!(handle.terminate_execution());
+  t.join().unwrap();
+}
 fn callable_object_callback(
   _: &mut v8::PinScope,
   args: v8::FunctionCallbackArguments,

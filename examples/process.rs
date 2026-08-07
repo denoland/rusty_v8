@@ -295,8 +295,8 @@ impl<'scope, 'obj, 'isolate> JsHttpRequestProcessor<'scope, 'obj, 'isolate> {
     args: v8::PropertyCallbackArguments,
     mut rv: v8::ReturnValue,
   ) {
-    let this = args.this();
-    let external = Self::unwrap_request(scope, this);
+    let holder = args.holder();
+    let external = Self::unwrap_request(scope, holder);
 
     assert!(
       !external.is_null(),

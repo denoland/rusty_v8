@@ -17,6 +17,7 @@ use crate::PropertyAttribute;
 use crate::PropertyDescriptor;
 use crate::PropertyFilter;
 use crate::Set;
+use crate::SideEffectType;
 use crate::String;
 use crate::Value;
 use crate::binding::RustObj;
@@ -53,6 +54,17 @@ unsafe extern "C" {
     setter: Option<AccessorNameSetterCallback>,
     data_or_null: *const Value,
     attr: PropertyAttribute,
+  ) -> MaybeBool;
+  #[allow(clippy::too_many_arguments)]
+  fn v8__Object__SetLazyDataProperty(
+    this: *const Object,
+    context: *const Context,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+    data_or_null: *const Value,
+    attr: PropertyAttribute,
+    getter_side_effect_type: SideEffectType,
+    setter_side_effect_type: SideEffectType,
   ) -> MaybeBool;
   fn v8__Object__Get(
     this: *const Object,
@@ -164,11 +176,13 @@ unsafe extern "C" {
   fn v8__Object__GetAlignedPointerFromInternalField(
     this: *const Object,
     index: int,
+    tag: u16,
   ) -> *const c_void;
   fn v8__Object__SetAlignedPointerInInternalField(
     this: *const Object,
     index: int,
     value: *const c_void,
+    tag: u16,
   );
   fn v8__Object__SetIntegrityLevel(
     this: *const Object,
@@ -597,6 +611,60 @@ impl Object {
     .into()
   }
 
+  /// Sets a lazy data property on this object. The getter is invoked the first
+  /// time the property is read, and then the property is replaced with an
+  /// ordinary data property containing the value returned by the getter.
+  #[inline(always)]
+  pub fn set_lazy_data_property(
+    &self,
+    scope: &PinScope<'_, '_>,
+    name: Local<Name>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetLazyDataProperty(
+        self,
+        &*scope.get_current_context(),
+        &*name,
+        getter.map_fn_to(),
+        null(),
+        PropertyAttribute::NONE,
+        SideEffectType::HasSideEffect,
+        SideEffectType::HasSideEffect,
+      )
+    }
+    .into()
+  }
+
+  /// Sets a lazy data property with data, attributes, and side effect types
+  /// on this object.
+  #[inline(always)]
+  #[allow(clippy::too_many_arguments)]
+  pub fn set_lazy_data_property_with_data(
+    &self,
+    scope: &PinScope<'_, '_>,
+    name: Local<Name>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+    data: Local<Value>,
+    attr: PropertyAttribute,
+    getter_side_effect_type: SideEffectType,
+    setter_side_effect_type: SideEffectType,
+  ) -> Option<bool> {
+    unsafe {
+      v8__Object__SetLazyDataProperty(
+        self,
+        &*scope.get_current_context(),
+        &*name,
+        getter.map_fn_to(),
+        &*data,
+        attr,
+        getter_side_effect_type,
+        setter_side_effect_type,
+      )
+    }
+    .into()
+  }
+
   /// Returns the V8 hash value for this value. The current implementation
   /// uses a hidden property to store the identity hash.
   ///
@@ -762,8 +830,9 @@ impl Object {
   pub unsafe fn get_aligned_pointer_from_internal_field(
     &self,
     index: i32,
+    tag: u16,
   ) -> *const c_void {
-    unsafe { v8__Object__GetAlignedPointerFromInternalField(self, index) }
+    unsafe { v8__Object__GetAlignedPointerFromInternalField(self, index, tag) }
   }
 
   /// Sets a 2-byte-aligned native pointer in an internal field.
@@ -774,8 +843,11 @@ impl Object {
     &self,
     index: i32,
     value: *const c_void,
+    tag: u16,
   ) {
-    unsafe { v8__Object__SetAlignedPointerInInternalField(self, index, value) }
+    unsafe {
+      v8__Object__SetAlignedPointerInInternalField(self, index, value, tag)
+    }
   }
 
   /// Wraps a JS wrapper with a C++ instance.
@@ -1350,8 +1422,7 @@ impl Set {
       .into()
   }
 
-  /// Returns an array of length size() * 2, where index N is the Nth key and
-  /// index N + 1 is the Nth value.
+  /// Returns an array of the keys in this Set.
   #[inline(always)]
   pub fn as_array<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Array> {
     unsafe { scope.cast_local(|_| v8__Set__As__Array(self)) }.unwrap()
