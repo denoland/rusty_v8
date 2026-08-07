@@ -837,8 +837,8 @@ fn download_file(url: &str, filename: &Path) {
   // If python is not available, try falling back to curl.
   println!("Downloading {url}");
   let status = download_with_deno(url, &tmpfile)
-    .or_else(|_| download_with_python(url, &tmpfile))
-    .or_else(|_| download_with_curl(url, &tmpfile))
+    .or_else(|| download_with_python(url, &tmpfile))
+    .or_else(|| download_with_curl(url, &tmpfile))
     .expect("Neither deno, python nor curl were available to download the V8 prebuilt archive.");
 
   // Assert DL was successful
@@ -866,69 +866,64 @@ fn download_file(url: &str, filename: &Path) {
 fn download_with_deno<P: AsRef<std::ffi::OsStr>>(
   url: &str,
   path: P,
-) -> io::Result<std::process::ExitStatus> {
-  which("deno")
-    .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))
-    .and_then(|deno| {
-      println!("Downloading with Deno...");
-      Command::new(deno)
-        .arg("eval")
-        .arg(
-          "const [url, path] = Deno.args; \
+) -> Option<std::process::ExitStatus> {
+  let deno_path = which("deno").ok()?;
+  println!("Downloading with Deno...");
+  Command::new(deno_path)
+    .arg("eval")
+    .arg(
+      "const [url, path] = Deno.args; \
          const resp = await fetch(url); \
          if (!resp.ok) Deno.exit(1); \
          const file = await Deno.open(path, { write: true, create: true }); \
          await resp.body.pipeTo(file.writable);",
-        )
-        // Note: `deno eval` runs with all permissions implicitly granted and does
-        // not accept `--allow-*` flags, so passing them here makes `deno eval`
-        // error out ("unexpected argument '--allow-net'") and the download
-        // silently falls back to Python/curl.
-        .arg("--")
-        .arg(url)
-        .arg(path)
-        .status()
-    })
+    )
+    // Note: `deno eval` runs with all permissions implicitly granted and does
+    // not accept `--allow-*` flags, so passing them here makes `deno eval`
+    // error out ("unexpected argument '--allow-net'") and the download
+    // silently falls back to Python/curl.
+    .arg("--")
+    .arg(url)
+    .arg(path)
+    .status()
+    .ok()
+    .filter(|s| s.success())
 }
 
 /// Downloads a file from `url` with Python and stores it at `path`.
 fn download_with_python<P: AsRef<std::ffi::OsStr>>(
   url: &str,
   path: P,
-) -> io::Result<std::process::ExitStatus> {
-  python().and_then(|python_path| {
-    println!("Downloading with Python...");
-    Command::new(python_path)
-      .arg("./tools/download_file.py")
-      .arg("--url")
-      .arg(url)
-      .arg("--filename")
-      .arg(path)
-      .status()
-  })
+) -> Option<std::process::ExitStatus> {
+  let python_path = python().ok()?;
+  println!("Downloading with Python...");
+  Command::new(python_path)
+    .arg("./tools/download_file.py")
+    .arg("--url")
+    .arg(url)
+    .arg("--filename")
+    .arg(path)
+    .status()
+    .ok()
+    .filter(|s| s.success())
 }
 
 /// Downloads a file from `url` with curl and stores it at `path`.
 fn download_with_curl<P: AsRef<std::ffi::OsStr>>(
   url: &str,
   path: P,
-) -> io::Result<std::process::ExitStatus> {
+) -> Option<std::process::ExitStatus> {
+  let curl_path = which("curl").ok()?;
   println!("Downloading with curl...");
-
-  // Using `which` here also allows us to use `curl.exe` instead of the
-  // PowerShell alias `Invoke-WebRequest` on Windows.
-  which("curl")
-    .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))
-    .and_then(|curl_path| {
-      Command::new(curl_path)
-        .arg("-L")
-        .arg("-f")
-        .arg("-s")
-        .arg("-o")
-        .arg(path)
-        .arg(url)
-        .status()
-    })
+  Command::new(curl_path)
+    .arg("-L")
+    .arg("-f")
+    .arg("-s")
+    .arg("-o")
+    .arg(path)
+    .arg(url)
+    .status()
+    .ok()
 }
 
 fn download_static_lib_binaries() {
