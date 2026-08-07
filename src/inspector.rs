@@ -95,6 +95,14 @@ unsafe extern "C" {
     object_group: StringView,
     generate_preview: bool,
   ) -> *mut RawRemoteObject;
+  fn v8_inspector__V8InspectorSession__unwrapObject(
+    session: *mut RawV8InspectorSession,
+    error: *mut *mut StringBuffer,
+    object_id: StringView,
+    value: *mut *const Value,
+    context: *mut *const Context,
+    object_group: *mut *mut StringBuffer,
+  ) -> bool;
   fn v8_inspector__RemoteObject__DELETE(this: *mut RawRemoteObject);
   fn v8_inspector__RemoteObject__toBytes(
     this: *const RawRemoteObject,
@@ -846,6 +854,55 @@ impl V8InspectorSession {
       ))
       .map(|raw| RemoteObject { raw })
     }
+  }
+
+  /// Resolves an Inspector-generated object ID to its V8 value and context.
+  ///
+  /// On success, the returned object group contains the group name supplied
+  /// when the object was wrapped. An empty group name is returned as a
+  /// non-null buffer containing an empty string. On failure, the error buffer
+  /// is non-null and contains the Inspector's error message. This includes an
+  /// invalid ID or an ID made stale by releasing its object group.
+  ///
+  /// `_scope` is intentionally unused by Rust; borrowing it keeps the caller's
+  /// V8 `HandleScope` alive and ties the returned local handles to that scope.
+  #[allow(clippy::type_complexity)]
+  pub fn unwrap_object<'s>(
+    &self,
+    _scope: &mut PinScope<'s, '_>,
+    object_id: StringView,
+  ) -> Result<
+    (
+      Local<'s, Value>,
+      Local<'s, Context>,
+      UniquePtr<StringBuffer>,
+    ),
+    UniquePtr<StringBuffer>,
+  > {
+    let mut error = std::ptr::null_mut();
+    let mut value = std::ptr::null();
+    let mut context = std::ptr::null();
+    let mut object_group = std::ptr::null_mut();
+    let success = unsafe {
+      v8_inspector__V8InspectorSession__unwrapObject(
+        self.raw.as_ptr(),
+        &mut error,
+        object_id,
+        &mut value,
+        &mut context,
+        &mut object_group,
+      )
+    };
+
+    if !success {
+      return Err(unsafe { UniquePtr::from_raw(error) });
+    }
+
+    Ok((
+      unsafe { Local::from_raw(value).unwrap() },
+      unsafe { Local::from_raw(context).unwrap() },
+      unsafe { UniquePtr::from_raw(object_group) },
+    ))
   }
 
   pub fn schedule_pause_on_next_statement(

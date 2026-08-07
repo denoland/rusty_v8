@@ -7369,6 +7369,70 @@ fn inspector_wrap_object() {
 }
 
 #[test]
+fn inspector_unwrap_object() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  use v8::inspector::*;
+
+  let inspector_client = V8InspectorClient::new(Box::new(ClientCounter::new()));
+  let inspector = V8Inspector::create(isolate, inspector_client);
+
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let name = StringView::from(&b""[..]);
+  inspector.context_created(context, 1, name, name);
+
+  let session = inspector.connect(
+    1,
+    Channel::new(Box::new(ChannelCounter::new())),
+    StringView::from(&b"{}"[..]),
+    V8InspectorClientTrustLevel::Untrusted,
+  );
+
+  let value = eval(scope, "({ answer: 42 })").unwrap();
+  let remote_object = session
+    .wrap_object(
+      scope,
+      context,
+      value,
+      StringView::from(&b"rusty-v8-test"[..]),
+      false,
+    )
+    .unwrap();
+  let json = String::from_utf8(
+    v8::crdtp::cbor_to_json(&remote_object.to_bytes()).unwrap(),
+  )
+  .unwrap();
+  let object_id = json
+    .split_once(r#""objectId":""#)
+    .unwrap()
+    .1
+    .split_once('"')
+    .unwrap()
+    .0;
+
+  let (unwrapped_value, unwrapped_context, object_group) = session
+    .unwrap_object(scope, StringView::from(object_id.as_bytes()))
+    .unwrap();
+  assert!(unwrapped_value.strict_equals(value));
+  assert_eq!(unwrapped_context, context);
+  assert_eq!(object_group.unwrap().string().to_string(), "rusty-v8-test");
+
+  let error = session
+    .unwrap_object(scope, StringView::from(&b"invalid"[..]))
+    .unwrap_err();
+  assert_eq!(
+    error.unwrap().string().to_string(),
+    "Invalid remote object id"
+  );
+
+  inspector.context_destroyed(context);
+}
+
+#[test]
 fn inspector_value_subtype() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

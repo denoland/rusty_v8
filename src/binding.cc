@@ -3575,6 +3575,27 @@ v8_inspector__V8InspectorSession__wrapObject(
       .release();
 }
 
+bool v8_inspector__V8InspectorSession__unwrapObject(
+    v8_inspector::V8InspectorSession* self, v8_inspector::StringBuffer** error,
+    v8_inspector::StringView object_id, const v8::Value** value,
+    const v8::Context** context, v8_inspector::StringBuffer** object_group) {
+  std::unique_ptr<v8_inspector::StringBuffer> error_buffer;
+  v8::Local<v8::Value> local_value;
+  v8::Local<v8::Context> local_context;
+  std::unique_ptr<v8_inspector::StringBuffer> object_group_buffer;
+  bool success = self->unwrapObject(&error_buffer, object_id, &local_value,
+                                    &local_context, &object_group_buffer);
+  if (!success) {
+    *error = error_buffer.release();
+    return false;
+  }
+
+  *value = local_to_ptr(local_value);
+  *context = local_to_ptr(local_context);
+  *object_group = object_group_buffer.release();
+  return true;
+}
+
 void v8_inspector__RemoteObject__DELETE(
     v8_inspector::protocol::Runtime::API::RemoteObject* self) {
   delete self;
