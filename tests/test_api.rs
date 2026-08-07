@@ -143,17 +143,17 @@ fn global_handles() {
   {
     v8::scope!(let scope, isolate);
 
-    assert_eq!(g1.open(scope).to_rust_string_lossy(scope), "bla");
-    assert_eq!(g2.as_ref().unwrap().open(scope).value(), 123);
-    assert_eq!(g3.open(scope).value(), 123);
-    assert_eq!(g4.open(scope).value(), 123);
+    assert_eq!(unsafe { g1.open(scope) }.to_rust_string_lossy(scope), "bla");
+    assert_eq!(unsafe { g2.as_ref().unwrap().open(scope) }.value(), 123);
+    assert_eq!(unsafe { g3.open(scope) }.value(), 123);
+    assert_eq!(unsafe { g4.open(scope) }.value(), 123);
     {
-      let num = g5.as_ref().unwrap().open(scope);
+      let num = unsafe { g5.as_ref().unwrap().open(scope) };
       assert_eq!(num.value(), 100);
     }
     g5.take();
     assert!(g6 == g1);
-    assert_eq!(g6.open(scope).to_rust_string_lossy(scope), "bla");
+    assert_eq!(unsafe { g6.open(scope) }.to_rust_string_lossy(scope), "bla");
   }
   {
     let g1_ptr = g1.clone().into_raw();
@@ -208,11 +208,6 @@ fn local_handle_deref() {
   let key = v8::String::new(scope, "key").unwrap();
   let obj: v8::Local<v8::Object> = v8::Object::new(scope);
   obj.get(scope, key.into());
-  {
-    use v8::Handle;
-    obj.get(scope, key.into());
-    obj.open(scope).get(scope, key.into());
-  }
 }
 
 #[test]
@@ -11675,7 +11670,7 @@ fn context_embedder_data() {
   {
     v8::scope!(let scope, isolate);
 
-    let context = global_context.open(scope);
+    let context = unsafe { global_context.open(scope) };
     let actual0 =
       context.get_aligned_pointer_from_embedder_data(0) as *mut &str;
     let actual0 = unsafe { *actual0 };
@@ -14741,7 +14736,7 @@ fn shared_isolate_global_clone_without_locker_is_rejected() {
 }
 
 #[test]
-fn shared_isolate_global_open_is_rejected() {
+fn shared_isolate_global_open_under_lock() {
   let _setup_guard = setup::parallel_test();
   let shared = unsafe {
     v8::Isolate::new(Default::default())
@@ -14755,23 +14750,12 @@ fn shared_isolate_global_open_is_rejected() {
     let local = v8::String::new(&scope, "locked").unwrap();
     v8::Global::new(&scope, local)
   };
-  let mut locker = shared.lock();
-  let open_err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-    let _ = global.open(&mut locker);
-  }))
-  .unwrap_err();
-  let open_msg = open_err
-    .downcast_ref::<String>()
-    .map(|s| s.as_str())
-    .or_else(|| open_err.downcast_ref::<&str>().copied())
-    .unwrap();
-  assert!(open_msg.contains("create a Local"));
 
-  // The lock-bound Local path remains available.
+  let mut locker = shared.lock();
+  let value = unsafe { global.open(&mut locker) };
   let scope = pin!(v8::HandleScope::new(&mut *locker));
   let scope = scope.init();
-  let local = v8::Local::new(&scope, &global);
-  assert_eq!(local.to_rust_string_lossy(&scope), "locked");
+  assert_eq!(value.to_rust_string_lossy(&scope), "locked");
 }
 
 #[test]

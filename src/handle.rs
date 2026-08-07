@@ -288,9 +288,9 @@ impl<'s, T> Local<'s, T> {
 /// the next lock boundary or isolate teardown. Until then the handle remains a
 /// GC root and may keep its JavaScript object graph alive.
 ///
-/// [`Global::open`] and [`Borrow::borrow`] are not supported for Globals that
-/// belong to a shared isolate because the returned plain reference could outlive
-/// the lock or cross threads. Use [`Local::new`] under a handle scope instead.
+/// Opening a `Global` into a plain reference is unsafe because the reference
+/// could outlive its isolate or cross threads. Prefer [`Local::new`] under a
+/// handle scope instead.
 #[derive(Debug)]
 pub struct Global<T> {
   data: NonNull<T>,
@@ -302,17 +302,6 @@ impl<T> Global<T> {
   fn assert_access_allowed(&self) {
     unsafe {
       self.isolate_liveness.as_ref().assert_access_allowed();
-    }
-  }
-
-  #[inline(always)]
-  fn assert_shared_open_supported(&self) {
-    unsafe {
-      assert!(
-        !self.isolate_liveness.as_ref().is_shared(),
-        "opening or borrowing a Global belonging to a shared isolate is not \
-         supported; create a Local with Local::new under a HandleScope instead"
-      );
     }
   }
 
@@ -370,13 +359,30 @@ impl<T> Global<T> {
     }
   }
 
-  /// Note for shared isolates: the returned reference borrows from
-  /// `self`, not from the `&mut Isolate`, so the borrow checker will let
-  /// it outlive the `Locker` that produced `scope`. Holding it past the
-  /// unlock races the GC on whichever thread locks next — don't.
+  /// Returns a reference to the V8 heap object represented by this handle.
+  /// The handle is not cloned or converted to a [`Local`].
+  ///
+  /// Prefer [`Local::new`] whenever possible. Unlike this function, a
+  /// [`Local`]'s lifetime is tied to its handle scope.
+  ///
+  /// # Safety
+  ///
+  /// For the entire lifetime of the returned reference, `isolate` must remain
+  /// alive and the current thread must remain permitted to access it. If the
+  /// isolate is shared, its [`crate::Locker`] must remain held on the current
+  /// thread. The reference must never be sent to or accessed from another
+  /// thread.
+  ///
+  /// # Panics
+  ///
+  /// This function panics if the handle is not hosted by `isolate`, if the
+  /// isolate has been disposed, or if the current thread is not permitted to
+  /// access the isolate.
   #[inline(always)]
-  pub fn open<'a>(&'a self, scope: &mut Isolate) -> &'a T {
-    Handle::open(self, scope)
+  pub unsafe fn open<'a>(&'a self, isolate: &mut Isolate) -> &'a T {
+    self.assert_access_allowed();
+    self.get_handle_host().assert_match_isolate(isolate);
+    unsafe { &*self.data.as_ptr() }
   }
 
   #[inline(always)]
@@ -440,8 +446,8 @@ impl<'a, T> UnsafeRefHandle<'a, T> {
   /// `reference` must be derived from a [`Local`] or [`Global`] handle, and its
   /// lifetime must not outlive that handle. Furthermore, `isolate` must be the
   /// isolate associated with the handle (for [`Local`], the current isolate;
-  /// for [`Global`], the isolate you would pass to the [`Global::open()`]
-  /// method).
+  /// for [`Global`], the isolate you would pass to the unsafe
+  /// [`Global::open()`] method).
   #[inline(always)]
   pub unsafe fn new(reference: &'a T, isolate: &mut Isolate) -> Self {
     UnsafeRefHandle {
@@ -460,28 +466,6 @@ pub trait Handle: Sized {
   #[doc(hidden)]
   fn assert_safe_to_access(&self) {}
 
-  #[doc(hidden)]
-  fn assert_open_supported(&self) {
-    self.assert_safe_to_access();
-  }
-
-  /// Returns a reference to the V8 heap object that this handle represents.
-  /// The handle does not get cloned, nor is it converted to a `Local` handle.
-  ///
-  /// # Panics
-  ///
-  /// This function panics in the following situations:
-  /// - The handle is not hosted by the specified Isolate.
-  /// - The Isolate that hosts this handle has been disposed.
-  /// - The handle is a Global belonging to a shared isolate. Convert it to a
-  ///   [`Local`] under a handle scope instead.
-  fn open<'a>(&'a self, isolate: &mut Isolate) -> &'a Self::Data {
-    self.assert_open_supported();
-    let HandleInfo { data, host } = self.get_handle_info();
-    host.assert_match_isolate(isolate);
-    unsafe { &*data.as_ptr() }
-  }
-
   /// Reads the inner value contained in this handle, _without_ verifying that
   /// the this handle is hosted by the currently active `Isolate`.
   ///
@@ -491,12 +475,19 @@ pub trait Handle: Sized {
   /// hosts it is not permitted under any circumstance. Doing so leads to
   /// undefined behavior, likely a crash.
   ///
+  /// For the entire lifetime of the returned reference, its handle and host
+  /// isolate must remain alive and the current thread must remain permitted to
+  /// access that isolate. If this is a [`Global`] belonging to a shared isolate,
+  /// its [`crate::Locker`] must remain held on the current thread. The reference
+  /// must never be sent to or accessed from another thread.
+  ///
   /// # Panics
   ///
   /// This function panics if the `Isolate` that hosts the handle has been
-  /// disposed.
+  /// disposed or, for a [`Global`], if the current thread is not permitted to
+  /// access it.
   unsafe fn get_unchecked(&self) -> &Self::Data {
-    self.assert_open_supported();
+    self.assert_safe_to_access();
     let HandleInfo { data, host } = self.get_handle_info();
     if let HandleHost::DisposedIsolate = host {
       panic!("attempt to access Handle hosted by disposed Isolate");
@@ -527,9 +518,6 @@ impl<T> Handle for Global<T> {
   fn assert_safe_to_access(&self) {
     self.assert_access_allowed();
   }
-  fn assert_open_supported(&self) {
-    self.assert_shared_open_supported();
-  }
 }
 
 impl<T> Handle for &Global<T> {
@@ -539,9 +527,6 @@ impl<T> Handle for &Global<T> {
   }
   fn assert_safe_to_access(&self) {
     self.assert_access_allowed();
-  }
-  fn assert_open_supported(&self) {
-    self.assert_shared_open_supported();
   }
 }
 

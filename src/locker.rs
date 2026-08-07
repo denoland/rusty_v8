@@ -65,9 +65,11 @@ pub(crate) struct RawUnlocker([usize; 1]);
 ///   isolate with live weaks or pending finalizers is rejected by conversion.
 /// - Snapshot-creator isolates and isolates with a cppgc heap attached
 ///   are rejected by conversion.
-/// - Opening or borrowing a [`crate::Global`] is unsupported; convert it to a
-///   [`crate::Local`] under a handle scope. Other access, such as cloning,
-///   hashing, or comparing, requires holding the lock on the current thread.
+/// - Opening a [`crate::Global`] into a plain reference is unsafe, and that
+///   reference must remain on the current thread and not outlive the lock.
+///   Prefer converting it to a [`crate::Local`] under a handle scope. Other
+///   access, such as cloning, hashing, or comparing, also requires holding the
+///   lock on the current thread.
 ///
 /// [`crate::Global`]s are `Send` and may be dropped on any thread at any time:
 /// if the

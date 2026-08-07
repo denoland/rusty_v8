@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `v8::Global::<T>::open` is unsafe and requires unsafe block
+  --> tests/compile_fail/global_open.rs:17:24
+   |
+17 |   let _: &v8::String = global.open(&mut isolate);
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+   |
+   = note: consult the function's documentation for information on how to avoid undefined behavior

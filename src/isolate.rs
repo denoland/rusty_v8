@@ -2661,13 +2661,13 @@ impl OwnedIsolate {
   /// through a [`crate::Locker`] (e.g. `set_slot` under the lock) must
   /// be `Send` too — nothing checks it at insertion time.
   ///
-  /// No references previously obtained from a [`crate::Global`] through
-  /// [`crate::Global::open`] or [`std::borrow::Borrow`] may still be live when
-  /// this method is called. Opening and borrowing Globals is disabled after
-  /// sharing; create a [`crate::Local`] under a handle scope instead. Other
-  /// access to a Global belonging to this isolate, including cloning, hashing,
-  /// and comparing, requires holding its [`crate::Locker`]. Dropping one is the
-  /// sole exception and may happen on any thread.
+  /// No reference obtained through [`crate::Global::open`] may still be live
+  /// when this method is called. After sharing, opening a Global is unsafe and
+  /// its reference must not outlive the [`crate::Locker`] under which it was
+  /// opened or cross threads. Prefer creating a [`crate::Local`] under a handle
+  /// scope. Other access to a Global belonging to this isolate, including
+  /// cloning, hashing, and comparing, requires holding its Locker. Dropping one
+  /// is the sole exception and may happen on any thread.
   ///
   /// # Errors
   ///
