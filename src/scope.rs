@@ -14,17 +14,19 @@
 //! # Example
 //!
 //! ```rust
-//! use v8::{HandleScope, Local, Object, Isolate, Context, ContextScope, Object};
-//! v8::V8::initialize();
+//! use v8::{Context, ContextScope, HandleScope, Isolate, Object};
+//! # let platform = v8::new_default_platform(0, false).make_shared();
+//! # v8::V8::initialize_platform(platform);
+//! # v8::V8::initialize();
 //!
-//! let scope = HandleScope::new(&mut isolate);
+//! let isolate = &mut Isolate::new(Default::default());
+//! let scope = HandleScope::new(isolate);
 //! let scope = std::pin::pin!(scope);
 //! let mut scope = scope.init();
 //! let context = Context::new(&scope, Default::default());
 //!
 //! let context_scope = ContextScope::new(&mut scope, context);
 //! let object = Object::new(&context_scope);
-//!
 //! ```
 //!
 //! ## Explanation
@@ -37,22 +39,32 @@
 //!
 //! This is a bit verbose, so you can collapse it into two lines,
 //! ```rust
-//! let scope = std::pin::pin!(HandleScope::new(&mut isolate));
+//! # use v8::{HandleScope, Isolate};
+//! # let platform = v8::new_default_platform(0, false).make_shared();
+//! # v8::V8::initialize_platform(platform);
+//! # v8::V8::initialize();
+//! # let isolate = &mut Isolate::new(Default::default());
+//! let scope = std::pin::pin!(HandleScope::new(isolate));
 //! let mut scope = scope.init();
 //! ```
 //!
 //! or use the provided macros:
 //! ```rust
+//! # use v8::Isolate;
+//! # let platform = v8::new_default_platform(0, false).make_shared();
+//! # v8::V8::initialize_platform(platform);
+//! # v8::V8::initialize();
+//! # let isolate = &mut Isolate::new(Default::default());
 //! // note that this expands into statements, introducing a new variable `scope` into the current
-//! // block. Using it as an expression (`let scope = v8::scope!(let scope, &mut isolate);`) will not work
-//! v8::scope!(let scope, &mut isolate);
+//! // block. Using it as an expression (`let scope = v8::scope!(let scope, isolate);`) will not work
+//! v8::scope!(let scope, isolate);
 //! ```
 //!
 //! # Scopes as function args
 //! In a function that takes a scope, you'll typically want to take a `PinScope`, like
 //! ```rust
 //! fn foo<'s, 'i>(scope: &mut v8::PinScope<'s, 'i>) {
-//!   let local = v8::Number::new(scope, 42);
+//!   let local = v8::Number::new(scope, 42.0);
 //! }
 //! ```
 //!
@@ -61,7 +73,7 @@
 //! The lifetimes can sometimes be elided, but if you are taking or returning a `Local`, you'll need to specify at least the first one.
 //! ```
 //! fn foo<'s>(scope: &mut v8::PinScope<'s, '_>, arg: v8::Local<'s, v8::Number>) -> v8::Local<'s, v8::Number> {
-//!   v8::Number::new(scope, arg.value() + 42.0);
+//!   v8::Number::new(scope, arg.value() + 42.0)
 //! }
 //! ```
 //!
@@ -1785,6 +1797,10 @@ pub(crate) use callback_scope;
 /// Creates a pinned `HandleScope` and binds `&mut PinScope` to `$scope`.
 ///
 /// ```rust
+/// # let platform = v8::new_default_platform(0, false).make_shared();
+/// # v8::V8::initialize_platform(platform);
+/// # v8::V8::initialize();
+/// # let isolate = &mut v8::Isolate::new(Default::default());
 /// v8::scope!(let scope, isolate);
 /// ```
 #[allow(unused_macros)]
