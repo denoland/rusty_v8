@@ -235,10 +235,7 @@ fn test_rust_allocator() {
 
 #[test]
 fn test_default_allocator() {
-  crate::V8::initialize_platform(
-    crate::new_default_platform(0, false).make_shared(),
-  );
-  crate::V8::initialize();
+  crate::initialize_v8();
   new_default_allocator();
 }
 
