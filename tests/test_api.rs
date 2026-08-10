@@ -9965,6 +9965,22 @@ fn wasm_module_compilation_abort() {
 }
 
 #[test]
+fn script_id() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let source = v8::String::new(scope, "1 + 2").unwrap();
+  let script = v8::Script::compile(scope, source, None).unwrap();
+
+  let script_id = script.script_id();
+  assert!(script_id > 0);
+  assert_eq!(script.get_unbound_script(scope).script_id(), script_id);
+}
+
+#[test]
 fn unbound_script_conversion() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

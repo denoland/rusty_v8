@@ -28,6 +28,7 @@ unsafe extern "C" {
   fn v8__Script__GetUnboundScript(
     script: *const Script,
   ) -> *const UnboundScript;
+  fn v8__Script__ScriptId(script: *const Script) -> i32;
   fn v8__Script__Run(
     script: *const Script,
     context: *const Context,
@@ -85,6 +86,12 @@ impl Script {
         .cast_local(|_| v8__Script__GetUnboundScript(self))
         .unwrap()
     }
+  }
+
+  /// Returns the ID assigned to the underlying script by V8.
+  #[inline(always)]
+  pub fn script_id(&self) -> i32 {
+    unsafe { v8__Script__ScriptId(self) }
   }
 
   /// Runs the script returning the resulting value. It will be run in the

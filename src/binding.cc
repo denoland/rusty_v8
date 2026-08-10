@@ -2870,9 +2870,17 @@ const v8::UnboundScript* v8__Script__GetUnboundScript(
   return local_to_ptr(ptr_to_local(&script)->GetUnboundScript());
 }
 
+int v8__Script__ScriptId(const v8::Script& script) {
+  return ptr_to_local(&script)->ScriptId();
+}
+
 const v8::Script* v8__UnboundScript__BindToCurrentContext(
     const v8::UnboundScript& unbound_script) {
   return local_to_ptr(ptr_to_local(&unbound_script)->BindToCurrentContext());
+}
+
+int v8__UnboundScript__ScriptId(const v8::UnboundScript& unbound_script) {
+  return ptr_to_local(&unbound_script)->ScriptId();
 }
 
 v8::ScriptCompiler::CachedData* v8__UnboundScript__CreateCodeCache(
