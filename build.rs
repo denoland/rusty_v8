@@ -1154,7 +1154,7 @@ fn clang_download() -> PathBuf {
   #[cfg(target_os = "windows")]
   if env::var_os("LIBCLANG_PATH").is_none() {
     assert!(
-      Command::new(python())
+      Command::new(python_or_die())
         .arg("./tools/clang/scripts/update.py")
         .arg("--output-dir")
         .arg(&clang_base_path)
