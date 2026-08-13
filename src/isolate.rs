@@ -577,7 +577,10 @@ pub type OomErrorCallback =
   unsafe extern "C" fn(location: *const char, details: &OomDetails);
 
 /// The outcome of a [`ModifyCodeGenerationFromStringsCallback`].
-#[repr(C)]
+///
+/// Note that this is not the type V8 sees; it is translated into an internal
+/// `#[repr(C)]` equivalent before crossing the FFI boundary, so its layout
+/// carries no ABI guarantees.
 pub struct ModifyCodeGenerationFromStringsResult<'s> {
   /// If true, proceed with the code generation. Otherwise, block it.
   pub codegen_allowed: bool,
@@ -590,12 +593,21 @@ pub struct ModifyCodeGenerationFromStringsResult<'s> {
 /// the `Function` constructor. The callback decides whether the code generation
 /// is allowed, and may substitute the source that is about to be compiled.
 ///
-/// V8 only consults this callback for contexts that have code generation from
-/// strings disabled, see [`Context::set_allow_generation_from_strings`].
+/// V8 skips this callback only when the context allows code generation from
+/// strings *and* the source is already a string. So it is consulted either
+/// when the context has code generation disabled (see
+/// [`Context::set_allow_generation_from_strings`]) or when the source is
+/// something other than a string, whichever comes first.
 ///
 /// `source` is the value that was handed to `eval`/`Function`; it is not
-/// necessarily a string. `is_code_like` is true when that value is an object
-/// that the host marked as "code like".
+/// necessarily a string. When it isn't, returning `codegen_allowed: true`
+/// without a `modified_source` leaves V8 with nothing it knows how to compile,
+/// and the source object is handed back to the caller unchanged; supply a
+/// `modified_source` to have it compiled instead.
+///
+/// `is_code_like` is true when that value is an object that the host marked as
+/// "code like" via `v8::ObjectTemplate::SetCodeLike()`, which rusty_v8 does not
+/// currently expose.
 pub type ModifyCodeGenerationFromStringsCallback =
   for<'s, 'i> fn(
     scope: &mut PinScope<'s, 'i>,
@@ -613,6 +625,15 @@ struct RawModifyCodeGenerationFromStringsResult {
   modified_source: *mut String,
 }
 
+// Unlike `PrepareStackTraceCallback` and the shadow realm callback below, this
+// one needs no `#[cfg(target_os = "windows")]` sret shim. Those return a bare
+// `MaybeLocal`, which is 8 bytes: MSVC returns it through a hidden pointer
+// because it has user-declared constructors, while Rust returns it in a
+// register, so the two disagree. `ModifyCodeGenerationFromStringsResult` is 16
+// bytes, which is over the register-return threshold on every ABI we target, so
+// MSVC and rustc independently agree on the hidden-pointer form. On System V
+// and AArch64 it is trivially copyable and fits in two registers, and both
+// sides agree there too.
 type RawModifyCodeGenerationFromStringsCallback =
   for<'s> unsafe extern "C" fn(
     context: Local<'s, Context>,
@@ -1812,14 +1833,17 @@ impl Isolate {
   /// execute code using `eval` or the `Function` constructor.
   ///
   /// The callback can decide whether to allow code generation and, if so,
-  /// modify the source code beforehand. It is only consulted for contexts that
-  /// have code generation from strings disabled, see
-  /// [`Context::set_allow_generation_from_strings`].
+  /// modify the source code beforehand. V8 skips it only when the context
+  /// allows code generation from strings (see
+  /// [`Context::set_allow_generation_from_strings`]) *and* the source is
+  /// already a string; see [`ModifyCodeGenerationFromStringsCallback`] for the
+  /// exact conditions.
+  ///
+  /// Calling this again replaces the previously installed callback.
   pub fn set_modify_code_generation_from_strings_callback(
     &mut self,
     callback: ModifyCodeGenerationFromStringsCallback,
   ) {
-    #[inline]
     unsafe extern "C" fn rust_modify_code_generation_callback<'s>(
       context: Local<'s, Context>,
       source: Local<'s, Value>,
@@ -1832,6 +1856,12 @@ impl Isolate {
         .get_slot::<ModifyCodeGenerationFromStringsCallback>()
         .unwrap();
       let result = callback(&mut scope, source, is_code_like);
+      // `modified_source` outlives `scope` even though the raw handle slot is
+      // read here and only handed to V8 once `scope` has been dropped. A
+      // `CallbackScope` built from a `Local<Context>` has `NEEDS_SCOPE ==
+      // false`, so it opens no `HandleScope` of its own and handles created by
+      // the callback belong to whichever scope V8 had active when it called
+      // us. If that ever changes, this needs an `EscapableHandleScope`.
       RawModifyCodeGenerationFromStringsResult {
         codegen_allowed: result.codegen_allowed,
         modified_source: result

@@ -13722,6 +13722,56 @@ fn code_generation_from_strings_callback() {
   let result: Option<v8::Local<'_, v8::Value>> = eval(scope, "eval('1 + 1')");
   assert_eq!(result.unwrap().number_value(scope).unwrap(), 42.0);
   assert_eq!(COUNT.load(Ordering::Relaxed), 3);
+
+  // `modified_source` is only considered when `codegen_allowed` is true, so
+  // blocking still wins even though the callback hands back a replacement.
+  CODEGEN_ALLOWED.store(false, Ordering::Relaxed);
+  {
+    let tc = pin!(v8::TryCatch::new(scope));
+    let tc = &mut tc.init();
+    eval(tc, "eval('1 + 1')");
+    assert_eq!(
+      tc.message().unwrap().get(tc).to_rust_string_lossy(tc),
+      "Uncaught EvalError: Code generation from strings disallowed for this context"
+    );
+    assert_eq!(COUNT.load(Ordering::Relaxed), 4);
+  }
+}
+
+#[test]
+fn code_generation_from_strings_callback_non_string_source() {
+  static COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  fn callback<'s, 'i>(
+    scope: &mut v8::PinScope<'s, 'i>,
+    source: v8::Local<'s, v8::Value>,
+    is_code_like: bool,
+  ) -> v8::ModifyCodeGenerationFromStringsResult<'s> {
+    COUNT.fetch_add(1, Ordering::Relaxed);
+    // `is_code_like` is only true for objects marked via
+    // `v8::ObjectTemplate::SetCodeLike()`, which rusty_v8 doesn't expose.
+    assert!(!is_code_like);
+    assert!(!source.is_string());
+    v8::ModifyCodeGenerationFromStringsResult {
+      codegen_allowed: true,
+      modified_source: Some(v8::String::new(scope, "40 + 2").unwrap()),
+    }
+  }
+
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  isolate.set_modify_code_generation_from_strings_callback(callback);
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // Note that code generation from strings is left *enabled* here. V8 still
+  // consults the callback, because the source is not a string, and the
+  // callback is what turns it into something compilable.
+  let result: Option<v8::Local<'_, v8::Value>> = eval(scope, "eval({})");
+  assert_eq!(result.unwrap().number_value(scope).unwrap(), 42.0);
+  assert_eq!(COUNT.load(Ordering::Relaxed), 1);
 }
 
 #[test]
