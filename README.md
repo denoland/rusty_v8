@@ -65,9 +65,68 @@ We default to release builds of `v8` due to performance & CI reasons in `deno`.
 
 ## The `RUSTY_V8_MIRROR` environment variable
 
-Tells the build script where to get binary builds from. Understands `http://`
-and `https://` URLs, and file paths. The default is
-https://github.com/denoland/rusty_v8/releases.
+Tells the build script where to get the prebuilt static library and the
+generated bindings from. Understands `http://` and `https://` URLs, and file
+paths. The default is
+https://github.com/denoland/rusty_v8/releases/download.
+
+### Resolution order
+
+By default the build script downloads two artifacts — the static library
+(`librusty_v8_<features>_<profile>_<target>.a.gz`) and the bindings
+(`src_binding_<features>_<profile>_<target>.rs`) — from
+`<base>/<tag>/<file>`, where `<tag>` is `v<crate version>` (e.g. `v152.1.0`).
+For each artifact the following candidates are tried in order, and the first
+one that exists is used:
+
+1. `RUSTY_V8_ARCHIVE`, if set — a specific static library, static library only
+   (see below). Short-circuits everything else.
+2. The `RUSTY_V8_MIRROR` value, if set (see the layouts below).
+3. For a **filesystem** mirror laid out as a plain directory of artifacts, a
+   flat `<mirror>/<file>` lookup (no tag subdirectory).
+4. The upstream default releases, `<default base>/<tag>/<file>`.
+
+If nothing matches, the build fails with a message listing every location that
+was tried.
+
+### Overriding the tag
+
+`RUSTY_V8_MIRROR_TAG` overrides the `<tag>` path segment. The value is used
+**verbatim** (no `v` is prepended), so non-tag directories such as `nightly` or
+`pr-1234` also work:
+
+```bash
+# build a checkout whose Cargo.toml version isn't published yet using the
+# artifacts from the last published tag
+RUSTY_V8_MIRROR_TAG=v152.1.0 cargo build
+```
+
+### Templated mirrors
+
+If the `RUSTY_V8_MIRROR` value contains a `{` placeholder it is treated as a
+full URL/path template instead of a base. The following placeholders are
+substituted:
+
+| Placeholder  | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| `{tag}`      | resolved tag (`RUSTY_V8_MIRROR_TAG` or `v<crate version>`)   |
+| `{version}`  | raw crate version, no `v` prefix                             |
+| `{target}`   | Rust target triple                                           |
+| `{profile}`  | `release` or `debug`                                         |
+| `{features}` | ` `, `_ptrcomp`, `_sandbox`, or `_ptrcomp_sandbox`           |
+| `{file}`     | full artifact filename                                       |
+
+```bash
+RUSTY_V8_MIRROR='https://my-cache.example.com/rusty_v8/{tag}/{file}' cargo build
+```
+
+### Strict mode
+
+`RUSTY_V8_MIRROR_STRICT=1` stops the candidate list after the mirror entries,
+so the build never falls back to the upstream releases. Use this for hermetic
+CI that must never reach the network.
+
+### File-based mirrors
 
 File-based mirrors are good for using cached downloads. First, point the
 environment variable to a suitable location:
@@ -75,26 +134,31 @@ environment variable to a suitable location:
     # you might want to add this to your .bashrc
     $ export RUSTY_V8_MIRROR=$HOME/.cache/rusty_v8
 
-Then populate the cache:
+Then populate the cache. The artifacts are gzip-compressed (`.gz`) and named per
+target and profile:
 
 ```bash
 #!/bin/bash
 
 # see https://github.com/denoland/rusty_v8/releases
 
-for REL in v0.13.0 v0.12.0; do
-  mkdir -p $RUSTY_V8_MIRROR/$REL
+for REL in v152.1.0 v152.0.0; do
+  mkdir -p "$RUSTY_V8_MIRROR/$REL"
   for FILE in \
-    librusty_v8_debug_x86_64-unknown-linux-gnu.a \
-    librusty_v8_release_x86_64-unknown-linux-gnu.a \
+    librusty_v8_release_x86_64-unknown-linux-gnu.a.gz \
+    src_binding_release_x86_64-unknown-linux-gnu.rs \
   ; do
-    if [ ! -f $RUSTY_V8_MIRROR/$REL/$FILE ]; then
-      wget -O $RUSTY_V8_MIRROR/$REL/$FILE \
-        https://github.com/denoland/rusty_v8/releases/download/$REL/$FILE
+    if [ ! -f "$RUSTY_V8_MIRROR/$REL/$FILE" ]; then
+      wget -O "$RUSTY_V8_MIRROR/$REL/$FILE" \
+        "https://github.com/denoland/rusty_v8/releases/download/$REL/$FILE"
     fi
   done
 done
 ```
+
+Artifacts may also be dropped straight into `$RUSTY_V8_MIRROR` with no tag
+subdirectory (the flat layout from step 3 above), which makes a directory of
+downloaded files usable as a cache without knowing the tag.
 
 ## The `RUSTY_V8_ARCHIVE` environment variable
 
