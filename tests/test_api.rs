@@ -784,6 +784,72 @@ fn microtasks() {
 }
 
 #[test]
+fn isolate_groups() {
+  let _setup_guard = setup::parallel_test();
+
+  // The default group always exists, and is equal to itself.
+  let default_group = v8::IsolateGroup::get_default();
+  assert_eq!(default_group, v8::IsolateGroup::default());
+  assert_eq!(default_group, default_group.clone());
+
+  {
+    let isolate =
+      &mut v8::Isolate::new_with_group(&default_group, Default::default());
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let result = eval(scope, "1 + 1").unwrap().int32_value(scope).unwrap();
+    assert_eq!(result, 2);
+  }
+
+  if !v8::IsolateGroup::can_create_new_groups() {
+    // Multiple groups need pointer compression in multi-cage mode, which is not
+    // how this crate's published builds are configured. Everything below is
+    // skipped rather than failing, so the binding still gets exercised above.
+    assert!(v8::IsolateGroup::try_create().is_none());
+    eprintln!(
+      "isolate_groups: skipping multi-group checks, V8 was built without \
+       support for creating new isolate groups"
+    );
+    return;
+  }
+
+  let group1 = v8::IsolateGroup::create();
+  let group2 = v8::IsolateGroup::create();
+  assert_ne!(group1, group2);
+  assert_ne!(group1, default_group);
+  assert_eq!(group1, group1.clone());
+
+  // Two isolates asked for the same group land in the same group, and isolates
+  // in distinct groups run independently on their own threads.
+  fn run_in_group(group: v8::IsolateGroup) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+      for _ in 0..2 {
+        let isolate =
+          &mut v8::Isolate::new_with_group(&group, Default::default());
+        v8::scope!(let scope, isolate);
+        let context = v8::Context::new(scope, Default::default());
+        let scope = &mut v8::ContextScope::new(scope, context);
+        let result = eval(scope, "1 + 1").unwrap().int32_value(scope).unwrap();
+        assert_eq!(result, 2);
+      }
+    })
+  }
+
+  let threads = [
+    run_in_group(default_group.clone()),
+    run_in_group(group1.clone()),
+    run_in_group(group2.clone()),
+  ];
+  for thread in threads {
+    thread.join().unwrap();
+  }
+
+  // Dropping our references is safe while the groups' isolates are long gone.
+  drop((group1, group2, default_group));
+}
+
+#[test]
 #[should_panic(
   expected = "v8::OwnedIsolate instances must be dropped in the reverse order of creation. They are entered upon creation and exited upon being dropped."
 )]

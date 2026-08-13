@@ -175,6 +175,41 @@ v8::Isolate* v8__Isolate__New(const v8::Isolate::CreateParams& params) {
   return v8::Isolate::New(params);
 }
 
+v8::Isolate* v8__Isolate__NewInGroup(const v8::IsolateGroup& group,
+                                     const v8::Isolate::CreateParams& params) {
+  return v8::Isolate::New(group, params);
+}
+
+// `v8::IsolateGroup` is a reference-counted handle whose only member is an
+// `internal::IsolateGroup*`. `make_pod` moves that pointer out without running
+// the destructor, so the reference acquired by `GetDefault`/`Create`/the copy
+// constructor is handed to Rust rather than released here.
+v8::internal::IsolateGroup* v8__IsolateGroup__GetDefault() {
+  return make_pod<v8::internal::IsolateGroup*>(v8::IsolateGroup::GetDefault());
+}
+
+bool v8__IsolateGroup__CanCreateNewGroups() {
+  return v8::IsolateGroup::CanCreateNewGroups();
+}
+
+v8::internal::IsolateGroup* v8__IsolateGroup__Create() {
+  return make_pod<v8::internal::IsolateGroup*>(v8::IsolateGroup::Create());
+}
+
+v8::internal::IsolateGroup* v8__IsolateGroup__CLONE(
+    const v8::IsolateGroup& self) {
+  return make_pod<v8::internal::IsolateGroup*>(v8::IsolateGroup(self));
+}
+
+void v8__IsolateGroup__DESTRUCT(v8::IsolateGroup* self) {
+  self->~IsolateGroup();
+}
+
+bool v8__IsolateGroup__EQ(const v8::IsolateGroup& self,
+                          const v8::IsolateGroup& other) {
+  return self == other;
+}
+
 void v8__Isolate__Dispose(v8::Isolate* isolate) { isolate->Dispose(); }
 
 void v8__Isolate__Enter(v8::Isolate* isolate) { isolate->Enter(); }

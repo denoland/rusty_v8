@@ -6,6 +6,7 @@ use crate::Data;
 use crate::FixedArray;
 use crate::Function;
 use crate::FunctionCodeHandling;
+use crate::IsolateGroup;
 use crate::Local;
 use crate::Message;
 use crate::Module;
@@ -672,6 +673,10 @@ pub type UseCounterCallback =
 
 unsafe extern "C" {
   fn v8__Isolate__New(params: *const raw::CreateParams) -> *mut RealIsolate;
+  fn v8__Isolate__NewInGroup(
+    group: *const IsolateGroup,
+    params: *const raw::CreateParams,
+  ) -> *mut RealIsolate;
   fn v8__Isolate__Dispose(this: *mut RealIsolate);
   fn v8__Isolate__GetNumberOfDataSlots(this: *const RealIsolate) -> u32;
   fn v8__Isolate__GetData(
@@ -996,11 +1001,22 @@ impl Isolate {
     )
   }
 
-  fn new_impl(params: CreateParams) -> *mut RealIsolate {
+  fn new_impl(
+    group: Option<&IsolateGroup>,
+    params: CreateParams,
+  ) -> *mut RealIsolate {
     crate::V8::assert_initialized();
     let (raw_create_params, create_param_allocations) = params.finalize();
     let has_embedder_cpp_heap = !raw_create_params.cpp_heap.is_null();
-    let cxx_isolate = unsafe { v8__Isolate__New(&raw_create_params) };
+    let cxx_isolate = match group {
+      // Deliberately calls the group-less V8 overload rather than passing the
+      // default group, so the common path doesn't pay for a reference count
+      // round trip.
+      None => unsafe { v8__Isolate__New(&raw_create_params) },
+      Some(group) => unsafe {
+        v8__Isolate__NewInGroup(group, &raw_create_params)
+      },
+    };
     let mut isolate = unsafe { Isolate::from_raw_ptr(cxx_isolate) };
     isolate.initialize(create_param_allocations);
     isolate.get_annex_mut().has_embedder_cpp_heap = has_embedder_cpp_heap;
@@ -1021,7 +1037,27 @@ impl Isolate {
   /// V8::initialize() must have run prior to this.
   #[allow(clippy::new_ret_no_self)]
   pub fn new(params: CreateParams) -> OwnedIsolate {
-    OwnedIsolate::new(Self::new_impl(params))
+    OwnedIsolate::new(Self::new_impl(None, params))
+  }
+
+  /// Creates a new isolate belonging to the given [`IsolateGroup`]. Does not
+  /// change the currently entered isolate.
+  ///
+  /// Isolates in different groups have separate pointer-compression cages, so
+  /// this is how an embedder gets past the 4 GB per-group heap ceiling that
+  /// pointer compression otherwise imposes. Pass the same group to several
+  /// calls to place those isolates together.
+  ///
+  /// When an isolate is no longer used its resources should be freed
+  /// by calling V8::dispose(). Using the delete operator is not allowed.
+  ///
+  /// V8::initialize() must have run prior to this.
+  #[allow(clippy::new_ret_no_self)]
+  pub fn new_with_group(
+    group: &IsolateGroup,
+    params: CreateParams,
+  ) -> OwnedIsolate {
+    OwnedIsolate::new(Self::new_impl(Some(group), params))
   }
 
   #[allow(clippy::new_ret_no_self)]
