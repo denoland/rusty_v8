@@ -104,6 +104,21 @@ pub(crate) struct RawUnlocker([usize; 1]);
 /// the *same* number of locks in both — the loss was migration alone. If an
 /// embedder can keep consecutive locks of one isolate on one thread, or run
 /// fewer workers, it is worth doing.
+///
+/// # Initialize V8 before creating the threads that will lock
+///
+/// Every thread that calls [`SharedIsolate::lock`] must have been created
+/// *after* [`V8::initialize`](crate::V8::initialize). On hardware with
+/// memory protection keys, V8 guards its pointer tables with a key whose
+/// access lives in the per-thread `PKRU` register, and a thread inherits
+/// that access only at creation time. A worker created before V8 was
+/// initialized will lock successfully and then take `SIGSEGV` with
+/// `si_code == SEGV_PKUERR` the first time it runs JavaScript.
+///
+/// The failure is easy to misread: it presents as a fault on a mapped,
+/// readable page, and no debug build, heap verifier or handle check
+/// reports anything, because nothing is corrupt. See
+/// [`V8::initialize`](crate::V8::initialize) for the full description.
 #[derive(Debug)]
 pub struct SharedIsolate {
   inner: Arc<SharedIsolateInner>,

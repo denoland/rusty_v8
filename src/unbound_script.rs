@@ -10,6 +10,7 @@ unsafe extern "C" {
   fn v8__UnboundScript__BindToCurrentContext(
     script: *const UnboundScript,
   ) -> *const Script;
+  fn v8__UnboundScript__ScriptId(script: *const UnboundScript) -> i32;
   fn v8__UnboundScript__CreateCodeCache(
     script: *const UnboundScript,
   ) -> *mut CachedData<'static>;
@@ -34,6 +35,12 @@ impl UnboundScript {
       scope.cast_local(|_| v8__UnboundScript__BindToCurrentContext(self))
     }
     .unwrap()
+  }
+
+  /// Returns the ID assigned to this context-unbound script by V8.
+  #[inline(always)]
+  pub fn script_id(&self) -> i32 {
+    unsafe { v8__UnboundScript__ScriptId(self) }
   }
 
   /// Creates and returns code cache for the specified unbound_script.

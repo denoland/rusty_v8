@@ -201,6 +201,39 @@ pub fn initialize_platform(platform: SharedRef<Platform>) {
 
 /// Initializes V8. This function needs to be called before the first Isolate
 /// is created. It always returns true.
+///
+/// # Call this before creating threads that will enter an isolate
+///
+/// On platforms with memory protection keys (x86-64 with `pku`/`ospke`,
+/// which covers most current server hardware), V8 allocates a protection
+/// key here and uses it to guard its internal pointer tables. Access to a
+/// protection key is governed by the `PKRU` register, which is **per
+/// thread** and is **inherited from the creating thread at thread creation
+/// time**.
+///
+/// A thread created *before* this call therefore never gains access to that
+/// key. Such a thread runs correctly until it enters an isolate, at which
+/// point its first read of a pointer table traps with `SIGSEGV` and
+/// `si_code == SEGV_PKUERR`. The faulting address lies in a mapping that
+/// `/proc/<pid>/maps` reports as present and readable, because protection
+/// keys are enforced by the MMU and appear in no mapping flag.
+///
+/// This matters most for embedders that build a thread pool up front and
+/// then enter a [`SharedIsolate`](crate::SharedIsolate) from its workers:
+///
+/// ```no_run
+/// // Correct: the pool inherits access to the key.
+/// v8::V8::initialize_platform(
+///   v8::new_default_platform(0, false).make_shared(),
+/// );
+/// v8::V8::initialize();
+/// let pool = std::thread::spawn(|| { /* may enter an isolate */ });
+/// # let _ = pool;
+/// ```
+///
+/// Creating the pool first compiles and runs, and fails only once a worker
+/// first executes JavaScript. V8 states the same requirement internally, in
+/// the name of `SandboxHardwareSupport::TryActivateBeforeThreadCreation`.
 pub fn initialize() {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   *global_state_guard = match *global_state_guard {
