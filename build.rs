@@ -127,6 +127,8 @@ fn main() {
   // because we store everything in a parent directory of OUT_DIR.
   let _lockfile = acquire_lock();
 
+  check_multi_cage_config();
+
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
     if is_asan && env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
@@ -430,6 +432,15 @@ fn build_v8(is_asan: bool) {
         opts.push("v8_enable_pointer_compression=true");
       } else {
         opts.push("v8_enable_pointer_compression=false");
+      }
+
+      if multi_cage_requested() {
+        // Give each isolate group its own pointer compression cage, which is
+        // what `v8::IsolateGroup::CanCreateNewGroups()` reports on. V8 turns
+        // `v8_enable_partition_alloc` and `v8_enable_external_code_space` off
+        // by themselves in this mode; both of their defaults are derived from
+        // the shared cage flag.
+        opts.push("v8_enable_pointer_compression_shared_cage=false");
       }
 
       opts
@@ -768,6 +779,36 @@ fn prebuilt_profile() -> &'static str {
   } else {
     "release"
   }
+}
+
+fn multi_cage_requested() -> bool {
+  env::var("CARGO_FEATURE_V8_ENABLE_MULTI_CAGE").is_ok()
+}
+
+/// The multi-cage configuration differs from the published `_ptrcomp` builds in
+/// ways that don't show up at link time: it swaps
+/// `V8_COMPRESS_POINTERS_IN_SHARED_CAGE` for
+/// `V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES` and turns off partition_alloc and
+/// the external code space. Nothing publishes a static library built that way,
+/// so without this check enabling the feature would quietly download the shared
+/// cage `_ptrcomp` library, link successfully, and leave
+/// `IsolateGroup::can_create_new_groups()` returning false at run time.
+fn check_multi_cage_config() {
+  if !multi_cage_requested() {
+    return;
+  }
+  assert!(
+    env::var("CARGO_FEATURE_V8_ENABLE_SANDBOX").is_err(),
+    "The 'v8_enable_multi_cage' and 'v8_enable_sandbox' features are mutually \
+     exclusive: V8's sandbox requires a shared pointer compression cage."
+  );
+  assert!(
+    env_bool("V8_FROM_SOURCE"),
+    "The 'v8_enable_multi_cage' feature requires building V8 from source; set \
+     V8_FROM_SOURCE=1. No prebuilt libraries are published for this \
+     configuration, and the prebuilt '_ptrcomp' libraries use a shared cage, \
+     in which isolate groups cannot be created."
+  );
 }
 
 fn prebuilt_features_suffix() -> String {

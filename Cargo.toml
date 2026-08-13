@@ -108,6 +108,11 @@ use_custom_libcxx = []
 # major version.
 simdutf = []
 v8_enable_pointer_compression = []
+# Builds pointer compression in multi-cage mode, which is what
+# `v8::IsolateGroup::create()` needs. No prebuilt libraries are published for
+# this configuration, so it requires `V8_FROM_SOURCE=1`. Mutually exclusive
+# with `v8_enable_sandbox`.
+v8_enable_multi_cage = ["v8_enable_pointer_compression"]
 v8_enable_sandbox = ["v8_enable_pointer_compression"]
 v8_enable_v8_checks = []
 
