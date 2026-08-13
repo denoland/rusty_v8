@@ -172,12 +172,12 @@ are not installed in host search paths, set the explicit bindgen inputs:
 ```bash
 export LIBCLANG_PATH=/path/to/libclang/lib
 export RUSTY_V8_BINDGEN_RESOURCE_DIR=/path/to/lib/clang/21
-export RUSTY_V8_GLIBC_SYSROOT=/path/to/aarch64-linux-gnu
+export RUSTY_V8_GLIBC_PREFIX=/path/to/aarch64-linux-gnu
 V8_FROM_SOURCE=1 cargo build -vv --target aarch64-unknown-linux-gnu
 ```
 
 `RUSTY_V8_BINDGEN_RESOURCE_DIR` takes the directory printed by
-`clang -print-resource-dir`. `RUSTY_V8_GLIBC_SYSROOT` takes a GNU target prefix
+`clang -print-resource-dir`. `RUSTY_V8_GLIBC_PREFIX` takes a GNU target prefix
 whose `include` child contains the target libc headers. Musl cross-builds use
 `RUSTY_V8_MUSL_SYSROOT` instead; it is passed to Clang with `--sysroot`.
 

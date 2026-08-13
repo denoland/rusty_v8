@@ -68,7 +68,7 @@ fn main() {
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
     "RUSTY_V8_BINDGEN_RESOURCE_DIR",
-    "RUSTY_V8_GLIBC_SYSROOT",
+    "RUSTY_V8_GLIBC_PREFIX",
     "RUSTY_V8_MIRROR",
     "RUSTY_V8_MIRROR_TAG",
     "RUSTY_V8_MIRROR_FALLBACK",
@@ -252,20 +252,17 @@ fn build_binding() {
         clang_args.push(format!("-isystem{}/include", resource_dir.trim()));
       }
     }
-    // Parse the V8 headers against the musl sysroot. bindgen already targets
-    // the musl triple (from $TARGET), so without this it looks for the target
-    // arch's glibc multiarch headers, which aren't installed when cross-
-    // compiling (e.g. aarch64 glibc headers on an x86_64 runner).
+    // Add target libc headers for Linux cross-builds. bindgen already targets
+    // Cargo's triple (from $TARGET), but target headers may not be installed in
+    // the host's search paths.
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
-    let target_triple = env::var("TARGET").unwrap();
     let musl_sysroot = env::var("RUSTY_V8_MUSL_SYSROOT").ok();
-    let glibc_sysroot = env::var("RUSTY_V8_GLIBC_SYSROOT").ok();
+    let glibc_prefix = env::var("RUSTY_V8_GLIBC_PREFIX").ok();
     clang_args.extend(explicit_linux_bindgen_args(
       &target_env,
-      &target_triple,
       resource_dir.as_deref(),
       musl_sysroot.as_deref(),
-      glibc_sysroot.as_deref(),
+      glibc_prefix.as_deref(),
     ));
   } else if target_os == "windows" {
     // libclang otherwise discovers the runner's system Clang resource
@@ -348,12 +345,22 @@ fn build_binding() {
     .expect("Couldn't write bindings!");
 }
 
+/// Builds the explicit Linux header-search arguments for bindgen.
+///
+/// An explicit Clang resource directory uses `-resource-dir` so Clang resolves
+/// the complete builtin resource layout. The auto-discovery path only adds the
+/// discovered `include` directory because it is supplementing libclang's
+/// existing resource setup.
+///
+/// Musl receives `--sysroot` because its input is a complete sysroot. A GNU
+/// cross prefix instead stores target headers directly under `<prefix>/include`;
+/// treating it as a sysroot would make Clang search `<prefix>/usr/include`.
+/// bindgen supplies the Clang target from Cargo's `TARGET` environment variable.
 fn explicit_linux_bindgen_args(
   target_env: &str,
-  target_triple: &str,
   resource_dir: Option<&str>,
   musl_sysroot: Option<&str>,
-  glibc_sysroot: Option<&str>,
+  glibc_prefix: Option<&str>,
 ) -> Vec<String> {
   let mut args = Vec::new();
   if let Some(resource_dir) = resource_dir {
@@ -367,9 +374,8 @@ fn explicit_linux_bindgen_args(
       }
     }
     "gnu" => {
-      if let Some(sysroot) = glibc_sysroot {
-        args.push(format!("--target={target_triple}"));
-        args.push(format!("-isystem{sysroot}/include"));
+      if let Some(prefix) = glibc_prefix {
+        args.push(format!("-isystem{prefix}/include"));
       }
     }
     _ => {}
@@ -1862,40 +1868,52 @@ edge [fontsize=10]
     assert_eq!(
       explicit_linux_bindgen_args(
         "gnu",
-        "aarch64-unknown-linux-gnu",
         Some("/opt/llvm/lib/clang/21"),
         None,
         Some("/opt/aarch64-linux-gnu"),
       ),
       vec![
         "-resource-dir=/opt/llvm/lib/clang/21",
-        "--target=aarch64-unknown-linux-gnu",
         "-isystem/opt/aarch64-linux-gnu/include",
       ]
     );
   }
 
   #[test]
-  fn test_explicit_linux_bindgen_args_keep_sysroots_target_scoped() {
+  fn test_explicit_linux_bindgen_args_keep_libc_inputs_target_scoped() {
     assert_eq!(
       explicit_linux_bindgen_args(
         "musl",
-        "aarch64-unknown-linux-musl",
-        None,
+        Some("/opt/llvm/lib/clang/21"),
         Some("/opt/musl-sysroot"),
-        Some("/opt/glibc-sysroot"),
+        Some("/opt/glibc-prefix"),
       ),
-      vec!["--sysroot=/opt/musl-sysroot"]
+      vec![
+        "-resource-dir=/opt/llvm/lib/clang/21",
+        "--sysroot=/opt/musl-sysroot",
+      ]
     );
     assert!(
       explicit_linux_bindgen_args(
         "uclibc",
-        "aarch64-unknown-linux-uclibc",
         None,
         Some("/opt/musl-sysroot"),
-        Some("/opt/glibc-sysroot"),
+        Some("/opt/glibc-prefix"),
       )
       .is_empty()
+    );
+  }
+
+  #[test]
+  fn test_explicit_linux_bindgen_args_for_resource_dir_only() {
+    assert_eq!(
+      explicit_linux_bindgen_args(
+        "gnu",
+        Some("/opt/llvm/lib/clang/21"),
+        None,
+        None,
+      ),
+      vec!["-resource-dir=/opt/llvm/lib/clang/21"]
     );
   }
 }
