@@ -1009,9 +1009,10 @@ impl Isolate {
     let (raw_create_params, create_param_allocations) = params.finalize();
     let has_embedder_cpp_heap = !raw_create_params.cpp_heap.is_null();
     let cxx_isolate = match group {
-      // Deliberately calls the group-less V8 overload rather than passing the
-      // default group, so the common path doesn't pay for a reference count
-      // round trip.
+      // Calls the group-less V8 overload, which is itself defined as passing
+      // the default group, so this only saves materializing an `IsolateGroup`
+      // handle on the Rust side. Keeping it means `Isolate::new` reaches V8 by
+      // exactly the path it always has.
       None => unsafe { v8__Isolate__New(&raw_create_params) },
       Some(group) => unsafe {
         v8__Isolate__NewInGroup(group, &raw_create_params)

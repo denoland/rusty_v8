@@ -263,8 +263,8 @@ pub fn get_current_platform() -> SharedRef<Platform> {
 ///
 /// # Safety
 ///
-/// Calling this function before completely disposing all isolates will lead
-/// to a crash.
+/// Calling this function before completely disposing all isolates and dropping
+/// all [`crate::IsolateGroup`] handles will lead to a crash.
 pub unsafe fn dispose() -> bool {
   let mut global_state_guard = GLOBAL_STATE.lock().unwrap();
   *global_state_guard = match *global_state_guard {

@@ -802,12 +802,15 @@ fn check_multi_cage_config() {
     "The 'v8_enable_multi_cage' and 'v8_enable_sandbox' features are mutually \
      exclusive: V8's sandbox requires a shared pointer compression cage."
   );
+  // A custom archive is the other supported way to consume an experimental
+  // configuration, so take the embedder's word for it if one is supplied.
   assert!(
-    env_bool("V8_FROM_SOURCE"),
-    "The 'v8_enable_multi_cage' feature requires building V8 from source; set \
-     V8_FROM_SOURCE=1. No prebuilt libraries are published for this \
-     configuration, and the prebuilt '_ptrcomp' libraries use a shared cage, \
-     in which isolate groups cannot be created."
+    env_bool("V8_FROM_SOURCE") || env::var_os("RUSTY_V8_ARCHIVE").is_some(),
+    "The 'v8_enable_multi_cage' feature requires building V8 from source (set \
+     V8_FROM_SOURCE=1) or supplying a matching library via RUSTY_V8_ARCHIVE. \
+     No prebuilt libraries are published for this configuration, and the \
+     prebuilt '_ptrcomp' libraries use a shared cage, in which isolate groups \
+     cannot be created."
   );
 }
 

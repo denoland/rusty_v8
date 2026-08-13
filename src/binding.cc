@@ -60,6 +60,9 @@ static_assert(sizeof(v8::EscapableHandleScope) ==
 static_assert(sizeof(v8::PromiseRejectMessage) == sizeof(size_t) * 3,
               "PromiseRejectMessage size mismatch");
 
+static_assert(sizeof(v8::IsolateGroup) == sizeof(size_t),
+              "IsolateGroup size mismatch");
+
 static_assert(sizeof(v8::Locker) == sizeof(size_t) * 2, "Locker size mismatch");
 
 static_assert(sizeof(v8::Unlocker) == sizeof(size_t) * 1,
@@ -199,6 +202,10 @@ v8::internal::IsolateGroup* v8__IsolateGroup__Create() {
 v8::internal::IsolateGroup* v8__IsolateGroup__CLONE(
     const v8::IsolateGroup& self) {
   return make_pod<v8::internal::IsolateGroup*>(v8::IsolateGroup(self));
+}
+
+v8::internal::IsolateGroup* v8__Isolate__GetGroup(const v8::Isolate* isolate) {
+  return make_pod<v8::internal::IsolateGroup*>(isolate->GetGroup());
 }
 
 void v8__IsolateGroup__DESTRUCT(v8::IsolateGroup* self) {

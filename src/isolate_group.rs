@@ -1,5 +1,7 @@
 // Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
+use crate::Isolate;
+use crate::isolate::RealIsolate;
 use crate::support::Opaque;
 use std::fmt;
 
@@ -10,6 +12,9 @@ unsafe extern "C" {
   fn v8__IsolateGroup__GetDefault() -> *const InternalIsolateGroup;
   fn v8__IsolateGroup__CanCreateNewGroups() -> bool;
   fn v8__IsolateGroup__Create() -> *const InternalIsolateGroup;
+  fn v8__Isolate__GetGroup(
+    isolate: *const RealIsolate,
+  ) -> *const InternalIsolateGroup;
   fn v8__IsolateGroup__CLONE(
     this: *const IsolateGroup,
   ) -> *const InternalIsolateGroup;
@@ -44,6 +49,18 @@ unsafe extern "C" {
 /// Note that it's not going to be possible to pass shared JS objects across an
 /// `IsolateGroup` boundary.
 ///
+/// # Lifetime
+///
+/// An isolate holds its own reference to the group it was created in, so the
+/// group outlives its isolates whether or not you keep this handle around.
+///
+/// Do not, however, hold one of these across [`crate::V8::dispose`]. Tearing
+/// down V8 asserts that the only remaining reference to the default group is
+/// V8's own, and a live handle here makes that assertion fail, aborting the
+/// process. Dropping a handle *after* `dispose` is equally unsupported, since
+/// releasing the last reference reaches for a page allocator that is gone by
+/// then. Drop every `IsolateGroup` before shutting V8 down.
+///
 /// # Build configuration
 ///
 /// Creating groups beyond the default one requires V8 to be built with pointer
@@ -77,7 +94,13 @@ impl IsolateGroup {
   /// supports a single group, this is a reference to that single group.
   /// Otherwise this is a group like any other, distinguished only in that it is
   /// the first group.
+  ///
+  /// # Panics
+  ///
+  /// Panics if V8 has not been initialized. V8 only creates the default group
+  /// during initialization, and would dereference a null pointer before then.
   pub fn get_default() -> Self {
+    crate::V8::assert_initialized();
     IsolateGroup(unsafe { v8__IsolateGroup__GetDefault() })
   }
 
@@ -87,7 +110,8 @@ impl IsolateGroup {
   ///
   /// Panics if this V8's build configuration only supports a single group.
   /// Check [`IsolateGroup::can_create_new_groups`] first, or use
-  /// [`IsolateGroup::try_create`], which returns `None` instead.
+  /// [`IsolateGroup::try_create`], which returns `None` instead. Also panics
+  /// if V8 has not been initialized.
   pub fn create() -> Self {
     Self::try_create().expect(
       "V8 was not built with support for multiple isolate groups; this \
@@ -98,13 +122,26 @@ impl IsolateGroup {
 
   /// Creates a new isolate group, or returns `None` if this V8's build
   /// configuration only supports a single group.
+  ///
+  /// # Panics
+  ///
+  /// Panics if V8 has not been initialized; creating a group needs the
+  /// platform's virtual address space.
   pub fn try_create() -> Option<Self> {
+    crate::V8::assert_initialized();
     // V8 aborts the process rather than failing gracefully, so the check has to
     // happen before the call rather than on its result.
     if !Self::can_create_new_groups() {
       return None;
     }
     Some(IsolateGroup(unsafe { v8__IsolateGroup__Create() }))
+  }
+}
+
+impl Isolate {
+  /// Returns the [`IsolateGroup`] this isolate belongs to.
+  pub fn get_group(&self) -> IsolateGroup {
+    IsolateGroup(unsafe { v8__Isolate__GetGroup(self.as_real_ptr()) })
   }
 }
 
