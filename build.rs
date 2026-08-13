@@ -100,7 +100,9 @@ fn main() {
 
   // Early exit
   if is_cargo_doc || is_rls {
-    print_prebuilt_src_binding_path();
+    // Don't fetch a missing binding here: docs.rs/RLS may have no network, and
+    // a published crate already ships it.
+    print_prebuilt_src_binding_path(false);
     return;
   }
 
@@ -148,7 +150,7 @@ fn main() {
     return;
   }
 
-  print_prebuilt_src_binding_path();
+  print_prebuilt_src_binding_path(true);
 
   download_static_lib_binaries();
 }
@@ -753,7 +755,8 @@ const DEFAULT_MIRROR_BASE: &str =
   "https://github.com/denoland/rusty_v8/releases/download";
 
 fn is_http_url(s: &str) -> bool {
-  s.starts_with("http:") || s.starts_with("https:")
+  let lower = s.to_ascii_lowercase();
+  lower.starts_with("http:") || lower.starts_with("https:")
 }
 
 /// The release tag (directory segment) that artifacts are looked up under.
@@ -769,17 +772,24 @@ fn mirror_tag() -> String {
 }
 
 /// Expand a templated `RUSTY_V8_MIRROR` value. See [`artifact_urls`].
-fn expand_mirror_template(template: &str, tag: &str, file: &str) -> String {
-  let version = env::var("CARGO_PKG_VERSION").unwrap();
-  let target = env::var("TARGET").unwrap();
-  let profile = prebuilt_profile();
-  let features = prebuilt_features_suffix();
+///
+/// The substitution values are passed in rather than read from the environment
+/// so this stays a pure function that can be unit tested.
+fn expand_mirror_template(
+  template: &str,
+  tag: &str,
+  version: &str,
+  target: &str,
+  profile: &str,
+  features: &str,
+  file: &str,
+) -> String {
   template
     .replace("{tag}", tag)
-    .replace("{version}", &version)
-    .replace("{target}", &target)
+    .replace("{version}", version)
+    .replace("{target}", target)
     .replace("{profile}", profile)
-    .replace("{features}", &features)
+    .replace("{features}", features)
     .replace("{file}", file)
 }
 
@@ -793,30 +803,46 @@ fn expand_mirror_template(template: &str, tag: &str, file: &str) -> String {
 ///    historical `<base>/<tag>/<file>` layout is used, plus a flat
 ///    `<base>/<file>` layout for filesystem mirrors used as a plain cache.
 /// 2. The upstream default releases base, unless `RUSTY_V8_MIRROR_STRICT` is
-///    set (hermetic builds that must never reach the network).
+///    set *and* a mirror is configured (hermetic builds that must never reach
+///    the network). Strict mode with no mirror is a no-op, so the list is
+///    never empty.
 ///
 /// With no env vars set this is exactly `[<default base>/<tag>/<file>]`.
 fn artifact_urls(file: &str) -> Vec<String> {
   let tag = mirror_tag();
+  let mirror = env::var("RUSTY_V8_MIRROR").ok();
   let mut candidates = Vec::new();
 
-  if let Ok(mirror) = env::var("RUSTY_V8_MIRROR") {
+  if let Some(mirror) = &mirror {
     if mirror.contains('{') {
       // The mirror is a template; expand placeholders and use it verbatim.
-      candidates.push(expand_mirror_template(&mirror, &tag, file));
+      let version = env::var("CARGO_PKG_VERSION").unwrap();
+      let target = env::var("TARGET").unwrap();
+      candidates.push(expand_mirror_template(
+        mirror,
+        &tag,
+        &version,
+        &target,
+        prebuilt_profile(),
+        &prebuilt_features_suffix(),
+        file,
+      ));
     } else {
       // Historical layout: `<base>/<tag>/<file>`.
       candidates.push(format!("{mirror}/{tag}/{file}"));
       // Flat layout `<base>/<file>` for a plain directory of downloaded
       // artifacts used as a cache. Only meaningful for filesystem mirrors.
-      if !is_http_url(&mirror) {
+      if !is_http_url(mirror) {
         candidates.push(format!("{mirror}/{file}"));
       }
     }
   }
 
-  // Fall back to the upstream releases, unless strict mode forbids the network.
-  if !env_bool("RUSTY_V8_MIRROR_STRICT") {
+  // Fall back to the upstream releases, unless strict mode forbids it. Strict
+  // mode only takes effect when a mirror is configured — otherwise there is
+  // nothing to be strict about and suppressing this would leave no candidates.
+  let strict = mirror.is_some() && env_bool("RUSTY_V8_MIRROR_STRICT");
+  if !strict {
     candidates.push(format!("{DEFAULT_MIRROR_BASE}/{tag}/{file}"));
   }
 
@@ -881,16 +907,33 @@ fn replace_non_alphanumeric(url: &str) -> String {
     .collect()
 }
 
+/// The outcome of trying a single artifact candidate.
+enum FetchError {
+  /// The candidate is absent (missing file, failed download). Fall through to
+  /// the next candidate.
+  Miss(String),
+  /// The candidate was found but could not be used (corrupt archive, disk
+  /// full, unwritable destination). Abort — falling back would silently ignore
+  /// a broken but deliberately chosen source, e.g. a pinned mirror.
+  Fatal(String),
+}
+
 /// Fetch each candidate in `urls` into `filename`, stopping at the first that
-/// succeeds. If they all fail, panic with the full list of what was tried and
-/// the available escape hatches.
+/// succeeds. A [`FetchError::Fatal`] aborts immediately. If every candidate is
+/// a [`FetchError::Miss`], panic with the full list of what was tried and the
+/// available escape hatches.
 fn download_artifact(urls: &[String], filename: &Path) {
   let mut failures = Vec::new();
   for url in urls {
     println!("Trying artifact candidate: {url}");
     match try_download_file(url, filename) {
       Ok(()) => return,
-      Err(reason) => {
+      Err(FetchError::Fatal(reason)) => {
+        panic!(
+          "Found a V8 prebuilt artifact at {url} but could not use it: {reason}"
+        );
+      }
+      Err(FetchError::Miss(reason)) => {
         println!("  skipped {url}: {reason}");
         failures.push(format!("  - {url}\n      {reason}"));
       }
@@ -911,24 +954,28 @@ fn download_artifact(urls: &[String], filename: &Path) {
 }
 
 /// Try to fetch a single `url` (an `http(s)://` URL or a filesystem path) into
-/// `filename`. Returns `Err` with a human-readable reason on a recoverable
-/// miss so the caller can fall through to the next candidate.
-fn try_download_file(url: &str, filename: &Path) -> Result<(), String> {
-  if !is_http_url(url) {
-    // A filesystem path: an explicit archive, a file mirror, or a flat cache.
-    if !Path::new(url).exists() {
-      return Err(format!("file not found: {url}"));
-    }
-    return copy_archive(url, filename);
-  }
-
-  // Checksum (i.e: url) to avoid re-downloads. Compare against the URL being
-  // requested (not a fixed one) so this works for every artifact.
+/// `filename`. A [`FetchError::Miss`] means the candidate was absent and the
+/// caller should fall through; a [`FetchError::Fatal`] means it was found but
+/// unusable and the build should abort.
+fn try_download_file(url: &str, filename: &Path) -> Result<(), FetchError> {
+  // Checksum (i.e: url) to avoid re-downloading/re-copying. Compare against the
+  // URL being requested (not a fixed one) so this works for every artifact and
+  // for filesystem mirrors as well as HTTP downloads.
   if filename.exists()
     && let Ok(c) = fs::read_to_string(static_checksum_path(filename))
     && c == url
   {
     println!("Already downloaded {url}");
+    return Ok(());
+  }
+
+  if !is_http_url(url) {
+    // A filesystem path: an explicit archive, a file mirror, or a flat cache.
+    if !Path::new(url).exists() {
+      return Err(FetchError::Miss(format!("file not found: {url}")));
+    }
+    copy_archive(url, filename)?;
+    write_checksum(filename, url)?;
     return Ok(());
   }
 
@@ -939,6 +986,7 @@ fn try_download_file(url: &str, filename: &Path) -> Result<(), String> {
     println!("Looking for download in '{path:?}'");
     if path.exists() {
       copy_archive(&path.to_string_lossy(), filename)?;
+      write_checksum(filename, url)?;
       return Ok(());
     }
   }
@@ -946,8 +994,9 @@ fn try_download_file(url: &str, filename: &Path) -> Result<(), String> {
   let tmpfile = filename.with_extension("tmp");
   if tmpfile.exists() {
     println!("Deleting old tmpfile {}", tmpfile.display());
-    fs::remove_file(&tmpfile)
-      .map_err(|e| format!("could not remove {}: {e}", tmpfile.display()))?;
+    fs::remove_file(&tmpfile).map_err(|e| {
+      FetchError::Fatal(format!("could not remove {}: {e}", tmpfile.display()))
+    })?;
   }
 
   // Try downloading with deno first, then python, then curl.
@@ -1012,31 +1061,44 @@ fn try_download_file(url: &str, filename: &Path) -> Result<(), String> {
     }
   };
 
-  // Did any downloader succeed?
+  // Did any downloader succeed? A failure here means the artifact could not be
+  // fetched from this URL (404, network error, no downloader available), which
+  // is a miss — the next candidate may still have it.
   match status {
     Some(status) if status.success() => {}
     _ => {
-      return Err(format!(
+      return Err(FetchError::Miss(format!(
         "no downloader (deno, python, or curl) could fetch {url}"
-      ));
+      )));
     }
   }
   if !tmpfile.exists() {
-    return Err(format!(
+    return Err(FetchError::Miss(format!(
       "downloader reported success but {} is missing",
       tmpfile.display()
-    ));
+    )));
   }
 
-  // Write checksum (i.e url) & move file
-  fs::write(static_checksum_path(filename), url).map_err(|e| {
-    format!("could not write checksum for {}: {e}", filename.display())
-  })?;
+  // Move the file into place, then record the checksum only after the copy
+  // succeeds so a failed/interrupted copy can't leave a `.sum` that points at a
+  // truncated artifact.
   copy_archive(&tmpfile.to_string_lossy(), filename)?;
-  fs::remove_file(&tmpfile)
-    .map_err(|e| format!("could not remove {}: {e}", tmpfile.display()))?;
+  write_checksum(filename, url)?;
+  let _ = fs::remove_file(&tmpfile);
 
   Ok(())
+}
+
+/// Record the source `url` of the artifact now sitting at `filename`, so a
+/// later build can skip re-fetching it. Written only after the artifact is
+/// fully in place.
+fn write_checksum(filename: &Path, url: &str) -> Result<(), FetchError> {
+  fs::write(static_checksum_path(filename), url).map_err(|e| {
+    FetchError::Fatal(format!(
+      "could not write checksum for {}: {e}",
+      filename.display()
+    ))
+  })
 }
 
 fn download_static_lib_binaries() {
@@ -1103,12 +1165,38 @@ where
 /// Instead, it copies the file contents to a new file.
 /// This is necessary because the V8 archive could live inside a read-only
 /// filesystem, and subsequent builds would fail to overwrite it.
-fn copy_archive(url: &str, filename: &Path) -> Result<(), String> {
+///
+/// The contents are written to a staging file and renamed into place only once
+/// the copy/decompress fully succeeds, so a mid-way failure (corrupt gzip, disk
+/// full) can't truncate a previously good `filename`.
+fn copy_archive(url: &str, filename: &Path) -> Result<(), FetchError> {
   println!("Copying {url} to {filename:?}");
-  let mut src = fs::File::open(url)
-    .map_err(|e| format!("could not open source archive {url}: {e}"))?;
-  let mut dst = fs::File::create(filename).map_err(|e| {
-    format!("could not create {} from {url}: {e}", filename.display())
+  let staging = filename.with_extension("copytmp");
+  let result = copy_archive_to(url, &staging);
+  if result.is_err() {
+    let _ = fs::remove_file(&staging);
+    return result;
+  }
+  fs::rename(&staging, filename).map_err(|e| {
+    let _ = fs::remove_file(&staging);
+    FetchError::Fatal(format!(
+      "could not move {} into place at {}: {e}",
+      staging.display(),
+      filename.display()
+    ))
+  })
+}
+
+/// Copy/decompress the archive at `url` into the staging file `dst_path`.
+fn copy_archive_to(url: &str, dst_path: &Path) -> Result<(), FetchError> {
+  let mut src = fs::File::open(url).map_err(|e| {
+    FetchError::Fatal(format!("could not open source archive {url}: {e}"))
+  })?;
+  let mut dst = fs::File::create(dst_path).map_err(|e| {
+    FetchError::Fatal(format!(
+      "could not create {} from {url}: {e}",
+      dst_path.display()
+    ))
   })?;
 
   // Allow both GZIP and non-GZIP downloads
@@ -1116,22 +1204,28 @@ fn copy_archive(url: &str, filename: &Path) -> Result<(), String> {
   src
     .read_exact(&mut header)
     .and_then(|()| src.seek(io::SeekFrom::Start(0)))
-    .map_err(|e| format!("could not read archive header from {url}: {e}"))?;
+    .map_err(|e| {
+      FetchError::Fatal(format!(
+        "could not read archive header from {url}: {e}"
+      ))
+    })?;
   if header == [0x1f, 0x8b] {
     println!("Detected GZIP archive: {url}");
     decompress_to_writer(&mut src, &mut dst).map_err(|e| {
-      format!(
+      FetchError::Fatal(format!(
         "could not decompress {url} into {}: {e}",
-        filename.display()
-      )
-    })?;
+        dst_path.display()
+      ))
+    })
   } else {
     println!("Not a GZIP archive: {url}");
-    io::copy(&mut src, &mut dst).map_err(|e| {
-      format!("could not copy {url} into {}: {e}", filename.display())
-    })?;
+    io::copy(&mut src, &mut dst).map(|_| ()).map_err(|e| {
+      FetchError::Fatal(format!(
+        "could not copy {url} into {}: {e}",
+        dst_path.display()
+      ))
+    })
   }
-  Ok(())
 }
 
 fn print_link_flags() {
@@ -1188,7 +1282,16 @@ fn print_link_flags() {
   }
 }
 
-fn print_prebuilt_src_binding_path() {
+/// Point `RUSTY_V8_SRC_BINDING_PATH` at the prebuilt bindings.
+///
+/// When `fetch_when_missing` is true and the binding isn't already present in
+/// this checkout, it is downloaded (from the mirror/upstream) so a git checkout
+/// gets a build-script diagnostic instead of a confusing `include!` failure in
+/// `src/binding.rs`. The `DOCS_RS`/RLS early-exit path passes `false`: those
+/// contexts may have no network, and a published crate already ships the
+/// binding, so a missing one should fall through to the `include!` diagnostic
+/// rather than panic.
+fn print_prebuilt_src_binding_path(fetch_when_missing: bool) {
   if let Ok(binding) = env::var("RUSTY_V8_SRC_BINDING_PATH") {
     println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={binding}");
     return;
@@ -1201,13 +1304,16 @@ fn print_prebuilt_src_binding_path() {
 
   let src_binding_path = get_dirs().root.join("gen").join(name.clone());
 
-  // Fetch the binding when a mirror is configured (existing behaviour), or when
-  // it is missing from this checkout. A git checkout has no `gen/<name>.rs`, so
-  // fetching it from the mirror/upstream turns a missing binding into a build
-  // script diagnostic rather than a confusing `include!` failure in
-  // `src/binding.rs`. A published crate ships `gen/<name>.rs`, so with no env
-  // vars set this is skipped and behaves exactly as before.
-  if env::var_os("RUSTY_V8_MIRROR").is_some() || !src_binding_path.exists() {
+  // Fetch the binding when a mirror is explicitly configured (existing
+  // behaviour), or when it is missing from this checkout and fetching is
+  // allowed. A published crate ships `gen/<name>.rs`, so a plain `cargo build`
+  // that already has it skips this entirely.
+  if env::var_os("RUSTY_V8_MIRROR").is_some()
+    || (fetch_when_missing && !src_binding_path.exists())
+  {
+    if let Some(parent) = src_binding_path.parent() {
+      fs::create_dir_all(parent).unwrap();
+    }
     let urls = artifact_urls(&name);
     download_artifact(&urls, &src_binding_path);
   }
@@ -1641,5 +1747,37 @@ edge [fontsize=10]
     let clang_bin = env::temp_dir()
       .join(format!("rusty_v8_missing_clang_{}", std::process::id()));
     assert!(clang_resource_dir(&clang_bin).is_err());
+  }
+
+  #[test]
+  fn test_expand_mirror_template() {
+    let out = expand_mirror_template(
+      "https://cache.example.com/{target}/{tag}/{profile}{features}/{version}/{file}",
+      "v152.1.0",
+      "152.1.0",
+      "aarch64-apple-darwin",
+      "release",
+      "_ptrcomp",
+      "librusty_v8_ptrcomp_release_aarch64-apple-darwin.a.gz",
+    );
+    assert_eq!(
+      out,
+      "https://cache.example.com/aarch64-apple-darwin/v152.1.0/release_ptrcomp/152.1.0/librusty_v8_ptrcomp_release_aarch64-apple-darwin.a.gz"
+    );
+
+    // Empty features and a repeated placeholder.
+    let out = expand_mirror_template(
+      "file:///mnt/{tag}/{file}",
+      "nightly",
+      "152.1.0",
+      "x86_64-unknown-linux-gnu",
+      "debug",
+      "",
+      "src_binding_debug_x86_64-unknown-linux-gnu.rs",
+    );
+    assert_eq!(
+      out,
+      "file:///mnt/nightly/src_binding_debug_x86_64-unknown-linux-gnu.rs"
+    );
   }
 }
