@@ -150,9 +150,33 @@ fn main() {
     return;
   }
 
+  warn_on_tag_override();
+
   print_prebuilt_src_binding_path(true);
 
   download_static_lib_binaries();
+}
+
+/// Warn when the resolved mirror tag differs from `v{CARGO_PKG_VERSION}`.
+///
+/// `RUSTY_V8_MIRROR_TAG` pairs this checkout's Rust sources with a prebuilt
+/// `librusty_v8.a` and `src_binding_*.rs` generated from a *different* V8. The
+/// layout `static_assert`s that would catch a mismatch live in the old `.a` and
+/// cannot fire, so a mismatch can link and then corrupt memory at runtime. The
+/// feature is legitimate (e.g. building an unpublished version against the last
+/// released artifacts), but the risk should be surfaced.
+fn warn_on_tag_override() {
+  let tag = mirror_tag();
+  let expected = format!("v{}", env::var("CARGO_PKG_VERSION").unwrap());
+  if tag != expected {
+    println!(
+      "cargo:warning=Using prebuilt V8 artifacts from tag '{tag}' but this \
+       crate is version {expected}. The prebuilt library and bindings were \
+       generated from a different V8; a layout mismatch may link and then \
+       corrupt memory at runtime. Ensure '{tag}' is ABI-compatible with this \
+       checkout."
+    );
+  }
 }
 
 fn acquire_lock() -> LockFile {
@@ -793,67 +817,110 @@ fn expand_mirror_template(
     .replace("{file}", file)
 }
 
-/// Ordered list of candidate locations to try for artifact `file` (e.g.
-/// `librusty_v8_release_<target>.a.gz` or `src_binding_release_<target>.rs`).
+/// A single artifact location to try.
+#[derive(Debug)]
+struct Candidate {
+  /// An `http(s)://` URL or a filesystem path.
+  url: String,
+  /// Whether this is a best-effort *cache* (a flat directory of downloaded
+  /// artifacts, or the local `~/.cargo/.rusty_v8` cache) rather than a
+  /// deliberately chosen source. A corrupt artifact from a cache falls through
+  /// to the next candidate; a corrupt artifact from a deliberate source (a
+  /// pinned mirror, upstream) aborts the build.
+  is_cache: bool,
+}
+
+/// Pure candidate-list builder. All inputs are explicit (nothing is read from
+/// the environment) so the ordering matrix can be unit tested. See
+/// [`artifact_urls`] for the env-reading wrapper.
 ///
 /// Resolution order (see the `RUSTY_V8_MIRROR` section in the README):
 ///
-/// 1. The `RUSTY_V8_MIRROR` value, if set. When it contains a `{` placeholder
-///    it is treated as a full template; otherwise it is a base and the
-///    historical `<base>/<tag>/<file>` layout is used, plus a flat
-///    `<base>/<file>` layout for filesystem mirrors used as a plain cache.
-/// 2. The upstream default releases base, unless `RUSTY_V8_MIRROR_STRICT` is
-///    set *and* a mirror is configured (hermetic builds that must never reach
-///    the network). Strict mode with no mirror is a no-op, so the list is
-///    never empty.
+/// 1. `mirror`, if set. When it contains a `{` placeholder it is treated as a
+///    full template; otherwise it is a base and the historical
+///    `<base>/<tag>/<file>` layout is used, plus a flat `<base>/<file>` cache
+///    layout for filesystem mirrors.
+/// 2. The upstream default releases base, unless `strict` is set (hermetic
+///    builds that must never reach the network).
 ///
-/// With no env vars set this is exactly `[<default base>/<tag>/<file>]`.
-fn artifact_urls(file: &str) -> Vec<String> {
-  let tag = mirror_tag();
-  let mirror = env::var("RUSTY_V8_MIRROR").ok();
+/// `strict` is honored unconditionally: with no mirror it yields an empty list,
+/// which the caller reports as "strict mode set but nowhere to fetch from"
+/// rather than silently reaching the network.
+#[allow(clippy::too_many_arguments)]
+fn artifact_urls_from(
+  mirror: Option<&str>,
+  tag: &str,
+  strict: bool,
+  version: &str,
+  target: &str,
+  profile: &str,
+  features: &str,
+  file: &str,
+) -> Vec<Candidate> {
   let mut candidates = Vec::new();
 
-  if let Some(mirror) = &mirror {
+  if let Some(mirror) = mirror {
     if mirror.contains('{') {
       // The mirror is a template; expand placeholders and use it verbatim.
-      let version = env::var("CARGO_PKG_VERSION").unwrap();
-      let target = env::var("TARGET").unwrap();
-      candidates.push(expand_mirror_template(
-        mirror,
-        &tag,
-        &version,
-        &target,
-        prebuilt_profile(),
-        &prebuilt_features_suffix(),
-        file,
-      ));
+      candidates.push(Candidate {
+        url: expand_mirror_template(
+          mirror, tag, version, target, profile, features, file,
+        ),
+        is_cache: false,
+      });
     } else {
-      // Historical layout: `<base>/<tag>/<file>`.
-      candidates.push(format!("{mirror}/{tag}/{file}"));
+      // Historical layout: `<base>/<tag>/<file>` — a deliberate source.
+      candidates.push(Candidate {
+        url: format!("{mirror}/{tag}/{file}"),
+        is_cache: false,
+      });
       // Flat layout `<base>/<file>` for a plain directory of downloaded
       // artifacts used as a cache. Only meaningful for filesystem mirrors.
       if !is_http_url(mirror) {
-        candidates.push(format!("{mirror}/{file}"));
+        candidates.push(Candidate {
+          url: format!("{mirror}/{file}"),
+          is_cache: true,
+        });
       }
     }
   }
 
-  // Fall back to the upstream releases, unless strict mode forbids it. Strict
-  // mode only takes effect when a mirror is configured — otherwise there is
-  // nothing to be strict about and suppressing this would leave no candidates.
-  let strict = mirror.is_some() && env_bool("RUSTY_V8_MIRROR_STRICT");
+  // Fall back to the upstream releases unless strict mode forbids the network.
   if !strict {
-    candidates.push(format!("{DEFAULT_MIRROR_BASE}/{tag}/{file}"));
+    candidates.push(Candidate {
+      url: format!("{DEFAULT_MIRROR_BASE}/{tag}/{file}"),
+      is_cache: false,
+    });
   }
 
   candidates
 }
 
+/// Ordered list of candidate locations to try for artifact `file` (e.g.
+/// `librusty_v8_release_<target>.a.gz` or `src_binding_release_<target>.rs`).
+fn artifact_urls(file: &str) -> Vec<Candidate> {
+  let version = env::var("CARGO_PKG_VERSION").unwrap();
+  let target = env::var("TARGET").unwrap();
+  artifact_urls_from(
+    env::var("RUSTY_V8_MIRROR").ok().as_deref(),
+    &mirror_tag(),
+    env_bool("RUSTY_V8_MIRROR_STRICT"),
+    &version,
+    &target,
+    prebuilt_profile(),
+    &prebuilt_features_suffix(),
+    file,
+  )
+}
+
 /// Candidate URLs for the prebuilt static library archive.
-fn static_lib_urls() -> Vec<String> {
+fn static_lib_urls() -> Vec<Candidate> {
   // An explicit archive short-circuits everything (static library only).
   if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
-    return vec![custom_archive];
+    return vec![Candidate {
+      url: custom_archive,
+      is_cache: false,
+    }];
   }
   let target = env::var("TARGET").unwrap();
   let profile = prebuilt_profile();
@@ -921,16 +988,33 @@ enum FetchError {
 /// Fetch each candidate in `urls` into `filename`, stopping at the first that
 /// succeeds. A [`FetchError::Fatal`] aborts immediately. If every candidate is
 /// a [`FetchError::Miss`], panic with the full list of what was tried and the
-/// available escape hatches.
-fn download_artifact(urls: &[String], filename: &Path) {
+/// available escape hatches. `what` names the artifact for the diagnostics
+/// (e.g. "the V8 static library").
+fn download_artifact(urls: &[Candidate], filename: &Path, what: &str) {
+  if urls.is_empty() {
+    // Only reachable with RUSTY_V8_MIRROR_STRICT set and no mirror configured:
+    // strict suppresses upstream, leaving nothing to try.
+    panic!(
+      "No candidate locations to fetch {what} from. RUSTY_V8_MIRROR_STRICT is \
+       set but RUSTY_V8_MIRROR is not, so the upstream fallback is disabled and \
+       there is nowhere to fetch from. Set RUSTY_V8_MIRROR (and, for the \
+       bindings, optionally RUSTY_V8_SRC_BINDING_PATH), or unset \
+       RUSTY_V8_MIRROR_STRICT."
+    );
+  }
+
   let mut failures = Vec::new();
-  for url in urls {
+  for candidate in urls {
+    let url = &candidate.url;
     println!("Trying artifact candidate: {url}");
-    match try_download_file(url, filename) {
+    match try_download_file(candidate, filename) {
       Ok(()) => return,
       Err(FetchError::Fatal(reason)) => {
         panic!(
-          "Found a V8 prebuilt artifact at {url} but could not use it: {reason}"
+          "Found {what} at {url} but could not use it: {reason}\n\
+           This source was chosen deliberately (a pinned mirror or the upstream \
+           release), so the build aborts rather than silently using a different \
+           one."
         );
       }
       Err(FetchError::Miss(reason)) => {
@@ -940,7 +1024,7 @@ fn download_artifact(urls: &[String], filename: &Path) {
     }
   }
   panic!(
-    "Failed to obtain a V8 prebuilt artifact.\n\
+    "Failed to obtain {what}.\n\
      Tried the following candidates, in order:\n{}\n\n\
      This is usually because no prebuilt archive is published for your target \
      or version. Ways to fix this:\n\
@@ -953,17 +1037,38 @@ fn download_artifact(urls: &[String], filename: &Path) {
   );
 }
 
-/// Try to fetch a single `url` (an `http(s)://` URL or a filesystem path) into
-/// `filename`. A [`FetchError::Miss`] means the candidate was absent and the
-/// caller should fall through; a [`FetchError::Fatal`] means it was found but
-/// unusable and the build should abort.
-fn try_download_file(url: &str, filename: &Path) -> Result<(), FetchError> {
+/// Copy/decompress `src` into `filename`, demoting a fatal failure to a
+/// [`FetchError::Miss`] when the candidate is a best-effort cache — a corrupt
+/// cache entry should fall through, not abort.
+fn use_archive(
+  candidate: &Candidate,
+  src: &str,
+  filename: &Path,
+) -> Result<(), FetchError> {
+  match copy_archive(src, filename) {
+    Err(FetchError::Fatal(reason)) if candidate.is_cache => {
+      Err(FetchError::Miss(reason))
+    }
+    other => other,
+  }
+}
+
+/// Try to fetch a single `candidate` (an `http(s)://` URL or a filesystem path)
+/// into `filename`. A [`FetchError::Miss`] means the candidate was absent and
+/// the caller should fall through; a [`FetchError::Fatal`] means it was found
+/// but unusable and the build should abort.
+fn try_download_file(
+  candidate: &Candidate,
+  filename: &Path,
+) -> Result<(), FetchError> {
+  let url = &candidate.url;
+
   // Checksum (i.e: url) to avoid re-downloading/re-copying. Compare against the
   // URL being requested (not a fixed one) so this works for every artifact and
   // for filesystem mirrors as well as HTTP downloads.
   if filename.exists()
     && let Ok(c) = fs::read_to_string(static_checksum_path(filename))
-    && c == url
+    && c == *url
   {
     println!("Already downloaded {url}");
     return Ok(());
@@ -974,20 +1079,33 @@ fn try_download_file(url: &str, filename: &Path) -> Result<(), FetchError> {
     if !Path::new(url).exists() {
       return Err(FetchError::Miss(format!("file not found: {url}")));
     }
-    copy_archive(url, filename)?;
+    use_archive(candidate, url, filename)?;
     write_checksum(filename, url)?;
     return Ok(());
   }
 
-  // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead
-  // of downloading.
+  // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead of
+  // downloading. This is a local cache, so a corrupt entry is evicted and we
+  // fall through to a fresh download rather than aborting.
   if let Ok(mut path) = home::cargo_home() {
     path = path.join(".rusty_v8").join(replace_non_alphanumeric(url));
     println!("Looking for download in '{path:?}'");
     if path.exists() {
-      copy_archive(&path.to_string_lossy(), filename)?;
-      write_checksum(filename, url)?;
-      return Ok(());
+      match copy_archive(&path.to_string_lossy(), filename) {
+        Ok(()) => {
+          write_checksum(filename, url)?;
+          return Ok(());
+        }
+        Err(FetchError::Fatal(reason)) => {
+          println!(
+            "Cached download at {} is unusable ({reason}); removing and \
+             re-downloading",
+            path.display()
+          );
+          let _ = fs::remove_file(&path);
+        }
+        Err(e) => return Err(e),
+      }
     }
   }
 
@@ -1001,92 +1119,84 @@ fn try_download_file(url: &str, filename: &Path) -> Result<(), FetchError> {
 
   // Try downloading with deno first, then python, then curl.
   println!("Downloading {url}");
-  let status = which("deno").ok().and_then(|deno| {
-    println!("Trying with Deno...");
-    Command::new(deno)
-      .arg("eval")
-      .arg(
-        "const [url, path] = Deno.args; \
-         const resp = await fetch(url); \
-         if (!resp.ok) Deno.exit(1); \
-         const file = await Deno.open(path, { write: true, create: true }); \
-         await resp.body.pipeTo(file.writable);",
-      )
-      // Note: `deno eval` runs with all permissions implicitly granted and does
-      // not accept `--allow-*` flags, so passing them here makes `deno eval`
-      // error out ("unexpected argument '--allow-net'") and the download
-      // silently falls back to Python/curl.
-      .arg("--")
-      .arg(url)
-      .arg(&tmpfile)
-      .status()
-      .ok()
-      .filter(|s| s.success())
-  });
+  let downloaded = download_with_deno(url, &tmpfile)
+    || download_with_python(url, &tmpfile)
+    || download_with_curl(url, &tmpfile);
 
-  // Try downloading with python. Python is a V8 build dependency,
-  // so this saves us from adding a Rust HTTP client dependency.
-  let status = match status {
-    Some(status) => Some(status),
-    _ => {
-      println!("Trying with Python...");
-      let python_status = Command::new(python())
-        .arg("./tools/download_file.py")
-        .arg("--url")
-        .arg(url)
-        .arg("--filename")
-        .arg(&tmpfile)
-        .status();
-
-      // Python is only a required dependency for `V8_FROM_SOURCE` builds.
-      // If python is not available, try falling back to curl.
-      match python_status {
-        Ok(status) if status.success() => Some(status),
-        _ => {
-          // A missing `curl` binary must not panic: fall through to the
-          // "all downloaders failed" path so the next candidate is tried.
-          println!("Python downloader failed, trying with curl.");
-          Command::new("curl")
-            .arg("-L")
-            .arg("-f")
-            .arg("-s")
-            .arg("-o")
-            .arg(&tmpfile)
-            .arg(url)
-            .status()
-            .ok()
-            .filter(|s| s.success())
-        }
-      }
-    }
-  };
-
-  // Did any downloader succeed? A failure here means the artifact could not be
-  // fetched from this URL (404, network error, no downloader available), which
-  // is a miss — the next candidate may still have it.
-  match status {
-    Some(status) if status.success() => {}
-    _ => {
-      return Err(FetchError::Miss(format!(
-        "no downloader (deno, python, or curl) could fetch {url}"
-      )));
-    }
-  }
-  if !tmpfile.exists() {
+  // A failure here means the artifact could not be fetched from this URL (404,
+  // network error, no downloader available), which is a miss — the next
+  // candidate may still have it. Don't leave a partial tmpfile behind.
+  if !downloaded || !tmpfile.exists() {
+    let _ = fs::remove_file(&tmpfile);
     return Err(FetchError::Miss(format!(
-      "downloader reported success but {} is missing",
-      tmpfile.display()
+      "could not download {url} (tried deno, python, and curl)"
     )));
   }
 
   // Move the file into place, then record the checksum only after the copy
   // succeeds so a failed/interrupted copy can't leave a `.sum` that points at a
   // truncated artifact.
-  copy_archive(&tmpfile.to_string_lossy(), filename)?;
+  use_archive(candidate, &tmpfile.to_string_lossy(), filename)?;
   write_checksum(filename, url)?;
   let _ = fs::remove_file(&tmpfile);
 
   Ok(())
+}
+
+/// Download `url` to `tmpfile` with Deno. Returns whether it succeeded.
+fn download_with_deno(url: &str, tmpfile: &Path) -> bool {
+  let Ok(deno) = which("deno") else {
+    return false;
+  };
+  println!("Trying with Deno...");
+  Command::new(deno)
+    .arg("eval")
+    .arg(
+      "const [url, path] = Deno.args; \
+       const resp = await fetch(url); \
+       if (!resp.ok) Deno.exit(1); \
+       const file = await Deno.open(path, { write: true, create: true }); \
+       await resp.body.pipeTo(file.writable);",
+    )
+    // Note: `deno eval` runs with all permissions implicitly granted and does
+    // not accept `--allow-*` flags, so passing them here makes `deno eval`
+    // error out ("unexpected argument '--allow-net'") and the download
+    // silently falls back to Python/curl.
+    .arg("--")
+    .arg(url)
+    .arg(tmpfile)
+    .status()
+    .is_ok_and(|s| s.success())
+}
+
+/// Download `url` to `tmpfile` with Python. Returns whether it succeeded.
+/// Python is a V8 build dependency, so this saves us from adding a Rust HTTP
+/// client dependency; it is not guaranteed to be present for prebuilt builds.
+fn download_with_python(url: &str, tmpfile: &Path) -> bool {
+  println!("Trying with Python...");
+  Command::new(python())
+    .arg("./tools/download_file.py")
+    .arg("--url")
+    .arg(url)
+    .arg("--filename")
+    .arg(tmpfile)
+    .status()
+    .is_ok_and(|s| s.success())
+}
+
+/// Download `url` to `tmpfile` with curl. Returns whether it succeeded. A
+/// missing `curl` binary is just a `false`, not a panic.
+fn download_with_curl(url: &str, tmpfile: &Path) -> bool {
+  println!("Trying with curl...");
+  Command::new("curl")
+    .arg("-L")
+    .arg("-f")
+    .arg("-s")
+    .arg("-o")
+    .arg(tmpfile)
+    .arg(url)
+    .status()
+    .is_ok_and(|s| s.success())
 }
 
 /// Record the source `url` of the artifact now sitting at `filename`, so a
@@ -1109,7 +1219,7 @@ fn download_static_lib_binaries() {
   fs::create_dir_all(&dir).unwrap();
   println!("cargo:rustc-link-search={}", dir.display());
 
-  download_artifact(&urls, &static_lib_path());
+  download_artifact(&urls, &static_lib_path(), "the V8 static library");
 }
 
 fn decompress_to_writer<R, W>(input: &mut R, output: &mut W) -> io::Result<()>
@@ -1284,13 +1394,22 @@ fn print_link_flags() {
 
 /// Point `RUSTY_V8_SRC_BINDING_PATH` at the prebuilt bindings.
 ///
-/// When `fetch_when_missing` is true and the binding isn't already present in
-/// this checkout, it is downloaded (from the mirror/upstream) so a git checkout
-/// gets a build-script diagnostic instead of a confusing `include!` failure in
-/// `src/binding.rs`. The `DOCS_RS`/RLS early-exit path passes `false`: those
-/// contexts may have no network, and a published crate already ships the
-/// binding, so a missing one should fall through to the `include!` diagnostic
-/// rather than panic.
+/// A published crate ships the binding in `gen/<name>.rs`; when it is present
+/// and no mirror is configured, it is used as-is. Otherwise the binding is
+/// fetched into `OUT_DIR` (never written back into the source tree) and the env
+/// var points there:
+///
+/// - A mirror is configured — the binding is fetched from it (with the usual
+///   fallback), regardless of `fetch_when_missing`.
+/// - No mirror, but the binding is missing from this checkout (e.g. a git
+///   checkout, which ships only `gen/.gitkeep`) — it is fetched from upstream,
+///   but only when `fetch_when_missing` is true.
+///
+/// `fetch_when_missing` gates *only* that last, missing-file case. The
+/// `DOCS_RS`/RLS early-exit passes `false`: those contexts may have no network,
+/// and a published crate already ships the binding, so a missing one falls
+/// through to the `include!` diagnostic in `src/binding.rs` rather than panic.
+/// (A mirror set on that path still downloads, matching prior behaviour.)
 fn print_prebuilt_src_binding_path(fetch_when_missing: bool) {
   if let Ok(binding) = env::var("RUSTY_V8_SRC_BINDING_PATH") {
     println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={binding}");
@@ -1302,25 +1421,29 @@ fn print_prebuilt_src_binding_path(fetch_when_missing: bool) {
   let features = prebuilt_features_suffix();
   let name = format!("src_binding{features}_{profile}_{target}.rs");
 
-  let src_binding_path = get_dirs().root.join("gen").join(name.clone());
+  // The binding shipped with a published crate.
+  let shipped = get_dirs().root.join("gen").join(&name);
+  let mirror_set = env::var_os("RUSTY_V8_MIRROR").is_some();
 
-  // Fetch the binding when a mirror is explicitly configured (existing
-  // behaviour), or when it is missing from this checkout and fetching is
-  // allowed. A published crate ships `gen/<name>.rs`, so a plain `cargo build`
-  // that already has it skips this entirely.
-  if env::var_os("RUSTY_V8_MIRROR").is_some()
-    || (fetch_when_missing && !src_binding_path.exists())
-  {
-    if let Some(parent) = src_binding_path.parent() {
-      fs::create_dir_all(parent).unwrap();
-    }
+  let binding_path = if shipped.exists() && !mirror_set {
+    shipped
+  } else if mirror_set || fetch_when_missing {
+    // Fetch into OUT_DIR rather than the (possibly read-only, registry-owned)
+    // source tree. OUT_DIR always exists, so no directory creation is needed.
+    let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join(&name);
     let urls = artifact_urls(&name);
-    download_artifact(&urls, &src_binding_path);
-  }
+    download_artifact(&urls, &out, "the V8 bindings");
+    out
+  } else {
+    // Not shipped, no mirror, and fetching is not allowed here (docs.rs/RLS).
+    // Point at the (missing) shipped path so `include!` produces its own
+    // diagnostic, exactly as before this change.
+    shipped
+  };
 
   println!(
     "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
-    src_binding_path.display()
+    binding_path.display()
   );
 }
 
@@ -1765,9 +1888,10 @@ edge [fontsize=10]
       "https://cache.example.com/aarch64-apple-darwin/v152.1.0/release_ptrcomp/152.1.0/librusty_v8_ptrcomp_release_aarch64-apple-darwin.a.gz"
     );
 
-    // Empty features and a repeated placeholder.
+    // Empty features, plain filesystem path (not a `file://` URL, which the
+    // filesystem candidate does not support).
     let out = expand_mirror_template(
-      "file:///mnt/{tag}/{file}",
+      "/mnt/{tag}/{file}",
       "nightly",
       "152.1.0",
       "x86_64-unknown-linux-gnu",
@@ -1777,7 +1901,126 @@ edge [fontsize=10]
     );
     assert_eq!(
       out,
-      "file:///mnt/nightly/src_binding_debug_x86_64-unknown-linux-gnu.rs"
+      "/mnt/nightly/src_binding_debug_x86_64-unknown-linux-gnu.rs"
     );
+  }
+
+  fn urls(candidates: &[Candidate]) -> Vec<(&str, bool)> {
+    candidates
+      .iter()
+      .map(|c| (c.url.as_str(), c.is_cache))
+      .collect()
+  }
+
+  const UP: &str = "https://github.com/denoland/rusty_v8/releases/download";
+
+  #[test]
+  fn test_artifact_urls_no_mirror() {
+    // No mirror: exactly one candidate, the upstream default at the tag.
+    let c = artifact_urls_from(
+      None, "v1.2.3", false, "1.2.3", "t", "release", "", "lib.a.gz",
+    );
+    assert_eq!(
+      urls(&c),
+      [(format!("{UP}/v1.2.3/lib.a.gz").as_str(), false)]
+    );
+  }
+
+  #[test]
+  fn test_artifact_urls_http_mirror() {
+    // HTTP mirror: `<base>/<tag>/<file>` then upstream. No flat candidate.
+    let c = artifact_urls_from(
+      Some("https://m.example.com"),
+      "v1.2.3",
+      false,
+      "1.2.3",
+      "t",
+      "release",
+      "",
+      "lib.a.gz",
+    );
+    assert_eq!(
+      urls(&c),
+      [
+        ("https://m.example.com/v1.2.3/lib.a.gz", false),
+        (format!("{UP}/v1.2.3/lib.a.gz").as_str(), false),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_artifact_urls_fs_mirror_has_flat_cache() {
+    // Filesystem mirror: tag layout, then a flat cache candidate, then upstream.
+    let c = artifact_urls_from(
+      Some("/srv/mirror"),
+      "v1.2.3",
+      false,
+      "1.2.3",
+      "t",
+      "release",
+      "",
+      "lib.a.gz",
+    );
+    assert_eq!(
+      urls(&c),
+      [
+        ("/srv/mirror/v1.2.3/lib.a.gz", false),
+        ("/srv/mirror/lib.a.gz", true),
+        (format!("{UP}/v1.2.3/lib.a.gz").as_str(), false),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_artifact_urls_template_mirror() {
+    // Template mirror: exactly the expanded template, then upstream. No flat.
+    let c = artifact_urls_from(
+      Some("https://c/{target}/{tag}/{file}"),
+      "v1.2.3",
+      false,
+      "1.2.3",
+      "aarch64",
+      "release",
+      "",
+      "lib.a.gz",
+    );
+    assert_eq!(
+      urls(&c),
+      [
+        ("https://c/aarch64/v1.2.3/lib.a.gz", false),
+        (format!("{UP}/v1.2.3/lib.a.gz").as_str(), false),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_artifact_urls_strict_with_mirror_drops_upstream() {
+    let c = artifact_urls_from(
+      Some("/srv/mirror"),
+      "v1.2.3",
+      true,
+      "1.2.3",
+      "t",
+      "release",
+      "",
+      "lib.a.gz",
+    );
+    assert_eq!(
+      urls(&c),
+      [
+        ("/srv/mirror/v1.2.3/lib.a.gz", false),
+        ("/srv/mirror/lib.a.gz", true),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_artifact_urls_strict_without_mirror_is_empty() {
+    // Strict is honored unconditionally: no mirror + strict => nowhere to fetch.
+    // The caller turns this empty list into an explicit error.
+    let c = artifact_urls_from(
+      None, "v1.2.3", true, "1.2.3", "t", "release", "", "lib.a.gz",
+    );
+    assert!(c.is_empty());
   }
 }

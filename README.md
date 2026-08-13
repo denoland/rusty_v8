@@ -101,20 +101,28 @@ was tried.
 RUSTY_V8_MIRROR_TAG=v152.1.0 cargo build
 ```
 
+> ⚠️ **ABI mismatch risk.** This pairs the checkout's Rust sources with a
+> `librusty_v8.a` and `src_binding_*.rs` generated from a *different* V8. The
+> layout `static_assert`s that would catch a mismatch were compiled into the old
+> archive and cannot fire, so a mismatch may link and then corrupt memory at
+> runtime. Only use a tag you know is ABI-compatible with this checkout. The
+> build emits a `cargo:warning=` whenever the resolved tag differs from
+> `v<crate version>`.
+
 ### Templated mirrors
 
 If the `RUSTY_V8_MIRROR` value contains a `{` placeholder it is treated as a
 full URL/path template instead of a base. The following placeholders are
 substituted:
 
-| Placeholder  | Value                                                                        |
-| ------------ | ---------------------------------------------------------------------------- |
-| `{tag}`      | resolved tag (`RUSTY_V8_MIRROR_TAG` or `v<crate version>`)                    |
-| `{version}`  | raw crate version, no `v` prefix                                             |
-| `{target}`   | Rust target triple                                                           |
-| `{profile}`  | `release`, or `debug` only when `V8_FORCE_DEBUG=true` on a non-Windows target |
-| `{features}` | empty, or `_ptrcomp`, `_sandbox`, `_ptrcomp_sandbox`                          |
-| `{file}`     | full artifact filename                                                       |
+| Placeholder  | Value                                                      |
+| ------------ | ---------------------------------------------------------- |
+| `{tag}`      | resolved tag (`RUSTY_V8_MIRROR_TAG` or `v<crate version>`) |
+| `{version}`  | raw crate version, no `v` prefix                           |
+| `{target}`   | Rust target triple                                         |
+| `{profile}`  | `release`, or `debug` (`V8_FORCE_DEBUG=true`, non-Windows) |
+| `{features}` | empty, or `_ptrcomp`, `_sandbox`, `_ptrcomp_sandbox`       |
+| `{file}`     | full artifact filename                                     |
 
 ```bash
 RUSTY_V8_MIRROR='https://my-cache.example.com/rusty_v8/{tag}/{file}' cargo build
@@ -124,9 +132,11 @@ RUSTY_V8_MIRROR='https://my-cache.example.com/rusty_v8/{tag}/{file}' cargo build
 
 `RUSTY_V8_MIRROR_STRICT=1` stops the candidate list after the mirror entries,
 so the build never falls back to the upstream releases. Use this for hermetic
-CI that must never reach the network. It only takes effect when `RUSTY_V8_MIRROR`
-is also set — with no mirror configured there is nothing to be strict about, and
-it is ignored so the build can still reach upstream.
+CI that must never reach the network. It is honored unconditionally: if no
+`RUSTY_V8_MIRROR` is set there is nowhere left to fetch from, and the build
+fails with an explicit error rather than silently reaching upstream. A hermetic
+build that also needs the bindings without a mirror can point
+`RUSTY_V8_SRC_BINDING_PATH` at them directly.
 
 ### File-based mirrors
 

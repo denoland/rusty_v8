@@ -663,6 +663,53 @@ jobs:
           RUSTY_V8_SRC_BINDING_PATH: ${{ github.workspace }}/src_binding_release_aarch64-pc-windows-msvc.rs
         run: cargo nextest run -v --all-targets --locked --target aarch64-pc-windows-msvc --release --no-fail-fast
 
+  # Exercises the prebuilt-download path from a bare git checkout, which ships
+  # only `gen/.gitkeep` (no bindings). With no RUSTY_V8_ARCHIVE /
+  # RUSTY_V8_SRC_BINDING_PATH / V8_FROM_SOURCE set, build.rs must auto-fetch both
+  # the static library and the bindings from the release matching the crate
+  # version. Skips itself when that version has no published release yet (e.g. a
+  # version-bump PR before the tag is cut).
+  prebuilt-git-checkout:
+    name: prebuilt from git checkout
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+
+      - name: Install rust
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.x
+
+      - name: Resolve release for current version
+        id: rel
+        shell: bash
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          URL="https://github.com/denoland/rusty_v8/releases/download/v${VERSION}/librusty_v8_release_aarch64-apple-darwin.a.gz"
+          if curl -sfIL "$URL" -o /dev/null; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No published release for v${VERSION}; skipping prebuilt-from-git-checkout build."
+          fi
+
+      - name: Build prebuilt from a clean checkout
+        if: steps.rel.outputs.published == 'true'
+        shell: bash
+        run: |
+          # Confirm this really is the git-checkout case (no shipped binding).
+          test ! -e gen/src_binding_release_aarch64-apple-darwin.rs
+          cargo build --all-targets --locked --release --target aarch64-apple-darwin
+          # The binding must have been fetched into OUT_DIR, not the source tree.
+          test ! -e gen/src_binding_release_aarch64-apple-darwin.rs
+
   publish:
     needs: [build, build-windows-arm64]
     runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
