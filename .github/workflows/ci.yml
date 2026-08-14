@@ -697,7 +697,11 @@ jobs:
             echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No published release for v${VERSION}; skipping prebuilt-from-git-checkout build."
+            # A warning rather than a notice: this job contributes no signal when
+            # it skips, and a silently-green skip is easy to stop noticing. The
+            # expected case is a version bump that has landed before its tag.
+            echo "::warning::No published release for v${VERSION}; the prebuilt-from-git-checkout job verified NOTHING this run."
+            echo "### :warning: prebuilt-from-git-checkout skipped: no release for v${VERSION}" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Build prebuilt from a clean checkout
@@ -709,6 +713,56 @@ jobs:
           cargo build --all-targets --locked --release --target aarch64-apple-darwin
           # The binding must have been fetched into OUT_DIR, not the source tree.
           test ! -e gen/src_binding_release_aarch64-apple-darwin.rs
+          # ... and it must actually be somewhere under target/, so that an
+          # accidental no-op build can't satisfy the assertion above.
+          find target -name 'src_binding_release_aarch64-apple-darwin.rs' \
+            | grep -q . || {
+              echo "no fetched binding found under target/" >&2
+              exit 1
+            }
+
+      # The default path above only covers `<upstream>/<tag>/<file>`. This builds
+      # again from a flat filesystem mirror with the upstream fallback disabled,
+      # covering RUSTY_V8_MIRROR, the untagged cache layout and strict mode
+      # end-to-end. It reuses the artifacts the previous step downloaded, so it
+      # needs no network and cannot fall back to upstream without failing.
+      - name: Build from a flat filesystem mirror, hermetically
+        if: steps.rel.outputs.published == 'true'
+        shell: bash
+        run: |
+          MIRROR="$RUNNER_TEMP/flat-mirror"
+          mkdir -p "$MIRROR"
+          # Harvest what the previous build fetched, before cleaning it away.
+          # The static library is stored decompressed; putting it under the
+          # `.a.gz` name is fine because copy_archive sniffs the gzip magic
+          # rather than trusting the extension, so this also covers that branch.
+          LIB=$(find target -name librusty_v8.a | head -1)
+          BINDING=$(find target -name 'src_binding_release_aarch64-apple-darwin.rs' | head -1)
+          test -n "$LIB" && test -n "$BINDING"
+          cp "$LIB" "$MIRROR/librusty_v8_release_aarch64-apple-darwin.a.gz"
+          cp "$BINDING" "$MIRROR/src_binding_release_aarch64-apple-darwin.rs"
+
+          # Force the build script to re-resolve, then build with the upstream
+          # fallback disabled: every artifact must come from the flat mirror.
+          cargo clean --release --target aarch64-apple-darwin
+          RUSTY_V8_MIRROR="$MIRROR" RUSTY_V8_MIRROR_STRICT=1 \
+            cargo build --locked --release --target aarch64-apple-darwin
+          test ! -e gen/src_binding_release_aarch64-apple-darwin.rs
+
+      # Strict mode with no mirror has nothing to fetch from and must fail
+      # loudly rather than silently reaching upstream.
+      - name: Strict mode without a mirror fails
+        if: steps.rel.outputs.published == 'true'
+        shell: bash
+        run: |
+          cargo clean --release --target aarch64-apple-darwin
+          if RUSTY_V8_MIRROR_STRICT=1 \
+            cargo build --locked --release --target aarch64-apple-darwin \
+            > strict.log 2>&1; then
+            echo "expected the build to fail, but it succeeded" >&2
+            exit 1
+          fi
+          grep -q 'No candidate locations to fetch' strict.log
 
   publish:
     needs: [build, build-windows-arm64]

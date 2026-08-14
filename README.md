@@ -85,9 +85,20 @@ one that exists is used:
 3. For a **filesystem** mirror laid out as a plain directory of artifacts, a
    flat `<mirror>/<file>` lookup (no tag subdirectory).
 4. The upstream default releases, `<default base>/<tag>/<file>`.
+5. For the bindings only: the copy shipped inside the crate at
+   `gen/<file>`, if present. A published crate always ships it, so a mirror that
+   carries only the static library does not force a network fetch — and strict
+   mode does not fail — when the correct bindings are already on disk.
 
 If nothing matches, the build fails with a message listing every location that
 was tried.
+
+> ⚠️ **Untagged layout.** Candidate 3 has no tag in the path, and artifact
+> filenames do not encode a version, so an artifact left over from another
+> release is indistinguishable from the right one. When a build resolves through
+> the flat layout it emits a `cargo:warning=`; see the ABI mismatch note below
+> for why that matters. Use the `<mirror>/<tag>/<file>` layout if you keep more
+> than one version around.
 
 ### Overriding the tag
 
@@ -128,6 +139,10 @@ substituted:
 RUSTY_V8_MIRROR='https://my-cache.example.com/rusty_v8/{tag}/{file}' cargo build
 ```
 
+Only the placeholders above are recognised. A misspelled one would otherwise
+survive expansion and surface as an opaque 404, so the build fails immediately
+and names the offenders.
+
 ### Strict mode
 
 `RUSTY_V8_MIRROR_STRICT=1` stops the candidate list after the mirror entries,
@@ -137,6 +152,10 @@ CI that must never reach the network. It is honored unconditionally: if no
 fails with an explicit error rather than silently reaching upstream. A hermetic
 build that also needs the bindings without a mirror can point
 `RUSTY_V8_SRC_BINDING_PATH` at them directly.
+
+An artifact already fetched by an earlier build is reused, so the usual
+workflow of populating a cache once with network access and then building
+offline works without a mirror configured.
 
 ### File-based mirrors
 
