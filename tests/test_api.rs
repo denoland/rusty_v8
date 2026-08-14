@@ -10477,9 +10477,29 @@ fn icu_default_time_zone() {
   // Mutates the process-wide ICU default time zone, which also affects how
   // other tests' `Date`s render, so take the exclusive lock.
   let _setup_guard = setup::sequential_test();
-  let original = v8::icu::get_default_time_zone();
 
-  v8::icu::set_default_time_zone("America/New_York");
+  // Restore the original default when the test ends, including on panic, so a
+  // failure here doesn't cascade into every test that renders a `Date`.
+  struct RestoreTimeZone(String);
+  impl Drop for RestoreTimeZone {
+    fn drop(&mut self) {
+      // The host zone may be undetectable ("Etc/Unknown"), which isn't
+      // settable; fall back to UTC rather than leaving the zone we installed.
+      // Deliberately no assert here: this can run while unwinding.
+      if !v8::icu::set_default_time_zone(&self.0) {
+        let _ = v8::icu::set_default_time_zone("UTC");
+      }
+    }
+  }
+  let _restore = RestoreTimeZone(v8::icu::get_default_time_zone());
+
+  // Unknown ids are rejected and leave the current default alone.
+  let before = v8::icu::get_default_time_zone();
+  assert!(!v8::icu::set_default_time_zone("Not/AZone"));
+  assert!(!v8::icu::set_default_time_zone("America/New\0_York"));
+  assert_eq!(v8::icu::get_default_time_zone(), before);
+
+  assert!(v8::icu::set_default_time_zone("America/New_York"));
   assert_eq!(v8::icu::get_default_time_zone(), "America/New_York");
 
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -10496,9 +10516,6 @@ fn icu_default_time_zone() {
     let value = eval(scope, source).unwrap();
     assert_eq!(value.number_value(scope).unwrap(), 3.0);
   }
-
-  // Restore the original default so test ordering doesn't matter.
-  v8::icu::set_default_time_zone(&original);
 }
 
 #[test]

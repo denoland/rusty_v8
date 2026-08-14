@@ -4490,7 +4490,7 @@ void icu_set_default_locale(const char* locale) {
   icu::Locale::setDefault(icu::Locale(locale), status);
 }
 
-size_t icu_get_default_timezone(char* output, size_t output_len) {
+size_t icu_get_default_time_zone(char* output, size_t output_len) {
   icu::UnicodeString id;
   std::unique_ptr<icu::TimeZone> tz(icu::TimeZone::createDefault());
   tz->getID(id);
@@ -4502,12 +4502,23 @@ size_t icu_get_default_timezone(char* output, size_t output_len) {
 
 // NOTE: the parameter is deliberately not named `timezone`; glibc's <time.h>
 // declares a global with that name and the build uses -Werror,-Wshadow.
-void icu_set_default_timezone(const char* time_zone_id) {
+bool icu_set_default_time_zone(const char* time_zone_id) {
+  // `createTimeZone()` never fails: an id it does not recognize yields the
+  // special "unknown" zone (which behaves as GMT). Detect that and report it
+  // instead of silently installing GMT.
+  std::unique_ptr<icu::TimeZone> tz(icu::TimeZone::createTimeZone(
+      icu::UnicodeString::fromUTF8(time_zone_id)));
+  icu::UnicodeString id, unknown_id;
+  tz->getID(id);
+  icu::TimeZone::getUnknown().getID(unknown_id);
+  if (id == unknown_id) {
+    return false;
+  }
   // Takes ownership of the created TimeZone and installs it as the process
   // wide default, so ICU (and therefore V8's Date implementation) resolves
   // the given IANA id regardless of how the host reports its time zone.
-  icu::TimeZone::adoptDefault(icu::TimeZone::createTimeZone(
-      icu::UnicodeString::fromUTF8(time_zone_id)));
+  icu::TimeZone::adoptDefault(tz.release());
+  return true;
 }
 
 }  // extern "C"
