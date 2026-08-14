@@ -4497,7 +4497,10 @@ size_t icu_get_default_time_zone(char* output, size_t output_len) {
   icu::CheckedArrayByteSink sink(output, static_cast<uint32_t>(output_len));
   id.toUTF8(sink);
   assert(!sink.Overflowed());
-  return sink.NumberOfBytesAppended();
+  // Deliberately not `NumberOfBytesAppended()`: that counts bytes the sink was
+  // asked to write, so on overflow it exceeds `output_len` and the caller would
+  // read past the buffer (the assert above is compiled out in release builds).
+  return sink.NumberOfBytesWritten();
 }
 
 // NOTE: the parameter is deliberately not named `timezone`; glibc's <time.h>
@@ -4508,15 +4511,14 @@ bool icu_set_default_time_zone(const char* time_zone_id) {
   // instead of silently installing GMT.
   std::unique_ptr<icu::TimeZone> tz(icu::TimeZone::createTimeZone(
       icu::UnicodeString::fromUTF8(time_zone_id)));
-  icu::UnicodeString id, unknown_id;
+  icu::UnicodeString id;
   tz->getID(id);
-  icu::TimeZone::getUnknown().getID(unknown_id);
-  if (id == unknown_id) {
+  if (id == icu::UnicodeString(UCAL_UNKNOWN_ZONE_ID, -1, US_INV)) {
     return false;
   }
   // Takes ownership of the created TimeZone and installs it as the process
   // wide default, so ICU (and therefore V8's Date implementation) resolves
-  // the given IANA id regardless of how the host reports its time zone.
+  // the given id regardless of how the host reports its time zone.
   icu::TimeZone::adoptDefault(tz.release());
   return true;
 }

@@ -72,8 +72,11 @@ pub fn set_default_locale(locale: &str) {
   }
 }
 
-/// Returns the IANA id of ICU's current default time zone (e.g.
-/// `"America/New_York"`).
+/// Returns the id of ICU's current default time zone, usually an IANA id such
+/// as `"America/New_York"`. It can also be a custom offset id like
+/// `"GMT+05:00"`, either because one was installed with
+/// [`set_default_time_zone`] or because the host reported its zone that way,
+/// so don't assume the result resolves against the tz database.
 ///
 /// If the host time zone could not be determined, ICU reports the special
 /// id `"Etc/Unknown"`, which behaves as GMT.
@@ -82,18 +85,18 @@ pub fn get_default_time_zone() -> String {
   let len = unsafe {
     icu_get_default_time_zone(output.as_mut_ptr() as *mut char, output.len())
   };
-  let len = std::cmp::min(len, output.len());
   std::str::from_utf8(&output[..len]).unwrap().to_owned()
 }
 
-/// Sets ICU's default time zone from an IANA id (e.g. `"UTC"`,
+/// Sets ICU's default time zone from a time zone id (e.g. `"UTC"`,
 /// `"Asia/Manila"`). This makes `Date` resolve the given zone on every
 /// platform, including Windows, where ICU otherwise reads the host time
 /// zone from the OS and ignores the `TZ` environment variable.
 ///
 /// Returns `false` — leaving the current default untouched — if `time_zone_id`
 /// is not a time zone id ICU recognizes. Note that ICU's own "unknown zone"
-/// id, `"Etc/Unknown"`, is rejected as well.
+/// id, `"Etc/Unknown"`, is rejected as well. Besides IANA ids, ICU accepts
+/// custom offset ids such as `"GMT+05:00"`.
 ///
 /// This mutates process wide state and is not synchronized with isolates
 /// running on other threads, so it should be called before those isolates

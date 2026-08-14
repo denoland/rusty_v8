@@ -10499,6 +10499,9 @@ fn icu_default_time_zone() {
   assert!(!v8::icu::set_default_time_zone("America/New\0_York"));
   assert_eq!(v8::icu::get_default_time_zone(), before);
 
+  assert!(v8::icu::set_default_time_zone("UTC"));
+  assert_eq!(v8::icu::get_default_time_zone(), "UTC");
+
   assert!(v8::icu::set_default_time_zone("America/New_York"));
   assert_eq!(v8::icu::get_default_time_zone(), "America/New_York");
 
