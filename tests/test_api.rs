@@ -5400,6 +5400,47 @@ fn module_stalled_top_level_await() {
 }
 
 #[test]
+fn module_has_top_level_await() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let origin = mock_script_origin(scope, "foo.js");
+
+    // Unlike IsGraphAsync, this is a property of the module alone, so it
+    // answers before the module has been instantiated.
+    let source_text =
+      v8::String::new(scope, "await Promise.resolve();").unwrap();
+    let mut source =
+      v8::script_compiler::Source::new(source_text, Some(&origin));
+    let module =
+      v8::script_compiler::compile_module(scope, &mut source).unwrap();
+    assert_eq!(v8::ModuleStatus::Uninstantiated, module.get_status());
+    assert!(module.has_top_level_await());
+
+    // A module that merely imports one is an async *graph*, but has no
+    // top-level await of its own. The resolve callback compiles the specifier
+    // itself as the dependency's source.
+    let source_text =
+      v8::String::new(scope, "import \"await Promise.resolve();\";").unwrap();
+    let mut source =
+      v8::script_compiler::Source::new(source_text, Some(&origin));
+    let importer =
+      v8::script_compiler::compile_module(scope, &mut source).unwrap();
+    assert!(!importer.has_top_level_await());
+
+    importer
+      .instantiate_module(scope, compile_specifier_as_module_resolve_callback)
+      .unwrap();
+    assert!(importer.is_graph_async());
+    assert!(!importer.has_top_level_await());
+  }
+}
+
+#[test]
 fn import_attributes() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());

@@ -241,6 +241,7 @@ unsafe extern "C" {
     context: *const Context,
   ) -> *const Value;
   fn v8__Module__IsGraphAsync(this: *const Module) -> bool;
+  fn v8__Module__HasTopLevelAwait(this: *const Module) -> bool;
   fn v8__Module__IsSourceTextModule(this: *const Module) -> bool;
   fn v8__Module__IsSyntheticModule(this: *const Module) -> bool;
   fn v8__Module__CreateSyntheticModule(
@@ -492,6 +493,18 @@ impl Module {
   #[inline(always)]
   pub fn is_graph_async(&self) -> bool {
     unsafe { v8__Module__IsGraphAsync(self) }
+  }
+
+  /// Returns whether this module is individually asynchronous (for example,
+  /// if it's a Source Text Module Record containing a top-level await).
+  /// See [[HasTLA]] in <https://tc39.es/ecma262/#sec-cyclic-module-records>
+  ///
+  /// Unlike [`Self::is_graph_async`], this says nothing about the module's
+  /// dependencies and imposes no requirement on the module's status, so it can
+  /// be called on a module that has only been compiled.
+  #[inline(always)]
+  pub fn has_top_level_await(&self) -> bool {
+    unsafe { v8__Module__HasTopLevelAwait(self) }
   }
 
   /// Returns whether the module is a SourceTextModule.

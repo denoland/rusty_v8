@@ -3901,6 +3901,10 @@ bool v8__Module__IsGraphAsync(const v8::Module& self) {
   return ptr_to_local(&self)->IsGraphAsync();
 }
 
+bool v8__Module__HasTopLevelAwait(const v8::Module& self) {
+  return ptr_to_local(&self)->HasTopLevelAwait();
+}
+
 bool v8__Module__IsSourceTextModule(const v8::Module& self) {
   return ptr_to_local(&self)->IsSourceTextModule();
 }
