@@ -69,7 +69,7 @@ fn main() {
     "RUSTY_V8_ARCHIVE",
     "RUSTY_V8_MIRROR",
     "RUSTY_V8_MIRROR_TAG",
-    "RUSTY_V8_MIRROR_STRICT",
+    "RUSTY_V8_MIRROR_FALLBACK",
     "RUSTY_V8_SRC_BINDING_PATH",
     "SCCACHE",
     "V8_FORCE_DEBUG",
@@ -803,12 +803,12 @@ fn is_remote_url(url: &str) -> bool {
 /// 2. For plain (non-template) filesystem mirrors only: the flat layout
 ///    `{base}/{file}`, so a directory of downloaded artifacts works as a
 ///    cache without tag subdirectories.
-/// 3. The upstream GitHub release, unless `strict`
-///    (`RUSTY_V8_MIRROR_STRICT=1`) suppresses everything after the mirror
-///    entries.
+/// 3. The upstream GitHub release. When a mirror is configured this entry is
+///    only present with `fallback` (`RUSTY_V8_MIRROR_FALLBACK=1`): a mirror
+///    fails closed by default and never silently reaches the network.
 fn candidate_urls(
   mirror: Option<&str>,
-  strict: bool,
+  fallback: bool,
   vars: &UrlVars,
 ) -> Vec<String> {
   let mut urls = Vec::new();
@@ -822,7 +822,7 @@ fn candidate_urls(
       }
     }
   }
-  if !strict {
+  if mirror.is_none() || fallback {
     urls.push(format!(
       "{DEFAULT_ARTIFACT_BASE}/{}/{}",
       vars.tag, vars.file
@@ -847,13 +847,14 @@ fn artifact_url_candidates(file: &str) -> Vec<String> {
     file,
   };
   let mirror = env::var("RUSTY_V8_MIRROR").ok();
-  let strict = env_bool("RUSTY_V8_MIRROR_STRICT");
-  if strict {
+  let fallback = env_bool("RUSTY_V8_MIRROR_FALLBACK");
+  if mirror.is_some() && !fallback {
     println!(
-      "RUSTY_V8_MIRROR_STRICT is set; not falling back to {DEFAULT_ARTIFACT_BASE}"
+      "RUSTY_V8_MIRROR is set; not falling back to {DEFAULT_ARTIFACT_BASE} \
+       (set RUSTY_V8_MIRROR_FALLBACK=1 to enable)"
     );
   }
-  candidate_urls(mirror.as_deref(), strict, &vars)
+  candidate_urls(mirror.as_deref(), fallback, &vars)
 }
 
 fn static_lib_path() -> PathBuf {
@@ -922,20 +923,23 @@ fn download_artifact(urls: &[String], filename: &Path) {
       }
     }
   }
-  if errors.is_empty() {
-    errors.push(
-      "- no candidate URLs: RUSTY_V8_MIRROR_STRICT is set but \
-       RUSTY_V8_MIRROR is not"
-        .to_string(),
-    );
-  }
+  // A configured mirror fails closed: mention the opt-in that would have
+  // allowed falling back to the upstream release.
+  let fallback_hint = if env::var("RUSTY_V8_MIRROR").is_ok()
+    && !env_bool("RUSTY_V8_MIRROR_FALLBACK")
+  {
+    " Set RUSTY_V8_MIRROR_FALLBACK=1 to fall back to the upstream GitHub \
+     release when the mirror misses."
+  } else {
+    ""
+  };
   panic!(
     "Failed to fetch the V8 prebuilt artifact {}. Tried:\n{}\n\
      If no prebuilt artifact is published for your target or version, \
      compile V8 from source by setting V8_FROM_SOURCE=1. You can also point \
      the build at an artifact via RUSTY_V8_ARCHIVE (static lib only), a \
      mirror via RUSTY_V8_MIRROR, or another release tag via \
-     RUSTY_V8_MIRROR_TAG.",
+     RUSTY_V8_MIRROR_TAG.{fallback_hint}",
     filename.display(),
     errors.join("\n")
   );
@@ -1753,14 +1757,14 @@ edge [fontsize=10]
 
   #[test]
   fn test_candidate_urls_http_mirror() {
-    // A remote base mirror keeps the `{base}/{tag}/{file}` layout, then
-    // falls back to upstream; no flat layout for remote mirrors.
+    // A remote base mirror keeps the `{base}/{tag}/{file}` layout and fails
+    // closed: no flat layout for remote mirrors, no upstream fallback.
     assert_eq!(
       candidate_urls(Some("https://mirror.example"), false, &TEST_VARS),
-      vec![
-        format!("https://mirror.example/v139.0.0/{}", TEST_VARS.file),
-        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
-      ]
+      vec![format!(
+        "https://mirror.example/v139.0.0/{}",
+        TEST_VARS.file
+      )]
     );
   }
 
@@ -1772,7 +1776,6 @@ edge [fontsize=10]
       vec![
         format!("/opt/cache/v139.0.0/{}", TEST_VARS.file),
         format!("/opt/cache/{}", TEST_VARS.file),
-        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
       ]
     );
   }
@@ -1787,26 +1790,30 @@ edge [fontsize=10]
         false,
         &TEST_VARS
       ),
-      vec![
-        format!(
-          "https://mirror.example/artifacts/140.0.0/{}",
-          TEST_VARS.file
-        ),
-        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
-      ]
+      vec![format!(
+        "https://mirror.example/artifacts/140.0.0/{}",
+        TEST_VARS.file
+      )]
     );
   }
 
   #[test]
-  fn test_candidate_urls_strict() {
-    // Strict mode drops everything after the mirror entries.
+  fn test_candidate_urls_mirror_fallback() {
+    // RUSTY_V8_MIRROR_FALLBACK=1 appends the upstream release after the
+    // mirror entries.
     assert_eq!(
       candidate_urls(Some("/opt/cache"), true, &TEST_VARS),
       vec![
         format!("/opt/cache/v139.0.0/{}", TEST_VARS.file),
         format!("/opt/cache/{}", TEST_VARS.file),
+        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
       ]
     );
-    assert!(candidate_urls(None, true, &TEST_VARS).is_empty());
+    // Without a mirror the flag changes nothing: upstream is the only
+    // candidate either way.
+    assert_eq!(
+      candidate_urls(None, true, &TEST_VARS),
+      candidate_urls(None, false, &TEST_VARS)
+    );
   }
 }

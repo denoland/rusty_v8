@@ -82,6 +82,9 @@ works:
    directory of downloaded artifacts works without tag subdirectories.
 4. The upstream GitHub release,
    `https://github.com/denoland/rusty_v8/releases/download/<tag>/<file>`.
+   With a mirror configured this is only tried when
+   `RUSTY_V8_MIRROR_FALLBACK=1` is set: a mirror fails closed by default and
+   never silently reaches the network.
 
 If every candidate fails, the build script panics with the full list of URLs
 it tried.
@@ -100,8 +103,8 @@ For example:
 
     export RUSTY_V8_MIRROR=https://example.com/rusty_v8/{version}/{file}
 
-Set `RUSTY_V8_MIRROR_STRICT=1` to stop the candidate list after the mirror
-entries, for hermetic builds that must never fall back to the network.
+Set `RUSTY_V8_MIRROR_FALLBACK=1` to fall back to the upstream GitHub release
+when the mirror is missing an artifact, e.g. for partially populated caches.
 
 File-based mirrors are good for using cached downloads. First, point the
 environment variable to a suitable location:
