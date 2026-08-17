@@ -145,18 +145,22 @@ cargo build
 
 The value may also name a directory, in which case the expected artifact
 filename (e.g. `librusty_v8_release_x86_64-unknown-linux-gnu.a.gz`, gzipped
-or plain) is looked up inside it:
+or plain) is looked up inside it. A directory is also consulted for the
+generated `src_binding` file, ahead of the mirror and the upstream release,
+so a directory of downloaded release assets covers both artifacts:
 
 ```bash
 export RUSTY_V8_ARCHIVE=/path/to/downloaded/artifacts
 cargo build
 ```
 
-Set `RUSTY_V8_ARCHIVE_SHA256` to the SHA-256 of the archive (as reported by
-`sha256sum` on the `.gz` file) to pin its content; the build fails if the
-downloaded or cached archive does not match. Independently of the pin, the
-build script records the SHA-256 of every downloaded artifact and re-fetches
-it if the file on disk no longer matches.
+Set `RUSTY_V8_ARCHIVE_SHA256` to the SHA-256 of the archive to pin its
+content; the build fails if the downloaded or cached archive does not match.
+The pin covers the archive bytes as fetched, i.e. what `sha256sum` reports
+on the `.gz` release asset (or on the plain file when the archive is not
+gzipped). Independently of the pin, the build script records the SHA-256 of
+every downloaded artifact and re-fetches it if the file on disk no longer
+matches.
 
 ## The `RUSTY_V8_SRC_BINDING_PATH` and `RUSTY_V8_SRC_BINDING_URL` environment variables
 

@@ -1189,11 +1189,15 @@ fn write_checksum(path: &Path, checksum: &ArtifactChecksum) {
 }
 
 /// The `RUSTY_V8_ARCHIVE_SHA256` pin for the static lib archive, if set.
-/// The value is the SHA-256 of the archive bytes as served (i.e. of the
-/// `.gz` file for gzipped artifacts), which is what `sha256sum` reports on a
-/// downloaded release asset.
+/// The value is the SHA-256 of the archive bytes as fetched or copied,
+/// before decompression -- i.e. what `sha256sum` reports on the `.gz`
+/// release asset, or on the plain file when the source is not gzipped.
+/// A set-but-empty variable counts as unset, like the boolean toggles.
 fn pinned_archive_sha256() -> Option<String> {
   let value = env::var("RUSTY_V8_ARCHIVE_SHA256").ok()?;
+  if value.is_empty() {
+    return None;
+  }
   if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
     panic!(
       "RUSTY_V8_ARCHIVE_SHA256 must be 64 hexadecimal characters, got {value:?}"
@@ -1526,6 +1530,12 @@ fn download_static_lib_binaries() {
          as-is (it may be stale)",
         static_lib_path().display()
       );
+      if pinned_archive_sha256().is_some() {
+        println!(
+          "cargo:warning=RUSTY_V8_ARCHIVE_SHA256 is not verified when \
+           RUSTY_V8_SKIP_DOWNLOAD is set"
+        );
+      }
     } else {
       println!(
         "cargo:warning=RUSTY_V8_SKIP_DOWNLOAD is set; the V8 static library \
@@ -1759,10 +1769,23 @@ fn print_prebuilt_src_binding_path() {
     // RUSTY_V8_ARCHIVE for the static lib.
     let (urls, cache_key) = match &source {
       BindingSource::Url(url) => (vec![url.clone()], None),
-      _ => (
-        artifact_url_candidates(&name),
-        Some(artifact_cache_key(&name)),
-      ),
+      _ => {
+        let mut urls = Vec::new();
+        // A RUSTY_V8_ARCHIVE directory holds release assets by filename, so
+        // look the binding up there too, ahead of the usual candidates.
+        if let Ok(archive) = env::var("RUSTY_V8_ARCHIVE")
+          && Path::new(&archive).is_dir()
+        {
+          urls.push(
+            Path::new(&archive)
+              .join(&name)
+              .to_string_lossy()
+              .into_owned(),
+          );
+        }
+        urls.extend(artifact_url_candidates(&name));
+        (urls, Some(artifact_cache_key(&name)))
+      }
     };
     if let Err(error) = try_download_artifact(
       &urls,
@@ -2381,6 +2404,24 @@ edge [fontsize=10]
       sha256_hex(&[b'a'; 1_000_000]),
       "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
     );
+  }
+
+  #[test]
+  fn test_sha256_streaming_updates() {
+    // Odd-sized updates must produce the same digest as a single one: this
+    // exercises the partial-block carry logic across block boundaries.
+    let data = [b'a'; 1_000_000];
+    for chunk_size in [1, 37, 63, 64, 65, 999] {
+      let mut hasher = Sha256::new();
+      for chunk in data.chunks(chunk_size) {
+        hasher.update(chunk);
+      }
+      assert_eq!(
+        hasher.finish_hex(),
+        "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
+        "chunk size {chunk_size}"
+      );
+    }
   }
 
   #[test]
