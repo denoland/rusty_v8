@@ -73,8 +73,8 @@ For every artifact (the static lib and the generated `src_binding` file), the
 build script tries an ordered list of locations and uses the first one that
 works:
 
-1. `RUSTY_V8_ARCHIVE`, if set (static lib only; short-circuits everything
-   else).
+1. `RUSTY_V8_ARCHIVE` (static lib) or `RUSTY_V8_SRC_BINDING_URL` (binding
+   file), if set; either short-circuits everything else for its artifact.
 2. The mirror, if `RUSTY_V8_MIRROR` is set. A plain base is expanded to
    `<base>/<tag>/<file>`; a value containing `{` placeholders is treated as a
    full URL template (see below).
@@ -142,6 +142,30 @@ path. This is useful when you have a prebuilt archive somewhere:
 export RUSTY_V8_ARCHIVE=/path/to/custom_archive.a
 cargo build
 ```
+
+The value may also name a directory, in which case the expected artifact
+filename (e.g. `librusty_v8_release_x86_64-unknown-linux-gnu.a.gz`, gzipped
+or plain) is looked up inside it:
+
+```bash
+export RUSTY_V8_ARCHIVE=/path/to/downloaded/artifacts
+cargo build
+```
+
+Set `RUSTY_V8_ARCHIVE_SHA256` to the SHA-256 of the archive (as reported by
+`sha256sum` on the `.gz` file) to pin its content; the build fails if the
+downloaded or cached archive does not match. Independently of the pin, the
+build script records the SHA-256 of every downloaded artifact and re-fetches
+it if the file on disk no longer matches.
+
+## The `RUSTY_V8_SRC_BINDING_PATH` and `RUSTY_V8_SRC_BINDING_URL` environment variables
+
+The build also needs a generated `src_binding_..._<target>.rs` file, published
+alongside the static library. `RUSTY_V8_SRC_BINDING_PATH` points the build at
+a local binding file that is used directly, with no download at all.
+`RUSTY_V8_SRC_BINDING_URL` instead gives a URL or path to fetch the binding
+from, mirroring what `RUSTY_V8_ARCHIVE` does for the static library. If both
+are set, `RUSTY_V8_SRC_BINDING_PATH` wins.
 
 ## The `RUSTY_V8_SKIP_DOWNLOAD` environment variable
 

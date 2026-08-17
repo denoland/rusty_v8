@@ -67,6 +67,7 @@ fn main() {
     "NINJA",
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
+    "RUSTY_V8_ARCHIVE_SHA256",
     "RUSTY_V8_BINDGEN_RESOURCE_DIR",
     "RUSTY_V8_GLIBC_PREFIX",
     "RUSTY_V8_MIRROR",
@@ -75,6 +76,7 @@ fn main() {
     "RUSTY_V8_MUSL_SYSROOT",
     "RUSTY_V8_SKIP_DOWNLOAD",
     "RUSTY_V8_SRC_BINDING_PATH",
+    "RUSTY_V8_SRC_BINDING_URL",
     "SCCACHE",
     "V8_FORCE_DEBUG",
     "V8_FROM_SOURCE",
@@ -896,6 +898,57 @@ fn artifact_url_candidates(file: &str) -> Vec<String> {
   candidate_urls(mirror.as_deref(), fallback, &vars)
 }
 
+/// Candidate locations for a `RUSTY_V8_ARCHIVE` value. A value naming an
+/// existing directory is searched for the expected artifact filename
+/// (gzipped first, then plain); anything else is used verbatim as a URL or
+/// file path, exactly as before.
+fn archive_urls(archive: &str, gz_name: &str, plain_name: &str) -> Vec<String> {
+  let path = Path::new(archive);
+  if path.is_dir() {
+    vec![
+      path.join(gz_name).to_string_lossy().into_owned(),
+      path.join(plain_name).to_string_lossy().into_owned(),
+    ]
+  } else {
+    vec![archive.to_string()]
+  }
+}
+
+/// How the prebuilt src binding file is obtained.
+/// `RUSTY_V8_SRC_BINDING_PATH` names a local file that is used directly (no
+/// download, no copy) and wins over `RUSTY_V8_SRC_BINDING_URL`, which
+/// short-circuits the mirror/upstream candidates with exactly one URL or
+/// path to fetch from -- mirroring what `RUSTY_V8_ARCHIVE` does for the
+/// static lib. With neither set the usual candidate list is tried.
+#[derive(Debug, PartialEq)]
+enum BindingSource {
+  Path(String),
+  Url(String),
+  Candidates,
+}
+
+fn resolve_binding_source(
+  path: Option<String>,
+  url: Option<String>,
+) -> BindingSource {
+  match (path, url) {
+    (Some(path), _) => BindingSource::Path(path),
+    (None, Some(url)) => BindingSource::Url(url),
+    (None, None) => BindingSource::Candidates,
+  }
+}
+
+/// Cache key under `~/.cargo/.rusty_v8`: `<tag>/<artifact filename>`,
+/// escaped with [`replace_non_alphanumeric`] to form the file name. Keying
+/// on the tag and filename (rather than the full source URL) lets the cache
+/// survive switching mirrors without re-downloading identical bytes.
+fn artifact_cache_key(file: &str) -> String {
+  let version = env::var("CARGO_PKG_VERSION").unwrap();
+  let tag =
+    resolved_tag(env::var("RUSTY_V8_MIRROR_TAG").ok().as_deref(), &version);
+  format!("{tag}/{file}")
+}
+
 fn static_lib_path() -> PathBuf {
   static_lib_dir().join(static_lib_name(""))
 }
@@ -938,11 +991,296 @@ fn replace_non_alphanumeric(url: &str) -> String {
     .collect()
 }
 
+/// Minimal streaming SHA-256 (FIPS 180-4). None of the existing
+/// build-dependencies expose a cryptographic hash, and content verification
+/// is not worth a new dependency in a build script, so this is hand-rolled
+/// and checked against the FIPS test vectors (see the unit tests).
+struct Sha256 {
+  state: [u32; 8],
+  block: [u8; 64],
+  block_len: usize,
+  total_len: u64,
+}
+
+impl Sha256 {
+  #[rustfmt::skip]
+  const K: [u32; 64] = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+    0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+    0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+    0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  ];
+
+  fn new() -> Self {
+    Self {
+      state: [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c,
+        0x1f83d9ab, 0x5be0cd19,
+      ],
+      block: [0; 64],
+      block_len: 0,
+      total_len: 0,
+    }
+  }
+
+  fn update(&mut self, data: &[u8]) {
+    self.total_len += data.len() as u64;
+    let mut offset = 0;
+    while offset < data.len() {
+      let take = (64 - self.block_len).min(data.len() - offset);
+      self.block[self.block_len..self.block_len + take]
+        .copy_from_slice(&data[offset..offset + take]);
+      self.block_len += take;
+      offset += take;
+      if self.block_len == 64 {
+        let block = self.block;
+        self.compress(&block);
+        self.block_len = 0;
+      }
+    }
+  }
+
+  fn compress(&mut self, block: &[u8; 64]) {
+    let mut w = [0u32; 64];
+    for (i, word) in w.iter_mut().take(16).enumerate() {
+      *word = u32::from_be_bytes(block[i * 4..i * 4 + 4].try_into().unwrap());
+    }
+    for i in 16..64 {
+      let s0 = w[i - 15].rotate_right(7)
+        ^ w[i - 15].rotate_right(18)
+        ^ (w[i - 15] >> 3);
+      let s1 = w[i - 2].rotate_right(17)
+        ^ w[i - 2].rotate_right(19)
+        ^ (w[i - 2] >> 10);
+      w[i] = w[i - 16]
+        .wrapping_add(s0)
+        .wrapping_add(w[i - 7])
+        .wrapping_add(s1);
+    }
+    let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = self.state;
+    for (&k, &wi) in Self::K.iter().zip(w.iter()) {
+      let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+      let ch = (e & f) ^ (!e & g);
+      let t1 = h
+        .wrapping_add(s1)
+        .wrapping_add(ch)
+        .wrapping_add(k)
+        .wrapping_add(wi);
+      let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+      let maj = (a & b) ^ (a & c) ^ (b & c);
+      let t2 = s0.wrapping_add(maj);
+      h = g;
+      g = f;
+      f = e;
+      e = d.wrapping_add(t1);
+      d = c;
+      c = b;
+      b = a;
+      a = t1.wrapping_add(t2);
+    }
+    for (s, v) in self.state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
+      *s = s.wrapping_add(v);
+    }
+  }
+
+  fn finish_hex(mut self) -> String {
+    let bit_len = self.total_len * 8;
+    self.update(&[0x80]);
+    while self.block_len != 56 {
+      self.update(&[0]);
+    }
+    self.update(&bit_len.to_be_bytes());
+    self
+      .state
+      .iter()
+      .map(|word| format!("{word:08x}"))
+      .collect()
+  }
+}
+
+/// One-shot [`Sha256`] over an in-memory slice; only the tests need it, the
+/// build itself hashes files via [`sha256_hex_of_file`].
+#[cfg(test)]
+fn sha256_hex(data: &[u8]) -> String {
+  let mut hasher = Sha256::new();
+  hasher.update(data);
+  hasher.finish_hex()
+}
+
+fn sha256_hex_of_file(path: &Path) -> Result<String, String> {
+  let mut file = fs::File::open(path)
+    .map_err(|e| format!("failed to open {}: {e}", path.display()))?;
+  let mut hasher = Sha256::new();
+  let mut buffer = [0u8; 64 * 1024];
+  loop {
+    let n = file
+      .read(&mut buffer)
+      .map_err(|e| format!("failed to read {}: {e}", path.display()))?;
+    if n == 0 {
+      break;
+    }
+    hasher.update(&buffer[..n]);
+  }
+  Ok(hasher.finish_hex())
+}
+
+/// What the `.sum` file next to a downloaded artifact records. Older builds
+/// stored the bare source URL; current builds additionally record the
+/// SHA-256 of the fetched archive bytes (as served, before decompression)
+/// and of the artifact as written to disk, so a cached artifact can be
+/// verified instead of trusted on the URL string alone.
+struct ArtifactChecksum {
+  url: String,
+  archive_sha256: Option<String>,
+  sha256: Option<String>,
+}
+
+fn read_checksum(path: &Path) -> Option<ArtifactChecksum> {
+  let content = fs::read_to_string(path).ok()?;
+  if !content.starts_with("url ") {
+    // Legacy format: the file holds nothing but the source URL.
+    return Some(ArtifactChecksum {
+      url: content,
+      archive_sha256: None,
+      sha256: None,
+    });
+  }
+  let mut url = None;
+  let mut archive_sha256 = None;
+  let mut sha256 = None;
+  for line in content.lines() {
+    if let Some(value) = line.strip_prefix("url ") {
+      url = Some(value.to_string());
+    } else if let Some(value) = line.strip_prefix("archive-sha256 ") {
+      archive_sha256 = Some(value.to_string());
+    } else if let Some(value) = line.strip_prefix("sha256 ") {
+      sha256 = Some(value.to_string());
+    }
+  }
+  Some(ArtifactChecksum {
+    url: url?,
+    archive_sha256,
+    sha256,
+  })
+}
+
+fn write_checksum(path: &Path, checksum: &ArtifactChecksum) {
+  let mut content = format!("url {}\n", checksum.url);
+  if let Some(hash) = &checksum.archive_sha256 {
+    content.push_str(&format!("archive-sha256 {hash}\n"));
+  }
+  if let Some(hash) = &checksum.sha256 {
+    content.push_str(&format!("sha256 {hash}\n"));
+  }
+  fs::write(path, content)
+    .unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
+}
+
+/// The `RUSTY_V8_ARCHIVE_SHA256` pin for the static lib archive, if set.
+/// The value is the SHA-256 of the archive bytes as served (i.e. of the
+/// `.gz` file for gzipped artifacts), which is what `sha256sum` reports on a
+/// downloaded release asset.
+fn pinned_archive_sha256() -> Option<String> {
+  let value = env::var("RUSTY_V8_ARCHIVE_SHA256").ok()?;
+  if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
+    panic!(
+      "RUSTY_V8_ARCHIVE_SHA256 must be 64 hexadecimal characters, got {value:?}"
+    );
+  }
+  Some(value)
+}
+
+/// With a hash pinned, check a local source archive against it before use.
+fn verify_pinned_source(
+  path: &Path,
+  expected_sha256: Option<&str>,
+) -> Result<(), String> {
+  let Some(expected) = expected_sha256 else {
+    return Ok(());
+  };
+  let actual = sha256_hex_of_file(path)?;
+  if actual.eq_ignore_ascii_case(expected) {
+    Ok(())
+  } else {
+    Err(format!(
+      "SHA-256 mismatch for {}: expected {expected}, got {actual}",
+      path.display()
+    ))
+  }
+}
+
+/// Decide whether an artifact left behind by a previous build can be reused,
+/// by checking its recorded SHA-256 against the file on disk. Returns false
+/// to force a re-download. Records made before hashes were kept (or by older
+/// versions of this script) are adopted: the current content is hashed and
+/// recorded so later builds can detect corruption.
+fn verify_recorded_artifact(
+  filename: &Path,
+  recorded: &ArtifactChecksum,
+  expected_archive_sha256: Option<&str>,
+) -> bool {
+  // A pinned archive hash can only be checked against a recorded one;
+  // records without one force a re-download so the pin is actually enforced.
+  if let Some(expected) = expected_archive_sha256 {
+    match &recorded.archive_sha256 {
+      Some(actual) if actual.eq_ignore_ascii_case(expected) => {}
+      _ => return false,
+    }
+  }
+  match &recorded.sha256 {
+    Some(recorded_hash) => {
+      let actual = sha256_hex_of_file(filename).unwrap_or_default();
+      if actual.eq_ignore_ascii_case(recorded_hash) {
+        true
+      } else {
+        println!(
+          "SHA-256 of {} does not match the recorded value \
+           (expected {recorded_hash}, got {actual}); re-fetching",
+          filename.display()
+        );
+        false
+      }
+    }
+    None => {
+      if let Ok(actual) = sha256_hex_of_file(filename) {
+        write_checksum(
+          &static_checksum_path(filename),
+          &ArtifactChecksum {
+            url: recorded.url.clone(),
+            archive_sha256: recorded.archive_sha256.clone(),
+            sha256: Some(actual),
+          },
+        );
+      }
+      true
+    }
+  }
+}
+
 /// Fetch an artifact into `filename`, trying each candidate URL in order.
 /// Panics with the full list of attempted URLs, and the escape hatches, if
 /// every candidate fails.
-fn download_artifact(urls: &[String], filename: &Path) {
-  if let Err(error) = try_download_artifact(urls, filename) {
+fn download_artifact(
+  urls: &[String],
+  filename: &Path,
+  cache_key: Option<&str>,
+  expected_archive_sha256: Option<&str>,
+) {
+  if let Err(error) =
+    try_download_artifact(urls, filename, cache_key, expected_archive_sha256)
+  {
     panic!("{error}");
   }
 }
@@ -953,12 +1291,15 @@ fn download_artifact(urls: &[String], filename: &Path) {
 fn try_download_artifact(
   urls: &[String],
   filename: &Path,
+  cache_key: Option<&str>,
+  expected_archive_sha256: Option<&str>,
 ) -> Result<(), String> {
-  // Checksum (i.e: source URL) to avoid re-downloads: reuse the existing file
-  // if it was fetched from any URL we would fetch from now.
+  // Reuse the existing file if it was fetched from any URL we would fetch
+  // from now and its content still matches the recorded hash.
   if filename.exists()
-    && let Ok(recorded) = fs::read_to_string(static_checksum_path(filename))
-    && urls.contains(&recorded)
+    && let Some(recorded) = read_checksum(&static_checksum_path(filename))
+    && urls.contains(&recorded.url)
+    && verify_recorded_artifact(filename, &recorded, expected_archive_sha256)
   {
     return Ok(());
   }
@@ -966,7 +1307,7 @@ fn try_download_artifact(
   let mut errors = Vec::new();
   for url in urls {
     println!("Trying to fetch from {url}");
-    match download_file(url, filename) {
+    match download_file(url, filename, cache_key, expected_archive_sha256) {
       Ok(()) => return Ok(()),
       Err(error) => {
         println!("Failed to fetch from {url}: {error}");
@@ -988,17 +1329,23 @@ fn try_download_artifact(
     "Failed to fetch the V8 prebuilt artifact {}. Tried:\n{}\n\
      If no prebuilt artifact is published for your target or version, \
      compile V8 from source by setting V8_FROM_SOURCE=1. You can also point \
-     the build at an artifact via RUSTY_V8_ARCHIVE (static lib only), a \
-     local binding via RUSTY_V8_SRC_BINDING_PATH (src binding only), a \
-     mirror via RUSTY_V8_MIRROR, or another release tag via \
+     the build at an artifact via RUSTY_V8_ARCHIVE (static lib), a binding \
+     via RUSTY_V8_SRC_BINDING_URL or RUSTY_V8_SRC_BINDING_PATH (src binding \
+     only), a mirror via RUSTY_V8_MIRROR, or another release tag via \
      RUSTY_V8_MIRROR_TAG.{fallback_hint}",
     filename.display(),
     errors.join("\n")
   ))
 }
 
-fn download_file(url: &str, filename: &Path) -> Result<(), String> {
+fn download_file(
+  url: &str,
+  filename: &Path,
+  cache_key: Option<&str>,
+  expected_archive_sha256: Option<&str>,
+) -> Result<(), String> {
   if !is_remote_url(url) {
+    verify_pinned_source(Path::new(url), expected_archive_sha256)?;
     copy_archive(url, filename)?;
     // Local copies are not recorded in the checksum file; remove any stale
     // record of a previous http(s) download so it cannot mask this copy.
@@ -1006,12 +1353,28 @@ fn download_file(url: &str, filename: &Path) -> Result<(), String> {
     return Ok(());
   }
 
-  // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead
-  // of downloading.
-  if let Ok(mut path) = home::cargo_home() {
-    path = path.join(".rusty_v8").join(replace_non_alphanumeric(url));
-    println!("Looking for download in '{path:?}'");
-    if path.exists() {
+  // If there is a matching file in `.cargo/.rusty_v8`, use that instead of
+  // downloading. The cache is keyed on `<tag>/<artifact filename>` so it is
+  // shared across mirrors; the escaped full URL is still recognized as a
+  // legacy key so existing caches keep working.
+  if let Ok(cargo_home) = home::cargo_home() {
+    let cache_dir = cargo_home.join(".rusty_v8");
+    let mut cache_paths = Vec::new();
+    if let Some(key) = cache_key {
+      cache_paths.push(cache_dir.join(replace_non_alphanumeric(key)));
+    }
+    cache_paths.push(cache_dir.join(replace_non_alphanumeric(url)));
+    for path in cache_paths {
+      println!("Looking for download in '{path:?}'");
+      if !path.exists() {
+        continue;
+      }
+      if let Err(error) = verify_pinned_source(&path, expected_archive_sha256) {
+        // A bad cache entry should not disable this URL; fall through and
+        // download it.
+        println!("Ignoring cached {path:?}: {error}");
+        continue;
+      }
       match copy_archive(&path.to_string_lossy(), filename) {
         Ok(()) => {
           // Local copies are not recorded in the checksum file; remove any
@@ -1019,8 +1382,6 @@ fn download_file(url: &str, filename: &Path) -> Result<(), String> {
           let _ = fs::remove_file(static_checksum_path(filename));
           return Ok(());
         }
-        // A bad cache entry should not disable this URL; fall through and
-        // download it.
         Err(error) => println!("Failed to copy {path:?}: {error}"),
       }
     }
@@ -1107,19 +1468,39 @@ fn download_file(url: &str, filename: &Path) -> Result<(), String> {
     return Err("downloader reported success but produced no file".to_string());
   }
 
-  // Move file & write checksum (i.e url)
+  // Hash the downloaded bytes (before decompression) and verify them against
+  // a pinned hash, if any, before the artifact is put in place.
+  let archive_sha256 = match sha256_hex_of_file(&tmpfile) {
+    Ok(hash) => hash,
+    Err(error) => {
+      let _ = fs::remove_file(&tmpfile);
+      return Err(error);
+    }
+  };
+  if let Some(expected) = expected_archive_sha256
+    && !archive_sha256.eq_ignore_ascii_case(expected)
+  {
+    let _ = fs::remove_file(&tmpfile);
+    return Err(format!(
+      "SHA-256 mismatch for {url}: expected {expected}, got {archive_sha256}"
+    ));
+  }
+
+  // Move file & record the source URL and content hashes.
   if let Err(error) = copy_archive(&tmpfile.to_string_lossy(), filename) {
     let _ = fs::remove_file(&tmpfile);
     return Err(error);
   }
   fs::remove_file(&tmpfile)
     .map_err(|e| format!("failed to delete {}: {e}", tmpfile.display()))?;
-  fs::write(static_checksum_path(filename), url).unwrap_or_else(|e| {
-    panic!(
-      "failed to write {}: {e}",
-      static_checksum_path(filename).display()
-    )
-  });
+  write_checksum(
+    &static_checksum_path(filename),
+    &ArtifactChecksum {
+      url: url.to_string(),
+      archive_sha256: Some(archive_sha256),
+      sha256: sha256_hex_of_file(filename).ok(),
+    },
+  );
 
   assert!(filename.exists());
   assert!(static_checksum_path(filename).exists());
@@ -1156,23 +1537,34 @@ fn download_static_lib_binaries() {
     return;
   }
 
-  // RUSTY_V8_ARCHIVE points at exactly one archive and short-circuits the
-  // mirror/upstream candidates entirely.
-  let urls = if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
-    vec![custom_archive]
-  } else {
-    let target = env::var("TARGET").unwrap();
-    let profile = prebuilt_profile();
-    let features = prebuilt_features_suffix();
-    let file = format!(
-      "{}.gz",
-      static_lib_name(&format!("{features}_{profile}_{target}"))
-    );
-    artifact_url_candidates(&file)
-  };
+  let target = env::var("TARGET").unwrap();
+  let profile = prebuilt_profile();
+  let features = prebuilt_features_suffix();
+  let lib_name = static_lib_name(&format!("{features}_{profile}_{target}"));
+  let gz_name = format!("{lib_name}.gz");
+  let expected_sha256 = pinned_archive_sha256();
+
+  // RUSTY_V8_ARCHIVE short-circuits the mirror/upstream candidates entirely:
+  // it points at exactly one archive, or at a directory to look up the
+  // expected artifact filename in. The cargo-home cache is only keyed for
+  // candidate URLs, not for explicit overrides.
+  let (urls, cache_key) =
+    if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
+      (archive_urls(&custom_archive, &gz_name, &lib_name), None)
+    } else {
+      (
+        artifact_url_candidates(&gz_name),
+        Some(artifact_cache_key(&gz_name)),
+      )
+    };
   println!("static lib URLs: {urls:?}");
 
-  download_artifact(&urls, &static_lib_path());
+  download_artifact(
+    &urls,
+    &static_lib_path(),
+    cache_key.as_deref(),
+    expected_sha256.as_deref(),
+  );
 }
 
 fn decompress_to_writer<R, W>(input: &mut R, output: &mut W) -> io::Result<()>
@@ -1334,7 +1726,11 @@ fn print_link_flags() {
 }
 
 fn print_prebuilt_src_binding_path() {
-  if let Ok(binding) = env::var("RUSTY_V8_SRC_BINDING_PATH") {
+  let source = resolve_binding_source(
+    env::var("RUSTY_V8_SRC_BINDING_PATH").ok(),
+    env::var("RUSTY_V8_SRC_BINDING_URL").ok(),
+  );
+  if let BindingSource::Path(binding) = source {
     println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={binding}");
     return;
   }
@@ -1347,18 +1743,33 @@ fn print_prebuilt_src_binding_path() {
   let src_binding_path = get_dirs().root.join("gen").join(name.clone());
 
   // The generated binding ships in the published crate under `gen/`. Download
-  // it when a mirror is configured, or when the file does not exist (e.g. a
-  // git checkout), so a missing binding surfaces as a build script error
-  // rather than a confusing `include!` failure.
-  if env::var("RUSTY_V8_MIRROR").is_ok() || !src_binding_path.exists() {
+  // it when an explicit URL or a mirror is configured, or when the file does
+  // not exist (e.g. a git checkout), so a missing binding surfaces as a build
+  // script error rather than a confusing `include!` failure.
+  if !matches!(source, BindingSource::Candidates)
+    || env::var("RUSTY_V8_MIRROR").is_ok()
+    || !src_binding_path.exists()
+  {
     if let Some(parent) = src_binding_path.parent() {
       fs::create_dir_all(parent).unwrap_or_else(|e| {
         panic!("failed to create {}: {e}", parent.display())
       });
     }
-    if let Err(error) =
-      try_download_artifact(&artifact_url_candidates(&name), &src_binding_path)
-    {
+    // RUSTY_V8_SRC_BINDING_URL short-circuits the candidates, mirroring
+    // RUSTY_V8_ARCHIVE for the static lib.
+    let (urls, cache_key) = match &source {
+      BindingSource::Url(url) => (vec![url.clone()], None),
+      _ => (
+        artifact_url_candidates(&name),
+        Some(artifact_cache_key(&name)),
+      ),
+    };
+    if let Err(error) = try_download_artifact(
+      &urls,
+      &src_binding_path,
+      cache_key.as_deref(),
+      None,
+    ) {
       // Under RUSTY_V8_SKIP_DOWNLOAD a stale-but-usable binding beats a
       // failed refresh: dev contexts pointed at an incomplete mirror still
       // need `cargo check` to pass. A failed fetch never truncates the
@@ -1887,6 +2298,179 @@ edge [fontsize=10]
         TEST_VARS.file
       )]
     );
+  }
+
+  #[test]
+  fn test_archive_urls_file() {
+    // A non-directory value is used verbatim, whether it exists or not.
+    assert_eq!(
+      archive_urls("/path/to/custom_archive.a.gz", "lib.a.gz", "lib.a"),
+      vec!["/path/to/custom_archive.a.gz".to_string()]
+    );
+    assert_eq!(
+      archive_urls("https://ex.com/lib.a.gz", "lib.a.gz", "lib.a"),
+      vec!["https://ex.com/lib.a.gz".to_string()]
+    );
+  }
+
+  #[test]
+  fn test_archive_urls_directory() {
+    // A directory is searched for the expected artifact filename, gzipped
+    // first, then plain.
+    let dir = env::temp_dir()
+      .join(format!("rusty_v8_archive_dir_{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    assert_eq!(
+      archive_urls(dir.to_str().unwrap(), "lib.a.gz", "lib.a"),
+      vec![
+        dir.join("lib.a.gz").to_string_lossy().into_owned(),
+        dir.join("lib.a").to_string_lossy().into_owned(),
+      ]
+    );
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn test_resolve_binding_source_precedence() {
+    // RUSTY_V8_SRC_BINDING_PATH wins over RUSTY_V8_SRC_BINDING_URL.
+    assert_eq!(
+      resolve_binding_source(
+        Some("/gen/binding.rs".into()),
+        Some("https://ex.com/binding.rs".into())
+      ),
+      BindingSource::Path("/gen/binding.rs".into())
+    );
+    assert_eq!(
+      resolve_binding_source(None, Some("https://ex.com/binding.rs".into())),
+      BindingSource::Url("https://ex.com/binding.rs".into())
+    );
+    assert_eq!(
+      resolve_binding_source(None, None),
+      BindingSource::Candidates
+    );
+  }
+
+  #[test]
+  fn test_cache_key_derivation() {
+    // The cargo-home cache file name is the escaped `<tag>/<file>` key, so
+    // it does not depend on which mirror served the bytes.
+    assert_eq!(
+      replace_non_alphanumeric(
+        "v139.0.0/librusty_v8_release_aarch64-apple-darwin.a.gz"
+      ),
+      "v139_0_0_librusty_v8_release_aarch64_apple_darwin_a_gz"
+    );
+  }
+
+  #[test]
+  fn test_sha256_vectors() {
+    // FIPS 180-4 test vectors.
+    assert_eq!(
+      sha256_hex(b""),
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    assert_eq!(
+      sha256_hex(b"abc"),
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+    assert_eq!(
+      sha256_hex(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+      "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
+    );
+    assert_eq!(
+      sha256_hex(&[b'a'; 1_000_000]),
+      "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
+    );
+  }
+
+  #[test]
+  fn test_verify_pinned_source() {
+    let path = env::temp_dir()
+      .join(format!("rusty_v8_pinned_source_{}", std::process::id()));
+    fs::write(&path, b"abc").unwrap();
+    let good =
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    // No pin: everything passes. Matching pin (any case): passes.
+    assert!(verify_pinned_source(&path, None).is_ok());
+    assert!(verify_pinned_source(&path, Some(good)).is_ok());
+    assert!(
+      verify_pinned_source(&path, Some(good.to_uppercase().as_str())).is_ok()
+    );
+    // Wrong pin: fails.
+    assert!(verify_pinned_source(&path, Some(&"0".repeat(64))).is_err());
+    fs::remove_file(&path).unwrap();
+  }
+
+  #[test]
+  fn test_checksum_read_write() {
+    let path = env::temp_dir()
+      .join(format!("rusty_v8_checksum_{}.sum", std::process::id()));
+
+    // Legacy format: the bare source URL, as written by older builds.
+    fs::write(&path, "https://ex.com/lib.a.gz").unwrap();
+    let legacy = read_checksum(&path).unwrap();
+    assert_eq!(legacy.url, "https://ex.com/lib.a.gz");
+    assert_eq!(legacy.archive_sha256, None);
+    assert_eq!(legacy.sha256, None);
+
+    // Current format round-trips.
+    write_checksum(
+      &path,
+      &ArtifactChecksum {
+        url: "https://ex.com/lib.a.gz".to_string(),
+        archive_sha256: Some("aa".repeat(32)),
+        sha256: Some("bb".repeat(32)),
+      },
+    );
+    let current = read_checksum(&path).unwrap();
+    assert_eq!(current.url, "https://ex.com/lib.a.gz");
+    assert_eq!(current.archive_sha256, Some("aa".repeat(32)));
+    assert_eq!(current.sha256, Some("bb".repeat(32)));
+
+    fs::remove_file(&path).unwrap();
+  }
+
+  #[test]
+  fn test_verify_recorded_artifact() {
+    let path =
+      env::temp_dir().join(format!("rusty_v8_recorded_{}", std::process::id()));
+    fs::write(&path, b"abc").unwrap();
+    let abc_hash =
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+    // A matching recorded hash allows reuse; a mismatch forces a re-fetch.
+    let record = |sha256: Option<String>| ArtifactChecksum {
+      url: "https://ex.com/lib.a.gz".to_string(),
+      archive_sha256: None,
+      sha256,
+    };
+    assert!(verify_recorded_artifact(
+      &path,
+      &record(Some(abc_hash.to_string())),
+      None
+    ));
+    assert!(!verify_recorded_artifact(
+      &path,
+      &record(Some("00".repeat(32))),
+      None
+    ));
+
+    // A legacy record without a hash is reused and upgraded in place.
+    fs::write(&path, b"abc").unwrap();
+    let _ = fs::remove_file(static_checksum_path(&path));
+    assert!(verify_recorded_artifact(&path, &record(None), None));
+    let upgraded = read_checksum(&static_checksum_path(&path)).unwrap();
+    assert_eq!(upgraded.sha256, Some(abc_hash.to_string()));
+
+    // A pinned archive hash cannot be checked against a record without one.
+    assert!(!verify_recorded_artifact(
+      &path,
+      &record(Some(abc_hash.to_string())),
+      Some(&"0".repeat(64))
+    ));
+
+    fs::remove_file(&path).unwrap();
+    let _ = fs::remove_file(static_checksum_path(&path));
   }
 
   #[test]
