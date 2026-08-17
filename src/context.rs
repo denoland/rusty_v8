@@ -15,6 +15,7 @@ use crate::support::int;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
 
@@ -142,13 +143,31 @@ impl Context {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
+  /// Returns the microtask queue associated with this context.
+  ///
+  /// Returns `None` if the context has no microtask queue, which is the case
+  /// after its global object has been detached — detaching clears the native
+  /// context's microtask queue pointer.
   #[inline(always)]
-  pub fn get_microtask_queue(&self) -> &MicrotaskQueue {
-    unsafe { &*v8__Context__GetMicrotaskQueue(self) }
+  pub fn get_microtask_queue(&self) -> Option<&MicrotaskQueue> {
+    let queue = unsafe { v8__Context__GetMicrotaskQueue(self) };
+    NonNull::new(queue.cast_mut()).map(|queue| unsafe { &*queue.as_ptr() })
   }
 
+  /// Associates this context with the given microtask queue.
+  ///
+  /// # Panics
+  ///
+  /// Panics if this context has no microtask queue, i.e. if its global object
+  /// has been detached. V8 unconditionally dereferences the existing queue
+  /// when setting a new one, so a detached context cannot be re-associated
+  /// with a microtask queue.
   #[inline(always)]
   pub fn set_microtask_queue(&self, microtask_queue: &MicrotaskQueue) {
+    assert!(
+      self.get_microtask_queue().is_some(),
+      "cannot set a microtask queue on a context whose global object has been detached"
+    );
     unsafe {
       v8__Context__SetMicrotaskQueue(self, microtask_queue);
     }

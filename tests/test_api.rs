@@ -13394,7 +13394,7 @@ fn microtask_queue() {
   let mut scope = scope.init();
   let context = v8::Context::new(&scope, Default::default());
 
-  let queue = context.get_microtask_queue();
+  let queue = context.get_microtask_queue().unwrap();
   let mut scope = v8::ContextScope::new(&mut scope, context);
 
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -13428,7 +13428,10 @@ fn microtask_queue_new() {
   let context = v8::Context::new(&scope, Default::default());
 
   context.set_microtask_queue(queue.as_ref());
-  assert!(std::ptr::eq(context.get_microtask_queue(), queue.as_ref()));
+  assert!(std::ptr::eq(
+    context.get_microtask_queue().unwrap(),
+    queue.as_ref()
+  ));
 
   let mut scope = v8::ContextScope::new(&mut scope, context);
   static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -13448,7 +13451,10 @@ fn microtask_queue_new() {
   // released and cppgc runs.
   drop(queue);
   scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
-  context.get_microtask_queue().perform_checkpoint(&mut scope);
+  context
+    .get_microtask_queue()
+    .unwrap()
+    .perform_checkpoint(&mut scope);
   assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
 }
 
