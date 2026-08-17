@@ -68,6 +68,8 @@ fn main() {
     "OUT_DIR",
     "RUSTY_V8_ARCHIVE",
     "RUSTY_V8_MIRROR",
+    "RUSTY_V8_MIRROR_TAG",
+    "RUSTY_V8_MIRROR_STRICT",
     "RUSTY_V8_SRC_BINDING_PATH",
     "SCCACHE",
     "V8_FORCE_DEBUG",
@@ -747,21 +749,111 @@ fn static_lib_name(suffix: &str) -> String {
   }
 }
 
-fn static_lib_url() -> String {
-  if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
-    return custom_archive;
+const DEFAULT_ARTIFACT_BASE: &str =
+  "https://github.com/denoland/rusty_v8/releases/download";
+
+/// Values substituted into artifact URLs and URL templates.
+struct UrlVars<'a> {
+  /// Release tag path segment, e.g. `v152.0.0` (see [`resolved_tag`]).
+  tag: &'a str,
+  /// Raw `CARGO_PKG_VERSION`, without the `v` prefix.
+  version: &'a str,
+  /// The `TARGET` triple.
+  target: &'a str,
+  /// `release` or `debug`, from [`prebuilt_profile`].
+  profile: &'a str,
+  /// Feature suffix from [`prebuilt_features_suffix`].
+  features: &'a str,
+  /// The full artifact filename.
+  file: &'a str,
+}
+
+/// The tag path segment under which prebuilt artifacts are looked up.
+/// `RUSTY_V8_MIRROR_TAG` overrides the default `v{version}` verbatim (no `v`
+/// is prepended), so mirrors can serve artifacts from e.g. the last published
+/// tag while `Cargo.toml` carries an unpublished version.
+fn resolved_tag(tag_override: Option<&str>, version: &str) -> String {
+  match tag_override {
+    Some(tag) => tag.to_string(),
+    None => format!("v{version}"),
   }
-  let default_base = "https://github.com/denoland/rusty_v8/releases/download";
-  let base =
-    env::var("RUSTY_V8_MIRROR").unwrap_or_else(|_| default_base.into());
+}
+
+/// Expand `{tag}`, `{version}`, `{target}`, `{profile}`, `{features}` and
+/// `{file}` placeholders in a `RUSTY_V8_MIRROR` template.
+fn expand_url_template(template: &str, vars: &UrlVars) -> String {
+  template
+    .replace("{tag}", vars.tag)
+    .replace("{version}", vars.version)
+    .replace("{target}", vars.target)
+    .replace("{profile}", vars.profile)
+    .replace("{features}", vars.features)
+    .replace("{file}", vars.file)
+}
+
+fn is_remote_url(url: &str) -> bool {
+  url.starts_with("http:") || url.starts_with("https:")
+}
+
+/// The ordered list of URLs an artifact is fetched from:
+///
+/// 1. The mirror, if `RUSTY_V8_MIRROR` is set. A value containing a `{`
+///    placeholder is treated as a full URL template; otherwise it is a base
+///    and the artifact is looked up at `{base}/{tag}/{file}`.
+/// 2. For plain (non-template) filesystem mirrors only: the flat layout
+///    `{base}/{file}`, so a directory of downloaded artifacts works as a
+///    cache without tag subdirectories.
+/// 3. The upstream GitHub release, unless `strict`
+///    (`RUSTY_V8_MIRROR_STRICT=1`) suppresses everything after the mirror
+///    entries.
+fn candidate_urls(
+  mirror: Option<&str>,
+  strict: bool,
+  vars: &UrlVars,
+) -> Vec<String> {
+  let mut urls = Vec::new();
+  if let Some(mirror) = mirror {
+    if mirror.contains('{') {
+      urls.push(expand_url_template(mirror, vars));
+    } else {
+      urls.push(format!("{mirror}/{}/{}", vars.tag, vars.file));
+      if !is_remote_url(mirror) {
+        urls.push(format!("{mirror}/{}", vars.file));
+      }
+    }
+  }
+  if !strict {
+    urls.push(format!(
+      "{DEFAULT_ARTIFACT_BASE}/{}/{}",
+      vars.tag, vars.file
+    ));
+  }
+  urls
+}
+
+/// [`candidate_urls`] with all inputs read from the environment.
+fn artifact_url_candidates(file: &str) -> Vec<String> {
   let version = env::var("CARGO_PKG_VERSION").unwrap();
+  let tag_override = env::var("RUSTY_V8_MIRROR_TAG").ok();
+  let tag = resolved_tag(tag_override.as_deref(), &version);
   let target = env::var("TARGET").unwrap();
-  let profile = prebuilt_profile();
   let features = prebuilt_features_suffix();
-  format!(
-    "{base}/v{version}/{}.gz",
-    static_lib_name(&format!("{features}_{profile}_{target}")),
-  )
+  let vars = UrlVars {
+    tag: &tag,
+    version: &version,
+    target: &target,
+    profile: prebuilt_profile(),
+    features: &features,
+    file,
+  };
+  let mirror = env::var("RUSTY_V8_MIRROR").ok();
+  let strict = env_bool("RUSTY_V8_MIRROR_STRICT");
+  if strict {
+    println!(
+      "RUSTY_V8_MIRROR_STRICT is set; not falling back to {DEFAULT_ARTIFACT_BASE}"
+    );
+  }
+  candidate_urls(mirror.as_deref(), strict, &vars)
 }
 
 fn static_lib_path() -> PathBuf {
@@ -806,17 +898,55 @@ fn replace_non_alphanumeric(url: &str) -> String {
     .collect()
 }
 
-fn download_file(url: &str, filename: &Path) {
-  if !url.starts_with("http:") && !url.starts_with("https:") {
-    copy_archive(url, filename);
+/// Fetch an artifact into `filename`, trying each candidate URL in order.
+/// Panics with the full list of attempted URLs, and the escape hatches, if
+/// every candidate fails.
+fn download_artifact(urls: &[String], filename: &Path) {
+  // Checksum (i.e: source URL) to avoid re-downloads: reuse the existing file
+  // if it was fetched from any URL we would fetch from now.
+  if let Ok(recorded) = fs::read_to_string(static_checksum_path(filename))
+    && urls.contains(&recorded)
+  {
     return;
   }
 
-  // Checksum (i.e: url) to avoid re-downloads
-  match fs::read_to_string(static_checksum_path(filename)) {
-    Ok(c) if c == static_lib_url() => return,
-    _ => {}
-  };
+  let mut errors = Vec::new();
+  for url in urls {
+    match download_file(url, filename) {
+      Ok(()) => return,
+      Err(error) => {
+        println!("Failed to fetch from {url}: {error}");
+        errors.push(format!("- {url}: {error}"));
+      }
+    }
+  }
+  if errors.is_empty() {
+    errors.push(
+      "- no candidate URLs: RUSTY_V8_MIRROR_STRICT is set but \
+       RUSTY_V8_MIRROR is not"
+        .to_string(),
+    );
+  }
+  panic!(
+    "Failed to fetch the V8 prebuilt artifact {}. Tried:\n{}\n\
+     If no prebuilt artifact is published for your target or version, \
+     compile V8 from source by setting V8_FROM_SOURCE=1. You can also point \
+     the build at an artifact via RUSTY_V8_ARCHIVE (static lib only), a \
+     mirror via RUSTY_V8_MIRROR, or another release tag via \
+     RUSTY_V8_MIRROR_TAG.",
+    filename.display(),
+    errors.join("\n")
+  );
+}
+
+fn download_file(url: &str, filename: &Path) -> Result<(), String> {
+  if !is_remote_url(url) {
+    copy_archive(url, filename)?;
+    // Local copies are not recorded in the checksum file; remove any stale
+    // record of a previous http(s) download so it cannot mask this copy.
+    let _ = fs::remove_file(static_checksum_path(filename));
+    return Ok(());
+  }
 
   // If there is a `.cargo/.rusty_v8/<escaped URL>` file, use that instead
   // of downloading.
@@ -824,15 +954,15 @@ fn download_file(url: &str, filename: &Path) {
     path = path.join(".rusty_v8").join(replace_non_alphanumeric(url));
     println!("Looking for download in '{path:?}'");
     if path.exists() {
-      copy_archive(&path.to_string_lossy(), filename);
-      return;
+      return copy_archive(&path.to_string_lossy(), filename);
     }
   }
 
   let tmpfile = filename.with_extension("tmp");
   if tmpfile.exists() {
     println!("Deleting old tmpfile {}", tmpfile.display());
-    fs::remove_file(&tmpfile).unwrap();
+    fs::remove_file(&tmpfile)
+      .map_err(|e| format!("failed to delete {}: {e}", tmpfile.display()))?;
   }
 
   // Try downloading with deno first, then python, then curl.
@@ -863,7 +993,7 @@ fn download_file(url: &str, filename: &Path) {
   // Try downloading with python. Python is a V8 build dependency,
   // so this saves us from adding a Rust HTTP client dependency.
   let status = match status {
-    Some(status) => status,
+    Some(status) => Some(status),
     _ => {
       println!("Trying with Python...");
       let python_status = Command::new(python())
@@ -875,9 +1005,11 @@ fn download_file(url: &str, filename: &Path) {
         .status();
 
       // Python is only a required dependency for `V8_FROM_SOURCE` builds.
-      // If python is not available, try falling back to curl.
+      // If python is not available, try falling back to curl. A missing curl
+      // binary is not fatal either; it counts as a failed download and falls
+      // through to the diagnostic below.
       match python_status {
-        Ok(status) if status.success() => status,
+        Ok(status) if status.success() => Some(status),
         _ => {
           println!("Python downloader failed, trying with curl.");
           Command::new("curl")
@@ -888,42 +1020,64 @@ fn download_file(url: &str, filename: &Path) {
             .arg(&tmpfile)
             .arg(url)
             .status()
-            .unwrap()
+            .ok()
         }
       }
     }
   };
 
-  // Assert DL was successful
-  if !status.success() {
-    panic!(
-      "Failed to download V8 prebuilt archive from {url}\n\
-     This is usually because no prebuilt archive is published for your target, \
-     in which case you should compile V8 from source by setting V8_FROM_SOURCE=1. \
-     It can also indicate a network connectivity problem."
+  // Check the download was successful; clean up the partial download if not.
+  if !status.is_some_and(|status| status.success()) {
+    if tmpfile.exists() {
+      let _ = fs::remove_file(&tmpfile);
+    }
+    return Err(
+      "no downloader (deno, python, curl) could fetch the URL".to_string(),
     );
   }
-  assert!(tmpfile.exists());
+  if !tmpfile.exists() {
+    return Err("downloader reported success but produced no file".to_string());
+  }
 
-  // Write checksum (i.e url) & move file
-  fs::write(static_checksum_path(filename), url).unwrap();
-  copy_archive(&tmpfile.to_string_lossy(), filename);
-  fs::remove_file(&tmpfile).unwrap();
+  // Move file & write checksum (i.e url)
+  copy_archive(&tmpfile.to_string_lossy(), filename)?;
+  fs::remove_file(&tmpfile)
+    .map_err(|e| format!("failed to delete {}: {e}", tmpfile.display()))?;
+  fs::write(static_checksum_path(filename), url).unwrap_or_else(|e| {
+    panic!(
+      "failed to write {}: {e}",
+      static_checksum_path(filename).display()
+    )
+  });
 
   assert!(filename.exists());
   assert!(static_checksum_path(filename).exists());
   assert!(!tmpfile.exists());
+  Ok(())
 }
 
 fn download_static_lib_binaries() {
-  let url = static_lib_url();
-  println!("static lib URL: {url}");
-
   let dir = static_lib_dir();
   fs::create_dir_all(&dir).unwrap();
   println!("cargo:rustc-link-search={}", dir.display());
 
-  download_file(&url, &static_lib_path());
+  // RUSTY_V8_ARCHIVE points at exactly one archive and short-circuits the
+  // mirror/upstream candidates entirely.
+  let urls = if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
+    vec![custom_archive]
+  } else {
+    let target = env::var("TARGET").unwrap();
+    let profile = prebuilt_profile();
+    let features = prebuilt_features_suffix();
+    let file = format!(
+      "{}.gz",
+      static_lib_name(&format!("{features}_{profile}_{target}"))
+    );
+    artifact_url_candidates(&file)
+  };
+  println!("static lib URLs: {urls:?}");
+
+  download_artifact(&urls, &static_lib_path());
 }
 
 fn decompress_to_writer<R, W>(input: &mut R, output: &mut W) -> io::Result<()>
@@ -979,22 +1133,36 @@ where
 /// Instead, it copies the file contents to a new file.
 /// This is necessary because the V8 archive could live inside a read-only
 /// filesystem, and subsequent builds would fail to overwrite it.
-fn copy_archive(url: &str, filename: &Path) {
+fn copy_archive(url: &str, filename: &Path) -> Result<(), String> {
   println!("Copying {url} to {filename:?}");
-  let mut src = fs::File::open(url).unwrap();
-  let mut dst = fs::File::create(filename).unwrap();
+  let mut src = fs::File::open(url)
+    .map_err(|e| format!("failed to open source archive {url}: {e}"))?;
+  let mut dst = fs::File::create(filename)
+    .map_err(|e| format!("failed to create {}: {e}", filename.display()))?;
 
   // Allow both GZIP and non-GZIP downloads
   let mut header = [0; 2];
-  src.read_exact(&mut header).unwrap();
-  src.seek(io::SeekFrom::Start(0)).unwrap();
+  src
+    .read_exact(&mut header)
+    .map_err(|e| format!("failed to read source archive {url}: {e}"))?;
+  src
+    .seek(io::SeekFrom::Start(0))
+    .map_err(|e| format!("failed to seek source archive {url}: {e}"))?;
   if header == [0x1f, 0x8b] {
     println!("Detected GZIP archive: {url}");
-    decompress_to_writer(&mut src, &mut dst).unwrap();
+    decompress_to_writer(&mut src, &mut dst).map_err(|e| {
+      format!(
+        "failed to decompress {url} into {}: {e}",
+        filename.display()
+      )
+    })?;
   } else {
     println!("Not a GZIP archive: {url}");
-    io::copy(&mut src, &mut dst).unwrap();
+    io::copy(&mut src, &mut dst).map_err(|e| {
+      format!("failed to copy {url} to {}: {e}", filename.display())
+    })?;
   }
+  Ok(())
 }
 
 fn print_link_flags() {
@@ -1064,10 +1232,15 @@ fn print_prebuilt_src_binding_path() {
 
   let src_binding_path = get_dirs().root.join("gen").join(name.clone());
 
-  if let Ok(base) = env::var("RUSTY_V8_MIRROR") {
-    let version = env::var("CARGO_PKG_VERSION").unwrap();
-    let url = format!("{base}/v{version}/{name}");
-    download_file(&url, &src_binding_path);
+  // The generated binding ships in the published crate under `gen/`. Download
+  // it when a mirror is configured, or when the file does not exist (e.g. a
+  // git checkout), so a missing binding surfaces as a build script error
+  // rather than a confusing `include!` failure.
+  if env::var("RUSTY_V8_MIRROR").is_ok() || !src_binding_path.exists() {
+    if let Some(parent) = src_binding_path.parent() {
+      fs::create_dir_all(parent).unwrap();
+    }
+    download_artifact(&artifact_url_candidates(&name), &src_binding_path);
   }
 
   println!(
@@ -1499,5 +1672,104 @@ edge [fontsize=10]
     let clang_bin = env::temp_dir()
       .join(format!("rusty_v8_missing_clang_{}", std::process::id()));
     assert!(clang_resource_dir(&clang_bin).is_err());
+  }
+
+  const TEST_VARS: UrlVars = UrlVars {
+    tag: "v139.0.0",
+    version: "140.0.0",
+    target: "x86_64-unknown-linux-gnu",
+    profile: "release",
+    features: "_ptrcomp",
+    file: "librusty_v8_ptrcomp_release_x86_64-unknown-linux-gnu.a.gz",
+  };
+
+  #[test]
+  fn test_resolved_tag() {
+    assert_eq!(resolved_tag(None, "140.0.0"), "v140.0.0");
+    // Overrides are used verbatim: no `v` is prepended.
+    assert_eq!(resolved_tag(Some("nightly"), "140.0.0"), "nightly");
+    assert_eq!(resolved_tag(Some("v139.0.0"), "140.0.0"), "v139.0.0");
+  }
+
+  #[test]
+  fn test_expand_url_template() {
+    assert_eq!(
+      expand_url_template(
+        "https://ex.com/{tag}/{version}/{target}/{profile}{features}/{file}",
+        &TEST_VARS
+      ),
+      "https://ex.com/v139.0.0/140.0.0/x86_64-unknown-linux-gnu/\
+       release_ptrcomp/librusty_v8_ptrcomp_release_x86_64-unknown-linux-gnu.a.gz"
+    );
+  }
+
+  #[test]
+  fn test_candidate_urls_no_mirror() {
+    assert_eq!(
+      candidate_urls(None, false, &TEST_VARS),
+      vec![format!(
+        "{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}",
+        TEST_VARS.file
+      )]
+    );
+  }
+
+  #[test]
+  fn test_candidate_urls_http_mirror() {
+    // A remote base mirror keeps the `{base}/{tag}/{file}` layout, then
+    // falls back to upstream; no flat layout for remote mirrors.
+    assert_eq!(
+      candidate_urls(Some("https://mirror.example"), false, &TEST_VARS),
+      vec![
+        format!("https://mirror.example/v139.0.0/{}", TEST_VARS.file),
+        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_candidate_urls_filesystem_mirror() {
+    // Filesystem mirrors additionally try the flat `{base}/{file}` layout.
+    assert_eq!(
+      candidate_urls(Some("/opt/cache"), false, &TEST_VARS),
+      vec![
+        format!("/opt/cache/v139.0.0/{}", TEST_VARS.file),
+        format!("/opt/cache/{}", TEST_VARS.file),
+        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_candidate_urls_template_mirror() {
+    // A template mirror is used verbatim after substitution; no tag/flat
+    // variants are derived from it.
+    assert_eq!(
+      candidate_urls(
+        Some("https://mirror.example/artifacts/{version}/{file}"),
+        false,
+        &TEST_VARS
+      ),
+      vec![
+        format!(
+          "https://mirror.example/artifacts/140.0.0/{}",
+          TEST_VARS.file
+        ),
+        format!("{DEFAULT_ARTIFACT_BASE}/v139.0.0/{}", TEST_VARS.file),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_candidate_urls_strict() {
+    // Strict mode drops everything after the mirror entries.
+    assert_eq!(
+      candidate_urls(Some("/opt/cache"), true, &TEST_VARS),
+      vec![
+        format!("/opt/cache/v139.0.0/{}", TEST_VARS.file),
+        format!("/opt/cache/{}", TEST_VARS.file),
+      ]
+    );
+    assert!(candidate_urls(None, true, &TEST_VARS).is_empty());
   }
 }

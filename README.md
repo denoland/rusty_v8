@@ -69,6 +69,40 @@ Tells the build script where to get binary builds from. Understands `http://`
 and `https://` URLs, and file paths. The default is
 https://github.com/denoland/rusty_v8/releases.
 
+For every artifact (the static lib and the generated `src_binding` file), the
+build script tries an ordered list of locations and uses the first one that
+works:
+
+1. `RUSTY_V8_ARCHIVE`, if set (static lib only; short-circuits everything
+   else).
+2. The mirror, if `RUSTY_V8_MIRROR` is set. A plain base is expanded to
+   `<base>/<tag>/<file>`; a value containing `{` placeholders is treated as a
+   full URL template (see below).
+3. For plain filesystem mirrors only: the flat layout `<base>/<file>`, so a
+   directory of downloaded artifacts works without tag subdirectories.
+4. The upstream GitHub release,
+   `https://github.com/denoland/rusty_v8/releases/download/<tag>/<file>`.
+
+If every candidate fails, the build script panics with the full list of URLs
+it tried.
+
+`<tag>` defaults to `v<version>` (the crate version). Set
+`RUSTY_V8_MIRROR_TAG` to override it; the value is used verbatim (no `v` is
+prepended), so `RUSTY_V8_MIRROR_TAG=v152.0.0 cargo build` fetches the
+artifacts of the last published release when building a checkout whose
+`Cargo.toml` version is unpublished.
+
+If the `RUSTY_V8_MIRROR` value contains a `{` placeholder, the whole value is
+used as a URL template instead of a base. Supported placeholders: `{tag}`,
+`{version}` (no `v` prefix), `{target}`, `{profile}` (`release`/`debug`),
+`{features}` (e.g. `_ptrcomp`), and `{file}` (the full artifact filename).
+For example:
+
+    export RUSTY_V8_MIRROR=https://example.com/rusty_v8/{version}/{file}
+
+Set `RUSTY_V8_MIRROR_STRICT=1` to stop the candidate list after the mirror
+entries, for hermetic builds that must never fall back to the network.
+
 File-based mirrors are good for using cached downloads. First, point the
 environment variable to a suitable location:
 
@@ -82,11 +116,11 @@ Then populate the cache:
 
 # see https://github.com/denoland/rusty_v8/releases
 
-for REL in v0.13.0 v0.12.0; do
+for REL in v152.1.0 v152.0.0; do
   mkdir -p $RUSTY_V8_MIRROR/$REL
   for FILE in \
-    librusty_v8_debug_x86_64-unknown-linux-gnu.a \
-    librusty_v8_release_x86_64-unknown-linux-gnu.a \
+    librusty_v8_release_x86_64-unknown-linux-gnu.a.gz \
+    src_binding_release_x86_64-unknown-linux-gnu.rs \
   ; do
     if [ ! -f $RUSTY_V8_MIRROR/$REL/$FILE ]; then
       wget -O $RUSTY_V8_MIRROR/$REL/$FILE \
