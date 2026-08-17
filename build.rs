@@ -73,6 +73,7 @@ fn main() {
     "RUSTY_V8_MIRROR_TAG",
     "RUSTY_V8_MIRROR_FALLBACK",
     "RUSTY_V8_MUSL_SYSROOT",
+    "RUSTY_V8_SKIP_DOWNLOAD",
     "RUSTY_V8_SRC_BINDING_PATH",
     "SCCACHE",
     "V8_FORCE_DEBUG",
@@ -93,16 +94,8 @@ fn main() {
   // Don't build V8 if "cargo doc" is being run. This is to support docs.rs.
   let is_cargo_doc = env::var_os("DOCS_RS").is_some();
 
-  // Don't build V8 if the rust language server (RLS) is running.
-  let is_rls = env::var_os("CARGO")
-    .map(PathBuf::from)
-    .as_ref()
-    .and_then(|p| p.file_stem())
-    .and_then(|f| f.to_str())
-    .is_some_and(|s| s.starts_with("rls"));
-
   // Early exit
-  if is_cargo_doc || is_rls {
+  if is_cargo_doc {
     print_prebuilt_src_binding_path();
     return;
   }
@@ -1126,6 +1119,29 @@ fn download_static_lib_binaries() {
   fs::create_dir_all(&dir)
     .unwrap_or_else(|e| panic!("failed to create {}: {e}", dir.display()));
   println!("cargo:rustc-link-search={}", dir.display());
+
+  // RUSTY_V8_SKIP_DOWNLOAD skips fetching the static library so that
+  // `cargo check`, `cargo metadata` and rust-analyzer can resolve the crate
+  // without the prebuilt artifact. The (small) src binding file is still
+  // fetched; only linking requires the static library. A library left behind
+  // by a previous build is linked as usual.
+  if env_bool("RUSTY_V8_SKIP_DOWNLOAD") {
+    if static_lib_path().exists() {
+      println!(
+        "cargo:warning=RUSTY_V8_SKIP_DOWNLOAD is set; using the existing {} \
+         as-is (it may be stale)",
+        static_lib_path().display()
+      );
+    } else {
+      println!(
+        "cargo:warning=RUSTY_V8_SKIP_DOWNLOAD is set; the V8 static library \
+         was not downloaded. `cargo check` will work, but linking will fail \
+         with 'could not find native static library rusty_v8' until this is \
+         built again without RUSTY_V8_SKIP_DOWNLOAD"
+      );
+    }
+    return;
+  }
 
   // RUSTY_V8_ARCHIVE points at exactly one archive and short-circuits the
   // mirror/upstream candidates entirely.
