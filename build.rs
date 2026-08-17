@@ -1120,11 +1120,11 @@ fn download_static_lib_binaries() {
     .unwrap_or_else(|e| panic!("failed to create {}: {e}", dir.display()));
   println!("cargo:rustc-link-search={}", dir.display());
 
-  // RUSTY_V8_SKIP_DOWNLOAD skips fetching the static library so that
-  // `cargo check`, `cargo metadata` and rust-analyzer can resolve the crate
-  // without the prebuilt artifact. The (small) src binding file is still
-  // fetched; only linking requires the static library. A library left behind
-  // by a previous build is linked as usual.
+  // RUSTY_V8_SKIP_DOWNLOAD skips fetching the static library (including from
+  // RUSTY_V8_ARCHIVE) so that `cargo check` and rust-analyzer can resolve the
+  // crate without the prebuilt artifact. The (small) src binding file is
+  // still fetched; only linking requires the static library. A library left
+  // behind by a previous build is linked as usual.
   if env_bool("RUSTY_V8_SKIP_DOWNLOAD") {
     if static_lib_path().exists() {
       println!(
@@ -1136,8 +1136,8 @@ fn download_static_lib_binaries() {
       println!(
         "cargo:warning=RUSTY_V8_SKIP_DOWNLOAD is set; the V8 static library \
          was not downloaded. `cargo check` will work, but linking will fail \
-         with 'could not find native static library rusty_v8' until this is \
-         built again without RUSTY_V8_SKIP_DOWNLOAD"
+         with 'could not find native static library `rusty_v8`' until this \
+         is built again without RUSTY_V8_SKIP_DOWNLOAD"
       );
     }
     return;
