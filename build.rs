@@ -904,7 +904,8 @@ fn replace_non_alphanumeric(url: &str) -> String {
 fn download_artifact(urls: &[String], filename: &Path) {
   // Checksum (i.e: source URL) to avoid re-downloads: reuse the existing file
   // if it was fetched from any URL we would fetch from now.
-  if let Ok(recorded) = fs::read_to_string(static_checksum_path(filename))
+  if filename.exists()
+    && let Ok(recorded) = fs::read_to_string(static_checksum_path(filename))
     && urls.contains(&recorded)
   {
     return;
@@ -912,6 +913,7 @@ fn download_artifact(urls: &[String], filename: &Path) {
 
   let mut errors = Vec::new();
   for url in urls {
+    println!("Trying to fetch from {url}");
     match download_file(url, filename) {
       Ok(()) => return,
       Err(error) => {
@@ -954,7 +956,17 @@ fn download_file(url: &str, filename: &Path) -> Result<(), String> {
     path = path.join(".rusty_v8").join(replace_non_alphanumeric(url));
     println!("Looking for download in '{path:?}'");
     if path.exists() {
-      return copy_archive(&path.to_string_lossy(), filename);
+      match copy_archive(&path.to_string_lossy(), filename) {
+        Ok(()) => {
+          // Local copies are not recorded in the checksum file; remove any
+          // stale record of a previous http(s) download.
+          let _ = fs::remove_file(static_checksum_path(filename));
+          return Ok(());
+        }
+        // A bad cache entry should not disable this URL; fall through and
+        // download it.
+        Err(error) => println!("Failed to copy {path:?}: {error}"),
+      }
     }
   }
 
@@ -1040,7 +1052,10 @@ fn download_file(url: &str, filename: &Path) -> Result<(), String> {
   }
 
   // Move file & write checksum (i.e url)
-  copy_archive(&tmpfile.to_string_lossy(), filename)?;
+  if let Err(error) = copy_archive(&tmpfile.to_string_lossy(), filename) {
+    let _ = fs::remove_file(&tmpfile);
+    return Err(error);
+  }
   fs::remove_file(&tmpfile)
     .map_err(|e| format!("failed to delete {}: {e}", tmpfile.display()))?;
   fs::write(static_checksum_path(filename), url).unwrap_or_else(|e| {
@@ -1058,7 +1073,8 @@ fn download_file(url: &str, filename: &Path) -> Result<(), String> {
 
 fn download_static_lib_binaries() {
   let dir = static_lib_dir();
-  fs::create_dir_all(&dir).unwrap();
+  fs::create_dir_all(&dir)
+    .unwrap_or_else(|e| panic!("failed to create {}: {e}", dir.display()));
   println!("cargo:rustc-link-search={}", dir.display());
 
   // RUSTY_V8_ARCHIVE points at exactly one archive and short-circuits the
@@ -1135,10 +1151,29 @@ where
 /// filesystem, and subsequent builds would fail to overwrite it.
 fn copy_archive(url: &str, filename: &Path) -> Result<(), String> {
   println!("Copying {url} to {filename:?}");
+  // Write to a scratch file and rename into place on success, so a source
+  // that fails partway through cannot truncate a previously good artifact.
+  let partfile = filename.with_extension("part");
+  let result = copy_archive_to(url, &partfile).and_then(|()| {
+    fs::rename(&partfile, filename).map_err(|e| {
+      format!(
+        "failed to rename {} to {}: {e}",
+        partfile.display(),
+        filename.display()
+      )
+    })
+  });
+  if result.is_err() && partfile.exists() {
+    let _ = fs::remove_file(&partfile);
+  }
+  result
+}
+
+fn copy_archive_to(url: &str, dst_path: &Path) -> Result<(), String> {
   let mut src = fs::File::open(url)
     .map_err(|e| format!("failed to open source archive {url}: {e}"))?;
-  let mut dst = fs::File::create(filename)
-    .map_err(|e| format!("failed to create {}: {e}", filename.display()))?;
+  let mut dst = fs::File::create(dst_path)
+    .map_err(|e| format!("failed to create {}: {e}", dst_path.display()))?;
 
   // Allow both GZIP and non-GZIP downloads
   let mut header = [0; 2];
@@ -1153,13 +1188,13 @@ fn copy_archive(url: &str, filename: &Path) -> Result<(), String> {
     decompress_to_writer(&mut src, &mut dst).map_err(|e| {
       format!(
         "failed to decompress {url} into {}: {e}",
-        filename.display()
+        dst_path.display()
       )
     })?;
   } else {
     println!("Not a GZIP archive: {url}");
     io::copy(&mut src, &mut dst).map_err(|e| {
-      format!("failed to copy {url} to {}: {e}", filename.display())
+      format!("failed to copy {url} to {}: {e}", dst_path.display())
     })?;
   }
   Ok(())
@@ -1238,7 +1273,9 @@ fn print_prebuilt_src_binding_path() {
   // rather than a confusing `include!` failure.
   if env::var("RUSTY_V8_MIRROR").is_ok() || !src_binding_path.exists() {
     if let Some(parent) = src_binding_path.parent() {
-      fs::create_dir_all(parent).unwrap();
+      fs::create_dir_all(parent).unwrap_or_else(|e| {
+        panic!("failed to create {}: {e}", parent.display())
+      });
     }
     download_artifact(&artifact_url_candidates(&name), &src_binding_path);
   }
