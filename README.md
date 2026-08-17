@@ -111,9 +111,8 @@ cargo build
 Use `V8_FROM_SOURCE=1 cargo build -vv` to build the crate completely from
 source.
 
-The build scripts require Python 3 to be available as `python3` in your `PATH`.
-If you want to specify the exact binary of Python to use, you should use the
-`PYTHON` environment variable.
+The build scripts require Python 3, located via the `PYTHON` environment
+variable, or as `python3` or `python` in your `PATH`.
 
 The build also requires `curl` to be installed on your system.
 
@@ -141,9 +140,7 @@ curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd
   tar -xz -C tools/win
 ```
 
-For Mac builds: You'll need Xcode and Xcode CLT installed. Recent macOS versions
-will also require you to pass PYTHON=python3 because macOS no longer ships with
-`python` simlinked to Python 3.
+For Mac builds: You'll need Xcode and Xcode CLT installed.
 
 For Android builds: You'll need to cross compile from a x86_64 host to the
 aarch64 or x64 android. You can use the following commands:

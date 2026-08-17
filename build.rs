@@ -180,7 +180,7 @@ fn build_binding() {
     );
   }
 
-  let output = Command::new(python())
+  let output = Command::new(python_or_die())
     .arg("./tools/get_bindgen_args.py")
     .arg("--gn-out")
     .arg(build_dir().join("gn_out"))
@@ -559,25 +559,21 @@ fn build_v8(is_asan: bool) {
     // NDK 23 and above removes libgcc entirely.
     // https://github.com/rust-lang/rust/pull/85806
     if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
-        assert!(Command::new("curl")
-        .arg("-L")
-        .arg("-o").arg("./third_party/android-ndk-r26c-linux.zip")
-        .arg("https://dl.google.com/android/repository/android-ndk-r26c-linux.zip")
-        .status()
-        .unwrap()
-        .success());
+        let zip_path = "./third_party/android-ndk-r26c-linux.zip";
+        let download_result = download_with_curl("https://dl.google.com/android/repository/android-ndk-r26c-linux.zip", zip_path);
+        assert!(download_result.unwrap().success());
 
         assert!(Command::new("unzip")
         .arg("-d").arg("./third_party/")
         .arg("-o")
         .arg("-q")
-        .arg("./third_party/android-ndk-r26c-linux.zip")
+        .arg(zip_path)
         .status()
         .unwrap()
         .success());
 
         fs::rename("./third_party/android-ndk-r26c", "./third_party/android_ndk").unwrap();
-        fs::remove_file("./third_party/android-ndk-r26c-linux.zip").unwrap();
+        fs::remove_file(zip_path).unwrap();
       }
     static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
     maybe_clone_repo(
@@ -634,7 +630,7 @@ fn build_v8(is_asan: bool) {
 fn print_gn_args(gn_out_dir: &Path) {
   assert!(
     Command::new(gn())
-      .arg(format!("--script-executable={}", python()))
+      .arg(format!("--script-executable={}", python_or_die().display()))
       .arg("args")
       .arg(gn_out_dir)
       .arg("--list")
@@ -663,7 +659,7 @@ fn maybe_install_sysroot(arch: &str) {
   let sysroot_path = format!("build/linux/debian_sid_{arch}-sysroot");
   if !PathBuf::from(sysroot_path).is_dir() {
     assert!(
-      Command::new(python())
+      Command::new(python_or_die())
         .arg("./build/linux/sysroot_scripts/install-sysroot.py")
         .arg(format!("--arch={arch}"))
         .status()
@@ -685,7 +681,7 @@ fn download_ninja_gn_binaries() {
 
   if !gn.exists() || !ninja.exists() {
     assert!(
-      Command::new(python())
+      Command::new(python_or_die())
         .arg("./tools/ninja_gn_binaries.py")
         .arg("--dir")
         .arg(&target_dir)
@@ -708,7 +704,7 @@ fn download_ninja_gn_binaries() {
 
 fn download_rust_toolchain() {
   assert!(
-    Command::new(python())
+    Command::new(python_or_die())
       .arg("./tools/rust_toolchain.py")
       .status()
       .unwrap()
@@ -836,63 +832,14 @@ fn download_file(url: &str, filename: &Path) {
   }
 
   // Try downloading with deno first, then python, then curl.
+  // Python is a V8 build dependency, so this saves us from adding a Rust HTTP client dependency.
+  // Python is only a required dependency for `V8_FROM_SOURCE` builds.
+  // If python is not available, try falling back to curl.
   println!("Downloading {url}");
-  let status = which("deno").ok().and_then(|deno| {
-    println!("Trying with Deno...");
-    Command::new(deno)
-      .arg("eval")
-      .arg(
-        "const [url, path] = Deno.args; \
-         const resp = await fetch(url); \
-         if (!resp.ok) Deno.exit(1); \
-         const file = await Deno.open(path, { write: true, create: true }); \
-         await resp.body.pipeTo(file.writable);",
-      )
-      // Note: `deno eval` runs with all permissions implicitly granted and does
-      // not accept `--allow-*` flags, so passing them here makes `deno eval`
-      // error out ("unexpected argument '--allow-net'") and the download
-      // silently falls back to Python/curl.
-      .arg("--")
-      .arg(url)
-      .arg(&tmpfile)
-      .status()
-      .ok()
-      .filter(|s| s.success())
-  });
-
-  // Try downloading with python. Python is a V8 build dependency,
-  // so this saves us from adding a Rust HTTP client dependency.
-  let status = match status {
-    Some(status) => status,
-    _ => {
-      println!("Trying with Python...");
-      let python_status = Command::new(python())
-        .arg("./tools/download_file.py")
-        .arg("--url")
-        .arg(url)
-        .arg("--filename")
-        .arg(&tmpfile)
-        .status();
-
-      // Python is only a required dependency for `V8_FROM_SOURCE` builds.
-      // If python is not available, try falling back to curl.
-      match python_status {
-        Ok(status) if status.success() => status,
-        _ => {
-          println!("Python downloader failed, trying with curl.");
-          Command::new("curl")
-            .arg("-L")
-            .arg("-f")
-            .arg("-s")
-            .arg("-o")
-            .arg(&tmpfile)
-            .arg(url)
-            .status()
-            .unwrap()
-        }
-      }
-    }
-  };
+  let status = download_with_deno(url, &tmpfile)
+    .or_else(|| download_with_python(url, &tmpfile))
+    .or_else(|| download_with_curl(url, &tmpfile))
+    .expect("Neither deno, python nor curl were available to download the V8 prebuilt archive.");
 
   // Assert DL was successful
   if !status.success() {
@@ -913,6 +860,70 @@ fn download_file(url: &str, filename: &Path) {
   assert!(filename.exists());
   assert!(static_checksum_path(filename).exists());
   assert!(!tmpfile.exists());
+}
+
+/// Downloads a file from `url` with Deno and stores it at `path`.
+fn download_with_deno<P: AsRef<std::ffi::OsStr>>(
+  url: &str,
+  path: P,
+) -> Option<std::process::ExitStatus> {
+  let deno_path = which("deno").ok()?;
+  println!("Downloading with Deno...");
+  Command::new(deno_path)
+    .arg("eval")
+    .arg(
+      "const [url, path] = Deno.args; \
+         const resp = await fetch(url); \
+         if (!resp.ok) Deno.exit(1); \
+         const file = await Deno.open(path, { write: true, create: true }); \
+         await resp.body.pipeTo(file.writable);",
+    )
+    // Note: `deno eval` runs with all permissions implicitly granted and does
+    // not accept `--allow-*` flags, so passing them here makes `deno eval`
+    // error out ("unexpected argument '--allow-net'") and the download
+    // silently falls back to Python/curl.
+    .arg("--")
+    .arg(url)
+    .arg(path)
+    .status()
+    .ok()
+    .filter(|s| s.success())
+}
+
+/// Downloads a file from `url` with Python and stores it at `path`.
+fn download_with_python<P: AsRef<std::ffi::OsStr>>(
+  url: &str,
+  path: P,
+) -> Option<std::process::ExitStatus> {
+  let python_path = python().ok()?;
+  println!("Downloading with Python...");
+  Command::new(python_path)
+    .arg("./tools/download_file.py")
+    .arg("--url")
+    .arg(url)
+    .arg("--filename")
+    .arg(path)
+    .status()
+    .ok()
+    .filter(|s| s.success())
+}
+
+/// Downloads a file from `url` with curl and stores it at `path`.
+fn download_with_curl<P: AsRef<std::ffi::OsStr>>(
+  url: &str,
+  path: P,
+) -> Option<std::process::ExitStatus> {
+  let curl_path = which("curl").ok()?;
+  println!("Downloading with curl...");
+  Command::new(curl_path)
+    .arg("-L")
+    .arg("-f")
+    .arg("-s")
+    .arg("-o")
+    .arg(path)
+    .arg(url)
+    .status()
+    .ok()
 }
 
 fn download_static_lib_binaries() {
@@ -1128,7 +1139,7 @@ fn clang_download() -> PathBuf {
   let clang_base_path = build_dir().join("clang");
   println!("clang_base_path (downloaded) {}", clang_base_path.display());
   assert!(
-    Command::new(python())
+    Command::new(python_or_die())
       .arg("./tools/clang/scripts/update.py")
       .arg("--output-dir")
       .arg(&clang_base_path)
@@ -1143,7 +1154,7 @@ fn clang_download() -> PathBuf {
   #[cfg(target_os = "windows")]
   if env::var_os("LIBCLANG_PATH").is_none() {
     assert!(
-      Command::new(python())
+      Command::new(python_or_die())
         .arg("./tools/clang/scripts/update.py")
         .arg("--output-dir")
         .arg(&clang_base_path)
@@ -1279,12 +1290,34 @@ fn gn() -> String {
   env::var("GN").unwrap_or_else(|_| "gn".to_owned())
 }
 
-/*
- * Get the system's python binary - specified via the PYTHON environment
- * variable or defaulting to `python3`.
- */
-fn python() -> String {
-  env::var("PYTHON").unwrap_or_else(|_| "python3".to_owned())
+/// Get the system's python binary in the following order
+/// 1. The `PYTHON` environment variable
+/// 2. Look for `python3` in `PATH`
+/// 3. Look for `python` in `PATH`
+///
+/// Returns `Err` if no Python binary could be found or the
+/// given path does not point to an executable.
+fn python() -> io::Result<PathBuf> {
+  if let Ok(python_path) = env::var("PYTHON") {
+    return which(python_path).map_err(|_| {
+      io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "Path in PYTHON environment variable does not point to an executable!",
+      )
+    });
+  }
+
+  which("python3").or_else(|_| which("python")).map_err(|_| {
+    io::Error::new(
+      io::ErrorKind::NotFound,
+      "Python executable not found in PATH!",
+    )
+  })
+}
+
+/// Helper function to get the systems python binary or panic if none could be found.
+fn python_or_die() -> PathBuf {
+  python().expect("Python must be available to build rusty_v8 from source!")
 }
 
 type NinjaEnv = Vec<(String, String)>;
@@ -1328,7 +1361,7 @@ fn run_gn_gen(gn_args: &[String]) -> PathBuf {
   assert!(
     Command::new(gn())
       .arg(format!("--root={}", dirs.root.display()))
-      .arg(format!("--script-executable={}", python()))
+      .arg(format!("--script-executable={}", python_or_die().display()))
       .arg("gen")
       .arg(&gn_out_dir)
       .arg("--ide=json")
