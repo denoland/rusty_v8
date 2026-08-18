@@ -8,6 +8,12 @@
 /target/
 /.cipd/
 
+# Checksum records written next to src bindings downloaded by build.rs.
+# The bindings themselves (gen/src_binding_*.rs) must NOT be ignored: the
+# publish CI job drops them into gen/ and `cargo publish` only packages
+# them because they are not gitignored.
+/gen/*.sum
+
 third_party/android_ndk
 third_party/android_platform
 third_party/catapult
