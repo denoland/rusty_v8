@@ -65,16 +65,19 @@ We default to release builds of `v8` due to performance & CI reasons in `deno`.
 
 ## Prebuilt artifacts
 
-A prebuilt build needs two artifacts, both published for every release on
+A prebuilt build needs two artifacts, published for every release on
 [GitHub](https://github.com/denoland/rusty_v8/releases):
 
 - the static library, `librusty_v8{features}_{profile}_{target}.a.gz`
   (`rusty_v8{features}_{profile}_{target}.lib.gz` on Windows), and
 - the generated binding file, `src_binding{features}_{profile}_{target}.rs`.
 
-`{profile}` is `release`, or `debug` when `V8_FORCE_DEBUG` is set (see above).
-`{features}` encodes the enabled crate features: empty, `_ptrcomp`, `_sandbox`,
-or `_ptrcomp_sandbox`. `{target}` is the Rust target triple.
+`{profile}` is `release`, or `debug` when `V8_FORCE_DEBUG` is set (see above);
+Windows prebuilts are always `release`. `{features}` encodes the enabled crate
+features: empty or `_ptrcomp` for the published artifacts. The experimental
+`_sandbox` / `_ptrcomp_sandbox` variants follow the same naming but are not
+published, so they need a custom archive or a source build (see Experimental
+Features below). `{target}` is the Rust target triple.
 
 Every environment variable below that is set to the empty string is treated as
 if it were unset.
@@ -99,9 +102,10 @@ list of URLs it tried. With a mirror configured, row 5 is only in the list when
 silently reaches the network.
 
 One asymmetry: the published crate ships the binding file under `gen/`, so a
-crates.io build uses that copy directly and only falls back to the candidate
-list when the file is missing (e.g. in a git checkout) or when an explicit URL,
-a mirror, or an archive directory says otherwise.
+crates.io build uses that copy directly, without fetching anything. The binding
+is only fetched — through rows 2–5 as usual — when the file is missing (e.g. in
+a git checkout) or when an explicit URL, a mirror, or an archive directory is
+configured.
 
 `<tag>` defaults to `v<version>` (the crate version). Set `RUSTY_V8_MIRROR_TAG`
 to override it; the value is used verbatim (no `v` is prepended), so

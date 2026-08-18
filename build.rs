@@ -108,7 +108,8 @@ fn main() {
   if is_trybuild {
     println!(
       "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
-      env::var("RUSTY_V8_SRC_BINDING_PATH").unwrap()
+      env_non_empty("RUSTY_V8_SRC_BINDING_PATH")
+        .expect("RUSTY_V8_SRC_BINDING_PATH must be set for DENO_TRYBUILD")
     );
     return;
   }
@@ -129,7 +130,9 @@ fn main() {
 
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
-    if pinned_archive_sha256().is_some() {
+    // Deliberately not `pinned_archive_sha256()`: the variable is a no-op
+    // here, so even a malformed value should warn rather than panic.
+    if env_non_empty("RUSTY_V8_ARCHIVE_SHA256").is_some() {
       println!(
         "cargo:warning=RUSTY_V8_ARCHIVE_SHA256 has no effect when \
          V8_FROM_SOURCE is set; V8 is compiled, not downloaded"
@@ -2389,16 +2392,19 @@ edge [fontsize=10]
 
   #[test]
   fn test_env_non_empty() {
-    // Unique name so parallel tests cannot race on the same variable.
-    let key = format!("RUSTY_V8_TEST_ENV_NON_EMPTY_{}", std::process::id());
-    assert_eq!(env_non_empty(&key), None);
+    // A key no other code reads, so no test observes it mid-change. set_var
+    // is still `unsafe` because it can race with unrelated getenv calls on
+    // other test threads; that narrow risk is accepted here rather than
+    // serializing the test suite.
+    let key = "RUSTY_V8_TEST_ENV_NON_EMPTY";
+    assert_eq!(env_non_empty(key), None);
     // A set-but-empty value counts as unset.
-    unsafe { env::set_var(&key, "") };
-    assert_eq!(env_non_empty(&key), None);
+    unsafe { env::set_var(key, "") };
+    assert_eq!(env_non_empty(key), None);
     // Any other value passes through untouched (no trimming).
-    unsafe { env::set_var(&key, " value ") };
-    assert_eq!(env_non_empty(&key), Some(" value ".to_string()));
-    unsafe { env::remove_var(&key) };
+    unsafe { env::set_var(key, " value ") };
+    assert_eq!(env_non_empty(key), Some(" value ".to_string()));
+    unsafe { env::remove_var(key) };
   }
 
   #[test]
