@@ -153,7 +153,10 @@ until the crate is built again with the variable unset.
 
 This variable takes precedence over `RUSTY_V8_ARCHIVE` and `RUSTY_V8_MIRROR`
 (the static library is not fetched from anywhere, not even from a local
-archive), and it has no effect on `V8_FROM_SOURCE=1` builds.
+archive), and it has no effect on `V8_FROM_SOURCE=1` builds. If the binding
+file cannot be fetched (for example, the configured mirror does not carry it)
+but a previously downloaded binding exists on disk, that file is reused with
+a warning instead of failing the build.
 
 ## Build V8 from Source
 
