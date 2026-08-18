@@ -28,6 +28,7 @@ unsafe extern "C" {
   ) -> *const Context;
   fn v8__Isolate__GetCurrent() -> *mut RealIsolate;
   fn v8__Context__Global(this: *const Context) -> *const Object;
+  fn v8__Context__DetachGlobal(this: *const Context);
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
   -> *const Object;
   fn v8__Context__GetNumberOfEmbedderDataFields(this: *const Context) -> u32;
@@ -143,11 +144,40 @@ impl Context {
     unsafe { scope.cast_local(|_| v8__Context__Global(self)) }.unwrap()
   }
 
+  /// Detaches this context's global proxy so the global object can be reused
+  /// to create a new context through [`ContextOptions::global_object`]. The new
+  /// context must use the same global template as this context. Calling this
+  /// method more than once has no additional effect.
+  ///
+  /// Detaching resets the context's security token to its default unique state,
+  /// revoking cross-context access previously granted through a shared token.
+  ///
+  /// This also disassociates the context from its microtask queue. Pending
+  /// microtasks associated with this context will not run.
+  ///
+  /// A reference previously returned by [`Self::get_microtask_queue`] does not
+  /// keep the queue alive. With the default `v8_cppgc_microtask_queue=true`,
+  /// detaching removes this context's contribution to keeping the queue alive
+  /// after its [`crate::MicrotaskQueueHandle`] has been dropped. The handle or
+  /// another associated context must keep the queue alive while using any such
+  /// reference.
+  #[inline(always)]
+  pub fn detach_global(&self) {
+    unsafe { v8__Context__DetachGlobal(self) }
+  }
+
   /// Returns the microtask queue associated with this context.
   ///
   /// Returns `None` if the context has no microtask queue, which is the case
   /// after its global object has been detached — detaching clears the native
   /// context's microtask queue pointer.
+  ///
+  /// The returned reference does not own or root the queue. If the context is
+  /// later detached with the default `v8_cppgc_microtask_queue=true`, the
+  /// context no longer keeps the queue alive after its
+  /// [`crate::MicrotaskQueueHandle`] has been dropped. Do not use a reference
+  /// obtained before detachment unless the handle or another associated
+  /// context still keeps the queue alive.
   #[inline(always)]
   pub fn get_microtask_queue(&self) -> Option<&MicrotaskQueue> {
     let queue = unsafe { v8__Context__GetMicrotaskQueue(self) };

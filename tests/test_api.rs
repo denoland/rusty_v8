@@ -13459,6 +13459,121 @@ fn microtask_queue_new() {
 }
 
 #[test]
+fn context_detach_global_reuses_global_object() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let scope = scope.init();
+  let global_template = v8::ObjectTemplate::new(&scope);
+  let context = v8::Context::new(
+    &scope,
+    v8::ContextOptions {
+      global_template: Some(global_template),
+      ..Default::default()
+    },
+  );
+  let global_object = context.global(&scope);
+
+  context.detach_global();
+  let reused_context = v8::Context::new(
+    &scope,
+    v8::ContextOptions {
+      global_template: Some(global_template),
+      global_object: Some(global_object.into()),
+      ..Default::default()
+    },
+  );
+
+  assert_eq!(global_object, reused_context.global(&scope));
+}
+
+#[test]
+#[should_panic(
+  expected = "cannot set a microtask queue on a context whose global object has been detached"
+)]
+fn context_set_microtask_queue_panics_after_detach() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let queue =
+    v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Explicit);
+  let context = v8::Context::new(&scope, Default::default());
+
+  context.detach_global();
+  context.set_microtask_queue(queue.as_ref());
+}
+
+#[test]
+fn context_detach_global_cancels_its_microtasks() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let queue =
+    v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Explicit);
+
+  let detached_context = v8::Context::new(&scope, Default::default());
+  detached_context.set_microtask_queue(queue.as_ref());
+  let active_context = v8::Context::new(&scope, Default::default());
+  active_context.set_microtask_queue(queue.as_ref());
+
+  static DETACHED_CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  static ACTIVE_CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+  DETACHED_CALL_COUNT.store(0, Ordering::SeqCst);
+  ACTIVE_CALL_COUNT.store(0, Ordering::SeqCst);
+
+  {
+    let mut context_scope = v8::ContextScope::new(&mut scope, detached_context);
+    let task = v8::Function::new(
+      &mut context_scope,
+      |_: &mut v8::PinScope,
+       _: v8::FunctionCallbackArguments,
+       _: v8::ReturnValue<v8::Value>| {
+        DETACHED_CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      },
+    )
+    .unwrap();
+    queue.enqueue_microtask(&mut context_scope, task);
+  }
+  let active_task = {
+    let mut context_scope = v8::ContextScope::new(&mut scope, active_context);
+    let task = v8::Function::new(
+      &mut context_scope,
+      |_: &mut v8::PinScope,
+       _: v8::FunctionCallbackArguments,
+       _: v8::ReturnValue<v8::Value>| {
+        ACTIVE_CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      },
+    )
+    .unwrap();
+    queue.enqueue_microtask(&mut context_scope, task);
+    task
+  };
+
+  detached_context.detach_global();
+  assert!(detached_context.get_microtask_queue().is_none());
+  {
+    let mut context_scope = v8::ContextScope::new(&mut scope, active_context);
+    queue.perform_checkpoint(&mut context_scope);
+  }
+
+  assert_eq!(DETACHED_CALL_COUNT.load(Ordering::SeqCst), 0);
+  assert_eq!(ACTIVE_CALL_COUNT.load(Ordering::SeqCst), 1);
+
+  {
+    let mut context_scope = v8::ContextScope::new(&mut scope, active_context);
+    queue.enqueue_microtask(&mut context_scope, active_task);
+    queue.perform_checkpoint(&mut context_scope);
+  }
+  assert_eq!(DETACHED_CALL_COUNT.load(Ordering::SeqCst), 0);
+  assert_eq!(ACTIVE_CALL_COUNT.load(Ordering::SeqCst), 2);
+}
+
+#[test]
 fn clear_slots_annex_uninitialized() {
   let _setup_guard = setup::parallel_test();
   let mut isolate = v8::Isolate::new(Default::default());

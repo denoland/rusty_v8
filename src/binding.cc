@@ -2216,6 +2216,10 @@ const v8::Object* v8__Context__Global(const v8::Context& self) {
   return local_to_ptr(ptr_to_local(&self)->Global());
 }
 
+void v8__Context__DetachGlobal(v8::Context& self) {
+  ptr_to_local(&self)->DetachGlobal();
+}
+
 uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
   return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
 }
