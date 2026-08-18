@@ -133,6 +133,22 @@ for REL in v152.1.0 v152.0.0; do
 done
 ```
 
+## The `~/.cargo/.rusty_v8` download cache
+
+Before downloading an artifact, the build script looks for a copy in the
+`.rusty_v8` directory inside your Cargo home (usually `~/.cargo/.rusty_v8`).
+Entries are keyed on the release tag plus the artifact filename, with every
+non-alphanumeric character replaced by `_` — for example
+`v152.1.0/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz` becomes
+`v152_1_0_librusty_v8_release_x86_64_unknown_linux_gnu_a_gz`. The escaped
+full source URL, the key used by older versions of the build script, is
+still checked as a fallback, so existing caches keep working.
+
+Because the key does not include the source, a cache entry populated for one
+mirror also satisfies a build configured for a different mirror (or for the
+upstream release) under the same tag. If you need the archive bytes
+themselves verified, pin them with `RUSTY_V8_ARCHIVE_SHA256` (below).
+
 ## The `RUSTY_V8_ARCHIVE` environment variable
 
 Tell the build script to use a specific v8 library. This can be an URL or a
@@ -145,9 +161,12 @@ cargo build
 
 The value may also name a directory, in which case the expected artifact
 filename (e.g. `librusty_v8_release_x86_64-unknown-linux-gnu.a.gz`, gzipped
-or plain) is looked up inside it. A directory is also consulted for the
-generated `src_binding` file, ahead of the mirror and the upstream release,
-so a directory of downloaded release assets covers both artifacts:
+or plain) is looked up inside it. A directory is also the authoritative
+source for the generated `src_binding` file: it is never fetched from the
+mirror or the upstream release, so an offline setup that configured only the
+directory never reaches the network. If the directory lacks the binding, a
+usable binding left on disk by a previous build is reused with a warning;
+otherwise the build fails:
 
 ```bash
 export RUSTY_V8_ARCHIVE=/path/to/downloaded/artifacts
@@ -155,7 +174,8 @@ cargo build
 ```
 
 Set `RUSTY_V8_ARCHIVE_SHA256` to the SHA-256 of the archive to pin its
-content; the build fails if the downloaded or cached archive does not match.
+content. A cached or previously downloaded archive that does not match is
+re-fetched, and the build fails if the fresh download does not match either.
 The pin covers the archive bytes as fetched, i.e. what `sha256sum` reports
 on the `.gz` release asset (or on the plain file when the archive is not
 gzipped). Independently of the pin, the build script records the SHA-256 of

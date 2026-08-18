@@ -931,6 +931,8 @@ fn resolve_binding_source(
   path: Option<String>,
   url: Option<String>,
 ) -> BindingSource {
+  // A set-but-empty URL counts as unset, like the boolean toggles.
+  let url = url.filter(|url| !url.is_empty());
   match (path, url) {
     (Some(path), _) => BindingSource::Path(path),
     (None, Some(url)) => BindingSource::Url(url),
@@ -1227,9 +1229,10 @@ fn verify_pinned_source(
 
 /// Decide whether an artifact left behind by a previous build can be reused,
 /// by checking its recorded SHA-256 against the file on disk. Returns false
-/// to force a re-download. Records made before hashes were kept (or by older
-/// versions of this script) are adopted: the current content is hashed and
-/// recorded so later builds can detect corruption.
+/// to force a re-download. Records made before hashes were kept (by older
+/// versions of this script) also force a re-download: adopting the on-disk
+/// bytes as truth would grandfather in pre-existing corruption forever,
+/// while one fresh download records a hash actually tied to the source.
 fn verify_recorded_artifact(
   filename: &Path,
   recorded: &ArtifactChecksum,
@@ -1258,17 +1261,11 @@ fn verify_recorded_artifact(
       }
     }
     None => {
-      if let Ok(actual) = sha256_hex_of_file(filename) {
-        write_checksum(
-          &static_checksum_path(filename),
-          &ArtifactChecksum {
-            url: recorded.url.clone(),
-            archive_sha256: recorded.archive_sha256.clone(),
-            sha256: Some(actual),
-          },
-        );
-      }
-      true
+      println!(
+        "No SHA-256 recorded for {}; re-fetching",
+        filename.display()
+      );
+      false
     }
   }
 }
@@ -1752,12 +1749,22 @@ fn print_prebuilt_src_binding_path() {
 
   let src_binding_path = get_dirs().root.join("gen").join(name.clone());
 
+  // A RUSTY_V8_ARCHIVE directory holds release assets by filename, so it is
+  // the authoritative source for the binding too: no mirror/upstream
+  // fallback, so an offline setup that configured only the directory never
+  // silently reaches the network.
+  let archive_dir = env::var("RUSTY_V8_ARCHIVE")
+    .ok()
+    .filter(|archive| Path::new(archive).is_dir());
+
   // The generated binding ships in the published crate under `gen/`. Download
-  // it when an explicit URL or a mirror is configured, or when the file does
-  // not exist (e.g. a git checkout), so a missing binding surfaces as a build
-  // script error rather than a confusing `include!` failure.
+  // it when an explicit URL, a mirror, or an archive directory is
+  // configured, or when the file does not exist (e.g. a git checkout), so a
+  // missing binding surfaces as a build script error rather than a confusing
+  // `include!` failure.
   if !matches!(source, BindingSource::Candidates)
     || env::var("RUSTY_V8_MIRROR").is_ok()
+    || archive_dir.is_some()
     || !src_binding_path.exists()
   {
     if let Some(parent) = src_binding_path.parent() {
@@ -1767,25 +1774,21 @@ fn print_prebuilt_src_binding_path() {
     }
     // RUSTY_V8_SRC_BINDING_URL short-circuits the candidates, mirroring
     // RUSTY_V8_ARCHIVE for the static lib.
-    let (urls, cache_key) = match &source {
-      BindingSource::Url(url) => (vec![url.clone()], None),
-      _ => {
-        let mut urls = Vec::new();
-        // A RUSTY_V8_ARCHIVE directory holds release assets by filename, so
-        // look the binding up there too, ahead of the usual candidates.
-        if let Ok(archive) = env::var("RUSTY_V8_ARCHIVE")
-          && Path::new(&archive).is_dir()
-        {
-          urls.push(
-            Path::new(&archive)
-              .join(&name)
-              .to_string_lossy()
-              .into_owned(),
-          );
-        }
-        urls.extend(artifact_url_candidates(&name));
-        (urls, Some(artifact_cache_key(&name)))
-      }
+    let (urls, cache_key) = match (&source, &archive_dir) {
+      (BindingSource::Url(url), _) => (vec![url.clone()], None),
+      (_, Some(archive)) => (
+        vec![
+          Path::new(archive)
+            .join(&name)
+            .to_string_lossy()
+            .into_owned(),
+        ],
+        None,
+      ),
+      _ => (
+        artifact_url_candidates(&name),
+        Some(artifact_cache_key(&name)),
+      ),
     };
     if let Err(error) = try_download_artifact(
       &urls,
@@ -1795,13 +1798,16 @@ fn print_prebuilt_src_binding_path() {
     ) {
       // Under RUSTY_V8_SKIP_DOWNLOAD a stale-but-usable binding beats a
       // failed refresh: dev contexts pointed at an incomplete mirror still
-      // need `cargo check` to pass. A failed fetch never truncates the
-      // existing file (downloads land in a scratch file that is only renamed
-      // into place on success).
-      if env_bool("RUSTY_V8_SKIP_DOWNLOAD") && src_binding_path.exists() {
+      // need `cargo check` to pass. The same applies to an archive
+      // directory that lacks the binding file. A failed fetch never
+      // truncates the existing file (downloads land in a scratch file that
+      // is only renamed into place on success).
+      if (env_bool("RUSTY_V8_SKIP_DOWNLOAD") || archive_dir.is_some())
+        && src_binding_path.exists()
+      {
         println!(
-          "cargo:warning=RUSTY_V8_SKIP_DOWNLOAD is set; could not refresh \
-           the src binding, using the existing {} as-is (it may be stale)",
+          "cargo:warning=could not refresh the src binding, using the \
+           existing {} as-is (it may be stale)",
           src_binding_path.display()
         );
       } else {
@@ -2371,6 +2377,11 @@ edge [fontsize=10]
       resolve_binding_source(None, None),
       BindingSource::Candidates
     );
+    // A set-but-empty URL counts as unset.
+    assert_eq!(
+      resolve_binding_source(None, Some(String::new())),
+      BindingSource::Candidates
+    );
   }
 
   #[test]
@@ -2496,12 +2507,10 @@ edge [fontsize=10]
       None
     ));
 
-    // A legacy record without a hash is reused and upgraded in place.
-    fs::write(&path, b"abc").unwrap();
-    let _ = fs::remove_file(static_checksum_path(&path));
-    assert!(verify_recorded_artifact(&path, &record(None), None));
-    let upgraded = read_checksum(&static_checksum_path(&path)).unwrap();
-    assert_eq!(upgraded.sha256, Some(abc_hash.to_string()));
+    // A legacy record without a hash forces a re-fetch: the on-disk bytes
+    // are not adopted as truth, so pre-existing corruption cannot be
+    // grandfathered in.
+    assert!(!verify_recorded_artifact(&path, &record(None), None));
 
     // A pinned archive hash cannot be checked against a record without one.
     assert!(!verify_recorded_artifact(
