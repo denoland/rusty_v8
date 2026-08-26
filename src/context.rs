@@ -155,14 +155,15 @@ impl Context {
   /// This also disassociates the context from its microtask queue. Pending
   /// microtasks associated with this context will not run.
   ///
-  /// A reference previously returned by [`Self::get_microtask_queue`] does not
-  /// keep the queue alive. With the default `v8_cppgc_microtask_queue=true`,
-  /// detaching removes this context's contribution to keeping the queue alive
-  /// after its [`crate::MicrotaskQueueHandle`] has been dropped. The handle or
-  /// another associated context must keep the queue alive while using any such
-  /// reference.
+  /// # Safety
+  ///
+  /// Any reference previously returned by [`Self::get_microtask_queue`] must
+  /// not be used after this call unless a [`crate::MicrotaskQueueHandle`] or
+  /// another associated context keeps that queue alive. With the default
+  /// `v8_cppgc_microtask_queue=true`, detaching can otherwise allow the queue
+  /// to be reclaimed while such a reference still exists.
   #[inline(always)]
-  pub fn detach_global(&self) {
+  pub unsafe fn detach_global(&self) {
     unsafe { v8__Context__DetachGlobal(self) }
   }
 

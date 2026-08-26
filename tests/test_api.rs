@@ -13475,7 +13475,8 @@ fn context_detach_global_reuses_global_object() {
   );
   let global_object = context.global(&scope);
 
-  context.detach_global();
+  // SAFETY: No reference to the context's microtask queue is retained.
+  unsafe { context.detach_global() };
   let reused_context = v8::Context::new(
     &scope,
     v8::ContextOptions {
@@ -13502,7 +13503,8 @@ fn context_set_microtask_queue_panics_after_detach() {
     v8::MicrotaskQueue::new(&mut scope, v8::MicrotasksPolicy::Explicit);
   let context = v8::Context::new(&scope, Default::default());
 
-  context.detach_global();
+  // SAFETY: No reference to the context's microtask queue is retained.
+  unsafe { context.detach_global() };
   context.set_microtask_queue(queue.as_ref());
 }
 
@@ -13554,7 +13556,8 @@ fn context_detach_global_cancels_its_microtasks() {
     task
   };
 
-  detached_context.detach_global();
+  // SAFETY: `queue` roots the shared microtask queue for the rest of the test.
+  unsafe { detached_context.detach_global() };
   assert!(detached_context.get_microtask_queue().is_none());
   {
     let mut context_scope = v8::ContextScope::new(&mut scope, active_context);
