@@ -108,7 +108,8 @@ fn main() {
   if is_trybuild {
     println!(
       "cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={}",
-      env::var("RUSTY_V8_SRC_BINDING_PATH").unwrap()
+      env_non_empty("RUSTY_V8_SRC_BINDING_PATH")
+        .expect("RUSTY_V8_SRC_BINDING_PATH must be set for DENO_TRYBUILD")
     );
     return;
   }
@@ -129,6 +130,14 @@ fn main() {
 
   // Build from source
   if env_bool("V8_FROM_SOURCE") {
+    // Deliberately not `pinned_archive_sha256()`: the variable is a no-op
+    // here, so even a malformed value should warn rather than panic.
+    if env_non_empty("RUSTY_V8_ARCHIVE_SHA256").is_some() {
+      println!(
+        "cargo:warning=RUSTY_V8_ARCHIVE_SHA256 has no effect when \
+         V8_FROM_SOURCE is set; V8 is compiled, not downloaded"
+      );
+    }
     if is_asan && env::var_os("OPT_LEVEL").unwrap_or_default() == "0" {
       panic!(
         "v8 crate cannot be compiled with OPT_LEVEL=0 and ASAN.\nTry `[profile.dev.package.v8] opt-level = 1`.\nAborting before miscompilations cause issues."
@@ -231,7 +240,7 @@ fn build_binding() {
     clang_args.push(sdk_path.trim().to_string());
   } else if target_os == "linux" {
     // Add clang resource directory for builtin headers (stddef.h, etc)
-    let resource_dir = env::var("RUSTY_V8_BINDGEN_RESOURCE_DIR").ok();
+    let resource_dir = env_non_empty("RUSTY_V8_BINDGEN_RESOURCE_DIR");
     if resource_dir.is_none()
       && let Ok(libclang_path) = env::var("LIBCLANG_PATH")
     {
@@ -251,8 +260,8 @@ fn build_binding() {
     // Cargo's triple (from $TARGET), but target headers may not be installed in
     // the host's search paths.
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
-    let musl_sysroot = env::var("RUSTY_V8_MUSL_SYSROOT").ok();
-    let glibc_prefix = env::var("RUSTY_V8_GLIBC_PREFIX").ok();
+    let musl_sysroot = env_non_empty("RUSTY_V8_MUSL_SYSROOT");
+    let glibc_prefix = env_non_empty("RUSTY_V8_GLIBC_PREFIX");
     clang_args.extend(explicit_linux_bindgen_args(
       &target_env,
       resource_dir.as_deref(),
@@ -575,7 +584,7 @@ fn build_v8(is_asan: bool) {
 
     // Cross-compiling on a glibc host needs a musl sysroot for the target's
     // headers/libs. Native musl builds (e.g. on Alpine) can leave this unset.
-    if let Ok(sysroot) = env::var("RUSTY_V8_MUSL_SYSROOT") {
+    if let Some(sysroot) = env_non_empty("RUSTY_V8_MUSL_SYSROOT") {
       gn_args.push(format!("target_sysroot=\"{sysroot}\""));
     }
   }
@@ -875,7 +884,7 @@ fn candidate_urls(
 /// [`candidate_urls`] with all inputs read from the environment.
 fn artifact_url_candidates(file: &str) -> Vec<String> {
   let version = env::var("CARGO_PKG_VERSION").unwrap();
-  let tag_override = env::var("RUSTY_V8_MIRROR_TAG").ok();
+  let tag_override = env_non_empty("RUSTY_V8_MIRROR_TAG");
   let tag = resolved_tag(tag_override.as_deref(), &version);
   let target = env::var("TARGET").unwrap();
   let features = prebuilt_features_suffix();
@@ -887,7 +896,7 @@ fn artifact_url_candidates(file: &str) -> Vec<String> {
     features: &features,
     file,
   };
-  let mirror = env::var("RUSTY_V8_MIRROR").ok();
+  let mirror = env_non_empty("RUSTY_V8_MIRROR");
   let fallback = env_bool("RUSTY_V8_MIRROR_FALLBACK");
   if mirror.is_some() && !fallback {
     println!(
@@ -931,8 +940,7 @@ fn resolve_binding_source(
   path: Option<String>,
   url: Option<String>,
 ) -> BindingSource {
-  // A set-but-empty URL counts as unset, like the boolean toggles.
-  let url = url.filter(|url| !url.is_empty());
+  // Callers normalize via [`env_non_empty`]: set-but-empty counts as unset.
   match (path, url) {
     (Some(path), _) => BindingSource::Path(path),
     (None, Some(url)) => BindingSource::Url(url),
@@ -947,7 +955,7 @@ fn resolve_binding_source(
 fn artifact_cache_key(file: &str) -> String {
   let version = env::var("CARGO_PKG_VERSION").unwrap();
   let tag =
-    resolved_tag(env::var("RUSTY_V8_MIRROR_TAG").ok().as_deref(), &version);
+    resolved_tag(env_non_empty("RUSTY_V8_MIRROR_TAG").as_deref(), &version);
   format!("{tag}/{file}")
 }
 
@@ -1196,10 +1204,7 @@ fn write_checksum(path: &Path, checksum: &ArtifactChecksum) {
 /// release asset, or on the plain file when the source is not gzipped.
 /// A set-but-empty variable counts as unset, like the boolean toggles.
 fn pinned_archive_sha256() -> Option<String> {
-  let value = env::var("RUSTY_V8_ARCHIVE_SHA256").ok()?;
-  if value.is_empty() {
-    return None;
-  }
+  let value = env_non_empty("RUSTY_V8_ARCHIVE_SHA256")?;
   if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
     panic!(
       "RUSTY_V8_ARCHIVE_SHA256 must be 64 hexadecimal characters, got {value:?}"
@@ -1318,7 +1323,7 @@ fn try_download_artifact(
   }
   // A configured mirror fails closed: mention the opt-in that would have
   // allowed falling back to the upstream release.
-  let fallback_hint = if env::var("RUSTY_V8_MIRROR").is_ok()
+  let fallback_hint = if env_non_empty("RUSTY_V8_MIRROR").is_some()
     && !env_bool("RUSTY_V8_MIRROR_FALLBACK")
   {
     " Set RUSTY_V8_MIRROR_FALLBACK=1 to fall back to the upstream GitHub \
@@ -1556,7 +1561,7 @@ fn download_static_lib_binaries() {
   // expected artifact filename in. The cargo-home cache is only keyed for
   // candidate URLs, not for explicit overrides.
   let (urls, cache_key) =
-    if let Ok(custom_archive) = env::var("RUSTY_V8_ARCHIVE") {
+    if let Some(custom_archive) = env_non_empty("RUSTY_V8_ARCHIVE") {
       (archive_urls(&custom_archive, &gz_name, &lib_name), None)
     } else {
       (
@@ -1734,8 +1739,8 @@ fn print_link_flags() {
 
 fn print_prebuilt_src_binding_path() {
   let source = resolve_binding_source(
-    env::var("RUSTY_V8_SRC_BINDING_PATH").ok(),
-    env::var("RUSTY_V8_SRC_BINDING_URL").ok(),
+    env_non_empty("RUSTY_V8_SRC_BINDING_PATH"),
+    env_non_empty("RUSTY_V8_SRC_BINDING_URL"),
   );
   if let BindingSource::Path(binding) = source {
     println!("cargo:rustc-env=RUSTY_V8_SRC_BINDING_PATH={binding}");
@@ -1753,8 +1758,7 @@ fn print_prebuilt_src_binding_path() {
   // the authoritative source for the binding too: no mirror/upstream
   // fallback, so an offline setup that configured only the directory never
   // silently reaches the network.
-  let archive_dir = env::var("RUSTY_V8_ARCHIVE")
-    .ok()
+  let archive_dir = env_non_empty("RUSTY_V8_ARCHIVE")
     .filter(|archive| Path::new(archive).is_dir());
 
   // The generated binding ships in the published crate under `gen/`. Download
@@ -1763,7 +1767,7 @@ fn print_prebuilt_src_binding_path() {
   // missing binding surfaces as a build script error rather than a confusing
   // `include!` failure.
   if !matches!(source, BindingSource::Candidates)
-    || env::var("RUSTY_V8_MIRROR").is_ok()
+    || env_non_empty("RUSTY_V8_MIRROR").is_some()
     || archive_dir.is_some()
     || !src_binding_path.exists()
   {
@@ -2187,6 +2191,13 @@ fn env_bool(key: &str) -> bool {
   )
 }
 
+/// Read an environment variable, treating a set-but-empty value as unset --
+/// so e.g. `RUSTY_V8_MIRROR="" cargo build` behaves like no mirror at all
+/// instead of deriving broken URLs from the empty string.
+fn env_non_empty(key: &str) -> Option<String> {
+  env::var(key).ok().filter(|value| !value.is_empty())
+}
+
 #[cfg(test)]
 mod test {
   use super::*;
@@ -2377,11 +2388,23 @@ edge [fontsize=10]
       resolve_binding_source(None, None),
       BindingSource::Candidates
     );
-    // A set-but-empty URL counts as unset.
-    assert_eq!(
-      resolve_binding_source(None, Some(String::new())),
-      BindingSource::Candidates
-    );
+  }
+
+  #[test]
+  fn test_env_non_empty() {
+    // A key no other code reads, so no test observes it mid-change. set_var
+    // is still `unsafe` because it can race with unrelated getenv calls on
+    // other test threads; that narrow risk is accepted here rather than
+    // serializing the test suite.
+    let key = "RUSTY_V8_TEST_ENV_NON_EMPTY";
+    assert_eq!(env_non_empty(key), None);
+    // A set-but-empty value counts as unset.
+    unsafe { env::set_var(key, "") };
+    assert_eq!(env_non_empty(key), None);
+    // Any other value passes through untouched (no trimming).
+    unsafe { env::set_var(key, " value ") };
+    assert_eq!(env_non_empty(key), Some(" value ".to_string()));
+    unsafe { env::remove_var(key) };
   }
 
   #[test]

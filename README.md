@@ -63,56 +63,87 @@ use a debug build of `v8` set `V8_FORCE_DEBUG=true`.
 
 We default to release builds of `v8` due to performance & CI reasons in `deno`.
 
-## The `RUSTY_V8_MIRROR` environment variable
+## Prebuilt artifacts
+
+A prebuilt build needs two artifacts, published for every release on
+[GitHub](https://github.com/denoland/rusty_v8/releases):
+
+- the static library, `librusty_v8{features}_{profile}_{target}.a.gz`
+  (`rusty_v8{features}_{profile}_{target}.lib.gz` on Windows), and
+- the generated binding file, `src_binding{features}_{profile}_{target}.rs`.
+
+`{profile}` is `release`, or `debug` when `V8_FORCE_DEBUG` is set (see above);
+Windows prebuilts are always `release`. `{features}` encodes the enabled crate
+features: empty or `_ptrcomp` for the published artifacts. The experimental
+`_sandbox` / `_ptrcomp_sandbox` variants follow the same naming but are not
+published, so they need a custom archive or a source build (see Experimental
+Features below). `{target}` is the Rust target triple.
+
+Every environment variable below that is set to the empty string is treated as
+if it were unset.
+
+### Resolution order
+
+For each artifact the build script uses the first source that applies:
+
+| #   | Static library                                                                                     | `src_binding` file                                                               |
+| --- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1   | `RUSTY_V8_SKIP_DOWNLOAD=1`: not fetched at all                                                     | `RUSTY_V8_SRC_BINDING_PATH`: local file, used in place                           |
+| 2   | `RUSTY_V8_ARCHIVE`: one URL/path, or a directory                                                   | `RUSTY_V8_SRC_BINDING_URL`: one URL/path; or a directory-form `RUSTY_V8_ARCHIVE` |
+| 3   | the mirror, if `RUSTY_V8_MIRROR` is set: `<base>/<tag>/<file>`, or the expanded template           | same                                                                             |
+| 4   | filesystem (non-template) mirrors only: the flat layout `<base>/<file>`                            | same                                                                             |
+| 5   | the upstream GitHub release, `https://github.com/denoland/rusty_v8/releases/download/<tag>/<file>` | same                                                                             |
+
+Rows 1 and 2 are short-circuits: when one applies, nothing below it is consulted
+for that artifact. Rows 3–5 form the candidate list: every applicable candidate
+is tried in order, and if all of them fail the build script panics with the full
+list of URLs it tried. With a mirror configured, row 5 is only in the list when
+`RUSTY_V8_MIRROR_FALLBACK=1` is set: a mirror fails closed by default and never
+silently reaches the network.
+
+One asymmetry: the published crate ships the binding file under `gen/`, so a
+crates.io build uses that copy directly, without fetching anything. The binding
+is only fetched — through rows 2–5 as usual — when the file is missing (e.g. in
+a git checkout) or when an explicit URL, a mirror, or an archive directory is
+configured.
+
+`<tag>` defaults to `v<version>` (the crate version). Set `RUSTY_V8_MIRROR_TAG`
+to override it; the value is used verbatim (no `v` is prepended), so
+`RUSTY_V8_MIRROR_TAG=v152.0.0 cargo build` fetches the artifacts of the last
+published release when building a checkout whose `Cargo.toml` version is
+unpublished. The tag override applies to mirror URLs, the upstream release URL,
+and the download-cache key — but not to `RUSTY_V8_ARCHIVE` or the binding
+path/URL overrides, which name their artifact directly.
+
+### The `RUSTY_V8_MIRROR` environment variable
 
 Tells the build script where to get binary builds from. Understands `http://`
 and `https://` URLs, and file paths. The default is
 https://github.com/denoland/rusty_v8/releases.
 
-For every artifact (the static lib and the generated `src_binding` file), the
-build script tries an ordered list of locations and uses the first one that
-works:
-
-1. `RUSTY_V8_ARCHIVE` (static lib) or `RUSTY_V8_SRC_BINDING_URL` (binding
-   file), if set; either short-circuits everything else for its artifact.
-2. The mirror, if `RUSTY_V8_MIRROR` is set. A plain base is expanded to
-   `<base>/<tag>/<file>`; a value containing `{` placeholders is treated as a
-   full URL template (see below).
-3. For plain filesystem mirrors only: the flat layout `<base>/<file>`, so a
-   directory of downloaded artifacts works without tag subdirectories.
-4. The upstream GitHub release,
-   `https://github.com/denoland/rusty_v8/releases/download/<tag>/<file>`.
-   With a mirror configured this is only tried when
-   `RUSTY_V8_MIRROR_FALLBACK=1` is set: a mirror fails closed by default and
-   never silently reaches the network.
-
-If every candidate fails, the build script panics with the full list of URLs
-it tried.
-
-`<tag>` defaults to `v<version>` (the crate version). Set
-`RUSTY_V8_MIRROR_TAG` to override it; the value is used verbatim (no `v` is
-prepended), so `RUSTY_V8_MIRROR_TAG=v152.0.0 cargo build` fetches the
-artifacts of the last published release when building a checkout whose
-`Cargo.toml` version is unpublished.
-
-If the `RUSTY_V8_MIRROR` value contains a `{` placeholder, the whole value is
-used as a URL template instead of a base. Supported placeholders: `{tag}`,
-`{version}` (no `v` prefix), `{target}`, `{profile}` (`release`/`debug`),
-`{features}` (e.g. `_ptrcomp`), and `{file}` (the full artifact filename).
-For example:
+A plain value is a base, expanded to `<base>/<tag>/<file>`. A value containing a
+`{` placeholder is instead treated as a full URL template. Supported
+placeholders: `{tag}`, `{version}` (no `v` prefix), `{target}`, `{profile}`
+(`release`/`debug`), `{features}` (e.g. `_ptrcomp`), and `{file}` (the full
+artifact filename). For example:
 
     export RUSTY_V8_MIRROR=https://example.com/rusty_v8/{version}/{file}
 
-Set `RUSTY_V8_MIRROR_FALLBACK=1` to fall back to the upstream GitHub release
-when the mirror is missing an artifact, e.g. for partially populated caches.
+Filesystem mirrors (plain, non-template values that are paths) additionally try
+the flat layout `<base>/<file>`, so a directory of downloaded artifacts works
+without tag subdirectories.
 
-File-based mirrors are good for using cached downloads. First, point the
+Set `RUSTY_V8_MIRROR_FALLBACK=1` to fall back to the upstream GitHub release
+when the mirror is missing an artifact, e.g. for partially populated mirrors.
+Without it, a configured mirror that misses fails the build.
+
+File-based mirrors are good for offline or repeated builds. First, point the
 environment variable to a suitable location:
 
     # you might want to add this to your .bashrc
     $ export RUSTY_V8_MIRROR=$HOME/.cache/rusty_v8
 
-Then populate the cache:
+Then populate the mirror:
 
 ```bash
 #!/bin/bash
@@ -133,26 +164,11 @@ for REL in v152.1.0 v152.0.0; do
 done
 ```
 
-## The `~/.cargo/.rusty_v8` download cache
+### The `RUSTY_V8_ARCHIVE` environment variable
 
-Before downloading an artifact, the build script looks for a copy in the
-`.rusty_v8` directory inside your Cargo home (usually `~/.cargo/.rusty_v8`).
-Entries are keyed on the release tag plus the artifact filename, with every
-non-alphanumeric character replaced by `_` — for example
-`v152.1.0/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz` becomes
-`v152_1_0_librusty_v8_release_x86_64_unknown_linux_gnu_a_gz`. The escaped
-full source URL, the key used by older versions of the build script, is
-still checked as a fallback, so existing caches keep working.
-
-Because the key does not include the source, a cache entry populated for one
-mirror also satisfies a build configured for a different mirror (or for the
-upstream release) under the same tag. If you need the archive bytes
-themselves verified, pin them with `RUSTY_V8_ARCHIVE_SHA256` (below).
-
-## The `RUSTY_V8_ARCHIVE` environment variable
-
-Tell the build script to use a specific v8 library. This can be an URL or a
-path. This is useful when you have a prebuilt archive somewhere:
+Tells the build script to use a specific v8 library, skipping the mirror and
+upstream candidates entirely. The value can be a URL or a path. This is useful
+when you have a prebuilt archive somewhere:
 
 ```bash
 export RUSTY_V8_ARCHIVE=/path/to/custom_archive.a
@@ -160,51 +176,81 @@ cargo build
 ```
 
 The value may also name a directory, in which case the expected artifact
-filename (e.g. `librusty_v8_release_x86_64-unknown-linux-gnu.a.gz`, gzipped
-or plain) is looked up inside it. A directory is also the authoritative
-source for the generated `src_binding` file: it is never fetched from the
-mirror or the upstream release, so an offline setup that configured only the
-directory never reaches the network. If the directory lacks the binding, a
-usable binding left on disk by a previous build is reused with a warning;
-otherwise the build fails:
+filename (e.g. `librusty_v8_release_x86_64-unknown-linux-gnu.a.gz`, gzipped or
+plain) is looked up inside it. A directory is also the authoritative source for
+the `src_binding` file (under its release filename): the binding is then never
+fetched from the mirror or the upstream release, so an offline setup that
+configured only the directory never reaches the network. If the directory lacks
+the binding, a usable binding left on disk by a previous build is reused with a
+warning; otherwise the build fails:
 
 ```bash
 export RUSTY_V8_ARCHIVE=/path/to/downloaded/artifacts
 cargo build
 ```
 
-Set `RUSTY_V8_ARCHIVE_SHA256` to the SHA-256 of the archive to pin its
-content. A cached or previously downloaded archive that does not match is
-re-fetched, and the build fails if the fresh download does not match either.
-The pin covers the archive bytes as fetched, i.e. what `sha256sum` reports
-on the `.gz` release asset (or on the plain file when the archive is not
-gzipped). Independently of the pin, the build script records the SHA-256 of
-every downloaded artifact and re-fetches it if the file on disk no longer
-matches.
+### The `RUSTY_V8_SRC_BINDING_PATH` and `RUSTY_V8_SRC_BINDING_URL` environment variables
 
-## The `RUSTY_V8_SRC_BINDING_PATH` and `RUSTY_V8_SRC_BINDING_URL` environment variables
+`RUSTY_V8_SRC_BINDING_PATH` points the build at a local binding file that is
+used directly, with no download at all. `RUSTY_V8_SRC_BINDING_URL` instead gives
+a URL or path to fetch the binding from, mirroring what `RUSTY_V8_ARCHIVE` does
+for the static library. If both are set, `RUSTY_V8_SRC_BINDING_PATH` wins.
 
-The build also needs a generated `src_binding_..._<target>.rs` file, published
-alongside the static library. `RUSTY_V8_SRC_BINDING_PATH` points the build at
-a local binding file that is used directly, with no download at all.
-`RUSTY_V8_SRC_BINDING_URL` instead gives a URL or path to fetch the binding
-from, mirroring what `RUSTY_V8_ARCHIVE` does for the static library. If both
-are set, `RUSTY_V8_SRC_BINDING_PATH` wins.
+### The `RUSTY_V8_SKIP_DOWNLOAD` environment variable
 
-## The `RUSTY_V8_SKIP_DOWNLOAD` environment variable
-
-Set `RUSTY_V8_SKIP_DOWNLOAD=1` to skip downloading the prebuilt static
-library. The small generated binding file is still fetched, so `cargo check`
-and rust-analyzer work without the (large) prebuilt artifact. Producing a
-binary still requires the static library: `cargo build` fails at link time
-until the crate is built again with the variable unset.
+Set `RUSTY_V8_SKIP_DOWNLOAD=1` to skip downloading the prebuilt static library.
+The small binding file is still fetched, so `cargo check` and rust-analyzer work
+without the (large) prebuilt artifact. Producing a binary still requires the
+static library: `cargo build` fails at link time until the crate is built again
+with the variable unset.
 
 This variable takes precedence over `RUSTY_V8_ARCHIVE` and `RUSTY_V8_MIRROR`
 (the static library is not fetched from anywhere, not even from a local
-archive), and it has no effect on `V8_FROM_SOURCE=1` builds. If the binding
-file cannot be fetched (for example, the configured mirror does not carry it)
-but a previously downloaded binding exists on disk, that file is reused with
-a warning instead of failing the build.
+archive), and it has no effect on `V8_FROM_SOURCE=1` builds. If the binding file
+cannot be fetched (for example, the configured mirror does not carry it) but a
+previously downloaded binding exists on disk, that file is reused with a warning
+instead of failing the build. A static library left behind by a previous build
+is likewise linked as-is, with a warning that it may be stale.
+
+### The `~/.cargo/.rusty_v8` download cache
+
+Before downloading a candidate URL (rows 3–5 above) over http(s), the build
+script looks for a copy in the `.rusty_v8` directory inside your Cargo home
+(usually `~/.cargo/.rusty_v8`). Entries are keyed on the release tag plus the
+artifact filename, with every non-alphanumeric character replaced by `_` — for
+example `v152.1.0/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz` becomes
+`v152_1_0_librusty_v8_release_x86_64_unknown_linux_gnu_a_gz`. Because the key
+does not include the source, a cache entry populated for one mirror also
+satisfies a build configured for a different mirror (or for the upstream
+release) under the same tag.
+
+The escaped full source URL, the key used by older versions of the build script,
+is still checked as a fallback, so existing caches keep working; remote
+`RUSTY_V8_ARCHIVE` / `RUSTY_V8_SRC_BINDING_URL` downloads are only matched under
+that full-URL key. The build script never writes to this cache; populate it by
+hand with files downloaded from the release page. Running `cargo build -vv`
+prints the exact cache paths the build script probes
+(`Looking for download in ...`).
+
+### Integrity and pinning
+
+The build script records the SHA-256 of every artifact it downloads (both of the
+fetched bytes and of the file as written to disk, in a `.sum` file next to the
+artifact) and transparently re-fetches an artifact whose content no longer
+matches, instead of trusting whatever is on disk.
+
+To pin the static library archive itself, set `RUSTY_V8_ARCHIVE_SHA256` to the
+SHA-256 of the archive. The pin covers the archive bytes as fetched, i.e. what
+`sha256sum` reports on the `.gz` release asset (or on the plain file when the
+archive is not gzipped), and it applies wherever the archive comes from — a
+download, the cache, or a local `RUSTY_V8_ARCHIVE` file. A cached copy that does
+not match is ignored and the archive is re-fetched; the build fails if the fresh
+download does not match either.
+
+The pin only covers the static library, not the binding file. It is not verified
+against a library that `RUSTY_V8_SKIP_DOWNLOAD=1` reuses from a previous build,
+and it has no effect on `V8_FROM_SOURCE=1` builds; both cases emit a
+`cargo:warning`.
 
 ## Build V8 from Source
 
@@ -228,9 +274,9 @@ sudo apt install libclang-21-dev
 export LIBCLANG_PATH=/usr/lib/llvm-21/lib
 ```
 
-Linux cross-builds normally discover Clang's builtin headers and the target
-libc headers from the host toolchain. For hermetic toolchains where those files
-are not installed in host search paths, set the explicit bindgen inputs:
+Linux cross-builds normally discover Clang's builtin headers and the target libc
+headers from the host toolchain. For hermetic toolchains where those files are
+not installed in host search paths, set the explicit bindgen inputs:
 
 ```bash
 export LIBCLANG_PATH=/path/to/libclang/lib
@@ -247,9 +293,9 @@ whose `include` child contains the target libc headers. Musl cross-builds use
 For Windows builds: the 64-bit toolchain needs to be used. 32-bit targets are
 not supported. The default source build downloads Chromium's pinned libclang
 automatically. If `$CLANG_BASE_PATH` is set to a custom LLVM installation,
-`$LIBCLANG_PATH` must point to the directory containing `libclang.dll`.
-The `tools/win` submodule is skipped because its standalone mirror is
-unreliable, so source builds must populate its pinned debugger visualizers:
+`$LIBCLANG_PATH` must point to the directory containing `libclang.dll`. The
+`tools/win` submodule is skipped because its standalone mirror is unreliable, so
+source builds must populate its pinned debugger visualizers:
 
 ```bash
 mkdir -p tools/win
@@ -296,17 +342,17 @@ is recommended.
 Arguments can be passed to `gn` by setting the `$GN_ARGS` environmental
 variable.
 
-For Linux targets, `rusty_v8` now defaults to defining
-`V8_TLS_USED_IN_LIBRARY` via GN args when building from source so the produced
-static archive can be linked into downstream `cdylib`/shared-library targets.
-The default injected argument is:
+For Linux targets, `rusty_v8` now defaults to defining `V8_TLS_USED_IN_LIBRARY`
+via GN args when building from source so the produced static archive can be
+linked into downstream `cdylib`/shared-library targets. The default injected
+argument is:
 
 ```bash
 GN_ARGS='extra_cflags=["-DV8_TLS_USED_IN_LIBRARY"]'
 ```
 
-Linux prebuilt release archives published by this repository are built with
-this shared-library-compatible TLS mode.
+Linux prebuilt release archives published by this repository are built with this
+shared-library-compatible TLS mode.
 
 Env vars used in when building from source: `SCCACHE`, `CCACHE`, `GN`, `NINJA`,
 `CLANG_BASE_PATH`, `GN_ARGS`
@@ -356,28 +402,6 @@ lead to crashes. You can work around this problem by using
 
 See https://github.com/denoland/rusty_v8/issues/1381
 
-## Download cache
-
-The v8 archives used for linking in prebuilt mode can be cached to avoid
-re-downloading archives when switching between branches that otherwise change
-the current rusty_v8 version.
-
-To populate the cache by hand, you'll need to place the files in the appropriate
-location in your `.cargo` folder. Running `cargo build -v -v` will print two
-lines that you can use to determine the correct file and cache location:
-
-```
-[v8 0.87.0] static lib URL: https://github.com/denoland/rusty_v8/releases/download/v0.87.0/librusty_v8_release_aarch64-apple-darwin.a.gz
-[v8 0.87.0] Looking for download in '"/Users/<name>/.cargo/.rusty_v8/https___github_com_denoland_rusty_v8_releases_download_v0_87_0_librusty_v8_release_aarch64_apple_darwin_a_gz"'
-```
-
-Given the above log output, use `curl` to download the file like so:
-
-```
-curl -L https://github.com/denoland/rusty_v8/releases/download/v0.87.0/librusty_v8_release_aarch64-apple-darwin.a.gz >
-  /Users/<name>/.cargo/.rusty_v8/https___github_com_denoland_rusty_v8_releases_download_v0_87_0_librusty_v8_release_aarch64_apple_darwin_a_gz
-```
-
 ## For maintainers
 
 **Cut a release**
@@ -396,6 +420,17 @@ $ V8_FROM_SOURCE=1 cargo build --release
 
 ## Experimental Features
 
-rusty_v8 includes experimental support for certain feature(s) that may be useful in security focused contexts but are not as well tested and do not undergo any sort of CI related testing or prebuilt archives. Due to their experimental status, these features require either ``V8_FROM_SOURCE=1`` to be set or the use of a custom-built archive of v8. 
+rusty_v8 includes experimental support for certain feature(s) that may be useful
+in security focused contexts but are not as well tested and do not undergo any
+sort of CI related testing or prebuilt archives. Due to their experimental
+status, these features require either `V8_FROM_SOURCE=1` to be set or the use of
+a custom-built archive of v8.
 
-- ``v8_enable_sandbox``: Enables v8 sandbox mode. The v8 sandbox enables improved safety while executing potentially malicious JavaScript code through the use of memory cages. Note that the v8 sandbox will allocate ~1TB of virtual memory (although this should not be an issue as many operating systems allow 128-256TB of virtual memory per process). Creating isolates with the sandbox enabled comes with API limitations and may have increased overhead. Note that enabling the V8 sandbox also implies pointer compression to be enabled as well.
+- `v8_enable_sandbox`: Enables v8 sandbox mode. The v8 sandbox enables improved
+  safety while executing potentially malicious JavaScript code through the use
+  of memory cages. Note that the v8 sandbox will allocate ~1TB of virtual memory
+  (although this should not be an issue as many operating systems allow
+  128-256TB of virtual memory per process). Creating isolates with the sandbox
+  enabled comes with API limitations and may have increased overhead. Note that
+  enabling the V8 sandbox also implies pointer compression to be enabled as
+  well.
