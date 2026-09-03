@@ -11314,6 +11314,17 @@ fn function_names() {
     let v8_name = func.get_name(scope);
     assert_eq!(v8_name.to_rust_string_lossy(scope), "");
   }
+
+  // v8::Function::GetName() returns undefined for callable proxies.
+  {
+    let func: v8::Local<v8::Function> =
+      eval(scope, "new Proxy(function () {}, {})")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let v8_name: v8::Local<v8::Value> = func.get_name(scope);
+    assert!(v8_name.is_undefined());
+  }
 }
 
 // https://github.com/denoland/rusty_v8/issues/849

@@ -55,7 +55,7 @@ unsafe extern "C" {
     argc: int,
     argv: *const *const Value,
   ) -> *const Object;
-  fn v8__Function__GetName(this: *const Function) -> *const String;
+  fn v8__Function__GetName(this: *const Function) -> *const Value;
   fn v8__Function__SetName(this: *const Function, name: *const String);
   fn v8__Function__GetScriptColumnNumber(this: *const Function) -> int;
   fn v8__Function__GetScriptLineNumber(this: *const Function) -> int;
@@ -1093,7 +1093,7 @@ impl Function {
   }
 
   #[inline(always)]
-  pub fn get_name<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
+  pub fn get_name<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, Value> {
     unsafe { scope.cast_local(|_| v8__Function__GetName(self)).unwrap() }
   }
 
