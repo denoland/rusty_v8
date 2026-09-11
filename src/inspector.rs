@@ -1144,7 +1144,7 @@ where
   }
 }
 
-unsafe impl<T> Send for CharacterArray<'_, T> where T: Copy {}
+unsafe impl<T> Send for CharacterArray<'_, T> where T: Sync {}
 unsafe impl<T> Sync for CharacterArray<'_, T> where T: Sync {}
 
 impl fmt::Display for CharacterArray<'_, u8> {
